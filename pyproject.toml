@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "shadowbane-lab"
+version = "0.1.0"
+description = "A deterministic, data-driven combat playground for evolving strange Shadowbane-style builds and policies."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+  { name = "shadowbane-lab contributors" }
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "ruff>=0.6"
+]
+
+[project.scripts]
+bane-lab = "banesim.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
