@@ -56,6 +56,10 @@ No GitHub credentials or tokens are used. The repository is cloned over public H
 The script never overwrites `configs/wonderbane.local.json`. Delete or rename that local file
 manually only when intentionally restarting calibration.
 
+Prerequisite installation is idempotent. Existing exact Winget packages are accepted without
+attempting an upgrade, and Git is discovered in both standard machine-wide and per-user
+locations even when the current PowerShell session has a stale `PATH`.
+
 ## After setup
 
 Launch WonderBane in its permanent window mode, resolution, and Windows scaling. Focus the

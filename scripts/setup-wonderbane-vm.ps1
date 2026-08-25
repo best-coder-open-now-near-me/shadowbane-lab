@@ -45,6 +45,20 @@ function Get-ExecutablePath {
     return $command.Source
 }
 
+function Test-WingetPackageInstalled {
+    param(
+        [string]$WingetPath,
+        [string]$PackageId
+    )
+    $listOutput = @(& $WingetPath list `
+        --id $PackageId `
+        --exact `
+        --source winget `
+        --accept-source-agreements `
+        --disable-interactivity 2>&1)
+    return $LASTEXITCODE -eq 0 -and ($listOutput -join "`n") -match [regex]::Escape($PackageId)
+}
+
 function Install-WingetPackage {
     param(
         [string]$PackageId,
@@ -54,17 +68,51 @@ function Install-WingetPackage {
     if ($null -eq $winget) {
         throw "Windows Package Manager (winget) is required to install $DisplayName. Install Microsoft App Installer, then rerun this script."
     }
+    if (Test-WingetPackageInstalled $winget $PackageId) {
+        Write-Host "$DisplayName is already installed."
+        Refresh-ProcessPath
+        return
+    }
     Write-Step "Installing $DisplayName"
-    Invoke-Native $winget @(
+    & $winget @(
         "install",
         "--id", $PackageId,
         "--exact",
         "--source", "winget",
         "--accept-package-agreements",
         "--accept-source-agreements",
-        "--silent"
+        "--silent",
+        "--disable-interactivity"
     )
+    $installExitCode = $LASTEXITCODE
+    if ($installExitCode -ne 0 -and -not (Test-WingetPackageInstalled $winget $PackageId)) {
+        throw "Winget failed to install $DisplayName with exit code $installExitCode."
+    }
     Refresh-ProcessPath
+}
+
+function Get-GitExecutable {
+    $candidates = @()
+    $commandPath = Get-ExecutablePath "git.exe"
+    if (-not [string]::IsNullOrWhiteSpace($commandPath)) {
+        $candidates += $commandPath
+    }
+    foreach ($root in @($env:ProgramFiles, ${env:ProgramFiles(x86)})) {
+        if (-not [string]::IsNullOrWhiteSpace($root)) {
+            $candidates += Join-Path $root "Git\cmd\git.exe"
+            $candidates += Join-Path $root "Git\bin\git.exe"
+        }
+    }
+    if (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
+        $candidates += Join-Path $env:LOCALAPPDATA "Programs\Git\cmd\git.exe"
+        $candidates += Join-Path $env:LOCALAPPDATA "Programs\Git\bin\git.exe"
+    }
+    foreach ($candidate in $candidates) {
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+            return $candidate
+        }
+    }
+    return $null
 }
 
 function Get-PythonLauncher {
@@ -120,13 +168,13 @@ if ([string]::IsNullOrWhiteSpace($InstallDirectory)) {
 }
 $InstallDirectory = [IO.Path]::GetFullPath($InstallDirectory)
 
-$git = Get-ExecutablePath "git.exe"
+$git = Get-GitExecutable
 if ($null -eq $git) {
     if ($SkipPrerequisiteInstall) {
         throw "Git is not installed and -SkipPrerequisiteInstall was supplied."
     }
     Install-WingetPackage "Git.Git" "Git for Windows"
-    $git = Get-ExecutablePath "git.exe"
+    $git = Get-GitExecutable
     if ($null -eq $git) {
         throw "Git installation completed but git.exe is not available in PATH. Open a new PowerShell window and rerun the script."
     }
