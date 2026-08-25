@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "entries": [
+    {
+      "gap_id": "SB-GAP-001",
+      "status": "open",
+      "category": "movement",
+      "scenario_pattern": "*",
+      "path_pattern": "trace/steps/*/*/entities/*/position/*",
+      "description": "Collision, acceleration, flight-layer movement, and terrain traversal require controlled emulator traces.",
+      "action_key": "shadowbane.move",
+      "max_absolute_delta": null,
+      "evidence_trace_ids": []
+    },
+    {
+      "gap_id": "SB-GAP-002",
+      "status": "open",
+      "category": "damage",
+      "scenario_pattern": "basic_attack.*",
+      "path_pattern": "trace/steps/*/after/entities/*/scalars/health",
+      "description": "Weapon timing, hit/defense resolution, damage rolls, resists, and procs are represented by a placeholder.",
+      "action_key": "shadowbane.basic_attack",
+      "max_absolute_delta": null,
+      "evidence_trace_ids": []
+    },
+    {
+      "gap_id": "SB-GAP-003",
+      "status": "open",
+      "category": "damage",
+      "scenario_pattern": "shadow_bolt.*",
+      "path_pattern": "trace/steps/*/after/entities/*/scalars/health",
+      "description": "Shadow Bolt currently uses a published-range midpoint without hit-roll, resist, or damage-distribution parity.",
+      "action_key": "shadowbane.assassin.shadow_bolt",
+      "max_absolute_delta": null,
+      "evidence_trace_ids": []
+    },
+    {
+      "gap_id": "SB-GAP-004",
+      "status": "open",
+      "category": "stacking",
+      "scenario_pattern": "shadow_bolt.*",
+      "path_pattern": "trace/steps/*/after/entities/*/effects/*/stacking_key",
+      "description": "Stun and immunity stack precedence must be checked against authoritative effect-stack traces.",
+      "action_key": "shadowbane.assassin.shadow_bolt",
+      "max_absolute_delta": null,
+      "evidence_trace_ids": []
+    },
+    {
+      "gap_id": "SB-GAP-005",
+      "status": "open",
+      "category": "damage",
+      "scenario_pattern": "psychic_healing.*",
+      "path_pattern": "trace/steps/*/after/entities/*/scalars/health",
+      "description": "Psychic Healing uses a published-range midpoint without heal-distribution or build-modifier parity.",
+      "action_key": "shadowbane.warlock.psychic_healing",
+      "max_absolute_delta": null,
+      "evidence_trace_ids": []
+    },
+    {
+      "gap_id": "SB-GAP-006",
+      "status": "open",
+      "category": "interruption",
+      "scenario_pattern": "passwall.*",
+      "path_pattern": "trace/steps/*",
+      "description": "Passwall remains non-executable pending ground-target, terrain, invisibility, and damage-interrupt semantics.",
+      "action_key": "shadowbane.assassin.passwall",
+      "max_absolute_delta": null,
+      "evidence_trace_ids": []
+    }
+  ]
+}

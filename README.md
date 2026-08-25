@@ -16,9 +16,11 @@ identifiers.
 
 ## Current status
 
-The versioned protocol, typed action algebra, and deterministic scalar reference environment
-are implemented. The next vertical slice compiles representative Shadowbane mechanics into
-that generic core. See [the architecture](docs/architecture.md) and
+The versioned protocol, typed action algebra, deterministic scalar reference environment, and
+first provenance-aware Shadowbane ruleset slice are implemented. Differential traces can now
+record and compare simulator and emulator semantics without relying on producer-specific IDs.
+See [the architecture](docs/architecture.md),
+[differential-validation contract](docs/differential-validation.md), and
 [development plan](docs/plan.md).
 
 ## Local validation
