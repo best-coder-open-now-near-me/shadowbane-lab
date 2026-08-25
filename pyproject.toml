@@ -23,6 +23,7 @@ learning = [
 ]
 client = [
     "PyAutoGUI>=0.9.54",
+    "Pillow>=11.0",
 ]
 test = [
     "jsonschema>=4.23",

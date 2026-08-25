@@ -12,10 +12,18 @@ from pathlib import Path
 
 from shadowbane_lab.client_input import (
     CalibrationLoadError,
+    WindowGuardError,
     WindowsForegroundWindowInspector,
     WindowSnapshot,
     WindowsVisibleWindowInspector,
     load_calibration,
+)
+from shadowbane_lab.client_observation import (
+    ClientTargetObserver,
+    ObservationCalibrationLoadError,
+    ObservationDetectionError,
+    PyAutoGuiFrameCapture,
+    load_observation_calibration,
 )
 
 
@@ -61,6 +69,32 @@ def _parser() -> argparse.ArgumentParser:
     )
     validate.add_argument("profile", type=Path)
     validate.add_argument("--json", action="store_true", help="emit machine-readable JSON")
+
+    observe_target = client_commands.add_parser(
+        "observe-target",
+        help="read target presence and health from the guarded foreground client",
+    )
+    observe_target.add_argument(
+        "--client-profile",
+        type=Path,
+        required=True,
+        help="validated client input/window profile",
+    )
+    observe_target.add_argument(
+        "--observation-profile",
+        type=Path,
+        required=True,
+        help="target-frame pixel calibration paired with the client profile",
+    )
+    observe_target.add_argument(
+        "--wait-seconds",
+        type=float,
+        default=0.0,
+        help="maximum time to wait for the calibrated client to become foreground",
+    )
+    observe_target.add_argument(
+        "--json", action="store_true", help="emit machine-readable JSON"
+    )
     return parser
 
 
@@ -207,6 +241,70 @@ def _validate_profile(path: Path, *, as_json: bool) -> int:
     return 0
 
 
+def _observe_target(
+    client_profile_path: Path,
+    observation_profile_path: Path,
+    *,
+    wait_seconds: float,
+    as_json: bool,
+) -> int:
+    if wait_seconds < 0:
+        return _error("wait-seconds must not be negative", as_json=as_json)
+    try:
+        client_profile = load_calibration(client_profile_path)
+        observation_profile = load_observation_calibration(observation_profile_path)
+        observer = ClientTargetObserver(
+            client_profile,
+            observation_profile,
+            WindowsForegroundWindowInspector(),
+            PyAutoGuiFrameCapture(),
+        )
+    except (
+        CalibrationLoadError,
+        ObservationCalibrationLoadError,
+        OSError,
+        RuntimeError,
+        ValueError,
+    ) as exc:
+        return _error(f"target observation failed: {exc}", as_json=as_json)
+
+    deadline = time.monotonic() + wait_seconds
+    while True:
+        try:
+            observation = observer.observe()
+            break
+        except WindowGuardError as exc:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return _error(f"target observation failed: {exc}", as_json=as_json)
+            time.sleep(min(0.1, remaining))
+        except (ObservationDetectionError, OSError, RuntimeError, ValueError) as exc:
+            return _error(f"target observation failed: {exc}", as_json=as_json)
+    payload = {
+        "ok": True,
+        "profile_id": observation_profile.profile_id,
+        "target_present": observation.target_present,
+        "health_fraction": observation.health_fraction,
+        "leading_filled_columns": observation.leading_filled_columns,
+        "total_filled_columns": observation.total_filled_columns,
+        "total_columns": observation.total_columns,
+        "red_pixel_count": observation.red_pixel_count,
+        "stray_filled_columns": observation.stray_filled_columns,
+    }
+    if as_json:
+        print(json.dumps(payload, sort_keys=True))
+    else:
+        print(f"Target present: {observation.target_present}")
+        if observation.health_fraction is not None:
+            print(f"Health: {observation.health_fraction:.1%}")
+        print(
+            "Health fill: "
+            f"{observation.leading_filled_columns}/{observation.total_columns} columns"
+        )
+        print(f"Stray filled columns: {observation.stray_filled_columns}")
+    return 0
+
+
 def _error(message: str, *, as_json: bool) -> int:
     if as_json:
         print(json.dumps({"ok": False, "error": message}, sort_keys=True))
@@ -228,6 +326,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
     if arguments.command == "client" and arguments.client_command == "validate-profile":
         return _validate_profile(arguments.profile, as_json=arguments.json)
+    if arguments.command == "client" and arguments.client_command == "observe-target":
+        return _observe_target(
+            arguments.client_profile,
+            arguments.observation_profile,
+            wait_seconds=arguments.wait_seconds,
+            as_json=arguments.json,
+        )
     raise RuntimeError("unreachable command")
 
 

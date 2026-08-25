@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "profile_id": "wonderbane-target-frame-1920x955",
+  "client_profile_id": "wonderbane-vm-1920x955",
+  "target_health_bar": {
+    "region": {
+      "left": 340,
+      "top": 3,
+      "width": 122,
+      "height": 10
+    },
+    "red_threshold": {
+      "minimum_red": 100,
+      "red_to_green_ratio": 1.8,
+      "red_to_blue_ratio": 1.8
+    },
+    "minimum_red_pixels_per_column": 3,
+    "minimum_present_columns": 1,
+    "maximum_stray_columns": 2
+  }
+}

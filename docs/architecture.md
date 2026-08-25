@@ -10,8 +10,8 @@ The project has four durable layers:
    concrete emulator mappings with provenance.
 3. **Policies** — utility controllers, evolutionary optimization, quality-diversity
    archives, and learned policies.
-4. **Adapters** — simulator execution, authoritative server commands, and guarded client
-   input.
+4. **Adapters** — simulator execution, authoritative server commands, guarded client input,
+   and read-only client observation.
 
 The layers communicate through a single versioned protocol:
 
@@ -50,6 +50,11 @@ Adapters own concrete mappings:
 Every adapter reports results through the same event vocabulary. Correlation identifiers
 link observations, decisions, input traces, emulator requests, and resulting events.
 
+Client observation is split into capture, recognition, and presentation. Calibrated recognizers
+emit typed state or combat events; a click-through overlay is only one consumer. This keeps
+screen pixels and OCR output out of policy code and lets differential recording consume the same
+semantic stream without depending on the overlay.
+
 ## Trust boundaries
 
 - The simulator is authoritative only inside a simulated world.
@@ -57,6 +62,8 @@ link observations, decisions, input traces, emulator requests, and resulting eve
 - A policy cannot mutate live health, resources, effects, or ownership directly.
 - A client-input adapter may operate only while its approved target window and calibration
   profile remain valid.
+- A client-observation adapter may capture only the approved foreground client rectangle and
+  must fail closed when dimensions, DPI, profile pairing, or calibrated visual structure changes.
 - Template and dry-run calibration profiles cannot dispatch through a live desktop backend;
   live input requires an explicit per-profile confirmation bit.
 - Recorded or dry-run input adapters are used in automated tests; test execution must not
