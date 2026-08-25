@@ -69,16 +69,27 @@ function Install-WingetPackage {
 
 function Get-PythonLauncher {
     $py = Get-ExecutablePath "py.exe"
-    if ($null -ne $py) {
-        & $py -3.11 -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)" 2>$null
-        if ($LASTEXITCODE -eq 0) {
-            return [PSCustomObject]@{ FilePath = $py; Prefix = @("-3.11") }
+    if ($null -ne $py -and $py -notmatch "\\Microsoft\\WindowsApps\\") {
+        foreach ($version in @("3.12", "3.13", "3.11")) {
+            & $py "-$version" -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)" 2>$null
+            if ($LASTEXITCODE -eq 0) {
+                return [PSCustomObject]@{ FilePath = $py; Prefix = @("-$version") }
+            }
         }
     }
 
-    foreach ($name in @("python.exe", "python3.exe")) {
-        $candidate = Get-ExecutablePath $name
-        if ($null -eq $candidate) {
+    $knownPythonPaths = @(
+        (Get-ExecutablePath "python.exe"),
+        (Get-ExecutablePath "python3.exe"),
+        (Join-Path $env:LOCALAPPDATA "Programs\Python\Python312\python.exe"),
+        (Join-Path $env:ProgramFiles "Python312\python.exe")
+    )
+    foreach ($candidate in $knownPythonPaths) {
+        if (
+            [string]::IsNullOrWhiteSpace($candidate) -or
+            $candidate -match "\\Microsoft\\WindowsApps\\" -or
+            -not (Test-Path -LiteralPath $candidate)
+        ) {
             continue
         }
         & $candidate -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)" 2>$null
@@ -126,10 +137,10 @@ if ($null -eq $python) {
     if ($SkipPrerequisiteInstall) {
         throw "Python 3.11+ is not installed and -SkipPrerequisiteInstall was supplied."
     }
-    Install-WingetPackage "Python.Python.3.11" "Python 3.11"
+    Install-WingetPackage "Python.Python.3.12" "Python 3.12 from python.org"
     $python = Get-PythonLauncher
     if ($null -eq $python) {
-        throw "Python installation completed but Python 3.11 is not available. Open a new PowerShell window and rerun the script."
+        throw "Python installation completed but a compatible interpreter is not available. Disable Windows App Execution Aliases for python.exe/python3.exe, open a new PowerShell window, and rerun the script."
     }
 }
 

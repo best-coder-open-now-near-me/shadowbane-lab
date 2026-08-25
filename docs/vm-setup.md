@@ -6,7 +6,8 @@ live-locked WonderBane calibration. It does not install or modify WonderBane its
 The script performs these operations in order:
 
 1. Install Git for Windows through `winget` if Git is absent.
-2. Install Python 3.11 through `winget` if a compatible Python is absent.
+2. Install Python 3.12 directly from the Python Software Foundation's `winget` package if a
+   compatible Python is absent. Microsoft Store App Execution Alias stubs are ignored.
 3. Clone the public `feat/simulator-foundation` branch without GitHub authentication, or
    use the checkout containing the script.
 4. Create `.venv` and install the editable project with test and PyAutoGUI dependencies.
