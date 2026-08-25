@@ -23,6 +23,7 @@ without relying on producer-specific IDs. The input adapter compiles the same se
 decisions into calibrated plans and keeps live PyAutoGUI input locked behind window guards,
 an emergency stop, and explicit profile confirmation. See [the architecture](docs/architecture.md),
 [client-input runbook](docs/client-input-harness.md),
+[automated VM setup](docs/vm-setup.md),
 [differential-validation contract](docs/differential-validation.md), and
 [development plan](docs/plan.md).
 

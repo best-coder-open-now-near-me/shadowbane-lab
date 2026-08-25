@@ -8,6 +8,10 @@ The public WonderBane client values have not been guessed. Start from
 `configs/wonderbane.template.json`, keep `live_input_enabled` set to `false`, and replace
 every placeholder from the locally installed, approved client.
 
+For a fresh game VM, run the [automated VM bootstrap](vm-setup.md) first. It installs Git,
+Python, the project, test tools, and PyAutoGUI dependencies without requiring GitHub
+authentication.
+
 ## Safety boundary
 
 Every click, drag, key press, and hotkey is serialized and immediately preceded by checks
