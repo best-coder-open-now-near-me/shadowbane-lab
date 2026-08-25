@@ -2,7 +2,6 @@ import json
 import unittest
 
 from shadowbane_lab.protocol import ProtocolDecodeError, decode_message, encode_message
-
 from tests.fixtures import protocol_exchange
 
 
@@ -19,7 +18,9 @@ class ProtocolCodecTests(unittest.TestCase):
         second = encode_message(decode_message(first))
 
         self.assertEqual(first, second)
-        self.assertEqual(first, json.dumps(json.loads(first), separators=(",", ":"), sort_keys=True))
+        self.assertEqual(
+            first, json.dumps(json.loads(first), separators=(",", ":"), sort_keys=True)
+        )
 
     def test_unknown_protocol_version_fails_closed(self) -> None:
         decision = protocol_exchange()[2]

@@ -11,7 +11,6 @@ from shadowbane_lab.protocol import (
     Vector2,
     validate_exchange,
 )
-
 from tests.fixtures import protocol_exchange
 
 

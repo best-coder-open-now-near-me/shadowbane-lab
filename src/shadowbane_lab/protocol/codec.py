@@ -129,9 +129,7 @@ def _observation_from_dict(data: Mapping[str, Any]) -> ObservationMessage:
         tick=_integer(data, "tick"),
         sim_time_ms=_integer(data, "sim_time_ms"),
         entities=tuple(_entity_from_dict(item) for item in _objects(data, "entities")),
-        global_scalars=tuple(
-            _scalar_from_dict(item) for item in _objects(data, "global_scalars")
-        ),
+        global_scalars=tuple(_scalar_from_dict(item) for item in _objects(data, "global_scalars")),
         active=_boolean(data, "active"),
     )
 
@@ -142,9 +140,7 @@ def _affordance_set_from_dict(data: Mapping[str, Any]) -> AffordanceSetMessage:
         observation_id=_string(data, "observation_id"),
         agent_id=_string(data, "agent_id"),
         tick=_integer(data, "tick"),
-        affordances=tuple(
-            _affordance_from_dict(item) for item in _objects(data, "affordances")
-        ),
+        affordances=tuple(_affordance_from_dict(item) for item in _objects(data, "affordances")),
     )
 
 

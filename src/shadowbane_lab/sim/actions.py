@@ -288,6 +288,18 @@ EffectPrimitive = (
     | ModifyObjective
 )
 
+_EFFECT_TYPES = (
+    ModifyScalar,
+    DealDamage,
+    RestoreResource,
+    ModifyTag,
+    ApplyEffect,
+    RemoveEffect,
+    MoveEntity,
+    TransferItem,
+    ModifyObjective,
+)
+
 
 @dataclass(frozen=True, slots=True)
 class ActionPhase:
@@ -304,6 +316,8 @@ class ActionPhase:
         _non_negative_integer(self.duration_ms, "duration_ms")
         if not isinstance(self.delivery, DeliverySpec):
             raise ValueError("delivery must be a DeliverySpec")
+        if any(not isinstance(effect, _EFFECT_TYPES) for effect in self.effects):
+            raise ValueError("effects must contain typed effect primitives")
         if not isinstance(self.interruptible, bool):
             raise ValueError("interruptible must be a boolean")
         if not isinstance(self.movement_allowed, bool):
@@ -332,13 +346,19 @@ class ActionSpec:
             raise ValueError("targeting must be a TargetingSpec")
         if not self.phases:
             raise ValueError("an action requires at least one phase")
+        if any(not isinstance(phase, ActionPhase) for phase in self.phases):
+            raise ValueError("phases must contain ActionPhase values")
         _non_negative_integer(self.cooldown_ms, "cooldown_ms")
+        if any(not isinstance(cost, ResourceCost) for cost in self.costs):
+            raise ValueError("costs must contain ResourceCost values")
         cost_resources = tuple(cost.resource_key for cost in self.costs)
         _unique_strings(cost_resources, "cost resource keys")
         _unique_strings(self.required_actor_tags, "required_actor_tags")
         _unique_strings(self.forbidden_actor_tags, "forbidden_actor_tags")
         if set(self.required_actor_tags) & set(self.forbidden_actor_tags):
             raise ValueError("an actor tag cannot be both required and forbidden")
+        if any(not isinstance(feature, NamedScalar) for feature in self.features):
+            raise ValueError("features must contain NamedScalar values")
         feature_names = tuple(feature.name for feature in self.features)
         _unique_strings(feature_names, "feature names")
         _unique_strings(self.tags, "tags")
@@ -348,6 +368,8 @@ class ActionCatalog:
     """Immutable, deterministically ordered collection of compiled actions."""
 
     def __init__(self, actions: tuple[ActionSpec, ...]) -> None:
+        if any(not isinstance(action, ActionSpec) for action in actions):
+            raise ValueError("actions must contain ActionSpec values")
         keys = tuple(action.action_key for action in actions)
         _unique_strings(keys, "action keys")
         self._actions = tuple(sorted(actions, key=lambda action: action.action_key))

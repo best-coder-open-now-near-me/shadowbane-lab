@@ -25,6 +25,8 @@ from shadowbane_lab.sim.actions import (
     TransferItem,
 )
 from shadowbane_lab.sim.clock import ClockSnapshot, SimulationClock
+from shadowbane_lab.sim.environment import ReferenceEnvironment
+from shadowbane_lab.sim.errors import SimulationConfigurationError
 from shadowbane_lab.sim.random_source import (
     DeterministicRandom,
     RandomSnapshot,
@@ -35,11 +37,18 @@ from shadowbane_lab.sim.state import (
     EntitySnapshot,
     EntityState,
 )
+from shadowbane_lab.sim.timeline import (
+    AgentExchange,
+    EnvironmentSnapshot,
+    ScheduledItem,
+    ScheduledKind,
+)
 
 __all__ = [
     "ActionCatalog",
     "ActionPhase",
     "ActionSpec",
+    "AgentExchange",
     "ApplyEffect",
     "ActiveEffectSnapshot",
     "ActiveEffectState",
@@ -51,6 +60,7 @@ __all__ = [
     "EffectPrimitive",
     "EntitySnapshot",
     "EntityState",
+    "EnvironmentSnapshot",
     "ModifyObjective",
     "ModifyScalar",
     "ModifyTag",
@@ -58,11 +68,15 @@ __all__ = [
     "MovementMode",
     "PhaseKind",
     "RandomSnapshot",
+    "ReferenceEnvironment",
     "RemoveEffect",
     "ResourceCost",
     "RestoreResource",
     "ScalarOperation",
     "SimulationClock",
+    "ScheduledItem",
+    "ScheduledKind",
+    "SimulationConfigurationError",
     "SubjectRef",
     "TagOperation",
     "TargetingSpec",

@@ -316,6 +316,4 @@ class EventBatchMessage:
         _require_unique(event_ids, "event ids")
 
 
-ProtocolMessage = (
-    ObservationMessage | AffordanceSetMessage | DecisionMessage | EventBatchMessage
-)
+ProtocolMessage = ObservationMessage | AffordanceSetMessage | DecisionMessage | EventBatchMessage

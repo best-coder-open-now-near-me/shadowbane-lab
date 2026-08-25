@@ -50,8 +50,12 @@ class ActiveEffectState:
             or not isfinite(self.magnitude)
         ):
             raise ValueError("magnitude must be finite")
-        if self.expires_at_ms < 0:
-            raise ValueError("expires_at_ms must not be negative")
+        if (
+            isinstance(self.expires_at_ms, bool)
+            or not isinstance(self.expires_at_ms, int)
+            or self.expires_at_ms < 0
+        ):
+            raise ValueError("expires_at_ms must be a non-negative integer")
         if self.stacking_key is not None:
             _identifier(self.stacking_key, "stacking_key")
         self.tags = set(self.tags)
@@ -148,22 +152,27 @@ class EntityState:
             _identifier(storage_key, "effect storage key")
             if not isinstance(effect, ActiveEffectState):
                 raise ValueError("effects must contain ActiveEffectState values")
+            expected_storage_key = effect.stacking_key or effect.effect_key
+            if storage_key != expected_storage_key:
+                raise ValueError("effect storage keys must match stacking_key or effect_key")
         self.cooldowns = dict(self.cooldowns)
         for action_key, ready_at_ms in self.cooldowns.items():
             _identifier(action_key, "cooldown action key")
-            if ready_at_ms < 0:
-                raise ValueError("cooldown timestamps must not be negative")
-        if self.busy_until_ms < 0:
-            raise ValueError("busy_until_ms must not be negative")
+            if isinstance(ready_at_ms, bool) or not isinstance(ready_at_ms, int) or ready_at_ms < 0:
+                raise ValueError("cooldown timestamps must be non-negative integers")
+        if (
+            isinstance(self.busy_until_ms, bool)
+            or not isinstance(self.busy_until_ms, int)
+            or self.busy_until_ms < 0
+        ):
+            raise ValueError("busy_until_ms must be a non-negative integer")
         if not isinstance(self.alive, bool):
             raise ValueError("alive must be a boolean")
 
     @property
     def effective_tags(self) -> frozenset[str]:
         effect_tags = {
-            tag
-            for effect in self.effects.values()
-            for tag in (effect.effect_key, *effect.tags)
+            tag for effect in self.effects.values() for tag in (effect.effect_key, *effect.tags)
         }
         return frozenset(self.tags | effect_tags)
 
@@ -179,12 +188,8 @@ class EntityState:
             maximums=tuple(sorted((key, float(value)) for key, value in self.maximums.items())),
             tags=tuple(sorted(self.tags)),
             action_keys=tuple(sorted(self.action_keys)),
-            inventory=tuple(
-                sorted((key, float(value)) for key, value in self.inventory.items())
-            ),
-            effects=tuple(
-                self.effects[key].snapshot() for key in sorted(self.effects)
-            ),
+            inventory=tuple(sorted((key, float(value)) for key, value in self.inventory.items())),
+            effects=tuple(self.effects[key].snapshot() for key in sorted(self.effects)),
             cooldowns=tuple(sorted(self.cooldowns.items())),
             busy_until_ms=self.busy_until_ms,
             alive=self.alive,

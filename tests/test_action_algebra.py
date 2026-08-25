@@ -196,6 +196,14 @@ class ActionAlgebraTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "allowed relation"):
             TargetingSpec(kind=TargetKind.ENTITY)
 
+    def test_action_rejects_untyped_effects_during_configuration(self) -> None:
+        with self.assertRaisesRegex(ValueError, "typed effect primitives"):
+            ActionPhase(
+                kind=PhaseKind.ACTIVE,
+                duration_ms=0,
+                effects=(object(),),  # type: ignore[arg-type]
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -69,3 +69,20 @@ a wire-version change when older consumers can safely ignore them.
 The protocol uses deterministic canonical JSON for logs, fixtures, sidecar communication,
 and differential validation. A future binary transport may wrap the same logical messages
 without changing policy semantics.
+
+## Reference execution semantics
+
+The scalar `ReferenceEnvironment` is the correctness oracle for later optimized backends.
+It uses a virtual fixed-tick clock and a specified PCG32 random stream. Every pending phase,
+projectile delivery, effect expiry, entity value, cooldown, clock value, random state, and
+event counter is included in an immutable snapshot.
+
+All decisions submitted for one tick are validated against the same pre-step state. Effects
+scheduled for the same virtual timestamp use a stable order while sharing the set of entities
+that were alive at the start of that timestamp; consequently, simultaneous lethal actions
+can produce mutual death. Precise Shadowbane conflict and stacking rules will replace generic
+ordering where differential traces establish authoritative behavior.
+
+The initial spatial model is an unobstructed continuous 2D plane. Range and projectile travel
+are enforced. Line-of-sight constraints are retained in compiled action data and will become
+active when obstacle geometry enters the Shadowbane vertical slice.

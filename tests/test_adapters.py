@@ -1,7 +1,6 @@
 import unittest
 
 from shadowbane_lab.protocol import DecisionAdapter, RecordingDecisionAdapter
-
 from tests.fixtures import protocol_exchange
 
 

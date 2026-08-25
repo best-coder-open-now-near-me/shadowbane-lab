@@ -16,8 +16,9 @@ identifiers.
 
 ## Current status
 
-The repository is establishing the versioned protocol and adapter boundaries before the
-simulation kernel. See [the architecture](docs/architecture.md) and
+The versioned protocol, typed action algebra, and deterministic scalar reference environment
+are implemented. The next vertical slice compiles representative Shadowbane mechanics into
+that generic core. See [the architecture](docs/architecture.md) and
 [development plan](docs/plan.md).
 
 ## Local validation

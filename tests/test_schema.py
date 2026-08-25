@@ -3,7 +3,6 @@ import unittest
 from pathlib import Path
 
 from shadowbane_lab.protocol import encode_message
-
 from tests.fixtures import protocol_exchange
 
 try:
