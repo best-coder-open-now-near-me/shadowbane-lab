@@ -56,17 +56,13 @@ def load_shadowbane_vertical_slice(
     *, rank_overrides: Mapping[str, int] | None = None
 ) -> CompiledRuleset:
     resource = files("shadowbane_lab.rulesets").joinpath("data/shadowbane_vertical_slice_v1.json")
-    return load_ruleset_text(
-        resource.read_text(encoding="utf-8"), rank_overrides=rank_overrides
-    )
+    return load_ruleset_text(resource.read_text(encoding="utf-8"), rank_overrides=rank_overrides)
 
 
 def load_ruleset(
     path: str | Path, *, rank_overrides: Mapping[str, int] | None = None
 ) -> CompiledRuleset:
-    return load_ruleset_text(
-        Path(path).read_text(encoding="utf-8"), rank_overrides=rank_overrides
-    )
+    return load_ruleset_text(Path(path).read_text(encoding="utf-8"), rank_overrides=rank_overrides)
 
 
 def load_ruleset_text(
@@ -178,9 +174,7 @@ def _parse_progression(data: Mapping[str, Any]) -> PowerProgression | None:
     )
 
 
-def _parse_requirements(
-    data: Mapping[str, Any], key: str
-) -> tuple[TrainingRequirement, ...]:
+def _parse_requirements(data: Mapping[str, Any], key: str) -> tuple[TrainingRequirement, ...]:
     return tuple(
         TrainingRequirement(
             training_key=_string(item, "training_key"),

@@ -107,9 +107,7 @@ class ReferenceEnvironmentTests(unittest.TestCase):
             ),
             seed=1,
         )
-        decision = action_for(
-            environment, "a", "stun", target_id="b", correlation_id="stun-b"
-        )
+        decision = action_for(environment, "a", "stun", target_id="b", correlation_id="stun-b")
 
         environment.step((decision,))
 
@@ -158,9 +156,7 @@ class ReferenceEnvironmentTests(unittest.TestCase):
             ),
             seed=1,
         )
-        decision = action_for(
-            environment, "a", "stun", target_id="b", correlation_id="immune"
-        )
+        decision = action_for(environment, "a", "stun", target_id="b", correlation_id="immune")
 
         events = environment.step((decision,)).events
 

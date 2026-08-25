@@ -86,12 +86,8 @@ class DuelRolloutTests(unittest.TestCase):
         self.assertIn(PSYCHIC_HEALING, warlock_26)
 
     def test_invisibility_requires_fade_rank_eighteen(self) -> None:
-        low = matched_progression_duels(
-            levels=(19,), power_ranks=(10,), max_ticks=1
-        )[0][2]
-        high = matched_progression_duels(
-            levels=(19,), power_ranks=(20,), max_ticks=1
-        )[0][2]
+        low = matched_progression_duels(levels=(19,), power_ranks=(10,), max_ticks=1)[0][2]
+        high = matched_progression_duels(levels=(19,), power_ranks=(20,), max_ticks=1)[0][2]
 
         self.assertNotIn(INVISIBILITY, low.combatants[0].available_actions)
         self.assertIn(INVISIBILITY, high.combatants[0].available_actions)
@@ -119,9 +115,7 @@ class DuelRolloutTests(unittest.TestCase):
         self.assertEqual(first.trace_digest, second.trace_digest)
 
     def test_rank_brackets_change_compiled_power_usage_or_outcome(self) -> None:
-        results = matched_progression_duels(
-            levels=(26,), power_ranks=(0, 40), max_ticks=1_200
-        )
+        results = matched_progression_duels(levels=(26,), power_ranks=(0, 40), max_ticks=1_200)
 
         low = results[0][2]
         high = results[1][2]
@@ -130,12 +124,8 @@ class DuelRolloutTests(unittest.TestCase):
 
     def test_time_limit_is_reported_as_truncation_without_a_winner(self) -> None:
         config = DuelConfig(
-            left=CombatantConfig(
-                "assassin", "red", progression_build("assassin", 10, 0)
-            ),
-            right=CombatantConfig(
-                "warlock", "blue", progression_build("warlock", 10, 0)
-            ),
+            left=CombatantConfig("assassin", "red", progression_build("assassin", 10, 0)),
+            right=CombatantConfig("warlock", "blue", progression_build("warlock", 10, 0)),
             max_ticks=1,
         )
 
@@ -213,9 +203,7 @@ class DuelRolloutTests(unittest.TestCase):
         self.assertEqual(2, len(cells))
         for cell in cells:
             self.assertEqual(2, cell.matches)
-            self.assertEqual(
-                cell.matches, cell.assassin_wins + cell.warlock_wins + cell.draws
-            )
+            self.assertEqual(cell.matches, cell.assassin_wins + cell.warlock_wins + cell.draws)
             self.assertEqual(1, cell.unique_trace_count)
 
     def test_cli_emits_machine_readable_results(self) -> None:

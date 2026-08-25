@@ -23,8 +23,7 @@ def decision(environment: ReferenceEnvironment, actor_id: str, action_key: str, 
     selected = next(
         affordance
         for affordance in exchange.affordances.affordances
-        if affordance.action_key == action_key
-        and affordance.binding.target_entity_id == target_id
+        if affordance.action_key == action_key and affordance.binding.target_entity_id == target_id
     )
     return exchange.decision(selected.affordance_id, f"{actor_id}:{action_key}")
 

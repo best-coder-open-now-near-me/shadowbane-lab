@@ -294,9 +294,7 @@ class CompiledRuleset:
         if not isinstance(build, CharacterBuild):
             raise ValueError("build must be a CharacterBuild")
         power_records = {
-            record.action_key: record
-            for record in self.records
-            if record.progression is not None
+            record.action_key: record for record in self.records if record.progression is not None
         }
         known_power_keys = set(power_records)
         supplied_power_keys = {key for key, _ in build.power_ranks}

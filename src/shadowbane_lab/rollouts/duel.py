@@ -197,9 +197,7 @@ class DuelResult:
                     "mana_spent": item.mana_spent,
                     "stamina_spent": item.stamina_spent,
                     "rejected_actions": item.rejected_actions,
-                    "actions": {
-                        action.action_key: action.count for action in item.actions
-                    },
+                    "actions": {action.action_key: action.count for action in item.actions},
                 }
                 for item in self.combatants
             ],
@@ -255,9 +253,7 @@ class UtilityDuelPolicy:
         self._action_keys = frozenset(action_keys)
         self._heal_threshold = heal_threshold
 
-    def decide(
-        self, exchange: AgentExchange, correlation_id: str
-    ) -> DecisionMessage | None:
+    def decide(self, exchange: AgentExchange, correlation_id: str) -> DecisionMessage | None:
         affordances = exchange.affordances.affordances
         if not affordances:
             return None
@@ -273,8 +269,7 @@ class UtilityDuelPolicy:
             if entity.relation is Relation.ENEMY
         }
         scored = tuple(
-            (self._score(item, actor, health, enemies, exchange), item)
-            for item in affordances
+            (self._score(item, actor, health, enemies, exchange), item) for item in affordances
         )
         score, selected = max(
             scored,
@@ -315,9 +310,7 @@ class UtilityDuelPolicy:
         control_ms = features.get("control_duration_ms", 0.0)
         target_id = affordance.binding.target_entity_id
         target = enemies.get(target_id or "")
-        if target is not None and (
-            "immunity.stun" in target.tags or "control.stun" in target.tags
-        ):
+        if target is not None and ("immunity.stun" in target.tags or "control.stun" in target.tags):
             control_ms = 0.0
         if expected_damage > 0.0 or control_ms > 0.0:
             score = expected_damage * 1_000.0 / commitment_ms + control_ms / 300.0
@@ -365,9 +358,7 @@ class UtilityDuelPolicy:
             entity for entity in exchange.observation.entities if entity.relation is Relation.SELF
         )
         enemies = tuple(
-            entity
-            for entity in exchange.observation.entities
-            if entity.relation is Relation.ENEMY
+            entity for entity in exchange.observation.entities if entity.relation is Relation.ENEMY
         )
         if not enemies or affordance.binding.direction is None:
             return float("-inf")
@@ -420,9 +411,7 @@ def run_duel(config: DuelConfig) -> DuelResult:
             )
             if decision is not None:
                 decisions.append(decision)
-        batch = environment.step(
-            tuple(decisions), truncated=step_number == config.max_ticks - 1
-        )
+        batch = environment.step(tuple(decisions), truncated=step_number == config.max_ticks - 1)
         events.extend(batch.events)
         cancelled_scheduled_items += _cancel_dead_actor_schedule(environment)
         if batch.world_terminated:
@@ -432,9 +421,7 @@ def run_duel(config: DuelConfig) -> DuelResult:
     states = {item.entity_id: environment.entity(item.entity_id) for item in combatants}
     living = tuple(entity_id for entity_id, state in states.items() if state.alive)
     winner = living[0] if len(living) == 1 else None
-    results = tuple(
-        _combatant_result(item, states[item.entity_id], events) for item in combatants
-    )
+    results = tuple(_combatant_result(item, states[item.entity_id], events) for item in combatants)
     final_distance = _distance(
         states[config.left.entity_id].position, states[config.right.entity_id].position
     )
@@ -539,9 +526,7 @@ def progression_duel_matrix(
                             result.reason is TerminationReason.TIME_LIMIT for result in results
                         ),
                         mean_ticks=fmean(result.ticks for result in results),
-                        unique_trace_count=len(
-                            {result.trace_digest for result in results}
-                        ),
+                        unique_trace_count=len({result.trace_digest for result in results}),
                         sample=results[0],
                     )
                 )
@@ -568,8 +553,7 @@ def progression_build(profession: str, level: int, rank: int) -> CharacterBuild:
         level=level,
         skill_ranks=skills,
         power_ranks=tuple(
-            (action_key, min(rank, maximum_rank))
-            for action_key, maximum_rank in power_limits
+            (action_key, min(rank, maximum_rank)) for action_key, maximum_rank in power_limits
         ),
     )
 
@@ -692,9 +676,7 @@ def _trace_digest(events: list[Event]) -> str:
         }
         for event in events
     ]
-    encoded = json.dumps(
-        semantic_trace, sort_keys=True, separators=(",", ":")
-    ).encode("utf-8")
+    encoded = json.dumps(semantic_trace, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return sha256(encoded).hexdigest()
 
 
