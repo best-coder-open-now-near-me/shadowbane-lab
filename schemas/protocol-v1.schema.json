@@ -1,0 +1,325 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://shadowbane-lab.invalid/schemas/protocol-v1.schema.json",
+  "title": "shadowbane-lab protocol version 1",
+  "oneOf": [
+    { "$ref": "#/$defs/observation" },
+    { "$ref": "#/$defs/affordanceSet" },
+    { "$ref": "#/$defs/decision" },
+    { "$ref": "#/$defs/eventBatch" }
+  ],
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": ".*\\S.*"
+    },
+    "nonNegativeInteger": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "vector2": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y"],
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" }
+      }
+    },
+    "namedScalar": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "value"],
+      "properties": {
+        "name": { "$ref": "#/$defs/identifier" },
+        "value": { "type": "number" }
+      }
+    },
+    "binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "actor_id",
+        "target_kind",
+        "target_entity_id",
+        "position",
+        "direction",
+        "quantity",
+        "item_id",
+        "objective_id"
+      ],
+      "properties": {
+        "actor_id": { "$ref": "#/$defs/identifier" },
+        "target_kind": {
+          "enum": ["none", "self", "entity", "position", "direction"]
+        },
+        "target_entity_id": {
+          "oneOf": [{ "$ref": "#/$defs/identifier" }, { "type": "null" }]
+        },
+        "position": {
+          "oneOf": [{ "$ref": "#/$defs/vector2" }, { "type": "null" }]
+        },
+        "direction": {
+          "oneOf": [{ "$ref": "#/$defs/vector2" }, { "type": "null" }]
+        },
+        "quantity": { "type": ["number", "null"], "exclusiveMinimum": 0 },
+        "item_id": {
+          "oneOf": [{ "$ref": "#/$defs/identifier" }, { "type": "null" }]
+        },
+        "objective_id": {
+          "oneOf": [{ "$ref": "#/$defs/identifier" }, { "type": "null" }]
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "target_kind": { "const": "entity" } } },
+          "then": {
+            "properties": { "target_entity_id": { "$ref": "#/$defs/identifier" } }
+          },
+          "else": { "properties": { "target_entity_id": { "type": "null" } } }
+        },
+        {
+          "if": { "properties": { "target_kind": { "const": "position" } } },
+          "then": { "properties": { "position": { "$ref": "#/$defs/vector2" } } },
+          "else": { "properties": { "position": { "type": "null" } } }
+        },
+        {
+          "if": { "properties": { "target_kind": { "const": "direction" } } },
+          "then": { "properties": { "direction": { "$ref": "#/$defs/vector2" } } },
+          "else": { "properties": { "direction": { "type": "null" } } }
+        }
+      ]
+    },
+    "entity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entity_id", "kind", "relation", "position", "velocity", "scalars", "tags"],
+      "properties": {
+        "entity_id": { "$ref": "#/$defs/identifier" },
+        "kind": {
+          "enum": ["actor", "pet", "summon", "structure", "objective", "item", "projectile"]
+        },
+        "relation": { "enum": ["self", "ally", "enemy", "neutral"] },
+        "position": { "$ref": "#/$defs/vector2" },
+        "velocity": { "$ref": "#/$defs/vector2" },
+        "scalars": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/namedScalar" }
+        },
+        "tags": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/identifier" },
+          "uniqueItems": true
+        }
+      }
+    },
+    "affordance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["affordance_id", "action_key", "binding", "features", "tags"],
+      "properties": {
+        "affordance_id": { "$ref": "#/$defs/identifier" },
+        "action_key": { "$ref": "#/$defs/identifier" },
+        "binding": { "$ref": "#/$defs/binding" },
+        "features": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/namedScalar" }
+        },
+        "tags": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/identifier" },
+          "uniqueItems": true
+        }
+      }
+    },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "event_id",
+        "kind",
+        "tick",
+        "sim_time_ms",
+        "correlation_id",
+        "source_entity_id",
+        "target_entity_id",
+        "action_key",
+        "scalars",
+        "tags"
+      ],
+      "properties": {
+        "event_id": { "$ref": "#/$defs/identifier" },
+        "kind": { "$ref": "#/$defs/identifier" },
+        "tick": { "$ref": "#/$defs/nonNegativeInteger" },
+        "sim_time_ms": { "$ref": "#/$defs/nonNegativeInteger" },
+        "correlation_id": {
+          "oneOf": [{ "$ref": "#/$defs/identifier" }, { "type": "null" }]
+        },
+        "source_entity_id": {
+          "oneOf": [{ "$ref": "#/$defs/identifier" }, { "type": "null" }]
+        },
+        "target_entity_id": {
+          "oneOf": [{ "$ref": "#/$defs/identifier" }, { "type": "null" }]
+        },
+        "action_key": {
+          "oneOf": [{ "$ref": "#/$defs/identifier" }, { "type": "null" }]
+        },
+        "scalars": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/namedScalar" }
+        },
+        "tags": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/identifier" },
+          "uniqueItems": true
+        }
+      }
+    },
+    "messageBase": {
+      "type": "object",
+      "required": ["protocol_version", "message_type", "message_id"],
+      "properties": {
+        "protocol_version": { "const": 1 },
+        "message_type": { "type": "string" },
+        "message_id": { "$ref": "#/$defs/identifier" }
+      }
+    },
+    "observation": {
+      "allOf": [
+        { "$ref": "#/$defs/messageBase" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "protocol_version",
+            "message_type",
+            "message_id",
+            "observation_id",
+            "agent_id",
+            "life_id",
+            "tick",
+            "sim_time_ms",
+            "entities",
+            "global_scalars",
+            "active"
+          ],
+          "properties": {
+            "protocol_version": { "const": 1 },
+            "message_type": { "const": "observation" },
+            "message_id": { "$ref": "#/$defs/identifier" },
+            "observation_id": { "$ref": "#/$defs/identifier" },
+            "agent_id": { "$ref": "#/$defs/identifier" },
+            "life_id": { "$ref": "#/$defs/identifier" },
+            "tick": { "$ref": "#/$defs/nonNegativeInteger" },
+            "sim_time_ms": { "$ref": "#/$defs/nonNegativeInteger" },
+            "entities": { "type": "array", "items": { "$ref": "#/$defs/entity" } },
+            "global_scalars": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/namedScalar" }
+            },
+            "active": { "type": "boolean" }
+          }
+        }
+      ]
+    },
+    "affordanceSet": {
+      "allOf": [
+        { "$ref": "#/$defs/messageBase" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "protocol_version",
+            "message_type",
+            "message_id",
+            "observation_id",
+            "agent_id",
+            "tick",
+            "affordances"
+          ],
+          "properties": {
+            "protocol_version": { "const": 1 },
+            "message_type": { "const": "affordance_set" },
+            "message_id": { "$ref": "#/$defs/identifier" },
+            "observation_id": { "$ref": "#/$defs/identifier" },
+            "agent_id": { "$ref": "#/$defs/identifier" },
+            "tick": { "$ref": "#/$defs/nonNegativeInteger" },
+            "affordances": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/affordance" }
+            }
+          }
+        }
+      ]
+    },
+    "decision": {
+      "allOf": [
+        { "$ref": "#/$defs/messageBase" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "protocol_version",
+            "message_type",
+            "message_id",
+            "correlation_id",
+            "observation_id",
+            "agent_id",
+            "tick",
+            "affordance_id",
+            "action_key",
+            "binding"
+          ],
+          "properties": {
+            "protocol_version": { "const": 1 },
+            "message_type": { "const": "decision" },
+            "message_id": { "$ref": "#/$defs/identifier" },
+            "correlation_id": { "$ref": "#/$defs/identifier" },
+            "observation_id": { "$ref": "#/$defs/identifier" },
+            "agent_id": { "$ref": "#/$defs/identifier" },
+            "tick": { "$ref": "#/$defs/nonNegativeInteger" },
+            "affordance_id": { "$ref": "#/$defs/identifier" },
+            "action_key": { "$ref": "#/$defs/identifier" },
+            "binding": { "$ref": "#/$defs/binding" }
+          }
+        }
+      ]
+    },
+    "eventBatch": {
+      "allOf": [
+        { "$ref": "#/$defs/messageBase" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "protocol_version",
+            "message_type",
+            "message_id",
+            "tick",
+            "sim_time_ms",
+            "events",
+            "life_terminated",
+            "world_terminated",
+            "truncated"
+          ],
+          "properties": {
+            "protocol_version": { "const": 1 },
+            "message_type": { "const": "event_batch" },
+            "message_id": { "$ref": "#/$defs/identifier" },
+            "tick": { "$ref": "#/$defs/nonNegativeInteger" },
+            "sim_time_ms": { "$ref": "#/$defs/nonNegativeInteger" },
+            "events": { "type": "array", "items": { "$ref": "#/$defs/event" } },
+            "life_terminated": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/identifier" },
+              "uniqueItems": true
+            },
+            "world_terminated": { "type": "boolean" },
+            "truncated": { "type": "boolean" }
+          }
+        }
+      ]
+    }
+  }
+}
