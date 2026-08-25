@@ -1,0 +1,218 @@
+"""Mutable reference state and immutable snapshots."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from math import isfinite
+
+from shadowbane_lab.protocol import EntityKind, Vector2
+
+
+def _identifier(value: str, field_name: str) -> None:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{field_name} must be a non-empty string")
+
+
+def _finite_mapping(values: dict[str, float], field_name: str) -> dict[str, float]:
+    copy = dict(values)
+    for key, value in copy.items():
+        _identifier(key, f"{field_name} key")
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not isfinite(value):
+            raise ValueError(f"{field_name} values must be finite numbers")
+    return copy
+
+
+@dataclass(frozen=True, slots=True)
+class ActiveEffectSnapshot:
+    effect_key: str
+    source_entity_id: str
+    magnitude: float
+    expires_at_ms: int
+    stacking_key: str | None
+    tags: tuple[str, ...]
+
+
+@dataclass(slots=True)
+class ActiveEffectState:
+    effect_key: str
+    source_entity_id: str
+    magnitude: float
+    expires_at_ms: int
+    stacking_key: str | None = None
+    tags: set[str] = field(default_factory=set)
+
+    def __post_init__(self) -> None:
+        _identifier(self.effect_key, "effect_key")
+        _identifier(self.source_entity_id, "source_entity_id")
+        if (
+            isinstance(self.magnitude, bool)
+            or not isinstance(self.magnitude, (int, float))
+            or not isfinite(self.magnitude)
+        ):
+            raise ValueError("magnitude must be finite")
+        if self.expires_at_ms < 0:
+            raise ValueError("expires_at_ms must not be negative")
+        if self.stacking_key is not None:
+            _identifier(self.stacking_key, "stacking_key")
+        self.tags = set(self.tags)
+        for tag in self.tags:
+            _identifier(tag, "effect tag")
+
+    def snapshot(self) -> ActiveEffectSnapshot:
+        return ActiveEffectSnapshot(
+            effect_key=self.effect_key,
+            source_entity_id=self.source_entity_id,
+            magnitude=float(self.magnitude),
+            expires_at_ms=self.expires_at_ms,
+            stacking_key=self.stacking_key,
+            tags=tuple(sorted(self.tags)),
+        )
+
+    @classmethod
+    def from_snapshot(cls, snapshot: ActiveEffectSnapshot) -> ActiveEffectState:
+        return cls(
+            effect_key=snapshot.effect_key,
+            source_entity_id=snapshot.source_entity_id,
+            magnitude=snapshot.magnitude,
+            expires_at_ms=snapshot.expires_at_ms,
+            stacking_key=snapshot.stacking_key,
+            tags=set(snapshot.tags),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class EntitySnapshot:
+    entity_id: str
+    life_id: str
+    kind: EntityKind
+    team_id: str | None
+    position: Vector2
+    velocity: Vector2
+    scalars: tuple[tuple[str, float], ...]
+    maximums: tuple[tuple[str, float], ...]
+    tags: tuple[str, ...]
+    action_keys: tuple[str, ...]
+    inventory: tuple[tuple[str, float], ...]
+    effects: tuple[ActiveEffectSnapshot, ...]
+    cooldowns: tuple[tuple[str, int], ...]
+    busy_until_ms: int
+    alive: bool
+
+
+@dataclass(slots=True)
+class EntityState:
+    entity_id: str
+    life_id: str
+    kind: EntityKind
+    team_id: str | None
+    position: Vector2
+    velocity: Vector2 = Vector2(0.0, 0.0)
+    scalars: dict[str, float] = field(default_factory=dict)
+    maximums: dict[str, float] = field(default_factory=dict)
+    tags: set[str] = field(default_factory=set)
+    action_keys: tuple[str, ...] = ()
+    inventory: dict[str, float] = field(default_factory=dict)
+    effects: dict[str, ActiveEffectState] = field(default_factory=dict)
+    cooldowns: dict[str, int] = field(default_factory=dict)
+    busy_until_ms: int = 0
+    alive: bool = True
+
+    def __post_init__(self) -> None:
+        _identifier(self.entity_id, "entity_id")
+        _identifier(self.life_id, "life_id")
+        if not isinstance(self.kind, EntityKind):
+            raise ValueError("kind must be an EntityKind")
+        if self.team_id is not None:
+            _identifier(self.team_id, "team_id")
+        if not isinstance(self.position, Vector2) or not isinstance(self.velocity, Vector2):
+            raise ValueError("position and velocity must be Vector2 values")
+        self.scalars = _finite_mapping(self.scalars, "scalars")
+        self.maximums = _finite_mapping(self.maximums, "maximums")
+        for key, maximum in self.maximums.items():
+            if maximum < 0:
+                raise ValueError("maximum values must not be negative")
+            if key in self.scalars and self.scalars[key] > maximum:
+                raise ValueError(f"scalar {key} exceeds its maximum")
+        self.tags = set(self.tags)
+        for tag in self.tags:
+            _identifier(tag, "tag")
+        if len(self.action_keys) != len(set(self.action_keys)):
+            raise ValueError("action_keys must not contain duplicates")
+        for action_key in self.action_keys:
+            _identifier(action_key, "action_key")
+        self.inventory = _finite_mapping(self.inventory, "inventory")
+        if any(quantity < 0 for quantity in self.inventory.values()):
+            raise ValueError("inventory quantities must not be negative")
+        self.effects = dict(self.effects)
+        for storage_key, effect in self.effects.items():
+            _identifier(storage_key, "effect storage key")
+            if not isinstance(effect, ActiveEffectState):
+                raise ValueError("effects must contain ActiveEffectState values")
+        self.cooldowns = dict(self.cooldowns)
+        for action_key, ready_at_ms in self.cooldowns.items():
+            _identifier(action_key, "cooldown action key")
+            if ready_at_ms < 0:
+                raise ValueError("cooldown timestamps must not be negative")
+        if self.busy_until_ms < 0:
+            raise ValueError("busy_until_ms must not be negative")
+        if not isinstance(self.alive, bool):
+            raise ValueError("alive must be a boolean")
+
+    @property
+    def effective_tags(self) -> frozenset[str]:
+        effect_tags = {
+            tag
+            for effect in self.effects.values()
+            for tag in (effect.effect_key, *effect.tags)
+        }
+        return frozenset(self.tags | effect_tags)
+
+    def snapshot(self) -> EntitySnapshot:
+        return EntitySnapshot(
+            entity_id=self.entity_id,
+            life_id=self.life_id,
+            kind=self.kind,
+            team_id=self.team_id,
+            position=self.position,
+            velocity=self.velocity,
+            scalars=tuple(sorted((key, float(value)) for key, value in self.scalars.items())),
+            maximums=tuple(sorted((key, float(value)) for key, value in self.maximums.items())),
+            tags=tuple(sorted(self.tags)),
+            action_keys=tuple(sorted(self.action_keys)),
+            inventory=tuple(
+                sorted((key, float(value)) for key, value in self.inventory.items())
+            ),
+            effects=tuple(
+                self.effects[key].snapshot() for key in sorted(self.effects)
+            ),
+            cooldowns=tuple(sorted(self.cooldowns.items())),
+            busy_until_ms=self.busy_until_ms,
+            alive=self.alive,
+        )
+
+    @classmethod
+    def from_snapshot(cls, snapshot: EntitySnapshot) -> EntityState:
+        effects = {
+            effect.stacking_key or effect.effect_key: ActiveEffectState.from_snapshot(effect)
+            for effect in snapshot.effects
+        }
+        return cls(
+            entity_id=snapshot.entity_id,
+            life_id=snapshot.life_id,
+            kind=snapshot.kind,
+            team_id=snapshot.team_id,
+            position=snapshot.position,
+            velocity=snapshot.velocity,
+            scalars=dict(snapshot.scalars),
+            maximums=dict(snapshot.maximums),
+            tags=set(snapshot.tags),
+            action_keys=snapshot.action_keys,
+            inventory=dict(snapshot.inventory),
+            effects=effects,
+            cooldowns=dict(snapshot.cooldowns),
+            busy_until_ms=snapshot.busy_until_ms,
+            alive=snapshot.alive,
+        )
+
+    def clone(self) -> EntityState:
+        return EntityState.from_snapshot(self.snapshot())
