@@ -57,6 +57,8 @@ link observations, decisions, input traces, emulator requests, and resulting eve
 - A policy cannot mutate live health, resources, effects, or ownership directly.
 - A client-input adapter may operate only while its approved target window and calibration
   profile remain valid.
+- Template and dry-run calibration profiles cannot dispatch through a live desktop backend;
+  live input requires an explicit per-profile confirmation bit.
 - Recorded or dry-run input adapters are used in automated tests; test execution must not
   generate desktop input.
 

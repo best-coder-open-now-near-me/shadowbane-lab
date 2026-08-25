@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "profile_id": "wonderbane-template-not-calibrated",
+  "live_input_enabled": false,
+  "target": {
+    "executable_names": [
+      "REPLACE_WITH_WONDERBANE_CLIENT.exe"
+    ],
+    "title_pattern": "^REPLACE_WITH_WONDERBANE_WINDOW_TITLE$",
+    "reference_width": 1280,
+    "reference_height": 720,
+    "dpi_scale": 1.0,
+    "size_tolerance_px": 2,
+    "dpi_tolerance": 0.01
+  },
+  "actions": [
+    {
+      "action_key": "shadowbane.assassin.shadow_bolt",
+      "activation": {
+        "type": "key",
+        "key": "unassigned"
+      },
+      "target_order": "before_activation",
+      "post_activation_delay_ms": 125
+    },
+    {
+      "action_key": "shadowbane.assassin.psychic_healing",
+      "activation": {
+        "type": "key",
+        "key": "unassigned"
+      },
+      "target_order": "none",
+      "post_activation_delay_ms": 125
+    }
+  ],
+  "movement": {
+    "action_key": "shadowbane.move",
+    "center": {
+      "x": 0.5,
+      "y": 0.5
+    },
+    "horizontal_radius": 0.25,
+    "vertical_radius": 0.2,
+    "button": "left"
+  },
+  "camera": {
+    "anchor": {
+      "x": 0.5,
+      "y": 0.5
+    },
+    "maximum_horizontal_delta": 0.2,
+    "maximum_vertical_delta": 0.15,
+    "duration_ms": 1000,
+    "button": "left"
+  }
+}

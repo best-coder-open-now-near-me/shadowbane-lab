@@ -43,7 +43,20 @@ approximations.
 **Gate:** deterministic mechanics match exactly; stochastic mechanics meet documented
 distribution tolerances.
 
-## 5. Batched simulation
+## 5. Guarded client-input harness
+
+- Convert semantic decisions into calibrated click, drag, key, hotbar, camera, and target
+  operations.
+- Validate the target process, foreground window, client bounds, DPI, and calibration
+  profile before dispatch.
+- Provide recording and dry-run backends, rate limits, structured audits, a corner failsafe,
+  and an independent emergency stop.
+
+**Gate:** representative decisions replay correctly against an approved client while every
+invalid focus or calibration condition fails closed. Automated tests generate no desktop
+input.
+
+## 6. Batched simulation
 
 - Introduce fixed-capacity numeric worlds, actors, actions, and effect slots.
 - Accelerate the reference behavior using array-oriented NumPy and Numba implementations.
@@ -52,7 +65,7 @@ distribution tolerances.
 **Gate:** reference parity is preserved while throughput meets the benchmark established
 from representative scenarios on the target hardware.
 
-## 6. Scenarios and baseline controller
+## 7. Scenarios and baseline controller
 
 - Support clean starts, mid-fight snapshots, reinforcement, retreat, death/respawn,
   uneven teams, and objectives.
@@ -62,7 +75,7 @@ from representative scenarios on the target hardware.
 **Gate:** the baseline completes representative scenarios without invalid-action loops and
 provides a stable benchmark for learned policies.
 
-## 7. CMA-ES and MAP-Elites
+## 8. CMA-ES and MAP-Elites
 
 - Tune interpretable utility weights with common seeds and snapshots.
 - Build a quality-diversity archive over aggression, engagement range, support, control,
@@ -70,19 +83,6 @@ provides a stable benchmark for learned policies.
 
 **Gate:** optimized controllers outperform the fixed baseline and the archive contains
 meaningfully distinct, reproducible behavior.
-
-## 8. Guarded client-input harness
-
-- Convert semantic decisions into calibrated click, drag, key, hotbar, camera, and target
-  operations.
-- Validate the target process, foreground window, client bounds, DPI, and calibration
-  profile before dispatch.
-- Provide recording and dry-run backends, rate limits, structured logs, a corner failsafe,
-  and an independent emergency stop.
-
-**Gate:** representative decisions replay correctly against an approved client while every
-invalid focus or calibration condition fails closed. Automated tests generate no desktop
-input.
 
 ## 9. Relational PPO/MAPPO and live integration
 

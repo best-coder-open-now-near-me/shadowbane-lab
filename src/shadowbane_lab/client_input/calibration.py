@@ -45,6 +45,7 @@ def load_calibration_text(text: str) -> CalibrationProfile:
         camera_data = _object(data, "camera")
         return CalibrationProfile(
             profile_id=_string(data, "profile_id"),
+            live_input_enabled=_boolean(data, "live_input_enabled"),
             target=ClientTarget(
                 executable_names=tuple(_strings(target_data, "executable_names")),
                 title_pattern=_string(target_data, "title_pattern"),
@@ -151,3 +152,10 @@ def _number(data: Mapping[str, Any], key: str) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise CalibrationLoadError(f"{key} must be a number")
     return float(value)
+
+
+def _boolean(data: Mapping[str, Any], key: str) -> bool:
+    value = data[key]
+    if not isinstance(value, bool):
+        raise CalibrationLoadError(f"{key} must be a boolean")
+    return value

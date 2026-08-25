@@ -1,6 +1,7 @@
 import json
 import unittest
 from dataclasses import replace
+from pathlib import Path
 
 from shadowbane_lab.client_input import (
     AbsolutePoint,
@@ -14,6 +15,7 @@ from shadowbane_lab.client_input import (
     StaticBindingPointResolver,
     WaitCommand,
     WindowBounds,
+    load_calibration,
     load_calibration_text,
 )
 from shadowbane_lab.protocol import ActionBinding, TargetKind, Vector2
@@ -24,6 +26,7 @@ def _calibration_data() -> dict[str, object]:
     return {
         "schema_version": 1,
         "profile_id": "wonderbane-local-windowed",
+        "live_input_enabled": False,
         "target": {
             "executable_names": ["Shadowbane.exe"],
             "title_pattern": ".*WonderBane.*",
@@ -85,6 +88,14 @@ class CalibrationTests(unittest.TestCase):
         self.assertEqual("wonderbane-local-windowed", profile.profile_id)
         self.assertEqual(("Shadowbane.exe",), profile.target.executable_names)
         self.assertEqual(3, len(profile.actions))
+
+    def test_bundled_wonderbane_template_is_loadable_but_live_locked(self) -> None:
+        template = Path(__file__).parents[1] / "configs" / "wonderbane.template.json"
+
+        profile = load_calibration(template)
+
+        self.assertFalse(profile.live_input_enabled)
+        self.assertIn("not-calibrated", profile.profile_id)
 
     def test_missing_required_field_fails_closed(self) -> None:
         data = _calibration_data()
@@ -208,6 +219,15 @@ class WindowBoundsTests(unittest.TestCase):
         self.assertEqual(AbsolutePoint(740, 410), point)
         self.assertTrue(bounds.contains(point))
         self.assertFalse(bounds.contains(AbsolutePoint(1380, 770)))
+        normalized = bounds.normalize(point)
+        self.assertAlmostEqual(0.5, normalized.x, delta=1 / (bounds.width - 1))
+        self.assertAlmostEqual(0.5, normalized.y, delta=1 / (bounds.height - 1))
+
+    def test_normalization_rejects_points_outside_window(self) -> None:
+        bounds = WindowBounds(left=100, top=50, width=1280, height=720)
+
+        with self.assertRaisesRegex(ValueError, "inside the window"):
+            bounds.normalize(AbsolutePoint(99, 50))
 
 
 if __name__ == "__main__":

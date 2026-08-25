@@ -11,3 +11,6 @@ dist/
 # Local captures and generated training output
 artifacts/
 runs/
+
+# Machine-specific client calibration (templates remain tracked)
+configs/*.local.json

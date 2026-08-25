@@ -75,6 +75,16 @@ class WindowBounds:
         y = self.top + round(point.y * (self.height - 1))
         return AbsolutePoint(x=x, y=y)
 
+    def normalize(self, point: AbsolutePoint) -> NormalizedPoint:
+        if not isinstance(point, AbsolutePoint):
+            raise ValueError("point must be an AbsolutePoint")
+        if not self.contains(point):
+            raise ValueError("absolute point must be inside the window")
+        return NormalizedPoint(
+            x=(point.x - self.left) / (self.width - 1) if self.width > 1 else 0.0,
+            y=(point.y - self.top) / (self.height - 1) if self.height > 1 else 0.0,
+        )
+
     def contains(self, point: AbsolutePoint) -> bool:
         return (
             self.left <= point.x < self.left + self.width
@@ -329,10 +339,13 @@ class CalibrationProfile:
     actions: tuple[ActionInputMapping, ...]
     movement: DirectionalClickMapping
     camera: CameraDragMapping
+    live_input_enabled: bool = False
     schema_version: int = CLIENT_PROFILE_SCHEMA_VERSION
 
     def __post_init__(self) -> None:
         _identifier(self.profile_id, "profile_id")
+        if not isinstance(self.live_input_enabled, bool):
+            raise ValueError("live_input_enabled must be a boolean")
         if self.schema_version != CLIENT_PROFILE_SCHEMA_VERSION:
             raise ValueError("unsupported calibration profile version")
         if not isinstance(self.target, ClientTarget):

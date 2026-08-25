@@ -1,5 +1,15 @@
 """Guarded semantic-decision to desktop-input tooling."""
 
+from shadowbane_lab.client_input.backend import (
+    ClickInvocation,
+    DragInvocation,
+    HotkeyInvocation,
+    InputBackend,
+    InputInvocation,
+    KeyPressInvocation,
+    PyAutoGuiBackend,
+    RecordingInputBackend,
+)
 from shadowbane_lab.client_input.calibration import (
     CalibrationLoadError,
     load_calibration,
@@ -10,6 +20,13 @@ from shadowbane_lab.client_input.compiler import (
     DecisionInputCompiler,
     InputCompilationError,
     StaticBindingPointResolver,
+)
+from shadowbane_lab.client_input.executor import (
+    ClientInputAdapter,
+    GuardedInputExecutor,
+    InputDispatchAudit,
+    InputExecutionError,
+    InputExecutionResult,
 )
 from shadowbane_lab.client_input.model import (
     CLIENT_PROFILE_SCHEMA_VERSION,
@@ -34,6 +51,19 @@ from shadowbane_lab.client_input.model import (
     WaitCommand,
     WindowBounds,
 )
+from shadowbane_lab.client_input.stop import (
+    EventEmergencyStop,
+    StopSignal,
+    WindowsHotkeyEmergencyStop,
+)
+from shadowbane_lab.client_input.window import (
+    ForegroundWindowGuard,
+    StaticWindowInspector,
+    WindowGuardError,
+    WindowInspector,
+    WindowsForegroundWindowInspector,
+    WindowSnapshot,
+)
 
 __all__ = [
     "CLIENT_PROFILE_SCHEMA_VERSION",
@@ -45,23 +75,45 @@ __all__ = [
     "CameraDragMapping",
     "ClickActivation",
     "ClickCommand",
+    "ClickInvocation",
     "ClientTarget",
+    "ClientInputAdapter",
     "DecisionInputCompiler",
     "DirectionalClickMapping",
     "DragCommand",
+    "DragInvocation",
+    "EventEmergencyStop",
+    "ForegroundWindowGuard",
+    "GuardedInputExecutor",
     "HotkeyActivation",
     "HotkeyCommand",
+    "HotkeyInvocation",
+    "InputBackend",
     "InputCommand",
     "InputCompilationError",
+    "InputDispatchAudit",
+    "InputExecutionError",
+    "InputExecutionResult",
+    "InputInvocation",
     "InputPlan",
     "KeyActivation",
     "KeyPressCommand",
+    "KeyPressInvocation",
     "MouseButton",
     "NormalizedPoint",
+    "PyAutoGuiBackend",
+    "RecordingInputBackend",
+    "StaticWindowInspector",
     "StaticBindingPointResolver",
+    "StopSignal",
     "TargetOrder",
     "WaitCommand",
     "WindowBounds",
+    "WindowGuardError",
+    "WindowInspector",
+    "WindowSnapshot",
+    "WindowsForegroundWindowInspector",
+    "WindowsHotkeyEmergencyStop",
     "load_calibration",
     "load_calibration_text",
 ]
