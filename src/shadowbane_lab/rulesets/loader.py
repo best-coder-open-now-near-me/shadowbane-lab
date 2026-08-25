@@ -16,8 +16,10 @@ from shadowbane_lab.rulesets.model import (
     CompiledRuleset,
     ConcreteMapping,
     FieldProvenance,
+    PowerProgression,
     ProvenanceSource,
     SourceKind,
+    TrainingRequirement,
 )
 from shadowbane_lab.sim import (
     ActionPhase,
@@ -50,16 +52,26 @@ class RulesetLoadError(ValueError):
     """Raised when source data cannot be compiled without guessing."""
 
 
-def load_shadowbane_vertical_slice() -> CompiledRuleset:
+def load_shadowbane_vertical_slice(
+    *, rank_overrides: Mapping[str, int] | None = None
+) -> CompiledRuleset:
     resource = files("shadowbane_lab.rulesets").joinpath("data/shadowbane_vertical_slice_v1.json")
-    return load_ruleset_text(resource.read_text(encoding="utf-8"))
+    return load_ruleset_text(
+        resource.read_text(encoding="utf-8"), rank_overrides=rank_overrides
+    )
 
 
-def load_ruleset(path: str | Path) -> CompiledRuleset:
-    return load_ruleset_text(Path(path).read_text(encoding="utf-8"))
+def load_ruleset(
+    path: str | Path, *, rank_overrides: Mapping[str, int] | None = None
+) -> CompiledRuleset:
+    return load_ruleset_text(
+        Path(path).read_text(encoding="utf-8"), rank_overrides=rank_overrides
+    )
 
 
-def load_ruleset_text(text: str) -> CompiledRuleset:
+def load_ruleset_text(
+    text: str, *, rank_overrides: Mapping[str, int] | None = None
+) -> CompiledRuleset:
     try:
         raw = json.loads(text)
     except json.JSONDecodeError as exc:
@@ -69,7 +81,21 @@ def load_ruleset_text(text: str) -> CompiledRuleset:
         if _integer(data, "schema_version") != RULESET_SOURCE_VERSION:
             raise RulesetLoadError("unsupported ruleset source version")
         sources = tuple(_parse_source(item) for item in _objects(data, "sources"))
-        records = tuple(_parse_record(item) for item in _objects(data, "actions"))
+        overrides = dict(rank_overrides or {})
+        for action_key, rank in overrides.items():
+            if not isinstance(action_key, str) or not action_key.strip():
+                raise RulesetLoadError("rank override keys must be non-empty strings")
+            if isinstance(rank, bool) or not isinstance(rank, int) or rank < 0:
+                raise RulesetLoadError("rank overrides must be non-negative integers")
+        records = tuple(
+            _parse_record(item, rank_override=overrides.get(_string(item, "action_key")))
+            for item in _objects(data, "actions")
+        )
+        unknown_overrides = set(overrides) - {record.action_key for record in records}
+        if unknown_overrides:
+            raise RulesetLoadError(
+                f"rank overrides contain unknown actions: {', '.join(sorted(unknown_overrides))}"
+            )
         return CompiledRuleset(
             ruleset_id=_string(data, "ruleset_id"),
             sources=sources,
@@ -91,9 +117,12 @@ def _parse_source(data: Mapping[str, Any]) -> ProvenanceSource:
     )
 
 
-def _parse_record(data: Mapping[str, Any]) -> CompiledActionRecord:
-    rank = _integer(data, "rank")
+def _parse_record(
+    data: Mapping[str, Any], *, rank_override: int | None = None
+) -> CompiledActionRecord:
+    rank = _integer(data, "rank") if rank_override is None else rank_override
     status = CompilationStatus(_string(data, "status"))
+    progression = _parse_progression(data)
     spec_data = data.get("spec")
     if spec_data is not None and not isinstance(spec_data, Mapping):
         raise RulesetLoadError("spec must be an object or null")
@@ -127,9 +156,38 @@ def _parse_record(data: Mapping[str, Any]) -> CompiledActionRecord:
             provenance=provenance,
             unresolved=tuple(_strings(data, "unresolved")),
             action=action,
+            progression=progression,
         )
     except ValueError as exc:
         raise RulesetLoadError(str(exc)) from exc
+
+
+def _parse_progression(data: Mapping[str, Any]) -> PowerProgression | None:
+    raw = data.get("progression")
+    if raw is None:
+        return None
+    progression = _mapping(raw, "progression")
+    fixed_rank = _nullable_integer(progression, "fixed_rank")
+    return PowerProgression(
+        professions=tuple(_strings(progression, "professions")),
+        granted_level=_integer(progression, "granted_level"),
+        maximum_rank=_integer(progression, "maximum_rank"),
+        fixed_rank=fixed_rank,
+        skill_requirements=_parse_requirements(progression, "skill_requirements"),
+        power_requirements=_parse_requirements(progression, "power_requirements"),
+    )
+
+
+def _parse_requirements(
+    data: Mapping[str, Any], key: str
+) -> tuple[TrainingRequirement, ...]:
+    return tuple(
+        TrainingRequirement(
+            training_key=_string(item, "training_key"),
+            minimum_rank=_integer(item, "minimum_rank"),
+        )
+        for item in _objects(data, key)
+    )
 
 
 def _parse_action(data: Mapping[str, Any], action_key: str, rank: int) -> ActionSpec:

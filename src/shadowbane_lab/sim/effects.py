@@ -260,6 +260,8 @@ class EffectExecutor:
     ) -> None:
         if subject is None:
             raise SimulationConfigurationError("effect application requires an entity subject")
+        if "control.stun" in effect.tags and "immunity.stun" in subject.effective_tags:
+            return
         storage_key = effect.stacking_key or effect.effect_key
         existing = subject.effects.get(storage_key)
         if existing is not None:

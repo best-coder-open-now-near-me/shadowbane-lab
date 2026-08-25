@@ -21,6 +21,8 @@ from shadowbane_lab.sim.errors import SimulationConfigurationError
 from shadowbane_lab.sim.state import EntityState
 from shadowbane_lab.sim.timeline import AgentExchange
 
+_ACTION_BLOCKING_TAGS = frozenset({"control.stun"})
+
 
 class AffordanceBuilder:
     """Builds one agent's policy-facing view from authoritative simulation state."""
@@ -69,7 +71,11 @@ class AffordanceBuilder:
         actor: EntityState,
     ) -> AffordanceSetMessage:
         affordances: list[Affordance] = []
-        if actor.alive and actor.busy_until_ms <= self._now_ms:
+        if (
+            actor.alive
+            and actor.busy_until_ms <= self._now_ms
+            and not (_ACTION_BLOCKING_TAGS & actor.effective_tags)
+        ):
             for action_key in sorted(actor.action_keys):
                 action = self._catalog.get(action_key)
                 if not self._actor_can_start(actor, action):

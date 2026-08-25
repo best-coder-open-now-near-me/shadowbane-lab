@@ -152,6 +152,16 @@
       "action_key": "shadowbane.assassin.shadow_bolt",
       "display_name": "Shadow Bolt",
       "rank": 40,
+      "progression": {
+        "professions": ["assassin"],
+        "granted_level": 10,
+        "maximum_rank": 40,
+        "fixed_rank": null,
+        "skill_requirements": [
+          {"training_key": "shadowmastery", "minimum_rank": 15}
+        ],
+        "power_requirements": []
+      },
       "status": "compiled_with_override",
       "concrete": {
         "server_power_token": null,
@@ -162,6 +172,7 @@
         {
           "fields": [
             "rank",
+            "progression",
             "spec.costs",
             "spec.targeting.maximum_range",
             "spec.phases[0].duration_ms",
@@ -285,9 +296,312 @@
       }
     },
     {
+      "action_key": "shadowbane.assassin.shadow_touch",
+      "display_name": "Shadow Touch",
+      "rank": 40,
+      "progression": {
+        "professions": ["assassin"],
+        "granted_level": 15,
+        "maximum_rank": 40,
+        "fixed_rank": null,
+        "skill_requirements": [
+          {"training_key": "shadowmastery", "minimum_rank": 36}
+        ],
+        "power_requirements": []
+      },
+      "status": "compiled_with_override",
+      "concrete": {
+        "server_power_token": null,
+        "server_id_string": null,
+        "client_binding_key": "shadowbane.assassin.shadow_touch"
+      },
+      "provenance": [
+        {
+          "fields": [
+            "rank",
+            "progression",
+            "spec.costs",
+            "spec.targeting.maximum_range",
+            "spec.phases[0].duration_ms",
+            "spec.phases[0].effects"
+          ],
+          "source_id": "morloch-assassin-36339",
+          "locator": "Shadow Touch rank 0-40 table"
+        },
+        {
+          "fields": ["spec.cooldown_ms"],
+          "source_id": "magicbane-subdate2",
+          "locator": "src/engine/powers/PowersBase.java getRecycleTime(int)",
+          "note": "Server readiness is represented as 1-second cast plus 1-second recycle."
+        },
+        {
+          "fields": [
+            "concrete.client_binding_key",
+            "spec.targeting",
+            "spec.phases[0].effects",
+            "spec.features",
+            "spec.tags"
+          ],
+          "source_id": "lab-action-algebra-v1",
+          "locator": "Shadow Touch typed-action mapping",
+          "note": "Maps the published flight removal, stun, and stun-immunity effects to typed primitives."
+        }
+      ],
+      "unresolved": [
+        "Server power token and IDString require the deployment power-data export.",
+        "Hit-roll, effect rank, and stacking precedence need differential traces."
+      ],
+      "spec": {
+        "targeting": {
+          "kind": "entity",
+          "allowed_relations": ["enemy"],
+          "minimum_range": 0,
+          "maximum_range": 100,
+          "requires_line_of_sight": true
+        },
+        "costs": [
+          {
+            "resource_key": "mana",
+            "amount": {
+              "interpolation": "linear",
+              "rank_min": 0,
+              "rank_max": 40,
+              "value_min": 15,
+              "value_max": 55
+            }
+          }
+        ],
+        "phases": [
+          {
+            "kind": "active",
+            "duration_ms": 1000,
+            "effects": [
+              {
+                "op": "remove_effect",
+                "subject": "target",
+                "effect_key": null,
+                "matching_tag": "movement.flight"
+              },
+              {
+                "op": "apply_effect",
+                "subject": "target",
+                "effect_key": "stunned",
+                "duration_ms": {
+                  "interpolation": "linear",
+                  "rank_min": 0,
+                  "rank_max": 40,
+                  "value_min": 3000,
+                  "value_max": 9000
+                },
+                "magnitude": 1,
+                "stacking_key": "Stun",
+                "tags": ["control.stun"]
+              },
+              {
+                "op": "apply_effect",
+                "subject": "target",
+                "effect_key": "stun_immunity",
+                "duration_ms": {
+                  "interpolation": "linear",
+                  "rank_min": 0,
+                  "rank_max": 40,
+                  "value_min": 9000,
+                  "value_max": 27000
+                },
+                "magnitude": 1,
+                "stacking_key": "NoStun",
+                "tags": ["immunity.stun"]
+              }
+            ],
+            "delivery": {"kind": "immediate", "projectile_speed_units_per_second": null},
+            "interruptible": true,
+            "movement_allowed": false
+          }
+        ],
+        "cooldown_ms": 2000,
+        "required_actor_tags": [],
+        "forbidden_actor_tags": [],
+        "features": [{"name": "control_duration_ms", "value": {
+          "interpolation": "linear",
+          "rank_min": 0,
+          "rank_max": 40,
+          "value_min": 3000,
+          "value_max": 9000
+        }}],
+        "tags": ["combat", "control", "anti_flight"]
+      }
+    },
+    {
+      "action_key": "shadowbane.warlock.mind_strike",
+      "display_name": "Mind Strike",
+      "rank": 40,
+      "progression": {
+        "professions": ["warlock"],
+        "granted_level": 10,
+        "maximum_rank": 40,
+        "fixed_rank": null,
+        "skill_requirements": [],
+        "power_requirements": []
+      },
+      "status": "compiled_with_override",
+      "concrete": {
+        "server_power_token": null,
+        "server_id_string": null,
+        "client_binding_key": "shadowbane.warlock.mind_strike"
+      },
+      "provenance": [
+        {
+          "fields": [
+            "rank",
+            "progression",
+            "spec.costs",
+            "spec.targeting.maximum_range",
+            "spec.phases[0].duration_ms",
+            "spec.phases[0].effects"
+          ],
+          "source_id": "morloch-warlock-36352",
+          "locator": "Mind Strike rank 0-40 table",
+          "note": "Damage ranges are represented by their rank-endpoint midpoints."
+        },
+        {
+          "fields": ["spec.cooldown_ms"],
+          "source_id": "magicbane-subdate2",
+          "locator": "src/engine/powers/PowersBase.java getRecycleTime(int)",
+          "note": "Server readiness is represented as 3.6-second cast plus zero recycle time."
+        },
+        {
+          "fields": [
+            "concrete.client_binding_key",
+            "spec.targeting",
+            "spec.phases[0].effects",
+            "spec.features",
+            "spec.tags"
+          ],
+          "source_id": "lab-action-algebra-v1",
+          "locator": "Mind Strike typed-action mapping",
+          "note": "Maps published mechanics to typed mental damage, flight removal, stun, and immunity primitives."
+        }
+      ],
+      "unresolved": [
+        "Server power token and IDString require the deployment power-data export.",
+        "Hit-roll, damage distribution, resists, and train/modifier formulas are not compiled.",
+        "Effect rank and stacking precedence need differential traces."
+      ],
+      "spec": {
+        "targeting": {
+          "kind": "entity",
+          "allowed_relations": ["enemy"],
+          "minimum_range": 0,
+          "maximum_range": 120,
+          "requires_line_of_sight": true
+        },
+        "costs": [
+          {
+            "resource_key": "mana",
+            "amount": {
+              "interpolation": "linear",
+              "rank_min": 0,
+              "rank_max": 40,
+              "value_min": 23,
+              "value_max": 53.8
+            }
+          }
+        ],
+        "phases": [
+          {
+            "kind": "active",
+            "duration_ms": 3600,
+            "effects": [
+              {
+                "op": "deal_damage",
+                "subject": "target",
+                "amount": {
+                  "interpolation": "linear",
+                  "rank_min": 0,
+                  "rank_max": 40,
+                  "value_min": 18,
+                  "value_max": 42.5
+                },
+                "damage_type": "mental"
+              },
+              {
+                "op": "remove_effect",
+                "subject": "target",
+                "effect_key": null,
+                "matching_tag": "movement.flight"
+              },
+              {
+                "op": "apply_effect",
+                "subject": "target",
+                "effect_key": "stunned",
+                "duration_ms": {
+                  "interpolation": "linear",
+                  "rank_min": 0,
+                  "rank_max": 40,
+                  "value_min": 1000,
+                  "value_max": 3000
+                },
+                "magnitude": 1,
+                "stacking_key": "Stun",
+                "tags": ["control.stun"]
+              },
+              {
+                "op": "apply_effect",
+                "subject": "target",
+                "effect_key": "stun_immunity",
+                "duration_ms": {
+                  "interpolation": "linear",
+                  "rank_min": 0,
+                  "rank_max": 40,
+                  "value_min": 3000,
+                  "value_max": 9000
+                },
+                "magnitude": 1,
+                "stacking_key": "NoStun",
+                "tags": ["immunity.stun"]
+              }
+            ],
+            "delivery": {"kind": "immediate", "projectile_speed_units_per_second": null},
+            "interruptible": true,
+            "movement_allowed": false
+          }
+        ],
+        "cooldown_ms": 3600,
+        "required_actor_tags": [],
+        "forbidden_actor_tags": [],
+        "features": [
+          {"name": "expected_damage", "value": {
+            "interpolation": "linear",
+            "rank_min": 0,
+            "rank_max": 40,
+            "value_min": 18,
+            "value_max": 42.5
+          }},
+          {"name": "control_duration_ms", "value": {
+            "interpolation": "linear",
+            "rank_min": 0,
+            "rank_max": 40,
+            "value_min": 1000,
+            "value_max": 3000
+          }}
+        ],
+        "tags": ["combat", "damage", "mental", "control", "anti_flight"]
+      }
+    },
+    {
       "action_key": "shadowbane.warlock.psychic_healing",
       "display_name": "Psychic Healing",
       "rank": 40,
+      "progression": {
+        "professions": ["warlock"],
+        "granted_level": 26,
+        "maximum_rank": 40,
+        "fixed_rank": null,
+        "skill_requirements": [
+          {"training_key": "warlockry", "minimum_rank": 61}
+        ],
+        "power_requirements": []
+      },
       "status": "compiled_with_override",
       "concrete": {
         "server_power_token": null,
@@ -296,7 +610,7 @@
       },
       "provenance": [
         {
-          "fields": ["rank", "spec.costs", "spec.phases[0].duration_ms", "spec.phases[0].effects"],
+          "fields": ["rank", "progression", "spec.costs", "spec.phases[0].duration_ms", "spec.phases[0].effects"],
           "source_id": "morloch-warlock-36352",
           "locator": "Psychic Healing rank 0-40 table",
           "note": "Rank-40 heal range 37-92 is represented by midpoint 64.5."
@@ -378,6 +692,16 @@
       "action_key": "shadowbane.warlock.levitation",
       "display_name": "Levitation",
       "rank": 5,
+      "progression": {
+        "professions": ["warlock"],
+        "granted_level": 22,
+        "maximum_rank": 5,
+        "fixed_rank": 5,
+        "skill_requirements": [
+          {"training_key": "warlockry", "minimum_rank": 52}
+        ],
+        "power_requirements": []
+      },
       "status": "compiled_with_override",
       "concrete": {
         "server_power_token": null,
@@ -386,7 +710,7 @@
       },
       "provenance": [
         {
-          "fields": ["rank", "spec.costs", "spec.phases[0].duration_ms", "spec.phases[0].effects"],
+          "fields": ["rank", "progression", "spec.costs", "spec.phases[0].duration_ms", "spec.phases[0].effects"],
           "source_id": "morloch-warlock-36352",
           "locator": "Levitation rank-5 entry"
         },
@@ -453,6 +777,16 @@
       "action_key": "shadowbane.assassin.passwall",
       "display_name": "Passwall",
       "rank": 40,
+      "progression": {
+        "professions": ["assassin"],
+        "granted_level": 28,
+        "maximum_rank": 40,
+        "fixed_rank": 40,
+        "skill_requirements": [
+          {"training_key": "shadowmastery", "minimum_rank": 66}
+        ],
+        "power_requirements": []
+      },
       "status": "unresolved",
       "concrete": {
         "server_power_token": null,
@@ -461,7 +795,7 @@
       },
       "provenance": [
         {
-          "fields": ["rank", "display_name", "unresolved"],
+          "fields": ["rank", "progression", "display_name", "unresolved"],
           "source_id": "morloch-assassin-36339",
           "locator": "Passwall rank-40 entry",
           "note": "The wiki identifies mana 76, cast 6 seconds, recycle 300 seconds, invisible prerequisite, and damage interruption."

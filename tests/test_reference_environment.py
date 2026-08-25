@@ -5,6 +5,7 @@ from shadowbane_lab.sim import (
     ActionCatalog,
     ActionPhase,
     ActionSpec,
+    ActiveEffectState,
     ApplyEffect,
     DealDamage,
     DeliveryKind,
@@ -69,6 +70,105 @@ def actor(
 
 
 class ReferenceEnvironmentTests(unittest.TestCase):
+    def test_stun_blocks_affordances_until_effect_expiry(self) -> None:
+        wait = ActionSpec(
+            action_key="wait",
+            targeting=TargetingSpec(kind=TargetKind.NONE),
+            phases=(ActionPhase(kind=PhaseKind.ACTIVE, duration_ms=0),),
+        )
+        stun = ActionSpec(
+            action_key="stun",
+            targeting=TargetingSpec(
+                kind=TargetKind.ENTITY,
+                allowed_relations=(Relation.ENEMY,),
+                maximum_range=10.0,
+            ),
+            phases=(
+                ActionPhase(
+                    kind=PhaseKind.ACTIVE,
+                    duration_ms=0,
+                    effects=(
+                        ApplyEffect(
+                            SubjectRef.TARGET,
+                            "stunned",
+                            400,
+                            stacking_key="Stun",
+                            tags=("control.stun",),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        environment = ReferenceEnvironment(
+            ActionCatalog((stun, wait)),
+            (
+                actor("a", "red", Vector2(0.0, 0.0), ("stun",)),
+                actor("b", "blue", Vector2(1.0, 0.0), ("wait",)),
+            ),
+            seed=1,
+        )
+        decision = action_for(
+            environment, "a", "stun", target_id="b", correlation_id="stun-b"
+        )
+
+        environment.step((decision,))
+
+        self.assertEqual((), environment.exchange("b").affordances.affordances)
+        environment.step()
+        self.assertEqual(1, len(environment.exchange("b").affordances.affordances))
+
+    def test_stun_immunity_prevents_new_stun_effect(self) -> None:
+        stun = ActionSpec(
+            action_key="stun",
+            targeting=TargetingSpec(
+                kind=TargetKind.ENTITY,
+                allowed_relations=(Relation.ENEMY,),
+                maximum_range=10.0,
+            ),
+            phases=(
+                ActionPhase(
+                    kind=PhaseKind.ACTIVE,
+                    duration_ms=0,
+                    effects=(
+                        ApplyEffect(
+                            SubjectRef.TARGET,
+                            "stunned",
+                            1_000,
+                            stacking_key="Stun",
+                            tags=("control.stun",),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        immune_target = actor("b", "blue", Vector2(1.0, 0.0), ())
+        immune_target.effects["NoStun"] = ActiveEffectState(
+            effect_key="stun_immunity",
+            source_entity_id="b",
+            magnitude=1.0,
+            expires_at_ms=5_000,
+            stacking_key="NoStun",
+            tags={"immunity.stun"},
+        )
+        environment = ReferenceEnvironment(
+            ActionCatalog((stun,)),
+            (
+                actor("a", "red", Vector2(0.0, 0.0), ("stun",)),
+                immune_target,
+            ),
+            seed=1,
+        )
+        decision = action_for(
+            environment, "a", "stun", target_id="b", correlation_id="immune"
+        )
+
+        events = environment.step((decision,)).events
+
+        self.assertNotIn("Stun", environment.entity("b").effects)
+        self.assertFalse(
+            any(event.kind == EventKind.EFFECT_ADDED and "effect.stunned" in event.tags for event in events)
+        )
+
     def test_joint_actions_resolve_from_the_same_alive_set(self) -> None:
         attack = ActionSpec(
             action_key="attack",
