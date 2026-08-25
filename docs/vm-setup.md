@@ -43,8 +43,9 @@ No GitHub credentials or tokens are used. The repository is cloned over public H
 
 ## Useful options
 
-- `-InspectClient` performs a read-only foreground-window inspection after setup. WonderBane
-  must already be running and focused.
+- `-InspectClient` pauses for eight seconds after setup so you can switch focus to WonderBane,
+  then performs a read-only foreground-window inspection. Override the countdown with
+  `-ClientInspectDelaySeconds`.
 - `-UpdateExisting` updates an existing clean checkout using fetch, switch, and fast-forward
   pull. It refuses to update when tracked changes exist.
 - `-SkipPrerequisiteInstall` makes missing Git or Python an error instead of invoking

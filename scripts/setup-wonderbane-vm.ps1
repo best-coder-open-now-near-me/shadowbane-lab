@@ -6,6 +6,8 @@ param(
     [switch]$SkipPrerequisiteInstall,
     [switch]$SkipTests,
     [switch]$InspectClient,
+    [ValidateRange(1, 60)]
+    [int]$ClientInspectDelaySeconds = 8,
     [switch]$UpdateExisting
 )
 
@@ -216,7 +218,9 @@ if (-not $SkipTests) {
 }
 
 if ($InspectClient) {
-    Write-Step "Inspecting the current foreground client without sending input"
+    Write-Step "Preparing read-only foreground client inspection"
+    Write-Host "Switch focus to WonderBane now. Inspection begins in $ClientInspectDelaySeconds seconds."
+    Start-Sleep -Seconds $ClientInspectDelaySeconds
     & $venvPython -m shadowbane_lab.cli client inspect
     if ($LASTEXITCODE -ne 0) {
         Write-Warning "Client inspection did not find a usable foreground window. Setup remains valid; launch and focus WonderBane, then run the inspection command shown below."
