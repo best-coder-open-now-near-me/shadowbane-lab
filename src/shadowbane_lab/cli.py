@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import ntpath
 import sys
+import time
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -12,6 +14,7 @@ from shadowbane_lab.client_input import (
     CalibrationLoadError,
     WindowsForegroundWindowInspector,
     WindowSnapshot,
+    WindowsVisibleWindowInspector,
     load_calibration,
 )
 
@@ -27,6 +30,30 @@ def _parser() -> argparse.ArgumentParser:
         help="read the current foreground Win32 client without sending input",
     )
     inspect.add_argument("--json", action="store_true", help="emit machine-readable JSON")
+
+    discover = client_commands.add_parser(
+        "discover",
+        help="find one visible client by its executable directory without changing focus",
+    )
+    discover.add_argument(
+        "--process-directory",
+        type=Path,
+        required=True,
+        help="directory containing the expected game process executable",
+    )
+    discover.add_argument(
+        "--wait-seconds",
+        type=float,
+        default=0.0,
+        help="maximum time to wait for exactly one matching visible window",
+    )
+    discover.add_argument(
+        "--poll-seconds",
+        type=float,
+        default=0.5,
+        help="delay between visible-window scans while waiting",
+    )
+    discover.add_argument("--json", action="store_true", help="emit machine-readable JSON")
 
     validate = client_commands.add_parser(
         "validate-profile",
@@ -52,6 +79,7 @@ def _snapshot_payload(snapshot: WindowSnapshot) -> dict[str, object]:
         "dpi_scale": snapshot.dpi_scale,
         "is_foreground": snapshot.is_foreground,
         "is_visible": snapshot.is_visible,
+        "executable_path": snapshot.executable_path,
     }
 
 
@@ -65,6 +93,11 @@ def _inspect_client(*, as_json: bool) -> int:
             "no foreground window could be inspected; focus WonderBane and try again",
             as_json=as_json,
         )
+    _print_snapshot(snapshot, as_json=as_json)
+    return 0
+
+
+def _print_snapshot(snapshot: WindowSnapshot, *, as_json: bool) -> None:
     payload = _snapshot_payload(snapshot)
     if as_json:
         print(json.dumps(payload, sort_keys=True))
@@ -79,7 +112,75 @@ def _inspect_client(*, as_json: bool) -> int:
             f"width={bounds['width']} height={bounds['height']}"
         )
         print(f"DPI scale: {payload['dpi_scale']}")
-    return 0
+
+
+def _windows_directory(path: str) -> str:
+    return ntpath.normcase(ntpath.normpath(ntpath.abspath(path)))
+
+
+def _matches_process_directory(snapshot: WindowSnapshot, process_directory: Path) -> bool:
+    if snapshot.executable_path is None:
+        return False
+    executable_directory = ntpath.dirname(snapshot.executable_path)
+    return _windows_directory(executable_directory) == _windows_directory(str(process_directory))
+
+
+def _candidate_description(snapshot: WindowSnapshot) -> str:
+    title = snapshot.title or "<untitled>"
+    return f"{snapshot.executable_name} ({title!r})"
+
+
+def _discover_client(
+    process_directory: Path,
+    *,
+    wait_seconds: float,
+    poll_seconds: float,
+    as_json: bool,
+) -> int:
+    if wait_seconds < 0:
+        return _error("wait-seconds must not be negative", as_json=as_json)
+    if poll_seconds <= 0:
+        return _error("poll-seconds must be positive", as_json=as_json)
+    if not process_directory.is_dir():
+        return _error(
+            f"process directory does not exist: {process_directory}",
+            as_json=as_json,
+        )
+    try:
+        inspector = WindowsVisibleWindowInspector()
+    except (OSError, RuntimeError) as exc:
+        return _error(f"client discovery failed: {exc}", as_json=as_json)
+
+    deadline = time.monotonic() + wait_seconds
+    matches: tuple[WindowSnapshot, ...] = ()
+    while True:
+        try:
+            snapshots = inspector.inspect_all()
+        except OSError as exc:
+            return _error(f"client discovery failed: {exc}", as_json=as_json)
+        matches = tuple(
+            snapshot
+            for snapshot in snapshots
+            if _matches_process_directory(snapshot, process_directory)
+        )
+        if len(matches) == 1:
+            _print_snapshot(matches[0], as_json=as_json)
+            return 0
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        time.sleep(min(poll_seconds, remaining))
+
+    if not matches:
+        return _error(
+            f"no visible client window was found in {process_directory}",
+            as_json=as_json,
+        )
+    candidates = ", ".join(_candidate_description(snapshot) for snapshot in matches)
+    return _error(
+        f"multiple visible client windows matched {process_directory}: {candidates}",
+        as_json=as_json,
+    )
 
 
 def _validate_profile(path: Path, *, as_json: bool) -> int:
@@ -118,6 +219,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     arguments = _parser().parse_args(argv)
     if arguments.command == "client" and arguments.client_command == "inspect":
         return _inspect_client(as_json=arguments.json)
+    if arguments.command == "client" and arguments.client_command == "discover":
+        return _discover_client(
+            arguments.process_directory,
+            wait_seconds=arguments.wait_seconds,
+            poll_seconds=arguments.poll_seconds,
+            as_json=arguments.json,
+        )
     if arguments.command == "client" and arguments.client_command == "validate-profile":
         return _validate_profile(arguments.profile, as_json=arguments.json)
     raise RuntimeError("unreachable command")

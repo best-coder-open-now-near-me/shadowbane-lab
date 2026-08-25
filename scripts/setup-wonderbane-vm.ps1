@@ -6,8 +6,9 @@ param(
     [switch]$SkipPrerequisiteInstall,
     [switch]$SkipTests,
     [switch]$InspectClient,
-    [ValidateRange(1, 60)]
-    [int]$ClientInspectDelaySeconds = 8,
+    [string]$ClientLauncherPath,
+    [ValidateRange(1, 300)]
+    [int]$ClientDiscoveryTimeoutSeconds = 90,
     [switch]$UpdateExisting
 )
 
@@ -276,13 +277,63 @@ if (-not $SkipTests) {
     }
 }
 
+$discoveredClientDirectory = $null
 if ($InspectClient) {
-    Write-Step "Preparing read-only foreground client inspection"
-    Write-Host "Switch focus to WonderBane now. Inspection begins in $ClientInspectDelaySeconds seconds."
-    Start-Sleep -Seconds $ClientInspectDelaySeconds
-    & $venvPython -m shadowbane_lab.cli client inspect
+    if ([string]::IsNullOrWhiteSpace($ClientLauncherPath)) {
+        $defaultLauncher = Join-Path $env:USERPROFILE "Downloads\WonderbaneClient\Wonderbane\Launch-WonderBane-TextFix.cmd"
+        if (Test-Path -LiteralPath $defaultLauncher -PathType Leaf) {
+            $ClientLauncherPath = $defaultLauncher
+        }
+        else {
+            throw "-InspectClient requires -ClientLauncherPath. The default WonderBane text-fix launcher was not found at: $defaultLauncher"
+        }
+    }
+    if (-not (Test-Path -LiteralPath $ClientLauncherPath -PathType Leaf)) {
+        throw "Client launcher does not exist: $ClientLauncherPath"
+    }
+    $resolvedLauncher = (Resolve-Path -LiteralPath $ClientLauncherPath).Path
+    $launcherExtension = [IO.Path]::GetExtension($resolvedLauncher).ToLowerInvariant()
+    if ($launcherExtension -notin @(".cmd", ".bat", ".exe")) {
+        throw "Client launcher must be a .cmd, .bat, or .exe file: $resolvedLauncher"
+    }
+    $discoveredClientDirectory = Split-Path -Parent $resolvedLauncher
+
+    Write-Step "Discovering the visible WonderBane client without changing focus"
+    $null = & $venvPython -m shadowbane_lab.cli client discover `
+        --process-directory $discoveredClientDirectory `
+        --wait-seconds 0 `
+        --json 2>$null
+    $clientAlreadyRunning = $LASTEXITCODE -eq 0
+    if (-not $clientAlreadyRunning) {
+        Write-Host "Launching WonderBane through: $resolvedLauncher"
+        if ($launcherExtension -in @(".cmd", ".bat")) {
+            Start-Process `
+                -FilePath $env:ComSpec `
+                -ArgumentList @("/d", "/c", "`"$resolvedLauncher`"") `
+                -WorkingDirectory $discoveredClientDirectory `
+                -WindowStyle Hidden
+        }
+        else {
+            Start-Process `
+                -FilePath $resolvedLauncher `
+                -WorkingDirectory $discoveredClientDirectory
+        }
+    }
+    else {
+        Write-Host "A visible WonderBane client is already running; leaving it untouched."
+    }
+
+    $discoveryWaitSeconds = if ($clientAlreadyRunning) {
+        0
+    }
+    else {
+        $ClientDiscoveryTimeoutSeconds
+    }
+    & $venvPython -m shadowbane_lab.cli client discover `
+        --process-directory $discoveredClientDirectory `
+        --wait-seconds $discoveryWaitSeconds
     if ($LASTEXITCODE -ne 0) {
-        Write-Warning "Client inspection did not find a usable foreground window. Setup remains valid; launch and focus WonderBane, then run the inspection command shown below."
+        Write-Warning "Client discovery did not find one unambiguous visible WonderBane window. Setup remains valid; close duplicate game or patcher windows and rerun the discovery command shown below."
     }
 }
 
@@ -293,4 +344,7 @@ Write-Host "Live input remains disabled until calibration is reviewed."
 Write-Host "`nNext commands:"
 Write-Host "  cd `"$InstallDirectory`""
 Write-Host "  .\.venv\Scripts\python.exe -m shadowbane_lab.cli client inspect"
+if ($null -ne $discoveredClientDirectory) {
+    Write-Host "  .\.venv\Scripts\python.exe -m shadowbane_lab.cli client discover --process-directory `"$discoveredClientDirectory`""
+}
 Write-Host "  notepad .\configs\wonderbane.local.json"

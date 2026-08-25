@@ -58,11 +58,14 @@ from shadowbane_lab.client_input.stop import (
 )
 from shadowbane_lab.client_input.window import (
     ForegroundWindowGuard,
+    StaticVisibleWindowInspector,
     StaticWindowInspector,
+    VisibleWindowInspector,
     WindowGuardError,
     WindowInspector,
     WindowsForegroundWindowInspector,
     WindowSnapshot,
+    WindowsVisibleWindowInspector,
 )
 
 __all__ = [
@@ -103,16 +106,19 @@ __all__ = [
     "NormalizedPoint",
     "PyAutoGuiBackend",
     "RecordingInputBackend",
+    "StaticVisibleWindowInspector",
     "StaticWindowInspector",
     "StaticBindingPointResolver",
     "StopSignal",
     "TargetOrder",
     "WaitCommand",
+    "VisibleWindowInspector",
     "WindowBounds",
     "WindowGuardError",
     "WindowInspector",
     "WindowSnapshot",
     "WindowsForegroundWindowInspector",
+    "WindowsVisibleWindowInspector",
     "WindowsHotkeyEmergencyStop",
     "load_calibration",
     "load_calibration_text",

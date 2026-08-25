@@ -31,8 +31,18 @@ in-memory fake PyAutoGUI module, so tests cannot generate desktop input.
 ## Capture the local window identity
 
 Put the running WonderBane client in the exact mode used for automation—windowed or
-borderless, resolution fixed—bring it to the foreground, and inspect it without sending
-input:
+borderless with a fixed resolution. First discover it by its executable directory without
+changing focus:
+
+```powershell
+.\.venv\Scripts\python.exe -m shadowbane_lab.cli client discover `
+  --process-directory "C:\Users\admin\Downloads\WonderbaneClient\Wonderbane"
+```
+
+Discovery enumerates visible top-level windows, so a foreground PowerShell or launcher terminal
+cannot be mistaken for the game. It succeeds only when exactly one visible window from the game
+directory is present. Then bring WonderBane to the foreground and exercise the stricter
+inspector used by the live-input guard:
 
 ```powershell
 $env:PYTHONPATH = "src"

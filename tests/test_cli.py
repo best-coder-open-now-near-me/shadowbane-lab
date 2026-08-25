@@ -1,12 +1,14 @@
 import io
 import json
+import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
 from shadowbane_lab.cli import main
-from shadowbane_lab.client_input import StaticWindowInspector
+from shadowbane_lab.client_input import StaticVisibleWindowInspector, StaticWindowInspector
 from tests.test_client_input_executor import _valid_snapshot
 
 
@@ -42,6 +44,86 @@ class ClientCliTests(unittest.TestCase):
 
         self.assertEqual(2, result)
         self.assertIn("focus WonderBane", output.getvalue())
+
+    def test_discover_finds_game_by_directory_without_foreground_focus(self) -> None:
+        output = io.StringIO()
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            game_directory = Path(temporary_directory) / "Wonderbane"
+            game_directory.mkdir()
+            terminal = replace(
+                _valid_snapshot(),
+                executable_name="powershell.exe",
+                title="Administrator: Windows PowerShell",
+                is_foreground=True,
+                executable_path=r"C:\Windows\System32\WindowsPowerShell\powershell.exe",
+            )
+            game = replace(
+                _valid_snapshot(),
+                executable_name="sb.exe",
+                title="Shadowbane",
+                is_foreground=False,
+                executable_path=str(game_directory / "sb.exe"),
+            )
+            inspector = StaticVisibleWindowInspector((terminal, game))
+            with (
+                patch(
+                    "shadowbane_lab.cli.WindowsVisibleWindowInspector",
+                    return_value=inspector,
+                ),
+                redirect_stdout(output),
+            ):
+                result = main(
+                    (
+                        "client",
+                        "discover",
+                        "--process-directory",
+                        str(game_directory),
+                        "--json",
+                    )
+                )
+
+        payload = json.loads(output.getvalue())
+        self.assertEqual(0, result)
+        self.assertEqual("sb.exe", payload["executable_name"])
+        self.assertFalse(payload["is_foreground"])
+        self.assertEqual(str(game_directory / "sb.exe"), payload["executable_path"])
+
+    def test_discover_fails_closed_when_directory_match_is_ambiguous(self) -> None:
+        output = io.StringIO()
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            game_directory = Path(temporary_directory) / "Wonderbane"
+            game_directory.mkdir()
+            first = replace(
+                _valid_snapshot(),
+                executable_name="sb.exe",
+                title="Shadowbane",
+                executable_path=str(game_directory / "sb.exe"),
+            )
+            second = replace(
+                _valid_snapshot(),
+                executable_name="WonderBanePatcher.exe",
+                title="WonderBane Patcher",
+                executable_path=str(game_directory / "WonderBanePatcher.exe"),
+            )
+            inspector = StaticVisibleWindowInspector((first, second))
+            with (
+                patch(
+                    "shadowbane_lab.cli.WindowsVisibleWindowInspector",
+                    return_value=inspector,
+                ),
+                redirect_stderr(output),
+            ):
+                result = main(
+                    (
+                        "client",
+                        "discover",
+                        "--process-directory",
+                        str(game_directory),
+                    )
+                )
+
+        self.assertEqual(2, result)
+        self.assertIn("multiple visible client windows", output.getvalue())
 
     def test_bundled_template_validates_and_remains_live_locked(self) -> None:
         output = io.StringIO()

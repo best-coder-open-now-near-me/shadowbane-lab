@@ -20,6 +20,7 @@ class WindowSnapshot:
     dpi_scale: float
     is_foreground: bool
     is_visible: bool
+    executable_path: str | None = None
 
     def __post_init__(self) -> None:
         if not self.executable_name.strip():
@@ -34,11 +35,19 @@ class WindowSnapshot:
             raise ValueError("dpi_scale must be positive")
         if not isinstance(self.is_foreground, bool) or not isinstance(self.is_visible, bool):
             raise ValueError("window state flags must be booleans")
+        if self.executable_path is not None:
+            if not isinstance(self.executable_path, str) or not self.executable_path.strip():
+                raise ValueError("executable_path must be a non-empty string or None")
 
 
 @runtime_checkable
 class WindowInspector(Protocol):
     def inspect(self) -> WindowSnapshot | None: ...
+
+
+@runtime_checkable
+class VisibleWindowInspector(Protocol):
+    def inspect_all(self) -> tuple[WindowSnapshot, ...]: ...
 
 
 class StaticWindowInspector:
@@ -53,6 +62,22 @@ class StaticWindowInspector:
     def inspect(self) -> WindowSnapshot | None:
         self.inspection_count += 1
         return self.snapshot
+
+
+class StaticVisibleWindowInspector:
+    """Deterministic visible-window enumerator for diagnostics and tests."""
+
+    def __init__(self, snapshots: tuple[WindowSnapshot, ...]) -> None:
+        if not isinstance(snapshots, tuple) or any(
+            not isinstance(snapshot, WindowSnapshot) for snapshot in snapshots
+        ):
+            raise ValueError("snapshots must be a tuple of WindowSnapshot values")
+        self.snapshots = snapshots
+        self.inspection_count = 0
+
+    def inspect_all(self) -> tuple[WindowSnapshot, ...]:
+        self.inspection_count += 1
+        return self.snapshots
 
 
 class WindowGuardError(RuntimeError):
@@ -101,55 +126,77 @@ class ForegroundWindowGuard:
         return snapshot
 
 
-class WindowsForegroundWindowInspector:
-    """Inspects the current Win32 foreground window without sending input."""
-
+class _WindowsWindowApi:
     def __init__(self) -> None:
-        if os.name != "nt":
-            raise RuntimeError("WindowsForegroundWindowInspector requires Windows")
-
-    def inspect(self) -> WindowSnapshot | None:
         import ctypes
         from ctypes import wintypes
 
-        user32 = ctypes.windll.user32
-        kernel32 = ctypes.windll.kernel32
-        user32.GetForegroundWindow.restype = wintypes.HWND
-        user32.GetWindowTextLengthW.argtypes = (wintypes.HWND,)
-        user32.GetWindowTextLengthW.restype = ctypes.c_int
-        user32.GetWindowTextW.argtypes = (
+        self._ctypes = ctypes
+        self._wintypes = wintypes
+        self._user32 = ctypes.windll.user32
+        self._kernel32 = ctypes.windll.kernel32
+        self._enum_callback_type = ctypes.WINFUNCTYPE(
+            wintypes.BOOL,
+            wintypes.HWND,
+            wintypes.LPARAM,
+        )
+        self._user32.EnumWindows.argtypes = (self._enum_callback_type, wintypes.LPARAM)
+        self._user32.EnumWindows.restype = wintypes.BOOL
+        self._user32.GetForegroundWindow.restype = wintypes.HWND
+        self._user32.GetWindowTextLengthW.argtypes = (wintypes.HWND,)
+        self._user32.GetWindowTextLengthW.restype = ctypes.c_int
+        self._user32.GetWindowTextW.argtypes = (
             wintypes.HWND,
             wintypes.LPWSTR,
             ctypes.c_int,
         )
-        user32.GetClientRect.argtypes = (wintypes.HWND, ctypes.POINTER(wintypes.RECT))
-        user32.GetClientRect.restype = wintypes.BOOL
-        user32.ClientToScreen.argtypes = (
+        self._user32.GetClientRect.argtypes = (
+            wintypes.HWND,
+            ctypes.POINTER(wintypes.RECT),
+        )
+        self._user32.GetClientRect.restype = wintypes.BOOL
+        self._user32.ClientToScreen.argtypes = (
             wintypes.HWND,
             ctypes.POINTER(wintypes.POINT),
         )
-        user32.ClientToScreen.restype = wintypes.BOOL
-        user32.GetWindowThreadProcessId.argtypes = (
+        self._user32.ClientToScreen.restype = wintypes.BOOL
+        self._user32.GetWindowThreadProcessId.argtypes = (
             wintypes.HWND,
             ctypes.POINTER(wintypes.DWORD),
         )
-        user32.GetWindowThreadProcessId.restype = wintypes.DWORD
-        user32.IsWindowVisible.argtypes = (wintypes.HWND,)
-        user32.IsWindowVisible.restype = wintypes.BOOL
-        kernel32.OpenProcess.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
-        kernel32.OpenProcess.restype = wintypes.HANDLE
-        kernel32.QueryFullProcessImageNameW.argtypes = (
+        self._user32.GetWindowThreadProcessId.restype = wintypes.DWORD
+        self._user32.IsWindowVisible.argtypes = (wintypes.HWND,)
+        self._user32.IsWindowVisible.restype = wintypes.BOOL
+        self._kernel32.OpenProcess.argtypes = (
+            wintypes.DWORD,
+            wintypes.BOOL,
+            wintypes.DWORD,
+        )
+        self._kernel32.OpenProcess.restype = wintypes.HANDLE
+        self._kernel32.QueryFullProcessImageNameW.argtypes = (
             wintypes.HANDLE,
             wintypes.DWORD,
             wintypes.LPWSTR,
             ctypes.POINTER(wintypes.DWORD),
         )
-        kernel32.QueryFullProcessImageNameW.restype = wintypes.BOOL
-        kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
-        kernel32.CloseHandle.restype = wintypes.BOOL
-        window = user32.GetForegroundWindow()
+        self._kernel32.QueryFullProcessImageNameW.restype = wintypes.BOOL
+        self._kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
+        self._kernel32.CloseHandle.restype = wintypes.BOOL
+        if hasattr(self._user32, "GetDpiForWindow"):
+            self._user32.GetDpiForWindow.argtypes = (wintypes.HWND,)
+            self._user32.GetDpiForWindow.restype = wintypes.UINT
+
+    def foreground_window(self) -> int | None:
+        window = self._user32.GetForegroundWindow()
         if not window:
             return None
+        return window
+
+    def snapshot(self, window: int, *, foreground_window: int | None) -> WindowSnapshot | None:
+        ctypes = self._ctypes
+        wintypes = self._wintypes
+        user32 = self._user32
+        kernel32 = self._kernel32
 
         title_length = user32.GetWindowTextLengthW(window)
         title_buffer = ctypes.create_unicode_buffer(title_length + 1)
@@ -164,6 +211,10 @@ class WindowsForegroundWindowInspector:
             return None
         if not user32.ClientToScreen(window, ctypes.byref(bottom_right)):
             return None
+        width = bottom_right.x - top_left.x
+        height = bottom_right.y - top_left.y
+        if width <= 0 or height <= 0:
+            return None
 
         process_id = wintypes.DWORD()
         user32.GetWindowThreadProcessId(window, ctypes.byref(process_id))
@@ -177,7 +228,8 @@ class WindowsForegroundWindowInspector:
                 process, 0, path_buffer, ctypes.byref(path_length)
             ):
                 return None
-            executable_name = Path(path_buffer.value).name
+            executable_path = path_buffer.value
+            executable_name = Path(executable_path).name
         finally:
             kernel32.CloseHandle(process)
 
@@ -187,16 +239,81 @@ class WindowsForegroundWindowInspector:
             dpi = user32.GetDpiForWindow(window)
         else:
             dpi = 96
+        if dpi <= 0:
+            dpi = 96
         return WindowSnapshot(
             executable_name=executable_name,
             title=title_buffer.value,
             client_bounds=WindowBounds(
                 left=top_left.x,
                 top=top_left.y,
-                width=bottom_right.x - top_left.x,
-                height=bottom_right.y - top_left.y,
+                width=width,
+                height=height,
             ),
             dpi_scale=dpi / 96.0,
-            is_foreground=True,
+            is_foreground=window == foreground_window,
             is_visible=bool(user32.IsWindowVisible(window)),
+            executable_path=executable_path,
         )
+
+    def visible_snapshots(self) -> tuple[WindowSnapshot, ...]:
+        foreground = self.foreground_window()
+        snapshots: list[WindowSnapshot] = []
+        callback_errors: list[Exception] = []
+
+        def collect(window: int, _parameter: int) -> bool:
+            try:
+                if not self._user32.IsWindowVisible(window):
+                    return True
+                snapshot = self.snapshot(window, foreground_window=foreground)
+                if snapshot is not None and snapshot.is_visible:
+                    snapshots.append(snapshot)
+                return True
+            except Exception as exc:
+                callback_errors.append(exc)
+                return False
+
+        callback = self._enum_callback_type(collect)
+        enumeration_completed = bool(self._user32.EnumWindows(callback, 0))
+        if callback_errors:
+            raise OSError("visible-window inspection callback failed") from callback_errors[0]
+        if not enumeration_completed and not snapshots:
+            return ()
+        return tuple(
+            sorted(
+                snapshots,
+                key=lambda snapshot: (
+                    snapshot.executable_name.casefold(),
+                    snapshot.title.casefold(),
+                    snapshot.client_bounds.left,
+                    snapshot.client_bounds.top,
+                ),
+            )
+        )
+
+
+class WindowsForegroundWindowInspector:
+    """Inspects the current Win32 foreground window without sending input."""
+
+    def __init__(self) -> None:
+        if os.name != "nt":
+            raise RuntimeError("WindowsForegroundWindowInspector requires Windows")
+        self._api = _WindowsWindowApi()
+
+    def inspect(self) -> WindowSnapshot | None:
+        window = self._api.foreground_window()
+        if window is None:
+            return None
+        return self._api.snapshot(window, foreground_window=window)
+
+
+class WindowsVisibleWindowInspector:
+    """Enumerates visible top-level Win32 windows without changing focus."""
+
+    def __init__(self) -> None:
+        if os.name != "nt":
+            raise RuntimeError("WindowsVisibleWindowInspector requires Windows")
+        self._api = _WindowsWindowApi()
+
+    def inspect_all(self) -> tuple[WindowSnapshot, ...]:
+        return self._api.visible_snapshots()

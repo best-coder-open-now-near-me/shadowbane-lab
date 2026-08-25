@@ -15,7 +15,7 @@ The script performs these operations in order:
    an existing local calibration.
 6. Strictly validate the local profile.
 7. Run Ruff and the complete desktop-safe unit test suite.
-8. Optionally inspect the foreground client without sending input.
+8. Optionally launch and discover the visible client without depending on foreground focus.
 
 ## One-time bootstrap
 
@@ -44,9 +44,12 @@ No GitHub credentials or tokens are used. The repository is cloned over public H
 
 ## Useful options
 
-- `-InspectClient` pauses for eight seconds after setup so you can switch focus to WonderBane,
-  then performs a read-only foreground-window inspection. Override the countdown with
-  `-ClientInspectDelaySeconds`.
+- `-InspectClient` performs read-only visible-window discovery. Supply
+  `-ClientLauncherPath` with the `.cmd`, `.bat`, or `.exe` used to launch WonderBane. The
+  script first looks for an existing visible client from that directory and launches only when
+  none is present. Terminal focus does not affect discovery.
+- `-ClientDiscoveryTimeoutSeconds` controls how long discovery waits after starting the
+  launcher. The default is 90 seconds, which accommodates the software-rendered startup path.
 - `-UpdateExisting` updates an existing clean checkout using fetch, switch, and fast-forward
   pull. It refuses to update when tracked changes exist.
 - `-SkipPrerequisiteInstall` makes missing Git or Python an error instead of invoking
@@ -60,13 +63,29 @@ Prerequisite installation is idempotent. Existing exact Winget packages are acce
 attempting an upgrade, and Git is discovered in both standard machine-wide and per-user
 locations even when the current PowerShell session has a stale `PATH`.
 
+To bootstrap and discover the text-fixed client in one command:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File $setupScript `
+    -UpdateExisting `
+    -InspectClient `
+    -ClientLauncherPath "C:\Users\admin\Downloads\WonderbaneClient\Wonderbane\Launch-WonderBane-TextFix.cmd"
+```
+
+Discovery enumerates visible top-level Windows windows and accepts exactly one whose owning
+process executable is in the launcher's directory. It ignores the foreground terminal by
+construction and fails closed if both a patcher and game window match.
+
 ## After setup
 
-Launch WonderBane in its permanent window mode, resolution, and Windows scaling. Focus the
-client and run:
+Launch WonderBane in its permanent window mode, resolution, and Windows scaling. First discover
+its identity without changing focus, then focus it and exercise the stricter foreground
+inspection used by the input guard:
 
 ```powershell
 cd "$env:USERPROFILE\shadowbane-lab"
+.\.venv\Scripts\python.exe -m shadowbane_lab.cli client discover `
+    --process-directory "C:\Users\admin\Downloads\WonderbaneClient\Wonderbane"
 .\.venv\Scripts\python.exe -m shadowbane_lab.cli client inspect
 notepad .\configs\wonderbane.local.json
 .\.venv\Scripts\python.exe -m shadowbane_lab.cli client validate-profile `
