@@ -20,6 +20,8 @@ from shadowbane_lab.client_input import (
 )
 from shadowbane_lab.client_observation import (
     ClientTargetObserver,
+    NativeCombatLogFormatError,
+    NativeCombatLogReader,
     ObservationCalibrationLoadError,
     ObservationDetectionError,
     PyAutoGuiFrameCapture,
@@ -93,6 +95,20 @@ def _parser() -> argparse.ArgumentParser:
         help="maximum time to wait for the calibrated client to become foreground",
     )
     observe_target.add_argument(
+        "--json", action="store_true", help="emit machine-readable JSON"
+    )
+
+    read_combat_log = client_commands.add_parser(
+        "read-combat-log",
+        help="read exact messages from a Shadowbane text HUD's native log file",
+    )
+    read_combat_log.add_argument("path", type=Path)
+    read_combat_log.add_argument(
+        "--limit",
+        type=int,
+        help="return only the newest N complete records",
+    )
+    read_combat_log.add_argument(
         "--json", action="store_true", help="emit machine-readable JSON"
     )
     return parser
@@ -305,6 +321,38 @@ def _observe_target(
     return 0
 
 
+def _read_combat_log(path: Path, *, limit: int | None, as_json: bool) -> int:
+    if limit is not None and limit <= 0:
+        return _error("combat log limit must be positive", as_json=as_json)
+    if not path.is_file():
+        return _error(f"combat log does not exist: {path}", as_json=as_json)
+    try:
+        entries = NativeCombatLogReader(path).read_new_entries(finalize=True)
+    except (NativeCombatLogFormatError, OSError, UnicodeError, ValueError) as exc:
+        return _error(f"combat log read failed: {exc}", as_json=as_json)
+    selected = entries[-limit:] if limit is not None else entries
+    payload = {
+        "ok": True,
+        "path": str(path),
+        "entry_count": len(entries),
+        "returned_count": len(selected),
+        "entries": [
+            {
+                "sequence": entry.sequence,
+                "timestamp": entry.timestamp,
+                "message": entry.message,
+            }
+            for entry in selected
+        ],
+    }
+    if as_json:
+        print(json.dumps(payload, sort_keys=True))
+    else:
+        for entry in selected:
+            print(f"({entry.timestamp}) {entry.message}")
+    return 0
+
+
 def _error(message: str, *, as_json: bool) -> int:
     if as_json:
         print(json.dumps({"ok": False, "error": message}, sort_keys=True))
@@ -331,6 +379,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             arguments.client_profile,
             arguments.observation_profile,
             wait_seconds=arguments.wait_seconds,
+            as_json=arguments.json,
+        )
+    if arguments.command == "client" and arguments.client_command == "read-combat-log":
+        return _read_combat_log(
+            arguments.path,
+            limit=arguments.limit,
             as_json=arguments.json,
         )
     raise RuntimeError("unreachable command")

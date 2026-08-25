@@ -23,6 +23,11 @@ from shadowbane_lab.client_observation.model import (
     TargetHealthBarCalibration,
     TargetStatusObservation,
 )
+from shadowbane_lab.client_observation.native_log import (
+    NativeCombatLogEntry,
+    NativeCombatLogFormatError,
+    NativeCombatLogReader,
+)
 from shadowbane_lab.client_observation.observer import ClientTargetObserver
 
 __all__ = [
@@ -31,6 +36,9 @@ __all__ = [
     "ClientPixelRegion",
     "ClientTargetObserver",
     "FrameCapture",
+    "NativeCombatLogEntry",
+    "NativeCombatLogFormatError",
+    "NativeCombatLogReader",
     "ObservationCalibrationLoadError",
     "ObservationDetectionError",
     "PyAutoGuiFrameCapture",
