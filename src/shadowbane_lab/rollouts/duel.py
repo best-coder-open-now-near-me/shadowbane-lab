@@ -2,27 +2,62 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import json
+from dataclasses import dataclass, replace
 from enum import StrEnum
+from hashlib import sha256
 from math import hypot
+from statistics import fmean
 
 from shadowbane_lab.protocol import (
     Affordance,
     DecisionMessage,
     EntityKind,
+    EntityObservation,
     Event,
     EventKind,
     NamedScalar,
     Relation,
     Vector2,
 )
-from shadowbane_lab.rulesets import CharacterBuild, CompiledRuleset, load_shadowbane_vertical_slice
-from shadowbane_lab.sim import AgentExchange, EntityState, ReferenceEnvironment
+from shadowbane_lab.rollouts.ruleset import load_assassin_warlock_duel_ruleset
+from shadowbane_lab.rulesets import CharacterBuild, CompiledRuleset
+from shadowbane_lab.sim import (
+    AgentExchange,
+    EntityState,
+    ReferenceEnvironment,
+    ScheduledKind,
+)
 
+MOVE = "shadowbane.move"
+BASIC_ATTACK = "shadowbane.basic_attack"
 SHADOW_BOLT = "shadowbane.assassin.shadow_bolt"
 SHADOW_TOUCH = "shadowbane.assassin.shadow_touch"
+FADE = "shadowbane.assassin.fade"
+BACKSTAB = "shadowbane.assassin.backstab"
+INVISIBILITY = "shadowbane.assassin.invisibility"
 MIND_STRIKE = "shadowbane.warlock.mind_strike"
+MIND_SNARE = "shadowbane.warlock.mind_snare"
 PSYCHIC_HEALING = "shadowbane.warlock.psychic_healing"
+LEVITATION = "shadowbane.warlock.levitation"
+
+_DEFAULT_LEVELS = (10, 15, 18, 19, 22, 26, 28, 75)
+_DEFAULT_POWER_RANKS = (0, 10, 20, 40)
+
+_POWER_MAXIMUMS = {
+    "assassin": (
+        (SHADOW_BOLT, 40),
+        (SHADOW_TOUCH, 40),
+        (FADE, 20),
+        (BACKSTAB, 40),
+        (INVISIBILITY, 20),
+    ),
+    "warlock": (
+        (MIND_STRIKE, 40),
+        (MIND_SNARE, 40),
+        (PSYCHIC_HEALING, 40),
+    ),
+}
 
 
 def _positive_number(value: float, field_name: str) -> None:
@@ -30,20 +65,25 @@ def _positive_number(value: float, field_name: str) -> None:
         raise ValueError(f"{field_name} must be a positive number")
 
 
+def _identifier(value: str, field_name: str) -> None:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{field_name} must be a non-empty string")
+
+
 @dataclass(frozen=True, slots=True)
 class CombatantConfig:
     entity_id: str
     team_id: str
     build: CharacterBuild
-    health: float = 100.0
-    mana: float = 200.0
-    stamina: float = 100.0
-    move_speed: float = 30.0
+    health: float = 500.0
+    mana: float = 300.0
+    stamina: float = 200.0
+    move_speed: float = 15.0
+    tags: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
-        for value, name in ((self.entity_id, "entity_id"), (self.team_id, "team_id")):
-            if not isinstance(value, str) or not value.strip():
-                raise ValueError(f"{name} must be a non-empty string")
+        _identifier(self.entity_id, "entity_id")
+        _identifier(self.team_id, "team_id")
         if not isinstance(self.build, CharacterBuild):
             raise ValueError("build must be a CharacterBuild")
         for value, name in (
@@ -53,14 +93,18 @@ class CombatantConfig:
             (self.move_speed, "move_speed"),
         ):
             _positive_number(value, name)
+        if len(self.tags) != len(set(self.tags)):
+            raise ValueError("tags must not contain duplicates")
+        for tag in self.tags:
+            _identifier(tag, "tag")
 
 
 @dataclass(frozen=True, slots=True)
 class DuelConfig:
     left: CombatantConfig
     right: CombatantConfig
-    starting_distance: float = 10.0
-    max_ticks: int = 1_000
+    starting_distance: float = 15.0
+    max_ticks: int = 1_200
     seed: int = 1
 
     def __post_init__(self) -> None:
@@ -97,12 +141,16 @@ class CombatantResult:
     entity_id: str
     profession: str
     level: int
+    power_ranks: tuple[tuple[str, int], ...]
+    available_actions: tuple[str, ...]
     alive: bool
     final_health: float
     final_mana: float
+    final_stamina: float
     damage_dealt: float
     healing_received: float
     mana_spent: float
+    stamina_spent: float
     rejected_actions: int
     actions: tuple[ActionCount, ...]
 
@@ -114,7 +162,11 @@ class DuelResult:
     ticks: int
     sim_time_ms: int
     seed: int
+    starting_distance: float
+    final_distance: float
     total_events: int
+    cancelled_scheduled_items: int
+    trace_digest: str
     combatants: tuple[CombatantResult, CombatantResult]
 
     def as_dict(self) -> dict[str, object]:
@@ -124,18 +176,26 @@ class DuelResult:
             "ticks": self.ticks,
             "sim_time_ms": self.sim_time_ms,
             "seed": self.seed,
+            "starting_distance": self.starting_distance,
+            "final_distance": self.final_distance,
             "total_events": self.total_events,
+            "cancelled_scheduled_items": self.cancelled_scheduled_items,
+            "trace_digest": self.trace_digest,
             "combatants": [
                 {
                     "entity_id": item.entity_id,
                     "profession": item.profession,
                     "level": item.level,
+                    "power_ranks": dict(item.power_ranks),
+                    "available_actions": list(item.available_actions),
                     "alive": item.alive,
                     "final_health": item.final_health,
                     "final_mana": item.final_mana,
+                    "final_stamina": item.final_stamina,
                     "damage_dealt": item.damage_dealt,
                     "healing_received": item.healing_received,
                     "mana_spent": item.mana_spent,
+                    "stamina_spent": item.stamina_spent,
                     "rejected_actions": item.rejected_actions,
                     "actions": {
                         action.action_key: action.count for action in item.actions
@@ -146,14 +206,53 @@ class DuelResult:
         }
 
 
+@dataclass(frozen=True, slots=True)
+class ProgressionMatrixCell:
+    level: int
+    power_rank: int
+    starting_distance: float
+    matches: int
+    assassin_wins: int
+    warlock_wins: int
+    draws: int
+    time_limits: int
+    mean_ticks: float
+    unique_trace_count: int
+    sample: DuelResult
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "level": self.level,
+            "power_rank": self.power_rank,
+            "starting_distance": self.starting_distance,
+            "matches": self.matches,
+            "assassin_wins": self.assassin_wins,
+            "warlock_wins": self.warlock_wins,
+            "draws": self.draws,
+            "time_limits": self.time_limits,
+            "mean_ticks": self.mean_ticks,
+            "unique_trace_count": self.unique_trace_count,
+            "sample": self.sample.as_dict(),
+        }
+
+
 class UtilityDuelPolicy:
     """Small deterministic baseline over generic affordance tags and features."""
 
-    def __init__(self, maximum_health: float, *, heal_threshold: float = 0.65) -> None:
+    def __init__(
+        self,
+        maximum_health: float,
+        *,
+        action_keys: tuple[str, ...] = (),
+        heal_threshold: float = 0.65,
+    ) -> None:
         _positive_number(maximum_health, "maximum_health")
         if not 0.0 < heal_threshold < 1.0:
             raise ValueError("heal_threshold must be between zero and one")
+        if len(action_keys) != len(set(action_keys)):
+            raise ValueError("action_keys must not contain duplicates")
         self._maximum_health = maximum_health
+        self._action_keys = frozenset(action_keys)
         self._heal_threshold = heal_threshold
 
     def decide(
@@ -165,14 +264,16 @@ class UtilityDuelPolicy:
         actor = next(
             entity for entity in exchange.observation.entities if entity.relation is Relation.SELF
         )
+        if "control.power_block" in actor.tags:
+            return None
         health = _scalar(actor.scalars, "health")
-        target_tags = {
-            entity.entity_id: frozenset(entity.tags)
+        enemies = {
+            entity.entity_id: entity
             for entity in exchange.observation.entities
             if entity.relation is Relation.ENEMY
         }
         scored = tuple(
-            (self._score(item, health, target_tags, exchange), item)
+            (self._score(item, actor, health, enemies, exchange), item)
             for item in affordances
         )
         score, selected = max(
@@ -186,8 +287,9 @@ class UtilityDuelPolicy:
     def _score(
         self,
         affordance: Affordance,
+        actor: EntityObservation,
         health: float,
-        target_tags: dict[str, frozenset[str]],
+        enemies: dict[str, EntityObservation],
         exchange: AgentExchange,
     ) -> float:
         features = {feature.name: feature.value for feature in affordance.features}
@@ -200,19 +302,62 @@ class UtilityDuelPolicy:
                 return -100.0
             missing = max(0.0, self._maximum_health - health)
             effective = min(missing, features.get("expected_healing", 0.0))
-            return 8.0 + effective * 1_000.0 / commitment_ms
+            return 12.0 + effective * 1_000.0 / commitment_ms
+
+        if affordance.action_key in {FADE, INVISIBILITY}:
+            return self._stealth_score(affordance, actor, enemies, commitment_ms)
+        if affordance.action_key == MIND_SNARE:
+            return self._mind_snare_score(affordance, enemies, features)
+        if affordance.action_key == LEVITATION:
+            return -30.0
 
         expected_damage = features.get("expected_damage", 0.0)
         control_ms = features.get("control_duration_ms", 0.0)
         target_id = affordance.binding.target_entity_id
-        if target_id is not None and "immunity.stun" in target_tags.get(target_id, ()):
+        target = enemies.get(target_id or "")
+        if target is not None and (
+            "immunity.stun" in target.tags or "control.stun" in target.tags
+        ):
             control_ms = 0.0
         if expected_damage > 0.0 or control_ms > 0.0:
-            return expected_damage * 1_000.0 / commitment_ms + control_ms / 300.0
+            score = expected_damage * 1_000.0 / commitment_ms + control_ms / 300.0
+            if target is not None and expected_damage >= _scalar(target.scalars, "health"):
+                score += 1_000.0
+            return score
 
         if "movement" in tags and affordance.binding.direction is not None:
             return self._movement_score(affordance, exchange)
         return -10.0
+
+    def _stealth_score(
+        self,
+        affordance: Affordance,
+        actor: EntityObservation,
+        enemies: dict[str, EntityObservation],
+        commitment_ms: float,
+    ) -> float:
+        if BACKSTAB not in self._action_keys or "visibility.invisible" in actor.tags:
+            return float("-inf")
+        if not enemies:
+            return float("-inf")
+        distance = min(_distance(actor.position, item.position) for item in enemies.values())
+        if distance > 15.0:
+            return -25.0
+        base = 24.0 if affordance.action_key == INVISIBILITY else 21.0
+        return base - commitment_ms / 1_000.0
+
+    @staticmethod
+    def _mind_snare_score(
+        affordance: Affordance,
+        enemies: dict[str, EntityObservation],
+        features: dict[str, float],
+    ) -> float:
+        target = enemies.get(affordance.binding.target_entity_id or "")
+        if target is None or "control.snare" in target.tags:
+            return -100.0
+        if "movement.flight" not in target.tags:
+            return -20.0
+        return 8.0 + features.get("control_duration_ms", 0.0) / 1_000.0
 
     @staticmethod
     def _movement_score(affordance: Affordance, exchange: AgentExchange) -> float:
@@ -241,7 +386,7 @@ def run_duel(config: DuelConfig) -> DuelResult:
     """Run one deterministic duel until one team remains or the tick budget expires."""
 
     rank_overrides = _merge_rank_overrides(config.left.build, config.right.build)
-    ruleset = load_shadowbane_vertical_slice(rank_overrides=rank_overrides)
+    ruleset = load_assassin_warlock_duel_ruleset(rank_overrides=rank_overrides)
     entities = (
         _entity(config.left, Vector2(0.0, 0.0), ruleset),
         _entity(config.right, Vector2(config.starting_distance, 0.0), ruleset),
@@ -254,10 +399,17 @@ def run_duel(config: DuelConfig) -> DuelResult:
     )
     combatants = (config.left, config.right)
     policies = {
-        item.entity_id: UtilityDuelPolicy(item.health) for item in combatants
+        item.entity_id: UtilityDuelPolicy(
+            item.health,
+            action_keys=next(
+                entity.action_keys for entity in entities if entity.entity_id == item.entity_id
+            ),
+        )
+        for item in combatants
     }
     events: list[Event] = []
     reason = TerminationReason.TIME_LIMIT
+    cancelled_scheduled_items = 0
 
     for step_number in range(config.max_ticks):
         decisions = []
@@ -272,6 +424,7 @@ def run_duel(config: DuelConfig) -> DuelResult:
             tuple(decisions), truncated=step_number == config.max_ticks - 1
         )
         events.extend(batch.events)
+        cancelled_scheduled_items += _cancel_dead_actor_schedule(environment)
         if batch.world_terminated:
             reason = TerminationReason.LAST_TEAM_STANDING
             break
@@ -282,38 +435,46 @@ def run_duel(config: DuelConfig) -> DuelResult:
     results = tuple(
         _combatant_result(item, states[item.entity_id], events) for item in combatants
     )
+    final_distance = _distance(
+        states[config.left.entity_id].position, states[config.right.entity_id].position
+    )
     return DuelResult(
         winner_entity_id=winner,
         reason=reason,
         ticks=environment.tick,
         sim_time_ms=environment.now_ms,
         seed=config.seed,
+        starting_distance=config.starting_distance,
+        final_distance=final_distance,
         total_events=len(events),
+        cancelled_scheduled_items=cancelled_scheduled_items,
+        trace_digest=_trace_digest(events),
         combatants=(results[0], results[1]),
     )
 
 
 def matched_progression_duels(
     *,
-    levels: tuple[int, ...] = (10, 15, 22, 26, 40),
-    power_ranks: tuple[int, ...] = (0, 20, 40),
-    max_ticks: int = 1_000,
+    levels: tuple[int, ...] = _DEFAULT_LEVELS,
+    power_ranks: tuple[int, ...] = _DEFAULT_POWER_RANKS,
+    starting_distance: float = 15.0,
+    max_ticks: int = 1_200,
     seed: int = 1,
 ) -> tuple[tuple[int, int, DuelResult], ...]:
     """Bracket matched-level outcomes without inventing a rank-allocation curve."""
 
+    _validate_levels(levels)
+    _validate_power_ranks(power_ranks)
+    _positive_number(starting_distance, "starting_distance")
     results: list[tuple[int, int, DuelResult]] = []
     for rank in power_ranks:
-        if isinstance(rank, bool) or not isinstance(rank, int) or not 0 <= rank <= 40:
-            raise ValueError("power ranks must be integers between zero and 40")
         for level in levels:
-            if isinstance(level, bool) or not isinstance(level, int) or level < 1:
-                raise ValueError("levels must be positive integers")
-            assassin = _progression_build("assassin", level, rank)
-            warlock = _progression_build("warlock", level, rank)
+            assassin = progression_build("assassin", level, rank)
+            warlock = progression_build("warlock", level, rank)
             duel = DuelConfig(
                 left=CombatantConfig("assassin", "assassin", assassin),
                 right=CombatantConfig("warlock", "warlock", warlock),
+                starting_distance=starting_distance,
                 max_ticks=max_ticks,
                 seed=seed,
             )
@@ -321,16 +482,95 @@ def matched_progression_duels(
     return tuple(results)
 
 
-def _progression_build(profession: str, level: int, rank: int) -> CharacterBuild:
-    power_keys = (
-        (SHADOW_BOLT, SHADOW_TOUCH) if profession == "assassin" else (MIND_STRIKE, PSYCHIC_HEALING)
-    )
-    skill_key = "shadowmastery" if profession == "assassin" else "warlockry"
+def progression_duel_matrix(
+    *,
+    levels: tuple[int, ...] = _DEFAULT_LEVELS,
+    power_ranks: tuple[int, ...] = _DEFAULT_POWER_RANKS,
+    starting_distances: tuple[float, ...] = (15.0, 60.0, 110.0),
+    seeds: tuple[int, ...] = (1,),
+    max_ticks: int = 1_200,
+) -> tuple[ProgressionMatrixCell, ...]:
+    """Aggregate matched progression duels across range and deterministic seed brackets."""
+
+    _validate_levels(levels)
+    _validate_power_ranks(power_ranks)
+    if not starting_distances:
+        raise ValueError("starting_distances must not be empty")
+    for distance in starting_distances:
+        _positive_number(distance, "starting distance")
+    if not seeds:
+        raise ValueError("seeds must not be empty")
+    for seed in seeds:
+        if isinstance(seed, bool) or not isinstance(seed, int) or seed < 0:
+            raise ValueError("seeds must be non-negative integers")
+
+    cells: list[ProgressionMatrixCell] = []
+    for level in levels:
+        for rank in power_ranks:
+            assassin = progression_build("assassin", level, rank)
+            warlock = progression_build("warlock", level, rank)
+            for distance in starting_distances:
+                results = tuple(
+                    run_duel(
+                        DuelConfig(
+                            left=CombatantConfig("assassin", "assassin", assassin),
+                            right=CombatantConfig("warlock", "warlock", warlock),
+                            starting_distance=distance,
+                            max_ticks=max_ticks,
+                            seed=seed,
+                        )
+                    )
+                    for seed in seeds
+                )
+                cells.append(
+                    ProgressionMatrixCell(
+                        level=level,
+                        power_rank=rank,
+                        starting_distance=distance,
+                        matches=len(results),
+                        assassin_wins=sum(
+                            result.winner_entity_id == "assassin" for result in results
+                        ),
+                        warlock_wins=sum(
+                            result.winner_entity_id == "warlock" for result in results
+                        ),
+                        draws=sum(result.winner_entity_id is None for result in results),
+                        time_limits=sum(
+                            result.reason is TerminationReason.TIME_LIMIT for result in results
+                        ),
+                        mean_ticks=fmean(result.ticks for result in results),
+                        unique_trace_count=len(
+                            {result.trace_digest for result in results}
+                        ),
+                        sample=results[0],
+                    )
+                )
+    return tuple(cells)
+
+
+def progression_build(profession: str, level: int, rank: int) -> CharacterBuild:
+    """Build an explicit equal-rank bracket, clamping powers with smaller rank caps."""
+
+    try:
+        power_limits = _POWER_MAXIMUMS[profession]
+    except KeyError as exc:
+        raise ValueError(f"unsupported duel profession: {profession}") from exc
+    if isinstance(level, bool) or not isinstance(level, int) or level < 1:
+        raise ValueError("level must be a positive integer")
+    if isinstance(rank, bool) or not isinstance(rank, int) or not 0 <= rank <= 40:
+        raise ValueError("rank must be an integer between zero and 40")
+    if profession == "assassin":
+        skills = (("shadowmastery", 200), ("sorcery", 1), ("stalk", 1))
+    else:
+        skills = (("warlockry", 200),)
     return CharacterBuild(
         profession=profession,
         level=level,
-        skill_ranks=((skill_key, 200),),
-        power_ranks=tuple((key, rank) for key in power_keys),
+        skill_ranks=skills,
+        power_ranks=tuple(
+            (action_key, min(rank, maximum_rank))
+            for action_key, maximum_rank in power_limits
+        ),
     )
 
 
@@ -348,6 +588,10 @@ def _merge_rank_overrides(*builds: CharacterBuild) -> dict[str, int]:
 
 
 def _entity(config: CombatantConfig, position: Vector2, ruleset: CompiledRuleset) -> EntityState:
+    tags = set(config.tags)
+    tags.add(f"profession.{config.build.profession}")
+    if config.build.profession == "assassin":
+        tags.update(("equipment.melee_weapon", "power.stalk"))
     return EntityState(
         entity_id=config.entity_id,
         life_id=f"{config.entity_id}:1",
@@ -365,7 +609,7 @@ def _entity(config: CombatantConfig, position: Vector2, ruleset: CompiledRuleset
             "mana": config.mana,
             "stamina": config.stamina,
         },
-        tags={f"profession.{config.build.profession}"},
+        tags=tags,
         action_keys=ruleset.action_keys_for(config.build),
     )
 
@@ -377,6 +621,7 @@ def _combatant_result(
     damage_dealt = 0.0
     healing_received = 0.0
     mana_spent = 0.0
+    stamina_spent = 0.0
     rejected_actions = 0
     for event in events:
         scalars = {scalar.name: scalar.value for scalar in event.scalars}
@@ -388,28 +633,85 @@ def _combatant_result(
         elif (
             event.kind == EventKind.RESOURCE_RESTORED
             and event.target_entity_id == config.entity_id
+            and "resource.health" in event.tags
         ):
-            if "resource.health" in event.tags:
-                healing_received += scalars.get("effective", 0.0)
+            healing_received += scalars.get("effective", 0.0)
         elif event.kind == "resource_spent" and event.source_entity_id == config.entity_id:
             mana_spent += scalars.get("mana", 0.0)
+            stamina_spent += scalars.get("stamina", 0.0)
         elif event.kind == EventKind.ACTION_REJECTED and event.source_entity_id == config.entity_id:
             rejected_actions += 1
     return CombatantResult(
         entity_id=config.entity_id,
         profession=config.build.profession,
         level=config.build.level,
+        power_ranks=tuple(sorted(config.build.power_ranks)),
+        available_actions=tuple(sorted(state.action_keys)),
         alive=state.alive,
         final_health=state.scalars.get("health", 0.0),
         final_mana=state.scalars.get("mana", 0.0),
+        final_stamina=state.scalars.get("stamina", 0.0),
         damage_dealt=damage_dealt,
         healing_received=healing_received,
         mana_spent=mana_spent,
+        stamina_spent=stamina_spent,
         rejected_actions=rejected_actions,
         actions=tuple(
             ActionCount(action_key, count) for action_key, count in sorted(action_counts.items())
         ),
     )
+
+
+def _cancel_dead_actor_schedule(environment: ReferenceEnvironment) -> int:
+    """Prevent future resolutions from actors that died on an earlier simulator time."""
+
+    snapshot = environment.snapshot()
+    living = {entity.entity_id for entity in snapshot.entities if entity.alive}
+    scheduled = tuple(
+        item
+        for item in snapshot.scheduled
+        if item.kind is ScheduledKind.EFFECT_EXPIRY or item.actor_id in living
+    )
+    removed = len(snapshot.scheduled) - len(scheduled)
+    if removed:
+        environment.restore(replace(snapshot, scheduled=scheduled))
+    return removed
+
+
+def _trace_digest(events: list[Event]) -> str:
+    semantic_trace = [
+        {
+            "kind": event.kind,
+            "tick": event.tick,
+            "sim_time_ms": event.sim_time_ms,
+            "source": event.source_entity_id,
+            "target": event.target_entity_id,
+            "action": event.action_key,
+            "scalars": [(item.name, item.value) for item in event.scalars],
+            "tags": list(event.tags),
+        }
+        for event in events
+    ]
+    encoded = json.dumps(
+        semantic_trace, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    return sha256(encoded).hexdigest()
+
+
+def _validate_levels(levels: tuple[int, ...]) -> None:
+    if not levels:
+        raise ValueError("levels must not be empty")
+    for level in levels:
+        if isinstance(level, bool) or not isinstance(level, int) or level < 1:
+            raise ValueError("levels must be positive integers")
+
+
+def _validate_power_ranks(power_ranks: tuple[int, ...]) -> None:
+    if not power_ranks:
+        raise ValueError("power_ranks must not be empty")
+    for rank in power_ranks:
+        if isinstance(rank, bool) or not isinstance(rank, int) or not 0 <= rank <= 40:
+            raise ValueError("power ranks must be integers between zero and 40")
 
 
 def _scalar(values: tuple[NamedScalar, ...], name: str) -> float:
