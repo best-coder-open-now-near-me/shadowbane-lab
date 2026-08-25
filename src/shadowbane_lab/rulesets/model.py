@@ -140,7 +140,11 @@ class PowerProgression:
         return True
 
     def validate_rank(self, rank: int) -> None:
-        if isinstance(rank, bool) or not isinstance(rank, int) or not 0 <= rank <= self.maximum_rank:
+        if (
+            isinstance(rank, bool)
+            or not isinstance(rank, int)
+            or not 0 <= rank <= self.maximum_rank
+        ):
             raise ValueError(f"power rank must be between zero and {self.maximum_rank}")
         if self.fixed_rank is not None and rank != self.fixed_rank:
             raise ValueError(f"fixed power must remain at rank {self.fixed_rank}")
@@ -289,9 +293,12 @@ class CompiledRuleset:
     def action_keys_for(self, build: CharacterBuild) -> tuple[str, ...]:
         if not isinstance(build, CharacterBuild):
             raise ValueError("build must be a CharacterBuild")
-        known_power_keys = {
-            record.action_key for record in self.records if record.progression is not None
+        power_records = {
+            record.action_key: record
+            for record in self.records
+            if record.progression is not None
         }
+        known_power_keys = set(power_records)
         supplied_power_keys = {key for key, _ in build.power_ranks}
         unknown = supplied_power_keys - known_power_keys
         if unknown:
@@ -300,6 +307,17 @@ class CompiledRuleset:
             unknown = set(build.enabled_power_keys) - known_power_keys
             if unknown:
                 raise ValueError(f"build enables unknown powers: {', '.join(sorted(unknown))}")
+        selected_power_keys = supplied_power_keys | set(build.enabled_power_keys or ())
+        wrong_profession = {
+            action_key
+            for action_key in selected_power_keys
+            if build.profession not in power_records[action_key].progression.professions
+        }
+        if wrong_profession:
+            raise ValueError(
+                f"build selects powers from another profession: "
+                f"{', '.join(sorted(wrong_profession))}"
+            )
 
         action_keys: list[str] = []
         for record in self.records:

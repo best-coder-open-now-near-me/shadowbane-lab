@@ -18,12 +18,15 @@ identifiers.
 
 The versioned protocol, typed action algebra, deterministic scalar reference environment,
 first provenance-aware Shadowbane ruleset slice, and guarded client-input adapter are
-implemented. Differential traces can record and compare simulator and emulator semantics
+implemented. Progression-aware duel rollouts exercise level-gated Assassin and Warlock
+powers at explicit training-rank brackets. Differential traces can record and compare
+simulator and emulator semantics
 without relying on producer-specific IDs. The input adapter compiles the same semantic
 decisions into calibrated plans and keeps live PyAutoGUI input locked behind window guards,
 an emergency stop, and explicit profile confirmation. See [the architecture](docs/architecture.md),
 [client-input runbook](docs/client-input-harness.md),
 [automated VM setup](docs/vm-setup.md),
+[simulation rollout guide](docs/simulation-rollouts.md),
 [differential-validation contract](docs/differential-validation.md), and
 [development plan](docs/plan.md).
 
@@ -34,6 +37,7 @@ The protocol has no runtime dependencies. From the repository root:
 ```powershell
 $env:PYTHONPATH = "src"
 python -m unittest discover -s tests -v
+python -m shadowbane_lab.rollouts
 ```
 
 When Python is not exposed on `PATH`, use the interpreter configured for the workspace.

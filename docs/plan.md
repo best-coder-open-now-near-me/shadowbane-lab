@@ -67,6 +67,9 @@ from representative scenarios on the target hardware.
 
 ## 7. Scenarios and baseline controller
 
+- Current vertical slice: progression-aware Assassin-versus-Warlock clean-start duels,
+  deterministic utility decisions, explicit rank brackets, and legality/resource/outcome
+  metrics.
 - Support clean starts, mid-fight snapshots, reinforcement, retreat, death/respawn,
   uneven teams, and objectives.
 - Implement a generic utility policy over semantic affordances.

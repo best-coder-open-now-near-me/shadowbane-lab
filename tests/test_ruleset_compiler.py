@@ -115,6 +115,17 @@ class RulesetCompilerTests(unittest.TestCase):
         with self.assertRaisesRegex(RulesetLoadError, "unknown actions"):
             load_shadowbane_vertical_slice(rank_overrides={"missing.power": 20})
 
+    def test_build_cannot_select_another_professions_power(self) -> None:
+        ruleset = load_shadowbane_vertical_slice()
+        build = CharacterBuild(
+            profession="assassin",
+            level=40,
+            power_ranks=((MIND_STRIKE, 40),),
+        )
+
+        with self.assertRaisesRegex(ValueError, "another profession"):
+            ruleset.action_keys_for(build)
+
     def test_shadow_bolt_rank_40_values_and_effects_are_compiled(self) -> None:
         record = load_shadowbane_vertical_slice().record(SHADOW_BOLT)
         action = record.action

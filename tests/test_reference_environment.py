@@ -166,7 +166,10 @@ class ReferenceEnvironmentTests(unittest.TestCase):
 
         self.assertNotIn("Stun", environment.entity("b").effects)
         self.assertFalse(
-            any(event.kind == EventKind.EFFECT_ADDED and "effect.stunned" in event.tags for event in events)
+            any(
+                event.kind == EventKind.EFFECT_ADDED and "effect.stunned" in event.tags
+                for event in events
+            )
         )
 
     def test_joint_actions_resolve_from_the_same_alive_set(self) -> None:
