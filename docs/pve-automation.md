@@ -66,8 +66,10 @@ The run stops without issuing more input when any of these conditions occurs:
 The runner never attacks a target that was already selected when it started. A stalled
 proc-Assassin selection gets a one-second grace for a fresh native hit, then the controller
 uses the verified Target Next Mob binding to acquire a different mobile. A stalled fight may
-retry the direct attack command twice, but it never adds movement, retargeting, or power use
-during that engagement.
+retry the direct attack command twice. If the client still makes no combat progress, the
+proc-Assassin policy may abandon that unreachable target and use the verified Target Next Mob
+binding once. It requires a different native target token before engaging again and never adds
+movement input or cycles indefinitely.
 
 A single torn native observation is not treated as a trustworthy state change. The runner
 withholds all input while retrying up to three consecutive polls and resets that count only

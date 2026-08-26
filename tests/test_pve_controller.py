@@ -163,6 +163,37 @@ class PvEControllerTests(unittest.TestCase):
         self.assertEqual(PvEIntent.ATTACK_SELECTED_TARGET, retry.intent)
         self.assertEqual("engagement_stalled", stopped.terminal_reason)
 
+    def test_stalled_engagement_cycles_once_and_requires_a_different_target(self) -> None:
+        controller = PvEController(
+            PvEControllerConfig(
+                stalled_progress_ms=100,
+                engagement_timeout_ms=1_000,
+                maximum_reengage_attempts=0,
+                maximum_stalled_retargets=1,
+                accept_automatic_targets=True,
+                automatic_target_requires_combat_event=True,
+            )
+        )
+        controller.step(_observation(0, _absent()))
+        controller.step(_observation(10, _target("blocked-mob")))
+
+        cycle = controller.step(_observation(110, _target("blocked-mob")))
+        stale_hit = controller.step(
+            _observation(
+                120,
+                _target("blocked-mob"),
+                _event(NativeCombatEventKind.PLAYER_HIT_TARGET),
+            )
+        )
+        replacement = controller.step(_observation(130, _target("reachable-mob")))
+        stopped = controller.step(_observation(230, _target("reachable-mob")))
+
+        self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB, cycle.intent)
+        self.assertEqual(PvEPhase.SEEKING, stale_hit.phase)
+        self.assertIsNone(stale_hit.intent)
+        self.assertEqual(PvEIntent.ATTACK_SELECTED_TARGET, replacement.intent)
+        self.assertEqual("engagement_stalled", stopped.terminal_reason)
+
     def test_two_kill_limit_reacquires_after_post_kill_delay(self) -> None:
         controller = PvEController(
             PvEControllerConfig(maximum_kills=2, post_kill_delay_ms=100)

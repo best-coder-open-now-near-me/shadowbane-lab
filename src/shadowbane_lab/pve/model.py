@@ -51,6 +51,7 @@ class PvEControllerConfig:
     selection_loss_grace_ms: int = 750
     post_kill_delay_ms: int = 1_000
     maximum_reengage_attempts: int = 2
+    maximum_stalled_retargets: int = 0
     minimum_player_health_fraction: float = 0.5
     accept_automatic_targets: bool = False
     opening_intent: PvEIntent | None = None
@@ -74,6 +75,7 @@ class PvEControllerConfig:
         ):
             _positive_integer(value, field_name)
         _non_negative_integer(self.maximum_reengage_attempts, "maximum_reengage_attempts")
+        _non_negative_integer(self.maximum_stalled_retargets, "maximum_stalled_retargets")
         if (
             isinstance(self.minimum_player_health_fraction, bool)
             or not isinstance(self.minimum_player_health_fraction, (int, float))

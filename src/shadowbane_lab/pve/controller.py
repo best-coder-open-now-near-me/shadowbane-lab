@@ -33,6 +33,8 @@ class PvEController:
         self._last_progress_at: int | None = None
         self._selection_lost_at: int | None = None
         self._reengage_attempts = 0
+        self._stalled_retargets = 0
+        self._require_different_target = False
 
     @property
     def phase(self) -> PvEPhase:
@@ -141,7 +143,10 @@ class PvEController:
                 self._last_acquire_at is not None
                 and target.target_token != self._baseline_target_token
             )
-            if explicitly_acquired or (
+            if explicitly_acquired:
+                self._require_different_target = False
+                return self._begin_engagement(observation)
+            if not self._require_different_target and (
                 self._config.accept_automatic_targets
                 and self._automatic_target_confirmed(events)
             ):
@@ -195,6 +200,13 @@ class PvEController:
         assert self._last_progress_at is not None
         if now - self._last_progress_at >= self._config.stalled_progress_ms:
             if self._reengage_attempts >= self._config.maximum_reengage_attempts:
+                if self._stalled_retargets < self._config.maximum_stalled_retargets:
+                    self._stalled_retargets += 1
+                    self._baseline_target_token = target.target_token
+                    self._clear_engagement()
+                    self._require_different_target = True
+                    self._enter(PvEPhase.SEEKING, now)
+                    return self._emit(now, PvEIntent.ACQUIRE_NEXT_MOB)
                 return self.stop("engagement_stalled", now_ms=now)
             self._reengage_attempts += 1
             self._last_progress_at = now
@@ -239,6 +251,7 @@ class PvEController:
         self._last_acquire_at = None
         self._reengage_attempts = 0
         self._selection_lost_at = None
+        self._require_different_target = False
         opener = self._config.opening_intent
         if opener is not None and observation.player.current_mana >= self._config.opening_mana_cost:
             self._enter(PvEPhase.OPENING, now)
