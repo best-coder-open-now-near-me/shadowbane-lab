@@ -11,7 +11,13 @@ from shadowbane_lab.rulesets import (
     load_shadowbane_vertical_slice,
 )
 from shadowbane_lab.sim import ActiveEffectState, EntityState, ReferenceEnvironment
-from shadowbane_lab.sim.actions import ApplyEffect, DealDamage, RestoreResource, UniformAmount
+from shadowbane_lab.sim.actions import (
+    ApplyEffect,
+    DealDamage,
+    RestoreResource,
+    UniformAmount,
+    UniformIntegerAmount,
+)
 
 SHADOW_BOLT = "shadowbane.assassin.shadow_bolt"
 SHADOW_TOUCH = "shadowbane.assassin.shadow_touch"
@@ -202,6 +208,28 @@ class RulesetCompilerTests(unittest.TestCase):
         )
         self.assertEqual(UniformAmount(17.0, 23.5), damage.amount)
         self.assertAlmostEqual(20.25, damage.amount.expected)
+
+    def test_uniform_integer_amounts_compile_for_observed_discrete_rolls(self) -> None:
+        source = bundled_source()
+        basic_attack = next(
+            action
+            for action in source["actions"]
+            if action["action_key"] == "shadowbane.basic_attack"
+        )
+        basic_attack["spec"]["phases"][0]["effects"][0]["amount"] = {
+            "distribution": "uniform_integer",
+            "minimum": 4,
+            "maximum": 5,
+        }
+
+        action = load_ruleset_text(json.dumps(source)).record("shadowbane.basic_attack").action
+
+        self.assertIsNotNone(action)
+        assert action is not None
+        damage = next(
+            effect for effect in action.phases[0].effects if isinstance(effect, DealDamage)
+        )
+        self.assertEqual(UniformIntegerAmount(4, 5), damage.amount)
 
     def test_unknown_provenance_source_fails_closed(self) -> None:
         source = bundled_source()

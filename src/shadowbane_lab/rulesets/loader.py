@@ -43,6 +43,7 @@ from shadowbane_lab.sim import (
     TargetingSpec,
     TransferItem,
     UniformAmount,
+    UniformIntegerAmount,
 )
 from shadowbane_lab.sim.actions import AmountSpec, EffectPrimitive
 
@@ -313,13 +314,19 @@ def _parse_effect(data: Mapping[str, Any], rank: int) -> EffectPrimitive:
 def _resolved_amount(value: Any, rank: int) -> AmountSpec:
     if isinstance(value, Mapping) and "distribution" in value:
         distribution = cast(Mapping[str, Any], value)
-        if _string(distribution, "distribution") != "uniform":
-            raise RulesetLoadError("only uniform amount distributions are supported")
+        kind = _string(distribution, "distribution")
         try:
-            return UniformAmount(
-                minimum=_resolved_number(_required(distribution, "minimum"), rank),
-                maximum=_resolved_number(_required(distribution, "maximum"), rank),
-            )
+            if kind == "uniform":
+                return UniformAmount(
+                    minimum=_resolved_number(_required(distribution, "minimum"), rank),
+                    maximum=_resolved_number(_required(distribution, "maximum"), rank),
+                )
+            if kind == "uniform_integer":
+                return UniformIntegerAmount(
+                    minimum=_resolved_integer(_required(distribution, "minimum"), rank),
+                    maximum=_resolved_integer(_required(distribution, "maximum"), rank),
+                )
+            raise RulesetLoadError("unsupported amount distribution")
         except ValueError as exc:
             raise RulesetLoadError(str(exc)) from exc
     return _resolved_number(value, rank)

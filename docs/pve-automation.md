@@ -59,8 +59,28 @@ $env:PYTHONPATH = "src"
 
 ## Run one bounded encounter
 
-Stand near a Frost Walker spawn with no valuable or friendly object selected. Start the
-command in PowerShell, then focus the Shadowbane window during the wait period:
+Before touching the client, run the trace-backed semantic bridge. It drives the production
+`PvEController` through the same typed target-health, player-vitals, and combat-event boundary
+used by the VM:
+
+```powershell
+$env:PYTHONPATH = "src"
+.\.venv\Scripts\python.exe -m shadowbane_lab.rollouts `
+  --scenario frost-walker `
+  --seed 23 `
+  --json
+```
+
+The checked profile contains the live-observed Frost Walker values (10 health, player hits of
+4 and 5, and 744 experience) plus exact player vitals. Seed 23 completes one controller-confirmed
+kill in 2.4 simulated seconds with rolls `[4, 5, 5]`, no rejected semantic actions, and the
+terminal reason `kill_limit_reached`. The output always carries its evidence and assumptions;
+incoming attacks, misses, regeneration, movement, loot, and exact weapon timing remain outside
+that profile. This is the automation preflight, not a claim of emulator parity.
+
+After the simulation gate passes, stand near a Frost Walker spawn with no valuable or friendly
+object selected. Start the command in PowerShell, then focus the Shadowbane window during the
+wait period:
 
 ```powershell
 $env:PYTHONPATH = "src"

@@ -30,6 +30,7 @@ from shadowbane_lab.sim.actions import (
     TagOperation,
     TransferItem,
     UniformAmount,
+    UniformIntegerAmount,
 )
 from shadowbane_lab.sim.errors import SimulationConfigurationError
 from shadowbane_lab.sim.random_source import DeterministicRandom
@@ -198,9 +199,16 @@ class EffectExecutor:
             )
         )
 
-    def _resolve_amount(self, amount: float | UniformAmount) -> float:
+    def _resolve_amount(
+        self, amount: float | UniformAmount | UniformIntegerAmount
+    ) -> float:
         if isinstance(amount, UniformAmount):
             return self._random.uniform(amount.minimum, amount.maximum)
+        if isinstance(amount, UniformIntegerAmount):
+            return float(
+                amount.minimum
+                + self._random.randbelow(amount.maximum - amount.minimum + 1)
+            )
         return amount
 
     def _modify_scalar(

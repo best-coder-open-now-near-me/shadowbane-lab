@@ -86,3 +86,21 @@ timing are still reviewed placeholders. The useful signal at this stage is legal
 progression gating, resource exhaustion, control timing, healing timing, bounded outcome
 variation, and win/loss termination. Emulator differential fixtures are the next authority
 for replacing the assumed distribution and closing the remaining combat gaps.
+
+## Nearby-mob controller bridge
+
+The `frost-walker` scenario runs the production bounded PvE controller against the reference
+environment rather than substituting a simulator-only policy. Controller acquisition selects a
+simulated mobile, attack-selected enables repeated legal `shadowbane.basic_attack` affordances,
+and simulator damage/death events are bridged back into the exact typed native observations the
+controller consumes.
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m shadowbane_lab.rollouts --scenario frost-walker --seed 23 --json
+```
+
+The profile is evidence-bearing: 10 target health, observed 4-5 player damage, 744 experience,
+and the live-read player resources are data; the discrete-uniform roll, 1-second attack interval,
+and passive mob are declared assumptions. It is therefore useful as a deterministic automation
+gate and future differential-trace target without laundering unknown PvE mechanics into facts.

@@ -19,6 +19,7 @@ from shadowbane_lab.sim import (
     TargetingSpec,
     TransferItem,
     UniformAmount,
+    UniformIntegerAmount,
 )
 
 
@@ -166,6 +167,15 @@ class ActionAlgebraTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "greater than minimum"):
             UniformAmount(10.0, 10.0)
+
+    def test_uniform_integer_amount_has_inclusive_integer_bounds(self) -> None:
+        amount = UniformIntegerAmount(4, 5)
+
+        self.assertEqual(4.5, amount.expected)
+        self.assertEqual(amount, DealDamage(SubjectRef.TARGET, amount, "physical").amount)
+
+        with self.assertRaisesRegex(ValueError, "must be an integer"):
+            UniformIntegerAmount(4, 5.5)  # type: ignore[arg-type]
 
     def test_one_grammar_represents_all_required_action_families(self) -> None:
         catalog = ActionCatalog(representative_actions())

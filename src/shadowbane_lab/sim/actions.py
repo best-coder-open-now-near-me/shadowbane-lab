@@ -85,11 +85,34 @@ class UniformAmount:
         return (self.minimum + self.maximum) / 2.0
 
 
-AmountSpec = float | UniformAmount
+@dataclass(frozen=True, slots=True)
+class UniformIntegerAmount:
+    """Concrete inclusive integer amount resolved from the environment's seeded RNG."""
+
+    minimum: int
+    maximum: int
+
+    def __post_init__(self) -> None:
+        for value, name in ((self.minimum, "minimum"), (self.maximum, "maximum")):
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise ValueError(f"uniform integer amount {name} must be an integer")
+        if self.minimum <= 0:
+            raise ValueError("uniform integer amount minimum must be positive")
+        if self.maximum <= self.minimum:
+            raise ValueError("uniform integer amount maximum must be greater than minimum")
+        if self.maximum - self.minimum >= 1 << 32:
+            raise ValueError("uniform integer amount span must fit the random source")
+
+    @property
+    def expected(self) -> float:
+        return (self.minimum + self.maximum) / 2.0
+
+
+AmountSpec = float | UniformAmount | UniformIntegerAmount
 
 
 def _positive_amount(value: AmountSpec, field_name: str) -> None:
-    if isinstance(value, UniformAmount):
+    if isinstance(value, (UniformAmount, UniformIntegerAmount)):
         return
     _finite(value, field_name)
     if value <= 0:

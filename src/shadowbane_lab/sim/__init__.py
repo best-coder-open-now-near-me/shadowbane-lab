@@ -24,6 +24,7 @@ from shadowbane_lab.sim.actions import (
     TargetingSpec,
     TransferItem,
     UniformAmount,
+    UniformIntegerAmount,
 )
 from shadowbane_lab.sim.clock import ClockSnapshot, SimulationClock
 from shadowbane_lab.sim.environment import ReferenceEnvironment
@@ -83,4 +84,5 @@ __all__ = [
     "TargetingSpec",
     "TransferItem",
     "UniformAmount",
+    "UniformIntegerAmount",
 ]

@@ -6,7 +6,11 @@ import argparse
 import json
 from collections.abc import Sequence
 
-from shadowbane_lab.rollouts import matched_progression_duels
+from shadowbane_lab.rollouts import (
+    frost_walker_observed_config,
+    matched_progression_duels,
+    run_nearby_mob_simulation,
+)
 
 
 def _integers(value: str) -> tuple[int, ...]:
@@ -21,12 +25,37 @@ def _integers(value: str) -> tuple[int, ...]:
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m shadowbane_lab.rollouts")
+    parser.add_argument(
+        "--scenario",
+        choices=("duels", "frost-walker"),
+        default="duels",
+    )
     parser.add_argument("--levels", type=_integers, default=(10, 15, 22, 26, 40))
     parser.add_argument("--ranks", type=_integers, default=(0, 20, 40))
     parser.add_argument("--max-ticks", type=int, default=1_000)
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--json", action="store_true")
     arguments = parser.parse_args(argv)
+    if arguments.scenario == "frost-walker":
+        result = run_nearby_mob_simulation(
+            frost_walker_observed_config(
+                seed=arguments.seed,
+                max_ticks=arguments.max_ticks,
+            )
+        )
+        if arguments.json:
+            print(json.dumps(result.as_dict(), indent=2, sort_keys=True))
+        else:
+            print(
+                f"{result.profile_id}: {result.terminal_reason}; "
+                f"kills={result.kills}, attacks={list(result.attack_rolls)}, "
+                f"time={result.sim_time_ms}ms"
+            )
+            print("Assumptions:")
+            for assumption in result.assumptions:
+                print(f"- {assumption}")
+        return 0
+
     results = matched_progression_duels(
         levels=arguments.levels,
         power_ranks=arguments.ranks,
