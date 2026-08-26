@@ -104,6 +104,10 @@ class TravelManeuver(StrEnum):
     DIRECT = "direct"
     ESCAPE_BACK_LEFT = "escape_back_left"
     ESCAPE_BACK_RIGHT = "escape_back_right"
+    ESCAPE_SWEEP_LEFT = "escape_sweep_left"
+    ESCAPE_SWEEP_RIGHT = "escape_sweep_right"
+    ESCAPE_BYPASS_LEFT = "escape_bypass_left"
+    ESCAPE_BYPASS_RIGHT = "escape_bypass_right"
 
 
 @dataclass(frozen=True, slots=True)
@@ -114,9 +118,13 @@ class TravelControllerConfig:
     minimum_progress: float = 25.0
     maximum_no_progress_clicks: int = 3
     maximum_escape_sequences: int = 3
-    escape_clicks_per_sequence: int = 4
-    escape_lateral_ratio: float = 0.85
-    escape_widening_per_sequence: float = 0.5
+    escape_backup_clicks: int = 4
+    escape_sweep_clicks: int = 6
+    escape_bypass_clicks: int = 6
+    escape_widening_clicks_per_sequence: int = 2
+    escape_backup_lateral_ratio: float = 0.45
+    escape_sweep_reverse_ratio: float = 0.2
+    escape_bypass_lateral_ratio: float = 0.25
     minimum_health_fraction: float = 0.5
 
     def __post_init__(self) -> None:
@@ -125,16 +133,23 @@ class TravelControllerConfig:
             (self.click_interval_ms, "click_interval_ms"),
             (self.maximum_clicks, "maximum_clicks"),
             (self.maximum_no_progress_clicks, "maximum_no_progress_clicks"),
-            (self.escape_clicks_per_sequence, "escape_clicks_per_sequence"),
+            (self.escape_backup_clicks, "escape_backup_clicks"),
+            (self.escape_sweep_clicks, "escape_sweep_clicks"),
+            (self.escape_bypass_clicks, "escape_bypass_clicks"),
         ):
             _positive_integer(value, field_name)
         _non_negative_integer(self.maximum_escape_sequences, "maximum_escape_sequences")
+        _non_negative_integer(
+            self.escape_widening_clicks_per_sequence,
+            "escape_widening_clicks_per_sequence",
+        )
         _finite(self.minimum_progress, "minimum_progress")
         if self.minimum_progress <= 0:
             raise ValueError("minimum_progress must be positive")
         for value, field_name in (
-            (self.escape_lateral_ratio, "escape_lateral_ratio"),
-            (self.escape_widening_per_sequence, "escape_widening_per_sequence"),
+            (self.escape_backup_lateral_ratio, "escape_backup_lateral_ratio"),
+            (self.escape_sweep_reverse_ratio, "escape_sweep_reverse_ratio"),
+            (self.escape_bypass_lateral_ratio, "escape_bypass_lateral_ratio"),
         ):
             _finite(value, field_name)
             if value <= 0:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from enum import StrEnum
 from math import hypot
 
 from shadowbane_lab.protocol import Vector2
@@ -13,6 +14,12 @@ from shadowbane_lab.travel.model import (
     TravelPhase,
     TravelPlan,
 )
+
+
+class _EscapePhase(StrEnum):
+    BACKUP = "backup"
+    SWEEP = "sweep"
+    BYPASS = "bypass"
 
 
 class TravelController:
@@ -32,6 +39,9 @@ class TravelController:
         self._no_progress_clicks = 0
         self._escape_sequence_count = 0
         self._escape_step = 0
+        self._escape_phase = _EscapePhase.BACKUP
+        self._escape_forward = Vector2(0, 0)
+        self._escape_side_sign = 1.0
         self._escaping = False
         self._terminal: TravelDecision | None = None
 
@@ -68,6 +78,7 @@ class TravelController:
             self._last_click_distance = None
             self._no_progress_clicks = 0
             self._escape_step = 0
+            self._escape_phase = _EscapePhase.BACKUP
             self._escaping = False
             destination = self._plan.destinations[self._waypoint_index]
             distance = destination.distance_from(observation.position)
@@ -100,8 +111,7 @@ class TravelController:
                         distance=distance,
                     )
                 self._escape_sequence_count += 1
-                self._escape_step = 0
-                self._escaping = True
+                self._begin_escape(observation)
                 self._no_progress_clicks = 0
                 self._last_click_distance = None
                 return self._dispatch_escape(observation, distance=distance)
@@ -176,49 +186,97 @@ class TravelController:
             maneuver=maneuver,
         )
 
+    def _begin_escape(self, observation: TravelObservation) -> None:
+        destination = self._plan.destinations[self._waypoint_index]
+        delta_lt = destination.lt - observation.position.lt
+        screen_delta_lg = -(destination.lg - observation.position.lg)
+        length = hypot(delta_lt, screen_delta_lg)
+        if length == 0:
+            self._escape_forward = Vector2(0, 0)
+        else:
+            self._escape_forward = Vector2(delta_lt / length, screen_delta_lg / length)
+        self._escape_side_sign = 1.0 if self._escape_sequence_count % 2 else -1.0
+        self._escape_phase = _EscapePhase.BACKUP
+        self._escape_step = 0
+        self._escaping = True
+
     def _dispatch_escape(
         self,
         observation: TravelObservation,
         *,
         distance: float,
     ) -> TravelDecision:
-        destination = self._plan.destinations[self._waypoint_index]
-        delta_lt = destination.lt - observation.position.lt
-        screen_delta_lg = -(destination.lg - observation.position.lg)
-        length = hypot(delta_lt, screen_delta_lg)
-        if length == 0:
+        forward_x = self._escape_forward.x
+        forward_y = self._escape_forward.y
+        if forward_x == 0 and forward_y == 0:
             return self._complete(observation, distance)
-        forward_x = delta_lt / length
-        forward_y = screen_delta_lg / length
-        backward_x = -forward_x
-        backward_y = -forward_y
         perpendicular_x = -forward_y
         perpendicular_y = forward_x
-        initial_sign = 1.0 if self._escape_sequence_count % 2 else -1.0
-        sign = initial_sign if self._escape_step % 2 == 0 else -initial_sign
-        lateral = self._config.escape_lateral_ratio + (
-            (self._escape_sequence_count - 1)
-            * self._config.escape_widening_per_sequence
-        )
-        maneuver = (
-            TravelManeuver.ESCAPE_BACK_LEFT
-            if sign > 0
-            else TravelManeuver.ESCAPE_BACK_RIGHT
-        )
+        side_sign = self._escape_side_sign
+
+        if self._escape_phase is _EscapePhase.BACKUP:
+            zig_sign = side_sign if self._escape_step % 2 == 0 else -side_sign
+            lateral = self._config.escape_backup_lateral_ratio
+            direction = Vector2(
+                -forward_x + zig_sign * lateral * perpendicular_x,
+                -forward_y + zig_sign * lateral * perpendicular_y,
+            )
+            maneuver = (
+                TravelManeuver.ESCAPE_BACK_LEFT
+                if zig_sign > 0
+                else TravelManeuver.ESCAPE_BACK_RIGHT
+            )
+        elif self._escape_phase is _EscapePhase.SWEEP:
+            reverse = self._config.escape_sweep_reverse_ratio
+            direction = Vector2(
+                side_sign * perpendicular_x - reverse * forward_x,
+                side_sign * perpendicular_y - reverse * forward_y,
+            )
+            maneuver = (
+                TravelManeuver.ESCAPE_SWEEP_LEFT
+                if side_sign > 0
+                else TravelManeuver.ESCAPE_SWEEP_RIGHT
+            )
+        else:
+            lateral = self._config.escape_bypass_lateral_ratio
+            direction = Vector2(
+                forward_x + side_sign * lateral * perpendicular_x,
+                forward_y + side_sign * lateral * perpendicular_y,
+            )
+            maneuver = (
+                TravelManeuver.ESCAPE_BYPASS_LEFT
+                if side_sign > 0
+                else TravelManeuver.ESCAPE_BYPASS_RIGHT
+            )
+
         self._escape_step += 1
-        if self._escape_step >= self._config.escape_clicks_per_sequence:
-            self._escaping = False
+        if self._escape_step >= self._escape_phase_clicks():
             self._escape_step = 0
+            if self._escape_phase is _EscapePhase.BACKUP:
+                self._escape_phase = _EscapePhase.SWEEP
+            elif self._escape_phase is _EscapePhase.SWEEP:
+                self._escape_phase = _EscapePhase.BYPASS
+            else:
+                self._escape_phase = _EscapePhase.BACKUP
+                self._escaping = False
         return self._dispatch(
             observation,
             distance=distance,
-            direction=Vector2(
-                backward_x + sign * lateral * perpendicular_x,
-                backward_y + sign * lateral * perpendicular_y,
-            ),
+            direction=direction,
             maneuver=maneuver,
             track_destination_progress=False,
         )
+
+    def _escape_phase_clicks(self) -> int:
+        widening = (
+            (self._escape_sequence_count - 1)
+            * self._config.escape_widening_clicks_per_sequence
+        )
+        if self._escape_phase is _EscapePhase.BACKUP:
+            return self._config.escape_backup_clicks
+        if self._escape_phase is _EscapePhase.SWEEP:
+            return self._config.escape_sweep_clicks + widening
+        return self._config.escape_bypass_clicks + widening
 
     def _stop(
         self,
