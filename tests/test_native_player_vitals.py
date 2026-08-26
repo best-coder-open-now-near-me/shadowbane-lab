@@ -28,8 +28,8 @@ def _profile() -> NativePlayerVitalsProfile:
         maximum_health_offset=0x5D0,
         current_mana_offset=0xCD0,
         maximum_mana_offset=0xCD4,
-        current_stamina_offset=0xCD8,
-        maximum_stamina_offset=0xCDC,
+        current_stamina_offset=0xCDC,
+        maximum_stamina_offset=0xCD8,
         minimum_user_address=0x10000,
         maximum_user_address=0x7FFEFFFF,
         maximum_plausible_vital=1_000_000,
@@ -79,7 +79,7 @@ class NativePlayerVitalsReaderTests(unittest.TestCase):
                         struct.pack("<ff", 1075.375, 1075.375)
                     ],
                     player + profile.current_mana_offset: [
-                        struct.pack("<ffff", 53.75, 53.75, 324.0, 324.0)
+                        struct.pack("<ffff", 53.75, 63.75, 324.0, 123.0)
                     ],
                 }
             ),
@@ -89,10 +89,12 @@ class NativePlayerVitalsReaderTests(unittest.TestCase):
 
         self.assertEqual(1075.375, observation.current_health)
         self.assertEqual(53.75, observation.current_mana)
-        self.assertEqual(324.0, observation.current_stamina)
+        self.assertEqual(63.75, observation.maximum_mana)
+        self.assertEqual(123.0, observation.current_stamina)
+        self.assertEqual(324.0, observation.maximum_stamina)
         self.assertEqual(1.0, observation.health_fraction)
-        self.assertEqual(1.0, observation.mana_fraction)
-        self.assertEqual(1.0, observation.stamina_fraction)
+        self.assertAlmostEqual(53.75 / 63.75, observation.mana_fraction)
+        self.assertAlmostEqual(123.0 / 324.0, observation.stamina_fraction)
 
     def test_zero_player_pointer_fails_closed(self) -> None:
         profile = _profile()
@@ -140,8 +142,8 @@ class NativePlayerVitalsReaderTests(unittest.TestCase):
                         struct.pack("<ff", 10, 10),
                     ],
                     player + profile.current_mana_offset: [
-                        struct.pack("<ffff", 10, 10, 21, 20),
-                        struct.pack("<ffff", 10, 10, 19, 20),
+                        struct.pack("<ffff", 10, 10, 20, 21),
+                        struct.pack("<ffff", 10, 10, 20, 19),
                     ],
                 }
             ),
@@ -168,7 +170,8 @@ class NativePlayerVitalsProfileTests(unittest.TestCase):
         self.assertEqual(0x16A2D98, profile.player_pointer_rva)
         self.assertEqual(0x5CC, profile.current_health_offset)
         self.assertEqual(0xCD0, profile.current_mana_offset)
-        self.assertEqual(0xCD8, profile.current_stamina_offset)
+        self.assertEqual(0xCDC, profile.current_stamina_offset)
+        self.assertEqual(0xCD8, profile.maximum_stamina_offset)
 
 
 class FakeNativeVitalsReader:

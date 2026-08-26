@@ -9,8 +9,8 @@
   "maximum_health_offset": 1488,
   "current_mana_offset": 3280,
   "maximum_mana_offset": 3284,
-  "current_stamina_offset": 3288,
-  "maximum_stamina_offset": 3292,
+  "current_stamina_offset": 3292,
+  "maximum_stamina_offset": 3288,
   "minimum_user_address": 65536,
   "maximum_user_address": 2147418111,
   "maximum_plausible_vital": 1000000

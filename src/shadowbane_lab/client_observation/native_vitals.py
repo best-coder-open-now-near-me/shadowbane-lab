@@ -91,9 +91,16 @@ class NativePlayerVitalsProfile:
             (self.current_mana_offset, self.maximum_mana_offset, "mana"),
             (self.current_stamina_offset, self.maximum_stamina_offset, "stamina"),
         ):
-            if maximum != current + 4:
+            if abs(maximum - current) != 4:
                 raise ValueError(f"verified current and maximum {name} fields must be adjacent")
-        if self.current_stamina_offset != self.maximum_mana_offset + 4:
+        resource_offsets = (
+            self.current_mana_offset,
+            self.maximum_mana_offset,
+            self.current_stamina_offset,
+            self.maximum_stamina_offset,
+        )
+        resource_start = min(resource_offsets)
+        if sorted(resource_offsets) != list(range(resource_start, resource_start + 16, 4)):
             raise ValueError("verified mana and stamina fields must form one contiguous block")
         if self.minimum_user_address < 0x10000:
             raise ValueError("minimum_user_address must exclude the null-allocation region")
@@ -185,6 +192,16 @@ class NativePlayerVitalsReader:
         self._profile = profile
         self._process = process
         self._pointer_slot = pointer_slot
+        self._health_start_offset = min(
+            profile.current_health_offset,
+            profile.maximum_health_offset,
+        )
+        self._resource_start_offset = min(
+            profile.current_mana_offset,
+            profile.maximum_mana_offset,
+            profile.current_stamina_offset,
+            profile.maximum_stamina_offset,
+        )
         self._stability_attempts = stability_attempts
         self._closed = False
 
@@ -205,11 +222,11 @@ class NativePlayerVitalsReader:
             self._require_plausible_player_pointer(player_pointer)
             try:
                 health = self._process.read(
-                    player_pointer + self._profile.current_health_offset,
+                    player_pointer + self._health_start_offset,
                     8,
                 )
                 resources = self._process.read(
-                    player_pointer + self._profile.current_mana_offset,
+                    player_pointer + self._resource_start_offset,
                     16,
                 )
             except Exception as exc:
@@ -224,7 +241,33 @@ class NativePlayerVitalsReader:
                 )
             if self._read_pointer() != player_pointer:
                 continue
-            values = (*struct.unpack("<ff", health), *struct.unpack("<ffff", resources))
+            profile = self._profile
+            values = (
+                self._float_at(
+                    health,
+                    profile.current_health_offset - self._health_start_offset,
+                ),
+                self._float_at(
+                    health,
+                    profile.maximum_health_offset - self._health_start_offset,
+                ),
+                self._float_at(
+                    resources,
+                    profile.current_mana_offset - self._resource_start_offset,
+                ),
+                self._float_at(
+                    resources,
+                    profile.maximum_mana_offset - self._resource_start_offset,
+                ),
+                self._float_at(
+                    resources,
+                    profile.current_stamina_offset - self._resource_start_offset,
+                ),
+                self._float_at(
+                    resources,
+                    profile.maximum_stamina_offset - self._resource_start_offset,
+                ),
+            )
             try:
                 return self._validated_observation(*values)
             except NativePlayerVitalsReadError as exc:
@@ -264,7 +307,15 @@ class NativePlayerVitalsReader:
 
     def _require_plausible_player_pointer(self, pointer: int) -> None:
         profile = self._profile
-        final_address = pointer + profile.maximum_stamina_offset + 4
+        final_offset = max(
+            profile.current_health_offset,
+            profile.maximum_health_offset,
+            profile.current_mana_offset,
+            profile.maximum_mana_offset,
+            profile.current_stamina_offset,
+            profile.maximum_stamina_offset,
+        )
+        final_address = pointer + final_offset + 4
         if (
             pointer < profile.minimum_user_address
             or final_address > profile.maximum_user_address
@@ -273,6 +324,10 @@ class NativePlayerVitalsReader:
             raise NativePlayerVitalsReadError(
                 "player pointer is outside the calibrated 32-bit user range"
             )
+
+    @staticmethod
+    def _float_at(block: bytes, offset: int) -> float:
+        return struct.unpack_from("<f", block, offset)[0]
 
     def _validated_observation(
         self,
