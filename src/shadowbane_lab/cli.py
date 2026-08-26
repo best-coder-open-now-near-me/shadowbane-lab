@@ -34,7 +34,6 @@ from shadowbane_lab.client_observation import (
     NativePlayerTrainingError,
     NativePlayerVitalsError,
     NativeProgressionCoreProfileLoadError,
-    NativeRuneAnnouncementWatcher,
     NativeTargetHealthError,
     NativeTrainingProfileLoadError,
     NativeVitalsProfileLoadError,
@@ -147,35 +146,6 @@ def _parser() -> argparse.ArgumentParser:
         help="return only the newest N complete records",
     )
     read_combat_log.add_argument("--json", action="store_true", help="emit machine-readable JSON")
-
-    watch_rune = client_commands.add_parser(
-        "watch-rune-announcement",
-        help="passively wait for a rare-rune announcement in a native System-HUD log",
-    )
-    watch_rune.add_argument("path", type=Path)
-    watch_rune.add_argument(
-        "--target",
-        action="append",
-        default=[],
-        help="case-insensitive required term; repeat to require multiple terms",
-    )
-    watch_rune.add_argument(
-        "--timeout-seconds",
-        type=float,
-        help="stop cleanly after this duration; omit to watch until interrupted",
-    )
-    watch_rune.add_argument("--poll-seconds", type=float, default=0.5)
-    watch_rune.add_argument(
-        "--from-start",
-        action="store_true",
-        help="include existing records instead of watching only newly appended messages",
-    )
-    watch_rune.add_argument(
-        "--no-bell",
-        action="store_true",
-        help="do not emit a terminal alert bell when a match arrives",
-    )
-    watch_rune.add_argument("--json", action="store_true", help="emit machine-readable JSON")
 
     observe_native_target = client_commands.add_parser(
         "observe-native-target",
@@ -503,46 +473,6 @@ def _read_combat_log(path: Path, *, limit: int | None, as_json: bool) -> int:
     else:
         for entry in selected:
             print(f"({entry.timestamp}) {entry.message}")
-    return 0
-
-
-def _watch_rune_announcement(
-    path: Path,
-    *,
-    targets: Sequence[str],
-    timeout_seconds: float | None,
-    poll_seconds: float,
-    from_start: bool,
-    bell: bool,
-    as_json: bool,
-) -> int:
-    if not path.is_file():
-        return _error(f"native System-HUD log does not exist: {path}", as_json=as_json)
-    try:
-        reader = NativeCombatLogReader(path, start_at_end=not from_start)
-        announcement = NativeRuneAnnouncementWatcher(reader).wait(
-            terms=targets,
-            timeout_seconds=timeout_seconds,
-            poll_seconds=poll_seconds,
-        )
-    except (NativeCombatLogFormatError, OSError, UnicodeError, ValueError) as exc:
-        return _error(f"rune announcement watch failed: {exc}", as_json=as_json)
-
-    payload: dict[str, object] = {
-        "ok": True,
-        "path": str(path),
-        "targets": list(targets),
-        "matched": announcement is not None,
-        "announcement": None if announcement is None else announcement.as_dict(),
-    }
-    if announcement is not None and bell:
-        print("\a", end="", file=sys.stderr, flush=True)
-    if as_json:
-        print(json.dumps(payload, sort_keys=True))
-    elif announcement is None:
-        print("Rune announcement watch ended without a match.")
-    else:
-        print(f"({announcement.timestamp}) {announcement.message}")
     return 0
 
 
@@ -958,16 +888,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _read_combat_log(
             arguments.path,
             limit=arguments.limit,
-            as_json=arguments.json,
-        )
-    if arguments.command == "client" and arguments.client_command == "watch-rune-announcement":
-        return _watch_rune_announcement(
-            arguments.path,
-            targets=arguments.target,
-            timeout_seconds=arguments.timeout_seconds,
-            poll_seconds=arguments.poll_seconds,
-            from_start=arguments.from_start,
-            bell=not arguments.no_bell,
             as_json=arguments.json,
         )
     if arguments.command == "client" and arguments.client_command == "observe-native-target":
