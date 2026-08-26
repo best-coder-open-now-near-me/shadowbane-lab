@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from math import hypot
+
 from shadowbane_lab.protocol import Vector2
 from shadowbane_lab.travel.model import (
     TravelControllerConfig,
     TravelDecision,
+    TravelManeuver,
     TravelObservation,
     TravelPhase,
     TravelPlan,
@@ -27,6 +30,9 @@ class TravelController:
         self._last_click_at_ms: int | None = None
         self._last_click_distance: float | None = None
         self._no_progress_clicks = 0
+        self._escape_sequence_count = 0
+        self._escape_step = 0
+        self._escaping = False
         self._terminal: TravelDecision | None = None
 
     @property
@@ -61,6 +67,8 @@ class TravelController:
             self._last_click_at_ms = None
             self._last_click_distance = None
             self._no_progress_clicks = 0
+            self._escape_step = 0
+            self._escaping = False
             destination = self._plan.destinations[self._waypoint_index]
             distance = destination.distance_from(observation.position)
 
@@ -71,6 +79,9 @@ class TravelController:
         ):
             return self._decision(observation, distance=distance)
 
+        if self._escaping:
+            return self._dispatch_escape(observation, distance=distance)
+
         if self._last_click_distance is not None:
             progress = self._last_click_distance - distance
             if progress < self._config.minimum_progress:
@@ -78,17 +89,30 @@ class TravelController:
             else:
                 self._no_progress_clicks = 0
             if self._no_progress_clicks >= self._config.maximum_no_progress_clicks:
-                return self._stop("no_progress", observation, distance=distance)
+                if self._escape_sequence_count >= self._config.maximum_escape_sequences:
+                    return self._stop(
+                        (
+                            "no_progress"
+                            if self._config.maximum_escape_sequences == 0
+                            else "no_progress_after_escape"
+                        ),
+                        observation,
+                        distance=distance,
+                    )
+                self._escape_sequence_count += 1
+                self._escape_step = 0
+                self._escaping = True
+                self._no_progress_clicks = 0
+                self._last_click_distance = None
+                return self._dispatch_escape(observation, distance=distance)
 
         delta_lt = destination.lt - observation.position.lt
         delta_lg = destination.lg - observation.position.lg
-        self._last_click_at_ms = observation.now_ms
-        self._last_click_distance = distance
-        self._click_count += 1
-        return self._decision(
+        return self._dispatch(
             observation,
             distance=distance,
             direction=Vector2(delta_lt, -delta_lg),
+            maneuver=TravelManeuver.DIRECT,
         )
 
     def stop(self, reason: str, observation: TravelObservation | None = None) -> TravelDecision:
@@ -120,6 +144,7 @@ class TravelController:
         *,
         distance: float,
         direction: Vector2 | None = None,
+        maneuver: TravelManeuver | None = None,
     ) -> TravelDecision:
         return TravelDecision(
             decision_id=self._next_decision_id(),
@@ -129,6 +154,70 @@ class TravelController:
             distance_remaining=distance,
             click_count=self._click_count,
             minimap_direction=direction,
+            maneuver=maneuver,
+        )
+
+    def _dispatch(
+        self,
+        observation: TravelObservation,
+        *,
+        distance: float,
+        direction: Vector2,
+        maneuver: TravelManeuver,
+        track_destination_progress: bool = True,
+    ) -> TravelDecision:
+        self._last_click_at_ms = observation.now_ms
+        self._last_click_distance = distance if track_destination_progress else None
+        self._click_count += 1
+        return self._decision(
+            observation,
+            distance=distance,
+            direction=direction,
+            maneuver=maneuver,
+        )
+
+    def _dispatch_escape(
+        self,
+        observation: TravelObservation,
+        *,
+        distance: float,
+    ) -> TravelDecision:
+        destination = self._plan.destinations[self._waypoint_index]
+        delta_lt = destination.lt - observation.position.lt
+        screen_delta_lg = -(destination.lg - observation.position.lg)
+        length = hypot(delta_lt, screen_delta_lg)
+        if length == 0:
+            return self._complete(observation, distance)
+        forward_x = delta_lt / length
+        forward_y = screen_delta_lg / length
+        backward_x = -forward_x
+        backward_y = -forward_y
+        perpendicular_x = -forward_y
+        perpendicular_y = forward_x
+        initial_sign = 1.0 if self._escape_sequence_count % 2 else -1.0
+        sign = initial_sign if self._escape_step % 2 == 0 else -initial_sign
+        lateral = self._config.escape_lateral_ratio + (
+            (self._escape_sequence_count - 1)
+            * self._config.escape_widening_per_sequence
+        )
+        maneuver = (
+            TravelManeuver.ESCAPE_BACK_LEFT
+            if sign > 0
+            else TravelManeuver.ESCAPE_BACK_RIGHT
+        )
+        self._escape_step += 1
+        if self._escape_step >= self._config.escape_clicks_per_sequence:
+            self._escaping = False
+            self._escape_step = 0
+        return self._dispatch(
+            observation,
+            distance=distance,
+            direction=Vector2(
+                backward_x + sign * lateral * perpendicular_x,
+                backward_y + sign * lateral * perpendicular_y,
+            ),
+            maneuver=maneuver,
+            track_destination_progress=False,
         )
 
     def _stop(

@@ -1192,6 +1192,7 @@ def _run_travel(
             "decision_id": step.decision.decision_id,
             "at_ms": step.decision.now_ms,
             "distance_remaining": step.decision.distance_remaining,
+            "maneuver": step.decision.maneuver.value,
             "accepted": step.input_accepted,
             "reason": step.input_reason,
         }

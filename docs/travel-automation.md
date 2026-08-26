@@ -29,6 +29,8 @@ geometry. Do not commit the local profile.
 Each click is a short lease. The controller observes LT/LG again before issuing another one,
 recomputes direction toward the active waypoint, and verifies that distance decreased. It
 stops on arrival, low player health, focus/profile rejection, emergency stop
-(`Ctrl+Shift+F12`), repeated observation failures, three no-progress checkpoints, click
-budget exhaustion, or the session deadline. Obstacles are represented as explicit waypoints;
-the controller does not blindly continue into a wall.
+(`Ctrl+Shift+F12`), repeated observation failures, click-budget exhaustion, or the session
+deadline. Three no-progress checkpoints trigger a bounded reverse-zig-zag sequence. Each
+retry starts on the opposite side and widens its lateral component so concave obstacles can
+be backed out of before direct travel resumes. The escape budget is finite; after it is
+exhausted the controller stops instead of blindly continuing into a wall.

@@ -100,6 +100,12 @@ class TravelPhase(StrEnum):
     STOPPED = "stopped"
 
 
+class TravelManeuver(StrEnum):
+    DIRECT = "direct"
+    ESCAPE_BACK_LEFT = "escape_back_left"
+    ESCAPE_BACK_RIGHT = "escape_back_right"
+
+
 @dataclass(frozen=True, slots=True)
 class TravelControllerConfig:
     maximum_session_ms: int = 300_000
@@ -107,6 +113,10 @@ class TravelControllerConfig:
     maximum_clicks: int = 100
     minimum_progress: float = 25.0
     maximum_no_progress_clicks: int = 3
+    maximum_escape_sequences: int = 3
+    escape_clicks_per_sequence: int = 4
+    escape_lateral_ratio: float = 0.85
+    escape_widening_per_sequence: float = 0.5
     minimum_health_fraction: float = 0.5
 
     def __post_init__(self) -> None:
@@ -115,11 +125,20 @@ class TravelControllerConfig:
             (self.click_interval_ms, "click_interval_ms"),
             (self.maximum_clicks, "maximum_clicks"),
             (self.maximum_no_progress_clicks, "maximum_no_progress_clicks"),
+            (self.escape_clicks_per_sequence, "escape_clicks_per_sequence"),
         ):
             _positive_integer(value, field_name)
+        _non_negative_integer(self.maximum_escape_sequences, "maximum_escape_sequences")
         _finite(self.minimum_progress, "minimum_progress")
         if self.minimum_progress <= 0:
             raise ValueError("minimum_progress must be positive")
+        for value, field_name in (
+            (self.escape_lateral_ratio, "escape_lateral_ratio"),
+            (self.escape_widening_per_sequence, "escape_widening_per_sequence"),
+        ):
+            _finite(value, field_name)
+            if value <= 0:
+                raise ValueError(f"{field_name} must be positive")
         _finite(self.minimum_health_fraction, "minimum_health_fraction")
         if not 0 < self.minimum_health_fraction <= 1:
             raise ValueError("minimum_health_fraction must be in (0, 1]")
@@ -150,6 +169,7 @@ class TravelDecision:
     distance_remaining: float
     click_count: int
     minimap_direction: Vector2 | None = None
+    maneuver: TravelManeuver | None = None
     terminal_reason: str | None = None
 
     def __post_init__(self) -> None:
@@ -169,6 +189,10 @@ class TravelDecision:
             self.minimap_direction, Vector2
         ):
             raise ValueError("minimap_direction must be Vector2 when present")
+        if self.maneuver is not None and not isinstance(self.maneuver, TravelManeuver):
+            raise ValueError("maneuver must be TravelManeuver when present")
+        if (self.minimap_direction is None) != (self.maneuver is None):
+            raise ValueError("a dispatched minimap direction requires exactly one maneuver")
         terminal = self.phase in (TravelPhase.COMPLETE, TravelPhase.STOPPED)
         if terminal != (self.terminal_reason is not None):
             raise ValueError("terminal travel decisions require a terminal reason")
