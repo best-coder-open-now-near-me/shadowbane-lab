@@ -22,6 +22,7 @@ _ERROR_NO_MORE_FILES = 18
 _INVALID_HANDLE_VALUE = ctypes.c_void_p(-1).value
 _MAX_PATH = 260
 _MAX_MODULE_NAME32 = 255
+_PROCESS_QUERY_INFORMATION = 0x0400
 _PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 _PROCESS_VM_READ = 0x0010
 _TH32CS_SNAPPROCESS = 0x00000002
@@ -393,7 +394,11 @@ class WindowsReadOnlyProcessMemory:
         executable_path: Path,
         base_address: int,
     ) -> None:
-        access = _PROCESS_VM_READ | _PROCESS_QUERY_LIMITED_INFORMATION
+        access = (
+            _PROCESS_VM_READ
+            | _PROCESS_QUERY_INFORMATION
+            | _PROCESS_QUERY_LIMITED_INFORMATION
+        )
         handle = api.kernel32.OpenProcess(access, False, pid)
         if not handle:
             raise NativeTargetHealthReadError(_windows_error("OpenProcess failed"))
