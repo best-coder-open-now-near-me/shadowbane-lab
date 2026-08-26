@@ -13,6 +13,7 @@ from shadowbane_lab.client_input import (
     StaticWindowInspector,
     load_calibration,
 )
+from shadowbane_lab.pve import PvEIntent
 from tests.test_client_input_executor import _valid_snapshot
 
 
@@ -180,6 +181,36 @@ class ClientCliTests(unittest.TestCase):
         self.assertEqual(2, result)
         self.assertFalse(payload["ok"])
         self.assertIn("--live", payload["error"])
+
+    def test_proc_assassin_policy_fails_before_input_without_shadow_touch_mapping(self) -> None:
+        template = Path(__file__).parents[1] / "configs" / "wonderbane-pve.template.json"
+        profile_data = json.loads(template.read_text(encoding="utf-8"))
+        profile_data["live_input_enabled"] = True
+        output = io.StringIO()
+        with tempfile.TemporaryDirectory() as directory:
+            profile = Path(directory) / "pve.local.json"
+            combat_log = Path(directory) / "combat.log.txt"
+            profile.write_text(json.dumps(profile_data), encoding="utf-8")
+            combat_log.write_text("", encoding="utf-8")
+            with redirect_stdout(output):
+                result = main(
+                    (
+                        "client",
+                        "run-pve",
+                        "--client-profile",
+                        str(profile),
+                        "--combat-log",
+                        str(combat_log),
+                        "--policy",
+                        "proc-assassin",
+                        "--live",
+                        "--json",
+                    )
+                )
+
+        payload = json.loads(output.getvalue())
+        self.assertEqual(2, result)
+        self.assertIn(PvEIntent.CAST_SHADOW_TOUCH.value, payload["error"])
 
 
 if __name__ == "__main__":

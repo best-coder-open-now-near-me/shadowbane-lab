@@ -49,12 +49,14 @@ def _event(kind: NativeCombatEventKind, sequence: int = 0) -> NativeCombatEvent:
 def _player(
     current_health: float = 100.0,
     maximum_health: float = 100.0,
+    current_mana: float = 50.0,
+    maximum_mana: float = 50.0,
 ) -> NativePlayerVitalsObservation:
     return NativePlayerVitalsObservation(
         current_health,
         maximum_health,
-        50.0,
-        50.0,
+        current_mana,
+        maximum_mana,
         100.0,
         100.0,
     )
@@ -75,6 +77,17 @@ def _observation(
 
 
 class PvEControllerTests(unittest.TestCase):
+    def test_opener_configuration_rejects_non_power_and_unbounded_mana_cost(self) -> None:
+        with self.assertRaisesRegex(ValueError, "power activation"):
+            PvEControllerConfig(opening_intent=PvEIntent.ACQUIRE_NEXT_MOB)
+        with self.assertRaisesRegex(ValueError, "non-negative"):
+            PvEControllerConfig(
+                opening_intent=PvEIntent.CAST_SHADOW_TOUCH,
+                opening_mana_cost=float("nan"),
+            )
+        with self.assertRaisesRegex(ValueError, "requires an opening_intent"):
+            PvEControllerConfig(opening_mana_cost=55.0)
+
     def test_acquires_a_different_mobile_then_attacks_and_confirms_kill(self) -> None:
         controller = PvEController(PvEControllerConfig(maximum_kills=1))
 
@@ -171,6 +184,144 @@ class PvEControllerTests(unittest.TestCase):
         self.assertIsNone(waiting.intent)
         self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB, acquire.intent)
         self.assertEqual(PvEIntent.ATTACK_SELECTED_TARGET, attack.intent)
+
+    def test_proc_assassin_accepts_auto_target_and_opens_without_redundant_attack(self) -> None:
+        controller = PvEController(
+            PvEControllerConfig(
+                accept_automatic_targets=True,
+                opening_intent=PvEIntent.CAST_SHADOW_TOUCH,
+                opening_mana_cost=55.0,
+                opening_followup_delay_ms=100,
+                automatic_attack_expected=True,
+                stalled_progress_ms=500,
+            )
+        )
+        player = _player(current_mana=100.0, maximum_mana=100.0)
+
+        opener = controller.step(_observation(0, _target("auto-mob"), player=player))
+        opening = controller.step(_observation(50, _target("auto-mob", 9), player=player))
+        engaged = controller.step(_observation(100, _target("auto-mob", 9), player=player))
+        fallback = controller.step(_observation(600, _target("auto-mob", 9), player=player))
+
+        self.assertEqual(PvEIntent.CAST_SHADOW_TOUCH, opener.intent)
+        self.assertEqual(PvEPhase.OPENING, opening.phase)
+        self.assertIsNone(opening.intent)
+        self.assertEqual(PvEPhase.ENGAGED, engaged.phase)
+        self.assertIsNone(engaged.intent)
+        self.assertEqual(PvEIntent.ATTACK_SELECTED_TARGET, fallback.intent)
+
+    def test_uncommanded_auto_target_waits_for_native_player_hit_confirmation(self) -> None:
+        controller = PvEController(
+            PvEControllerConfig(
+                accept_automatic_targets=True,
+                opening_intent=PvEIntent.CAST_SHADOW_TOUCH,
+                opening_mana_cost=55.0,
+                automatic_target_requires_combat_event=True,
+            )
+        )
+        player = _player(current_mana=100.0, maximum_mana=100.0)
+
+        waiting = controller.step(_observation(0, _target("auto-mob"), player=player))
+        still_waiting = controller.step(
+            _observation(100, _target("auto-mob"), player=player)
+        )
+        confirmed = controller.step(
+            _observation(
+                200,
+                _target("auto-mob", current=9),
+                _event(NativeCombatEventKind.PLAYER_HIT_TARGET),
+                player=player,
+            )
+        )
+
+        self.assertIsNone(waiting.intent)
+        self.assertIsNone(still_waiting.intent)
+        self.assertEqual(PvEIntent.CAST_SHADOW_TOUCH, confirmed.intent)
+
+    def test_proc_assassin_skips_opener_when_native_mana_is_too_low(self) -> None:
+        controller = PvEController(
+            PvEControllerConfig(
+                accept_automatic_targets=True,
+                opening_intent=PvEIntent.CAST_SHADOW_TOUCH,
+                opening_mana_cost=55.0,
+                automatic_attack_expected=True,
+            )
+        )
+
+        decision = controller.step(
+            _observation(
+                0,
+                _target("auto-mob"),
+                player=_player(current_mana=54.0, maximum_mana=100.0),
+            )
+        )
+
+        self.assertEqual(PvEPhase.ENGAGED, decision.phase)
+        self.assertIsNone(decision.intent)
+
+    def test_proc_assassin_opens_automatic_replacement_after_confirmed_kill(self) -> None:
+        controller = PvEController(
+            PvEControllerConfig(
+                maximum_kills=2,
+                accept_automatic_targets=True,
+                opening_intent=PvEIntent.CAST_SHADOW_TOUCH,
+                opening_mana_cost=55.0,
+                opening_followup_delay_ms=100,
+                automatic_attack_expected=True,
+                post_kill_delay_ms=100,
+            )
+        )
+        player = _player(current_mana=100.0, maximum_mana=100.0)
+        controller.step(_observation(0, _target("mob-1"), player=player))
+        controller.step(_observation(100, _target("mob-1"), player=player))
+        post_kill = controller.step(
+            _observation(
+                200,
+                _target("mob-2"),
+                _event(NativeCombatEventKind.TARGET_KILLED),
+                player=player,
+            )
+        )
+
+        replacement_opener = controller.step(
+            _observation(300, _target("mob-2"), player=player)
+        )
+
+        self.assertEqual(PvEPhase.POST_KILL, post_kill.phase)
+        self.assertEqual(PvEPhase.OPENING, replacement_opener.phase)
+        self.assertEqual(PvEIntent.CAST_SHADOW_TOUCH, replacement_opener.intent)
+
+    def test_selection_change_during_opener_stops(self) -> None:
+        controller = PvEController(
+            PvEControllerConfig(
+                accept_automatic_targets=True,
+                opening_intent=PvEIntent.CAST_SHADOW_TOUCH,
+                opening_mana_cost=55.0,
+            )
+        )
+        player = _player(current_mana=100.0, maximum_mana=100.0)
+        controller.step(_observation(0, _target("first"), player=player))
+
+        stopped = controller.step(_observation(100, _target("second"), player=player))
+
+        self.assertEqual(PvEPhase.STOPPED, stopped.phase)
+        self.assertEqual("selected_target_changed_during_opener", stopped.terminal_reason)
+
+    def test_required_intents_include_configured_opener_and_stall_fallback(self) -> None:
+        controller = PvEController(
+            PvEControllerConfig(opening_intent=PvEIntent.CAST_SHADOW_TOUCH)
+        )
+
+        self.assertEqual(
+            frozenset(
+                {
+                    PvEIntent.ACQUIRE_NEXT_MOB,
+                    PvEIntent.CAST_SHADOW_TOUCH,
+                    PvEIntent.ATTACK_SELECTED_TARGET,
+                }
+            ),
+            controller.required_intents,
+        )
 
 
 class SequenceHealthSource:

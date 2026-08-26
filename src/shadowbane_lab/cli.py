@@ -242,6 +242,15 @@ def _parser() -> argparse.ArgumentParser:
     run_pve.add_argument("--wait-for-client-seconds", type=float, default=15.0)
     run_pve.add_argument("--poll-ms", type=int, default=100)
     run_pve.add_argument(
+        "--policy",
+        choices=("basic", "proc-assassin"),
+        default="basic",
+        help=(
+            "bounded control policy; proc-assassin accepts auto-targets and opens "
+            "with Shadow Touch"
+        ),
+    )
+    run_pve.add_argument(
         "--live",
         action="store_true",
         help="required in addition to a profile with live_input_enabled=true",
@@ -799,6 +808,7 @@ def _run_pve(
     max_seconds: float,
     wait_for_client_seconds: float,
     poll_ms: int,
+    policy: str,
     live: bool,
     as_json: bool,
 ) -> int:
@@ -812,14 +822,29 @@ def _run_pve(
         return _error("wait-for-client-seconds must be in [0, 300]", as_json=as_json)
     if isinstance(poll_ms, bool) or not 50 <= poll_ms <= 1_000:
         return _error("poll-ms must be in [50, 1000]", as_json=as_json)
+    if policy not in ("basic", "proc-assassin"):
+        return _error("policy must be basic or proc-assassin", as_json=as_json)
     if not combat_log_path.is_file():
         return _error(f"combat log does not exist: {combat_log_path}", as_json=as_json)
     try:
         client_profile = load_calibration(client_profile_path)
         if not client_profile.live_input_enabled:
             raise ValueError("client profile is not enabled for live input")
+        controller = PvEController(
+            PvEControllerConfig(
+                maximum_kills=max_kills,
+                maximum_session_ms=round(max_seconds * 1000),
+                accept_automatic_targets=policy == "proc-assassin",
+                opening_intent=(
+                    PvEIntent.CAST_SHADOW_TOUCH if policy == "proc-assassin" else None
+                ),
+                opening_mana_cost=55.0 if policy == "proc-assassin" else 0.0,
+                automatic_attack_expected=policy == "proc-assassin",
+                automatic_target_requires_combat_event=policy == "proc-assassin",
+            )
+        )
         mapped_actions = {mapping.action_key for mapping in client_profile.actions}
-        required_actions = {intent.value for intent in PvEIntent}
+        required_actions = {intent.value for intent in controller.required_intents}
         missing_actions = required_actions - mapped_actions
         if missing_actions:
             raise ValueError(
@@ -859,12 +884,7 @@ def _run_pve(
                 executor,
             )
             result = PvERunner(
-                controller=PvEController(
-                    PvEControllerConfig(
-                        maximum_kills=max_kills,
-                        maximum_session_ms=round(max_seconds * 1000),
-                    )
-                ),
+                controller=controller,
                 health_reader=health_reader,
                 player_vitals_reader=player_vitals_reader,
                 combat_log_reader=combat_reader,
@@ -901,6 +921,7 @@ def _run_pve(
         "ok": result.final_phase.value == "complete",
         "final_phase": result.final_phase.value,
         "terminal_reason": result.terminal_reason,
+        "policy": policy,
         "kills": result.kills,
         "steps": len(result.trace),
         "dispatched": dispatched,
@@ -992,6 +1013,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             max_seconds=arguments.max_seconds,
             wait_for_client_seconds=arguments.wait_for_client_seconds,
             poll_ms=arguments.poll_ms,
+            policy=arguments.policy,
             live=arguments.live,
             as_json=arguments.json,
         )

@@ -46,6 +46,16 @@ class PvEController:
     def terminal(self) -> bool:
         return self._phase in (PvEPhase.COMPLETE, PvEPhase.STOPPED)
 
+    @property
+    def required_intents(self) -> frozenset[PvEIntent]:
+        intents = {
+            PvEIntent.ACQUIRE_NEXT_MOB,
+            PvEIntent.ATTACK_SELECTED_TARGET,
+        }
+        if self._config.opening_intent is not None:
+            intents.add(self._config.opening_intent)
+        return frozenset(intents)
+
     def step(self, observation: PvEObservation) -> PvEControllerDecision:
         if not isinstance(observation, PvEObservation):
             raise ValueError("observation must be PvEObservation")
@@ -74,16 +84,35 @@ class PvEController:
         if now - self._started_at >= self._config.maximum_session_ms:
             return self.stop("maximum_session_elapsed", now_ms=now)
 
+        if self._phase in (PvEPhase.OPENING, PvEPhase.ENGAGED):
+            kills = tuple(
+                event for event in events if event.kind is NativeCombatEventKind.TARGET_KILLED
+            )
+            if len(kills) > 1:
+                return self.stop("ambiguous_multiple_kill_records", now_ms=now)
+            if kills:
+                return self._record_kill(observation)
+
         if self._phase is PvEPhase.INITIALIZING:
+            if (
+                self._config.accept_automatic_targets
+                and observation.target.target_present
+                and self._automatic_target_confirmed(events)
+            ):
+                return self._begin_engagement(observation)
             self._baseline_target_token = observation.target.target_token
             self._enter(PvEPhase.SEEKING, now)
+            if self._config.accept_automatic_targets and observation.target.target_present:
+                return self._emit(now)
             return self._emit(now, PvEIntent.ACQUIRE_NEXT_MOB)
         if self._phase is PvEPhase.SEEKING:
-            return self._seek(observation)
+            return self._seek(observation, events)
+        if self._phase is PvEPhase.OPENING:
+            return self._open(observation)
         if self._phase is PvEPhase.ENGAGED:
             return self._engage(observation, events)
         if self._phase is PvEPhase.POST_KILL:
-            return self._post_kill(observation)
+            return self._post_kill(observation, events)
         raise RuntimeError("unreachable PvE phase")
 
     def stop(self, reason: str, *, now_ms: int | None = None) -> PvEControllerDecision:
@@ -100,21 +129,27 @@ class PvEController:
         self._enter(PvEPhase.STOPPED, now)
         return self._emit(now, terminal_reason=reason)
 
-    def _seek(self, observation: PvEObservation) -> PvEControllerDecision:
+    def _seek(
+        self,
+        observation: PvEObservation,
+        events: tuple[NativeCombatEvent, ...],
+    ) -> PvEControllerDecision:
         now = observation.now_ms
         target = observation.target
-        if target.target_present and target.target_token != self._baseline_target_token:
-            assert target.target_token is not None
-            assert target.current_health is not None
-            self._engaged_target_token = target.target_token
-            self._last_health = target.current_health
-            self._last_progress_at = now
-            self._reengage_attempts = 0
-            self._selection_lost_at = None
-            self._enter(PvEPhase.ENGAGED, now)
-            return self._emit(now, PvEIntent.ATTACK_SELECTED_TARGET)
+        if target.target_present:
+            explicitly_acquired = (
+                self._last_acquire_at is not None
+                and target.target_token != self._baseline_target_token
+            )
+            if explicitly_acquired or (
+                self._config.accept_automatic_targets
+                and self._automatic_target_confirmed(events)
+            ):
+                return self._begin_engagement(observation)
         if self._phase_elapsed(now) >= self._config.acquisition_timeout_ms:
             return self.stop("mob_acquisition_timeout", now_ms=now)
+        if target.target_present and self._config.accept_automatic_targets:
+            return self._emit(now)
         if (
             self._last_acquire_at is None
             or now - self._last_acquire_at >= self._config.acquisition_retry_ms
@@ -128,20 +163,6 @@ class PvEController:
         events: tuple[NativeCombatEvent, ...],
     ) -> PvEControllerDecision:
         now = observation.now_ms
-        kills = tuple(
-            event for event in events if event.kind is NativeCombatEventKind.TARGET_KILLED
-        )
-        if len(kills) > 1:
-            return self.stop("ambiguous_multiple_kill_records", now_ms=now)
-        if kills:
-            self._kills += 1
-            if self._kills >= self._config.maximum_kills:
-                self._enter(PvEPhase.COMPLETE, now)
-                return self._emit(now, terminal_reason="kill_limit_reached")
-            self._baseline_target_token = observation.target.target_token
-            self._enter(PvEPhase.POST_KILL, now)
-            return self._emit(now)
-
         target = observation.target
         if not target.target_present:
             if self._selection_lost_at is None:
@@ -172,16 +193,96 @@ class PvEController:
             return self._emit(now, PvEIntent.ATTACK_SELECTED_TARGET)
         return self._emit(now)
 
-    def _post_kill(self, observation: PvEObservation) -> PvEControllerDecision:
+    def _post_kill(
+        self,
+        observation: PvEObservation,
+        events: tuple[NativeCombatEvent, ...],
+    ) -> PvEControllerDecision:
         now = observation.now_ms
         if self._phase_elapsed(now) < self._config.post_kill_delay_ms:
             return self._emit(now)
+        previous_target_token = self._engaged_target_token
+        if (
+            self._config.accept_automatic_targets
+            and observation.target.target_present
+            and observation.target.target_token != previous_target_token
+        ):
+            if self._automatic_target_confirmed(events):
+                return self._begin_engagement(observation)
+            self._baseline_target_token = observation.target.target_token
+            self._clear_engagement()
+            self._enter(PvEPhase.SEEKING, now)
+            return self._emit(now)
         self._baseline_target_token = observation.target.target_token
+        self._clear_engagement()
+        self._enter(PvEPhase.SEEKING, now)
+        return self._emit(now, PvEIntent.ACQUIRE_NEXT_MOB)
+
+    def _begin_engagement(self, observation: PvEObservation) -> PvEControllerDecision:
+        target = observation.target
+        assert target.target_present
+        assert target.target_token is not None
+        assert target.current_health is not None
+        now = observation.now_ms
+        self._baseline_target_token = target.target_token
+        self._engaged_target_token = target.target_token
+        self._last_health = target.current_health
+        self._last_progress_at = now
+        self._last_acquire_at = None
+        self._reengage_attempts = 0
+        self._selection_lost_at = None
+        opener = self._config.opening_intent
+        if opener is not None and observation.player.current_mana >= self._config.opening_mana_cost:
+            self._enter(PvEPhase.OPENING, now)
+            return self._emit(now, opener)
+        self._enter(PvEPhase.ENGAGED, now)
+        if self._config.automatic_attack_expected:
+            return self._emit(now)
+        return self._emit(now, PvEIntent.ATTACK_SELECTED_TARGET)
+
+    def _open(self, observation: PvEObservation) -> PvEControllerDecision:
+        now = observation.now_ms
+        target = observation.target
+        if not target.target_present:
+            return self.stop("selection_lost_during_opener", now_ms=now)
+        if target.target_token != self._engaged_target_token:
+            return self.stop("selected_target_changed_during_opener", now_ms=now)
+        assert target.current_health is not None
+        if self._last_health is None or target.current_health < self._last_health - 0.0001:
+            self._last_progress_at = now
+        self._last_health = target.current_health
+        if self._phase_elapsed(now) < self._config.opening_followup_delay_ms:
+            return self._emit(now)
+        self._enter(PvEPhase.ENGAGED, now)
+        if self._config.automatic_attack_expected:
+            return self._emit(now)
+        return self._emit(now, PvEIntent.ATTACK_SELECTED_TARGET)
+
+    def _record_kill(self, observation: PvEObservation) -> PvEControllerDecision:
+        now = observation.now_ms
+        self._kills += 1
+        if self._kills >= self._config.maximum_kills:
+            self._enter(PvEPhase.COMPLETE, now)
+            return self._emit(now, terminal_reason="kill_limit_reached")
+        self._baseline_target_token = observation.target.target_token
+        self._enter(PvEPhase.POST_KILL, now)
+        return self._emit(now)
+
+    def _automatic_target_confirmed(
+        self,
+        events: tuple[NativeCombatEvent, ...],
+    ) -> bool:
+        return (
+            not self._config.automatic_target_requires_combat_event
+            or any(event.kind is NativeCombatEventKind.PLAYER_HIT_TARGET for event in events)
+        )
+
+    def _clear_engagement(self) -> None:
         self._engaged_target_token = None
         self._last_health = None
         self._last_progress_at = None
-        self._enter(PvEPhase.SEEKING, now)
-        return self._emit(now, PvEIntent.ACQUIRE_NEXT_MOB)
+        self._selection_lost_at = None
+        self._reengage_attempts = 0
 
     def _enter(self, phase: PvEPhase, now_ms: int) -> None:
         self._phase = phase

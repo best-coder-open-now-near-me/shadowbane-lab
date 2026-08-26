@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
+from math import isfinite
 
 from shadowbane_lab.client_observation import (
     NativeCombatEvent,
@@ -24,12 +25,14 @@ def _non_negative_integer(value: int, field_name: str) -> None:
 
 class PvEIntent(StrEnum):
     ACQUIRE_NEXT_MOB = "client.pve.target_next_mobile"
+    CAST_SHADOW_TOUCH = "shadowbane.assassin.shadow_touch"
     ATTACK_SELECTED_TARGET = "shadowbane.basic_attack"
 
 
 class PvEPhase(StrEnum):
     INITIALIZING = "initializing"
     SEEKING = "seeking"
+    OPENING = "opening"
     ENGAGED = "engaged"
     POST_KILL = "post_kill"
     COMPLETE = "complete"
@@ -48,6 +51,12 @@ class PvEControllerConfig:
     post_kill_delay_ms: int = 1_000
     maximum_reengage_attempts: int = 2
     minimum_player_health_fraction: float = 0.5
+    accept_automatic_targets: bool = False
+    opening_intent: PvEIntent | None = None
+    opening_mana_cost: float = 0.0
+    opening_followup_delay_ms: int = 250
+    automatic_attack_expected: bool = False
+    automatic_target_requires_combat_event: bool = False
 
     def __post_init__(self) -> None:
         for value, field_name in (
@@ -59,6 +68,7 @@ class PvEControllerConfig:
             (self.stalled_progress_ms, "stalled_progress_ms"),
             (self.selection_loss_grace_ms, "selection_loss_grace_ms"),
             (self.post_kill_delay_ms, "post_kill_delay_ms"),
+            (self.opening_followup_delay_ms, "opening_followup_delay_ms"),
         ):
             _positive_integer(value, field_name)
         _non_negative_integer(self.maximum_reengage_attempts, "maximum_reengage_attempts")
@@ -74,6 +84,32 @@ class PvEControllerConfig:
             raise ValueError("stalled progress timeout cannot exceed engagement timeout")
         if self.selection_loss_grace_ms > self.engagement_timeout_ms:
             raise ValueError("selection loss grace cannot exceed engagement timeout")
+        for value, field_name in (
+            (self.accept_automatic_targets, "accept_automatic_targets"),
+            (self.automatic_attack_expected, "automatic_attack_expected"),
+            (
+                self.automatic_target_requires_combat_event,
+                "automatic_target_requires_combat_event",
+            ),
+        ):
+            if not isinstance(value, bool):
+                raise ValueError(f"{field_name} must be a boolean")
+        if self.opening_intent is not None and not isinstance(self.opening_intent, PvEIntent):
+            raise ValueError("opening_intent must be PvEIntent when present")
+        if self.opening_intent in (
+            PvEIntent.ACQUIRE_NEXT_MOB,
+            PvEIntent.ATTACK_SELECTED_TARGET,
+        ):
+            raise ValueError("opening_intent must be a power activation")
+        if (
+            isinstance(self.opening_mana_cost, bool)
+            or not isinstance(self.opening_mana_cost, (int, float))
+            or not isfinite(self.opening_mana_cost)
+            or self.opening_mana_cost < 0
+        ):
+            raise ValueError("opening_mana_cost must be a non-negative number")
+        if self.opening_intent is None and self.opening_mana_cost != 0:
+            raise ValueError("opening_mana_cost requires an opening_intent")
 
 
 @dataclass(frozen=True, slots=True)
