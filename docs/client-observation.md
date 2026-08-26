@@ -157,6 +157,24 @@ the file. It retains incomplete writes until the native blank-record separator a
 continuation lines, detects truncation or replacement, and emits a monotonic typed sequence for
 the overlay and recorder.
 
+### Rare-rune announcement watch
+
+The server emits a System-channel message when a discipline dropper or a mob holding an
+`of the Gods` stat rune spawns. Enable `Log Messages` on a HUD that receives System messages and
+name it `shadowbane-system`, then attach without replaying old messages:
+
+```powershell
+.\.venv\Scripts\python.exe -m shadowbane_lab.cli client watch-rune-announcement `
+    .\Logs\shadowbane-system.log.txt `
+    --target "Esh" `
+    --target "Sun Dancer"
+```
+
+Repeated targets are case-insensitive AND terms. The watcher parses the exact server sentence,
+preserves the mob, camp/zone, and rune names, emits a terminal alert bell on a match, and never
+sends client input or changes focus. `--timeout-seconds` supports bounded watches; omit it to run
+until a match or Ctrl+C.
+
 ## Arcane HUD datafields
 
 The default skin binds HUD controls directly to semantic datafields. The inspected selection HUD

@@ -101,6 +101,11 @@ from shadowbane_lab.client_observation.progression import (
     EquippedItemObservation,
     TrainedRankObservation,
 )
+from shadowbane_lab.client_observation.rune_announcements import (
+    NativeRuneAnnouncement,
+    NativeRuneAnnouncementParser,
+    NativeRuneAnnouncementWatcher,
+)
 
 __all__ = [
     "CLIENT_OBSERVATION_PROFILE_SCHEMA_VERSION",
@@ -148,6 +153,9 @@ __all__ = [
     "NativePlayerTrainingReadError",
     "NativePlayerTrainingReader",
     "NativeProgressionCoreProfileLoadError",
+    "NativeRuneAnnouncement",
+    "NativeRuneAnnouncementParser",
+    "NativeRuneAnnouncementWatcher",
     "NativeTrainingEntry",
     "NativeTrainingProfileLoadError",
     "NativeTrainingToken",
