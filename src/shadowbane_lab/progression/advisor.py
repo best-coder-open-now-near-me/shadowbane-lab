@@ -205,12 +205,13 @@ def irekei_proc_assassin_roadmap(
             profile,
             loadout,
             name="observed-trait high-proc at 59",
-            stats=StatLine(35, 105, 85, 165, 15),
+            stats=StatLine(35, 130, 85, 165, 15),
             provenance=(
                 "Live stats and Runestones panes: from 35/55/57/80/15 with 168 points, "
-                "raise Intelligence to 120, apply Intelligence of the Gods (+10 current, "
-                "+40 cap) for 15 points, finish Intelligence at 165 and Constitution at "
-                "85, then place the remaining 50 points in Dexterity"
+                "apply Sun Dancer (+5 CON) and Saboteur (+20 DEX), raise Intelligence to "
+                "120, apply Intelligence of the Gods (+10 current, +40 cap) for 15 points, "
+                "finish Intelligence at 165 and Constitution at 85, then place the remaining "
+                "55 points in Dexterity"
             ),
         ),
         _candidate(
@@ -259,7 +260,8 @@ def irekei_proc_assassin_roadmap(
             "Attack rating uses 161 Unarmed, 70 Unarmed Mastery, no gear ATR, and a neutral "
             "stance.",
             "The observed-trait candidate is legal only with the live Brilliant Mind and "
-            "Wizard's Apprentice traits and a Godly Intelligence rune applied at 120 INT.",
+            "Wizard's Apprentice traits, Sun Dancer and Saboteur disciplines, and a Godly "
+            "Intelligence rune applied at 120 INT.",
             "The generic current-cap candidate excludes creation traits and remains a control.",
         ),
     )

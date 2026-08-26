@@ -32,17 +32,21 @@ unspent ability points or training beyond the current focus cap.
 
 Live Runestones inspection then identified `Brilliant Mind` and `Wizard's Apprentice` as the two
 creation traits, with no disciplines applied. Those traits establish pre-rune caps of
-`85/130/85/130/80`; a Godly Intelligence rune applied at 120 INT raises Intelligence by 10 and
-its cap by 40. The exact level-59 high-proc allocation from `35/55/57/80/15` is therefore:
+`85/130/85/130/80`. Applying Sun Dancer and Saboteur first adds 5 Constitution and 20 Dexterity,
+and raises those caps by the same amounts. A Godly Intelligence rune applied at 120 INT raises
+Intelligence by 10 and its cap by 40. The exact level-59 high-proc allocation from
+`35/55/57/80/15` is therefore:
 
-1. Raise Intelligence `80 -> 120` (40 points).
-2. Apply Intelligence of the Gods (15 points, resulting in 130 INT and a 170 cap).
-3. Raise Intelligence `130 -> 165` (35 points).
-4. Raise Constitution `57 -> 85` (28 points).
-5. Put the remaining 50 points into Dexterity, ending at `35/105/85/165/15`.
+1. Apply Sun Dancer and Saboteur, resulting in `35/75/62/80/15` without spending ability points.
+2. Raise Intelligence `80 -> 120` (40 points).
+3. Apply Intelligence of the Gods (15 points, resulting in 130 INT and a 170 cap).
+4. Raise Intelligence `130 -> 165` (35 points).
+5. Raise Constitution `62 -> 85` (23 points).
+6. Put the remaining 55 points into Dexterity, ending at `35/130/85/165/15`.
 
-That consumes all 168 currently unspent points. The plan is now included as the first simulator
-candidate; it should still be committed in that order because the Godly rune requires 120 INT.
+That consumes all 168 currently unspent points. The plan is included as the first simulator
+candidate; its order matters because discipline grants affect the allocation and the Godly rune
+requires 120 INT.
 
 ## Known facts in the slice
 
@@ -67,4 +71,6 @@ The ArcHUD skin configuration exposes upstream data-field identifiers for the fi
 their qualitative ratings, remaining ability points, and skill list. Live inspection confirmed
 that fields 35-39 render labels such as `Average`, `Very Good`, and `Excellent`; they are not
 numeric caps. Those identifiers are data-model seams, not screen coordinates. Numeric attribute
-caps must be calibrated independently before real ability-point allocation is committed.
+caps are not currently exposed by the native reader. This known build derives them from the
+observed creation traits, the planned disciplines, and the sourced rune table; unknown rune
+combinations still require independent calibration before real ability-point allocation.

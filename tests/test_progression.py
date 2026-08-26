@@ -91,22 +91,38 @@ class ProgressionTests(unittest.TestCase):
         self.assertEqual("bounty_hunter", roadmap.third_discipline_at_70)
         self.assertEqual("poison_blade", roadmap.power_targets[0].key)
         self.assertEqual(
-            StatLine(35, 105, 85, 165, 15),
+            StatLine(35, 130, 85, 165, 15),
             roadmap.candidates[0].stats,
         )
 
     def test_observed_creation_traits_establish_godly_intelligence_legality(self) -> None:
         brilliant = self.profile.rune("brilliant_mind")
         apprentice = self.profile.rune("wizards_apprentice")
+        sun_dancer = self.profile.rune("sun_dancer")
+        saboteur = self.profile.rune("saboteur")
         godly = self.profile.rune("intelligence_of_the_gods")
 
         observed_caps = self.profile.identity.race_caps.plus(
             brilliant.cap_grants,
             apprentice.cap_grants,
         )
-        final_caps = observed_caps.plus(godly.cap_grants)
+        discipline_caps = observed_caps.plus(
+            sun_dancer.cap_grants,
+            saboteur.cap_grants,
+        )
+        final_caps = discipline_caps.plus(godly.cap_grants)
+        live_stats = StatLine(35, 55, 57, 80, 15)
+        discipline_stats = live_stats.plus(sun_dancer.stat_grants, saboteur.stat_grants)
+        final_stats = discipline_stats.plus(
+            StatLine(dexterity=55, constitution=23, intelligence=75),
+            godly.stat_grants,
+        )
         self.assertEqual(StatLine(85, 130, 85, 130, 80), observed_caps)
-        self.assertEqual(StatLine(85, 130, 85, 170, 80), final_caps)
+        self.assertEqual(StatLine(85, 150, 90, 130, 80), discipline_caps)
+        self.assertEqual(StatLine(85, 150, 90, 170, 80), final_caps)
+        self.assertEqual(StatLine(35, 75, 62, 80, 15), discipline_stats)
+        self.assertEqual(StatLine(35, 130, 85, 165, 15), final_stats)
+        self.assertEqual(168, 55 + 23 + 75 + godly.cost)
         self.assertEqual(120, godly.minimum_stats.intelligence)
         self.assertEqual(15, godly.cost)
 
