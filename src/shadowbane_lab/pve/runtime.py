@@ -10,6 +10,7 @@ from shadowbane_lab.client_input import ClientInputAdapter, StopSignal
 from shadowbane_lab.client_observation import (
     NativeCombatEventParser,
     NativeCombatLogEntry,
+    NativePlayerVitalsObservation,
     NativeTargetHealthObservation,
 )
 from shadowbane_lab.protocol import ActionBinding, DecisionMessage, DispatchResult
@@ -30,6 +31,11 @@ class PvEIntentDispatcher(Protocol):
 @runtime_checkable
 class TargetHealthSource(Protocol):
     def observe(self) -> NativeTargetHealthObservation: ...
+
+
+@runtime_checkable
+class PlayerVitalsSource(Protocol):
+    def observe(self) -> NativePlayerVitalsObservation: ...
 
 
 @runtime_checkable
@@ -76,6 +82,7 @@ class PvERunner:
         *,
         controller: PvEController,
         health_reader: TargetHealthSource,
+        player_vitals_reader: PlayerVitalsSource,
         combat_log_reader: CombatLogSource,
         dispatcher: PvEIntentDispatcher,
         stop_signal: StopSignal,
@@ -87,6 +94,8 @@ class PvERunner:
             raise ValueError("controller must be PvEController")
         if not isinstance(health_reader, TargetHealthSource):
             raise ValueError("health_reader must implement TargetHealthSource")
+        if not isinstance(player_vitals_reader, PlayerVitalsSource):
+            raise ValueError("player_vitals_reader must implement PlayerVitalsSource")
         if not isinstance(combat_log_reader, CombatLogSource):
             raise ValueError("combat_log_reader must implement CombatLogSource")
         if not isinstance(dispatcher, PvEIntentDispatcher):
@@ -101,6 +110,7 @@ class PvERunner:
             raise ValueError("poll_interval_ms must be a positive integer")
         self._controller = controller
         self._health_reader = health_reader
+        self._player_vitals_reader = player_vitals_reader
         self._combat_log_reader = combat_log_reader
         self._dispatcher = dispatcher
         self._stop_signal = stop_signal
@@ -117,23 +127,29 @@ class PvERunner:
             now_ms = round((self._clock() - started_at) * 1000)
             if self._stop_signal.is_set():
                 terminal = self._controller.stop("emergency_stop", now_ms=now_ms)
-                trace.append(self._trace(terminal, target=None))
+                trace.append(self._trace(terminal, target=None, player=None))
                 break
             try:
                 target = self._health_reader.observe()
+                player = self._player_vitals_reader.observe()
                 events = tuple(
                     self._parser.parse(entry)
                     for entry in self._combat_log_reader.read_new_entries()
                 )
                 decision = self._controller.step(
-                    PvEObservation(now_ms=now_ms, target=target, combat_events=events)
+                    PvEObservation(
+                        now_ms=now_ms,
+                        target=target,
+                        player=player,
+                        combat_events=events,
+                    )
                 )
             except Exception as exc:
                 terminal = self._controller.stop(
                     f"observation_failure:{type(exc).__name__}",
                     now_ms=now_ms,
                 )
-                trace.append(self._trace(terminal, target=None))
+                trace.append(self._trace(terminal, target=None, player=None))
                 break
 
             accepted = None
@@ -150,12 +166,13 @@ class PvERunner:
                         self._trace(
                             decision,
                             target=target,
+                            player=player,
                             input_accepted=False,
                             input_reason=reason,
                         )
                     )
                     terminal = self._controller.stop(reason, now_ms=now_ms)
-                    trace.append(self._trace(terminal, target=target))
+                    trace.append(self._trace(terminal, target=target, player=player))
                     break
                 accepted = result.accepted
                 reason = result.reason
@@ -164,6 +181,7 @@ class PvERunner:
                         self._trace(
                             decision,
                             target=target,
+                            player=player,
                             input_accepted=False,
                             input_reason=reason,
                         )
@@ -172,12 +190,13 @@ class PvERunner:
                         "guarded_input_rejected",
                         now_ms=now_ms,
                     )
-                    trace.append(self._trace(terminal, target=target))
+                    trace.append(self._trace(terminal, target=target, player=player))
                     break
             trace.append(
                 self._trace(
                     decision,
                     target=target,
+                    player=player,
                     input_accepted=accepted,
                     input_reason=reason,
                 )
@@ -201,6 +220,7 @@ class PvERunner:
         decision,
         *,
         target,
+        player,
         input_accepted: bool | None = None,
         input_reason: str | None = None,
     ) -> PvERunTraceStep:
@@ -209,6 +229,8 @@ class PvERunner:
             target_present=False if target is None else target.target_present,
             current_health=None if target is None else target.current_health,
             maximum_health=None if target is None else target.maximum_health,
+            player_current_health=None if player is None else player.current_health,
+            player_maximum_health=None if player is None else player.maximum_health,
             input_accepted=input_accepted,
             input_reason=input_reason,
         )

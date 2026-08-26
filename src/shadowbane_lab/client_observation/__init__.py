@@ -49,6 +49,20 @@ from shadowbane_lab.client_observation.native_log import (
     NativeCombatLogFormatError,
     NativeCombatLogReader,
 )
+from shadowbane_lab.client_observation.native_vitals import (
+    NATIVE_VITALS_PROFILE_SCHEMA_VERSION,
+    NativePlayerVitalsCompatibilityError,
+    NativePlayerVitalsError,
+    NativePlayerVitalsObservation,
+    NativePlayerVitalsProfile,
+    NativePlayerVitalsReader,
+    NativePlayerVitalsReadError,
+    NativeVitalsProfileLoadError,
+    load_bundled_native_vitals_profile,
+    load_native_vitals_profile,
+    load_native_vitals_profile_text,
+    open_windows_native_player_vitals_reader,
+)
 from shadowbane_lab.client_observation.observer import ClientTargetObserver
 
 __all__ = [
@@ -71,6 +85,14 @@ __all__ = [
     "NativeTargetHealthProfile",
     "NativeTargetHealthReadError",
     "NativeTargetHealthReader",
+    "NATIVE_VITALS_PROFILE_SCHEMA_VERSION",
+    "NativePlayerVitalsCompatibilityError",
+    "NativePlayerVitalsError",
+    "NativePlayerVitalsObservation",
+    "NativePlayerVitalsProfile",
+    "NativePlayerVitalsReadError",
+    "NativePlayerVitalsReader",
+    "NativeVitalsProfileLoadError",
     "ObservationCalibrationLoadError",
     "ObservationDetectionError",
     "PyAutoGuiFrameCapture",
@@ -83,9 +105,13 @@ __all__ = [
     "TargetStatusObservation",
     "WindowsReadOnlyProcessMemory",
     "load_bundled_native_health_profile",
+    "load_bundled_native_vitals_profile",
     "load_native_health_profile",
     "load_native_health_profile_text",
+    "load_native_vitals_profile",
+    "load_native_vitals_profile_text",
     "load_observation_calibration",
     "load_observation_calibration_text",
     "open_windows_native_target_health_reader",
+    "open_windows_native_player_vitals_reader",
 ]

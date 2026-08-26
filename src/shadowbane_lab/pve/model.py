@@ -7,6 +7,7 @@ from enum import StrEnum
 
 from shadowbane_lab.client_observation import (
     NativeCombatEvent,
+    NativePlayerVitalsObservation,
     NativeTargetHealthObservation,
 )
 
@@ -46,6 +47,7 @@ class PvEControllerConfig:
     selection_loss_grace_ms: int = 750
     post_kill_delay_ms: int = 1_000
     maximum_reengage_attempts: int = 2
+    minimum_player_health_fraction: float = 0.5
 
     def __post_init__(self) -> None:
         for value, field_name in (
@@ -60,6 +62,12 @@ class PvEControllerConfig:
         ):
             _positive_integer(value, field_name)
         _non_negative_integer(self.maximum_reengage_attempts, "maximum_reengage_attempts")
+        if (
+            isinstance(self.minimum_player_health_fraction, bool)
+            or not isinstance(self.minimum_player_health_fraction, (int, float))
+            or not 0.0 < self.minimum_player_health_fraction <= 1.0
+        ):
+            raise ValueError("minimum_player_health_fraction must be in (0, 1]")
         if self.acquisition_retry_ms > self.acquisition_timeout_ms:
             raise ValueError("acquisition retry cannot exceed acquisition timeout")
         if self.stalled_progress_ms > self.engagement_timeout_ms:
@@ -72,12 +80,15 @@ class PvEControllerConfig:
 class PvEObservation:
     now_ms: int
     target: NativeTargetHealthObservation
+    player: NativePlayerVitalsObservation
     combat_events: tuple[NativeCombatEvent, ...] = ()
 
     def __post_init__(self) -> None:
         _non_negative_integer(self.now_ms, "now_ms")
         if not isinstance(self.target, NativeTargetHealthObservation):
             raise ValueError("target must be NativeTargetHealthObservation")
+        if not isinstance(self.player, NativePlayerVitalsObservation):
+            raise ValueError("player must be NativePlayerVitalsObservation")
         if any(not isinstance(event, NativeCombatEvent) for event in self.combat_events):
             raise ValueError("combat_events must contain NativeCombatEvent values")
         sequences = tuple(event.sequence for event in self.combat_events)
@@ -119,6 +130,8 @@ class PvERunTraceStep:
     target_present: bool
     current_health: float | None
     maximum_health: float | None
+    player_current_health: float | None = None
+    player_maximum_health: float | None = None
     input_accepted: bool | None = None
     input_reason: str | None = None
 

@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "profile_id": "wonderbane-0889b39a-player-vitals",
+  "executable_name": "sb.exe",
+  "executable_sha256": "0889b39a6f065f2ddf696bad01455e0b691892077105fe27e35de94bfdf59ebc",
+  "pointer_size": 4,
+  "player_pointer_rva": 23735704,
+  "current_health_offset": 1484,
+  "maximum_health_offset": 1488,
+  "current_mana_offset": 3280,
+  "maximum_mana_offset": 3284,
+  "current_stamina_offset": 3288,
+  "maximum_stamina_offset": 3292,
+  "minimum_user_address": 65536,
+  "maximum_user_address": 2147418111,
+  "maximum_plausible_vital": 1000000
+}

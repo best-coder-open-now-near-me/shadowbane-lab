@@ -13,6 +13,7 @@ from shadowbane_lab.pve.model import (
 from shadowbane_lab.pve.runtime import (
     ClientPvEIntentDispatcher,
     CombatLogSource,
+    PlayerVitalsSource,
     PvEIntentDispatcher,
     PvERunner,
     TargetHealthSource,
@@ -26,6 +27,7 @@ __all__ = [
     "PvEControllerDecision",
     "PvEIntent",
     "PvEIntentDispatcher",
+    "PlayerVitalsSource",
     "PvEObservation",
     "PvEPhase",
     "PvERunResult",

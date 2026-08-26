@@ -8,6 +8,25 @@ adapter.
 WonderBane also exposes structured state through the original Arcane HUD layer. Native message
 logging and numeric HUD datafields are preferred over interpreting rendered text.
 
+## Native player vitals
+
+The build-guarded player reader follows the local-player pointer at image-relative
+`0x16A2D98`. The verified player object stores health at offsets `0x5CC`/`0x5D0`, mana at
+`0xCD0`/`0xCD4`, and stamina at `0xCD8`/`0xCDC`. A live cross-check returned native values
+`1075.375/1075.375`, `53.75/53.75`, and `324/324`; the HUD rounded those to `1075/1075`,
+`53/53`, and `324/324` respectively.
+
+Read all three resources without focusing or capturing the game:
+
+```powershell
+.\.venv\Scripts\python.exe -m shadowbane_lab.cli client observe-native-player --json
+```
+
+The reader verifies the same executable hash and 32-bit address bounds as selected-target
+health, requires a non-null aligned player pointer, performs stable pointer-before/value/
+pointer-after reads, and validates every current/maximum pair. The bounded PvE controller
+requires this observation and stops before further input when health reaches 50 percent.
+
 ## Native selected-target health
 
 The preferred health source reads the same selected-object values that feed Arcane datafields

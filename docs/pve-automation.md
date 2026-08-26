@@ -1,9 +1,9 @@
 # Bounded PvE automation
 
 The first live PvE slice acquires a nearby mobile, attacks the newly selected target, and
-stops after a small explicit kill or time limit. It consumes exact selected-target health
-and the native combat log; it does not use OCR, pixel health estimates, or fixed entity
-coordinates.
+stops after a small explicit kill or time limit. It consumes exact player vitals,
+selected-target health, and the native combat log; it does not use OCR, pixel health
+estimates, or fixed entity coordinates.
 
 ## Control loop
 
@@ -29,6 +29,7 @@ The run stops without issuing more input when any of these conditions occurs:
 - the foreground executable, title, window size, or DPI guard changes;
 - the independent `Ctrl+Shift+F12` emergency stop trips;
 - native process identity, executable hash, pointer stability, or health validation fails;
+- exact player health reaches the 50-percent safety threshold;
 - the selected target changes while an engagement is active;
 - the combat log reports player death or multiple ambiguous kills;
 - acquisition, combat progress, engagement, session, or kill bounds are exceeded; or
@@ -80,6 +81,6 @@ the pointer to a PyAutoGUI fail-safe corner or press `Ctrl+Shift+F12` to stop im
 ## Current scope
 
 This slice intentionally assumes the player is already positioned within target and attack
-range. Navigation, player health/resource observation, healing, looting, and power rotation
-must enter as separately observed and tested vertical slices; they are not hidden inside the
-nearby-mobile loop.
+range. Navigation, healing, looting, and power rotation must enter as separately tested
+vertical slices; they are not hidden inside the nearby-mobile loop. Exact player health,
+mana, and stamina are already observed so those additions can be gated on real resources.

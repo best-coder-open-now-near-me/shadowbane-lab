@@ -5,6 +5,7 @@ from shadowbane_lab.client_observation import (
     NativeCombatEvent,
     NativeCombatEventKind,
     NativeCombatLogEntry,
+    NativePlayerVitalsObservation,
     NativeTargetHealthObservation,
 )
 from shadowbane_lab.protocol import DispatchResult
@@ -45,12 +46,32 @@ def _event(kind: NativeCombatEventKind, sequence: int = 0) -> NativeCombatEvent:
     )
 
 
+def _player(
+    current_health: float = 100.0,
+    maximum_health: float = 100.0,
+) -> NativePlayerVitalsObservation:
+    return NativePlayerVitalsObservation(
+        current_health,
+        maximum_health,
+        50.0,
+        50.0,
+        100.0,
+        100.0,
+    )
+
+
 def _observation(
     now_ms: int,
     target: NativeTargetHealthObservation,
     *events: NativeCombatEvent,
+    player: NativePlayerVitalsObservation | None = None,
 ) -> PvEObservation:
-    return PvEObservation(now_ms=now_ms, target=target, combat_events=events)
+    return PvEObservation(
+        now_ms=now_ms,
+        target=target,
+        player=_player() if player is None else player,
+        combat_events=events,
+    )
 
 
 class PvEControllerTests(unittest.TestCase):
@@ -100,6 +121,18 @@ class PvEControllerTests(unittest.TestCase):
         )
 
         self.assertEqual("player_death_observed", stopped.terminal_reason)
+
+    def test_low_native_player_health_stops_before_input(self) -> None:
+        controller = PvEController(
+            PvEControllerConfig(minimum_player_health_fraction=0.5)
+        )
+
+        stopped = controller.step(
+            _observation(0, _absent(), player=_player(50.0, 100.0))
+        )
+
+        self.assertEqual("player_health_safety_threshold", stopped.terminal_reason)
+        self.assertIsNone(stopped.intent)
 
     def test_stalled_engagement_retries_only_bounded_number_of_times(self) -> None:
         config = PvEControllerConfig(
@@ -153,6 +186,14 @@ class SequenceCombatLogSource:
         self.values = list(values)
 
     def read_new_entries(self) -> tuple[NativeCombatLogEntry, ...]:
+        return self.values.pop(0)
+
+
+class SequencePlayerVitalsSource:
+    def __init__(self, values: tuple[NativePlayerVitalsObservation, ...]) -> None:
+        self.values = list(values)
+
+    def observe(self) -> NativePlayerVitalsObservation:
         return self.values.pop(0)
 
 
@@ -220,6 +261,9 @@ class PvERunnerTests(unittest.TestCase):
         runner = PvERunner(
             controller=PvEController(PvEControllerConfig(maximum_kills=1)),
             health_reader=health,
+            player_vitals_reader=SequencePlayerVitalsSource(
+                (_player(), _player(), _player(), _player())
+            ),
             combat_log_reader=combat,
             dispatcher=dispatcher,
             stop_signal=EventEmergencyStop(),
@@ -242,6 +286,7 @@ class PvERunnerTests(unittest.TestCase):
         runner = PvERunner(
             controller=PvEController(PvEControllerConfig()),
             health_reader=SequenceHealthSource((_absent(),)),
+            player_vitals_reader=SequencePlayerVitalsSource((_player(),)),
             combat_log_reader=SequenceCombatLogSource(((),)),
             dispatcher=RecordingPvEDispatcher(accepted=False),
             stop_signal=EventEmergencyStop(),
@@ -260,6 +305,7 @@ class PvERunnerTests(unittest.TestCase):
         runner = PvERunner(
             controller=PvEController(PvEControllerConfig()),
             health_reader=SequenceHealthSource((_absent(),)),
+            player_vitals_reader=SequencePlayerVitalsSource((_player(),)),
             combat_log_reader=SequenceCombatLogSource(((),)),
             dispatcher=RecordingPvEDispatcher(raises=True),
             stop_signal=EventEmergencyStop(),

@@ -68,6 +68,8 @@ class PvEController:
             self._last_event_sequence = events[-1].sequence
         if any(event.kind is NativeCombatEventKind.PLAYER_KILLED for event in events):
             return self.stop("player_death_observed", now_ms=now)
+        if observation.player.health_fraction <= self._config.minimum_player_health_fraction:
+            return self.stop("player_health_safety_threshold", now_ms=now)
         assert self._started_at is not None
         if now - self._started_at >= self._config.maximum_session_ms:
             return self.stop("maximum_session_elapsed", now_ms=now)

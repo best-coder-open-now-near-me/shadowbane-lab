@@ -30,13 +30,18 @@ from shadowbane_lab.client_observation import (
     NativeCombatLogFormatError,
     NativeCombatLogReader,
     NativeHealthProfileLoadError,
+    NativePlayerVitalsError,
     NativeTargetHealthError,
+    NativeVitalsProfileLoadError,
     ObservationCalibrationLoadError,
     ObservationDetectionError,
     PyAutoGuiFrameCapture,
     load_bundled_native_health_profile,
+    load_bundled_native_vitals_profile,
     load_native_health_profile,
+    load_native_vitals_profile,
     load_observation_calibration,
+    open_windows_native_player_vitals_reader,
     open_windows_native_target_health_reader,
 )
 from shadowbane_lab.pve import (
@@ -144,6 +149,19 @@ def _parser() -> argparse.ArgumentParser:
         "--json", action="store_true", help="emit machine-readable JSON"
     )
 
+    observe_native_player = client_commands.add_parser(
+        "observe-native-player",
+        help="read exact local-player health, mana, and stamina from a calibrated build",
+    )
+    observe_native_player.add_argument(
+        "--profile",
+        type=Path,
+        help="native vitals profile; defaults to the verified bundled WonderBane build",
+    )
+    observe_native_player.add_argument(
+        "--json", action="store_true", help="emit machine-readable JSON"
+    )
+
     run_pve = client_commands.add_parser(
         "run-pve",
         help="run a bounded native-observation PvE loop against nearby mobiles",
@@ -151,6 +169,7 @@ def _parser() -> argparse.ArgumentParser:
     run_pve.add_argument("--client-profile", type=Path, required=True)
     run_pve.add_argument("--combat-log", type=Path, required=True)
     run_pve.add_argument("--native-health-profile", type=Path)
+    run_pve.add_argument("--native-vitals-profile", type=Path)
     run_pve.add_argument("--max-kills", type=int, default=1)
     run_pve.add_argument("--max-seconds", type=float, default=120.0)
     run_pve.add_argument("--wait-for-client-seconds", type=float, default=15.0)
@@ -439,11 +458,56 @@ def _observe_native_target(profile_path: Path | None, *, as_json: bool) -> int:
     return 0
 
 
+def _observe_native_player(profile_path: Path | None, *, as_json: bool) -> int:
+    try:
+        profile = (
+            load_native_vitals_profile(profile_path)
+            if profile_path is not None
+            else load_bundled_native_vitals_profile()
+        )
+        with open_windows_native_player_vitals_reader(profile) as reader:
+            observation = reader.observe()
+            process_id = reader.process_id
+    except (NativePlayerVitalsError, NativeVitalsProfileLoadError, OSError, ValueError) as exc:
+        return _error(f"native player observation failed: {exc}", as_json=as_json)
+    payload = {
+        "ok": True,
+        "profile_id": profile.profile_id,
+        "process_id": process_id,
+        "current_health": observation.current_health,
+        "maximum_health": observation.maximum_health,
+        "health_fraction": observation.health_fraction,
+        "current_mana": observation.current_mana,
+        "maximum_mana": observation.maximum_mana,
+        "mana_fraction": observation.mana_fraction,
+        "current_stamina": observation.current_stamina,
+        "maximum_stamina": observation.maximum_stamina,
+        "stamina_fraction": observation.stamina_fraction,
+    }
+    if as_json:
+        print(json.dumps(payload, sort_keys=True))
+    else:
+        print(
+            f"Health: {observation.current_health:g}/{observation.maximum_health:g} "
+            f"({observation.health_fraction:.1%})"
+        )
+        print(
+            f"Mana: {observation.current_mana:g}/{observation.maximum_mana:g} "
+            f"({observation.mana_fraction:.1%})"
+        )
+        print(
+            f"Stamina: {observation.current_stamina:g}/{observation.maximum_stamina:g} "
+            f"({observation.stamina_fraction:.1%})"
+        )
+    return 0
+
+
 def _run_pve(
     *,
     client_profile_path: Path,
     combat_log_path: Path,
     native_health_profile_path: Path | None,
+    native_vitals_profile_path: Path | None,
     max_kills: int,
     max_seconds: float,
     wait_for_client_seconds: float,
@@ -479,6 +543,13 @@ def _run_pve(
             if native_health_profile_path is not None
             else load_bundled_native_health_profile()
         )
+        vitals_profile = (
+            load_native_vitals_profile(native_vitals_profile_path)
+            if native_vitals_profile_path is not None
+            else load_bundled_native_vitals_profile()
+        )
+        if health_profile.executable_sha256 != vitals_profile.executable_sha256:
+            raise ValueError("native health and player-vitals profiles target different builds")
         inspector = WindowsForegroundWindowInspector()
         guard = ForegroundWindowGuard(client_profile, inspector)
         _wait_for_guarded_client(
@@ -488,6 +559,7 @@ def _run_pve(
         combat_reader = NativeCombatLogReader(combat_log_path, start_at_end=True)
         with (
             open_windows_native_target_health_reader(health_profile) as health_reader,
+            open_windows_native_player_vitals_reader(vitals_profile) as player_vitals_reader,
             WindowsHotkeyEmergencyStop() as stop_signal,
         ):
             executor = GuardedInputExecutor(
@@ -507,6 +579,7 @@ def _run_pve(
                     )
                 ),
                 health_reader=health_reader,
+                player_vitals_reader=player_vitals_reader,
                 combat_log_reader=combat_reader,
                 dispatcher=ClientPvEIntentDispatcher(adapter),
                 stop_signal=stop_signal,
@@ -515,7 +588,9 @@ def _run_pve(
     except (
         CalibrationLoadError,
         NativeHealthProfileLoadError,
+        NativePlayerVitalsError,
         NativeTargetHealthError,
+        NativeVitalsProfileLoadError,
         OSError,
         RuntimeError,
         UnicodeError,
@@ -606,11 +681,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
     if arguments.command == "client" and arguments.client_command == "observe-native-target":
         return _observe_native_target(arguments.profile, as_json=arguments.json)
+    if arguments.command == "client" and arguments.client_command == "observe-native-player":
+        return _observe_native_player(arguments.profile, as_json=arguments.json)
     if arguments.command == "client" and arguments.client_command == "run-pve":
         return _run_pve(
             client_profile_path=arguments.client_profile,
             combat_log_path=arguments.combat_log,
             native_health_profile_path=arguments.native_health_profile,
+            native_vitals_profile_path=arguments.native_vitals_profile,
             max_kills=arguments.max_kills,
             max_seconds=arguments.max_seconds,
             wait_for_client_seconds=arguments.wait_for_client_seconds,
