@@ -11,10 +11,11 @@ logging and numeric HUD datafields are preferred over interpreting rendered text
 ## Native player vitals
 
 The build-guarded player reader follows the local-player pointer at image-relative
-`0x16A2D98`. The verified player object stores health at offsets `0x5CC`/`0x5D0`, mana at
-`0xCD0`/`0xCD4`, and stamina maximum/current at `0xCD8`/`0xCDC`. A live cross-check
-returned native values `1075.375/1075.375`, `53.75/53.75`, and `324/324`; the HUD rounded
-those to `1075/1075`, `53/53`, and `324/324` respectively.
+`0x16A2D98`. The verified player object stores health current/maximum at offsets
+`0x5CC`/`0x5D0`, mana maximum/current at `0xCD0`/`0xCD4`, and stamina maximum/current at
+`0xCD8`/`0xCDC`. A live cross-check returned native values `1075.375/1075.375`,
+`53.75/53.75`, and `324/324`; the HUD rounded those to `1075/1075`, `53/53`, and `324/324`
+respectively.
 
 Read all three resources without focusing or capturing the game:
 

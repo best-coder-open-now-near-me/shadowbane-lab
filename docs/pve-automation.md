@@ -38,10 +38,10 @@ is the client's direct attack-selected command and therefore avoids an unobserve
 
 `--policy proc-assassin` is the guarded translation of the smart-camp policy. It accepts a
 target the game acquired automatically only after a fresh native player-hit record, uses
-rank-40 Shadow Touch once when native mana is at least 55, and then observes the game's
-automatic weapon attacks. It sends `Ctrl+A` only after five seconds without a health decrease
-or player-hit record. A newly auto-selected target is accepted only after the previous kill
-has been confirmed by the native combat log.
+rank-40 Shadow Touch once when native mana is at least its verified 55-point cost, and then
+observes the game's automatic weapon attacks. It sends `Ctrl+A` only after five seconds
+without a health decrease or player-hit record. A newly auto-selected target is accepted only
+after the previous kill has been confirmed by the native combat log.
 
 Shadow Touch must have a real key mapping in the local client profile before this policy can
 run. The checked profile intentionally does not invent one; a proc-Assassin run fails before

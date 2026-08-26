@@ -26,8 +26,8 @@ def _profile() -> NativePlayerVitalsProfile:
         player_pointer_rva=0x200,
         current_health_offset=0x5CC,
         maximum_health_offset=0x5D0,
-        current_mana_offset=0xCD0,
-        maximum_mana_offset=0xCD4,
+        current_mana_offset=0xCD4,
+        maximum_mana_offset=0xCD0,
         current_stamina_offset=0xCDC,
         maximum_stamina_offset=0xCD8,
         minimum_user_address=0x10000,
@@ -78,8 +78,8 @@ class NativePlayerVitalsReaderTests(unittest.TestCase):
                     player + profile.current_health_offset: [
                         struct.pack("<ff", 1075.375, 1075.375)
                     ],
-                    player + profile.current_mana_offset: [
-                        struct.pack("<ffff", 53.75, 63.75, 324.0, 123.0)
+                    player + profile.maximum_mana_offset: [
+                        struct.pack("<ffff", 63.75, 53.75, 324.0, 123.0)
                     ],
                 }
             ),
@@ -117,8 +117,8 @@ class NativePlayerVitalsReaderTests(unittest.TestCase):
                 {
                     slot: [_pointer(player)] * 6,
                     player + profile.current_health_offset: [struct.pack("<ff", 10, 10)] * 3,
-                    player + profile.current_mana_offset: [
-                        struct.pack("<ffff", 11, 10, 20, 20)
+                    player + profile.maximum_mana_offset: [
+                        struct.pack("<ffff", 10, 11, 20, 20)
                     ]
                     * 3,
                 }
@@ -141,7 +141,7 @@ class NativePlayerVitalsReaderTests(unittest.TestCase):
                         struct.pack("<ff", 10, 10),
                         struct.pack("<ff", 10, 10),
                     ],
-                    player + profile.current_mana_offset: [
+                    player + profile.maximum_mana_offset: [
                         struct.pack("<ffff", 10, 10, 20, 21),
                         struct.pack("<ffff", 10, 10, 20, 19),
                     ],
@@ -169,7 +169,8 @@ class NativePlayerVitalsProfileTests(unittest.TestCase):
 
         self.assertEqual(0x16A2D98, profile.player_pointer_rva)
         self.assertEqual(0x5CC, profile.current_health_offset)
-        self.assertEqual(0xCD0, profile.current_mana_offset)
+        self.assertEqual(0xCD4, profile.current_mana_offset)
+        self.assertEqual(0xCD0, profile.maximum_mana_offset)
         self.assertEqual(0xCDC, profile.current_stamina_offset)
         self.assertEqual(0xCD8, profile.maximum_stamina_offset)
 
