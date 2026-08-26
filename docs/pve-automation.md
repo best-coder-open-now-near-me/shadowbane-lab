@@ -63,8 +63,10 @@ The run stops without issuing more input when any of these conditions occurs:
 - an input plan is rejected or interrupted.
 
 The runner never attacks a target that was already selected when it started. A stalled
-fight may retry the direct attack command twice, but it never adds movement, retargeting,
-or power use during that engagement.
+proc-Assassin selection gets a one-second grace for a fresh native hit, then the controller
+uses the verified Target Next Mob binding to acquire a different mobile. A stalled fight may
+retry the direct attack command twice, but it never adds movement, retargeting, or power use
+during that engagement.
 
 ## Prepare a VM-local profile
 

@@ -45,6 +45,7 @@ class PvEControllerConfig:
     maximum_session_ms: int = 120_000
     acquisition_retry_ms: int = 1_000
     acquisition_timeout_ms: int = 15_000
+    stale_selection_cycle_delay_ms: int = 1_000
     engagement_timeout_ms: int = 30_000
     stalled_progress_ms: int = 5_000
     selection_loss_grace_ms: int = 750
@@ -64,6 +65,7 @@ class PvEControllerConfig:
             (self.maximum_session_ms, "maximum_session_ms"),
             (self.acquisition_retry_ms, "acquisition_retry_ms"),
             (self.acquisition_timeout_ms, "acquisition_timeout_ms"),
+            (self.stale_selection_cycle_delay_ms, "stale_selection_cycle_delay_ms"),
             (self.engagement_timeout_ms, "engagement_timeout_ms"),
             (self.stalled_progress_ms, "stalled_progress_ms"),
             (self.selection_loss_grace_ms, "selection_loss_grace_ms"),
@@ -80,6 +82,8 @@ class PvEControllerConfig:
             raise ValueError("minimum_player_health_fraction must be in (0, 1]")
         if self.acquisition_retry_ms > self.acquisition_timeout_ms:
             raise ValueError("acquisition retry cannot exceed acquisition timeout")
+        if self.stale_selection_cycle_delay_ms > self.acquisition_timeout_ms:
+            raise ValueError("stale selection cycle delay cannot exceed acquisition timeout")
         if self.stalled_progress_ms > self.engagement_timeout_ms:
             raise ValueError("stalled progress timeout cannot exceed engagement timeout")
         if self.selection_loss_grace_ms > self.engagement_timeout_ms:

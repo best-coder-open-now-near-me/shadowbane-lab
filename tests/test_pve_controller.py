@@ -238,6 +238,30 @@ class PvEControllerTests(unittest.TestCase):
         self.assertIsNone(still_waiting.intent)
         self.assertEqual(PvEIntent.CAST_SHADOW_TOUCH, confirmed.intent)
 
+    def test_stale_uncommanded_selection_cycles_then_accepts_different_mob(self) -> None:
+        controller = PvEController(
+            PvEControllerConfig(
+                accept_automatic_targets=True,
+                opening_intent=PvEIntent.CAST_SHADOW_TOUCH,
+                opening_mana_cost=55.0,
+                automatic_target_requires_combat_event=True,
+                stale_selection_cycle_delay_ms=1_000,
+            )
+        )
+        player = _player(current_mana=100.0, maximum_mana=100.0)
+
+        waiting = controller.step(_observation(0, _target("stale-mob"), player=player))
+        still_waiting = controller.step(
+            _observation(999, _target("stale-mob"), player=player)
+        )
+        cycle = controller.step(_observation(1_000, _target("stale-mob"), player=player))
+        opener = controller.step(_observation(1_100, _target("new-mob"), player=player))
+
+        self.assertIsNone(waiting.intent)
+        self.assertIsNone(still_waiting.intent)
+        self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB, cycle.intent)
+        self.assertEqual(PvEIntent.CAST_SHADOW_TOUCH, opener.intent)
+
     def test_proc_assassin_skips_opener_when_native_mana_is_too_low(self) -> None:
         controller = PvEController(
             PvEControllerConfig(

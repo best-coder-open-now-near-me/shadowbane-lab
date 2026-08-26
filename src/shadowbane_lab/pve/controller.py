@@ -149,6 +149,14 @@ class PvEController:
         if self._phase_elapsed(now) >= self._config.acquisition_timeout_ms:
             return self.stop("mob_acquisition_timeout", now_ms=now)
         if target.target_present and self._config.accept_automatic_targets:
+            if (
+                self._phase_elapsed(now) >= self._config.stale_selection_cycle_delay_ms
+                and (
+                    self._last_acquire_at is None
+                    or now - self._last_acquire_at >= self._config.acquisition_retry_ms
+                )
+            ):
+                return self._emit(now, PvEIntent.ACQUIRE_NEXT_MOB)
             return self._emit(now)
         if (
             self._last_acquire_at is None
