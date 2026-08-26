@@ -55,7 +55,8 @@ The run stops without issuing more input when any of these conditions occurs:
 
 - the foreground executable, title, window size, or DPI guard changes;
 - the independent `Ctrl+Shift+F12` emergency stop trips;
-- native process identity, executable hash, pointer stability, or health validation fails;
+- native process identity or executable hash validation fails;
+- three consecutive native observation polls fail pointer, health, or resource validation;
 - exact player health reaches the 50-percent safety threshold;
 - the selected target changes while an engagement is active;
 - the combat log reports player death or multiple ambiguous kills;
@@ -67,6 +68,11 @@ proc-Assassin selection gets a one-second grace for a fresh native hit, then the
 uses the verified Target Next Mob binding to acquire a different mobile. A stalled fight may
 retry the direct attack command twice, but it never adds movement, retargeting, or power use
 during that engagement.
+
+A single torn native observation is not treated as a trustworthy state change. The runner
+withholds all input while retrying up to three consecutive polls and resets that count only
+after a complete target, player-vitals, and combat-log observation succeeds. A third failure
+stops the run and records the concrete reader error in the terminal reason.
 
 ## Prepare a VM-local profile
 

@@ -199,6 +199,7 @@ class NativePlayerVitalsReader:
     def observe(self) -> NativePlayerVitalsObservation:
         if self._closed:
             raise NativePlayerVitalsReadError("native player-vitals reader is closed")
+        last_validation_error: NativePlayerVitalsReadError | None = None
         for _ in range(self._stability_attempts):
             player_pointer = self._read_pointer()
             self._require_plausible_player_pointer(player_pointer)
@@ -224,7 +225,15 @@ class NativePlayerVitalsReader:
             if self._read_pointer() != player_pointer:
                 continue
             values = (*struct.unpack("<ff", health), *struct.unpack("<ffff", resources))
-            return self._validated_observation(*values)
+            try:
+                return self._validated_observation(*values)
+            except NativePlayerVitalsReadError as exc:
+                last_validation_error = exc
+        if last_validation_error is not None:
+            raise NativePlayerVitalsReadError(
+                "player vitals remained invalid during every stable-read attempt: "
+                f"{last_validation_error}"
+            ) from last_validation_error
         raise NativePlayerVitalsReadError(
             "player pointer changed during every stable-read attempt"
         )

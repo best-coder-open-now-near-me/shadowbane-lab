@@ -113,17 +113,45 @@ class NativePlayerVitalsReaderTests(unittest.TestCase):
             profile,
             FakeProcessMemory(
                 {
-                    slot: [_pointer(player), _pointer(player)],
-                    player + profile.current_health_offset: [struct.pack("<ff", 10, 10)],
+                    slot: [_pointer(player)] * 6,
+                    player + profile.current_health_offset: [struct.pack("<ff", 10, 10)] * 3,
                     player + profile.current_mana_offset: [
                         struct.pack("<ffff", 11, 10, 20, 20)
-                    ],
+                    ]
+                    * 3,
                 }
             ),
         )
 
         with self.assertRaisesRegex(NativePlayerVitalsReadError, "current mana exceeds"):
             reader.observe()
+
+    def test_retries_torn_resource_sample_before_returning_stable_vitals(self) -> None:
+        profile = _profile()
+        player = 0x3518B280
+        slot = FakeProcessMemory.base_address + profile.player_pointer_rva
+        reader = NativePlayerVitalsReader(
+            profile,
+            FakeProcessMemory(
+                {
+                    slot: [_pointer(player)] * 4,
+                    player + profile.current_health_offset: [
+                        struct.pack("<ff", 10, 10),
+                        struct.pack("<ff", 10, 10),
+                    ],
+                    player + profile.current_mana_offset: [
+                        struct.pack("<ffff", 10, 10, 21, 20),
+                        struct.pack("<ffff", 10, 10, 19, 20),
+                    ],
+                }
+            ),
+            stability_attempts=2,
+        )
+
+        observation = reader.observe()
+
+        self.assertEqual(19, observation.current_stamina)
+        self.assertEqual(20, observation.maximum_stamina)
 
     def test_executable_hash_mismatch_fails_before_reads(self) -> None:
         process = FakeProcessMemory({})

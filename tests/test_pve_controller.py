@@ -372,6 +372,30 @@ class SequencePlayerVitalsSource:
         return self.values.pop(0)
 
 
+class ConstantHealthSource:
+    def __init__(self, value: NativeTargetHealthObservation) -> None:
+        self.value = value
+
+    def observe(self) -> NativeTargetHealthObservation:
+        return self.value
+
+
+class ConstantCombatLogSource:
+    def read_new_entries(self) -> tuple[NativeCombatLogEntry, ...]:
+        return ()
+
+
+class FlakyPlayerVitalsSource:
+    def __init__(self, failures: int) -> None:
+        self.failures = failures
+
+    def observe(self) -> NativePlayerVitalsObservation:
+        if self.failures > 0:
+            self.failures -= 1
+            raise RuntimeError("torn player-vitals sample")
+        return _player()
+
+
 class RecordingPvEDispatcher:
     def __init__(self, *, accepted: bool = True, raises: bool = False) -> None:
         self.accepted = accepted
@@ -493,6 +517,57 @@ class PvERunnerTests(unittest.TestCase):
         self.assertEqual(PvEPhase.STOPPED, result.final_phase)
         self.assertEqual("input_failure:OSError", result.terminal_reason)
         self.assertFalse(result.trace[0].input_accepted)
+
+    def test_runner_pauses_input_and_recovers_after_transient_observation_failures(self) -> None:
+        dispatcher = RecordingPvEDispatcher()
+        clock = AdvancingClock()
+        runner = PvERunner(
+            controller=PvEController(
+                PvEControllerConfig(
+                    maximum_session_ms=500,
+                    acquisition_retry_ms=100,
+                    acquisition_timeout_ms=400,
+                    stale_selection_cycle_delay_ms=100,
+                )
+            ),
+            health_reader=ConstantHealthSource(_absent()),
+            player_vitals_reader=FlakyPlayerVitalsSource(2),
+            combat_log_reader=ConstantCombatLogSource(),
+            dispatcher=dispatcher,
+            stop_signal=EventEmergencyStop(),
+            poll_interval_ms=100,
+            maximum_consecutive_observation_failures=3,
+            clock=clock,
+            sleeper=clock.sleep,
+        )
+
+        result = runner.run()
+
+        self.assertEqual("mob_acquisition_timeout", result.terminal_reason)
+        self.assertGreaterEqual(len(dispatcher.intents), 1)
+        self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB, dispatcher.intents[0])
+
+    def test_runner_stops_after_bounded_consecutive_observation_failures(self) -> None:
+        dispatcher = RecordingPvEDispatcher()
+        clock = AdvancingClock()
+        runner = PvERunner(
+            controller=PvEController(PvEControllerConfig()),
+            health_reader=ConstantHealthSource(_absent()),
+            player_vitals_reader=FlakyPlayerVitalsSource(3),
+            combat_log_reader=ConstantCombatLogSource(),
+            dispatcher=dispatcher,
+            stop_signal=EventEmergencyStop(),
+            poll_interval_ms=100,
+            maximum_consecutive_observation_failures=3,
+            clock=clock,
+            sleeper=clock.sleep,
+        )
+
+        result = runner.run()
+
+        self.assertEqual((), tuple(dispatcher.intents))
+        self.assertIn("observation_failure:RuntimeError", result.terminal_reason)
+        self.assertIn("torn player-vitals sample", result.terminal_reason)
 
 
 if __name__ == "__main__":

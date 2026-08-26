@@ -75,7 +75,7 @@ class ClientPvEIntentDispatcher:
 
 
 class PvERunner:
-    """Polls exact observations and stops on every read, input, or safety failure."""
+    """Polls exact observations, withholding input through bounded read retries."""
 
     def __init__(
         self,
@@ -87,6 +87,7 @@ class PvERunner:
         dispatcher: PvEIntentDispatcher,
         stop_signal: StopSignal,
         poll_interval_ms: int = 100,
+        maximum_consecutive_observation_failures: int = 3,
         clock: Callable[[], float] = time.monotonic,
         sleeper: Callable[[float], None] = time.sleep,
     ) -> None:
@@ -108,6 +109,14 @@ class PvERunner:
             or poll_interval_ms <= 0
         ):
             raise ValueError("poll_interval_ms must be a positive integer")
+        if (
+            isinstance(maximum_consecutive_observation_failures, bool)
+            or not isinstance(maximum_consecutive_observation_failures, int)
+            or maximum_consecutive_observation_failures <= 0
+        ):
+            raise ValueError(
+                "maximum_consecutive_observation_failures must be a positive integer"
+            )
         self._controller = controller
         self._health_reader = health_reader
         self._player_vitals_reader = player_vitals_reader
@@ -115,6 +124,9 @@ class PvERunner:
         self._dispatcher = dispatcher
         self._stop_signal = stop_signal
         self._poll_interval_seconds = poll_interval_ms / 1000.0
+        self._maximum_consecutive_observation_failures = (
+            maximum_consecutive_observation_failures
+        )
         self._clock = clock
         self._sleeper = sleeper
         self._parser = NativeCombatEventParser()
@@ -123,6 +135,7 @@ class PvERunner:
         trace: list[PvERunTraceStep] = []
         started_at = self._clock()
         terminal = None
+        consecutive_observation_failures = 0
         while terminal is None:
             now_ms = round((self._clock() - started_at) * 1000)
             if self._stop_signal.is_set():
@@ -145,12 +158,22 @@ class PvERunner:
                     )
                 )
             except Exception as exc:
+                consecutive_observation_failures += 1
+                if (
+                    consecutive_observation_failures
+                    < self._maximum_consecutive_observation_failures
+                ):
+                    self._sleeper(self._poll_interval_seconds)
+                    continue
+                message = " ".join(str(exc).split())
+                detail = f":{message[:160]}" if message else ""
                 terminal = self._controller.stop(
-                    f"observation_failure:{type(exc).__name__}",
+                    f"observation_failure:{type(exc).__name__}{detail}",
                     now_ms=now_ms,
                 )
                 trace.append(self._trace(terminal, target=None, player=None))
                 break
+            consecutive_observation_failures = 0
 
             accepted = None
             reason = None
