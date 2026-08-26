@@ -200,6 +200,10 @@ class ClientInputAdapter:
         return f"client-input/{self._executor.backend.name}"
 
     @property
+    def profile(self) -> CalibrationProfile:
+        return self._compiler.profile
+
+    @property
     def audits(self) -> tuple[InputDispatchAudit, ...]:
         return tuple(self._audits)
 

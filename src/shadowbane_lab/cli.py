@@ -21,6 +21,7 @@ from shadowbane_lab.client_input import (
     DecisionInputCompiler,
     ForegroundWindowGuard,
     GuardedInputExecutor,
+    MouseButton,
     PyAutoGuiBackend,
     StaticBindingPointResolver,
     WindowGuardError,
@@ -77,6 +78,15 @@ from shadowbane_lab.pve import (
     PvEControllerConfig,
     PvEIntent,
     PvERunner,
+)
+from shadowbane_lab.travel import (
+    ClientTravelDecisionDispatcher,
+    TravelController,
+    TravelControllerConfig,
+    TravelDestination,
+    TravelPhase,
+    TravelPlan,
+    TravelRunner,
 )
 
 
@@ -292,6 +302,27 @@ def _parser() -> argparse.ArgumentParser:
         help="required in addition to a profile with live_input_enabled=true",
     )
     run_pve.add_argument("--json", action="store_true", help="emit machine-readable JSON")
+
+    go = client_commands.add_parser(
+        "go",
+        help="travel to an LT/LG destination through bounded, feedback-checked minimap clicks",
+    )
+    go.add_argument("lt", type=float)
+    go.add_argument("lg", type=float)
+    go.add_argument("--radius", type=float, default=75.0)
+    go.add_argument("--client-profile", type=Path, required=True)
+    go.add_argument("--native-position-profile", type=Path)
+    go.add_argument("--native-vitals-profile", type=Path)
+    go.add_argument("--max-seconds", type=float, default=300.0)
+    go.add_argument("--wait-for-client-seconds", type=float, default=30.0)
+    go.add_argument("--poll-ms", type=int, default=200)
+    go.add_argument("--click-interval-ms", type=int, default=4_000)
+    go.add_argument(
+        "--live",
+        action="store_true",
+        help="required in addition to a profile with live_input_enabled=true",
+    )
+    go.add_argument("--json", action="store_true", help="emit machine-readable JSON")
     return parser
 
 
@@ -1057,6 +1088,145 @@ def _run_pve(
     return 0 if payload["ok"] else 2
 
 
+def _run_travel(
+    *,
+    lt: float,
+    lg: float,
+    radius: float,
+    client_profile_path: Path,
+    native_position_profile_path: Path | None,
+    native_vitals_profile_path: Path | None,
+    max_seconds: float,
+    wait_for_client_seconds: float,
+    poll_ms: int,
+    click_interval_ms: int,
+    live: bool,
+    as_json: bool,
+) -> int:
+    if not live:
+        return _error("travel execution requires the explicit --live flag", as_json=as_json)
+    if not 5.0 <= radius <= 1_000.0:
+        return _error("radius must be in [5, 1000]", as_json=as_json)
+    if not 1.0 <= max_seconds <= 1_800.0:
+        return _error("max-seconds must be in [1, 1800]", as_json=as_json)
+    if not 0.0 <= wait_for_client_seconds <= 300.0:
+        return _error("wait-for-client-seconds must be in [0, 300]", as_json=as_json)
+    if isinstance(poll_ms, bool) or not 50 <= poll_ms <= 1_000:
+        return _error("poll-ms must be in [50, 1000]", as_json=as_json)
+    if isinstance(click_interval_ms, bool) or not 500 <= click_interval_ms <= 30_000:
+        return _error("click-interval-ms must be in [500, 30000]", as_json=as_json)
+    try:
+        client_profile = load_calibration(client_profile_path)
+        if not client_profile.live_input_enabled:
+            raise ValueError("client profile is not enabled for live input")
+        if client_profile.movement.button is not MouseButton.RIGHT:
+            raise ValueError("travel profile movement must use right-click input")
+        position_profile = (
+            load_native_position_profile(native_position_profile_path)
+            if native_position_profile_path is not None
+            else load_bundled_native_position_profile()
+        )
+        vitals_profile = (
+            load_native_vitals_profile(native_vitals_profile_path)
+            if native_vitals_profile_path is not None
+            else load_bundled_native_vitals_profile()
+        )
+        if position_profile.executable_sha256 != vitals_profile.executable_sha256:
+            raise ValueError("native position and player-vitals profiles target different builds")
+        plan = TravelPlan(
+            plan_id=f"go:{lt:g}:{lg:g}:{radius:g}",
+            destinations=(TravelDestination(lt, lg, radius),),
+        )
+        controller = TravelController(
+            plan,
+            TravelControllerConfig(
+                maximum_session_ms=round(max_seconds * 1000),
+                click_interval_ms=click_interval_ms,
+                maximum_clicks=min(500, max(1, round(max_seconds * 1000 / click_interval_ms))),
+            ),
+        )
+        guard = ForegroundWindowGuard(client_profile, WindowsForegroundWindowInspector())
+        with (
+            open_windows_native_player_position_reader(position_profile) as position_reader,
+            open_windows_native_player_vitals_reader(vitals_profile) as player_vitals_reader,
+            WindowsHotkeyEmergencyStop() as stop_signal,
+        ):
+            if position_reader.process_id != player_vitals_reader.process_id:
+                raise ValueError(
+                    "native position and player-vitals readers resolved different processes"
+                )
+            _wait_for_guarded_client(guard, wait_seconds=wait_for_client_seconds)
+            executor = GuardedInputExecutor(
+                guard=guard,
+                backend=PyAutoGuiBackend(),
+                stop_signal=stop_signal,
+            )
+            adapter = ClientInputAdapter(
+                DecisionInputCompiler(client_profile, StaticBindingPointResolver()),
+                executor,
+            )
+            result = TravelRunner(
+                controller=controller,
+                position_reader=position_reader,
+                player_vitals_reader=player_vitals_reader,
+                dispatcher=ClientTravelDecisionDispatcher(adapter),
+                stop_signal=stop_signal,
+                poll_interval_ms=poll_ms,
+            ).run()
+    except (
+        CalibrationLoadError,
+        NativePlayerPositionError,
+        NativePlayerVitalsError,
+        NativePositionProfileLoadError,
+        NativeVitalsProfileLoadError,
+        OSError,
+        RuntimeError,
+        ValueError,
+        WindowGuardError,
+    ) as exc:
+        return _error(f"travel run failed: {exc}", as_json=as_json)
+
+    final_position = result.final_position
+    dispatched = [
+        {
+            "decision_id": step.decision.decision_id,
+            "at_ms": step.decision.now_ms,
+            "distance_remaining": step.decision.distance_remaining,
+            "accepted": step.input_accepted,
+            "reason": step.input_reason,
+        }
+        for step in result.trace
+        if step.decision.minimap_direction is not None
+    ]
+    payload = {
+        "ok": result.final_phase is TravelPhase.COMPLETE,
+        "final_phase": result.final_phase.value,
+        "terminal_reason": result.terminal_reason,
+        "destination": {"lt": lt, "lg": lg, "radius": radius},
+        "final_position": (
+            None
+            if final_position is None
+            else {
+                "lt": final_position.lt,
+                "lg": final_position.lg,
+                "altitude": final_position.altitude,
+            }
+        ),
+        "clicks": result.clicks,
+        "steps": len(result.trace),
+        "dispatched": dispatched,
+    }
+    if as_json:
+        print(json.dumps(payload, sort_keys=True))
+    else:
+        print(f"Travel phase: {result.final_phase.value}")
+        print(f"Reason: {result.terminal_reason}")
+        if final_position is not None:
+            print(f"Position: LT {final_position.lt:.2f}, LG {final_position.lg:.2f}")
+        print(f"Guarded minimap clicks: {result.clicks}")
+    return 0 if payload["ok"] else 2
+
+
 def _verify_hotbar_power_mapping(
     mappings: Sequence[ActionInputMapping],
     hotbar_config_path: Path | None,
@@ -1164,6 +1334,21 @@ def main(argv: Sequence[str] | None = None) -> int:
             wait_for_client_seconds=arguments.wait_for_client_seconds,
             poll_ms=arguments.poll_ms,
             policy=arguments.policy,
+            live=arguments.live,
+            as_json=arguments.json,
+        )
+    if arguments.command == "client" and arguments.client_command == "go":
+        return _run_travel(
+            lt=arguments.lt,
+            lg=arguments.lg,
+            radius=arguments.radius,
+            client_profile_path=arguments.client_profile,
+            native_position_profile_path=arguments.native_position_profile,
+            native_vitals_profile_path=arguments.native_vitals_profile,
+            max_seconds=arguments.max_seconds,
+            wait_for_client_seconds=arguments.wait_for_client_seconds,
+            poll_ms=arguments.poll_ms,
+            click_interval_ms=arguments.click_interval_ms,
             live=arguments.live,
             as_json=arguments.json,
         )

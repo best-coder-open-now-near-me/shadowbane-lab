@@ -23,6 +23,8 @@ power ranges at explicit training-rank brackets. A sourced WonderBane progressio
 evaluates level/ability/training budgets and normalized unarmed-proc output for an Irekei
 Rogue Assassin. Build-guarded native readers now expose the live scalar progression core plus
 lossless skill and power vectors, and the sourced roadmap can audit those ranks directly.
+Native LT/LG feedback and calibrated minimap axes support bounded closed-loop travel without
+OCR.
 Direct semantic PvE batches run known
 player/mob encounters across contiguous deterministic seeds without client targeting or
 window-safety machinery; a separate bridge tests the guarded production PvE controller.
@@ -33,6 +35,7 @@ decisions into calibrated plans and keeps live PyAutoGUI input locked behind win
 an emergency stop, and explicit profile confirmation. See [the architecture](docs/architecture.md),
 [client-input runbook](docs/client-input-harness.md),
 [bounded PvE runbook](docs/pve-automation.md),
+[closed-loop travel runbook](docs/travel-automation.md),
 [automated VM setup](docs/vm-setup.md),
 [simulation rollout guide](docs/simulation-rollouts.md),
 [differential-validation contract](docs/differential-validation.md), and
@@ -50,6 +53,7 @@ python -m shadowbane_lab.rollouts --scenario irekei-proc --level 59 --json
 python -m shadowbane_lab.cli client observe-native-progression --json
 python -m shadowbane_lab.cli client observe-native-training --json
 python -m shadowbane_lab.cli client advise-irekei-proc --json
+python -m shadowbane_lab.cli client observe-native-position --json
 ```
 
 When Python is not exposed on `PATH`, use the interpreter configured for the workspace.
