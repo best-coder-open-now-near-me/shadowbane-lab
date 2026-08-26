@@ -10,6 +10,7 @@ from shadowbane_lab.rollouts import (
     frost_walker_observed_config,
     matched_progression_duels,
     run_nearby_mob_simulation,
+    run_pure_pve_batch,
 )
 
 
@@ -27,15 +28,43 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m shadowbane_lab.rollouts")
     parser.add_argument(
         "--scenario",
-        choices=("duels", "frost-walker"),
+        choices=("duels", "frost-walker", "pure-frost-walker"),
         default="duels",
     )
     parser.add_argument("--levels", type=_integers, default=(10, 15, 22, 26, 40))
     parser.add_argument("--ranks", type=_integers, default=(0, 20, 40))
     parser.add_argument("--max-ticks", type=int, default=1_000)
     parser.add_argument("--seed", type=int, default=1)
+    parser.add_argument("--episodes", type=int, default=1_000)
     parser.add_argument("--json", action="store_true")
     arguments = parser.parse_args(argv)
+    if arguments.scenario == "pure-frost-walker":
+        result = run_pure_pve_batch(
+            frost_walker_observed_config(max_ticks=arguments.max_ticks),
+            episodes=arguments.episodes,
+            seed_start=arguments.seed,
+        )
+        if arguments.json:
+            print(json.dumps(result.as_dict(), indent=2, sort_keys=True))
+        else:
+            mean_ttk = (
+                "n/a"
+                if result.mean_kill_time_ms is None
+                else f"{result.mean_kill_time_ms:.1f}ms"
+            )
+            mean_attacks = (
+                "n/a"
+                if result.mean_attacks_to_kill is None
+                else f"{result.mean_attacks_to_kill:.3f}"
+            )
+            print(
+                f"{result.profile_id}: {result.kills}/{result.episodes} kills; "
+                f"mean TTK={mean_ttk}; mean attacks={mean_attacks}"
+            )
+            print(f"Attacks-to-kill: {[item.as_dict() for item in result.attacks_to_kill]}")
+            print(f"Damage rolls: {[item.as_dict() for item in result.damage_rolls]}")
+        return 0
+
     if arguments.scenario == "frost-walker":
         result = run_nearby_mob_simulation(
             frost_walker_observed_config(

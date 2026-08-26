@@ -19,7 +19,10 @@ identifiers.
 The versioned protocol, typed action algebra, deterministic scalar reference environment,
 first provenance-aware Shadowbane ruleset slice, and guarded client-input adapter are
 implemented. Progression-aware duel rollouts exercise level-gated Assassin and Warlock
-powers at explicit training-rank brackets. Differential traces can record and compare
+power ranges at explicit training-rank brackets. Direct semantic PvE batches run known
+player/mob encounters across contiguous deterministic seeds without client targeting or
+window-safety machinery; a separate bridge tests the guarded production PvE controller.
+Differential traces can record and compare
 simulator and emulator semantics
 without relying on producer-specific IDs. The input adapter compiles the same semantic
 decisions into calibrated plans and keeps live PyAutoGUI input locked behind window guards,

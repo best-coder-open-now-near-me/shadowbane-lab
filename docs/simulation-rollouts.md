@@ -87,6 +87,36 @@ progression gating, resource exhaustion, control timing, healing timing, bounded
 variation, and win/loss termination. Emulator differential fixtures are the next authority
 for replacing the assumed distribution and closing the remaining combat gaps.
 
+## Pure semantic PvE batches
+
+Pure PvE starts with a known player and hostile entity and chooses legal semantic combat
+affordances directly. It does not instantiate `PvEController`, target-selection tokens, native
+readers, window focus guards, acquisition retries, or combat-log confirmation. Those behaviors
+belong to the separate client-adapter integration scenario below.
+
+Run a compact 10,000-seed batch without emitting per-episode traces:
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m shadowbane_lab.rollouts `
+  --scenario pure-frost-walker `
+  --episodes 10000 `
+  --seed 0 `
+  --json
+```
+
+The initial observed-profile batch produced 10,000 kills and no timeouts. With the current
+inclusive 4-5 damage approximation against 10 health, 2,473 episodes took two attacks and
+7,527 took three. Modeled kill times were therefore 1,000 ms or 2,000 ms, with a 1,752.7 ms
+mean and 2,000 ms p50/p90/p99. The batch is a deterministic pipeline and sensitivity baseline,
+not a balance claim: its 1-second attack interval, passive enemy, lack of hit rolls, and damage
+distribution are still declared assumptions.
+
+The batch runner streams into aggregate counters by default, so large studies do not retain one
+Python object per episode. Programmatic callers can opt into exact per-seed result retention for
+smaller trace studies. Summary output includes kill rate, attacks-to-kill and kill-time histograms,
+damage-roll counts, percentiles, rejected semantic actions, and total experience.
+
 ## Nearby-mob controller bridge
 
 The `frost-walker` scenario runs the production bounded PvE controller against the reference
