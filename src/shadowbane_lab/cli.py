@@ -22,10 +22,15 @@ from shadowbane_lab.client_observation import (
     ClientTargetObserver,
     NativeCombatLogFormatError,
     NativeCombatLogReader,
+    NativeHealthProfileLoadError,
+    NativeTargetHealthError,
     ObservationCalibrationLoadError,
     ObservationDetectionError,
     PyAutoGuiFrameCapture,
+    load_bundled_native_health_profile,
+    load_native_health_profile,
     load_observation_calibration,
+    open_windows_native_target_health_reader,
 )
 
 
@@ -109,6 +114,19 @@ def _parser() -> argparse.ArgumentParser:
         help="return only the newest N complete records",
     )
     read_combat_log.add_argument(
+        "--json", action="store_true", help="emit machine-readable JSON"
+    )
+
+    observe_native_target = client_commands.add_parser(
+        "observe-native-target",
+        help="read exact selected-target health from a calibrated Shadowbane build",
+    )
+    observe_native_target.add_argument(
+        "--profile",
+        type=Path,
+        help="native health profile; defaults to the verified bundled WonderBane build",
+    )
+    observe_native_target.add_argument(
         "--json", action="store_true", help="emit machine-readable JSON"
     )
     return parser
@@ -353,6 +371,41 @@ def _read_combat_log(path: Path, *, limit: int | None, as_json: bool) -> int:
     return 0
 
 
+def _observe_native_target(profile_path: Path | None, *, as_json: bool) -> int:
+    try:
+        profile = (
+            load_native_health_profile(profile_path)
+            if profile_path is not None
+            else load_bundled_native_health_profile()
+        )
+        with open_windows_native_target_health_reader(profile) as reader:
+            observation = reader.observe()
+            process_id = reader.process_id
+    except (NativeHealthProfileLoadError, NativeTargetHealthError, OSError, ValueError) as exc:
+        return _error(f"native target observation failed: {exc}", as_json=as_json)
+    payload = {
+        "ok": True,
+        "profile_id": profile.profile_id,
+        "process_id": process_id,
+        "target_present": observation.target_present,
+        "current_health": observation.current_health,
+        "maximum_health": observation.maximum_health,
+        "health_fraction": observation.health_fraction,
+    }
+    if as_json:
+        print(json.dumps(payload, sort_keys=True))
+    else:
+        print(f"Target present: {observation.target_present}")
+        if observation.target_present:
+            assert observation.current_health is not None
+            assert observation.maximum_health is not None
+            print(
+                f"Health: {observation.current_health:g}/{observation.maximum_health:g} "
+                f"({observation.health_fraction:.1%})"
+            )
+    return 0
+
+
 def _error(message: str, *, as_json: bool) -> int:
     if as_json:
         print(json.dumps({"ok": False, "error": message}, sort_keys=True))
@@ -387,6 +440,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             limit=arguments.limit,
             as_json=arguments.json,
         )
+    if arguments.command == "client" and arguments.client_command == "observe-native-target":
+        return _observe_native_target(arguments.profile, as_json=arguments.json)
     raise RuntimeError("unreachable command")
 
 

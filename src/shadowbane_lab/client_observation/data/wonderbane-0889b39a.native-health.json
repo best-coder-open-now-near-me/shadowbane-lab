@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "profile_id": "wonderbane-0889b39a-selected-target-health",
+  "executable_name": "sb.exe",
+  "executable_sha256": "0889b39a6f065f2ddf696bad01455e0b691892077105fe27e35de94bfdf59ebc",
+  "pointer_size": 4,
+  "selected_pointer_rva": 23735716,
+  "current_health_offset": 1484,
+  "maximum_health_offset": 1488,
+  "minimum_user_address": 65536,
+  "maximum_user_address": 2147418111,
+  "maximum_plausible_health": 1000000
+}

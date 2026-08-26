@@ -36,6 +36,7 @@ where = ["src"]
 [tool.setuptools.package-data]
 "shadowbane_lab.rulesets" = ["data/*.json"]
 "shadowbane_lab.differential" = ["data/*.json"]
+"shadowbane_lab.client_observation" = ["data/*.json"]
 
 [tool.ruff]
 line-length = 100

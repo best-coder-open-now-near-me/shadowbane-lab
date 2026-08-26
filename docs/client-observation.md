@@ -8,7 +8,32 @@ adapter.
 WonderBane also exposes structured state through the original Arcane HUD layer. Native message
 logging and numeric HUD datafields are preferred over interpreting rendered text.
 
-## Measured target-health contract
+## Native selected-target health
+
+The preferred health source reads the same selected-object values that feed Arcane datafields
+`8007` and `8009`. Live calibration against the current WonderBane build established:
+
+- selected-object pointer: image-relative `0x16A2DA4`;
+- current health: selected object offset `0x5CC`; and
+- maximum health: selected object offset `0x5D0`.
+
+During validation, a Frost Walker's current value regenerated continuously from `8.55689` to
+`10.0` while maximum health remained exactly `10.0`; the selected pointer cleared on death. The
+bundled native profile is locked to SHA-256
+`0889b39a6f065f2ddf696bad01455e0b691892077105fe27e35de94bfdf59ebc`.
+
+Read it without focusing or capturing the game:
+
+```powershell
+.\.venv\Scripts\python.exe -m shadowbane_lab.cli client observe-native-target --json
+```
+
+The reader opens `sb.exe` with query and read rights only. It verifies the executable hash,
+32-bit pointer size, image-relative pointer slot, user-address range, stable selection pointer,
+finite health values, and current/maximum bounds. A changed build, ambiguous process, selection
+race, partial read, or implausible value fails closed.
+
+## Pixel cross-check
 
 The checked-in `wonderbane-1920x955` profile is based on three captures from the text-fixed
 client at 1920 by 955 pixels and Windows DPI scale 1.0:
@@ -81,6 +106,7 @@ are not OCR targets.
 ## Overlay boundary
 
 The overlay consumes semantic observations rather than screenshots. Combat and power messages
-come from the native HUD log. Health should move from the current validated geometry/color reader
-to the Arcane datafield bridge once that read-only mapping is fully calibrated. Both producers
-feed the same typed stream so overlay presentation cannot diverge from differential recording.
+come from the native HUD log, and exact selected health comes from the build-guarded native
+reader. The calibrated geometry/color reader remains an independent cross-check, not the primary
+source. Both native producers feed the same typed stream so overlay presentation cannot diverge
+from differential recording or PvE-control feedback.

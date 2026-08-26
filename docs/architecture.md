@@ -50,10 +50,11 @@ Adapters own concrete mappings:
 Every adapter reports results through the same event vocabulary. Correlation identifiers
 link observations, decisions, input traces, emulator requests, and resulting events.
 
-Client observation is split into capture, recognition, and presentation. Calibrated recognizers
-emit typed state or combat events; a click-through overlay is only one consumer. This keeps
-screen pixels and OCR output out of policy code and lets differential recording consume the same
-semantic stream without depending on the overlay.
+Client observation is split into acquisition, decoding, and presentation. Build-guarded native
+readers emit exact typed state and combat events; calibrated pixels remain an independent
+cross-check. A click-through overlay and a bounded PvE controller are consumers of the same
+semantic stream. This keeps screen geometry and rendered text out of policy code and lets
+differential recording consume identical observations without depending on the overlay.
 
 ## Trust boundaries
 
@@ -64,6 +65,8 @@ semantic stream without depending on the overlay.
   profile remain valid.
 - A client-observation adapter may capture only the approved foreground client rectangle and
   must fail closed when dimensions, DPI, profile pairing, or calibrated visual structure changes.
+- A native client-observation adapter may request query/read rights only and must fail closed on
+  executable identity, process ambiguity, pointer instability, or implausible decoded values.
 - Template and dry-run calibration profiles cannot dispatch through a live desktop backend;
   live input requires an explicit per-profile confirmation bit.
 - Recorded or dry-run input adapters are used in automated tests; test execution must not
