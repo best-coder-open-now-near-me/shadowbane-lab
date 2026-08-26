@@ -11,7 +11,7 @@ from shadowbane_lab.rulesets import (
     load_shadowbane_vertical_slice,
 )
 from shadowbane_lab.sim import ActiveEffectState, EntityState, ReferenceEnvironment
-from shadowbane_lab.sim.actions import ApplyEffect, DealDamage, RestoreResource
+from shadowbane_lab.sim.actions import ApplyEffect, DealDamage, RestoreResource, UniformAmount
 
 SHADOW_BOLT = "shadowbane.assassin.shadow_bolt"
 SHADOW_TOUCH = "shadowbane.assassin.shadow_touch"
@@ -142,7 +142,8 @@ class RulesetCompilerTests(unittest.TestCase):
         effects = tuple(
             effect for effect in action.phases[0].effects if isinstance(effect, ApplyEffect)
         )
-        self.assertEqual(28.5, damage.amount)
+        self.assertEqual(UniformAmount(24.0, 33.0), damage.amount)
+        self.assertEqual(28.5, damage.amount.expected)
         self.assertEqual((3_000, 9_000), tuple(effect.duration_ms for effect in effects))
 
     def test_psychic_healing_uses_cast_plus_recycle_readiness(self) -> None:
@@ -157,7 +158,8 @@ class RulesetCompilerTests(unittest.TestCase):
         self.assertEqual(38.8, action.costs[0].amount)
         self.assertEqual(2_500, action.phases[0].duration_ms)
         self.assertEqual(8_500, action.cooldown_ms)
-        self.assertEqual(64.5, heal.amount)
+        self.assertEqual(UniformAmount(37.0, 92.0), heal.amount)
+        self.assertEqual(64.5, heal.amount.expected)
 
     def test_mind_strike_and_shadow_touch_are_compiled(self) -> None:
         ruleset = load_shadowbane_vertical_slice()
@@ -170,7 +172,7 @@ class RulesetCompilerTests(unittest.TestCase):
         damage = next(
             effect for effect in mind_strike.phases[0].effects if isinstance(effect, DealDamage)
         )
-        self.assertEqual(42.5, damage.amount)
+        self.assertEqual(UniformAmount(33.0, 52.0), damage.amount)
         self.assertEqual(3_600, mind_strike.cooldown_ms)
         self.assertEqual(9_000, shadow_touch.features[0].value)
 
@@ -198,7 +200,8 @@ class RulesetCompilerTests(unittest.TestCase):
         damage = next(
             effect for effect in action.phases[0].effects if isinstance(effect, DealDamage)
         )
-        self.assertAlmostEqual(20.25, damage.amount)
+        self.assertEqual(UniformAmount(17.0, 23.5), damage.amount)
+        self.assertAlmostEqual(20.25, damage.amount.expected)
 
     def test_unknown_provenance_source_fails_closed(self) -> None:
         source = bundled_source()
@@ -255,14 +258,20 @@ class RulesetCompilerTests(unittest.TestCase):
         environment = ReferenceEnvironment(ruleset.catalog, (caster, target), seed=11)
         decision = matching_decision(environment, "assassin", SHADOW_BOLT, target_id="target")
 
-        environment.step((decision,))
+        result = environment.step((decision,))
         for _ in range(9):
-            environment.step()
+            result = environment.step()
 
         caster_after = environment.entity("assassin")
         target_after = environment.entity("target")
+        damage_event = next(event for event in result.events if event.kind == "damage_applied")
+        rolled_damage = next(
+            item.value for item in damage_event.scalars if item.name == "requested"
+        )
         self.assertAlmostEqual(60.2, caster_after.scalars["mana"])
-        self.assertEqual(71.5, target_after.scalars["health"])
+        self.assertGreaterEqual(rolled_damage, 24.0)
+        self.assertLess(rolled_damage, 33.0)
+        self.assertAlmostEqual(100.0 - rolled_damage, target_after.scalars["health"])
         self.assertNotIn("Flight", target_after.effects)
         self.assertEqual({"Stun", "NoStun"}, set(target_after.effects))
 

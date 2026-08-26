@@ -29,7 +29,7 @@
       "category": "damage",
       "scenario_pattern": "shadow_bolt.*",
       "path_pattern": "trace/steps/*/after/entities/*/scalars/health",
-      "description": "Shadow Bolt currently uses a published-range midpoint without hit-roll, resist, or damage-distribution parity.",
+      "description": "Shadow Bolt uses a deterministic uniform approximation over its published range without hit-roll, resist, or exact damage-distribution parity.",
       "action_key": "shadowbane.assassin.shadow_bolt",
       "max_absolute_delta": null,
       "evidence_trace_ids": []
@@ -51,7 +51,7 @@
       "category": "damage",
       "scenario_pattern": "psychic_healing.*",
       "path_pattern": "trace/steps/*/after/entities/*/scalars/health",
-      "description": "Psychic Healing uses a published-range midpoint without heal-distribution or build-modifier parity.",
+      "description": "Psychic Healing uses a deterministic uniform approximation over its published range without exact heal-distribution or build-modifier parity.",
       "action_key": "shadowbane.warlock.psychic_healing",
       "max_absolute_delta": null,
       "evidence_trace_ids": []

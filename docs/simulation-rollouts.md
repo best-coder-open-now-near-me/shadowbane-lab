@@ -74,13 +74,15 @@ Assassin a large control advantage after level 15.
 The result must remain labeled `compiled_with_override` until differential traces replace
 the scalar assumptions. The current slice does not yet model:
 
-- hit rolls, attack rating, defense, resistances, or random damage ranges;
+- hit rolls, attack rating, defense, resistances, or authoritative roll distributions;
 - stat/focus modifiers, regeneration, equipment, or weapon-specific basic attacks;
 - cast interruption, obstacle line of sight, collision, or full flight movement semantics;
 - area targets, damage-over-time ticks, absorbs, or broad buff/debuff interactions.
 
-Basic attack damage and timing are reviewed placeholders. Seeds therefore reproduce exact
-traces today but do not yet create a distribution. The useful signal at this stage is legal
-action flow, progression gating, resource exhaustion, control timing, healing timing, and
-win/loss termination. Emulator differential fixtures are the next authority for closing the
-combat gaps.
+Published damage and healing ranges use a reviewed continuous-uniform approximation. The
+specified PCG32 stream makes those rolls exactly replayable by seed and snapshot, while
+expected-value policy features remain the published range midpoint. Basic attack damage and
+timing are still reviewed placeholders. The useful signal at this stage is legal action flow,
+progression gating, resource exhaustion, control timing, healing timing, bounded outcome
+variation, and win/loss termination. Emulator differential fixtures are the next authority
+for replacing the assumed distribution and closing the remaining combat gaps.

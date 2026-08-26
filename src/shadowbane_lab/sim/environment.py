@@ -339,6 +339,7 @@ class ReferenceEnvironment:
             self._event,
             self._schedule,
             self._take_schedule_order,
+            self._random,
         )
 
     def _schedule(self, item: ScheduledItem) -> None:

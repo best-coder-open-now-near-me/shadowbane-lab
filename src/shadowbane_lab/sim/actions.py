@@ -66,6 +66,37 @@ class TagOperation(StrEnum):
 
 
 @dataclass(frozen=True, slots=True)
+class UniformAmount:
+    """Concrete continuous uniform amount resolved from the environment's seeded RNG."""
+
+    minimum: float
+    maximum: float
+
+    def __post_init__(self) -> None:
+        _finite(self.minimum, "minimum")
+        _finite(self.maximum, "maximum")
+        if self.minimum <= 0:
+            raise ValueError("uniform amount minimum must be positive")
+        if self.maximum <= self.minimum:
+            raise ValueError("uniform amount maximum must be greater than minimum")
+
+    @property
+    def expected(self) -> float:
+        return (self.minimum + self.maximum) / 2.0
+
+
+AmountSpec = float | UniformAmount
+
+
+def _positive_amount(value: AmountSpec, field_name: str) -> None:
+    if isinstance(value, UniformAmount):
+        return
+    _finite(value, field_name)
+    if value <= 0:
+        raise ValueError(f"{field_name} must be positive")
+
+
+@dataclass(frozen=True, slots=True)
 class TargetingSpec:
     kind: TargetKind
     allowed_relations: tuple[Relation, ...] = ()
@@ -144,15 +175,13 @@ class ModifyScalar:
 @dataclass(frozen=True, slots=True)
 class DealDamage:
     subject: SubjectRef
-    amount: float
+    amount: AmountSpec
     damage_type: str
 
     def __post_init__(self) -> None:
         if not isinstance(self.subject, SubjectRef):
             raise ValueError("subject must be a SubjectRef")
-        _finite(self.amount, "amount")
-        if self.amount <= 0:
-            raise ValueError("damage amount must be positive")
+        _positive_amount(self.amount, "damage amount")
         _identifier(self.damage_type, "damage_type")
 
 
@@ -160,15 +189,13 @@ class DealDamage:
 class RestoreResource:
     subject: SubjectRef
     resource_key: str
-    amount: float
+    amount: AmountSpec
 
     def __post_init__(self) -> None:
         if not isinstance(self.subject, SubjectRef):
             raise ValueError("subject must be a SubjectRef")
         _identifier(self.resource_key, "resource_key")
-        _finite(self.amount, "amount")
-        if self.amount <= 0:
-            raise ValueError("restoration amount must be positive")
+        _positive_amount(self.amount, "restoration amount")
 
 
 @dataclass(frozen=True, slots=True)

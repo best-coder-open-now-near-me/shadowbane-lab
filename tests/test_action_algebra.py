@@ -18,6 +18,7 @@ from shadowbane_lab.sim import (
     SubjectRef,
     TargetingSpec,
     TransferItem,
+    UniformAmount,
 )
 
 
@@ -157,6 +158,15 @@ def representative_actions() -> tuple[ActionSpec, ...]:
 
 
 class ActionAlgebraTests(unittest.TestCase):
+    def test_uniform_amount_is_bounded_and_exposes_its_expected_value(self) -> None:
+        amount = UniformAmount(24.0, 33.0)
+
+        self.assertEqual(28.5, amount.expected)
+        self.assertEqual(amount, DealDamage(SubjectRef.TARGET, amount, "cold").amount)
+
+        with self.assertRaisesRegex(ValueError, "greater than minimum"):
+            UniformAmount(10.0, 10.0)
+
     def test_one_grammar_represents_all_required_action_families(self) -> None:
         catalog = ActionCatalog(representative_actions())
 

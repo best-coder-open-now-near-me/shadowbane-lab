@@ -23,6 +23,7 @@ from shadowbane_lab.sim.actions import (
     TagOperation,
     TargetingSpec,
     TransferItem,
+    UniformAmount,
 )
 from shadowbane_lab.sim.clock import ClockSnapshot, SimulationClock
 from shadowbane_lab.sim.environment import ReferenceEnvironment
@@ -81,4 +82,5 @@ __all__ = [
     "TagOperation",
     "TargetingSpec",
     "TransferItem",
+    "UniformAmount",
 ]

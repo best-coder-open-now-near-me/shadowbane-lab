@@ -180,7 +180,7 @@
           ],
           "source_id": "morloch-assassin-36339",
           "locator": "Shadow Bolt rank 0-40 table",
-          "note": "Rank-40 damage range 24-33 is represented by midpoint 28.5."
+          "note": "The published rank-endpoint damage ranges are compiled as bounded uniform amounts. The uniform distribution is a reviewed simulator assumption."
         },
         {
           "fields": ["spec.cooldown_ms"],
@@ -203,7 +203,7 @@
       ],
       "unresolved": [
         "Server power token and IDString require the deployment power-data export.",
-        "Hit-roll, damage distribution, resists, and train/modifier formulas are not compiled.",
+        "Hit-roll, exact damage distribution, resists, and train/modifier formulas are not compiled.",
         "Effect rank/stacking precedence and player-versus-monster target distinctions need differential traces."
       ],
       "spec": {
@@ -235,11 +235,21 @@
                 "op": "deal_damage",
                 "subject": "target",
                 "amount": {
-                  "interpolation": "linear",
-                  "rank_min": 0,
-                  "rank_max": 40,
-                  "value_min": 12,
-                  "value_max": 28.5
+                  "distribution": "uniform",
+                  "minimum": {
+                    "interpolation": "linear",
+                    "rank_min": 0,
+                    "rank_max": 40,
+                    "value_min": 10,
+                    "value_max": 24
+                  },
+                  "maximum": {
+                    "interpolation": "linear",
+                    "rank_min": 0,
+                    "rank_max": 40,
+                    "value_min": 14,
+                    "value_max": 33
+                  }
                 },
                 "damage_type": "cold"
               },
@@ -461,7 +471,7 @@
           ],
           "source_id": "morloch-warlock-36352",
           "locator": "Mind Strike rank 0-40 table",
-          "note": "Damage ranges are represented by their rank-endpoint midpoints."
+          "note": "The published rank-endpoint damage ranges are compiled as bounded uniform amounts. The uniform distribution is a reviewed simulator assumption."
         },
         {
           "fields": ["spec.cooldown_ms"],
@@ -484,7 +494,7 @@
       ],
       "unresolved": [
         "Server power token and IDString require the deployment power-data export.",
-        "Hit-roll, damage distribution, resists, and train/modifier formulas are not compiled.",
+        "Hit-roll, exact damage distribution, resists, and train/modifier formulas are not compiled.",
         "Effect rank and stacking precedence need differential traces."
       ],
       "spec": {
@@ -516,11 +526,21 @@
                 "op": "deal_damage",
                 "subject": "target",
                 "amount": {
-                  "interpolation": "linear",
-                  "rank_min": 0,
-                  "rank_max": 40,
-                  "value_min": 18,
-                  "value_max": 42.5
+                  "distribution": "uniform",
+                  "minimum": {
+                    "interpolation": "linear",
+                    "rank_min": 0,
+                    "rank_max": 40,
+                    "value_min": 14,
+                    "value_max": 33
+                  },
+                  "maximum": {
+                    "interpolation": "linear",
+                    "rank_min": 0,
+                    "rank_max": 40,
+                    "value_min": 22,
+                    "value_max": 52
+                  }
                 },
                 "damage_type": "mental"
               },
@@ -613,7 +633,7 @@
           "fields": ["rank", "progression", "spec.costs", "spec.phases[0].duration_ms", "spec.phases[0].effects"],
           "source_id": "morloch-warlock-36352",
           "locator": "Psychic Healing rank 0-40 table",
-          "note": "Rank-40 heal range 37-92 is represented by midpoint 64.5."
+          "note": "The published rank-endpoint heal ranges are compiled as bounded uniform amounts. The uniform distribution is a reviewed simulator assumption."
         },
         {
           "fields": ["spec.cooldown_ms"],
@@ -636,7 +656,7 @@
       ],
       "unresolved": [
         "Server power token and IDString require the deployment power-data export.",
-        "Heal distribution, hate generation, and train/modifier formulas are not compiled."
+        "Exact heal distribution, hate generation, and train/modifier formulas are not compiled."
       ],
       "spec": {
         "targeting": {
@@ -668,11 +688,21 @@
                 "subject": "actor",
                 "resource_key": "health",
                 "amount": {
-                  "interpolation": "linear",
-                  "rank_min": 0,
-                  "rank_max": 40,
-                  "value_min": 41.5,
-                  "value_max": 64.5
+                  "distribution": "uniform",
+                  "minimum": {
+                    "interpolation": "linear",
+                    "rank_min": 0,
+                    "rank_max": 40,
+                    "value_min": 24,
+                    "value_max": 37
+                  },
+                  "maximum": {
+                    "interpolation": "linear",
+                    "rank_min": 0,
+                    "rank_max": 40,
+                    "value_min": 59,
+                    "value_max": 92
+                  }
                 }
               }
             ],

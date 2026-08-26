@@ -100,6 +100,13 @@ def with_scalar(trace, step_index: int, entity_id: str, scalar_key: str, value: 
     )
 
 
+def scalar_value(trace, step_index: int, entity_id: str, scalar_key: str) -> float:
+    entity = next(
+        item for item in trace.steps[step_index].after.entities if item.entity_id == entity_id
+    )
+    return next(item.value for item in entity.scalars if item.name == scalar_key)
+
+
 class DifferentialValidationTests(unittest.TestCase):
     def test_reference_trace_round_trips_through_canonical_json(self) -> None:
         trace = shadow_bolt_trace()
@@ -145,7 +152,8 @@ class DifferentialValidationTests(unittest.TestCase):
 
     def test_state_damage_difference_is_classified_and_unexpected(self) -> None:
         expected = shadow_bolt_trace()
-        actual = with_scalar(expected, 9, "target", "health", 72.0)
+        expected_health = scalar_value(expected, 9, "target", "health")
+        actual = with_scalar(expected, 9, "target", "health", expected_health + 0.5)
 
         report = compare_traces(expected, actual)
 
@@ -174,7 +182,8 @@ class DifferentialValidationTests(unittest.TestCase):
 
     def test_reviewed_gap_can_accept_a_scoped_bounded_difference(self) -> None:
         expected = shadow_bolt_trace()
-        actual = with_scalar(expected, 9, "target", "health", 72.0)
+        expected_health = scalar_value(expected, 9, "target", "health")
+        actual = with_scalar(expected, 9, "target", "health", expected_health + 0.5)
         ledger = GapLedger(
             (
                 GapEntry(
@@ -199,7 +208,8 @@ class DifferentialValidationTests(unittest.TestCase):
 
     def test_open_bundled_gap_does_not_hide_a_difference(self) -> None:
         expected = shadow_bolt_trace()
-        actual = with_scalar(expected, 9, "target", "health", 72.0)
+        expected_health = scalar_value(expected, 9, "target", "health")
+        actual = with_scalar(expected, 9, "target", "health", expected_health + 0.5)
         ledger = load_bundled_gap_ledger()
 
         report = compare_traces(expected, actual, gap_ledger=ledger)

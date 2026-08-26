@@ -20,6 +20,7 @@ from shadowbane_lab.sim import (
     SubjectRef,
     TargetingSpec,
     TransferItem,
+    UniformAmount,
 )
 
 
@@ -297,6 +298,59 @@ class ReferenceEnvironmentTests(unittest.TestCase):
         environment.restore(snapshot)
         actual_events = environment.step()
 
+        self.assertEqual(expected_events, actual_events)
+        self.assertEqual(expected_state, environment.snapshot())
+
+    def test_snapshot_replays_seeded_uniform_damage_exactly(self) -> None:
+        attack = ActionSpec(
+            action_key="variable-attack",
+            targeting=TargetingSpec(
+                kind=TargetKind.ENTITY,
+                allowed_relations=(Relation.ENEMY,),
+                maximum_range=3.0,
+            ),
+            phases=(
+                ActionPhase(
+                    kind=PhaseKind.ACTIVE,
+                    duration_ms=0,
+                    effects=(
+                        DealDamage(
+                            SubjectRef.TARGET,
+                            UniformAmount(4.0, 9.0),
+                            "physical",
+                        ),
+                    ),
+                ),
+            ),
+        )
+        environment = ReferenceEnvironment(
+            ActionCatalog((attack,)),
+            (
+                actor("a", "red", Vector2(0.0, 0.0), ("variable-attack",)),
+                actor("b", "blue", Vector2(1.0, 0.0), ()),
+            ),
+            seed=91,
+        )
+        snapshot = environment.snapshot()
+        decision = action_for(
+            environment,
+            "a",
+            "variable-attack",
+            target_id="b",
+            correlation_id="variable-1",
+        )
+
+        expected_events = environment.step((decision,))
+        expected_state = environment.snapshot()
+        damage_event = next(
+            event for event in expected_events.events if event.kind == EventKind.DAMAGE_APPLIED
+        )
+        requested = next(item.value for item in damage_event.scalars if item.name == "requested")
+        environment.restore(snapshot)
+        actual_events = environment.step((decision,))
+
+        self.assertGreaterEqual(requested, 4.0)
+        self.assertLess(requested, 9.0)
         self.assertEqual(expected_events, actual_events)
         self.assertEqual(expected_state, environment.snapshot())
 

@@ -42,8 +42,9 @@ from shadowbane_lab.sim import (
     TagOperation,
     TargetingSpec,
     TransferItem,
+    UniformAmount,
 )
-from shadowbane_lab.sim.actions import EffectPrimitive
+from shadowbane_lab.sim.actions import AmountSpec, EffectPrimitive
 
 RULESET_SOURCE_VERSION = 1
 
@@ -251,14 +252,14 @@ def _parse_effect(data: Mapping[str, Any], rank: int) -> EffectPrimitive:
     if operation == "deal_damage":
         return DealDamage(
             subject=SubjectRef(_string(data, "subject")),
-            amount=_resolved_number(_required(data, "amount"), rank),
+            amount=_resolved_amount(_required(data, "amount"), rank),
             damage_type=_string(data, "damage_type"),
         )
     if operation == "restore_resource":
         return RestoreResource(
             subject=SubjectRef(_string(data, "subject")),
             resource_key=_string(data, "resource_key"),
-            amount=_resolved_number(_required(data, "amount"), rank),
+            amount=_resolved_amount(_required(data, "amount"), rank),
         )
     if operation == "modify_scalar":
         return ModifyScalar(
@@ -307,6 +308,21 @@ def _parse_effect(data: Mapping[str, Any], rank: int) -> EffectPrimitive:
             progress_delta=_resolved_number(_required(data, "progress_delta"), rank),
         )
     raise RulesetLoadError(f"unsupported effect operation: {operation}")
+
+
+def _resolved_amount(value: Any, rank: int) -> AmountSpec:
+    if isinstance(value, Mapping) and "distribution" in value:
+        distribution = cast(Mapping[str, Any], value)
+        if _string(distribution, "distribution") != "uniform":
+            raise RulesetLoadError("only uniform amount distributions are supported")
+        try:
+            return UniformAmount(
+                minimum=_resolved_number(_required(distribution, "minimum"), rank),
+                maximum=_resolved_number(_required(distribution, "maximum"), rank),
+            )
+        except ValueError as exc:
+            raise RulesetLoadError(str(exc)) from exc
+    return _resolved_number(value, rank)
 
 
 def _resolved_number(value: Any, rank: int) -> float:

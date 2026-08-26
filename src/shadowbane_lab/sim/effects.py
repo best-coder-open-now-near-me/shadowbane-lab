@@ -29,8 +29,10 @@ from shadowbane_lab.sim.actions import (
     SubjectRef,
     TagOperation,
     TransferItem,
+    UniformAmount,
 )
 from shadowbane_lab.sim.errors import SimulationConfigurationError
+from shadowbane_lab.sim.random_source import DeterministicRandom
 from shadowbane_lab.sim.state import ActiveEffectState, EntityState
 from shadowbane_lab.sim.timeline import ScheduledItem, ScheduledKind
 
@@ -48,11 +50,13 @@ class EffectExecutor:
         event_factory: EventFactory,
         schedule: ScheduleCallback,
         take_schedule_order: OrderCallback,
+        random: DeterministicRandom,
     ) -> None:
         self._entities = entities
         self._event = event_factory
         self._schedule = schedule
         self._take_schedule_order = take_schedule_order
+        self._random = random
 
     def resolve(
         self,
@@ -141,8 +145,9 @@ class EffectExecutor:
     ) -> None:
         if subject is None:
             raise SimulationConfigurationError("damage requires an entity subject")
+        amount = self._resolve_amount(effect.amount)
         before = subject.scalars.get("health", 0.0)
-        after = max(0.0, before - effect.amount)
+        after = max(0.0, before - amount)
         subject.scalars["health"] = after
         events.append(
             self._event(
@@ -153,7 +158,7 @@ class EffectExecutor:
                 target_entity_id=subject.entity_id,
                 action_key=item.action_key,
                 scalars=(
-                    NamedScalar("requested", effect.amount),
+                    NamedScalar("requested", amount),
                     NamedScalar("effective", before - after),
                 ),
                 tags=(f"damage.{effect.damage_type}",),
@@ -170,9 +175,10 @@ class EffectExecutor:
     ) -> None:
         if subject is None:
             raise SimulationConfigurationError("resource restoration requires an entity subject")
+        amount = self._resolve_amount(effect.amount)
         before = subject.scalars.get(effect.resource_key, 0.0)
         maximum = subject.maximums.get(effect.resource_key)
-        after = before + effect.amount
+        after = before + amount
         if maximum is not None:
             after = min(after, maximum)
         subject.scalars[effect.resource_key] = after
@@ -185,12 +191,17 @@ class EffectExecutor:
                 target_entity_id=subject.entity_id,
                 action_key=item.action_key,
                 scalars=(
-                    NamedScalar("requested", effect.amount),
+                    NamedScalar("requested", amount),
                     NamedScalar("effective", after - before),
                 ),
                 tags=(f"resource.{effect.resource_key}",),
             )
         )
+
+    def _resolve_amount(self, amount: float | UniformAmount) -> float:
+        if isinstance(amount, UniformAmount):
+            return self._random.uniform(amount.minimum, amount.maximum)
+        return amount
 
     def _modify_scalar(
         self,
