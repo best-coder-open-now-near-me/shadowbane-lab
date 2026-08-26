@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "profile_id": "wonderbane-pve-1920x955-captured-hotkeys-live-locked",
+  "profile_id": "wonderbane-pve-1920x955-captured-hotkeys-and-hotbar-live-locked",
   "live_input_enabled": false,
   "target": {
     "executable_names": [
@@ -19,6 +19,15 @@
       "activation": {
         "type": "key",
         "key": ";"
+      },
+      "target_order": "none",
+      "post_activation_delay_ms": 250
+    },
+    {
+      "action_key": "shadowbane.assassin.shadow_touch",
+      "activation": {
+        "type": "key",
+        "key": "f2"
       },
       "target_order": "none",
       "post_activation_delay_ms": 250

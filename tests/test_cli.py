@@ -142,7 +142,7 @@ class ClientCliTests(unittest.TestCase):
         self.assertTrue(payload["ok"])
         self.assertFalse(payload["live_input_enabled"])
 
-    def test_pve_template_has_mob_target_and_basic_attack_mappings(self) -> None:
+    def test_pve_template_has_verified_target_power_and_attack_mappings(self) -> None:
         output = io.StringIO()
         template = Path(__file__).parents[1] / "configs" / "wonderbane-pve.template.json"
 
@@ -151,12 +151,16 @@ class ClientCliTests(unittest.TestCase):
 
         payload = json.loads(output.getvalue())
         self.assertEqual(0, result)
-        self.assertEqual(2, payload["action_count"])
+        self.assertEqual(3, payload["action_count"])
         self.assertFalse(payload["live_input_enabled"])
 
         profile = load_calibration(template)
         mappings = {mapping.action_key: mapping for mapping in profile.actions}
         self.assertEqual(";", mappings["client.pve.target_next_mobile"].activation.key)
+        self.assertEqual(
+            "f2",
+            mappings[PvEIntent.CAST_SHADOW_TOUCH.value].activation.key,
+        )
         self.assertEqual(
             ("ctrl", "a"),
             mappings["shadowbane.basic_attack"].activation.keys,
@@ -186,6 +190,11 @@ class ClientCliTests(unittest.TestCase):
         template = Path(__file__).parents[1] / "configs" / "wonderbane-pve.template.json"
         profile_data = json.loads(template.read_text(encoding="utf-8"))
         profile_data["live_input_enabled"] = True
+        profile_data["actions"] = [
+            item
+            for item in profile_data["actions"]
+            if item["action_key"] != PvEIntent.CAST_SHADOW_TOUCH.value
+        ]
         output = io.StringIO()
         with tempfile.TemporaryDirectory() as directory:
             profile = Path(directory) / "pve.local.json"
@@ -211,6 +220,58 @@ class ClientCliTests(unittest.TestCase):
         payload = json.loads(output.getvalue())
         self.assertEqual(2, result)
         self.assertIn(PvEIntent.CAST_SHADOW_TOUCH.value, payload["error"])
+
+    def test_proc_assassin_policy_requires_verified_current_hotbar(self) -> None:
+        template = Path(__file__).parents[1] / "configs" / "wonderbane-pve.template.json"
+        profile_data = json.loads(template.read_text(encoding="utf-8"))
+        profile_data["live_input_enabled"] = True
+        hotbar_slots = []
+        for slot_index in range(12):
+            if slot_index == 2:
+                hotbar_slots.extend(
+                    (
+                        f"BEGINHBI {slot_index} PowerHotButtonInfo",
+                        'POWERNAME= "ASS-013"',
+                        "ENDHBI",
+                    )
+                )
+            else:
+                hotbar_slots.extend((f"BEGINHBI {slot_index} EMPTY", "ENDHBI"))
+        hotbar_text = (
+            "BEGINHOTBAR\nCURRENTSET= 0\nBEGINSET\n"
+            + "\n".join(hotbar_slots)
+            + "\nENDSET\nENDHOTBAR\n"
+        )
+        output = io.StringIO()
+        with tempfile.TemporaryDirectory() as directory:
+            profile = Path(directory) / "pve.local.json"
+            combat_log = Path(directory) / "combat.log.txt"
+            hotbar = Path(directory) / "SCREEN_GAME_character.cfg"
+            profile.write_text(json.dumps(profile_data), encoding="utf-8")
+            combat_log.write_text("", encoding="utf-8")
+            hotbar.write_text(hotbar_text, encoding="utf-8")
+            with redirect_stdout(output):
+                result = main(
+                    (
+                        "client",
+                        "run-pve",
+                        "--client-profile",
+                        str(profile),
+                        "--combat-log",
+                        str(combat_log),
+                        "--hotbar-config",
+                        str(hotbar),
+                        "--policy",
+                        "proc-assassin",
+                        "--live",
+                        "--json",
+                    )
+                )
+
+        payload = json.loads(output.getvalue())
+        self.assertEqual(2, result)
+        self.assertIn("maps ASS-013", payload["error"])
+        self.assertIn("f3", payload["error"])
 
 
 if __name__ == "__main__":

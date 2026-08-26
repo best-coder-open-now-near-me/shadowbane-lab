@@ -1,6 +1,7 @@
 """Guarded semantic-decision to desktop-input tooling."""
 
 from shadowbane_lab.client_input.arcane_hotbar import (
+    ArcaneClientPower,
     ArcaneHotbarLoadError,
     ArcaneHotbarSet,
     ArcaneHotbarSlot,
@@ -88,6 +89,7 @@ __all__ = [
     "CLIENT_PROFILE_SCHEMA_VERSION",
     "AbsolutePoint",
     "ActionInputMapping",
+    "ArcaneClientPower",
     "ArcaneClientAction",
     "ArcaneHotkeyBinding",
     "ArcaneHotkeyLoadError",

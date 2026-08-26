@@ -11,7 +11,9 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from shadowbane_lab.client_input import (
+    ActionInputMapping,
     ArcaneClientAction,
+    ArcaneClientPower,
     ArcaneHotbarLoadError,
     ArcaneHotkeyLoadError,
     CalibrationLoadError,
@@ -246,6 +248,11 @@ def _parser() -> argparse.ArgumentParser:
     )
     run_pve.add_argument("--client-profile", type=Path, required=True)
     run_pve.add_argument("--combat-log", type=Path, required=True)
+    run_pve.add_argument(
+        "--hotbar-config",
+        type=Path,
+        help="character SCREEN_GAME config; required by policies that activate hotbar powers",
+    )
     run_pve.add_argument("--native-health-profile", type=Path)
     run_pve.add_argument("--native-vitals-profile", type=Path)
     run_pve.add_argument("--max-kills", type=int, default=1)
@@ -852,6 +859,7 @@ def _run_pve(
     *,
     client_profile_path: Path,
     combat_log_path: Path,
+    hotbar_config_path: Path | None,
     native_health_profile_path: Path | None,
     native_vitals_profile_path: Path | None,
     max_kills: int,
@@ -900,6 +908,13 @@ def _run_pve(
             raise ValueError(
                 f"client profile is missing PvE mappings: {', '.join(sorted(missing_actions))}"
             )
+        if policy == "proc-assassin":
+            _verify_hotbar_power_mapping(
+                client_profile.actions,
+                hotbar_config_path,
+                action_key=PvEIntent.CAST_SHADOW_TOUCH.value,
+                power_name=ArcaneClientPower.SHADOW_TOUCH,
+            )
         health_profile = (
             load_native_health_profile(native_health_profile_path)
             if native_health_profile_path is not None
@@ -944,6 +959,7 @@ def _run_pve(
             ).run()
     except (
         CalibrationLoadError,
+        ArcaneHotbarLoadError,
         NativeHealthProfileLoadError,
         NativePlayerVitalsError,
         NativeTargetHealthError,
@@ -984,6 +1000,30 @@ def _run_pve(
         print(f"Kills: {result.kills}")
         print(f"Guarded inputs: {len(dispatched)}")
     return 0 if payload["ok"] else 2
+
+
+def _verify_hotbar_power_mapping(
+    mappings: Sequence[ActionInputMapping],
+    hotbar_config_path: Path | None,
+    *,
+    action_key: str,
+    power_name: ArcaneClientPower,
+) -> None:
+    if hotbar_config_path is None:
+        raise ValueError("proc-assassin policy requires --hotbar-config")
+    hotbar = load_arcane_hotbar(hotbar_config_path)
+    slots = hotbar.current_slots_for_power(power_name)
+    if len(slots) != 1:
+        raise ValueError(
+            f"active hotbar must contain exactly one {power_name} slot; found {len(slots)}"
+        )
+    mapping = next(item for item in mappings if item.action_key == action_key)
+    expected = slots[0].activation
+    if mapping.activation != expected:
+        raise ValueError(
+            f"client profile maps {action_key} to {mapping.activation}, "
+            f"but active hotbar maps {power_name} to {expected}"
+        )
 
 
 def _wait_for_guarded_client(
@@ -1059,6 +1099,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _run_pve(
             client_profile_path=arguments.client_profile,
             combat_log_path=arguments.combat_log,
+            hotbar_config_path=arguments.hotbar_config,
             native_health_profile_path=arguments.native_health_profile,
             native_vitals_profile_path=arguments.native_vitals_profile,
             max_kills=arguments.max_kills,

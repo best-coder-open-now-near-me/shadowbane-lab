@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
 
 from shadowbane_lab.client_input.model import KeyActivation
@@ -11,6 +12,12 @@ from shadowbane_lab.client_input.model import KeyActivation
 
 class ArcaneHotbarLoadError(ValueError):
     """Raised when a SCREEN_GAME hotbar table is missing or malformed."""
+
+
+class ArcaneClientPower(StrEnum):
+    """Verified legacy power IDs recovered from the installed WonderBane client."""
+
+    SHADOW_TOUCH = "ASS-013"
 
 
 _HOTBAR_SLOT_COUNT = 12

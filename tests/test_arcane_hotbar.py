@@ -31,7 +31,7 @@ _CAPTURED_HOTBAR = (
     "IGNORED= TRUE\n"
     "BEGINHOTBAR\n"
     "CURRENTSET= 0\n"
-    + _hotbar_set(f1="ROG-001", f2="ASS-001")
+    + _hotbar_set(f1="ROG-001", f2="ASS-013")
     + "\n"
     + _hotbar_set()
     + "\nENDHOTBAR\n"
@@ -46,13 +46,13 @@ class ArcaneHotbarTests(unittest.TestCase):
         self.assertEqual(0, table.current_set_index)
         self.assertEqual(2, len(table.sets))
         self.assertEqual("ROG-001", table.current_set.slots[0].power_name)
-        self.assertEqual("ASS-001", table.current_set.slots[1].power_name)
+        self.assertEqual("ASS-013", table.current_set.slots[1].power_name)
         self.assertEqual("f1", table.current_set.slots[0].activation_key)
         self.assertEqual("f12", table.current_set.slots[11].activation_key)
         self.assertEqual(KeyActivation("f2"), table.current_set.slots[1].activation)
         self.assertEqual(
             (table.current_set.slots[1],),
-            table.current_slots_for_power("ASS-001"),
+            table.current_slots_for_power("ASS-013"),
         )
 
     def test_loads_utf8_bom_file(self) -> None:
@@ -104,7 +104,7 @@ class ArcaneHotbarTests(unittest.TestCase):
         self.assertTrue(current_set["active"])
         self.assertEqual("f1", current_set["slots"][0]["activation_key"])
         self.assertEqual("ROG-001", current_set["slots"][0]["power_name"])
-        self.assertEqual("ASS-001", current_set["slots"][1]["power_name"])
+        self.assertEqual("ASS-013", current_set["slots"][1]["power_name"])
         self.assertEqual("f12", current_set["slots"][11]["activation_key"])
 
 

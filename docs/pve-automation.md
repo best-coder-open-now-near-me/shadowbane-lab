@@ -70,7 +70,18 @@ or power use during that engagement.
 
 Copy `configs/wonderbane-pve.template.json` inside the game VM. Verify that the target
 window is exactly 1920 by 955 at DPI scale 1.0 and that the client reports the expected
-bindings. Change only the local copy to:
+bindings. The verified WonderBane character hotbar has Shadow Touch (`ASS-013`) on F2;
+inspect the current character config before enabling input:
+
+```powershell
+$env:PYTHONPATH = "src"
+$hotbar = Get-ChildItem "$env:USERPROFILE\Downloads\WonderbaneClient\Wonderbane\Config\SCREEN_GAME_*_Wonderbane.cfg" | Select-Object -First 1
+.\.venv\Scripts\python.exe -m shadowbane_lab.cli client inspect-hotbar `
+  $hotbar.FullName `
+  --json
+```
+
+Change only the local client-profile copy to:
 
 ```json
 "live_input_enabled": true
@@ -114,6 +125,8 @@ $env:PYTHONPATH = "src"
 .\.venv\Scripts\python.exe -m shadowbane_lab.cli client run-pve `
   --client-profile .\configs\wonderbane-pve.local.json `
   --combat-log "C:\Users\admin\Downloads\WonderbaneClient\Wonderbane\Logs\shadowbane-combat.log.txt" `
+  --hotbar-config $hotbar.FullName `
+  --policy proc-assassin `
   --max-kills 1 `
   --max-seconds 30 `
   --wait-for-client-seconds 15 `
