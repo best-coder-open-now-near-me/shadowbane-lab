@@ -1,5 +1,13 @@
 """Guarded semantic-decision to desktop-input tooling."""
 
+from shadowbane_lab.client_input.arcane_hotkeys import (
+    ArcaneClientAction,
+    ArcaneHotkeyBinding,
+    ArcaneHotkeyLoadError,
+    ArcaneHotkeyTable,
+    load_arcane_hotkeys,
+    load_arcane_hotkeys_text,
+)
 from shadowbane_lab.client_input.backend import (
     ClickInvocation,
     DragInvocation,
@@ -72,6 +80,10 @@ __all__ = [
     "CLIENT_PROFILE_SCHEMA_VERSION",
     "AbsolutePoint",
     "ActionInputMapping",
+    "ArcaneClientAction",
+    "ArcaneHotkeyBinding",
+    "ArcaneHotkeyLoadError",
+    "ArcaneHotkeyTable",
     "BindingPointResolver",
     "CalibrationLoadError",
     "CalibrationProfile",
@@ -122,4 +134,6 @@ __all__ = [
     "WindowsHotkeyEmergencyStop",
     "load_calibration",
     "load_calibration_text",
+    "load_arcane_hotkeys",
+    "load_arcane_hotkeys_text",
 ]

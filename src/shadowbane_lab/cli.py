@@ -11,6 +11,8 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from shadowbane_lab.client_input import (
+    ArcaneClientAction,
+    ArcaneHotkeyLoadError,
     CalibrationLoadError,
     ClientInputAdapter,
     DecisionInputCompiler,
@@ -23,6 +25,7 @@ from shadowbane_lab.client_input import (
     WindowsHotkeyEmergencyStop,
     WindowSnapshot,
     WindowsVisibleWindowInspector,
+    load_arcane_hotkeys,
     load_calibration,
 )
 from shadowbane_lab.client_observation import (
@@ -110,6 +113,15 @@ def _parser() -> argparse.ArgumentParser:
     )
     validate.add_argument("profile", type=Path)
     validate.add_argument("--json", action="store_true", help="emit machine-readable JSON")
+
+    inspect_hotkeys = client_commands.add_parser(
+        "inspect-hotkeys",
+        help="read native target-cycle bindings from ArcanePref.cfg without changing them",
+    )
+    inspect_hotkeys.add_argument("preferences", type=Path)
+    inspect_hotkeys.add_argument(
+        "--json", action="store_true", help="emit machine-readable JSON"
+    )
 
     observe_target = client_commands.add_parser(
         "observe-target",
@@ -236,6 +248,25 @@ def _parser() -> argparse.ArgumentParser:
     )
     run_pve.add_argument("--json", action="store_true", help="emit machine-readable JSON")
     return parser
+
+
+_PVE_TARGET_ACTIONS = (
+    (
+        "client.pve.target_next_mobile",
+        "Target Next Mob",
+        ArcaneClientAction.TARGET_NEXT_MOB,
+    ),
+    (
+        "client.pve.target_previous_mobile",
+        "Target Previous Mob",
+        ArcaneClientAction.TARGET_PREVIOUS_MOB,
+    ),
+    (
+        "client.pve.clear_selection",
+        "Clear Target",
+        ArcaneClientAction.CLEAR_TARGET,
+    ),
+)
 
 
 def _snapshot_payload(snapshot: WindowSnapshot) -> dict[str, object]:
@@ -378,6 +409,51 @@ def _validate_profile(path: Path, *, as_json: bool) -> int:
         print(f"Schema version: {profile.schema_version}")
         print(f"Mapped actions: {len(profile.actions)}")
         print(f"Live input enabled: {profile.live_input_enabled}")
+    return 0
+
+
+def _inspect_arcane_hotkeys(path: Path, *, as_json: bool) -> int:
+    try:
+        table = load_arcane_hotkeys(path)
+    except ArcaneHotkeyLoadError as exc:
+        return _error(f"hotkey inspection failed: {exc}", as_json=as_json)
+    actions = []
+    for semantic_action, display_name, action in _PVE_TARGET_ACTIONS:
+        bindings = table.bindings_for(action)
+        actions.append(
+            {
+                "semantic_action": semantic_action,
+                "display_name": display_name,
+                "native_action_code": int(action),
+                "bound": bool(bindings),
+                "bindings": [
+                    {
+                        "arcane_key": item.key,
+                        "input_keys": list(item.input_keys),
+                        "parameter_one": item.parameter_one,
+                        "parameter_two": item.parameter_two,
+                        "argument": item.argument,
+                    }
+                    for item in bindings
+                ],
+            }
+        )
+    payload = {
+        "ok": True,
+        "preferences": str(path),
+        "total_bindings": len(table.bindings),
+        "target_actions": actions,
+    }
+    if as_json:
+        print(json.dumps(payload, sort_keys=True))
+    else:
+        print(f"ArcanePref bindings: {len(table.bindings)}")
+        for action in actions:
+            chords = ["+".join(item["input_keys"]) for item in action["bindings"]]
+            rendered = ", ".join(chords) if chords else "unbound"
+            print(
+                f"{action['display_name']} [{action['native_action_code']}]: {rendered}"
+            )
     return 0
 
 
@@ -877,6 +953,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
     if arguments.command == "client" and arguments.client_command == "validate-profile":
         return _validate_profile(arguments.profile, as_json=arguments.json)
+    if arguments.command == "client" and arguments.client_command == "inspect-hotkeys":
+        return _inspect_arcane_hotkeys(arguments.preferences, as_json=arguments.json)
     if arguments.command == "client" and arguments.client_command == "observe-target":
         return _observe_target(
             arguments.client_profile,

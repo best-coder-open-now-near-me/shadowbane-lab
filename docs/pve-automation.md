@@ -12,11 +12,23 @@ It records the initially selected object's opaque token, sends `Target Next Mob`
 attack only after observing a different, valid target token. A kill must be confirmed by a
 typed native `TARGET_KILLED` event before it counts or another target can be acquired.
 
-The live profile maps the semantic operations to bindings documented by the installed
-client itself:
+The live profile maps semantic operations to the installed client's captured native
+preferences:
 
-- `client.pve.target_next_mobile` uses `Home` (`Target Next Mob`); and
+- `client.pve.target_next_mobile` uses `;` (`Target Next Mob`, native action `188`); and
 - `shadowbane.basic_attack` uses `Ctrl+A` (`Attack Selected`).
+
+The same client exposes `Target Previous Mob` as native action `189`, bound to `'` in the
+captured preferences. `Clear Target` is native action `102`, but it had no key record in that
+capture, so the harness does not pretend it has a working clear-selection key. Inspect the
+current file without changing it before any live run:
+
+```powershell
+$env:PYTHONPATH = "src"
+.\.venv\Scripts\python.exe -m shadowbane_lab.cli client inspect-hotkeys `
+  "C:\Users\admin\Downloads\WonderbaneClient\Wonderbane\Config\ArcanePref.cfg" `
+  --json
+```
 
 The controller deliberately does not toggle combat mode with `C`: combat mode is a stateful
 toggle and the current state is not yet part of the native observation contract. `Ctrl+A`

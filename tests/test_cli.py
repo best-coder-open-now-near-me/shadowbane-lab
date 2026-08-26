@@ -155,7 +155,7 @@ class ClientCliTests(unittest.TestCase):
 
         profile = load_calibration(template)
         mappings = {mapping.action_key: mapping for mapping in profile.actions}
-        self.assertEqual("home", mappings["client.pve.target_next_mobile"].activation.key)
+        self.assertEqual(";", mappings["client.pve.target_next_mobile"].activation.key)
         self.assertEqual(
             ("ctrl", "a"),
             mappings["shadowbane.basic_attack"].activation.keys,
