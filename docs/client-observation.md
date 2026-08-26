@@ -27,6 +27,49 @@ health, requires a non-null aligned player pointer, performs stable pointer-befo
 pointer-after reads, and validates every current/maximum pair. The bounded PvE controller
 requires this observation and stops before further input when health reaches 50 percent.
 
+## Native progression core
+
+The same stable local-player object exposes exact level, unspent ability and training points,
+left/right attack rating, and defense. The bundled profile records the live level-59 calibration
+at offsets `0xCC0`, `0xCAC`, `0xC20`, `0xCFC`/`0xD00`, and `0xD04` respectively. Read them
+without focusing or capturing the game:
+
+```powershell
+.\.venv\Scripts\python.exe -m shadowbane_lab.cli client observe-native-progression --json
+```
+
+The reader is read-only and build-guarded: it checks the executable hash, pointer slot and player
+pointer bounds, requires a stable pointer around bounded 64-byte reads, and rejects impossible
+levels, point balances, ratings, and defense. This is the durable progression-observation core;
+attribute caps remain a separate semantic source rather than a guessed memory field.
+
+## Native skills and powers
+
+The local-player object's skill vector begins at `0xC24` and its power vector at `0x670`.
+Both are standard 32-bit start/end/capacity vectors with 16-byte records: unsigned token,
+trained ranks, effective rank, and maximum effective rank. Read the complete vectors with:
+
+```powershell
+.\.venv\Scripts\python.exe -m shadowbane_lab.cli client observe-native-training --json
+```
+
+The reader applies the executable hash and pointer guards used by the scalar observer, validates
+vector pointer order, alignment, capacity, counts, duplicate tokens, and rank bounds, and reads
+in backend-safe 64-byte chunks. It rereads both metadata triples and the player pointer after the
+payload; any concurrent mutation retries the entire snapshot. Unknown tokens remain lossless as
+`power_0x...` entries instead of receiving guessed semantic names.
+
+Live validation returned 9 skills and 43 powers. The bundled catalog resolves all nine skills and
+30 powers, including every proc-Assassin roadmap power. Compose both native sources and compare
+the live effective ranks with sourced build targets using:
+
+```powershell
+.\.venv\Scripts\python.exe -m shadowbane_lab.cli client advise-irekei-proc --json
+```
+
+The audit reports power-rank increments separately from displayed skill-rank gaps because the
+latter must not be confused with training-point costs.
+
 ## Native selected-target health
 
 The preferred health source reads the same selected-object values that feed Arcane datafields

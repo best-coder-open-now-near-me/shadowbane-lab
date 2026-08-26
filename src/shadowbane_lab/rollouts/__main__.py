@@ -6,6 +6,10 @@ import argparse
 import json
 from collections.abc import Sequence
 
+from shadowbane_lab.progression import (
+    irekei_proc_assassin_roadmap,
+    load_wonderbane_irekei_proc_profile,
+)
 from shadowbane_lab.rollouts import (
     frost_walker_observed_config,
     matched_progression_duels,
@@ -28,9 +32,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m shadowbane_lab.rollouts")
     parser.add_argument(
         "--scenario",
-        choices=("duels", "frost-walker", "pure-frost-walker"),
+        choices=("duels", "frost-walker", "pure-frost-walker", "irekei-proc"),
         default="duels",
     )
+    parser.add_argument("--level", type=int, default=59)
     parser.add_argument("--levels", type=_integers, default=(10, 15, 22, 26, 40))
     parser.add_argument("--ranks", type=_integers, default=(0, 20, 40))
     parser.add_argument("--max-ticks", type=int, default=1_000)
@@ -38,6 +43,29 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--episodes", type=int, default=1_000)
     parser.add_argument("--json", action="store_true")
     arguments = parser.parse_args(argv)
+    if arguments.scenario == "irekei-proc":
+        roadmap = irekei_proc_assassin_roadmap(
+            load_wonderbane_irekei_proc_profile(),
+            level=arguments.level,
+        )
+        if arguments.json:
+            print(json.dumps(roadmap.as_dict(), indent=2, sort_keys=True))
+        else:
+            print(
+                f"Irekei Rogue Assassin level {roadmap.level}: "
+                f"{roadmap.training_points_now} trains now, "
+                f"{roadmap.training_points_at_75 - roadmap.training_points_now} still to earn"
+            )
+            print(f"Disciplines now: {', '.join(roadmap.disciplines_now)}")
+            print(f"Third discipline at 70: {roadmap.third_discipline_at_70}")
+            for candidate in roadmap.candidates:
+                print(
+                    f"{candidate.name}: ATR={candidate.attack_rating:.1f}, "
+                    f"base DEF={candidate.baseline_defense}, "
+                    f"proc DPS={candidate.procs.expected_proc_damage_per_second:.2f}"
+                )
+        return 0
+
     if arguments.scenario == "pure-frost-walker":
         result = run_pure_pve_batch(
             frost_walker_observed_config(max_ticks=arguments.max_ticks),
@@ -48,9 +76,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(json.dumps(result.as_dict(), indent=2, sort_keys=True))
         else:
             mean_ttk = (
-                "n/a"
-                if result.mean_kill_time_ms is None
-                else f"{result.mean_kill_time_ms:.1f}ms"
+                "n/a" if result.mean_kill_time_ms is None else f"{result.mean_kill_time_ms:.1f}ms"
             )
             mean_attacks = (
                 "n/a"

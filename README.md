@@ -19,7 +19,11 @@ identifiers.
 The versioned protocol, typed action algebra, deterministic scalar reference environment,
 first provenance-aware Shadowbane ruleset slice, and guarded client-input adapter are
 implemented. Progression-aware duel rollouts exercise level-gated Assassin and Warlock
-power ranges at explicit training-rank brackets. Direct semantic PvE batches run known
+power ranges at explicit training-rank brackets. A sourced WonderBane progression slice
+evaluates level/ability/training budgets and normalized unarmed-proc output for an Irekei
+Rogue Assassin. Build-guarded native readers now expose the live scalar progression core plus
+lossless skill and power vectors, and the sourced roadmap can audit those ranks directly.
+Direct semantic PvE batches run known
 player/mob encounters across contiguous deterministic seeds without client targeting or
 window-safety machinery; a separate bridge tests the guarded production PvE controller.
 Differential traces can record and compare
@@ -42,6 +46,10 @@ The protocol has no runtime dependencies. From the repository root:
 $env:PYTHONPATH = "src"
 python -m unittest discover -s tests -v
 python -m shadowbane_lab.rollouts
+python -m shadowbane_lab.rollouts --scenario irekei-proc --level 59 --json
+python -m shadowbane_lab.cli client observe-native-progression --json
+python -m shadowbane_lab.cli client observe-native-training --json
+python -m shadowbane_lab.cli client advise-irekei-proc --json
 ```
 
 When Python is not exposed on `PATH`, use the interpreter configured for the workspace.

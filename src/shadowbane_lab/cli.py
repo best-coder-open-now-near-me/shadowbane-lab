@@ -30,19 +30,34 @@ from shadowbane_lab.client_observation import (
     NativeCombatLogFormatError,
     NativeCombatLogReader,
     NativeHealthProfileLoadError,
+    NativePlayerProgressionCoreError,
+    NativePlayerTrainingError,
     NativePlayerVitalsError,
+    NativeProgressionCoreProfileLoadError,
     NativeTargetHealthError,
+    NativeTrainingProfileLoadError,
     NativeVitalsProfileLoadError,
     ObservationCalibrationLoadError,
     ObservationDetectionError,
     PyAutoGuiFrameCapture,
     load_bundled_native_health_profile,
+    load_bundled_native_progression_core_profile,
+    load_bundled_native_training_profile,
     load_bundled_native_vitals_profile,
     load_native_health_profile,
+    load_native_progression_core_profile,
+    load_native_training_profile,
     load_native_vitals_profile,
     load_observation_calibration,
+    open_windows_native_player_progression_core_reader,
+    open_windows_native_player_training_reader,
     open_windows_native_player_vitals_reader,
     open_windows_native_target_health_reader,
+)
+from shadowbane_lab.progression import (
+    audit_proc_assassin_training,
+    irekei_proc_assassin_roadmap,
+    load_wonderbane_irekei_proc_profile,
 )
 from shadowbane_lab.pve import (
     ClientPvEIntentDispatcher,
@@ -118,9 +133,7 @@ def _parser() -> argparse.ArgumentParser:
         default=0.0,
         help="maximum time to wait for the calibrated client to become foreground",
     )
-    observe_target.add_argument(
-        "--json", action="store_true", help="emit machine-readable JSON"
-    )
+    observe_target.add_argument("--json", action="store_true", help="emit machine-readable JSON")
 
     read_combat_log = client_commands.add_parser(
         "read-combat-log",
@@ -132,9 +145,7 @@ def _parser() -> argparse.ArgumentParser:
         type=int,
         help="return only the newest N complete records",
     )
-    read_combat_log.add_argument(
-        "--json", action="store_true", help="emit machine-readable JSON"
-    )
+    read_combat_log.add_argument("--json", action="store_true", help="emit machine-readable JSON")
 
     observe_native_target = client_commands.add_parser(
         "observe-native-target",
@@ -159,6 +170,50 @@ def _parser() -> argparse.ArgumentParser:
         help="native vitals profile; defaults to the verified bundled WonderBane build",
     )
     observe_native_player.add_argument(
+        "--json", action="store_true", help="emit machine-readable JSON"
+    )
+
+    observe_native_progression = client_commands.add_parser(
+        "observe-native-progression",
+        help="read level, unspent points, attack ratings, and defense from a calibrated build",
+    )
+    observe_native_progression.add_argument(
+        "--profile",
+        type=Path,
+        help="native progression profile; defaults to the verified bundled WonderBane build",
+    )
+    observe_native_progression.add_argument(
+        "--json", action="store_true", help="emit machine-readable JSON"
+    )
+
+    observe_native_training = client_commands.add_parser(
+        "observe-native-training",
+        help="read exact local-player skill and power vectors from a calibrated build",
+    )
+    observe_native_training.add_argument(
+        "--profile",
+        type=Path,
+        help="native training profile; defaults to the verified bundled WonderBane build",
+    )
+    observe_native_training.add_argument(
+        "--json", action="store_true", help="emit machine-readable JSON"
+    )
+
+    advise_irekei_proc = client_commands.add_parser(
+        "advise-irekei-proc",
+        help="compare the live character's exact ranks with the sourced proc-Assassin roadmap",
+    )
+    advise_irekei_proc.add_argument(
+        "--progression-profile",
+        type=Path,
+        help="native scalar progression profile; defaults to the verified WonderBane build",
+    )
+    advise_irekei_proc.add_argument(
+        "--training-profile",
+        type=Path,
+        help="native skill/power profile; defaults to the verified WonderBane build",
+    )
+    advise_irekei_proc.add_argument(
         "--json", action="store_true", help="emit machine-readable JSON"
     )
 
@@ -383,8 +438,7 @@ def _observe_target(
         if observation.health_fraction is not None:
             print(f"Health: {observation.health_fraction:.1%}")
         print(
-            "Health fill: "
-            f"{observation.leading_filled_columns}/{observation.total_columns} columns"
+            f"Health fill: {observation.leading_filled_columns}/{observation.total_columns} columns"
         )
         print(f"Stray filled columns: {observation.stray_filled_columns}")
     return 0
@@ -499,6 +553,163 @@ def _observe_native_player(profile_path: Path | None, *, as_json: bool) -> int:
             f"Stamina: {observation.current_stamina:g}/{observation.maximum_stamina:g} "
             f"({observation.stamina_fraction:.1%})"
         )
+    return 0
+
+
+def _observe_native_progression(profile_path: Path | None, *, as_json: bool) -> int:
+    try:
+        profile = (
+            load_native_progression_core_profile(profile_path)
+            if profile_path is not None
+            else load_bundled_native_progression_core_profile()
+        )
+        with open_windows_native_player_progression_core_reader(profile) as reader:
+            observation = reader.observe()
+            process_id = reader.process_id
+    except (
+        NativePlayerProgressionCoreError,
+        NativeProgressionCoreProfileLoadError,
+        OSError,
+        ValueError,
+    ) as exc:
+        return _error(f"native progression observation failed: {exc}", as_json=as_json)
+    payload = {
+        "ok": True,
+        "profile_id": profile.profile_id,
+        "process_id": process_id,
+        **observation.as_dict(),
+    }
+    if as_json:
+        print(json.dumps(payload, sort_keys=True))
+    else:
+        print(f"Level: {observation.level}")
+        print(f"Ability points: {observation.unspent_ability_points}")
+        print(f"Training points: {observation.unspent_training_points}")
+        print(
+            f"Attack rating: {observation.left_attack_rating}/"
+            f"{observation.right_attack_rating} (left/right)"
+        )
+        print(f"Defense: {observation.defense}")
+    return 0
+
+
+def _observe_native_training(profile_path: Path | None, *, as_json: bool) -> int:
+    try:
+        profile = (
+            load_native_training_profile(profile_path)
+            if profile_path is not None
+            else load_bundled_native_training_profile()
+        )
+        with open_windows_native_player_training_reader(profile) as reader:
+            observation = reader.observe()
+            process_id = reader.process_id
+    except (
+        NativePlayerTrainingError,
+        NativeTrainingProfileLoadError,
+        OSError,
+        ValueError,
+    ) as exc:
+        return _error(f"native training observation failed: {exc}", as_json=as_json)
+    payload = {
+        "ok": True,
+        "profile_id": profile.profile_id,
+        "process_id": process_id,
+        **observation.as_dict(),
+    }
+    if as_json:
+        print(json.dumps(payload, sort_keys=True))
+    else:
+        print("Skills:")
+        for entry in observation.skills:
+            print(
+                f"  {entry.display_name}: {entry.effective_rank} "
+                f"(trained {entry.trained_rank}, max {entry.effective_rank_max})"
+            )
+        print("Powers:")
+        for entry in observation.powers:
+            print(
+                f"  {entry.display_name}: {entry.effective_rank} "
+                f"(trained {entry.trained_rank}, max {entry.effective_rank_max})"
+            )
+    return 0
+
+
+def _advise_irekei_proc(
+    progression_profile_path: Path | None,
+    training_profile_path: Path | None,
+    *,
+    as_json: bool,
+) -> int:
+    try:
+        progression_profile = (
+            load_native_progression_core_profile(progression_profile_path)
+            if progression_profile_path is not None
+            else load_bundled_native_progression_core_profile()
+        )
+        training_profile = (
+            load_native_training_profile(training_profile_path)
+            if training_profile_path is not None
+            else load_bundled_native_training_profile()
+        )
+        with open_windows_native_player_progression_core_reader(
+            progression_profile
+        ) as progression_reader:
+            progression = progression_reader.observe()
+            progression_process_id = progression_reader.process_id
+        with open_windows_native_player_training_reader(training_profile) as training_reader:
+            training = training_reader.observe()
+            training_process_id = training_reader.process_id
+        if progression_process_id != training_process_id:
+            raise ValueError("native progression sources resolved different processes")
+        roadmap = irekei_proc_assassin_roadmap(
+            load_wonderbane_irekei_proc_profile(),
+            level=progression.level,
+        )
+        audit = audit_proc_assassin_training(
+            roadmap,
+            skill_ranks={item.key: item.effective_rank for item in training.skills},
+            power_ranks={item.key: item.effective_rank for item in training.powers},
+            unspent_training_points=progression.unspent_training_points,
+        )
+    except (
+        NativePlayerProgressionCoreError,
+        NativePlayerTrainingError,
+        NativeProgressionCoreProfileLoadError,
+        NativeTrainingProfileLoadError,
+        OSError,
+        ValueError,
+    ) as exc:
+        return _error(f"proc-Assassin advice failed: {exc}", as_json=as_json)
+
+    payload = {
+        "ok": True,
+        "process_id": progression_process_id,
+        "progression_profile_id": progression_profile.profile_id,
+        "training_profile_id": training_profile.profile_id,
+        "unresolved_power_tokens": [
+            f"0x{item.token:08X}" for item in training.powers if not item.catalogued
+        ],
+        "audit": audit.as_dict(),
+    }
+    if as_json:
+        print(json.dumps(payload, sort_keys=True))
+    else:
+        print(f"Level {audit.level}: {audit.unspent_training_points} training points remain")
+        unmet_powers = [item for item in audit.power_targets if not item.target_met]
+        print("Power rank increases:")
+        for item in unmet_powers:
+            print(f"  {item.key}: {item.current_rank} -> {item.target_rank} (+{item.rank_gap})")
+        print(
+            f"Power ranks needed: {audit.power_rank_increments_needed}; "
+            f"reserve after those ranks: {audit.power_training_reserve_after_targets}"
+        )
+        print("End-state displayed skill gaps (not training-point costs):")
+        for item in audit.skill_targets:
+            if not item.target_met:
+                print(
+                    f"  {item.key}: {item.current_rank} -> {item.target_rank} "
+                    f"(displayed gap {item.rank_gap})"
+                )
     return 0
 
 
@@ -683,6 +894,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _observe_native_target(arguments.profile, as_json=arguments.json)
     if arguments.command == "client" and arguments.client_command == "observe-native-player":
         return _observe_native_player(arguments.profile, as_json=arguments.json)
+    if arguments.command == "client" and arguments.client_command == "observe-native-progression":
+        return _observe_native_progression(arguments.profile, as_json=arguments.json)
+    if arguments.command == "client" and arguments.client_command == "observe-native-training":
+        return _observe_native_training(arguments.profile, as_json=arguments.json)
+    if arguments.command == "client" and arguments.client_command == "advise-irekei-proc":
+        return _advise_irekei_proc(
+            arguments.progression_profile,
+            arguments.training_profile,
+            as_json=arguments.json,
+        )
     if arguments.command == "client" and arguments.client_command == "run-pve":
         return _run_pve(
             client_profile_path=arguments.client_profile,

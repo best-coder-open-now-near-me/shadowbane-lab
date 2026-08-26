@@ -1,0 +1,209 @@
+{
+  "schema_version": 1,
+  "profile_id": "wonderbane.irekei.rogue_assassin.unarmed_proc.v1",
+  "retrieved_on": "2026-08-26",
+  "sources": [
+    {
+      "source_id": "wonderbane-current-calculator",
+      "kind": "server_calculator",
+      "uri": "https://www.wonderbane.online/",
+      "revision": "retrieved-2026-08-26"
+    },
+    {
+      "source_id": "morloch-formulas-29158",
+      "kind": "wiki",
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Formulas&oldid=29158",
+      "revision": "29158"
+    },
+    {
+      "source_id": "morloch-proc-33392",
+      "kind": "wiki",
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Proc&oldid=33392",
+      "revision": "33392"
+    },
+    {
+      "source_id": "morloch-assassin-powers-36339",
+      "kind": "wiki",
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Assassin_Powers&oldid=36339",
+      "revision": "36339"
+    },
+    {
+      "source_id": "morloch-sun-dancer-36387",
+      "kind": "wiki",
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Sun_Dancer&oldid=36387",
+      "revision": "36387"
+    },
+    {
+      "source_id": "morloch-unarmed-weapons-33179",
+      "kind": "wiki",
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Unarmed_Weapons&oldid=33179",
+      "revision": "33179"
+    },
+    {
+      "source_id": "morloch-training-points-30459",
+      "kind": "wiki",
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Training_Point&oldid=30459",
+      "revision": "30459"
+    },
+    {
+      "source_id": "community-proc-template",
+      "kind": "community_template",
+      "uri": "https://shadowbanetemplates.weebly.com/assassin-rogue-templates.html",
+      "revision": "retrieved-2026-08-26"
+    },
+    {
+      "source_id": "rivkah-stat-runes",
+      "kind": "historical_mechanics",
+      "uri": "https://www.anybrowser.org/shadowbane/stats.html",
+      "revision": "retrieved-2026-08-26"
+    }
+  ],
+  "identity": {
+    "race": "Irekei",
+    "base_class": "Rogue",
+    "profession": "Assassin",
+    "race_start": [40, 55, 40, 45, 30],
+    "race_caps": [85, 130, 90, 110, 85],
+    "creation_pool": 15,
+    "race_resource_bonuses": [0, 20, 70],
+    "base_modifiers": [0, 5, 0, 5, -10],
+    "base_resource_factors": [17, 10, 8],
+    "profession_resource_factors": [50, 16, 0],
+    "boon": 5
+  },
+  "limits": {
+    "maximum_level": 75,
+    "maximum_runes": 12,
+    "disciplines_below_70": 2,
+    "disciplines_at_70": 3
+  },
+  "runes": [
+    {
+      "key": "brilliant_mind",
+      "name": "Brilliant Mind",
+      "kind": "stat",
+      "cost": 12,
+      "minimum_level": 1,
+      "stat_grants": [0, 0, 0, 10, 0],
+      "cap_grants": [0, 0, 0, 10, 0],
+      "minimum_stats": [0, 0, 0, 50, 0],
+      "source_id": "rivkah-stat-runes"
+    },
+    {
+      "key": "wizards_apprentice",
+      "name": "Wizard's Apprentice",
+      "kind": "stat",
+      "cost": 8,
+      "minimum_level": 1,
+      "stat_grants": [0, 0, -5, 10, -5],
+      "cap_grants": [0, 0, -5, 10, -5],
+      "minimum_stats": [0, 0, 0, 40, 0],
+      "source_id": "rivkah-stat-runes"
+    },
+    {
+      "key": "sun_dancer",
+      "name": "Sun Dancer",
+      "kind": "discipline",
+      "cost": 0,
+      "minimum_level": 20,
+      "stat_grants": [0, 0, 5, 0, 0],
+      "cap_grants": [0, 0, 5, 0, 0],
+      "minimum_stats": [0, 0, 0, 0, 0],
+      "source_id": "wonderbane-current-calculator"
+    },
+    {
+      "key": "saboteur",
+      "name": "Saboteur",
+      "kind": "discipline",
+      "cost": 0,
+      "minimum_level": 20,
+      "stat_grants": [0, 20, 0, 0, 0],
+      "cap_grants": [0, 20, 0, 0, 0],
+      "minimum_stats": [0, 0, 0, 0, 0],
+      "source_id": "wonderbane-current-calculator"
+    },
+    {
+      "key": "bounty_hunter",
+      "name": "Bounty Hunter",
+      "kind": "discipline",
+      "cost": 0,
+      "minimum_level": 20,
+      "stat_grants": [0, 0, 5, 0, 0],
+      "cap_grants": [0, 0, 5, 0, 0],
+      "minimum_stats": [0, 0, 0, 0, 0],
+      "source_id": "wonderbane-current-calculator"
+    },
+    {
+      "key": "intelligence_of_the_gods",
+      "name": "Intelligence of the Gods",
+      "kind": "stat",
+      "cost": 15,
+      "minimum_level": 1,
+      "stat_grants": [0, 0, 0, 10, 0],
+      "cap_grants": [0, 0, 0, 40, 0],
+      "minimum_stats": [0, 0, 0, 120, 0],
+      "source_id": "wonderbane-current-calculator"
+    },
+    {
+      "key": "dexterity_of_the_gods",
+      "name": "Dexterity of the Gods",
+      "kind": "stat",
+      "cost": 15,
+      "minimum_level": 1,
+      "stat_grants": [0, 10, 0, 0, 0],
+      "cap_grants": [0, 40, 0, 0, 0],
+      "minimum_stats": [0, 120, 0, 0, 0],
+      "source_id": "wonderbane-current-calculator"
+    }
+  ],
+  "weapons": [
+    {
+      "key": "rha_khanakar",
+      "name": "Rha'khanakar",
+      "required_unarmed": 110,
+      "base_minimum_damage": 4,
+      "base_maximum_damage": 16,
+      "base_speed": 20.0,
+      "source_id": "morloch-unarmed-weapons-33179"
+    },
+    {
+      "key": "generic_fast_fist",
+      "name": "Fast 100% unarmed weapon",
+      "required_unarmed": 100,
+      "base_minimum_damage": 4,
+      "base_maximum_damage": 16,
+      "base_speed": 20.0,
+      "source_id": "morloch-unarmed-weapons-33179"
+    }
+  ],
+  "proc_effects": [
+    {
+      "key": "tier_three_mental",
+      "name": "Tier-three mental weapon proc",
+      "chance_per_successful_hit": 0.05,
+      "base_minimum_damage": 20,
+      "base_maximum_damage": 46,
+      "focus_scaling": false,
+      "source_id": "morloch-proc-33392"
+    },
+    {
+      "key": "poison_blade_rank_40",
+      "name": "Poison Blade rank 40",
+      "chance_per_successful_hit": 0.05,
+      "base_minimum_damage": 69,
+      "base_maximum_damage": 148,
+      "focus_scaling": false,
+      "source_id": "morloch-assassin-powers-36339"
+    }
+  ],
+  "training_targets": [
+    {"key": "unarmed", "target": 100, "priority": 1, "minimum_level": 1},
+    {"key": "unarmed", "target": 110, "priority": 2, "minimum_level": 20},
+    {"key": "unarmed", "target": 161, "priority": 3, "minimum_level": 59},
+    {"key": "unarmed_mastery", "target": 70, "priority": 4, "minimum_level": 20},
+    {"key": "light_armor", "target": 100, "priority": 5, "minimum_level": 1},
+    {"key": "shadowmastery", "target": 97, "priority": 6, "minimum_level": 42},
+    {"key": "light_armor", "target": 161, "priority": 7, "minimum_level": 59},
+    {"key": "dodge", "target": 100, "priority": 8, "minimum_level": 1}
+  ]
+}

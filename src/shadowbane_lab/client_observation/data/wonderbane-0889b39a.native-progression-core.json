@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "profile_id": "wonderbane-0889b39a-player-progression-core",
+  "executable_name": "sb.exe",
+  "executable_sha256": "0889b39a6f065f2ddf696bad01455e0b691892077105fe27e35de94bfdf59ebc",
+  "pointer_size": 4,
+  "player_pointer_rva": 23735704,
+  "training_points_offset": 3104,
+  "ability_points_offset": 3244,
+  "level_offset": 3264,
+  "left_attack_rating_offset": 3324,
+  "right_attack_rating_offset": 3328,
+  "defense_offset": 3332,
+  "minimum_user_address": 65536,
+  "maximum_user_address": 2147418111,
+  "maximum_level": 75,
+  "maximum_plausible_points": 10000,
+  "maximum_plausible_rating": 100000
+}
