@@ -12,6 +12,7 @@ from pathlib import Path
 
 from shadowbane_lab.client_input import (
     ArcaneClientAction,
+    ArcaneHotbarLoadError,
     ArcaneHotkeyLoadError,
     CalibrationLoadError,
     ClientInputAdapter,
@@ -25,6 +26,7 @@ from shadowbane_lab.client_input import (
     WindowsHotkeyEmergencyStop,
     WindowSnapshot,
     WindowsVisibleWindowInspector,
+    load_arcane_hotbar,
     load_arcane_hotkeys,
     load_calibration,
 )
@@ -120,6 +122,15 @@ def _parser() -> argparse.ArgumentParser:
     )
     inspect_hotkeys.add_argument("preferences", type=Path)
     inspect_hotkeys.add_argument(
+        "--json", action="store_true", help="emit machine-readable JSON"
+    )
+
+    inspect_hotbar = client_commands.add_parser(
+        "inspect-hotbar",
+        help="read F1-F12 power assignments from a character SCREEN_GAME config",
+    )
+    inspect_hotbar.add_argument("character_config", type=Path)
+    inspect_hotbar.add_argument(
         "--json", action="store_true", help="emit machine-readable JSON"
     )
 
@@ -463,6 +474,45 @@ def _inspect_arcane_hotkeys(path: Path, *, as_json: bool) -> int:
             print(
                 f"{action['display_name']} [{action['native_action_code']}]: {rendered}"
             )
+    return 0
+
+
+def _inspect_arcane_hotbar(path: Path, *, as_json: bool) -> int:
+    try:
+        table = load_arcane_hotbar(path)
+    except ArcaneHotbarLoadError as exc:
+        return _error(f"hotbar inspection failed: {exc}", as_json=as_json)
+    sets = [
+        {
+            "set_index": hotbar_set.set_index,
+            "active": hotbar_set.set_index == table.current_set_index,
+            "slots": [
+                {
+                    "slot_index": slot.slot_index,
+                    "activation_key": slot.activation_key,
+                    "occupied": slot.occupied,
+                    "item_type": slot.item_type,
+                    "power_name": slot.power_name,
+                }
+                for slot in hotbar_set.slots
+            ],
+        }
+        for hotbar_set in table.sets
+    ]
+    payload = {
+        "ok": True,
+        "character_config": str(path),
+        "current_set_index": table.current_set_index,
+        "set_count": len(table.sets),
+        "sets": sets,
+    }
+    if as_json:
+        print(json.dumps(payload, sort_keys=True))
+    else:
+        print(f"Current hotbar set: {table.current_set_index}")
+        for slot in table.current_set.slots:
+            assignment = slot.power_name or (slot.item_type if slot.occupied else "empty")
+            print(f"{slot.activation_key.upper()}: {assignment}")
     return 0
 
 
@@ -976,6 +1026,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _validate_profile(arguments.profile, as_json=arguments.json)
     if arguments.command == "client" and arguments.client_command == "inspect-hotkeys":
         return _inspect_arcane_hotkeys(arguments.preferences, as_json=arguments.json)
+    if arguments.command == "client" and arguments.client_command == "inspect-hotbar":
+        return _inspect_arcane_hotbar(arguments.character_config, as_json=arguments.json)
     if arguments.command == "client" and arguments.client_command == "observe-target":
         return _observe_target(
             arguments.client_profile,
