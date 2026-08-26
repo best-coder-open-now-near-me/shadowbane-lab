@@ -92,6 +92,7 @@ class NativeTargetHealthReaderTests(unittest.TestCase):
         observation = reader.observe()
 
         self.assertTrue(observation.target_present)
+        self.assertEqual(24, len(observation.target_token or ""))
         self.assertAlmostEqual(8.55689, observation.current_health, places=5)
         self.assertEqual(10.0, observation.maximum_health)
         self.assertAlmostEqual(0.855689, observation.health_fraction, places=5)
@@ -214,6 +215,7 @@ class FakeNativeReader:
             target_present=True,
             current_health=8.5,
             maximum_health=10.0,
+            target_token="target-test",
         )
 
 
@@ -236,6 +238,7 @@ class NativeTargetHealthCliTests(unittest.TestCase):
         payload = json.loads(output.getvalue())
         self.assertEqual(0, result)
         self.assertTrue(payload["target_present"])
+        self.assertEqual("target-test", payload["target_token"])
         self.assertEqual(8.5, payload["current_health"])
         self.assertEqual(10.0, payload["maximum_health"])
         self.assertEqual(0.85, payload["health_fraction"])

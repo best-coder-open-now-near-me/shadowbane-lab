@@ -70,6 +70,8 @@ from representative scenarios on the target hardware.
 - Current vertical slice: progression-aware Assassin-versus-Warlock clean-start duels,
   deterministic utility decisions, explicit rank brackets, and legality/resource/outcome
   metrics.
+- Current live slice: a bounded nearby-mobile PvE controller using exact selected-target
+  health, typed native combat events, semantic input actions, and strict stop conditions.
 - Support clean starts, mid-fight snapshots, reinforcement, retreat, death/respawn,
   uneven teams, and objectives.
 - Implement a generic utility policy over semantic affordances.

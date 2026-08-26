@@ -8,7 +8,11 @@ from pathlib import Path
 from unittest.mock import patch
 
 from shadowbane_lab.cli import main
-from shadowbane_lab.client_input import StaticVisibleWindowInspector, StaticWindowInspector
+from shadowbane_lab.client_input import (
+    StaticVisibleWindowInspector,
+    StaticWindowInspector,
+    load_calibration,
+)
 from tests.test_client_input_executor import _valid_snapshot
 
 
@@ -136,6 +140,46 @@ class ClientCliTests(unittest.TestCase):
         self.assertEqual(0, result)
         self.assertTrue(payload["ok"])
         self.assertFalse(payload["live_input_enabled"])
+
+    def test_pve_template_has_mob_target_and_basic_attack_mappings(self) -> None:
+        output = io.StringIO()
+        template = Path(__file__).parents[1] / "configs" / "wonderbane-pve.template.json"
+
+        with redirect_stdout(output):
+            result = main(("client", "validate-profile", str(template), "--json"))
+
+        payload = json.loads(output.getvalue())
+        self.assertEqual(0, result)
+        self.assertEqual(2, payload["action_count"])
+        self.assertFalse(payload["live_input_enabled"])
+
+        profile = load_calibration(template)
+        mappings = {mapping.action_key: mapping for mapping in profile.actions}
+        self.assertEqual("home", mappings["client.pve.target_next_mobile"].activation.key)
+        self.assertEqual(
+            ("ctrl", "a"),
+            mappings["shadowbane.basic_attack"].activation.keys,
+        )
+
+    def test_pve_command_requires_explicit_live_flag(self) -> None:
+        output = io.StringIO()
+        with redirect_stdout(output):
+            result = main(
+                (
+                    "client",
+                    "run-pve",
+                    "--client-profile",
+                    "pve.json",
+                    "--combat-log",
+                    "combat.log.txt",
+                    "--json",
+                )
+            )
+
+        payload = json.loads(output.getvalue())
+        self.assertEqual(2, result)
+        self.assertFalse(payload["ok"])
+        self.assertIn("--live", payload["error"])
 
 
 if __name__ == "__main__":

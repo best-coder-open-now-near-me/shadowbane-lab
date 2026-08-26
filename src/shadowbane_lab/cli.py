@@ -12,8 +12,15 @@ from pathlib import Path
 
 from shadowbane_lab.client_input import (
     CalibrationLoadError,
+    ClientInputAdapter,
+    DecisionInputCompiler,
+    ForegroundWindowGuard,
+    GuardedInputExecutor,
+    PyAutoGuiBackend,
+    StaticBindingPointResolver,
     WindowGuardError,
     WindowsForegroundWindowInspector,
+    WindowsHotkeyEmergencyStop,
     WindowSnapshot,
     WindowsVisibleWindowInspector,
     load_calibration,
@@ -31,6 +38,13 @@ from shadowbane_lab.client_observation import (
     load_native_health_profile,
     load_observation_calibration,
     open_windows_native_target_health_reader,
+)
+from shadowbane_lab.pve import (
+    ClientPvEIntentDispatcher,
+    PvEController,
+    PvEControllerConfig,
+    PvEIntent,
+    PvERunner,
 )
 
 
@@ -129,6 +143,24 @@ def _parser() -> argparse.ArgumentParser:
     observe_native_target.add_argument(
         "--json", action="store_true", help="emit machine-readable JSON"
     )
+
+    run_pve = client_commands.add_parser(
+        "run-pve",
+        help="run a bounded native-observation PvE loop against nearby mobiles",
+    )
+    run_pve.add_argument("--client-profile", type=Path, required=True)
+    run_pve.add_argument("--combat-log", type=Path, required=True)
+    run_pve.add_argument("--native-health-profile", type=Path)
+    run_pve.add_argument("--max-kills", type=int, default=1)
+    run_pve.add_argument("--max-seconds", type=float, default=120.0)
+    run_pve.add_argument("--wait-for-client-seconds", type=float, default=15.0)
+    run_pve.add_argument("--poll-ms", type=int, default=100)
+    run_pve.add_argument(
+        "--live",
+        action="store_true",
+        help="required in addition to a profile with live_input_enabled=true",
+    )
+    run_pve.add_argument("--json", action="store_true", help="emit machine-readable JSON")
     return parser
 
 
@@ -388,6 +420,7 @@ def _observe_native_target(profile_path: Path | None, *, as_json: bool) -> int:
         "profile_id": profile.profile_id,
         "process_id": process_id,
         "target_present": observation.target_present,
+        "target_token": observation.target_token,
         "current_health": observation.current_health,
         "maximum_health": observation.maximum_health,
         "health_fraction": observation.health_fraction,
@@ -404,6 +437,137 @@ def _observe_native_target(profile_path: Path | None, *, as_json: bool) -> int:
                 f"({observation.health_fraction:.1%})"
             )
     return 0
+
+
+def _run_pve(
+    *,
+    client_profile_path: Path,
+    combat_log_path: Path,
+    native_health_profile_path: Path | None,
+    max_kills: int,
+    max_seconds: float,
+    wait_for_client_seconds: float,
+    poll_ms: int,
+    live: bool,
+    as_json: bool,
+) -> int:
+    if not live:
+        return _error("PvE execution requires the explicit --live flag", as_json=as_json)
+    if isinstance(max_kills, bool) or not 1 <= max_kills <= 10:
+        return _error("max-kills must be in [1, 10]", as_json=as_json)
+    if not 1.0 <= max_seconds <= 900.0:
+        return _error("max-seconds must be in [1, 900]", as_json=as_json)
+    if not 0.0 <= wait_for_client_seconds <= 300.0:
+        return _error("wait-for-client-seconds must be in [0, 300]", as_json=as_json)
+    if isinstance(poll_ms, bool) or not 50 <= poll_ms <= 1_000:
+        return _error("poll-ms must be in [50, 1000]", as_json=as_json)
+    if not combat_log_path.is_file():
+        return _error(f"combat log does not exist: {combat_log_path}", as_json=as_json)
+    try:
+        client_profile = load_calibration(client_profile_path)
+        if not client_profile.live_input_enabled:
+            raise ValueError("client profile is not enabled for live input")
+        mapped_actions = {mapping.action_key for mapping in client_profile.actions}
+        required_actions = {intent.value for intent in PvEIntent}
+        missing_actions = required_actions - mapped_actions
+        if missing_actions:
+            raise ValueError(
+                f"client profile is missing PvE mappings: {', '.join(sorted(missing_actions))}"
+            )
+        health_profile = (
+            load_native_health_profile(native_health_profile_path)
+            if native_health_profile_path is not None
+            else load_bundled_native_health_profile()
+        )
+        inspector = WindowsForegroundWindowInspector()
+        guard = ForegroundWindowGuard(client_profile, inspector)
+        _wait_for_guarded_client(
+            guard,
+            wait_seconds=wait_for_client_seconds,
+        )
+        combat_reader = NativeCombatLogReader(combat_log_path, start_at_end=True)
+        with (
+            open_windows_native_target_health_reader(health_profile) as health_reader,
+            WindowsHotkeyEmergencyStop() as stop_signal,
+        ):
+            executor = GuardedInputExecutor(
+                guard=guard,
+                backend=PyAutoGuiBackend(),
+                stop_signal=stop_signal,
+            )
+            adapter = ClientInputAdapter(
+                DecisionInputCompiler(client_profile, StaticBindingPointResolver()),
+                executor,
+            )
+            result = PvERunner(
+                controller=PvEController(
+                    PvEControllerConfig(
+                        maximum_kills=max_kills,
+                        maximum_session_ms=round(max_seconds * 1000),
+                    )
+                ),
+                health_reader=health_reader,
+                combat_log_reader=combat_reader,
+                dispatcher=ClientPvEIntentDispatcher(adapter),
+                stop_signal=stop_signal,
+                poll_interval_ms=poll_ms,
+            ).run()
+    except (
+        CalibrationLoadError,
+        NativeHealthProfileLoadError,
+        NativeTargetHealthError,
+        OSError,
+        RuntimeError,
+        UnicodeError,
+        ValueError,
+        WindowGuardError,
+    ) as exc:
+        return _error(f"PvE run failed: {exc}", as_json=as_json)
+
+    dispatched = [
+        {
+            "decision_id": step.decision.decision_id,
+            "at_ms": step.decision.now_ms,
+            "intent": step.decision.intent.value,
+            "accepted": step.input_accepted,
+            "reason": step.input_reason,
+        }
+        for step in result.trace
+        if step.decision.intent is not None
+    ]
+    payload = {
+        "ok": result.final_phase.value == "complete",
+        "final_phase": result.final_phase.value,
+        "terminal_reason": result.terminal_reason,
+        "kills": result.kills,
+        "steps": len(result.trace),
+        "dispatched": dispatched,
+    }
+    if as_json:
+        print(json.dumps(payload, sort_keys=True))
+    else:
+        print(f"PvE phase: {result.final_phase.value}")
+        print(f"Reason: {result.terminal_reason}")
+        print(f"Kills: {result.kills}")
+        print(f"Guarded inputs: {len(dispatched)}")
+    return 0 if payload["ok"] else 2
+
+
+def _wait_for_guarded_client(
+    guard: ForegroundWindowGuard,
+    *,
+    wait_seconds: float,
+) -> None:
+    deadline = time.monotonic() + wait_seconds
+    while True:
+        try:
+            guard.require_target()
+            return
+        except WindowGuardError:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise
+            time.sleep(min(0.1, remaining))
 
 
 def _error(message: str, *, as_json: bool) -> int:
@@ -442,6 +606,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
     if arguments.command == "client" and arguments.client_command == "observe-native-target":
         return _observe_native_target(arguments.profile, as_json=arguments.json)
+    if arguments.command == "client" and arguments.client_command == "run-pve":
+        return _run_pve(
+            client_profile_path=arguments.client_profile,
+            combat_log_path=arguments.combat_log,
+            native_health_profile_path=arguments.native_health_profile,
+            max_kills=arguments.max_kills,
+            max_seconds=arguments.max_seconds,
+            wait_for_client_seconds=arguments.wait_for_client_seconds,
+            poll_ms=arguments.poll_ms,
+            live=arguments.live,
+            as_json=arguments.json,
+        )
     raise RuntimeError("unreachable command")
 
 

@@ -5,6 +5,11 @@ from shadowbane_lab.client_observation.calibration import (
     load_observation_calibration,
     load_observation_calibration_text,
 )
+from shadowbane_lab.client_observation.combat_events import (
+    NativeCombatEvent,
+    NativeCombatEventKind,
+    NativeCombatEventParser,
+)
 from shadowbane_lab.client_observation.detector import (
     ObservationDetectionError,
     TargetHealthBarDetector,
@@ -55,6 +60,9 @@ __all__ = [
     "NativeCombatLogEntry",
     "NativeCombatLogFormatError",
     "NativeCombatLogReader",
+    "NativeCombatEvent",
+    "NativeCombatEventKind",
+    "NativeCombatEventParser",
     "NATIVE_HEALTH_PROFILE_SCHEMA_VERSION",
     "NativeHealthProfileLoadError",
     "NativeTargetHealthCompatibilityError",

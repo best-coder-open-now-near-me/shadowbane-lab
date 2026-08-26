@@ -1,0 +1,85 @@
+# Bounded PvE automation
+
+The first live PvE slice acquires a nearby mobile, attacks the newly selected target, and
+stops after a small explicit kill or time limit. It consumes exact selected-target health
+and the native combat log; it does not use OCR, pixel health estimates, or fixed entity
+coordinates.
+
+## Control loop
+
+The controller progresses through `INITIALIZING`, `SEEKING`, `ENGAGED`, and `POST_KILL`.
+It records the initially selected object's opaque token, sends `Target Next Mob`, and will
+attack only after observing a different, valid target token. A kill must be confirmed by a
+typed native `TARGET_KILLED` event before it counts or another target can be acquired.
+
+The live profile maps the semantic operations to bindings documented by the installed
+client itself:
+
+- `client.pve.target_next_mobile` uses `Home` (`Target Next Mob`); and
+- `shadowbane.basic_attack` uses `Ctrl+A` (`Attack Selected`).
+
+The controller deliberately does not toggle combat mode with `C`: combat mode is a stateful
+toggle and the current state is not yet part of the native observation contract. `Ctrl+A`
+is the client's direct attack-selected command and therefore avoids an unobserved toggle.
+
+## Fail-closed behavior
+
+The run stops without issuing more input when any of these conditions occurs:
+
+- the foreground executable, title, window size, or DPI guard changes;
+- the independent `Ctrl+Shift+F12` emergency stop trips;
+- native process identity, executable hash, pointer stability, or health validation fails;
+- the selected target changes while an engagement is active;
+- the combat log reports player death or multiple ambiguous kills;
+- acquisition, combat progress, engagement, session, or kill bounds are exceeded; or
+- an input plan is rejected or interrupted.
+
+The runner never attacks a target that was already selected when it started. A stalled
+fight may retry the direct attack command twice, but it never adds movement, retargeting,
+or power use during that engagement.
+
+## Prepare a VM-local profile
+
+Copy `configs/wonderbane-pve.template.json` inside the game VM. Verify that the target
+window is exactly 1920 by 955 at DPI scale 1.0 and that the client reports the expected
+bindings. Change only the local copy to:
+
+```json
+"live_input_enabled": true
+```
+
+Do not commit a live-enabled or machine-local profile. Validate it before use:
+
+```powershell
+$env:PYTHONPATH = "src"
+.\.venv\Scripts\python.exe -m shadowbane_lab.cli client validate-profile `
+  .\configs\wonderbane-pve.local.json --json
+```
+
+## Run one bounded encounter
+
+Stand near a Frost Walker spawn with no valuable or friendly object selected. Start the
+command in PowerShell, then focus the Shadowbane window during the wait period:
+
+```powershell
+$env:PYTHONPATH = "src"
+.\.venv\Scripts\python.exe -m shadowbane_lab.cli client run-pve `
+  --client-profile .\configs\wonderbane-pve.local.json `
+  --combat-log "C:\Users\admin\Downloads\WonderbaneClient\Wonderbane\Logs\shadowbane-combat.log.txt" `
+  --max-kills 1 `
+  --max-seconds 30 `
+  --wait-for-client-seconds 15 `
+  --live `
+  --json
+```
+
+The result includes the terminal reason, confirmed kill count, and every semantic input
+that passed the live guard. A successful first trial ends with `kill_limit_reached`. Move
+the pointer to a PyAutoGUI fail-safe corner or press `Ctrl+Shift+F12` to stop immediately.
+
+## Current scope
+
+This slice intentionally assumes the player is already positioned within target and attack
+range. Navigation, player health/resource observation, healing, looting, and power rotation
+must enter as separately observed and tested vertical slices; they are not hidden inside the
+nearby-mobile loop.

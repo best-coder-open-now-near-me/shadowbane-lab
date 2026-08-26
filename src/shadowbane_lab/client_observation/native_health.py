@@ -110,16 +110,23 @@ class NativeTargetHealthObservation:
     target_present: bool
     current_health: float | None = None
     maximum_health: float | None = None
+    target_token: str | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.target_present, bool):
             raise ValueError("target_present must be a boolean")
         if not self.target_present:
-            if self.current_health is not None or self.maximum_health is not None:
-                raise ValueError("an absent target cannot contain health values")
+            if (
+                self.current_health is not None
+                or self.maximum_health is not None
+                or self.target_token is not None
+            ):
+                raise ValueError("an absent target cannot contain native target values")
             return
         if self.current_health is None or self.maximum_health is None:
             raise ValueError("a present target requires current and maximum health")
+        if self.target_token is None or not self.target_token.strip():
+            raise ValueError("a present target requires an opaque target token")
         if not isfinite(self.current_health) or not isfinite(self.maximum_health):
             raise ValueError("target health values must be finite")
         if self.current_health < 0 or self.maximum_health <= 0:
@@ -225,7 +232,11 @@ class NativeTargetHealthReader:
             if self._read_pointer() != selected_pointer:
                 continue
             current_health, maximum_health = struct.unpack("<ff", health_bytes)
-            return self._validated_observation(current_health, maximum_health)
+            return self._validated_observation(
+                selected_pointer,
+                current_health,
+                maximum_health,
+            )
         raise NativeTargetHealthReadError(
             "selected target changed during every stable-read attempt"
         )
@@ -270,6 +281,7 @@ class NativeTargetHealthReader:
 
     def _validated_observation(
         self,
+        selected_pointer: int,
         current_health: float,
         maximum_health: float,
     ) -> NativeTargetHealthObservation:
@@ -291,7 +303,14 @@ class NativeTargetHealthReader:
             target_present=True,
             current_health=min(current_health, maximum_health),
             maximum_health=maximum_health,
+            target_token=self._target_token(selected_pointer),
         )
+
+    def _target_token(self, selected_pointer: int) -> str:
+        digest = hashlib.blake2s(digest_size=12)
+        digest.update(self._profile.executable_sha256.encode("ascii"))
+        digest.update(struct.pack("<II", self._process.pid, selected_pointer))
+        return digest.hexdigest()
 
 
 class _ProcessEntry32W(ctypes.Structure):
