@@ -11,10 +11,14 @@ from shadowbane_lab.progression import (
     load_wonderbane_irekei_proc_profile,
 )
 from shadowbane_lab.rollouts import (
+    SmartCampResult,
     frost_walker_observed_config,
+    irekei_proc_assassin_smart_camp_config,
     matched_progression_duels,
     run_nearby_mob_simulation,
     run_pure_pve_batch,
+    run_smart_camp,
+    run_smart_camp_batch,
 )
 
 
@@ -32,7 +36,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m shadowbane_lab.rollouts")
     parser.add_argument(
         "--scenario",
-        choices=("duels", "frost-walker", "pure-frost-walker", "irekei-proc"),
+        choices=(
+            "duels",
+            "frost-walker",
+            "pure-frost-walker",
+            "irekei-proc",
+            "smart-camp",
+        ),
         default="duels",
     )
     parser.add_argument("--level", type=int, default=59)
@@ -43,6 +53,47 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--episodes", type=int, default=1_000)
     parser.add_argument("--json", action="store_true")
     arguments = parser.parse_args(argv)
+    if arguments.scenario == "smart-camp":
+        config = irekei_proc_assassin_smart_camp_config(
+            seed=arguments.seed,
+            max_ticks=arguments.max_ticks,
+        )
+        result = run_smart_camp(config) if arguments.episodes == 1 else run_smart_camp_batch(
+            config,
+            episodes=arguments.episodes,
+            seed_start=arguments.seed,
+        )
+        if arguments.json:
+            payload = (
+                result.as_dict(include_choices=True)
+                if isinstance(result, SmartCampResult)
+                else result.as_dict()
+            )
+            print(json.dumps(payload, indent=2, sort_keys=True))
+        else:
+            if isinstance(result, SmartCampResult):
+                print(
+                    f"{result.profile_id}: {result.reason.value}; "
+                    f"kills={result.mobs_killed}/{result.mobs_total}; "
+                    f"health={result.player_final_health:.1f}; "
+                    f"time={result.sim_time_ms}ms"
+                )
+                print(f"Targets: {list(result.target_sequence)}")
+            else:
+                mean_time = (
+                    "n/a"
+                    if result.mean_clear_time_ms is None
+                    else f"{result.mean_clear_time_ms:.1f}ms"
+                )
+                print(
+                    f"{result.profile_id}: {result.camps_cleared}/{result.episodes} "
+                    f"camps cleared; mean time={mean_time}; "
+                    f"mean health={result.mean_remaining_health:.1f}"
+                )
+            print(f"Actions: {dict(result.action_counts)}")
+            print(f"Procs: {[item.as_dict() for item in result.proc_outcomes]}")
+        return 0
+
     if arguments.scenario == "irekei-proc":
         roadmap = irekei_proc_assassin_roadmap(
             load_wonderbane_irekei_proc_profile(),

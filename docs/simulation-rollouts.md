@@ -134,3 +134,45 @@ The profile is evidence-bearing: 10 target health, observed 4-5 player damage, 7
 and the live-read player resources are data; the discrete-uniform roll, 1-second attack interval,
 and passive mob are declared assumptions. It is therefore useful as a deterministic automation
 gate and future differential-trace target without laundering unknown PvE mechanics into facts.
+
+## Smart proc-Assassin camp policy
+
+The `smart-camp` scenario is the first active multi-mob PvE policy. It retains its current living
+target, selects the nearest replacement only after that target dies, opens a fresh target with
+rank-40 Shadow Touch while stun immunity is absent, and otherwise maintains dual-fist pressure.
+It does not contain rare-mob, rune, or location-specific behavior.
+
+Each aggregate successful hit opportunity applies sourced raw 4-16 fist damage and independently
+checks the tier-three mental and rank-40 Poison Blade procs at 5%. Proc damage uses the sourced
+spell-damage formula for the explicit 35/130/85/165/15 observed-trait candidate. Every chance
+check, trigger, requested damage amount, effective damage amount, action, and target transition
+is retained in deterministic episode evidence.
+
+Run one detailed seed:
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m shadowbane_lab.rollouts `
+  --scenario smart-camp `
+  --episodes 1 `
+  --seed 4 `
+  --json
+```
+
+Or stream a compact seed batch without retaining episode traces:
+
+```powershell
+python -m shadowbane_lab.rollouts `
+  --scenario smart-camp `
+  --episodes 1000 `
+  --seed 0 `
+  --json
+```
+
+The checked 250-seed baseline cleared all 250 three-mob camps with no rejected semantic actions.
+Mean clear time was 30,538.4 ms, with 29,600/42,600/50,600 ms p50/p90/p99 and 324.62 mean
+remaining health from an assumed 500. Across 7,471 successful-hit opportunities, mental and
+Poison Blade trigger rates were 4.97% and 4.67%, respectively. This is a policy and stochastic
+pipeline baseline, not a balance claim: all weapon hits currently succeed; target defense,
+resistance, gear scaling, regeneration, and authoritative camp-mob stats remain excluded; and
+the three generic mobs' 180 health and 5-10 damage every two seconds are declared assumptions.
