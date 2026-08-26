@@ -6,6 +6,7 @@ from shadowbane_lab.sim import (
     ActionPhase,
     ActionSpec,
     ApplyEffect,
+    ChanceGate,
     DealDamage,
     DeliveryKind,
     DeliverySpec,
@@ -159,6 +160,19 @@ def representative_actions() -> tuple[ActionSpec, ...]:
 
 
 class ActionAlgebraTests(unittest.TestCase):
+    def test_chance_gate_requires_a_bounded_direct_effect_bundle(self) -> None:
+        gate = ChanceGate(
+            "weapon_proc",
+            0.05,
+            (DealDamage(SubjectRef.TARGET, 12.0, "mental"),),
+        )
+
+        self.assertEqual(0.05, gate.probability)
+        with self.assertRaisesRegex(ValueError, "at least one"):
+            ChanceGate("empty", 0.5, ())
+        with self.assertRaisesRegex(ValueError, "direct effect"):
+            ChanceGate("nested", 0.5, (gate,))  # type: ignore[arg-type]
+
     def test_uniform_amount_is_bounded_and_exposes_its_expected_value(self) -> None:
         amount = UniformAmount(24.0, 33.0)
 

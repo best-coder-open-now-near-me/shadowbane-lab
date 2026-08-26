@@ -63,6 +63,7 @@ class EventKind(StrEnum):
     TARGET_CHANGED = "target_changed"
     MOVEMENT_CHANGED = "movement_changed"
     DAMAGE_APPLIED = "damage_applied"
+    CHANCE_RESOLVED = "chance_resolved"
     RESOURCE_RESTORED = "resource_restored"
     EFFECT_ADDED = "effect_added"
     EFFECT_REMOVED = "effect_removed"

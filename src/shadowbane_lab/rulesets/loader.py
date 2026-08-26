@@ -45,7 +45,7 @@ from shadowbane_lab.sim import (
     UniformAmount,
     UniformIntegerAmount,
 )
-from shadowbane_lab.sim.actions import AmountSpec, EffectPrimitive
+from shadowbane_lab.sim.actions import AmountSpec, ChanceGate, EffectPrimitive
 
 RULESET_SOURCE_VERSION = 1
 
@@ -250,6 +250,18 @@ def _parse_phase(data: Mapping[str, Any], rank: int) -> ActionPhase:
 
 def _parse_effect(data: Mapping[str, Any], rank: int) -> EffectPrimitive:
     operation = _string(data, "op")
+    if operation == "chance_gate":
+        nested = tuple(_parse_effect(item, rank) for item in _objects(data, "effects"))
+        if any(isinstance(effect, ChanceGate) for effect in nested):
+            raise RulesetLoadError("chance gates cannot be nested")
+        try:
+            return ChanceGate(
+                chance_key=_string(data, "chance_key"),
+                probability=_resolved_number(_required(data, "probability"), rank),
+                effects=nested,
+            )
+        except ValueError as exc:
+            raise RulesetLoadError(str(exc)) from exc
     if operation == "deal_damage":
         return DealDamage(
             subject=SubjectRef(_string(data, "subject")),

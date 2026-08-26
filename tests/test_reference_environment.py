@@ -7,6 +7,7 @@ from shadowbane_lab.sim import (
     ActionSpec,
     ActiveEffectState,
     ApplyEffect,
+    ChanceGate,
     DealDamage,
     DeliveryKind,
     DeliverySpec,
@@ -71,6 +72,61 @@ def actor(
 
 
 class ReferenceEnvironmentTests(unittest.TestCase):
+    def test_chance_gate_emits_seeded_outcome_and_applies_damage_only_on_success(self) -> None:
+        proc_attack = ActionSpec(
+            action_key="proc_attack",
+            targeting=TargetingSpec(
+                kind=TargetKind.ENTITY,
+                allowed_relations=(Relation.ENEMY,),
+                maximum_range=3.0,
+            ),
+            phases=(
+                ActionPhase(
+                    kind=PhaseKind.ACTIVE,
+                    duration_ms=0,
+                    effects=(
+                        ChanceGate(
+                            "weapon_proc",
+                            0.5,
+                            (DealDamage(SubjectRef.TARGET, 4.0, "mental"),),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        def run(seed: int):
+            environment = ReferenceEnvironment(
+                ActionCatalog((proc_attack,)),
+                (
+                    actor("attacker", "red", Vector2(0.0, 0.0), ("proc_attack",)),
+                    actor("target", "blue", Vector2(1.0, 0.0), (), health=10.0),
+                ),
+                seed=seed,
+            )
+            decision = action_for(
+                environment,
+                "attacker",
+                "proc_attack",
+                target_id="target",
+                correlation_id=f"proc-{seed}",
+            )
+            return environment, environment.step((decision,))
+
+        triggered_environment, triggered = run(0)
+        missed_environment, missed = run(1)
+
+        triggered_chance = next(
+            event for event in triggered.events if event.kind == EventKind.CHANCE_RESOLVED
+        )
+        missed_chance = next(
+            event for event in missed.events if event.kind == EventKind.CHANCE_RESOLVED
+        )
+        self.assertIn("outcome.triggered", triggered_chance.tags)
+        self.assertIn("outcome.not_triggered", missed_chance.tags)
+        self.assertEqual(6.0, triggered_environment.entity("target").scalars["health"])
+        self.assertEqual(10.0, missed_environment.entity("target").scalars["health"])
+
     def test_stun_blocks_affordances_until_effect_expiry(self) -> None:
         wait = ActionSpec(
             action_key="wait",

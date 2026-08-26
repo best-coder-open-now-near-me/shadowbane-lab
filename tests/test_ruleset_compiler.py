@@ -13,6 +13,7 @@ from shadowbane_lab.rulesets import (
 from shadowbane_lab.sim import ActiveEffectState, EntityState, ReferenceEnvironment
 from shadowbane_lab.sim.actions import (
     ApplyEffect,
+    ChanceGate,
     DealDamage,
     RestoreResource,
     UniformAmount,
@@ -230,6 +231,39 @@ class RulesetCompilerTests(unittest.TestCase):
             effect for effect in action.phases[0].effects if isinstance(effect, DealDamage)
         )
         self.assertEqual(UniformIntegerAmount(4, 5), damage.amount)
+
+    def test_chance_gates_compile_as_bounded_non_recursive_effects(self) -> None:
+        source = bundled_source()
+        basic_attack = next(
+            action
+            for action in source["actions"]
+            if action["action_key"] == "shadowbane.basic_attack"
+        )
+        basic_attack["spec"]["phases"][0]["effects"] = [
+            {
+                "op": "chance_gate",
+                "chance_key": "weapon_proc",
+                "probability": 0.05,
+                "effects": [
+                    {
+                        "op": "deal_damage",
+                        "subject": "target",
+                        "amount": 12,
+                        "damage_type": "mental",
+                    }
+                ],
+            }
+        ]
+
+        action = load_ruleset_text(json.dumps(source)).record("shadowbane.basic_attack").action
+
+        self.assertIsNotNone(action)
+        assert action is not None
+        gate = action.phases[0].effects[0]
+        self.assertIsInstance(gate, ChanceGate)
+        assert isinstance(gate, ChanceGate)
+        self.assertEqual("weapon_proc", gate.chance_key)
+        self.assertEqual(0.05, gate.probability)
 
     def test_unknown_provenance_source_fails_closed(self) -> None:
         source = bundled_source()

@@ -326,7 +326,7 @@ class ModifyObjective:
             raise ValueError("progress_delta must not be zero")
 
 
-EffectPrimitive = (
+DirectEffectPrimitive = (
     ModifyScalar
     | DealDamage
     | RestoreResource
@@ -338,7 +338,7 @@ EffectPrimitive = (
     | ModifyObjective
 )
 
-_EFFECT_TYPES = (
+_DIRECT_EFFECT_TYPES = (
     ModifyScalar,
     DealDamage,
     RestoreResource,
@@ -349,6 +349,30 @@ _EFFECT_TYPES = (
     TransferItem,
     ModifyObjective,
 )
+
+
+@dataclass(frozen=True, slots=True)
+class ChanceGate:
+    """Resolve one seeded probability and apply a bounded direct-effect bundle on success."""
+
+    chance_key: str
+    probability: float
+    effects: tuple[DirectEffectPrimitive, ...]
+
+    def __post_init__(self) -> None:
+        _identifier(self.chance_key, "chance_key")
+        _finite(self.probability, "probability")
+        if not 0.0 < self.probability <= 1.0:
+            raise ValueError("probability must be in (0, 1]")
+        if not self.effects:
+            raise ValueError("chance gate requires at least one direct effect")
+        if any(not isinstance(effect, _DIRECT_EFFECT_TYPES) for effect in self.effects):
+            raise ValueError("chance gate effects must contain direct effect primitives")
+
+
+EffectPrimitive = DirectEffectPrimitive | ChanceGate
+
+_EFFECT_TYPES = (*_DIRECT_EFFECT_TYPES, ChanceGate)
 
 
 @dataclass(frozen=True, slots=True)

@@ -16,8 +16,9 @@ from shadowbane_lab.protocol import (
 )
 from shadowbane_lab.sim.actions import (
     ApplyEffect,
+    ChanceGate,
     DealDamage,
-    EffectPrimitive,
+    DirectEffectPrimitive,
     ModifyObjective,
     ModifyScalar,
     ModifyTag,
@@ -69,31 +70,87 @@ class EffectExecutor:
         if item.binding is None:
             raise SimulationConfigurationError("resolution is missing its action binding")
         for effect in item.effects:
-            subject = self._subject_entity(effect, item.binding)
-            if subject is not None and subject.entity_id not in eligible_alive:
-                continue
-            if isinstance(effect, DealDamage):
-                self._deal_damage(item, effect, subject, due_time, events)
-            elif isinstance(effect, RestoreResource):
-                self._restore_resource(item, effect, subject, due_time, events)
-            elif isinstance(effect, ModifyScalar):
-                self._modify_scalar(item, effect, subject, due_time, events)
-            elif isinstance(effect, ModifyTag):
-                self._modify_tag(item, effect, subject, due_time, events)
-            elif isinstance(effect, ApplyEffect):
-                self._apply_effect(item, effect, subject, due_time, events)
-            elif isinstance(effect, RemoveEffect):
-                self._remove_effect(item, effect, subject, due_time, events)
-            elif isinstance(effect, MoveEntity):
-                self._move_entity(item, effect, subject, due_time, events)
-            elif isinstance(effect, TransferItem):
-                self._transfer_item(item, effect, due_time, events)
-            elif isinstance(effect, ModifyObjective):
-                self._modify_objective(item, effect, subject, due_time, events)
-            else:  # pragma: no cover - ActionPhase rejects types outside the closed union.
-                raise SimulationConfigurationError(
-                    f"unsupported effect primitive: {type(effect).__name__}"
+            if isinstance(effect, ChanceGate):
+                self._resolve_chance(
+                    item,
+                    effect,
+                    due_time,
+                    eligible_alive,
+                    events,
                 )
+                continue
+            self._resolve_direct(item, effect, due_time, eligible_alive, events)
+
+    def _resolve_chance(
+        self,
+        item: ScheduledItem,
+        effect: ChanceGate,
+        due_time: int,
+        eligible_alive: frozenset[str],
+        events: list[Event],
+    ) -> None:
+        if item.binding is None:
+            raise SimulationConfigurationError("chance resolution is missing its action binding")
+        roll = self._random.random()
+        triggered = roll < effect.probability
+        events.append(
+            self._event(
+                EventKind.CHANCE_RESOLVED,
+                due_time,
+                correlation_id=item.correlation_id,
+                source_entity_id=item.actor_id,
+                target_entity_id=item.binding.target_entity_id,
+                action_key=item.action_key,
+                scalars=(
+                    NamedScalar("probability", effect.probability),
+                    NamedScalar("roll", roll),
+                    NamedScalar("triggered", float(triggered)),
+                ),
+                tags=(
+                    f"chance.{effect.chance_key}",
+                    "outcome.triggered" if triggered else "outcome.not_triggered",
+                ),
+            )
+        )
+        if triggered:
+            for nested in effect.effects:
+                self._resolve_direct(item, nested, due_time, eligible_alive, events)
+
+    def _resolve_direct(
+        self,
+        item: ScheduledItem,
+        effect: DirectEffectPrimitive,
+        due_time: int,
+        eligible_alive: frozenset[str],
+        events: list[Event],
+    ) -> None:
+        if item.binding is None:
+            raise SimulationConfigurationError("resolution is missing its action binding")
+        subject = self._subject_entity(effect, item.binding)
+        if subject is not None and subject.entity_id not in eligible_alive:
+            return
+        if isinstance(effect, DealDamage):
+            self._deal_damage(item, effect, subject, due_time, events)
+        elif isinstance(effect, RestoreResource):
+            self._restore_resource(item, effect, subject, due_time, events)
+        elif isinstance(effect, ModifyScalar):
+            self._modify_scalar(item, effect, subject, due_time, events)
+        elif isinstance(effect, ModifyTag):
+            self._modify_tag(item, effect, subject, due_time, events)
+        elif isinstance(effect, ApplyEffect):
+            self._apply_effect(item, effect, subject, due_time, events)
+        elif isinstance(effect, RemoveEffect):
+            self._remove_effect(item, effect, subject, due_time, events)
+        elif isinstance(effect, MoveEntity):
+            self._move_entity(item, effect, subject, due_time, events)
+        elif isinstance(effect, TransferItem):
+            self._transfer_item(item, effect, due_time, events)
+        elif isinstance(effect, ModifyObjective):
+            self._modify_objective(item, effect, subject, due_time, events)
+        else:  # pragma: no cover - ChanceGate rejects types outside the closed union.
+            raise SimulationConfigurationError(
+                f"unsupported direct effect primitive: {type(effect).__name__}"
+            )
 
     def expire_effect(
         self,
@@ -515,7 +572,7 @@ class EffectExecutor:
 
     def _subject_entity(
         self,
-        effect: EffectPrimitive,
+        effect: DirectEffectPrimitive,
         binding: ActionBinding,
     ) -> EntityState | None:
         subject_ref = getattr(effect, "subject", None)
