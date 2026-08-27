@@ -55,6 +55,7 @@ python -m shadowbane_lab.cli client observe-native-training --json
 python -m shadowbane_lab.cli client advise-irekei-proc --json
 python -m shadowbane_lab.cli client observe-native-position --json
 python -m shadowbane_lab.cli client observe-native-zone --json
+python -m shadowbane_lab.cli client observe-native-zone --cache-directory 'C:\path\to\Wonderbane\cache' --json
 ```
 
 When Python is not exposed on `PATH`, use the interpreter configured for the workspace.

@@ -58,10 +58,13 @@ the preference also produced an error during launch. Keep the preference disable
 startup failure is first isolated in a disposable configuration with captured logs; live travel
 must not depend on the dormant native pathfinder.
 
-The live `ArcGameZone` is now read directly from the local player and supplies the same resolved
-name used by the HUD zone banner. The next correlation boundary is its active CZone template and
-terrain-map identity. Local collision/path results can then be compared with player
-LT/LG/altitude and server movement-correction events, keeping server corrections authoritative.
+The live `ArcGameZone` is read directly from the local player and supplies the same resolved name
+used by the HUD zone banner. Its inherited `ArcCacheObj` key identifies the exact active
+`CZone.cache` template. Each template is then joined to the complete `(group ID, map ID)`
+identities embedded as `TerrainAlpha` resource keys in its payload. The active parent chain is
+retained because a small camp or building zone can inherit its surrounding terrain from an
+ancestor. Local collision/path results can now be compared with player LT/LG/altitude and server
+movement-correction events while keeping server corrections authoritative.
 
 Format cross-check: [ShadowbaneCacheExporter](https://github.com/blinkdog/ShadowbaneCacheExporter)
 documents the archive directory, zlib payloads, terrain raster header, and mesh layout. The local

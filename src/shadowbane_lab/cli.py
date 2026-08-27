@@ -101,6 +101,7 @@ from shadowbane_lab.world_data import (
     TerrainAlphaFormatError,
     TerrainAlphaTile,
     WorldDefinitionFormatError,
+    correlate_zone_terrain,
     index_terrain_alpha_maps,
     load_world_definition,
 )
@@ -268,6 +269,11 @@ def _parser() -> argparse.ArgumentParser:
         "--profile",
         type=Path,
         help="native zone profile; defaults to the verified bundled WonderBane build",
+    )
+    observe_native_zone.add_argument(
+        "--cache-directory",
+        type=Path,
+        help="optionally join the active zone chain to CZone and TerrainAlpha caches",
     )
     observe_native_zone.add_argument(
         "--json", action="store_true", help="emit machine-readable JSON"
@@ -934,7 +940,12 @@ def _observe_native_position(profile_path: Path | None, *, as_json: bool) -> int
     return 0
 
 
-def _observe_native_zone(profile_path: Path | None, *, as_json: bool) -> int:
+def _observe_native_zone(
+    profile_path: Path | None,
+    cache_directory: Path | None,
+    *,
+    as_json: bool,
+) -> int:
     try:
         profile = (
             load_native_zone_profile(profile_path)
@@ -944,13 +955,53 @@ def _observe_native_zone(profile_path: Path | None, *, as_json: bool) -> int:
         with open_windows_native_current_zone_reader(profile) as reader:
             observation = reader.observe()
             process_id = reader.process_id
+        terrain_by_depth: dict[int, object] = {}
+        if cache_directory is not None:
+            with (
+                CacheArchive(cache_directory / "CZone.cache") as zones,
+                CacheArchive(cache_directory / "TerrainAlpha.cache") as terrain,
+            ):
+                for identity in observation.chain:
+                    correlation = correlate_zone_terrain(
+                        zones,
+                        terrain,
+                        identity.template_group_id,
+                        identity.template_id,
+                    )
+                    terrain_by_depth[identity.depth] = {
+                        "tile_references": correlation.tile_reference_count,
+                        "maps": [
+                            {
+                                "group_id": item.group_id,
+                                "map_id": item.map_id,
+                                "width_tiles": item.width_tiles,
+                                "height_tiles": item.height_tiles,
+                                "tile_count": item.tile_count,
+                            }
+                            for item in correlation.maps
+                        ],
+                    }
     except (
+        CacheArchiveFormatError,
         NativeCurrentZoneError,
         NativeZoneProfileLoadError,
         OSError,
         ValueError,
     ) as exc:
         return _error(f"native zone observation failed: {exc}", as_json=as_json)
+    current = observation.current
+    chain = [
+        {
+            "depth": identity.depth,
+            "name": identity.name,
+            "template_group_id": identity.template_group_id,
+            "template_id": identity.template_id,
+            "object_type": identity.object_type,
+            "object_uuid": identity.object_uuid,
+            "terrain": terrain_by_depth.get(identity.depth),
+        }
+        for identity in observation.chain
+    ]
     payload = {
         "ok": True,
         "profile_id": profile.profile_id,
@@ -958,13 +1009,29 @@ def _observe_native_zone(profile_path: Path | None, *, as_json: bool) -> int:
         "name": observation.name,
         "zone_token": observation.zone_token,
         "name_source_depth": observation.name_source_depth,
+        "template_group_id": current.template_group_id,
+        "template_id": current.template_id,
+        "object_type": current.object_type,
+        "object_uuid": current.object_uuid,
+        "chain": chain,
     }
     if as_json:
         print(json.dumps(payload, sort_keys=True))
     else:
         print(f"Zone: {observation.name}")
         print(f"Zone token: {observation.zone_token}")
+        print(f"Template: {current.template_group_id}:{current.template_id}")
+        print(f"Object: {current.object_type}:{current.object_uuid}")
         print(f"Name source depth: {observation.name_source_depth}")
+        for item in chain:
+            terrain = item["terrain"]
+            if terrain is None:
+                continue
+            maps = terrain["maps"]
+            map_names = ", ".join(
+                f"{entry['group_id']}:{entry['map_id']}" for entry in maps
+            )
+            print(f"Terrain depth {item['depth']}: {map_names or 'none'}")
     return 0
 
 
@@ -1520,7 +1587,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     if arguments.command == "client" and arguments.client_command == "observe-native-position":
         return _observe_native_position(arguments.profile, as_json=arguments.json)
     if arguments.command == "client" and arguments.client_command == "observe-native-zone":
-        return _observe_native_zone(arguments.profile, as_json=arguments.json)
+        return _observe_native_zone(
+            arguments.profile,
+            arguments.cache_directory,
+            as_json=arguments.json,
+        )
     if arguments.command == "client" and arguments.client_command == "observe-native-progression":
         return _observe_native_progression(arguments.profile, as_json=arguments.json)
     if arguments.command == "client" and arguments.client_command == "observe-native-training":

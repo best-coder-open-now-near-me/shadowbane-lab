@@ -33,7 +33,9 @@ requires this observation and stops before further input when health reaches 50 
 The local player stores the current `ArcGameZone` pointer at offset `0xD40`. This is the zone
 object already consumed by the HUD banner. Its name is a native UTF-16 `Core::String` at zone
 offset `0x1BC`; when that field is empty, the client follows the parent-zone pointer at `0xEC`
-until it finds the inherited name.
+until it finds the inherited name. The inherited `ArcCacheObj` key at `0x10`/`0x14` identifies
+the exact `CZone.cache` template, while `0x78`/`0x7C` contains the server-issued object type and
+UUID for that placed zone instance.
 
 Read the client-resolved identity without focusing or capturing the game:
 
@@ -41,11 +43,22 @@ Read the client-resolved identity without focusing or capturing the game:
 .\.venv\Scripts\python.exe -m shadowbane_lab.cli client observe-native-zone --json
 ```
 
+Join every entry in the active parent chain to its complete terrain-raster maps by supplying the
+client cache directory:
+
+```powershell
+.\.venv\Scripts\python.exe -m shadowbane_lab.cli client observe-native-zone `
+  --cache-directory 'C:\path\to\Wonderbane\cache' `
+  --json
+```
+
 The reader applies the executable hash and pointer guards used by the other native observers,
 validates the `Core::String` begin/end/capacity pointers, decodes its exact UTF-16 length, checks
 the terminator, rejects parent cycles and excessive depth, and retries if the player or current
 zone changes during a sample. It emits the resolved name, an opaque zone token, and the parent
-depth that supplied the name.
+depth that supplied the name. It also emits each zone's exact template key and server-instance
+key. The optional cache join accepts terrain references only when the `CZone` payload contains
+every tile in the referenced `TerrainAlpha` map; partial or duplicate maps fail closed.
 
 ## Native progression core
 

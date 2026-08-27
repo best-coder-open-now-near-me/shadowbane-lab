@@ -20,6 +20,12 @@ from shadowbane_lab.world_data.world import (
     load_world_definition,
     parse_world_definition,
 )
+from shadowbane_lab.world_data.zone import (
+    ZoneTerrainCorrelation,
+    ZoneTerrainCorrelationError,
+    ZoneTerrainMapReference,
+    correlate_zone_terrain,
+)
 
 __all__ = [
     "CacheArchive",
@@ -33,6 +39,10 @@ __all__ = [
     "WorldDefinition",
     "WorldDefinitionFormatError",
     "ZonePlacement",
+    "ZoneTerrainCorrelation",
+    "ZoneTerrainCorrelationError",
+    "ZoneTerrainMapReference",
+    "correlate_zone_terrain",
     "index_terrain_alpha_maps",
     "load_world_definition",
     "parse_world_definition",

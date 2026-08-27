@@ -105,8 +105,8 @@ cannot bypass authoritative validation.
 - Read and validate the client cache directory without copying gameplay textures into the
   repository.
 - Index TerrainAlpha map/tile identities and parse the nested WorldDef placement tree.
-- Correlate the active runtime ArcGameZone with CZone, CObjects, mesh, and terrain-raster
-  resources.
+- Correlate the active runtime ArcGameZone and parent chain with CZone and terrain-raster
+  resources; continue the same exact-key join into CObjects and mesh resources.
 - Keep native `PATHFINDING` disabled: the legacy `/path on` command is absent from the current
   WonderBane command table, and enabling its preference previously caused a launch error.
 - Preserve server movement corrections as authoritative feedback even when local pathfinding is

@@ -15,6 +15,8 @@ from shadowbane_lab.world_data import (
     TerrainAlphaTile,
     TerrainTileAddress,
     WorldDefinitionFormatError,
+    ZoneTerrainCorrelationError,
+    correlate_zone_terrain,
     index_terrain_alpha_maps,
     parse_world_definition,
 )
@@ -119,6 +121,60 @@ class TerrainAlphaTests(unittest.TestCase):
     def test_rejects_sample_count_that_does_not_match_dimensions(self) -> None:
         with self.assertRaisesRegex(TerrainAlphaFormatError, "dimensions"):
             TerrainAlphaTile.parse(_terrain_payload(b"\x00\x01\x02", width=2, height=2))
+
+
+class ZoneTerrainCorrelationTests(unittest.TestCase):
+    def test_joins_zone_template_to_complete_embedded_terrain_maps(self) -> None:
+        terrain_resources = []
+        zone_payload = bytearray(b"unaligned-prefix")
+        for x in range(2):
+            for y in range(2):
+                resource_id = (9 << 24) | (x * 1_000 + y + 1)
+                terrain_resources.append(
+                    (12, resource_id, _terrain_payload(b"\x00\x01\x02\x03"), True)
+                )
+                zone_payload.extend(struct.pack("<II", 12, resource_id))
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            _write_cache(root / "CZone.cache", [(0, 524, bytes(zone_payload), True)])
+            _write_cache(root / "TerrainAlpha.cache", terrain_resources)
+
+            with (
+                CacheArchive(root / "CZone.cache") as zones,
+                CacheArchive(root / "TerrainAlpha.cache") as terrain,
+            ):
+                result = correlate_zone_terrain(zones, terrain, 0, 524)
+
+        self.assertEqual((0, 524), (result.template_group_id, result.template_id))
+        self.assertEqual(4, result.tile_reference_count)
+        self.assertEqual(1, len(result.maps))
+        self.assertEqual((12, 9, 2, 2), (
+            result.maps[0].group_id,
+            result.maps[0].map_id,
+            result.maps[0].width_tiles,
+            result.maps[0].height_tiles,
+        ))
+
+    def test_rejects_partial_map_reference_as_unsafe(self) -> None:
+        terrain_resources = []
+        for x in range(2):
+            for y in range(2):
+                resource_id = (9 << 24) | (x * 1_000 + y + 1)
+                terrain_resources.append(
+                    (12, resource_id, _terrain_payload(b"\x00\x01\x02\x03"), True)
+                )
+        partial = struct.pack("<II", terrain_resources[0][0], terrain_resources[0][1])
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            _write_cache(root / "CZone.cache", [(0, 524, partial, False)])
+            _write_cache(root / "TerrainAlpha.cache", terrain_resources)
+
+            with (
+                CacheArchive(root / "CZone.cache") as zones,
+                CacheArchive(root / "TerrainAlpha.cache") as terrain,
+                self.assertRaisesRegex(ZoneTerrainCorrelationError, "only part"),
+            ):
+                correlate_zone_terrain(zones, terrain, 0, 524)
 
 
 class WorldDefinitionTests(unittest.TestCase):

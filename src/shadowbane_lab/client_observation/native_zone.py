@@ -16,7 +16,7 @@ from shadowbane_lab.client_observation.native_health import (
     WindowsReadOnlyProcessMemory,
 )
 
-NATIVE_ZONE_PROFILE_SCHEMA_VERSION = 1
+NATIVE_ZONE_PROFILE_SCHEMA_VERSION = 2
 _BUNDLED_PROFILE_NAME = "wonderbane-0889b39a.native-zone.json"
 _MAX_READ_SIZE = 64
 
@@ -49,6 +49,10 @@ class NativeCurrentZoneProfile:
     current_zone_offset: int
     parent_zone_offset: int
     zone_name_offset: int
+    template_group_offset: int
+    template_id_offset: int
+    object_type_offset: int
+    object_uuid_offset: int
     string_begin_offset: int
     string_end_offset: int
     string_capacity_offset: int
@@ -77,6 +81,10 @@ class NativeCurrentZoneProfile:
             (self.current_zone_offset, "current_zone_offset"),
             (self.parent_zone_offset, "parent_zone_offset"),
             (self.zone_name_offset, "zone_name_offset"),
+            (self.template_group_offset, "template_group_offset"),
+            (self.template_id_offset, "template_id_offset"),
+            (self.object_type_offset, "object_type_offset"),
+            (self.object_uuid_offset, "object_uuid_offset"),
             (self.string_begin_offset, "string_begin_offset"),
             (self.string_end_offset, "string_end_offset"),
             (self.string_capacity_offset, "string_capacity_offset"),
@@ -105,8 +113,43 @@ class NativeCurrentZoneProfile:
             raise ValueError("maximum_zone_name_chars must remain bounded")
         if self.maximum_parent_depth > 64:
             raise ValueError("maximum_parent_depth must remain bounded")
+        if self.template_id_offset != self.template_group_offset + 4:
+            raise ValueError("zone template key must be two adjacent 32-bit fields")
+        if self.object_uuid_offset != self.object_type_offset + 4:
+            raise ValueError("zone object key must be two adjacent 32-bit fields")
         if self.schema_version != NATIVE_ZONE_PROFILE_SCHEMA_VERSION:
             raise ValueError("unsupported native zone profile version")
+
+
+@dataclass(frozen=True, slots=True)
+class NativeZoneIdentity:
+    """Cache and server-instance identity for one zone in the active parent chain."""
+
+    depth: int
+    name: str
+    template_group_id: int
+    template_id: int
+    object_type: int
+    object_uuid: int
+
+    def __post_init__(self) -> None:
+        if isinstance(self.depth, bool) or not isinstance(self.depth, int) or self.depth < 0:
+            raise ValueError("zone depth must be a non-negative integer")
+        if not isinstance(self.name, str):
+            raise ValueError("zone identity name must be a string")
+        for value, field_name in (
+            (self.template_group_id, "template_group_id"),
+            (self.object_type, "object_type"),
+            (self.object_uuid, "object_uuid"),
+        ):
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise ValueError(f"{field_name} must be a non-negative integer")
+        if (
+            isinstance(self.template_id, bool)
+            or not isinstance(self.template_id, int)
+            or self.template_id <= 0
+        ):
+            raise ValueError("template_id must be a positive integer")
 
 
 @dataclass(frozen=True, slots=True)
@@ -116,6 +159,7 @@ class NativeCurrentZoneObservation:
     name: str
     zone_token: str
     name_source_depth: int
+    chain: tuple[NativeZoneIdentity, ...]
 
     def __post_init__(self) -> None:
         if not isinstance(self.name, str) or not self.name.strip():
@@ -128,6 +172,18 @@ class NativeCurrentZoneObservation:
             or self.name_source_depth < 0
         ):
             raise ValueError("name_source_depth must be a non-negative integer")
+        if not isinstance(self.chain, tuple) or not self.chain:
+            raise ValueError("zone chain must contain at least the current zone")
+        if tuple(identity.depth for identity in self.chain) != tuple(range(len(self.chain))):
+            raise ValueError("zone chain depths must be contiguous from the current zone")
+        if self.name_source_depth >= len(self.chain):
+            raise ValueError("name_source_depth must identify an entry in the zone chain")
+        if self.chain[self.name_source_depth].name != self.name:
+            raise ValueError("resolved zone name must match its source entry")
+
+    @property
+    def current(self) -> NativeZoneIdentity:
+        return self.chain[0]
 
 
 class NativeCurrentZoneReader:
@@ -196,7 +252,8 @@ class NativeCurrentZoneReader:
                 zone_pointer_address = player_pointer + self._profile.current_zone_offset
                 zone_pointer = self._read_pointer(zone_pointer_address, "current-zone")
                 self._require_zone_pointer(zone_pointer)
-                name, source_depth = self._resolved_name(zone_pointer)
+                chain = self._read_zone_chain(zone_pointer)
+                name, source_depth = self._resolved_name(chain)
                 if self._read_pointer(self._pointer_slot, "player") != player_pointer:
                     continue
                 if self._read_pointer(zone_pointer_address, "current-zone") != zone_pointer:
@@ -205,6 +262,7 @@ class NativeCurrentZoneReader:
                     name=name,
                     zone_token=self._zone_token(zone_pointer),
                     name_source_depth=source_depth,
+                    chain=chain,
                 )
             except NativeCurrentZoneReadError as exc:
                 last_error = exc
@@ -228,16 +286,35 @@ class NativeCurrentZoneReader:
     def __exit__(self, *_: object) -> None:
         self.close()
 
-    def _resolved_name(self, current_zone_pointer: int) -> tuple[str, int]:
+    def _read_zone_chain(self, current_zone_pointer: int) -> tuple[NativeZoneIdentity, ...]:
         zone_pointer = current_zone_pointer
         visited: set[int] = set()
+        chain = []
         for depth in range(self._profile.maximum_parent_depth + 1):
             if zone_pointer in visited:
                 raise NativeCurrentZoneReadError("current-zone parent chain contains a cycle")
             visited.add(zone_pointer)
             name = self._read_zone_name(zone_pointer)
-            if name:
-                return name, depth
+            template_group_id, template_id = self._read_identifier(
+                zone_pointer + self._profile.template_group_offset,
+                "zone-template",
+            )
+            if template_id == 0:
+                raise NativeCurrentZoneReadError("current-zone template ID is zero")
+            object_type, object_uuid = self._read_identifier(
+                zone_pointer + self._profile.object_type_offset,
+                "zone-object",
+            )
+            chain.append(
+                NativeZoneIdentity(
+                    depth=depth,
+                    name=name,
+                    template_group_id=template_group_id,
+                    template_id=template_id,
+                    object_type=object_type,
+                    object_uuid=object_uuid,
+                )
+            )
             if depth == self._profile.maximum_parent_depth:
                 break
             zone_pointer = self._read_pointer(
@@ -247,6 +324,15 @@ class NativeCurrentZoneReader:
             if zone_pointer == 0:
                 break
             self._require_zone_pointer(zone_pointer)
+        return tuple(chain)
+
+    def _resolved_name(
+        self,
+        chain: tuple[NativeZoneIdentity, ...],
+    ) -> tuple[str, int]:
+        for identity in chain:
+            if identity.name:
+                return identity.name, identity.depth
         raise NativeCurrentZoneReadError(
             "current-zone parent chain contains no non-empty zone name"
         )
@@ -292,6 +378,13 @@ class NativeCurrentZoneReader:
         value = self._read_exact(address, self._profile.pointer_size, f"{label} pointer")
         return struct.unpack("<I", value)[0]
 
+    def _read_identifier(self, address: int, label: str) -> tuple[int, int]:
+        first = self._read_exact(address, 8, f"{label} identifier")
+        second = self._read_exact(address, 8, f"{label} identifier")
+        if first != second:
+            raise NativeCurrentZoneReadError(f"{label} identifier changed during the read")
+        return cast(tuple[int, int], struct.unpack("<II", first))
+
     def _read_exact(self, address: int, size: int, label: str) -> bytes:
         if size <= 0:
             raise NativeCurrentZoneReadError(f"{label} read size must be positive")
@@ -318,6 +411,8 @@ class NativeCurrentZoneReader:
         final_offset = max(
             profile.parent_zone_offset + profile.pointer_size,
             profile.zone_name_offset + profile.string_capacity_offset + profile.pointer_size,
+            profile.template_id_offset + 4,
+            profile.object_uuid_offset + 4,
         )
         self._require_object_pointer(pointer, final_offset, "current-zone")
 
@@ -378,6 +473,10 @@ def load_native_zone_profile_text(text: str) -> NativeCurrentZoneProfile:
             "current_zone_offset",
             "parent_zone_offset",
             "zone_name_offset",
+            "template_group_offset",
+            "template_id_offset",
+            "object_type_offset",
+            "object_uuid_offset",
             "string_begin_offset",
             "string_end_offset",
             "string_capacity_offset",
@@ -405,6 +504,10 @@ def load_native_zone_profile_text(text: str) -> NativeCurrentZoneProfile:
             current_zone_offset=_integer(data, "current_zone_offset"),
             parent_zone_offset=_integer(data, "parent_zone_offset"),
             zone_name_offset=_integer(data, "zone_name_offset"),
+            template_group_offset=_integer(data, "template_group_offset"),
+            template_id_offset=_integer(data, "template_id_offset"),
+            object_type_offset=_integer(data, "object_type_offset"),
+            object_uuid_offset=_integer(data, "object_uuid_offset"),
             string_begin_offset=_integer(data, "string_begin_offset"),
             string_end_offset=_integer(data, "string_end_offset"),
             string_capacity_offset=_integer(data, "string_capacity_offset"),

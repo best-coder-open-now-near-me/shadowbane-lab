@@ -13,6 +13,7 @@ from shadowbane_lab.client_observation import (
     NativeCurrentZoneProfile,
     NativeCurrentZoneReader,
     NativeCurrentZoneReadError,
+    NativeZoneIdentity,
     load_bundled_native_zone_profile,
     load_native_zone_profile_text,
 )
@@ -28,6 +29,10 @@ def _profile() -> NativeCurrentZoneProfile:
         current_zone_offset=0xD40,
         parent_zone_offset=0xEC,
         zone_name_offset=0x1BC,
+        template_group_offset=0x10,
+        template_id_offset=0x14,
+        object_type_offset=0x78,
+        object_uuid_offset=0x7C,
         string_begin_offset=4,
         string_end_offset=8,
         string_capacity_offset=12,
@@ -97,12 +102,22 @@ def _fixture(
         slot: [_pointer(player)],
         player + profile.current_zone_offset: [_pointer(current_zone)],
         current_zone + profile.zone_name_offset: [current_header],
+        current_zone + profile.template_group_offset: [struct.pack("<II", 0, 524)],
+        current_zone + profile.object_type_offset: [struct.pack("<II", 9, 80052)],
+        current_zone + profile.parent_zone_offset: [_pointer(0)],
         current_buffer: [current_raw],
     }
     if parent_name is not None:
         parent_header, parent_raw = _string_fixture(parent_buffer, parent_name)
         responses[current_zone + profile.parent_zone_offset] = [_pointer(parent_zone)]
         responses[parent_zone + profile.zone_name_offset] = [parent_header]
+        responses[parent_zone + profile.template_group_offset] = [
+            struct.pack("<II", 0, 3010)
+        ]
+        responses[parent_zone + profile.object_type_offset] = [
+            struct.pack("<II", 9, 70041)
+        ]
+        responses[parent_zone + profile.parent_zone_offset] = [_pointer(0)]
         responses[parent_buffer] = [parent_raw]
     return FakeProcessMemory(responses), current_zone
 
@@ -116,6 +131,14 @@ class NativeCurrentZoneReaderTests(unittest.TestCase):
         self.assertEqual("Keep of the Gorgoi", observation.name)
         self.assertEqual(0, observation.name_source_depth)
         self.assertEqual(24, len(observation.zone_token))
+        self.assertEqual((0, 524), (
+            observation.current.template_group_id,
+            observation.current.template_id,
+        ))
+        self.assertEqual((9, 80052), (
+            observation.current.object_type,
+            observation.current.object_uuid,
+        ))
 
     def test_matches_client_parent_name_fallback(self) -> None:
         process, _ = _fixture("", parent_name="The Dalgoth Marches")
@@ -124,6 +147,7 @@ class NativeCurrentZoneReaderTests(unittest.TestCase):
 
         self.assertEqual("The Dalgoth Marches", observation.name)
         self.assertEqual(1, observation.name_source_depth)
+        self.assertEqual((524, 3010), tuple(zone.template_id for zone in observation.chain))
 
     def test_rejects_parent_cycle(self) -> None:
         profile = _profile()
@@ -161,6 +185,14 @@ class NativeCurrentZoneProfileTests(unittest.TestCase):
         self.assertEqual(0xD40, profile.current_zone_offset)
         self.assertEqual(0xEC, profile.parent_zone_offset)
         self.assertEqual(0x1BC, profile.zone_name_offset)
+        self.assertEqual((0x10, 0x14), (
+            profile.template_group_offset,
+            profile.template_id_offset,
+        ))
+        self.assertEqual((0x78, 0x7C), (
+            profile.object_type_offset,
+            profile.object_uuid_offset,
+        ))
         self.assertEqual((4, 8, 12), (
             profile.string_begin_offset,
             profile.string_end_offset,
@@ -193,6 +225,16 @@ class FakeNativeCurrentZoneReader:
             name="Keep of the Gorgoi",
             zone_token="zone-token",
             name_source_depth=0,
+            chain=(
+                NativeZoneIdentity(
+                    depth=0,
+                    name="Keep of the Gorgoi",
+                    template_group_id=0,
+                    template_id=524,
+                    object_type=9,
+                    object_uuid=80052,
+                ),
+            ),
         )
 
 
@@ -217,6 +259,9 @@ class NativeCurrentZoneCliTests(unittest.TestCase):
         self.assertEqual("Keep of the Gorgoi", payload["name"])
         self.assertEqual("zone-token", payload["zone_token"])
         self.assertEqual(0, payload["name_source_depth"])
+        self.assertEqual(524, payload["template_id"])
+        self.assertEqual(80052, payload["object_uuid"])
+        self.assertEqual(1, len(payload["chain"]))
 
 
 if __name__ == "__main__":
