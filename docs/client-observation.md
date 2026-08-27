@@ -163,8 +163,15 @@ The preferred health source reads the same selected-object values that feed Arca
 
 During validation, a Frost Walker's current value regenerated continuously from `8.55689` to
 `10.0` while maximum health remained exactly `10.0`; the selected pointer cleared on death. The
-bundled native profile is locked to SHA-256
-`0889b39a6f065f2ddf696bad01455e0b691892077105fe27e35de94bfdf59ebc`.
+bundled native profiles target WonderBane 1.0.5 and are locked to SHA-256
+`ef43784ba6ffa0de6c0c16c76569f864393ad1530e7149395bb560e5cca30f13`.
+WonderBane can retain signed overkill on a selected corpse (live Turtle evidence observed about
+`-82.8/10` after a 92-point killing hit), so finite non-positive current health is normalized to
+zero while the maximum-health and target-identity guards remain in force.
+The 1.0.5 migration was revalidated against a live selected Crab before combat input was
+enabled; the selected-object pointer and native ArcCharacter role layout remained stable.
+Service-role calibration also treats `merchantData` presence as protected because a live Master
+Bard carried that marker without enabling the narrower `isTrainer` or `shopkeeper` flags.
 
 Read it without focusing or capturing the game:
 

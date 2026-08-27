@@ -15,6 +15,7 @@ from shadowbane_lab.client_observation import (
     NativeTargetActionObservation,
     NativeTargetHealthObservation,
     NativeTargetIdentityObservation,
+    NativeTargetIdentityReadError,
     NativeTargetPositionObservation,
 )
 from shadowbane_lab.protocol import ActionBinding, DecisionMessage, DispatchResult
@@ -237,11 +238,22 @@ class PvERunner:
                     or not self._controller.target_action_observation_active
                     else self._target_action_reader.observe()
                 )
-                target_identity = (
-                    None
-                    if self._target_identity_reader is None
-                    else self._target_identity_reader.observe()
-                )
+                target_identity = None
+                if self._target_identity_reader is not None:
+                    try:
+                        target_identity = self._target_identity_reader.observe()
+                    except NativeTargetIdentityReadError as exc:
+                        if target.target_present:
+                            assert target.target_token is not None
+                            message = " ".join(str(exc).split())
+                            target_identity = NativeTargetIdentityObservation.unavailable(
+                                target_token=target.target_token,
+                                error=f"{type(exc).__name__}:{message[:160]}",
+                            )
+                        else:
+                            target_identity = NativeTargetIdentityObservation(
+                                target_present=False
+                            )
                 target_position = (
                     None
                     if self._target_position_reader is None

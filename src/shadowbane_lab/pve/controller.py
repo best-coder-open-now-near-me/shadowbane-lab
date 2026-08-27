@@ -35,6 +35,7 @@ class PvEController:
         self._selection_lost_at: int | None = None
         self._reengage_attempts = 0
         self._stalled_retargets = 0
+        self._failed_target_tokens: set[str] = set()
         self._require_different_target = False
         self._last_power_at: dict[PvEIntent, int] = {}
         self._last_interrupt_action_sequence: int | None = None
@@ -77,6 +78,8 @@ class PvEController:
             PvEIntent.ACQUIRE_NEXT_MOB,
             PvEIntent.ATTACK_SELECTED_TARGET,
         }
+        if self._config.nearest_target_sample_count > 1:
+            intents.add(PvEIntent.ACQUIRE_PREVIOUS_MOB)
         if self._config.opening_intent is not None:
             intents.add(self._config.opening_intent)
         if self._config.interrupt_intent is not None:
@@ -177,6 +180,9 @@ class PvEController:
         now = observation.now_ms
         target = observation.target
         if target.target_present and target.current_health != 0.0:
+            assert target.target_token is not None
+            if target.target_token in self._failed_target_tokens:
+                return self._reject_target(observation)
             if not self._target_attack_eligible(observation):
                 return self._reject_target(observation)
             sampled = self._sample_nearest_target(observation)
@@ -265,6 +271,9 @@ class PvEController:
             if token == nearest_token:
                 self._require_different_target = False
                 return self._begin_engagement(observation)
+            if self._target_sample_ready(now):
+                return self._cycle_target_sample(now, reverse=True)
+            return self._emit(now)
         if self._target_sample_ready(now):
             return self._cycle_target_sample(now)
         return self._emit(now)
@@ -296,12 +305,23 @@ class PvEController:
         if self._phase_elapsed(now) >= self._config.acquisition_timeout_ms:
             return self.stop("mob_acquisition_timeout", now_ms=now)
         if self._target_sample_ready(now):
-            return self._cycle_target_sample(now)
+            return self._cycle_target_sample(
+                now,
+                reverse=self._target_sampling_complete and bool(self._target_candidates),
+            )
         return self._emit(now)
 
-    def _cycle_target_sample(self, now_ms: int) -> PvEControllerDecision:
+    def _cycle_target_sample(
+        self,
+        now_ms: int,
+        *,
+        reverse: bool = False,
+    ) -> PvEControllerDecision:
         self._target_sample_cycle_at = now_ms
-        return self._emit(now_ms, PvEIntent.ACQUIRE_NEXT_MOB)
+        intent = (
+            PvEIntent.ACQUIRE_PREVIOUS_MOB if reverse else PvEIntent.ACQUIRE_NEXT_MOB
+        )
+        return self._emit(now_ms, intent)
 
     def _target_sample_ready(self, now_ms: int) -> bool:
         return (
@@ -365,6 +385,7 @@ class PvEController:
             if self._reengage_attempts >= self._config.maximum_reengage_attempts:
                 if self._stalled_retargets < self._config.maximum_stalled_retargets:
                     self._stalled_retargets += 1
+                    self._failed_target_tokens.add(target.target_token)
                     self._baseline_target_token = target.target_token
                     self._clear_engagement()
                     self._require_different_target = True
@@ -566,7 +587,7 @@ class PvEController:
             kill_confirmation=kill_confirmation,
         )
         self._decision_id += 1
-        if intent is PvEIntent.ACQUIRE_NEXT_MOB:
+        if intent in (PvEIntent.ACQUIRE_NEXT_MOB, PvEIntent.ACQUIRE_PREVIOUS_MOB):
             self._last_acquire_at = now_ms
         elif intent not in (None, PvEIntent.ATTACK_SELECTED_TARGET):
             self._last_power_at[intent] = now_ms

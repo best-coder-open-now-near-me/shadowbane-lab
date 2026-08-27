@@ -266,7 +266,7 @@ class NativeMessageHudProfileTests(unittest.TestCase):
 
         self.assertEqual("sb.exe", profile.executable_name)
         self.assertEqual(
-            "0889b39a6f065f2ddf696bad01455e0b691892077105fe27e35de94bfdf59ebc",
+            "ef43784ba6ffa0de6c0c16c76569f864393ad1530e7149395bb560e5cca30f13",
             profile.executable_sha256,
         )
         self.assertEqual((_COMBAT, _POWERS), profile.channel_colors)
@@ -279,7 +279,7 @@ class NativeMessageHudProfileTests(unittest.TestCase):
                 / "shadowbane_lab"
                 / "client_observation"
                 / "data"
-                / "wonderbane-0889b39a.native-message-hud.json"
+                / "wonderbane-ef43784b.native-message-hud.json"
             ).read_text(encoding="utf-8")
         )
         payload["surprise"] = True

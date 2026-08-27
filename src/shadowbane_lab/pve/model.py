@@ -30,6 +30,7 @@ def _non_negative_integer(value: int, field_name: str) -> None:
 
 class PvEIntent(StrEnum):
     ACQUIRE_NEXT_MOB = "client.pve.target_next_mobile"
+    ACQUIRE_PREVIOUS_MOB = "client.pve.target_previous_mobile"
     CAST_SHADOW_TOUCH = "shadowbane.assassin.shadow_touch"
     ATTACK_SELECTED_TARGET = "shadowbane.basic_attack"
 
@@ -163,6 +164,7 @@ class PvEControllerConfig:
             raise ValueError("opening_intent must be PvEIntent when present")
         if self.opening_intent in (
             PvEIntent.ACQUIRE_NEXT_MOB,
+            PvEIntent.ACQUIRE_PREVIOUS_MOB,
             PvEIntent.ATTACK_SELECTED_TARGET,
         ):
             raise ValueError("opening_intent must be a power activation")
@@ -181,6 +183,7 @@ class PvEControllerConfig:
             raise ValueError("interrupt_intent must be PvEIntent when present")
         if self.interrupt_intent in (
             PvEIntent.ACQUIRE_NEXT_MOB,
+            PvEIntent.ACQUIRE_PREVIOUS_MOB,
             PvEIntent.ATTACK_SELECTED_TARGET,
         ):
             raise ValueError("interrupt_intent must be a power activation")
@@ -484,6 +487,11 @@ class PvERunTraceStep:
                     None
                     if self.target_identity is None
                     else {
+                        "classification_available": (
+                            self.target_identity.classification_available
+                        ),
+                        "classification_error": self.target_identity.classification_error,
+                        "merchant": self.target_identity.merchant,
                         "shopkeeper": self.target_identity.shopkeeper,
                         "arc_character": self.target_identity.arc_character,
                         "banker": self.target_identity.banker,

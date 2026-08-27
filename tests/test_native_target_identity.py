@@ -28,6 +28,7 @@ def _profile() -> NativeTargetIdentityProfile:
         selected_pointer_rva=0x100,
         arc_character_vtable_rva=0x200,
         sparse_data_offset=0x34,
+        merchant_data_descriptor_rva=0x2F0,
         shopkeeper_descriptor_rva=0x300,
         banker_descriptor_rva=0x310,
         trainer_descriptor_rva=0x320,
@@ -58,6 +59,7 @@ class FakeProcessMemory:
         self.selected_vtable = self.base_address + profile.arc_character_vtable_rva
         self.table_bits = 2
         self.descriptor_keys = {
+            "merchant": 0x1000,
             "shopkeeper": 0x1001,
             "banker": 0x1002,
             "trainer": 0x1003,
@@ -75,6 +77,7 @@ class FakeProcessMemory:
 
     def read(self, address: int, size: int) -> bytes:
         descriptor_rvas = {
+            "merchant": self.profile.merchant_data_descriptor_rva,
             "shopkeeper": self.profile.shopkeeper_descriptor_rva,
             "banker": self.profile.banker_descriptor_rva,
             "trainer": self.profile.trainer_descriptor_rva,
@@ -168,6 +171,17 @@ class NativeTargetIdentityReaderTests(unittest.TestCase):
         self.assertTrue(observation.trainer)
         self.assertFalse(observation.banker)
 
+    def test_merchant_data_presence_is_protected_without_bool_dereference(self) -> None:
+        profile = _profile()
+        process = FakeProcessMemory(profile)
+        process.role_values = {"merchant": 99}
+
+        observation = NativeTargetIdentityReader(profile, process).observe()
+
+        self.assertTrue(observation.merchant)
+        self.assertEqual(("merchant",), observation.protected_roles)
+        self.assertFalse(observation.attack_eligible)
+
     def test_non_boolean_sparse_value_fails_closed(self) -> None:
         profile = _profile()
         process = FakeProcessMemory(profile)
@@ -195,6 +209,22 @@ class NativeTargetIdentityReaderTests(unittest.TestCase):
         self.assertFalse(observation.arc_character)
         self.assertFalse(observation.attack_eligible)
 
+    def test_unavailable_classification_is_explicit_and_fail_closed(self) -> None:
+        observation = NativeTargetIdentityObservation.unavailable(
+            target_token="unreadable-target",
+            error="NativeTargetIdentityReadError:unmapped sparse table",
+        )
+
+        self.assertTrue(observation.target_present)
+        self.assertFalse(observation.classification_available)
+        self.assertEqual(
+            "NativeTargetIdentityReadError:unmapped sparse table",
+            observation.classification_error,
+        )
+        self.assertIsNone(observation.arc_character)
+        self.assertEqual((), observation.protected_roles)
+        self.assertFalse(observation.attack_eligible)
+
     def test_executable_hash_mismatch_fails_before_descriptor_reads(self) -> None:
         profile = _profile()
         process = FakeProcessMemory(profile)
@@ -212,6 +242,7 @@ class NativeTargetIdentityProfileTests(unittest.TestCase):
         self.assertEqual(0x16A2DA4, profile.selected_pointer_rva)
         self.assertEqual(0x114165C, profile.arc_character_vtable_rva)
         self.assertEqual(0x34, profile.sparse_data_offset)
+        self.assertEqual(0x1373238, profile.merchant_data_descriptor_rva)
         self.assertEqual(0x13732A8, profile.shopkeeper_descriptor_rva)
         self.assertEqual(0x1373098, profile.banker_descriptor_rva)
         self.assertEqual(0x1373080, profile.trainer_descriptor_rva)
@@ -242,6 +273,7 @@ class FakeNativeTargetIdentityReader:
         return NativeTargetIdentityObservation(
             target_present=True,
             arc_character=True,
+            merchant=False,
             shopkeeper=False,
             banker=False,
             trainer=True,
@@ -265,6 +297,8 @@ class NativeTargetIdentityCliTests(unittest.TestCase):
         payload = json.loads(output.getvalue())
         self.assertEqual(0, result)
         self.assertEqual(["trainer"], payload["protected_roles"])
+        self.assertTrue(payload["classification_available"])
+        self.assertIsNone(payload["classification_error"])
         self.assertFalse(payload["attack_eligible"])
 
 

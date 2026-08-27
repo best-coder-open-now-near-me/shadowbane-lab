@@ -11,6 +11,7 @@ from shadowbane_lab.client_observation import (
     NativeTargetActionPhase,
     NativeTargetHealthObservation,
     NativeTargetIdentityObservation,
+    NativeTargetIdentityReadError,
     NativeTargetPositionObservation,
 )
 from shadowbane_lab.protocol import DispatchResult
@@ -122,6 +123,7 @@ def _target_action(
 def _target_identity(
     token: str | None,
     *,
+    merchant: bool = False,
     shopkeeper: bool = False,
     banker: bool = False,
     trainer: bool = False,
@@ -132,6 +134,7 @@ def _target_identity(
     return NativeTargetIdentityObservation(
         target_present=True,
         arc_character=True,
+        merchant=merchant,
         shopkeeper=shopkeeper,
         banker=banker,
         trainer=trainer,
@@ -423,7 +426,7 @@ class PvEControllerTests(unittest.TestCase):
 
         self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB, initial.intent)
         self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB, close_sample.intent)
-        self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB, far_sample.intent)
+        self.assertEqual(PvEIntent.ACQUIRE_PREVIOUS_MOB, far_sample.intent)
         self.assertEqual(PvEIntent.ATTACK_SELECTED_TARGET, selected.intent)
         self.assertEqual(PvEPhase.ENGAGED, selected.phase)
 
@@ -544,6 +547,32 @@ class PvEControllerTests(unittest.TestCase):
         self.assertIsNone(stale_hit.intent)
         self.assertEqual(PvEIntent.ATTACK_SELECTED_TARGET, replacement.intent)
         self.assertEqual("engagement_stalled", stopped.terminal_reason)
+
+    def test_stalled_targets_remain_excluded_during_bounded_retargeting(self) -> None:
+        controller = PvEController(
+            PvEControllerConfig(
+                stalled_progress_ms=100,
+                engagement_timeout_ms=1_000,
+                maximum_reengage_attempts=0,
+                maximum_stalled_retargets=2,
+            )
+        )
+        controller.step(_observation(0, _absent()))
+        controller.step(_observation(10, _target("blocked-a")))
+
+        first_cycle = controller.step(_observation(110, _target("blocked-a")))
+        second_attack = controller.step(_observation(120, _target("blocked-b")))
+        second_cycle = controller.step(_observation(220, _target("blocked-b")))
+        rejected_old_target = controller.step(_observation(230, _target("blocked-a")))
+        reachable_attack = controller.step(_observation(240, _target("reachable")))
+
+        self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB, first_cycle.intent)
+        self.assertEqual(PvEIntent.ATTACK_SELECTED_TARGET, second_attack.intent)
+        self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB, second_cycle.intent)
+        self.assertEqual(PvEPhase.SEEKING, rejected_old_target.phase)
+        self.assertIsNone(rejected_old_target.intent)
+        self.assertEqual(PvEIntent.ATTACK_SELECTED_TARGET, reachable_attack.intent)
+        self.assertEqual(PvEPhase.ENGAGED, reachable_attack.phase)
 
     def test_two_kill_limit_reacquires_after_post_kill_delay(self) -> None:
         controller = PvEController(
@@ -1042,6 +1071,20 @@ class SequenceTargetIdentitySource:
         return self.values.pop(0)
 
 
+class FailingSequenceTargetIdentitySource:
+    def __init__(
+        self,
+        values: tuple[NativeTargetIdentityObservation | NativeTargetIdentityReadError, ...],
+    ) -> None:
+        self.values = list(values)
+
+    def observe(self) -> NativeTargetIdentityObservation:
+        value = self.values.pop(0)
+        if isinstance(value, NativeTargetIdentityReadError):
+            raise value
+        return value
+
+
 class ConstantHealthSource:
     def __init__(self, value: NativeTargetHealthObservation) -> None:
         self.value = value
@@ -1175,6 +1218,59 @@ class PvERunnerTests(unittest.TestCase):
         trainer_identity = result.trace[1].as_dict()["target"]["identity"]
         self.assertEqual(["trainer"], trainer_identity["protected_roles"])
         self.assertFalse(trainer_identity["attack_eligible"])
+
+    def test_runner_skips_unclassifiable_target_and_continues_bounded_scan(self) -> None:
+        clock = AdvancingClock()
+        dispatcher = RecordingPvEDispatcher()
+        runner = PvERunner(
+            controller=PvEController(
+                PvEControllerConfig(
+                    maximum_kills=1,
+                    require_target_identity=True,
+                    target_sample_interval_ms=100,
+                    acquisition_retry_ms=100,
+                )
+            ),
+            health_reader=SequenceHealthSource(
+                (
+                    _absent(),
+                    _target("unreadable"),
+                    _target("mob"),
+                    _target("mob", current=0),
+                )
+            ),
+            target_identity_reader=FailingSequenceTargetIdentitySource(
+                (
+                    _target_identity(None),
+                    NativeTargetIdentityReadError("unmapped sparse-data bucket table"),
+                    _target_identity("mob"),
+                    _target_identity("mob"),
+                )
+            ),
+            player_vitals_reader=SequencePlayerVitalsSource((_player(),) * 4),
+            combat_log_reader=SequenceCombatLogSource(((),) * 4),
+            dispatcher=dispatcher,
+            stop_signal=EventEmergencyStop(),
+            poll_interval_ms=100,
+            clock=clock,
+            sleeper=clock.sleep,
+        )
+
+        result = runner.run()
+
+        self.assertEqual(PvEPhase.COMPLETE, result.final_phase)
+        self.assertEqual(
+            [
+                PvEIntent.ACQUIRE_NEXT_MOB,
+                PvEIntent.ACQUIRE_NEXT_MOB,
+                PvEIntent.ATTACK_SELECTED_TARGET,
+            ],
+            dispatcher.intents,
+        )
+        unreadable_identity = result.trace[1].as_dict()["target"]["identity"]
+        self.assertFalse(unreadable_identity["classification_available"])
+        self.assertIn("unmapped sparse-data", unreadable_identity["classification_error"])
+        self.assertFalse(unreadable_identity["attack_eligible"])
 
     def test_runner_cycles_past_zero_pool_selection_with_stale_position(self) -> None:
         clock = AdvancingClock()

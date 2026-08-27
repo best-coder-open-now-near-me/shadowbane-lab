@@ -18,7 +18,7 @@ from shadowbane_lab.client_observation.native_health import (
 )
 
 NATIVE_TARGET_ACTION_PROFILE_SCHEMA_VERSION = 1
-_BUNDLED_PROFILE_NAME = "wonderbane-0889b39a.native-target-action.json"
+_BUNDLED_PROFILE_NAME = "wonderbane-ef43784b.native-target-action.json"
 
 
 class NativeTargetActionError(RuntimeError):

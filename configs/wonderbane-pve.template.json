@@ -24,6 +24,15 @@
       "post_activation_delay_ms": 250
     },
     {
+      "action_key": "client.pve.target_previous_mobile",
+      "activation": {
+        "type": "key",
+        "key": "'"
+      },
+      "target_order": "none",
+      "post_activation_delay_ms": 250
+    },
+    {
       "action_key": "shadowbane.assassin.shadow_touch",
       "activation": {
         "type": "key",

@@ -158,12 +158,16 @@ class ClientCliTests(unittest.TestCase):
 
         payload = json.loads(output.getvalue())
         self.assertEqual(0, result)
-        self.assertEqual(3, payload["action_count"])
+        self.assertEqual(4, payload["action_count"])
         self.assertFalse(payload["live_input_enabled"])
 
         profile = load_calibration(template)
         mappings = {mapping.action_key: mapping for mapping in profile.actions}
         self.assertEqual(";", mappings["client.pve.target_next_mobile"].activation.key)
+        self.assertEqual(
+            "'",
+            mappings["client.pve.target_previous_mobile"].activation.key,
+        )
         self.assertEqual(
             "f2",
             mappings[PvEIntent.CAST_SHADOW_TOUCH.value].activation.key,

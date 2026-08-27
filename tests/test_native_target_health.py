@@ -132,7 +132,7 @@ class NativeTargetHealthReaderTests(unittest.TestCase):
 
         self.assertEqual(NativeTargetHealthObservation(target_present=False), observation)
 
-    def test_bounded_negative_overkill_is_clamped_to_dead(self) -> None:
+    def test_signed_overkill_is_clamped_to_dead(self) -> None:
         profile = _profile()
         target = 0x12340000
         slot = FakeProcessMemory.base_address + profile.selected_pointer_rva
@@ -141,7 +141,7 @@ class NativeTargetHealthReaderTests(unittest.TestCase):
             FakeProcessMemory(
                 {
                     slot: [_pointer(target), _pointer(target)],
-                    target + profile.current_health_offset: [_health(-32.28, 2200.0)],
+                    target + profile.current_health_offset: [_health(-82.816864, 10.0)],
                 }
             ),
         )
@@ -150,24 +150,7 @@ class NativeTargetHealthReaderTests(unittest.TestCase):
 
         self.assertTrue(observation.target_present)
         self.assertEqual(0.0, observation.current_health)
-        self.assertEqual(2200.0, observation.maximum_health)
-
-    def test_negative_health_beyond_maximum_is_rejected(self) -> None:
-        profile = _profile()
-        target = 0x12340000
-        slot = FakeProcessMemory.base_address + profile.selected_pointer_rva
-        reader = NativeTargetHealthReader(
-            profile,
-            FakeProcessMemory(
-                {
-                    slot: [_pointer(target), _pointer(target)],
-                    target + profile.current_health_offset: [_health(-11.0, 10.0)],
-                }
-            ),
-        )
-
-        with self.assertRaisesRegex(NativeTargetHealthReadError, "structurally invalid"):
-            reader.observe()
+        self.assertEqual(10.0, observation.maximum_health)
 
     def test_retries_when_selection_changes_during_read(self) -> None:
         profile = _profile()
@@ -267,7 +250,7 @@ class NativeTargetHealthProfileTests(unittest.TestCase):
 
         self.assertEqual("sb.exe", profile.executable_name)
         self.assertEqual(
-            "0889b39a6f065f2ddf696bad01455e0b691892077105fe27e35de94bfdf59ebc",
+            "ef43784ba6ffa0de6c0c16c76569f864393ad1530e7149395bb560e5cca30f13",
             profile.executable_sha256,
         )
         self.assertEqual(0x16A2DA4, profile.selected_pointer_rva)

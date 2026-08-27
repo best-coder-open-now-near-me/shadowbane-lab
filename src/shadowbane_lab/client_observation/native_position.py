@@ -17,7 +17,7 @@ from shadowbane_lab.client_observation.native_health import (
 )
 
 NATIVE_POSITION_PROFILE_SCHEMA_VERSION = 2
-_BUNDLED_PROFILE_NAME = "wonderbane-0889b39a.native-position.json"
+_BUNDLED_PROFILE_NAME = "wonderbane-ef43784b.native-position.json"
 
 
 class NativePlayerPositionError(RuntimeError):

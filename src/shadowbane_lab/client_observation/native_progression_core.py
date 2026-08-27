@@ -16,7 +16,7 @@ from shadowbane_lab.client_observation.native_health import (
 )
 
 NATIVE_PROGRESSION_CORE_PROFILE_SCHEMA_VERSION = 1
-_BUNDLED_PROFILE_NAME = "wonderbane-0889b39a.native-progression-core.json"
+_BUNDLED_PROFILE_NAME = "wonderbane-ef43784b.native-progression-core.json"
 _MAX_NATIVE_READ_SIZE = 64
 
 

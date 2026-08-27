@@ -16,21 +16,28 @@ typed native `TARGET_KILLED` event or exact selected-target health reaching zero
 counts or another target can be acquired. A zero-health acquisition candidate is treated as a
 corpse and is never attacked.
 
-Every living candidate is also checked against the client-native `shopkeeper`, `banker`,
-`isTrainer`, and `isMinion` sparse flags. Protected characters participate in target-cycle
-accounting so the nearest-target scan can finish, but they are never admitted to the attack
-candidate set. A missing or incoherent identity snapshot withholds engagement.
+Every living candidate is also checked against the client-native `merchantData` presence marker
+and the `shopkeeper`, `banker`, `isTrainer`, and `isMinion` sparse flags. Protected characters
+participate in target-cycle accounting so the nearest-target scan can finish, but they are never
+admitted to the attack candidate set. A missing or incoherent identity snapshot withholds
+engagement. `merchantData` is presence-based rather than boolean; live 1.0.5 validation found it
+on `Lirak, Master Bard` even though that service NPC exposed neither `isTrainer` nor `shopkeeper`.
+If an otherwise stable candidate exposes an unreadable sparse-role table, the evidence trace
+marks its identity classification unavailable and the controller skips it. The failure remains
+fail-closed for combat while allowing the bounded target scan to continue.
 
 The live profile maps semantic operations to the installed client's captured native
 preferences:
 
 - `client.pve.target_next_mobile` uses `;` (`Target Next Mob`, native action `188`); and
+- `client.pve.target_previous_mobile` uses `'` (`Target Previous Mob`, native action `189`);
+  the nearest-target sampler uses it to rewind directly through the bounded sample instead of
+  traversing the rest of a crowded camp; and
 - `shadowbane.basic_attack` uses `Ctrl+A` (`Attack Selected`).
 
-The same client exposes `Target Previous Mob` as native action `189`, bound to `'` in the
-captured preferences. `Clear Target` is native action `102`, but it had no key record in that
-capture, so the harness does not pretend it has a working clear-selection key. Inspect the
-current file without changing it before any live run:
+`Clear Target` is native action `102`, but it had no key record in that capture, so the harness
+does not pretend it has a working clear-selection key. Inspect the current file without changing
+it before any live run:
 
 ```powershell
 $env:PYTHONPATH = "src"
@@ -71,6 +78,12 @@ impact marker; the next queue arrived 12.3 seconds later and was correctly ignor
 once-per-target guard. This proves the native signal-to-semantic-input path on the calibrated
 client build; it does not claim every creature has identical animation timing.
 
+The current WonderBane 1.0.5 regression also exercised mixed town targets. A preselected Tree
+of Life was classified as a non-character and cycled without attack input; service characters
+were skipped by their native role data. A later run abandoned a nonresponsive 75-health Crab,
+kept its opaque token excluded, acquired a 10-health Turtle, normalized the client's signed
+overkill health to zero, and completed at the one-kill limit.
+
 Shadow Touch must have a real key mapping in the local client profile before this policy can
 run. The checked profile intentionally does not invent one; a proc-Assassin run fails before
 input if `shadowbane.assassin.shadow_touch` is absent. The dry-run replay exercises target
@@ -105,9 +118,10 @@ The runner never attacks a target that was already selected when it started. A s
 proc-Assassin selection gets a one-second grace for a fresh native hit, then the controller
 uses the verified Target Next Mob binding to acquire a different mobile. A stalled fight may
 retry the direct attack command twice. If the client still makes no combat progress, the
-proc-Assassin policy may abandon that unreachable target and use the verified Target Next Mob
-binding once. It requires a different native target token before engaging again and never adds
-movement input or cycles indefinitely.
+proc-Assassin policy remembers that target for the rest of the session, abandons it, and uses
+the verified Target Next Mob binding to seek a different mobile. It requires a new native
+target token before engaging again and permits at most four such retargets, so an unresponsive
+cluster cannot create an input loop.
 
 A single torn native observation is not treated as a trustworthy state change. The runner
 withholds all input while retrying up to three consecutive polls and resets that count only

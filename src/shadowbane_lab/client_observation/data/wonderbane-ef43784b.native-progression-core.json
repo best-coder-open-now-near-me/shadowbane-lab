@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "profile_id": "wonderbane-0889b39a-player-progression-core",
+  "profile_id": "wonderbane-ef43784b-player-progression-core",
   "executable_name": "sb.exe",
-  "executable_sha256": "0889b39a6f065f2ddf696bad01455e0b691892077105fe27e35de94bfdf59ebc",
+  "executable_sha256": "ef43784ba6ffa0de6c0c16c76569f864393ad1530e7149395bb560e5cca30f13",
   "pointer_size": 4,
   "player_pointer_rva": 23735704,
   "training_points_offset": 3104,

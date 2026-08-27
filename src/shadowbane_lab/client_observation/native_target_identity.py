@@ -16,8 +16,8 @@ from shadowbane_lab.client_observation.native_health import (
     WindowsReadOnlyProcessMemory,
 )
 
-NATIVE_TARGET_IDENTITY_PROFILE_SCHEMA_VERSION = 1
-_BUNDLED_PROFILE_NAME = "wonderbane-0889b39a.native-target-identity.json"
+NATIVE_TARGET_IDENTITY_PROFILE_SCHEMA_VERSION = 2
+_BUNDLED_PROFILE_NAME = "wonderbane-ef43784b.native-target-identity.json"
 
 
 class NativeTargetIdentityError(RuntimeError):
@@ -47,6 +47,7 @@ class NativeTargetIdentityProfile:
     selected_pointer_rva: int
     arc_character_vtable_rva: int
     sparse_data_offset: int
+    merchant_data_descriptor_rva: int
     shopkeeper_descriptor_rva: int
     banker_descriptor_rva: int
     trainer_descriptor_rva: int
@@ -76,6 +77,7 @@ class NativeTargetIdentityProfile:
             (self.selected_pointer_rva, "selected_pointer_rva"),
             (self.arc_character_vtable_rva, "arc_character_vtable_rva"),
             (self.sparse_data_offset, "sparse_data_offset"),
+            (self.merchant_data_descriptor_rva, "merchant_data_descriptor_rva"),
             (self.shopkeeper_descriptor_rva, "shopkeeper_descriptor_rva"),
             (self.banker_descriptor_rva, "banker_descriptor_rva"),
             (self.trainer_descriptor_rva, "trainer_descriptor_rva"),
@@ -112,31 +114,70 @@ class NativeTargetIdentityObservation:
     """One coherent selected-target service-role snapshot."""
 
     target_present: bool
+    classification_available: bool = True
     arc_character: bool | None = None
+    merchant: bool | None = None
     shopkeeper: bool | None = None
     banker: bool | None = None
     trainer: bool | None = None
     minion: bool | None = None
     target_token: str | None = None
+    classification_error: str | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.target_present, bool):
             raise ValueError("target_present must be boolean")
+        if not isinstance(self.classification_available, bool):
+            raise ValueError("classification_available must be boolean")
         values = (
             self.arc_character,
+            self.merchant,
             self.shopkeeper,
             self.banker,
             self.trainer,
             self.minion,
         )
         if not self.target_present:
-            if any(value is not None for value in (*values, self.target_token)):
+            if not self.classification_available:
+                raise ValueError("an absent target cannot have unavailable classification")
+            if any(
+                value is not None
+                for value in (*values, self.target_token, self.classification_error)
+            ):
                 raise ValueError("an absent target cannot contain identity values")
             return
-        if any(not isinstance(value, bool) for value in values):
-            raise ValueError("a present target requires boolean role flags")
         if self.target_token is None or not self.target_token.strip():
             raise ValueError("a present target requires an opaque target token")
+        if self.classification_available:
+            if any(not isinstance(value, bool) for value in values):
+                raise ValueError("a classified target requires boolean role flags")
+            if self.classification_error is not None:
+                raise ValueError("a classified target cannot contain a classification error")
+            return
+        if any(value is not None for value in values):
+            raise ValueError("an unclassified target cannot contain role flags")
+        if (
+            self.classification_error is None
+            or not isinstance(self.classification_error, str)
+            or not self.classification_error.strip()
+        ):
+            raise ValueError("an unclassified target requires a classification error")
+
+    @classmethod
+    def unavailable(
+        cls,
+        *,
+        target_token: str,
+        error: str,
+    ) -> NativeTargetIdentityObservation:
+        """Represent a present target that must be skipped after a guarded read failure."""
+
+        return cls(
+            target_present=True,
+            classification_available=False,
+            target_token=target_token,
+            classification_error=error,
+        )
 
     @property
     def protected_roles(self) -> tuple[str, ...]:
@@ -145,6 +186,7 @@ class NativeTargetIdentityObservation:
         return tuple(
             role
             for role, active in (
+                ("merchant", self.merchant),
                 ("shopkeeper", self.shopkeeper),
                 ("banker", self.banker),
                 ("trainer", self.trainer),
@@ -159,7 +201,12 @@ class NativeTargetIdentityObservation:
 
     @property
     def attack_eligible(self) -> bool:
-        return self.target_present and bool(self.arc_character) and not self.protected_role
+        return (
+            self.target_present
+            and self.classification_available
+            and bool(self.arc_character)
+            and not self.protected_role
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -214,6 +261,7 @@ class NativeTargetIdentityReader:
         self._descriptor_keys = {
             role: self._read_descriptor_key(rva, role)
             for role, rva in (
+                ("merchant", profile.merchant_data_descriptor_rva),
                 ("shopkeeper", profile.shopkeeper_descriptor_rva),
                 ("banker", profile.banker_descriptor_rva),
                 ("trainer", profile.trainer_descriptor_rva),
@@ -287,6 +335,7 @@ class NativeTargetIdentityReader:
                 observation=NativeTargetIdentityObservation(
                     target_present=True,
                     arc_character=False,
+                    merchant=False,
                     shopkeeper=False,
                     banker=False,
                     trainer=False,
@@ -308,6 +357,7 @@ class NativeTargetIdentityReader:
         observation = NativeTargetIdentityObservation(
             target_present=True,
             arc_character=True,
+            merchant=values["merchant"],
             shopkeeper=values["shopkeeper"],
             banker=values["banker"],
             trainer=values["trainer"],
@@ -341,6 +391,7 @@ class NativeTargetIdentityReader:
         values = self._read_sparse_values(snapshot.buckets, snapshot.table_bits)
         observation = snapshot.observation
         return values == {
+            "merchant": observation.merchant,
             "shopkeeper": observation.shopkeeper,
             "banker": observation.banker,
             "trainer": observation.trainer,
@@ -356,15 +407,20 @@ class NativeTargetIdentityReader:
         self._require_object_pointer(buckets, table_size, "sparse-data bucket table")
         table = self._read_exact(buckets, table_size, "sparse-data bucket table")
         nodes: dict[str, int] = {}
+        matched_roles: set[str] = set()
         roles_by_key = {key: role for role, key in self._descriptor_keys.items()}
         for key, value_node in struct.iter_unpack("<II", table):
             role = roles_by_key.get(key)
             if role is None:
                 continue
-            if role in nodes:
+            if role in matched_roles:
                 raise NativeTargetIdentityReadError(
                     "selected-target sparse-data table contains a duplicate role key"
                 )
+            matched_roles.add(role)
+            if role == "merchant":
+                values[role] = True
+                continue
             nodes[role] = value_node
         for role, value_node in nodes.items():
             self._require_object_pointer(

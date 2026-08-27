@@ -20,7 +20,7 @@ from shadowbane_lab.client_observation.native_health import (
 from shadowbane_lab.client_observation.native_log import NativeCombatLogEntry
 
 NATIVE_MESSAGE_HUD_PROFILE_SCHEMA_VERSION = 1
-_BUNDLED_PROFILE_NAME = "wonderbane-0889b39a.native-message-hud.json"
+_BUNDLED_PROFILE_NAME = "wonderbane-ef43784b.native-message-hud.json"
 _HUD_MARKER = re.compile(r"\^\\c(?P<color>\d{9})")
 
 

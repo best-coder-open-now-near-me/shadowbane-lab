@@ -18,7 +18,7 @@ from typing import Any, Protocol, cast, runtime_checkable
 
 NATIVE_HEALTH_PROFILE_SCHEMA_VERSION = 2
 _LEGACY_NATIVE_HEALTH_PROFILE_SCHEMA_VERSION = 1
-_BUNDLED_PROFILE_NAME = "wonderbane-0889b39a.native-health.json"
+_BUNDLED_PROFILE_NAME = "wonderbane-ef43784b.native-health.json"
 _ERROR_BAD_LENGTH = 24
 _ERROR_NO_MORE_FILES = 18
 _INVALID_HANDLE_VALUE = ctypes.c_void_p(-1).value
@@ -308,7 +308,6 @@ class NativeTargetHealthReader:
             not isfinite(current_health)
             or not isfinite(maximum_health)
             or maximum_health <= 0
-            or current_health < -maximum_health
         ):
             raise NativeTargetHealthReadError(
                 "selected-target health is structurally invalid "
@@ -319,6 +318,9 @@ class NativeTargetHealthReader:
             raise NativeTargetHealthReadError("selected-target current health exceeds maximum")
         return NativeTargetHealthObservation(
             target_present=True,
+            # The client retains signed overkill on a selected corpse. Any finite
+            # non-positive value is semantically dead even when its magnitude exceeds
+            # the target's maximum health.
             current_health=max(0.0, min(current_health, maximum_health)),
             maximum_health=maximum_health,
             target_token=self._target_token(selected_pointer),

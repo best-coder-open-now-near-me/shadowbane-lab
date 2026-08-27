@@ -16,7 +16,7 @@ from shadowbane_lab.client_observation.native_health import (
 )
 
 NATIVE_TRAINING_PROFILE_SCHEMA_VERSION = 1
-_BUNDLED_PROFILE_NAME = "wonderbane-0889b39a.native-training.json"
+_BUNDLED_PROFILE_NAME = "wonderbane-ef43784b.native-training.json"
 _VECTOR_METADATA_SIZE = 12
 _MAX_NATIVE_READ_SIZE = 64
 

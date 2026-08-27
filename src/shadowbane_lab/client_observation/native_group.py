@@ -17,7 +17,7 @@ from shadowbane_lab.client_observation.native_health import (
 )
 
 NATIVE_GROUP_PROFILE_SCHEMA_VERSION = 1
-_BUNDLED_PROFILE_NAME = "wonderbane-0889b39a.native-group.json"
+_BUNDLED_PROFILE_NAME = "wonderbane-ef43784b.native-group.json"
 _MAX_READ_SIZE = 64
 _GROUP_MEMBER_ROLE = 0x15
 _GROUP_LEADER_ROLE = 0x16

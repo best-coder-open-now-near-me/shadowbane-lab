@@ -8,6 +8,8 @@ param(
     [string] $PveClientProfile = "\\VBOXSVR\codexrepo\configs\wonderbane-pve.local.json",
     [string] $PveHotbarConfig = "",
     [string] $PveNavigationCacheDirectory = "$env:USERPROFILE\Downloads\WonderbaneClient\Wonderbane\cache",
+    [ValidateRange(1, 10)]
+    [int] $PveMaxKills = 3,
     [string] $LogDirectory = "\\VBOXSVR\codexdiag"
 )
 
@@ -89,7 +91,7 @@ $arguments = @(
     "--pve-hotbar-config", $PveHotbarConfig,
     "--pve-evidence-directory", $LogDirectory,
     "--pve-navigation-cache-directory", $PveNavigationCacheDirectory,
-    "--pve-max-kills", "3",
+    "--pve-max-kills", "$PveMaxKills",
     "--pve-max-seconds", "300",
     "--pve-max-encounter-seconds", "120",
     "--pve-recovery-timeout-seconds", "30",

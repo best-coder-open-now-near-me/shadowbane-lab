@@ -18,7 +18,7 @@ from shadowbane_lab.client_observation.native_health import (
 )
 
 NATIVE_TARGET_POSITION_PROFILE_SCHEMA_VERSION = 1
-_BUNDLED_PROFILE_NAME = "wonderbane-0889b39a.native-target-position.json"
+_BUNDLED_PROFILE_NAME = "wonderbane-ef43784b.native-target-position.json"
 
 
 class NativeTargetPositionError(RuntimeError):

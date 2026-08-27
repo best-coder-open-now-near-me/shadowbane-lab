@@ -18,7 +18,7 @@ from shadowbane_lab.client_observation.native_health import (
 )
 
 NATIVE_ZONE_PROFILE_SCHEMA_VERSION = 3
-_BUNDLED_PROFILE_NAME = "wonderbane-0889b39a.native-zone.json"
+_BUNDLED_PROFILE_NAME = "wonderbane-ef43784b.native-zone.json"
 _MAX_READ_SIZE = 64
 
 
