@@ -44,6 +44,11 @@ the listener ignores mouse input injected by the guarded travel actuator. This l
 click take ownership without the controller overwriting it at the next interval. Ordinary
 chat and all other slash-command prefixes are discarded immediately.
 
+When more than one `sb.exe` process exists, each command binds native position and vitals
+reads to the process that owns the guarded foreground client window. Every later input guard
+check remains pinned to that process, so switching to another Shadowbane client cannot mix
+memory from one client with movement input sent to another.
+
 The one-shot CLI equivalent is:
 
 ```powershell

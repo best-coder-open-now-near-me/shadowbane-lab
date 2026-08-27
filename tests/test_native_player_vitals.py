@@ -14,6 +14,7 @@ from shadowbane_lab.client_observation import (
     NativePlayerVitalsReader,
     NativePlayerVitalsReadError,
     load_bundled_native_vitals_profile,
+    open_windows_native_player_vitals_reader,
 )
 
 
@@ -66,6 +67,23 @@ def _pointer(value: int) -> bytes:
 
 
 class NativePlayerVitalsReaderTests(unittest.TestCase):
+    def test_opens_the_guarded_foreground_process_explicitly(self) -> None:
+        process = FakeProcessMemory({})
+        with patch(
+            "shadowbane_lab.client_observation.native_vitals."
+            "WindowsReadOnlyProcessMemory.open_for_process",
+            return_value=process,
+        ) as open_for_process:
+            reader = open_windows_native_player_vitals_reader(
+                _profile(),
+                process_id=4320,
+            )
+
+        open_for_process.assert_called_once_with("sb.exe", 4320)
+        self.assertEqual(52, reader.process_id)
+        reader.close()
+        self.assertTrue(process.closed)
+
     def test_reads_stable_exact_player_vitals(self) -> None:
         profile = _profile()
         player = 0x3518B280

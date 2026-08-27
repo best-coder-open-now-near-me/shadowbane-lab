@@ -21,6 +21,7 @@ class WindowSnapshot:
     is_foreground: bool
     is_visible: bool
     executable_path: str | None = None
+    process_id: int | None = None
 
     def __post_init__(self) -> None:
         if not self.executable_name.strip():
@@ -38,6 +39,13 @@ class WindowSnapshot:
         if self.executable_path is not None:
             if not isinstance(self.executable_path, str) or not self.executable_path.strip():
                 raise ValueError("executable_path must be a non-empty string or None")
+        if self.process_id is not None:
+            if (
+                isinstance(self.process_id, bool)
+                or not isinstance(self.process_id, int)
+                or self.process_id <= 0
+            ):
+                raise ValueError("process_id must be a positive integer or None")
 
 
 @runtime_checkable
@@ -85,11 +93,23 @@ class WindowGuardError(RuntimeError):
 
 
 class ForegroundWindowGuard:
-    def __init__(self, profile: CalibrationProfile, inspector: WindowInspector) -> None:
+    def __init__(
+        self,
+        profile: CalibrationProfile,
+        inspector: WindowInspector,
+        *,
+        expected_process_id: int | None = None,
+    ) -> None:
         if not isinstance(profile, CalibrationProfile):
             raise ValueError("profile must be a CalibrationProfile")
         if not isinstance(inspector, WindowInspector):
             raise ValueError("inspector must implement WindowInspector")
+        if expected_process_id is not None and (
+            isinstance(expected_process_id, bool)
+            or not isinstance(expected_process_id, int)
+            or expected_process_id <= 0
+        ):
+            raise ValueError("expected_process_id must be a positive integer or None")
         target = profile.target
         try:
             self._title_pattern = re.compile(target.title_pattern)
@@ -97,6 +117,7 @@ class ForegroundWindowGuard:
             raise ValueError("target title_pattern is not a valid regular expression") from exc
         self._profile = profile
         self._inspector = inspector
+        self._expected_process_id = expected_process_id
         self._allowed_executables = frozenset(name.casefold() for name in target.executable_names)
 
     @property
@@ -113,6 +134,11 @@ class ForegroundWindowGuard:
             raise WindowGuardError("calibrated client is not visible")
         if snapshot.executable_name.casefold() not in self._allowed_executables:
             raise WindowGuardError("foreground executable is not in the calibration allowlist")
+        if self._expected_process_id is not None:
+            if snapshot.process_id is None:
+                raise WindowGuardError("foreground process identity is unavailable")
+            if snapshot.process_id != self._expected_process_id:
+                raise WindowGuardError("foreground window belongs to a different client process")
         if self._title_pattern.search(snapshot.title) is None:
             raise WindowGuardError("foreground title does not match the calibration profile")
         bounds = snapshot.client_bounds
@@ -254,6 +280,7 @@ class _WindowsWindowApi:
             is_foreground=window == foreground_window,
             is_visible=bool(user32.IsWindowVisible(window)),
             executable_path=executable_path,
+            process_id=process_id.value,
         )
 
     def visible_snapshots(self) -> tuple[WindowSnapshot, ...]:

@@ -409,8 +409,17 @@ class NativePlayerPositionReader:
 
 def open_windows_native_player_position_reader(
     profile: NativePlayerPositionProfile,
+    *,
+    process_id: int | None = None,
 ) -> NativePlayerPositionReader:
-    process = WindowsReadOnlyProcessMemory.open_unique(profile.executable_name)
+    process = (
+        WindowsReadOnlyProcessMemory.open_unique(profile.executable_name)
+        if process_id is None
+        else WindowsReadOnlyProcessMemory.open_for_process(
+            profile.executable_name,
+            process_id,
+        )
+    )
     try:
         return NativePlayerPositionReader(profile, process)
     except Exception:

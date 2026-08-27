@@ -1598,6 +1598,7 @@ def _run_travel(
     live: bool,
     as_json: bool,
     stop_signal: StopSignal | None = None,
+    client_process_id: int | None = None,
 ) -> int:
     if not live:
         return _error("travel execution requires the explicit --live flag", as_json=as_json)
@@ -1655,13 +1656,35 @@ def _run_travel(
                 maximum_clicks=min(500, max(1, round(max_seconds * 1000 / click_interval_ms))),
             ),
         )
-        guard = ForegroundWindowGuard(client_profile, WindowsForegroundWindowInspector())
+        inspector = WindowsForegroundWindowInspector()
+        selection_guard = ForegroundWindowGuard(client_profile, inspector)
+        if client_process_id is None:
+            selected_window = _wait_for_guarded_client(
+                selection_guard,
+                wait_seconds=wait_for_client_seconds,
+            )
+            selected_process_id = _require_window_process_id(selected_window)
+        else:
+            selected_process_id = client_process_id
+        guard = ForegroundWindowGuard(
+            client_profile,
+            inspector,
+            expected_process_id=selected_process_id,
+        )
+        if client_process_id is not None:
+            _wait_for_guarded_client(guard, wait_seconds=wait_for_client_seconds)
         with ExitStack() as stack:
             position_reader = stack.enter_context(
-                open_windows_native_player_position_reader(position_profile)
+                open_windows_native_player_position_reader(
+                    position_profile,
+                    process_id=selected_process_id,
+                )
             )
             player_vitals_reader = stack.enter_context(
-                open_windows_native_player_vitals_reader(vitals_profile)
+                open_windows_native_player_vitals_reader(
+                    vitals_profile,
+                    process_id=selected_process_id,
+                )
             )
             active_stop_signal = stop_signal
             if active_stop_signal is None:
@@ -1670,7 +1693,6 @@ def _run_travel(
                 raise ValueError(
                     "native position and player-vitals readers resolved different processes"
                 )
-            _wait_for_guarded_client(guard, wait_seconds=wait_for_client_seconds)
             executor = GuardedInputExecutor(
                 guard=guard,
                 backend=PyAutoGuiBackend(),
@@ -1826,6 +1848,18 @@ def _listen_for_go_commands(
                         as_json=as_json,
                     )
                     continue
+                try:
+                    command_process_id = _require_window_process_id(
+                        guard.require_target()
+                    )
+                except WindowGuardError as exc:
+                    _print_go_listener_event(
+                        "rejected",
+                        as_json=as_json,
+                        command=command,
+                        reason=str(exc),
+                    )
+                    continue
                 if normalized == "/go":
                     lt = None
                     lg = None
@@ -1849,7 +1883,8 @@ def _listen_for_go_commands(
                                 else load_bundled_native_position_profile()
                             )
                             with open_windows_native_player_position_reader(
-                                position_profile
+                                position_profile,
+                                process_id=command_process_id,
                             ) as position_reader:
                                 origin = position_reader.observe()
                             named_resolution = named_catalog.resolve(
@@ -1912,6 +1947,7 @@ def _listen_for_go_commands(
                         live=live,
                         as_json=as_json,
                         stop_signal=AnyStopSignal(service_stop, route_stop),
+                        client_process_id=command_process_id,
                     )
                 finally:
                     with active_lock:
@@ -2013,17 +2049,22 @@ def _wait_for_guarded_client(
     guard: ForegroundWindowGuard,
     *,
     wait_seconds: float,
-) -> None:
+) -> WindowSnapshot:
     deadline = time.monotonic() + wait_seconds
     while True:
         try:
-            guard.require_target()
-            return
+            return guard.require_target()
         except WindowGuardError:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 raise
             time.sleep(min(0.1, remaining))
+
+
+def _require_window_process_id(snapshot: WindowSnapshot) -> int:
+    if snapshot.process_id is None:
+        raise WindowGuardError("foreground process identity is unavailable")
+    return snapshot.process_id
 
 
 def _error(message: str, *, as_json: bool) -> int:

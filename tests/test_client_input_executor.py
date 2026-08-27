@@ -20,6 +20,7 @@ from shadowbane_lab.client_input import (
     StaticBindingPointResolver,
     StaticWindowInspector,
     WindowBounds,
+    WindowGuardError,
     WindowSnapshot,
 )
 from shadowbane_lab.protocol import DecisionAdapter
@@ -79,6 +80,7 @@ def _valid_snapshot() -> WindowSnapshot:
         dpi_scale=1.0,
         is_foreground=True,
         is_visible=True,
+        process_id=4320,
     )
 
 
@@ -175,6 +177,17 @@ class GuardedInputAdapterTests(unittest.TestCase):
         self.assertFalse(result.accepted)
         self.assertIn("no foreground window", result.reason or "")
         self.assertEqual((), backend.invocations)
+
+    def test_guard_rejects_a_different_foreground_client_process(self) -> None:
+        profile = _load_profile()
+        guard = ForegroundWindowGuard(
+            profile,
+            StaticWindowInspector(_valid_snapshot()),
+            expected_process_id=9376,
+        )
+
+        with self.assertRaisesRegex(WindowGuardError, "different client process"):
+            guard.require_target()
 
     def test_emergency_stop_rejects_before_any_input(self) -> None:
         stop = EventEmergencyStop()

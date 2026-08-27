@@ -5,15 +5,22 @@ import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from dataclasses import replace
 from pathlib import Path
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
-from shadowbane_lab.cli import main
+from shadowbane_lab.cli import _run_travel, main
 from shadowbane_lab.client_input import (
+    EventEmergencyStop,
+    RecordingInputBackend,
     StaticVisibleWindowInspector,
     StaticWindowInspector,
+    WindowBounds,
+    WindowSnapshot,
     load_calibration,
 )
+from shadowbane_lab.client_observation import NativePlayerPositionObservation
 from shadowbane_lab.pve import PvEIntent
+from shadowbane_lab.travel import TravelPhase
 from tests.test_client_input_executor import _valid_snapshot
 
 
@@ -203,6 +210,94 @@ class ClientCliTests(unittest.TestCase):
         self.assertEqual(2, result)
         self.assertFalse(payload["ok"])
         self.assertIn("--live", payload["error"])
+
+    def test_travel_binds_native_readers_to_the_guarded_client_process(self) -> None:
+        template = Path(__file__).parents[1] / "configs" / "wonderbane-travel.template.json"
+        profile = replace(load_calibration(template), live_input_enabled=True)
+        snapshot = WindowSnapshot(
+            executable_name=profile.target.executable_names[0],
+            title="Shadowbane",
+            client_bounds=WindowBounds(
+                left=0,
+                top=0,
+                width=profile.target.reference_width,
+                height=profile.target.reference_height,
+            ),
+            dpi_scale=profile.target.dpi_scale,
+            is_foreground=True,
+            is_visible=True,
+            process_id=4320,
+        )
+        position_profile = SimpleNamespace(executable_sha256="ab" * 32)
+        vitals_profile = SimpleNamespace(executable_sha256="ab" * 32)
+        position_reader = MagicMock()
+        position_reader.process_id = 4320
+        position_reader.__enter__.return_value = position_reader
+        vitals_reader = MagicMock()
+        vitals_reader.process_id = 4320
+        vitals_reader.__enter__.return_value = vitals_reader
+        completed_run = SimpleNamespace(
+            final_phase=TravelPhase.COMPLETE,
+            terminal_reason="arrived",
+            final_position=NativePlayerPositionObservation(1000, 2000, 10),
+            trace=(),
+            clicks=1,
+            stop_input_accepted=None,
+            stop_input_reason=None,
+        )
+        output = io.StringIO()
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch("shadowbane_lab.cli.load_calibration", return_value=profile),
+            patch(
+                "shadowbane_lab.cli.WindowsForegroundWindowInspector",
+                return_value=StaticWindowInspector(snapshot),
+            ),
+            patch(
+                "shadowbane_lab.cli.load_bundled_native_position_profile",
+                return_value=position_profile,
+            ),
+            patch(
+                "shadowbane_lab.cli.load_bundled_native_vitals_profile",
+                return_value=vitals_profile,
+            ),
+            patch(
+                "shadowbane_lab.cli.open_windows_native_player_position_reader",
+                return_value=position_reader,
+            ) as open_position,
+            patch(
+                "shadowbane_lab.cli.open_windows_native_player_vitals_reader",
+                return_value=vitals_reader,
+            ) as open_vitals,
+            patch(
+                "shadowbane_lab.cli.PyAutoGuiBackend",
+                return_value=RecordingInputBackend(),
+            ),
+            patch("shadowbane_lab.cli.TravelRunner") as travel_runner,
+            redirect_stdout(output),
+        ):
+            travel_runner.return_value.run.return_value = completed_run
+            result = _run_travel(
+                lt=1000,
+                lg=2000,
+                radius=75,
+                destination_state_path=Path(directory) / "travel.json",
+                client_profile_path=template,
+                native_position_profile_path=None,
+                native_vitals_profile_path=None,
+                max_seconds=30,
+                wait_for_client_seconds=0,
+                poll_ms=200,
+                click_interval_ms=4000,
+                live=True,
+                as_json=True,
+                stop_signal=EventEmergencyStop(),
+                client_process_id=4320,
+            )
+
+        self.assertEqual(0, result)
+        open_position.assert_called_once_with(position_profile, process_id=4320)
+        open_vitals.assert_called_once_with(vitals_profile, process_id=4320)
 
     def test_proc_assassin_policy_fails_before_input_without_shadow_touch_mapping(self) -> None:
         template = Path(__file__).parents[1] / "configs" / "wonderbane-pve.template.json"

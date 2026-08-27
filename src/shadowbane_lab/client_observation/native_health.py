@@ -423,8 +423,35 @@ class WindowsReadOnlyProcessMemory:
             raise NativeTargetHealthReadError(
                 f"multiple running {executable_name} processes were found: {joined}"
             )
-        pid = process_ids[0]
+        return cls._open_process(api, process_ids[0], executable_name)
+
+    @classmethod
+    def open_for_process(
+        cls,
+        executable_name: str,
+        process_id: int,
+    ) -> WindowsReadOnlyProcessMemory:
+        if (
+            isinstance(process_id, bool)
+            or not isinstance(process_id, int)
+            or process_id <= 0
+        ):
+            raise NativeTargetHealthReadError("process_id must be a positive integer")
+        return cls._open_process(_WindowsApi(), process_id, executable_name)
+
+    @classmethod
+    def _open_process(
+        cls,
+        api: _WindowsApi,
+        process_id: int,
+        executable_name: str,
+    ) -> WindowsReadOnlyProcessMemory:
+        pid = process_id
         module = _main_module(api, pid)
+        if module.szModule.casefold() != executable_name.casefold():
+            raise NativeTargetHealthReadError(
+                f"process {pid} is {module.szModule}, not {executable_name}"
+            )
         return cls(
             api=api,
             pid=pid,
