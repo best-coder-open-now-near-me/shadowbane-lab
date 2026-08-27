@@ -8,6 +8,7 @@ from pathlib import Path
 
 from shadowbane_lab.client_observation import (
     NativeCurrentZoneObservation,
+    NativePlayerPositionObservation,
     NativeZoneGeometry,
 )
 from shadowbane_lab.travel.pathfinding import NavigationCell, SparseNavigationMap
@@ -26,6 +27,7 @@ class TerrainNavigationConfig:
     blocked_sample_delta: int = 64
     minimum_traversable_sample: int | None = None
     maximum_traversal_cost: float = 5.0
+    seed_radius: float = 1_200.0
     maximum_seed_cells: int = 50_000
 
     def __post_init__(self) -> None:
@@ -56,6 +58,13 @@ class TerrainNavigationConfig:
         ):
             raise ValueError("maximum_traversal_cost must be finite and at least one")
         if (
+            isinstance(self.seed_radius, bool)
+            or not isinstance(self.seed_radius, (int, float))
+            or not isfinite(self.seed_radius)
+            or self.seed_radius <= 0
+        ):
+            raise ValueError("seed_radius must be finite and positive")
+        if (
             isinstance(self.maximum_seed_cells, bool)
             or not isinstance(self.maximum_seed_cells, int)
             or self.maximum_seed_cells <= 0
@@ -72,6 +81,9 @@ class TerrainNavigationSeed:
     terrain_map_id: int
     raster_width: int
     raster_height: int
+    window_center_lt: float | None
+    window_center_lg: float | None
+    window_radius: float | None
     sampled_cells: int
     blocked_cells: frozenset[NavigationCell]
     costs: tuple[tuple[NavigationCell, float], ...]
@@ -86,12 +98,15 @@ class ActiveZoneTerrainNavigation:
 def load_active_zone_terrain_navigation(
     cache_directory: str | Path,
     observation: NativeCurrentZoneObservation,
+    origin: NativePlayerPositionObservation,
     config: TerrainNavigationConfig | None = None,
 ) -> ActiveZoneTerrainNavigation:
     """Load the nearest active height layer and seed one sparse global A* map."""
 
     if not isinstance(observation, NativeCurrentZoneObservation):
         raise ValueError("observation must be NativeCurrentZoneObservation")
+    if not isinstance(origin, NativePlayerPositionObservation):
+        raise ValueError("origin must be NativePlayerPositionObservation")
     resolved = config or TerrainNavigationConfig()
     navigation_map = SparseNavigationMap(cell_size=resolved.cell_size)
     cache_root = Path(cache_directory)
@@ -126,6 +141,8 @@ def load_active_zone_terrain_navigation(
                 zone_depth=identity.depth,
                 template_group_id=identity.template_group_id,
                 template_id=identity.template_id,
+                window_center_lt=origin.lt,
+                window_center_lg=origin.lg,
                 config=resolved,
             )
             return ActiveZoneTerrainNavigation(navigation_map, seed)
@@ -140,6 +157,8 @@ def seed_height_raster_navigation(
     zone_depth: int,
     template_group_id: int,
     template_id: int,
+    window_center_lt: float | None = None,
+    window_center_lg: float | None = None,
     config: TerrainNavigationConfig | None = None,
 ) -> TerrainNavigationSeed:
     if not isinstance(navigation_map, SparseNavigationMap):
@@ -151,6 +170,15 @@ def seed_height_raster_navigation(
     resolved = config or TerrainNavigationConfig(cell_size=navigation_map.cell_size)
     if resolved.cell_size != navigation_map.cell_size:
         raise ValueError("terrain config and navigation map cell sizes must match")
+    if (window_center_lt is None) != (window_center_lg is None):
+        raise ValueError("terrain navigation window center requires both LT and LG")
+    for value in (window_center_lt, window_center_lg):
+        if value is not None and (
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not isfinite(value)
+        ):
+            raise ValueError("terrain navigation window center must be finite")
 
     corners = [
         _local_to_world(geometry, x, z)
@@ -161,6 +189,25 @@ def seed_height_raster_navigation(
     maximum_x = floor(max(point[0] for point in corners) / resolved.cell_size)
     minimum_y = floor(min(point[1] for point in corners) / resolved.cell_size)
     maximum_y = floor(max(point[1] for point in corners) / resolved.cell_size)
+    if window_center_lt is not None and window_center_lg is not None:
+        minimum_x = max(
+            minimum_x,
+            floor((window_center_lt - resolved.seed_radius) / resolved.cell_size),
+        )
+        maximum_x = min(
+            maximum_x,
+            floor((window_center_lt + resolved.seed_radius) / resolved.cell_size),
+        )
+        minimum_y = max(
+            minimum_y,
+            floor((window_center_lg - resolved.seed_radius) / resolved.cell_size),
+        )
+        maximum_y = min(
+            maximum_y,
+            floor((window_center_lg + resolved.seed_radius) / resolved.cell_size),
+        )
+    if minimum_x > maximum_x or minimum_y > maximum_y:
+        raise ValueError("terrain navigation window does not intersect the active zone")
     candidate_count = (maximum_x - minimum_x + 1) * (maximum_y - minimum_y + 1)
     if candidate_count > resolved.maximum_seed_cells:
         raise ValueError("active terrain exceeds the bounded navigation seed size")
@@ -219,6 +266,9 @@ def seed_height_raster_navigation(
         terrain_map_id=raster.map_id,
         raster_width=raster.width,
         raster_height=raster.height,
+        window_center_lt=window_center_lt,
+        window_center_lg=window_center_lg,
+        window_radius=(resolved.seed_radius if window_center_lt is not None else None),
         sampled_cells=sampled_cells,
         blocked_cells=frozenset(blocked),
         costs=tuple(sorted(costs.items())),

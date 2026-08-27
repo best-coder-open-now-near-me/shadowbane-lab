@@ -1720,9 +1720,11 @@ def _run_pve(
                     )
                 )
                 zone_observation = zone_reader.observe()
+                terrain_origin = player_position_reader.observe()
                 active_terrain = load_active_zone_terrain_navigation(
                     navigation_cache_directory,
                     zone_observation,
+                    terrain_origin,
                 )
                 navigation_map = active_terrain.navigation_map
                 terrain_seed = active_terrain.seed
@@ -1741,6 +1743,9 @@ def _run_pve(
                         "terrain_map_id": terrain_seed.terrain_map_id,
                         "raster_width": terrain_seed.raster_width,
                         "raster_height": terrain_seed.raster_height,
+                        "window_center_lt": terrain_seed.window_center_lt,
+                        "window_center_lg": terrain_seed.window_center_lg,
+                        "window_radius": terrain_seed.window_radius,
                         "sampled_cells": terrain_seed.sampled_cells,
                         "blocked_cells": len(terrain_seed.blocked_cells),
                         "weighted_cells": len(terrain_seed.costs),

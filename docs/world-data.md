@@ -53,7 +53,7 @@ through 16x16 tiles. Its stock `WorldDef` identifies Aerynth world 1 with 70 nes
 49 zone template IDs, and 26 named zone-load configurations.
 
 The active-zone loader uses the client-resolved `CZone` key and native placement geometry to
-project the first referenced map into global LT/LG cells. Large within-cell height changes become
+project the first referenced map into a bounded local window of global LT/LG cells. Large within-cell height changes become
 hard A* exclusions and smaller changes become traversal costs. It does not infer a waterline from
 low samples; that threshold remains disabled until material and live movement evidence calibrate
 it.

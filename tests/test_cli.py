@@ -464,6 +464,8 @@ class ClientCliTests(unittest.TestCase):
             reader.__enter__.return_value = reader
         zone_observation = SimpleNamespace(name="Sea Dog's Rest", zone_token="zone-1")
         readers[6].observe.return_value = zone_observation
+        terrain_origin = NativePlayerPositionObservation(88908, 45112, 28)
+        readers[2].observe.return_value = terrain_origin
         navigation_map = SparseNavigationMap()
         terrain_navigation = SimpleNamespace(
             navigation_map=navigation_map,
@@ -475,6 +477,9 @@ class ClientCliTests(unittest.TestCase):
                 terrain_map_id=1,
                 raster_width=384,
                 raster_height=384,
+                window_center_lt=88908,
+                window_center_lg=45112,
+                window_radius=1200,
                 sampled_cells=1600,
                 blocked_cells=frozenset({(1, 2)}),
                 costs=(((2, 3), 1.5),),
@@ -596,7 +601,11 @@ class ClientCliTests(unittest.TestCase):
             process_id=4320,
         )
         open_zone.assert_called_once_with(native_profiles[6], process_id=4320)
-        load_terrain.assert_called_once_with(navigation_cache, zone_observation)
+        load_terrain.assert_called_once_with(
+            navigation_cache,
+            zone_observation,
+            terrain_origin,
+        )
         self.assertIs(
             navigation_map,
             pve_runner.call_args.kwargs["approach_controller"]._navigation_map,

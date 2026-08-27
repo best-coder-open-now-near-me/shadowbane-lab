@@ -146,6 +146,44 @@ class TerrainNavigationTests(unittest.TestCase):
         self.assertTrue(all(98 <= cell.x <= 101 for cell in seed.blocked_cells))
         self.assertTrue(all(198 <= cell.y <= 201 for cell in seed.blocked_cells))
 
+    def test_large_zone_is_bounded_to_the_local_seed_window(self) -> None:
+        geometry = NativeZoneGeometry(
+            minimum_local_x=-50_000.0,
+            minimum_local_z=-50_000.0,
+            maximum_local_x=50_000.0,
+            maximum_local_z=50_000.0,
+            rotation_w=1.0,
+            rotation_x=0.0,
+            rotation_y=0.0,
+            rotation_z=0.0,
+            absolute_center_x=71_834.0,
+            absolute_center_z=-46_390.0,
+            local_center_x=0.0,
+            local_center_z=0.0,
+            radius_x=50_000.0,
+            radius_z=50_000.0,
+        )
+
+        seed = seed_height_raster_navigation(
+            SparseNavigationMap(cell_size=20.0),
+            geometry=geometry,
+            raster=TerrainAlphaRaster(7, 1, 5, 5, bytes(25)),
+            zone_depth=0,
+            template_group_id=0,
+            template_id=230,
+            window_center_lt=71_834.0,
+            window_center_lg=46_390.0,
+            config=TerrainNavigationConfig(
+                cell_size=20.0,
+                seed_radius=1_200.0,
+                maximum_seed_cells=20_000,
+            ),
+        )
+
+        self.assertLessEqual(seed.sampled_cells, 121 * 121)
+        self.assertEqual(71_834.0, seed.window_center_lt)
+        self.assertEqual(1_200.0, seed.window_radius)
+
 
 if __name__ == "__main__":
     unittest.main()
