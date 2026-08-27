@@ -6,6 +6,17 @@ from shadowbane_lab.world_data.cache import (
     CacheArchiveHeader,
     CacheResourceEntry,
 )
+from shadowbane_lab.world_data.object_navigation import (
+    MeshNavigationBounds,
+    ObjectCollisionProfile,
+    ObjectNavigationFormatError,
+    ObjectNavigationMetadata,
+    ObjectNavigationResolver,
+    RenderNavigationMetadata,
+    parse_mesh_navigation_bounds,
+    parse_object_navigation_metadata,
+    parse_render_navigation_metadata,
+)
 from shadowbane_lab.world_data.terrain import (
     TerrainAlphaFormatError,
     TerrainAlphaMap,
@@ -44,6 +55,12 @@ __all__ = [
     "CacheArchiveFormatError",
     "CacheArchiveHeader",
     "CacheResourceEntry",
+    "MeshNavigationBounds",
+    "ObjectCollisionProfile",
+    "ObjectNavigationFormatError",
+    "ObjectNavigationMetadata",
+    "ObjectNavigationResolver",
+    "RenderNavigationMetadata",
     "TerrainAlphaFormatError",
     "TerrainAlphaMap",
     "TerrainAlphaRaster",
@@ -66,6 +83,9 @@ __all__ = [
     "index_terrain_alpha_maps",
     "read_terrain_alpha_map",
     "load_world_definition",
+    "parse_mesh_navigation_bounds",
+    "parse_object_navigation_metadata",
+    "parse_render_navigation_metadata",
     "parse_world_definition",
     "parse_zone_navigation_metadata",
 ]
