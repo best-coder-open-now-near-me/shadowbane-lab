@@ -36,6 +36,13 @@ from shadowbane_lab.sim.random_source import (
     DeterministicRandom,
     RandomSnapshot,
 )
+from shadowbane_lab.sim.range_intent import (
+    CLOSE_RANGE_ACTION_KEY,
+    RANGE_MAXIMUM_FEATURE,
+    RangeBand,
+    RangeRelation,
+    close_range_action,
+)
 from shadowbane_lab.sim.state import (
     ActiveEffectSnapshot,
     ActiveEffectState,
@@ -59,6 +66,7 @@ __all__ = [
     "ActiveEffectSnapshot",
     "ActiveEffectState",
     "ClockSnapshot",
+    "CLOSE_RANGE_ACTION_KEY",
     "DealDamage",
     "DeliveryKind",
     "DeliverySpec",
@@ -75,6 +83,9 @@ __all__ = [
     "MovementMode",
     "PhaseKind",
     "RandomSnapshot",
+    "RANGE_MAXIMUM_FEATURE",
+    "RangeBand",
+    "RangeRelation",
     "ReferenceEnvironment",
     "RemoveEffect",
     "ResourceCost",
@@ -91,4 +102,5 @@ __all__ = [
     "UniformAmount",
     "UniformIntegerAmount",
     "WeightedAmount",
+    "close_range_action",
 ]

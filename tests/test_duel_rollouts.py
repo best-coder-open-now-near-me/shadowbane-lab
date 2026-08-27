@@ -117,7 +117,7 @@ class DuelRolloutTests(unittest.TestCase):
 
         self.assertNotIn(SHADOW_TOUCH, assassin_actions)
 
-    def test_common_movement_closes_range_without_rejections(self) -> None:
+    def test_relational_movement_closes_range_without_rejections(self) -> None:
         assassin = build("assassin", 26, 40)
         warlock = build("warlock", 26, 40)
         assassin = CharacterBuild(
@@ -145,7 +145,8 @@ class DuelRolloutTests(unittest.TestCase):
 
         for combatant in result.combatants:
             actions = {item.action_key for item in combatant.actions}
-            self.assertIn("shadowbane.move", actions)
+            self.assertIn("sim.range.close", actions)
+            self.assertNotIn("shadowbane.move", actions)
             self.assertIn("shadowbane.basic_attack", actions)
             self.assertEqual(0, combatant.rejected_actions)
 

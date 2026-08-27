@@ -94,7 +94,7 @@ class SmartCampRolloutTests(unittest.TestCase):
         action_counts = dict(result.action_counts)
 
         self.assertEqual(3, action_counts["shadowbane.assassin.shadow_touch"])
-        self.assertEqual(1, action_counts["shadowbane.move"])
+        self.assertEqual(1, action_counts["sim.range.close"])
         self.assertGreater(
             action_counts["shadowbane.assassin.dual_fist_successful_hit"],
             0,

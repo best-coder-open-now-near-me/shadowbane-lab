@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
-from math import hypot
 
 from shadowbane_lab.protocol import (
     Affordance,
@@ -17,12 +16,23 @@ from shadowbane_lab.protocol import (
     Vector2,
 )
 from shadowbane_lab.rulesets import CharacterBuild, CompiledRuleset, load_shadowbane_vertical_slice
-from shadowbane_lab.sim import AgentExchange, EntityState, ReferenceEnvironment
+from shadowbane_lab.sim import (
+    RANGE_MAXIMUM_FEATURE,
+    ActionCatalog,
+    AgentExchange,
+    EntityState,
+    RangeBand,
+    ReferenceEnvironment,
+    close_range_action,
+)
 
 SHADOW_BOLT = "shadowbane.assassin.shadow_bolt"
 SHADOW_TOUCH = "shadowbane.assassin.shadow_touch"
 MIND_STRIKE = "shadowbane.warlock.mind_strike"
 PSYCHIC_HEALING = "shadowbane.warlock.psychic_healing"
+_DIRECTIONAL_MOVE = "shadowbane.move"
+_CLOSE_RANGE = "sim.range.close"
+_MELEE_RANGE = 3.0
 
 
 def _positive_number(value: float, field_name: str) -> None:
@@ -210,31 +220,13 @@ class UtilityDuelPolicy:
         if expected_damage > 0.0 or control_ms > 0.0:
             return expected_damage * 1_000.0 / commitment_ms + control_ms / 300.0
 
-        if "movement" in tags and affordance.binding.direction is not None:
-            return self._movement_score(affordance, exchange)
+        if "range.close" in tags:
+            distance = features.get("distance")
+            maximum = features.get(RANGE_MAXIMUM_FEATURE)
+            if distance is None or maximum is None or distance <= maximum:
+                return float("-inf")
+            return 1.0
         return -10.0
-
-    @staticmethod
-    def _movement_score(affordance: Affordance, exchange: AgentExchange) -> float:
-        actor = next(
-            entity for entity in exchange.observation.entities if entity.relation is Relation.SELF
-        )
-        enemies = tuple(
-            entity
-            for entity in exchange.observation.entities
-            if entity.relation is Relation.ENEMY
-        )
-        if not enemies or affordance.binding.direction is None:
-            return float("-inf")
-        target = min(enemies, key=lambda item: _distance(actor.position, item.position))
-        delta_x = target.position.x - actor.position.x
-        delta_y = target.position.y - actor.position.y
-        length = hypot(delta_x, delta_y)
-        if length == 0.0:
-            return float("-inf")
-        direction = affordance.binding.direction
-        alignment = (direction.x * delta_x + direction.y * delta_y) / length
-        return 1.0 + alignment
 
 
 def run_duel(config: DuelConfig) -> DuelResult:
@@ -242,12 +234,15 @@ def run_duel(config: DuelConfig) -> DuelResult:
 
     rank_overrides = _merge_rank_overrides(config.left.build, config.right.build)
     ruleset = load_shadowbane_vertical_slice(rank_overrides=rank_overrides)
+    catalog = ActionCatalog(
+        (*ruleset.catalog.actions, close_range_action(RangeBand(maximum=_MELEE_RANGE)))
+    )
     entities = (
         _entity(config.left, Vector2(0.0, 0.0), ruleset),
         _entity(config.right, Vector2(config.starting_distance, 0.0), ruleset),
     )
     environment = ReferenceEnvironment(
-        ruleset.catalog,
+        catalog,
         entities,
         seed=config.seed,
         terminate_on_last_team=True,
@@ -366,7 +361,10 @@ def _entity(config: CombatantConfig, position: Vector2, ruleset: CompiledRuleset
             "stamina": config.stamina,
         },
         tags={f"profession.{config.build.profession}"},
-        action_keys=ruleset.action_keys_for(config.build),
+        action_keys=tuple(
+            _CLOSE_RANGE if key == _DIRECTIONAL_MOVE else key
+            for key in ruleset.action_keys_for(config.build)
+        ),
     )
 
 
@@ -415,6 +413,3 @@ def _combatant_result(
 def _scalar(values: tuple[NamedScalar, ...], name: str) -> float:
     return next((item.value for item in values if item.name == name), 0.0)
 
-
-def _distance(left: Vector2, right: Vector2) -> float:
-    return hypot(left.x - right.x, left.y - right.y)

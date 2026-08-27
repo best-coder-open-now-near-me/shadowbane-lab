@@ -33,12 +33,14 @@ from shadowbane_lab.sim import (
     DealDamage,
     EntityState,
     PhaseKind,
+    RangeBand,
     ReferenceEnvironment,
     SubjectRef,
     TargetingSpec,
     UniformAmount,
     UniformIntegerAmount,
     WeightedAmount,
+    close_range_action,
 )
 
 _PLAYER_ID = "player"
@@ -47,7 +49,7 @@ _MOB_TEAM = "mob"
 _DUAL_FIST = "shadowbane.assassin.dual_fist_successful_hit"
 _DUAL_FIST_MAXIMUM_RANGE = 3.0
 _SHADOW_TOUCH = "shadowbane.assassin.shadow_touch"
-_MOVE = "shadowbane.move"
+_CLOSE_RANGE = "sim.range.close"
 _MOB_ATTACK = "shadowbane.mob.basic_attack"
 _TICK_DURATION_MS = 200
 _MAX_BATCH_EPISODES = 1_000_000
@@ -383,17 +385,13 @@ class SmartCampPolicy:
             ),
             None,
         )
-        movement = max(
+        movement = next(
             (
                 item
-                for item in exchange.affordances.affordances
-                if item.action_key == _MOVE and item.binding.direction is not None
+                for item in target_affordances
+                if item.action_key == _CLOSE_RANGE
             ),
-            key=lambda item: (
-                item.binding.direction.x * (target.position.x - actor.position.x)
-                + item.binding.direction.y * (target.position.y - actor.position.y)
-            ),
-            default=None,
+            None,
         )
         selected_affordance = None
         reason = "waiting_on_action_readiness"
@@ -808,9 +806,7 @@ def _compile_scenario(config: SmartCampConfig) -> _CompiledSmartCamp:
     shadow_touch = ruleset.record(_SHADOW_TOUCH).action
     if shadow_touch is None:
         raise RuntimeError("ranked Shadow Touch did not compile")
-    movement = ruleset.record(_MOVE).action
-    if movement is None:
-        raise RuntimeError("directional movement did not compile")
+    movement = close_range_action(RangeBand(maximum=_DUAL_FIST_MAXIMUM_RANGE))
     mob_actions = tuple(_mob_action(mob) for mob in config.mobs)
     catalog = ActionCatalog((dual_fist, shadow_touch, movement, *mob_actions))
     entities = [
@@ -832,7 +828,7 @@ def _compile_scenario(config: SmartCampConfig) -> _CompiledSmartCamp:
                 "stamina": config.player_stamina,
             },
             tags={"profession.assassin", "build.unarmed_proc"},
-            action_keys=(_DUAL_FIST, _SHADOW_TOUCH, _MOVE),
+            action_keys=(_DUAL_FIST, _SHADOW_TOUCH, _CLOSE_RANGE),
         )
     ]
     for mob, mob_action in zip(config.mobs, mob_actions, strict=True):
