@@ -58,6 +58,42 @@ class ZoneTerrainGeneration:
 
 
 @dataclass(frozen=True, slots=True)
+class ZoneTerrainObjectPopulation:
+    object_key: ZoneResourceKey
+    fractal_h: float
+    lacunarity: float
+    octaves: int
+    offset: float
+    gain: float
+    minimum_altitude: float
+    maximum_altitude: float
+    minimum_slope: float
+    maximum_slope: float
+    maximum_population: int
+    fractal_population: bool
+    y_offset: float
+    population_image: ZoneResourceKey
+    image_minimum_y: float
+    image_maximum_y: float
+
+    def population_layer_index(
+        self,
+        terrain: ZoneTerrainGeneration | None,
+    ) -> int | None:
+        """Resolve a population image to its layer after the terrain height image."""
+
+        if (
+            terrain is None
+            or terrain.image is None
+            or self.population_image == ZoneResourceKey(0, 0)
+            or self.population_image.group_id != terrain.image.group_id
+        ):
+            return None
+        layer_index = self.population_image.resource_id - terrain.image.resource_id
+        return layer_index if layer_index > 0 else None
+
+
+@dataclass(frozen=True, slots=True)
 class ZoneNavigationMetadata:
     zone_type: int
     name: str
@@ -71,6 +107,7 @@ class ZoneNavigationMetadata:
     gradient: float
     water: ZoneWaterMetadata | None
     terrain_generation: ZoneTerrainGeneration | None
+    terrain_object_populations: tuple[ZoneTerrainObjectPopulation, ...]
     parsed_size: int
 
     @property
@@ -97,7 +134,7 @@ class ZoneNavigationMetadata:
 
 
 def parse_zone_navigation_metadata(payload: bytes) -> ZoneNavigationMetadata:
-    """Decode the CZone prefix through its optional water and terrain generator."""
+    """Decode CZone navigation fields through its terrain-object populations."""
 
     if not isinstance(payload, bytes):
         raise ValueError("CZone payload must be bytes")
@@ -147,6 +184,14 @@ def parse_zone_navigation_metadata(payload: bytes) -> ZoneNavigationMetadata:
 
     water = _parse_water(reader) if reader.boolean("water flag") else None
     terrain = _parse_terrain_generation(reader) if reader.boolean("terrain flag") else None
+    pattern_count = reader.count("terrain patterns", maximum=65_536)
+    reader.skip(pattern_count * 8, "terrain patterns")
+    altitude_count = reader.count("terrain altitudes", maximum=65_536)
+    reader.skip(altitude_count * 4, "terrain altitudes")
+    population_count = reader.count("terrain-object populations", maximum=65_536)
+    terrain_object_populations = tuple(
+        _parse_terrain_object_population(reader) for _ in range(population_count)
+    )
     return ZoneNavigationMetadata(
         zone_type=zone_type,
         name=name,
@@ -160,6 +205,7 @@ def parse_zone_navigation_metadata(payload: bytes) -> ZoneNavigationMetadata:
         gradient=gradient,
         water=water,
         terrain_generation=terrain,
+        terrain_object_populations=terrain_object_populations,
         parsed_size=reader.offset,
     )
 
@@ -240,6 +286,52 @@ def _parse_terrain_generation(reader: _ZoneReader) -> ZoneTerrainGeneration:
             image=image,
         )
     raise ZoneMetadataFormatError(f"CZone terrain type {terrain_type} is unsupported")
+
+
+def _parse_terrain_object_population(
+    reader: _ZoneReader,
+) -> ZoneTerrainObjectPopulation:
+    object_key = reader.resource_key("terrain-object template")
+    fractal_h = reader.f32("terrain-object H")
+    lacunarity = reader.f32("terrain-object lacunarity")
+    octaves = reader.u32("terrain-object octaves")
+    offset = reader.f32("terrain-object offset")
+    gain = reader.f32("terrain-object gain")
+    minimum_altitude = reader.f32("terrain-object minimum altitude")
+    maximum_altitude = reader.f32("terrain-object maximum altitude")
+    minimum_slope = reader.f32("terrain-object minimum slope")
+    maximum_slope = reader.f32("terrain-object maximum slope")
+    maximum_population = reader.u32("terrain-object maximum population")
+    fractal_population = reader.boolean("terrain-object fractal-population flag")
+    reader.u32("terrain-object unknown integer")
+    y_offset = reader.f32("terrain-object Y offset")
+    population_image = reader.resource_key("terrain-object population image")
+    image_minimum_y = reader.f32("terrain-object image minimum Y")
+    image_maximum_y = reader.f32("terrain-object image maximum Y")
+    if maximum_altitude < minimum_altitude:
+        raise ZoneMetadataFormatError("terrain-object altitude range is reversed")
+    if maximum_slope < minimum_slope:
+        raise ZoneMetadataFormatError("terrain-object slope range is reversed")
+    if image_maximum_y < image_minimum_y:
+        raise ZoneMetadataFormatError("terrain-object image range is reversed")
+    return ZoneTerrainObjectPopulation(
+        object_key=object_key,
+        fractal_h=fractal_h,
+        lacunarity=lacunarity,
+        octaves=octaves,
+        offset=offset,
+        gain=gain,
+        minimum_altitude=minimum_altitude,
+        maximum_altitude=maximum_altitude,
+        minimum_slope=minimum_slope,
+        maximum_slope=maximum_slope,
+        maximum_population=maximum_population,
+        fractal_population=fractal_population,
+        y_offset=y_offset,
+        population_image=population_image,
+        image_minimum_y=image_minimum_y,
+        image_maximum_y=image_maximum_y,
+    )
 
 
 class _ZoneReader:

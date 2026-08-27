@@ -34,6 +34,7 @@ from shadowbane_lab.world_data.zone_metadata import (
     ZoneResourceKey,
     ZoneSeaLevelType,
     ZoneTerrainGeneration,
+    ZoneTerrainObjectPopulation,
     ZoneWaterMetadata,
     parse_zone_navigation_metadata,
 )
@@ -59,6 +60,7 @@ __all__ = [
     "ZoneResourceKey",
     "ZoneSeaLevelType",
     "ZoneTerrainGeneration",
+    "ZoneTerrainObjectPopulation",
     "ZoneWaterMetadata",
     "correlate_zone_terrain",
     "index_terrain_alpha_maps",

@@ -73,6 +73,14 @@ def _zone_prefix(*, water: bool = True, terrain_type: int = 7) -> bytes:
     if terrain_type == 7:
         payload.extend(struct.pack("<6f", 384.0, 384.0, 768.0, 768.0, -20.0, 80.0))
         payload.extend(_key(4101, 0x91000001))
+    payload.extend(struct.pack("<III", 0, 0, 1))
+    payload.extend(_key(0, 50214))
+    payload.extend(struct.pack("<ffI", 1.0, 1.0, 8))
+    payload.extend(struct.pack("<6f", 1.0, 1.0, -100.0, 1000.0, 0.0, 0.5))
+    payload.extend(struct.pack("<IBI", 15, 0, 0))
+    payload.extend(struct.pack("<f", 0.0))
+    payload.extend(_key(4101, 0x91000002))
+    payload.extend(struct.pack("<2f", 0.0, 1.0))
     return bytes(payload)
 
 
@@ -93,6 +101,11 @@ class ZoneNavigationMetadataTests(unittest.TestCase):
         self.assertEqual(-20.0, metadata.terrain_generation.sample_height(0))
         self.assertAlmostEqual(79.609375, metadata.terrain_generation.sample_height(255))
         self.assertAlmostEqual(61.44, metadata.local_water_sample_threshold())
+        self.assertEqual(1, len(metadata.terrain_object_populations))
+        population = metadata.terrain_object_populations[0]
+        self.assertEqual(ZoneResourceKey(0, 50214), population.object_key)
+        self.assertEqual(1, population.population_layer_index(metadata.terrain_generation))
+        self.assertEqual(15, population.maximum_population)
         self.assertEqual(len(payload), metadata.parsed_size)
 
     def test_water_threshold_is_absent_without_an_explicit_water_plane(self) -> None:
