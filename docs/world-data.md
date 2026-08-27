@@ -53,14 +53,15 @@ through 16x16 tiles. Its stock `WorldDef` identifies Aerynth world 1 with 70 nes
 
 `ArcanePref.cfg` contains `PATHFINDING= FALSE`, documented by the binary as toggling
 pathfinding for the character. The legacy `/path on` chat command is not registered in this
-WonderBane build and returns `Unknown Command`; do not depend on it. Enabling the preference
-requires a guarded build-specific test because a previous launch reportedly rejected or failed
-around the same legacy toggle.
+WonderBane build and returns `Unknown Command`; do not depend on it. A prior attempt to enable
+the preference also produced an error during launch. Keep the preference disabled unless that
+startup failure is first isolated in a disposable configuration with captured logs; live travel
+must not depend on the dormant native pathfinder.
 
 The next correlation boundary is the live `ArcGameZone`: identify its active CZone template and
 terrain-map identity, then compare local collision/path results with player LT/LG/altitude and
-server movement-correction events. That determines whether the harness should call the native
-pathfinder, consume its waypoints, or use decoded geometry in its own planner.
+server movement-correction events. The harness can then plan from decoded geometry while treating
+server movement corrections as authoritative feedback.
 
 Format cross-check: [ShadowbaneCacheExporter](https://github.com/blinkdog/ShadowbaneCacheExporter)
 documents the archive directory, zlib payloads, terrain raster header, and mesh layout. The local

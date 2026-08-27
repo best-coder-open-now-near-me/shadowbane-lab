@@ -107,10 +107,10 @@ cannot bypass authoritative validation.
 - Index TerrainAlpha map/tile identities and parse the nested WorldDef placement tree.
 - Correlate the active runtime ArcGameZone with CZone, CObjects, mesh, and terrain-raster
   resources.
-- Test the native `PATHFINDING` preference behind the verified executable hash; the legacy
-  `/path on` command is absent from the current WonderBane command table.
+- Keep native `PATHFINDING` disabled: the legacy `/path on` command is absent from the current
+  WonderBane command table, and enabling its preference previously caused a launch error.
 - Preserve server movement corrections as authoritative feedback even when local pathfinding is
-  active.
+  unavailable.
 
 **Gate:** a recorded destination identifies its active terrain resources, produces an auditable
 local route or native waypoint stream, and converges without blind fixed-direction detours while

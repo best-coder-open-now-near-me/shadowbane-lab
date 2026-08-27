@@ -54,5 +54,6 @@ do not inherit earlier recovery attempts.
 
 The client also ships a native character pathfinder and a `PATHFINDING` preference, currently
 disabled in the inspected WonderBane configuration. The historical `/path on` chat command is
-not registered in this build. Native pathfinding therefore remains a guarded integration target,
-not an assumption in the travel controller. See [client world data](world-data.md).
+not registered in this build, and a previous preference-toggle attempt caused a launch error.
+Native pathfinding is therefore out of the live controller path unless its startup failure is
+isolated separately. See [client world data](world-data.md).
