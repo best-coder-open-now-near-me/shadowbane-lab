@@ -26,6 +26,20 @@ class EventEmergencyStop:
         return self._event.is_set()
 
 
+class AnyStopSignal:
+    """Expose the union of multiple independent stop signals."""
+
+    def __init__(self, *signals: StopSignal) -> None:
+        if not signals:
+            raise ValueError("at least one stop signal is required")
+        if any(not isinstance(signal, StopSignal) for signal in signals):
+            raise ValueError("signals must implement StopSignal")
+        self._signals = signals
+
+    def is_set(self) -> bool:
+        return any(signal.is_set() for signal in self._signals)
+
+
 class WindowsHotkeyEmergencyStop(EventEmergencyStop):
     """Trips when Ctrl+Shift+F12 is held; call ``start`` before live dispatch."""
 

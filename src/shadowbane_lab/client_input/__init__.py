@@ -69,6 +69,7 @@ from shadowbane_lab.client_input.model import (
     WindowBounds,
 )
 from shadowbane_lab.client_input.stop import (
+    AnyStopSignal,
     EventEmergencyStop,
     StopSignal,
     WindowsHotkeyEmergencyStop,
@@ -89,6 +90,7 @@ __all__ = [
     "CLIENT_PROFILE_SCHEMA_VERSION",
     "AbsolutePoint",
     "ActionInputMapping",
+    "AnyStopSignal",
     "ArcaneClientPower",
     "ArcaneClientAction",
     "ArcaneHotkeyBinding",

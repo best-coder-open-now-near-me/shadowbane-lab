@@ -186,6 +186,24 @@ class ClientCliTests(unittest.TestCase):
         self.assertFalse(payload["ok"])
         self.assertIn("--live", payload["error"])
 
+    def test_chat_travel_command_requires_explicit_live_flag(self) -> None:
+        output = io.StringIO()
+        with redirect_stdout(output):
+            result = main(
+                (
+                    "client",
+                    "listen-go",
+                    "--client-profile",
+                    "travel.json",
+                    "--json",
+                )
+            )
+
+        payload = json.loads(output.getvalue())
+        self.assertEqual(2, result)
+        self.assertFalse(payload["ok"])
+        self.assertIn("--live", payload["error"])
+
     def test_proc_assassin_policy_fails_before_input_without_shadow_touch_mapping(self) -> None:
         template = Path(__file__).parents[1] / "configs" / "wonderbane-pve.template.json"
         profile_data = json.loads(template.read_text(encoding="utf-8"))

@@ -1,7 +1,36 @@
 # Closed-loop LT/LG travel
 
 Travel uses exact native player coordinates as feedback and guarded right-clicks on the
-minimap as the actuator. The human-facing command is `/go LT LG`; the equivalent CLI is:
+minimap as the actuator. Start the foreground-scoped chat bridge once per client session:
+
+```powershell
+python -m shadowbane_lab.cli client listen-go `
+  --destination-state .\last-travel-destination.json `
+  --client-profile .\configs\wonderbane-travel.local.json `
+  --live --json
+```
+
+Inside the configured VM, the checked-in launcher starts the same listener in a hidden
+process, refuses to create a duplicate, and writes JSON Lines status plus errors to the
+`codexdiag` shared folder:
+
+```powershell
+powershell.exe -NoProfile -File \\VBOXSVR\codexrepo\scripts\start-wonderbane-go-listener.ps1
+```
+
+Stop that background listener by resolving and validating its recorded process identity:
+
+```powershell
+powershell.exe -NoProfile -File \\VBOXSVR\codexrepo\scripts\stop-wonderbane-go-listener.ps1
+```
+
+While that process is running, enter `/go LT LG` in Shadowbane's chat command line. The
+listener observes keyboard events only while the calibrated `sb.exe` window owns foreground
+focus, never suppresses the game's input, and retains only text that is still a possible
+`/go` command. Opening chat cancels the bridge's active route before more travel clicks are
+issued. Ordinary chat and all other slash-command prefixes are discarded immediately.
+
+The one-shot CLI equivalent is:
 
 ```powershell
 python -m shadowbane_lab.cli client go 120000 60000 `
@@ -10,7 +39,8 @@ python -m shadowbane_lab.cli client go 120000 60000 `
 ```
 
 An explicit destination is remembered locally. After pausing or intervening, bare `/go`
-resumes the last LT/LG destination; the CLI equivalent omits both positional coordinates:
+resumes the last LT/LG destination through the running bridge; the one-shot CLI equivalent
+omits both positional coordinates:
 
 ```powershell
 python -m shadowbane_lab.cli client go `

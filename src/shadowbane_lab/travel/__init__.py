@@ -1,5 +1,10 @@
 """Closed-loop LT/LG travel over guarded minimap input."""
 
+from shadowbane_lab.travel.chat import (
+    GoChatCommandAssembler,
+    GoChatCommandUpdate,
+    WindowsGoChatCommandListener,
+)
 from shadowbane_lab.travel.controller import TravelController
 from shadowbane_lab.travel.model import (
     TravelControllerConfig,
@@ -29,6 +34,8 @@ from shadowbane_lab.travel.state import (
 
 __all__ = [
     "ClientTravelDecisionDispatcher",
+    "GoChatCommandAssembler",
+    "GoChatCommandUpdate",
     "PlayerVitalsSource",
     "PositionSource",
     "TravelController",
@@ -44,6 +51,7 @@ __all__ = [
     "TravelRunResult",
     "TravelRunTraceStep",
     "TravelRunner",
+    "WindowsGoChatCommandListener",
     "parse_go_command",
     "load_travel_destination",
     "resolve_travel_destination",

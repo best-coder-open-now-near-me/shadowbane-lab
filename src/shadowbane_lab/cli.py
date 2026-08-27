@@ -5,13 +5,17 @@ from __future__ import annotations
 import argparse
 import json
 import ntpath
+import queue
 import sys
+import threading
 import time
 from collections.abc import Sequence
+from contextlib import ExitStack
 from pathlib import Path
 
 from shadowbane_lab.client_input import (
     ActionInputMapping,
+    AnyStopSignal,
     ArcaneClientAction,
     ArcaneClientPower,
     ArcaneHotbarLoadError,
@@ -19,11 +23,13 @@ from shadowbane_lab.client_input import (
     CalibrationLoadError,
     ClientInputAdapter,
     DecisionInputCompiler,
+    EventEmergencyStop,
     ForegroundWindowGuard,
     GuardedInputExecutor,
     MouseButton,
     PyAutoGuiBackend,
     StaticBindingPointResolver,
+    StopSignal,
     WindowGuardError,
     WindowsForegroundWindowInspector,
     WindowsHotkeyEmergencyStop,
@@ -103,6 +109,8 @@ from shadowbane_lab.travel import (
     TravelPhase,
     TravelPlan,
     TravelRunner,
+    WindowsGoChatCommandListener,
+    parse_go_command,
     resolve_travel_destination,
 )
 from shadowbane_lab.world_data import (
@@ -425,6 +433,30 @@ def _parser() -> argparse.ArgumentParser:
         help="required in addition to a profile with live_input_enabled=true",
     )
     go.add_argument("--json", action="store_true", help="emit machine-readable JSON")
+
+    listen_go = client_commands.add_parser(
+        "listen-go",
+        help="listen for foreground in-game /go commands and run bounded travel",
+    )
+    listen_go.add_argument(
+        "--destination-state",
+        type=Path,
+        default=Path.home() / ".shadowbane-lab" / "last-travel-destination.json",
+        help="local state file used to remember the last explicit destination",
+    )
+    listen_go.add_argument("--client-profile", type=Path, required=True)
+    listen_go.add_argument("--native-position-profile", type=Path)
+    listen_go.add_argument("--native-vitals-profile", type=Path)
+    listen_go.add_argument("--max-seconds", type=float, default=300.0)
+    listen_go.add_argument("--wait-for-client-seconds", type=float, default=30.0)
+    listen_go.add_argument("--poll-ms", type=int, default=200)
+    listen_go.add_argument("--click-interval-ms", type=int, default=4_000)
+    listen_go.add_argument(
+        "--live",
+        action="store_true",
+        help="required in addition to a profile with live_input_enabled=true",
+    )
+    listen_go.add_argument("--json", action="store_true", help="emit JSON Lines events")
     return parser
 
 
@@ -1504,6 +1536,7 @@ def _run_travel(
     click_interval_ms: int,
     live: bool,
     as_json: bool,
+    stop_signal: StopSignal | None = None,
 ) -> int:
     if not live:
         return _error("travel execution requires the explicit --live flag", as_json=as_json)
@@ -1562,11 +1595,16 @@ def _run_travel(
             ),
         )
         guard = ForegroundWindowGuard(client_profile, WindowsForegroundWindowInspector())
-        with (
-            open_windows_native_player_position_reader(position_profile) as position_reader,
-            open_windows_native_player_vitals_reader(vitals_profile) as player_vitals_reader,
-            WindowsHotkeyEmergencyStop() as stop_signal,
-        ):
+        with ExitStack() as stack:
+            position_reader = stack.enter_context(
+                open_windows_native_player_position_reader(position_profile)
+            )
+            player_vitals_reader = stack.enter_context(
+                open_windows_native_player_vitals_reader(vitals_profile)
+            )
+            active_stop_signal = stop_signal
+            if active_stop_signal is None:
+                active_stop_signal = stack.enter_context(WindowsHotkeyEmergencyStop())
             if position_reader.process_id != player_vitals_reader.process_id:
                 raise ValueError(
                     "native position and player-vitals readers resolved different processes"
@@ -1575,7 +1613,7 @@ def _run_travel(
             executor = GuardedInputExecutor(
                 guard=guard,
                 backend=PyAutoGuiBackend(),
-                stop_signal=stop_signal,
+                stop_signal=active_stop_signal,
             )
             adapter = ClientInputAdapter(
                 DecisionInputCompiler(client_profile, StaticBindingPointResolver()),
@@ -1586,7 +1624,7 @@ def _run_travel(
                 position_reader=position_reader,
                 player_vitals_reader=player_vitals_reader,
                 dispatcher=ClientTravelDecisionDispatcher(adapter),
-                stop_signal=stop_signal,
+                stop_signal=active_stop_signal,
                 poll_interval_ms=poll_ms,
             ).run()
     except (
@@ -1646,6 +1684,141 @@ def _run_travel(
         if result.stop_input_accepted is not None:
             print(f"Movement stop accepted: {result.stop_input_accepted}")
     return 0 if payload["ok"] else 2
+
+
+def _listen_for_go_commands(
+    *,
+    destination_state_path: Path,
+    client_profile_path: Path,
+    native_position_profile_path: Path | None,
+    native_vitals_profile_path: Path | None,
+    max_seconds: float,
+    wait_for_client_seconds: float,
+    poll_ms: int,
+    click_interval_ms: int,
+    live: bool,
+    as_json: bool,
+) -> int:
+    if not live:
+        return _error("chat travel requires the explicit --live flag", as_json=as_json)
+    try:
+        client_profile = load_calibration(client_profile_path)
+        if not client_profile.live_input_enabled:
+            raise ValueError("client profile is not enabled for live input")
+        guard = ForegroundWindowGuard(client_profile, WindowsForegroundWindowInspector())
+    except (CalibrationLoadError, OSError, RuntimeError, ValueError) as exc:
+        return _error(f"chat travel failed: {exc}", as_json=as_json)
+
+    commands: queue.Queue[str] = queue.Queue()
+    active_lock = threading.Lock()
+    active_route_stop: EventEmergencyStop | None = None
+
+    def cancel_active_route() -> None:
+        with active_lock:
+            if active_route_stop is not None:
+                active_route_stop.trip()
+
+    def submit_command(command: str) -> None:
+        commands.put(command)
+
+    try:
+        with (
+            WindowsHotkeyEmergencyStop() as service_stop,
+            WindowsGoChatCommandListener(
+                guard,
+                on_command=submit_command,
+                on_interaction=cancel_active_route,
+            ),
+        ):
+            _print_go_listener_event("listening", as_json=as_json)
+            while not service_stop.is_set():
+                try:
+                    command = commands.get(timeout=0.1)
+                except queue.Empty:
+                    continue
+
+                normalized = command.strip().casefold()
+                if normalized == "/go":
+                    lt = None
+                    lg = None
+                    radius = None
+                else:
+                    try:
+                        plan = parse_go_command(command)
+                    except ValueError as exc:
+                        _print_go_listener_event(
+                            "rejected",
+                            as_json=as_json,
+                            command=command,
+                            reason=str(exc),
+                        )
+                        continue
+                    destination = plan.destinations[0]
+                    lt = destination.lt
+                    lg = destination.lg
+                    radius = destination.arrival_radius
+
+                route_stop = EventEmergencyStop()
+                with active_lock:
+                    active_route_stop = route_stop
+                try:
+                    _print_go_listener_event(
+                        "accepted",
+                        as_json=as_json,
+                        command=command,
+                    )
+                    _run_travel(
+                        lt=lt,
+                        lg=lg,
+                        radius=radius,
+                        destination_state_path=destination_state_path,
+                        client_profile_path=client_profile_path,
+                        native_position_profile_path=native_position_profile_path,
+                        native_vitals_profile_path=native_vitals_profile_path,
+                        max_seconds=max_seconds,
+                        wait_for_client_seconds=wait_for_client_seconds,
+                        poll_ms=poll_ms,
+                        click_interval_ms=click_interval_ms,
+                        live=live,
+                        as_json=as_json,
+                        stop_signal=AnyStopSignal(service_stop, route_stop),
+                    )
+                finally:
+                    with active_lock:
+                        if active_route_stop is route_stop:
+                            active_route_stop = None
+    except KeyboardInterrupt:
+        pass
+    except (OSError, RuntimeError, ValueError) as exc:
+        return _error(f"chat travel failed: {exc}", as_json=as_json)
+
+    _print_go_listener_event("stopped", as_json=as_json)
+    return 0
+
+
+def _print_go_listener_event(
+    event: str,
+    *,
+    as_json: bool,
+    command: str | None = None,
+    reason: str | None = None,
+) -> None:
+    if as_json:
+        payload = {"ok": event != "rejected", "event": event}
+        if command is not None:
+            payload["command"] = command
+        if reason is not None:
+            payload["reason"] = reason
+        print(json.dumps(payload, sort_keys=True), flush=True)
+        return
+    if event == "listening":
+        print("Listening for foreground Shadowbane /go commands.", flush=True)
+    elif event == "stopped":
+        print("Stopped listening for Shadowbane /go commands.", flush=True)
+    elif event == "accepted":
+        print(f"Accepted chat command: {command}", flush=True)
+    else:
+        print(f"Rejected chat command {command!r}: {reason}", file=sys.stderr, flush=True)
 
 
 def _verify_hotbar_power_mapping(
@@ -1782,6 +1955,19 @@ def main(argv: Sequence[str] | None = None) -> int:
             lt=arguments.lt,
             lg=arguments.lg,
             radius=arguments.radius,
+            destination_state_path=arguments.destination_state,
+            client_profile_path=arguments.client_profile,
+            native_position_profile_path=arguments.native_position_profile,
+            native_vitals_profile_path=arguments.native_vitals_profile,
+            max_seconds=arguments.max_seconds,
+            wait_for_client_seconds=arguments.wait_for_client_seconds,
+            poll_ms=arguments.poll_ms,
+            click_interval_ms=arguments.click_interval_ms,
+            live=arguments.live,
+            as_json=arguments.json,
+        )
+    if arguments.command == "client" and arguments.client_command == "listen-go":
+        return _listen_for_go_commands(
             destination_state_path=arguments.destination_state,
             client_profile_path=arguments.client_profile,
             native_position_profile_path=arguments.native_position_profile,
