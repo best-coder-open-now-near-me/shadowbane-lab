@@ -48,6 +48,8 @@ from shadowbane_lab.client_observation import (
     NativePositionProfileLoadError,
     NativeProgressionCoreProfileLoadError,
     NativeTargetHealthError,
+    NativeTargetPositionError,
+    NativeTargetPositionProfileLoadError,
     NativeTrainingProfileLoadError,
     NativeVitalsProfileLoadError,
     NativeZoneProfileLoadError,
@@ -58,6 +60,7 @@ from shadowbane_lab.client_observation import (
     load_bundled_native_health_profile,
     load_bundled_native_position_profile,
     load_bundled_native_progression_core_profile,
+    load_bundled_native_target_position_profile,
     load_bundled_native_training_profile,
     load_bundled_native_vitals_profile,
     load_bundled_native_zone_profile,
@@ -65,6 +68,7 @@ from shadowbane_lab.client_observation import (
     load_native_health_profile,
     load_native_position_profile,
     load_native_progression_core_profile,
+    load_native_target_position_profile,
     load_native_training_profile,
     load_native_vitals_profile,
     load_native_zone_profile,
@@ -76,6 +80,7 @@ from shadowbane_lab.client_observation import (
     open_windows_native_player_training_reader,
     open_windows_native_player_vitals_reader,
     open_windows_native_target_health_reader,
+    open_windows_native_target_position_reader,
 )
 from shadowbane_lab.progression import (
     audit_proc_assassin_training,
@@ -237,6 +242,22 @@ def _parser() -> argparse.ArgumentParser:
         help="native health profile; defaults to the verified bundled WonderBane build",
     )
     observe_native_target.add_argument(
+        "--json", action="store_true", help="emit machine-readable JSON"
+    )
+
+    observe_native_target_position = client_commands.add_parser(
+        "observe-native-target-position",
+        help="read exact selected-target LT, LG, and altitude from a calibrated build",
+    )
+    observe_native_target_position.add_argument(
+        "--profile",
+        type=Path,
+        help=(
+            "native target-position profile; defaults to the verified bundled "
+            "WonderBane build"
+        ),
+    )
+    observe_native_target_position.add_argument(
         "--json", action="store_true", help="emit machine-readable JSON"
     )
 
@@ -875,6 +896,47 @@ def _observe_native_target(profile_path: Path | None, *, as_json: bool) -> int:
                 f"Health: {observation.current_health:g}/{observation.maximum_health:g} "
                 f"({observation.health_fraction:.1%})"
             )
+    return 0
+
+
+def _observe_native_target_position(profile_path: Path | None, *, as_json: bool) -> int:
+    try:
+        profile = (
+            load_native_target_position_profile(profile_path)
+            if profile_path is not None
+            else load_bundled_native_target_position_profile()
+        )
+        with open_windows_native_target_position_reader(profile) as reader:
+            observation = reader.observe()
+            process_id = reader.process_id
+    except (
+        NativeTargetPositionError,
+        NativeTargetPositionProfileLoadError,
+        OSError,
+        ValueError,
+    ) as exc:
+        return _error(f"native target-position observation failed: {exc}", as_json=as_json)
+    payload = {
+        "ok": True,
+        "profile_id": profile.profile_id,
+        "process_id": process_id,
+        "target_present": observation.target_present,
+        "target_token": observation.target_token,
+        "lt": observation.lt,
+        "lg": observation.lg,
+        "altitude": observation.altitude,
+    }
+    if as_json:
+        print(json.dumps(payload, sort_keys=True))
+    else:
+        print(f"Target present: {observation.target_present}")
+        if observation.target_present:
+            assert observation.lt is not None
+            assert observation.lg is not None
+            assert observation.altitude is not None
+            print(f"LT: {observation.lt:.2f}")
+            print(f"LG: {observation.lg:.2f}")
+            print(f"ALT: {observation.altitude:.2f}")
     return 0
 
 
@@ -1665,6 +1727,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
     if arguments.command == "client" and arguments.client_command == "observe-native-target":
         return _observe_native_target(arguments.profile, as_json=arguments.json)
+    if (
+        arguments.command == "client"
+        and arguments.client_command == "observe-native-target-position"
+    ):
+        return _observe_native_target_position(arguments.profile, as_json=arguments.json)
     if arguments.command == "client" and arguments.client_command == "observe-native-player":
         return _observe_native_player(arguments.profile, as_json=arguments.json)
     if arguments.command == "client" and arguments.client_command == "observe-native-position":

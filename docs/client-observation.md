@@ -150,6 +150,27 @@ The reader opens `sb.exe` with query and read rights only. It verifies the execu
 finite health values, and current/maximum bounds. A changed build, ambiguous process, selection
 race, partial read, or implausible value fails closed.
 
+## Native selected-target position
+
+The selected object at image-relative `0x16A2DA4` exposes its world position through virtual
+slot `0x58`. For `ArcObj`, `ArcMobile`, `ArcCharacter`, `ArcCombatObj`, structures, items, and
+the other verified base implementations, that slot contains the image-relative thunk `0xA3D0`.
+The thunk's implementation reads a component pointer at selected-object offset `0x4B0`, follows
+its value pointer at offset `0`, and returns the three floats at value offset `0x20`.
+
+Read the selected target's exact position with:
+
+```powershell
+.\.venv\Scripts\python.exe -m shadowbane_lab.cli client observe-native-target-position --json
+```
+
+The output maps native coordinates to `LT=x`, `LG=-z`, and `altitude=y`. Its opaque target token
+uses the same executable/process/object identity as the native health reader, allowing the two
+snapshots to be joined safely. The position reader verifies the executable hash, selected
+pointer, read-only image range for the vtable, exact getter thunk, component/value pointers,
+coordinate bounds, and a bounded two-sample movement delta, then rereads the complete pointer
+chain. A selected object with an unverified position-getter override fails closed.
+
 ## Pixel cross-check
 
 The checked-in `wonderbane-1920x955` profile is based on three captures from the text-fixed
