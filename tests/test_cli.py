@@ -193,6 +193,26 @@ class ClientCliTests(unittest.TestCase):
         self.assertFalse(payload["ok"])
         self.assertIn("--live", payload["error"])
 
+    def test_explicit_file_log_source_requires_a_log_path(self) -> None:
+        output = io.StringIO()
+        with redirect_stdout(output):
+            result = main(
+                (
+                    "client",
+                    "run-pve",
+                    "--client-profile",
+                    "pve.json",
+                    "--combat-source",
+                    "log",
+                    "--live",
+                    "--json",
+                )
+            )
+
+        payload = json.loads(output.getvalue())
+        self.assertEqual(2, result)
+        self.assertIn("requires --combat-log", payload["error"])
+
     def test_chat_travel_command_requires_explicit_live_flag(self) -> None:
         output = io.StringIO()
         with redirect_stdout(output):
@@ -318,9 +338,9 @@ class ClientCliTests(unittest.TestCase):
         )
         native_profiles = tuple(
             SimpleNamespace(executable_sha256="ab" * 32, profile_id=f"profile-{index}")
-            for index in range(4)
+            for index in range(5)
         )
-        readers = tuple(MagicMock() for _ in range(4))
+        readers = tuple(MagicMock() for _ in range(5))
         for reader in readers:
             reader.process_id = 4320
             reader.__enter__.return_value = reader
@@ -332,9 +352,7 @@ class ClientCliTests(unittest.TestCase):
         )
         output = io.StringIO()
         with tempfile.TemporaryDirectory() as directory:
-            combat_log = Path(directory) / "combat.log"
             evidence_output = Path(directory) / "evidence" / "pve.json"
-            combat_log.write_text("", encoding="cp1252")
             with (
                 patch("shadowbane_lab.cli.load_calibration", return_value=profile),
                 patch(
@@ -358,6 +376,10 @@ class ClientCliTests(unittest.TestCase):
                     return_value=native_profiles[3],
                 ),
                 patch(
+                    "shadowbane_lab.cli.load_bundled_native_message_hud_profile",
+                    return_value=native_profiles[4],
+                ),
+                patch(
                     "shadowbane_lab.cli.open_windows_native_target_health_reader",
                     return_value=readers[0],
                 ) as open_health,
@@ -373,6 +395,10 @@ class ClientCliTests(unittest.TestCase):
                     "shadowbane_lab.cli.open_windows_native_target_position_reader",
                     return_value=readers[3],
                 ) as open_target_position,
+                patch(
+                    "shadowbane_lab.cli.open_windows_native_message_hud_reader",
+                    return_value=readers[4],
+                ) as open_message_hud,
                 patch("shadowbane_lab.cli.WindowsHotkeyEmergencyStop") as emergency_stop,
                 patch(
                     "shadowbane_lab.cli.PyAutoGuiBackend",
@@ -385,7 +411,7 @@ class ClientCliTests(unittest.TestCase):
                 pve_runner.return_value.run.return_value = completed_run
                 result = _run_pve(
                     client_profile_path=template,
-                    combat_log_path=combat_log,
+                    combat_log_path=None,
                     hotbar_config_path=None,
                     native_health_profile_path=None,
                     native_vitals_profile_path=None,
@@ -411,6 +437,20 @@ class ClientCliTests(unittest.TestCase):
         open_target_position.assert_called_once_with(
             native_profiles[3],
             process_id=4320,
+        )
+        open_message_hud.assert_called_once_with(
+            native_profiles[4],
+            process_id=4320,
+            start_at_end=True,
+        )
+        readers[4].attach.assert_called_once_with()
+        self.assertEqual(
+            "hud",
+            saved_evidence["native_observation"]["combat_source"],
+        )
+        self.assertEqual(
+            "profile-4",
+            saved_evidence["native_observation"]["message_hud_profile_id"],
         )
 
     def test_proc_assassin_policy_fails_before_input_without_shadow_touch_mapping(self) -> None:

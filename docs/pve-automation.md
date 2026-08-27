@@ -2,7 +2,7 @@
 
 The first live PvE slice acquires a nearby mobile, attacks the newly selected target, and
 stops after a small explicit kill or time limit. It consumes exact player vitals and
-position, selected-target health and position, and the native combat log.
+position, selected-target health and position, and the native message HUD.
 
 ## Control loop
 
@@ -40,7 +40,7 @@ target the game acquired automatically only after a fresh native player-hit reco
 rank-40 Shadow Touch once when native mana is at least its verified 55-point cost, and then
 observes the game's automatic weapon attacks. It sends `Ctrl+A` only after five seconds
 without a health decrease or player-hit record. A newly auto-selected target is accepted only
-after the previous kill has been confirmed by the native combat log.
+after the previous kill has been confirmed by the native message stream.
 
 Shadow Touch must have a real key mapping in the local client profile before this policy can
 run. The checked profile intentionally does not invent one; a proc-Assassin run fails before
@@ -58,7 +58,7 @@ The run stops without issuing more input when any of these conditions occurs:
 - three consecutive native observation polls fail pointer, health, or resource validation;
 - exact player health reaches the 50-percent safety threshold;
 - the selected target changes while an engagement is active;
-- the combat log reports player death or multiple ambiguous kills;
+- the native message HUD reports player death or multiple ambiguous kills;
 - acquisition, combat progress, engagement, session, or kill bounds are exceeded; or
 - an input plan is rejected or interrupted.
 
@@ -134,7 +134,7 @@ wait period:
 $env:PYTHONPATH = "src"
 .\.venv\Scripts\python.exe -m shadowbane_lab.cli client run-pve `
   --client-profile .\configs\wonderbane-pve.local.json `
-  --combat-log "C:\Users\admin\Downloads\WonderbaneClient\Wonderbane\Logs\shadowbane-combat.log.txt" `
+  --combat-source hud `
   --hotbar-config $hotbar.FullName `
   --policy proc-assassin `
   --max-kills 1 `
@@ -145,8 +145,8 @@ $env:PYTHONPATH = "src"
   --json
 ```
 
-The VM wrapper validates the live-locked profile, combat log, unique character hotbar, and
-single visible Shadowbane window; refuses to overwrite evidence; and runs the same one-kill
+The VM wrapper validates the live-locked profile, native message-HUD build, unique character
+hotbar, and single visible Shadowbane window; refuses to overwrite evidence; and runs the same one-kill
 proc-Assassin command with a timestamped artifact. Focus Shadowbane during its guarded
 15-second wait:
 
@@ -176,9 +176,9 @@ python -m shadowbane_lab.cli client calibrate-pve `
 The calibration retains sample counts and histograms for observed target health, outgoing and
 incoming damage, hit/miss opportunities, poll-observed attack intervals, starting resources,
 engagement distance, experience, adjacent-poll Shadow Touch mana deltas, and exact aggregate
-player/target health decreases even when the native text log is silent. Duplicate trace content
-is rejected rather than counted twice. Timing remains limited by the controller poll, logged
-damage and aggregate health changes do not identify individual weapon/proc/mitigation
+player/target health decreases even when no complete native message is available. Duplicate trace
+content is rejected rather than counted twice. Timing remains limited by the controller poll;
+native message damage and aggregate health changes do not identify individual weapon/proc/mitigation
 components, and target tokens remain process-local opaque identities; those limitations are
 carried in the artifact.
 

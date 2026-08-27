@@ -3,7 +3,6 @@ param(
     [string] $RepositoryRoot = "\\VBOXSVR\codexrepo",
     [string] $PythonPath = "$env:USERPROFILE\shadowbane-lab\.venv\Scripts\python.exe",
     [string] $ClientProfile = "\\VBOXSVR\codexrepo\configs\wonderbane-pve.local.json",
-    [string] $CombatLog = "$env:USERPROFILE\Downloads\WonderbaneClient\Wonderbane\Logs\shadowbane-combat.log.txt",
     [string] $HotbarConfig = "",
     [string] $EvidenceOutput = "",
     [ValidateRange(1, 10)]
@@ -16,7 +15,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-foreach ($path in @($RepositoryRoot, $PythonPath, $ClientProfile, $CombatLog)) {
+foreach ($path in @($RepositoryRoot, $PythonPath, $ClientProfile)) {
     if (-not (Test-Path -LiteralPath $path)) {
         throw "Required bounded-PvE path was not found: $path"
     }
@@ -54,7 +53,7 @@ if ($visibleClients.Count -ne 1) {
 $env:PYTHONPATH = Join-Path $RepositoryRoot "src"
 & $PythonPath -u -m shadowbane_lab.cli client run-pve `
     --client-profile $ClientProfile `
-    --combat-log $CombatLog `
+    --combat-source "hud" `
     --hotbar-config $HotbarConfig `
     --policy "proc-assassin" `
     --max-kills $MaximumKills `

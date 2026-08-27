@@ -47,6 +47,8 @@ from shadowbane_lab.client_observation import (
     NativeGroupError,
     NativeGroupProfileLoadError,
     NativeHealthProfileLoadError,
+    NativeMessageHudError,
+    NativeMessageHudProfileLoadError,
     NativePlayerPositionError,
     NativePlayerProgressionCoreError,
     NativePlayerTrainingError,
@@ -64,6 +66,7 @@ from shadowbane_lab.client_observation import (
     PyAutoGuiFrameCapture,
     load_bundled_native_group_profile,
     load_bundled_native_health_profile,
+    load_bundled_native_message_hud_profile,
     load_bundled_native_position_profile,
     load_bundled_native_progression_core_profile,
     load_bundled_native_target_position_profile,
@@ -72,6 +75,7 @@ from shadowbane_lab.client_observation import (
     load_bundled_native_zone_profile,
     load_native_group_profile,
     load_native_health_profile,
+    load_native_message_hud_profile,
     load_native_position_profile,
     load_native_progression_core_profile,
     load_native_target_position_profile,
@@ -81,6 +85,7 @@ from shadowbane_lab.client_observation import (
     load_observation_calibration,
     open_windows_native_current_zone_reader,
     open_windows_native_group_reader,
+    open_windows_native_message_hud_reader,
     open_windows_native_player_position_reader,
     open_windows_native_player_progression_core_reader,
     open_windows_native_player_training_reader,
@@ -383,13 +388,22 @@ def _parser() -> argparse.ArgumentParser:
         help="run a bounded native-observation PvE loop against nearby mobiles",
     )
     run_pve.add_argument("--client-profile", type=Path, required=True)
-    run_pve.add_argument("--combat-log", type=Path, required=True)
+    run_pve.add_argument(
+        "--combat-source",
+        choices=("hud", "log"),
+        help=(
+            "native message source; defaults to HUD unless --combat-log is supplied "
+            "for legacy file logging"
+        ),
+    )
+    run_pve.add_argument("--combat-log", type=Path)
     run_pve.add_argument(
         "--hotbar-config",
         type=Path,
         help="character SCREEN_GAME config; required by policies that activate hotbar powers",
     )
     run_pve.add_argument("--native-health-profile", type=Path)
+    run_pve.add_argument("--native-message-hud-profile", type=Path)
     run_pve.add_argument("--native-vitals-profile", type=Path)
     run_pve.add_argument("--native-position-profile", type=Path)
     run_pve.add_argument("--native-target-position-profile", type=Path)
@@ -1412,7 +1426,7 @@ def _advise_irekei_proc(
 def _run_pve(
     *,
     client_profile_path: Path,
-    combat_log_path: Path,
+    combat_log_path: Path | None,
     hotbar_config_path: Path | None,
     native_health_profile_path: Path | None,
     native_vitals_profile_path: Path | None,
@@ -1426,6 +1440,8 @@ def _run_pve(
     live: bool,
     as_json: bool,
     evidence_output_path: Path | None = None,
+    combat_source: str | None = None,
+    native_message_hud_profile_path: Path | None = None,
 ) -> int:
     if not live:
         return _error("PvE execution requires the explicit --live flag", as_json=as_json)
@@ -1439,8 +1455,16 @@ def _run_pve(
         return _error("poll-ms must be in [50, 1000]", as_json=as_json)
     if policy not in ("basic", "proc-assassin"):
         return _error("policy must be basic or proc-assassin", as_json=as_json)
-    if not combat_log_path.is_file():
-        return _error(f"combat log does not exist: {combat_log_path}", as_json=as_json)
+    resolved_combat_source = combat_source or (
+        "log" if combat_log_path is not None else "hud"
+    )
+    if resolved_combat_source not in ("hud", "log"):
+        return _error("combat-source must be hud or log", as_json=as_json)
+    if resolved_combat_source == "log":
+        if combat_log_path is None:
+            return _error("combat-source log requires --combat-log", as_json=as_json)
+        if not combat_log_path.is_file():
+            return _error(f"combat log does not exist: {combat_log_path}", as_json=as_json)
     try:
         client_profile = load_calibration(client_profile_path)
         if not client_profile.live_input_enabled:
@@ -1478,6 +1502,13 @@ def _run_pve(
             if native_health_profile_path is not None
             else load_bundled_native_health_profile()
         )
+        message_hud_profile = None
+        if resolved_combat_source == "hud":
+            message_hud_profile = (
+                load_native_message_hud_profile(native_message_hud_profile_path)
+                if native_message_hud_profile_path is not None
+                else load_bundled_native_message_hud_profile()
+            )
         vitals_profile = (
             load_native_vitals_profile(native_vitals_profile_path)
             if native_vitals_profile_path is not None
@@ -1499,6 +1530,8 @@ def _run_pve(
             position_profile.executable_sha256,
             target_position_profile.executable_sha256,
         }
+        if message_hud_profile is not None:
+            native_profile_hashes.add(message_hud_profile.executable_sha256)
         if len(native_profile_hashes) != 1:
             raise ValueError("native PvE profiles target different client builds")
         inspector = WindowsForegroundWindowInspector()
@@ -1513,7 +1546,6 @@ def _run_pve(
             inspector,
             expected_process_id=process_id,
         )
-        combat_reader = NativeCombatLogReader(combat_log_path, start_at_end=True)
         with ExitStack() as stack:
             health_reader = stack.enter_context(
                 open_windows_native_target_health_reader(
@@ -1539,6 +1571,18 @@ def _run_pve(
                     process_id=process_id,
                 )
             )
+            if message_hud_profile is None:
+                assert combat_log_path is not None
+                combat_reader = NativeCombatLogReader(combat_log_path, start_at_end=True)
+            else:
+                combat_reader = stack.enter_context(
+                    open_windows_native_message_hud_reader(
+                        message_hud_profile,
+                        process_id=process_id,
+                        start_at_end=True,
+                    )
+                )
+                combat_reader.attach()
             stop_signal = stack.enter_context(WindowsHotkeyEmergencyStop())
             reader_process_ids = {
                 health_reader.process_id,
@@ -1546,6 +1590,8 @@ def _run_pve(
                 player_position_reader.process_id,
                 target_position_reader.process_id,
             }
+            if message_hud_profile is not None:
+                reader_process_ids.add(combat_reader.process_id)
             if len(reader_process_ids) != 1:
                 raise ValueError("native PvE readers resolved different client processes")
             executor = GuardedInputExecutor(
@@ -1572,6 +1618,8 @@ def _run_pve(
         CalibrationLoadError,
         ArcaneHotbarLoadError,
         NativeHealthProfileLoadError,
+        NativeMessageHudError,
+        NativeMessageHudProfileLoadError,
         NativePlayerVitalsError,
         NativePlayerPositionError,
         NativePositionProfileLoadError,
@@ -1614,6 +1662,10 @@ def _run_pve(
             "player_vitals_profile_id": vitals_profile.profile_id,
             "player_position_profile_id": position_profile.profile_id,
             "target_position_profile_id": target_position_profile.profile_id,
+            "combat_source": resolved_combat_source,
+            "message_hud_profile_id": (
+                None if message_hud_profile is None else message_hud_profile.profile_id
+            ),
         },
         "trace": [step.as_dict() for step in result.trace],
     }
@@ -2229,8 +2281,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _run_pve(
             client_profile_path=arguments.client_profile,
             combat_log_path=arguments.combat_log,
+            combat_source=arguments.combat_source,
             hotbar_config_path=arguments.hotbar_config,
             native_health_profile_path=arguments.native_health_profile,
+            native_message_hud_profile_path=arguments.native_message_hud_profile,
             native_vitals_profile_path=arguments.native_vitals_profile,
             native_position_profile_path=arguments.native_position_profile,
             native_target_position_profile_path=arguments.native_target_position_profile,

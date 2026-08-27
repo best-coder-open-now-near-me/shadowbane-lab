@@ -226,9 +226,30 @@ should remain `false`.
 
 ## Native combat stream
 
-Shadowbane text HUDs have a built-in lossless logger. Open the properties control on the combat
-message HUD, choose `Log`, enable `Log Messages`, and provide a filename. The client appends
-`.txt` and writes the stream under its `Logs` directory. The validated VM configuration writes:
+`NativeMessageHudReader` reads the client-owned UTF-16 message stream directly. On attachment it
+guards the exact executable hash, scans only the calibrated private/read-write address range,
+resolves one structurally valid `{begin, end, capacity}` string owner, and suppresses existing HUD
+history. Normal polls reread that small owner and its bounded payload, verify stable metadata
+before and after the read, retain an incomplete final message, and emit only records appended
+after the previous snapshot. Rolling HUD history is reconciled through exact record overlap;
+ambiguous owners, torn reads, unrelated replacement, and build drift fail closed.
+
+The verified `MessageHUD2` stream contains both native Combat and Powers channel markers. It
+provides exact damage, miss, kill, experience, cast, and effect text without requiring the HUD's
+per-session file-logging switch. Bounded PvE uses this source by default when `--combat-log` is
+omitted:
+
+```powershell
+.\.venv\Scripts\python.exe -m shadowbane_lab.cli client run-pve `
+    --client-profile .\configs\wonderbane-pve.local.json `
+    --combat-source hud `
+    --live
+```
+
+Shadowbane's built-in text-HUD logger remains a supported offline and compatibility source. Open
+the properties control on the combat message HUD, choose `Log`, enable `Log Messages`, and provide
+a filename. The client appends `.txt` and writes the stream under its `Logs` directory, for
+example:
 
 ```text
 Logs\shadowbane-combat.log.txt
@@ -249,6 +270,7 @@ Read a snapshot without focusing or capturing the client:
     --json
 ```
 
+Use `--combat-source log --combat-log <path>` to select it for a live PvE run.
 `NativeCombatLogReader` also supports incremental attachment at the beginning or current end of
 the file. It retains incomplete writes until the native blank-record separator arrives, preserves
 continuation lines, detects truncation or replacement, and emits a monotonic typed sequence for
@@ -264,7 +286,7 @@ stamina. These bindings identify the upstream state seam for the structured heal
 ## Overlay boundary
 
 The overlay consumes semantic observations rather than screenshots. Combat and power messages
-come from the native HUD log, and exact selected health comes from the build-guarded native
+come from the native message HUD, and exact selected health comes from the build-guarded native
 reader. The calibrated geometry/color reader remains an independent cross-check, not the primary
 source. Both native producers feed the same typed stream so overlay presentation cannot diverge
 from differential recording or PvE-control feedback.
