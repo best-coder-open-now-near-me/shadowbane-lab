@@ -412,4 +412,3 @@ def _combatant_result(
 
 def _scalar(values: tuple[NamedScalar, ...], name: str) -> float:
     return next((item.value for item in values if item.name == name), 0.0)
-
