@@ -2,8 +2,7 @@
 
 The first live PvE slice acquires a nearby mobile, attacks the newly selected target, and
 stops after a small explicit kill or time limit. It consumes exact player vitals,
-selected-target health, and the native combat log; it does not use OCR, pixel health
-estimates, or fixed entity coordinates.
+selected-target health, and the native combat log.
 
 ## Control loop
 

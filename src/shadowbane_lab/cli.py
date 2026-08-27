@@ -37,6 +37,7 @@ from shadowbane_lab.client_observation import (
     ClientTargetObserver,
     NativeCombatLogFormatError,
     NativeCombatLogReader,
+    NativeCurrentZoneError,
     NativeHealthProfileLoadError,
     NativePlayerPositionError,
     NativePlayerProgressionCoreError,
@@ -47,6 +48,7 @@ from shadowbane_lab.client_observation import (
     NativeTargetHealthError,
     NativeTrainingProfileLoadError,
     NativeVitalsProfileLoadError,
+    NativeZoneProfileLoadError,
     ObservationCalibrationLoadError,
     ObservationDetectionError,
     PyAutoGuiFrameCapture,
@@ -55,12 +57,15 @@ from shadowbane_lab.client_observation import (
     load_bundled_native_progression_core_profile,
     load_bundled_native_training_profile,
     load_bundled_native_vitals_profile,
+    load_bundled_native_zone_profile,
     load_native_health_profile,
     load_native_position_profile,
     load_native_progression_core_profile,
     load_native_training_profile,
     load_native_vitals_profile,
+    load_native_zone_profile,
     load_observation_calibration,
+    open_windows_native_current_zone_reader,
     open_windows_native_player_position_reader,
     open_windows_native_player_progression_core_reader,
     open_windows_native_player_training_reader,
@@ -252,6 +257,19 @@ def _parser() -> argparse.ArgumentParser:
         help="native position profile; defaults to the verified bundled WonderBane build",
     )
     observe_native_position.add_argument(
+        "--json", action="store_true", help="emit machine-readable JSON"
+    )
+
+    observe_native_zone = client_commands.add_parser(
+        "observe-native-zone",
+        help="read the current zone already resolved by a calibrated Shadowbane build",
+    )
+    observe_native_zone.add_argument(
+        "--profile",
+        type=Path,
+        help="native zone profile; defaults to the verified bundled WonderBane build",
+    )
+    observe_native_zone.add_argument(
         "--json", action="store_true", help="emit machine-readable JSON"
     )
 
@@ -916,6 +934,40 @@ def _observe_native_position(profile_path: Path | None, *, as_json: bool) -> int
     return 0
 
 
+def _observe_native_zone(profile_path: Path | None, *, as_json: bool) -> int:
+    try:
+        profile = (
+            load_native_zone_profile(profile_path)
+            if profile_path is not None
+            else load_bundled_native_zone_profile()
+        )
+        with open_windows_native_current_zone_reader(profile) as reader:
+            observation = reader.observe()
+            process_id = reader.process_id
+    except (
+        NativeCurrentZoneError,
+        NativeZoneProfileLoadError,
+        OSError,
+        ValueError,
+    ) as exc:
+        return _error(f"native zone observation failed: {exc}", as_json=as_json)
+    payload = {
+        "ok": True,
+        "profile_id": profile.profile_id,
+        "process_id": process_id,
+        "name": observation.name,
+        "zone_token": observation.zone_token,
+        "name_source_depth": observation.name_source_depth,
+    }
+    if as_json:
+        print(json.dumps(payload, sort_keys=True))
+    else:
+        print(f"Zone: {observation.name}")
+        print(f"Zone token: {observation.zone_token}")
+        print(f"Name source depth: {observation.name_source_depth}")
+    return 0
+
+
 def _observe_native_progression(profile_path: Path | None, *, as_json: bool) -> int:
     try:
         profile = (
@@ -1467,6 +1519,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _observe_native_player(arguments.profile, as_json=arguments.json)
     if arguments.command == "client" and arguments.client_command == "observe-native-position":
         return _observe_native_position(arguments.profile, as_json=arguments.json)
+    if arguments.command == "client" and arguments.client_command == "observe-native-zone":
+        return _observe_native_zone(arguments.profile, as_json=arguments.json)
     if arguments.command == "client" and arguments.client_command == "observe-native-progression":
         return _observe_native_progression(arguments.profile, as_json=arguments.json)
     if arguments.command == "client" and arguments.client_command == "observe-native-training":

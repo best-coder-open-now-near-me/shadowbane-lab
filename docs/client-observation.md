@@ -1,12 +1,12 @@
 # Client observation
 
-The client-observation adapter reads calibrated pixels from an already-guarded foreground
-WonderBane client. It never sends keyboard or mouse input. Recognition output is typed and
-renderer-independent so the same stream can feed an overlay, a differential trace, or a policy
-adapter.
+The client-observation adapter reads structured state from a build-guarded WonderBane client.
+It never sends keyboard or mouse input. Typed observations feed the overlay, differential trace,
+and policy adapter from the same native sources. The calibrated color reader remains an
+independent selected-health cross-check.
 
-WonderBane also exposes structured state through the original Arcane HUD layer. Native message
-logging and numeric HUD datafields are preferred over interpreting rendered text.
+WonderBane exposes its structured state through the original Arcane HUD layer, native object
+model, message logging, client configuration, and world protocol/cache data.
 
 ## Native player vitals
 
@@ -27,6 +27,25 @@ The reader verifies the same executable hash and 32-bit address bounds as select
 health, requires a non-null aligned player pointer, performs stable pointer-before/value/
 pointer-after reads, and validates every current/maximum pair. The bounded PvE controller
 requires this observation and stops before further input when health reaches 50 percent.
+
+## Native current zone
+
+The local player stores the current `ArcGameZone` pointer at offset `0xD40`. This is the zone
+object already consumed by the HUD banner. Its name is a native UTF-16 `Core::String` at zone
+offset `0x1BC`; when that field is empty, the client follows the parent-zone pointer at `0xEC`
+until it finds the inherited name.
+
+Read the client-resolved identity without focusing or capturing the game:
+
+```powershell
+.\.venv\Scripts\python.exe -m shadowbane_lab.cli client observe-native-zone --json
+```
+
+The reader applies the executable hash and pointer guards used by the other native observers,
+validates the `Core::String` begin/end/capacity pointers, decodes its exact UTF-16 length, checks
+the terminator, rejects parent cycles and excessive depth, and retries if the player or current
+zone changes during a sample. It emits the resolved name, an opaque zone token, and the parent
+depth that supplied the name.
 
 ## Native progression core
 
@@ -163,8 +182,7 @@ the overlay and recorder.
 The default skin binds HUD controls directly to semantic datafields. The inspected selection HUD
 uses `8006` for the selected name, `8007` for the selected health bar, and `8009` for selected
 health text. The status HUD similarly uses `8010`, `8011`, and `8012` for player health, mana, and
-stamina. These bindings identify the upstream state seam for the structured health bridge; they
-are not OCR targets.
+stamina. These bindings identify the upstream state seam for the structured health bridge.
 
 ## Overlay boundary
 

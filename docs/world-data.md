@@ -58,10 +58,10 @@ the preference also produced an error during launch. Keep the preference disable
 startup failure is first isolated in a disposable configuration with captured logs; live travel
 must not depend on the dormant native pathfinder.
 
-The next correlation boundary is the live `ArcGameZone`: identify its active CZone template and
-terrain-map identity, then compare local collision/path results with player LT/LG/altitude and
-server movement-correction events. The harness can then plan from decoded geometry while treating
-server movement corrections as authoritative feedback.
+The live `ArcGameZone` is now read directly from the local player and supplies the same resolved
+name used by the HUD zone banner. The next correlation boundary is its active CZone template and
+terrain-map identity. Local collision/path results can then be compared with player
+LT/LG/altitude and server movement-correction events, keeping server corrections authoritative.
 
 Format cross-check: [ShadowbaneCacheExporter](https://github.com/blinkdog/ShadowbaneCacheExporter)
 documents the archive directory, zlib payloads, terrain raster header, and mesh layout. The local
