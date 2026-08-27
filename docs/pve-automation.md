@@ -2,7 +2,7 @@
 
 The first live PvE slice acquires a nearby mobile, attacks the newly selected target, and
 stops after a small explicit kill or time limit. It consumes exact player vitals and
-position, selected-target health and position, and the native message HUD.
+position, selected-target health, position, and action state, and the native message HUD.
 
 ## Control loop
 
@@ -36,16 +36,35 @@ is the client's direct attack-selected command and therefore avoids an unobserve
 ## Proc-Assassin policy
 
 `--policy proc-assassin` is the guarded translation of the smart-camp policy. It accepts a
-target the game acquired automatically only after a fresh native player-hit record, uses
-rank-40 Shadow Touch once when native mana is at least its verified 55-point cost, and then
-observes the game's automatic weapon attacks. It sends `Ctrl+A` only after five seconds
+target the game acquired automatically only after a fresh native player-hit record, then
+observes that target's native action queue. It uses rank-40 Shadow Touch once when the mob
+queues or begins an attack aimed at the local player and native mana is at least its verified
+55-point cost. It sends `Ctrl+A` only after five seconds
 without a health decrease or player-hit record. A newly auto-selected target is accepted only
 after the previous kill has been confirmed by the native message stream.
+
+The target-action profile is locked to the verified WonderBane executable hash and reads the
+selected `ArcCharacter` action-pending flag, current `ArcMotion` ID, impact marker, and
+target-of-target pointer. Live traces showed the queue transition 543-909 ms before the attack
+motion on the first calibrated target. A second live target confirmed that animation IDs and
+queue-to-impact timing vary by creature, and that a new queue may overlap the previous attack's
+lingering impact marker. The queue flag therefore has precedence and is the earliest interrupt
+trigger; verified motion IDs provide an additional windup signal. The policy never triggers on
+impact alone, never for an attack aimed elsewhere, and never more than once per mob. That
+per-target limit avoids spending Shadow Touch again during its verified 27-second stun-immunity
+effect.
+
+The first end-to-end bounded validation observed a queued attack aimed at the player, accepted
+the guarded Shadow Touch input, and measured the expected roughly 55-point native mana decrease
+on the next sample. That queued action returned to a non-impact motion without producing its own
+impact marker; the next queue arrived 12.3 seconds later and was correctly ignored by the
+once-per-target guard. This proves the native signal-to-semantic-input path on the calibrated
+client build; it does not claim every creature has identical animation timing.
 
 Shadow Touch must have a real key mapping in the local client profile before this policy can
 run. The checked profile intentionally does not invent one; a proc-Assassin run fails before
 input if `shadowbane.assassin.shadow_touch` is absent. The dry-run replay exercises target
-cycle, automatic selection, opener, automatic attack observation, and the bounded direct-attack
+cycle, automatic selection, attack interruption, automatic attack observation, and the bounded direct-attack
 fallback through the same guarded input compiler and executor without touching the VM.
 
 ## Fail-closed behavior
@@ -55,7 +74,7 @@ The run stops without issuing more input when any of these conditions occurs:
 - the foreground executable, title, window size, or DPI guard changes;
 - the independent `Ctrl+Shift+F12` emergency stop trips;
 - native process identity or executable hash validation fails;
-- three consecutive native observation polls fail pointer, health, or resource validation;
+- three consecutive native observation polls fail pointer, health, action, or resource validation;
 - exact player health reaches the 50-percent safety threshold;
 - the selected target changes while an engagement is active;
 - the native message HUD reports player death or multiple ambiguous kills;
@@ -73,7 +92,8 @@ movement input or cycles indefinitely.
 A single torn native observation is not treated as a trustworthy state change. The runner
 withholds all input while retrying up to three consecutive polls and resets that count only
 after a complete target, player-vitals, player-position, target-position, and combat-log
-observation succeeds. Health and position must resolve the same opaque target token. A third
+observation succeeds. During engagement, health, position, and action must resolve the same
+opaque target token. A third
 failure stops the run and records the concrete reader error in the terminal reason.
 
 ## Prepare a VM-local profile
@@ -157,7 +177,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
 
 The versioned JSON result includes native build/profile provenance and a sample-by-sample
 trace: player health/mana/stamina and LT/LG/altitude, target identity/health/position, planar
-and three-dimensional target range, typed native combat events, controller phase, and guarded
+and three-dimensional target range, native action phase/motion/impact/target-of-target state,
+typed native combat events, controller phase, and guarded
 input outcome. This is the evidence boundary used to calibrate later simulator profiles. A
 successful first trial ends with `kill_limit_reached`. Move the pointer to a PyAutoGUI
 fail-safe corner or press `Ctrl+Shift+F12` to stop immediately.

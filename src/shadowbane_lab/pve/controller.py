@@ -35,6 +35,9 @@ class PvEController:
         self._reengage_attempts = 0
         self._stalled_retargets = 0
         self._require_different_target = False
+        self._last_power_at: dict[PvEIntent, int] = {}
+        self._last_interrupt_action_sequence: int | None = None
+        self._interrupts_for_target = 0
 
     @property
     def phase(self) -> PvEPhase:
@@ -49,6 +52,14 @@ class PvEController:
         return self._phase in (PvEPhase.COMPLETE, PvEPhase.STOPPED)
 
     @property
+    def requires_target_action(self) -> bool:
+        return self._config.interrupt_intent is not None
+
+    @property
+    def target_action_observation_active(self) -> bool:
+        return self._phase is PvEPhase.ENGAGED
+
+    @property
     def required_intents(self) -> frozenset[PvEIntent]:
         intents = {
             PvEIntent.ACQUIRE_NEXT_MOB,
@@ -56,6 +67,8 @@ class PvEController:
         }
         if self._config.opening_intent is not None:
             intents.add(self._config.opening_intent)
+        if self._config.interrupt_intent is not None:
+            intents.add(self._config.interrupt_intent)
         return frozenset(intents)
 
     def step(self, observation: PvEObservation) -> PvEControllerDecision:
@@ -195,6 +208,10 @@ class PvEController:
             self._last_progress_at = now
         self._last_health = target.current_health
 
+        interrupt = self._interrupt(observation)
+        if interrupt is not None:
+            return interrupt
+
         if self._phase_elapsed(now) >= self._config.engagement_timeout_ms:
             return self.stop("engagement_timeout", now_ms=now)
         assert self._last_progress_at is not None
@@ -252,6 +269,8 @@ class PvEController:
         self._reengage_attempts = 0
         self._selection_lost_at = None
         self._require_different_target = False
+        self._last_interrupt_action_sequence = None
+        self._interrupts_for_target = 0
         opener = self._config.opening_intent
         if opener is not None and observation.player.current_mana >= self._config.opening_mana_cost:
             self._enter(PvEPhase.OPENING, now)
@@ -260,6 +279,28 @@ class PvEController:
         if self._config.automatic_attack_expected:
             return self._emit(now)
         return self._emit(now, PvEIntent.ATTACK_SELECTED_TARGET)
+
+    def _interrupt(self, observation: PvEObservation) -> PvEControllerDecision | None:
+        intent = self._config.interrupt_intent
+        action = observation.target_action
+        if intent is None or action is None or not action.interrupt_opportunity:
+            return None
+        assert action.action_sequence is not None
+        if action.action_sequence == self._last_interrupt_action_sequence:
+            return None
+        if self._interrupts_for_target >= self._config.maximum_interrupts_per_target:
+            return None
+        if observation.player.current_mana < self._config.interrupt_mana_cost:
+            return None
+        last_power_at = self._last_power_at.get(intent)
+        if (
+            last_power_at is not None
+            and observation.now_ms - last_power_at < self._config.interrupt_cooldown_ms
+        ):
+            return None
+        self._last_interrupt_action_sequence = action.action_sequence
+        self._interrupts_for_target += 1
+        return self._emit(observation.now_ms, intent)
 
     def _open(self, observation: PvEObservation) -> PvEControllerDecision:
         now = observation.now_ms
@@ -304,6 +345,8 @@ class PvEController:
         self._last_progress_at = None
         self._selection_lost_at = None
         self._reengage_attempts = 0
+        self._last_interrupt_action_sequence = None
+        self._interrupts_for_target = 0
 
     def _enter(self, phase: PvEPhase, now_ms: int) -> None:
         self._phase = phase
@@ -331,4 +374,6 @@ class PvEController:
         self._decision_id += 1
         if intent is PvEIntent.ACQUIRE_NEXT_MOB:
             self._last_acquire_at = now_ms
+        elif intent not in (None, PvEIntent.ATTACK_SELECTED_TARGET):
+            self._last_power_at[intent] = now_ms
         return decision

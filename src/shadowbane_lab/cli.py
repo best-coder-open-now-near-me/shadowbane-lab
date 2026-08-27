@@ -55,6 +55,8 @@ from shadowbane_lab.client_observation import (
     NativePlayerVitalsError,
     NativePositionProfileLoadError,
     NativeProgressionCoreProfileLoadError,
+    NativeTargetActionError,
+    NativeTargetActionProfileLoadError,
     NativeTargetHealthError,
     NativeTargetPositionError,
     NativeTargetPositionProfileLoadError,
@@ -69,6 +71,7 @@ from shadowbane_lab.client_observation import (
     load_bundled_native_message_hud_profile,
     load_bundled_native_position_profile,
     load_bundled_native_progression_core_profile,
+    load_bundled_native_target_action_profile,
     load_bundled_native_target_position_profile,
     load_bundled_native_training_profile,
     load_bundled_native_vitals_profile,
@@ -78,6 +81,7 @@ from shadowbane_lab.client_observation import (
     load_native_message_hud_profile,
     load_native_position_profile,
     load_native_progression_core_profile,
+    load_native_target_action_profile,
     load_native_target_position_profile,
     load_native_training_profile,
     load_native_vitals_profile,
@@ -90,6 +94,7 @@ from shadowbane_lab.client_observation import (
     open_windows_native_player_progression_core_reader,
     open_windows_native_player_training_reader,
     open_windows_native_player_vitals_reader,
+    open_windows_native_target_action_reader,
     open_windows_native_target_health_reader,
     open_windows_native_target_position_reader,
 )
@@ -407,6 +412,7 @@ def _parser() -> argparse.ArgumentParser:
     run_pve.add_argument("--native-vitals-profile", type=Path)
     run_pve.add_argument("--native-position-profile", type=Path)
     run_pve.add_argument("--native-target-position-profile", type=Path)
+    run_pve.add_argument("--native-target-action-profile", type=Path)
     run_pve.add_argument("--max-kills", type=int, default=1)
     run_pve.add_argument("--max-seconds", type=float, default=120.0)
     run_pve.add_argument("--wait-for-client-seconds", type=float, default=15.0)
@@ -421,8 +427,8 @@ def _parser() -> argparse.ArgumentParser:
         choices=("basic", "proc-assassin"),
         default="basic",
         help=(
-            "bounded control policy; proc-assassin accepts auto-targets and opens "
-            "with Shadow Touch"
+            "bounded control policy; proc-assassin accepts auto-targets and uses "
+            "Shadow Touch to interrupt a native queued attack"
         ),
     )
     run_pve.add_argument(
@@ -1432,6 +1438,7 @@ def _run_pve(
     native_vitals_profile_path: Path | None,
     native_position_profile_path: Path | None,
     native_target_position_profile_path: Path | None,
+    native_target_action_profile_path: Path | None,
     max_kills: int,
     max_seconds: float,
     wait_for_client_seconds: float,
@@ -1474,10 +1481,12 @@ def _run_pve(
                 maximum_kills=max_kills,
                 maximum_session_ms=round(max_seconds * 1000),
                 accept_automatic_targets=policy == "proc-assassin",
-                opening_intent=(
+                interrupt_intent=(
                     PvEIntent.CAST_SHADOW_TOUCH if policy == "proc-assassin" else None
                 ),
-                opening_mana_cost=55.0 if policy == "proc-assassin" else 0.0,
+                interrupt_mana_cost=55.0 if policy == "proc-assassin" else 0.0,
+                interrupt_cooldown_ms=2_000 if policy == "proc-assassin" else 0,
+                maximum_interrupts_per_target=1 if policy == "proc-assassin" else 0,
                 automatic_attack_expected=policy == "proc-assassin",
                 automatic_target_requires_combat_event=policy == "proc-assassin",
                 maximum_stalled_retargets=1 if policy == "proc-assassin" else 0,
@@ -1524,11 +1533,17 @@ def _run_pve(
             if native_target_position_profile_path is not None
             else load_bundled_native_target_position_profile()
         )
+        target_action_profile = (
+            load_native_target_action_profile(native_target_action_profile_path)
+            if native_target_action_profile_path is not None
+            else load_bundled_native_target_action_profile()
+        )
         native_profile_hashes = {
             health_profile.executable_sha256,
             vitals_profile.executable_sha256,
             position_profile.executable_sha256,
             target_position_profile.executable_sha256,
+            target_action_profile.executable_sha256,
         }
         if message_hud_profile is not None:
             native_profile_hashes.add(message_hud_profile.executable_sha256)
@@ -1571,6 +1586,12 @@ def _run_pve(
                     process_id=process_id,
                 )
             )
+            target_action_reader = stack.enter_context(
+                open_windows_native_target_action_reader(
+                    target_action_profile,
+                    process_id=process_id,
+                )
+            )
             if message_hud_profile is None:
                 assert combat_log_path is not None
                 combat_reader = NativeCombatLogReader(combat_log_path, start_at_end=True)
@@ -1589,6 +1610,7 @@ def _run_pve(
                 player_vitals_reader.process_id,
                 player_position_reader.process_id,
                 target_position_reader.process_id,
+                target_action_reader.process_id,
             }
             if message_hud_profile is not None:
                 reader_process_ids.add(combat_reader.process_id)
@@ -1609,6 +1631,7 @@ def _run_pve(
                 player_vitals_reader=player_vitals_reader,
                 player_position_reader=player_position_reader,
                 target_position_reader=target_position_reader,
+                target_action_reader=target_action_reader,
                 combat_log_reader=combat_reader,
                 dispatcher=ClientPvEIntentDispatcher(adapter),
                 stop_signal=stop_signal,
@@ -1624,6 +1647,8 @@ def _run_pve(
         NativePlayerPositionError,
         NativePositionProfileLoadError,
         NativeTargetHealthError,
+        NativeTargetActionError,
+        NativeTargetActionProfileLoadError,
         NativeTargetPositionError,
         NativeTargetPositionProfileLoadError,
         NativeVitalsProfileLoadError,
@@ -1662,6 +1687,7 @@ def _run_pve(
             "player_vitals_profile_id": vitals_profile.profile_id,
             "player_position_profile_id": position_profile.profile_id,
             "target_position_profile_id": target_position_profile.profile_id,
+            "target_action_profile_id": target_action_profile.profile_id,
             "combat_source": resolved_combat_source,
             "message_hud_profile_id": (
                 None if message_hud_profile is None else message_hud_profile.profile_id
@@ -2288,6 +2314,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             native_vitals_profile_path=arguments.native_vitals_profile,
             native_position_profile_path=arguments.native_position_profile,
             native_target_position_profile_path=arguments.native_target_position_profile,
+            native_target_action_profile_path=arguments.native_target_action_profile,
             max_kills=arguments.max_kills,
             max_seconds=arguments.max_seconds,
             wait_for_client_seconds=arguments.wait_for_client_seconds,

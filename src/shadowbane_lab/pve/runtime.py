@@ -12,6 +12,7 @@ from shadowbane_lab.client_observation import (
     NativeCombatLogEntry,
     NativePlayerPositionObservation,
     NativePlayerVitalsObservation,
+    NativeTargetActionObservation,
     NativeTargetHealthObservation,
     NativeTargetPositionObservation,
 )
@@ -48,6 +49,11 @@ class PlayerPositionSource(Protocol):
 @runtime_checkable
 class TargetPositionSource(Protocol):
     def observe(self) -> NativeTargetPositionObservation: ...
+
+
+@runtime_checkable
+class TargetActionSource(Protocol):
+    def observe(self) -> NativeTargetActionObservation: ...
 
 
 @runtime_checkable
@@ -97,6 +103,7 @@ class PvERunner:
         player_vitals_reader: PlayerVitalsSource,
         player_position_reader: PlayerPositionSource | None = None,
         target_position_reader: TargetPositionSource | None = None,
+        target_action_reader: TargetActionSource | None = None,
         combat_log_reader: CombatLogSource,
         dispatcher: PvEIntentDispatcher,
         stop_signal: StopSignal,
@@ -121,6 +128,12 @@ class PvERunner:
             target_position_reader, TargetPositionSource
         ):
             raise ValueError("target_position_reader must implement TargetPositionSource")
+        if target_action_reader is not None and not isinstance(
+            target_action_reader, TargetActionSource
+        ):
+            raise ValueError("target_action_reader must implement TargetActionSource")
+        if controller.requires_target_action and target_action_reader is None:
+            raise ValueError("configured interrupt policy requires a target action reader")
         if not isinstance(combat_log_reader, CombatLogSource):
             raise ValueError("combat_log_reader must implement CombatLogSource")
         if not isinstance(dispatcher, PvEIntentDispatcher):
@@ -146,6 +159,7 @@ class PvERunner:
         self._player_vitals_reader = player_vitals_reader
         self._player_position_reader = player_position_reader
         self._target_position_reader = target_position_reader
+        self._target_action_reader = target_action_reader
         self._combat_log_reader = combat_log_reader
         self._dispatcher = dispatcher
         self._stop_signal = stop_signal
@@ -170,6 +184,12 @@ class PvERunner:
                 break
             try:
                 target = self._health_reader.observe()
+                target_action = (
+                    None
+                    if self._target_action_reader is None
+                    or not self._controller.target_action_observation_active
+                    else self._target_action_reader.observe()
+                )
                 target_position = (
                     None
                     if self._target_position_reader is None
@@ -192,6 +212,7 @@ class PvERunner:
                     combat_events=events,
                     player_position=player_position,
                     target_position=target_position,
+                    target_action=target_action,
                 )
                 decision = self._controller.step(observation)
             except Exception as exc:
@@ -302,6 +323,7 @@ class PvERunner:
             target_token=None if observation is None else observation.target.target_token,
             player_position=(None if observation is None else observation.player_position),
             target_position=(None if observation is None else observation.target_position),
+            target_action=(None if observation is None else observation.target_action),
             target_planar_distance=(
                 None if observation is None else observation.target_planar_distance
             ),

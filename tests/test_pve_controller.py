@@ -7,6 +7,8 @@ from shadowbane_lab.client_observation import (
     NativeCombatLogEntry,
     NativePlayerPositionObservation,
     NativePlayerVitalsObservation,
+    NativeTargetActionObservation,
+    NativeTargetActionPhase,
     NativeTargetHealthObservation,
     NativeTargetPositionObservation,
 )
@@ -80,17 +82,40 @@ def _target_position(token: str | None) -> NativeTargetPositionObservation:
     )
 
 
+def _target_action(
+    token: str | None,
+    *,
+    phase: NativeTargetActionPhase = NativeTargetActionPhase.IDLE,
+    sequence: int = 0,
+    targeting_player: bool = True,
+) -> NativeTargetActionObservation:
+    if token is None:
+        return NativeTargetActionObservation(target_present=False)
+    return NativeTargetActionObservation(
+        target_present=True,
+        phase=phase,
+        target_token=token,
+        targeting_player=targeting_player,
+        motion_id=21 if phase is NativeTargetActionPhase.IDLE else 106,
+        action_pending=phase is NativeTargetActionPhase.QUEUED,
+        impact_frame=19 if phase is NativeTargetActionPhase.IMPACT else None,
+        action_sequence=sequence,
+    )
+
+
 def _observation(
     now_ms: int,
     target: NativeTargetHealthObservation,
     *events: NativeCombatEvent,
     player: NativePlayerVitalsObservation | None = None,
+    target_action: NativeTargetActionObservation | None = None,
 ) -> PvEObservation:
     return PvEObservation(
         now_ms=now_ms,
         target=target,
         player=_player() if player is None else player,
         combat_events=events,
+        target_action=target_action,
     )
 
 
@@ -127,6 +152,17 @@ class PvEControllerTests(unittest.TestCase):
             )
         with self.assertRaisesRegex(ValueError, "requires an opening_intent"):
             PvEControllerConfig(opening_mana_cost=55.0)
+
+    def test_interrupt_configuration_requires_a_power_and_positive_target_limit(self) -> None:
+        with self.assertRaisesRegex(ValueError, "power activation"):
+            PvEControllerConfig(
+                interrupt_intent=PvEIntent.ATTACK_SELECTED_TARGET,
+                maximum_interrupts_per_target=1,
+            )
+        with self.assertRaisesRegex(ValueError, "positive per-target limit"):
+            PvEControllerConfig(interrupt_intent=PvEIntent.CAST_SHADOW_TOUCH)
+        with self.assertRaisesRegex(ValueError, "require an interrupt_intent"):
+            PvEControllerConfig(interrupt_cooldown_ms=2_000)
 
     def test_acquires_a_different_mobile_then_attacks_and_confirms_kill(self) -> None:
         controller = PvEController(PvEControllerConfig(maximum_kills=1))
@@ -354,6 +390,155 @@ class PvEControllerTests(unittest.TestCase):
         self.assertEqual(PvEPhase.ENGAGED, decision.phase)
         self.assertIsNone(decision.intent)
 
+    def test_proc_assassin_interrupts_one_native_attack_once_per_target(self) -> None:
+        controller = PvEController(
+            PvEControllerConfig(
+                accept_automatic_targets=True,
+                interrupt_intent=PvEIntent.CAST_SHADOW_TOUCH,
+                interrupt_mana_cost=55.0,
+                interrupt_cooldown_ms=2_000,
+                maximum_interrupts_per_target=1,
+                automatic_attack_expected=True,
+            )
+        )
+        player = _player(current_mana=100.0, maximum_mana=100.0)
+        controller.step(_observation(0, _target("mob"), player=player))
+
+        interrupt = controller.step(
+            _observation(
+                100,
+                _target("mob"),
+                player=player,
+                target_action=_target_action(
+                    "mob",
+                    phase=NativeTargetActionPhase.QUEUED,
+                    sequence=1,
+                ),
+            )
+        )
+        same_attack = controller.step(
+            _observation(
+                200,
+                _target("mob"),
+                player=player,
+                target_action=_target_action(
+                    "mob",
+                    phase=NativeTargetActionPhase.WINDUP,
+                    sequence=1,
+                ),
+            )
+        )
+        next_attack = controller.step(
+            _observation(
+                3_000,
+                _target("mob"),
+                player=player,
+                target_action=_target_action(
+                    "mob",
+                    phase=NativeTargetActionPhase.QUEUED,
+                    sequence=2,
+                ),
+            )
+        )
+
+        self.assertEqual(PvEIntent.CAST_SHADOW_TOUCH, interrupt.intent)
+        self.assertIsNone(same_attack.intent)
+        self.assertIsNone(next_attack.intent)
+
+    def test_interrupt_waits_for_mana_without_consuming_the_attack_window(self) -> None:
+        controller = PvEController(
+            PvEControllerConfig(
+                accept_automatic_targets=True,
+                interrupt_intent=PvEIntent.CAST_SHADOW_TOUCH,
+                interrupt_mana_cost=55.0,
+                maximum_interrupts_per_target=1,
+                automatic_attack_expected=True,
+            )
+        )
+        low_mana = _player(current_mana=54.0, maximum_mana=100.0)
+        enough_mana = _player(current_mana=55.0, maximum_mana=100.0)
+        controller.step(_observation(0, _target("mob"), player=low_mana))
+        action = _target_action(
+            "mob",
+            phase=NativeTargetActionPhase.QUEUED,
+            sequence=1,
+        )
+
+        waiting = controller.step(
+            _observation(100, _target("mob"), player=low_mana, target_action=action)
+        )
+        interrupt = controller.step(
+            _observation(200, _target("mob"), player=enough_mana, target_action=action)
+        )
+
+        self.assertIsNone(waiting.intent)
+        self.assertEqual(PvEIntent.CAST_SHADOW_TOUCH, interrupt.intent)
+
+    def test_interrupt_ignores_attack_aimed_at_another_actor(self) -> None:
+        controller = PvEController(
+            PvEControllerConfig(
+                accept_automatic_targets=True,
+                interrupt_intent=PvEIntent.CAST_SHADOW_TOUCH,
+                maximum_interrupts_per_target=1,
+                automatic_attack_expected=True,
+            )
+        )
+        controller.step(_observation(0, _target("mob")))
+
+        decision = controller.step(
+            _observation(
+                100,
+                _target("mob"),
+                target_action=_target_action(
+                    "mob",
+                    phase=NativeTargetActionPhase.QUEUED,
+                    sequence=1,
+                    targeting_player=False,
+                ),
+            )
+        )
+
+        self.assertIsNone(decision.intent)
+
+    def test_interrupt_cooldown_does_not_consume_a_still_open_action_window(self) -> None:
+        controller = PvEController(
+            PvEControllerConfig(
+                accept_automatic_targets=True,
+                interrupt_intent=PvEIntent.CAST_SHADOW_TOUCH,
+                interrupt_cooldown_ms=2_000,
+                maximum_interrupts_per_target=2,
+                automatic_attack_expected=True,
+            )
+        )
+        controller.step(_observation(0, _target("mob")))
+        first = controller.step(
+            _observation(
+                100,
+                _target("mob"),
+                target_action=_target_action(
+                    "mob",
+                    phase=NativeTargetActionPhase.QUEUED,
+                    sequence=1,
+                ),
+            )
+        )
+        second_action = _target_action(
+            "mob",
+            phase=NativeTargetActionPhase.QUEUED,
+            sequence=2,
+        )
+
+        cooling_down = controller.step(
+            _observation(1_000, _target("mob"), target_action=second_action)
+        )
+        ready = controller.step(
+            _observation(2_100, _target("mob"), target_action=second_action)
+        )
+
+        self.assertEqual(PvEIntent.CAST_SHADOW_TOUCH, first.intent)
+        self.assertIsNone(cooling_down.intent)
+        self.assertEqual(PvEIntent.CAST_SHADOW_TOUCH, ready.intent)
+
     def test_proc_assassin_opens_automatic_replacement_after_confirmed_kill(self) -> None:
         controller = PvEController(
             PvEControllerConfig(
@@ -459,6 +644,14 @@ class SequenceTargetPositionSource:
         return self.values.pop(0)
 
 
+class SequenceTargetActionSource:
+    def __init__(self, values: tuple[NativeTargetActionObservation, ...]) -> None:
+        self.values = list(values)
+
+    def observe(self) -> NativeTargetActionObservation:
+        return self.values.pop(0)
+
+
 class ConstantHealthSource:
     def __init__(self, value: NativeTargetHealthObservation) -> None:
         self.value = value
@@ -559,6 +752,16 @@ class PvERunnerTests(unittest.TestCase):
                     _target_position(None),
                 )
             ),
+            target_action_reader=SequenceTargetActionSource(
+                (
+                    _target_action(
+                        "mob",
+                        phase=NativeTargetActionPhase.WINDUP,
+                        sequence=1,
+                    ),
+                    _target_action(None),
+                )
+            ),
             combat_log_reader=combat,
             dispatcher=dispatcher,
             stop_signal=EventEmergencyStop(),
@@ -585,6 +788,7 @@ class PvERunnerTests(unittest.TestCase):
         trace_payload = hit_step.as_dict()
         self.assertEqual(5.0, trace_payload["target"]["planar_distance"])
         self.assertEqual("player_hit_target", trace_payload["combat_events"][0]["kind"])
+        self.assertEqual("windup", trace_payload["target"]["action"]["phase"])
 
     def test_runner_stops_immediately_when_guarded_input_is_rejected(self) -> None:
         clock = AdvancingClock()

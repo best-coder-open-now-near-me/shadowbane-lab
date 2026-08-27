@@ -10,6 +10,7 @@ from shadowbane_lab.client_observation import (
     NativeCombatEvent,
     NativePlayerPositionObservation,
     NativePlayerVitalsObservation,
+    NativeTargetActionObservation,
     NativeTargetHealthObservation,
     NativeTargetPositionObservation,
 )
@@ -59,6 +60,10 @@ class PvEControllerConfig:
     opening_intent: PvEIntent | None = None
     opening_mana_cost: float = 0.0
     opening_followup_delay_ms: int = 250
+    interrupt_intent: PvEIntent | None = None
+    interrupt_mana_cost: float = 0.0
+    interrupt_cooldown_ms: int = 0
+    maximum_interrupts_per_target: int = 0
     automatic_attack_expected: bool = False
     automatic_target_requires_combat_event: bool = False
 
@@ -78,6 +83,11 @@ class PvEControllerConfig:
             _positive_integer(value, field_name)
         _non_negative_integer(self.maximum_reengage_attempts, "maximum_reengage_attempts")
         _non_negative_integer(self.maximum_stalled_retargets, "maximum_stalled_retargets")
+        _non_negative_integer(self.interrupt_cooldown_ms, "interrupt_cooldown_ms")
+        _non_negative_integer(
+            self.maximum_interrupts_per_target,
+            "maximum_interrupts_per_target",
+        )
         if (
             isinstance(self.minimum_player_health_fraction, bool)
             or not isinstance(self.minimum_player_health_fraction, (int, float))
@@ -118,6 +128,32 @@ class PvEControllerConfig:
             raise ValueError("opening_mana_cost must be a non-negative number")
         if self.opening_intent is None and self.opening_mana_cost != 0:
             raise ValueError("opening_mana_cost requires an opening_intent")
+        if self.interrupt_intent is not None and not isinstance(
+            self.interrupt_intent, PvEIntent
+        ):
+            raise ValueError("interrupt_intent must be PvEIntent when present")
+        if self.interrupt_intent in (
+            PvEIntent.ACQUIRE_NEXT_MOB,
+            PvEIntent.ATTACK_SELECTED_TARGET,
+        ):
+            raise ValueError("interrupt_intent must be a power activation")
+        if (
+            isinstance(self.interrupt_mana_cost, bool)
+            or not isinstance(self.interrupt_mana_cost, (int, float))
+            or not isfinite(self.interrupt_mana_cost)
+            or self.interrupt_mana_cost < 0
+        ):
+            raise ValueError("interrupt_mana_cost must be a non-negative number")
+        if self.interrupt_intent is None and any(
+            (
+                self.interrupt_mana_cost != 0,
+                self.interrupt_cooldown_ms != 0,
+                self.maximum_interrupts_per_target != 0,
+            )
+        ):
+            raise ValueError("interrupt limits require an interrupt_intent")
+        if self.interrupt_intent is not None and self.maximum_interrupts_per_target == 0:
+            raise ValueError("interrupt_intent requires a positive per-target limit")
 
 
 @dataclass(frozen=True, slots=True)
@@ -128,6 +164,7 @@ class PvEObservation:
     combat_events: tuple[NativeCombatEvent, ...] = ()
     player_position: NativePlayerPositionObservation | None = None
     target_position: NativeTargetPositionObservation | None = None
+    target_action: NativeTargetActionObservation | None = None
 
     def __post_init__(self) -> None:
         _non_negative_integer(self.now_ms, "now_ms")
@@ -140,6 +177,16 @@ class PvEObservation:
         sequences = tuple(event.sequence for event in self.combat_events)
         if sequences != tuple(sorted(sequences)) or len(sequences) != len(set(sequences)):
             raise ValueError("combat events must have unique ascending sequences")
+        if self.target_action is not None:
+            if not isinstance(self.target_action, NativeTargetActionObservation):
+                raise ValueError("target_action must be NativeTargetActionObservation")
+            if self.target.target_present != self.target_action.target_present:
+                raise ValueError("target health and action disagree about target presence")
+            if (
+                self.target.target_present
+                and self.target.target_token != self.target_action.target_token
+            ):
+                raise ValueError("target health and action resolved different targets")
         if (self.player_position is None) != (self.target_position is None):
             raise ValueError("player and target positions must be observed together")
         if self.player_position is None:
@@ -230,6 +277,7 @@ class PvERunTraceStep:
     target_token: str | None = None
     player_position: NativePlayerPositionObservation | None = None
     target_position: NativeTargetPositionObservation | None = None
+    target_action: NativeTargetActionObservation | None = None
     target_planar_distance: float | None = None
     target_altitude_delta: float | None = None
     target_spatial_distance: float | None = None
@@ -256,6 +304,10 @@ class PvERunTraceStep:
             self.target_position, NativeTargetPositionObservation
         ):
             raise ValueError("target_position must be NativeTargetPositionObservation")
+        if self.target_action is not None and not isinstance(
+            self.target_action, NativeTargetActionObservation
+        ):
+            raise ValueError("target_action must be NativeTargetActionObservation")
         if any(not isinstance(event, NativeCombatEvent) for event in self.combat_events):
             raise ValueError("combat_events must contain NativeCombatEvent values")
 
@@ -279,6 +331,25 @@ class PvERunTraceStep:
                 "planar_distance": self.target_planar_distance,
                 "altitude_delta": self.target_altitude_delta,
                 "spatial_distance": self.target_spatial_distance,
+                "action": (
+                    None
+                    if self.target_action is None
+                    else {
+                        "phase": (
+                            None
+                            if self.target_action.phase is None
+                            else self.target_action.phase.value
+                        ),
+                        "targeting_player": self.target_action.targeting_player,
+                        "motion_id": self.target_action.motion_id,
+                        "action_pending": self.target_action.action_pending,
+                        "impact_frame": self.target_action.impact_frame,
+                        "action_sequence": self.target_action.action_sequence,
+                        "interrupt_opportunity": (
+                            self.target_action.interrupt_opportunity
+                        ),
+                    }
+                ),
             },
             "player": {
                 "current_health": self.player_current_health,
