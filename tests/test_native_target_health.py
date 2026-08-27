@@ -114,6 +114,24 @@ class NativeTargetHealthReaderTests(unittest.TestCase):
         self.assertEqual(10.0, observation.maximum_health)
         self.assertAlmostEqual(0.855689, observation.health_fraction, places=5)
 
+    def test_zero_pool_selection_is_acquisition_empty(self) -> None:
+        profile = _profile()
+        target = 0x12340000
+        slot = FakeProcessMemory.base_address + profile.selected_pointer_rva
+        reader = NativeTargetHealthReader(
+            profile,
+            FakeProcessMemory(
+                {
+                    slot: [_pointer(target), _pointer(target)],
+                    target + profile.current_health_offset: [_health(0.0, 0.0)],
+                }
+            ),
+        )
+
+        observation = reader.observe()
+
+        self.assertEqual(NativeTargetHealthObservation(target_present=False), observation)
+
     def test_retries_when_selection_changes_during_read(self) -> None:
         profile = _profile()
         first = 0x12340000

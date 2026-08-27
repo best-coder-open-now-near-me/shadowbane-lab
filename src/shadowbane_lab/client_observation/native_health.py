@@ -300,6 +300,10 @@ class NativeTargetHealthReader:
         current_health: float,
         maximum_health: float,
     ) -> NativeTargetHealthObservation:
+        if current_health == 0.0 and maximum_health == 0.0:
+            # Corpses and non-combat selections retain a native selection object but
+            # expose no health pool.  They are acquisition-empty, not corrupt targets.
+            return NativeTargetHealthObservation(target_present=False)
         if (
             not isfinite(current_health)
             or not isfinite(maximum_health)
@@ -307,7 +311,8 @@ class NativeTargetHealthReader:
             or maximum_health <= 0
         ):
             raise NativeTargetHealthReadError(
-                "selected-target health is structurally invalid"
+                "selected-target health is structurally invalid "
+                f"(current={current_health!r}, maximum={maximum_health!r})"
             )
         tolerance = max(0.001, maximum_health * 0.00001)
         if current_health > maximum_health + tolerance:
