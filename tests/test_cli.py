@@ -482,6 +482,8 @@ class ClientCliTests(unittest.TestCase):
                 window_radius=1200,
                 sampled_cells=1600,
                 blocked_cells=frozenset({(1, 2)}),
+                water_cells=frozenset({(3, 4)}),
+                water_sample_threshold=194.56,
                 costs=(((2, 3), 1.5),),
             ),
         )
@@ -631,6 +633,10 @@ class ClientCliTests(unittest.TestCase):
         self.assertEqual(
             1600,
             saved_evidence["terrain_navigation"]["seed"]["sampled_cells"],
+        )
+        self.assertEqual(
+            1,
+            saved_evidence["terrain_navigation"]["seed"]["water_cells"],
         )
         emergency_stop.assert_not_called()
 

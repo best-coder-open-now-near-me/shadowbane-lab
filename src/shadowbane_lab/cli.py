@@ -1748,6 +1748,8 @@ def _run_pve(
                         "window_radius": terrain_seed.window_radius,
                         "sampled_cells": terrain_seed.sampled_cells,
                         "blocked_cells": len(terrain_seed.blocked_cells),
+                        "water_cells": len(terrain_seed.water_cells),
+                        "water_sample_threshold": terrain_seed.water_sample_threshold,
                         "weighted_cells": len(terrain_seed.costs),
                     }
             if resolved_combat_source == "state":

@@ -25,7 +25,9 @@ the zone height field; the remaining maps are material-alpha layers. This agrees
 open-source emulator's [HeightMap implementation](https://repo.magicbane.com/MagicBane/Server/src/commit/a7bc1d5a6afad4ebc7b953e8277a9380f7846e11/src/engine/InterestManagement/HeightMap.java),
 including bottom-left origin, `(width - 1)` interpolation buckets, and byte-height scaling.
 Material layers remain neutral until their surface meanings are decoded. Height alone is not an
-authoritative walkability flag: water and placed-object collision still require separate data.
+authoritative walkability flag, so water is classified only when the same `CZone` explicitly
+declares a water plane and a zone-local sea level. Placed-object collision still requires its
+separate object and mesh data.
 
 The archive format is a 16-byte header, a directory of 20-byte resource records, optional
 directory padding, and raw or zlib-compressed payloads. Resource IDs are not globally unique.
@@ -53,10 +55,14 @@ through 16x16 tiles. Its stock `WorldDef` identifies Aerynth world 1 with 70 nes
 49 zone template IDs, and 26 named zone-load configurations.
 
 The active-zone loader uses the client-resolved `CZone` key and native placement geometry to
-project the first referenced map into a bounded local window of global LT/LG cells. Large within-cell height changes become
-hard A* exclusions and smaller changes become traversal costs. It does not infer a waterline from
-low samples; that threshold remains disabled until material and live movement evidence calibrate
-it.
+project the first referenced map into a bounded local window of global LT/LG cells. Large
+within-cell height changes become hard A* exclusions and smaller changes become traversal costs.
+A bounds-checked `CZone` prefix parser also resolves explicit water presence, sea-level coordinate
+space, and image-terrain minimum/maximum height. When the sea level is zone-local, the loader maps
+it into the same byte-height scale and assigns underwater cells a high but traversable cost. For
+example, Tainted Swamp template `0:3033` declares water at local height `152` over image terrain
+`0..200`, yielding a raw sample threshold of `194.56`; this is cache data, not a darkness
+heuristic. Parent/world-relative water remains neutral until its vertical transform is proven.
 
 ## Native pathfinding status
 

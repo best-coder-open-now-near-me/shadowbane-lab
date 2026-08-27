@@ -110,9 +110,9 @@ cannot bypass authoritative validation.
 - Project the first CZone-referenced TerrainAlpha layer, now identified as its height field, into
   LT/LG from native placement bounds, local/absolute centers, and rotation. Seed steep transitions
   as exclusions and gentler height changes as weighted traversal costs.
-- Decode static collision and traversal costs from CObjects/mesh resources, including water and
-  hard obstacles. Keep low-height water classification disabled until calibrated rather than
-  treating dark raster samples as impassable.
+- Explicit zone-local `CZone` water now seeds high, traversable costs from the declared sea level
+  and terrain height range. Decode parent/world-relative water transforms and static hard
+  collision from CObjects/mesh resources next.
 - The PvE approach controller now uses bounded weighted A* with waypoint smoothing and online
   replanning from stalls. Extend that same static grid into hierarchical long-distance `/go`
   routing after object collision and zone-boundary composition are decoded.

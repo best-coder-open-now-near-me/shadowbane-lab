@@ -17,6 +17,7 @@ from shadowbane_lab.world_data import (
     TerrainAlphaRaster,
     correlate_zone_terrain,
     index_terrain_alpha_maps,
+    parse_zone_navigation_metadata,
     read_terrain_alpha_map,
 )
 
@@ -27,6 +28,7 @@ class TerrainNavigationConfig:
     blocked_sample_delta: int = 64
     minimum_traversable_sample: int | None = None
     maximum_traversal_cost: float = 5.0
+    water_traversal_cost: float = 12.0
     seed_radius: float = 1_200.0
     maximum_seed_cells: int = 50_000
 
@@ -58,6 +60,13 @@ class TerrainNavigationConfig:
         ):
             raise ValueError("maximum_traversal_cost must be finite and at least one")
         if (
+            isinstance(self.water_traversal_cost, bool)
+            or not isinstance(self.water_traversal_cost, (int, float))
+            or not isfinite(self.water_traversal_cost)
+            or self.water_traversal_cost < 1
+        ):
+            raise ValueError("water_traversal_cost must be finite and at least one")
+        if (
             isinstance(self.seed_radius, bool)
             or not isinstance(self.seed_radius, (int, float))
             or not isfinite(self.seed_radius)
@@ -86,6 +95,8 @@ class TerrainNavigationSeed:
     window_radius: float | None
     sampled_cells: int
     blocked_cells: frozenset[NavigationCell]
+    water_cells: frozenset[NavigationCell]
+    water_sample_threshold: float | None
     costs: tuple[tuple[NavigationCell, float], ...]
 
 
@@ -134,6 +145,9 @@ def load_active_zone_terrain_navigation(
                 terrain,
                 indexed[(height_map.group_id, height_map.map_id)],
             )
+            metadata = parse_zone_navigation_metadata(
+                zones.read_resource(correlation.zone_entry)
+            )
             seed = seed_height_raster_navigation(
                 navigation_map,
                 geometry=identity.geometry,
@@ -143,6 +157,7 @@ def load_active_zone_terrain_navigation(
                 template_id=identity.template_id,
                 window_center_lt=origin.lt,
                 window_center_lg=origin.lg,
+                water_sample_threshold=metadata.local_water_sample_threshold(),
                 config=resolved,
             )
             return ActiveZoneTerrainNavigation(navigation_map, seed)
@@ -159,6 +174,7 @@ def seed_height_raster_navigation(
     template_id: int,
     window_center_lt: float | None = None,
     window_center_lg: float | None = None,
+    water_sample_threshold: float | None = None,
     config: TerrainNavigationConfig | None = None,
 ) -> TerrainNavigationSeed:
     if not isinstance(navigation_map, SparseNavigationMap):
@@ -179,6 +195,12 @@ def seed_height_raster_navigation(
             or not isfinite(value)
         ):
             raise ValueError("terrain navigation window center must be finite")
+    if water_sample_threshold is not None and (
+        isinstance(water_sample_threshold, bool)
+        or not isinstance(water_sample_threshold, (int, float))
+        or not isfinite(water_sample_threshold)
+    ):
+        raise ValueError("water sample threshold must be finite")
 
     corners = [
         _local_to_world(geometry, x, z)
@@ -213,6 +235,7 @@ def seed_height_raster_navigation(
         raise ValueError("active terrain exceeds the bounded navigation seed size")
 
     blocked: set[NavigationCell] = set()
+    water: set[NavigationCell] = set()
     costs: dict[NavigationCell, float] = {}
     sampled_cells = 0
     half = resolved.cell_size * 0.45
@@ -241,6 +264,12 @@ def seed_height_raster_navigation(
             sampled_cells += 1
             center_sample = samples[0]
             sample_delta = max(samples) - min(samples)
+            underwater = (
+                water_sample_threshold is not None
+                and center_sample < water_sample_threshold
+            )
+            if underwater:
+                water.add(cell)
             below_floor = (
                 resolved.minimum_traversable_sample is not None
                 and center_sample < resolved.minimum_traversable_sample
@@ -249,15 +278,18 @@ def seed_height_raster_navigation(
                 navigation_map.mark_blocked(cell)
                 blocked.add(cell)
                 continue
-            if sample_delta == 0 or resolved.maximum_traversal_cost == 1:
-                continue
-            cost = 1 + (
-                sample_delta
-                / resolved.blocked_sample_delta
-                * (resolved.maximum_traversal_cost - 1)
-            )
-            navigation_map.set_cost(cell, cost)
-            costs[cell] = cost
+            cost = 1.0
+            if sample_delta != 0 and resolved.maximum_traversal_cost != 1:
+                cost = 1 + (
+                    sample_delta
+                    / resolved.blocked_sample_delta
+                    * (resolved.maximum_traversal_cost - 1)
+                )
+            if underwater:
+                cost = max(cost, resolved.water_traversal_cost)
+            if cost > 1:
+                navigation_map.set_cost(cell, cost)
+                costs[cell] = cost
     return TerrainNavigationSeed(
         zone_depth=zone_depth,
         template_group_id=template_group_id,
@@ -271,6 +303,8 @@ def seed_height_raster_navigation(
         window_radius=(resolved.seed_radius if window_center_lt is not None else None),
         sampled_cells=sampled_cells,
         blocked_cells=frozenset(blocked),
+        water_cells=frozenset(water),
+        water_sample_threshold=water_sample_threshold,
         costs=tuple(sorted(costs.items())),
     )
 

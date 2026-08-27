@@ -110,6 +110,31 @@ class TerrainNavigationTests(unittest.TestCase):
         self.assertFalse(uncalibrated.blocked)
         self.assertTrue(calibrated.blocked)
 
+    def test_explicit_zone_water_becomes_a_high_cost_traversable_region(self) -> None:
+        rows = [bytes((0, 0, 100, 100, 100)) for _ in range(5)]
+        navigation = SparseNavigationMap(cell_size=10.0)
+
+        seed = seed_height_raster_navigation(
+            navigation,
+            geometry=_geometry(),
+            raster=TerrainAlphaRaster(7, 1, 5, 5, b"".join(rows)),
+            zone_depth=0,
+            template_group_id=0,
+            template_id=3033,
+            water_sample_threshold=50.0,
+            config=TerrainNavigationConfig(
+                cell_size=10.0,
+                blocked_sample_delta=255,
+                water_traversal_cost=9.0,
+            ),
+        )
+
+        self.assertTrue(seed.water_cells)
+        self.assertFalse(seed.blocked_cells)
+        self.assertEqual(50.0, seed.water_sample_threshold)
+        water_costs = dict(seed.costs)
+        self.assertTrue(all(water_costs[cell] >= 9.0 for cell in seed.water_cells))
+
     def test_nonzero_local_center_projects_around_absolute_world_center(self) -> None:
         geometry = NativeZoneGeometry(
             minimum_local_x=80.0,

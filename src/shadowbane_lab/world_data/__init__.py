@@ -28,6 +28,15 @@ from shadowbane_lab.world_data.zone import (
     ZoneTerrainMapReference,
     correlate_zone_terrain,
 )
+from shadowbane_lab.world_data.zone_metadata import (
+    ZoneMetadataFormatError,
+    ZoneNavigationMetadata,
+    ZoneResourceKey,
+    ZoneSeaLevelType,
+    ZoneTerrainGeneration,
+    ZoneWaterMetadata,
+    parse_zone_navigation_metadata,
+)
 
 __all__ = [
     "CacheArchive",
@@ -45,9 +54,16 @@ __all__ = [
     "ZoneTerrainCorrelation",
     "ZoneTerrainCorrelationError",
     "ZoneTerrainMapReference",
+    "ZoneMetadataFormatError",
+    "ZoneNavigationMetadata",
+    "ZoneResourceKey",
+    "ZoneSeaLevelType",
+    "ZoneTerrainGeneration",
+    "ZoneWaterMetadata",
     "correlate_zone_terrain",
     "index_terrain_alpha_maps",
     "read_terrain_alpha_map",
     "load_world_definition",
     "parse_world_definition",
+    "parse_zone_navigation_metadata",
 ]

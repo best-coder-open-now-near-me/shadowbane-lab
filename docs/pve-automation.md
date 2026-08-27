@@ -227,8 +227,9 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
 Before an approach begins, the live runner resolves the active native zone in the same guarded
 `sb.exe` process, loads its first `CZone` terrain layer, and seeds a bounded local weighted-A* window with
 height-transition exclusions and costs. Runtime stalls still add learned obstacle cells and
-replan around them. Water is not guessed from raster darkness, and placed trees or structures
-remain online-learned until `CObjects` collision is decoded.
+replan around them. Explicit zone-local `CZone` water planes become high-cost traversable cells;
+parent/world-relative water remains neutral rather than being guessed from sample darkness.
+Placed trees or structures remain online-learned until `CObjects` collision is decoded.
 
 Selected-target health is guarded structurally rather than by a low gameplay cap: the build and
 pointer must match, the selection must stay stable across the read, both float values must be
