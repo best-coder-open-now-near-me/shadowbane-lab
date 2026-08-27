@@ -9,7 +9,9 @@ param(
     [ValidateRange(1, 10)]
     [int] $MaximumKills = 1,
     [ValidateRange(1, 900)]
-    [int] $MaximumSeconds = 30
+    [int] $MaximumSeconds = 30,
+    [ValidateRange(0, 300)]
+    [int] $WaitForClientSeconds = 15
 )
 
 $ErrorActionPreference = "Stop"
@@ -49,12 +51,6 @@ if ($visibleClients.Count -ne 1) {
     throw "Expected exactly one visible Shadowbane client; found $($visibleClients.Count)."
 }
 
-Add-Type -AssemblyName Microsoft.VisualBasic
-if (-not [Microsoft.VisualBasic.Interaction]::AppActivate($visibleClients[0].Id)) {
-    throw "Could not focus visible Shadowbane PID $($visibleClients[0].Id)."
-}
-Start-Sleep -Milliseconds 500
-
 $env:PYTHONPATH = Join-Path $RepositoryRoot "src"
 & $PythonPath -u -m shadowbane_lab.cli client run-pve `
     --client-profile $ClientProfile `
@@ -63,7 +59,7 @@ $env:PYTHONPATH = Join-Path $RepositoryRoot "src"
     --policy "proc-assassin" `
     --max-kills $MaximumKills `
     --max-seconds $MaximumSeconds `
-    --wait-for-client-seconds 5 `
+    --wait-for-client-seconds $WaitForClientSeconds `
     --poll-ms 100 `
     --evidence-output $EvidenceOutput `
     --live `

@@ -146,8 +146,9 @@ $env:PYTHONPATH = "src"
 ```
 
 The VM wrapper validates the live-locked profile, combat log, unique character hotbar, and
-single visible Shadowbane window; focuses that visible client; refuses to overwrite evidence;
-and runs the same one-kill proc-Assassin command with a timestamped artifact:
+single visible Shadowbane window; refuses to overwrite evidence; and runs the same one-kill
+proc-Assassin command with a timestamped artifact. Focus Shadowbane during its guarded
+15-second wait:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
