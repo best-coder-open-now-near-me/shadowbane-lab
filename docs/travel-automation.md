@@ -22,10 +22,9 @@ The default state file is `~/.shadowbane-lab/last-travel-destination.json`. Over
 with `--destination-state` when the harness and client should share a specific state file.
 Supplying only one coordinate fails closed.
 
-The calibrated WonderBane build stores position as three floats ordered `LT, ALT, -LG`.
-The native reader locates the local player's matching render-transform cluster from the
-verified executable signature, anchors it to the player object's altitude, and then tracks
-the median of the agreeing copies. It requests query/read rights only.
+The calibrated WonderBane build exposes the canonical position vector through the player
+object's verified position component. The native reader follows that exact object path and
+maps native `x/y/z` to `LT/altitude/-LG`. It requests query/read rights only.
 
 At 1920x955, the minimap player center is `(1812, 107)`. A rightward minimap click increases
 LT; an upward click increases LG. The checked-in profile uses an 82-pixel radius within the
@@ -41,6 +40,8 @@ geometry. Do not commit the local profile.
 
 Each click is a short lease. The controller observes LT/LG again before issuing another one,
 recomputes direction toward the active waypoint, and verifies that distance decreased. It
+right-clicks the calibrated minimap center when a commanded run reaches a terminal state, which
+cancels the client's final click-to-move command instead of allowing an arrival overshoot. It
 stops on arrival, low player health, focus/profile rejection, emergency stop
 (`Ctrl+Shift+F12`), repeated observation failures, click-budget exhaustion, or the session
 deadline. Three no-progress checkpoints trigger a bounded reverse-zig-zag, lateral sweep,

@@ -164,6 +164,12 @@ class DecisionInputCompilerTests(unittest.TestCase):
 
         self.assertEqual((ClickCommand(NormalizedPoint(0.65, 0.66)),), plan.commands)
 
+    def test_movement_stop_maps_to_exact_calibrated_center(self) -> None:
+        plan = self.compiler.compile_movement_stop(correlation_id="travel:7:stop")
+
+        self.assertEqual("shadowbane.move.stop", plan.action_key)
+        self.assertEqual((ClickCommand(NormalizedPoint(0.5, 0.5)),), plan.commands)
+
     def test_camera_drag_maps_to_calibrated_drag(self) -> None:
         plan = self.compiler.compile_camera_drag(
             correlation_id="camera-adjustment-1",

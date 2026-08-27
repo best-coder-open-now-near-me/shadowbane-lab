@@ -224,6 +224,24 @@ class GuardedInputAdapterTests(unittest.TestCase):
         )
         self.assertEqual(1, inspector.inspection_count)
 
+    def test_movement_stop_uses_guarded_calibrated_center_click(self) -> None:
+        adapter, backend, inspector, _ = _client_adapter()
+        bounds = _valid_snapshot().client_bounds
+
+        result = adapter.dispatch_movement_stop(correlation_id="travel:7:stop")
+
+        self.assertTrue(result.accepted)
+        self.assertEqual(
+            (
+                ClickInvocation(
+                    point=bounds.resolve(NormalizedPoint(0.5, 0.5)),
+                    button=MouseButton.LEFT,
+                ),
+            ),
+            backend.invocations,
+        )
+        self.assertEqual(1, inspector.inspection_count)
+
 
 class PyAutoGuiBackendTests(unittest.TestCase):
     def test_translates_typed_invocations_to_pyautogui_calls(self) -> None:

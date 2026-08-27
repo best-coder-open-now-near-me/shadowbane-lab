@@ -1626,6 +1626,8 @@ def _run_travel(
             }
         ),
         "clicks": result.clicks,
+        "stop_input_accepted": result.stop_input_accepted,
+        "stop_input_reason": result.stop_input_reason,
         "steps": len(result.trace),
         "dispatched": dispatched,
     }
@@ -1637,6 +1639,8 @@ def _run_travel(
         if final_position is not None:
             print(f"Position: LT {final_position.lt:.2f}, LG {final_position.lg:.2f}")
         print(f"Guarded minimap clicks: {result.clicks}")
+        if result.stop_input_accepted is not None:
+            print(f"Movement stop accepted: {result.stop_input_accepted}")
     return 0 if payload["ok"] else 2
 
 

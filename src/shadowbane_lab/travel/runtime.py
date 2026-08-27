@@ -16,6 +16,7 @@ from shadowbane_lab.travel.controller import TravelController
 from shadowbane_lab.travel.model import (
     TravelDecision,
     TravelObservation,
+    TravelPhase,
     TravelRunResult,
     TravelRunTraceStep,
 )
@@ -34,6 +35,8 @@ class PlayerVitalsSource(Protocol):
 @runtime_checkable
 class TravelDecisionDispatcher(Protocol):
     def dispatch(self, decision: TravelDecision) -> DispatchResult: ...
+
+    def stop_movement(self, decision: TravelDecision) -> DispatchResult: ...
 
 
 class ClientTravelDecisionDispatcher:
@@ -68,6 +71,15 @@ class ClientTravelDecisionDispatcher:
                     direction=decision.minimap_direction,
                 ),
             )
+        )
+
+    def stop_movement(self, decision: TravelDecision) -> DispatchResult:
+        if not isinstance(decision, TravelDecision):
+            raise ValueError("decision must be TravelDecision")
+        if not decision.terminal:
+            raise ValueError("movement may be stopped only for a terminal travel decision")
+        return self._adapter.dispatch_movement_stop(
+            correlation_id=f"travel:{decision.decision_id}:stop"
         )
 
     @property
@@ -131,6 +143,8 @@ class TravelRunner:
         last_observation: TravelObservation | None = None
         consecutive_failures = 0
         terminal: TravelDecision | None = None
+        stop_input_accepted: bool | None = None
+        stop_input_reason: str | None = None
         while terminal is None:
             if self._stop_signal.is_set():
                 terminal = self._controller.stop("emergency_stop", last_observation)
@@ -201,17 +215,32 @@ class TravelRunner:
             )
             if decision.terminal:
                 terminal = decision
+                if decision.click_count > 0:
+                    try:
+                        stop_result = self._dispatcher.stop_movement(decision)
+                        stop_input_accepted = stop_result.accepted
+                        stop_input_reason = stop_result.reason
+                    except Exception as exc:
+                        stop_input_accepted = False
+                        stop_input_reason = f"input_failure:{type(exc).__name__}"
                 break
             self._sleeper(self._poll_interval_seconds)
 
         assert terminal is not None
         assert terminal.terminal_reason is not None
+        final_phase = terminal.phase
+        terminal_reason = terminal.terminal_reason
+        if stop_input_accepted is False:
+            final_phase = TravelPhase.STOPPED
+            terminal_reason = "movement_stop_rejected"
         return TravelRunResult(
-            final_phase=terminal.phase,
-            terminal_reason=terminal.terminal_reason,
+            final_phase=final_phase,
+            terminal_reason=terminal_reason,
             final_position=None if last_observation is None else last_observation.position,
             clicks=terminal.click_count,
             trace=tuple(trace),
+            stop_input_accepted=stop_input_accepted,
+            stop_input_reason=stop_input_reason,
         )
 
     @staticmethod

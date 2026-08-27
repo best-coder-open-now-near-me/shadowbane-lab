@@ -300,6 +300,8 @@ class TravelRunResult:
     final_position: NativePlayerPositionObservation | None
     clicks: int
     trace: tuple[TravelRunTraceStep, ...]
+    stop_input_accepted: bool | None = None
+    stop_input_reason: str | None = None
 
     def __post_init__(self) -> None:
         if self.final_phase not in (TravelPhase.COMPLETE, TravelPhase.STOPPED):
@@ -309,3 +311,9 @@ class TravelRunResult:
         _non_negative_integer(self.clicks, "clicks")
         if any(not isinstance(step, TravelRunTraceStep) for step in self.trace):
             raise ValueError("trace must contain TravelRunTraceStep values")
+        if self.stop_input_accepted is not None and not isinstance(
+            self.stop_input_accepted, bool
+        ):
+            raise ValueError("stop_input_accepted must be boolean when present")
+        if self.stop_input_reason is not None and self.stop_input_accepted is not False:
+            raise ValueError("stop_input_reason is valid only for rejected stop input")

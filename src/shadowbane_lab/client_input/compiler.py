@@ -108,6 +108,15 @@ class DecisionInputCompiler:
             ),
         )
 
+    def compile_movement_stop(self, *, correlation_id: str) -> InputPlan:
+        """Compile the client's center-minimap movement cancellation command."""
+        movement = self._profile.movement
+        return InputPlan(
+            correlation_id=correlation_id,
+            action_key=f"{movement.action_key}.stop",
+            commands=(ClickCommand(point=movement.center, button=movement.button),),
+        )
+
     def _compile_movement(self, decision: DecisionMessage) -> InputPlan:
         if decision.binding.target_kind is not TargetKind.DIRECTION:
             raise InputCompilationError("movement requires a direction binding")

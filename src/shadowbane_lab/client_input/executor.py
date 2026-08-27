@@ -231,6 +231,18 @@ class ClientInputAdapter:
             return self._rejected(correlation_id, "client.camera.rotate", str(exc))
         return self._dispatch_plan(plan)
 
+    def dispatch_movement_stop(self, *, correlation_id: str) -> DispatchResult:
+        """Cancel an active click-to-move lease through the guarded input path."""
+        try:
+            plan = self._compiler.compile_movement_stop(correlation_id=correlation_id)
+        except InputCompilationError as exc:
+            return self._rejected(
+                correlation_id,
+                f"{self.profile.movement.action_key}.stop",
+                str(exc),
+            )
+        return self._dispatch_plan(plan)
+
     def _dispatch_plan(self, plan: InputPlan) -> DispatchResult:
         try:
             execution = self._executor.execute(plan)
