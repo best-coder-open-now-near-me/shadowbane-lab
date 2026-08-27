@@ -233,6 +233,13 @@ class PvERunner:
                     if self._player_position_reader is None
                     else self._player_position_reader.observe()
                 )
+                if not target.target_present:
+                    if target_position is not None and target_position.target_present:
+                        target_position = NativeTargetPositionObservation(
+                            target_present=False
+                        )
+                    if target_action is not None and target_action.target_present:
+                        target_action = NativeTargetActionObservation(target_present=False)
                 player = self._player_vitals_reader.observe()
                 events = tuple(
                     self._parser.parse(entry)

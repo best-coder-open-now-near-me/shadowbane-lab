@@ -934,6 +934,42 @@ class PvERunnerTests(unittest.TestCase):
         self.assertEqual((), source.read_new_entries())
         self.assertIsInstance(source, CombatLogSource)
 
+    def test_runner_cycles_past_zero_pool_selection_with_stale_position(self) -> None:
+        clock = AdvancingClock()
+        dispatcher = RecordingPvEDispatcher()
+        runner = PvERunner(
+            controller=PvEController(PvEControllerConfig(maximum_kills=1)),
+            health_reader=SequenceHealthSource(
+                (_absent(), _target("mob"), _target("mob", current=0))
+            ),
+            player_vitals_reader=SequencePlayerVitalsSource((_player(),) * 3),
+            player_position_reader=SequencePlayerPositionSource((_player_position(),) * 3),
+            target_position_reader=SequenceTargetPositionSource(
+                (
+                    _target_position("stale-corpse"),
+                    _target_position("mob"),
+                    _target_position("mob"),
+                )
+            ),
+            combat_log_reader=SequenceCombatLogSource(((),) * 3),
+            dispatcher=dispatcher,
+            stop_signal=EventEmergencyStop(),
+            poll_interval_ms=100,
+            clock=clock,
+            sleeper=clock.sleep,
+        )
+
+        result = runner.run()
+
+        self.assertEqual(PvEPhase.COMPLETE, result.final_phase)
+        self.assertEqual(1, result.kills)
+        self.assertFalse(result.trace[0].target_present)
+        self.assertFalse(result.trace[0].target_position.target_present)
+        self.assertEqual(
+            [PvEIntent.ACQUIRE_NEXT_MOB, PvEIntent.ATTACK_SELECTED_TARGET],
+            dispatcher.intents,
+        )
+
     def test_runner_dispatches_astar_approach_then_attacks_on_arrival(self) -> None:
         clock = AdvancingClock()
         combat_dispatcher = RecordingPvEDispatcher()
