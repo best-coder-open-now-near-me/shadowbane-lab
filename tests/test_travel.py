@@ -1,4 +1,6 @@
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from shadowbane_lab.client_input import (
     EventEmergencyStop,
@@ -15,12 +17,14 @@ from shadowbane_lab.travel import (
     TravelController,
     TravelControllerConfig,
     TravelDestination,
+    TravelDestinationStateError,
     TravelManeuver,
     TravelObservation,
     TravelPhase,
     TravelPlan,
     TravelRunner,
     parse_go_command,
+    resolve_travel_destination,
 )
 
 
@@ -47,6 +51,64 @@ class GoCommandTests(unittest.TestCase):
     def test_rejects_ambiguous_commands(self) -> None:
         with self.assertRaisesRegex(ValueError, "go LT LG"):
             parse_go_command("go there")
+
+    def test_bare_go_reuses_previous_destination(self) -> None:
+        previous = TravelDestination(120000, 60000, 50)
+
+        repeated = parse_go_command("/go", previous_destination=previous)
+
+        self.assertEqual((previous,), repeated.destinations)
+
+    def test_bare_go_requires_previous_destination(self) -> None:
+        with self.assertRaisesRegex(ValueError, "previous destination"):
+            parse_go_command("go")
+
+
+class TravelDestinationStateTests(unittest.TestCase):
+    def test_explicit_destination_is_remembered_for_bare_go(self) -> None:
+        with TemporaryDirectory() as directory:
+            state_path = Path(directory) / "last-destination.json"
+
+            explicit = resolve_travel_destination(
+                state_path,
+                lt=120000,
+                lg=60000,
+                radius=50,
+            )
+            repeated = resolve_travel_destination(
+                state_path,
+                lt=None,
+                lg=None,
+                radius=None,
+            )
+
+        self.assertEqual(TravelDestination(120000, 60000, 50), explicit)
+        self.assertEqual(explicit, repeated)
+
+    def test_bare_go_without_state_fails_closed(self) -> None:
+        with TemporaryDirectory() as directory:
+            state_path = Path(directory) / "missing.json"
+
+            with self.assertRaisesRegex(
+                TravelDestinationStateError,
+                "go LT LG first",
+            ):
+                resolve_travel_destination(
+                    state_path,
+                    lt=None,
+                    lg=None,
+                    radius=None,
+                )
+
+    def test_rejects_partial_explicit_coordinates(self) -> None:
+        with TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(TravelDestinationStateError, "supplied together"):
+                resolve_travel_destination(
+                    Path(directory) / "last-destination.json",
+                    lt=120000,
+                    lg=None,
+                    radius=None,
+                )
 
 
 class TravelCalibrationTests(unittest.TestCase):
@@ -107,36 +169,28 @@ class TravelControllerTests(unittest.TestCase):
 
     def test_no_progress_runs_committed_detour_then_resumes_direct(self) -> None:
         controller = TravelController(
-            parse_go_command("go 5000 5000"),
+            parse_go_command("go 5000 1000"),
             TravelControllerConfig(
                 click_interval_ms=1000,
                 minimum_progress=25,
-                maximum_no_progress_clicks=2,
+                maximum_no_progress_clicks=1,
                 maximum_escape_sequences=2,
-                escape_backup_clicks=2,
-                escape_sweep_clicks=2,
-                escape_bypass_clicks=2,
                 escape_backup_lateral_ratio=0.75,
             ),
         )
 
         direct = controller.step(_observation(0, 1000, 1000))
-        controller.step(_observation(1000, 1000, 1000))
-        back_left = controller.step(_observation(2000, 1000, 1000))
-        back_right = controller.step(_observation(3000, 1000, 1000))
-        sweep_one = controller.step(_observation(4000, 1000, 1000))
-        sweep_two = controller.step(_observation(5000, 1000, 1000))
-        bypass_one = controller.step(_observation(6000, 1000, 1000))
-        bypass_two = controller.step(_observation(7000, 1000, 1000))
-        reacquired = controller.step(_observation(8000, 1000, 1000))
+        back_left = controller.step(_observation(1000, 1000, 1000))
+        back_right = controller.step(_observation(2000, 800, 1000))
+        sweep_left = controller.step(_observation(3000, 700, 1000))
+        bypass_left = controller.step(_observation(4000, 700, 650))
+        reacquired = controller.step(_observation(5000, 850, 650))
 
         self.assertEqual(TravelManeuver.DIRECT, direct.maneuver)
         self.assertEqual(TravelManeuver.ESCAPE_BACK_LEFT, back_left.maneuver)
         self.assertEqual(TravelManeuver.ESCAPE_BACK_RIGHT, back_right.maneuver)
-        self.assertEqual(TravelManeuver.ESCAPE_SWEEP_LEFT, sweep_one.maneuver)
-        self.assertEqual(TravelManeuver.ESCAPE_SWEEP_LEFT, sweep_two.maneuver)
-        self.assertEqual(TravelManeuver.ESCAPE_BYPASS_LEFT, bypass_one.maneuver)
-        self.assertEqual(TravelManeuver.ESCAPE_BYPASS_LEFT, bypass_two.maneuver)
+        self.assertEqual(TravelManeuver.ESCAPE_SWEEP_LEFT, sweep_left.maneuver)
+        self.assertEqual(TravelManeuver.ESCAPE_BYPASS_LEFT, bypass_left.maneuver)
         self.assertEqual(TravelManeuver.DIRECT, reacquired.maneuver)
         forward = direct.minimap_direction
         assert forward is not None
@@ -144,10 +198,12 @@ class TravelControllerTests(unittest.TestCase):
             direction = escape.minimap_direction
             assert direction is not None
             self.assertLess(forward.x * direction.x + forward.y * direction.y, 0)
-        for escape in (bypass_one, bypass_two):
-            direction = escape.minimap_direction
-            assert direction is not None
-            self.assertGreater(forward.x * direction.x + forward.y * direction.y, 0)
+        bypass_direction = bypass_left.minimap_direction
+        assert bypass_direction is not None
+        self.assertGreater(
+            forward.x * bypass_direction.x + forward.y * bypass_direction.y,
+            0,
+        )
 
     def test_stops_after_escape_budget_is_exhausted(self) -> None:
         controller = TravelController(
@@ -157,9 +213,8 @@ class TravelControllerTests(unittest.TestCase):
                 minimum_progress=25,
                 maximum_no_progress_clicks=1,
                 maximum_escape_sequences=1,
-                escape_backup_clicks=1,
-                escape_sweep_clicks=1,
-                escape_bypass_clicks=1,
+                maximum_escape_phase_no_motion_clicks=1,
+                maximum_escape_side_switches=0,
             ),
         )
 
@@ -167,8 +222,7 @@ class TravelControllerTests(unittest.TestCase):
         back = controller.step(_observation(1000, 1000, 1000))
         sweep = controller.step(_observation(2000, 1000, 1000))
         bypass = controller.step(_observation(3000, 1000, 1000))
-        controller.step(_observation(4000, 1000, 1000))
-        stopped = controller.step(_observation(5000, 1000, 1000))
+        stopped = controller.step(_observation(4000, 1000, 1000))
 
         self.assertIn(
             back.maneuver,
@@ -185,33 +239,71 @@ class TravelControllerTests(unittest.TestCase):
         self.assertEqual(TravelPhase.STOPPED, stopped.phase)
         self.assertEqual("no_progress_after_escape", stopped.terminal_reason)
 
-    def test_later_escape_flips_side_and_widens_detour(self) -> None:
+    def test_no_motion_switches_sweep_side_then_starts_next_escape(self) -> None:
         controller = TravelController(
-            parse_go_command("go 5000 5000"),
+            parse_go_command("go 5000 1000"),
             TravelControllerConfig(
                 click_interval_ms=1000,
                 minimum_progress=25,
                 maximum_no_progress_clicks=1,
                 maximum_escape_sequences=2,
-                escape_backup_clicks=1,
-                escape_sweep_clicks=1,
-                escape_bypass_clicks=1,
-                escape_widening_clicks_per_sequence=1,
+                maximum_escape_phase_no_motion_clicks=1,
+                maximum_escape_side_switches=1,
             ),
         )
 
         decisions = [controller.step(_observation(0, 1000, 1000))]
         decisions.extend(
             controller.step(_observation(now_ms, 1000, 1000))
-            for now_ms in range(1000, 11_000, 1000)
+            for now_ms in range(1000, 6_000, 1000)
         )
 
+        self.assertEqual(TravelManeuver.ESCAPE_BACK_LEFT, decisions[1].maneuver)
+        self.assertEqual(TravelManeuver.ESCAPE_SWEEP_LEFT, decisions[2].maneuver)
+        self.assertEqual(TravelManeuver.ESCAPE_SWEEP_RIGHT, decisions[3].maneuver)
+        self.assertEqual(TravelManeuver.ESCAPE_BYPASS_RIGHT, decisions[4].maneuver)
         self.assertEqual(TravelManeuver.ESCAPE_BACK_RIGHT, decisions[5].maneuver)
-        self.assertEqual(TravelManeuver.ESCAPE_SWEEP_RIGHT, decisions[6].maneuver)
-        self.assertEqual(TravelManeuver.ESCAPE_SWEEP_RIGHT, decisions[7].maneuver)
-        self.assertEqual(TravelManeuver.ESCAPE_BYPASS_RIGHT, decisions[8].maneuver)
-        self.assertEqual(TravelManeuver.ESCAPE_BYPASS_RIGHT, decisions[9].maneuver)
-        self.assertEqual(TravelManeuver.DIRECT, decisions[10].maneuver)
+
+    def test_manual_progress_reacquires_direct_during_escape(self) -> None:
+        controller = TravelController(
+            parse_go_command("go 5000 1000"),
+            TravelControllerConfig(
+                click_interval_ms=1000,
+                minimum_progress=25,
+                maximum_no_progress_clicks=1,
+                maximum_escape_phase_no_motion_clicks=1,
+                escape_reacquire_progress=100,
+            ),
+        )
+
+        controller.step(_observation(0, 1000, 1000))
+        controller.step(_observation(1000, 1000, 1000))
+        sweep = controller.step(_observation(2000, 1000, 1000))
+        direct = controller.step(_observation(3000, 1150, 1000))
+
+        self.assertEqual(TravelManeuver.ESCAPE_SWEEP_LEFT, sweep.maneuver)
+        self.assertEqual(TravelManeuver.DIRECT, direct.maneuver)
+
+    def test_sustained_direct_progress_resets_escape_budget(self) -> None:
+        controller = TravelController(
+            parse_go_command("go 5000 1000"),
+            TravelControllerConfig(
+                click_interval_ms=1000,
+                minimum_progress=25,
+                maximum_no_progress_clicks=1,
+                maximum_escape_sequences=1,
+                escape_reacquire_progress=100,
+                escape_budget_reset_progress=1000,
+            ),
+        )
+
+        controller.step(_observation(0, 1000, 1000))
+        controller.step(_observation(1000, 1000, 1000))
+        controller.step(_observation(2000, 1150, 1000))
+        controller.step(_observation(3000, 2200, 1000))
+        new_escape = controller.step(_observation(4000, 2200, 1000))
+
+        self.assertEqual(TravelManeuver.ESCAPE_BACK_LEFT, new_escape.maneuver)
 
     def test_progress_resets_no_progress_counter(self) -> None:
         controller = TravelController(

@@ -20,6 +20,12 @@ from shadowbane_lab.travel.runtime import (
     TravelDecisionDispatcher,
     TravelRunner,
 )
+from shadowbane_lab.travel.state import (
+    TravelDestinationStateError,
+    load_travel_destination,
+    resolve_travel_destination,
+    save_travel_destination,
+)
 
 __all__ = [
     "ClientTravelDecisionDispatcher",
@@ -30,6 +36,7 @@ __all__ = [
     "TravelDecision",
     "TravelDecisionDispatcher",
     "TravelDestination",
+    "TravelDestinationStateError",
     "TravelManeuver",
     "TravelObservation",
     "TravelPhase",
@@ -38,4 +45,7 @@ __all__ = [
     "TravelRunTraceStep",
     "TravelRunner",
     "parse_go_command",
+    "load_travel_destination",
+    "resolve_travel_destination",
+    "save_travel_destination",
 ]

@@ -42,6 +42,12 @@ class TravelController:
         self._escape_phase = _EscapePhase.BACKUP
         self._escape_forward = Vector2(0, 0)
         self._escape_side_sign = 1.0
+        self._escape_phase_origin = Vector2(0, 0)
+        self._escape_phase_origin_distance = 0.0
+        self._escape_last_position = Vector2(0, 0)
+        self._escape_no_motion_clicks = 0
+        self._escape_side_switches = 0
+        self._escape_release_distance: float | None = None
         self._escaping = False
         self._terminal: TravelDecision | None = None
 
@@ -77,11 +83,20 @@ class TravelController:
             self._last_click_at_ms = None
             self._last_click_distance = None
             self._no_progress_clicks = 0
+            self._escape_sequence_count = 0
             self._escape_step = 0
             self._escape_phase = _EscapePhase.BACKUP
+            self._escape_release_distance = None
             self._escaping = False
             destination = self._plan.destinations[self._waypoint_index]
             distance = destination.distance_from(observation.position)
+
+        if self._escape_release_distance is not None and (
+            self._escape_release_distance - distance
+            >= self._config.escape_budget_reset_progress
+        ):
+            self._escape_sequence_count = 0
+            self._escape_release_distance = None
 
         if self._click_count >= self._config.maximum_clicks:
             return self._stop("maximum_clicks", observation, distance=distance)
@@ -111,19 +126,12 @@ class TravelController:
                         distance=distance,
                     )
                 self._escape_sequence_count += 1
-                self._begin_escape(observation)
+                self._begin_escape(observation, distance=distance)
                 self._no_progress_clicks = 0
                 self._last_click_distance = None
                 return self._dispatch_escape(observation, distance=distance)
 
-        delta_lt = destination.lt - observation.position.lt
-        delta_lg = destination.lg - observation.position.lg
-        return self._dispatch(
-            observation,
-            distance=distance,
-            direction=Vector2(delta_lt, -delta_lg),
-            maneuver=TravelManeuver.DIRECT,
-        )
+        return self._dispatch_direct(observation, distance=distance)
 
     def stop(self, reason: str, observation: TravelObservation | None = None) -> TravelDecision:
         if not isinstance(reason, str) or not reason.strip():
@@ -186,7 +194,29 @@ class TravelController:
             maneuver=maneuver,
         )
 
-    def _begin_escape(self, observation: TravelObservation) -> None:
+    def _dispatch_direct(
+        self,
+        observation: TravelObservation,
+        *,
+        distance: float,
+    ) -> TravelDecision:
+        destination = self._plan.destinations[self._waypoint_index]
+        return self._dispatch(
+            observation,
+            distance=distance,
+            direction=Vector2(
+                destination.lt - observation.position.lt,
+                -(destination.lg - observation.position.lg),
+            ),
+            maneuver=TravelManeuver.DIRECT,
+        )
+
+    def _begin_escape(
+        self,
+        observation: TravelObservation,
+        *,
+        distance: float,
+    ) -> None:
         destination = self._plan.destinations[self._waypoint_index]
         delta_lt = destination.lt - observation.position.lt
         screen_delta_lg = -(destination.lg - observation.position.lg)
@@ -198,6 +228,8 @@ class TravelController:
         self._escape_side_sign = 1.0 if self._escape_sequence_count % 2 else -1.0
         self._escape_phase = _EscapePhase.BACKUP
         self._escape_step = 0
+        self._escape_side_switches = 0
+        self._reset_escape_phase_feedback(observation, distance=distance)
         self._escaping = True
 
     def _dispatch_escape(
@@ -206,6 +238,70 @@ class TravelController:
         *,
         distance: float,
     ) -> TravelDecision:
+        self._observe_escape_motion(observation)
+        if self._escape_step > 0 and (
+            self._escape_phase_origin_distance - distance
+            >= self._config.escape_reacquire_progress
+        ):
+            return self._reacquire_direct(observation, distance=distance)
+
+        if self._escape_no_motion_clicks >= (
+            self._config.maximum_escape_phase_no_motion_clicks
+        ):
+            if self._escape_phase is _EscapePhase.BACKUP:
+                self._transition_escape_phase(
+                    _EscapePhase.SWEEP,
+                    observation,
+                    distance=distance,
+                )
+            elif self._escape_phase is _EscapePhase.SWEEP:
+                if (
+                    self._escape_side_switches
+                    < self._config.maximum_escape_side_switches
+                ):
+                    self._escape_side_switches += 1
+                    self._escape_side_sign *= -1
+                    self._reset_escape_phase_feedback(observation, distance=distance)
+                else:
+                    self._transition_escape_phase(
+                        _EscapePhase.BYPASS,
+                        observation,
+                        distance=distance,
+                    )
+            else:
+                if self._escape_sequence_count >= self._config.maximum_escape_sequences:
+                    return self._stop(
+                        "no_progress_after_escape",
+                        observation,
+                        distance=distance,
+                    )
+                self._escape_sequence_count += 1
+                self._begin_escape(observation, distance=distance)
+
+        phase_progress = self._escape_phase_progress(observation)
+        if self._escape_phase is _EscapePhase.BACKUP and (
+            phase_progress >= self._config.escape_backup_clearance
+            or self._escape_step >= self._escape_phase_clicks()
+        ):
+            self._transition_escape_phase(
+                _EscapePhase.SWEEP,
+                observation,
+                distance=distance,
+            )
+        elif self._escape_phase is _EscapePhase.SWEEP and (
+            phase_progress >= self._escape_sweep_clearance()
+            or self._escape_step >= self._escape_phase_clicks()
+        ):
+            self._transition_escape_phase(
+                _EscapePhase.BYPASS,
+                observation,
+                distance=distance,
+            )
+        elif self._escape_phase is _EscapePhase.BYPASS and (
+            self._escape_step >= self._escape_phase_clicks()
+        ):
+            return self._reacquire_direct(observation, distance=distance)
+
         forward_x = self._escape_forward.x
         forward_y = self._escape_forward.y
         if forward_x == 0 and forward_y == 0:
@@ -250,15 +346,6 @@ class TravelController:
             )
 
         self._escape_step += 1
-        if self._escape_step >= self._escape_phase_clicks():
-            self._escape_step = 0
-            if self._escape_phase is _EscapePhase.BACKUP:
-                self._escape_phase = _EscapePhase.SWEEP
-            elif self._escape_phase is _EscapePhase.SWEEP:
-                self._escape_phase = _EscapePhase.BYPASS
-            else:
-                self._escape_phase = _EscapePhase.BACKUP
-                self._escaping = False
         return self._dispatch(
             observation,
             distance=distance,
@@ -277,6 +364,84 @@ class TravelController:
         if self._escape_phase is _EscapePhase.SWEEP:
             return self._config.escape_sweep_clicks + widening
         return self._config.escape_bypass_clicks + widening
+
+    def _escape_sweep_clearance(self) -> float:
+        return self._config.escape_sweep_clearance + (
+            (self._escape_sequence_count - 1)
+            * self._config.escape_widening_clearance_per_sequence
+        )
+
+    def _observe_escape_motion(self, observation: TravelObservation) -> None:
+        if self._escape_step == 0:
+            return
+        position = self._screen_position(observation)
+        movement = hypot(
+            position.x - self._escape_last_position.x,
+            position.y - self._escape_last_position.y,
+        )
+        if movement < self._config.escape_minimum_motion:
+            self._escape_no_motion_clicks += 1
+        else:
+            self._escape_no_motion_clicks = 0
+        self._escape_last_position = position
+
+    def _escape_phase_progress(self, observation: TravelObservation) -> float:
+        position = self._screen_position(observation)
+        delta_x = position.x - self._escape_phase_origin.x
+        delta_y = position.y - self._escape_phase_origin.y
+        forward_x = self._escape_forward.x
+        forward_y = self._escape_forward.y
+        if self._escape_phase is _EscapePhase.BACKUP:
+            return -(delta_x * forward_x + delta_y * forward_y)
+        if self._escape_phase is _EscapePhase.SWEEP:
+            perpendicular_x = -forward_y * self._escape_side_sign
+            perpendicular_y = forward_x * self._escape_side_sign
+            return delta_x * perpendicular_x + delta_y * perpendicular_y
+        return self._escape_phase_origin_distance - self._distance_for(observation)
+
+    def _transition_escape_phase(
+        self,
+        phase: _EscapePhase,
+        observation: TravelObservation,
+        *,
+        distance: float,
+    ) -> None:
+        self._escape_phase = phase
+        self._reset_escape_phase_feedback(observation, distance=distance)
+
+    def _reset_escape_phase_feedback(
+        self,
+        observation: TravelObservation,
+        *,
+        distance: float,
+    ) -> None:
+        position = self._screen_position(observation)
+        self._escape_phase_origin = position
+        self._escape_phase_origin_distance = distance
+        self._escape_last_position = position
+        self._escape_step = 0
+        self._escape_no_motion_clicks = 0
+
+    def _reacquire_direct(
+        self,
+        observation: TravelObservation,
+        *,
+        distance: float,
+    ) -> TravelDecision:
+        self._escaping = False
+        self._escape_phase = _EscapePhase.BACKUP
+        self._escape_step = 0
+        self._no_progress_clicks = 0
+        self._escape_release_distance = distance
+        return self._dispatch_direct(observation, distance=distance)
+
+    def _distance_for(self, observation: TravelObservation) -> float:
+        destination = self._plan.destinations[self._waypoint_index]
+        return destination.distance_from(observation.position)
+
+    @staticmethod
+    def _screen_position(observation: TravelObservation) -> Vector2:
+        return Vector2(observation.position.lt, -observation.position.lg)
 
     def _stop(
         self,

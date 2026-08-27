@@ -84,9 +84,11 @@ from shadowbane_lab.travel import (
     TravelController,
     TravelControllerConfig,
     TravelDestination,
+    TravelDestinationStateError,
     TravelPhase,
     TravelPlan,
     TravelRunner,
+    resolve_travel_destination,
 )
 
 
@@ -307,9 +309,19 @@ def _parser() -> argparse.ArgumentParser:
         "go",
         help="travel to an LT/LG destination through bounded, feedback-checked minimap clicks",
     )
-    go.add_argument("lt", type=float)
-    go.add_argument("lg", type=float)
-    go.add_argument("--radius", type=float, default=75.0)
+    go.add_argument("lt", type=float, nargs="?")
+    go.add_argument("lg", type=float, nargs="?")
+    go.add_argument(
+        "--radius",
+        type=float,
+        help="arrival radius; bare go reuses the remembered radius when omitted",
+    )
+    go.add_argument(
+        "--destination-state",
+        type=Path,
+        default=Path.home() / ".shadowbane-lab" / "last-travel-destination.json",
+        help="local state file used to remember the last explicit destination",
+    )
     go.add_argument("--client-profile", type=Path, required=True)
     go.add_argument("--native-position-profile", type=Path)
     go.add_argument("--native-vitals-profile", type=Path)
@@ -1090,9 +1102,10 @@ def _run_pve(
 
 def _run_travel(
     *,
-    lt: float,
-    lg: float,
-    radius: float,
+    lt: float | None,
+    lg: float | None,
+    radius: float | None,
+    destination_state_path: Path,
     client_profile_path: Path,
     native_position_profile_path: Path | None,
     native_vitals_profile_path: Path | None,
@@ -1105,6 +1118,20 @@ def _run_travel(
 ) -> int:
     if not live:
         return _error("travel execution requires the explicit --live flag", as_json=as_json)
+    if radius is not None and not 5.0 <= radius <= 1_000.0:
+        return _error("radius must be in [5, 1000]", as_json=as_json)
+    try:
+        destination = resolve_travel_destination(
+            destination_state_path,
+            lt=lt,
+            lg=lg,
+            radius=radius,
+        )
+    except (TravelDestinationStateError, ValueError) as exc:
+        return _error(f"could not resolve travel destination: {exc}", as_json=as_json)
+    lt = destination.lt
+    lg = destination.lg
+    radius = destination.arrival_radius
     if not 5.0 <= radius <= 1_000.0:
         return _error("radius must be in [5, 1000]", as_json=as_json)
     if not 1.0 <= max_seconds <= 1_800.0:
@@ -1343,6 +1370,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             lt=arguments.lt,
             lg=arguments.lg,
             radius=arguments.radius,
+            destination_state_path=arguments.destination_state,
             client_profile_path=arguments.client_profile,
             native_position_profile_path=arguments.native_position_profile,
             native_vitals_profile_path=arguments.native_vitals_profile,

@@ -22,6 +22,7 @@ _GO_PATTERN = re.compile(
     r"(?P<radius>[+]?(?:\d+(?:\.\d*)?|\.\d+)))?\s*$",
     re.IGNORECASE,
 )
+_GO_REPEAT_PATTERN = re.compile(r"^\s*/?go\s*$", re.IGNORECASE)
 
 
 def _positive_integer(value: int, field_name: str) -> None:
@@ -72,14 +73,35 @@ class TravelPlan:
             raise ValueError("destinations must contain TravelDestination values")
 
 
-def parse_go_command(command: str, *, default_arrival_radius: float = 75.0) -> TravelPlan:
-    """Parse ``go LT LG`` or ``/go LT,LG`` into one typed destination."""
+def parse_go_command(
+    command: str,
+    *,
+    default_arrival_radius: float = 75.0,
+    previous_destination: TravelDestination | None = None,
+) -> TravelPlan:
+    """Parse an explicit destination or repeat the previous destination with bare ``/go``."""
 
     if not isinstance(command, str):
         raise ValueError("go command must be a string")
     _finite(default_arrival_radius, "default_arrival_radius")
     if default_arrival_radius <= 0:
         raise ValueError("default_arrival_radius must be positive")
+    if previous_destination is not None and not isinstance(
+        previous_destination,
+        TravelDestination,
+    ):
+        raise ValueError("previous_destination must be TravelDestination when present")
+    if _GO_REPEAT_PATTERN.fullmatch(command) is not None:
+        if previous_destination is None:
+            raise ValueError("bare go requires a previous destination")
+        return TravelPlan(
+            plan_id=(
+                f"go:{previous_destination.lt:g}:"
+                f"{previous_destination.lg:g}:"
+                f"{previous_destination.arrival_radius:g}"
+            ),
+            destinations=(previous_destination,),
+        )
     match = _GO_PATTERN.fullmatch(command)
     if match is None:
         raise ValueError("go command must use: go LT LG [radius]")
@@ -122,6 +144,14 @@ class TravelControllerConfig:
     escape_sweep_clicks: int = 6
     escape_bypass_clicks: int = 6
     escape_widening_clicks_per_sequence: int = 2
+    maximum_escape_phase_no_motion_clicks: int = 2
+    maximum_escape_side_switches: int = 1
+    escape_backup_clearance: float = 250.0
+    escape_sweep_clearance: float = 350.0
+    escape_widening_clearance_per_sequence: float = 150.0
+    escape_reacquire_progress: float = 100.0
+    escape_budget_reset_progress: float = 1_000.0
+    escape_minimum_motion: float = 15.0
     escape_backup_lateral_ratio: float = 0.45
     escape_sweep_reverse_ratio: float = 0.2
     escape_bypass_lateral_ratio: float = 0.25
@@ -136,9 +166,17 @@ class TravelControllerConfig:
             (self.escape_backup_clicks, "escape_backup_clicks"),
             (self.escape_sweep_clicks, "escape_sweep_clicks"),
             (self.escape_bypass_clicks, "escape_bypass_clicks"),
+            (
+                self.maximum_escape_phase_no_motion_clicks,
+                "maximum_escape_phase_no_motion_clicks",
+            ),
         ):
             _positive_integer(value, field_name)
         _non_negative_integer(self.maximum_escape_sequences, "maximum_escape_sequences")
+        _non_negative_integer(
+            self.maximum_escape_side_switches,
+            "maximum_escape_side_switches",
+        )
         _non_negative_integer(
             self.escape_widening_clicks_per_sequence,
             "escape_widening_clicks_per_sequence",
@@ -147,6 +185,15 @@ class TravelControllerConfig:
         if self.minimum_progress <= 0:
             raise ValueError("minimum_progress must be positive")
         for value, field_name in (
+            (self.escape_backup_clearance, "escape_backup_clearance"),
+            (self.escape_sweep_clearance, "escape_sweep_clearance"),
+            (
+                self.escape_widening_clearance_per_sequence,
+                "escape_widening_clearance_per_sequence",
+            ),
+            (self.escape_reacquire_progress, "escape_reacquire_progress"),
+            (self.escape_budget_reset_progress, "escape_budget_reset_progress"),
+            (self.escape_minimum_motion, "escape_minimum_motion"),
             (self.escape_backup_lateral_ratio, "escape_backup_lateral_ratio"),
             (self.escape_sweep_reverse_ratio, "escape_sweep_reverse_ratio"),
             (self.escape_bypass_lateral_ratio, "escape_bypass_lateral_ratio"),
