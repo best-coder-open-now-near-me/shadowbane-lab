@@ -55,6 +55,8 @@ class PvEControllerConfig:
     acquisition_retry_ms: int = 1_000
     acquisition_timeout_ms: int = 15_000
     stale_selection_cycle_delay_ms: int = 1_000
+    nearest_target_sample_count: int = 1
+    target_sample_interval_ms: int = 350
     engagement_timeout_ms: int = 30_000
     stalled_progress_ms: int = 5_000
     selection_loss_grace_ms: int = 750
@@ -86,6 +88,8 @@ class PvEControllerConfig:
             (self.acquisition_retry_ms, "acquisition_retry_ms"),
             (self.acquisition_timeout_ms, "acquisition_timeout_ms"),
             (self.stale_selection_cycle_delay_ms, "stale_selection_cycle_delay_ms"),
+            (self.nearest_target_sample_count, "nearest_target_sample_count"),
+            (self.target_sample_interval_ms, "target_sample_interval_ms"),
             (self.engagement_timeout_ms, "engagement_timeout_ms"),
             (self.stalled_progress_ms, "stalled_progress_ms"),
             (self.selection_loss_grace_ms, "selection_loss_grace_ms"),
@@ -111,6 +115,8 @@ class PvEControllerConfig:
             raise ValueError("acquisition retry cannot exceed acquisition timeout")
         if self.stale_selection_cycle_delay_ms > self.acquisition_timeout_ms:
             raise ValueError("stale selection cycle delay cannot exceed acquisition timeout")
+        if self.target_sample_interval_ms > self.acquisition_timeout_ms:
+            raise ValueError("target sample interval cannot exceed acquisition timeout")
         if self.stalled_progress_ms > self.engagement_timeout_ms:
             raise ValueError("stalled progress timeout cannot exceed engagement timeout")
         if self.selection_loss_grace_ms > self.engagement_timeout_ms:

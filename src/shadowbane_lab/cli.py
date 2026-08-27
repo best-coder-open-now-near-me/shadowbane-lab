@@ -1591,6 +1591,8 @@ def _run_pve(
                 automatic_attack_expected=policy == "proc-assassin",
                 automatic_target_requires_combat_event=policy == "proc-assassin",
                 maximum_stalled_retargets=1 if policy == "proc-assassin" else 0,
+                nearest_target_sample_count=6,
+                target_sample_interval_ms=350,
             )
         )
         mapped_actions = {mapping.action_key for mapping in client_profile.actions}

@@ -41,6 +41,10 @@ class PvEController:
         self._interrupts_for_target = 0
         self._best_approach_distance: float | None = None
         self._outside_melee = False
+        self._target_candidates: dict[str, float] = {}
+        self._last_sampled_target_token: str | None = None
+        self._target_sampling_complete = False
+        self._target_sample_cycle_at: int | None = None
 
     @property
     def phase(self) -> PvEPhase:
@@ -167,6 +171,9 @@ class PvEController:
         now = observation.now_ms
         target = observation.target
         if target.target_present and target.current_health != 0.0:
+            sampled = self._sample_nearest_target(observation)
+            if sampled is not None:
+                return sampled
             explicitly_acquired = (
                 self._last_acquire_at is not None
                 and target.target_token != self._baseline_target_token
@@ -181,6 +188,12 @@ class PvEController:
                 return self._begin_engagement(observation)
         if self._phase_elapsed(now) >= self._config.acquisition_timeout_ms:
             return self.stop("mob_acquisition_timeout", now_ms=now)
+        if self._config.nearest_target_sample_count > 1 and (
+            not target.target_present or target.current_health == 0.0
+        ):
+            if self._target_sample_ready(now):
+                return self._cycle_target_sample(now)
+            return self._emit(now)
         if target.target_present and self._config.accept_automatic_targets:
             if (
                 self._phase_elapsed(now) >= self._config.stale_selection_cycle_delay_ms
@@ -197,6 +210,65 @@ class PvEController:
         ):
             return self._emit(now, PvEIntent.ACQUIRE_NEXT_MOB)
         return self._emit(now)
+
+    def _sample_nearest_target(
+        self,
+        observation: PvEObservation,
+    ) -> PvEControllerDecision | None:
+        if self._config.nearest_target_sample_count == 1:
+            return None
+        target = observation.target
+        distance = observation.target_planar_distance
+        if distance is None:
+            return None
+        assert target.target_token is not None
+        token = target.target_token
+        now = observation.now_ms
+        if self._require_different_target and token == self._baseline_target_token:
+            if self._target_sample_ready(now):
+                return self._cycle_target_sample(now)
+            return self._emit(now)
+
+        if token != self._last_sampled_target_token:
+            self._target_sample_cycle_at = None
+            if token in self._target_candidates:
+                self._target_sampling_complete = True
+            else:
+                self._target_candidates[token] = distance
+                if (
+                    len(self._target_candidates)
+                    >= self._config.nearest_target_sample_count
+                ):
+                    self._target_sampling_complete = True
+            self._last_sampled_target_token = token
+        elif (
+            self._target_sample_cycle_at is not None
+            and now - self._target_sample_cycle_at
+            >= self._config.target_sample_interval_ms
+        ):
+            self._target_sampling_complete = True
+
+        if self._target_sampling_complete:
+            nearest_token = min(
+                self._target_candidates,
+                key=lambda candidate: (self._target_candidates[candidate], candidate),
+            )
+            if token == nearest_token:
+                self._require_different_target = False
+                return self._begin_engagement(observation)
+        if self._target_sample_ready(now):
+            return self._cycle_target_sample(now)
+        return self._emit(now)
+
+    def _cycle_target_sample(self, now_ms: int) -> PvEControllerDecision:
+        self._target_sample_cycle_at = now_ms
+        return self._emit(now_ms, PvEIntent.ACQUIRE_NEXT_MOB)
+
+    def _target_sample_ready(self, now_ms: int) -> bool:
+        return (
+            self._last_acquire_at is None
+            or now_ms - self._last_acquire_at >= self._config.target_sample_interval_ms
+        )
 
     def _engage(
         self,
@@ -414,6 +486,11 @@ class PvEController:
     def _enter(self, phase: PvEPhase, now_ms: int) -> None:
         self._phase = phase
         self._phase_entered_at = now_ms
+        if phase is PvEPhase.SEEKING:
+            self._target_candidates.clear()
+            self._last_sampled_target_token = None
+            self._target_sampling_complete = False
+            self._target_sample_cycle_at = None
 
     def _phase_elapsed(self, now_ms: int) -> int:
         assert self._phase_entered_at is not None

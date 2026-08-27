@@ -280,6 +280,81 @@ class PvEControllerTests(unittest.TestCase):
         self.assertIsNone(waiting.intent)
         self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB, cycle.intent)
 
+    def test_nearest_target_sampling_cycles_back_from_far_candidate(self) -> None:
+        controller = PvEController(
+            PvEControllerConfig(
+                nearest_target_sample_count=2,
+                target_sample_interval_ms=100,
+                acquisition_retry_ms=100,
+                acquisition_timeout_ms=1_000,
+            )
+        )
+
+        def spatial(
+            now_ms: int,
+            target: NativeTargetHealthObservation,
+            position: NativeTargetPositionObservation,
+        ) -> PvEObservation:
+            return PvEObservation(
+                now_ms=now_ms,
+                target=target,
+                player=_player(),
+                player_position=_player_position(),
+                target_position=position,
+            )
+
+        initial = controller.step(spatial(0, _absent(), _target_position(None)))
+        close_sample = controller.step(
+            spatial(100, _target("close"), _target_position("close", 105.0, 200.0))
+        )
+        far_sample = controller.step(
+            spatial(200, _target("far"), _target_position("far", 200.0, 200.0))
+        )
+        selected = controller.step(
+            spatial(300, _target("close"), _target_position("close", 105.0, 200.0))
+        )
+
+        self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB, initial.intent)
+        self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB, close_sample.intent)
+        self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB, far_sample.intent)
+        self.assertEqual(PvEIntent.ATTACK_SELECTED_TARGET, selected.intent)
+        self.assertEqual(PvEPhase.ENGAGED, selected.phase)
+
+    def test_nearest_target_sampling_accepts_only_candidate_after_one_cycle(self) -> None:
+        controller = PvEController(
+            PvEControllerConfig(
+                nearest_target_sample_count=6,
+                target_sample_interval_ms=100,
+                acquisition_retry_ms=1_000,
+                acquisition_timeout_ms=2_000,
+            )
+        )
+
+        def mob_observation(now_ms: int) -> PvEObservation:
+            return PvEObservation(
+                now_ms=now_ms,
+                target=_target("only-mob"),
+                player=_player(),
+                player_position=_player_position(),
+                target_position=_target_position("only-mob"),
+            )
+
+        controller.step(
+            PvEObservation(
+                now_ms=0,
+                target=_absent(),
+                player=_player(),
+                player_position=_player_position(),
+                target_position=_target_position(None),
+            )
+        )
+        cycle = controller.step(mob_observation(100))
+        selected = controller.step(mob_observation(200))
+
+        self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB, cycle.intent)
+        self.assertEqual(PvEIntent.ATTACK_SELECTED_TARGET, selected.intent)
+        self.assertEqual(PvEPhase.ENGAGED, selected.phase)
+
     def test_unexpected_selection_change_during_combat_stops(self) -> None:
         controller = PvEController(PvEControllerConfig())
         controller.step(_observation(0, _absent()))
