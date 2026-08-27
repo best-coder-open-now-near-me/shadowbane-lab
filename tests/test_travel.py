@@ -14,6 +14,7 @@ from shadowbane_lab.client_observation import (
 )
 from shadowbane_lab.protocol import DispatchResult, Vector2
 from shadowbane_lab.travel import (
+    NamedTravelDestinationError,
     TravelController,
     TravelControllerConfig,
     TravelDestination,
@@ -23,9 +24,12 @@ from shadowbane_lab.travel import (
     TravelPhase,
     TravelPlan,
     TravelRunner,
+    build_world_destination_catalog,
     parse_go_command,
+    parse_named_go_command,
     resolve_travel_destination,
 )
+from shadowbane_lab.world_data import parse_world_definition
 
 
 def _position(lt: float, lg: float) -> NativePlayerPositionObservation:
@@ -62,6 +66,87 @@ class GoCommandTests(unittest.TestCase):
     def test_bare_go_requires_previous_destination(self) -> None:
         with self.assertRaisesRegex(ValueError, "previous destination"):
             parse_go_command("go")
+
+    def test_named_command_preserves_words_for_catalog_resolution(self) -> None:
+        self.assertEqual(
+            "oblivion gate",
+            parse_named_go_command(" /go   oblivion gate "),
+        )
+        with self.assertRaisesRegex(NamedTravelDestinationError, "go NAME"):
+            parse_named_go_command("/go 120000 60000")
+
+
+class NamedWorldDestinationTests(unittest.TestCase):
+    def test_composes_worlddef_centers_and_selects_nearest_oblivion_runegate(self) -> None:
+        world = parse_world_definition(
+            """
+            WORLDNAME= Aerynth
+            WORLDNUM= 1
+            LENGTH= 512
+            WIDTH= 384
+            <BEGINZONE> 1
+                CENTX= 65536
+                CENTZ= -49152
+                YROT= 0
+                <BEGINZONE> 200
+                    CENTX= -12288
+                    CENTZ= -12288
+                    YROT= 0
+                    <BEGINZONE> 11006
+                        # ZONE_#NAME= "Runegate"
+                        CENTX= -6528
+                        CENTZ= 7808
+                    <ENDZONE>
+                    <BEGINZONE> 11007
+                        # ZONE_#NAME= "Runegate 1"
+                        CENTX= 16000
+                        CENTZ= 4992
+                    <ENDZONE>
+                <ENDZONE>
+            <ENDZONE>
+            """
+        )
+        catalog = build_world_destination_catalog(world)
+
+        resolved = catalog.resolve(
+            "oblivion gate",
+            origin=_position(47_000, 53_500),
+        )
+
+        self.assertEqual("Aerynth", catalog.world_name)
+        self.assertEqual(2, resolved.candidate_count)
+        self.assertEqual("Runegate", resolved.matched_name)
+        self.assertEqual(11006, resolved.template_id)
+        self.assertEqual(TravelDestination(46_720, 53_632), resolved.destination)
+
+    def test_catalog_indexes_humanized_zone_load_names_and_fails_closed(self) -> None:
+        world = parse_world_definition(
+            """
+            WORLDNAME= Aerynth
+            WORLDNUM= 1
+            LENGTH= 512
+            WIDTH= 384
+            <BEGINZONE> 1
+                CENTX= 65536
+                CENTZ= -49152
+                <BEGINZONE> 3000
+                    CENTX= 1000
+                    CENTZ= -2000
+                    ZONELOADFILE= BlackDrakeSwamp.cfg
+                <ENDZONE>
+            <ENDZONE>
+            """
+        )
+        catalog = build_world_destination_catalog(world)
+
+        resolved = catalog.resolve(
+            "black drake swamp",
+            origin=_position(0, 0),
+        )
+
+        self.assertEqual(TravelDestination(66_536, 51_152), resolved.destination)
+        with self.assertRaisesRegex(NamedTravelDestinationError, "unknown"):
+            catalog.resolve("definitely nowhere", origin=_position(0, 0))
 
 
 class TravelDestinationStateTests(unittest.TestCase):

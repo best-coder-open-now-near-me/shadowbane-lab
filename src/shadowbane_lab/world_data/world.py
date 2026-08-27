@@ -9,6 +9,10 @@ from pathlib import Path
 _BEGIN_ZONE = re.compile(r"^<BEGINZONE>\s+(?P<template_id>\d+)\s*$", re.IGNORECASE)
 _END_ZONE = re.compile(r"^<ENDZONE>\s*$", re.IGNORECASE)
 _ASSIGNMENT = re.compile(r"^(?P<key>[A-Z_]+)\s*=\s*(?P<value>.*?)\s*$", re.IGNORECASE)
+_ZONE_NAME_COMMENT = re.compile(
+    r"^#\s*ZONE_#NAME\s*=\s*(?P<value>.*?)\s*$",
+    re.IGNORECASE,
+)
 
 
 class WorldDefinitionFormatError(ValueError):
@@ -18,6 +22,7 @@ class WorldDefinitionFormatError(ValueError):
 @dataclass(frozen=True, slots=True)
 class ZonePlacement:
     template_id: int
+    name: str | None
     center_x: float | None
     center_z: float | None
     y_offset: float | None
@@ -55,6 +60,7 @@ class WorldDefinition:
 @dataclass(slots=True)
 class _ZoneBuilder:
     template_id: int
+    name: str | None = None
     values: dict[str, str] = field(default_factory=dict)
     children: list[_ZoneBuilder] = field(default_factory=list)
 
@@ -70,7 +76,21 @@ def parse_world_definition(text: str) -> WorldDefinition:
 
     for line_number, raw_line in enumerate(text.splitlines(), start=1):
         line = raw_line.strip()
-        if not line or line.startswith("#"):
+        if not line:
+            continue
+        if line.startswith("#"):
+            name_comment = _ZONE_NAME_COMMENT.fullmatch(line)
+            if name_comment is not None and stack:
+                value = name_comment.group("value").strip().strip('"').strip()
+                if not value:
+                    raise WorldDefinitionFormatError(
+                        f"line {line_number}: zone display name is empty"
+                    )
+                if stack[-1].name is not None:
+                    raise WorldDefinitionFormatError(
+                        f"line {line_number}: duplicate zone display name"
+                    )
+                stack[-1].name = value
             continue
         begin = _BEGIN_ZONE.fullmatch(line)
         if begin:
@@ -122,6 +142,7 @@ def _freeze_zone(builder: _ZoneBuilder) -> ZonePlacement:
     values = dict(builder.values)
     return ZonePlacement(
         template_id=builder.template_id,
+        name=builder.name,
         center_x=_optional_float(values.pop("CENTX", None)),
         center_z=_optional_float(values.pop("CENTZ", None)),
         y_offset=_optional_float(values.pop("YOFFSET", None)),

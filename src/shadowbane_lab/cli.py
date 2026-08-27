@@ -110,7 +110,9 @@ from shadowbane_lab.travel import (
     TravelPlan,
     TravelRunner,
     WindowsGoChatCommandListener,
+    load_world_destination_catalog,
     parse_go_command,
+    parse_named_go_command,
     resolve_travel_destination,
 )
 from shadowbane_lab.world_data import (
@@ -449,6 +451,11 @@ def _parser() -> argparse.ArgumentParser:
     listen_go.add_argument("--client-profile", type=Path, required=True)
     listen_go.add_argument("--native-position-profile", type=Path)
     listen_go.add_argument("--native-vitals-profile", type=Path)
+    listen_go.add_argument(
+        "--world-def",
+        type=Path,
+        help="installed Config/WorldDef.cfg used to resolve named /go destinations",
+    )
     listen_go.add_argument("--max-seconds", type=float, default=300.0)
     listen_go.add_argument("--wait-for-client-seconds", type=float, default=30.0)
     listen_go.add_argument("--poll-ms", type=int, default=200)
@@ -1746,6 +1753,7 @@ def _listen_for_go_commands(
     client_profile_path: Path,
     native_position_profile_path: Path | None,
     native_vitals_profile_path: Path | None,
+    world_def_path: Path | None,
     max_seconds: float,
     wait_for_client_seconds: float,
     poll_ms: int,
@@ -1760,6 +1768,11 @@ def _listen_for_go_commands(
         if not client_profile.live_input_enabled:
             raise ValueError("client profile is not enabled for live input")
         guard = ForegroundWindowGuard(client_profile, WindowsForegroundWindowInspector())
+        named_catalog = (
+            None
+            if world_def_path is None
+            else load_world_destination_catalog(world_def_path)
+        )
     except (CalibrationLoadError, OSError, RuntimeError, ValueError) as exc:
         return _error(f"chat travel failed: {exc}", as_json=as_json)
 
@@ -1801,6 +1814,7 @@ def _listen_for_go_commands(
                     continue
 
                 normalized = command.strip().casefold()
+                named_resolution = None
                 if normalized == "/stop":
                     stop_sequence += 1
                     result = stop_adapter.dispatch_movement_stop(
@@ -1819,15 +1833,45 @@ def _listen_for_go_commands(
                 else:
                     try:
                         plan = parse_go_command(command)
-                    except ValueError as exc:
-                        _print_go_listener_event(
-                            "rejected",
-                            as_json=as_json,
-                            command=command,
-                            reason=str(exc),
-                        )
-                        continue
-                    destination = plan.destinations[0]
+                        destination = plan.destinations[0]
+                    except ValueError:
+                        try:
+                            query = parse_named_go_command(command)
+                            if named_catalog is None:
+                                raise ValueError(
+                                    "named /go destinations require --world-def"
+                                )
+                            position_profile = (
+                                load_native_position_profile(
+                                    native_position_profile_path
+                                )
+                                if native_position_profile_path is not None
+                                else load_bundled_native_position_profile()
+                            )
+                            with open_windows_native_player_position_reader(
+                                position_profile
+                            ) as position_reader:
+                                origin = position_reader.observe()
+                            named_resolution = named_catalog.resolve(
+                                query,
+                                origin=origin,
+                            )
+                            destination = named_resolution.destination
+                        except (
+                            NativePlayerPositionError,
+                            NativePositionProfileLoadError,
+                            OSError,
+                            RuntimeError,
+                            UnicodeError,
+                            ValueError,
+                        ) as exc:
+                            _print_go_listener_event(
+                                "rejected",
+                                as_json=as_json,
+                                command=command,
+                                reason=str(exc),
+                            )
+                            continue
                     lt = destination.lt
                     lg = destination.lg
                     radius = destination.arrival_radius
@@ -1840,6 +1884,18 @@ def _listen_for_go_commands(
                         "accepted",
                         as_json=as_json,
                         command=command,
+                        resolved_name=(
+                            None
+                            if named_resolution is None
+                            else named_resolution.matched_name
+                        ),
+                        lt=lt,
+                        lg=lg,
+                        candidate_count=(
+                            None
+                            if named_resolution is None
+                            else named_resolution.candidate_count
+                        ),
                     )
                     _run_travel(
                         lt=lt,
@@ -1876,6 +1932,10 @@ def _print_go_listener_event(
     as_json: bool,
     command: str | None = None,
     reason: str | None = None,
+    resolved_name: str | None = None,
+    lt: float | None = None,
+    lg: float | None = None,
+    candidate_count: int | None = None,
 ) -> None:
     if as_json:
         payload = {"ok": event != "rejected", "event": event}
@@ -1883,6 +1943,12 @@ def _print_go_listener_event(
             payload["command"] = command
         if reason is not None:
             payload["reason"] = reason
+        if resolved_name is not None:
+            payload["resolved_name"] = resolved_name
+        if lt is not None and lg is not None:
+            payload["destination"] = {"lt": lt, "lg": lg}
+        if candidate_count is not None:
+            payload["candidate_count"] = candidate_count
         print(json.dumps(payload, sort_keys=True), flush=True)
         return
     if event == "listening":
@@ -1890,7 +1956,12 @@ def _print_go_listener_event(
     elif event == "stopped":
         print("Stopped listening for Shadowbane travel commands.", flush=True)
     elif event == "accepted":
-        print(f"Accepted chat command: {command}", flush=True)
+        detail = (
+            ""
+            if resolved_name is None
+            else f" -> {resolved_name} at LT {lt:g}, LG {lg:g}"
+        )
+        print(f"Accepted chat command: {command}{detail}", flush=True)
     else:
         print(f"Rejected chat command {command!r}: {reason}", file=sys.stderr, flush=True)
 
@@ -2067,6 +2138,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             client_profile_path=arguments.client_profile,
             native_position_profile_path=arguments.native_position_profile,
             native_vitals_profile_path=arguments.native_vitals_profile,
+            world_def_path=arguments.world_def,
             max_seconds=arguments.max_seconds,
             wait_for_client_seconds=arguments.wait_for_client_seconds,
             poll_ms=arguments.poll_ms,

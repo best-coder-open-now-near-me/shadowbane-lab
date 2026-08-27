@@ -187,6 +187,7 @@ class WorldDefinitionTests(unittest.TestCase):
             WIDTH= 384
             CUSTOM= retained
             <BEGINZONE> 1
+                # ZONE_#NAME= "World Root"
                 CENTX= 65536
                 CENTZ= -49152
                 YROT= 90
@@ -202,6 +203,8 @@ class WorldDefinitionTests(unittest.TestCase):
         self.assertEqual(("CUSTOM", "retained"), world.attributes[0])
         self.assertEqual(2, len(world.walk_zones()))
         root, child = world.walk_zones()
+        self.assertEqual("World Root", root.name)
+        self.assertIsNone(child.name)
         self.assertEqual((65536, -49152, 90), (root.center_x, root.center_z, root.y_rotation))
         self.assertEqual(200, child.template_id)
         self.assertEqual(650, child.y_offset)

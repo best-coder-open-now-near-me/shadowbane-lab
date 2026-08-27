@@ -34,7 +34,8 @@ Terrain raster IDs pack an eight-bit map ID and a decimal tile position: the low
 
 The `world_data` package validates archive sizes and bounds, inflates selected resources,
 indexes all terrain maps without loading every raster, decodes individual raster tiles, and
-parses the nested `WorldDef` placement tree.
+parses the nested `WorldDef` placement tree. The parser preserves client-shipped placement
+display names even though they are encoded as `ZONE_#NAME` comments.
 
 Run it directly against a client installation:
 

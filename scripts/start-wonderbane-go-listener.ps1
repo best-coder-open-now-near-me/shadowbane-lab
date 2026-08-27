@@ -4,6 +4,7 @@ param(
     [string] $PythonPath = "$env:USERPROFILE\shadowbane-lab\.venv\Scripts\python.exe",
     [string] $ClientProfile = "\\VBOXSVR\codexdiag\wonderbane-travel.local.json",
     [string] $DestinationState = "\\VBOXSVR\codexdiag\bounded-route-state.json",
+    [string] $WorldDef = "$env:USERPROFILE\Downloads\WonderbaneClient\Wonderbane\Config\WorldDef.cfg",
     [string] $LogDirectory = "\\VBOXSVR\codexdiag"
 )
 
@@ -17,6 +18,9 @@ if (-not (Test-Path -LiteralPath $RepositoryRoot -PathType Container)) {
 }
 if (-not (Test-Path -LiteralPath $ClientProfile -PathType Leaf)) {
     throw "Live travel profile was not found: $ClientProfile"
+}
+if (-not (Test-Path -LiteralPath $WorldDef -PathType Leaf)) {
+    throw "WorldDef was not found: $WorldDef"
 }
 if (-not (Test-Path -LiteralPath $LogDirectory -PathType Container)) {
     New-Item -ItemType Directory -Path $LogDirectory -Force | Out-Null
@@ -45,6 +49,7 @@ $arguments = @(
     "listen-go",
     "--destination-state", $DestinationState,
     "--client-profile", $ClientProfile,
+    "--world-def", $WorldDef,
     "--max-seconds", "300",
     "--wait-for-client-seconds", "10",
     "--poll-ms", "200",
