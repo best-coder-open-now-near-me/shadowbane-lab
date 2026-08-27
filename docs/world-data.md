@@ -26,8 +26,9 @@ open-source emulator's [HeightMap implementation](https://repo.magicbane.com/Mag
 including bottom-left origin, `(width - 1)` interpolation buckets, and byte-height scaling.
 Material layers remain neutral until their surface meanings are decoded. Height alone is not an
 authoritative walkability flag, so water is classified only when the same `CZone` explicitly
-declares a water plane and a zone-local sea level. Placed-object collision still requires its
-separate object and mesh data.
+declares a water plane and a zone-local sea level. Object-population layers are independently
+joined through `CObjects`, `Render`, and `Mesh`, preserving the distinction between terrain
+material and collision-bearing geometry.
 
 The archive format is a 16-byte header, a directory of 20-byte resource records, optional
 directory padding, and raw or zlib-compressed payloads. Resource IDs are not globally unique.
@@ -63,6 +64,13 @@ it into the same byte-height scale and assigns underwater cells a high but trave
 example, Tainted Swamp template `0:3033` declares water at local height `152` over image terrain
 `0..200`, yielding a raw sample threshold of `194.56`; this is cache data, not a darkness
 heuristic. Parent/world-relative water remains neutral until its vertical transform is proven.
+The same template parser resolves object populations and their density-layer indices. The loader
+follows each object resource's render graph, accepts only explicit collision-bearing mesh nodes,
+derives a conservative horizontal mesh radius, and uses the associated population raster as a
+soft A* density cost. For Tainted Swamp, this resolves four colliding families on population
+layer 1 with a declared capacity of 70 and a maximum mesh radius of about 13.4 units. Population
+rasters are distributions rather than exact instance placements, so runtime stalls continue to
+learn precise obstacle cells.
 
 ## Native pathfinding status
 

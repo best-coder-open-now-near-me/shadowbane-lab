@@ -14,7 +14,12 @@ from shadowbane_lab.client_observation import (
 from shadowbane_lab.travel.pathfinding import NavigationCell, SparseNavigationMap
 from shadowbane_lab.world_data import (
     CacheArchive,
+    ObjectNavigationResolver,
+    TerrainAlphaMap,
     TerrainAlphaRaster,
+    ZoneNavigationMetadata,
+    ZoneResourceKey,
+    ZoneTerrainCorrelation,
     correlate_zone_terrain,
     index_terrain_alpha_maps,
     parse_zone_navigation_metadata,
@@ -29,6 +34,7 @@ class TerrainNavigationConfig:
     minimum_traversable_sample: int | None = None
     maximum_traversal_cost: float = 5.0
     water_traversal_cost: float = 12.0
+    maximum_object_density_cost: float = 8.0
     seed_radius: float = 1_200.0
     maximum_seed_cells: int = 50_000
 
@@ -67,6 +73,15 @@ class TerrainNavigationConfig:
         ):
             raise ValueError("water_traversal_cost must be finite and at least one")
         if (
+            isinstance(self.maximum_object_density_cost, bool)
+            or not isinstance(self.maximum_object_density_cost, (int, float))
+            or not isfinite(self.maximum_object_density_cost)
+            or self.maximum_object_density_cost < 1
+        ):
+            raise ValueError(
+                "maximum_object_density_cost must be finite and at least one"
+            )
+        if (
             isinstance(self.seed_radius, bool)
             or not isinstance(self.seed_radius, (int, float))
             or not isfinite(self.seed_radius)
@@ -79,6 +94,54 @@ class TerrainNavigationConfig:
             or self.maximum_seed_cells <= 0
         ):
             raise ValueError("maximum_seed_cells must be positive")
+
+
+@dataclass(frozen=True, slots=True)
+class TerrainObjectDensityLayer:
+    layer_index: int
+    raster: TerrainAlphaRaster
+    object_keys: tuple[ZoneResourceKey, ...]
+    population_capacity: int
+    maximum_horizontal_radius: float
+
+    def __post_init__(self) -> None:
+        if (
+            isinstance(self.layer_index, bool)
+            or not isinstance(self.layer_index, int)
+            or self.layer_index <= 0
+        ):
+            raise ValueError("object-density layer_index must be positive")
+        if not isinstance(self.raster, TerrainAlphaRaster):
+            raise ValueError("object-density raster must be TerrainAlphaRaster")
+        if not self.object_keys or any(
+            not isinstance(key, ZoneResourceKey) for key in self.object_keys
+        ):
+            raise ValueError("object-density layer requires object keys")
+        if len(self.object_keys) != len(set(self.object_keys)):
+            raise ValueError("object-density object keys must be unique")
+        if (
+            isinstance(self.population_capacity, bool)
+            or not isinstance(self.population_capacity, int)
+            or self.population_capacity <= 0
+        ):
+            raise ValueError("object-density population capacity must be positive")
+        if (
+            isinstance(self.maximum_horizontal_radius, bool)
+            or not isinstance(self.maximum_horizontal_radius, (int, float))
+            or not isfinite(self.maximum_horizontal_radius)
+            or self.maximum_horizontal_radius <= 0
+        ):
+            raise ValueError("object-density collision radius must be positive")
+
+
+@dataclass(frozen=True, slots=True)
+class TerrainObjectDensityLayerSeed:
+    layer_index: int
+    terrain_group_id: int
+    terrain_map_id: int
+    object_count: int
+    population_capacity: int
+    maximum_horizontal_radius: float
 
 
 @dataclass(frozen=True, slots=True)
@@ -96,6 +159,8 @@ class TerrainNavigationSeed:
     sampled_cells: int
     blocked_cells: frozenset[NavigationCell]
     water_cells: frozenset[NavigationCell]
+    object_density_cells: frozenset[NavigationCell]
+    object_density_layers: tuple[TerrainObjectDensityLayerSeed, ...]
     water_sample_threshold: float | None
     costs: tuple[tuple[NavigationCell, float], ...]
 
@@ -148,6 +213,13 @@ def load_active_zone_terrain_navigation(
             metadata = parse_zone_navigation_metadata(
                 zones.read_resource(correlation.zone_entry)
             )
+            object_density_layers = _load_object_density_layers(
+                cache_root,
+                terrain,
+                indexed,
+                correlation,
+                metadata,
+            )
             seed = seed_height_raster_navigation(
                 navigation_map,
                 geometry=identity.geometry,
@@ -158,10 +230,84 @@ def load_active_zone_terrain_navigation(
                 window_center_lt=origin.lt,
                 window_center_lg=origin.lg,
                 water_sample_threshold=metadata.local_water_sample_threshold(),
+                object_density_layers=object_density_layers,
                 config=resolved,
             )
             return ActiveZoneTerrainNavigation(navigation_map, seed)
     return ActiveZoneTerrainNavigation(navigation_map, None)
+
+
+def _load_object_density_layers(
+    cache_root: Path,
+    terrain: CacheArchive,
+    indexed_terrain: dict[tuple[int, int], TerrainAlphaMap],
+    correlation: ZoneTerrainCorrelation,
+    metadata: ZoneNavigationMetadata,
+) -> tuple[TerrainObjectDensityLayer, ...]:
+    object_path = cache_root / "CObjects.cache"
+    render_path = cache_root / "Render.cache"
+    mesh_path = cache_root / "Mesh.cache"
+    if not all(path.is_file() for path in (object_path, render_path, mesh_path)):
+        return ()
+
+    populations_by_layer: dict[int, list[tuple[ZoneResourceKey, int, float]]] = {}
+    with (
+        CacheArchive(object_path) as objects,
+        CacheArchive(render_path) as renders,
+        CacheArchive(mesh_path) as meshes,
+    ):
+        resolver = ObjectNavigationResolver(objects, renders, meshes)
+        for population in metadata.terrain_object_populations:
+            layer_index = population.population_layer_index(
+                metadata.terrain_generation
+            )
+            if layer_index is None:
+                continue
+            profile = resolver.resolve(population.object_key)
+            if not profile.collides or profile.horizontal_radius is None:
+                continue
+            populations_by_layer.setdefault(layer_index, []).append(
+                (
+                    population.object_key,
+                    population.maximum_population,
+                    profile.horizontal_radius,
+                )
+            )
+
+    maps_by_layer = {item.layer_index: item for item in correlation.maps}
+    layers = []
+    for layer_index, populations in sorted(populations_by_layer.items()):
+        try:
+            terrain_reference = maps_by_layer[layer_index]
+        except KeyError as exc:
+            raise ValueError(
+                f"object-density layer {layer_index} has no correlated terrain map"
+            ) from exc
+        raster = read_terrain_alpha_map(
+            terrain,
+            indexed_terrain[
+                (terrain_reference.group_id, terrain_reference.map_id)
+            ],
+        )
+        layers.append(
+            TerrainObjectDensityLayer(
+                layer_index=layer_index,
+                raster=raster,
+                object_keys=tuple(
+                    item[0]
+                    for item in sorted(
+                        populations,
+                        key=lambda item: (
+                            item[0].group_id,
+                            item[0].resource_id,
+                        ),
+                    )
+                ),
+                population_capacity=sum(item[1] for item in populations),
+                maximum_horizontal_radius=max(item[2] for item in populations),
+            )
+        )
+    return tuple(layers)
 
 
 def seed_height_raster_navigation(
@@ -175,6 +321,7 @@ def seed_height_raster_navigation(
     window_center_lt: float | None = None,
     window_center_lg: float | None = None,
     water_sample_threshold: float | None = None,
+    object_density_layers: tuple[TerrainObjectDensityLayer, ...] = (),
     config: TerrainNavigationConfig | None = None,
 ) -> TerrainNavigationSeed:
     if not isinstance(navigation_map, SparseNavigationMap):
@@ -201,6 +348,16 @@ def seed_height_raster_navigation(
         or not isfinite(water_sample_threshold)
     ):
         raise ValueError("water sample threshold must be finite")
+    if any(
+        not isinstance(layer, TerrainObjectDensityLayer)
+        for layer in object_density_layers
+    ):
+        raise ValueError(
+            "object_density_layers must contain TerrainObjectDensityLayer values"
+        )
+    layer_indexes = tuple(layer.layer_index for layer in object_density_layers)
+    if len(layer_indexes) != len(set(layer_indexes)):
+        raise ValueError("object-density layer indexes must be unique")
 
     corners = [
         _local_to_world(geometry, x, z)
@@ -236,6 +393,7 @@ def seed_height_raster_navigation(
 
     blocked: set[NavigationCell] = set()
     water: set[NavigationCell] = set()
+    object_density: set[NavigationCell] = set()
     costs: dict[NavigationCell, float] = {}
     sampled_cells = 0
     half = resolved.cell_size * 0.45
@@ -246,7 +404,7 @@ def seed_height_raster_navigation(
             local_center = _world_to_local(geometry, center_lt, center_lg)
             if not _inside(geometry, *local_center):
                 continue
-            samples = []
+            local_samples = []
             for delta_lt, delta_lg in (
                 (0.0, 0.0),
                 (-half, -half),
@@ -260,10 +418,23 @@ def seed_height_raster_navigation(
                     center_lg + delta_lg,
                 )
                 if _inside(geometry, *local):
-                    samples.append(_sample_local(raster, geometry, *local))
+                    local_samples.append(local)
             sampled_cells += 1
+            samples = [
+                _sample_local(raster, geometry, *local) for local in local_samples
+            ]
             center_sample = samples[0]
             sample_delta = max(samples) - min(samples)
+            object_density_sample = max(
+                (
+                    _sample_local(layer.raster, geometry, *local)
+                    for layer in object_density_layers
+                    for local in local_samples
+                ),
+                default=0,
+            )
+            if object_density_sample > 0:
+                object_density.add(cell)
             underwater = (
                 water_sample_threshold is not None
                 and center_sample < water_sample_threshold
@@ -287,6 +458,14 @@ def seed_height_raster_navigation(
                 )
             if underwater:
                 cost = max(cost, resolved.water_traversal_cost)
+            if object_density_sample > 0:
+                cost = max(
+                    cost,
+                    1
+                    + object_density_sample
+                    / 255.0
+                    * (resolved.maximum_object_density_cost - 1),
+                )
             if cost > 1:
                 navigation_map.set_cost(cell, cost)
                 costs[cell] = cost
@@ -304,6 +483,18 @@ def seed_height_raster_navigation(
         sampled_cells=sampled_cells,
         blocked_cells=frozenset(blocked),
         water_cells=frozenset(water),
+        object_density_cells=frozenset(object_density),
+        object_density_layers=tuple(
+            TerrainObjectDensityLayerSeed(
+                layer_index=layer.layer_index,
+                terrain_group_id=layer.raster.group_id,
+                terrain_map_id=layer.raster.map_id,
+                object_count=len(layer.object_keys),
+                population_capacity=layer.population_capacity,
+                maximum_horizontal_radius=layer.maximum_horizontal_radius,
+            )
+            for layer in object_density_layers
+        ),
         water_sample_threshold=water_sample_threshold,
         costs=tuple(sorted(costs.items())),
     )

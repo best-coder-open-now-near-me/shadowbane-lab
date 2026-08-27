@@ -1751,6 +1751,22 @@ def _run_pve(
                         "sampled_cells": terrain_seed.sampled_cells,
                         "blocked_cells": len(terrain_seed.blocked_cells),
                         "water_cells": len(terrain_seed.water_cells),
+                        "object_density_cells": len(
+                            terrain_seed.object_density_cells
+                        ),
+                        "object_density_layers": [
+                            {
+                                "layer_index": layer.layer_index,
+                                "terrain_group_id": layer.terrain_group_id,
+                                "terrain_map_id": layer.terrain_map_id,
+                                "object_count": layer.object_count,
+                                "population_capacity": layer.population_capacity,
+                                "maximum_horizontal_radius": (
+                                    layer.maximum_horizontal_radius
+                                ),
+                            }
+                            for layer in terrain_seed.object_density_layers
+                        ],
                         "water_sample_threshold": terrain_seed.water_sample_threshold,
                         "weighted_cells": len(terrain_seed.costs),
                     }

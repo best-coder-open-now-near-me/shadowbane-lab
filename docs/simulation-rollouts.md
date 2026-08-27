@@ -142,6 +142,12 @@ target, selects the nearest replacement only after that target dies, opens a fre
 rank-40 Shadow Touch while stun immunity is absent, and otherwise maintains dual-fist pressure.
 It does not contain rare-mob, rune, or location-specific behavior.
 
+The combat policy exposes movement as a target-relative close-range intent instead of eight
+world-compass actions. The environment still owns full two-dimensional positions, collision,
+and pathfinding; it resolves that intent into movement toward the selected target. This keeps
+future group positioning representable as pairwise range relations without multiplying equivalent
+single-target choices.
+
 Each aggregate successful hit opportunity applies sourced raw 4-16 fist damage and independently
 checks the tier-three mental and rank-40 Poison Blade procs at 5%. Proc damage uses the sourced
 spell-damage formula for the explicit 35/130/85/165/15 observed-trait candidate. Every chance

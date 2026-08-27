@@ -5,9 +5,10 @@ from shadowbane_lab.travel import (
     NavigationCell,
     SparseNavigationMap,
     TerrainNavigationConfig,
+    TerrainObjectDensityLayer,
     seed_height_raster_navigation,
 )
-from shadowbane_lab.world_data import TerrainAlphaRaster
+from shadowbane_lab.world_data import TerrainAlphaRaster, ZoneResourceKey
 
 
 def _geometry() -> NativeZoneGeometry:
@@ -134,6 +135,41 @@ class TerrainNavigationTests(unittest.TestCase):
         self.assertEqual(50.0, seed.water_sample_threshold)
         water_costs = dict(seed.costs)
         self.assertTrue(all(water_costs[cell] >= 9.0 for cell in seed.water_cells))
+
+    def test_collision_population_density_adds_soft_cost_without_blocking(self) -> None:
+        density_rows = [bytes((0, 0, 255, 255, 255)) for _ in range(5)]
+        navigation = SparseNavigationMap(cell_size=10.0)
+        density_layer = TerrainObjectDensityLayer(
+            layer_index=1,
+            raster=TerrainAlphaRaster(1173, 214, 5, 5, b"".join(density_rows)),
+            object_keys=(ZoneResourceKey(0, 50214),),
+            population_capacity=20,
+            maximum_horizontal_radius=13.4,
+        )
+
+        seed = seed_height_raster_navigation(
+            navigation,
+            geometry=_geometry(),
+            raster=TerrainAlphaRaster(7, 1, 5, 5, bytes(25)),
+            zone_depth=0,
+            template_group_id=0,
+            template_id=3033,
+            object_density_layers=(density_layer,),
+            config=TerrainNavigationConfig(
+                cell_size=10.0,
+                blocked_sample_delta=255,
+                maximum_object_density_cost=8.0,
+            ),
+        )
+
+        self.assertFalse(seed.blocked_cells)
+        self.assertTrue(seed.object_density_cells)
+        self.assertEqual(1, len(seed.object_density_layers))
+        self.assertEqual(20, seed.object_density_layers[0].population_capacity)
+        density_costs = dict(seed.costs)
+        self.assertTrue(
+            all(density_costs[cell] == 8.0 for cell in seed.object_density_cells)
+        )
 
     def test_nonzero_local_center_projects_around_absolute_world_center(self) -> None:
         geometry = NativeZoneGeometry(

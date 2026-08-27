@@ -229,7 +229,9 @@ Before an approach begins, the live runner resolves the active native zone in th
 height-transition exclusions and costs. Runtime stalls still add learned obstacle cells and
 replan around them. Explicit zone-local `CZone` water planes become high-cost traversable cells;
 parent/world-relative water remains neutral rather than being guessed from sample darkness.
-Placed trees or structures remain online-learned until `CObjects` collision is decoded.
+`CZone` object-population masks are joined through `CObjects`, `Render`, and `Mesh`; populations
+whose render graph contains collision-bearing mesh geometry seed a soft density cost. The masks
+do not encode individual placements, so exact trunks and structure edges remain online-learned.
 
 Selected-target health is guarded structurally rather than by a low gameplay cap: the build and
 pointer must match, the selection must stay stable across the read, both float values must be

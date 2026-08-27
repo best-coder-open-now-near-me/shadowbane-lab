@@ -53,6 +53,8 @@ from shadowbane_lab.travel.terrain import (
     ActiveZoneTerrainNavigation,
     TerrainNavigationConfig,
     TerrainNavigationSeed,
+    TerrainObjectDensityLayer,
+    TerrainObjectDensityLayerSeed,
     load_active_zone_terrain_navigation,
     seed_height_raster_navigation,
 )
@@ -86,6 +88,8 @@ __all__ = [
     "TravelRunner",
     "TerrainNavigationConfig",
     "TerrainNavigationSeed",
+    "TerrainObjectDensityLayer",
+    "TerrainObjectDensityLayerSeed",
     "WindowsGoChatCommandListener",
     "WorldDestinationCatalog",
     "WorldDestinationEntry",

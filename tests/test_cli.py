@@ -483,6 +483,17 @@ class ClientCliTests(unittest.TestCase):
                 sampled_cells=1600,
                 blocked_cells=frozenset({(1, 2)}),
                 water_cells=frozenset({(3, 4)}),
+                object_density_cells=frozenset({(5, 6), (7, 8)}),
+                object_density_layers=(
+                    SimpleNamespace(
+                        layer_index=1,
+                        terrain_group_id=1173,
+                        terrain_map_id=214,
+                        object_count=4,
+                        population_capacity=70,
+                        maximum_horizontal_radius=13.4,
+                    ),
+                ),
                 water_sample_threshold=194.56,
                 costs=(((2, 3), 1.5),),
             ),
@@ -637,6 +648,16 @@ class ClientCliTests(unittest.TestCase):
         self.assertEqual(
             1,
             saved_evidence["terrain_navigation"]["seed"]["water_cells"],
+        )
+        self.assertEqual(
+            2,
+            saved_evidence["terrain_navigation"]["seed"]["object_density_cells"],
+        )
+        self.assertEqual(
+            70,
+            saved_evidence["terrain_navigation"]["seed"]["object_density_layers"][0][
+                "population_capacity"
+            ],
         )
         emergency_stop.assert_not_called()
 
