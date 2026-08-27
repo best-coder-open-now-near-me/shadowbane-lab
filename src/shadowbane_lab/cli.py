@@ -1474,24 +1474,42 @@ def _run_pve(
         if len(native_profile_hashes) != 1:
             raise ValueError("native PvE profiles target different client builds")
         inspector = WindowsForegroundWindowInspector()
-        guard = ForegroundWindowGuard(client_profile, inspector)
-        _wait_for_guarded_client(
-            guard,
+        selection_guard = ForegroundWindowGuard(client_profile, inspector)
+        selected_window = _wait_for_guarded_client(
+            selection_guard,
             wait_seconds=wait_for_client_seconds,
+        )
+        process_id = _require_window_process_id(selected_window)
+        guard = ForegroundWindowGuard(
+            client_profile,
+            inspector,
+            expected_process_id=process_id,
         )
         combat_reader = NativeCombatLogReader(combat_log_path, start_at_end=True)
         with ExitStack() as stack:
             health_reader = stack.enter_context(
-                open_windows_native_target_health_reader(health_profile)
+                open_windows_native_target_health_reader(
+                    health_profile,
+                    process_id=process_id,
+                )
             )
             player_vitals_reader = stack.enter_context(
-                open_windows_native_player_vitals_reader(vitals_profile)
+                open_windows_native_player_vitals_reader(
+                    vitals_profile,
+                    process_id=process_id,
+                )
             )
             player_position_reader = stack.enter_context(
-                open_windows_native_player_position_reader(position_profile)
+                open_windows_native_player_position_reader(
+                    position_profile,
+                    process_id=process_id,
+                )
             )
             target_position_reader = stack.enter_context(
-                open_windows_native_target_position_reader(target_position_profile)
+                open_windows_native_target_position_reader(
+                    target_position_profile,
+                    process_id=process_id,
+                )
             )
             stop_signal = stack.enter_context(WindowsHotkeyEmergencyStop())
             reader_process_ids = {
@@ -1502,7 +1520,6 @@ def _run_pve(
             }
             if len(reader_process_ids) != 1:
                 raise ValueError("native PvE readers resolved different client processes")
-            process_id = health_reader.process_id
             executor = GuardedInputExecutor(
                 guard=guard,
                 backend=PyAutoGuiBackend(),

@@ -8,7 +8,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from shadowbane_lab.cli import _run_travel, main
+from shadowbane_lab.cli import _run_pve, _run_travel, main
 from shadowbane_lab.client_input import (
     EventEmergencyStop,
     RecordingInputBackend,
@@ -19,7 +19,7 @@ from shadowbane_lab.client_input import (
     load_calibration,
 )
 from shadowbane_lab.client_observation import NativePlayerPositionObservation
-from shadowbane_lab.pve import PvEIntent
+from shadowbane_lab.pve import PvEIntent, PvEPhase
 from shadowbane_lab.travel import TravelPhase
 from tests.test_client_input_executor import _valid_snapshot
 
@@ -298,6 +298,115 @@ class ClientCliTests(unittest.TestCase):
         self.assertEqual(0, result)
         open_position.assert_called_once_with(position_profile, process_id=4320)
         open_vitals.assert_called_once_with(vitals_profile, process_id=4320)
+
+    def test_pve_binds_every_native_reader_to_the_guarded_client_process(self) -> None:
+        template = Path(__file__).parents[1] / "configs" / "wonderbane-pve.template.json"
+        profile = replace(load_calibration(template), live_input_enabled=True)
+        snapshot = WindowSnapshot(
+            executable_name=profile.target.executable_names[0],
+            title="Shadowbane",
+            client_bounds=WindowBounds(
+                left=0,
+                top=0,
+                width=profile.target.reference_width,
+                height=profile.target.reference_height,
+            ),
+            dpi_scale=profile.target.dpi_scale,
+            is_foreground=True,
+            is_visible=True,
+            process_id=4320,
+        )
+        native_profiles = tuple(
+            SimpleNamespace(executable_sha256="ab" * 32, profile_id=f"profile-{index}")
+            for index in range(4)
+        )
+        readers = tuple(MagicMock() for _ in range(4))
+        for reader in readers:
+            reader.process_id = 4320
+            reader.__enter__.return_value = reader
+        completed_run = SimpleNamespace(
+            final_phase=PvEPhase.COMPLETE,
+            terminal_reason="kill_limit_reached",
+            kills=1,
+            trace=(),
+        )
+        output = io.StringIO()
+        with tempfile.TemporaryDirectory() as directory:
+            combat_log = Path(directory) / "combat.log"
+            combat_log.write_text("", encoding="cp1252")
+            with (
+                patch("shadowbane_lab.cli.load_calibration", return_value=profile),
+                patch(
+                    "shadowbane_lab.cli.WindowsForegroundWindowInspector",
+                    return_value=StaticWindowInspector(snapshot),
+                ),
+                patch(
+                    "shadowbane_lab.cli.load_bundled_native_health_profile",
+                    return_value=native_profiles[0],
+                ),
+                patch(
+                    "shadowbane_lab.cli.load_bundled_native_vitals_profile",
+                    return_value=native_profiles[1],
+                ),
+                patch(
+                    "shadowbane_lab.cli.load_bundled_native_position_profile",
+                    return_value=native_profiles[2],
+                ),
+                patch(
+                    "shadowbane_lab.cli.load_bundled_native_target_position_profile",
+                    return_value=native_profiles[3],
+                ),
+                patch(
+                    "shadowbane_lab.cli.open_windows_native_target_health_reader",
+                    return_value=readers[0],
+                ) as open_health,
+                patch(
+                    "shadowbane_lab.cli.open_windows_native_player_vitals_reader",
+                    return_value=readers[1],
+                ) as open_vitals,
+                patch(
+                    "shadowbane_lab.cli.open_windows_native_player_position_reader",
+                    return_value=readers[2],
+                ) as open_position,
+                patch(
+                    "shadowbane_lab.cli.open_windows_native_target_position_reader",
+                    return_value=readers[3],
+                ) as open_target_position,
+                patch("shadowbane_lab.cli.WindowsHotkeyEmergencyStop") as emergency_stop,
+                patch(
+                    "shadowbane_lab.cli.PyAutoGuiBackend",
+                    return_value=RecordingInputBackend(),
+                ),
+                patch("shadowbane_lab.cli.PvERunner") as pve_runner,
+                redirect_stdout(output),
+            ):
+                emergency_stop.return_value.__enter__.return_value = EventEmergencyStop()
+                pve_runner.return_value.run.return_value = completed_run
+                result = _run_pve(
+                    client_profile_path=template,
+                    combat_log_path=combat_log,
+                    hotbar_config_path=None,
+                    native_health_profile_path=None,
+                    native_vitals_profile_path=None,
+                    native_position_profile_path=None,
+                    native_target_position_profile_path=None,
+                    max_kills=1,
+                    max_seconds=30,
+                    wait_for_client_seconds=0,
+                    poll_ms=100,
+                    policy="basic",
+                    live=True,
+                    as_json=True,
+                )
+
+        self.assertEqual(0, result)
+        open_health.assert_called_once_with(native_profiles[0], process_id=4320)
+        open_vitals.assert_called_once_with(native_profiles[1], process_id=4320)
+        open_position.assert_called_once_with(native_profiles[2], process_id=4320)
+        open_target_position.assert_called_once_with(
+            native_profiles[3],
+            process_id=4320,
+        )
 
     def test_proc_assassin_policy_fails_before_input_without_shadow_touch_mapping(self) -> None:
         template = Path(__file__).parents[1] / "configs" / "wonderbane-pve.template.json"

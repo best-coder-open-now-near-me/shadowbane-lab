@@ -430,8 +430,17 @@ class NativeTargetPositionReader:
 
 def open_windows_native_target_position_reader(
     profile: NativeTargetPositionProfile,
+    *,
+    process_id: int | None = None,
 ) -> NativeTargetPositionReader:
-    process = WindowsReadOnlyProcessMemory.open_unique(profile.executable_name)
+    process = (
+        WindowsReadOnlyProcessMemory.open_unique(profile.executable_name)
+        if process_id is None
+        else WindowsReadOnlyProcessMemory.open_for_process(
+            profile.executable_name,
+            process_id,
+        )
+    )
     try:
         return NativeTargetPositionReader(profile, process)
     except Exception:

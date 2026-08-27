@@ -489,8 +489,17 @@ class WindowsReadOnlyProcessMemory:
 
 def open_windows_native_target_health_reader(
     profile: NativeTargetHealthProfile,
+    *,
+    process_id: int | None = None,
 ) -> NativeTargetHealthReader:
-    process = WindowsReadOnlyProcessMemory.open_unique(profile.executable_name)
+    process = (
+        WindowsReadOnlyProcessMemory.open_unique(profile.executable_name)
+        if process_id is None
+        else WindowsReadOnlyProcessMemory.open_for_process(
+            profile.executable_name,
+            process_id,
+        )
+    )
     try:
         return NativeTargetHealthReader(profile, process)
     except Exception:
