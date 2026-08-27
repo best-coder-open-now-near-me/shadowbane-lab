@@ -1,4 +1,4 @@
-"""Foreground-scoped keyboard bridge for local ``/go`` chat commands."""
+"""Foreground-scoped keyboard bridge for local travel chat commands."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ class GoChatCommandUpdate:
 
 
 class GoChatCommandAssembler:
-    """Retain only a possible ``/go`` line between chat-open and submit events."""
+    """Retain only a possible ``/go`` or ``/stop`` line until submission."""
 
     def __init__(self, *, maximum_length: int = 128) -> None:
         if isinstance(maximum_length, bool) or not isinstance(maximum_length, int):
@@ -44,7 +44,9 @@ class GoChatCommandAssembler:
             self._candidate = ""
             return GoChatCommandUpdate(interaction_started=True)
 
-        command = self._candidate if self._is_complete_go_command(self._candidate) else None
+        command = (
+            self._candidate if self._is_complete_travel_command(self._candidate) else None
+        )
         self.reset()
         return GoChatCommandUpdate(submitted_command=command)
 
@@ -61,7 +63,10 @@ class GoChatCommandAssembler:
 
         if self._candidate is not None:
             candidate = self._candidate + character
-            if len(candidate) > self._maximum_length or not self._could_be_go_command(candidate):
+            if (
+                len(candidate) > self._maximum_length
+                or not self._could_be_travel_command(candidate)
+            ):
                 self._candidate = None
             else:
                 self._candidate = candidate
@@ -81,32 +86,46 @@ class GoChatCommandAssembler:
         self._candidate = None
 
     @staticmethod
-    def _could_be_go_command(candidate: str) -> bool:
+    def _could_be_travel_command(candidate: str) -> bool:
         normalized = candidate.casefold()
-        if len(normalized) <= len("/go"):
-            return "/go".startswith(normalized)
-        return normalized.startswith("/go ")
+        if "/go".startswith(normalized) or "/stop".startswith(normalized):
+            return True
+        if normalized.startswith("/go "):
+            return True
+        if normalized.startswith("/stop"):
+            return not normalized.removeprefix("/stop").strip()
+        return False
 
     @staticmethod
-    def _is_complete_go_command(candidate: str | None) -> bool:
+    def _is_complete_travel_command(candidate: str | None) -> bool:
         if candidate is None:
             return False
         normalized = candidate.casefold()
-        return normalized == "/go" or normalized.startswith("/go ")
+        return (
+            normalized == "/go"
+            or normalized.startswith("/go ")
+            or normalized.rstrip() == "/stop"
+        )
 
 
 class WindowsGoChatCommandListener:
     """Observe keyboard events only while the calibrated game owns foreground focus.
 
-    The hook never suppresses or injects input. It keeps at most one possible ``/go``
-    command and immediately forgets ordinary chat or any other slash-command prefix.
+    The hook never suppresses or injects input. It keeps at most one possible ``/go`` or
+    ``/stop`` command and immediately forgets ordinary chat and unrelated commands.
     """
 
     _WH_KEYBOARD_LL = 13
+    _WH_MOUSE_LL = 14
     _WM_KEYDOWN = 0x0100
     _WM_SYSKEYDOWN = 0x0104
+    _WM_LBUTTONDOWN = 0x0201
+    _WM_RBUTTONDOWN = 0x0204
+    _WM_MBUTTONDOWN = 0x0207
+    _WM_XBUTTONDOWN = 0x020B
     _WM_QUIT = 0x0012
     _LLKHF_INJECTED = 0x10
+    _LLMHF_INJECTED = 0x01
     _ERROR_ALREADY_EXISTS = 183
     _MUTEX_NAME = "Local\\ShadowbaneLabGoChatCommandListener"
 
@@ -205,6 +224,15 @@ class WindowsGoChatCommandListener:
                 ("extra_info", ctypes.c_size_t),
             )
 
+        class MouseEvent(ctypes.Structure):
+            _fields_ = (
+                ("point", wintypes.POINT),
+                ("mouse_data", wintypes.DWORD),
+                ("flags", wintypes.DWORD),
+                ("time", wintypes.DWORD),
+                ("extra_info", ctypes.c_size_t),
+            )
+
         user32 = ctypes.WinDLL("user32", use_last_error=True)
         kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
         callback_type = ctypes.WINFUNCTYPE(
@@ -234,10 +262,11 @@ class WindowsGoChatCommandListener:
         kernel32.GetCurrentThreadId.restype = wintypes.DWORD
         kernel32.GetModuleHandleW.restype = wintypes.HMODULE
 
-        hook: int | None = None
+        keyboard_hook: int | None = None
+        mouse_hook: int | None = None
 
         @callback_type
-        def callback(code: int, message: int, event_pointer: int) -> int:
+        def keyboard_callback(code: int, message: int, event_pointer: int) -> int:
             if code >= 0 and message in (self._WM_KEYDOWN, self._WM_SYSKEYDOWN):
                 event = ctypes.cast(
                     event_pointer,
@@ -253,14 +282,60 @@ class WindowsGoChatCommandListener:
                         )
                     except Exception:
                         self._assembler.reset()
-            return int(user32.CallNextHookEx(hook, code, message, event_pointer))
+            return int(
+                user32.CallNextHookEx(
+                    keyboard_hook,
+                    code,
+                    message,
+                    event_pointer,
+                )
+            )
+
+        @callback_type
+        def mouse_callback(code: int, message: int, event_pointer: int) -> int:
+            if code >= 0 and message in (
+                self._WM_LBUTTONDOWN,
+                self._WM_RBUTTONDOWN,
+                self._WM_MBUTTONDOWN,
+                self._WM_XBUTTONDOWN,
+            ):
+                event = ctypes.cast(
+                    event_pointer,
+                    ctypes.POINTER(MouseEvent),
+                ).contents
+                if not event.flags & self._LLMHF_INJECTED:
+                    try:
+                        self._handle_pointer_interaction()
+                    except Exception:
+                        self._assembler.reset()
+            return int(
+                user32.CallNextHookEx(
+                    mouse_hook,
+                    code,
+                    message,
+                    event_pointer,
+                )
+            )
 
         try:
             self._thread_id = int(kernel32.GetCurrentThreadId())
             module = kernel32.GetModuleHandleW(None)
-            hook = user32.SetWindowsHookExW(self._WH_KEYBOARD_LL, callback, module, 0)
-            if not hook:
-                raise OSError(ctypes.get_last_error(), "SetWindowsHookExW failed")
+            keyboard_hook = user32.SetWindowsHookExW(
+                self._WH_KEYBOARD_LL,
+                keyboard_callback,
+                module,
+                0,
+            )
+            if not keyboard_hook:
+                raise OSError(ctypes.get_last_error(), "keyboard SetWindowsHookExW failed")
+            mouse_hook = user32.SetWindowsHookExW(
+                self._WH_MOUSE_LL,
+                mouse_callback,
+                module,
+                0,
+            )
+            if not mouse_hook:
+                raise OSError(ctypes.get_last_error(), "mouse SetWindowsHookExW failed")
             self._ready.set()
             message = wintypes.MSG()
             while not self._closed.is_set():
@@ -273,8 +348,10 @@ class WindowsGoChatCommandListener:
             self._startup_error = exc
             self._ready.set()
         finally:
-            if hook:
-                user32.UnhookWindowsHookEx(hook)
+            if mouse_hook:
+                user32.UnhookWindowsHookEx(mouse_hook)
+            if keyboard_hook:
+                user32.UnhookWindowsHookEx(keyboard_hook)
 
     def _acquire_single_instance(self) -> None:
         import ctypes
@@ -337,6 +414,16 @@ class WindowsGoChatCommandListener:
             self._on_interaction()
         if update.submitted_command is not None:
             self._on_command(update.submitted_command)
+
+    def _handle_pointer_interaction(self) -> None:
+        try:
+            self._guard.require_target()
+        except WindowGuardError:
+            self._assembler.reset()
+            return
+        self._assembler.reset()
+        if self._on_interaction is not None:
+            self._on_interaction()
 
     @classmethod
     def _character_for(cls, virtual_key: int, *, shift_down: bool) -> str | None:

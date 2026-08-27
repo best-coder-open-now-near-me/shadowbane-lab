@@ -1,7 +1,14 @@
 import unittest
 
-from shadowbane_lab.client_input import AnyStopSignal, EventEmergencyStop
+from shadowbane_lab.client_input import (
+    AnyStopSignal,
+    EventEmergencyStop,
+    ForegroundWindowGuard,
+    StaticWindowInspector,
+)
 from shadowbane_lab.travel import GoChatCommandAssembler, WindowsGoChatCommandListener
+from tests.test_client_input_compiler import _load_profile
+from tests.test_client_input_executor import _valid_snapshot
 
 
 class GoChatCommandAssemblerTests(unittest.TestCase):
@@ -27,6 +34,23 @@ class GoChatCommandAssemblerTests(unittest.TestCase):
 
         self.assertTrue(started.interaction_started)
         self.assertEqual("/go", submitted.submitted_command)
+
+    def test_submits_stop_command_and_allows_trailing_spaces(self) -> None:
+        assembler = GoChatCommandAssembler()
+        assembler.handle_enter()
+        for character in "/stop  ":
+            assembler.handle_character(character)
+
+        self.assertEqual("/stop  ", assembler.handle_enter().submitted_command)
+
+    def test_discards_stop_command_with_arguments(self) -> None:
+        assembler = GoChatCommandAssembler()
+        assembler.handle_enter()
+        for character in "/stop now":
+            assembler.handle_character(character)
+
+        self.assertIsNone(assembler.retained_text)
+        self.assertIsNone(assembler.handle_enter().submitted_command)
 
     def test_discards_ordinary_chat_and_other_slash_commands(self) -> None:
         assembler = GoChatCommandAssembler()
@@ -77,6 +101,21 @@ class GoChatCommandAssemblerTests(unittest.TestCase):
         self.assertEqual("=", mapped(0xBB, shift_down=False))
         self.assertEqual("!", mapped(0x31, shift_down=True))
         self.assertEqual("_", mapped(0xBD, shift_down=True))
+
+    def test_foreground_physical_pointer_interaction_revokes_active_route(self) -> None:
+        interactions: list[str] = []
+        listener = WindowsGoChatCommandListener(
+            ForegroundWindowGuard(_load_profile(), StaticWindowInspector(_valid_snapshot())),
+            on_command=lambda _: None,
+            on_interaction=lambda: interactions.append("cancel"),
+        )
+        listener._assembler.handle_enter()
+        listener._assembler.handle_character("/")
+
+        listener._handle_pointer_interaction()
+
+        self.assertEqual(["cancel"], interactions)
+        self.assertFalse(listener._assembler.line_active)
 
 
 class AnyStopSignalTests(unittest.TestCase):

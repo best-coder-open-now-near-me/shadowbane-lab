@@ -1730,6 +1730,15 @@ def _listen_for_go_commands(
                 on_interaction=cancel_active_route,
             ),
         ):
+            stop_adapter = ClientInputAdapter(
+                DecisionInputCompiler(client_profile, StaticBindingPointResolver()),
+                GuardedInputExecutor(
+                    guard=guard,
+                    backend=PyAutoGuiBackend(),
+                    stop_signal=service_stop,
+                ),
+            )
+            stop_sequence = 0
             _print_go_listener_event("listening", as_json=as_json)
             while not service_stop.is_set():
                 try:
@@ -1738,6 +1747,17 @@ def _listen_for_go_commands(
                     continue
 
                 normalized = command.strip().casefold()
+                if normalized == "/stop":
+                    stop_sequence += 1
+                    result = stop_adapter.dispatch_movement_stop(
+                        correlation_id=f"travel:chat-stop:{stop_sequence}"
+                    )
+                    _print_go_stop_result(
+                        accepted=result.accepted,
+                        reason=result.reason,
+                        as_json=as_json,
+                    )
+                    continue
                 if normalized == "/go":
                     lt = None
                     lg = None
@@ -1812,13 +1832,32 @@ def _print_go_listener_event(
         print(json.dumps(payload, sort_keys=True), flush=True)
         return
     if event == "listening":
-        print("Listening for foreground Shadowbane /go commands.", flush=True)
+        print("Listening for foreground Shadowbane travel commands (/go, /stop).", flush=True)
     elif event == "stopped":
-        print("Stopped listening for Shadowbane /go commands.", flush=True)
+        print("Stopped listening for Shadowbane travel commands.", flush=True)
     elif event == "accepted":
         print(f"Accepted chat command: {command}", flush=True)
     else:
         print(f"Rejected chat command {command!r}: {reason}", file=sys.stderr, flush=True)
+
+
+def _print_go_stop_result(
+    *,
+    accepted: bool,
+    reason: str | None,
+    as_json: bool,
+) -> None:
+    event = "movement_stopped" if accepted else "movement_stop_rejected"
+    if as_json:
+        payload = {"ok": accepted, "event": event}
+        if reason is not None:
+            payload["reason"] = reason
+        print(json.dumps(payload, sort_keys=True), flush=True)
+        return
+    if accepted:
+        print("Stopped Shadowbane click-to-move.", flush=True)
+    else:
+        print(f"Could not stop Shadowbane movement: {reason}", file=sys.stderr, flush=True)
 
 
 def _verify_hotbar_power_mapping(

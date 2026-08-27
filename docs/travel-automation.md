@@ -24,11 +24,16 @@ Stop that background listener by resolving and validating its recorded process i
 powershell.exe -NoProfile -File \\VBOXSVR\codexrepo\scripts\stop-wonderbane-go-listener.ps1
 ```
 
-While that process is running, enter `/go LT LG` in Shadowbane's chat command line. The
-listener observes keyboard events only while the calibrated `sb.exe` window owns foreground
+While that process is running, enter `/go LT LG` in Shadowbane's chat command line. Enter
+`/stop` to cancel the active route and immediately clear Shadowbane's last click-to-move
+destination through the same guarded minimap-center input path. The listener observes
+keyboard events only while the calibrated `sb.exe` window owns foreground
 focus, never suppresses the game's input, and retains only text that is still a possible
-`/go` command. Opening chat cancels the bridge's active route before more travel clicks are
-issued. Ordinary chat and all other slash-command prefixes are discarded immediately.
+`/go` or `/stop` command. Opening chat cancels the bridge's active route before more travel
+clicks are issued. A physical foreground mouse-button press also cancels the route, while
+the listener ignores mouse input injected by the guarded travel actuator. This lets a manual
+click take ownership without the controller overwriting it at the next interval. Ordinary
+chat and all other slash-command prefixes are discarded immediately.
 
 The one-shot CLI equivalent is:
 
