@@ -6,6 +6,7 @@ import ctypes
 import hashlib
 import json
 import os
+import re
 import struct
 from collections.abc import Mapping
 from ctypes import wintypes
@@ -22,12 +23,18 @@ _ERROR_NO_MORE_FILES = 18
 _INVALID_HANDLE_VALUE = ctypes.c_void_p(-1).value
 _MAX_PATH = 260
 _MAX_MODULE_NAME32 = 255
+_MAXIMUM_SCAN_ADDRESS = 0x7FFF0000
+_MAXIMUM_BLOCK_READ = 1024 * 1024
+_MEM_COMMIT = 0x1000
+_PAGE_GUARD = 0x100
+_PAGE_NOACCESS = 0x01
 _PROCESS_QUERY_INFORMATION = 0x0400
 _PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 _PROCESS_VM_READ = 0x0010
 _TH32CS_SNAPPROCESS = 0x00000002
 _TH32CS_SNAPMODULE = 0x00000008
 _TH32CS_SNAPMODULE32 = 0x00000010
+_SCAN_CHUNK_SIZE = 256 * 1024
 
 
 class NativeTargetHealthError(RuntimeError):
@@ -156,6 +163,20 @@ class ReadOnlyProcessMemory(Protocol):
     def read(self, address: int, size: int) -> bytes: ...
 
     def close(self) -> None: ...
+
+
+@dataclass(frozen=True, slots=True)
+class NativeMemoryRegion:
+    """One committed virtual-memory region exposed by the read-only backend."""
+
+    base_address: int
+    size: int
+    protection: int
+    memory_type: int
+
+    def __post_init__(self) -> None:
+        if self.base_address < 0 or self.size <= 0:
+            raise ValueError("native memory region bounds are invalid")
 
 
 class NativeTargetHealthReader:
@@ -344,6 +365,19 @@ class _ModuleEntry32W(ctypes.Structure):
     )
 
 
+class _MemoryBasicInformation(ctypes.Structure):
+    _fields_ = (
+        ("BaseAddress", ctypes.c_void_p),
+        ("AllocationBase", ctypes.c_void_p),
+        ("AllocationProtect", wintypes.DWORD),
+        ("PartitionId", wintypes.WORD),
+        ("RegionSize", ctypes.c_size_t),
+        ("State", wintypes.DWORD),
+        ("Protect", wintypes.DWORD),
+        ("Type", wintypes.DWORD),
+    )
+
+
 class _WindowsApi:
     def __init__(self) -> None:
         if os.name != "nt":
@@ -376,6 +410,13 @@ class _WindowsApi:
             ctypes.POINTER(ctypes.c_size_t),
         )
         self.kernel32.ReadProcessMemory.restype = wintypes.BOOL
+        self.kernel32.VirtualQueryEx.argtypes = (
+            wintypes.HANDLE,
+            ctypes.c_void_p,
+            ctypes.POINTER(_MemoryBasicInformation),
+            ctypes.c_size_t,
+        )
+        self.kernel32.VirtualQueryEx.restype = ctypes.c_size_t
         self.kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
         self.kernel32.CloseHandle.restype = wintypes.BOOL
 
@@ -461,12 +502,26 @@ class WindowsReadOnlyProcessMemory:
         )
 
     def read(self, address: int, size: int) -> bytes:
+        if isinstance(size, bool) or not isinstance(size, int) or size <= 0 or size > 64:
+            raise NativeTargetHealthReadError("bounded native reads must contain 1 to 64 bytes")
+        return self.read_block(address, size)
+
+    def read_block(self, address: int, size: int) -> bytes:
+        """Read one exact, explicitly bounded block without acquiring write rights."""
+
         if not self._handle:
             raise NativeTargetHealthReadError("native process handle is closed")
         if isinstance(address, bool) or not isinstance(address, int) or address <= 0:
             raise NativeTargetHealthReadError("read address must be a positive integer")
-        if isinstance(size, bool) or not isinstance(size, int) or size <= 0 or size > 64:
-            raise NativeTargetHealthReadError("bounded native reads must contain 1 to 64 bytes")
+        if (
+            isinstance(size, bool)
+            or not isinstance(size, int)
+            or size <= 0
+            or size > _MAXIMUM_BLOCK_READ
+        ):
+            raise NativeTargetHealthReadError(
+                f"native block reads must contain 1 to {_MAXIMUM_BLOCK_READ} bytes"
+            )
         buffer = (ctypes.c_ubyte * size)()
         bytes_read = ctypes.c_size_t()
         if not self._api.kernel32.ReadProcessMemory(
@@ -481,10 +536,238 @@ class WindowsReadOnlyProcessMemory:
             raise NativeTargetHealthReadError("ReadProcessMemory returned a partial value")
         return bytes(buffer)
 
+    def query_region(self, address: int) -> NativeMemoryRegion:
+        """Return the virtual-memory region containing an address."""
+
+        if not self._handle:
+            raise NativeTargetHealthReadError("native process handle is closed")
+        if isinstance(address, bool) or not isinstance(address, int) or address < 0:
+            raise NativeTargetHealthReadError("query address must be a non-negative integer")
+        info = _MemoryBasicInformation()
+        queried = self._api.kernel32.VirtualQueryEx(
+            self._handle,
+            ctypes.c_void_p(address),
+            ctypes.byref(info),
+            ctypes.sizeof(info),
+        )
+        if not queried:
+            raise NativeTargetHealthReadError(_windows_error("VirtualQueryEx failed"))
+        if info.State != _MEM_COMMIT:
+            raise NativeTargetHealthReadError("native query did not resolve committed memory")
+        return NativeMemoryRegion(
+            base_address=cast(int, info.BaseAddress or 0),
+            size=int(info.RegionSize),
+            protection=int(info.Protect),
+            memory_type=int(info.Type),
+        )
+
+    def find_all(
+        self,
+        needles: tuple[bytes, ...],
+        *,
+        memory_type: int | None = None,
+        protection: int | None = None,
+        maximum_results_per_needle: int = 20_000,
+        maximum_address: int | None = None,
+    ) -> Mapping[bytes, tuple[int, ...]]:
+        """Find exact byte sequences in selected committed regions without mutation."""
+
+        if not self._handle:
+            raise NativeTargetHealthReadError("native process handle is closed")
+        if not needles or any(not isinstance(needle, bytes) or not needle for needle in needles):
+            raise NativeTargetHealthReadError("scan needles must be non-empty bytes")
+        if len(set(needles)) != len(needles):
+            raise NativeTargetHealthReadError("scan needles must be unique")
+        if (
+            isinstance(maximum_results_per_needle, bool)
+            or not isinstance(maximum_results_per_needle, int)
+            or maximum_results_per_needle <= 0
+        ):
+            raise NativeTargetHealthReadError("scan result limit must be positive")
+        scan_limit = _scan_limit(maximum_address)
+
+        hits: dict[bytes, list[int]] = {needle: [] for needle in needles}
+        maximum_overlap = max(len(needle) for needle in needles) - 1
+        address = 0
+        while address < scan_limit:
+            info = _MemoryBasicInformation()
+            queried = self._api.kernel32.VirtualQueryEx(
+                self._handle,
+                ctypes.c_void_p(address),
+                ctypes.byref(info),
+                ctypes.sizeof(info),
+            )
+            if not queried:
+                break
+            base = cast(int, info.BaseAddress or 0)
+            region_size = int(info.RegionSize)
+            eligible = (
+                info.State == _MEM_COMMIT
+                and not info.Protect & _PAGE_GUARD
+                and not info.Protect & _PAGE_NOACCESS
+                and (memory_type is None or info.Type == memory_type)
+                and (protection is None or info.Protect == protection)
+            )
+            if eligible:
+                offset = 0
+                scan_size = min(region_size, scan_limit - base)
+                previous = b""
+                while offset < scan_size:
+                    chunk_size = min(_SCAN_CHUNK_SIZE, scan_size - offset)
+                    try:
+                        payload = self.read_block(base + offset, chunk_size)
+                    except NativeTargetHealthReadError:
+                        previous = b""
+                        offset += chunk_size
+                        continue
+                    combined = previous + payload
+                    combined_base = base + offset - len(previous)
+                    for needle in needles:
+                        start = 0
+                        while True:
+                            index = combined.find(needle, start)
+                            if index < 0:
+                                break
+                            absolute = combined_base + index
+                            target_hits = hits[needle]
+                            if not target_hits or target_hits[-1] != absolute:
+                                target_hits.append(absolute)
+                                if len(target_hits) > maximum_results_per_needle:
+                                    raise NativeTargetHealthReadError(
+                                        "native scan result limit was exceeded"
+                                    )
+                            start = index + 1
+                    previous = combined[-maximum_overlap:] if maximum_overlap else b""
+                    offset += chunk_size
+            next_address = base + max(region_size, 0x1000)
+            if next_address <= address:
+                break
+            address = next_address
+        return {needle: tuple(addresses) for needle, addresses in hits.items()}
+
+    def find_pointer_values_near(
+        self,
+        targets: tuple[int, ...],
+        *,
+        maximum_offset: int,
+        memory_type: int | None = None,
+        protection: int | None = None,
+        maximum_results_per_target: int = 1_000,
+        maximum_address: int | None = None,
+    ) -> Mapping[int, tuple[tuple[int, int], ...]]:
+        """Find 32-bit pointers at or shortly before calibrated member addresses."""
+
+        if not self._handle:
+            raise NativeTargetHealthReadError("native process handle is closed")
+        if not targets or any(
+            isinstance(target, bool) or not isinstance(target, int) or target <= 0
+            for target in targets
+        ):
+            raise NativeTargetHealthReadError("pointer scan targets must be positive integers")
+        if len(set(targets)) != len(targets):
+            raise NativeTargetHealthReadError("pointer scan targets must be unique")
+        if (
+            isinstance(maximum_offset, bool)
+            or not isinstance(maximum_offset, int)
+            or maximum_offset < 0
+            or maximum_offset > 0x10000
+        ):
+            raise NativeTargetHealthReadError(
+                "pointer scan maximum_offset must be in [0, 65536]"
+            )
+        if (
+            isinstance(maximum_results_per_target, bool)
+            or not isinstance(maximum_results_per_target, int)
+            or maximum_results_per_target <= 0
+        ):
+            raise NativeTargetHealthReadError("pointer scan result limit must be positive")
+        scan_limit = _scan_limit(maximum_address)
+
+        pages: set[int] = set()
+        for target in targets:
+            lower = max(0, target - maximum_offset)
+            page = lower & ~0xFF
+            final_page = target & ~0xFF
+            while page <= final_page:
+                pages.add(page)
+                page += 0x100
+        branches = [b"." + re.escape(struct.pack("<I", page)[1:]) for page in sorted(pages)]
+        pattern = re.compile(b"(?:" + b"|".join(branches) + b")", re.DOTALL)
+        hits: dict[int, list[tuple[int, int]]] = {target: [] for target in targets}
+        address = 0
+        while address < scan_limit:
+            info = _MemoryBasicInformation()
+            queried = self._api.kernel32.VirtualQueryEx(
+                self._handle,
+                ctypes.c_void_p(address),
+                ctypes.byref(info),
+                ctypes.sizeof(info),
+            )
+            if not queried:
+                break
+            base = cast(int, info.BaseAddress or 0)
+            region_size = int(info.RegionSize)
+            eligible = (
+                info.State == _MEM_COMMIT
+                and not info.Protect & _PAGE_GUARD
+                and not info.Protect & _PAGE_NOACCESS
+                and (memory_type is None or info.Type == memory_type)
+                and (protection is None or info.Protect == protection)
+            )
+            if eligible:
+                offset = 0
+                scan_size = min(region_size, scan_limit - base)
+                previous = b""
+                while offset < scan_size:
+                    chunk_size = min(_SCAN_CHUNK_SIZE, scan_size - offset)
+                    try:
+                        payload = self.read_block(base + offset, chunk_size)
+                    except NativeTargetHealthReadError:
+                        previous = b""
+                        offset += chunk_size
+                        continue
+                    combined = previous + payload
+                    combined_base = base + offset - len(previous)
+                    for match in pattern.finditer(combined):
+                        reference = combined_base + match.start()
+                        value = struct.unpack("<I", match.group())[0]
+                        for target in targets:
+                            if not target - maximum_offset <= value <= target:
+                                continue
+                            target_hits = hits[target]
+                            item = (reference, value)
+                            if not target_hits or target_hits[-1] != item:
+                                target_hits.append(item)
+                                if len(target_hits) > maximum_results_per_target:
+                                    raise NativeTargetHealthReadError(
+                                        "native pointer scan result limit was exceeded"
+                                    )
+                    previous = combined[-3:]
+                    offset += chunk_size
+            next_address = base + max(region_size, 0x1000)
+            if next_address <= address:
+                break
+            address = next_address
+        return {target: tuple(addresses) for target, addresses in hits.items()}
+
     def close(self) -> None:
         if self._handle:
             self._api.kernel32.CloseHandle(self._handle)
             self._handle = None
+
+
+def _scan_limit(maximum_address: int | None) -> int:
+    if maximum_address is None:
+        return _MAXIMUM_SCAN_ADDRESS
+    if (
+        isinstance(maximum_address, bool)
+        or not isinstance(maximum_address, int)
+        or not 0x10000 <= maximum_address <= _MAXIMUM_SCAN_ADDRESS
+    ):
+        raise NativeTargetHealthReadError(
+            f"scan maximum_address must be in [65536, {_MAXIMUM_SCAN_ADDRESS}]"
+        )
+    return maximum_address
 
 
 def open_windows_native_target_health_reader(
