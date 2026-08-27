@@ -44,6 +44,7 @@ from shadowbane_lab.pve.runtime import (
     PvERunner,
     TargetActionSource,
     TargetHealthSource,
+    TargetIdentitySource,
     TargetPositionSource,
 )
 
@@ -76,6 +77,7 @@ __all__ = [
     "PvERunner",
     "TargetActionSource",
     "TargetHealthSource",
+    "TargetIdentitySource",
     "TargetPositionSource",
     "compile_pve_combat_calibration",
     "compile_pve_combat_calibration_files",

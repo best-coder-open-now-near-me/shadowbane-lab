@@ -3,7 +3,8 @@
 The live PvE slice repeatedly acquires nearby mobiles, attacks only a newly confirmed living
 target, waits for bounded resource recovery after each kill, and stops at explicit kill,
 encounter, recovery, or session limits. It consumes exact player vitals and position,
-selected-target health, position, and action state. Native message events are optional evidence;
+selected-target health, position, action state, and native service-role identity. Native message
+events are optional evidence;
 the persistent in-game command does not depend on a populated message HUD.
 
 ## Control loop
@@ -14,6 +15,11 @@ attack only after observing a different, valid target token. A kill must be conf
 typed native `TARGET_KILLED` event or exact selected-target health reaching zero before it
 counts or another target can be acquired. A zero-health acquisition candidate is treated as a
 corpse and is never attacked.
+
+Every living candidate is also checked against the client-native `shopkeeper`, `banker`,
+`isTrainer`, and `isMinion` sparse flags. Protected characters participate in target-cycle
+accounting so the nearest-target scan can finish, but they are never admitted to the attack
+candidate set. A missing or incoherent identity snapshot withholds engagement.
 
 The live profile maps semantic operations to the installed client's captured native
 preferences:
@@ -87,7 +93,7 @@ The run stops without issuing more input when any of these conditions occurs:
 - the foreground executable, title, window size, or DPI guard changes;
 - the independent `Ctrl+Shift+F12` emergency stop trips;
 - native process identity or executable hash validation fails;
-- three consecutive native observation polls fail pointer, health, action, or resource validation;
+- three consecutive native observation polls fail pointer, health, identity, action, or resource validation;
 - exact player health reaches the 50-percent safety threshold;
 - the selected target changes while an engagement is active;
 - the native message HUD reports player death or multiple ambiguous kills;
@@ -105,8 +111,8 @@ movement input or cycles indefinitely.
 
 A single torn native observation is not treated as a trustworthy state change. The runner
 withholds all input while retrying up to three consecutive polls and resets that count only
-after a complete target, player-vitals, player-position, target-position, and combat-log
-observation succeeds. During engagement, health, position, and action must resolve the same
+after a complete target, target-identity, player-vitals, player-position, target-position, and
+combat-log observation succeeds. During engagement, health, identity, position, and action must resolve the same
 opaque target token. A third
 failure stops the run and records the concrete reader error in the terminal reason.
 
@@ -151,7 +157,8 @@ powershell.exe -NoProfile -File \\VBOXSVR\codexrepo\scripts\start-wonderbane-go-
 With Shadowbane focused, submit `/pve` in game chat. The launcher configures that command for
 three kills, a 300-second session, a 120-second per-target bound, and the verified current
 Shadow Touch hotbar mapping. It uses the native-state combat source, so exact selected-target
-health confirms kills while target action state drives interrupts. Submit `/stop`, open chat,
+health confirms kills, target identity excludes protected characters, and target action state
+drives interrupts. Submit `/stop`, open chat,
 click a mouse button, or press
 `Ctrl+Shift+F12` to cancel it. `/stop` keeps the background listener alive for another `/pve`;
 the emergency hotkey shuts down the listener itself. Each `/pve` run writes a unique
@@ -239,7 +246,8 @@ finite, and `0 <= current <= maximum`. This admits legitimate multi-million-HP t
 weakening pointer or coherence validation.
 
 The versioned JSON result includes native build/profile provenance, the active terrain seed, and a sample-by-sample
-trace: player health/mana/stamina and LT/LG/altitude, target identity/health/position, planar
+trace: player health/mana/stamina and LT/LG/altitude, target native role flags, opaque identity,
+health/position, planar
 and three-dimensional target range, native action phase/motion/impact/target-of-target state,
 typed native combat events, controller phase, and guarded
 input outcome. This is the evidence boundary used to calibrate later simulator profiles. A

@@ -456,14 +456,14 @@ class ClientCliTests(unittest.TestCase):
         )
         native_profiles = tuple(
             SimpleNamespace(executable_sha256="ab" * 32, profile_id=f"profile-{index}")
-            for index in range(7)
+            for index in range(8)
         )
-        readers = tuple(MagicMock() for _ in range(7))
+        readers = tuple(MagicMock() for _ in range(8))
         for reader in readers:
             reader.process_id = 4320
             reader.__enter__.return_value = reader
         zone_observation = SimpleNamespace(name="Sea Dog's Rest", zone_token="zone-1")
-        readers[6].observe.return_value = zone_observation
+        readers[7].observe.return_value = zone_observation
         terrain_origin = NativePlayerPositionObservation(88908, 45112, 28)
         readers[2].observe.return_value = terrain_origin
         navigation_map = SparseNavigationMap()
@@ -512,7 +512,8 @@ class ClientCliTests(unittest.TestCase):
         open_target_position = MagicMock(return_value=readers[3])
         open_message_hud = MagicMock(return_value=readers[4])
         open_target_action = MagicMock(return_value=readers[5])
-        open_zone = MagicMock(return_value=readers[6])
+        open_target_identity = MagicMock(return_value=readers[6])
+        open_zone = MagicMock(return_value=readers[7])
         load_terrain = MagicMock(return_value=terrain_navigation)
         with tempfile.TemporaryDirectory() as directory:
             evidence_output = Path(directory) / "evidence" / "pve.json"
@@ -544,8 +545,11 @@ class ClientCliTests(unittest.TestCase):
                     load_bundled_native_target_action_profile=MagicMock(
                         return_value=native_profiles[5]
                     ),
-                    load_bundled_native_zone_profile=MagicMock(
+                    load_bundled_native_target_identity_profile=MagicMock(
                         return_value=native_profiles[6]
+                    ),
+                    load_bundled_native_zone_profile=MagicMock(
+                        return_value=native_profiles[7]
                     ),
                 ),
                 patch.multiple(
@@ -556,6 +560,7 @@ class ClientCliTests(unittest.TestCase):
                     open_windows_native_target_position_reader=open_target_position,
                     open_windows_native_message_hud_reader=open_message_hud,
                     open_windows_native_target_action_reader=open_target_action,
+                    open_windows_native_target_identity_reader=open_target_identity,
                     open_windows_native_current_zone_reader=open_zone,
                     load_active_zone_terrain_navigation=load_terrain,
                 ),
@@ -613,7 +618,11 @@ class ClientCliTests(unittest.TestCase):
             native_profiles[5],
             process_id=4320,
         )
-        open_zone.assert_called_once_with(native_profiles[6], process_id=4320)
+        open_target_identity.assert_called_once_with(
+            native_profiles[6],
+            process_id=4320,
+        )
+        open_zone.assert_called_once_with(native_profiles[7], process_id=4320)
         load_terrain.assert_called_once_with(
             navigation_cache,
             zone_observation,
@@ -635,6 +644,10 @@ class ClientCliTests(unittest.TestCase):
         self.assertEqual(
             "profile-5",
             saved_evidence["native_observation"]["target_action_profile_id"],
+        )
+        self.assertEqual(
+            "profile-6",
+            saved_evidence["native_observation"]["target_identity_profile_id"],
         )
         self.assertEqual("seeded", saved_evidence["terrain_navigation"]["status"])
         self.assertEqual(

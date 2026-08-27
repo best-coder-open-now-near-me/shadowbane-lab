@@ -12,6 +12,7 @@ from shadowbane_lab.client_observation import (
     NativePlayerVitalsObservation,
     NativeTargetActionObservation,
     NativeTargetHealthObservation,
+    NativeTargetIdentityObservation,
     NativeTargetPositionObservation,
 )
 from shadowbane_lab.travel.model import TravelDecision
@@ -78,6 +79,7 @@ class PvEControllerConfig:
     maximum_interrupts_per_target: int = 0
     automatic_attack_expected: bool = False
     automatic_target_requires_combat_event: bool = False
+    require_target_identity: bool = False
     melee_approach_radius: float = 20.0
     minimum_approach_progress: float = 8.0
 
@@ -153,6 +155,7 @@ class PvEControllerConfig:
                 self.automatic_target_requires_combat_event,
                 "automatic_target_requires_combat_event",
             ),
+            (self.require_target_identity, "require_target_identity"),
         ):
             if not isinstance(value, bool):
                 raise ValueError(f"{field_name} must be a boolean")
@@ -220,6 +223,7 @@ class PvEObservation:
     player_position: NativePlayerPositionObservation | None = None
     target_position: NativeTargetPositionObservation | None = None
     target_action: NativeTargetActionObservation | None = None
+    target_identity: NativeTargetIdentityObservation | None = None
 
     def __post_init__(self) -> None:
         _non_negative_integer(self.now_ms, "now_ms")
@@ -242,6 +246,16 @@ class PvEObservation:
                 and self.target.target_token != self.target_action.target_token
             ):
                 raise ValueError("target health and action resolved different targets")
+        if self.target_identity is not None:
+            if not isinstance(self.target_identity, NativeTargetIdentityObservation):
+                raise ValueError("target_identity must be NativeTargetIdentityObservation")
+            if self.target.target_present != self.target_identity.target_present:
+                raise ValueError("target health and identity disagree about target presence")
+            if (
+                self.target.target_present
+                and self.target.target_token != self.target_identity.target_token
+            ):
+                raise ValueError("target health and identity resolved different targets")
         if (self.player_position is None) != (self.target_position is None):
             raise ValueError("player and target positions must be observed together")
         if self.player_position is None:
@@ -287,6 +301,12 @@ class PvEObservation:
         if planar is None or altitude is None:
             return None
         return hypot(planar, altitude)
+
+    @property
+    def target_attack_eligible(self) -> bool | None:
+        if self.target_identity is None:
+            return None
+        return self.target_identity.attack_eligible
 
 
 @dataclass(frozen=True, slots=True)
@@ -340,6 +360,7 @@ class PvERunTraceStep:
     player_position: NativePlayerPositionObservation | None = None
     target_position: NativeTargetPositionObservation | None = None
     target_action: NativeTargetActionObservation | None = None
+    target_identity: NativeTargetIdentityObservation | None = None
     target_planar_distance: float | None = None
     target_altitude_delta: float | None = None
     target_spatial_distance: float | None = None
@@ -408,6 +429,10 @@ class PvERunTraceStep:
             self.target_action, NativeTargetActionObservation
         ):
             raise ValueError("target_action must be NativeTargetActionObservation")
+        if self.target_identity is not None and not isinstance(
+            self.target_identity, NativeTargetIdentityObservation
+        ):
+            raise ValueError("target_identity must be NativeTargetIdentityObservation")
         if any(not isinstance(event, NativeCombatEvent) for event in self.combat_events):
             raise ValueError("combat_events must contain NativeCombatEvent values")
 
@@ -453,6 +478,19 @@ class PvERunTraceStep:
                         "interrupt_opportunity": (
                             self.target_action.interrupt_opportunity
                         ),
+                    }
+                ),
+                "identity": (
+                    None
+                    if self.target_identity is None
+                    else {
+                        "shopkeeper": self.target_identity.shopkeeper,
+                        "arc_character": self.target_identity.arc_character,
+                        "banker": self.target_identity.banker,
+                        "trainer": self.target_identity.trainer,
+                        "minion": self.target_identity.minion,
+                        "protected_roles": list(self.target_identity.protected_roles),
+                        "attack_eligible": self.target_identity.attack_eligible,
                     }
                 ),
             },

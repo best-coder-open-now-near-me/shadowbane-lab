@@ -58,6 +58,8 @@ from shadowbane_lab.client_observation import (
     NativeTargetActionError,
     NativeTargetActionProfileLoadError,
     NativeTargetHealthError,
+    NativeTargetIdentityError,
+    NativeTargetIdentityProfileLoadError,
     NativeTargetPositionError,
     NativeTargetPositionProfileLoadError,
     NativeTrainingProfileLoadError,
@@ -72,6 +74,7 @@ from shadowbane_lab.client_observation import (
     load_bundled_native_position_profile,
     load_bundled_native_progression_core_profile,
     load_bundled_native_target_action_profile,
+    load_bundled_native_target_identity_profile,
     load_bundled_native_target_position_profile,
     load_bundled_native_training_profile,
     load_bundled_native_vitals_profile,
@@ -82,6 +85,7 @@ from shadowbane_lab.client_observation import (
     load_native_position_profile,
     load_native_progression_core_profile,
     load_native_target_action_profile,
+    load_native_target_identity_profile,
     load_native_target_position_profile,
     load_native_training_profile,
     load_native_vitals_profile,
@@ -96,6 +100,7 @@ from shadowbane_lab.client_observation import (
     open_windows_native_player_vitals_reader,
     open_windows_native_target_action_reader,
     open_windows_native_target_health_reader,
+    open_windows_native_target_identity_reader,
     open_windows_native_target_position_reader,
 )
 from shadowbane_lab.progression import (
@@ -291,6 +296,22 @@ def _parser() -> argparse.ArgumentParser:
         "--json", action="store_true", help="emit machine-readable JSON"
     )
 
+    observe_native_target_identity = client_commands.add_parser(
+        "observe-native-target-identity",
+        help="read exact selected-target trainer and service-role flags",
+    )
+    observe_native_target_identity.add_argument(
+        "--profile",
+        type=Path,
+        help=(
+            "native target-identity profile; defaults to the verified bundled "
+            "WonderBane build"
+        ),
+    )
+    observe_native_target_identity.add_argument(
+        "--json", action="store_true", help="emit machine-readable JSON"
+    )
+
     observe_native_player = client_commands.add_parser(
         "observe-native-player",
         help="read exact local-player health, mana, and stamina from a calibrated build",
@@ -417,6 +438,7 @@ def _parser() -> argparse.ArgumentParser:
     run_pve.add_argument("--native-position-profile", type=Path)
     run_pve.add_argument("--native-target-position-profile", type=Path)
     run_pve.add_argument("--native-target-action-profile", type=Path)
+    run_pve.add_argument("--native-target-identity-profile", type=Path)
     run_pve.add_argument(
         "--navigation-cache-directory",
         type=Path,
@@ -1070,6 +1092,48 @@ def _observe_native_target_position(profile_path: Path | None, *, as_json: bool)
     return 0
 
 
+def _observe_native_target_identity(profile_path: Path | None, *, as_json: bool) -> int:
+    try:
+        profile = (
+            load_native_target_identity_profile(profile_path)
+            if profile_path is not None
+            else load_bundled_native_target_identity_profile()
+        )
+        with open_windows_native_target_identity_reader(profile) as reader:
+            observation = reader.observe()
+            process_id = reader.process_id
+    except (
+        NativeTargetIdentityError,
+        NativeTargetIdentityProfileLoadError,
+        OSError,
+        ValueError,
+    ) as exc:
+        return _error(f"native target-identity observation failed: {exc}", as_json=as_json)
+    payload = {
+        "ok": True,
+        "profile_id": profile.profile_id,
+        "process_id": process_id,
+        "target_present": observation.target_present,
+        "target_token": observation.target_token,
+        "arc_character": observation.arc_character,
+        "shopkeeper": observation.shopkeeper,
+        "banker": observation.banker,
+        "trainer": observation.trainer,
+        "minion": observation.minion,
+        "protected_roles": list(observation.protected_roles),
+        "attack_eligible": observation.attack_eligible,
+    }
+    if as_json:
+        print(json.dumps(payload, sort_keys=True))
+    else:
+        print(f"Target present: {observation.target_present}")
+        if observation.target_present:
+            roles = ", ".join(observation.protected_roles) or "none"
+            print(f"Protected roles: {roles}")
+            print(f"Attack eligible: {observation.attack_eligible}")
+    return 0
+
+
 def _observe_native_player(profile_path: Path | None, *, as_json: bool) -> int:
     try:
         profile = (
@@ -1516,6 +1580,7 @@ def _run_pve(
     evidence_output_path: Path | None = None,
     combat_source: str | None = None,
     native_message_hud_profile_path: Path | None = None,
+    native_target_identity_profile_path: Path | None = None,
     max_encounter_seconds: float = 120.0,
     recovery_timeout_seconds: float = 30.0,
     recovery_health_fraction: float = 0.75,
@@ -1590,6 +1655,7 @@ def _run_pve(
                 maximum_interrupts_per_target=1 if policy == "proc-assassin" else 0,
                 automatic_attack_expected=policy == "proc-assassin",
                 automatic_target_requires_combat_event=policy == "proc-assassin",
+                require_target_identity=True,
                 maximum_stalled_retargets=1 if policy == "proc-assassin" else 0,
                 nearest_target_sample_count=6,
                 target_sample_interval_ms=350,
@@ -1641,6 +1707,11 @@ def _run_pve(
             if native_target_action_profile_path is not None
             else load_bundled_native_target_action_profile()
         )
+        target_identity_profile = (
+            load_native_target_identity_profile(native_target_identity_profile_path)
+            if native_target_identity_profile_path is not None
+            else load_bundled_native_target_identity_profile()
+        )
         zone_profile = (
             None
             if navigation_cache_directory is None
@@ -1656,6 +1727,7 @@ def _run_pve(
             position_profile.executable_sha256,
             target_position_profile.executable_sha256,
             target_action_profile.executable_sha256,
+            target_identity_profile.executable_sha256,
         }
         if message_hud_profile is not None:
             native_profile_hashes.add(message_hud_profile.executable_sha256)
@@ -1708,6 +1780,12 @@ def _run_pve(
             target_action_reader = stack.enter_context(
                 open_windows_native_target_action_reader(
                     target_action_profile,
+                    process_id=process_id,
+                )
+            )
+            target_identity_reader = stack.enter_context(
+                open_windows_native_target_identity_reader(
+                    target_identity_profile,
                     process_id=process_id,
                 )
             )
@@ -1793,6 +1871,7 @@ def _run_pve(
                 player_position_reader.process_id,
                 target_position_reader.process_id,
                 target_action_reader.process_id,
+                target_identity_reader.process_id,
             }
             if message_hud_profile is not None:
                 reader_process_ids.add(combat_reader.process_id)
@@ -1816,6 +1895,7 @@ def _run_pve(
                 player_position_reader=player_position_reader,
                 target_position_reader=target_position_reader,
                 target_action_reader=target_action_reader,
+                target_identity_reader=target_identity_reader,
                 combat_log_reader=combat_reader,
                 dispatcher=ClientPvEIntentDispatcher(adapter),
                 approach_controller=PvEApproachController(
@@ -1837,6 +1917,8 @@ def _run_pve(
         NativeTargetHealthError,
         NativeTargetActionError,
         NativeTargetActionProfileLoadError,
+        NativeTargetIdentityError,
+        NativeTargetIdentityProfileLoadError,
         NativeTargetPositionError,
         NativeTargetPositionProfileLoadError,
         NativeVitalsProfileLoadError,
@@ -1885,6 +1967,7 @@ def _run_pve(
             "player_position_profile_id": position_profile.profile_id,
             "target_position_profile_id": target_position_profile.profile_id,
             "target_action_profile_id": target_action_profile.profile_id,
+            "target_identity_profile_id": target_identity_profile.profile_id,
             "combat_source": resolved_combat_source,
             "message_hud_profile_id": (
                 None if message_hud_profile is None else message_hud_profile.profile_id
@@ -2565,6 +2648,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         and arguments.client_command == "observe-native-target-position"
     ):
         return _observe_native_target_position(arguments.profile, as_json=arguments.json)
+    if (
+        arguments.command == "client"
+        and arguments.client_command == "observe-native-target-identity"
+    ):
+        return _observe_native_target_identity(arguments.profile, as_json=arguments.json)
     if arguments.command == "client" and arguments.client_command == "observe-native-player":
         return _observe_native_player(arguments.profile, as_json=arguments.json)
     if arguments.command == "client" and arguments.client_command == "observe-native-position":
@@ -2605,6 +2693,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             native_position_profile_path=arguments.native_position_profile,
             native_target_position_profile_path=arguments.native_target_position_profile,
             native_target_action_profile_path=arguments.native_target_action_profile,
+            native_target_identity_profile_path=arguments.native_target_identity_profile,
             navigation_cache_directory=arguments.navigation_cache_directory,
             max_kills=arguments.max_kills,
             max_seconds=arguments.max_seconds,

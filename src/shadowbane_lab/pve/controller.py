@@ -42,6 +42,7 @@ class PvEController:
         self._best_approach_distance: float | None = None
         self._outside_melee = False
         self._target_candidates: dict[str, float] = {}
+        self._observed_target_tokens: set[str] = set()
         self._last_sampled_target_token: str | None = None
         self._target_sampling_complete = False
         self._target_sample_cycle_at: int | None = None
@@ -61,6 +62,10 @@ class PvEController:
     @property
     def requires_target_action(self) -> bool:
         return self._config.interrupt_intent is not None
+
+    @property
+    def requires_target_identity(self) -> bool:
+        return self._config.require_target_identity
 
     @property
     def target_action_observation_active(self) -> bool:
@@ -131,6 +136,7 @@ class PvEController:
                 self._config.accept_automatic_targets
                 and observation.target.target_present
                 and observation.target.current_health != 0.0
+                and self._target_attack_eligible(observation)
                 and self._automatic_target_confirmed(events)
             ):
                 return self._begin_engagement(observation)
@@ -171,6 +177,8 @@ class PvEController:
         now = observation.now_ms
         target = observation.target
         if target.target_present and target.current_health != 0.0:
+            if not self._target_attack_eligible(observation):
+                return self._reject_target(observation)
             sampled = self._sample_nearest_target(observation)
             if sampled is not None:
                 return sampled
@@ -231,12 +239,13 @@ class PvEController:
 
         if token != self._last_sampled_target_token:
             self._target_sample_cycle_at = None
-            if token in self._target_candidates:
+            if token in self._observed_target_tokens:
                 self._target_sampling_complete = True
             else:
+                self._observed_target_tokens.add(token)
                 self._target_candidates[token] = distance
                 if (
-                    len(self._target_candidates)
+                    len(self._observed_target_tokens)
                     >= self._config.nearest_target_sample_count
                 ):
                     self._target_sampling_complete = True
@@ -256,6 +265,36 @@ class PvEController:
             if token == nearest_token:
                 self._require_different_target = False
                 return self._begin_engagement(observation)
+        if self._target_sample_ready(now):
+            return self._cycle_target_sample(now)
+        return self._emit(now)
+
+    def _reject_target(self, observation: PvEObservation) -> PvEControllerDecision:
+        target = observation.target
+        assert target.target_present
+        assert target.target_token is not None
+        now = observation.now_ms
+        token = target.target_token
+        if token != self._last_sampled_target_token:
+            self._target_sample_cycle_at = None
+            if token in self._observed_target_tokens:
+                self._target_sampling_complete = True
+            else:
+                self._observed_target_tokens.add(token)
+                if (
+                    len(self._observed_target_tokens)
+                    >= self._config.nearest_target_sample_count
+                ):
+                    self._target_sampling_complete = True
+            self._last_sampled_target_token = token
+        elif (
+            self._target_sample_cycle_at is not None
+            and now - self._target_sample_cycle_at
+            >= self._config.target_sample_interval_ms
+        ):
+            self._target_sampling_complete = True
+        if self._phase_elapsed(now) >= self._config.acquisition_timeout_ms:
+            return self.stop("mob_acquisition_timeout", now_ms=now)
         if self._target_sample_ready(now):
             return self._cycle_target_sample(now)
         return self._emit(now)
@@ -286,6 +325,8 @@ class PvEController:
                 return self._emit(now, PvEIntent.ACQUIRE_NEXT_MOB)
             return self._emit(now)
         self._selection_lost_at = None
+        if not self._target_attack_eligible(observation):
+            return self.stop("engaged_target_became_attack_ineligible", now_ms=now)
         if target.target_token != self._engaged_target_token:
             return self.stop("selected_target_changed_during_engagement", now_ms=now)
         assert target.current_health is not None
@@ -354,6 +395,7 @@ class PvEController:
             and observation.target.target_present
             and observation.target.current_health != 0.0
             and observation.target.target_token != previous_target_token
+            and self._target_attack_eligible(observation)
         ):
             if self._automatic_target_confirmed(events):
                 return self._begin_engagement(observation)
@@ -372,6 +414,7 @@ class PvEController:
         assert target.target_token is not None
         assert target.current_health is not None
         assert target.current_health > 0.0
+        assert self._target_attack_eligible(observation)
         now = observation.now_ms
         self._baseline_target_token = target.target_token
         self._engaged_target_token = target.target_token
@@ -424,6 +467,8 @@ class PvEController:
         target = observation.target
         if not target.target_present:
             return self.stop("selection_lost_during_opener", now_ms=now)
+        if not self._target_attack_eligible(observation):
+            return self.stop("opening_target_became_attack_ineligible", now_ms=now)
         if target.target_token != self._engaged_target_token:
             return self.stop("selected_target_changed_during_opener", now_ms=now)
         assert target.current_health is not None
@@ -472,6 +517,12 @@ class PvEController:
             or any(event.kind is NativeCombatEventKind.PLAYER_HIT_TARGET for event in events)
         )
 
+    def _target_attack_eligible(self, observation: PvEObservation) -> bool:
+        eligible = observation.target_attack_eligible
+        if eligible is None:
+            return not self._config.require_target_identity
+        return eligible
+
     def _clear_engagement(self) -> None:
         self._engaged_target_token = None
         self._last_health = None
@@ -488,6 +539,7 @@ class PvEController:
         self._phase_entered_at = now_ms
         if phase is PvEPhase.SEEKING:
             self._target_candidates.clear()
+            self._observed_target_tokens.clear()
             self._last_sampled_target_token = None
             self._target_sampling_complete = False
             self._target_sample_cycle_at = None

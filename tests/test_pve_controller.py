@@ -10,6 +10,7 @@ from shadowbane_lab.client_observation import (
     NativeTargetActionObservation,
     NativeTargetActionPhase,
     NativeTargetHealthObservation,
+    NativeTargetIdentityObservation,
     NativeTargetPositionObservation,
 )
 from shadowbane_lab.protocol import DispatchResult
@@ -118,12 +119,34 @@ def _target_action(
     )
 
 
+def _target_identity(
+    token: str | None,
+    *,
+    shopkeeper: bool = False,
+    banker: bool = False,
+    trainer: bool = False,
+    minion: bool = False,
+) -> NativeTargetIdentityObservation:
+    if token is None:
+        return NativeTargetIdentityObservation(target_present=False)
+    return NativeTargetIdentityObservation(
+        target_present=True,
+        arc_character=True,
+        shopkeeper=shopkeeper,
+        banker=banker,
+        trainer=trainer,
+        minion=minion,
+        target_token=token,
+    )
+
+
 def _observation(
     now_ms: int,
     target: NativeTargetHealthObservation,
     *events: NativeCombatEvent,
     player: NativePlayerVitalsObservation | None = None,
     target_action: NativeTargetActionObservation | None = None,
+    target_identity: NativeTargetIdentityObservation | None = None,
 ) -> PvEObservation:
     return PvEObservation(
         now_ms=now_ms,
@@ -131,6 +154,7 @@ def _observation(
         player=_player() if player is None else player,
         combat_events=events,
         target_action=target_action,
+        target_identity=target_identity,
     )
 
 
@@ -279,6 +303,89 @@ class PvEControllerTests(unittest.TestCase):
 
         self.assertIsNone(waiting.intent)
         self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB, cycle.intent)
+
+    def test_protected_trainer_is_cycled_and_never_attacked(self) -> None:
+        controller = PvEController(
+            PvEControllerConfig(
+                require_target_identity=True,
+                target_sample_interval_ms=100,
+                acquisition_retry_ms=100,
+                acquisition_timeout_ms=1_000,
+            )
+        )
+        initial = controller.step(
+            _observation(0, _absent(), target_identity=_target_identity(None))
+        )
+        cycle = controller.step(
+            _observation(
+                100,
+                _target("trainer"),
+                target_identity=_target_identity("trainer", trainer=True),
+            )
+        )
+        waiting = controller.step(
+            _observation(
+                150,
+                _target("trainer"),
+                target_identity=_target_identity("trainer", trainer=True),
+            )
+        )
+
+        self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB, initial.intent)
+        self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB, cycle.intent)
+        self.assertIsNone(waiting.intent)
+        self.assertEqual(PvEPhase.SEEKING, waiting.phase)
+
+    def test_required_missing_identity_never_engages(self) -> None:
+        controller = PvEController(
+            PvEControllerConfig(
+                require_target_identity=True,
+                target_sample_interval_ms=100,
+                acquisition_retry_ms=100,
+                acquisition_timeout_ms=1_000,
+            )
+        )
+        controller.step(_observation(0, _absent()))
+
+        decision = controller.step(_observation(100, _target("unknown")))
+
+        self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB, decision.intent)
+        self.assertEqual(PvEPhase.SEEKING, decision.phase)
+
+    def test_nearest_valid_target_is_selected_after_protected_candidate(self) -> None:
+        controller = PvEController(
+            PvEControllerConfig(
+                require_target_identity=True,
+                nearest_target_sample_count=2,
+                target_sample_interval_ms=100,
+                acquisition_retry_ms=100,
+                acquisition_timeout_ms=1_000,
+            )
+        )
+
+        def spatial(
+            now_ms: int,
+            token: str | None,
+            *,
+            trainer: bool = False,
+            lt: float = 103.0,
+        ) -> PvEObservation:
+            return PvEObservation(
+                now_ms=now_ms,
+                target=_absent() if token is None else _target(token),
+                player=_player(),
+                player_position=_player_position(),
+                target_position=_target_position(token, lt, 200.0),
+                target_identity=_target_identity(token, trainer=trainer),
+            )
+
+        controller.step(spatial(0, None))
+        protected = controller.step(spatial(100, "trainer", trainer=True))
+        selected = controller.step(spatial(200, "mob", lt=108.0))
+
+        self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB, protected.intent)
+        self.assertEqual(PvEIntent.ATTACK_SELECTED_TARGET, selected.intent)
+        self.assertEqual(PvEPhase.ENGAGED, selected.phase)
 
     def test_nearest_target_sampling_cycles_back_from_far_candidate(self) -> None:
         controller = PvEController(
@@ -927,6 +1034,14 @@ class SequenceTargetActionSource:
         return self.values.pop(0)
 
 
+class SequenceTargetIdentitySource:
+    def __init__(self, values: tuple[NativeTargetIdentityObservation, ...]) -> None:
+        self.values = list(values)
+
+    def observe(self) -> NativeTargetIdentityObservation:
+        return self.values.pop(0)
+
+
 class ConstantHealthSource:
     def __init__(self, value: NativeTargetHealthObservation) -> None:
         self.value = value
@@ -1008,6 +1123,58 @@ class PvERunnerTests(unittest.TestCase):
 
         self.assertEqual((), source.read_new_entries())
         self.assertIsInstance(source, CombatLogSource)
+
+    def test_runner_cycles_protected_identity_and_traces_valid_target(self) -> None:
+        clock = AdvancingClock()
+        dispatcher = RecordingPvEDispatcher()
+        runner = PvERunner(
+            controller=PvEController(
+                PvEControllerConfig(
+                    maximum_kills=1,
+                    require_target_identity=True,
+                    target_sample_interval_ms=100,
+                    acquisition_retry_ms=100,
+                )
+            ),
+            health_reader=SequenceHealthSource(
+                (
+                    _absent(),
+                    _target("trainer"),
+                    _target("mob"),
+                    _target("mob", current=0),
+                )
+            ),
+            target_identity_reader=SequenceTargetIdentitySource(
+                (
+                    _target_identity(None),
+                    _target_identity("trainer", trainer=True),
+                    _target_identity("mob"),
+                    _target_identity("mob"),
+                )
+            ),
+            player_vitals_reader=SequencePlayerVitalsSource((_player(),) * 4),
+            combat_log_reader=SequenceCombatLogSource(((),) * 4),
+            dispatcher=dispatcher,
+            stop_signal=EventEmergencyStop(),
+            poll_interval_ms=100,
+            clock=clock,
+            sleeper=clock.sleep,
+        )
+
+        result = runner.run()
+
+        self.assertEqual(PvEPhase.COMPLETE, result.final_phase)
+        self.assertEqual(
+            [
+                PvEIntent.ACQUIRE_NEXT_MOB,
+                PvEIntent.ACQUIRE_NEXT_MOB,
+                PvEIntent.ATTACK_SELECTED_TARGET,
+            ],
+            dispatcher.intents,
+        )
+        trainer_identity = result.trace[1].as_dict()["target"]["identity"]
+        self.assertEqual(["trainer"], trainer_identity["protected_roles"])
+        self.assertFalse(trainer_identity["attack_eligible"])
 
     def test_runner_cycles_past_zero_pool_selection_with_stale_position(self) -> None:
         clock = AdvancingClock()

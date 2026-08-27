@@ -198,6 +198,27 @@ pointer, read-only image range for the vtable, exact getter thunk, component/val
 coordinate bounds, and a bounded two-sample movement delta, then rereads the complete pointer
 chain. A selected object with an unverified position-getter override fails closed.
 
+## Native selected-target identity
+
+The verified client classifies service characters from four sparse `ArcCharacter` boolean
+fields: `shopkeeper`, `banker`, `isTrainer`, and `isMinion`. The bundled reader follows the
+same selected-object pointer, requires the exact `ArcCharacter` vtable, and resolves the sparse
+keys from the build's registered descriptors rather than inferring a role from a displayed name
+or health value.
+
+Inspect the current selection with:
+
+```powershell
+.\.venv\Scripts\python.exe -m shadowbane_lab.cli client observe-native-target-identity --json
+```
+
+The result includes whether the object is an `ArcCharacter`, each role flag, the protected-role
+set, and `attack_eligible`. A stable non-character selection is reported as explicitly
+ineligible without dereferencing sparse data. Missing sparse entries use the client's registered
+`false` default. Pointer races, oversized or malformed sparse tables, duplicate keys,
+non-boolean values, and build drift fail closed. Its target token is directly joinable with
+native health, position, and action snapshots.
+
 ## Pixel cross-check
 
 The checked-in `wonderbane-1920x955` profile is based on three captures from the text-fixed
