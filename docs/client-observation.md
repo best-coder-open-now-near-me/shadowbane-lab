@@ -83,6 +83,9 @@ marks it non-cache-resolvable instead of inventing a cache identity. The optiona
 skips only those runtime-only entries and accepts other terrain references only when the `CZone`
 payload contains every tile in the referenced `TerrainAlpha` map; missing, partial, or duplicate
 maps fail closed.
+The emitted map order is meaningful: layer zero is the height field and later layers are reported
+as material alpha. The runtime bounds, quaternion, absolute center, and parent-local center are
+preserved so nonzero-centered and rotated zones project into the correct global LT/LG cells.
 
 ## Native group roster and follow state
 

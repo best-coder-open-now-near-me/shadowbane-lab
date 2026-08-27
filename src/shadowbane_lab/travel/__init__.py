@@ -49,11 +49,19 @@ from shadowbane_lab.travel.state import (
     resolve_travel_destination,
     save_travel_destination,
 )
+from shadowbane_lab.travel.terrain import (
+    ActiveZoneTerrainNavigation,
+    TerrainNavigationConfig,
+    TerrainNavigationSeed,
+    load_active_zone_terrain_navigation,
+    seed_height_raster_navigation,
+)
 
 __all__ = [
     "ClientTravelDecisionDispatcher",
     "AStarRoute",
     "AStarRouteNotFound",
+    "ActiveZoneTerrainNavigation",
     "GoChatCommandAssembler",
     "GoChatCommandUpdate",
     "NamedTravelDestinationError",
@@ -76,11 +84,15 @@ __all__ = [
     "TravelRunResult",
     "TravelRunTraceStep",
     "TravelRunner",
+    "TerrainNavigationConfig",
+    "TerrainNavigationSeed",
     "WindowsGoChatCommandListener",
     "WorldDestinationCatalog",
     "WorldDestinationEntry",
     "WeightedAStarConfig",
     "WeightedAStarPlanner",
+    "load_active_zone_terrain_navigation",
+    "seed_height_raster_navigation",
     "build_world_destination_catalog",
     "parse_go_command",
     "load_travel_destination",

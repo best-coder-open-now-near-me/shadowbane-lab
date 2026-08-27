@@ -17,11 +17,19 @@ class ZoneTerrainCorrelationError(ValueError):
 class ZoneTerrainMapReference:
     """One complete TerrainAlpha map referenced by a CZone template."""
 
+    layer_index: int
+    first_reference_offset: int
     group_id: int
     map_id: int
     width_tiles: int
     height_tiles: int
     tile_count: int
+
+    @property
+    def is_height_map(self) -> bool:
+        """The first per-tile TerrainAlpha layer is the zone height field."""
+
+        return self.layer_index == 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,6 +44,10 @@ class ZoneTerrainCorrelation:
     @property
     def tile_reference_count(self) -> int:
         return sum(item.tile_count for item in self.maps)
+
+    @property
+    def height_map(self) -> ZoneTerrainMapReference | None:
+        return self.maps[0] if self.maps else None
 
 
 def correlate_zone_terrain(
@@ -76,12 +88,14 @@ def correlate_zone_terrain(
     zone_entry = matches[0]
     payload = zone_archive.read_resource(zone_entry)
     referenced: dict[tuple[int, int], dict[int, CacheResourceEntry]] = {}
+    first_reference_offsets: dict[tuple[int, int], int] = {}
     for offset in range(max(0, len(payload) - 7)):
         match = key_index.get(payload[offset : offset + 8])
         if match is None:
             continue
         terrain_map, entry = match
         map_key = (terrain_map.group_id, terrain_map.map_id)
+        first_reference_offsets.setdefault(map_key, offset)
         map_entries = referenced.setdefault(map_key, {})
         if entry.resource_id in map_entries:
             raise ZoneTerrainCorrelationError(
@@ -92,7 +106,11 @@ def correlate_zone_terrain(
 
     results = []
     maps_by_key = {(item.group_id, item.map_id): item for item in terrain_maps}
-    for map_key, actual_entries in sorted(referenced.items()):
+    ordered_references = sorted(
+        referenced.items(),
+        key=lambda item: first_reference_offsets[item[0]],
+    )
+    for layer_index, (map_key, actual_entries) in enumerate(ordered_references):
         terrain_map = maps_by_key[map_key]
         expected_ids = {entry.resource_id for _, entry in terrain_map.entries}
         actual_ids = set(actual_entries)
@@ -105,6 +123,8 @@ def correlate_zone_terrain(
             )
         results.append(
             ZoneTerrainMapReference(
+                layer_index=layer_index,
+                first_reference_offset=first_reference_offsets[map_key],
                 group_id=terrain_map.group_id,
                 map_id=terrain_map.map_id,
                 width_tiles=terrain_map.width_tiles,

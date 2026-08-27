@@ -20,10 +20,12 @@ The inspected client has a 2.38 GB resource set. The navigation-relevant portion
 - `cache/Tile.cache`: nine large tile resources; and
 - `cache/Render.cache`: render-resource records associated with object templates.
 
-`TerrainAlpha` is deliberately modeled as a neutral raster. Its class and cache names suggest
-surface alpha/blend data, while the stitched images are strongly terrain-shaped. It must not be
-treated as authoritative height or walkability until correlated with the terrain generator and
-live altitude samples.
+`CZone` references each terrain tile's rasters in semantic layer order. The first complete map is
+the zone height field; the remaining maps are material-alpha layers. This agrees with the
+open-source emulator's [HeightMap implementation](https://repo.magicbane.com/MagicBane/Server/src/commit/a7bc1d5a6afad4ebc7b953e8277a9380f7846e11/src/engine/InterestManagement/HeightMap.java),
+including bottom-left origin, `(width - 1)` interpolation buckets, and byte-height scaling.
+Material layers remain neutral until their surface meanings are decoded. Height alone is not an
+authoritative walkability flag: water and placed-object collision still require separate data.
 
 The archive format is a 16-byte header, a directory of 20-byte resource records, optional
 directory padding, and raw or zlib-compressed payloads. Resource IDs are not globally unique.
@@ -49,6 +51,12 @@ python -m shadowbane_lab.cli client inspect-world-data `
 The verified WonderBane resource set contains 105 complete terrain maps with shapes from 1x1
 through 16x16 tiles. Its stock `WorldDef` identifies Aerynth world 1 with 70 nested placements,
 49 zone template IDs, and 26 named zone-load configurations.
+
+The active-zone loader uses the client-resolved `CZone` key and native placement geometry to
+project the first referenced map into global LT/LG cells. Large within-cell height changes become
+hard A* exclusions and smaller changes become traversal costs. It does not infer a waterline from
+low samples; that threshold remains disabled until material and live movement evidence calibrate
+it.
 
 ## Native pathfinding status
 

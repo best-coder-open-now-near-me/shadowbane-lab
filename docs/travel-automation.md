@@ -41,7 +41,8 @@ log.
 
 Enter `/pve` to run the configured three-kill, five-minute bounded proc-Assassin battle loop.
 The in-game command uses exact target health, player vitals, positions, and target action state;
-it does not require the native message HUD to contain a current transcript. Each run writes a
+it also projects the active zone's cache-backed height field into its weighted-A* approach map,
+then layers stall-learned obstacles onto that static seed. It does not require the native message HUD to contain a current transcript. Each run writes a
 uniquely named evidence artifact beside the listener logs. Use `/stop` to
 cancel either an active battle or route and immediately clear Shadowbane's last click-to-move
 destination through the same guarded minimap-center input path. The listener observes keyboard

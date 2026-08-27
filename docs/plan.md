@@ -107,14 +107,15 @@ cannot bypass authoritative validation.
 - Index TerrainAlpha map/tile identities and parse the nested WorldDef placement tree.
 - Correlate the active runtime ArcGameZone and parent chain with CZone and terrain-raster
   resources; continue the same exact-key join into CObjects and mesh resources.
-- Calibrate each TerrainAlpha sample grid into LT/LG space from zone placement, rotation,
-  scale, and recorded native altitude; raw alpha bytes are not yet authoritative height or
-  walkability.
-- Decode static collision and traversal costs from CObjects/mesh resources, including water,
-  slope, and hard obstacles, before constructing a validated occupancy/cost grid.
-- Once that grid is validated, use hierarchical weighted A* with waypoint smoothing and online
-  replanning from stalls and server movement corrections rather than planning directly over raw
-  cache samples.
+- Project the first CZone-referenced TerrainAlpha layer, now identified as its height field, into
+  LT/LG from native placement bounds, local/absolute centers, and rotation. Seed steep transitions
+  as exclusions and gentler height changes as weighted traversal costs.
+- Decode static collision and traversal costs from CObjects/mesh resources, including water and
+  hard obstacles. Keep low-height water classification disabled until calibrated rather than
+  treating dark raster samples as impassable.
+- The PvE approach controller now uses bounded weighted A* with waypoint smoothing and online
+  replanning from stalls. Extend that same static grid into hierarchical long-distance `/go`
+  routing after object collision and zone-boundary composition are decoded.
 - Keep native `PATHFINDING` disabled: the legacy `/path on` command is absent from the current
   WonderBane command table, and enabling its preference previously caused a launch error.
 - Preserve server movement corrections as authoritative feedback even when local pathfinding is

@@ -120,6 +120,7 @@ from shadowbane_lab.pve import (
 )
 from shadowbane_lab.travel import (
     ClientTravelDecisionDispatcher,
+    SparseNavigationMap,
     TravelController,
     TravelControllerConfig,
     TravelDestination,
@@ -128,6 +129,7 @@ from shadowbane_lab.travel import (
     TravelPlan,
     TravelRunner,
     WindowsGoChatCommandListener,
+    load_active_zone_terrain_navigation,
     load_world_destination_catalog,
     parse_go_command,
     parse_named_go_command,
@@ -415,6 +417,14 @@ def _parser() -> argparse.ArgumentParser:
     run_pve.add_argument("--native-position-profile", type=Path)
     run_pve.add_argument("--native-target-position-profile", type=Path)
     run_pve.add_argument("--native-target-action-profile", type=Path)
+    run_pve.add_argument(
+        "--navigation-cache-directory",
+        type=Path,
+        help=(
+            "client cache directory used to seed the approach A* cost map from the "
+            "active zone's height field"
+        ),
+    )
     run_pve.add_argument("--max-kills", type=int, default=1)
     run_pve.add_argument("--max-seconds", type=float, default=120.0)
     run_pve.add_argument("--max-encounter-seconds", type=float, default=120.0)
@@ -524,6 +534,11 @@ def _parser() -> argparse.ArgumentParser:
         "--pve-evidence-directory",
         type=Path,
         help="directory for one timestamped evidence artifact per /pve run",
+    )
+    listen_go.add_argument(
+        "--pve-navigation-cache-directory",
+        type=Path,
+        help="client cache directory used to seed /pve A* routes from active-zone terrain",
     )
     listen_go.add_argument("--pve-max-kills", type=int, default=3)
     listen_go.add_argument("--pve-max-seconds", type=float, default=300.0)
@@ -1169,6 +1184,10 @@ def _observe_native_zone(
                         "tile_references": correlation.tile_reference_count,
                         "maps": [
                             {
+                                "layer_index": item.layer_index,
+                                "layer_kind": (
+                                    "height" if item.is_height_map else "material_alpha"
+                                ),
                                 "group_id": item.group_id,
                                 "map_id": item.map_id,
                                 "width_tiles": item.width_tiles,
@@ -1486,6 +1505,7 @@ def _run_pve(
     native_position_profile_path: Path | None,
     native_target_position_profile_path: Path | None,
     native_target_action_profile_path: Path | None,
+    navigation_cache_directory: Path | None,
     max_kills: int,
     max_seconds: float,
     wait_for_client_seconds: float,
@@ -1542,6 +1562,10 @@ def _run_pve(
             return _error("combat-source log requires --combat-log", as_json=as_json)
         if not combat_log_path.is_file():
             return _error(f"combat log does not exist: {combat_log_path}", as_json=as_json)
+    terrain_navigation_payload: dict[str, object] = {
+        "enabled": navigation_cache_directory is not None,
+        "status": "not_configured",
+    }
     try:
         client_profile = load_calibration(client_profile_path)
         if not client_profile.live_input_enabled:
@@ -1615,6 +1639,15 @@ def _run_pve(
             if native_target_action_profile_path is not None
             else load_bundled_native_target_action_profile()
         )
+        zone_profile = (
+            None
+            if navigation_cache_directory is None
+            else load_bundled_native_zone_profile()
+        )
+        if navigation_cache_directory is not None and not navigation_cache_directory.is_dir():
+            raise ValueError(
+                f"navigation cache directory does not exist: {navigation_cache_directory}"
+            )
         native_profile_hashes = {
             health_profile.executable_sha256,
             vitals_profile.executable_sha256,
@@ -1624,6 +1657,8 @@ def _run_pve(
         }
         if message_hud_profile is not None:
             native_profile_hashes.add(message_hud_profile.executable_sha256)
+        if zone_profile is not None:
+            native_profile_hashes.add(zone_profile.executable_sha256)
         if len(native_profile_hashes) != 1:
             raise ValueError("native PvE profiles target different client builds")
         inspector = WindowsForegroundWindowInspector()
@@ -1674,6 +1709,42 @@ def _run_pve(
                     process_id=process_id,
                 )
             )
+            navigation_map: SparseNavigationMap | None = None
+            zone_reader = None
+            if zone_profile is not None:
+                assert navigation_cache_directory is not None
+                zone_reader = stack.enter_context(
+                    open_windows_native_current_zone_reader(
+                        zone_profile,
+                        process_id=process_id,
+                    )
+                )
+                zone_observation = zone_reader.observe()
+                active_terrain = load_active_zone_terrain_navigation(
+                    navigation_cache_directory,
+                    zone_observation,
+                )
+                navigation_map = active_terrain.navigation_map
+                terrain_seed = active_terrain.seed
+                terrain_navigation_payload = {
+                    "enabled": True,
+                    "status": "seeded" if terrain_seed is not None else "no_height_layer",
+                    "zone_name": zone_observation.name,
+                    "zone_token": zone_observation.zone_token,
+                }
+                if terrain_seed is not None:
+                    terrain_navigation_payload["seed"] = {
+                        "zone_depth": terrain_seed.zone_depth,
+                        "template_group_id": terrain_seed.template_group_id,
+                        "template_id": terrain_seed.template_id,
+                        "terrain_group_id": terrain_seed.terrain_group_id,
+                        "terrain_map_id": terrain_seed.terrain_map_id,
+                        "raster_width": terrain_seed.raster_width,
+                        "raster_height": terrain_seed.raster_height,
+                        "sampled_cells": terrain_seed.sampled_cells,
+                        "blocked_cells": len(terrain_seed.blocked_cells),
+                        "weighted_cells": len(terrain_seed.costs),
+                    }
             if resolved_combat_source == "state":
                 combat_reader = EmptyCombatLogSource()
             elif message_hud_profile is None:
@@ -1700,6 +1771,8 @@ def _run_pve(
             }
             if message_hud_profile is not None:
                 reader_process_ids.add(combat_reader.process_id)
+            if zone_reader is not None:
+                reader_process_ids.add(zone_reader.process_id)
             if len(reader_process_ids) != 1:
                 raise ValueError("native PvE readers resolved different client processes")
             executor = GuardedInputExecutor(
@@ -1720,7 +1793,9 @@ def _run_pve(
                 target_action_reader=target_action_reader,
                 combat_log_reader=combat_reader,
                 dispatcher=ClientPvEIntentDispatcher(adapter),
-                approach_controller=PvEApproachController(),
+                approach_controller=PvEApproachController(
+                    navigation_map=navigation_map,
+                ),
                 movement_dispatcher=ClientTravelDecisionDispatcher(adapter),
                 stop_signal=active_stop_signal,
                 poll_interval_ms=poll_ms,
@@ -1790,6 +1865,7 @@ def _run_pve(
                 None if message_hud_profile is None else message_hud_profile.profile_id
             ),
         },
+        "terrain_navigation": terrain_navigation_payload,
         "trace": [step.as_dict() for step in result.trace],
     }
     if evidence_output_path is not None:
@@ -2033,6 +2109,7 @@ def _listen_for_go_commands(
     pve_client_profile_path: Path | None,
     pve_hotbar_config_path: Path | None,
     pve_evidence_directory: Path | None,
+    pve_navigation_cache_directory: Path | None,
     pve_max_kills: int,
     pve_max_seconds: float,
     pve_max_encounter_seconds: float,
@@ -2174,6 +2251,7 @@ def _listen_for_go_commands(
                             native_position_profile_path=native_position_profile_path,
                             native_target_position_profile_path=None,
                             native_target_action_profile_path=None,
+                            navigation_cache_directory=pve_navigation_cache_directory,
                             max_kills=pve_max_kills,
                             max_seconds=pve_max_seconds,
                             max_encounter_seconds=pve_max_encounter_seconds,
@@ -2502,6 +2580,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             native_position_profile_path=arguments.native_position_profile,
             native_target_position_profile_path=arguments.native_target_position_profile,
             native_target_action_profile_path=arguments.native_target_action_profile,
+            navigation_cache_directory=arguments.navigation_cache_directory,
             max_kills=arguments.max_kills,
             max_seconds=arguments.max_seconds,
             max_encounter_seconds=arguments.max_encounter_seconds,
@@ -2542,6 +2621,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             pve_client_profile_path=arguments.pve_client_profile,
             pve_hotbar_config_path=arguments.pve_hotbar_config,
             pve_evidence_directory=arguments.pve_evidence_directory,
+            pve_navigation_cache_directory=arguments.pve_navigation_cache_directory,
             pve_max_kills=arguments.pve_max_kills,
             pve_max_seconds=arguments.pve_max_seconds,
             pve_max_encounter_seconds=arguments.pve_max_encounter_seconds,

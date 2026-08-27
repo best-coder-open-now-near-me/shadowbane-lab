@@ -7,6 +7,7 @@ param(
     [string] $WorldDef = "$env:USERPROFILE\Downloads\WonderbaneClient\Wonderbane\Config\WorldDef.cfg",
     [string] $PveClientProfile = "\\VBOXSVR\codexrepo\configs\wonderbane-pve.local.json",
     [string] $PveHotbarConfig = "",
+    [string] $PveNavigationCacheDirectory = "$env:USERPROFILE\Downloads\WonderbaneClient\Wonderbane\cache",
     [string] $LogDirectory = "\\VBOXSVR\codexdiag"
 )
 
@@ -26,6 +27,9 @@ if (-not (Test-Path -LiteralPath $WorldDef -PathType Leaf)) {
 }
 if (-not (Test-Path -LiteralPath $PveClientProfile -PathType Leaf)) {
     throw "Live PvE profile was not found: $PveClientProfile"
+}
+if (-not (Test-Path -LiteralPath $PveNavigationCacheDirectory -PathType Container)) {
+    throw "WonderBane client cache directory was not found: $PveNavigationCacheDirectory"
 }
 if (-not $PveHotbarConfig) {
     $hotbars = @(
@@ -84,6 +88,7 @@ $arguments = @(
     "--pve-client-profile", $PveClientProfile,
     "--pve-hotbar-config", $PveHotbarConfig,
     "--pve-evidence-directory", $LogDirectory,
+    "--pve-navigation-cache-directory", $PveNavigationCacheDirectory,
     "--pve-max-kills", "3",
     "--pve-max-seconds", "300",
     "--pve-max-encounter-seconds", "120",

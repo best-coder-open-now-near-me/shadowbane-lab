@@ -188,6 +188,7 @@ $env:PYTHONPATH = "src"
   --client-profile .\configs\wonderbane-pve.local.json `
   --combat-source hud `
   --hotbar-config $hotbar.FullName `
+  --navigation-cache-directory 'C:\path\to\Wonderbane\cache' `
   --policy proc-assassin `
   --max-kills 1 `
   --max-seconds 180 `
@@ -223,7 +224,13 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
   -MaximumSeconds 300
 ```
 
-The versioned JSON result includes native build/profile provenance and a sample-by-sample
+Before an approach begins, the live runner resolves the active native zone in the same guarded
+`sb.exe` process, loads its first `CZone` terrain layer, and seeds the bounded weighted-A* map with
+height-transition exclusions and costs. Runtime stalls still add learned obstacle cells and
+replan around them. Water is not guessed from raster darkness, and placed trees or structures
+remain online-learned until `CObjects` collision is decoded.
+
+The versioned JSON result includes native build/profile provenance, the active terrain seed, and a sample-by-sample
 trace: player health/mana/stamina and LT/LG/altitude, target identity/health/position, planar
 and three-dimensional target range, native action phase/motion/impact/target-of-target state,
 typed native combat events, controller phase, and guarded

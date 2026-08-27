@@ -4,6 +4,7 @@ param(
     [string] $PythonPath = "$env:USERPROFILE\shadowbane-lab\.venv\Scripts\python.exe",
     [string] $ClientProfile = "\\VBOXSVR\codexrepo\configs\wonderbane-pve.local.json",
     [string] $HotbarConfig = "",
+    [string] $NavigationCacheDirectory = "$env:USERPROFILE\Downloads\WonderbaneClient\Wonderbane\cache",
     [string] $EvidenceOutput = "",
     [ValidateRange(1, 10)]
     [int] $MaximumKills = 1,
@@ -23,6 +24,9 @@ foreach ($path in @($RepositoryRoot, $PythonPath, $ClientProfile)) {
     if (-not (Test-Path -LiteralPath $path)) {
         throw "Required bounded-PvE path was not found: $path"
     }
+}
+if (-not (Test-Path -LiteralPath $NavigationCacheDirectory -PathType Container)) {
+    throw "WonderBane client cache directory was not found: $NavigationCacheDirectory"
 }
 if (-not $HotbarConfig) {
     $hotbars = @(
@@ -59,6 +63,7 @@ $env:PYTHONPATH = Join-Path $RepositoryRoot "src"
     --client-profile $ClientProfile `
     --combat-source "hud" `
     --hotbar-config $HotbarConfig `
+    --navigation-cache-directory $NavigationCacheDirectory `
     --policy "proc-assassin" `
     --max-kills $MaximumKills `
     --max-seconds $MaximumSeconds `

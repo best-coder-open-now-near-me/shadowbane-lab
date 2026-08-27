@@ -592,8 +592,17 @@ class NativeCurrentZoneReader:
 
 def open_windows_native_current_zone_reader(
     profile: NativeCurrentZoneProfile,
+    *,
+    process_id: int | None = None,
 ) -> NativeCurrentZoneReader:
-    process = WindowsReadOnlyProcessMemory.open_unique(profile.executable_name)
+    process = (
+        WindowsReadOnlyProcessMemory.open_unique(profile.executable_name)
+        if process_id is None
+        else WindowsReadOnlyProcessMemory.open_for_process(
+            profile.executable_name,
+            process_id,
+        )
+    )
     try:
         return NativeCurrentZoneReader(profile, process)
     except Exception:

@@ -17,6 +17,7 @@ from shadowbane_lab.client_observation import (
     NativeZoneIdentity,
     load_bundled_native_zone_profile,
     load_native_zone_profile_text,
+    open_windows_native_current_zone_reader,
 )
 
 
@@ -288,6 +289,23 @@ class NativeCurrentZoneProfileTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "unknown fields"):
             load_native_zone_profile_text(json.dumps(raw))
+
+    def test_windows_opener_can_bind_to_the_guarded_process(self) -> None:
+        process = FakeProcessMemory({})
+        with patch(
+            "shadowbane_lab.client_observation.native_zone."
+            "WindowsReadOnlyProcessMemory.open_for_process",
+            return_value=process,
+        ) as open_for_process:
+            reader = open_windows_native_current_zone_reader(
+                _profile(),
+                process_id=4320,
+            )
+
+        self.assertEqual(52, reader.process_id)
+        open_for_process.assert_called_once_with("sb.exe", 4320)
+        reader.close()
+        self.assertTrue(process.closed)
 
 
 class FakeNativeCurrentZoneReader:

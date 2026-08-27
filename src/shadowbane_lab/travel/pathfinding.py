@@ -164,6 +164,14 @@ class SparseNavigationMap:
     def cell_for(self, lt: float, lg: float) -> NavigationCell:
         return NavigationCell(floor(lt / self._cell_size), floor(lg / self._cell_size))
 
+    def center(self, cell: NavigationCell) -> tuple[float, float]:
+        if not isinstance(cell, NavigationCell):
+            raise ValueError("cell must be NavigationCell")
+        return (
+            (cell.x + 0.5) * self._cell_size,
+            (cell.y + 0.5) * self._cell_size,
+        )
+
     def mark_blocked_ahead(
         self,
         position: NativePlayerPositionObservation,
@@ -188,9 +196,14 @@ class SparseNavigationMap:
             step_x = 0 if delta_lt == 0 else (1 if delta_lt > 0 else -1)
             step_y = 0 if delta_lg == 0 else (1 if delta_lg > 0 else -1)
             cell = NavigationCell(current.x + step_x, current.y + step_y)
+        self.mark_blocked(cell)
+        return cell
+
+    def mark_blocked(self, cell: NavigationCell) -> None:
+        if not isinstance(cell, NavigationCell):
+            raise ValueError("cell must be NavigationCell")
         self._blocked.add(cell)
         self._costs.pop(cell, None)
-        return cell
 
     def set_cost(self, cell: NavigationCell, cost: float) -> None:
         if not isinstance(cell, NavigationCell):

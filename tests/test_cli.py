@@ -20,7 +20,7 @@ from shadowbane_lab.client_input import (
 )
 from shadowbane_lab.client_observation import NativePlayerPositionObservation
 from shadowbane_lab.pve import PvEIntent, PvEPhase
-from shadowbane_lab.travel import TravelPhase
+from shadowbane_lab.travel import SparseNavigationMap, TravelPhase
 from tests.test_client_input_executor import _valid_snapshot
 
 
@@ -324,6 +324,7 @@ class ClientCliTests(unittest.TestCase):
                 pve_client_profile_path=Path(directory) / "pve.json",
                 pve_hotbar_config_path=Path(directory) / "hotbar.cfg",
                 pve_evidence_directory=evidence_directory,
+                pve_navigation_cache_directory=Path(directory) / "cache",
                 pve_max_kills=3,
                 pve_max_seconds=300,
                 pve_max_encounter_seconds=120,
@@ -342,6 +343,7 @@ class ClientCliTests(unittest.TestCase):
         self.assertEqual(3, captured["max_kills"])
         self.assertEqual("proc-assassin", captured["policy"])
         self.assertEqual("state", captured["combat_source"])
+        self.assertEqual(Path(directory) / "cache", captured["navigation_cache_directory"])
         self.assertTrue(captured["stop_signal"].is_set())
         evidence_path = captured["evidence_output_path"]
         self.assertIsInstance(evidence_path, Path)
@@ -454,12 +456,30 @@ class ClientCliTests(unittest.TestCase):
         )
         native_profiles = tuple(
             SimpleNamespace(executable_sha256="ab" * 32, profile_id=f"profile-{index}")
-            for index in range(6)
+            for index in range(7)
         )
-        readers = tuple(MagicMock() for _ in range(6))
+        readers = tuple(MagicMock() for _ in range(7))
         for reader in readers:
             reader.process_id = 4320
             reader.__enter__.return_value = reader
+        zone_observation = SimpleNamespace(name="Sea Dog's Rest", zone_token="zone-1")
+        readers[6].observe.return_value = zone_observation
+        navigation_map = SparseNavigationMap()
+        terrain_navigation = SimpleNamespace(
+            navigation_map=navigation_map,
+            seed=SimpleNamespace(
+                zone_depth=0,
+                template_group_id=0,
+                template_id=10400,
+                terrain_group_id=13936188,
+                terrain_map_id=1,
+                raster_width=384,
+                raster_height=384,
+                sampled_cells=1600,
+                blocked_cells=frozenset({(1, 2)}),
+                costs=(((2, 3), 1.5),),
+            ),
+        )
         completed_run = SimpleNamespace(
             final_phase=PvEPhase.COMPLETE,
             terminal_reason="kill_limit_reached",
@@ -468,62 +488,59 @@ class ClientCliTests(unittest.TestCase):
         )
         injected_stop = EventEmergencyStop()
         output = io.StringIO()
+        open_health = MagicMock(return_value=readers[0])
+        open_vitals = MagicMock(return_value=readers[1])
+        open_position = MagicMock(return_value=readers[2])
+        open_target_position = MagicMock(return_value=readers[3])
+        open_message_hud = MagicMock(return_value=readers[4])
+        open_target_action = MagicMock(return_value=readers[5])
+        open_zone = MagicMock(return_value=readers[6])
+        load_terrain = MagicMock(return_value=terrain_navigation)
         with tempfile.TemporaryDirectory() as directory:
             evidence_output = Path(directory) / "evidence" / "pve.json"
+            navigation_cache = Path(directory) / "cache"
+            navigation_cache.mkdir()
             with (
                 patch("shadowbane_lab.cli.load_calibration", return_value=profile),
                 patch(
                     "shadowbane_lab.cli.WindowsForegroundWindowInspector",
                     return_value=StaticWindowInspector(snapshot),
                 ),
-                patch(
-                    "shadowbane_lab.cli.load_bundled_native_health_profile",
-                    return_value=native_profiles[0],
+                patch.multiple(
+                    "shadowbane_lab.cli",
+                    load_bundled_native_health_profile=MagicMock(
+                        return_value=native_profiles[0]
+                    ),
+                    load_bundled_native_vitals_profile=MagicMock(
+                        return_value=native_profiles[1]
+                    ),
+                    load_bundled_native_position_profile=MagicMock(
+                        return_value=native_profiles[2]
+                    ),
+                    load_bundled_native_target_position_profile=MagicMock(
+                        return_value=native_profiles[3]
+                    ),
+                    load_bundled_native_message_hud_profile=MagicMock(
+                        return_value=native_profiles[4]
+                    ),
+                    load_bundled_native_target_action_profile=MagicMock(
+                        return_value=native_profiles[5]
+                    ),
+                    load_bundled_native_zone_profile=MagicMock(
+                        return_value=native_profiles[6]
+                    ),
                 ),
-                patch(
-                    "shadowbane_lab.cli.load_bundled_native_vitals_profile",
-                    return_value=native_profiles[1],
+                patch.multiple(
+                    "shadowbane_lab.cli",
+                    open_windows_native_target_health_reader=open_health,
+                    open_windows_native_player_vitals_reader=open_vitals,
+                    open_windows_native_player_position_reader=open_position,
+                    open_windows_native_target_position_reader=open_target_position,
+                    open_windows_native_message_hud_reader=open_message_hud,
+                    open_windows_native_target_action_reader=open_target_action,
+                    open_windows_native_current_zone_reader=open_zone,
+                    load_active_zone_terrain_navigation=load_terrain,
                 ),
-                patch(
-                    "shadowbane_lab.cli.load_bundled_native_position_profile",
-                    return_value=native_profiles[2],
-                ),
-                patch(
-                    "shadowbane_lab.cli.load_bundled_native_target_position_profile",
-                    return_value=native_profiles[3],
-                ),
-                patch(
-                    "shadowbane_lab.cli.load_bundled_native_message_hud_profile",
-                    return_value=native_profiles[4],
-                ),
-                patch(
-                    "shadowbane_lab.cli.load_bundled_native_target_action_profile",
-                    return_value=native_profiles[5],
-                ),
-                patch(
-                    "shadowbane_lab.cli.open_windows_native_target_health_reader",
-                    return_value=readers[0],
-                ) as open_health,
-                patch(
-                    "shadowbane_lab.cli.open_windows_native_player_vitals_reader",
-                    return_value=readers[1],
-                ) as open_vitals,
-                patch(
-                    "shadowbane_lab.cli.open_windows_native_player_position_reader",
-                    return_value=readers[2],
-                ) as open_position,
-                patch(
-                    "shadowbane_lab.cli.open_windows_native_target_position_reader",
-                    return_value=readers[3],
-                ) as open_target_position,
-                patch(
-                    "shadowbane_lab.cli.open_windows_native_message_hud_reader",
-                    return_value=readers[4],
-                ) as open_message_hud,
-                patch(
-                    "shadowbane_lab.cli.open_windows_native_target_action_reader",
-                    return_value=readers[5],
-                ) as open_target_action,
                 patch("shadowbane_lab.cli.WindowsHotkeyEmergencyStop") as emergency_stop,
                 patch(
                     "shadowbane_lab.cli.PyAutoGuiBackend",
@@ -543,6 +560,7 @@ class ClientCliTests(unittest.TestCase):
                     native_position_profile_path=None,
                     native_target_position_profile_path=None,
                     native_target_action_profile_path=None,
+                    navigation_cache_directory=navigation_cache,
                     max_kills=1,
                     max_seconds=30,
                     wait_for_client_seconds=0,
@@ -577,6 +595,12 @@ class ClientCliTests(unittest.TestCase):
             native_profiles[5],
             process_id=4320,
         )
+        open_zone.assert_called_once_with(native_profiles[6], process_id=4320)
+        load_terrain.assert_called_once_with(navigation_cache, zone_observation)
+        self.assertIs(
+            navigation_map,
+            pve_runner.call_args.kwargs["approach_controller"]._navigation_map,
+        )
         readers[4].attach.assert_called_once_with()
         self.assertEqual(
             "hud",
@@ -589,6 +613,15 @@ class ClientCliTests(unittest.TestCase):
         self.assertEqual(
             "profile-5",
             saved_evidence["native_observation"]["target_action_profile_id"],
+        )
+        self.assertEqual("seeded", saved_evidence["terrain_navigation"]["status"])
+        self.assertEqual(
+            10400,
+            saved_evidence["terrain_navigation"]["seed"]["template_id"],
+        )
+        self.assertEqual(
+            1600,
+            saved_evidence["terrain_navigation"]["seed"]["sampled_cells"],
         )
         emergency_stop.assert_not_called()
 

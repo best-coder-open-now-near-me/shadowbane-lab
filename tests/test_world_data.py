@@ -185,6 +185,8 @@ class ZoneTerrainCorrelationTests(unittest.TestCase):
             result.maps[0].width_tiles,
             result.maps[0].height_tiles,
         ))
+        self.assertTrue(result.maps[0].is_height_map)
+        self.assertEqual(result.maps[0], result.height_map)
 
     def test_rejects_partial_map_reference_as_unsafe(self) -> None:
         terrain_resources = []
