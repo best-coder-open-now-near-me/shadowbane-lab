@@ -44,7 +44,9 @@ _PLAYER_ID = "player"
 _PLAYER_TEAM = "player"
 _MOB_TEAM = "mob"
 _DUAL_FIST = "shadowbane.assassin.dual_fist_successful_hit"
+_DUAL_FIST_MAXIMUM_RANGE = 3.0
 _SHADOW_TOUCH = "shadowbane.assassin.shadow_touch"
+_MOVE = "shadowbane.move"
 _MOB_ATTACK = "shadowbane.mob.basic_attack"
 _TICK_DURATION_MS = 200
 _MAX_BATCH_EPISODES = 1_000_000
@@ -89,6 +91,7 @@ class SmartCampConfig:
     player_health: float = 500.0
     player_mana: float = 220.0
     player_stamina: float = 100.0
+    player_move_speed: float = 30.0
     weapon_key: str = "generic_fast_fist"
     proc_effect_keys: tuple[str, ...] = (
         "tier_three_mental",
@@ -114,6 +117,7 @@ class SmartCampConfig:
             (self.player_health, "player_health"),
             (self.player_mana, "player_mana"),
             (self.player_stamina, "player_stamina"),
+            (self.player_move_speed, "player_move_speed"),
         ):
             _positive_number(value, field_name)
         if not isinstance(self.weapon_key, str) or not self.weapon_key.strip():
@@ -311,6 +315,7 @@ class SmartCampPolicy:
         self._control_action_key = control_action_key
         self._control_immunity_tag = control_immunity_tag
         self._target_entity_id: str | None = None
+        self._control_opened_target_ids: set[str] = set()
 
     def decide(self, exchange: AgentExchange, correlation_id: str) -> PolicyDecision:
         enemies = tuple(
@@ -321,14 +326,14 @@ class SmartCampPolicy:
         if not enemies:
             self._target_entity_id = None
             return PolicyDecision(None, None)
+        actor = next(
+            item
+            for item in exchange.observation.entities
+            if item.relation is Relation.SELF
+        )
         enemy_ids = {item.entity_id for item in enemies}
         target_changed = self._target_entity_id not in enemy_ids
         if target_changed:
-            actor = next(
-                item
-                for item in exchange.observation.entities
-                if item.relation is Relation.SELF
-            )
             selected = min(
                 enemies,
                 key=lambda item: (
@@ -361,14 +366,37 @@ class SmartCampPolicy:
             ),
             None,
         )
+        movement = max(
+            (
+                item
+                for item in exchange.affordances.affordances
+                if item.action_key == _MOVE and item.binding.direction is not None
+            ),
+            key=lambda item: (
+                item.binding.direction.x * (target.position.x - actor.position.x)
+                + item.binding.direction.y * (target.position.y - actor.position.y)
+            ),
+            default=None,
+        )
         selected_affordance = None
         reason = "waiting_on_action_readiness"
-        if control is not None and self._control_immunity_tag not in target.tags:
+        if (
+            self._target_entity_id not in self._control_opened_target_ids
+            and control is not None
+            and self._control_immunity_tag not in target.tags
+        ):
             selected_affordance = control
+            self._control_opened_target_ids.add(self._target_entity_id)
             reason = "open_with_control"
         elif weapon is not None:
             selected_affordance = weapon
             reason = "maintain_weapon_pressure"
+        elif (
+            movement is not None
+            and _distance(actor.position, target.position) > _DUAL_FIST_MAXIMUM_RANGE
+        ):
+            selected_affordance = movement
+            reason = "close_to_weapon_range"
         if selected_affordance is None:
             return PolicyDecision(None, None)
         decision = exchange.decision(selected_affordance.affordance_id, correlation_id)
@@ -415,7 +443,8 @@ def irekei_proc_assassin_smart_camp_config(
             "Three generic camp mobs begin in melee range with assumed 180 health and "
             "5-10 damage every two seconds.",
             "The policy retains its current living target, selects the nearest replacement, "
-            "opens with rank-40 Shadow Touch when stun immunity is absent, and otherwise "
+            "opens each target once with rank-40 Shadow Touch when stun immunity is absent, "
+            "closes to fist range at the simulator's 30-unit movement rate, and otherwise "
             "attacks.",
         ),
     )
@@ -717,7 +746,7 @@ def _compile_scenario(config: SmartCampConfig) -> _CompiledSmartCamp:
         targeting=TargetingSpec(
             kind=TargetKind.ENTITY,
             allowed_relations=(Relation.ENEMY,),
-            maximum_range=3.0,
+            maximum_range=_DUAL_FIST_MAXIMUM_RANGE,
         ),
         phases=(
             ActionPhase(
@@ -736,8 +765,11 @@ def _compile_scenario(config: SmartCampConfig) -> _CompiledSmartCamp:
     shadow_touch = ruleset.record(_SHADOW_TOUCH).action
     if shadow_touch is None:
         raise RuntimeError("ranked Shadow Touch did not compile")
+    movement = ruleset.record(_MOVE).action
+    if movement is None:
+        raise RuntimeError("directional movement did not compile")
     mob_actions = tuple(_mob_action(mob) for mob in config.mobs)
-    catalog = ActionCatalog((dual_fist, shadow_touch, *mob_actions))
+    catalog = ActionCatalog((dual_fist, shadow_touch, movement, *mob_actions))
     entities = [
         EntityState(
             entity_id=_PLAYER_ID,
@@ -749,6 +781,7 @@ def _compile_scenario(config: SmartCampConfig) -> _CompiledSmartCamp:
                 "health": config.player_health,
                 "mana": config.player_mana,
                 "stamina": config.player_stamina,
+                "move_speed": config.player_move_speed,
             },
             maximums={
                 "health": config.player_health,
@@ -756,7 +789,7 @@ def _compile_scenario(config: SmartCampConfig) -> _CompiledSmartCamp:
                 "stamina": config.player_stamina,
             },
             tags={"profession.assassin", "build.unarmed_proc"},
-            action_keys=(_DUAL_FIST, _SHADOW_TOUCH),
+            action_keys=(_DUAL_FIST, _SHADOW_TOUCH, _MOVE),
         )
     ]
     for mob, mob_action in zip(config.mobs, mob_actions, strict=True):

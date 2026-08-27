@@ -80,6 +80,23 @@ class SmartCampRolloutTests(unittest.TestCase):
         self.assertIn("wonderbane.live-pve.test", config.evidence)
         self.assertFalse(any("assumed 180 health" in item for item in config.assumptions))
 
+    def test_calibrated_engagement_closes_to_fist_range_after_one_control_opener(self) -> None:
+        config = apply_pve_combat_calibration(
+            irekei_proc_assassin_smart_camp_config(seed=4),
+            _calibration(),
+        )
+
+        result = run_smart_camp(config)
+        action_counts = dict(result.action_counts)
+
+        self.assertEqual(3, action_counts["shadowbane.assassin.shadow_touch"])
+        self.assertEqual(1, action_counts["shadowbane.move"])
+        self.assertGreater(
+            action_counts["shadowbane.assassin.dual_fist_successful_hit"],
+            0,
+        )
+        self.assertIn("close_to_weapon_range", {item.reason for item in result.choices})
+
     def test_default_proc_assassin_retains_targets_and_clears_the_camp(self) -> None:
         result = run_smart_camp(irekei_proc_assassin_smart_camp_config(seed=4))
 
