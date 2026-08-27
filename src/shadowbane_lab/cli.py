@@ -106,6 +106,7 @@ from shadowbane_lab.progression import (
 from shadowbane_lab.pve import (
     PVE_TRACE_SCHEMA_VERSION,
     ClientPvEIntentDispatcher,
+    EmptyCombatLogSource,
     PvECombatCalibrationError,
     PvEController,
     PvEControllerConfig,
@@ -395,10 +396,10 @@ def _parser() -> argparse.ArgumentParser:
     run_pve.add_argument("--client-profile", type=Path, required=True)
     run_pve.add_argument(
         "--combat-source",
-        choices=("hud", "log"),
+        choices=("state", "hud", "log"),
         help=(
-            "native message source; defaults to HUD unless --combat-log is supplied "
-            "for legacy file logging"
+            "combat evidence source; state uses exact health/action observations, HUD is "
+            "the default unless --combat-log is supplied for legacy file logging"
         ),
     )
     run_pve.add_argument("--combat-log", type=Path)
@@ -1513,8 +1514,8 @@ def _run_pve(
     resolved_combat_source = combat_source or (
         "log" if combat_log_path is not None else "hud"
     )
-    if resolved_combat_source not in ("hud", "log"):
-        return _error("combat-source must be hud or log", as_json=as_json)
+    if resolved_combat_source not in ("state", "hud", "log"):
+        return _error("combat-source must be state, hud, or log", as_json=as_json)
     if resolved_combat_source == "log":
         if combat_log_path is None:
             return _error("combat-source log requires --combat-log", as_json=as_json)
@@ -1650,7 +1651,9 @@ def _run_pve(
                     process_id=process_id,
                 )
             )
-            if message_hud_profile is None:
+            if resolved_combat_source == "state":
+                combat_reader = EmptyCombatLogSource()
+            elif message_hud_profile is None:
                 assert combat_log_path is not None
                 combat_reader = NativeCombatLogReader(combat_log_path, start_at_end=True)
             else:
@@ -2156,7 +2159,7 @@ def _listen_for_go_commands(
                             live=live,
                             as_json=as_json,
                             evidence_output_path=evidence_output,
-                            combat_source="hud",
+                            combat_source="state",
                             stop_signal=AnyStopSignal(service_stop, operation_stop),
                             client_process_id=command_process_id,
                         )

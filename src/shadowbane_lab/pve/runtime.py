@@ -61,6 +61,13 @@ class CombatLogSource(Protocol):
     def read_new_entries(self) -> tuple[NativeCombatLogEntry, ...]: ...
 
 
+class EmptyCombatLogSource:
+    """Supplies no text events when native state is the combat authority."""
+
+    def read_new_entries(self) -> tuple[NativeCombatLogEntry, ...]:
+        return ()
+
+
 class ClientPvEIntentDispatcher:
     """Wraps PvE intents in the shared semantic decision contract."""
 

@@ -341,6 +341,7 @@ class ClientCliTests(unittest.TestCase):
         self.assertEqual(4320, captured["client_process_id"])
         self.assertEqual(3, captured["max_kills"])
         self.assertEqual("proc-assassin", captured["policy"])
+        self.assertEqual("state", captured["combat_source"])
         self.assertTrue(captured["stop_signal"].is_set())
         evidence_path = captured["evidence_output_path"]
         self.assertIsInstance(evidence_path, Path)

@@ -36,7 +36,9 @@ portal automatically. Unknown names fail closed and appear as rejected events in
 log.
 
 Enter `/pve` to run the configured three-kill, five-minute bounded proc-Assassin battle loop.
-Each run writes a uniquely named evidence artifact beside the listener logs. Use `/stop` to
+The in-game command uses exact target health, player vitals, positions, and target action state;
+it does not require the native message HUD to contain a current transcript. Each run writes a
+uniquely named evidence artifact beside the listener logs. Use `/stop` to
 cancel either an active battle or route and immediately clear Shadowbane's last click-to-move
 destination through the same guarded minimap-center input path. The listener observes keyboard
 events only while the calibrated `sb.exe` window owns foreground focus, never suppresses the

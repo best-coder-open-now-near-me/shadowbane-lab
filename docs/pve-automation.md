@@ -3,7 +3,8 @@
 The live PvE slice repeatedly acquires nearby mobiles, attacks only a newly confirmed living
 target, waits for bounded resource recovery after each kill, and stops at explicit kill,
 encounter, recovery, or session limits. It consumes exact player vitals and position,
-selected-target health, position, and action state, and the native message HUD.
+selected-target health, position, and action state. Native message events are optional evidence;
+the persistent in-game command does not depend on a populated message HUD.
 
 ## Control loop
 
@@ -149,7 +150,9 @@ powershell.exe -NoProfile -File \\VBOXSVR\codexrepo\scripts\start-wonderbane-go-
 
 With Shadowbane focused, submit `/pve` in game chat. The launcher configures that command for
 three kills, a 300-second session, a 120-second per-target bound, and the verified current
-Shadow Touch hotbar mapping. Submit `/stop`, open chat, click a mouse button, or press
+Shadow Touch hotbar mapping. It uses the native-state combat source, so exact selected-target
+health confirms kills while target action state drives interrupts. Submit `/stop`, open chat,
+click a mouse button, or press
 `Ctrl+Shift+F12` to cancel it. `/stop` keeps the background listener alive for another `/pve`;
 the emergency hotkey shuts down the listener itself. Each `/pve` run writes a unique
 `pve-chat-*.json` evidence artifact to `\\VBOXSVR\codexdiag`.

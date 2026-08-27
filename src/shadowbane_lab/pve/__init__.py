@@ -31,6 +31,7 @@ from shadowbane_lab.pve.model import (
 from shadowbane_lab.pve.runtime import (
     ClientPvEIntentDispatcher,
     CombatLogSource,
+    EmptyCombatLogSource,
     PlayerPositionSource,
     PlayerVitalsSource,
     PvEIntentDispatcher,
@@ -43,6 +44,7 @@ from shadowbane_lab.pve.runtime import (
 __all__ = [
     "ClientPvEIntentDispatcher",
     "CombatLogSource",
+    "EmptyCombatLogSource",
     "ObservedSampleSummary",
     "PVE_COMBAT_CALIBRATION_SCHEMA_VERSION",
     "PVE_TRACE_SCHEMA_VERSION",

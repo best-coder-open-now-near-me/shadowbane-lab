@@ -14,6 +14,8 @@ from shadowbane_lab.client_observation import (
 )
 from shadowbane_lab.protocol import DispatchResult
 from shadowbane_lab.pve import (
+    CombatLogSource,
+    EmptyCombatLogSource,
     PvEController,
     PvEControllerConfig,
     PvEIntent,
@@ -816,6 +818,12 @@ class AdvancingClock:
 
 
 class PvERunnerTests(unittest.TestCase):
+    def test_state_combat_source_never_invents_text_events(self) -> None:
+        source = EmptyCombatLogSource()
+
+        self.assertEqual((), source.read_new_entries())
+        self.assertIsInstance(source, CombatLogSource)
+
     def test_runner_completes_one_native_observation_driven_kill(self) -> None:
         health = SequenceHealthSource(
             (
