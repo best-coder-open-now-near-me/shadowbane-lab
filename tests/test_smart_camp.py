@@ -52,6 +52,10 @@ def _calibration() -> PvECombatCalibration:
         starting_player_stamina=_summary(300.0),
         engagement_planar_distance=_summary(4.0),
         shadow_touch_mana_delta=_summary(55.0),
+        native_target_health_decrease=_summary(10.0, 12.0),
+        native_target_health_decrease_interval_ms=_summary(1_000.0),
+        native_player_health_decrease=_summary(6.0, 9.0),
+        native_player_health_decrease_interval_ms=_summary(1_800.0),
         limitations=("test limitation",),
     )
 

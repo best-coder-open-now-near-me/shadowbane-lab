@@ -21,6 +21,8 @@ def _step(
     *,
     intent: str | None = None,
     mana: float = 220.0,
+    player_health: float = 500.0,
+    target_health: float = 180.0,
     target_present: bool = True,
     events: list[dict[str, object]] | None = None,
 ) -> dict[str, object]:
@@ -33,7 +35,7 @@ def _step(
         "target": {
             "present": target_present,
             "token": "mob-a" if target_present else None,
-            "current_health": 180.0 if target_present else None,
+            "current_health": target_health if target_present else None,
             "maximum_health": 180.0 if target_present else None,
             "lt": 1005.0 if target_present else None,
             "lg": 2000.0 if target_present else None,
@@ -43,7 +45,7 @@ def _step(
             "spatial_distance": 5.0 if target_present else None,
         },
         "player": {
-            "current_health": 500.0,
+            "current_health": player_health,
             "maximum_health": 500.0,
             "current_mana": mana,
             "maximum_mana": 220.0,
@@ -81,6 +83,8 @@ def _evidence() -> dict[str, object]:
         _step(
             200,
             mana=165.0,
+            player_health=494.0,
+            target_health=170.0,
             events=[
                 _event(0, "player_hit_target", amount=10.0),
                 _event(1, "target_hit_player", amount=6.0),
@@ -89,6 +93,8 @@ def _evidence() -> dict[str, object]:
         _step(
             1_200,
             mana=165.0,
+            player_health=488.0,
+            target_health=158.0,
             events=[
                 _event(2, "player_hit_target", amount=12.0),
                 _event(3, "target_missed_player"),
@@ -148,6 +154,19 @@ class PvECombatCalibrationTests(unittest.TestCase):
         self.assertEqual(100.0, calibration.starting_player_stamina.median)
         self.assertEqual(5.0, calibration.engagement_planar_distance.median)
         self.assertEqual(55.0, calibration.shadow_touch_mana_delta.median)
+        self.assertEqual((10.0, 12.0), (
+            calibration.native_target_health_decrease.minimum,
+            calibration.native_target_health_decrease.maximum,
+        ))
+        self.assertEqual(
+            1_000.0,
+            calibration.native_target_health_decrease_interval_ms.median,
+        )
+        self.assertEqual(6.0, calibration.native_player_health_decrease.median)
+        self.assertEqual(
+            1_000.0,
+            calibration.native_player_health_decrease_interval_ms.median,
+        )
 
     def test_round_trips_a_compiled_calibration(self) -> None:
         calibration = compile_pve_combat_calibration((_evidence(),))

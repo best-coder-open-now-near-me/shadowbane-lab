@@ -175,10 +175,12 @@ python -m shadowbane_lab.cli client calibrate-pve `
 
 The calibration retains sample counts and histograms for observed target health, outgoing and
 incoming damage, hit/miss opportunities, poll-observed attack intervals, starting resources,
-engagement distance, experience, and adjacent-poll Shadow Touch mana deltas. Duplicate trace
-content is rejected rather than counted twice. Timing remains limited by the controller poll,
-logged damage does not identify individual weapon/proc/mitigation components, and target tokens
-remain process-local opaque identities; those limitations are carried in the artifact.
+engagement distance, experience, adjacent-poll Shadow Touch mana deltas, and exact aggregate
+player/target health decreases even when the native text log is silent. Duplicate trace content
+is rejected rather than counted twice. Timing remains limited by the controller poll, logged
+damage and aggregate health changes do not identify individual weapon/proc/mitigation
+components, and target tokens remain process-local opaque identities; those limitations are
+carried in the artifact.
 
 Apply the resulting evidence to the generic smart-camp simulator:
 

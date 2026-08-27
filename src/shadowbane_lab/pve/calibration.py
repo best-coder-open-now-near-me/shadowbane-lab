@@ -136,6 +136,10 @@ class PvECombatCalibration:
     starting_player_stamina: ObservedSampleSummary | None
     engagement_planar_distance: ObservedSampleSummary | None
     shadow_touch_mana_delta: ObservedSampleSummary | None
+    native_target_health_decrease: ObservedSampleSummary | None
+    native_target_health_decrease_interval_ms: ObservedSampleSummary | None
+    native_player_health_decrease: ObservedSampleSummary | None
+    native_player_health_decrease_interval_ms: ObservedSampleSummary | None
     limitations: tuple[str, ...]
     schema_version: int = PVE_COMBAT_CALIBRATION_SCHEMA_VERSION
 
@@ -211,6 +215,20 @@ class PvECombatCalibration:
                 self.engagement_planar_distance
             ),
             "shadow_touch_mana_delta": _summary_dict(self.shadow_touch_mana_delta),
+            "native_health_changes": {
+                "target_decrease": _summary_dict(
+                    self.native_target_health_decrease
+                ),
+                "target_decrease_interval_ms": _summary_dict(
+                    self.native_target_health_decrease_interval_ms
+                ),
+                "player_decrease": _summary_dict(
+                    self.native_player_health_decrease
+                ),
+                "player_decrease_interval_ms": _summary_dict(
+                    self.native_player_health_decrease_interval_ms
+                ),
+            },
             "limitations": list(self.limitations),
         }
 
@@ -239,6 +257,10 @@ def compile_pve_combat_calibration(
     starting_stamina: list[float] = []
     engagement_distances: list[float] = []
     shadow_touch_deltas: list[float] = []
+    native_target_decreases: list[float] = []
+    native_target_decrease_intervals: list[float] = []
+    native_player_decreases: list[float] = []
+    native_player_decrease_intervals: list[float] = []
     same_poll_opportunities = 0
 
     for payload_index, raw_payload in enumerate(evidence_payloads):
@@ -265,6 +287,10 @@ def compile_pve_combat_calibration(
         seen_event_sequences: set[int] = set()
         player_opportunity_times: list[int] = []
         target_opportunity_times: list[int] = []
+        target_health_by_token: dict[str, float] = {}
+        target_decrease_times: dict[str, list[int]] = {}
+        previous_player_health: float | None = None
+        player_decrease_times: list[int] = []
         steps = tuple(_mapping(item, "trace step") for item in trace)
         if steps:
             player = _mapping(steps[0].get("player"), "starting player")
@@ -287,6 +313,31 @@ def compile_pve_combat_calibration(
                     engagement_distances,
                     target.get("planar_distance"),
                 )
+            if isinstance(token, str) and token:
+                current_target_health = _optional_number(target.get("current_health"))
+                if current_target_health is not None:
+                    previous_target_health = target_health_by_token.get(token)
+                    if (
+                        previous_target_health is not None
+                        and previous_target_health - current_target_health > 0.0001
+                    ):
+                        native_target_decreases.append(
+                            previous_target_health - current_target_health
+                        )
+                        target_decrease_times.setdefault(token, []).append(at_ms)
+                    target_health_by_token[token] = current_target_health
+            player = _mapping(step.get("player"), "trace player")
+            current_player_health = _optional_number(player.get("current_health"))
+            if current_player_health is not None:
+                if (
+                    previous_player_health is not None
+                    and previous_player_health - current_player_health > 0.0001
+                ):
+                    native_player_decreases.append(
+                        previous_player_health - current_player_health
+                    )
+                    player_decrease_times.append(at_ms)
+                previous_player_health = current_player_health
             events = step.get("combat_events")
             assert isinstance(events, list)
             for event_raw in events:
@@ -340,6 +391,13 @@ def compile_pve_combat_calibration(
         added, same_poll = _positive_intervals(target_opportunity_times)
         target_intervals.extend(added)
         same_poll_opportunities += same_poll
+        for decrease_times in target_decrease_times.values():
+            added, same_poll = _positive_intervals(decrease_times)
+            native_target_decrease_intervals.extend(added)
+            same_poll_opportunities += same_poll
+        added, same_poll = _positive_intervals(player_decrease_times)
+        native_player_decrease_intervals.extend(added)
+        same_poll_opportunities += same_poll
 
     unique_trace_hashes = tuple(sorted(set(trace_hashes)))
     digest = hashlib.sha256("".join(unique_trace_hashes).encode("ascii")).hexdigest()[:16]
@@ -366,6 +424,18 @@ def compile_pve_combat_calibration(
             engagement_distances
         ),
         shadow_touch_mana_delta=ObservedSampleSummary.from_samples(shadow_touch_deltas),
+        native_target_health_decrease=ObservedSampleSummary.from_samples(
+            native_target_decreases
+        ),
+        native_target_health_decrease_interval_ms=ObservedSampleSummary.from_samples(
+            native_target_decrease_intervals
+        ),
+        native_player_health_decrease=ObservedSampleSummary.from_samples(
+            native_player_decreases
+        ),
+        native_player_health_decrease_interval_ms=ObservedSampleSummary.from_samples(
+            native_player_decrease_intervals
+        ),
         limitations=(
             "Combat-event timing uses the controller poll that observed each native log "
             "record, not the client's internal action timestamp.",
@@ -377,6 +447,8 @@ def compile_pve_combat_calibration(
             "engagement distance are aggregated across observed selections.",
             "Observed Shadow Touch mana deltas include any regeneration between adjacent "
             "controller polls.",
+            "Native health decreases are exact aggregate state changes but are not attributed "
+            "to a specific attacker, weapon, power, proc, mitigation component, or heal.",
         ),
     )
 
@@ -431,6 +503,10 @@ def load_pve_combat_calibration(path: str | Path) -> PvECombatCalibration:
     player_attacks = _mapping(data.get("player_attacks"), "player_attacks")
     target_attacks = _mapping(data.get("target_attacks"), "target_attacks")
     starting_player = _mapping(data.get("starting_player"), "starting_player")
+    native_health_changes = _mapping(
+        data.get("native_health_changes"),
+        "native_health_changes",
+    )
     try:
         return PvECombatCalibration(
             profile_id=_string(data, "profile_id"),
@@ -460,6 +536,18 @@ def load_pve_combat_calibration(path: str | Path) -> PvECombatCalibration:
             ),
             shadow_touch_mana_delta=_optional_summary(
                 data.get("shadow_touch_mana_delta")
+            ),
+            native_target_health_decrease=_optional_summary(
+                native_health_changes.get("target_decrease")
+            ),
+            native_target_health_decrease_interval_ms=_optional_summary(
+                native_health_changes.get("target_decrease_interval_ms")
+            ),
+            native_player_health_decrease=_optional_summary(
+                native_health_changes.get("player_decrease")
+            ),
+            native_player_health_decrease_interval_ms=_optional_summary(
+                native_health_changes.get("player_decrease_interval_ms")
             ),
             limitations=_string_tuple(data, "limitations"),
         )
