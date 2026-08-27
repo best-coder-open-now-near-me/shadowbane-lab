@@ -230,6 +230,11 @@ height-transition exclusions and costs. Runtime stalls still add learned obstacl
 replan around them. Water is not guessed from raster darkness, and placed trees or structures
 remain online-learned until `CObjects` collision is decoded.
 
+Selected-target health is guarded structurally rather than by a low gameplay cap: the build and
+pointer must match, the selection must stay stable across the read, both float values must be
+finite, and `0 <= current <= maximum`. This admits legitimate multi-million-HP targets without
+weakening pointer or coherence validation.
+
 The versioned JSON result includes native build/profile provenance, the active terrain seed, and a sample-by-sample
 trace: player health/mana/stamina and LT/LG/altitude, target identity/health/position, planar
 and three-dimensional target range, native action phase/motion/impact/target-of-target state,

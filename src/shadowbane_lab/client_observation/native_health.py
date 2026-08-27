@@ -16,7 +16,8 @@ from math import isfinite
 from pathlib import Path
 from typing import Any, Protocol, cast, runtime_checkable
 
-NATIVE_HEALTH_PROFILE_SCHEMA_VERSION = 1
+NATIVE_HEALTH_PROFILE_SCHEMA_VERSION = 2
+_LEGACY_NATIVE_HEALTH_PROFILE_SCHEMA_VERSION = 1
 _BUNDLED_PROFILE_NAME = "wonderbane-0889b39a.native-health.json"
 _ERROR_BAD_LENGTH = 24
 _ERROR_NO_MORE_FILES = 18
@@ -66,7 +67,6 @@ class NativeTargetHealthProfile:
     maximum_health_offset: int
     minimum_user_address: int
     maximum_user_address: int
-    maximum_plausible_health: float
     schema_version: int = NATIVE_HEALTH_PROFILE_SCHEMA_VERSION
 
     def __post_init__(self) -> None:
@@ -100,13 +100,6 @@ class NativeTargetHealthProfile:
             raise ValueError("maximum_user_address must fit a 32-bit client pointer")
         if self.maximum_user_address <= self.minimum_user_address:
             raise ValueError("maximum_user_address must exceed minimum_user_address")
-        if (
-            isinstance(self.maximum_plausible_health, bool)
-            or not isinstance(self.maximum_plausible_health, (int, float))
-            or not isfinite(self.maximum_plausible_health)
-            or self.maximum_plausible_health <= 0
-        ):
-            raise ValueError("maximum_plausible_health must be finite and positive")
         if self.schema_version != NATIVE_HEALTH_PROFILE_SCHEMA_VERSION:
             raise ValueError("unsupported native health profile version")
 
@@ -307,16 +300,14 @@ class NativeTargetHealthReader:
         current_health: float,
         maximum_health: float,
     ) -> NativeTargetHealthObservation:
-        maximum_plausible = self._profile.maximum_plausible_health
         if (
             not isfinite(current_health)
             or not isfinite(maximum_health)
             or current_health < 0
             or maximum_health <= 0
-            or maximum_health > maximum_plausible
         ):
             raise NativeTargetHealthReadError(
-                "selected-target health is outside calibrated plausible bounds"
+                "selected-target health is structurally invalid"
             )
         tolerance = max(0.001, maximum_health * 0.00001)
         if current_health > maximum_health + tolerance:
@@ -819,8 +810,12 @@ def load_native_health_profile_text(text: str) -> NativeTargetHealthProfile:
             "maximum_health_offset",
             "minimum_user_address",
             "maximum_user_address",
-            "maximum_plausible_health",
         }
+        schema_version = _integer(data, "schema_version")
+        if schema_version == _LEGACY_NATIVE_HEALTH_PROFILE_SCHEMA_VERSION:
+            expected.add("maximum_plausible_health")
+        elif schema_version != NATIVE_HEALTH_PROFILE_SCHEMA_VERSION:
+            raise NativeHealthProfileLoadError("unsupported native health profile version")
         missing = expected - set(data)
         unknown = set(data) - expected
         if missing:
@@ -831,8 +826,12 @@ def load_native_health_profile_text(text: str) -> NativeTargetHealthProfile:
             raise NativeHealthProfileLoadError(
                 f"unknown fields: {', '.join(sorted(unknown))}"
             )
-        if _integer(data, "schema_version") != NATIVE_HEALTH_PROFILE_SCHEMA_VERSION:
-            raise NativeHealthProfileLoadError("unsupported native health profile version")
+        if schema_version == _LEGACY_NATIVE_HEALTH_PROFILE_SCHEMA_VERSION:
+            legacy_cap = _number(data, "maximum_plausible_health")
+            if not isfinite(legacy_cap) or legacy_cap <= 0:
+                raise NativeHealthProfileLoadError(
+                    "maximum_plausible_health must be finite and positive"
+                )
         return NativeTargetHealthProfile(
             profile_id=_string(data, "profile_id"),
             executable_name=_string(data, "executable_name"),
@@ -843,7 +842,6 @@ def load_native_health_profile_text(text: str) -> NativeTargetHealthProfile:
             maximum_health_offset=_integer(data, "maximum_health_offset"),
             minimum_user_address=_integer(data, "minimum_user_address"),
             maximum_user_address=_integer(data, "maximum_user_address"),
-            maximum_plausible_health=_number(data, "maximum_plausible_health"),
         )
     except NativeHealthProfileLoadError:
         raise

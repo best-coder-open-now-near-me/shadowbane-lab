@@ -30,7 +30,6 @@ def _profile() -> NativeTargetHealthProfile:
         maximum_health_offset=0x5D0,
         minimum_user_address=0x10000,
         maximum_user_address=0x7FFEFFFF,
-        maximum_plausible_health=1_000_000,
     )
 
 
@@ -168,6 +167,27 @@ class NativeTargetHealthReaderTests(unittest.TestCase):
         with self.assertRaisesRegex(NativeTargetHealthReadError, "exceeds"):
             reader.observe()
 
+    def test_coherent_high_health_is_not_rejected_by_a_gameplay_cap(self) -> None:
+        profile = _profile()
+        target = 0x12340000
+        slot = FakeProcessMemory.base_address + profile.selected_pointer_rva
+        reader = NativeTargetHealthReader(
+            profile,
+            FakeProcessMemory(
+                {
+                    slot: [_pointer(target), _pointer(target)],
+                    target + profile.current_health_offset: [
+                        _health(4_500_000.0, 5_000_000.0)
+                    ],
+                }
+            ),
+        )
+
+        observation = reader.observe()
+
+        self.assertEqual(4_500_000.0, observation.current_health)
+        self.assertEqual(5_000_000.0, observation.maximum_health)
+
     def test_executable_hash_mismatch_fails_before_reads(self) -> None:
         process = FakeProcessMemory({})
         process.executable_sha256 = "cd" * 32
@@ -198,6 +218,26 @@ class NativeTargetHealthProfileTests(unittest.TestCase):
         self.assertEqual(0x16A2DA4, profile.selected_pointer_rva)
         self.assertEqual(0x5CC, profile.current_health_offset)
         self.assertEqual(0x5D0, profile.maximum_health_offset)
+        self.assertEqual(2, profile.schema_version)
+
+    def test_legacy_profile_loads_without_enforcing_its_gameplay_cap(self) -> None:
+        payload = {
+            "schema_version": 1,
+            "profile_id": "legacy",
+            "executable_name": "sb.exe",
+            "executable_sha256": "ab" * 32,
+            "pointer_size": 4,
+            "selected_pointer_rva": 1,
+            "current_health_offset": 4,
+            "maximum_health_offset": 8,
+            "minimum_user_address": 65536,
+            "maximum_user_address": 2147418111,
+            "maximum_plausible_health": 100,
+        }
+
+        profile = load_native_health_profile_text(json.dumps(payload))
+
+        self.assertEqual(2, profile.schema_version)
 
     def test_unknown_profile_field_fails_closed(self) -> None:
         payload = {
