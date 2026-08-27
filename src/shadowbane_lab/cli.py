@@ -1016,7 +1016,7 @@ def _observe_native_position(profile_path: Path | None, *, as_json: bool) -> int
         print(f"LT: {observation.lt:.2f}")
         print(f"LG: {observation.lg:.2f}")
         print(f"ALT: {observation.altitude:.2f}")
-        print(f"Transform copies: {observation.transform_count}")
+        print(f"Canonical position sources: {observation.transform_count}")
     return 0
 
 

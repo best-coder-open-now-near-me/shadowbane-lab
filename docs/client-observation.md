@@ -28,6 +28,24 @@ health, requires a non-null aligned player pointer, performs stable pointer-befo
 pointer-after reads, and validates every current/maximum pair. The bounded PvE controller
 requires this observation and stops before further input when health reaches 50 percent.
 
+## Native player position
+
+The local-player position reader follows the player pointer through the canonical position
+component used by the object's virtual position getter: player `+0x4B0`, component `+0`, then
+the native `x/y/z` vector at `+0x20`. It maps that vector to `LT=x`, `LG=-z`, and
+`altitude=y`.
+
+```powershell
+.\.venv\Scripts\python.exe -m shadowbane_lab.cli client observe-native-position --json
+```
+
+The reader verifies the executable hash, the player object's vtable range, and the exact
+getter implementation before following the component chain. It checks every pointer, samples
+the vector twice, rejects incoherent movement and out-of-world coordinates, then rereads the
+entire pointer chain so travel never acts on a mixed snapshot. This direct object-model path
+replaces the older render-copy calibration and remains valid when the HUD or render state
+changes.
+
 ## Native current zone
 
 The local player stores the current `ArcGameZone` pointer at offset `0xD40`. This is the zone

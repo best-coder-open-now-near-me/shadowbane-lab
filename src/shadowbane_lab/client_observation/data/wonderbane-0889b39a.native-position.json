@@ -1,27 +1,22 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "profile_id": "wonderbane-0889b39a-player-position",
   "executable_name": "sb.exe",
   "executable_sha256": "0889b39a6f065f2ddf696bad01455e0b691892077105fe27e35de94bfdf59ebc",
   "pointer_size": 4,
   "player_pointer_rva": 23735704,
-  "player_altitude_offset": 2776,
-  "transform_scale_signature": [
-    1.0303125381469727,
-    1.0862499475479126,
-    1.0303125381469727
-  ],
-  "scale_offset": 28,
+  "vtable_minimum_rva": 18092032,
+  "vtable_maximum_rva": 19664896,
+  "position_getter_slot_offset": 88,
+  "position_getter_rva": 41936,
+  "position_component_offset": 1200,
+  "component_value_offset": 0,
+  "position_value_offset": 32,
   "minimum_user_address": 65536,
   "maximum_user_address": 2147418111,
   "minimum_world_coordinate": 0,
   "maximum_world_coordinate": 200000,
   "minimum_altitude": -2000,
   "maximum_altitude": 20000,
-  "player_altitude_tolerance": 5,
-  "cluster_radius": 8,
-  "maximum_cluster_spread": 25,
-  "minimum_cluster_size": 3,
-  "maximum_tracking_delta": 2000,
-  "maximum_region_size": 67108864
+  "maximum_sample_drift": 100
 }
