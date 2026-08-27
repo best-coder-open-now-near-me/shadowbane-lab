@@ -12,6 +12,7 @@ from shadowbane_lab.world_data import (
     CacheArchive,
     CacheArchiveFormatError,
     TerrainAlphaFormatError,
+    TerrainAlphaRaster,
     TerrainAlphaTile,
     TerrainTileAddress,
     WorldDefinitionFormatError,
@@ -19,6 +20,7 @@ from shadowbane_lab.world_data import (
     correlate_zone_terrain,
     index_terrain_alpha_maps,
     parse_world_definition,
+    read_terrain_alpha_map,
 )
 
 
@@ -121,6 +123,35 @@ class TerrainAlphaTests(unittest.TestCase):
     def test_rejects_sample_count_that_does_not_match_dimensions(self) -> None:
         with self.assertRaisesRegex(TerrainAlphaFormatError, "dimensions"):
             TerrainAlphaTile.parse(_terrain_payload(b"\x00\x01\x02", width=2, height=2))
+
+    def test_stitches_complete_map_in_tile_and_row_order(self) -> None:
+        resources = []
+        expected_rows = (
+            bytes((1, 2, 5, 6)),
+            bytes((3, 4, 7, 8)),
+            bytes((9, 10, 13, 14)),
+            bytes((11, 12, 15, 16)),
+        )
+        tiles = {
+            (0, 0): bytes((1, 2, 3, 4)),
+            (1, 0): bytes((5, 6, 7, 8)),
+            (0, 1): bytes((9, 10, 11, 12)),
+            (1, 1): bytes((13, 14, 15, 16)),
+        }
+        for (tile_x, tile_y), samples in tiles.items():
+            resource_id = (7 << 24) | (tile_x * 1_000 + tile_y + 1)
+            resources.append((12, resource_id, _terrain_payload(samples), True))
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "TerrainAlpha.cache"
+            _write_cache(path, resources)
+            with CacheArchive(path) as archive:
+                terrain_map = index_terrain_alpha_maps(archive)[0]
+                raster = read_terrain_alpha_map(archive, terrain_map)
+
+        self.assertIsInstance(raster, TerrainAlphaRaster)
+        self.assertEqual((4, 4), (raster.width, raster.height))
+        self.assertEqual(b"".join(expected_rows), raster.samples)
+        self.assertEqual(15, raster.sample(2, 3))
 
 
 class ZoneTerrainCorrelationTests(unittest.TestCase):

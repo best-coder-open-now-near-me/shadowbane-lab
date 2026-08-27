@@ -96,6 +96,76 @@ class TerrainAlphaMap:
         return len(self.entries) == self.width_tiles * self.height_tiles
 
 
+@dataclass(frozen=True, slots=True)
+class TerrainAlphaRaster:
+    """One complete TerrainAlpha map stitched into stored row-major coordinates."""
+
+    group_id: int
+    map_id: int
+    width: int
+    height: int
+    samples: bytes
+
+    def __post_init__(self) -> None:
+        if self.width <= 0 or self.height <= 0:
+            raise ValueError("terrain raster dimensions must be positive")
+        if len(self.samples) != self.width * self.height:
+            raise ValueError("terrain raster dimensions do not match its samples")
+
+    def sample(self, x: int, y: int) -> int:
+        if not 0 <= x < self.width or not 0 <= y < self.height:
+            raise IndexError("terrain sample is outside the raster")
+        return self.samples[y * self.width + x]
+
+
+def read_terrain_alpha_map(
+    archive: CacheArchive,
+    terrain_map: TerrainAlphaMap,
+) -> TerrainAlphaRaster:
+    """Read and stitch one complete indexed map without loading unrelated rasters."""
+
+    if not isinstance(archive, CacheArchive):
+        raise ValueError("archive must be CacheArchive")
+    if not isinstance(terrain_map, TerrainAlphaMap):
+        raise ValueError("terrain_map must be TerrainAlphaMap")
+    if not terrain_map.is_complete:
+        raise TerrainAlphaFormatError(
+            f"terrain map {terrain_map.group_id}:{terrain_map.map_id} is incomplete"
+        )
+    parsed = [
+        (address, TerrainAlphaTile.parse(archive.read_resource(entry)))
+        for address, entry in terrain_map.entries
+    ]
+    tile_width = parsed[0][1].width
+    tile_height = parsed[0][1].height
+    if any(
+        tile.width != tile_width or tile.height != tile_height
+        for _, tile in parsed
+    ):
+        raise TerrainAlphaFormatError(
+            f"terrain map {terrain_map.group_id}:{terrain_map.map_id} has mixed tile sizes"
+        )
+    width = terrain_map.width_tiles * tile_width
+    height = terrain_map.height_tiles * tile_height
+    samples = bytearray(width * height)
+    for address, tile in parsed:
+        target_x = address.tile_x * tile_width
+        target_y = address.tile_y * tile_height
+        for row in range(tile_height):
+            source_begin = row * tile_width
+            target_begin = (target_y + row) * width + target_x
+            samples[target_begin : target_begin + tile_width] = tile.samples[
+                source_begin : source_begin + tile_width
+            ]
+    return TerrainAlphaRaster(
+        group_id=terrain_map.group_id,
+        map_id=terrain_map.map_id,
+        width=width,
+        height=height,
+        samples=bytes(samples),
+    )
+
+
 def index_terrain_alpha_maps(archive: CacheArchive) -> tuple[TerrainAlphaMap, ...]:
     grouped: dict[tuple[int, int], list[tuple[TerrainTileAddress, CacheResourceEntry]]] = {}
     for entry in archive.entries:

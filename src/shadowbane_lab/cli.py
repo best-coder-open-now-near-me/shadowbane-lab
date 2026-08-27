@@ -1196,6 +1196,26 @@ def _observe_native_zone(
             "cache_resolvable": identity.cache_resolvable,
             "object_type": identity.object_type,
             "object_uuid": identity.object_uuid,
+            "geometry": {
+                "minimum_local_x": identity.geometry.minimum_local_x,
+                "minimum_local_z": identity.geometry.minimum_local_z,
+                "maximum_local_x": identity.geometry.maximum_local_x,
+                "maximum_local_z": identity.geometry.maximum_local_z,
+                "rotation": {
+                    "w": identity.geometry.rotation_w,
+                    "x": identity.geometry.rotation_x,
+                    "y": identity.geometry.rotation_y,
+                    "z": identity.geometry.rotation_z,
+                },
+                "center_lt": identity.geometry.center_lt,
+                "center_lg": identity.geometry.center_lg,
+                "absolute_center_x": identity.geometry.absolute_center_x,
+                "absolute_center_z": identity.geometry.absolute_center_z,
+                "local_center_x": identity.geometry.local_center_x,
+                "local_center_z": identity.geometry.local_center_z,
+                "radius_x": identity.geometry.radius_x,
+                "radius_z": identity.geometry.radius_z,
+            },
             "terrain": terrain_by_depth.get(identity.depth),
         }
         for identity in observation.chain

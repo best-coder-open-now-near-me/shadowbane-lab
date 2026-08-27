@@ -8,6 +8,7 @@ import struct
 from collections.abc import Mapping
 from dataclasses import dataclass
 from importlib.resources import files
+from math import isclose, isfinite, sqrt
 from pathlib import Path
 from typing import Any, cast
 
@@ -16,7 +17,7 @@ from shadowbane_lab.client_observation.native_health import (
     WindowsReadOnlyProcessMemory,
 )
 
-NATIVE_ZONE_PROFILE_SCHEMA_VERSION = 2
+NATIVE_ZONE_PROFILE_SCHEMA_VERSION = 3
 _BUNDLED_PROFILE_NAME = "wonderbane-0889b39a.native-zone.json"
 _MAX_READ_SIZE = 64
 
@@ -53,6 +54,11 @@ class NativeCurrentZoneProfile:
     template_id_offset: int
     object_type_offset: int
     object_uuid_offset: int
+    geometry_bounds_offset: int
+    geometry_rotation_offset: int
+    geometry_absolute_center_offset: int
+    geometry_local_center_offset: int
+    geometry_radius_offset: int
     string_begin_offset: int
     string_end_offset: int
     string_capacity_offset: int
@@ -85,6 +91,11 @@ class NativeCurrentZoneProfile:
             (self.template_id_offset, "template_id_offset"),
             (self.object_type_offset, "object_type_offset"),
             (self.object_uuid_offset, "object_uuid_offset"),
+            (self.geometry_bounds_offset, "geometry_bounds_offset"),
+            (self.geometry_rotation_offset, "geometry_rotation_offset"),
+            (self.geometry_absolute_center_offset, "geometry_absolute_center_offset"),
+            (self.geometry_local_center_offset, "geometry_local_center_offset"),
+            (self.geometry_radius_offset, "geometry_radius_offset"),
             (self.string_begin_offset, "string_begin_offset"),
             (self.string_end_offset, "string_end_offset"),
             (self.string_capacity_offset, "string_capacity_offset"),
@@ -113,12 +124,94 @@ class NativeCurrentZoneProfile:
             raise ValueError("maximum_zone_name_chars must remain bounded")
         if self.maximum_parent_depth > 64:
             raise ValueError("maximum_parent_depth must remain bounded")
-        if self.template_id_offset != self.template_group_offset + 4:
+        if abs(self.template_id_offset - self.template_group_offset) != 4:
             raise ValueError("zone template key must be two adjacent 32-bit fields")
         if self.object_uuid_offset != self.object_type_offset + 4:
             raise ValueError("zone object key must be two adjacent 32-bit fields")
+        if self.geometry_rotation_offset != self.geometry_bounds_offset + 24:
+            raise ValueError("zone rotation must immediately follow the six-float bounds")
+        if self.geometry_absolute_center_offset != self.geometry_rotation_offset + 16:
+            raise ValueError("zone absolute center must immediately follow its quaternion")
+        if self.geometry_local_center_offset != self.geometry_absolute_center_offset + 8:
+            raise ValueError("zone local center must immediately follow its absolute center")
+        if self.geometry_radius_offset <= self.geometry_local_center_offset + 8:
+            raise ValueError("zone radius fields must follow its center fields")
         if self.schema_version != NATIVE_ZONE_PROFILE_SCHEMA_VERSION:
             raise ValueError("unsupported native zone profile version")
+
+
+@dataclass(frozen=True, slots=True)
+class NativeZoneGeometry:
+    """Stable runtime placement and local bounds for one active ArcGameZone."""
+
+    minimum_local_x: float
+    minimum_local_z: float
+    maximum_local_x: float
+    maximum_local_z: float
+    rotation_w: float
+    rotation_x: float
+    rotation_y: float
+    rotation_z: float
+    absolute_center_x: float
+    absolute_center_z: float
+    local_center_x: float
+    local_center_z: float
+    radius_x: float
+    radius_z: float
+
+    def __post_init__(self) -> None:
+        for value in (
+            self.minimum_local_x,
+            self.minimum_local_z,
+            self.maximum_local_x,
+            self.maximum_local_z,
+            self.rotation_w,
+            self.rotation_x,
+            self.rotation_y,
+            self.rotation_z,
+            self.absolute_center_x,
+            self.absolute_center_z,
+            self.local_center_x,
+            self.local_center_z,
+            self.radius_x,
+            self.radius_z,
+        ):
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not isfinite(value)
+            ):
+                raise ValueError("zone geometry values must be finite numbers")
+        if self.radius_x <= 0 or self.radius_z <= 0:
+            raise ValueError("zone radii must be positive")
+        if self.minimum_local_x >= self.maximum_local_x:
+            raise ValueError("zone local x bounds must be ordered")
+        if self.minimum_local_z >= self.maximum_local_z:
+            raise ValueError("zone local z bounds must be ordered")
+        for actual, expected in (
+            (self.minimum_local_x, self.local_center_x - self.radius_x),
+            (self.maximum_local_x, self.local_center_x + self.radius_x),
+            (self.minimum_local_z, self.local_center_z - self.radius_z),
+            (self.maximum_local_z, self.local_center_z + self.radius_z),
+        ):
+            if not isclose(actual, expected, rel_tol=0.0, abs_tol=0.25):
+                raise ValueError("zone bounds do not match its center and radii")
+        quaternion_norm = sqrt(
+            self.rotation_w * self.rotation_w
+            + self.rotation_x * self.rotation_x
+            + self.rotation_y * self.rotation_y
+            + self.rotation_z * self.rotation_z
+        )
+        if not isclose(quaternion_norm, 1.0, rel_tol=0.0, abs_tol=0.01):
+            raise ValueError("zone rotation quaternion is not normalized")
+
+    @property
+    def center_lt(self) -> float:
+        return self.absolute_center_x
+
+    @property
+    def center_lg(self) -> float:
+        return -self.absolute_center_z
 
 
 @dataclass(frozen=True, slots=True)
@@ -131,6 +224,7 @@ class NativeZoneIdentity:
     template_id: int
     object_type: int
     object_uuid: int
+    geometry: NativeZoneGeometry
 
     def __post_init__(self) -> None:
         if isinstance(self.depth, bool) or not isinstance(self.depth, int) or self.depth < 0:
@@ -150,6 +244,8 @@ class NativeZoneIdentity:
             or self.template_id < 0
         ):
             raise ValueError("template_id must be a non-negative integer")
+        if not isinstance(self.geometry, NativeZoneGeometry):
+            raise ValueError("zone identity geometry must be NativeZoneGeometry")
 
     @property
     def cache_resolvable(self) -> bool:
@@ -300,14 +396,19 @@ class NativeCurrentZoneReader:
                 raise NativeCurrentZoneReadError("current-zone parent chain contains a cycle")
             visited.add(zone_pointer)
             name = self._read_zone_name(zone_pointer)
-            template_group_id, template_id = self._read_identifier(
-                zone_pointer + self._profile.template_group_offset,
+            template_group_id, template_id = self._read_identifier_fields(
+                zone_pointer,
+                self._profile.template_group_offset,
+                self._profile.template_id_offset,
                 "zone-template",
             )
-            object_type, object_uuid = self._read_identifier(
-                zone_pointer + self._profile.object_type_offset,
+            object_type, object_uuid = self._read_identifier_fields(
+                zone_pointer,
+                self._profile.object_type_offset,
+                self._profile.object_uuid_offset,
                 "zone-object",
             )
+            geometry = self._read_zone_geometry(zone_pointer)
             chain.append(
                 NativeZoneIdentity(
                     depth=depth,
@@ -316,6 +417,7 @@ class NativeCurrentZoneReader:
                     template_id=template_id,
                     object_type=object_type,
                     object_uuid=object_uuid,
+                    geometry=geometry,
                 )
             )
             if depth == self._profile.maximum_parent_depth:
@@ -381,12 +483,62 @@ class NativeCurrentZoneReader:
         value = self._read_exact(address, self._profile.pointer_size, f"{label} pointer")
         return struct.unpack("<I", value)[0]
 
-    def _read_identifier(self, address: int, label: str) -> tuple[int, int]:
-        first = self._read_exact(address, 8, f"{label} identifier")
-        second = self._read_exact(address, 8, f"{label} identifier")
+    def _read_identifier_fields(
+        self,
+        object_pointer: int,
+        first_offset: int,
+        second_offset: int,
+        label: str,
+    ) -> tuple[int, int]:
+        begin_offset = min(first_offset, second_offset)
+        size = max(first_offset, second_offset) - begin_offset + 4
+        address = object_pointer + begin_offset
+        first = self._read_exact(address, size, f"{label} identifier")
+        second = self._read_exact(address, size, f"{label} identifier")
         if first != second:
             raise NativeCurrentZoneReadError(f"{label} identifier changed during the read")
-        return cast(tuple[int, int], struct.unpack("<II", first))
+        return (
+            struct.unpack_from("<I", first, first_offset - begin_offset)[0],
+            struct.unpack_from("<I", first, second_offset - begin_offset)[0],
+        )
+
+    def _read_zone_geometry(self, zone_pointer: int) -> NativeZoneGeometry:
+        profile = self._profile
+        begin_offset = profile.geometry_bounds_offset
+        size = profile.geometry_radius_offset + 8 - begin_offset
+        address = zone_pointer + begin_offset
+        first = self._read_exact(address, size, "zone geometry")
+        second = self._read_exact(address, size, "zone geometry")
+        if first != second:
+            raise NativeCurrentZoneReadError("zone geometry changed during the read")
+
+        def value(offset: int) -> float:
+            return struct.unpack_from("<f", first, offset - begin_offset)[0]
+
+        bounds = profile.geometry_bounds_offset
+        rotation = profile.geometry_rotation_offset
+        absolute_center = profile.geometry_absolute_center_offset
+        local_center = profile.geometry_local_center_offset
+        radius = profile.geometry_radius_offset
+        try:
+            return NativeZoneGeometry(
+                minimum_local_x=value(bounds),
+                minimum_local_z=value(bounds + 8),
+                maximum_local_x=value(bounds + 12),
+                maximum_local_z=value(bounds + 20),
+                rotation_w=value(rotation),
+                rotation_x=value(rotation + 4),
+                rotation_y=value(rotation + 8),
+                rotation_z=value(rotation + 12),
+                absolute_center_x=value(absolute_center),
+                absolute_center_z=value(absolute_center + 4),
+                local_center_x=value(local_center),
+                local_center_z=value(local_center + 4),
+                radius_x=value(radius + 4),
+                radius_z=value(radius),
+            )
+        except ValueError as exc:
+            raise NativeCurrentZoneReadError(f"zone geometry is invalid: {exc}") from exc
 
     def _read_exact(self, address: int, size: int, label: str) -> bytes:
         if size <= 0:
@@ -414,8 +566,9 @@ class NativeCurrentZoneReader:
         final_offset = max(
             profile.parent_zone_offset + profile.pointer_size,
             profile.zone_name_offset + profile.string_capacity_offset + profile.pointer_size,
-            profile.template_id_offset + 4,
+            max(profile.template_group_offset, profile.template_id_offset) + 4,
             profile.object_uuid_offset + 4,
+            profile.geometry_radius_offset + 8,
         )
         self._require_object_pointer(pointer, final_offset, "current-zone")
 
@@ -480,6 +633,11 @@ def load_native_zone_profile_text(text: str) -> NativeCurrentZoneProfile:
             "template_id_offset",
             "object_type_offset",
             "object_uuid_offset",
+            "geometry_bounds_offset",
+            "geometry_rotation_offset",
+            "geometry_absolute_center_offset",
+            "geometry_local_center_offset",
+            "geometry_radius_offset",
             "string_begin_offset",
             "string_end_offset",
             "string_capacity_offset",
@@ -511,6 +669,13 @@ def load_native_zone_profile_text(text: str) -> NativeCurrentZoneProfile:
             template_id_offset=_integer(data, "template_id_offset"),
             object_type_offset=_integer(data, "object_type_offset"),
             object_uuid_offset=_integer(data, "object_uuid_offset"),
+            geometry_bounds_offset=_integer(data, "geometry_bounds_offset"),
+            geometry_rotation_offset=_integer(data, "geometry_rotation_offset"),
+            geometry_absolute_center_offset=_integer(
+                data, "geometry_absolute_center_offset"
+            ),
+            geometry_local_center_offset=_integer(data, "geometry_local_center_offset"),
+            geometry_radius_offset=_integer(data, "geometry_radius_offset"),
             string_begin_offset=_integer(data, "string_begin_offset"),
             string_end_offset=_integer(data, "string_end_offset"),
             string_capacity_offset=_integer(data, "string_capacity_offset"),

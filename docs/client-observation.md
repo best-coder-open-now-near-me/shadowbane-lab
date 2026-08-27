@@ -51,9 +51,12 @@ changes.
 The local player stores the current `ArcGameZone` pointer at offset `0xD40`. This is the zone
 object already consumed by the HUD banner. Its name is a native UTF-16 `Core::String` at zone
 offset `0x1BC`; when that field is empty, the client follows the parent-zone pointer at `0xEC`
-until it finds the inherited name. The inherited `ArcCacheObj` key at `0x10`/`0x14` identifies
-the exact `CZone.cache` template, while `0x78`/`0x7C` contains the server-issued object type and
-UUID for that placed zone instance.
+until it finds the inherited name. The inherited `ArcCacheObj` resource ID at `0x10` and group
+ID at `0x14` identify the exact `CZone.cache` template, while `0x78`/`0x7C` contains the
+server-issued object type and UUID for that placed zone instance. The runtime placement block
+at `0x8C` through `0xF4` supplies validated local bounds, rotation, absolute and parent-local
+centers, and radii. Native `x/z` becomes world `LT/-LG`, so the terrain raster can be addressed
+directly from the same coordinates used by movement and target tracking.
 
 Read the client-resolved identity without focusing or capturing the game:
 

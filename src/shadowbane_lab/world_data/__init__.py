@@ -9,9 +9,11 @@ from shadowbane_lab.world_data.cache import (
 from shadowbane_lab.world_data.terrain import (
     TerrainAlphaFormatError,
     TerrainAlphaMap,
+    TerrainAlphaRaster,
     TerrainAlphaTile,
     TerrainTileAddress,
     index_terrain_alpha_maps,
+    read_terrain_alpha_map,
 )
 from shadowbane_lab.world_data.world import (
     WorldDefinition,
@@ -34,6 +36,7 @@ __all__ = [
     "CacheResourceEntry",
     "TerrainAlphaFormatError",
     "TerrainAlphaMap",
+    "TerrainAlphaRaster",
     "TerrainAlphaTile",
     "TerrainTileAddress",
     "WorldDefinition",
@@ -44,6 +47,7 @@ __all__ = [
     "ZoneTerrainMapReference",
     "correlate_zone_terrain",
     "index_terrain_alpha_maps",
+    "read_terrain_alpha_map",
     "load_world_definition",
     "parse_world_definition",
 ]

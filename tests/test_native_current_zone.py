@@ -13,6 +13,7 @@ from shadowbane_lab.client_observation import (
     NativeCurrentZoneProfile,
     NativeCurrentZoneReader,
     NativeCurrentZoneReadError,
+    NativeZoneGeometry,
     NativeZoneIdentity,
     load_bundled_native_zone_profile,
     load_native_zone_profile_text,
@@ -29,10 +30,15 @@ def _profile() -> NativeCurrentZoneProfile:
         current_zone_offset=0xD40,
         parent_zone_offset=0xEC,
         zone_name_offset=0x1BC,
-        template_group_offset=0x10,
-        template_id_offset=0x14,
+        template_group_offset=0x14,
+        template_id_offset=0x10,
         object_type_offset=0x78,
         object_uuid_offset=0x7C,
+        geometry_bounds_offset=0x8C,
+        geometry_rotation_offset=0xA4,
+        geometry_absolute_center_offset=0xB4,
+        geometry_local_center_offset=0xBC,
+        geometry_radius_offset=0xF0,
         string_begin_offset=4,
         string_end_offset=8,
         string_capacity_offset=12,
@@ -85,6 +91,35 @@ def _string_fixture(buffer: int, value: str) -> tuple[bytes, bytes]:
     return header, encoded + b"\x00\x00"
 
 
+def _geometry() -> NativeZoneGeometry:
+    return NativeZoneGeometry(
+        minimum_local_x=-384.0,
+        minimum_local_z=-384.0,
+        maximum_local_x=384.0,
+        maximum_local_z=384.0,
+        rotation_w=1.0,
+        rotation_x=0.0,
+        rotation_y=0.0,
+        rotation_z=0.0,
+        absolute_center_x=88_832.0,
+        absolute_center_z=-45_056.0,
+        local_center_x=0.0,
+        local_center_z=0.0,
+        radius_x=384.0,
+        radius_z=384.0,
+    )
+
+
+def _geometry_fixture() -> tuple[bytes, bytes]:
+    raw = bytearray(108)
+    struct.pack_into("<ffffff", raw, 0, -384.0, 0.0, -384.0, 384.0, 0.0, 384.0)
+    struct.pack_into("<ffff", raw, 24, 1.0, 0.0, 0.0, 0.0)
+    struct.pack_into("<ff", raw, 40, 88_832.0, -45_056.0)
+    struct.pack_into("<ff", raw, 48, 0.0, 0.0)
+    struct.pack_into("<ff", raw, 100, 384.0, 384.0)
+    return bytes(raw[:64]), bytes(raw[64:])
+
+
 def _fixture(
     current_name: str,
     *,
@@ -100,14 +135,19 @@ def _fixture(
     parent_buffer = 0x2B200000
     slot = FakeProcessMemory.base_address + profile.player_pointer_rva
     current_header, current_raw = _string_fixture(current_buffer, current_name)
+    geometry_first, geometry_second = _geometry_fixture()
     responses = {
         slot: [_pointer(player)],
         player + profile.current_zone_offset: [_pointer(current_zone)],
         current_zone + profile.zone_name_offset: [current_header],
-        current_zone + profile.template_group_offset: [
-            struct.pack("<II", *current_template)
+        current_zone + min(profile.template_group_offset, profile.template_id_offset): [
+            struct.pack("<II", current_template[1], current_template[0])
         ],
         current_zone + profile.object_type_offset: [struct.pack("<II", 9, 80052)],
+        current_zone + profile.geometry_bounds_offset: [geometry_first],
+        current_zone + profile.geometry_bounds_offset + len(geometry_first): [
+            geometry_second
+        ],
         current_zone + profile.parent_zone_offset: [_pointer(0)],
         current_buffer: [current_raw],
     }
@@ -115,11 +155,15 @@ def _fixture(
         parent_header, parent_raw = _string_fixture(parent_buffer, parent_name)
         responses[current_zone + profile.parent_zone_offset] = [_pointer(parent_zone)]
         responses[parent_zone + profile.zone_name_offset] = [parent_header]
-        responses[parent_zone + profile.template_group_offset] = [
-            struct.pack("<II", *parent_template)
+        responses[parent_zone + min(profile.template_group_offset, profile.template_id_offset)] = [
+            struct.pack("<II", parent_template[1], parent_template[0])
         ]
         responses[parent_zone + profile.object_type_offset] = [
             struct.pack("<II", 9, 70041)
+        ]
+        responses[parent_zone + profile.geometry_bounds_offset] = [geometry_first]
+        responses[parent_zone + profile.geometry_bounds_offset + len(geometry_first)] = [
+            geometry_second
         ]
         responses[parent_zone + profile.parent_zone_offset] = [_pointer(0)]
         responses[parent_buffer] = [parent_raw]
@@ -142,6 +186,10 @@ class NativeCurrentZoneReaderTests(unittest.TestCase):
         self.assertEqual((9, 80052), (
             observation.current.object_type,
             observation.current.object_uuid,
+        ))
+        self.assertEqual((88_832.0, 45_056.0), (
+            observation.current.geometry.center_lt,
+            observation.current.geometry.center_lg,
         ))
 
     def test_matches_client_parent_name_fallback(self) -> None:
@@ -209,13 +257,20 @@ class NativeCurrentZoneProfileTests(unittest.TestCase):
         self.assertEqual(0xD40, profile.current_zone_offset)
         self.assertEqual(0xEC, profile.parent_zone_offset)
         self.assertEqual(0x1BC, profile.zone_name_offset)
-        self.assertEqual((0x10, 0x14), (
+        self.assertEqual((0x14, 0x10), (
             profile.template_group_offset,
             profile.template_id_offset,
         ))
         self.assertEqual((0x78, 0x7C), (
             profile.object_type_offset,
             profile.object_uuid_offset,
+        ))
+        self.assertEqual((0x8C, 0xA4, 0xB4, 0xBC, 0xF0), (
+            profile.geometry_bounds_offset,
+            profile.geometry_rotation_offset,
+            profile.geometry_absolute_center_offset,
+            profile.geometry_local_center_offset,
+            profile.geometry_radius_offset,
         ))
         self.assertEqual((4, 8, 12), (
             profile.string_begin_offset,
@@ -257,6 +312,7 @@ class FakeNativeCurrentZoneReader:
                     template_id=524,
                     object_type=9,
                     object_uuid=80052,
+                    geometry=_geometry(),
                 ),
             ),
         )
