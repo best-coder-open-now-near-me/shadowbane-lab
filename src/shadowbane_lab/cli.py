@@ -38,6 +38,8 @@ from shadowbane_lab.client_observation import (
     NativeCombatLogFormatError,
     NativeCombatLogReader,
     NativeCurrentZoneError,
+    NativeGroupError,
+    NativeGroupProfileLoadError,
     NativeHealthProfileLoadError,
     NativePlayerPositionError,
     NativePlayerProgressionCoreError,
@@ -52,12 +54,14 @@ from shadowbane_lab.client_observation import (
     ObservationCalibrationLoadError,
     ObservationDetectionError,
     PyAutoGuiFrameCapture,
+    load_bundled_native_group_profile,
     load_bundled_native_health_profile,
     load_bundled_native_position_profile,
     load_bundled_native_progression_core_profile,
     load_bundled_native_training_profile,
     load_bundled_native_vitals_profile,
     load_bundled_native_zone_profile,
+    load_native_group_profile,
     load_native_health_profile,
     load_native_position_profile,
     load_native_progression_core_profile,
@@ -66,6 +70,7 @@ from shadowbane_lab.client_observation import (
     load_native_zone_profile,
     load_observation_calibration,
     open_windows_native_current_zone_reader,
+    open_windows_native_group_reader,
     open_windows_native_player_position_reader,
     open_windows_native_player_progression_core_reader,
     open_windows_native_player_training_reader,
@@ -276,6 +281,19 @@ def _parser() -> argparse.ArgumentParser:
         help="optionally join the active zone chain to CZone and TerrainAlpha caches",
     )
     observe_native_zone.add_argument(
+        "--json", action="store_true", help="emit machine-readable JSON"
+    )
+
+    observe_native_group = client_commands.add_parser(
+        "observe-native-group",
+        help="read the current group roster, resources, positions, and follow state",
+    )
+    observe_native_group.add_argument(
+        "--profile",
+        type=Path,
+        help="native group profile; defaults to the verified bundled WonderBane build",
+    )
+    observe_native_group.add_argument(
         "--json", action="store_true", help="emit machine-readable JSON"
     )
 
@@ -1035,6 +1053,71 @@ def _observe_native_zone(
     return 0
 
 
+def _observe_native_group(profile_path: Path | None, *, as_json: bool) -> int:
+    try:
+        profile = (
+            load_native_group_profile(profile_path)
+            if profile_path is not None
+            else load_bundled_native_group_profile()
+        )
+        with open_windows_native_group_reader(profile) as reader:
+            observation = reader.observe()
+            process_id = reader.process_id
+    except (
+        NativeGroupError,
+        NativeGroupProfileLoadError,
+        OSError,
+        ValueError,
+    ) as exc:
+        return _error(f"native group observation failed: {exc}", as_json=as_json)
+    leader = observation.leader
+    members = [
+        {
+            "first_name": member.first_name,
+            "last_name": member.last_name,
+            "full_name": member.full_name,
+            "object_type": member.object_type,
+            "object_uuid": member.object_uuid,
+            "health_percent": member.health_percent,
+            "stamina_percent": member.stamina_percent,
+            "mana_percent": member.mana_percent,
+            "lt": member.lt,
+            "lg": member.lg,
+            "altitude": member.altitude,
+            "role_code": member.role_code,
+            "is_leader": member.is_leader,
+            "follow_enabled": member.follow_enabled,
+        }
+        for member in observation.members
+    ]
+    payload = {
+        "ok": True,
+        "profile_id": profile.profile_id,
+        "process_id": process_id,
+        "grouped": observation.grouped,
+        "split_gold_enabled": observation.split_gold_enabled,
+        "local_follow_enabled": observation.local_follow_enabled,
+        "leader_uuid": leader.object_uuid if leader is not None else None,
+        "members": members,
+    }
+    if as_json:
+        print(json.dumps(payload, sort_keys=True))
+    else:
+        print(f"Grouped: {observation.grouped}")
+        print(f"Split gold: {observation.split_gold_enabled}")
+        print(f"Following: {observation.local_follow_enabled}")
+        for member in members:
+            role = "leader" if member["is_leader"] else "member"
+            print(
+                f"{member['full_name']} ({role}, {member['object_uuid']}): "
+                f"LT {member['lt']:.2f}, LG {member['lg']:.2f}, "
+                f"ALT {member['altitude']:.2f}; "
+                f"H/S/M {member['health_percent']}/"
+                f"{member['stamina_percent']}/{member['mana_percent']}"
+            )
+    return 0
+
+
 def _observe_native_progression(profile_path: Path | None, *, as_json: bool) -> int:
     try:
         profile = (
@@ -1592,6 +1675,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             arguments.cache_directory,
             as_json=arguments.json,
         )
+    if arguments.command == "client" and arguments.client_command == "observe-native-group":
+        return _observe_native_group(arguments.profile, as_json=arguments.json)
     if arguments.command == "client" and arguments.client_command == "observe-native-progression":
         return _observe_native_progression(arguments.profile, as_json=arguments.json)
     if arguments.command == "client" and arguments.client_command == "observe-native-training":

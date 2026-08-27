@@ -60,6 +60,28 @@ depth that supplied the name. It also emits each zone's exact template key and s
 key. The optional cache join accepts terrain references only when the `CZone` payload contains
 every tile in the referenced `TerrainAlpha` map; partial or duplicate maps fail closed.
 
+## Native group roster and follow state
+
+`ArcWindowGame` owns an `ArcGroupManager` pointer at offset `0x98`. The manager retains the
+group-member list populated by `ArcUpdateGroupMessage`: member object identifiers, names,
+health/stamina/mana percentages, native `x/y/z`, role, and per-member follow state. The manager
+also retains the local follow and split-gold flags. Native coordinates map to `LT=x`, `LG=-z`,
+and `altitude=y`, matching the local-player position reader.
+
+Read the current roster and leader position without focusing or capturing the game:
+
+```powershell
+.\.venv\Scripts\python.exe -m shadowbane_lab.cli client observe-native-group --json
+```
+
+The reader follows `ArcWindowGame -> ArcGroupManager -> std::list<ArcGrouperEntry*>` using the
+verified client layout. It checks the executable hash, every pointer and list link, group-size
+limit, UTF-16 name bounds, role and boolean fields, resource ranges, and finite coordinate
+bounds. It rereads the list head, links, entry pointers, member state, strings, and manager
+toggles so a concurrent group update cannot produce a mixed snapshot. The output identifies
+the leader when the client roster marks one, making that member's exact coordinates available
+to travel policy without requiring a selected target.
+
 ## Native progression core
 
 The same stable local-player object exposes exact level, unspent ability and training points,
