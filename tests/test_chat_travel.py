@@ -43,6 +43,23 @@ class GoChatCommandAssemblerTests(unittest.TestCase):
 
         self.assertEqual("/stop  ", assembler.handle_enter().submitted_command)
 
+    def test_submits_pve_command_and_allows_trailing_spaces(self) -> None:
+        assembler = GoChatCommandAssembler()
+        assembler.handle_enter()
+        for character in "/PvE  ":
+            assembler.handle_character(character)
+
+        self.assertEqual("/pve  ", assembler.handle_enter().submitted_command.casefold())
+
+    def test_discards_pve_command_with_arguments(self) -> None:
+        assembler = GoChatCommandAssembler()
+        assembler.handle_enter()
+        for character in "/pve 10":
+            assembler.handle_character(character)
+
+        self.assertIsNone(assembler.retained_text)
+        self.assertIsNone(assembler.handle_enter().submitted_command)
+
     def test_discards_stop_command_with_arguments(self) -> None:
         assembler = GoChatCommandAssembler()
         assembler.handle_enter()

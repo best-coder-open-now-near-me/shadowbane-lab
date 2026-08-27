@@ -12,8 +12,9 @@ python -m shadowbane_lab.cli client listen-go `
 ```
 
 Inside the configured VM, the checked-in launcher starts the same listener in a hidden
-process, refuses to create a duplicate, and writes JSON Lines status plus errors to the
-`codexdiag` shared folder:
+process, upgrades a legacy travel-only listener without creating a duplicate, enables the
+bounded `/pve` battle command from the current verified hotbar, and writes JSON Lines status
+plus errors to the `codexdiag` shared folder:
 
 ```powershell
 powershell.exe -NoProfile -File \\VBOXSVR\codexrepo\scripts\start-wonderbane-go-listener.ps1
@@ -34,15 +35,16 @@ transition to Oblivion; the travel controller stops at that Runegate and does no
 portal automatically. Unknown names fail closed and appear as rejected events in the listener
 log.
 
-Use `/stop` to cancel the active route and immediately clear Shadowbane's last click-to-move
-destination through the same guarded minimap-center input path. The listener observes
-keyboard events only while the calibrated `sb.exe` window owns foreground
-focus, never suppresses the game's input, and retains only text that is still a possible
-`/go` or `/stop` command. Opening chat cancels the bridge's active route before more travel
-clicks are issued. A physical foreground mouse-button press also cancels the route, while
-the listener ignores mouse input injected by the guarded travel actuator. This lets a manual
-click take ownership without the controller overwriting it at the next interval. Ordinary
-chat and all other slash-command prefixes are discarded immediately.
+Enter `/pve` to run the configured three-kill, five-minute bounded proc-Assassin battle loop.
+Each run writes a uniquely named evidence artifact beside the listener logs. Use `/stop` to
+cancel either an active battle or route and immediately clear Shadowbane's last click-to-move
+destination through the same guarded minimap-center input path. The listener observes keyboard
+events only while the calibrated `sb.exe` window owns foreground focus, never suppresses the
+game's input, and retains only text that is still a possible `/go`, `/pve`, or `/stop` command.
+Opening chat cancels the bridge's active operation before more automated input is issued. A
+physical foreground mouse-button press does the same, while the listener ignores mouse input
+injected by its own guarded actuators. This lets manual input take ownership immediately.
+Ordinary chat and all other slash-command prefixes are discarded.
 
 When more than one `sb.exe` process exists, each command binds native position and vitals
 reads to the process that owns the guarded foreground client window. Every later input guard

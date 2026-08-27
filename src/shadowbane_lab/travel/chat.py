@@ -1,4 +1,4 @@
-"""Foreground-scoped keyboard bridge for local travel chat commands."""
+"""Foreground-scoped keyboard bridge for local Shadowbane control commands."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ class GoChatCommandUpdate:
 
 
 class GoChatCommandAssembler:
-    """Retain only a possible ``/go`` or ``/stop`` line until submission."""
+    """Retain only a possible ``/go``, ``/pve``, or ``/stop`` line."""
 
     def __init__(self, *, maximum_length: int = 128) -> None:
         if isinstance(maximum_length, bool) or not isinstance(maximum_length, int):
@@ -44,9 +44,7 @@ class GoChatCommandAssembler:
             self._candidate = ""
             return GoChatCommandUpdate(interaction_started=True)
 
-        command = (
-            self._candidate if self._is_complete_travel_command(self._candidate) else None
-        )
+        command = self._candidate if self._is_complete_control_command(self._candidate) else None
         self.reset()
         return GoChatCommandUpdate(submitted_command=command)
 
@@ -65,7 +63,7 @@ class GoChatCommandAssembler:
             candidate = self._candidate + character
             if (
                 len(candidate) > self._maximum_length
-                or not self._could_be_travel_command(candidate)
+                or not self._could_be_control_command(candidate)
             ):
                 self._candidate = None
             else:
@@ -86,24 +84,30 @@ class GoChatCommandAssembler:
         self._candidate = None
 
     @staticmethod
-    def _could_be_travel_command(candidate: str) -> bool:
+    def _could_be_control_command(candidate: str) -> bool:
         normalized = candidate.casefold()
-        if "/go".startswith(normalized) or "/stop".startswith(normalized):
+        if any(
+            command.startswith(normalized)
+            for command in ("/go", "/pve", "/stop")
+        ):
             return True
         if normalized.startswith("/go "):
             return True
+        if normalized.startswith("/pve"):
+            return not normalized.removeprefix("/pve").strip()
         if normalized.startswith("/stop"):
             return not normalized.removeprefix("/stop").strip()
         return False
 
     @staticmethod
-    def _is_complete_travel_command(candidate: str | None) -> bool:
+    def _is_complete_control_command(candidate: str | None) -> bool:
         if candidate is None:
             return False
         normalized = candidate.casefold()
         return (
             normalized == "/go"
             or normalized.startswith("/go ")
+            or normalized.rstrip() == "/pve"
             or normalized.rstrip() == "/stop"
         )
 
@@ -111,8 +115,9 @@ class GoChatCommandAssembler:
 class WindowsGoChatCommandListener:
     """Observe keyboard events only while the calibrated game owns foreground focus.
 
-    The hook never suppresses or injects input. It keeps at most one possible ``/go`` or
-    ``/stop`` command and immediately forgets ordinary chat and unrelated commands.
+    The hook never suppresses or injects input. It keeps at most one possible ``/go``,
+    ``/pve``, or ``/stop`` command and immediately forgets ordinary chat and unrelated
+    commands.
     """
 
     _WH_KEYBOARD_LL = 13
@@ -177,7 +182,7 @@ class WindowsGoChatCommandListener:
         self._acquire_single_instance()
         self._thread = threading.Thread(
             target=self._listen,
-            name="shadowbane-go-chat-listener",
+            name="shadowbane-chat-command-listener",
             daemon=True,
         )
         try:
@@ -371,7 +376,7 @@ class WindowsGoChatCommandListener:
             raise OSError(ctypes.get_last_error(), "CreateMutexW failed")
         if ctypes.get_last_error() == self._ERROR_ALREADY_EXISTS:
             kernel32.CloseHandle(handle)
-            raise RuntimeError("another go chat-command listener is already running")
+            raise RuntimeError("another Shadowbane chat-command listener is already running")
         self._mutex_handle = int(handle)
 
     def _release_single_instance(self) -> None:

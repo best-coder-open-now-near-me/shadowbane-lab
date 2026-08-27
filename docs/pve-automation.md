@@ -138,6 +138,22 @@ $env:PYTHONPATH = "src"
   .\configs\wonderbane-pve.local.json --json
 ```
 
+## Start from in-game chat
+
+The persistent foreground chat listener owns both travel and battle commands. Start it once
+inside the VM (or restart it after updating the repository):
+
+```powershell
+powershell.exe -NoProfile -File \\VBOXSVR\codexrepo\scripts\start-wonderbane-go-listener.ps1
+```
+
+With Shadowbane focused, submit `/pve` in game chat. The launcher configures that command for
+three kills, a 300-second session, a 120-second per-target bound, and the verified current
+Shadow Touch hotbar mapping. Submit `/stop`, open chat, click a mouse button, or press
+`Ctrl+Shift+F12` to cancel it. `/stop` keeps the background listener alive for another `/pve`;
+the emergency hotkey shuts down the listener itself. Each `/pve` run writes a unique
+`pve-chat-*.json` evidence artifact to `\\VBOXSVR\codexdiag`.
+
 ## Run one bounded encounter
 
 Before touching the client, run the trace-backed semantic bridge. It drives the production

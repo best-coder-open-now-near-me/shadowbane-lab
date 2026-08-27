@@ -8,7 +8,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from shadowbane_lab.cli import _run_pve, _run_travel, main
+from shadowbane_lab.cli import _listen_for_go_commands, _run_pve, _run_travel, main
 from shadowbane_lab.client_input import (
     EventEmergencyStop,
     RecordingInputBackend,
@@ -251,6 +251,101 @@ class ClientCliTests(unittest.TestCase):
         self.assertFalse(payload["ok"])
         self.assertIn("--live", payload["error"])
 
+    def test_chat_pve_command_runs_on_the_guarded_client_and_stays_stoppable(self) -> None:
+        template = Path(__file__).parents[1] / "configs" / "wonderbane-travel.template.json"
+        profile = replace(load_calibration(template), live_input_enabled=True)
+        snapshot = WindowSnapshot(
+            executable_name=profile.target.executable_names[0],
+            title="Shadowbane",
+            client_bounds=WindowBounds(
+                left=0,
+                top=0,
+                width=profile.target.reference_width,
+                height=profile.target.reference_height,
+            ),
+            dpi_scale=profile.target.dpi_scale,
+            is_foreground=True,
+            is_visible=True,
+            process_id=4320,
+        )
+        service_stop = EventEmergencyStop()
+        captured: dict[str, object] = {}
+
+        class OneCommandListener:
+            def __init__(self, _guard, *, on_command, on_interaction) -> None:
+                self.on_command = on_command
+                self.on_interaction = on_interaction
+
+            def __enter__(self):
+                self.on_command("/pve")
+                return self
+
+            def __exit__(self, *_args) -> None:
+                return None
+
+        def run_pve(**kwargs) -> int:
+            captured.update(kwargs)
+            service_stop.trip()
+            return 0
+
+        emergency_stop = MagicMock()
+        emergency_stop.__enter__.return_value = service_stop
+        output = io.StringIO()
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch("shadowbane_lab.cli.load_calibration", return_value=profile),
+            patch(
+                "shadowbane_lab.cli.WindowsForegroundWindowInspector",
+                return_value=StaticWindowInspector(snapshot),
+            ),
+            patch(
+                "shadowbane_lab.cli.WindowsHotkeyEmergencyStop",
+                return_value=emergency_stop,
+            ),
+            patch(
+                "shadowbane_lab.cli.WindowsGoChatCommandListener",
+                OneCommandListener,
+            ),
+            patch("shadowbane_lab.cli._verify_hotbar_power_mapping"),
+            patch("shadowbane_lab.cli._run_pve", side_effect=run_pve),
+            patch(
+                "shadowbane_lab.cli.PyAutoGuiBackend",
+                return_value=RecordingInputBackend(),
+            ),
+            redirect_stdout(output),
+        ):
+            evidence_directory = Path(directory) / "evidence"
+            result = _listen_for_go_commands(
+                destination_state_path=Path(directory) / "travel.json",
+                client_profile_path=template,
+                native_position_profile_path=None,
+                native_vitals_profile_path=None,
+                world_def_path=None,
+                pve_client_profile_path=Path(directory) / "pve.json",
+                pve_hotbar_config_path=Path(directory) / "hotbar.cfg",
+                pve_evidence_directory=evidence_directory,
+                pve_max_kills=3,
+                pve_max_seconds=300,
+                pve_max_encounter_seconds=120,
+                pve_recovery_timeout_seconds=30,
+                pve_poll_ms=100,
+                max_seconds=300,
+                wait_for_client_seconds=0,
+                poll_ms=200,
+                click_interval_ms=4_000,
+                live=True,
+                as_json=True,
+            )
+
+        self.assertEqual(0, result)
+        self.assertEqual(4320, captured["client_process_id"])
+        self.assertEqual(3, captured["max_kills"])
+        self.assertEqual("proc-assassin", captured["policy"])
+        self.assertTrue(captured["stop_signal"].is_set())
+        evidence_path = captured["evidence_output_path"]
+        self.assertIsInstance(evidence_path, Path)
+        self.assertEqual(evidence_directory, evidence_path.parent)
+
     def test_travel_binds_native_readers_to_the_guarded_client_process(self) -> None:
         template = Path(__file__).parents[1] / "configs" / "wonderbane-travel.template.json"
         profile = replace(load_calibration(template), live_input_enabled=True)
@@ -370,6 +465,7 @@ class ClientCliTests(unittest.TestCase):
             kills=1,
             trace=(),
         )
+        injected_stop = EventEmergencyStop()
         output = io.StringIO()
         with tempfile.TemporaryDirectory() as directory:
             evidence_output = Path(directory) / "evidence" / "pve.json"
@@ -454,6 +550,8 @@ class ClientCliTests(unittest.TestCase):
                     live=True,
                     as_json=True,
                     evidence_output_path=evidence_output,
+                    stop_signal=injected_stop,
+                    client_process_id=4320,
                 )
                 saved_evidence = json.loads(evidence_output.read_text(encoding="utf-8"))
 
@@ -491,6 +589,7 @@ class ClientCliTests(unittest.TestCase):
             "profile-5",
             saved_evidence["native_observation"]["target_action_profile_id"],
         )
+        emergency_stop.assert_not_called()
 
     def test_proc_assassin_policy_fails_before_input_without_shadow_touch_mapping(self) -> None:
         template = Path(__file__).parents[1] / "configs" / "wonderbane-pve.template.json"

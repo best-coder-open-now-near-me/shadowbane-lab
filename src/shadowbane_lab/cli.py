@@ -492,7 +492,7 @@ def _parser() -> argparse.ArgumentParser:
 
     listen_go = client_commands.add_parser(
         "listen-go",
-        help="listen for foreground in-game /go commands and run bounded travel",
+        help="listen for foreground in-game /go, /pve, and /stop commands",
     )
     listen_go.add_argument(
         "--destination-state",
@@ -508,6 +508,26 @@ def _parser() -> argparse.ArgumentParser:
         type=Path,
         help="installed Config/WorldDef.cfg used to resolve named /go destinations",
     )
+    listen_go.add_argument(
+        "--pve-client-profile",
+        type=Path,
+        help="live PvE input profile; enables the in-game /pve command",
+    )
+    listen_go.add_argument(
+        "--pve-hotbar-config",
+        type=Path,
+        help="current character SCREEN_GAME config used to verify Shadow Touch",
+    )
+    listen_go.add_argument(
+        "--pve-evidence-directory",
+        type=Path,
+        help="directory for one timestamped evidence artifact per /pve run",
+    )
+    listen_go.add_argument("--pve-max-kills", type=int, default=3)
+    listen_go.add_argument("--pve-max-seconds", type=float, default=300.0)
+    listen_go.add_argument("--pve-max-encounter-seconds", type=float, default=120.0)
+    listen_go.add_argument("--pve-recovery-timeout-seconds", type=float, default=30.0)
+    listen_go.add_argument("--pve-poll-ms", type=int, default=100)
     listen_go.add_argument("--max-seconds", type=float, default=300.0)
     listen_go.add_argument("--wait-for-client-seconds", type=float, default=30.0)
     listen_go.add_argument("--poll-ms", type=int, default=200)
@@ -1459,6 +1479,8 @@ def _run_pve(
     recovery_health_fraction: float = 0.75,
     recovery_mana_fraction: float = 0.15,
     recovery_stamina_fraction: float = 0.25,
+    stop_signal: StopSignal | None = None,
+    client_process_id: int | None = None,
 ) -> int:
     if not live:
         return _error("PvE execution requires the explicit --live flag", as_json=as_json)
@@ -1582,16 +1604,21 @@ def _run_pve(
             raise ValueError("native PvE profiles target different client builds")
         inspector = WindowsForegroundWindowInspector()
         selection_guard = ForegroundWindowGuard(client_profile, inspector)
-        selected_window = _wait_for_guarded_client(
-            selection_guard,
-            wait_seconds=wait_for_client_seconds,
-        )
-        process_id = _require_window_process_id(selected_window)
+        if client_process_id is None:
+            selected_window = _wait_for_guarded_client(
+                selection_guard,
+                wait_seconds=wait_for_client_seconds,
+            )
+            process_id = _require_window_process_id(selected_window)
+        else:
+            process_id = client_process_id
         guard = ForegroundWindowGuard(
             client_profile,
             inspector,
             expected_process_id=process_id,
         )
+        if client_process_id is not None:
+            _wait_for_guarded_client(guard, wait_seconds=wait_for_client_seconds)
         with ExitStack() as stack:
             health_reader = stack.enter_context(
                 open_windows_native_target_health_reader(
@@ -1635,7 +1662,9 @@ def _run_pve(
                     )
                 )
                 combat_reader.attach()
-            stop_signal = stack.enter_context(WindowsHotkeyEmergencyStop())
+            active_stop_signal = stop_signal
+            if active_stop_signal is None:
+                active_stop_signal = stack.enter_context(WindowsHotkeyEmergencyStop())
             reader_process_ids = {
                 health_reader.process_id,
                 player_vitals_reader.process_id,
@@ -1650,7 +1679,7 @@ def _run_pve(
             executor = GuardedInputExecutor(
                 guard=guard,
                 backend=PyAutoGuiBackend(),
-                stop_signal=stop_signal,
+                stop_signal=active_stop_signal,
             )
             adapter = ClientInputAdapter(
                 DecisionInputCompiler(client_profile, StaticBindingPointResolver()),
@@ -1665,7 +1694,7 @@ def _run_pve(
                 target_action_reader=target_action_reader,
                 combat_log_reader=combat_reader,
                 dispatcher=ClientPvEIntentDispatcher(adapter),
-                stop_signal=stop_signal,
+                stop_signal=active_stop_signal,
                 poll_interval_ms=poll_ms,
             ).run()
     except (
@@ -1973,6 +2002,14 @@ def _listen_for_go_commands(
     native_position_profile_path: Path | None,
     native_vitals_profile_path: Path | None,
     world_def_path: Path | None,
+    pve_client_profile_path: Path | None,
+    pve_hotbar_config_path: Path | None,
+    pve_evidence_directory: Path | None,
+    pve_max_kills: int,
+    pve_max_seconds: float,
+    pve_max_encounter_seconds: float,
+    pve_recovery_timeout_seconds: float,
+    pve_poll_ms: int,
     max_seconds: float,
     wait_for_client_seconds: float,
     poll_ms: int,
@@ -1992,17 +2029,37 @@ def _listen_for_go_commands(
             if world_def_path is None
             else load_world_destination_catalog(world_def_path)
         )
-    except (CalibrationLoadError, OSError, RuntimeError, ValueError) as exc:
-        return _error(f"chat travel failed: {exc}", as_json=as_json)
+        if pve_client_profile_path is not None:
+            pve_profile = load_calibration(pve_client_profile_path)
+            if not pve_profile.live_input_enabled:
+                raise ValueError("PvE client profile is not enabled for live input")
+            if pve_profile.target != client_profile.target:
+                raise ValueError("travel and PvE profiles target different client windows")
+            _verify_hotbar_power_mapping(
+                pve_profile.actions,
+                pve_hotbar_config_path,
+                action_key=PvEIntent.CAST_SHADOW_TOUCH.value,
+                power_name=ArcaneClientPower.SHADOW_TOUCH,
+            )
+        if pve_evidence_directory is not None:
+            pve_evidence_directory.mkdir(parents=True, exist_ok=True)
+    except (
+        ArcaneHotbarLoadError,
+        CalibrationLoadError,
+        OSError,
+        RuntimeError,
+        ValueError,
+    ) as exc:
+        return _error(f"chat control failed: {exc}", as_json=as_json)
 
     commands: queue.Queue[str] = queue.Queue()
     active_lock = threading.Lock()
-    active_route_stop: EventEmergencyStop | None = None
+    active_operation_stop: EventEmergencyStop | None = None
 
-    def cancel_active_route() -> None:
+    def cancel_active_operation() -> None:
         with active_lock:
-            if active_route_stop is not None:
-                active_route_stop.trip()
+            if active_operation_stop is not None:
+                active_operation_stop.trip()
 
     def submit_command(command: str) -> None:
         commands.put(command)
@@ -2013,7 +2070,7 @@ def _listen_for_go_commands(
             WindowsGoChatCommandListener(
                 guard,
                 on_command=submit_command,
-                on_interaction=cancel_active_route,
+                on_interaction=cancel_active_operation,
             ),
         ):
             stop_adapter = ClientInputAdapter(
@@ -2056,6 +2113,57 @@ def _listen_for_go_commands(
                         command=command,
                         reason=str(exc),
                     )
+                    continue
+                if normalized == "/pve":
+                    if pve_client_profile_path is None:
+                        _print_go_listener_event(
+                            "rejected",
+                            as_json=as_json,
+                            command=command,
+                            reason="the listener was started without a PvE profile",
+                        )
+                        continue
+                    operation_stop = EventEmergencyStop()
+                    with active_lock:
+                        active_operation_stop = operation_stop
+                    evidence_output = (
+                        None
+                        if pve_evidence_directory is None
+                        else _new_chat_pve_evidence_path(pve_evidence_directory)
+                    )
+                    try:
+                        _print_go_listener_event(
+                            "accepted",
+                            as_json=as_json,
+                            command=command,
+                        )
+                        _run_pve(
+                            client_profile_path=pve_client_profile_path,
+                            combat_log_path=None,
+                            hotbar_config_path=pve_hotbar_config_path,
+                            native_health_profile_path=None,
+                            native_vitals_profile_path=native_vitals_profile_path,
+                            native_position_profile_path=native_position_profile_path,
+                            native_target_position_profile_path=None,
+                            native_target_action_profile_path=None,
+                            max_kills=pve_max_kills,
+                            max_seconds=pve_max_seconds,
+                            max_encounter_seconds=pve_max_encounter_seconds,
+                            recovery_timeout_seconds=pve_recovery_timeout_seconds,
+                            wait_for_client_seconds=0,
+                            poll_ms=pve_poll_ms,
+                            policy="proc-assassin",
+                            live=live,
+                            as_json=as_json,
+                            evidence_output_path=evidence_output,
+                            combat_source="hud",
+                            stop_signal=AnyStopSignal(service_stop, operation_stop),
+                            client_process_id=command_process_id,
+                        )
+                    finally:
+                        with active_lock:
+                            if active_operation_stop is operation_stop:
+                                active_operation_stop = None
                     continue
                 if normalized == "/go":
                     lt = None
@@ -2110,7 +2218,7 @@ def _listen_for_go_commands(
 
                 route_stop = EventEmergencyStop()
                 with active_lock:
-                    active_route_stop = route_stop
+                    active_operation_stop = route_stop
                 try:
                     _print_go_listener_event(
                         "accepted",
@@ -2148,15 +2256,23 @@ def _listen_for_go_commands(
                     )
                 finally:
                     with active_lock:
-                        if active_route_stop is route_stop:
-                            active_route_stop = None
+                        if active_operation_stop is route_stop:
+                            active_operation_stop = None
     except KeyboardInterrupt:
         pass
     except (OSError, RuntimeError, ValueError) as exc:
-        return _error(f"chat travel failed: {exc}", as_json=as_json)
+        return _error(f"chat control failed: {exc}", as_json=as_json)
 
     _print_go_listener_event("stopped", as_json=as_json)
     return 0
+
+
+def _new_chat_pve_evidence_path(directory: Path) -> Path:
+    timestamp = time.strftime("%Y%m%d-%H%M%S")
+    candidate = directory / f"pve-chat-{timestamp}-{time.time_ns()}.json"
+    if candidate.exists():
+        raise RuntimeError(f"refusing to overwrite PvE evidence: {candidate}")
+    return candidate
 
 
 def _print_go_listener_event(
@@ -2185,9 +2301,12 @@ def _print_go_listener_event(
         print(json.dumps(payload, sort_keys=True), flush=True)
         return
     if event == "listening":
-        print("Listening for foreground Shadowbane travel commands (/go, /stop).", flush=True)
+        print(
+            "Listening for foreground Shadowbane commands (/go, /pve, /stop).",
+            flush=True,
+        )
     elif event == "stopped":
-        print("Stopped listening for Shadowbane travel commands.", flush=True)
+        print("Stopped listening for Shadowbane commands.", flush=True)
     elif event == "accepted":
         detail = (
             ""
@@ -2392,6 +2511,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             native_position_profile_path=arguments.native_position_profile,
             native_vitals_profile_path=arguments.native_vitals_profile,
             world_def_path=arguments.world_def,
+            pve_client_profile_path=arguments.pve_client_profile,
+            pve_hotbar_config_path=arguments.pve_hotbar_config,
+            pve_evidence_directory=arguments.pve_evidence_directory,
+            pve_max_kills=arguments.pve_max_kills,
+            pve_max_seconds=arguments.pve_max_seconds,
+            pve_max_encounter_seconds=arguments.pve_max_encounter_seconds,
+            pve_recovery_timeout_seconds=arguments.pve_recovery_timeout_seconds,
+            pve_poll_ms=arguments.pve_poll_ms,
             max_seconds=arguments.max_seconds,
             wait_for_client_seconds=arguments.wait_for_client_seconds,
             poll_ms=arguments.poll_ms,
