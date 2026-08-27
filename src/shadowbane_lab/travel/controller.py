@@ -9,6 +9,7 @@ from shadowbane_lab.protocol import Vector2
 from shadowbane_lab.travel.model import (
     TravelControllerConfig,
     TravelDecision,
+    TravelDestination,
     TravelManeuver,
     TravelObservation,
     TravelPhase,
@@ -58,6 +59,43 @@ class TravelController:
     @property
     def config(self) -> TravelControllerConfig:
         return self._config
+
+    @property
+    def terminal(self) -> bool:
+        return self._terminal is not None
+
+    def update_single_destination(self, destination: TravelDestination) -> None:
+        """Retarget a one-way plan without discarding obstacle-recovery state."""
+
+        if not isinstance(destination, TravelDestination):
+            raise ValueError("destination must be TravelDestination")
+        if len(self._plan.destinations) != 1 or self._waypoint_index != 0:
+            raise RuntimeError("only an active single-destination plan may be retargeted")
+        self._plan = TravelPlan(
+            plan_id=self._plan.plan_id,
+            destinations=(destination,),
+        )
+
+    def update_final_destination(self, destination: TravelDestination) -> None:
+        """Move the final goal of an active route while preserving completed waypoints."""
+
+        if not isinstance(destination, TravelDestination):
+            raise ValueError("destination must be TravelDestination")
+        if self._terminal is not None:
+            raise RuntimeError("a terminal travel route cannot be retargeted")
+        destinations = (*self._plan.destinations[:-1], destination)
+        self._plan = TravelPlan(plan_id=self._plan.plan_id, destinations=destinations)
+
+    def arrive(self, observation: TravelObservation) -> TravelDecision:
+        """Complete a dynamic route when its moving goal is independently reached."""
+
+        if not isinstance(observation, TravelObservation):
+            raise ValueError("observation must be TravelObservation")
+        final = self._plan.destinations[-1]
+        distance = final.distance_from(observation.position)
+        if distance > final.arrival_radius:
+            raise ValueError("final destination has not been reached")
+        return self._complete(observation, distance)
 
     def step(self, observation: TravelObservation) -> TravelDecision:
         if not isinstance(observation, TravelObservation):

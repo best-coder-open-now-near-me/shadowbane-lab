@@ -1,5 +1,11 @@
 """Bounded, observation-driven PvE control."""
 
+from shadowbane_lab.pve.approach import (
+    PvEApproachConfig,
+    PvEApproachController,
+    PvEApproachStatus,
+    PvEApproachUpdate,
+)
 from shadowbane_lab.pve.calibration import (
     PVE_COMBAT_CALIBRATION_SCHEMA_VERSION,
     ObservedSampleSummary,
@@ -48,6 +54,10 @@ __all__ = [
     "ObservedSampleSummary",
     "PVE_COMBAT_CALIBRATION_SCHEMA_VERSION",
     "PVE_TRACE_SCHEMA_VERSION",
+    "PvEApproachConfig",
+    "PvEApproachController",
+    "PvEApproachStatus",
+    "PvEApproachUpdate",
     "PvECombatCalibration",
     "PvECombatCalibrationError",
     "PvEController",

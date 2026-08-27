@@ -107,6 +107,7 @@ from shadowbane_lab.pve import (
     PVE_TRACE_SCHEMA_VERSION,
     ClientPvEIntentDispatcher,
     EmptyCombatLogSource,
+    PvEApproachController,
     PvECombatCalibrationError,
     PvEController,
     PvEControllerConfig,
@@ -1525,6 +1526,8 @@ def _run_pve(
         client_profile = load_calibration(client_profile_path)
         if not client_profile.live_input_enabled:
             raise ValueError("client profile is not enabled for live input")
+        if client_profile.movement.button is not MouseButton.RIGHT:
+            raise ValueError("PvE approach movement must use right-click input")
         controller = PvEController(
             PvEControllerConfig(
                 maximum_kills=max_kills,
@@ -1697,6 +1700,8 @@ def _run_pve(
                 target_action_reader=target_action_reader,
                 combat_log_reader=combat_reader,
                 dispatcher=ClientPvEIntentDispatcher(adapter),
+                approach_controller=PvEApproachController(),
+                movement_dispatcher=ClientTravelDecisionDispatcher(adapter),
                 stop_signal=active_stop_signal,
                 poll_interval_ms=poll_ms,
             ).run()

@@ -27,6 +27,15 @@ from shadowbane_lab.travel.named import (
     load_world_destination_catalog,
     parse_named_go_command,
 )
+from shadowbane_lab.travel.pathfinding import (
+    AStarRoute,
+    AStarRouteNotFound,
+    NavigationCell,
+    NavigationCostGrid,
+    SparseNavigationMap,
+    WeightedAStarConfig,
+    WeightedAStarPlanner,
+)
 from shadowbane_lab.travel.runtime import (
     ClientTravelDecisionDispatcher,
     PlayerVitalsSource,
@@ -43,12 +52,17 @@ from shadowbane_lab.travel.state import (
 
 __all__ = [
     "ClientTravelDecisionDispatcher",
+    "AStarRoute",
+    "AStarRouteNotFound",
     "GoChatCommandAssembler",
     "GoChatCommandUpdate",
     "NamedTravelDestinationError",
+    "NavigationCell",
+    "NavigationCostGrid",
     "PlayerVitalsSource",
     "PositionSource",
     "ResolvedNamedDestination",
+    "SparseNavigationMap",
     "TravelController",
     "TravelControllerConfig",
     "TravelDecision",
@@ -65,6 +79,8 @@ __all__ = [
     "WindowsGoChatCommandListener",
     "WorldDestinationCatalog",
     "WorldDestinationEntry",
+    "WeightedAStarConfig",
+    "WeightedAStarPlanner",
     "build_world_destination_catalog",
     "parse_go_command",
     "load_travel_destination",

@@ -17,13 +17,20 @@ from shadowbane_lab.client_observation import (
     NativeTargetPositionObservation,
 )
 from shadowbane_lab.protocol import ActionBinding, DecisionMessage, DispatchResult
+from shadowbane_lab.pve.approach import (
+    PvEApproachController,
+    PvEApproachStatus,
+    PvEApproachUpdate,
+)
 from shadowbane_lab.pve.controller import PvEController
 from shadowbane_lab.pve.model import (
     PvEIntent,
     PvEObservation,
+    PvEPhase,
     PvERunResult,
     PvERunTraceStep,
 )
+from shadowbane_lab.travel.runtime import TravelDecisionDispatcher
 
 
 @runtime_checkable
@@ -113,6 +120,8 @@ class PvERunner:
         target_action_reader: TargetActionSource | None = None,
         combat_log_reader: CombatLogSource,
         dispatcher: PvEIntentDispatcher,
+        approach_controller: PvEApproachController | None = None,
+        movement_dispatcher: TravelDecisionDispatcher | None = None,
         stop_signal: StopSignal,
         poll_interval_ms: int = 100,
         maximum_consecutive_observation_failures: int = 3,
@@ -145,6 +154,20 @@ class PvERunner:
             raise ValueError("combat_log_reader must implement CombatLogSource")
         if not isinstance(dispatcher, PvEIntentDispatcher):
             raise ValueError("dispatcher must implement PvEIntentDispatcher")
+        if (approach_controller is None) != (movement_dispatcher is None):
+            raise ValueError(
+                "approach controller and movement dispatcher must be provided together"
+            )
+        if approach_controller is not None and not isinstance(
+            approach_controller, PvEApproachController
+        ):
+            raise ValueError("approach_controller must be PvEApproachController")
+        if movement_dispatcher is not None and not isinstance(
+            movement_dispatcher, TravelDecisionDispatcher
+        ):
+            raise ValueError("movement_dispatcher must implement TravelDecisionDispatcher")
+        if approach_controller is not None and player_position_reader is None:
+            raise ValueError("approach controller requires player and target position readers")
         if not isinstance(stop_signal, StopSignal):
             raise ValueError("stop_signal must implement StopSignal")
         if (
@@ -169,6 +192,8 @@ class PvERunner:
         self._target_action_reader = target_action_reader
         self._combat_log_reader = combat_log_reader
         self._dispatcher = dispatcher
+        self._approach_controller = approach_controller
+        self._movement_dispatcher = movement_dispatcher
         self._stop_signal = stop_signal
         self._poll_interval_seconds = poll_interval_ms / 1000.0
         self._maximum_consecutive_observation_failures = (
@@ -182,6 +207,7 @@ class PvERunner:
         trace: list[PvERunTraceStep] = []
         started_at = self._clock()
         terminal = None
+        last_observation: PvEObservation | None = None
         consecutive_observation_failures = 0
         while terminal is None:
             now_ms = round((self._clock() - started_at) * 1000)
@@ -221,7 +247,16 @@ class PvERunner:
                     target_position=target_position,
                     target_action=target_action,
                 )
+                last_observation = observation
                 decision = self._controller.step(observation)
+                approach = (
+                    None
+                    if self._approach_controller is None
+                    else self._approach_controller.step(
+                        observation,
+                        phase=decision.phase,
+                    )
+                )
             except Exception as exc:
                 consecutive_observation_failures += 1
                 if (
@@ -242,6 +277,98 @@ class PvERunner:
 
             accepted = None
             reason = None
+            approach_accepted = None
+            approach_reason = None
+            movement_stop_accepted = None
+            movement_stop_reason = None
+            approach_decision = None if approach is None else approach.decision
+            if approach_decision is not None and approach_decision.minimap_direction is not None:
+                assert self._movement_dispatcher is not None
+                try:
+                    approach_result = self._movement_dispatcher.dispatch(approach_decision)
+                except Exception as exc:
+                    approach_reason = f"input_failure:{type(exc).__name__}"
+                    trace.append(
+                        self._trace(
+                            decision,
+                            observation=observation,
+                            approach=approach,
+                            approach_input_accepted=False,
+                            approach_input_reason=approach_reason,
+                        )
+                    )
+                    terminal = self._controller.stop(approach_reason, now_ms=now_ms)
+                    trace.append(self._trace(terminal, observation=observation))
+                    break
+                approach_accepted = approach_result.accepted
+                approach_reason = approach_result.reason
+                if not approach_result.accepted:
+                    trace.append(
+                        self._trace(
+                            decision,
+                            observation=observation,
+                            approach=approach,
+                            approach_input_accepted=False,
+                            approach_input_reason=approach_reason,
+                        )
+                    )
+                    terminal = self._controller.stop(
+                        "guarded_movement_input_rejected",
+                        now_ms=now_ms,
+                    )
+                    trace.append(self._trace(terminal, observation=observation))
+                    break
+            if approach_decision is not None and approach_decision.terminal:
+                assert self._movement_dispatcher is not None
+                if approach_decision.click_count > 0:
+                    try:
+                        stop_result = self._movement_dispatcher.stop_movement(
+                            approach_decision
+                        )
+                    except Exception as exc:
+                        movement_stop_accepted = False
+                        movement_stop_reason = f"input_failure:{type(exc).__name__}"
+                    else:
+                        movement_stop_accepted = stop_result.accepted
+                        movement_stop_reason = stop_result.reason
+                    if movement_stop_accepted is False:
+                        trace.append(
+                            self._trace(
+                                decision,
+                                observation=observation,
+                                approach=approach,
+                                approach_input_accepted=approach_accepted,
+                                approach_input_reason=approach_reason,
+                                movement_stop_accepted=False,
+                                movement_stop_reason=movement_stop_reason,
+                            )
+                        )
+                        terminal = self._controller.stop(
+                            "movement_stop_rejected",
+                            now_ms=now_ms,
+                        )
+                        trace.append(self._trace(terminal, observation=observation))
+                        break
+            if approach is not None and approach.status is PvEApproachStatus.FAILED:
+                assert approach_decision is not None
+                terminal_reason = approach_decision.terminal_reason or "unknown"
+                trace.append(
+                    self._trace(
+                        decision,
+                        observation=observation,
+                        approach=approach,
+                        approach_input_accepted=approach_accepted,
+                        approach_input_reason=approach_reason,
+                        movement_stop_accepted=movement_stop_accepted,
+                        movement_stop_reason=movement_stop_reason,
+                    )
+                )
+                terminal = self._controller.stop(
+                    f"approach_{terminal_reason}",
+                    now_ms=now_ms,
+                )
+                trace.append(self._trace(terminal, observation=observation))
+                break
             if decision.intent is not None:
                 try:
                     result = self._dispatcher.dispatch(
@@ -284,6 +411,11 @@ class PvERunner:
                     observation=observation,
                     input_accepted=accepted,
                     input_reason=reason,
+                    approach=approach,
+                    approach_input_accepted=approach_accepted,
+                    approach_input_reason=approach_reason,
+                    movement_stop_accepted=movement_stop_accepted,
+                    movement_stop_reason=movement_stop_reason,
                 )
             )
             if decision.terminal:
@@ -293,9 +425,38 @@ class PvERunner:
 
         assert terminal is not None
         assert terminal.terminal_reason is not None
+        final_phase = terminal.phase
+        terminal_reason = terminal.terminal_reason
+        if self._approach_controller is not None:
+            cleanup = self._approach_controller.cancel("pve_run_terminal")
+            cleanup_decision = cleanup.decision
+            if cleanup_decision is not None and cleanup_decision.click_count > 0:
+                assert self._movement_dispatcher is not None
+                try:
+                    cleanup_result = self._movement_dispatcher.stop_movement(
+                        cleanup_decision
+                    )
+                except Exception as exc:
+                    cleanup_accepted = False
+                    cleanup_reason = f"input_failure:{type(exc).__name__}"
+                else:
+                    cleanup_accepted = cleanup_result.accepted
+                    cleanup_reason = cleanup_result.reason
+                trace.append(
+                    self._trace(
+                        terminal,
+                        observation=last_observation,
+                        approach=cleanup,
+                        movement_stop_accepted=cleanup_accepted,
+                        movement_stop_reason=cleanup_reason,
+                    )
+                )
+                if not cleanup_accepted:
+                    final_phase = PvEPhase.STOPPED
+                    terminal_reason = "movement_stop_rejected"
         return PvERunResult(
-            final_phase=terminal.phase,
-            terminal_reason=terminal.terminal_reason,
+            final_phase=final_phase,
+            terminal_reason=terminal_reason,
             kills=terminal.kills,
             trace=tuple(trace),
         )
@@ -307,6 +468,11 @@ class PvERunner:
         observation: PvEObservation | None,
         input_accepted: bool | None = None,
         input_reason: str | None = None,
+        approach: PvEApproachUpdate | None = None,
+        approach_input_accepted: bool | None = None,
+        approach_input_reason: str | None = None,
+        movement_stop_accepted: bool | None = None,
+        movement_stop_reason: str | None = None,
     ) -> PvERunTraceStep:
         return PvERunTraceStep(
             decision=decision,
@@ -343,4 +509,10 @@ class PvERunner:
             combat_events=() if observation is None else observation.combat_events,
             input_accepted=input_accepted,
             input_reason=input_reason,
+            approach_status=None if approach is None else approach.status.value,
+            approach_decision=None if approach is None else approach.decision,
+            approach_input_accepted=approach_input_accepted,
+            approach_input_reason=approach_input_reason,
+            movement_stop_accepted=movement_stop_accepted,
+            movement_stop_reason=movement_stop_reason,
         )

@@ -46,14 +46,14 @@
     }
   ],
   "movement": {
-    "action_key": "shadowbane.move",
+    "action_key": "shadowbane.travel.minimap",
     "center": {
-      "x": 0.5,
-      "y": 0.5
+      "x": 0.9442417926003127,
+      "y": 0.11215932914046122
     },
-    "horizontal_radius": 0.25,
-    "vertical_radius": 0.2,
-    "button": "left"
+    "horizontal_radius": 0.04273058884835852,
+    "vertical_radius": 0.0859538784067086,
+    "button": "right"
   },
   "camera": {
     "anchor": {

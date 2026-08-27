@@ -39,6 +39,8 @@ class PvEController:
         self._last_power_at: dict[PvEIntent, int] = {}
         self._last_interrupt_action_sequence: int | None = None
         self._interrupts_for_target = 0
+        self._best_approach_distance: float | None = None
+        self._outside_melee = False
 
     @property
     def phase(self) -> PvEPhase:
@@ -215,6 +217,21 @@ class PvEController:
         if target.target_token != self._engaged_target_token:
             return self.stop("selected_target_changed_during_engagement", now_ms=now)
         assert target.current_health is not None
+        approach_arrived = False
+        distance = observation.target_planar_distance
+        if distance is not None:
+            if (
+                self._best_approach_distance is None
+                or distance
+                <= self._best_approach_distance - self._config.minimum_approach_progress
+            ):
+                self._best_approach_distance = distance
+                self._last_progress_at = now
+            if distance > self._config.melee_approach_radius:
+                self._outside_melee = True
+            elif self._outside_melee:
+                self._outside_melee = False
+                approach_arrived = True
         if self._last_health is None or target.current_health < self._last_health - 0.0001:
             self._last_progress_at = now
         if any(event.kind is NativeCombatEventKind.PLAYER_HIT_TARGET for event in events):
@@ -224,6 +241,9 @@ class PvEController:
         interrupt = self._interrupt(observation)
         if interrupt is not None:
             return interrupt
+        if approach_arrived:
+            self._last_progress_at = now
+            return self._emit(now, PvEIntent.ATTACK_SELECTED_TARGET)
 
         if self._phase_elapsed(now) >= self._config.engagement_timeout_ms:
             return self.stop("engagement_timeout", now_ms=now)
@@ -291,6 +311,11 @@ class PvEController:
         self._require_different_target = False
         self._last_interrupt_action_sequence = None
         self._interrupts_for_target = 0
+        self._best_approach_distance = observation.target_planar_distance
+        self._outside_melee = bool(
+            self._best_approach_distance is not None
+            and self._best_approach_distance > self._config.melee_approach_radius
+        )
         opener = self._config.opening_intent
         if opener is not None and observation.player.current_mana >= self._config.opening_mana_cost:
             self._enter(PvEPhase.OPENING, now)
@@ -383,6 +408,8 @@ class PvEController:
         self._reengage_attempts = 0
         self._last_interrupt_action_sequence = None
         self._interrupts_for_target = 0
+        self._best_approach_distance = None
+        self._outside_melee = False
 
     def _enter(self, phase: PvEPhase, now_ms: int) -> None:
         self._phase = phase

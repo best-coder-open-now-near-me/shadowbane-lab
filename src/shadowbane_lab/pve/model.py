@@ -14,6 +14,7 @@ from shadowbane_lab.client_observation import (
     NativeTargetHealthObservation,
     NativeTargetPositionObservation,
 )
+from shadowbane_lab.travel.model import TravelDecision
 
 
 def _positive_integer(value: int, field_name: str) -> None:
@@ -75,6 +76,8 @@ class PvEControllerConfig:
     maximum_interrupts_per_target: int = 0
     automatic_attack_expected: bool = False
     automatic_target_requires_combat_event: bool = False
+    melee_approach_radius: float = 20.0
+    minimum_approach_progress: float = 8.0
 
     def __post_init__(self) -> None:
         for value, field_name in (
@@ -189,6 +192,17 @@ class PvEControllerConfig:
             raise ValueError("interrupt limits require an interrupt_intent")
         if self.interrupt_intent is not None and self.maximum_interrupts_per_target == 0:
             raise ValueError("interrupt_intent requires a positive per-target limit")
+        for value, field_name in (
+            (self.melee_approach_radius, "melee_approach_radius"),
+            (self.minimum_approach_progress, "minimum_approach_progress"),
+        ):
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not isfinite(value)
+                or value <= 0
+            ):
+                raise ValueError(f"{field_name} must be positive")
 
 
 @dataclass(frozen=True, slots=True)
@@ -326,6 +340,12 @@ class PvERunTraceStep:
     combat_events: tuple[NativeCombatEvent, ...] = ()
     input_accepted: bool | None = None
     input_reason: str | None = None
+    approach_status: str | None = None
+    approach_decision: TravelDecision | None = None
+    approach_input_accepted: bool | None = None
+    approach_input_reason: str | None = None
+    movement_stop_accepted: bool | None = None
+    movement_stop_reason: str | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.decision, PvEControllerDecision):
@@ -338,6 +358,38 @@ class PvERunTraceStep:
             raise ValueError("input outcome requires a dispatched intent")
         if self.input_reason is not None and self.input_accepted is not False:
             raise ValueError("input_reason is valid only for rejected input")
+        if self.approach_status is not None and (
+            not isinstance(self.approach_status, str) or not self.approach_status.strip()
+        ):
+            raise ValueError("approach_status must be a non-empty string when present")
+        if self.approach_decision is not None and not isinstance(
+            self.approach_decision, TravelDecision
+        ):
+            raise ValueError("approach_decision must be TravelDecision when present")
+        if self.approach_input_accepted is not None and not isinstance(
+            self.approach_input_accepted, bool
+        ):
+            raise ValueError("approach_input_accepted must be a boolean when present")
+        if self.approach_input_accepted is not None and (
+            self.approach_decision is None
+            or self.approach_decision.minimap_direction is None
+        ):
+            raise ValueError("approach input outcome requires a movement decision")
+        if (
+            self.approach_input_reason is not None
+            and self.approach_input_accepted is not False
+        ):
+            raise ValueError("approach_input_reason is valid only for rejected input")
+        if self.movement_stop_accepted is not None and not isinstance(
+            self.movement_stop_accepted, bool
+        ):
+            raise ValueError("movement_stop_accepted must be a boolean when present")
+        if self.movement_stop_accepted is not None and (
+            self.approach_decision is None or not self.approach_decision.terminal
+        ):
+            raise ValueError("movement stop outcome requires a terminal approach decision")
+        if self.movement_stop_reason is not None and self.movement_stop_accepted is not False:
+            raise ValueError("movement_stop_reason is valid only for rejected movement stop")
         if self.player_position is not None and not isinstance(
             self.player_position, NativePlayerPositionObservation
         ):
@@ -424,6 +476,52 @@ class PvERunTraceStep:
             ],
             "input_accepted": self.input_accepted,
             "input_reason": self.input_reason,
+            "approach": (
+                None
+                if self.approach_status is None
+                else {
+                    "status": self.approach_status,
+                    "phase": (
+                        None
+                        if self.approach_decision is None
+                        else self.approach_decision.phase.value
+                    ),
+                    "maneuver": (
+                        None
+                        if self.approach_decision is None
+                        or self.approach_decision.maneuver is None
+                        else self.approach_decision.maneuver.value
+                    ),
+                    "direction": (
+                        None
+                        if self.approach_decision is None
+                        or self.approach_decision.minimap_direction is None
+                        else {
+                            "x": self.approach_decision.minimap_direction.x,
+                            "y": self.approach_decision.minimap_direction.y,
+                        }
+                    ),
+                    "distance_remaining": (
+                        None
+                        if self.approach_decision is None
+                        else self.approach_decision.distance_remaining
+                    ),
+                    "click_count": (
+                        None
+                        if self.approach_decision is None
+                        else self.approach_decision.click_count
+                    ),
+                    "terminal_reason": (
+                        None
+                        if self.approach_decision is None
+                        else self.approach_decision.terminal_reason
+                    ),
+                    "input_accepted": self.approach_input_accepted,
+                    "input_reason": self.approach_input_reason,
+                    "movement_stop_accepted": self.movement_stop_accepted,
+                    "movement_stop_reason": self.movement_stop_reason,
+                }
+            ),
         }
 
 

@@ -16,6 +16,8 @@ from shadowbane_lab.protocol import DispatchResult
 from shadowbane_lab.pve import (
     CombatLogSource,
     EmptyCombatLogSource,
+    PvEApproachConfig,
+    PvEApproachController,
     PvEController,
     PvEControllerConfig,
     PvEIntent,
@@ -24,6 +26,7 @@ from shadowbane_lab.pve import (
     PvEPhase,
     PvERunner,
 )
+from shadowbane_lab.travel import SparseNavigationMap, TravelControllerConfig, TravelManeuver
 
 
 def _absent() -> NativeTargetHealthObservation:
@@ -71,17 +74,24 @@ def _player(
     )
 
 
-def _player_position() -> NativePlayerPositionObservation:
-    return NativePlayerPositionObservation(100.0, 200.0, 10.0)
+def _player_position(
+    lt: float = 100.0,
+    lg: float = 200.0,
+) -> NativePlayerPositionObservation:
+    return NativePlayerPositionObservation(lt, lg, 10.0)
 
 
-def _target_position(token: str | None) -> NativeTargetPositionObservation:
+def _target_position(
+    token: str | None,
+    lt: float = 103.0,
+    lg: float = 204.0,
+) -> NativeTargetPositionObservation:
     if token is None:
         return NativeTargetPositionObservation(target_present=False)
     return NativeTargetPositionObservation(
         target_present=True,
-        lt=103.0,
-        lg=204.0,
+        lt=lt,
+        lg=lg,
         altitude=22.0,
         target_token=token,
     )
@@ -146,6 +156,44 @@ class PvEControllerTests(unittest.TestCase):
                 player_position=_player_position(),
                 target_position=_target_position("other-mob"),
             )
+
+    def test_crossing_melee_radius_reissues_attack_after_approach(self) -> None:
+        controller = PvEController(
+            PvEControllerConfig(
+                automatic_attack_expected=True,
+                melee_approach_radius=20.0,
+            )
+        )
+        controller.step(
+            PvEObservation(
+                now_ms=0,
+                target=_absent(),
+                player=_player(),
+                player_position=_player_position(),
+                target_position=_target_position(None),
+            )
+        )
+        engaged = controller.step(
+            PvEObservation(
+                now_ms=100,
+                target=_target("mob"),
+                player=_player(),
+                player_position=_player_position(),
+                target_position=_target_position("mob", 200.0, 200.0),
+            )
+        )
+        arrived = controller.step(
+            PvEObservation(
+                now_ms=200,
+                target=_target("mob"),
+                player=_player(),
+                player_position=_player_position(),
+                target_position=_target_position("mob", 110.0, 200.0),
+            )
+        )
+
+        self.assertIsNone(engaged.intent)
+        self.assertEqual(PvEIntent.ATTACK_SELECTED_TARGET, arrived.intent)
 
     def test_opener_configuration_rejects_non_power_and_unbounded_mana_cost(self) -> None:
         with self.assertRaisesRegex(ValueError, "power activation"):
@@ -716,6 +764,46 @@ class PvEControllerTests(unittest.TestCase):
         )
 
 
+class PvEApproachControllerTests(unittest.TestCase):
+    def test_stalled_native_chase_replans_with_astar_before_blind_escape(self) -> None:
+        navigation = SparseNavigationMap()
+        approach = PvEApproachController(
+            PvEApproachConfig(
+                native_progress_grace_ms=100,
+                travel=TravelControllerConfig(
+                    maximum_session_ms=5_000,
+                    click_interval_ms=100,
+                    maximum_clicks=20,
+                    minimum_progress=5.0,
+                    maximum_no_progress_clicks=2,
+                ),
+            ),
+            navigation_map=navigation,
+        )
+
+        def observe(now_ms: int):
+            return approach.step(
+                PvEObservation(
+                    now_ms=now_ms,
+                    target=_target("turtle"),
+                    player=_player(),
+                    player_position=_player_position(),
+                    target_position=_target_position("turtle", 200.0, 200.0),
+                ),
+                phase=PvEPhase.ENGAGED,
+            )
+
+        self.assertEqual("idle", observe(0).status.value)
+        self.assertEqual(TravelManeuver.DIRECT, observe(100).decision.maneuver)
+        self.assertEqual(TravelManeuver.DIRECT, observe(200).decision.maneuver)
+
+        replanned = observe(300)
+
+        self.assertEqual("moving", replanned.status.value)
+        self.assertEqual(TravelManeuver.DIRECT, replanned.decision.maneuver)
+        self.assertGreater(len(navigation.blocked), 0)
+
+
 class SequenceHealthSource:
     def __init__(self, values: tuple[NativeTargetHealthObservation, ...]) -> None:
         self.values = list(values)
@@ -806,6 +894,28 @@ class RecordingPvEDispatcher:
         )
 
 
+class RecordingMovementDispatcher:
+    def __init__(self) -> None:
+        self.decisions = []
+        self.stop_decisions = []
+
+    def dispatch(self, decision) -> DispatchResult:
+        self.decisions.append(decision)
+        return DispatchResult(
+            adapter_name="movement-test",
+            correlation_id=f"movement-test:{decision.decision_id}",
+            accepted=True,
+        )
+
+    def stop_movement(self, decision) -> DispatchResult:
+        self.stop_decisions.append(decision)
+        return DispatchResult(
+            adapter_name="movement-test",
+            correlation_id=f"movement-test:{decision.decision_id}:stop",
+            accepted=True,
+        )
+
+
 class AdvancingClock:
     def __init__(self) -> None:
         self.value = 0.0
@@ -823,6 +933,72 @@ class PvERunnerTests(unittest.TestCase):
 
         self.assertEqual((), source.read_new_entries())
         self.assertIsInstance(source, CombatLogSource)
+
+    def test_runner_dispatches_astar_approach_then_attacks_on_arrival(self) -> None:
+        clock = AdvancingClock()
+        combat_dispatcher = RecordingPvEDispatcher()
+        movement_dispatcher = RecordingMovementDispatcher()
+        runner = PvERunner(
+            controller=PvEController(PvEControllerConfig(maximum_kills=1)),
+            health_reader=SequenceHealthSource(
+                (
+                    _absent(),
+                    _target("turtle"),
+                    _target("turtle"),
+                    _target("turtle"),
+                    _target("turtle", current=0),
+                )
+            ),
+            player_vitals_reader=SequencePlayerVitalsSource((_player(),) * 5),
+            player_position_reader=SequencePlayerPositionSource((_player_position(),) * 5),
+            target_position_reader=SequenceTargetPositionSource(
+                (
+                    _target_position(None),
+                    _target_position("turtle", 200.0, 200.0),
+                    _target_position("turtle", 200.0, 200.0),
+                    _target_position("turtle", 110.0, 200.0),
+                    _target_position("turtle", 110.0, 200.0),
+                )
+            ),
+            combat_log_reader=SequenceCombatLogSource(((),) * 5),
+            dispatcher=combat_dispatcher,
+            approach_controller=PvEApproachController(
+                PvEApproachConfig(
+                    native_progress_grace_ms=100,
+                    travel=TravelControllerConfig(
+                        maximum_session_ms=5_000,
+                        click_interval_ms=100,
+                        maximum_clicks=10,
+                        minimum_progress=5.0,
+                    ),
+                )
+            ),
+            movement_dispatcher=movement_dispatcher,
+            stop_signal=EventEmergencyStop(),
+            poll_interval_ms=100,
+            clock=clock,
+            sleeper=clock.sleep,
+        )
+
+        result = runner.run()
+
+        self.assertEqual(PvEPhase.COMPLETE, result.final_phase)
+        self.assertEqual(1, len(movement_dispatcher.decisions))
+        self.assertEqual(1, len(movement_dispatcher.stop_decisions))
+        self.assertEqual(
+            [
+                PvEIntent.ACQUIRE_NEXT_MOB,
+                PvEIntent.ATTACK_SELECTED_TARGET,
+                PvEIntent.ATTACK_SELECTED_TARGET,
+            ],
+            combat_dispatcher.intents,
+        )
+        movement_steps = [step for step in result.trace if step.approach_decision is not None]
+        self.assertEqual("moving", movement_steps[0].approach_status)
+        self.assertTrue(movement_steps[0].approach_input_accepted)
+        self.assertEqual("arrived", movement_steps[1].approach_status)
+        self.assertTrue(movement_steps[1].movement_stop_accepted)
+        self.assertEqual("direct", movement_steps[0].as_dict()["approach"]["maneuver"])
 
     def test_runner_completes_one_native_observation_driven_kill(self) -> None:
         health = SequenceHealthSource(
