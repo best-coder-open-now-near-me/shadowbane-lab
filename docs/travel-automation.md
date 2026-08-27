@@ -20,8 +20,9 @@ plus errors to the `codexdiag` shared folder:
 powershell.exe -NoProfile -File \\VBOXSVR\codexrepo\scripts\start-wonderbane-go-listener.ps1
 ```
 
-Running the launcher again replaces its single existing listener, so checked-out code changes
-take effect without a VM reboot. It refuses to choose among multiple matching listeners.
+Running the launcher again replaces every process whose command line identifies this scoped
+listener, so checked-out code changes take effect without a VM reboot and accidental duplicate
+listeners collapse back to one instance.
 
 Stop that background listener by resolving and validating its recorded process identity:
 

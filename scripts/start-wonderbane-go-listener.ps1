@@ -52,19 +52,21 @@ $existing = @(
         }
 )
 if ($existing.Count -gt 0) {
-    $ids = ($existing.ProcessId | Sort-Object) -join ", "
-    if ($existing.Count -ne 1) {
-        throw "Cannot replace multiple Shadowbane listeners safely (PIDs $ids)."
-    }
-    Stop-Process -Id $existing[0].ProcessId
+    $listenerProcessIds = @($existing.ProcessId | Sort-Object)
+    $ids = $listenerProcessIds -join ", "
+    Stop-Process -Id $listenerProcessIds
     $stopDeadline = (Get-Date).AddSeconds(5)
-    while (Get-Process -Id $existing[0].ProcessId -ErrorAction SilentlyContinue) {
+    while (@(
+        $listenerProcessIds | ForEach-Object {
+            Get-Process -Id $_ -ErrorAction SilentlyContinue
+        }
+    ).Count -gt 0) {
         if ((Get-Date) -ge $stopDeadline) {
-            throw "Listener PID $ids did not stop within five seconds."
+            throw "Listener PIDs $ids did not all stop within five seconds."
         }
         Start-Sleep -Milliseconds 100
     }
-    Write-Output "Stopped existing Shadowbane listener (PID $ids) before restart."
+    Write-Output "Stopped existing Shadowbane listener PIDs $ids before restart."
 }
 
 $standardOutput = Join-Path $LogDirectory "go-listener.stdout.jsonl"
