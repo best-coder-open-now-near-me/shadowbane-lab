@@ -90,6 +90,15 @@ from shadowbane_lab.travel import (
     TravelRunner,
     resolve_travel_destination,
 )
+from shadowbane_lab.world_data import (
+    CacheArchive,
+    CacheArchiveFormatError,
+    TerrainAlphaFormatError,
+    TerrainAlphaTile,
+    WorldDefinitionFormatError,
+    index_terrain_alpha_maps,
+    load_world_definition,
+)
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -150,6 +159,24 @@ def _parser() -> argparse.ArgumentParser:
     )
     inspect_hotbar.add_argument("character_config", type=Path)
     inspect_hotbar.add_argument(
+        "--json", action="store_true", help="emit machine-readable JSON"
+    )
+
+    inspect_world_data = client_commands.add_parser(
+        "inspect-world-data",
+        help="inspect local world, terrain, mesh, and collision cache indexes",
+    )
+    inspect_world_data.add_argument(
+        "cache_directory",
+        type=Path,
+        help="client cache directory containing TerrainAlpha.cache and related archives",
+    )
+    inspect_world_data.add_argument(
+        "--world-def",
+        type=Path,
+        help="optional Config/WorldDef.cfg placement tree",
+    )
+    inspect_world_data.add_argument(
         "--json", action="store_true", help="emit machine-readable JSON"
     )
 
@@ -581,6 +608,100 @@ def _inspect_arcane_hotbar(path: Path, *, as_json: bool) -> int:
         for slot in table.current_set.slots:
             assignment = slot.power_name or (slot.item_type if slot.occupied else "empty")
             print(f"{slot.activation_key.upper()}: {assignment}")
+    return 0
+
+
+def _inspect_world_data(
+    cache_directory: Path,
+    world_def_path: Path | None,
+    *,
+    as_json: bool,
+) -> int:
+    archive_names = (
+        "CZone.cache",
+        "CObjects.cache",
+        "Mesh.cache",
+        "TerrainAlpha.cache",
+        "Tile.cache",
+        "Render.cache",
+    )
+    try:
+        archives: dict[str, object] = {}
+        terrain_payload: dict[str, object] | None = None
+        for name in archive_names:
+            path = cache_directory / name
+            if not path.is_file():
+                continue
+            with CacheArchive(path) as archive:
+                archives[name] = {
+                    "resources": archive.header.resource_count,
+                    "groups": len({entry.group_id for entry in archive.entries}),
+                    "file_size": archive.header.file_size,
+                }
+                if name == "TerrainAlpha.cache":
+                    maps = index_terrain_alpha_maps(archive)
+                    first_tile = TerrainAlphaTile.parse(archive.read_resource(archive.entries[0]))
+                    terrain_payload = {
+                        "tiles": len(archive.entries),
+                        "maps": len(maps),
+                        "complete_maps": sum(item.is_complete for item in maps),
+                        "sample_width": first_tile.width,
+                        "sample_height": first_tile.height,
+                        "map_shapes": sorted(
+                            {
+                                f"{item.width_tiles}x{item.height_tiles}"
+                                for item in maps
+                            }
+                        ),
+                    }
+        if not archives:
+            raise ValueError(f"no supported Shadowbane caches found in {cache_directory}")
+
+        world_payload: dict[str, object] | None = None
+        if world_def_path is not None:
+            world = load_world_definition(world_def_path)
+            zones = world.walk_zones()
+            world_payload = {
+                "name": world.name,
+                "number": world.number,
+                "width": world.width,
+                "length": world.length,
+                "zones": len(zones),
+                "zone_templates": len({zone.template_id for zone in zones}),
+                "zone_load_files": sorted(
+                    {zone.zone_load_file for zone in zones if zone.zone_load_file is not None}
+                ),
+            }
+    except (
+        CacheArchiveFormatError,
+        OSError,
+        TerrainAlphaFormatError,
+        ValueError,
+        WorldDefinitionFormatError,
+    ) as exc:
+        return _error(f"world-data inspection failed: {exc}", as_json=as_json)
+
+    payload = {
+        "ok": True,
+        "cache_directory": str(cache_directory),
+        "archives": archives,
+        "terrain_alpha": terrain_payload,
+        "world": world_payload,
+    }
+    if as_json:
+        print(json.dumps(payload, sort_keys=True))
+    else:
+        print(f"World caches: {len(archives)}")
+        for name, summary in archives.items():
+            print(f"{name}: {summary['resources']} resources, {summary['groups']} groups")
+        if terrain_payload is not None:
+            print(
+                "TerrainAlpha: "
+                f"{terrain_payload['maps']} maps / {terrain_payload['tiles']} tiles / "
+                f"{terrain_payload['sample_width']}x{terrain_payload['sample_height']} samples"
+            )
+        if world_payload is not None:
+            print(f"WorldDef: {world_payload['name']} / {world_payload['zones']} placements")
     return 0
 
 
@@ -1321,6 +1442,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _inspect_arcane_hotkeys(arguments.preferences, as_json=arguments.json)
     if arguments.command == "client" and arguments.client_command == "inspect-hotbar":
         return _inspect_arcane_hotbar(arguments.character_config, as_json=arguments.json)
+    if arguments.command == "client" and arguments.client_command == "inspect-world-data":
+        return _inspect_world_data(
+            arguments.cache_directory,
+            arguments.world_def,
+            as_json=arguments.json,
+        )
     if arguments.command == "client" and arguments.client_command == "observe-target":
         return _observe_target(
             arguments.client_profile,

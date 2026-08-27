@@ -51,3 +51,8 @@ starts on the opposite side and widens its clearance target. The escape budget i
 after it is exhausted the controller stops instead of blindly continuing into a wall.
 Sustained direct progress resets that budget so unrelated obstacles later in a long route
 do not inherit earlier recovery attempts.
+
+The client also ships a native character pathfinder and a `PATHFINDING` preference, currently
+disabled in the inspected WonderBane configuration. The historical `/path on` chat command is
+not registered in this build. Native pathfinding therefore remains a guarded integration target,
+not an assumption in the travel controller. See [client world data](world-data.md).

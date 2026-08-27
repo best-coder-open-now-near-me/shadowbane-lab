@@ -36,6 +36,7 @@ an emergency stop, and explicit profile confirmation. See [the architecture](doc
 [client-input runbook](docs/client-input-harness.md),
 [bounded PvE runbook](docs/pve-automation.md),
 [closed-loop travel runbook](docs/travel-automation.md),
+[client world-data notes](docs/world-data.md),
 [automated VM setup](docs/vm-setup.md),
 [simulation rollout guide](docs/simulation-rollouts.md),
 [differential-validation contract](docs/differential-validation.md), and

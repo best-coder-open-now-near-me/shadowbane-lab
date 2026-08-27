@@ -99,3 +99,19 @@ meaningfully distinct, reproducible behavior.
 
 **Gate:** policies generalize across scenario and build permutations, and live deployment
 cannot bypass authoritative validation.
+
+## Current world-navigation investigation
+
+- Read and validate the client cache directory without copying gameplay textures into the
+  repository.
+- Index TerrainAlpha map/tile identities and parse the nested WorldDef placement tree.
+- Correlate the active runtime ArcGameZone with CZone, CObjects, mesh, and terrain-raster
+  resources.
+- Test the native `PATHFINDING` preference behind the verified executable hash; the legacy
+  `/path on` command is absent from the current WonderBane command table.
+- Preserve server movement corrections as authoritative feedback even when local pathfinding is
+  active.
+
+**Gate:** a recorded destination identifies its active terrain resources, produces an auditable
+local route or native waypoint stream, and converges without blind fixed-direction detours while
+server correction remains observable.
