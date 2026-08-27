@@ -5,13 +5,16 @@ from __future__ import annotations
 import argparse
 import json
 from collections.abc import Sequence
+from pathlib import Path
 
 from shadowbane_lab.progression import (
     irekei_proc_assassin_roadmap,
     load_wonderbane_irekei_proc_profile,
 )
+from shadowbane_lab.pve import load_pve_combat_calibration
 from shadowbane_lab.rollouts import (
     SmartCampResult,
+    apply_pve_combat_calibration,
     frost_walker_observed_config,
     irekei_proc_assassin_smart_camp_config,
     matched_progression_duels,
@@ -51,13 +54,25 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--max-ticks", type=int, default=1_000)
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--episodes", type=int, default=1_000)
+    parser.add_argument(
+        "--pve-calibration",
+        type=Path,
+        help="live PvE calibration artifact applied to the smart-camp scenario",
+    )
     parser.add_argument("--json", action="store_true")
     arguments = parser.parse_args(argv)
+    if arguments.pve_calibration is not None and arguments.scenario != "smart-camp":
+        parser.error("--pve-calibration is supported only by --scenario smart-camp")
     if arguments.scenario == "smart-camp":
         config = irekei_proc_assassin_smart_camp_config(
             seed=arguments.seed,
             max_ticks=arguments.max_ticks,
         )
+        if arguments.pve_calibration is not None:
+            config = apply_pve_combat_calibration(
+                config,
+                load_pve_combat_calibration(arguments.pve_calibration),
+            )
         result = run_smart_camp(config) if arguments.episodes == 1 else run_smart_camp_batch(
             config,
             episodes=arguments.episodes,

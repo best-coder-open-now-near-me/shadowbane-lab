@@ -22,6 +22,7 @@ from shadowbane_lab.protocol import (
     TargetKind,
     Vector2,
 )
+from shadowbane_lab.pve.calibration import PvECombatCalibration
 from shadowbane_lab.rulesets import load_shadowbane_vertical_slice
 from shadowbane_lab.sim import (
     ActionCatalog,
@@ -417,6 +418,103 @@ def irekei_proc_assassin_smart_camp_config(
             "opens with rank-40 Shadow Touch when stun immunity is absent, and otherwise "
             "attacks.",
         ),
+    )
+
+
+def apply_pve_combat_calibration(
+    config: SmartCampConfig,
+    calibration: PvECombatCalibration,
+) -> SmartCampConfig:
+    """Replace supported generic camp assumptions with explicit live observations."""
+
+    if not isinstance(config, SmartCampConfig):
+        raise ValueError("config must be SmartCampConfig")
+    if not isinstance(calibration, PvECombatCalibration):
+        raise ValueError("calibration must be PvECombatCalibration")
+
+    observed_health = calibration.target_maximum_health
+    observed_damage = calibration.target_damage
+    observed_interval = calibration.target_attack_interval_ms
+    observed_distance = calibration.engagement_planar_distance
+    if observed_distance is not None and observed_distance.median <= 0:
+        observed_distance = None
+    calibrated_damage: tuple[int, int] | None = None
+    if observed_damage is not None:
+        minimum = observed_damage.minimum
+        maximum = observed_damage.maximum
+        if (
+            minimum >= 1
+            and minimum.is_integer()
+            and maximum.is_integer()
+            and maximum > minimum
+        ):
+            calibrated_damage = (int(minimum), int(maximum))
+    calibrated_interval = None
+    if observed_interval is not None:
+        calibrated_interval = max(
+            _TICK_DURATION_MS,
+            round(observed_interval.median / _TICK_DURATION_MS) * _TICK_DURATION_MS,
+        )
+
+    mobs = tuple(
+        replace(
+            mob,
+            health=(mob.health if observed_health is None else observed_health.median),
+            distance=(mob.distance if observed_distance is None else observed_distance.median),
+            attack_damage_minimum=(
+                mob.attack_damage_minimum
+                if calibrated_damage is None
+                else calibrated_damage[0]
+            ),
+            attack_damage_maximum=(
+                mob.attack_damage_maximum
+                if calibrated_damage is None
+                else calibrated_damage[1]
+            ),
+            attack_interval_ms=(
+                mob.attack_interval_ms
+                if calibrated_interval is None
+                else calibrated_interval
+            ),
+        )
+        for mob in config.mobs
+    )
+    assumptions = tuple(
+        item
+        for item in config.assumptions
+        if not item.startswith("Three generic camp mobs begin")
+    ) + (
+        "Every generic simulated camp mob reuses the calibration's aggregate median target "
+        "health, engagement distance, and incoming-attack cadence when observed; fields "
+        "without sufficient samples retain their declared baseline defaults.",
+        "Live event cadence is quantized to the simulator's 200 ms tick, and aggregate "
+        "target observations are not treated as named-archetype-specific stats.",
+    )
+    evidence = config.evidence + (
+        calibration.profile_id,
+        f"{len(calibration.source_trace_sha256s)} versioned live PvE trace artifact(s)",
+    )
+    return replace(
+        config,
+        profile_id=f"{config.profile_id}+{calibration.profile_id}",
+        mobs=mobs,
+        player_health=(
+            config.player_health
+            if calibration.starting_player_health is None
+            else calibration.starting_player_health.median
+        ),
+        player_mana=(
+            config.player_mana
+            if calibration.starting_player_mana is None
+            else calibration.starting_player_mana.median
+        ),
+        player_stamina=(
+            config.player_stamina
+            if calibration.starting_player_stamina is None
+            else calibration.starting_player_stamina.median
+        ),
+        evidence=evidence,
+        assumptions=assumptions,
     )
 
 

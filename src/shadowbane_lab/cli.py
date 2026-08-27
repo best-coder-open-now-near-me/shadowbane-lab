@@ -94,11 +94,17 @@ from shadowbane_lab.progression import (
     load_wonderbane_irekei_proc_profile,
 )
 from shadowbane_lab.pve import (
+    PVE_TRACE_SCHEMA_VERSION,
     ClientPvEIntentDispatcher,
+    PvECombatCalibrationError,
     PvEController,
     PvEControllerConfig,
     PvEIntent,
     PvERunner,
+    PvETraceEvidenceError,
+    compile_pve_combat_calibration_files,
+    save_pve_combat_calibration,
+    save_pve_trace_evidence,
 )
 from shadowbane_lab.travel import (
     ClientTravelDecisionDispatcher,
@@ -392,6 +398,11 @@ def _parser() -> argparse.ArgumentParser:
     run_pve.add_argument("--wait-for-client-seconds", type=float, default=15.0)
     run_pve.add_argument("--poll-ms", type=int, default=100)
     run_pve.add_argument(
+        "--evidence-output",
+        type=Path,
+        help="atomically write the complete versioned live PvE trace as JSON",
+    )
+    run_pve.add_argument(
         "--policy",
         choices=("basic", "proc-assassin"),
         default="basic",
@@ -406,6 +417,22 @@ def _parser() -> argparse.ArgumentParser:
         help="required in addition to a profile with live_input_enabled=true",
     )
     run_pve.add_argument("--json", action="store_true", help="emit machine-readable JSON")
+
+    calibrate_pve = client_commands.add_parser(
+        "calibrate-pve",
+        help="compile one or more versioned live PvE traces into simulator evidence",
+    )
+    calibrate_pve.add_argument(
+        "--evidence",
+        type=Path,
+        nargs="+",
+        required=True,
+        help="versioned PvE evidence artifacts produced by client run-pve",
+    )
+    calibrate_pve.add_argument("--output", type=Path, required=True)
+    calibrate_pve.add_argument(
+        "--json", action="store_true", help="emit the compiled calibration"
+    )
 
     go = client_commands.add_parser(
         "go",
@@ -1398,6 +1425,7 @@ def _run_pve(
     policy: str,
     live: bool,
     as_json: bool,
+    evidence_output_path: Path | None = None,
 ) -> int:
     if not live:
         return _error("PvE execution requires the explicit --live flag", as_json=as_json)
@@ -1571,7 +1599,7 @@ def _run_pve(
         if step.decision.intent is not None
     ]
     payload = {
-        "trace_schema_version": 1,
+        "trace_schema_version": PVE_TRACE_SCHEMA_VERSION,
         "ok": result.final_phase.value == "complete",
         "final_phase": result.final_phase.value,
         "terminal_reason": result.terminal_reason,
@@ -1589,6 +1617,11 @@ def _run_pve(
         },
         "trace": [step.as_dict() for step in result.trace],
     }
+    if evidence_output_path is not None:
+        try:
+            save_pve_trace_evidence(evidence_output_path, payload)
+        except PvETraceEvidenceError as exc:
+            return _error(f"PvE evidence save failed: {exc}", as_json=as_json)
     if as_json:
         print(json.dumps(payload, sort_keys=True))
     else:
@@ -1597,6 +1630,35 @@ def _run_pve(
         print(f"Kills: {result.kills}")
         print(f"Guarded inputs: {len(dispatched)}")
     return 0 if payload["ok"] else 2
+
+
+def _calibrate_pve(
+    evidence_paths: Sequence[Path],
+    output_path: Path,
+    *,
+    as_json: bool,
+) -> int:
+    if any(path.absolute() == output_path.absolute() for path in evidence_paths):
+        return _error(
+            "PvE calibration output cannot overwrite an input evidence artifact",
+            as_json=as_json,
+        )
+    try:
+        calibration = compile_pve_combat_calibration_files(evidence_paths)
+        save_pve_combat_calibration(output_path, calibration)
+    except (OSError, PvECombatCalibrationError, ValueError) as exc:
+        return _error(f"PvE calibration failed: {exc}", as_json=as_json)
+    payload = calibration.as_dict()
+    payload["output_path"] = str(output_path)
+    if as_json:
+        print(json.dumps(payload, sort_keys=True))
+    else:
+        print(
+            f"Compiled {len(calibration.source_trace_sha256s)} PvE traces into "
+            f"{calibration.profile_id}."
+        )
+        print(f"Calibration: {output_path}")
+    return 0
 
 
 def _run_travel(
@@ -2157,6 +2219,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             arguments.training_profile,
             as_json=arguments.json,
         )
+    if arguments.command == "client" and arguments.client_command == "calibrate-pve":
+        return _calibrate_pve(
+            arguments.evidence,
+            arguments.output,
+            as_json=arguments.json,
+        )
     if arguments.command == "client" and arguments.client_command == "run-pve":
         return _run_pve(
             client_profile_path=arguments.client_profile,
@@ -2173,6 +2241,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             policy=arguments.policy,
             live=arguments.live,
             as_json=arguments.json,
+            evidence_output_path=arguments.evidence_output,
         )
     if arguments.command == "client" and arguments.client_command == "go":
         return _run_travel(

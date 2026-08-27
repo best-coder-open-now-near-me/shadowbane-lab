@@ -169,6 +169,22 @@ python -m shadowbane_lab.rollouts `
   --json
 ```
 
+A calibration compiled from versioned live PvE traces can replace the supported generic mob
+and starting-resource assumptions without modifying code:
+
+```powershell
+python -m shadowbane_lab.rollouts `
+  --scenario smart-camp `
+  --episodes 1000 `
+  --seed 0 `
+  --pve-calibration .\proc-assassin-calibration.json `
+  --json
+```
+
+The result's profile, evidence, and assumptions identify the applied calibration. Sparse
+observations retain baseline defaults, and poll-observed timing is quantized to the simulator's
+200 ms tick.
+
 The checked 250-seed baseline cleared all 250 three-mob camps with no rejected semantic actions.
 Mean clear time was 30,538.4 ms, with 29,600/42,600/50,600 ms p50/p90/p99 and 324.62 mean
 remaining health from an assumed 500. Across 7,471 successful-hit opportunities, mental and

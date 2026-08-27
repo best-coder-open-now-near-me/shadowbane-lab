@@ -140,8 +140,18 @@ $env:PYTHONPATH = "src"
   --max-kills 1 `
   --max-seconds 30 `
   --wait-for-client-seconds 15 `
+  --evidence-output "\\VBOXSVR\codexdiag\pve-fight-001.json" `
   --live `
   --json
+```
+
+The VM wrapper validates the live-locked profile, combat log, unique character hotbar, and
+single visible Shadowbane window; focuses that visible client; refuses to overwrite evidence;
+and runs the same one-kill proc-Assassin command with a timestamped artifact:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
+  \\VBOXSVR\codexrepo\scripts\run-wonderbane-pve-evidence.ps1
 ```
 
 The versioned JSON result includes native build/profile provenance and a sample-by-sample
@@ -150,6 +160,40 @@ and three-dimensional target range, typed native combat events, controller phase
 input outcome. This is the evidence boundary used to calibrate later simulator profiles. A
 successful first trial ends with `kill_limit_reached`. Move the pointer to a PyAutoGUI
 fail-safe corner or press `Ctrl+Shift+F12` to stop immediately.
+
+`--evidence-output` writes that complete payload atomically as a versioned artifact even when
+the bounded controller stops without a kill. Compile one or more distinct artifacts into an
+aggregate calibration without editing simulator constants by hand:
+
+```powershell
+python -m shadowbane_lab.cli client calibrate-pve `
+  --evidence "\\VBOXSVR\codexdiag\pve-fight-001.json" `
+  --output "\\VBOXSVR\codexdiag\proc-assassin-calibration.json" `
+  --json
+```
+
+The calibration retains sample counts and histograms for observed target health, outgoing and
+incoming damage, hit/miss opportunities, poll-observed attack intervals, starting resources,
+engagement distance, experience, and adjacent-poll Shadow Touch mana deltas. Duplicate trace
+content is rejected rather than counted twice. Timing remains limited by the controller poll,
+logged damage does not identify individual weapon/proc/mitigation components, and target tokens
+remain process-local opaque identities; those limitations are carried in the artifact.
+
+Apply the resulting evidence to the generic smart-camp simulator:
+
+```powershell
+python -m shadowbane_lab.rollouts `
+  --scenario smart-camp `
+  --episodes 1000 `
+  --seed 0 `
+  --pve-calibration "\\VBOXSVR\codexdiag\proc-assassin-calibration.json" `
+  --json
+```
+
+Supported observations replace the generic camp's health, engagement distance, incoming damage
+range/cadence, and starting player resources. Sparse fields retain their declared baseline
+defaults, and applying aggregate observations to every generic camp mob remains an explicit
+assumption rather than named-archetype evidence.
 
 ## Current scope
 

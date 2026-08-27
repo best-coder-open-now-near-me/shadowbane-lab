@@ -333,6 +333,7 @@ class ClientCliTests(unittest.TestCase):
         output = io.StringIO()
         with tempfile.TemporaryDirectory() as directory:
             combat_log = Path(directory) / "combat.log"
+            evidence_output = Path(directory) / "evidence" / "pve.json"
             combat_log.write_text("", encoding="cp1252")
             with (
                 patch("shadowbane_lab.cli.load_calibration", return_value=profile),
@@ -397,9 +398,13 @@ class ClientCliTests(unittest.TestCase):
                     policy="basic",
                     live=True,
                     as_json=True,
+                    evidence_output_path=evidence_output,
                 )
+                saved_evidence = json.loads(evidence_output.read_text(encoding="utf-8"))
 
         self.assertEqual(0, result)
+        self.assertEqual(1, saved_evidence["trace_schema_version"])
+        self.assertEqual(4320, saved_evidence["native_observation"]["process_id"])
         open_health.assert_called_once_with(native_profiles[0], process_id=4320)
         open_vitals.assert_called_once_with(native_profiles[1], process_id=4320)
         open_position.assert_called_once_with(native_profiles[2], process_id=4320)
