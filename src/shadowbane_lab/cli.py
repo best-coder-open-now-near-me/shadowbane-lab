@@ -383,6 +383,8 @@ def _parser() -> argparse.ArgumentParser:
     )
     run_pve.add_argument("--native-health-profile", type=Path)
     run_pve.add_argument("--native-vitals-profile", type=Path)
+    run_pve.add_argument("--native-position-profile", type=Path)
+    run_pve.add_argument("--native-target-position-profile", type=Path)
     run_pve.add_argument("--max-kills", type=int, default=1)
     run_pve.add_argument("--max-seconds", type=float, default=120.0)
     run_pve.add_argument("--wait-for-client-seconds", type=float, default=15.0)
@@ -1380,6 +1382,8 @@ def _run_pve(
     hotbar_config_path: Path | None,
     native_health_profile_path: Path | None,
     native_vitals_profile_path: Path | None,
+    native_position_profile_path: Path | None,
+    native_target_position_profile_path: Path | None,
     max_kills: int,
     max_seconds: float,
     wait_for_client_seconds: float,
@@ -1444,8 +1448,24 @@ def _run_pve(
             if native_vitals_profile_path is not None
             else load_bundled_native_vitals_profile()
         )
-        if health_profile.executable_sha256 != vitals_profile.executable_sha256:
-            raise ValueError("native health and player-vitals profiles target different builds")
+        position_profile = (
+            load_native_position_profile(native_position_profile_path)
+            if native_position_profile_path is not None
+            else load_bundled_native_position_profile()
+        )
+        target_position_profile = (
+            load_native_target_position_profile(native_target_position_profile_path)
+            if native_target_position_profile_path is not None
+            else load_bundled_native_target_position_profile()
+        )
+        native_profile_hashes = {
+            health_profile.executable_sha256,
+            vitals_profile.executable_sha256,
+            position_profile.executable_sha256,
+            target_position_profile.executable_sha256,
+        }
+        if len(native_profile_hashes) != 1:
+            raise ValueError("native PvE profiles target different client builds")
         inspector = WindowsForegroundWindowInspector()
         guard = ForegroundWindowGuard(client_profile, inspector)
         _wait_for_guarded_client(
@@ -1453,11 +1473,29 @@ def _run_pve(
             wait_seconds=wait_for_client_seconds,
         )
         combat_reader = NativeCombatLogReader(combat_log_path, start_at_end=True)
-        with (
-            open_windows_native_target_health_reader(health_profile) as health_reader,
-            open_windows_native_player_vitals_reader(vitals_profile) as player_vitals_reader,
-            WindowsHotkeyEmergencyStop() as stop_signal,
-        ):
+        with ExitStack() as stack:
+            health_reader = stack.enter_context(
+                open_windows_native_target_health_reader(health_profile)
+            )
+            player_vitals_reader = stack.enter_context(
+                open_windows_native_player_vitals_reader(vitals_profile)
+            )
+            player_position_reader = stack.enter_context(
+                open_windows_native_player_position_reader(position_profile)
+            )
+            target_position_reader = stack.enter_context(
+                open_windows_native_target_position_reader(target_position_profile)
+            )
+            stop_signal = stack.enter_context(WindowsHotkeyEmergencyStop())
+            reader_process_ids = {
+                health_reader.process_id,
+                player_vitals_reader.process_id,
+                player_position_reader.process_id,
+                target_position_reader.process_id,
+            }
+            if len(reader_process_ids) != 1:
+                raise ValueError("native PvE readers resolved different client processes")
+            process_id = health_reader.process_id
             executor = GuardedInputExecutor(
                 guard=guard,
                 backend=PyAutoGuiBackend(),
@@ -1471,6 +1509,8 @@ def _run_pve(
                 controller=controller,
                 health_reader=health_reader,
                 player_vitals_reader=player_vitals_reader,
+                player_position_reader=player_position_reader,
+                target_position_reader=target_position_reader,
                 combat_log_reader=combat_reader,
                 dispatcher=ClientPvEIntentDispatcher(adapter),
                 stop_signal=stop_signal,
@@ -1481,7 +1521,11 @@ def _run_pve(
         ArcaneHotbarLoadError,
         NativeHealthProfileLoadError,
         NativePlayerVitalsError,
+        NativePlayerPositionError,
+        NativePositionProfileLoadError,
         NativeTargetHealthError,
+        NativeTargetPositionError,
+        NativeTargetPositionProfileLoadError,
         NativeVitalsProfileLoadError,
         OSError,
         RuntimeError,
@@ -1503,6 +1547,7 @@ def _run_pve(
         if step.decision.intent is not None
     ]
     payload = {
+        "trace_schema_version": 1,
         "ok": result.final_phase.value == "complete",
         "final_phase": result.final_phase.value,
         "terminal_reason": result.terminal_reason,
@@ -1510,6 +1555,15 @@ def _run_pve(
         "kills": result.kills,
         "steps": len(result.trace),
         "dispatched": dispatched,
+        "native_observation": {
+            "process_id": process_id,
+            "executable_sha256": health_profile.executable_sha256,
+            "target_health_profile_id": health_profile.profile_id,
+            "player_vitals_profile_id": vitals_profile.profile_id,
+            "player_position_profile_id": position_profile.profile_id,
+            "target_position_profile_id": target_position_profile.profile_id,
+        },
+        "trace": [step.as_dict() for step in result.trace],
     }
     if as_json:
         print(json.dumps(payload, sort_keys=True))
@@ -1981,6 +2035,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             hotbar_config_path=arguments.hotbar_config,
             native_health_profile_path=arguments.native_health_profile,
             native_vitals_profile_path=arguments.native_vitals_profile,
+            native_position_profile_path=arguments.native_position_profile,
+            native_target_position_profile_path=arguments.native_target_position_profile,
             max_kills=arguments.max_kills,
             max_seconds=arguments.max_seconds,
             wait_for_client_seconds=arguments.wait_for_client_seconds,

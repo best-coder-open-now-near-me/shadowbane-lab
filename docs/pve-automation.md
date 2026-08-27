@@ -1,8 +1,8 @@
 # Bounded PvE automation
 
 The first live PvE slice acquires a nearby mobile, attacks the newly selected target, and
-stops after a small explicit kill or time limit. It consumes exact player vitals,
-selected-target health, and the native combat log.
+stops after a small explicit kill or time limit. It consumes exact player vitals and
+position, selected-target health and position, and the native combat log.
 
 ## Control loop
 
@@ -72,8 +72,9 @@ movement input or cycles indefinitely.
 
 A single torn native observation is not treated as a trustworthy state change. The runner
 withholds all input while retrying up to three consecutive polls and resets that count only
-after a complete target, player-vitals, and combat-log observation succeeds. A third failure
-stops the run and records the concrete reader error in the terminal reason.
+after a complete target, player-vitals, player-position, target-position, and combat-log
+observation succeeds. Health and position must resolve the same opaque target token. A third
+failure stops the run and records the concrete reader error in the terminal reason.
 
 ## Prepare a VM-local profile
 
@@ -143,13 +144,16 @@ $env:PYTHONPATH = "src"
   --json
 ```
 
-The result includes the terminal reason, confirmed kill count, and every semantic input
-that passed the live guard. A successful first trial ends with `kill_limit_reached`. Move
-the pointer to a PyAutoGUI fail-safe corner or press `Ctrl+Shift+F12` to stop immediately.
+The versioned JSON result includes native build/profile provenance and a sample-by-sample
+trace: player health/mana/stamina and LT/LG/altitude, target identity/health/position, planar
+and three-dimensional target range, typed native combat events, controller phase, and guarded
+input outcome. This is the evidence boundary used to calibrate later simulator profiles. A
+successful first trial ends with `kill_limit_reached`. Move the pointer to a PyAutoGUI
+fail-safe corner or press `Ctrl+Shift+F12` to stop immediately.
 
 ## Current scope
 
-This slice intentionally assumes the player is already positioned within target and attack
-range. Navigation, healing, looting, and power rotation must enter as separately tested
-vertical slices; they are not hidden inside the nearby-mobile loop. Exact player health,
-mana, and stamina are already observed so those additions can be gated on real resources.
+This slice intentionally observes range without issuing approach movement. Navigation,
+healing, looting, and power rotation must enter as separately tested vertical slices; they
+are not hidden inside the nearby-mobile loop. Exact player health, mana, stamina, and spatial
+range are observed so those additions can be gated on real state.

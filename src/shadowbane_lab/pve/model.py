@@ -4,12 +4,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
-from math import isfinite
+from math import hypot, isfinite
 
 from shadowbane_lab.client_observation import (
     NativeCombatEvent,
+    NativePlayerPositionObservation,
     NativePlayerVitalsObservation,
     NativeTargetHealthObservation,
+    NativeTargetPositionObservation,
 )
 
 
@@ -124,6 +126,8 @@ class PvEObservation:
     target: NativeTargetHealthObservation
     player: NativePlayerVitalsObservation
     combat_events: tuple[NativeCombatEvent, ...] = ()
+    player_position: NativePlayerPositionObservation | None = None
+    target_position: NativeTargetPositionObservation | None = None
 
     def __post_init__(self) -> None:
         _non_negative_integer(self.now_ms, "now_ms")
@@ -136,6 +140,51 @@ class PvEObservation:
         sequences = tuple(event.sequence for event in self.combat_events)
         if sequences != tuple(sorted(sequences)) or len(sequences) != len(set(sequences)):
             raise ValueError("combat events must have unique ascending sequences")
+        if (self.player_position is None) != (self.target_position is None):
+            raise ValueError("player and target positions must be observed together")
+        if self.player_position is None:
+            return
+        if not isinstance(self.player_position, NativePlayerPositionObservation):
+            raise ValueError("player_position must be NativePlayerPositionObservation")
+        if not isinstance(self.target_position, NativeTargetPositionObservation):
+            raise ValueError("target_position must be NativeTargetPositionObservation")
+        if self.target.target_present != self.target_position.target_present:
+            raise ValueError("target health and position disagree about target presence")
+        if (
+            self.target.target_present
+            and self.target.target_token != self.target_position.target_token
+        ):
+            raise ValueError("target health and position resolved different targets")
+
+    @property
+    def target_planar_distance(self) -> float | None:
+        if self.player_position is None or self.target_position is None:
+            return None
+        if not self.target_position.target_present:
+            return None
+        assert self.target_position.lt is not None
+        assert self.target_position.lg is not None
+        return hypot(
+            self.target_position.lt - self.player_position.lt,
+            self.target_position.lg - self.player_position.lg,
+        )
+
+    @property
+    def target_altitude_delta(self) -> float | None:
+        if self.player_position is None or self.target_position is None:
+            return None
+        if not self.target_position.target_present:
+            return None
+        assert self.target_position.altitude is not None
+        return self.target_position.altitude - self.player_position.altitude
+
+    @property
+    def target_spatial_distance(self) -> float | None:
+        planar = self.target_planar_distance
+        altitude = self.target_altitude_delta
+        if planar is None or altitude is None:
+            return None
+        return hypot(planar, altitude)
 
 
 @dataclass(frozen=True, slots=True)
@@ -174,6 +223,17 @@ class PvERunTraceStep:
     maximum_health: float | None
     player_current_health: float | None = None
     player_maximum_health: float | None = None
+    player_current_mana: float | None = None
+    player_maximum_mana: float | None = None
+    player_current_stamina: float | None = None
+    player_maximum_stamina: float | None = None
+    target_token: str | None = None
+    player_position: NativePlayerPositionObservation | None = None
+    target_position: NativeTargetPositionObservation | None = None
+    target_planar_distance: float | None = None
+    target_altitude_delta: float | None = None
+    target_spatial_distance: float | None = None
+    combat_events: tuple[NativeCombatEvent, ...] = ()
     input_accepted: bool | None = None
     input_reason: str | None = None
 
@@ -188,6 +248,65 @@ class PvERunTraceStep:
             raise ValueError("input outcome requires a dispatched intent")
         if self.input_reason is not None and self.input_accepted is not False:
             raise ValueError("input_reason is valid only for rejected input")
+        if self.player_position is not None and not isinstance(
+            self.player_position, NativePlayerPositionObservation
+        ):
+            raise ValueError("player_position must be NativePlayerPositionObservation")
+        if self.target_position is not None and not isinstance(
+            self.target_position, NativeTargetPositionObservation
+        ):
+            raise ValueError("target_position must be NativeTargetPositionObservation")
+        if any(not isinstance(event, NativeCombatEvent) for event in self.combat_events):
+            raise ValueError("combat_events must contain NativeCombatEvent values")
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "decision_id": self.decision.decision_id,
+            "at_ms": self.decision.now_ms,
+            "phase": self.decision.phase.value,
+            "kills": self.decision.kills,
+            "intent": None if self.decision.intent is None else self.decision.intent.value,
+            "target": {
+                "present": self.target_present,
+                "token": self.target_token,
+                "current_health": self.current_health,
+                "maximum_health": self.maximum_health,
+                "lt": None if self.target_position is None else self.target_position.lt,
+                "lg": None if self.target_position is None else self.target_position.lg,
+                "altitude": (
+                    None if self.target_position is None else self.target_position.altitude
+                ),
+                "planar_distance": self.target_planar_distance,
+                "altitude_delta": self.target_altitude_delta,
+                "spatial_distance": self.target_spatial_distance,
+            },
+            "player": {
+                "current_health": self.player_current_health,
+                "maximum_health": self.player_maximum_health,
+                "current_mana": self.player_current_mana,
+                "maximum_mana": self.player_maximum_mana,
+                "current_stamina": self.player_current_stamina,
+                "maximum_stamina": self.player_maximum_stamina,
+                "lt": None if self.player_position is None else self.player_position.lt,
+                "lg": None if self.player_position is None else self.player_position.lg,
+                "altitude": (
+                    None if self.player_position is None else self.player_position.altitude
+                ),
+            },
+            "combat_events": [
+                {
+                    "sequence": event.sequence,
+                    "timestamp": event.timestamp,
+                    "kind": event.kind.value,
+                    "message": event.message,
+                    "target_name": event.target_name,
+                    "amount": event.amount,
+                }
+                for event in self.combat_events
+            ],
+            "input_accepted": self.input_accepted,
+            "input_reason": self.input_reason,
+        }
 
 
 @dataclass(frozen=True, slots=True)

@@ -5,8 +5,10 @@ from shadowbane_lab.client_observation import (
     NativeCombatEvent,
     NativeCombatEventKind,
     NativeCombatLogEntry,
+    NativePlayerPositionObservation,
     NativePlayerVitalsObservation,
     NativeTargetHealthObservation,
+    NativeTargetPositionObservation,
 )
 from shadowbane_lab.protocol import DispatchResult
 from shadowbane_lab.pve import (
@@ -62,6 +64,22 @@ def _player(
     )
 
 
+def _player_position() -> NativePlayerPositionObservation:
+    return NativePlayerPositionObservation(100.0, 200.0, 10.0)
+
+
+def _target_position(token: str | None) -> NativeTargetPositionObservation:
+    if token is None:
+        return NativeTargetPositionObservation(target_present=False)
+    return NativeTargetPositionObservation(
+        target_present=True,
+        lt=103.0,
+        lg=204.0,
+        altitude=22.0,
+        target_token=token,
+    )
+
+
 def _observation(
     now_ms: int,
     target: NativeTargetHealthObservation,
@@ -77,6 +95,28 @@ def _observation(
 
 
 class PvEControllerTests(unittest.TestCase):
+    def test_spatial_observation_derives_coherent_target_ranges(self) -> None:
+        observation = PvEObservation(
+            now_ms=0,
+            target=_target("mob"),
+            player=_player(),
+            player_position=_player_position(),
+            target_position=_target_position("mob"),
+        )
+
+        self.assertEqual(5.0, observation.target_planar_distance)
+        self.assertEqual(12.0, observation.target_altitude_delta)
+        self.assertEqual(13.0, observation.target_spatial_distance)
+
+        with self.assertRaisesRegex(ValueError, "different targets"):
+            PvEObservation(
+                now_ms=0,
+                target=_target("mob"),
+                player=_player(),
+                player_position=_player_position(),
+                target_position=_target_position("other-mob"),
+            )
+
     def test_opener_configuration_rejects_non_power_and_unbounded_mana_cost(self) -> None:
         with self.assertRaisesRegex(ValueError, "power activation"):
             PvEControllerConfig(opening_intent=PvEIntent.ACQUIRE_NEXT_MOB)
@@ -403,6 +443,22 @@ class SequencePlayerVitalsSource:
         return self.values.pop(0)
 
 
+class SequencePlayerPositionSource:
+    def __init__(self, values: tuple[NativePlayerPositionObservation, ...]) -> None:
+        self.values = list(values)
+
+    def observe(self) -> NativePlayerPositionObservation:
+        return self.values.pop(0)
+
+
+class SequenceTargetPositionSource:
+    def __init__(self, values: tuple[NativeTargetPositionObservation, ...]) -> None:
+        self.values = list(values)
+
+    def observe(self) -> NativeTargetPositionObservation:
+        return self.values.pop(0)
+
+
 class ConstantHealthSource:
     def __init__(self, value: NativeTargetHealthObservation) -> None:
         self.value = value
@@ -494,6 +550,15 @@ class PvERunnerTests(unittest.TestCase):
             player_vitals_reader=SequencePlayerVitalsSource(
                 (_player(), _player(), _player(), _player())
             ),
+            player_position_reader=SequencePlayerPositionSource((_player_position(),) * 4),
+            target_position_reader=SequenceTargetPositionSource(
+                (
+                    _target_position(None),
+                    _target_position("mob"),
+                    _target_position("mob"),
+                    _target_position(None),
+                )
+            ),
             combat_log_reader=combat,
             dispatcher=dispatcher,
             stop_signal=EventEmergencyStop(),
@@ -510,6 +575,16 @@ class PvERunnerTests(unittest.TestCase):
             [PvEIntent.ACQUIRE_NEXT_MOB, PvEIntent.ATTACK_SELECTED_TARGET],
             dispatcher.intents,
         )
+        hit_step = result.trace[2]
+        self.assertEqual(50.0, hit_step.player_current_mana)
+        self.assertEqual(100.0, hit_step.player_current_stamina)
+        self.assertEqual(5.0, hit_step.target_planar_distance)
+        self.assertEqual(12.0, hit_step.target_altitude_delta)
+        self.assertEqual(13.0, hit_step.target_spatial_distance)
+        self.assertEqual(NativeCombatEventKind.PLAYER_HIT_TARGET, hit_step.combat_events[0].kind)
+        trace_payload = hit_step.as_dict()
+        self.assertEqual(5.0, trace_payload["target"]["planar_distance"])
+        self.assertEqual("player_hit_target", trace_payload["combat_events"][0]["kind"])
 
     def test_runner_stops_immediately_when_guarded_input_is_rejected(self) -> None:
         clock = AdvancingClock()

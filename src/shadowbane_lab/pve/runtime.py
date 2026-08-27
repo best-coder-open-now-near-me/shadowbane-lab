@@ -10,8 +10,10 @@ from shadowbane_lab.client_input import ClientInputAdapter, StopSignal
 from shadowbane_lab.client_observation import (
     NativeCombatEventParser,
     NativeCombatLogEntry,
+    NativePlayerPositionObservation,
     NativePlayerVitalsObservation,
     NativeTargetHealthObservation,
+    NativeTargetPositionObservation,
 )
 from shadowbane_lab.protocol import ActionBinding, DecisionMessage, DispatchResult
 from shadowbane_lab.pve.controller import PvEController
@@ -36,6 +38,16 @@ class TargetHealthSource(Protocol):
 @runtime_checkable
 class PlayerVitalsSource(Protocol):
     def observe(self) -> NativePlayerVitalsObservation: ...
+
+
+@runtime_checkable
+class PlayerPositionSource(Protocol):
+    def observe(self) -> NativePlayerPositionObservation: ...
+
+
+@runtime_checkable
+class TargetPositionSource(Protocol):
+    def observe(self) -> NativeTargetPositionObservation: ...
 
 
 @runtime_checkable
@@ -83,6 +95,8 @@ class PvERunner:
         controller: PvEController,
         health_reader: TargetHealthSource,
         player_vitals_reader: PlayerVitalsSource,
+        player_position_reader: PlayerPositionSource | None = None,
+        target_position_reader: TargetPositionSource | None = None,
         combat_log_reader: CombatLogSource,
         dispatcher: PvEIntentDispatcher,
         stop_signal: StopSignal,
@@ -97,6 +111,16 @@ class PvERunner:
             raise ValueError("health_reader must implement TargetHealthSource")
         if not isinstance(player_vitals_reader, PlayerVitalsSource):
             raise ValueError("player_vitals_reader must implement PlayerVitalsSource")
+        if (player_position_reader is None) != (target_position_reader is None):
+            raise ValueError("player and target position readers must be provided together")
+        if player_position_reader is not None and not isinstance(
+            player_position_reader, PlayerPositionSource
+        ):
+            raise ValueError("player_position_reader must implement PlayerPositionSource")
+        if target_position_reader is not None and not isinstance(
+            target_position_reader, TargetPositionSource
+        ):
+            raise ValueError("target_position_reader must implement TargetPositionSource")
         if not isinstance(combat_log_reader, CombatLogSource):
             raise ValueError("combat_log_reader must implement CombatLogSource")
         if not isinstance(dispatcher, PvEIntentDispatcher):
@@ -120,6 +144,8 @@ class PvERunner:
         self._controller = controller
         self._health_reader = health_reader
         self._player_vitals_reader = player_vitals_reader
+        self._player_position_reader = player_position_reader
+        self._target_position_reader = target_position_reader
         self._combat_log_reader = combat_log_reader
         self._dispatcher = dispatcher
         self._stop_signal = stop_signal
@@ -140,23 +166,34 @@ class PvERunner:
             now_ms = round((self._clock() - started_at) * 1000)
             if self._stop_signal.is_set():
                 terminal = self._controller.stop("emergency_stop", now_ms=now_ms)
-                trace.append(self._trace(terminal, target=None, player=None))
+                trace.append(self._trace(terminal, observation=None))
                 break
             try:
                 target = self._health_reader.observe()
+                target_position = (
+                    None
+                    if self._target_position_reader is None
+                    else self._target_position_reader.observe()
+                )
+                player_position = (
+                    None
+                    if self._player_position_reader is None
+                    else self._player_position_reader.observe()
+                )
                 player = self._player_vitals_reader.observe()
                 events = tuple(
                     self._parser.parse(entry)
                     for entry in self._combat_log_reader.read_new_entries()
                 )
-                decision = self._controller.step(
-                    PvEObservation(
-                        now_ms=now_ms,
-                        target=target,
-                        player=player,
-                        combat_events=events,
-                    )
+                observation = PvEObservation(
+                    now_ms=now_ms,
+                    target=target,
+                    player=player,
+                    combat_events=events,
+                    player_position=player_position,
+                    target_position=target_position,
                 )
+                decision = self._controller.step(observation)
             except Exception as exc:
                 consecutive_observation_failures += 1
                 if (
@@ -171,7 +208,7 @@ class PvERunner:
                     f"observation_failure:{type(exc).__name__}{detail}",
                     now_ms=now_ms,
                 )
-                trace.append(self._trace(terminal, target=None, player=None))
+                trace.append(self._trace(terminal, observation=None))
                 break
             consecutive_observation_failures = 0
 
@@ -188,14 +225,13 @@ class PvERunner:
                     trace.append(
                         self._trace(
                             decision,
-                            target=target,
-                            player=player,
+                            observation=observation,
                             input_accepted=False,
                             input_reason=reason,
                         )
                     )
                     terminal = self._controller.stop(reason, now_ms=now_ms)
-                    trace.append(self._trace(terminal, target=target, player=player))
+                    trace.append(self._trace(terminal, observation=observation))
                     break
                 accepted = result.accepted
                 reason = result.reason
@@ -203,8 +239,7 @@ class PvERunner:
                     trace.append(
                         self._trace(
                             decision,
-                            target=target,
-                            player=player,
+                            observation=observation,
                             input_accepted=False,
                             input_reason=reason,
                         )
@@ -213,13 +248,12 @@ class PvERunner:
                         "guarded_input_rejected",
                         now_ms=now_ms,
                     )
-                    trace.append(self._trace(terminal, target=target, player=player))
+                    trace.append(self._trace(terminal, observation=observation))
                     break
             trace.append(
                 self._trace(
                     decision,
-                    target=target,
-                    player=player,
+                    observation=observation,
                     input_accepted=accepted,
                     input_reason=reason,
                 )
@@ -242,18 +276,42 @@ class PvERunner:
     def _trace(
         decision,
         *,
-        target,
-        player,
+        observation: PvEObservation | None,
         input_accepted: bool | None = None,
         input_reason: str | None = None,
     ) -> PvERunTraceStep:
         return PvERunTraceStep(
             decision=decision,
-            target_present=False if target is None else target.target_present,
-            current_health=None if target is None else target.current_health,
-            maximum_health=None if target is None else target.maximum_health,
-            player_current_health=None if player is None else player.current_health,
-            player_maximum_health=None if player is None else player.maximum_health,
+            target_present=False if observation is None else observation.target.target_present,
+            current_health=None if observation is None else observation.target.current_health,
+            maximum_health=None if observation is None else observation.target.maximum_health,
+            player_current_health=(
+                None if observation is None else observation.player.current_health
+            ),
+            player_maximum_health=(
+                None if observation is None else observation.player.maximum_health
+            ),
+            player_current_mana=(None if observation is None else observation.player.current_mana),
+            player_maximum_mana=(None if observation is None else observation.player.maximum_mana),
+            player_current_stamina=(
+                None if observation is None else observation.player.current_stamina
+            ),
+            player_maximum_stamina=(
+                None if observation is None else observation.player.maximum_stamina
+            ),
+            target_token=None if observation is None else observation.target.target_token,
+            player_position=(None if observation is None else observation.player_position),
+            target_position=(None if observation is None else observation.target_position),
+            target_planar_distance=(
+                None if observation is None else observation.target_planar_distance
+            ),
+            target_altitude_delta=(
+                None if observation is None else observation.target_altitude_delta
+            ),
+            target_spatial_distance=(
+                None if observation is None else observation.target_spatial_distance
+            ),
+            combat_events=() if observation is None else observation.combat_events,
             input_accepted=input_accepted,
             input_reason=input_reason,
         )
