@@ -53,25 +53,18 @@ $existing = @(
 )
 if ($existing.Count -gt 0) {
     $ids = ($existing.ProcessId | Sort-Object) -join ", "
-    $pveEnabled = @(
-        $existing | Where-Object { $_.CommandLine -match "--pve-client-profile" }
-    )
-    if ($pveEnabled.Count -eq $existing.Count) {
-        Write-Output "Shadowbane chat listener already running with /pve (PID $ids)."
-        exit 0
-    }
     if ($existing.Count -ne 1) {
-        throw "Cannot upgrade multiple legacy Shadowbane listeners safely (PIDs $ids)."
+        throw "Cannot replace multiple Shadowbane listeners safely (PIDs $ids)."
     }
     Stop-Process -Id $existing[0].ProcessId
     $stopDeadline = (Get-Date).AddSeconds(5)
     while (Get-Process -Id $existing[0].ProcessId -ErrorAction SilentlyContinue) {
         if ((Get-Date) -ge $stopDeadline) {
-            throw "Legacy listener PID $ids did not stop within five seconds."
+            throw "Listener PID $ids did not stop within five seconds."
         }
         Start-Sleep -Milliseconds 100
     }
-    Write-Output "Stopped legacy travel-only listener (PID $ids) before /pve upgrade."
+    Write-Output "Stopped existing Shadowbane listener (PID $ids) before restart."
 }
 
 $standardOutput = Join-Path $LogDirectory "go-listener.stdout.jsonl"
