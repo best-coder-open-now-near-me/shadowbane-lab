@@ -75,8 +75,11 @@ validates the `Core::String` begin/end/capacity pointers, decodes its exact UTF-
 the terminator, rejects parent cycles and excessive depth, and retries if the player or current
 zone changes during a sample. It emits the resolved name, an opaque zone token, and the parent
 depth that supplied the name. It also emits each zone's exact template key and server-instance
-key. The optional cache join accepts terrain references only when the `CZone` payload contains
-every tile in the referenced `TerrainAlpha` map; partial or duplicate maps fail closed.
+key. Runtime-only zones may expose template ID zero; the reader preserves that exact key and
+marks it non-cache-resolvable instead of inventing a cache identity. The optional cache join
+skips only those runtime-only entries and accepts other terrain references only when the `CZone`
+payload contains every tile in the referenced `TerrainAlpha` map; missing, partial, or duplicate
+maps fail closed.
 
 ## Native group roster and follow state
 

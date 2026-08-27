@@ -89,6 +89,8 @@ def _fixture(
     current_name: str,
     *,
     parent_name: str | None = None,
+    current_template: tuple[int, int] = (0, 524),
+    parent_template: tuple[int, int] = (0, 3010),
 ) -> tuple[FakeProcessMemory, int]:
     profile = _profile()
     player = 0x3518B280
@@ -102,7 +104,9 @@ def _fixture(
         slot: [_pointer(player)],
         player + profile.current_zone_offset: [_pointer(current_zone)],
         current_zone + profile.zone_name_offset: [current_header],
-        current_zone + profile.template_group_offset: [struct.pack("<II", 0, 524)],
+        current_zone + profile.template_group_offset: [
+            struct.pack("<II", *current_template)
+        ],
         current_zone + profile.object_type_offset: [struct.pack("<II", 9, 80052)],
         current_zone + profile.parent_zone_offset: [_pointer(0)],
         current_buffer: [current_raw],
@@ -112,7 +116,7 @@ def _fixture(
         responses[current_zone + profile.parent_zone_offset] = [_pointer(parent_zone)]
         responses[parent_zone + profile.zone_name_offset] = [parent_header]
         responses[parent_zone + profile.template_group_offset] = [
-            struct.pack("<II", 0, 3010)
+            struct.pack("<II", *parent_template)
         ]
         responses[parent_zone + profile.object_type_offset] = [
             struct.pack("<II", 9, 70041)
@@ -148,6 +152,26 @@ class NativeCurrentZoneReaderTests(unittest.TestCase):
         self.assertEqual("The Dalgoth Marches", observation.name)
         self.assertEqual(1, observation.name_source_depth)
         self.assertEqual((524, 3010), tuple(zone.template_id for zone in observation.chain))
+
+    def test_preserves_runtime_zone_chain_with_zero_template_ids(self) -> None:
+        process, _ = _fixture(
+            "Oblivion Isle",
+            parent_name="Seafloor",
+            current_template=(310, 0),
+            parent_template=(1, 0),
+        )
+
+        observation = NativeCurrentZoneReader(_profile(), process).observe()
+
+        self.assertEqual("Oblivion Isle", observation.name)
+        self.assertEqual(
+            ((310, 0), (1, 0)),
+            tuple(
+                (zone.template_group_id, zone.template_id)
+                for zone in observation.chain
+            ),
+        )
+        self.assertFalse(observation.current.cache_resolvable)
 
     def test_rejects_parent_cycle(self) -> None:
         profile = _profile()
@@ -260,7 +284,9 @@ class NativeCurrentZoneCliTests(unittest.TestCase):
         self.assertEqual("zone-token", payload["zone_token"])
         self.assertEqual(0, payload["name_source_depth"])
         self.assertEqual(524, payload["template_id"])
+        self.assertTrue(payload["cache_resolvable"])
         self.assertEqual(80052, payload["object_uuid"])
+        self.assertTrue(payload["chain"][0]["cache_resolvable"])
         self.assertEqual(1, len(payload["chain"]))
 
 

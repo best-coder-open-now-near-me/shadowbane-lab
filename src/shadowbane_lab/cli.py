@@ -1042,6 +1042,8 @@ def _observe_native_zone(
                 CacheArchive(cache_directory / "TerrainAlpha.cache") as terrain,
             ):
                 for identity in observation.chain:
+                    if not identity.cache_resolvable:
+                        continue
                     correlation = correlate_zone_terrain(
                         zones,
                         terrain,
@@ -1076,6 +1078,7 @@ def _observe_native_zone(
             "name": identity.name,
             "template_group_id": identity.template_group_id,
             "template_id": identity.template_id,
+            "cache_resolvable": identity.cache_resolvable,
             "object_type": identity.object_type,
             "object_uuid": identity.object_uuid,
             "terrain": terrain_by_depth.get(identity.depth),
@@ -1091,6 +1094,7 @@ def _observe_native_zone(
         "name_source_depth": observation.name_source_depth,
         "template_group_id": current.template_group_id,
         "template_id": current.template_id,
+        "cache_resolvable": current.cache_resolvable,
         "object_type": current.object_type,
         "object_uuid": current.object_uuid,
         "chain": chain,

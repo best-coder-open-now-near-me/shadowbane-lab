@@ -147,9 +147,14 @@ class NativeZoneIdentity:
         if (
             isinstance(self.template_id, bool)
             or not isinstance(self.template_id, int)
-            or self.template_id <= 0
+            or self.template_id < 0
         ):
-            raise ValueError("template_id must be a positive integer")
+            raise ValueError("template_id must be a non-negative integer")
+
+    @property
+    def cache_resolvable(self) -> bool:
+        """Whether this runtime zone exposes a concrete CZone resource ID."""
+        return self.template_id != 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -299,8 +304,6 @@ class NativeCurrentZoneReader:
                 zone_pointer + self._profile.template_group_offset,
                 "zone-template",
             )
-            if template_id == 0:
-                raise NativeCurrentZoneReadError("current-zone template ID is zero")
             object_type, object_uuid = self._read_identifier(
                 zone_pointer + self._profile.object_type_offset,
                 "zone-object",
