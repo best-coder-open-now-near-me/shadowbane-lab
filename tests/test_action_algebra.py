@@ -21,6 +21,7 @@ from shadowbane_lab.sim import (
     TransferItem,
     UniformAmount,
     UniformIntegerAmount,
+    WeightedAmount,
 )
 
 
@@ -190,6 +191,16 @@ class ActionAlgebraTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "must be an integer"):
             UniformIntegerAmount(4, 5.5)  # type: ignore[arg-type]
+
+    def test_weighted_amount_preserves_observed_outcomes_and_expected_value(self) -> None:
+        amount = WeightedAmount(((10.0, 1), (40.0, 3)))
+
+        self.assertEqual(4, amount.total_weight)
+        self.assertEqual(32.5, amount.expected)
+        self.assertEqual(amount, DealDamage(SubjectRef.TARGET, amount, "observed").amount)
+
+        with self.assertRaisesRegex(ValueError, "sorted"):
+            WeightedAmount(((40.0, 1), (10.0, 1)))
 
     def test_one_grammar_represents_all_required_action_families(self) -> None:
         catalog = ActionCatalog(representative_actions())

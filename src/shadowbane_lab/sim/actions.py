@@ -108,11 +108,46 @@ class UniformIntegerAmount:
         return (self.minimum + self.maximum) / 2.0
 
 
-AmountSpec = float | UniformAmount | UniformIntegerAmount
+@dataclass(frozen=True, slots=True)
+class WeightedAmount:
+    """Positive discrete outcomes with integer weights resolved by the seeded RNG."""
+
+    outcomes: tuple[tuple[float, int], ...]
+
+    def __post_init__(self) -> None:
+        if not self.outcomes:
+            raise ValueError("weighted amount requires at least one outcome")
+        if tuple(sorted(self.outcomes)) != self.outcomes:
+            raise ValueError("weighted amount outcomes must be sorted")
+        values = tuple(item[0] for item in self.outcomes)
+        if len(values) != len(set(values)):
+            raise ValueError("weighted amount outcome values must be unique")
+        for value, weight in self.outcomes:
+            _finite(value, "weighted amount outcome")
+            if value <= 0:
+                raise ValueError("weighted amount outcomes must be positive")
+            if isinstance(weight, bool) or not isinstance(weight, int) or weight <= 0:
+                raise ValueError("weighted amount weights must be positive integers")
+        if self.total_weight > 1 << 32:
+            raise ValueError("weighted amount total weight must fit the random source")
+
+    @property
+    def total_weight(self) -> int:
+        return sum(weight for _, weight in self.outcomes)
+
+    @property
+    def expected(self) -> float:
+        return (
+            sum(value * weight for value, weight in self.outcomes)
+            / self.total_weight
+        )
+
+
+AmountSpec = float | UniformAmount | UniformIntegerAmount | WeightedAmount
 
 
 def _positive_amount(value: AmountSpec, field_name: str) -> None:
-    if isinstance(value, (UniformAmount, UniformIntegerAmount)):
+    if isinstance(value, (UniformAmount, UniformIntegerAmount, WeightedAmount)):
         return
     _finite(value, field_name)
     if value <= 0:

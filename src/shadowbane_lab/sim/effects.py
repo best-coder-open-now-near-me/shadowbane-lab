@@ -32,6 +32,7 @@ from shadowbane_lab.sim.actions import (
     TransferItem,
     UniformAmount,
     UniformIntegerAmount,
+    WeightedAmount,
 )
 from shadowbane_lab.sim.errors import SimulationConfigurationError
 from shadowbane_lab.sim.random_source import DeterministicRandom
@@ -257,7 +258,7 @@ class EffectExecutor:
         )
 
     def _resolve_amount(
-        self, amount: float | UniformAmount | UniformIntegerAmount
+        self, amount: float | UniformAmount | UniformIntegerAmount | WeightedAmount
     ) -> float:
         if isinstance(amount, UniformAmount):
             return self._random.uniform(amount.minimum, amount.maximum)
@@ -265,6 +266,16 @@ class EffectExecutor:
             return float(
                 amount.minimum
                 + self._random.randbelow(amount.maximum - amount.minimum + 1)
+            )
+        if isinstance(amount, WeightedAmount):
+            selected = self._random.randbelow(amount.total_weight)
+            cumulative = 0
+            for value, weight in amount.outcomes:
+                cumulative += weight
+                if selected < cumulative:
+                    return value
+            raise SimulationConfigurationError(
+                "weighted amount selection did not reach an outcome"
             )
         return amount
 

@@ -52,8 +52,8 @@ def _calibration() -> PvECombatCalibration:
         starting_player_stamina=_summary(300.0),
         engagement_planar_distance=_summary(4.0),
         shadow_touch_mana_delta=_summary(55.0),
-        native_target_health_decrease=_summary(10.0, 12.0),
-        native_target_health_decrease_interval_ms=_summary(1_000.0),
+        native_target_health_decrease=_summary(100.0, 120.0),
+        native_target_health_decrease_interval_ms=_summary(1_200.0),
         native_player_health_decrease=_summary(6.0, 9.0),
         native_player_health_decrease_interval_ms=_summary(1_800.0),
         limitations=("test limitation",),
@@ -77,6 +77,10 @@ class SmartCampRolloutTests(unittest.TestCase):
             config.player_mana,
             config.player_stamina,
         ))
+        self.assertEqual(1_200, config.player_attack_interval_ms)
+        self.assertIsNotNone(config.observed_unattributed_damage)
+        assert config.observed_unattributed_damage is not None
+        self.assertGreater(config.observed_unattributed_damage.expected, 0.0)
         self.assertIn("wonderbane.live-pve.test", config.evidence)
         self.assertFalse(any("assumed 180 health" in item for item in config.assumptions))
 
@@ -95,6 +99,7 @@ class SmartCampRolloutTests(unittest.TestCase):
             action_counts["shadowbane.assassin.dual_fist_successful_hit"],
             0,
         )
+        self.assertGreater(result.observed_unattributed_damage, 0.0)
         self.assertIn("close_to_weapon_range", {item.reason for item in result.choices})
 
     def test_default_proc_assassin_retains_targets_and_clears_the_camp(self) -> None:
@@ -135,6 +140,7 @@ class SmartCampRolloutTests(unittest.TestCase):
         self.assertGreater(result.p90_clear_time_ms, result.p50_clear_time_ms)
         self.assertEqual(0, result.rejected_actions)
         self.assertEqual((), result.episode_results)
+        self.assertGreater(result.physical_damage, 0.0)
         fist_attacks = dict(result.action_counts)[
             "shadowbane.assassin.dual_fist_successful_hit"
         ]

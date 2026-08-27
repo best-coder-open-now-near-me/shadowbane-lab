@@ -22,6 +22,7 @@ from shadowbane_lab.sim import (
     TargetingSpec,
     TransferItem,
     UniformAmount,
+    WeightedAmount,
 )
 
 
@@ -408,6 +409,57 @@ class ReferenceEnvironmentTests(unittest.TestCase):
         self.assertGreaterEqual(requested, 4.0)
         self.assertLess(requested, 9.0)
         self.assertEqual(expected_events, actual_events)
+        self.assertEqual(expected_state, environment.snapshot())
+
+    def test_snapshot_replays_seeded_weighted_damage_exactly(self) -> None:
+        attack = ActionSpec(
+            action_key="observed-attack",
+            targeting=TargetingSpec(
+                kind=TargetKind.ENTITY,
+                allowed_relations=(Relation.ENEMY,),
+                maximum_range=3.0,
+            ),
+            phases=(
+                ActionPhase(
+                    kind=PhaseKind.ACTIVE,
+                    duration_ms=0,
+                    effects=(
+                        DealDamage(
+                            SubjectRef.TARGET,
+                            WeightedAmount(((5.0, 1), (17.0, 2))),
+                            "observed",
+                        ),
+                    ),
+                ),
+            ),
+        )
+        environment = ReferenceEnvironment(
+            ActionCatalog((attack,)),
+            (
+                actor("a", "red", Vector2(0.0, 0.0), ("observed-attack",)),
+                actor("b", "blue", Vector2(1.0, 0.0), ()),
+            ),
+            seed=91,
+        )
+        snapshot = environment.snapshot()
+        decision = action_for(
+            environment,
+            "a",
+            "observed-attack",
+            target_id="b",
+            correlation_id="observed-1",
+        )
+
+        expected_events = environment.step((decision,))
+        expected_state = environment.snapshot()
+        damage_event = next(
+            event for event in expected_events.events if event.kind == EventKind.DAMAGE_APPLIED
+        )
+        requested = next(item.value for item in damage_event.scalars if item.name == "requested")
+        environment.restore(snapshot)
+
+        self.assertIn(requested, (5.0, 17.0))
+        self.assertEqual(expected_events, environment.step((decision,)))
         self.assertEqual(expected_state, environment.snapshot())
 
     def test_stale_decision_is_rejected_without_execution(self) -> None:

@@ -38,6 +38,7 @@ from shadowbane_lab.sim import (
     TargetingSpec,
     UniformAmount,
     UniformIntegerAmount,
+    WeightedAmount,
 )
 
 _PLAYER_ID = "player"
@@ -92,6 +93,8 @@ class SmartCampConfig:
     player_mana: float = 220.0
     player_stamina: float = 100.0
     player_move_speed: float = 30.0
+    player_attack_interval_ms: int = 1_000
+    observed_unattributed_damage: WeightedAmount | None = None
     weapon_key: str = "generic_fast_fist"
     proc_effect_keys: tuple[str, ...] = (
         "tier_three_mental",
@@ -120,6 +123,14 @@ class SmartCampConfig:
             (self.player_move_speed, "player_move_speed"),
         ):
             _positive_number(value, field_name)
+        _positive_integer(self.player_attack_interval_ms, "player_attack_interval_ms")
+        if self.observed_unattributed_damage is not None and not isinstance(
+            self.observed_unattributed_damage,
+            WeightedAmount,
+        ):
+            raise ValueError(
+                "observed_unattributed_damage must be a WeightedAmount or null"
+            )
         if not isinstance(self.weapon_key, str) or not self.weapon_key.strip():
             raise ValueError("weapon_key must be a non-empty string")
         if not self.proc_effect_keys or len(self.proc_effect_keys) != len(
@@ -194,6 +205,7 @@ class SmartCampResult:
     target_sequence: tuple[str, ...]
     action_counts: tuple[tuple[str, int], ...]
     physical_damage: float
+    observed_unattributed_damage: float
     proc_outcomes: tuple[ProcOutcome, ...]
     rejected_actions: int
     choices: tuple[PolicyChoice, ...]
@@ -215,6 +227,7 @@ class SmartCampResult:
             "target_sequence": list(self.target_sequence),
             "action_counts": dict(self.action_counts),
             "physical_damage": self.physical_damage,
+            "observed_unattributed_damage": self.observed_unattributed_damage,
             "proc_outcomes": [item.as_dict() for item in self.proc_outcomes],
             "rejected_actions": self.rejected_actions,
             "retained_choices": len(self.choices),
@@ -261,6 +274,8 @@ class SmartCampBatchResult:
     p99_clear_time_ms: int | None
     mean_remaining_health: float
     action_counts: tuple[tuple[str, int], ...]
+    physical_damage: float
+    observed_unattributed_damage: float
     proc_outcomes: tuple[SmartCampBatchProcOutcome, ...]
     rejected_actions: int
     episode_results: tuple[SmartCampResult, ...]
@@ -282,6 +297,8 @@ class SmartCampBatchResult:
             "p99_clear_time_ms": self.p99_clear_time_ms,
             "mean_remaining_health": self.mean_remaining_health,
             "action_counts": dict(self.action_counts),
+            "physical_damage": self.physical_damage,
+            "observed_unattributed_damage": self.observed_unattributed_damage,
             "proc_outcomes": [item.as_dict() for item in self.proc_outcomes],
             "rejected_actions": self.rejected_actions,
             "retained_episode_results": len(self.episode_results),
@@ -465,6 +482,8 @@ def apply_pve_combat_calibration(
     observed_damage = calibration.target_damage
     observed_interval = calibration.target_attack_interval_ms
     observed_distance = calibration.engagement_planar_distance
+    observed_output = calibration.native_target_health_decrease
+    observed_output_interval = calibration.native_target_health_decrease_interval_ms
     if observed_distance is not None and observed_distance.median <= 0:
         observed_distance = None
     calibrated_damage: tuple[int, int] | None = None
@@ -484,6 +503,32 @@ def apply_pve_combat_calibration(
             _TICK_DURATION_MS,
             round(observed_interval.median / _TICK_DURATION_MS) * _TICK_DURATION_MS,
         )
+    player_attack_interval = config.player_attack_interval_ms
+    if observed_output_interval is not None:
+        player_attack_interval = max(
+            _TICK_DURATION_MS,
+            round(observed_output_interval.median / _TICK_DURATION_MS)
+            * _TICK_DURATION_MS,
+        )
+    observed_unattributed_damage = config.observed_unattributed_damage
+    residual_method: str | None = None
+    if observed_output is not None:
+        _, mechanistic_expected_damage = _mechanistic_weapon_effects(config)
+        residual_mean = observed_output.mean - mechanistic_expected_damage
+        if residual_mean > 0:
+            if observed_output.minimum > mechanistic_expected_damage:
+                observed_unattributed_damage = WeightedAmount(
+                    tuple(
+                        (value - mechanistic_expected_damage, frequency)
+                        for value, frequency in observed_output.histogram
+                    )
+                )
+                residual_method = "histogram"
+            else:
+                observed_unattributed_damage = WeightedAmount(
+                    ((residual_mean, observed_output.count),)
+                )
+                residual_method = "mean"
 
     mobs = tuple(
         replace(
@@ -508,17 +553,35 @@ def apply_pve_combat_calibration(
         )
         for mob in config.mobs
     )
-    assumptions = tuple(
+    assumptions = list(
         item
         for item in config.assumptions
         if not item.startswith("Three generic camp mobs begin")
-    ) + (
+        and not (
+            observed_output_interval is not None
+            and item.startswith("Both speed-20 fists are aggregated")
+        )
+    )
+    assumptions.extend((
         "Every generic simulated camp mob reuses the calibration's aggregate median target "
         "health, engagement distance, and incoming-attack cadence when observed; fields "
         "without sufficient samples retain their declared baseline defaults.",
         "Live event cadence is quantized to the simulator's 200 ms tick, and aggregate "
         "target observations are not treated as named-archetype-specific stats.",
-    )
+    ))
+    if observed_output_interval is not None:
+        assumptions.append(
+            "The median native target-health decrease interval sets the successful-hit "
+            "opportunity cadence; it may aggregate or split client combat events at the "
+            "controller poll boundary."
+        )
+    if residual_method is not None:
+        assumptions.append(
+            "Sourced physical and proc mechanics remain explicit; the positive difference "
+            f"between their expected damage and native aggregate health decreases uses the "
+            f"observed {residual_method} as separately tagged unattributed damage. This "
+            "normalizes total output without claiming component attribution."
+        )
     evidence = config.evidence + (
         calibration.profile_id,
         f"{len(calibration.source_trace_sha256s)} versioned live PvE trace artifact(s)",
@@ -542,8 +605,10 @@ def apply_pve_combat_calibration(
             if calibration.starting_player_stamina is None
             else calibration.starting_player_stamina.median
         ),
+        player_attack_interval_ms=player_attack_interval,
+        observed_unattributed_damage=observed_unattributed_damage,
         evidence=evidence,
-        assumptions=assumptions,
+        assumptions=tuple(assumptions),
     )
 
 
@@ -590,6 +655,8 @@ def run_smart_camp_batch(
         for key in config.proc_effect_keys
     }
     total_health = 0.0
+    physical_damage = 0.0
+    observed_unattributed_damage = 0.0
     rejected_actions = 0
     total_clear_time = 0
     for seed in range(first_seed, first_seed + episodes):
@@ -602,6 +669,8 @@ def run_smart_camp_batch(
             retained.append(result)
         reason_counts[result.reason] += 1
         total_health += result.player_final_health
+        physical_damage += result.physical_damage
+        observed_unattributed_damage += result.observed_unattributed_damage
         rejected_actions += result.rejected_actions
         action_counts.update(dict(result.action_counts))
         if result.reason is SmartCampTerminationReason.CAMP_CLEARED:
@@ -629,6 +698,8 @@ def run_smart_camp_batch(
         p99_clear_time_ms=_counter_percentile(clear_times, 0.99),
         mean_remaining_health=total_health / episodes,
         action_counts=tuple(sorted(action_counts.items())),
+        physical_damage=physical_damage,
+        observed_unattributed_damage=observed_unattributed_damage,
         proc_outcomes=tuple(
             SmartCampBatchProcOutcome(
                 effect_key=key,
@@ -702,45 +773,17 @@ class _CompiledSmartCamp:
 
 
 def _compile_scenario(config: SmartCampConfig) -> _CompiledSmartCamp:
-    progression = load_wonderbane_irekei_proc_profile()
-    weapon = progression.weapon(config.weapon_key)
-    proc_effects = tuple(
-        progression.proc_effect(key) for key in config.proc_effect_keys
-    )
-    weapon_effects = [
-        DealDamage(
-            SubjectRef.TARGET,
-            UniformIntegerAmount(
-                round(weapon.base_minimum_damage),
-                round(weapon.base_maximum_damage),
+    weapon_effects, expected_damage = _mechanistic_weapon_effects(config)
+    if config.observed_unattributed_damage is not None:
+        weapon_effects = (
+            *weapon_effects,
+            DealDamage(
+                SubjectRef.TARGET,
+                config.observed_unattributed_damage,
+                "observed_unattributed",
             ),
-            "physical",
         )
-    ]
-    expected_damage = (weapon.base_minimum_damage + weapon.base_maximum_damage) / 2.0
-    for effect in proc_effects:
-        focus = 1.0 if effect.focus_scaling else 0.0
-        minimum, maximum = spell_damage_range(
-            intelligence=config.stats.intelligence,
-            spirit=config.stats.spirit,
-            focus=focus,
-            base_minimum=effect.base_minimum_damage,
-            base_maximum=effect.base_maximum_damage,
-        )
-        weapon_effects.append(
-            ChanceGate(
-                effect.key,
-                effect.chance_per_successful_hit,
-                (
-                    DealDamage(
-                        SubjectRef.TARGET,
-                        UniformAmount(minimum, maximum),
-                        f"proc.{effect.key}",
-                    ),
-                ),
-            )
-        )
-        expected_damage += effect.chance_per_successful_hit * (minimum + maximum) / 2.0
+        expected_damage += config.observed_unattributed_damage.expected
     dual_fist = ActionSpec(
         action_key=_DUAL_FIST,
         targeting=TargetingSpec(
@@ -752,10 +795,10 @@ def _compile_scenario(config: SmartCampConfig) -> _CompiledSmartCamp:
             ActionPhase(
                 kind=PhaseKind.ACTIVE,
                 duration_ms=0,
-                effects=tuple(weapon_effects),
+                effects=weapon_effects,
             ),
         ),
-        cooldown_ms=1_000,
+        cooldown_ms=config.player_attack_interval_ms,
         features=(NamedScalar("expected_damage", expected_damage),),
         tags=("combat", "attack", "melee", "physical", "proc"),
     )
@@ -806,6 +849,51 @@ def _compile_scenario(config: SmartCampConfig) -> _CompiledSmartCamp:
             )
         )
     return _CompiledSmartCamp(catalog, tuple(entities))
+
+
+def _mechanistic_weapon_effects(
+    config: SmartCampConfig,
+) -> tuple[tuple[DealDamage | ChanceGate, ...], float]:
+    progression = load_wonderbane_irekei_proc_profile()
+    weapon = progression.weapon(config.weapon_key)
+    proc_effects = tuple(
+        progression.proc_effect(key) for key in config.proc_effect_keys
+    )
+    weapon_effects: list[DealDamage | ChanceGate] = [
+        DealDamage(
+            SubjectRef.TARGET,
+            UniformIntegerAmount(
+                round(weapon.base_minimum_damage),
+                round(weapon.base_maximum_damage),
+            ),
+            "physical",
+        )
+    ]
+    expected_damage = (weapon.base_minimum_damage + weapon.base_maximum_damage) / 2.0
+    for effect in proc_effects:
+        focus = 1.0 if effect.focus_scaling else 0.0
+        minimum, maximum = spell_damage_range(
+            intelligence=config.stats.intelligence,
+            spirit=config.stats.spirit,
+            focus=focus,
+            base_minimum=effect.base_minimum_damage,
+            base_maximum=effect.base_maximum_damage,
+        )
+        weapon_effects.append(
+            ChanceGate(
+                effect.key,
+                effect.chance_per_successful_hit,
+                (
+                    DealDamage(
+                        SubjectRef.TARGET,
+                        UniformAmount(minimum, maximum),
+                        f"proc.{effect.key}",
+                    ),
+                ),
+            )
+        )
+        expected_damage += effect.chance_per_successful_hit * (minimum + maximum) / 2.0
+    return tuple(weapon_effects), expected_damage
 
 
 def _environment(
@@ -874,6 +962,7 @@ def _result(
     action_counts: dict[str, int] = {}
     target_sequence: list[str] = []
     physical_damage = 0.0
+    observed_unattributed_damage = 0.0
     proc_checks = {key: 0 for key in config.proc_effect_keys}
     proc_triggers = {key: 0 for key in config.proc_effect_keys}
     proc_requested = {key: 0.0 for key in config.proc_effect_keys}
@@ -898,6 +987,8 @@ def _result(
         elif event.kind == EventKind.DAMAGE_APPLIED and event.source_entity_id == _PLAYER_ID:
             if "damage.physical" in event.tags:
                 physical_damage += scalars.get("effective", 0.0)
+            if "damage.observed_unattributed" in event.tags:
+                observed_unattributed_damage += scalars.get("effective", 0.0)
             for key in config.proc_effect_keys:
                 if f"damage.proc.{key}" in event.tags:
                     proc_requested[key] += scalars.get("requested", 0.0)
@@ -921,6 +1012,7 @@ def _result(
         target_sequence=tuple(target_sequence),
         action_counts=tuple(sorted(action_counts.items())),
         physical_damage=physical_damage,
+        observed_unattributed_damage=observed_unattributed_damage,
         proc_outcomes=tuple(
             ProcOutcome(
                 key,

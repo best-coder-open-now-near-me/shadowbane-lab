@@ -27,6 +27,7 @@ from shadowbane_lab.sim.actions import (
     TransferItem,
     UniformAmount,
     UniformIntegerAmount,
+    WeightedAmount,
 )
 from shadowbane_lab.sim.clock import ClockSnapshot, SimulationClock
 from shadowbane_lab.sim.environment import ReferenceEnvironment
@@ -89,4 +90,5 @@ __all__ = [
     "TransferItem",
     "UniformAmount",
     "UniformIntegerAmount",
+    "WeightedAmount",
 ]

@@ -182,6 +182,13 @@ damage and aggregate health changes do not identify individual weapon/proc/mitig
 components, and target tokens remain process-local opaque identities; those limitations are
 carried in the artifact.
 
+When exact target-health decreases are available, smart-camp uses their median interval as the
+successful-hit opportunity cadence. It retains the sourced fist and proc mechanics, subtracts
+their expected damage from the observed aggregate decrease, and samples the positive remainder
+from the observed histogram as separately tagged `observed_unattributed_damage`. This aligns the
+total damage envelope without claiming that the residual came from any specific weapon, proc,
+mitigation rule, or polling boundary.
+
 Apply the resulting evidence to the generic smart-camp simulator:
 
 ```powershell
