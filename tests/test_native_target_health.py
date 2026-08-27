@@ -132,6 +132,43 @@ class NativeTargetHealthReaderTests(unittest.TestCase):
 
         self.assertEqual(NativeTargetHealthObservation(target_present=False), observation)
 
+    def test_bounded_negative_overkill_is_clamped_to_dead(self) -> None:
+        profile = _profile()
+        target = 0x12340000
+        slot = FakeProcessMemory.base_address + profile.selected_pointer_rva
+        reader = NativeTargetHealthReader(
+            profile,
+            FakeProcessMemory(
+                {
+                    slot: [_pointer(target), _pointer(target)],
+                    target + profile.current_health_offset: [_health(-32.28, 2200.0)],
+                }
+            ),
+        )
+
+        observation = reader.observe()
+
+        self.assertTrue(observation.target_present)
+        self.assertEqual(0.0, observation.current_health)
+        self.assertEqual(2200.0, observation.maximum_health)
+
+    def test_negative_health_beyond_maximum_is_rejected(self) -> None:
+        profile = _profile()
+        target = 0x12340000
+        slot = FakeProcessMemory.base_address + profile.selected_pointer_rva
+        reader = NativeTargetHealthReader(
+            profile,
+            FakeProcessMemory(
+                {
+                    slot: [_pointer(target), _pointer(target)],
+                    target + profile.current_health_offset: [_health(-11.0, 10.0)],
+                }
+            ),
+        )
+
+        with self.assertRaisesRegex(NativeTargetHealthReadError, "structurally invalid"):
+            reader.observe()
+
     def test_retries_when_selection_changes_during_read(self) -> None:
         profile = _profile()
         first = 0x12340000

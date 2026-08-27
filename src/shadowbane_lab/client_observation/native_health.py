@@ -307,8 +307,8 @@ class NativeTargetHealthReader:
         if (
             not isfinite(current_health)
             or not isfinite(maximum_health)
-            or current_health < 0
             or maximum_health <= 0
+            or current_health < -maximum_health
         ):
             raise NativeTargetHealthReadError(
                 "selected-target health is structurally invalid "
@@ -319,7 +319,7 @@ class NativeTargetHealthReader:
             raise NativeTargetHealthReadError("selected-target current health exceeds maximum")
         return NativeTargetHealthObservation(
             target_present=True,
-            current_health=min(current_health, maximum_health),
+            current_health=max(0.0, min(current_health, maximum_health)),
             maximum_health=maximum_health,
             target_token=self._target_token(selected_pointer),
         )
