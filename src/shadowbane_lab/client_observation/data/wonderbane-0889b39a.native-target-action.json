@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "profile_id": "wonderbane-0889b39a-native-target-action",
+  "executable_name": "sb.exe",
+  "executable_sha256": "0889b39a6f065f2ddf696bad01455e0b691892077105fe27e35de94bfdf59ebc",
+  "pointer_size": 4,
+  "player_pointer_rva": 23735704,
+  "selected_pointer_rva": 23735716,
+  "arc_character_vtable_rva": 18093660,
+  "arc_motion_vtable_rva": 18127580,
+  "current_motion_pointer_offset": 2440,
+  "current_motion_id_offset": 2444,
+  "impact_frame_offset": 2472,
+  "action_pending_offset": 2492,
+  "target_of_target_pointer_offset": 2808,
+  "idle_motion_ids": [21],
+  "observed_attack_motion_ids": [106, 107, 108],
+  "no_impact_frame_sentinel": -1,
+  "maximum_motion_id": 4096,
+  "maximum_impact_frame": 4096,
+  "minimum_user_address": 65536,
+  "maximum_user_address": 2147418111
+}

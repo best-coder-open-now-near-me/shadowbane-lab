@@ -338,9 +338,9 @@ class ClientCliTests(unittest.TestCase):
         )
         native_profiles = tuple(
             SimpleNamespace(executable_sha256="ab" * 32, profile_id=f"profile-{index}")
-            for index in range(5)
+            for index in range(6)
         )
-        readers = tuple(MagicMock() for _ in range(5))
+        readers = tuple(MagicMock() for _ in range(6))
         for reader in readers:
             reader.process_id = 4320
             reader.__enter__.return_value = reader
@@ -380,6 +380,10 @@ class ClientCliTests(unittest.TestCase):
                     return_value=native_profiles[4],
                 ),
                 patch(
+                    "shadowbane_lab.cli.load_bundled_native_target_action_profile",
+                    return_value=native_profiles[5],
+                ),
+                patch(
                     "shadowbane_lab.cli.open_windows_native_target_health_reader",
                     return_value=readers[0],
                 ) as open_health,
@@ -399,6 +403,10 @@ class ClientCliTests(unittest.TestCase):
                     "shadowbane_lab.cli.open_windows_native_message_hud_reader",
                     return_value=readers[4],
                 ) as open_message_hud,
+                patch(
+                    "shadowbane_lab.cli.open_windows_native_target_action_reader",
+                    return_value=readers[5],
+                ) as open_target_action,
                 patch("shadowbane_lab.cli.WindowsHotkeyEmergencyStop") as emergency_stop,
                 patch(
                     "shadowbane_lab.cli.PyAutoGuiBackend",
@@ -417,6 +425,7 @@ class ClientCliTests(unittest.TestCase):
                     native_vitals_profile_path=None,
                     native_position_profile_path=None,
                     native_target_position_profile_path=None,
+                    native_target_action_profile_path=None,
                     max_kills=1,
                     max_seconds=30,
                     wait_for_client_seconds=0,
@@ -443,6 +452,10 @@ class ClientCliTests(unittest.TestCase):
             process_id=4320,
             start_at_end=True,
         )
+        open_target_action.assert_called_once_with(
+            native_profiles[5],
+            process_id=4320,
+        )
         readers[4].attach.assert_called_once_with()
         self.assertEqual(
             "hud",
@@ -451,6 +464,10 @@ class ClientCliTests(unittest.TestCase):
         self.assertEqual(
             "profile-4",
             saved_evidence["native_observation"]["message_hud_profile_id"],
+        )
+        self.assertEqual(
+            "profile-5",
+            saved_evidence["native_observation"]["target_action_profile_id"],
         )
 
     def test_proc_assassin_policy_fails_before_input_without_shadow_touch_mapping(self) -> None:

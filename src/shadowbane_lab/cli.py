@@ -55,6 +55,8 @@ from shadowbane_lab.client_observation import (
     NativePlayerVitalsError,
     NativePositionProfileLoadError,
     NativeProgressionCoreProfileLoadError,
+    NativeTargetActionError,
+    NativeTargetActionProfileLoadError,
     NativeTargetHealthError,
     NativeTargetPositionError,
     NativeTargetPositionProfileLoadError,
@@ -69,6 +71,7 @@ from shadowbane_lab.client_observation import (
     load_bundled_native_message_hud_profile,
     load_bundled_native_position_profile,
     load_bundled_native_progression_core_profile,
+    load_bundled_native_target_action_profile,
     load_bundled_native_target_position_profile,
     load_bundled_native_training_profile,
     load_bundled_native_vitals_profile,
@@ -78,6 +81,7 @@ from shadowbane_lab.client_observation import (
     load_native_message_hud_profile,
     load_native_position_profile,
     load_native_progression_core_profile,
+    load_native_target_action_profile,
     load_native_target_position_profile,
     load_native_training_profile,
     load_native_vitals_profile,
@@ -90,6 +94,7 @@ from shadowbane_lab.client_observation import (
     open_windows_native_player_progression_core_reader,
     open_windows_native_player_training_reader,
     open_windows_native_player_vitals_reader,
+    open_windows_native_target_action_reader,
     open_windows_native_target_health_reader,
     open_windows_native_target_position_reader,
 )
@@ -186,18 +191,14 @@ def _parser() -> argparse.ArgumentParser:
         help="read native target-cycle bindings from ArcanePref.cfg without changing them",
     )
     inspect_hotkeys.add_argument("preferences", type=Path)
-    inspect_hotkeys.add_argument(
-        "--json", action="store_true", help="emit machine-readable JSON"
-    )
+    inspect_hotkeys.add_argument("--json", action="store_true", help="emit machine-readable JSON")
 
     inspect_hotbar = client_commands.add_parser(
         "inspect-hotbar",
         help="read F1-F12 power assignments from a character SCREEN_GAME config",
     )
     inspect_hotbar.add_argument("character_config", type=Path)
-    inspect_hotbar.add_argument(
-        "--json", action="store_true", help="emit machine-readable JSON"
-    )
+    inspect_hotbar.add_argument("--json", action="store_true", help="emit machine-readable JSON")
 
     inspect_world_data = client_commands.add_parser(
         "inspect-world-data",
@@ -273,10 +274,7 @@ def _parser() -> argparse.ArgumentParser:
     observe_native_target_position.add_argument(
         "--profile",
         type=Path,
-        help=(
-            "native target-position profile; defaults to the verified bundled "
-            "WonderBane build"
-        ),
+        help=("native target-position profile; defaults to the verified bundled WonderBane build"),
     )
     observe_native_target_position.add_argument(
         "--json", action="store_true", help="emit machine-readable JSON"
@@ -407,6 +405,7 @@ def _parser() -> argparse.ArgumentParser:
     run_pve.add_argument("--native-vitals-profile", type=Path)
     run_pve.add_argument("--native-position-profile", type=Path)
     run_pve.add_argument("--native-target-position-profile", type=Path)
+    run_pve.add_argument("--native-target-action-profile", type=Path)
     run_pve.add_argument("--max-kills", type=int, default=1)
     run_pve.add_argument("--max-seconds", type=float, default=120.0)
     run_pve.add_argument("--wait-for-client-seconds", type=float, default=15.0)
@@ -421,8 +420,8 @@ def _parser() -> argparse.ArgumentParser:
         choices=("basic", "proc-assassin"),
         default="basic",
         help=(
-            "bounded control policy; proc-assassin accepts auto-targets and opens "
-            "with Shadow Touch"
+            "bounded control policy; proc-assassin accepts auto-targets and uses "
+            "Shadow Touch to interrupt a native queued attack"
         ),
     )
     run_pve.add_argument(
@@ -444,9 +443,7 @@ def _parser() -> argparse.ArgumentParser:
         help="versioned PvE evidence artifacts produced by client run-pve",
     )
     calibrate_pve.add_argument("--output", type=Path, required=True)
-    calibrate_pve.add_argument(
-        "--json", action="store_true", help="emit the compiled calibration"
-    )
+    calibrate_pve.add_argument("--json", action="store_true", help="emit the compiled calibration")
 
     go = client_commands.add_parser(
         "go",
@@ -711,9 +708,7 @@ def _inspect_arcane_hotkeys(path: Path, *, as_json: bool) -> int:
         for action in actions:
             chords = ["+".join(item["input_keys"]) for item in action["bindings"]]
             rendered = ", ".join(chords) if chords else "unbound"
-            print(
-                f"{action['display_name']} [{action['native_action_code']}]: {rendered}"
-            )
+            print(f"{action['display_name']} [{action['native_action_code']}]: {rendered}")
     return 0
 
 
@@ -793,10 +788,7 @@ def _inspect_world_data(
                         "sample_width": first_tile.width,
                         "sample_height": first_tile.height,
                         "map_shapes": sorted(
-                            {
-                                f"{item.width_tiles}x{item.height_tiles}"
-                                for item in maps
-                            }
+                            {f"{item.width_tiles}x{item.height_tiles}" for item in maps}
                         ),
                     }
         if not archives:
@@ -1194,9 +1186,7 @@ def _observe_native_zone(
             if terrain is None:
                 continue
             maps = terrain["maps"]
-            map_names = ", ".join(
-                f"{entry['group_id']}:{entry['map_id']}" for entry in maps
-            )
+            map_names = ", ".join(f"{entry['group_id']}:{entry['map_id']}" for entry in maps)
             print(f"Terrain depth {item['depth']}: {map_names or 'none'}")
     return 0
 
@@ -1432,6 +1422,7 @@ def _run_pve(
     native_vitals_profile_path: Path | None,
     native_position_profile_path: Path | None,
     native_target_position_profile_path: Path | None,
+    native_target_action_profile_path: Path | None,
     max_kills: int,
     max_seconds: float,
     wait_for_client_seconds: float,
@@ -1455,9 +1446,7 @@ def _run_pve(
         return _error("poll-ms must be in [50, 1000]", as_json=as_json)
     if policy not in ("basic", "proc-assassin"):
         return _error("policy must be basic or proc-assassin", as_json=as_json)
-    resolved_combat_source = combat_source or (
-        "log" if combat_log_path is not None else "hud"
-    )
+    resolved_combat_source = combat_source or ("log" if combat_log_path is not None else "hud")
     if resolved_combat_source not in ("hud", "log"):
         return _error("combat-source must be hud or log", as_json=as_json)
     if resolved_combat_source == "log":
@@ -1474,10 +1463,12 @@ def _run_pve(
                 maximum_kills=max_kills,
                 maximum_session_ms=round(max_seconds * 1000),
                 accept_automatic_targets=policy == "proc-assassin",
-                opening_intent=(
+                interrupt_intent=(
                     PvEIntent.CAST_SHADOW_TOUCH if policy == "proc-assassin" else None
                 ),
-                opening_mana_cost=55.0 if policy == "proc-assassin" else 0.0,
+                interrupt_mana_cost=55.0 if policy == "proc-assassin" else 0.0,
+                interrupt_cooldown_ms=2_000 if policy == "proc-assassin" else 0,
+                maximum_interrupts_per_target=1 if policy == "proc-assassin" else 0,
                 automatic_attack_expected=policy == "proc-assassin",
                 automatic_target_requires_combat_event=policy == "proc-assassin",
                 maximum_stalled_retargets=1 if policy == "proc-assassin" else 0,
@@ -1524,11 +1515,17 @@ def _run_pve(
             if native_target_position_profile_path is not None
             else load_bundled_native_target_position_profile()
         )
+        target_action_profile = (
+            load_native_target_action_profile(native_target_action_profile_path)
+            if native_target_action_profile_path is not None
+            else load_bundled_native_target_action_profile()
+        )
         native_profile_hashes = {
             health_profile.executable_sha256,
             vitals_profile.executable_sha256,
             position_profile.executable_sha256,
             target_position_profile.executable_sha256,
+            target_action_profile.executable_sha256,
         }
         if message_hud_profile is not None:
             native_profile_hashes.add(message_hud_profile.executable_sha256)
@@ -1571,6 +1568,12 @@ def _run_pve(
                     process_id=process_id,
                 )
             )
+            target_action_reader = stack.enter_context(
+                open_windows_native_target_action_reader(
+                    target_action_profile,
+                    process_id=process_id,
+                )
+            )
             if message_hud_profile is None:
                 assert combat_log_path is not None
                 combat_reader = NativeCombatLogReader(combat_log_path, start_at_end=True)
@@ -1589,6 +1592,7 @@ def _run_pve(
                 player_vitals_reader.process_id,
                 player_position_reader.process_id,
                 target_position_reader.process_id,
+                target_action_reader.process_id,
             }
             if message_hud_profile is not None:
                 reader_process_ids.add(combat_reader.process_id)
@@ -1609,6 +1613,7 @@ def _run_pve(
                 player_vitals_reader=player_vitals_reader,
                 player_position_reader=player_position_reader,
                 target_position_reader=target_position_reader,
+                target_action_reader=target_action_reader,
                 combat_log_reader=combat_reader,
                 dispatcher=ClientPvEIntentDispatcher(adapter),
                 stop_signal=stop_signal,
@@ -1624,6 +1629,8 @@ def _run_pve(
         NativePlayerPositionError,
         NativePositionProfileLoadError,
         NativeTargetHealthError,
+        NativeTargetActionError,
+        NativeTargetActionProfileLoadError,
         NativeTargetPositionError,
         NativeTargetPositionProfileLoadError,
         NativeVitalsProfileLoadError,
@@ -1662,6 +1669,7 @@ def _run_pve(
             "player_vitals_profile_id": vitals_profile.profile_id,
             "player_position_profile_id": position_profile.profile_id,
             "target_position_profile_id": target_position_profile.profile_id,
+            "target_action_profile_id": target_action_profile.profile_id,
             "combat_source": resolved_combat_source,
             "message_hud_profile_id": (
                 None if message_hud_profile is None else message_hud_profile.profile_id
@@ -1922,9 +1930,7 @@ def _listen_for_go_commands(
             raise ValueError("client profile is not enabled for live input")
         guard = ForegroundWindowGuard(client_profile, WindowsForegroundWindowInspector())
         named_catalog = (
-            None
-            if world_def_path is None
-            else load_world_destination_catalog(world_def_path)
+            None if world_def_path is None else load_world_destination_catalog(world_def_path)
         )
     except (CalibrationLoadError, OSError, RuntimeError, ValueError) as exc:
         return _error(f"chat travel failed: {exc}", as_json=as_json)
@@ -1980,9 +1986,7 @@ def _listen_for_go_commands(
                     )
                     continue
                 try:
-                    command_process_id = _require_window_process_id(
-                        guard.require_target()
-                    )
+                    command_process_id = _require_window_process_id(guard.require_target())
                 except WindowGuardError as exc:
                     _print_go_listener_event(
                         "rejected",
@@ -2003,13 +2007,9 @@ def _listen_for_go_commands(
                         try:
                             query = parse_named_go_command(command)
                             if named_catalog is None:
-                                raise ValueError(
-                                    "named /go destinations require --world-def"
-                                )
+                                raise ValueError("named /go destinations require --world-def")
                             position_profile = (
-                                load_native_position_profile(
-                                    native_position_profile_path
-                                )
+                                load_native_position_profile(native_position_profile_path)
                                 if native_position_profile_path is not None
                                 else load_bundled_native_position_profile()
                             )
@@ -2051,16 +2051,12 @@ def _listen_for_go_commands(
                         as_json=as_json,
                         command=command,
                         resolved_name=(
-                            None
-                            if named_resolution is None
-                            else named_resolution.matched_name
+                            None if named_resolution is None else named_resolution.matched_name
                         ),
                         lt=lt,
                         lg=lg,
                         candidate_count=(
-                            None
-                            if named_resolution is None
-                            else named_resolution.candidate_count
+                            None if named_resolution is None else named_resolution.candidate_count
                         ),
                     )
                     _run_travel(
@@ -2123,11 +2119,7 @@ def _print_go_listener_event(
     elif event == "stopped":
         print("Stopped listening for Shadowbane travel commands.", flush=True)
     elif event == "accepted":
-        detail = (
-            ""
-            if resolved_name is None
-            else f" -> {resolved_name} at LT {lt:g}, LG {lg:g}"
-        )
+        detail = "" if resolved_name is None else f" -> {resolved_name} at LT {lt:g}, LG {lg:g}"
         print(f"Accepted chat command: {command}{detail}", flush=True)
     else:
         print(f"Rejected chat command {command!r}: {reason}", file=sys.stderr, flush=True)
@@ -2288,6 +2280,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             native_vitals_profile_path=arguments.native_vitals_profile,
             native_position_profile_path=arguments.native_position_profile,
             native_target_position_profile_path=arguments.native_target_position_profile,
+            native_target_action_profile_path=arguments.native_target_action_profile,
             max_kills=arguments.max_kills,
             max_seconds=arguments.max_seconds,
             wait_for_client_seconds=arguments.wait_for_client_seconds,
