@@ -42,6 +42,11 @@ class PvEPhase(StrEnum):
     STOPPED = "stopped"
 
 
+class PvEKillConfirmation(StrEnum):
+    NATIVE_COMBAT_EVENT = "native_combat_event"
+    NATIVE_HEALTH_ZERO = "native_health_zero"
+
+
 @dataclass(frozen=True, slots=True)
 class PvEControllerConfig:
     maximum_kills: int = 1
@@ -53,9 +58,13 @@ class PvEControllerConfig:
     stalled_progress_ms: int = 5_000
     selection_loss_grace_ms: int = 750
     post_kill_delay_ms: int = 1_000
+    recovery_timeout_ms: int = 30_000
     maximum_reengage_attempts: int = 2
     maximum_stalled_retargets: int = 0
     minimum_player_health_fraction: float = 0.5
+    minimum_recovery_health_fraction: float = 0.0
+    minimum_recovery_mana_fraction: float = 0.0
+    minimum_recovery_stamina_fraction: float = 0.0
     accept_automatic_targets: bool = False
     opening_intent: PvEIntent | None = None
     opening_mana_cost: float = 0.0
@@ -78,6 +87,7 @@ class PvEControllerConfig:
             (self.stalled_progress_ms, "stalled_progress_ms"),
             (self.selection_loss_grace_ms, "selection_loss_grace_ms"),
             (self.post_kill_delay_ms, "post_kill_delay_ms"),
+            (self.recovery_timeout_ms, "recovery_timeout_ms"),
             (self.opening_followup_delay_ms, "opening_followup_delay_ms"),
         ):
             _positive_integer(value, field_name)
@@ -102,6 +112,31 @@ class PvEControllerConfig:
             raise ValueError("stalled progress timeout cannot exceed engagement timeout")
         if self.selection_loss_grace_ms > self.engagement_timeout_ms:
             raise ValueError("selection loss grace cannot exceed engagement timeout")
+        if self.post_kill_delay_ms > self.recovery_timeout_ms:
+            raise ValueError("post-kill delay cannot exceed recovery timeout")
+        for value, field_name in (
+            (self.minimum_recovery_health_fraction, "minimum_recovery_health_fraction"),
+            (self.minimum_recovery_mana_fraction, "minimum_recovery_mana_fraction"),
+            (
+                self.minimum_recovery_stamina_fraction,
+                "minimum_recovery_stamina_fraction",
+            ),
+        ):
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not isfinite(value)
+                or not 0.0 <= value <= 1.0
+            ):
+                raise ValueError(f"{field_name} must be in [0, 1]")
+        if (
+            self.minimum_recovery_health_fraction != 0
+            and self.minimum_recovery_health_fraction
+            < self.minimum_player_health_fraction
+        ):
+            raise ValueError(
+                "minimum recovery health cannot be below the player safety threshold"
+            )
         for value, field_name in (
             (self.accept_automatic_targets, "accept_automatic_targets"),
             (self.automatic_attack_expected, "automatic_attack_expected"),
@@ -242,6 +277,7 @@ class PvEControllerDecision:
     kills: int
     intent: PvEIntent | None = None
     terminal_reason: str | None = None
+    kill_confirmation: PvEKillConfirmation | None = None
 
     def __post_init__(self) -> None:
         _non_negative_integer(self.decision_id, "decision_id")
@@ -251,6 +287,12 @@ class PvEControllerDecision:
             raise ValueError("phase must be PvEPhase")
         if self.intent is not None and not isinstance(self.intent, PvEIntent):
             raise ValueError("intent must be PvEIntent when present")
+        if self.kill_confirmation is not None and not isinstance(
+            self.kill_confirmation, PvEKillConfirmation
+        ):
+            raise ValueError("kill_confirmation must be PvEKillConfirmation when present")
+        if self.kill_confirmation is not None and self.intent is not None:
+            raise ValueError("kill-confirmation decisions cannot dispatch input")
         terminal = self.phase in (PvEPhase.COMPLETE, PvEPhase.STOPPED)
         if terminal != (self.terminal_reason is not None):
             raise ValueError("terminal phases require exactly one terminal reason")
@@ -317,6 +359,11 @@ class PvERunTraceStep:
             "at_ms": self.decision.now_ms,
             "phase": self.decision.phase.value,
             "kills": self.decision.kills,
+            "kill_confirmation": (
+                None
+                if self.decision.kill_confirmation is None
+                else self.decision.kill_confirmation.value
+            ),
             "intent": None if self.decision.intent is None else self.decision.intent.value,
             "target": {
                 "present": self.target_present,

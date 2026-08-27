@@ -70,6 +70,23 @@ class PvETraceEvidenceTests(unittest.TestCase):
         with self.assertRaisesRegex(PvETraceEvidenceError, "finite JSON"):
             validate_pve_trace_evidence(payload)
 
+    def test_validates_optional_farm_limits(self) -> None:
+        payload = _payload()
+        payload["farm_limits"] = {
+            "maximum_kills": 3,
+            "maximum_session_seconds": 600.0,
+            "maximum_encounter_seconds": 120.0,
+            "recovery_timeout_seconds": 30.0,
+            "recovery_health_fraction": 0.75,
+            "recovery_mana_fraction": 0.15,
+            "recovery_stamina_fraction": 0.25,
+        }
+
+        self.assertIs(payload, validate_pve_trace_evidence(payload))
+        payload["farm_limits"]["recovery_health_fraction"] = 1.1
+        with self.assertRaisesRegex(PvETraceEvidenceError, "must be in"):
+            validate_pve_trace_evidence(payload)
+
     def test_loader_rejects_an_unknown_schema(self) -> None:
         payload = _payload()
         payload["trace_schema_version"] = 2

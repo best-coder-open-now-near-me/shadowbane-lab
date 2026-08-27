@@ -17,6 +17,7 @@ from shadowbane_lab.pve import (
     PvEController,
     PvEControllerConfig,
     PvEIntent,
+    PvEKillConfirmation,
     PvEObservation,
     PvEPhase,
     PvERunner,
@@ -55,14 +56,16 @@ def _player(
     maximum_health: float = 100.0,
     current_mana: float = 50.0,
     maximum_mana: float = 50.0,
+    current_stamina: float = 100.0,
+    maximum_stamina: float = 100.0,
 ) -> NativePlayerVitalsObservation:
     return NativePlayerVitalsObservation(
         current_health,
         maximum_health,
         current_mana,
         maximum_mana,
-        100.0,
-        100.0,
+        current_stamina,
+        maximum_stamina,
     )
 
 
@@ -164,6 +167,15 @@ class PvEControllerTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "require an interrupt_intent"):
             PvEControllerConfig(interrupt_cooldown_ms=2_000)
 
+    def test_recovery_configuration_is_bounded_by_safety_and_timeout(self) -> None:
+        with self.assertRaisesRegex(ValueError, "below the player safety threshold"):
+            PvEControllerConfig(
+                minimum_player_health_fraction=0.5,
+                minimum_recovery_health_fraction=0.4,
+            )
+        with self.assertRaisesRegex(ValueError, "post-kill delay"):
+            PvEControllerConfig(post_kill_delay_ms=1_000, recovery_timeout_ms=999)
+
     def test_acquires_a_different_mobile_then_attacks_and_confirms_kill(self) -> None:
         controller = PvEController(PvEControllerConfig(maximum_kills=1))
 
@@ -186,6 +198,37 @@ class PvEControllerTests(unittest.TestCase):
         self.assertEqual(PvEPhase.COMPLETE, complete.phase)
         self.assertEqual("kill_limit_reached", complete.terminal_reason)
         self.assertEqual(1, complete.kills)
+        self.assertEqual(
+            PvEKillConfirmation.NATIVE_COMBAT_EVENT,
+            complete.kill_confirmation,
+        )
+
+    def test_exact_native_zero_health_confirms_kill_without_combat_text(self) -> None:
+        controller = PvEController(PvEControllerConfig(maximum_kills=1))
+        controller.step(_observation(0, _absent()))
+        controller.step(_observation(100, _target("mob")))
+
+        complete = controller.step(_observation(200, _target("mob", current=0)))
+
+        self.assertEqual(PvEPhase.COMPLETE, complete.phase)
+        self.assertEqual("kill_limit_reached", complete.terminal_reason)
+        self.assertEqual(1, complete.kills)
+        self.assertEqual(
+            PvEKillConfirmation.NATIVE_HEALTH_ZERO,
+            complete.kill_confirmation,
+        )
+
+    def test_dead_acquisition_candidate_is_never_attacked(self) -> None:
+        controller = PvEController(
+            PvEControllerConfig(acquisition_retry_ms=100, acquisition_timeout_ms=1_000)
+        )
+        controller.step(_observation(0, _absent()))
+
+        waiting = controller.step(_observation(50, _target("corpse", current=0)))
+        cycle = controller.step(_observation(100, _target("corpse", current=0)))
+
+        self.assertIsNone(waiting.intent)
+        self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB, cycle.intent)
 
     def test_unexpected_selection_change_during_combat_stops(self) -> None:
         controller = PvEController(PvEControllerConfig())
@@ -291,6 +334,73 @@ class PvEControllerTests(unittest.TestCase):
         self.assertIsNone(waiting.intent)
         self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB, acquire.intent)
         self.assertEqual(PvEIntent.ATTACK_SELECTED_TARGET, attack.intent)
+
+    def test_post_kill_waits_for_all_recovery_floors_before_reacquiring(self) -> None:
+        controller = PvEController(
+            PvEControllerConfig(
+                maximum_kills=2,
+                post_kill_delay_ms=100,
+                recovery_timeout_ms=1_000,
+                minimum_recovery_health_fraction=0.75,
+                minimum_recovery_mana_fraction=0.5,
+                minimum_recovery_stamina_fraction=0.5,
+            )
+        )
+        controller.step(_observation(0, _absent()))
+        controller.step(_observation(10, _target("mob")))
+        killed = controller.step(_observation(20, _target("mob", current=0)))
+
+        waiting = controller.step(
+            _observation(
+                120,
+                _absent(),
+                player=_player(
+                    current_health=70,
+                    current_mana=20,
+                    current_stamina=40,
+                ),
+            )
+        )
+        acquire = controller.step(
+            _observation(
+                220,
+                _absent(),
+                player=_player(
+                    current_health=80,
+                    current_mana=30,
+                    current_stamina=60,
+                ),
+            )
+        )
+
+        self.assertEqual(PvEPhase.POST_KILL, killed.phase)
+        self.assertEqual(PvEKillConfirmation.NATIVE_HEALTH_ZERO, killed.kill_confirmation)
+        self.assertIsNone(waiting.intent)
+        self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB, acquire.intent)
+
+    def test_post_kill_recovery_timeout_stops_instead_of_farming_depleted(self) -> None:
+        controller = PvEController(
+            PvEControllerConfig(
+                maximum_kills=2,
+                post_kill_delay_ms=100,
+                recovery_timeout_ms=500,
+                minimum_recovery_mana_fraction=0.5,
+            )
+        )
+        controller.step(_observation(0, _absent()))
+        controller.step(_observation(10, _target("mob")))
+        controller.step(_observation(20, _target("mob", current=0)))
+
+        stopped = controller.step(
+            _observation(
+                520,
+                _absent(),
+                player=_player(current_mana=20),
+            )
+        )
+
+        self.assertEqual(PvEPhase.STOPPED, stopped.phase)
+        self.assertEqual("post_kill_recovery_timeout", stopped.terminal_reason)
 
     def test_proc_assassin_accepts_auto_target_and_opens_without_redundant_attack(self) -> None:
         controller = PvEController(
@@ -789,6 +899,86 @@ class PvERunnerTests(unittest.TestCase):
         self.assertEqual(5.0, trace_payload["target"]["planar_distance"])
         self.assertEqual("player_hit_target", trace_payload["combat_events"][0]["kind"])
         self.assertEqual("windup", trace_payload["target"]["action"]["phase"])
+        self.assertEqual(
+            PvEKillConfirmation.NATIVE_COMBAT_EVENT,
+            result.trace[-1].decision.kill_confirmation,
+        )
+        self.assertEqual(
+            "native_combat_event",
+            result.trace[-1].as_dict()["kill_confirmation"],
+        )
+
+    def test_runner_farms_two_native_health_kills_after_resource_recovery(self) -> None:
+        health = SequenceHealthSource(
+            (
+                _absent(),
+                _target("mob-1"),
+                _target("mob-1", current=0),
+                _absent(),
+                _absent(),
+                _target("mob-2"),
+                _target("mob-2", current=0),
+            )
+        )
+        dispatcher = RecordingPvEDispatcher()
+        clock = AdvancingClock()
+        runner = PvERunner(
+            controller=PvEController(
+                PvEControllerConfig(
+                    maximum_kills=2,
+                    post_kill_delay_ms=100,
+                    recovery_timeout_ms=1_000,
+                    minimum_recovery_health_fraction=0.75,
+                    minimum_recovery_mana_fraction=0.5,
+                    minimum_recovery_stamina_fraction=0.5,
+                )
+            ),
+            health_reader=health,
+            player_vitals_reader=SequencePlayerVitalsSource(
+                (
+                    _player(),
+                    _player(),
+                    _player(current_health=70, current_mana=20, current_stamina=40),
+                    _player(current_health=70, current_mana=20, current_stamina=40),
+                    _player(current_health=80, current_mana=30, current_stamina=60),
+                    _player(current_health=80, current_mana=30, current_stamina=60),
+                    _player(current_health=80, current_mana=30, current_stamina=60),
+                )
+            ),
+            combat_log_reader=SequenceCombatLogSource(((),) * 7),
+            dispatcher=dispatcher,
+            stop_signal=EventEmergencyStop(),
+            poll_interval_ms=100,
+            clock=clock,
+            sleeper=clock.sleep,
+        )
+
+        result = runner.run()
+
+        self.assertEqual(PvEPhase.COMPLETE, result.final_phase)
+        self.assertEqual(2, result.kills)
+        self.assertEqual(
+            [
+                PvEIntent.ACQUIRE_NEXT_MOB,
+                PvEIntent.ATTACK_SELECTED_TARGET,
+                PvEIntent.ACQUIRE_NEXT_MOB,
+                PvEIntent.ATTACK_SELECTED_TARGET,
+            ],
+            dispatcher.intents,
+        )
+        self.assertEqual(PvEPhase.POST_KILL, result.trace[3].decision.phase)
+        confirmations = tuple(
+            step.decision.kill_confirmation
+            for step in result.trace
+            if step.decision.kill_confirmation is not None
+        )
+        self.assertEqual(
+            (
+                PvEKillConfirmation.NATIVE_HEALTH_ZERO,
+                PvEKillConfirmation.NATIVE_HEALTH_ZERO,
+            ),
+            confirmations,
+        )
 
     def test_runner_stops_immediately_when_guarded_input_is_rejected(self) -> None:
         clock = AdvancingClock()

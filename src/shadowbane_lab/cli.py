@@ -415,6 +415,11 @@ def _parser() -> argparse.ArgumentParser:
     run_pve.add_argument("--native-target-action-profile", type=Path)
     run_pve.add_argument("--max-kills", type=int, default=1)
     run_pve.add_argument("--max-seconds", type=float, default=120.0)
+    run_pve.add_argument("--max-encounter-seconds", type=float, default=120.0)
+    run_pve.add_argument("--recovery-timeout-seconds", type=float, default=30.0)
+    run_pve.add_argument("--recovery-health-fraction", type=float, default=0.75)
+    run_pve.add_argument("--recovery-mana-fraction", type=float, default=0.15)
+    run_pve.add_argument("--recovery-stamina-fraction", type=float, default=0.25)
     run_pve.add_argument("--wait-for-client-seconds", type=float, default=15.0)
     run_pve.add_argument("--poll-ms", type=int, default=100)
     run_pve.add_argument(
@@ -1449,6 +1454,11 @@ def _run_pve(
     evidence_output_path: Path | None = None,
     combat_source: str | None = None,
     native_message_hud_profile_path: Path | None = None,
+    max_encounter_seconds: float = 120.0,
+    recovery_timeout_seconds: float = 30.0,
+    recovery_health_fraction: float = 0.75,
+    recovery_mana_fraction: float = 0.15,
+    recovery_stamina_fraction: float = 0.25,
 ) -> int:
     if not live:
         return _error("PvE execution requires the explicit --live flag", as_json=as_json)
@@ -1456,6 +1466,22 @@ def _run_pve(
         return _error("max-kills must be in [1, 10]", as_json=as_json)
     if not 1.0 <= max_seconds <= 900.0:
         return _error("max-seconds must be in [1, 900]", as_json=as_json)
+    if not 5.0 <= max_encounter_seconds <= 300.0:
+        return _error("max-encounter-seconds must be in [5, 300]", as_json=as_json)
+    if not 1.0 <= recovery_timeout_seconds <= 300.0:
+        return _error("recovery-timeout-seconds must be in [1, 300]", as_json=as_json)
+    for value, field_name in (
+        (recovery_health_fraction, "recovery-health-fraction"),
+        (recovery_mana_fraction, "recovery-mana-fraction"),
+        (recovery_stamina_fraction, "recovery-stamina-fraction"),
+    ):
+        if not 0.0 <= value <= 1.0:
+            return _error(f"{field_name} must be in [0, 1]", as_json=as_json)
+    if 0.0 < recovery_health_fraction < 0.5:
+        return _error(
+            "recovery-health-fraction cannot be below the 0.5 safety threshold",
+            as_json=as_json,
+        )
     if not 0.0 <= wait_for_client_seconds <= 300.0:
         return _error("wait-for-client-seconds must be in [0, 300]", as_json=as_json)
     if isinstance(poll_ms, bool) or not 50 <= poll_ms <= 1_000:
@@ -1480,6 +1506,11 @@ def _run_pve(
             PvEControllerConfig(
                 maximum_kills=max_kills,
                 maximum_session_ms=round(max_seconds * 1000),
+                engagement_timeout_ms=round(max_encounter_seconds * 1000),
+                recovery_timeout_ms=round(recovery_timeout_seconds * 1000),
+                minimum_recovery_health_fraction=recovery_health_fraction,
+                minimum_recovery_mana_fraction=recovery_mana_fraction,
+                minimum_recovery_stamina_fraction=recovery_stamina_fraction,
                 accept_automatic_targets=policy == "proc-assassin",
                 interrupt_intent=(
                     PvEIntent.CAST_SHADOW_TOUCH if policy == "proc-assassin" else None
@@ -1679,6 +1710,15 @@ def _run_pve(
         "policy": policy,
         "kills": result.kills,
         "steps": len(result.trace),
+        "farm_limits": {
+            "maximum_kills": max_kills,
+            "maximum_session_seconds": max_seconds,
+            "maximum_encounter_seconds": max_encounter_seconds,
+            "recovery_timeout_seconds": recovery_timeout_seconds,
+            "recovery_health_fraction": recovery_health_fraction,
+            "recovery_mana_fraction": recovery_mana_fraction,
+            "recovery_stamina_fraction": recovery_stamina_fraction,
+        },
         "dispatched": dispatched,
         "native_observation": {
             "process_id": process_id,
@@ -2317,6 +2357,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             native_target_action_profile_path=arguments.native_target_action_profile,
             max_kills=arguments.max_kills,
             max_seconds=arguments.max_seconds,
+            max_encounter_seconds=arguments.max_encounter_seconds,
+            recovery_timeout_seconds=arguments.recovery_timeout_seconds,
+            recovery_health_fraction=arguments.recovery_health_fraction,
+            recovery_mana_fraction=arguments.recovery_mana_fraction,
+            recovery_stamina_fraction=arguments.recovery_stamina_fraction,
             wait_for_client_seconds=arguments.wait_for_client_seconds,
             poll_ms=arguments.poll_ms,
             policy=arguments.policy,

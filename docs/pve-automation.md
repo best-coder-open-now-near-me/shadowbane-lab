@@ -1,15 +1,18 @@
 # Bounded PvE automation
 
-The first live PvE slice acquires a nearby mobile, attacks the newly selected target, and
-stops after a small explicit kill or time limit. It consumes exact player vitals and
-position, selected-target health, position, and action state, and the native message HUD.
+The live PvE slice repeatedly acquires nearby mobiles, attacks only a newly confirmed living
+target, waits for bounded resource recovery after each kill, and stops at explicit kill,
+encounter, recovery, or session limits. It consumes exact player vitals and position,
+selected-target health, position, and action state, and the native message HUD.
 
 ## Control loop
 
 The controller progresses through `INITIALIZING`, `SEEKING`, `ENGAGED`, and `POST_KILL`.
 It records the initially selected object's opaque token, sends `Target Next Mob`, and will
 attack only after observing a different, valid target token. A kill must be confirmed by a
-typed native `TARGET_KILLED` event before it counts or another target can be acquired.
+typed native `TARGET_KILLED` event or exact selected-target health reaching zero before it
+counts or another target can be acquired. A zero-health acquisition candidate is treated as a
+corpse and is never attacked.
 
 The live profile maps semantic operations to the installed client's captured native
 preferences:
@@ -67,6 +70,15 @@ input if `shadowbane.assassin.shadow_touch` is absent. The dry-run replay exerci
 cycle, automatic selection, attack interruption, automatic attack observation, and the bounded direct-attack
 fallback through the same guarded input compiler and executor without touching the VM.
 
+The farming loop separates the total session bound from a per-encounter bound. The verified
+live target started 61 units away, `Attack Selected` closed to melee range, and automatic
+attacks removed about 2,400 of 5,526 health during the first 28 seconds. The former 30-second
+ceiling was therefore too short for that target. The default encounter allowance is now 120
+seconds, while the no-progress detector still retries or abandons stalled targets much sooner.
+After a confirmed kill, the controller waits for 75% health, 15% mana, and 25% stamina before
+acquiring another mob. If those floors are not reached within 30 seconds, the run stops rather
+than entering another fight depleted.
+
 ## Fail-closed behavior
 
 The run stops without issuing more input when any of these conditions occurs:
@@ -78,6 +90,7 @@ The run stops without issuing more input when any of these conditions occurs:
 - exact player health reaches the 50-percent safety threshold;
 - the selected target changes while an engagement is active;
 - the native message HUD reports player death or multiple ambiguous kills;
+- post-kill resources fail to recover to their configured floors in time;
 - acquisition, combat progress, engagement, session, or kill bounds are exceeded; or
 - an input plan is rejected or interrupted.
 
@@ -158,7 +171,12 @@ $env:PYTHONPATH = "src"
   --hotbar-config $hotbar.FullName `
   --policy proc-assassin `
   --max-kills 1 `
-  --max-seconds 30 `
+  --max-seconds 180 `
+  --max-encounter-seconds 120 `
+  --recovery-timeout-seconds 30 `
+  --recovery-health-fraction 0.75 `
+  --recovery-mana-fraction 0.15 `
+  --recovery-stamina-fraction 0.25 `
   --wait-for-client-seconds 15 `
   --evidence-output "\\VBOXSVR\codexdiag\pve-fight-001.json" `
   --live `
@@ -173,6 +191,17 @@ proc-Assassin command with a timestamped artifact. Focus Shadowbane during its g
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
   \\VBOXSVR\codexrepo\scripts\run-wonderbane-pve-evidence.ps1
+```
+
+After a one-kill evidence run succeeds, the same wrapper can exercise the complete bounded
+three-kill lifecycle. The longer session allowance is deliberate: the calibrated simulation's
+median three-target clear is about 175 seconds before any passive-recovery wait.
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
+  \\VBOXSVR\codexrepo\scripts\run-wonderbane-pve-evidence.ps1 `
+  -MaximumKills 3 `
+  -MaximumSeconds 300
 ```
 
 The versioned JSON result includes native build/profile provenance and a sample-by-sample
@@ -217,6 +246,7 @@ python -m shadowbane_lab.rollouts `
   --scenario smart-camp `
   --episodes 1000 `
   --seed 0 `
+  --max-ticks 1500 `
   --pve-calibration "\\VBOXSVR\codexdiag\proc-assassin-calibration.json" `
   --json
 ```
@@ -226,9 +256,18 @@ range/cadence, and starting player resources. Sparse fields retain their declare
 defaults, and applying aggregate observations to every generic camp mob remains an explicit
 assumption rather than named-archetype evidence.
 
+The first 1,000-seed run from the 5,526-health live target trace cleared 988 camps and timed out
+12 at the default 200-second analysis ceiling, with no player defeats. Raising only the bounded
+analysis window to 300 seconds cleared all 1,000: median 175.2 seconds, p90 189.6 seconds, and
+p99 200.4 seconds. This supports the cohesive target-retention and replacement policy under the
+current aggregate damage model; it does not turn a single unnamed target trace into universal
+mob stats or validate unattended live farming.
+
 ## Current scope
 
-This slice intentionally observes range without issuing approach movement. Navigation,
-healing, looting, and power rotation must enter as separately tested vertical slices; they
-are not hidden inside the nearby-mobile loop. Exact player health, mana, stamina, and spatial
-range are observed so those additions can be gated on real state.
+`Attack Selected` is now live-validated to close ordinary open-ground distance, while the
+existing stalled-target path remains the bounded response to blocked approaches. The loop can
+confirm native zero-health kills, recover passively to explicit resource floors, and repeat
+target acquisition. Active healing, looting/inventory limits, hostile-relation validation, and
+a larger hotbar power rotation remain separate vertical slices; they are not inferred from
+unverified keys or hidden inside the nearby-mobile loop.

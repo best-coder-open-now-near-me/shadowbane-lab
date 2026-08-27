@@ -7,6 +7,7 @@ from shadowbane_lab.pve.model import (
     PvEControllerConfig,
     PvEControllerDecision,
     PvEIntent,
+    PvEKillConfirmation,
     PvEObservation,
     PvEPhase,
 )
@@ -106,12 +107,24 @@ class PvEController:
             if len(kills) > 1:
                 return self.stop("ambiguous_multiple_kill_records", now_ms=now)
             if kills:
-                return self._record_kill(observation)
+                return self._record_kill(
+                    observation,
+                    PvEKillConfirmation.NATIVE_COMBAT_EVENT,
+                )
+            if (
+                observation.target.target_present
+                and observation.target.current_health == 0.0
+            ):
+                return self._record_kill(
+                    observation,
+                    PvEKillConfirmation.NATIVE_HEALTH_ZERO,
+                )
 
         if self._phase is PvEPhase.INITIALIZING:
             if (
                 self._config.accept_automatic_targets
                 and observation.target.target_present
+                and observation.target.current_health != 0.0
                 and self._automatic_target_confirmed(events)
             ):
                 return self._begin_engagement(observation)
@@ -151,7 +164,7 @@ class PvEController:
     ) -> PvEControllerDecision:
         now = observation.now_ms
         target = observation.target
-        if target.target_present:
+        if target.target_present and target.current_health != 0.0:
             explicitly_acquired = (
                 self._last_acquire_at is not None
                 and target.target_token != self._baseline_target_token
@@ -236,12 +249,18 @@ class PvEController:
         events: tuple[NativeCombatEvent, ...],
     ) -> PvEControllerDecision:
         now = observation.now_ms
-        if self._phase_elapsed(now) < self._config.post_kill_delay_ms:
+        elapsed = self._phase_elapsed(now)
+        if elapsed < self._config.post_kill_delay_ms:
+            return self._emit(now)
+        if not self._resources_recovered(observation):
+            if elapsed >= self._config.recovery_timeout_ms:
+                return self.stop("post_kill_recovery_timeout", now_ms=now)
             return self._emit(now)
         previous_target_token = self._engaged_target_token
         if (
             self._config.accept_automatic_targets
             and observation.target.target_present
+            and observation.target.current_health != 0.0
             and observation.target.target_token != previous_target_token
         ):
             if self._automatic_target_confirmed(events):
@@ -260,6 +279,7 @@ class PvEController:
         assert target.target_present
         assert target.target_token is not None
         assert target.current_health is not None
+        assert target.current_health > 0.0
         now = observation.now_ms
         self._baseline_target_token = target.target_token
         self._engaged_target_token = target.target_token
@@ -320,15 +340,31 @@ class PvEController:
             return self._emit(now)
         return self._emit(now, PvEIntent.ATTACK_SELECTED_TARGET)
 
-    def _record_kill(self, observation: PvEObservation) -> PvEControllerDecision:
+    def _record_kill(
+        self,
+        observation: PvEObservation,
+        confirmation: PvEKillConfirmation,
+    ) -> PvEControllerDecision:
         now = observation.now_ms
         self._kills += 1
         if self._kills >= self._config.maximum_kills:
             self._enter(PvEPhase.COMPLETE, now)
-            return self._emit(now, terminal_reason="kill_limit_reached")
+            return self._emit(
+                now,
+                terminal_reason="kill_limit_reached",
+                kill_confirmation=confirmation,
+            )
         self._baseline_target_token = observation.target.target_token
         self._enter(PvEPhase.POST_KILL, now)
-        return self._emit(now)
+        return self._emit(now, kill_confirmation=confirmation)
+
+    def _resources_recovered(self, observation: PvEObservation) -> bool:
+        player = observation.player
+        return (
+            player.health_fraction >= self._config.minimum_recovery_health_fraction
+            and player.mana_fraction >= self._config.minimum_recovery_mana_fraction
+            and player.stamina_fraction >= self._config.minimum_recovery_stamina_fraction
+        )
 
     def _automatic_target_confirmed(
         self,
@@ -362,6 +398,7 @@ class PvEController:
         intent: PvEIntent | None = None,
         *,
         terminal_reason: str | None = None,
+        kill_confirmation: PvEKillConfirmation | None = None,
     ) -> PvEControllerDecision:
         decision = PvEControllerDecision(
             decision_id=self._decision_id,
@@ -370,6 +407,7 @@ class PvEController:
             kills=self._kills,
             intent=intent,
             terminal_reason=terminal_reason,
+            kill_confirmation=kill_confirmation,
         )
         self._decision_id += 1
         if intent is PvEIntent.ACQUIRE_NEXT_MOB:

@@ -8,7 +8,11 @@ param(
     [ValidateRange(1, 10)]
     [int] $MaximumKills = 1,
     [ValidateRange(1, 900)]
-    [int] $MaximumSeconds = 30,
+    [int] $MaximumSeconds = 180,
+    [ValidateRange(5, 300)]
+    [int] $MaximumEncounterSeconds = 120,
+    [ValidateRange(1, 300)]
+    [int] $RecoveryTimeoutSeconds = 30,
     [ValidateRange(0, 300)]
     [int] $WaitForClientSeconds = 15
 )
@@ -58,6 +62,11 @@ $env:PYTHONPATH = Join-Path $RepositoryRoot "src"
     --policy "proc-assassin" `
     --max-kills $MaximumKills `
     --max-seconds $MaximumSeconds `
+    --max-encounter-seconds $MaximumEncounterSeconds `
+    --recovery-timeout-seconds $RecoveryTimeoutSeconds `
+    --recovery-health-fraction 0.75 `
+    --recovery-mana-fraction 0.15 `
+    --recovery-stamina-fraction 0.25 `
     --wait-for-client-seconds $WaitForClientSeconds `
     --poll-ms 100 `
     --evidence-output $EvidenceOutput `

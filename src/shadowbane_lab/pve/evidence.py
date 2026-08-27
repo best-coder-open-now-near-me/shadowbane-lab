@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 from collections.abc import Mapping
+from math import isfinite
 from pathlib import Path
 
 PVE_TRACE_SCHEMA_VERSION = 1
@@ -73,6 +74,40 @@ def validate_pve_trace_evidence(payload: object) -> dict[str, object]:
             "PvE evidence native_observation.process_id must be positive"
         )
     _required_string(native, "executable_sha256")
+    farm_limits = payload.get("farm_limits")
+    if farm_limits is not None:
+        if not isinstance(farm_limits, dict):
+            raise PvETraceEvidenceError("PvE evidence farm_limits must be an object")
+        maximum_kills = farm_limits.get("maximum_kills")
+        if (
+            isinstance(maximum_kills, bool)
+            or not isinstance(maximum_kills, int)
+            or maximum_kills <= 0
+        ):
+            raise PvETraceEvidenceError(
+                "PvE evidence farm_limits.maximum_kills must be positive"
+            )
+        for field_name in (
+            "maximum_session_seconds",
+            "maximum_encounter_seconds",
+            "recovery_timeout_seconds",
+        ):
+            _positive_number(farm_limits, field_name, prefix="farm_limits")
+        for field_name in (
+            "recovery_health_fraction",
+            "recovery_mana_fraction",
+            "recovery_stamina_fraction",
+        ):
+            value = farm_limits.get(field_name)
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not isfinite(value)
+                or not 0.0 <= value <= 1.0
+            ):
+                raise PvETraceEvidenceError(
+                    f"PvE evidence farm_limits.{field_name} must be in [0, 1]"
+                )
     trace = payload.get("trace")
     if not isinstance(trace, list):
         raise PvETraceEvidenceError("PvE evidence trace must be an array")
@@ -104,3 +139,22 @@ def _required_string(payload: Mapping[str, object], field_name: str) -> str:
             f"PvE evidence {field_name} must be a non-empty string"
         )
     return value
+
+
+def _positive_number(
+    payload: Mapping[str, object],
+    field_name: str,
+    *,
+    prefix: str,
+) -> float:
+    value = payload.get(field_name)
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or not isfinite(value)
+        or value <= 0
+    ):
+        raise PvETraceEvidenceError(
+            f"PvE evidence {prefix}.{field_name} must be a positive number"
+        )
+    return float(value)

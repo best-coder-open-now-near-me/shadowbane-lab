@@ -213,6 +213,26 @@ class ClientCliTests(unittest.TestCase):
         self.assertEqual(2, result)
         self.assertIn("requires --combat-log", payload["error"])
 
+    def test_pve_recovery_health_cannot_undercut_safety_threshold(self) -> None:
+        output = io.StringIO()
+        with redirect_stdout(output):
+            result = main(
+                (
+                    "client",
+                    "run-pve",
+                    "--client-profile",
+                    "pve.json",
+                    "--recovery-health-fraction",
+                    "0.4",
+                    "--live",
+                    "--json",
+                )
+            )
+
+        payload = json.loads(output.getvalue())
+        self.assertEqual(2, result)
+        self.assertIn("safety threshold", payload["error"])
+
     def test_chat_travel_command_requires_explicit_live_flag(self) -> None:
         output = io.StringIO()
         with redirect_stdout(output):
@@ -440,6 +460,8 @@ class ClientCliTests(unittest.TestCase):
         self.assertEqual(0, result)
         self.assertEqual(1, saved_evidence["trace_schema_version"])
         self.assertEqual(4320, saved_evidence["native_observation"]["process_id"])
+        self.assertEqual(120.0, saved_evidence["farm_limits"]["maximum_encounter_seconds"])
+        self.assertEqual(0.75, saved_evidence["farm_limits"]["recovery_health_fraction"])
         open_health.assert_called_once_with(native_profiles[0], process_id=4320)
         open_vitals.assert_called_once_with(native_profiles[1], process_id=4320)
         open_position.assert_called_once_with(native_profiles[2], process_id=4320)
