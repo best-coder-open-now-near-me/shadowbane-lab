@@ -215,7 +215,7 @@ class DifferentialValidationTests(unittest.TestCase):
         report = compare_traces(expected, actual, gap_ledger=ledger)
 
         self.assertFalse(report.acceptable)
-        self.assertEqual(6, len(ledger.entries))
+        self.assertEqual(8, len(ledger.entries))
         self.assertTrue(all(entry.status is GapStatus.OPEN for entry in ledger.entries))
 
     def test_missing_affordance_is_a_legality_difference(self) -> None:

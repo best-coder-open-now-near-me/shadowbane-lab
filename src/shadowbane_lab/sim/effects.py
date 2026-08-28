@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import replace
 from math import hypot
 
 from shadowbane_lab.combat import (
@@ -19,14 +20,19 @@ from shadowbane_lab.protocol import (
     Event,
     EventKind,
     NamedScalar,
+    Relation,
     TargetKind,
     Vector2,
 )
 from shadowbane_lab.sim.actions import (
     ApplyEffect,
+    AreaEffect,
+    AreaOrigin,
     AttackGate,
     AttackKind,
     ChanceGate,
+    ChangeStance,
+    CombatStance,
     DealDamage,
     DirectEffectPrimitive,
     ModifyObjective,
@@ -85,6 +91,9 @@ class EffectExecutor:
         if item.binding is None:
             raise SimulationConfigurationError("resolution is missing its action binding")
         for effect in item.effects:
+            if isinstance(effect, AreaEffect):
+                self._resolve_area(item, effect, due_time, eligible_alive, events)
+                continue
             if isinstance(effect, AttackGate):
                 self._resolve_attack(
                     item,
@@ -104,6 +113,69 @@ class EffectExecutor:
                 )
                 continue
             self._resolve_direct(item, effect, due_time, eligible_alive, events)
+
+    def _resolve_area(
+        self,
+        item: ScheduledItem,
+        effect: AreaEffect,
+        due_time: int,
+        eligible_alive: frozenset[str],
+        events: list[Event],
+    ) -> None:
+        if item.binding is None:
+            raise SimulationConfigurationError("area resolution requires an action binding")
+        actor = self._entity(item.actor_id)
+        center = self._area_center(effect, item.binding)
+        candidates = [
+            entity
+            for entity in self._entities.values()
+            if entity.entity_id in eligible_alive
+            and self._relation(actor, entity) in effect.allowed_relations
+            and hypot(entity.position.x - center.x, entity.position.y - center.y)
+            <= effect.radius
+        ]
+        candidates.sort(
+            key=lambda entity: (
+                hypot(entity.position.x - center.x, entity.position.y - center.y),
+                entity.entity_id,
+            )
+        )
+        if effect.maximum_targets is not None:
+            candidates = candidates[: effect.maximum_targets]
+        for target in candidates:
+            target_item = replace(
+                item,
+                binding=ActionBinding(
+                    actor_id=item.binding.actor_id,
+                    target_kind=TargetKind.ENTITY,
+                    target_entity_id=target.entity_id,
+                ),
+            )
+            for nested in effect.effects:
+                if isinstance(nested, AttackGate):
+                    self._resolve_attack(
+                        target_item,
+                        nested,
+                        due_time,
+                        eligible_alive,
+                        events,
+                    )
+                elif isinstance(nested, ChanceGate):
+                    self._resolve_chance(
+                        target_item,
+                        nested,
+                        due_time,
+                        eligible_alive,
+                        events,
+                    )
+                else:
+                    self._resolve_direct(
+                        target_item,
+                        nested,
+                        due_time,
+                        eligible_alive,
+                        events,
+                    )
 
     def _resolve_attack(
         self,
@@ -180,6 +252,13 @@ class EffectExecutor:
                 )
                 if triggered:
                     return
+        self._drop_travel_stance(
+            item,
+            target,
+            due_time,
+            events,
+            reason="hit",
+        )
         for nested in effect.effects:
             if isinstance(nested, ChanceGate):
                 self._resolve_chance(item, nested, due_time, eligible_alive, events)
@@ -252,6 +331,8 @@ class EffectExecutor:
             self._transfer_item(item, effect, due_time, events)
         elif isinstance(effect, ModifyObjective):
             self._modify_objective(item, effect, subject, due_time, events)
+        elif isinstance(effect, ChangeStance):
+            self._change_stance(item, effect, subject, due_time, events)
         else:  # pragma: no cover - ChanceGate rejects types outside the closed union.
             raise SimulationConfigurationError(
                 f"unsupported direct effect primitive: {type(effect).__name__}"
@@ -361,7 +442,73 @@ class EffectExecutor:
             )
         )
         if before - after > 0.0:
+            self._drop_travel_stance(
+                item,
+                subject,
+                due_time,
+                events,
+                reason="damage",
+            )
             self._interrupt_actor(subject.entity_id, "damage", due_time, events)
+
+    def _drop_travel_stance(
+        self,
+        item: ScheduledItem,
+        subject: EntityState,
+        due_time: int,
+        events: list[Event],
+        *,
+        reason: str,
+    ) -> None:
+        if subject.stance is not CombatStance.TRAVEL:
+            return
+        previous = subject.stance
+        subject.stance = CombatStance.NORMAL
+        events.append(
+            self._event(
+                EventKind.STANCE_CHANGED,
+                due_time,
+                correlation_id=item.correlation_id,
+                source_entity_id=item.actor_id,
+                target_entity_id=subject.entity_id,
+                action_key=item.action_key,
+                tags=(
+                    f"stance.from.{previous.value}",
+                    f"stance.to.{subject.stance.value}",
+                    f"reason.{reason}",
+                ),
+            )
+        )
+
+    def _change_stance(
+        self,
+        item: ScheduledItem,
+        effect: ChangeStance,
+        subject: EntityState | None,
+        due_time: int,
+        events: list[Event],
+    ) -> None:
+        if subject is None:
+            raise SimulationConfigurationError("stance change requires an entity subject")
+        previous = subject.stance
+        if previous is effect.stance:
+            return
+        subject.stance = effect.stance
+        events.append(
+            self._event(
+                EventKind.STANCE_CHANGED,
+                due_time,
+                correlation_id=item.correlation_id,
+                source_entity_id=item.actor_id,
+                target_entity_id=subject.entity_id,
+                action_key=item.action_key,
+                tags=(
+                    f"stance.from.{previous.value}",
+                    f"stance.to.{effect.stance.value}",
+                    "reason.action",
+                ),
+            )
+        )
 
     def _restore_resource(
         self,
@@ -825,6 +972,25 @@ class EffectExecutor:
         if binding.target_entity_id is not None:
             return self._entities.get(binding.target_entity_id)
         return None
+
+    def _area_center(self, effect: AreaEffect, binding: ActionBinding) -> Vector2:
+        if effect.origin is AreaOrigin.ACTOR:
+            return self._entity(binding.actor_id).position
+        if binding.position is not None:
+            return binding.position
+        if binding.target_entity_id is not None:
+            return self._entity(binding.target_entity_id).position
+        raise SimulationConfigurationError("target-area effect is missing a bound origin")
+
+    @staticmethod
+    def _relation(actor: EntityState, target: EntityState) -> Relation:
+        if actor.entity_id == target.entity_id:
+            return Relation.SELF
+        if actor.team_id is None or target.team_id is None:
+            return Relation.NEUTRAL
+        if actor.team_id == target.team_id:
+            return Relation.ALLY
+        return Relation.ENEMY
 
     @staticmethod
     def _normalized(vector: Vector2) -> Vector2:

@@ -28,11 +28,13 @@ from shadowbane_lab.sim import (
     ActionPhase,
     ActionSpec,
     ApplyEffect,
+    AreaEffect,
     AttackGate,
     AttackKind,
     ChanceGate,
     DealDamage,
     DirectEffectPrimitive,
+    EffectPrimitive,
     EntityState,
     PhaseKind,
     RestoreResource,
@@ -403,24 +405,7 @@ def _compile_power_action(sheet: CombatSheet, action: ActionSpec, rank: int) -> 
     phases = tuple(_compile_power_phase(sheet, phase, rank, focus) for phase in action.phases)
     compiled_key = _compiled_action_key(sheet.sheet_id, action.action_key)
     if _hostile_action(action):
-        phases = tuple(
-            replace(
-                phase,
-                effects=(
-                    AttackGate(
-                        attack_key=action.action_key,
-                        kind=AttackKind.POWER,
-                        attack_rating_key=f"attack.power.{action.action_key}",
-                        defense_rating_key="defense",
-                        effects=phase.effects,
-                        passive_defense_keys=("passive.dodge",),
-                    ),
-                ),
-            )
-            if phase.effects
-            else phase
-            for phase in phases
-        )
+        phases = tuple(_add_power_attack_gates(action, phase) for phase in phases)
     expected_damage = _expected_effect_amount(phases, DealDamage)
     expected_healing = _expected_effect_amount(phases, RestoreResource)
     feature_values = {feature.name: feature.value for feature in action.features}
@@ -444,8 +429,35 @@ def _compile_power_phase(
     rank: int,
     focus: float,
 ) -> ActionPhase:
-    effects: list[DirectEffectPrimitive | ChanceGate | AttackGate] = []
+    effects: list[EffectPrimitive] = []
     for effect in phase.effects:
+        if isinstance(effect, ChanceGate):
+            effects.append(
+                replace(
+                    effect,
+                    effects=tuple(
+                        _compile_direct_power_effect(sheet, item, rank, focus)
+                        for item in effect.effects
+                    ),
+                )
+            )
+        elif isinstance(effect, AreaEffect):
+            effects.append(_compile_power_area(sheet, effect, rank, focus))
+        elif isinstance(effect, AttackGate):
+            raise CombatReadinessError(("input ruleset already contains an attack gate",))
+        else:
+            effects.append(_compile_direct_power_effect(sheet, effect, rank, focus))
+    return replace(phase, effects=tuple(effects))
+
+
+def _compile_power_area(
+    sheet: CombatSheet,
+    area: AreaEffect,
+    rank: int,
+    focus: float,
+) -> AreaEffect:
+    effects: list[DirectEffectPrimitive | ChanceGate] = []
+    for effect in area.effects:
         if isinstance(effect, ChanceGate):
             effects.append(
                 replace(
@@ -460,7 +472,61 @@ def _compile_power_phase(
             raise CombatReadinessError(("input ruleset already contains an attack gate",))
         else:
             effects.append(_compile_direct_power_effect(sheet, effect, rank, focus))
+    return replace(area, effects=tuple(effects))
+
+
+def _add_power_attack_gates(action: ActionSpec, phase: ActionPhase) -> ActionPhase:
+    if not phase.effects:
+        return phase
+
+    entity_target_is_enemy = (
+        action.targeting.kind is TargetKind.ENTITY
+        and Relation.ENEMY in action.targeting.allowed_relations
+    )
+    non_area_effects = tuple(
+        effect for effect in phase.effects if not isinstance(effect, AreaEffect)
+    )
+    target_gate = (
+        _power_attack_gate(action.action_key, non_area_effects)
+        if entity_target_is_enemy and non_area_effects
+        else None
+    )
+    emitted_target_gate = False
+    effects: list[EffectPrimitive] = []
+    for effect in phase.effects:
+        if isinstance(effect, AreaEffect):
+            if Relation.ENEMY in effect.allowed_relations:
+                effects.append(
+                    replace(
+                        effect,
+                        effects=(
+                            _power_attack_gate(action.action_key, effect.effects),
+                        ),
+                    )
+                )
+            else:
+                effects.append(effect)
+        elif target_gate is not None:
+            if not emitted_target_gate:
+                effects.append(target_gate)
+                emitted_target_gate = True
+        else:
+            effects.append(effect)
     return replace(phase, effects=tuple(effects))
+
+
+def _power_attack_gate(
+    action_key: str,
+    effects: tuple[DirectEffectPrimitive | ChanceGate, ...],
+) -> AttackGate:
+    return AttackGate(
+        attack_key=action_key,
+        kind=AttackKind.POWER,
+        attack_rating_key=f"attack.power.{action_key}",
+        defense_rating_key="defense",
+        effects=effects,
+        passive_defense_keys=("passive.dodge",),
+    )
 
 
 def _compile_direct_power_effect(
@@ -524,10 +590,18 @@ def _compiled_amount(minimum: int, maximum: int) -> float | TriangularAmount:
 
 
 def _hostile_action(action: ActionSpec) -> bool:
-    return (
+    if "combat" not in action.tags:
+        return False
+    if (
         action.targeting.kind is TargetKind.ENTITY
         and Relation.ENEMY in action.targeting.allowed_relations
-        and "combat" in action.tags
+    ):
+        return True
+    return any(
+        isinstance(effect, AreaEffect)
+        and Relation.ENEMY in effect.allowed_relations
+        for phase in action.phases
+        for effect in phase.effects
     )
 
 
@@ -535,10 +609,18 @@ def _action_needs_focus(action: ActionSpec) -> bool:
     if _hostile_action(action):
         return True
     return any(
-        isinstance(effect, (DealDamage, RestoreResource))
+        _effect_needs_focus(effect)
         for phase in action.phases
         for effect in phase.effects
     )
+
+
+def _effect_needs_focus(effect: EffectPrimitive) -> bool:
+    if isinstance(effect, (DealDamage, RestoreResource)):
+        return True
+    if isinstance(effect, (ChanceGate, AttackGate, AreaEffect)):
+        return any(_effect_needs_focus(nested) for nested in effect.effects)
+    return False
 
 
 def _expected_effect_amount(
@@ -547,12 +629,26 @@ def _expected_effect_amount(
     total = 0.0
     for phase in phases:
         for effect in phase.effects:
-            candidates = effect.effects if isinstance(effect, AttackGate) else (effect,)
-            for candidate in candidates:
-                if isinstance(candidate, effect_type):
-                    amount = candidate.amount
-                    total += amount.expected if not isinstance(amount, (int, float)) else amount
+            total += _expected_nested_amount(effect, effect_type)
     return total
+
+
+def _expected_nested_amount(
+    effect: EffectPrimitive,
+    effect_type: type[DealDamage] | type[RestoreResource],
+) -> float:
+    if isinstance(effect, effect_type):
+        amount = effect.amount
+        return amount.expected if not isinstance(amount, (int, float)) else amount
+    if isinstance(effect, ChanceGate):
+        return effect.probability * sum(
+            _expected_nested_amount(nested, effect_type) for nested in effect.effects
+        )
+    if isinstance(effect, (AttackGate, AreaEffect)):
+        return sum(
+            _expected_nested_amount(nested, effect_type) for nested in effect.effects
+        )
+    return 0.0
 
 
 def _compiled_action_key(sheet_id: str, canonical_key: str) -> str:

@@ -26,8 +26,12 @@ from shadowbane_lab.sim import (
     ActionPhase,
     ActionSpec,
     ApplyEffect,
+    AreaEffect,
+    AreaOrigin,
     AttackGate,
     AttackKind,
+    ChangeStance,
+    CombatStance,
     DealDamage,
     DeliveryKind,
     DeliverySpec,
@@ -256,6 +260,22 @@ def _parse_phase(data: Mapping[str, Any], rank: int) -> ActionPhase:
 
 def _parse_effect(data: Mapping[str, Any], rank: int) -> EffectPrimitive:
     operation = _string(data, "op")
+    if operation == "area_effect":
+        nested = tuple(_parse_effect(item, rank) for item in _objects(data, "effects"))
+        if any(isinstance(effect, AreaEffect) for effect in nested):
+            raise RulesetLoadError("area effects cannot be nested")
+        try:
+            return AreaEffect(
+                origin=AreaOrigin(_string(data, "origin")),
+                radius=_resolved_number(_required(data, "radius"), rank),
+                allowed_relations=tuple(
+                    Relation(value) for value in _strings(data, "allowed_relations")
+                ),
+                effects=nested,
+                maximum_targets=_nullable_integer(data, "maximum_targets"),
+            )
+        except ValueError as exc:
+            raise RulesetLoadError(str(exc)) from exc
     if operation == "chance_gate":
         nested = tuple(_parse_effect(item, rank) for item in _objects(data, "effects"))
         if any(isinstance(effect, (ChanceGate, AttackGate)) for effect in nested):
@@ -350,6 +370,11 @@ def _parse_effect(data: Mapping[str, Any], rank: int) -> EffectPrimitive:
         return ModifyObjective(
             subject=SubjectRef(_string(data, "subject")),
             progress_delta=_resolved_number(_required(data, "progress_delta"), rank),
+        )
+    if operation == "change_stance":
+        return ChangeStance(
+            subject=SubjectRef(_string(data, "subject")),
+            stance=CombatStance(_string(data, "stance")),
         )
     raise RulesetLoadError(f"unsupported effect operation: {operation}")
 

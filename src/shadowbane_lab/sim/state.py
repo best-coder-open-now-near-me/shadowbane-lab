@@ -7,6 +7,7 @@ from math import isfinite
 
 from shadowbane_lab.combat import StackPriority
 from shadowbane_lab.protocol import EntityKind, Vector2
+from shadowbane_lab.sim.actions import CombatStance
 
 
 def _identifier(value: str, field_name: str) -> None:
@@ -121,6 +122,7 @@ class EntitySnapshot:
     effects: tuple[ActiveEffectSnapshot, ...]
     cooldowns: tuple[tuple[str, int], ...]
     busy_until_ms: int
+    stance: CombatStance
     alive: bool
 
 
@@ -140,6 +142,7 @@ class EntityState:
     effects: dict[str, ActiveEffectState] = field(default_factory=dict)
     cooldowns: dict[str, int] = field(default_factory=dict)
     busy_until_ms: int = 0
+    stance: CombatStance = CombatStance.NORMAL
     alive: bool = True
 
     def __post_init__(self) -> None:
@@ -187,6 +190,8 @@ class EntityState:
             or self.busy_until_ms < 0
         ):
             raise ValueError("busy_until_ms must be a non-negative integer")
+        if not isinstance(self.stance, CombatStance):
+            raise ValueError("stance must be a CombatStance")
         if not isinstance(self.alive, bool):
             raise ValueError("alive must be a boolean")
 
@@ -195,7 +200,7 @@ class EntityState:
         effect_tags = {
             tag for effect in self.effects.values() for tag in (effect.effect_key, *effect.tags)
         }
-        return frozenset(self.tags | effect_tags)
+        return frozenset(self.tags | effect_tags | {f"stance.{self.stance.value}"})
 
     def snapshot(self) -> EntitySnapshot:
         return EntitySnapshot(
@@ -213,6 +218,7 @@ class EntityState:
             effects=tuple(self.effects[key].snapshot() for key in sorted(self.effects)),
             cooldowns=tuple(sorted(self.cooldowns.items())),
             busy_until_ms=self.busy_until_ms,
+            stance=self.stance,
             alive=self.alive,
         )
 
@@ -237,6 +243,7 @@ class EntityState:
             effects=effects,
             cooldowns=dict(snapshot.cooldowns),
             busy_until_ms=snapshot.busy_until_ms,
+            stance=snapshot.stance,
             alive=snapshot.alive,
         )
 

@@ -49,6 +49,16 @@ also resolves block, parry, dodge, proc gates, stun immunity, and damage/stun in
 profile with a different formula revision, a missing field, an unresolved selected power, or an
 unaccepted source classification is rejected before the first simulation tick.
 
+Combat stance is one mutually exclusive entity state: `normal`, `offensive`, `defensive`,
+`precise`, or `travel`. Stance actions replace that state atomically, snapshots preserve it, and
+an unavoided hit returns travel stance to normal before resolving the hit's nested effects. Area
+effects likewise declare their origin rather than relying on a selected target: `actor` centers
+the radius on the caster, while `target` centers it on the bound entity or ground position.
+Relations, radius, and an optional target cap are explicit, and complete-sheet hostile areas get
+an independent power-hit and dodge resolution for each eligible victim. These are executable
+semantics; numeric stance modifiers and each power's current radius, cap, and origin still require
+current WonderBane rows rather than inferred defaults.
+
 Run one accepted-source duel:
 
 ```powershell
@@ -116,7 +126,7 @@ a character sheet. It does not model:
 - hit rolls, attack rating, defense, resistances, or authoritative roll distributions;
 - stat/focus modifiers, regeneration, equipment, or weapon-specific basic attacks;
 - cast interruption, obstacle line of sight, collision, or full flight movement semantics;
-- area targets, damage-over-time ticks, absorbs, or broad buff/debuff interactions.
+- selected area-power rows, damage-over-time ticks, absorbs, or broad buff/debuff interactions.
 
 In that legacy bracket, published damage and healing ranges use a reviewed continuous-uniform approximation. The
 specified PCG32 stream makes those rolls exactly replayable by seed and snapshot, while

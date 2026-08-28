@@ -16,8 +16,20 @@ from shadowbane_lab.combat.compiler import (
     CombatReadinessError,
     compile_combatant,
 )
+from shadowbane_lab.protocol import Relation, TargetKind
 from shadowbane_lab.rulesets import CharacterBuild, load_shadowbane_vertical_slice
-from shadowbane_lab.sim import AttackGate, ChanceGate, DealDamage, TriangularAmount
+from shadowbane_lab.sim import (
+    ActionPhase,
+    AreaEffect,
+    AreaOrigin,
+    AttackGate,
+    ChanceGate,
+    DealDamage,
+    PhaseKind,
+    SubjectRef,
+    TargetingSpec,
+    TriangularAmount,
+)
 
 SHADOW_BOLT = "shadowbane.assassin.shadow_bolt"
 SHADOW_TOUCH = "shadowbane.assassin.shadow_touch"
@@ -164,6 +176,66 @@ class CombatCompilerTests(unittest.TestCase):
             )
 
         self.assertIn("missing resistances: mental", raised.exception.issues)
+
+    def test_hostile_area_power_scales_damage_and_rolls_to_hit_per_victim(self) -> None:
+        ruleset = load_shadowbane_vertical_slice()
+        record = ruleset.record(SHADOW_BOLT)
+        assert record.action is not None
+        area_action = replace(
+            record.action,
+            targeting=TargetingSpec(kind=TargetKind.SELF),
+            phases=(
+                ActionPhase(
+                    kind=PhaseKind.ACTIVE,
+                    duration_ms=0,
+                    effects=(
+                        AreaEffect(
+                            origin=AreaOrigin.ACTOR,
+                            radius=8.0,
+                            allowed_relations=(Relation.ENEMY,),
+                            effects=(
+                                DealDamage(
+                                    SubjectRef.TARGET,
+                                    24.0,
+                                    "mental",
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        area_record = replace(record, action=area_action)
+        ruleset = replace(
+            ruleset,
+            records=tuple(
+                area_record if item.action_key == SHADOW_BOLT else item
+                for item in ruleset.records
+            ),
+        )
+        policy = CombatCompilePolicy(
+            accepted_compatibility=(CompatibilityStatus.SOURCE_REVISION_ACCEPTED,),
+            allow_ruleset_overrides=True,
+        )
+
+        compiled = compile_combatant(_sheet(), _build(), ruleset, policy=policy)
+
+        action = compiled.catalog.get(compiled.action_key(SHADOW_BOLT))
+        area = action.phases[0].effects[0]
+        self.assertIsInstance(area, AreaEffect)
+        assert isinstance(area, AreaEffect)
+        gate = area.effects[0]
+        self.assertIsInstance(gate, AttackGate)
+        assert isinstance(gate, AttackGate)
+        damage = gate.effects[0]
+        self.assertIsInstance(damage, DealDamage)
+        assert isinstance(damage, DealDamage)
+        minimum, maximum = spell_amount_bounds(24.0, 24.0, 170, 90, 97.0)
+        self.assertEqual(TriangularAmount(float(minimum), float(maximum)), damage.amount)
+        self.assertEqual(
+            (minimum + maximum) / 2.0,
+            {feature.name: feature.value for feature in action.features}["expected_damage"],
+        )
 
 
 if __name__ == "__main__":

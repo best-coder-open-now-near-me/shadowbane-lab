@@ -136,9 +136,13 @@ server correction remains observable.
   sheet source revision, and compatibility acceptance in every result.
 - Shadow Touch and Shadow Bolt now carry current-client token mappings as well as historical
   canonical IDStrings.
+- Stances are mutually exclusive snapshot state, travel drops to normal on an unavoided hit, and
+  caster-centered versus target/ground-centered areas resolve explicit radius, relations, target
+  caps, and per-victim hit gates.
 - The remaining data work is current WonderBane differential validation, complete live combat
-  sheets, and expansion from the present representative action slice to the selected Assassin and
-  Warlock movesets. The runner rejects any selected unresolved action meanwhile.
+  sheets, authoritative stance modifiers and AoE rows, and expansion from the present
+  representative action slice to the selected Assassin and Warlock movesets. The runner rejects
+  any selected unresolved action meanwhile.
 
 **Gate:** representative live traces promote both sheets and selected action rows to
 `live_verified`, after which the default strict CLI runs without acceptance overrides.

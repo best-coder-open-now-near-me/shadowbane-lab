@@ -71,6 +71,19 @@ class AttackKind(StrEnum):
     POWER = "power"
 
 
+class CombatStance(StrEnum):
+    NORMAL = "normal"
+    OFFENSIVE = "offensive"
+    DEFENSIVE = "defensive"
+    PRECISE = "precise"
+    TRAVEL = "travel"
+
+
+class AreaOrigin(StrEnum):
+    ACTOR = "actor"
+    TARGET = "target"
+
+
 @dataclass(frozen=True, slots=True)
 class UniformAmount:
     """Concrete continuous uniform amount resolved from the environment's seeded RNG."""
@@ -411,6 +424,18 @@ class ModifyObjective:
             raise ValueError("progress_delta must not be zero")
 
 
+@dataclass(frozen=True, slots=True)
+class ChangeStance:
+    subject: SubjectRef
+    stance: CombatStance
+
+    def __post_init__(self) -> None:
+        if self.subject is not SubjectRef.ACTOR:
+            raise ValueError("stance changes must use the actor subject")
+        if not isinstance(self.stance, CombatStance):
+            raise ValueError("stance must be a CombatStance")
+
+
 DirectEffectPrimitive = (
     ModifyScalar
     | DealDamage
@@ -421,6 +446,7 @@ DirectEffectPrimitive = (
     | MoveEntity
     | TransferItem
     | ModifyObjective
+    | ChangeStance
 )
 
 _DIRECT_EFFECT_TYPES = (
@@ -433,6 +459,7 @@ _DIRECT_EFFECT_TYPES = (
     MoveEntity,
     TransferItem,
     ModifyObjective,
+    ChangeStance,
 )
 
 
@@ -482,9 +509,46 @@ class AttackGate:
         _unique_strings(self.passive_defense_keys, "passive_defense_keys")
 
 
-EffectPrimitive = DirectEffectPrimitive | ChanceGate | AttackGate
+@dataclass(frozen=True, slots=True)
+class AreaEffect:
+    """Apply one effect bundle to every eligible entity around an explicit origin."""
 
-_EFFECT_TYPES = (*_DIRECT_EFFECT_TYPES, ChanceGate, AttackGate)
+    origin: AreaOrigin
+    radius: float
+    allowed_relations: tuple[Relation, ...]
+    effects: tuple[DirectEffectPrimitive | ChanceGate | AttackGate, ...]
+    maximum_targets: int | None = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.origin, AreaOrigin):
+            raise ValueError("origin must be an AreaOrigin")
+        _finite(self.radius, "radius")
+        if self.radius <= 0:
+            raise ValueError("area radius must be positive")
+        if not self.allowed_relations:
+            raise ValueError("area effects require at least one allowed relation")
+        if len(self.allowed_relations) != len(set(self.allowed_relations)):
+            raise ValueError("area allowed_relations must not contain duplicates")
+        if any(not isinstance(item, Relation) for item in self.allowed_relations):
+            raise ValueError("area allowed_relations must contain Relation values")
+        if not self.effects:
+            raise ValueError("area effects require at least one nested effect")
+        if any(
+            not isinstance(effect, (*_DIRECT_EFFECT_TYPES, ChanceGate, AttackGate))
+            for effect in self.effects
+        ):
+            raise ValueError("area effects must contain direct effects or gates")
+        if self.maximum_targets is not None and (
+            isinstance(self.maximum_targets, bool)
+            or not isinstance(self.maximum_targets, int)
+            or self.maximum_targets < 1
+        ):
+            raise ValueError("maximum_targets must be a positive integer or null")
+
+
+EffectPrimitive = DirectEffectPrimitive | ChanceGate | AttackGate | AreaEffect
+
+_EFFECT_TYPES = (*_DIRECT_EFFECT_TYPES, ChanceGate, AttackGate, AreaEffect)
 
 
 @dataclass(frozen=True, slots=True)
@@ -558,6 +622,18 @@ class ActionSpec:
             phase.interruptible for phase in self.phases
         ):
             raise ValueError("cancellable actions require an interruptible phase")
+        area_effects = tuple(
+            effect
+            for phase in self.phases
+            for effect in phase.effects
+            if isinstance(effect, AreaEffect)
+        )
+        if any(effect.origin is AreaOrigin.ACTOR for effect in area_effects):
+            if self.targeting.kind is not TargetKind.SELF:
+                raise ValueError("actor-centered area effects require self targeting")
+        if any(effect.origin is AreaOrigin.TARGET for effect in area_effects):
+            if self.targeting.kind not in {TargetKind.ENTITY, TargetKind.POSITION}:
+                raise ValueError("target-area effects require entity or position targeting")
 
 
 class ActionCatalog:

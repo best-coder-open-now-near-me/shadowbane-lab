@@ -71,6 +71,7 @@ class EventKind(StrEnum):
     EFFECT_ADDED = "effect_added"
     EFFECT_BLOCKED = "effect_blocked"
     EFFECT_REMOVED = "effect_removed"
+    STANCE_CHANGED = "stance_changed"
     ENTITY_SPAWNED = "entity_spawned"
     ENTITY_DIED = "entity_died"
     OBJECTIVE_CHANGED = "objective_changed"

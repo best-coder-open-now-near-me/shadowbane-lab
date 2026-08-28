@@ -33,6 +33,14 @@ defenses, weapon/skill data, power-focus values, unresolved selected powers, inc
 revisions, and unaccepted ruleset overrides. See the complete profile and batch commands in
 [simulation-rollouts.md](simulation-rollouts.md).
 
+The simulator now represents the five stances as one exclusive state and models the observed
+travel-to-normal transition on an unavoided hit. It also distinguishes caster-centered areas
+from entity- or ground-target-centered areas, with explicit relation filters, radius, optional
+target caps, and per-victim power-hit checks. This supplies the durable execution boundary but
+does not invent stance modifiers or AoE rows: current values for offensive, defensive, and
+precise tradeoffs, each power's origin/radius/cap, and edge behavior such as fully immune hits
+remain acquisition fields.
+
 ## Legacy comparison catalog
 
 `shadowbane_legacy_catalog_v1.json` is a normalized, revision-pinned comparison baseline. It
@@ -206,4 +214,6 @@ hit/attack rating, weapon damage, resistance, power scaling, interrupts, and eff
 representative live differentials are still required before profiles may be labeled
 `live_verified`. Use focused executable analysis for current equipment/enchantment rows, full
 Assassin and Warlock power data, and any field where the deployment differs from the pinned
-formula revision.
+formula revision. The ranked power pass must explicitly record stance transitions and modifiers,
+plus each area power's caster/target origin, radius, relation set, target limit, and hit/avoidance
+behavior.
