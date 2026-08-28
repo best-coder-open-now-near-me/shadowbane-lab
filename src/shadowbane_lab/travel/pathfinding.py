@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import heapq
 from dataclasses import dataclass
+from itertools import pairwise
 from math import floor, hypot, isfinite, sqrt
 
 from shadowbane_lab.client_observation import NativePlayerPositionObservation
@@ -165,6 +166,7 @@ class SparseNavigationMap:
             raise ValueError("cell_size must be finite and positive")
         self._cell_size = float(cell_size)
         self._blocked: set[NavigationCell] = set()
+        self._learned_blocked: set[NavigationCell] = set()
         self._costs: dict[NavigationCell, float] = {}
 
     @property
@@ -174,6 +176,12 @@ class SparseNavigationMap:
     @property
     def blocked(self) -> frozenset[NavigationCell]:
         return frozenset(self._blocked)
+
+    @property
+    def learned_blocked(self) -> frozenset[NavigationCell]:
+        """Exact collision cells inferred from live failed movement."""
+
+        return frozenset(self._learned_blocked)
 
     def cell_for(self, lt: float, lg: float) -> NavigationCell:
         return NavigationCell(floor(lt / self._cell_size), floor(lg / self._cell_size))
@@ -210,7 +218,7 @@ class SparseNavigationMap:
             step_x = 0 if delta_lt == 0 else (1 if delta_lt > 0 else -1)
             step_y = 0 if delta_lg == 0 else (1 if delta_lg > 0 else -1)
             cell = NavigationCell(current.x + step_x, current.y + step_y)
-        self.mark_blocked(cell)
+        self.mark_learned_blocked(cell)
         return cell
 
     def mark_blocked(self, cell: NavigationCell) -> None:
@@ -218,6 +226,12 @@ class SparseNavigationMap:
             raise ValueError("cell must be NavigationCell")
         self._blocked.add(cell)
         self._costs.pop(cell, None)
+
+    def mark_learned_blocked(self, cell: NavigationCell) -> None:
+        """Retain one obstacle learned from live movement for future routes."""
+
+        self.mark_blocked(cell)
+        self._learned_blocked.add(cell)
 
     def set_cost(self, cell: NavigationCell, cost: float) -> None:
         if not isinstance(cell, NavigationCell):
@@ -399,8 +413,9 @@ class WeightedAStarPlanner:
         anchor = 0
         while anchor < len(cells) - 1:
             candidate = len(cells) - 1
-            while candidate > anchor + 1 and not self._line_clear(
-                grid, cells[anchor], cells[candidate]
+            while candidate > anchor + 1 and not self._shortcut_preserves_cost(
+                grid,
+                cells[anchor : candidate + 1],
             ):
                 candidate -= 1
             result.append(cells[candidate])
@@ -408,23 +423,42 @@ class WeightedAStarPlanner:
         return tuple(result)
 
     @staticmethod
-    def _line_clear(
+    def _shortcut_preserves_cost(
+        grid: NavigationCostGrid,
+        original: tuple[NavigationCell, ...],
+    ) -> bool:
+        shortcut_cost = WeightedAStarPlanner._line_cost(
+            grid,
+            original[0],
+            original[-1],
+        )
+        if shortcut_cost is None:
+            return False
+        original_cost = 0.0
+        for previous, cell in pairwise(original):
+            diagonal = previous.x != cell.x and previous.y != cell.y
+            original_cost += (sqrt(2) if diagonal else 1.0) * grid.traversal_cost(cell)
+        return shortcut_cost <= original_cost + 1e-9
+
+    @staticmethod
+    def _line_cost(
         grid: NavigationCostGrid,
         start: NavigationCell,
         end: NavigationCell,
-    ) -> bool:
+    ) -> float | None:
         x, y = start.x, start.y
         delta_x = abs(end.x - x)
         delta_y = abs(end.y - y)
         step_x = 1 if x < end.x else -1
         step_y = 1 if y < end.y else -1
         error = delta_x - delta_y
+        cost = 0.0
         while True:
             cell = NavigationCell(x, y)
             if cell in grid.blocked:
-                return False
+                return None
             if x == end.x and y == end.y:
-                return True
+                return cost
             doubled = 2 * error
             previous_x, previous_y = x, y
             if doubled > -delta_y:
@@ -438,4 +472,7 @@ class WeightedAStarPlanner:
                     NavigationCell(x, previous_y) in grid.blocked
                     or NavigationCell(previous_x, y) in grid.blocked
                 ):
-                    return False
+                    return None
+            next_cell = NavigationCell(x, y)
+            diagonal = x != previous_x and y != previous_y
+            cost += (sqrt(2) if diagonal else 1.0) * grid.traversal_cost(next_cell)

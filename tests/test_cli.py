@@ -607,6 +607,9 @@ class ClientCliTests(unittest.TestCase):
             ),
             redirect_stdout(output),
         ):
+            cache_directory = Path(directory) / "cache"
+            cache_directory.mkdir()
+            learned_state = Path(directory) / "learned-navigation.json"
             result = _listen_for_go_commands(
                 destination_state_path=Path(directory) / "travel.json",
                 client_profile_path=template,
@@ -618,7 +621,7 @@ class ClientCliTests(unittest.TestCase):
                 pve_client_profile_path=None,
                 pve_hotbar_config_path=None,
                 pve_evidence_directory=None,
-                navigation_cache_directory=None,
+                navigation_cache_directory=cache_directory,
                 pve_max_kills=3,
                 pve_max_seconds=300,
                 pve_max_encounter_seconds=120,
@@ -631,7 +634,9 @@ class ClientCliTests(unittest.TestCase):
                 live=True,
                 as_json=True,
                 hotkey_config_path=Path("SCREEN_GAME_character.cfg"),
+                learned_navigation_state_path=learned_state,
             )
+            learned_state_saved = learned_state.is_file()
 
         events = [json.loads(line) for line in output.getvalue().splitlines()]
         accepted = next(event for event in events if event["event"] == "accepted")
@@ -643,6 +648,8 @@ class ClientCliTests(unittest.TestCase):
         self.assertEqual("native_world_map", accepted["destination_source"])
         self.assertEqual("m", input_backend.invocations[0].key)
         self.assertTrue(captured["reader_closed"])
+        self.assertIsInstance(captured["navigation_map"], SparseNavigationMap)
+        self.assertTrue(learned_state_saved)
 
     def test_travel_binds_native_readers_to_the_guarded_client_process(self) -> None:
         template = Path(__file__).parents[1] / "configs" / "wonderbane-travel.template.json"

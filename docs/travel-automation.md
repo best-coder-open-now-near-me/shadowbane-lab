@@ -9,6 +9,7 @@ python -m shadowbane_lab.cli client listen-go `
   --client-profile .\configs\wonderbane-travel.local.json `
   --hotkey-config 'C:\path\to\Wonderbane\Config\SCREEN_GAME_character.cfg' `
   --navigation-cache-directory 'C:\path\to\Wonderbane\cache' `
+  --learned-navigation-state .\learned-navigation-state.json `
   --world-def 'C:\path\to\Wonderbane\Config\WorldDef.cfg' `
   --live --json
 ```
@@ -64,9 +65,15 @@ The installed `WorldDef.cfg` enables client-defined names such as `/go black dra
 With a navigation cache configured, every coordinate, named, repeated, and world-map route uses
 weighted A* over the active zone's terrain height, water, and object-density costs. The terrain
 window refreshes after 600 world units and whenever the native current-zone token changes, while
-retaining sparse global costs learned earlier in the same route. If exact position feedback shows
+retaining sparse global costs learned earlier in the same listener session. Route smoothing
+preserves A*'s weighted-cost choice instead of shortcutting back across water or object-density
+cells. If exact position feedback shows
 two consecutive steering leases without progress, the controller marks the cell ahead as blocked
-and replans around it before falling back to the bounded zig-zag escape sequence. The final JSON
+and replans around it before falling back to the bounded zig-zag escape sequence. Exact
+stall-learned cells are shared by `/go` and `/pve` and atomically persisted by the VM launcher in
+`codexdiag/learned-navigation-state.json`, so later routes and listener restarts plan around them
+before issuing their first movement lease. Derived terrain costs are rebuilt from client caches
+rather than copied into that state file. The final JSON
 event reports A* replan count, terrain refresh count, active zone, and navigation revision.
 Long-distance travel uses two-second steering leases and an eight-unit progress threshold. Learned
 obstacles occupy their measured 20-unit cell without an additional clearance ring, while diagonal
@@ -106,8 +113,10 @@ destination through the same guarded minimap-center input path. The listener obs
 events only while the calibrated `sb.exe` window owns foreground focus, never suppresses the
 game's input, and retains only text that is still a possible `/go`, `/pve`, or `/stop` command.
 Opening chat cancels the bridge's active operation before more automated input is issued. A
-physical foreground mouse-button press does the same, while the listener ignores mouse input
-injected by its own guarded actuators. This lets manual input take ownership immediately.
+physical foreground left, right, or extra-button press does the same, while middle-button camera
+rotation remains available and the listener ignores mouse input injected by its own guarded
+actuators. This lets manual movement input take ownership immediately without sacrificing camera
+control.
 An accepted world-map right-click first revokes the old operation, then starts its replacement
 route from the resolved native coordinate.
 Ordinary chat and all other slash-command prefixes are discarded.

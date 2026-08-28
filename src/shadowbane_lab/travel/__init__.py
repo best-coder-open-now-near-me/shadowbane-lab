@@ -36,6 +36,11 @@ from shadowbane_lab.travel.named import (
     parse_zone_search_command,
     runegate_destination_entries,
 )
+from shadowbane_lab.travel.navigation_state import (
+    LearnedNavigationStateError,
+    load_learned_navigation_map,
+    save_learned_navigation_map,
+)
 from shadowbane_lab.travel.pathfinding import (
     AStarRoute,
     AStarRouteNotFound,
@@ -84,6 +89,7 @@ __all__ = [
     "ActiveZoneTerrainNavigationSource",
     "GoChatCommandAssembler",
     "GoChatCommandUpdate",
+    "LearnedNavigationStateError",
     "NamedTravelDestinationError",
     "NavigationCell",
     "NavigationCostGrid",
@@ -120,6 +126,7 @@ __all__ = [
     "WeightedAStarConfig",
     "WeightedAStarPlanner",
     "load_active_zone_terrain_navigation",
+    "load_learned_navigation_map",
     "seed_height_raster_navigation",
     "build_world_destination_catalog",
     "parse_go_command",
@@ -131,5 +138,6 @@ __all__ = [
     "parse_named_go_command",
     "parse_zone_search_command",
     "save_travel_destination",
+    "save_learned_navigation_map",
     "format_zone_search_overlay",
 ]

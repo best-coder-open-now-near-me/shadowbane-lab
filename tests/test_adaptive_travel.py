@@ -87,6 +87,30 @@ class AStarTravelControllerTests(unittest.TestCase):
 
 
 class ActiveZoneTerrainNavigationSourceTests(unittest.TestCase):
+    def test_uses_injected_map_so_learned_obstacles_survive_route_instances(self) -> None:
+        zone = SimpleNamespace(name="Camp", zone_token="zone-a")
+        reader = SimpleNamespace(observe=lambda: zone)
+        navigation = SparseNavigationMap(cell_size=10.0)
+        navigation.mark_blocked_ahead(
+            _position(5.0, 5.0),
+            TravelDestination(95.0, 5.0, 5.0),
+        )
+        source = ActiveZoneTerrainNavigationSource(
+            "cache",
+            reader,
+            TerrainNavigationConfig(cell_size=10.0),
+            navigation_map=navigation,
+        )
+
+        with patch(
+            "shadowbane_lab.travel.terrain.load_active_zone_terrain_navigation",
+            return_value=ActiveZoneTerrainNavigation(navigation, None),
+        ):
+            snapshot = source.observe(_position(5.0, 5.0))
+
+        self.assertIs(navigation, snapshot.navigation_map)
+        self.assertTrue(snapshot.navigation_map.learned_blocked)
+
     def test_refreshes_on_window_distance_and_zone_change_while_reusing_map(self) -> None:
         zone = SimpleNamespace(name="Camp", zone_token="zone-a")
         reader = SimpleNamespace(observe=lambda: zone)

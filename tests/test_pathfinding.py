@@ -97,6 +97,27 @@ class WeightedAStarTests(unittest.TestCase):
         self.assertEqual((10.0, -10.0), (detour.lt, detour.lg))
         self.assertEqual(10.0, detour.arrival_radius)
 
+    def test_smoothing_preserves_astar_detour_around_weighted_terrain(self) -> None:
+        navigation = SparseNavigationMap(cell_size=10.0)
+        navigation.set_cost(NavigationCell(2, 0), 8.0)
+        planner = WeightedAStarPlanner(
+            WeightedAStarConfig(
+                planning_margin_cells=4,
+                obstacle_clearance_cells=0,
+            )
+        )
+
+        route = planner.plan(
+            navigation,
+            start_lt=5.0,
+            start_lg=5.0,
+            destination=TravelDestination(45.0, 5.0, 5.0),
+        )
+
+        self.assertGreater(len(route.cells), 2)
+        self.assertNotIn(NavigationCell(2, 0), route.cells)
+        self.assertGreater(len(route.destinations), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

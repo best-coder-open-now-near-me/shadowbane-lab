@@ -161,6 +161,22 @@ class GoChatCommandAssemblerTests(unittest.TestCase):
         self.assertEqual([pointer], pointer_events)
         self.assertFalse(listener._assembler.line_active)
 
+    def test_middle_mouse_camera_input_does_not_revoke_active_route(self) -> None:
+        interactions: list[str] = []
+        pointer_events: list[PhysicalPointerInteraction] = []
+        listener = WindowsGoChatCommandListener(
+            ForegroundWindowGuard(_load_profile(), StaticWindowInspector(_valid_snapshot())),
+            on_command=lambda _: None,
+            on_interaction=lambda: interactions.append("cancel"),
+            on_pointer=pointer_events.append,
+        )
+
+        pointer = PhysicalPointerInteraction(800, 400, "middle")
+        listener._handle_pointer_interaction(pointer)
+
+        self.assertEqual([], interactions)
+        self.assertEqual([pointer], pointer_events)
+
 
 class AnyStopSignalTests(unittest.TestCase):
     def test_trips_when_any_member_signal_trips(self) -> None:

@@ -191,6 +191,7 @@ class ActiveZoneTerrainNavigationSource:
         config: TerrainNavigationConfig | None = None,
         *,
         refresh_distance_fraction: float = 0.5,
+        navigation_map: SparseNavigationMap | None = None,
     ) -> None:
         if not isinstance(zone_reader, CurrentZoneSource):
             raise ValueError("zone_reader must implement CurrentZoneSource")
@@ -204,10 +205,21 @@ class ActiveZoneTerrainNavigationSource:
         self._cache_directory = Path(cache_directory)
         self._zone_reader = zone_reader
         self._config = config or TerrainNavigationConfig()
+        if navigation_map is not None and not isinstance(
+            navigation_map, SparseNavigationMap
+        ):
+            raise ValueError("navigation_map must be SparseNavigationMap")
+        if (
+            navigation_map is not None
+            and navigation_map.cell_size != self._config.cell_size
+        ):
+            raise ValueError("navigation_map and terrain config cell sizes must match")
         self._refresh_distance = (
             self._config.seed_radius * float(refresh_distance_fraction)
         )
-        self._navigation_map = SparseNavigationMap(cell_size=self._config.cell_size)
+        self._navigation_map = navigation_map or SparseNavigationMap(
+            cell_size=self._config.cell_size
+        )
         self._snapshot: NavigationMapSnapshot | None = None
         self._zone_token: str | None = None
         self._center: tuple[float, float] | None = None

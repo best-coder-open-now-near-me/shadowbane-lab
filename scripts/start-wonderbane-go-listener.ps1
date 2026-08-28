@@ -17,7 +17,8 @@ param(
     [ValidateRange(100, 100000)]
     [int] $PveRetainedTraceSteps = 2000,
     [switch] $BoundedPve,
-    [string] $LogDirectory = "\\VBOXSVR\codexdiag"
+    [string] $LogDirectory = "\\VBOXSVR\codexdiag",
+    [string] $LearnedNavigationState = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -59,6 +60,9 @@ if (-not (Test-Path -LiteralPath $PveHotbarConfig -PathType Leaf)) {
 }
 if (-not (Test-Path -LiteralPath $LogDirectory -PathType Container)) {
     New-Item -ItemType Directory -Path $LogDirectory -Force | Out-Null
+}
+if (-not $LearnedNavigationState) {
+    $LearnedNavigationState = Join-Path $LogDirectory "learned-navigation-state.json"
 }
 
 $existing = @(
@@ -103,6 +107,7 @@ $arguments = @(
     "--pve-hotbar-config", $PveHotbarConfig,
     "--pve-evidence-directory", $LogDirectory,
     "--navigation-cache-directory", $NavigationCacheDirectory,
+    "--learned-navigation-state", $LearnedNavigationState,
     "--pve-max-kills", "$PveMaxKills",
     "--pve-max-seconds", "300",
     "--pve-max-encounter-seconds", "120",

@@ -486,7 +486,8 @@ class WindowsGoChatCommandListener:
             self._assembler.reset()
             return
         self._assembler.reset()
-        if self._on_interaction is not None:
+        cancels_active_operation = interaction is None or interaction.button != "middle"
+        if cancels_active_operation and self._on_interaction is not None:
             self._on_interaction()
         if interaction is not None and self._on_pointer is not None:
             self._on_pointer(interaction)

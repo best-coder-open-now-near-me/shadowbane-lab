@@ -164,11 +164,13 @@ from shadowbane_lab.travel import (
     WorldDestinationCatalog,
     ZoneSearchResult,
     load_active_zone_terrain_navigation,
+    load_learned_navigation_map,
     load_world_destination_catalog,
     parse_go_command,
     parse_named_go_command,
     parse_zone_search_command,
     resolve_travel_destination,
+    save_learned_navigation_map,
 )
 from shadowbane_lab.world_data import (
     CacheArchive,
@@ -670,6 +672,11 @@ def _parser() -> argparse.ArgumentParser:
         dest="navigation_cache_directory",
         type=Path,
         help="client cache directory used for adaptive /go and /pve A* routes",
+    )
+    listen_go.add_argument(
+        "--learned-navigation-state",
+        type=Path,
+        help="durable exact obstacle cells learned from stalled /go and /pve movement",
     )
     listen_go.add_argument("--pve-max-kills", type=int, default=3)
     listen_go.add_argument("--pve-max-seconds", type=float, default=300.0)
@@ -1872,6 +1879,7 @@ def _run_pve(
     camp_radius: float = 120.0,
     retained_trace_steps: int = 2_000,
     native_character_population_profile_path: Path | None = None,
+    navigation_map: SparseNavigationMap | None = None,
 ) -> int:
     if not live:
         return _error("PvE execution requires the explicit --live flag", as_json=as_json)
@@ -2112,7 +2120,7 @@ def _run_pve(
                     process_id=process_id,
                 )
             )
-            navigation_map: SparseNavigationMap | None = None
+            active_navigation_map = navigation_map
             zone_reader = None
             if zone_profile is not None:
                 assert navigation_cache_directory is not None
@@ -2124,12 +2132,18 @@ def _run_pve(
                 )
                 zone_observation = zone_reader.observe()
                 terrain_origin = player_position_reader.observe()
+                terrain_arguments = (
+                    {}
+                    if active_navigation_map is None
+                    else {"navigation_map": active_navigation_map}
+                )
                 active_terrain = load_active_zone_terrain_navigation(
                     navigation_cache_directory,
                     zone_observation,
                     terrain_origin,
+                    **terrain_arguments,
                 )
-                navigation_map = active_terrain.navigation_map
+                active_navigation_map = active_terrain.navigation_map
                 terrain_seed = active_terrain.seed
                 terrain_navigation_payload = {
                     "enabled": True,
@@ -2243,7 +2257,7 @@ def _run_pve(
                 combat_log_reader=combat_reader,
                 dispatcher=ClientPvEIntentDispatcher(adapter),
                 approach_controller=PvEApproachController(
-                    navigation_map=navigation_map,
+                    navigation_map=active_navigation_map,
                 ),
                 movement_dispatcher=ClientTravelDecisionDispatcher(adapter),
                 stop_signal=active_stop_signal,
@@ -2437,6 +2451,7 @@ def _run_travel(
     stop_signal: StopSignal | None = None,
     client_process_id: int | None = None,
     navigation_cache_directory: Path | None = None,
+    navigation_map: SparseNavigationMap | None = None,
 ) -> int:
     if not live:
         return _error("travel execution requires the explicit --live flag", as_json=as_json)
@@ -2563,9 +2578,15 @@ def _run_travel(
                     raise ValueError(
                         "native position and current-zone readers resolved different processes"
                     )
+                terrain_source_arguments = (
+                    {}
+                    if navigation_map is None
+                    else {"navigation_map": navigation_map}
+                )
                 terrain_source = ActiveZoneTerrainNavigationSource(
                     navigation_cache_directory,
                     zone_reader,
+                    **terrain_source_arguments,
                 )
                 astar_controller = AStarTravelController(
                     destination,
@@ -2719,6 +2740,7 @@ def _listen_for_go_commands(
     pve_retained_trace_steps: int = 2_000,
     native_world_map_profile_path: Path | None = None,
     hotkey_config_path: Path | None = None,
+    learned_navigation_state_path: Path | None = None,
 ) -> int:
     if not live:
         return _error("chat travel requires the explicit --live flag", as_json=as_json)
@@ -2790,6 +2812,19 @@ def _listen_for_go_commands(
             pve_evidence_directory.mkdir(parents=True, exist_ok=True)
         if pve_continuous and pve_evidence_directory is None:
             raise ValueError("continuous /pve requires a PvE evidence directory")
+        if learned_navigation_state_path is not None and navigation_cache_directory is None:
+            raise ValueError(
+                "learned navigation state requires --navigation-cache-directory"
+            )
+        shared_navigation_map = (
+            None
+            if navigation_cache_directory is None
+            else (
+                SparseNavigationMap()
+                if learned_navigation_state_path is None
+                else load_learned_navigation_map(learned_navigation_state_path)
+            )
+        )
     except (
         ArcaneHotbarLoadError,
         CalibrationLoadError,
@@ -2997,8 +3032,15 @@ def _listen_for_go_commands(
                             continuous=pve_continuous,
                             camp_radius=pve_camp_radius,
                             retained_trace_steps=pve_retained_trace_steps,
+                            navigation_map=shared_navigation_map,
                         )
                     finally:
+                        if learned_navigation_state_path is not None:
+                            assert shared_navigation_map is not None
+                            save_learned_navigation_map(
+                                learned_navigation_state_path,
+                                shared_navigation_map,
+                            )
                         with active_lock:
                             if active_operation_stop is operation_stop:
                                 active_operation_stop = None
@@ -3118,8 +3160,15 @@ def _listen_for_go_commands(
                         stop_signal=AnyStopSignal(service_stop, route_stop),
                         client_process_id=command_process_id,
                         navigation_cache_directory=navigation_cache_directory,
+                        navigation_map=shared_navigation_map,
                     )
                 finally:
+                    if learned_navigation_state_path is not None:
+                        assert shared_navigation_map is not None
+                        save_learned_navigation_map(
+                            learned_navigation_state_path,
+                            shared_navigation_map,
+                        )
                     with active_lock:
                         if active_operation_stop is route_stop:
                             active_operation_stop = None
@@ -3470,6 +3519,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             pve_hotbar_config_path=arguments.pve_hotbar_config,
             pve_evidence_directory=arguments.pve_evidence_directory,
             navigation_cache_directory=arguments.navigation_cache_directory,
+            learned_navigation_state_path=arguments.learned_navigation_state,
             pve_max_kills=arguments.pve_max_kills,
             pve_max_seconds=arguments.pve_max_seconds,
             pve_max_encounter_seconds=arguments.pve_max_encounter_seconds,
