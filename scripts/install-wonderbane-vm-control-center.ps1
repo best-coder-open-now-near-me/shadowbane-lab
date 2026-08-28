@@ -5,6 +5,12 @@ param(
     [string] $GameDirectory = "$env:USERPROFILE\Downloads\WonderbaneClient\Wonderbane",
     [string] $PythonPath = "$env:USERPROFILE\shadowbane-lab\.venv\Scripts\python.exe",
     [string] $NodeId = "wonderbane-vm",
+    [ValidateRange(1, 32)]
+    [int] $ClientCount = 1,
+    [ValidateRange(320, 16384)]
+    [int] $DisplayWidth = 1920,
+    [ValidateRange(240, 16384)]
+    [int] $DisplayHeight = 955,
     [string] $LocalStateRoot = "$env:LOCALAPPDATA\ShadowbaneLab",
     [switch] $NoStartupShortcut,
     [switch] $StartNow
@@ -39,40 +45,62 @@ $localRunner = Join-Path $LocalStateRoot "start-wonderbane-control-center.ps1"
 $manifestPath = Join-Path $LocalStateRoot "client-manager.json"
 Copy-Item -LiteralPath $sourceBootstrap -Destination $localRunner -Force
 
-$manifest = [ordered]@{
-    schema_version = 1
-    node_id = $NodeId
-    clients = @(
-        [ordered]@{
-            client_id = "client-01"
-            launch = [ordered]@{
-                executable = $gameExecutable
-                arguments = @()
-                working_directory = $GameDirectory
-                environment = [ordered]@{
-                    LIBGL_ALWAYS_SOFTWARE = "true"
-                    GALLIUM_DRIVER = "llvmpipe"
-                    MESA_EXTENSION_MAX_YEAR = "2001"
-                    MESA_GL_VERSION_OVERRIDE = $null
-                    MESA_GLSL_VERSION_OVERRIDE = $null
+$manifestAlreadyExists = Test-Path -LiteralPath $manifestPath -PathType Leaf
+if (-not $manifestAlreadyExists) {
+    $manifest = [ordered]@{
+        schema_version = 1
+        node_id = $NodeId
+        clients = @(
+            [ordered]@{
+                client_id = "client-01"
+                launch = [ordered]@{
+                    executable = $gameExecutable
+                    arguments = @()
+                    working_directory = $GameDirectory
+                    environment = [ordered]@{
+                        LIBGL_ALWAYS_SOFTWARE = "true"
+                        GALLIUM_DRIVER = "llvmpipe"
+                        MESA_EXTENSION_MAX_YEAR = "2001"
+                        MESA_GL_VERSION_OVERRIDE = $null
+                        MESA_GLSL_VERSION_OVERRIDE = $null
+                    }
+                }
+                expected_process_directory = $GameDirectory
+                expected_executable_names = @("sb.exe")
+                window_tile = [ordered]@{
+                    left = 0
+                    top = 0
+                    width = $DisplayWidth
+                    height = $DisplayHeight
                 }
             }
-            expected_process_directory = $GameDirectory
-            expected_executable_names = @("sb.exe")
-            window_tile = [ordered]@{
-                left = 0
-                top = 0
-                width = 1920
-                height = 955
-            }
-        }
-    )
+        )
+    }
+    $manifestJson = $manifest | ConvertTo-Json -Depth 8
+    $utf8WithoutBom = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($manifestPath, "$manifestJson`r`n", $utf8WithoutBom)
 }
-$manifestJson = $manifest | ConvertTo-Json -Depth 8
-$utf8WithoutBom = New-Object System.Text.UTF8Encoding($false)
-[System.IO.File]::WriteAllText($manifestPath, "$manifestJson`r`n", $utf8WithoutBom)
 
 $env:PYTHONPATH = $managerSource
+if ((-not $manifestAlreadyExists -and $ClientCount -gt 1) -or (
+    $manifestAlreadyExists -and $PSBoundParameters.ContainsKey("ClientCount")
+)) {
+    & $PythonPath `
+        -m shadowbane_lab.cli `
+        manager configure-slots `
+        $manifestPath `
+        --count $ClientCount `
+        --display-width $DisplayWidth `
+        --display-height $DisplayHeight `
+        --apply `
+        --json
+    if ($LASTEXITCODE -ne 0) {
+        throw "The WonderBane manager slot configuration failed."
+    }
+}
+elseif ($manifestAlreadyExists) {
+    Write-Output "Preserved existing manager manifest and client slot count: $manifestPath"
+}
 & $PythonPath -m shadowbane_lab.cli manager preflight $manifestPath --json
 if ($LASTEXITCODE -ne 0) {
     throw "The generated WonderBane manager manifest failed preflight."

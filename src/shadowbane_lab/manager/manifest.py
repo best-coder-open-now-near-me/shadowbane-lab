@@ -10,7 +10,8 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from math import ceil, sqrt
 from os import PathLike
 from pathlib import Path, PureWindowsPath
 from typing import NoReturn
@@ -519,6 +520,81 @@ def _parse_client(value: object, *, location: str) -> ManagedClientConfig:
     )
 
 
+def expand_manager_slots(
+    manifest: ManagerManifest,
+    total_count: int,
+    *,
+    display_width: int = 1920,
+    display_height: int = 955,
+) -> ManagerManifest:
+    """Expand a manifest and deterministically retile all slots on one display.
+
+    Existing slot launch and process selectors are preserved. New slots clone the
+    first reviewed operational configuration and receive fresh canonical client IDs.
+    Shrinking is deliberately rejected because it would discard slot ownership.
+    """
+
+    if not isinstance(manifest, ManagerManifest):
+        raise ValueError("manifest must be ManagerManifest")
+    for value, field_name in (
+        (total_count, "total_count"),
+        (display_width, "display_width"),
+        (display_height, "display_height"),
+    ):
+        if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+            raise ManagerManifestError(f"{field_name} must be a positive integer")
+    if total_count > 32:
+        raise ManagerManifestError("total_count must not exceed 32 local client slots")
+    if total_count < len(manifest.clients):
+        raise ManagerManifestError(
+            "slot configuration cannot shrink a manifest; remove slots only through reviewed JSON"
+        )
+    if display_width > _MAX_DISPLAY_DIMENSION or display_height > _MAX_DISPLAY_DIMENSION:
+        raise ManagerManifestError(
+            f"display dimensions must not exceed {_MAX_DISPLAY_DIMENSION}"
+        )
+
+    columns = ceil(sqrt(total_count))
+    rows = ceil(total_count / columns)
+    if display_width < columns or display_height < rows:
+        raise ManagerManifestError("display dimensions are too small for the requested slot count")
+
+    existing_ids = {client.client_id.casefold() for client in manifest.clients}
+    new_ids: list[str] = []
+    candidate_number = 1
+    while len(manifest.clients) + len(new_ids) < total_count:
+        candidate = f"client-{candidate_number:02d}"
+        candidate_number += 1
+        if candidate.casefold() not in existing_ids:
+            existing_ids.add(candidate.casefold())
+            new_ids.append(candidate)
+
+    clients = [*manifest.clients]
+    template = manifest.clients[0]
+    clients.extend(replace(template, client_id=client_id) for client_id in new_ids)
+
+    tiled: list[ManagedClientConfig] = []
+    for index, client in enumerate(clients):
+        column = index % columns
+        row = index // columns
+        left = (display_width * column) // columns
+        right = (display_width * (column + 1)) // columns
+        top = (display_height * row) // rows
+        bottom = (display_height * (row + 1)) // rows
+        tiled.append(
+            replace(
+                client,
+                window_tile=WindowTile(
+                    left=left,
+                    top=top,
+                    width=right - left,
+                    height=bottom - top,
+                ),
+            )
+        )
+    return ManagerManifest(node_id=manifest.node_id, clients=tuple(tiled))
+
+
 def parse_manager_manifest(payload: object) -> ManagerManifest:
     """Validate an already-decoded JSON-compatible manager manifest."""
 
@@ -587,6 +663,7 @@ __all__ = [
     "ManagerManifest",
     "ManagerManifestError",
     "WindowTile",
+    "expand_manager_slots",
     "load_manager_manifest",
     "loads_manager_manifest",
     "parse_manager_manifest",

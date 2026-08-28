@@ -13,6 +13,7 @@ from shadowbane_lab.client_input import (
     WindowBounds,
     WindowSnapshot,
 )
+from shadowbane_lab.manager import load_manager_manifest
 
 
 def _snapshot(
@@ -57,6 +58,65 @@ def _manifest_client(
 
 
 class ManagerCliTests(unittest.TestCase):
+    def test_configure_slots_is_explicit_atomic_and_preserves_a_backup(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            game_directory = root / "Wonderbane"
+            manifest_path = root / "client-manager.json"
+            original = {
+                "schema_version": 1,
+                "node_id": "gaming-pc-east",
+                "clients": [_manifest_client(game_directory)],
+            }
+            manifest_path.write_text(json.dumps(original), encoding="utf-8")
+            original_bytes = manifest_path.read_bytes()
+
+            error = io.StringIO()
+            with redirect_stderr(error):
+                refused = main(
+                    (
+                        "manager",
+                        "configure-slots",
+                        str(manifest_path),
+                        "--count",
+                        "3",
+                    )
+                )
+            self.assertEqual(2, refused)
+            self.assertEqual(original_bytes, manifest_path.read_bytes())
+
+            output = io.StringIO()
+            with redirect_stdout(output):
+                configured = main(
+                    (
+                        "manager",
+                        "configure-slots",
+                        str(manifest_path),
+                        "--count",
+                        "3",
+                        "--display-width",
+                        "1920",
+                        "--display-height",
+                        "955",
+                        "--apply",
+                        "--json",
+                    )
+                )
+
+            payload = json.loads(output.getvalue())
+            manifest = load_manager_manifest(manifest_path)
+            backup_path = Path(payload["backup"])
+
+            self.assertEqual(0, configured)
+            self.assertEqual(3, payload["slot_count"])
+            self.assertTrue(payload["restart_required"])
+            self.assertEqual(
+                ("client-01", "client-02", "client-03"),
+                tuple(client.client_id for client in manifest.clients),
+            )
+            self.assertTrue(backup_path.is_file())
+            self.assertEqual(original_bytes, backup_path.read_bytes())
+
     def test_manager_worker_requires_explicit_live_authority(self) -> None:
         error = io.StringIO()
         with redirect_stderr(error):

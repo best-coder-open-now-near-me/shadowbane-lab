@@ -11,6 +11,7 @@ from shadowbane_lab.manager.manifest import (
     ManagerManifest,
     ManagerManifestError,
     WindowTile,
+    expand_manager_slots,
     load_manager_manifest,
     loads_manager_manifest,
     parse_manager_manifest,
@@ -40,6 +41,46 @@ def _payload(*clients: dict[str, object]) -> dict[str, object]:
 
 
 class ManagerManifestTests(unittest.TestCase):
+    def test_expands_reviewed_slots_and_retiles_without_mutating_launch_config(self) -> None:
+        original = parse_manager_manifest(_payload())
+
+        expanded = expand_manager_slots(
+            original,
+            4,
+            display_width=1920,
+            display_height=955,
+        )
+
+        self.assertEqual(1, len(original.clients))
+        self.assertEqual(
+            ("client-01", "client-02", "client-03", "client-04"),
+            tuple(client.client_id for client in expanded.clients),
+        )
+        self.assertTrue(
+            all(client.launch == original.clients[0].launch for client in expanded.clients)
+        )
+        self.assertEqual(
+            (
+                (0, 0, 960, 477),
+                (960, 0, 960, 477),
+                (0, 477, 960, 478),
+                (960, 477, 960, 478),
+            ),
+            tuple(client.window_tile.assignment for client in expanded.clients),
+        )
+
+    def test_slot_expansion_preserves_existing_ids_and_rejects_shrink(self) -> None:
+        manifest = parse_manager_manifest(_payload(_client("primary")))
+
+        expanded = expand_manager_slots(manifest, 3)
+
+        self.assertEqual(
+            ("primary", "client-01", "client-02"),
+            tuple(client.client_id for client in expanded.clients),
+        )
+        with self.assertRaisesRegex(ManagerManifestError, "cannot shrink"):
+            expand_manager_slots(expanded, 2)
+
     def test_parses_operational_topology_into_immutable_values(self) -> None:
         manifest = parse_manager_manifest(
             _payload(_client("client-01"), _client("client-02", left=1280))

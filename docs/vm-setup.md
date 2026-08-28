@@ -99,11 +99,12 @@ live enablement.
 ## Install the VM control center at logon
 
 VirtualBox must expose the persistent `codexrepo` and `codexdiag` machine folders before this
-step. Install a VM-local bootstrap and start it immediately with:
+step. For example, install a VM-local bootstrap with four slots and start it immediately with:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
   \\VBOXSVR\codexrepo\scripts\install-wonderbane-vm-control-center.ps1 `
+  -ClientCount 4 `
   -StartNow
 ```
 
@@ -116,6 +117,26 @@ The runner starts the guarded in-game command listener, preflights the manager m
 starts the authenticated localhost dashboard. A listener configuration failure is logged without
 hiding the lifecycle dashboard. The dashboard opens automatically but does not launch a game
 client until its Start control is used.
+
+`-ClientCount` declares the total local slots (1 through 32) and assigns deterministic grid tiles
+within the default 1920x955 VM display. Override that layout with `-DisplayWidth` and
+`-DisplayHeight`. On later installer runs, an existing manifest is preserved unless
+`-ClientCount` is explicitly supplied, so routine bootstrap repair no longer resets the slot list.
+The manager must be restarted after changing the count because its topology is immutable for one
+dashboard process lifetime.
+
+To expand an existing installation and perform a guarded manager restart in one command:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
+  \\VBOXSVR\codexrepo\scripts\configure-wonderbane-client-count.ps1 `
+  -ClientCount 4 `
+  -Restart
+```
+
+The wrapper verifies the manager PID and full command identity before stopping it; it never stops a
+different Python process. Existing game clients remain open and appear as explicit attachable
+candidates after restart.
 
 The dashboard also owns strict per-slot workers beneath
 `%LOCALAPPDATA%\ShadowbaneLab\workers`. Start, attach, and resume ensure one worker exists for the

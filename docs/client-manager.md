@@ -112,9 +112,24 @@ python -m shadowbane_lab.cli manager app `
   --live
 ```
 
-For the standard WonderBane VM, the supported logon installer generates the one-client manifest,
+For the standard WonderBane VM, the supported logon installer generates the local manifest,
 retains the Mesa text fix, starts the command listener, and opens this dashboard without requiring
 an interactive terminal. See [VM setup](vm-setup.md#install-the-vm-control-center-at-logon).
+
+The dashboard does not mutate its own topology. To expand an installed manifest to four slots,
+run the reviewed configurator and then restart the control center:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
+  \\VBOXSVR\codexrepo\scripts\configure-wonderbane-client-count.ps1 `
+  -ClientCount 4 `
+  -Restart
+```
+
+This only expands; it never silently deletes slots. Existing launch/process configuration is
+preserved, new slots clone the first reviewed launch configuration, all slots receive unique grid
+tiles, and the original JSON is retained beside the manifest as a timestamped backup. Re-running
+the VM installer preserves the existing manifest unless `-ClientCount` is explicitly supplied.
 
 `--live` is mandatory because reviewed dashboard actions can launch, tile, or request a graceful
 close. Opening the app never starts a client automatically. The terminal prints a per-run URL

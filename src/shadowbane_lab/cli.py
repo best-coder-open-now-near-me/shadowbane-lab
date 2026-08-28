@@ -150,6 +150,7 @@ from shadowbane_lab.manager import (
     Win32WindowApi,
     WorkerHeartbeatLedger,
     WorkerSupervisor,
+    expand_manager_slots,
     load_manager_manifest,
 )
 from shadowbane_lab.progression import (
@@ -811,6 +812,20 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="emit machine-readable JSON",
     )
+    manager_slots = manager_commands.add_parser(
+        "configure-slots",
+        help="expand and deterministically tile local manifest client slots",
+    )
+    manager_slots.add_argument("manifest", type=Path)
+    manager_slots.add_argument("--count", type=int, required=True)
+    manager_slots.add_argument("--display-width", type=int, default=1920)
+    manager_slots.add_argument("--display-height", type=int, default=955)
+    manager_slots.add_argument(
+        "--apply",
+        action="store_true",
+        help="required because this atomically replaces the manifest after making a backup",
+    )
+    manager_slots.add_argument("--json", action="store_true")
     manager_app = manager_commands.add_parser(
         "app",
         help="run the authenticated localhost lifecycle dashboard",
@@ -1115,6 +1130,86 @@ def _preflight_manager(manifest_path: Path, *, as_json: bool) -> int:
             f"- {client['client_id']}: {client['binding_status']} "
             f"environment_ready={str(client['environment_ready']).lower()}"
         )
+    return 0
+
+
+def _configure_manager_slots(
+    manifest_path: Path,
+    *,
+    count: int,
+    display_width: int,
+    display_height: int,
+    apply: bool,
+    as_json: bool,
+) -> int:
+    if not apply:
+        return _error(
+            "slot configuration replaces the manager manifest; pass --apply to confirm",
+            as_json=as_json,
+        )
+    manifest_path = manifest_path.resolve(strict=False)
+    if (
+        not manifest_path.exists()
+        or manifest_path.is_symlink()
+        or not manifest_path.is_file()
+    ):
+        return _error(
+            f"manager manifest must be an existing regular file: {manifest_path}",
+            as_json=as_json,
+        )
+    temporary_path = manifest_path.with_name(
+        f".{manifest_path.name}.{os.getpid()}.{time.time_ns()}.tmp"
+    )
+    backup_path = manifest_path.with_name(
+        f"{manifest_path.stem}.before-slots-{time.time_ns()}{manifest_path.suffix}"
+    )
+    try:
+        current = load_manager_manifest(manifest_path)
+        configured = expand_manager_slots(
+            current,
+            count,
+            display_width=display_width,
+            display_height=display_height,
+        )
+        payload = (
+            json.dumps(configured.to_dict(), indent=2, ensure_ascii=True, allow_nan=False)
+            + "\n"
+        ).encode("utf-8")
+        with temporary_path.open("xb") as destination:
+            destination.write(payload)
+            destination.flush()
+            os.fsync(destination.fileno())
+        verified = load_manager_manifest(temporary_path)
+        if verified != configured:
+            raise RuntimeError("written manager manifest did not round-trip exactly")
+        manifest_path.replace(backup_path)
+        try:
+            temporary_path.replace(manifest_path)
+        except OSError:
+            backup_path.replace(manifest_path)
+            raise
+    except (OSError, RuntimeError, ValueError) as exc:
+        try:
+            temporary_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        return _error(f"manager slot configuration failed: {exc}", as_json=as_json)
+
+    result = {
+        "ok": True,
+        "manifest": str(manifest_path),
+        "backup": str(backup_path),
+        "slot_count": len(configured.clients),
+        "client_ids": [client.client_id for client in configured.clients],
+        "restart_required": True,
+    }
+    if as_json:
+        print(json.dumps(result, sort_keys=True))
+    else:
+        print(f"Configured {result['slot_count']} manager client slots.")
+        print(f"Manifest: {manifest_path}")
+        print(f"Backup: {backup_path}")
+        print("Restart the WonderBane Control Center to load the new slot list.")
     return 0
 
 
@@ -4058,6 +4153,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
     if arguments.command == "manager" and arguments.manager_command == "preflight":
         return _preflight_manager(arguments.manifest, as_json=arguments.json)
+    if arguments.command == "manager" and arguments.manager_command == "configure-slots":
+        return _configure_manager_slots(
+            arguments.manifest,
+            count=arguments.count,
+            display_width=arguments.display_width,
+            display_height=arguments.display_height,
+            apply=arguments.apply,
+            as_json=arguments.json,
+        )
     if arguments.command == "manager" and arguments.manager_command == "app":
         return _run_manager_app(
             arguments.manifest,
