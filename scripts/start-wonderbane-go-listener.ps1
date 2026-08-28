@@ -8,7 +8,8 @@ param(
     [string] $NamedDestinationOverrides = "\\VBOXSVR\codexrepo\configs\wonderbane-named-destinations.json",
     [string] $PveClientProfile = "\\VBOXSVR\codexrepo\configs\wonderbane-pve.local.json",
     [string] $PveHotbarConfig = "",
-    [string] $PveNavigationCacheDirectory = "$env:USERPROFILE\Downloads\WonderbaneClient\Wonderbane\cache",
+    [Alias("PveNavigationCacheDirectory")]
+    [string] $NavigationCacheDirectory = "$env:USERPROFILE\Downloads\WonderbaneClient\Wonderbane\cache",
     [ValidateRange(1, 10)]
     [int] $PveMaxKills = 3,
     [ValidateRange(20, 1000)]
@@ -39,8 +40,8 @@ if (-not (Test-Path -LiteralPath $NamedDestinationOverrides -PathType Leaf)) {
 if (-not (Test-Path -LiteralPath $PveClientProfile -PathType Leaf)) {
     throw "Live PvE profile was not found: $PveClientProfile"
 }
-if (-not (Test-Path -LiteralPath $PveNavigationCacheDirectory -PathType Container)) {
-    throw "WonderBane client cache directory was not found: $PveNavigationCacheDirectory"
+if (-not (Test-Path -LiteralPath $NavigationCacheDirectory -PathType Container)) {
+    throw "WonderBane client cache directory was not found: $NavigationCacheDirectory"
 }
 if (-not $PveHotbarConfig) {
     $hotbars = @(
@@ -101,7 +102,7 @@ $arguments = @(
     "--pve-client-profile", $PveClientProfile,
     "--pve-hotbar-config", $PveHotbarConfig,
     "--pve-evidence-directory", $LogDirectory,
-    "--pve-navigation-cache-directory", $PveNavigationCacheDirectory,
+    "--navigation-cache-directory", $NavigationCacheDirectory,
     "--pve-max-kills", "$PveMaxKills",
     "--pve-max-seconds", "300",
     "--pve-max-encounter-seconds", "120",

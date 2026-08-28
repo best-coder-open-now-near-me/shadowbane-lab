@@ -8,6 +8,7 @@ python -m shadowbane_lab.cli client listen-go `
   --destination-state .\last-travel-destination.json `
   --client-profile .\configs\wonderbane-travel.local.json `
   --hotkey-config 'C:\path\to\Wonderbane\Config\SCREEN_GAME_character.cfg' `
+  --navigation-cache-directory 'C:\path\to\Wonderbane\cache' `
   --world-def 'C:\path\to\Wonderbane\Config\WorldDef.cfg' `
   --live --json
 ```
@@ -60,6 +61,17 @@ python -m shadowbane_lab.cli client observe-native-world-map --json
 ```
 
 The installed `WorldDef.cfg` enables client-defined names such as `/go black drake swamp`.
+With a navigation cache configured, every coordinate, named, repeated, and world-map route uses
+weighted A* over the active zone's terrain height, water, and object-density costs. The terrain
+window refreshes after 600 world units and whenever the native current-zone token changes, while
+retaining sparse global costs learned earlier in the same route. If exact position feedback shows
+two consecutive steering leases without progress, the controller marks the cell ahead as blocked
+and replans around it before falling back to the bounded zig-zag escape sequence. The final JSON
+event reports A* replan count, terrain refresh count, active zone, and navigation revision.
+
+The planner deliberately keeps exact LT/LG feedback and guarded minimap input as the execution
+loop; terrain data supplies route costs and waypoints rather than replacing client movement.
+
 Runegates are different: the listener reads the active registry populated by the server's
 CityData message and replaces the incomplete baked `WorldDef.cfg` runegate candidates with
 those live records. Each record supplies its object identity, parent-zone label, and exact

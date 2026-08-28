@@ -145,6 +145,8 @@ from shadowbane_lab.pve import (
     save_pve_trace_evidence,
 )
 from shadowbane_lab.travel import (
+    ActiveZoneTerrainNavigationSource,
+    AStarTravelController,
     ClientTravelDecisionDispatcher,
     PhysicalPointerInteraction,
     SparseNavigationMap,
@@ -599,6 +601,11 @@ def _parser() -> argparse.ArgumentParser:
     go.add_argument("--client-profile", type=Path, required=True)
     go.add_argument("--native-position-profile", type=Path)
     go.add_argument("--native-vitals-profile", type=Path)
+    go.add_argument(
+        "--navigation-cache-directory",
+        type=Path,
+        help="client cache directory used for adaptive active-zone A* travel",
+    )
     go.add_argument("--max-seconds", type=float, default=300.0)
     go.add_argument("--wait-for-client-seconds", type=float, default=30.0)
     go.add_argument("--poll-ms", type=int, default=200)
@@ -656,9 +663,11 @@ def _parser() -> argparse.ArgumentParser:
         help="directory for one timestamped evidence artifact per /pve run",
     )
     listen_go.add_argument(
+        "--navigation-cache-directory",
         "--pve-navigation-cache-directory",
+        dest="navigation_cache_directory",
         type=Path,
-        help="client cache directory used to seed /pve A* routes from active-zone terrain",
+        help="client cache directory used for adaptive /go and /pve A* routes",
     )
     listen_go.add_argument("--pve-max-kills", type=int, default=3)
     listen_go.add_argument("--pve-max-seconds", type=float, default=300.0)
@@ -2425,11 +2434,14 @@ def _run_travel(
     as_json: bool,
     stop_signal: StopSignal | None = None,
     client_process_id: int | None = None,
+    navigation_cache_directory: Path | None = None,
 ) -> int:
     if not live:
         return _error("travel execution requires the explicit --live flag", as_json=as_json)
     if radius is not None and not 5.0 <= radius <= 1_000.0:
         return _error("radius must be in [5, 1000]", as_json=as_json)
+    astar_controller = None
+    terrain_source = None
     try:
         destination = resolve_travel_destination(
             destination_state_path,
@@ -2470,17 +2482,32 @@ def _run_travel(
         )
         if position_profile.executable_sha256 != vitals_profile.executable_sha256:
             raise ValueError("native position and player-vitals profiles target different builds")
+        zone_profile = (
+            None
+            if navigation_cache_directory is None
+            else load_bundled_native_zone_profile()
+        )
+        if navigation_cache_directory is not None and not navigation_cache_directory.is_dir():
+            raise ValueError(
+                f"navigation cache directory does not exist: {navigation_cache_directory}"
+            )
+        if (
+            zone_profile is not None
+            and zone_profile.executable_sha256 != position_profile.executable_sha256
+        ):
+            raise ValueError("native zone and position profiles target different builds")
         plan = TravelPlan(
             plan_id=f"go:{lt:g}:{lg:g}:{radius:g}",
             destinations=(TravelDestination(lt, lg, radius),),
         )
-        controller = TravelController(
-            plan,
-            TravelControllerConfig(
-                maximum_session_ms=round(max_seconds * 1000),
-                click_interval_ms=click_interval_ms,
-                maximum_clicks=min(500, max(1, round(max_seconds * 1000 / click_interval_ms))),
+        travel_config = TravelControllerConfig(
+            maximum_session_ms=round(max_seconds * 1000),
+            click_interval_ms=click_interval_ms,
+            maximum_clicks=min(
+                500,
+                max(1, round(max_seconds * 1000 / click_interval_ms)),
             ),
+            maximum_no_progress_clicks=2,
         )
         inspector = WindowsForegroundWindowInspector()
         selection_guard = ForegroundWindowGuard(client_profile, inspector)
@@ -2519,6 +2546,31 @@ def _run_travel(
                 raise ValueError(
                     "native position and player-vitals readers resolved different processes"
                 )
+            if zone_profile is None:
+                controller = TravelController(plan, travel_config)
+            else:
+                assert navigation_cache_directory is not None
+                zone_reader = stack.enter_context(
+                    open_windows_native_current_zone_reader(
+                        zone_profile,
+                        process_id=selected_process_id,
+                    )
+                )
+                if zone_reader.process_id != position_reader.process_id:
+                    raise ValueError(
+                        "native position and current-zone readers resolved different processes"
+                    )
+                terrain_source = ActiveZoneTerrainNavigationSource(
+                    navigation_cache_directory,
+                    zone_reader,
+                )
+                astar_controller = AStarTravelController(
+                    destination,
+                    travel_config,
+                    terrain_source,
+                    plan_id=plan.plan_id,
+                )
+                controller = astar_controller
             executor = GuardedInputExecutor(
                 guard=guard,
                 backend=PyAutoGuiBackend(),
@@ -2581,6 +2633,19 @@ def _run_travel(
         "stop_input_reason": result.stop_input_reason,
         "steps": len(result.trace),
         "dispatched": dispatched,
+        "pathfinding": {
+            "enabled": astar_controller is not None,
+            "replans": 0 if astar_controller is None else astar_controller.replan_count,
+            "navigation_token": (
+                None if astar_controller is None else astar_controller.navigation_token
+            ),
+            "terrain_refreshes": (
+                0 if terrain_source is None else terrain_source.refresh_count
+            ),
+            "zone_name": (
+                None if terrain_source is None else terrain_source.last_zone_name
+            ),
+        },
     }
     if as_json:
         print(json.dumps(payload, sort_keys=True))
@@ -2628,7 +2693,7 @@ def _listen_for_go_commands(
     pve_client_profile_path: Path | None,
     pve_hotbar_config_path: Path | None,
     pve_evidence_directory: Path | None,
-    pve_navigation_cache_directory: Path | None,
+    navigation_cache_directory: Path | None,
     pve_max_kills: int,
     pve_max_seconds: float,
     pve_max_encounter_seconds: float,
@@ -2906,7 +2971,7 @@ def _listen_for_go_commands(
                             native_position_profile_path=native_position_profile_path,
                             native_target_position_profile_path=None,
                             native_target_action_profile_path=None,
-                            navigation_cache_directory=pve_navigation_cache_directory,
+                            navigation_cache_directory=navigation_cache_directory,
                             max_kills=pve_max_kills,
                             max_seconds=pve_max_seconds,
                             max_encounter_seconds=pve_max_encounter_seconds,
@@ -3043,6 +3108,7 @@ def _listen_for_go_commands(
                         as_json=as_json,
                         stop_signal=AnyStopSignal(service_stop, route_stop),
                         client_process_id=command_process_id,
+                        navigation_cache_directory=navigation_cache_directory,
                     )
                 finally:
                     with active_lock:
@@ -3378,6 +3444,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             click_interval_ms=arguments.click_interval_ms,
             live=arguments.live,
             as_json=arguments.json,
+            navigation_cache_directory=arguments.navigation_cache_directory,
         )
     if arguments.command == "client" and arguments.client_command == "listen-go":
         return _listen_for_go_commands(
@@ -3393,7 +3460,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             pve_client_profile_path=arguments.pve_client_profile,
             pve_hotbar_config_path=arguments.pve_hotbar_config,
             pve_evidence_directory=arguments.pve_evidence_directory,
-            pve_navigation_cache_directory=arguments.pve_navigation_cache_directory,
+            navigation_cache_directory=arguments.navigation_cache_directory,
             pve_max_kills=arguments.pve_max_kills,
             pve_max_seconds=arguments.pve_max_seconds,
             pve_max_encounter_seconds=arguments.pve_max_encounter_seconds,

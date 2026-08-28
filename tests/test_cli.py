@@ -357,7 +357,7 @@ class ClientCliTests(unittest.TestCase):
                 pve_client_profile_path=Path(directory) / "pve.json",
                 pve_hotbar_config_path=Path(directory) / "hotbar.cfg",
                 pve_evidence_directory=evidence_directory,
-                pve_navigation_cache_directory=Path(directory) / "cache",
+                navigation_cache_directory=Path(directory) / "cache",
                 pve_max_kills=3,
                 pve_max_seconds=300,
                 pve_max_encounter_seconds=120,
@@ -485,7 +485,7 @@ class ClientCliTests(unittest.TestCase):
                 pve_client_profile_path=None,
                 pve_hotbar_config_path=None,
                 pve_evidence_directory=None,
-                pve_navigation_cache_directory=None,
+                navigation_cache_directory=None,
                 pve_max_kills=3,
                 pve_max_seconds=300,
                 pve_max_encounter_seconds=120,
@@ -618,7 +618,7 @@ class ClientCliTests(unittest.TestCase):
                 pve_client_profile_path=None,
                 pve_hotbar_config_path=None,
                 pve_evidence_directory=None,
-                pve_navigation_cache_directory=None,
+                navigation_cache_directory=None,
                 pve_max_kills=3,
                 pve_max_seconds=300,
                 pve_max_encounter_seconds=120,
@@ -731,6 +731,136 @@ class ClientCliTests(unittest.TestCase):
         self.assertEqual(0, result)
         open_position.assert_called_once_with(position_profile, process_id=4320)
         open_vitals.assert_called_once_with(vitals_profile, process_id=4320)
+
+    def test_travel_enables_adaptive_zone_astar_and_reports_telemetry(self) -> None:
+        template = Path(__file__).parents[1] / "configs" / "wonderbane-travel.template.json"
+        profile = replace(load_calibration(template), live_input_enabled=True)
+        snapshot = WindowSnapshot(
+            executable_name=profile.target.executable_names[0],
+            title="Shadowbane",
+            client_bounds=WindowBounds(
+                left=0,
+                top=0,
+                width=profile.target.reference_width,
+                height=profile.target.reference_height,
+            ),
+            dpi_scale=profile.target.dpi_scale,
+            is_foreground=True,
+            is_visible=True,
+            process_id=4320,
+        )
+        native_profile = SimpleNamespace(executable_sha256="ab" * 32)
+        position_reader = MagicMock(process_id=4320)
+        position_reader.__enter__.return_value = position_reader
+        vitals_reader = MagicMock(process_id=4320)
+        vitals_reader.__enter__.return_value = vitals_reader
+        zone_reader = MagicMock(process_id=4320)
+        zone_reader.__enter__.return_value = zone_reader
+        terrain_source = SimpleNamespace(
+            refresh_count=3,
+            last_zone_name="Tainted Swamp",
+        )
+        astar_controller = SimpleNamespace(
+            replan_count=2,
+            navigation_token="zone-token:3",
+        )
+        completed_run = SimpleNamespace(
+            final_phase=TravelPhase.COMPLETE,
+            terminal_reason="arrived",
+            final_position=NativePlayerPositionObservation(1000, 2000, 10),
+            trace=(),
+            clicks=4,
+            stop_input_accepted=None,
+            stop_input_reason=None,
+        )
+        output = io.StringIO()
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch("shadowbane_lab.cli.load_calibration", return_value=profile),
+            patch(
+                "shadowbane_lab.cli.WindowsForegroundWindowInspector",
+                return_value=StaticWindowInspector(snapshot),
+            ),
+            patch(
+                "shadowbane_lab.cli.load_bundled_native_position_profile",
+                return_value=native_profile,
+            ),
+            patch(
+                "shadowbane_lab.cli.load_bundled_native_vitals_profile",
+                return_value=native_profile,
+            ),
+            patch(
+                "shadowbane_lab.cli.load_bundled_native_zone_profile",
+                return_value=native_profile,
+            ),
+            patch(
+                "shadowbane_lab.cli.open_windows_native_player_position_reader",
+                return_value=position_reader,
+            ),
+            patch(
+                "shadowbane_lab.cli.open_windows_native_player_vitals_reader",
+                return_value=vitals_reader,
+            ),
+            patch(
+                "shadowbane_lab.cli.open_windows_native_current_zone_reader",
+                return_value=zone_reader,
+            ) as open_zone,
+            patch(
+                "shadowbane_lab.cli.ActiveZoneTerrainNavigationSource",
+                return_value=terrain_source,
+            ) as terrain_factory,
+            patch(
+                "shadowbane_lab.cli.AStarTravelController",
+                return_value=astar_controller,
+            ) as astar_factory,
+            patch(
+                "shadowbane_lab.cli.PyAutoGuiBackend",
+                return_value=RecordingInputBackend(),
+            ),
+            patch("shadowbane_lab.cli.TravelRunner") as travel_runner,
+            redirect_stdout(output),
+        ):
+            cache = Path(directory) / "cache"
+            cache.mkdir()
+            travel_runner.return_value.run.return_value = completed_run
+            result = _run_travel(
+                lt=1000,
+                lg=2000,
+                radius=75,
+                destination_state_path=Path(directory) / "travel.json",
+                client_profile_path=template,
+                native_position_profile_path=None,
+                native_vitals_profile_path=None,
+                max_seconds=30,
+                wait_for_client_seconds=0,
+                poll_ms=200,
+                click_interval_ms=4000,
+                live=True,
+                as_json=True,
+                stop_signal=EventEmergencyStop(),
+                client_process_id=4320,
+                navigation_cache_directory=cache,
+            )
+
+        payload = json.loads(output.getvalue())
+        self.assertEqual(0, result)
+        self.assertEqual(
+            {
+                "enabled": True,
+                "navigation_token": "zone-token:3",
+                "replans": 2,
+                "terrain_refreshes": 3,
+                "zone_name": "Tainted Swamp",
+            },
+            payload["pathfinding"],
+        )
+        open_zone.assert_called_once_with(native_profile, process_id=4320)
+        terrain_factory.assert_called_once_with(cache, zone_reader)
+        self.assertIs(
+            astar_controller,
+            travel_runner.call_args.kwargs["controller"],
+        )
+        astar_factory.assert_called_once()
 
     def test_pve_binds_every_native_reader_to_the_guarded_client_process(self) -> None:
         template = Path(__file__).parents[1] / "configs" / "wonderbane-pve.template.json"
