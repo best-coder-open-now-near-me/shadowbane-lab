@@ -1,0 +1,49 @@
+{
+  "profile_id": "wonderbane-2b186aef-native-vendor-dialog-v1",
+  "executable_name": "sb.exe",
+  "executable_sha256": "2b186aef864ea1ce16d8ec959c450f1f2e301d1ba25d9daa3b14ab6c65d68c3d",
+  "pointer_size": 4,
+  "preferred_image_base": 4194304,
+  "message_vtable_rva": 18171452,
+  "message_object_size": 276,
+  "message_type_offset": 96,
+  "language_offset": 100,
+  "language_text_offset": 104,
+  "source_cache_id_offset": 128,
+  "vendor_cache_id_offset": 136,
+  "options_tree_offset": 232,
+  "options_count_offset": 236,
+  "string_begin_offset": 4,
+  "string_end_offset": 8,
+  "string_capacity_offset": 12,
+  "stream_snapshot_size": 256,
+  "pointer_window_size": 256,
+  "maximum_pointer_windows": 16,
+  "maximum_string_bytes": 65536,
+  "maximum_option_count": 256,
+  "minimum_user_address": 65536,
+  "maximum_user_address": 2147418111,
+  "breakpoints": [
+    {
+      "role": "inbound_entry",
+      "rva": 3544272,
+      "signature_hex": "558BEC6AFF6800F8D500"
+    },
+    {
+      "role": "inbound_complete",
+      "rva": 3544904,
+      "signature_hex": "8B4DF45F5E64890D"
+    },
+    {
+      "role": "outbound_entry",
+      "rva": 3545184,
+      "signature_hex": "558BEC538BD9568B7508"
+    },
+    {
+      "role": "outbound_complete",
+      "rva": 3545641,
+      "signature_hex": "5F5E5B5DC20400"
+    }
+  ],
+  "schema_version": 1
+}

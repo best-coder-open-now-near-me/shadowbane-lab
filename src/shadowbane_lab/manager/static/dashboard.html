@@ -133,7 +133,8 @@
       const boundElement = document.getElementById("bound-count");
       const dispatchReadyElement = document.getElementById("dispatch-ready-count");
       const updatedElement = document.getElementById("updated-at");
-      let actionInFlight = false;
+      const statusPollMilliseconds = 2000;
+      let statusRequest = null;
 
       const request = async (path, options = {}) => {
         const headers = new Headers(options.headers || {});
@@ -318,7 +319,7 @@
         return article;
       };
 
-      const render = (status, { quiet = false } = {}) => {
+      const render = (status) => {
         const slots = Array.isArray(status.slots) ? status.slots : [];
         nodeElement.textContent = text(status.node_id);
         configuredElement.textContent = text(status.configured_count ?? slots.length, "0");
@@ -340,22 +341,35 @@
           empty.textContent = "No client slots are configured on this node.";
           slotsElement.append(empty);
         }
-        if (!quiet) {
-          notice.textContent = "Manager status is current.";
-          notice.className = "notice";
-        }
+        notice.textContent = "Manager status is current.";
+        notice.className = "notice";
       };
 
-      const loadStatus = async ({ quiet = false } = {}) => {
+      const loadStatus = () => {
         if (!authorizationToken) {
-          throw new Error("No dashboard token was supplied. Reopen the URL printed by the manager.");
+          return Promise.reject(
+            new Error("No dashboard token was supplied. Reopen the URL printed by the manager.")
+          );
         }
-        render(await request("/api/v1/status"), { quiet });
+        if (statusRequest) return statusRequest;
+        statusRequest = request("/api/v1/status")
+          .then(render)
+          .finally(() => { statusRequest = null; });
+        return statusRequest;
+      };
+
+      const reportStatusError = (error) => {
+        notice.textContent = error.message;
+        notice.className = "notice error";
+      };
+
+      const pollStatus = () => {
+        if (document.hidden || app.classList.contains("busy")) return;
+        loadStatus().catch(reportStatusError);
       };
 
       const execute = async (body) => {
         app.classList.add("busy");
-        actionInFlight = true;
         try {
           notice.textContent = `Running ${body.action}…`;
           notice.className = "notice";
@@ -364,12 +378,12 @@
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(body)
           });
+          if (statusRequest) await statusRequest.catch(() => {});
           await loadStatus();
         } catch (error) {
           notice.textContent = error.message;
           notice.className = "notice error";
         } finally {
-          actionInFlight = false;
           app.classList.remove("busy");
         }
       };
@@ -380,17 +394,9 @@
       document.getElementById("refresh").addEventListener("click", () => execute({ action: "refresh" }));
       document.getElementById("tile-all").addEventListener("click", () => execute({ action: "tile-all" }));
 
-      loadStatus().catch((error) => {
-        notice.textContent = error.message;
-        notice.className = "notice error";
-      });
-      window.setInterval(() => {
-        if (actionInFlight || document.hidden) return;
-        loadStatus({ quiet: true }).catch((error) => {
-          notice.textContent = error.message;
-          notice.className = "notice error";
-        });
-      }, 2000);
+      document.addEventListener("visibilitychange", pollStatus);
+      window.setInterval(pollStatus, statusPollMilliseconds);
+      loadStatus().catch(reportStatusError);
     })();
   </script>
 </body>

@@ -76,6 +76,8 @@ from shadowbane_lab.client_observation import (
     NativeTargetPositionError,
     NativeTargetPositionProfileLoadError,
     NativeTrainingProfileLoadError,
+    NativeVendorDialogError,
+    NativeVendorDialogProfileLoadError,
     NativeVitalsProfileLoadError,
     NativeWorldMapError,
     NativeZoneProfileLoadError,
@@ -107,10 +109,12 @@ from shadowbane_lab.client_observation import (
     load_native_target_identity_profile,
     load_native_target_position_profile,
     load_native_training_profile,
+    load_native_vendor_dialog_profile,
     load_native_vitals_profile,
     load_native_world_map_profile,
     load_native_zone_profile,
     load_observation_calibration,
+    open_windows_bundled_native_vendor_dialog_tracer,
     open_windows_native_character_population_reader,
     open_windows_native_current_zone_reader,
     open_windows_native_group_reader,
@@ -124,6 +128,7 @@ from shadowbane_lab.client_observation import (
     open_windows_native_target_health_reader,
     open_windows_native_target_identity_reader,
     open_windows_native_target_position_reader,
+    open_windows_native_vendor_dialog_tracer,
     open_windows_native_world_map_reader,
 )
 from shadowbane_lab.manager import (
@@ -491,6 +496,38 @@ def _parser() -> argparse.ArgumentParser:
     )
     observe_native_training.add_argument(
         "--json", action="store_true", help="emit machine-readable JSON"
+    )
+
+    trace_native_vendor_dialog = client_commands.add_parser(
+        "trace-native-vendor-dialog",
+        help="capture decrypted ArcMerchantMessage traffic without patching client code",
+    )
+    trace_native_vendor_dialog.add_argument(
+        "--profile",
+        type=Path,
+        help="native vendor-dialog profile; defaults to the verified WonderBane build",
+    )
+    trace_native_vendor_dialog.add_argument(
+        "--process-id",
+        type=int,
+        help="specific sb.exe process id; defaults to the unique running process",
+    )
+    trace_native_vendor_dialog.add_argument("--output", type=Path, required=True)
+    trace_native_vendor_dialog.add_argument("--label", required=True)
+    trace_native_vendor_dialog.add_argument(
+        "--timeout-seconds",
+        type=float,
+        default=60.0,
+        help="maximum time to wait for the first vendor message",
+    )
+    trace_native_vendor_dialog.add_argument(
+        "--settle-seconds",
+        type=float,
+        default=2.0,
+        help="stop after this quiet interval once vendor traffic begins",
+    )
+    trace_native_vendor_dialog.add_argument(
+        "--json", action="store_true", help="emit a machine-readable session summary"
     )
 
     advise_irekei_proc = client_commands.add_parser(
@@ -2182,6 +2219,62 @@ def _observe_native_training(profile_path: Path | None, *, as_json: bool) -> int
                 f"  {entry.display_name}: {entry.effective_rank} "
                 f"(trained {entry.trained_rank}, max {entry.effective_rank_max})"
             )
+    return 0
+
+
+def _trace_native_vendor_dialog(
+    profile_path: Path | None,
+    *,
+    process_id: int | None,
+    output_path: Path,
+    label: str,
+    timeout_seconds: float,
+    settle_seconds: float,
+    as_json: bool,
+) -> int:
+    try:
+        if profile_path is None:
+            profile, tracer = open_windows_bundled_native_vendor_dialog_tracer(
+                process_id=process_id
+            )
+        else:
+            profile = load_native_vendor_dialog_profile(profile_path)
+            tracer = open_windows_native_vendor_dialog_tracer(
+                profile,
+                process_id=process_id,
+            )
+
+        def announce_armed() -> None:
+            print(
+                f"Vendor-dialog trace armed for PID {tracer.backend.pid}; trigger {label} now.",
+                file=sys.stderr,
+                flush=True,
+            )
+
+        summary = tracer.trace(
+            output_path,
+            label=label,
+            timeout_seconds=timeout_seconds,
+            settle_seconds=settle_seconds,
+            armed_callback=announce_armed,
+        )
+    except (
+        NativeVendorDialogError,
+        NativeVendorDialogProfileLoadError,
+        FileExistsError,
+        OSError,
+        ValueError,
+    ) as exc:
+        return _error(f"native vendor-dialog trace failed: {exc}", as_json=as_json)
+    payload = summary.as_dict()
+    if as_json:
+        print(json.dumps(payload, sort_keys=True))
+    else:
+        print(
+            f"Captured {summary.complete_message_count} complete vendor message(s) across "
+            f"{summary.hit_count} breakpoint hit(s)."
+        )
+        print(f"Evidence: {summary.output_path}")
     return 0
 
 
@@ -3973,6 +4066,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _observe_native_progression(arguments.profile, as_json=arguments.json)
     if arguments.command == "client" and arguments.client_command == "observe-native-training":
         return _observe_native_training(arguments.profile, as_json=arguments.json)
+    if (
+        arguments.command == "client"
+        and arguments.client_command == "trace-native-vendor-dialog"
+    ):
+        return _trace_native_vendor_dialog(
+            arguments.profile,
+            process_id=arguments.process_id,
+            output_path=arguments.output,
+            label=arguments.label,
+            timeout_seconds=arguments.timeout_seconds,
+            settle_seconds=arguments.settle_seconds,
+            as_json=arguments.json,
+        )
     if arguments.command == "client" and arguments.client_command == "advise-irekei-proc":
         return _advise_irekei_proc(
             arguments.progression_profile,
