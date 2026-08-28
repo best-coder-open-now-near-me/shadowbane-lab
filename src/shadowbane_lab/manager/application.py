@@ -81,6 +81,18 @@ class WorkerStatusProvider(Protocol):
     def revoke(self, client_id: str, *, reason: str) -> object: ...
 
 
+class WorkerLifecycleControl(Protocol):
+    """Launch and stop exact per-client worker process lifetimes."""
+
+    def ensure_started(
+        self,
+        client_id: str,
+        client: ClientInstanceSnapshot,
+    ) -> int | None: ...
+
+    def request_stop(self, client_id: str, *, reason: str) -> int: ...
+
+
 def _require_positive_finite(value: float, field_name: str) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError(f"{field_name} must be numeric")
@@ -154,6 +166,7 @@ class ManagerDashboardApplication:
         registry: ManifestRegistryProvider,
         worker_supervisor: WorkerStatusProvider,
         *,
+        worker_controller: WorkerLifecycleControl | None = None,
         launch_timeout_seconds: float = 30.0,
         poll_seconds: float = 0.5,
     ) -> None:
@@ -182,10 +195,18 @@ class ManagerDashboardApplication:
             for method in ("inspect", "revoke")
         ):
             raise ValueError("worker_supervisor must provide inspect() and revoke()")
+        if worker_controller is not None and any(
+            not callable(getattr(worker_controller, method, None))
+            for method in ("ensure_started", "request_stop")
+        ):
+            raise ValueError(
+                "worker_controller must provide ensure_started() and request_stop()"
+            )
         self._manifest = manifest
         self._session = session
         self._registry = registry
         self._worker_supervisor = worker_supervisor
+        self._worker_controller = worker_controller
         self._launch_timeout_seconds = _require_positive_finite(
             launch_timeout_seconds,
             "launch_timeout_seconds",
@@ -293,7 +314,7 @@ class ManagerDashboardApplication:
                 self._execute(action, client_id=client_id, instance_id=instance_id)
             except DashboardError:
                 raise
-            except ManagerSessionError as exc:
+            except (ManagerSessionError, OSError, RuntimeError, ValueError) as exc:
                 raise DashboardError("manager-action-failed", str(exc)) from exc
             return {"ok": True, "action": action}
 
@@ -312,6 +333,7 @@ class ManagerDashboardApplication:
                 timeout_seconds=self._launch_timeout_seconds,
                 poll_seconds=self._poll_seconds,
             )
+            self._ensure_workers_for_bound_slots()
             return
         if action == "refresh":
             self._require_global(action, client_id, instance_id)
@@ -331,11 +353,17 @@ class ManagerDashboardApplication:
                 client_id,
                 reason="client launch invalidated prior worker ownership",
             )
+            if self._worker_controller is not None:
+                self._worker_controller.request_stop(
+                    client_id,
+                    reason="client launch replaced prior worker ownership",
+                )
             self._session.start(
                 client_id,
                 timeout_seconds=self._launch_timeout_seconds,
                 poll_seconds=self._poll_seconds,
             )
+            self._ensure_worker_for_slot(client_id)
             return
         if instance_id is None:
             raise DashboardError("invalid-action-fields", f"{action} requires instance_id")
@@ -344,7 +372,13 @@ class ManagerDashboardApplication:
                 client_id,
                 reason="exact client attachment requires a new worker ownership lease",
             )
+            if self._worker_controller is not None:
+                self._worker_controller.request_stop(
+                    client_id,
+                    reason="exact client attachment replaced prior worker ownership",
+                )
             self._session.attach(client_id, instance_id=instance_id)
+            self._ensure_worker_for_slot(client_id)
             return
         self._require_exact_binding(client_id, instance_id)
         if action in {"pause", "detach", "close"}:
@@ -352,6 +386,12 @@ class ManagerDashboardApplication:
                 client_id,
                 reason=f"manager {action} action revoked worker dispatch",
             )
+        if action in {"detach", "close"}:
+            if self._worker_controller is not None:
+                self._worker_controller.request_stop(
+                    client_id,
+                    reason=f"manager {action} action ended exact worker ownership",
+                )
         actions = {
             "tile": self._session.tile,
             "pause": self._session.pause,
@@ -363,6 +403,8 @@ class ManagerDashboardApplication:
         if operation is None:
             raise DashboardError("unknown-action", "The manager action is not supported.")
         operation(client_id)
+        if action == "resume":
+            self._ensure_worker_for_slot(client_id)
 
     def revoke_all_workers(self, *, reason: str) -> None:
         """Fail closed synchronously before the manager process shuts down."""
@@ -380,6 +422,41 @@ class ManagerDashboardApplication:
         for slot in session.slots:
             if slot.instance_id is None:
                 self._worker_supervisor.revoke(slot.client_id, reason=reason)
+                if self._worker_controller is not None:
+                    self._worker_controller.request_stop(slot.client_id, reason=reason)
+
+    def _ensure_workers_for_bound_slots(self) -> None:
+        if self._worker_controller is None:
+            return
+        session = self._session.snapshot()
+        if not isinstance(session, ManagerSessionSnapshot):
+            raise RuntimeError("manager session returned an invalid snapshot")
+        for slot in session.slots:
+            if slot.instance_id is not None:
+                self._ensure_worker_for_slot(slot.client_id)
+
+    def _ensure_worker_for_slot(self, client_id: str) -> None:
+        if self._worker_controller is None:
+            return
+        slot = self._session.status(client_id)
+        if not isinstance(slot, ManagerSlotSnapshot) or slot.instance_id is None:
+            raise RuntimeError("manager slot has no exact binding for worker bootstrap")
+        registry = self._registry.inspect()
+        if not isinstance(registry, ClientRegistrySnapshot):
+            raise RuntimeError("manifest registry returned an invalid worker baseline")
+        config = self._configs.get(client_id)
+        if config is None:
+            raise RuntimeError("manager session returned an unknown manifest slot")
+        matches = tuple(
+            client
+            for client in registry.clients
+            if client.instance_id == slot.instance_id and _matches_config(client, config)
+        )
+        if len(matches) != 1:
+            raise RuntimeError(
+                "exact bound process/window identity is unavailable for worker bootstrap"
+            )
+        self._worker_controller.ensure_started(client_id, matches[0])
 
     def _require_clear_launch_baseline(self, *, client_id: str | None = None) -> None:
         registry = self._registry.inspect()
@@ -444,4 +521,5 @@ __all__ = [
     "ManifestRegistryProvider",
     "SessionControl",
     "WorkerStatusProvider",
+    "WorkerLifecycleControl",
 ]

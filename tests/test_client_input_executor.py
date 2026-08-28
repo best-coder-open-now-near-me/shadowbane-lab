@@ -189,6 +189,40 @@ class GuardedInputAdapterTests(unittest.TestCase):
         with self.assertRaisesRegex(WindowGuardError, "different client process"):
             guard.require_target()
 
+    def test_guard_can_bind_the_complete_immutable_client_identity(self) -> None:
+        profile = _load_profile()
+        snapshot = replace(
+            _valid_snapshot(),
+            process_started_at_100ns=133_700_000_000_000_000,
+            window_handle=91234,
+        )
+        guard = ForegroundWindowGuard(
+            profile,
+            StaticWindowInspector(snapshot),
+            expected_process_id=snapshot.process_id,
+            expected_process_started_at_100ns=snapshot.process_started_at_100ns,
+            expected_window_handle=snapshot.window_handle,
+        )
+
+        self.assertEqual(snapshot, guard.require_target())
+
+        replacements = (
+            ("process_started_at_100ns", 133_700_000_000_000_001, "replaced client process"),
+            ("window_handle", 91235, "different client window"),
+        )
+        for field_name, value, message in replacements:
+            with self.subTest(field_name=field_name):
+                replaced_snapshot = replace(snapshot, **{field_name: value})
+                replaced_guard = ForegroundWindowGuard(
+                    profile,
+                    StaticWindowInspector(replaced_snapshot),
+                    expected_process_id=snapshot.process_id,
+                    expected_process_started_at_100ns=snapshot.process_started_at_100ns,
+                    expected_window_handle=snapshot.window_handle,
+                )
+                with self.assertRaisesRegex(WindowGuardError, message):
+                    replaced_guard.require_target()
+
     def test_emergency_stop_rejects_before_any_input(self) -> None:
         stop = EventEmergencyStop()
         stop.trip()

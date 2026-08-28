@@ -26,6 +26,7 @@ from .supervisor import ProcessLifetimeInspector, ProcessLifetimeSnapshot
 
 WORKER_HEARTBEAT_SCHEMA_VERSION = 1
 WORKER_DISPATCH_PERMIT_SCHEMA_VERSION = 1
+WORKER_STOP_REQUEST_SCHEMA_VERSION = 1
 DEFAULT_WORKER_HEARTBEAT_TIMEOUT_SECONDS = 5.0
 DEFAULT_WORKER_FUTURE_TOLERANCE_SECONDS = 2.0
 DEFAULT_WORKER_DISPATCH_PERMIT_TTL_SECONDS = 2.0
@@ -66,6 +67,18 @@ _PERMIT_REQUIRED_FIELDS = frozenset(
         "allowed",
         "issued_at",
         "expires_at",
+        "reason",
+    }
+)
+_STOP_REQUEST_REQUIRED_FIELDS = frozenset(
+    {
+        "schema_version",
+        "node_id",
+        "client_id",
+        "worker_id",
+        "process_id",
+        "process_started_at_100ns",
+        "requested_at",
         "reason",
     }
 )
@@ -330,6 +343,45 @@ class WorkerDispatchPermit:
         }
 
 
+@dataclass(frozen=True, slots=True)
+class WorkerStopRequest:
+    """Exact, durable request for one worker process lifetime to stop cleanly."""
+
+    node_id: str
+    client_id: str
+    worker_id: str
+    process_id: int
+    process_started_at_100ns: int
+    requested_at: float
+    reason: str
+    schema_version: int = field(default=WORKER_STOP_REQUEST_SCHEMA_VERSION, init=False)
+
+    def __post_init__(self) -> None:
+        _require_identifier(self.node_id, "node_id")
+        _require_identifier(self.client_id, "client_id")
+        _require_worker_id(self.worker_id)
+        _require_positive_integer(self.process_id, "process_id")
+        _require_positive_integer(
+            self.process_started_at_100ns,
+            "process_started_at_100ns",
+        )
+        _require_time(self.requested_at, "requested_at")
+        if _require_optional_detail(self.reason) is None:
+            _fail("reason must be canonical non-empty text")
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "schema_version": self.schema_version,
+            "node_id": self.node_id,
+            "client_id": self.client_id,
+            "worker_id": self.worker_id,
+            "process_id": self.process_id,
+            "process_started_at_100ns": self.process_started_at_100ns,
+            "requested_at": self.requested_at,
+            "reason": self.reason,
+        }
+
+
 def parse_worker_heartbeat(value: object) -> WorkerHeartbeat:
     """Parse one strict schema-v1 heartbeat object."""
 
@@ -509,6 +561,75 @@ def loads_worker_dispatch_permit(source: str) -> WorkerDispatchPermit:
             f"worker dispatch permit is not valid JSON: {exc}"
         ) from exc
     return parse_worker_dispatch_permit(decoded)
+
+
+def parse_worker_stop_request(value: object) -> WorkerStopRequest:
+    """Parse one strict exact-worker stop request."""
+
+    if not isinstance(value, Mapping):
+        _fail("worker stop request must be a JSON object")
+    keys = set(value)
+    if any(not isinstance(key, str) for key in keys):
+        _fail("worker stop request field names must be strings")
+    unknown = keys - _STOP_REQUEST_REQUIRED_FIELDS
+    missing = _STOP_REQUEST_REQUIRED_FIELDS - keys
+    if unknown:
+        _fail(f"worker stop request contains unknown fields: {', '.join(sorted(unknown))}")
+    if missing:
+        _fail(f"worker stop request is missing fields: {', '.join(sorted(missing))}")
+    if value["schema_version"] != WORKER_STOP_REQUEST_SCHEMA_VERSION:
+        _fail(f"worker stop request schema_version must be {WORKER_STOP_REQUEST_SCHEMA_VERSION}")
+    reason = _require_optional_detail(value["reason"])
+    if reason is None:
+        _fail("reason must be canonical non-empty text")
+    return WorkerStopRequest(
+        node_id=_require_identifier(value["node_id"], "node_id"),
+        client_id=_require_identifier(value["client_id"], "client_id"),
+        worker_id=_require_worker_id(value["worker_id"]),
+        process_id=_require_positive_integer(value["process_id"], "process_id"),
+        process_started_at_100ns=_require_positive_integer(
+            value["process_started_at_100ns"],
+            "process_started_at_100ns",
+        ),
+        requested_at=_require_time(value["requested_at"], "requested_at"),
+        reason=reason,
+    )
+
+
+def loads_worker_stop_request(source: str) -> WorkerStopRequest:
+    """Decode a strict stop request while rejecting duplicate and non-finite JSON."""
+
+    if not isinstance(source, str):
+        raise WorkerHeartbeatFormatError("worker stop request JSON source must be text")
+
+    def pairs_hook(pairs: list[tuple[str, object]]) -> dict[str, object]:
+        result: dict[str, object] = {}
+        for key, item in pairs:
+            if key in result:
+                raise WorkerHeartbeatFormatError(
+                    f"worker stop request JSON contains duplicate field {key!r}"
+                )
+            result[key] = item
+        return result
+
+    def reject_constant(item: str) -> NoReturn:
+        raise WorkerHeartbeatFormatError(
+            f"worker stop request JSON contains non-finite number {item}"
+        )
+
+    try:
+        decoded = json.loads(
+            source,
+            object_pairs_hook=pairs_hook,
+            parse_constant=reject_constant,
+        )
+    except WorkerHeartbeatFormatError:
+        raise
+    except (json.JSONDecodeError, RecursionError) as exc:
+        raise WorkerHeartbeatFormatError(
+            f"worker stop request is not valid JSON: {exc}"
+        ) from exc
+    return parse_worker_stop_request(decoded)
 
 
 @dataclass(frozen=True, slots=True)
@@ -692,6 +813,81 @@ class WorkerHeartbeatLedger:
                 "worker dispatch permit identity does not match its manifest slot"
             )
         return permit
+
+    def publish_stop_request(self, request: WorkerStopRequest) -> Path:
+        """Atomically request an orderly stop from one exact worker lifetime."""
+
+        if not isinstance(request, WorkerStopRequest):
+            raise ValueError("request must be WorkerStopRequest")
+        canonical = self._canonical_client_id(request.client_id)
+        if request.node_id != self._manifest.node_id or request.client_id != canonical:
+            raise WorkerHeartbeatLedgerError(
+                "worker stop request node_id and client_id must exactly match the manifest"
+            )
+        directory = self._slot_directory(canonical)
+        target = directory / f"stop.{request.worker_id}"
+        temporary = directory / f".stop.{request.worker_id}.{os.getpid()}.{uuid.uuid4().hex}.tmp"
+        payload = json.dumps(
+            request.to_dict(),
+            ensure_ascii=True,
+            allow_nan=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+        if len(payload) > self._max_record_bytes:
+            raise WorkerHeartbeatLedgerError("serialized worker stop request exceeds size limit")
+        try:
+            directory.mkdir(parents=True, exist_ok=True)
+            with temporary.open("xb") as destination:
+                destination.write(payload)
+                destination.flush()
+                os.fsync(destination.fileno())
+            temporary.replace(target)
+        except OSError as exc:
+            try:
+                temporary.unlink(missing_ok=True)
+            except OSError:
+                pass
+            raise WorkerHeartbeatLedgerError(
+                f"could not persist worker stop request: {exc}"
+            ) from exc
+        return target
+
+    def inspect_stop_request(
+        self,
+        client_id: str,
+        worker_id: str,
+    ) -> WorkerStopRequest | None:
+        """Read only the stop request addressed to one canonical worker ID."""
+
+        canonical = self._canonical_client_id(client_id)
+        canonical_worker_id = _require_worker_id(worker_id)
+        target = self._slot_directory(canonical) / f"stop.{canonical_worker_id}"
+        try:
+            if not target.exists():
+                return None
+            if target.is_symlink() or not target.is_file():
+                raise WorkerHeartbeatFormatError("worker stop request must be a regular file")
+            source = target.read_bytes()
+        except OSError as exc:
+            raise WorkerHeartbeatLedgerError(
+                f"could not read worker stop request: {exc}"
+            ) from exc
+        if len(source) > self._max_record_bytes:
+            raise WorkerHeartbeatFormatError("worker stop request exceeds size limit")
+        try:
+            request = loads_worker_stop_request(source.decode("utf-8", errors="strict"))
+        except UnicodeDecodeError as exc:
+            raise WorkerHeartbeatFormatError("worker stop request must be UTF-8") from exc
+        if (
+            request.node_id != self._manifest.node_id
+            or request.client_id != canonical
+            or request.worker_id != canonical_worker_id
+        ):
+            raise WorkerHeartbeatFormatError(
+                "worker stop request identity does not match its manifest slot"
+            )
+        return request
 
     def inspect(self, client_id: str) -> WorkerLedgerSnapshot:
         """Read one slot without trusting file names or record contents."""
@@ -1294,6 +1490,7 @@ __all__ = [
     "DEFAULT_WORKER_DISPATCH_PERMIT_TTL_SECONDS",
     "WORKER_DISPATCH_PERMIT_SCHEMA_VERSION",
     "WORKER_HEARTBEAT_SCHEMA_VERSION",
+    "WORKER_STOP_REQUEST_SCHEMA_VERSION",
     "WorkerDispatchGate",
     "WorkerDispatchPermit",
     "WorkerHealthState",
@@ -1307,9 +1504,12 @@ __all__ = [
     "WorkerLedgerSnapshot",
     "WorkerRuntimeState",
     "WorkerSlotHealthSnapshot",
+    "WorkerStopRequest",
     "WorkerSupervisor",
     "loads_worker_dispatch_permit",
     "loads_worker_heartbeat",
+    "loads_worker_stop_request",
     "parse_worker_dispatch_permit",
     "parse_worker_heartbeat",
+    "parse_worker_stop_request",
 ]

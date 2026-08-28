@@ -151,16 +151,23 @@ share:
 ```text
 %LOCALAPPDATA%\ShadowbaneLab\workers\<node_id>\<client_id>\
 ├── worker-<id>.json
-└── dispatch.permit
+├── dispatch.permit
+└── stop.worker-<id>
 ```
 
 Use `manager app --worker-state-directory ABSOLUTE_LOCAL_PATH` only when a different node-local
 state root is intentional. UNC roots are rejected. The heartbeat directory is local operational
 state; it is not a shared tactical bus and should not be placed on `codexrepo` or `codexdiag`.
 
-Each worker creates a fresh `WorkerHeartbeatPublisher` for one manifest `client_id`, one exact
-manager `instance_id`, and its own verified PID/creation-time lifetime. Publish at least once per
-second while active; the manager's default expiry is five seconds. A typical worker integration
+Start, attach, and resume now ensure one exact worker runtime exists for the bound slot. The
+manager launches that runtime directly with separate argument tokens and local stdout/stderr logs;
+it does not use a shell. The worker independently re-enumerates the configured client and keeps
+publishing only while the assigned PID, process creation time, HWND, and derived `instance_id`
+remain the same. Losing or replacing any part of that identity latches emergency stop and exits.
+
+Each runtime creates a fresh `WorkerHeartbeatPublisher` for one manifest `client_id`, one exact
+manager `instance_id`, and its own verified PID/creation-time lifetime. It publishes once per
+second while active; the manager's default expiry is five seconds. The permanent worker boundary
 has this shape:
 
 ```python
@@ -198,6 +205,11 @@ dispatch_gate = publisher.dispatch_gate()
 # Pass dispatch_gate into the live input stop-signal chain and check it before every action.
 ```
 
+The shipped exact worker host performs this setup automatically. A healthy host means the exact
+identity, heartbeat, and guarded-dispatch boundary are ready; it does not mean a travel or combat
+strategy is actively emitting input. Strategy services are composed behind this host and must use
+its dispatch gate before every live action.
+
 The publisher sequences atomic records and latches emergency stop for the lifetime of that worker.
 After an emergency trip, the same worker identity cannot re-enable dispatch; create a new worker
 process after operator review. `evidence_sequence` is an optional non-negative cursor for liveness
@@ -219,9 +231,16 @@ renewing the allow permit. `publisher.dispatch_gate()` implements the live input
 contract and must be included in every worker's guarded-input stop chain. Treating the dashboard
 field as informational without consuming this permit is not a valid worker integration.
 
+Pause keeps the exact worker alive but synchronously denies dispatch. Detach and graceful close
+both deny dispatch and write an exact stop request naming the worker ID plus its PID/creation-time
+lifetime. A request for another worker or a reused PID is ignored and fails closed. Reattaching the
+same live client reuses its healthy worker; replacing the bound client stops the old worker before
+launching the new exact host.
+
 The existing `/go` and `/pve` chat listener is a node-level guarded operator service, not a per-slot
-worker. Keep its startup and singleton ownership separate. The later game/worker bootstrap should
-start one publisher-backed bot worker only after the manager has assigned an exact client instance.
+worker. It keeps separate singleton ownership because physical chat input belongs to whichever game
+window is foreground. It must not be duplicated once per client. The next automation boundary is
+to route its accepted operation into the already-running exact worker for that foreground client.
 
 ## Multi-PC boundary
 
@@ -262,8 +281,9 @@ dispatch disabled.
 
 ## Next manager boundary
 
-The next manager slice is worker supervision and operational health: bind one bot worker to each
-exact session slot, surface heartbeat/evidence/emergency-stop state, and gate dispatch through the
-session's verified `dispatch_enabled` result. A later read-only overview may aggregate status from
-several PCs, but live squad behavior and the designated bot caller must not depend on that
-overview or on a central tactical service.
+The next manager slice is the local operation channel between the node-level `/go` and `/pve`
+listener and the exact per-client worker host. Commands must carry the foreground client's immutable
+identity, expire quickly, deduplicate, and receive bounded acknowledgement; the worker then runs the
+existing travel or PvE engine with its manager dispatch gate in every live-input stop chain. A later
+read-only overview may aggregate status from several PCs, but live squad behavior and the designated
+bot caller must not depend on that overview or on a central tactical service.

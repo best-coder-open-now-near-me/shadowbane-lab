@@ -136,11 +136,15 @@ from shadowbane_lab.manager import (
     ClientRegistrySnapshot,
     ClientWindowRegistry,
     DashboardServer,
+    ExactClientWorkerBinding,
+    ExactClientWorkerRuntime,
     GuardedWindowControl,
+    ManagedWorkerController,
     ManagerDashboardApplication,
     ManagerSession,
     ManifestClientRegistryProvider,
     SubprocessLauncher,
+    SubprocessWorkerLauncher,
     VisibleWindowRegistrySource,
     Win32ProcessLifetimeInspector,
     Win32WindowApi,
@@ -841,6 +845,31 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="required because dashboard actions may launch, tile, or close clients",
     )
+    manager_worker = manager_commands.add_parser(
+        "worker",
+        help="run one exact game-instance worker safety/runtime host",
+    )
+    manager_worker.add_argument(
+        "manifest",
+        type=Path,
+        help="strict schema-v1 manager manifest JSON",
+    )
+    manager_worker.add_argument("--worker-state-directory", type=Path, required=True)
+    manager_worker.add_argument("--client-id", required=True)
+    manager_worker.add_argument("--instance-id", required=True)
+    manager_worker.add_argument("--game-process-id", type=int, required=True)
+    manager_worker.add_argument(
+        "--game-process-started-at-100ns",
+        type=int,
+        required=True,
+    )
+    manager_worker.add_argument("--game-window-handle", type=int, required=True)
+    manager_worker.add_argument("--heartbeat-ms", type=int, default=1_000)
+    manager_worker.add_argument(
+        "--live",
+        action="store_true",
+        help="required because this worker is the live-input ownership boundary",
+    )
 
     progression = commands.add_parser(
         "progression",
@@ -1157,11 +1186,23 @@ def _run_manager_app(
             local_app_data = os.environ.get("LOCALAPPDATA")
             if not local_app_data:
                 raise RuntimeError("LOCALAPPDATA is required for default worker state")
-            heartbeat_root = Path(local_app_data) / "ShadowbaneLab" / "workers"
+            manager_state_root = Path(local_app_data) / "ShadowbaneLab"
+            heartbeat_root = manager_state_root / "workers"
         else:
             heartbeat_root = worker_state_directory
+            manager_state_root = heartbeat_root.parent
         worker_ledger = WorkerHeartbeatLedger(manifest, heartbeat_root)
         worker_supervisor = WorkerSupervisor(worker_ledger, process_inspector)
+        worker_controller = ManagedWorkerController(
+            manifest,
+            worker_ledger,
+            process_inspector,
+            SubprocessWorkerLauncher(
+                manifest_path=manifest_path,
+                worker_state_directory=heartbeat_root,
+                log_directory=manager_state_root / "logs",
+            ),
+        )
         aggregate_registry = ManifestClientRegistryProvider(inspector, manifest)
         window_control = GuardedWindowControl(aggregate_registry, Win32WindowApi())
         supervisor = ClientLifecycleSupervisor(
@@ -1176,6 +1217,7 @@ def _run_manager_app(
             session,
             aggregate_registry,
             worker_supervisor,
+            worker_controller=worker_controller,
             launch_timeout_seconds=launch_timeout_seconds,
             poll_seconds=poll_ms / 1_000.0,
         )
@@ -1208,6 +1250,54 @@ def _run_manager_app(
             raise RuntimeError("manager dashboard stopped unexpectedly")
     except (OSError, RuntimeError, ValueError) as exc:
         return _error(f"manager app failed: {exc}", as_json=False)
+
+
+def _run_manager_worker(
+    manifest_path: Path,
+    *,
+    worker_state_directory: Path,
+    client_id: str,
+    instance_id: str,
+    game_process_id: int,
+    game_process_started_at_100ns: int,
+    game_window_handle: int,
+    heartbeat_ms: int,
+    live: bool,
+) -> int:
+    if not live:
+        return _error(
+            "manager worker is a live-input ownership boundary; pass --live to enable it",
+            as_json=False,
+        )
+    if (
+        isinstance(heartbeat_ms, bool)
+        or not isinstance(heartbeat_ms, int)
+        or not 100 <= heartbeat_ms <= 4_000
+    ):
+        return _error("heartbeat-ms must be in [100, 4000]", as_json=False)
+    try:
+        manifest = load_manager_manifest(manifest_path)
+        binding = ExactClientWorkerBinding(
+            client_id=client_id,
+            instance_id=instance_id,
+            game_process_id=game_process_id,
+            game_process_started_at_100ns=game_process_started_at_100ns,
+            game_window_handle=game_window_handle,
+        )
+        binding.validate_for(manifest)
+        inspector = WindowsVisibleWindowInspector()
+        process_inspector = Win32ProcessLifetimeInspector()
+        runtime = ExactClientWorkerRuntime(
+            manifest,
+            binding,
+            WorkerHeartbeatLedger(manifest, worker_state_directory),
+            ManifestClientRegistryProvider(inspector, manifest),
+            process_inspector,
+            heartbeat_interval_seconds=heartbeat_ms / 1_000.0,
+        )
+        return runtime.serve()
+    except (OSError, RuntimeError, ValueError) as exc:
+        return _error(f"manager worker failed: {exc}", as_json=False)
 
 
 def _print_snapshot(snapshot: WindowSnapshot, *, as_json: bool) -> None:
@@ -3976,6 +4066,18 @@ def main(argv: Sequence[str] | None = None) -> int:
             poll_ms=arguments.poll_ms,
             worker_state_directory=arguments.worker_state_directory,
             open_browser=not arguments.no_browser,
+            live=arguments.live,
+        )
+    if arguments.command == "manager" and arguments.manager_command == "worker":
+        return _run_manager_worker(
+            arguments.manifest,
+            worker_state_directory=arguments.worker_state_directory,
+            client_id=arguments.client_id,
+            instance_id=arguments.instance_id,
+            game_process_id=arguments.game_process_id,
+            game_process_started_at_100ns=arguments.game_process_started_at_100ns,
+            game_window_handle=arguments.game_window_handle,
+            heartbeat_ms=arguments.heartbeat_ms,
             live=arguments.live,
         )
     if (

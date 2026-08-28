@@ -57,6 +57,32 @@ def _manifest_client(
 
 
 class ManagerCliTests(unittest.TestCase):
+    def test_manager_worker_requires_explicit_live_authority(self) -> None:
+        error = io.StringIO()
+        with redirect_stderr(error):
+            result = main(
+                (
+                    "manager",
+                    "worker",
+                    "manager.json",
+                    "--worker-state-directory",
+                    "workers",
+                    "--client-id",
+                    "client-01",
+                    "--instance-id",
+                    "client-012345",
+                    "--game-process-id",
+                    "101",
+                    "--game-process-started-at-100ns",
+                    "133700000000000101",
+                    "--game-window-handle",
+                    "1001",
+                )
+            )
+
+        self.assertEqual(2, result)
+        self.assertIn("pass --live", error.getvalue())
+
     def test_inspect_emits_attachable_and_rejected_clients_for_node(self) -> None:
         attachable = _snapshot()
         rejected = _snapshot(

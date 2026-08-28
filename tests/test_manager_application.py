@@ -205,10 +205,25 @@ class _StaticWorkerSupervisor:
         self.revocations.append((client_id, reason))
 
 
+class _RecordingWorkerController:
+    def __init__(self) -> None:
+        self.starts: list[tuple[str, str]] = []
+        self.stops: list[tuple[str, str]] = []
+
+    def ensure_started(self, client_id: str, client: ClientInstanceSnapshot) -> int:
+        self.starts.append((client_id, client.instance_id))
+        return 7001
+
+    def request_stop(self, client_id: str, *, reason: str) -> int:
+        self.stops.append((client_id, reason))
+        return 1
+
+
 def _application(
     session: _RecordingSession,
     *clients: ClientInstanceSnapshot,
     worker_state: WorkerHealthState = WorkerHealthState.HEALTHY,
+    worker_controller: _RecordingWorkerController | None = None,
 ) -> tuple[ManagerDashboardApplication, _StaticRegistry]:
     registry = _StaticRegistry(
         ClientRegistrySnapshot(
@@ -236,6 +251,7 @@ def _application(
             session,
             registry,
             worker_supervisor,
+            worker_controller=worker_controller,
             launch_timeout_seconds=12.0,
             poll_seconds=0.25,
         ),
@@ -244,6 +260,37 @@ def _application(
 
 
 class ManagerDashboardApplicationTests(unittest.TestCase):
+    def test_resume_bootstraps_exact_worker_and_detach_stops_it(self) -> None:
+        bound = _client("instance-101", 101)
+        session = _RecordingSession(
+            ManagerSessionSnapshot(
+                node_id=NODE_ID,
+                slots=(_slot("client-01", instance_id=bound.instance_id),),
+            )
+        )
+        controller = _RecordingWorkerController()
+        application, _ = _application(
+            session,
+            bound,
+            worker_controller=controller,
+        )
+
+        application.execute(
+            "resume",
+            client_id="client-01",
+            instance_id=bound.instance_id,
+        )
+        application.execute(
+            "detach",
+            client_id="client-01",
+            instance_id=bound.instance_id,
+        )
+
+        self.assertEqual([("client-01", bound.instance_id)], controller.starts)
+        self.assertEqual(1, len(controller.stops))
+        self.assertEqual("client-01", controller.stops[0][0])
+        self.assertIn("detach", controller.stops[0][1])
+
     def test_status_enriches_exact_binding_and_excludes_it_from_candidates(self) -> None:
         bound = _client("instance-101", 101)
         candidate = _client("instance-202", 202)

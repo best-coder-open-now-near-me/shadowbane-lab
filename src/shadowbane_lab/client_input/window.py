@@ -115,6 +115,8 @@ class ForegroundWindowGuard:
         inspector: WindowInspector,
         *,
         expected_process_id: int | None = None,
+        expected_process_started_at_100ns: int | None = None,
+        expected_window_handle: int | None = None,
     ) -> None:
         if not isinstance(profile, CalibrationProfile):
             raise ValueError("profile must be a CalibrationProfile")
@@ -126,6 +128,14 @@ class ForegroundWindowGuard:
             or expected_process_id <= 0
         ):
             raise ValueError("expected_process_id must be a positive integer or None")
+        for value, field_name in (
+            (expected_process_started_at_100ns, "expected_process_started_at_100ns"),
+            (expected_window_handle, "expected_window_handle"),
+        ):
+            if value is not None and (
+                isinstance(value, bool) or not isinstance(value, int) or value <= 0
+            ):
+                raise ValueError(f"{field_name} must be a positive integer or None")
         target = profile.target
         try:
             self._title_pattern = re.compile(target.title_pattern)
@@ -134,6 +144,8 @@ class ForegroundWindowGuard:
         self._profile = profile
         self._inspector = inspector
         self._expected_process_id = expected_process_id
+        self._expected_process_started_at_100ns = expected_process_started_at_100ns
+        self._expected_window_handle = expected_window_handle
         self._allowed_executables = frozenset(name.casefold() for name in target.executable_names)
 
     @property
@@ -155,6 +167,19 @@ class ForegroundWindowGuard:
                 raise WindowGuardError("foreground process identity is unavailable")
             if snapshot.process_id != self._expected_process_id:
                 raise WindowGuardError("foreground window belongs to a different client process")
+        if self._expected_process_started_at_100ns is not None:
+            if snapshot.process_started_at_100ns is None:
+                raise WindowGuardError("foreground process creation time is unavailable")
+            if (
+                snapshot.process_started_at_100ns
+                != self._expected_process_started_at_100ns
+            ):
+                raise WindowGuardError("foreground window belongs to a replaced client process")
+        if self._expected_window_handle is not None:
+            if snapshot.window_handle is None:
+                raise WindowGuardError("foreground window handle is unavailable")
+            if snapshot.window_handle != self._expected_window_handle:
+                raise WindowGuardError("foreground window belongs to a different client window")
         if self._title_pattern.search(snapshot.title) is None:
             raise WindowGuardError("foreground title does not match the calibration profile")
         bounds = snapshot.client_bounds
