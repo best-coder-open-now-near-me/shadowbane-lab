@@ -11,7 +11,14 @@
           "-resolution",
           "960x540"
         ],
-        "working_directory": "C:\\Games\\Wonderbane"
+        "working_directory": "C:\\Games\\Wonderbane",
+        "environment": {
+          "LIBGL_ALWAYS_SOFTWARE": "true",
+          "GALLIUM_DRIVER": "llvmpipe",
+          "MESA_EXTENSION_MAX_YEAR": "2001",
+          "MESA_GL_VERSION_OVERRIDE": null,
+          "MESA_GLSL_VERSION_OVERRIDE": null
+        }
       },
       "expected_process_directory": "C:\\Games\\Wonderbane",
       "expected_executable_names": [
@@ -34,7 +41,14 @@
           "-resolution",
           "960x540"
         ],
-        "working_directory": "C:\\Games\\Wonderbane"
+        "working_directory": "C:\\Games\\Wonderbane",
+        "environment": {
+          "LIBGL_ALWAYS_SOFTWARE": "true",
+          "GALLIUM_DRIVER": "llvmpipe",
+          "MESA_EXTENSION_MAX_YEAR": "2001",
+          "MESA_GL_VERSION_OVERRIDE": null,
+          "MESA_GLSL_VERSION_OVERRIDE": null
+        }
       },
       "expected_process_directory": "C:\\Games\\Wonderbane",
       "expected_executable_names": [

@@ -29,6 +29,13 @@ _LAUNCH_FLAG_OPTIONS = {
     "--client": "launcher-client",
 }
 _LAUNCH_VALUE_OPTIONS = {"-resolution": "resolution"}
+_LAUNCH_ENVIRONMENT_VALUES: dict[str, frozenset[str | None]] = {
+    "GALLIUM_DRIVER": frozenset({"llvmpipe"}),
+    "LIBGL_ALWAYS_SOFTWARE": frozenset({"true"}),
+    "MESA_EXTENSION_MAX_YEAR": frozenset({"2001"}),
+    "MESA_GLSL_VERSION_OVERRIDE": frozenset({None}),
+    "MESA_GL_VERSION_OVERRIDE": frozenset({None}),
+}
 _LAUNCH_GRAMMAR = (
     "-windowed or --windowed, --client, and -resolution WIDTHxHEIGHT "
     f"(each dimension 1..{_MAX_DISPLAY_DIMENSION})"
@@ -155,6 +162,35 @@ def _parse_arguments(value: object, *, location: str) -> tuple[str, ...]:
     return tuple(arguments)
 
 
+def _parse_environment(
+    value: object,
+    *,
+    location: str,
+) -> tuple[tuple[str, str | None], ...]:
+    if not isinstance(value, Mapping):
+        _fail(f"{location} must be an object")
+    parsed: list[tuple[str, str | None]] = []
+    for name, setting in value.items():
+        if not isinstance(name, str) or name not in _LAUNCH_ENVIRONMENT_VALUES:
+            _fail(
+                f"{location} contains unsupported variable {name!r}; allowed variables: "
+                + ", ".join(sorted(_LAUNCH_ENVIRONMENT_VALUES))
+            )
+        if not (setting is None or isinstance(setting, str)) or (
+            setting not in _LAUNCH_ENVIRONMENT_VALUES[name]
+        ):
+            allowed = ", ".join(
+                "null" if item is None else repr(item)
+                for item in sorted(
+                    _LAUNCH_ENVIRONMENT_VALUES[name],
+                    key=lambda item: "" if item is None else item,
+                )
+            )
+            _fail(f"{location}.{name} must be one of: {allowed}")
+        parsed.append((name, setting))
+    return tuple(sorted(parsed))
+
+
 def _require_launch_token(value: object, *, location: str) -> None:
     if not isinstance(value, str) or not value or "\0" in value:
         _fail(f"{location} must be a non-empty string without NUL characters")
@@ -267,6 +303,7 @@ class ClientLaunchConfig:
     executable: PureWindowsPath
     arguments: tuple[str, ...]
     working_directory: PureWindowsPath
+    environment: tuple[tuple[str, str | None], ...] = ()
 
     def __post_init__(self) -> None:
         if not isinstance(self.executable, PureWindowsPath) or not self.executable.is_absolute():
@@ -289,6 +326,25 @@ class ClientLaunchConfig:
         if not isinstance(self.arguments, tuple):
             raise ManagerManifestError("launch.arguments must be an immutable tuple")
         _parse_arguments(list(self.arguments), location="launch.arguments")
+        if not isinstance(self.environment, tuple):
+            raise ManagerManifestError("launch.environment must be an immutable tuple")
+        if any(not isinstance(item, tuple) or len(item) != 2 for item in self.environment):
+            raise ManagerManifestError(
+                "launch.environment must contain immutable name/value pairs"
+            )
+        if any(not isinstance(item[0], str) for item in self.environment):
+            raise ManagerManifestError("launch.environment variable names must be strings")
+        environment_names = [item[0] for item in self.environment]
+        if len(environment_names) != len(set(environment_names)):
+            raise ManagerManifestError("launch.environment variable names must be unique")
+        parsed_environment = _parse_environment(
+            dict(self.environment),
+            location="launch.environment",
+        )
+        if parsed_environment != self.environment:
+            raise ManagerManifestError(
+                "launch.environment must contain unique, sorted immutable pairs"
+            )
 
     @property
     def command(self) -> tuple[str, ...]:
@@ -297,11 +353,14 @@ class ClientLaunchConfig:
         return (str(self.executable), *self.arguments)
 
     def to_dict(self) -> dict[str, object]:
-        return {
+        payload: dict[str, object] = {
             "executable": str(self.executable),
             "arguments": list(self.arguments),
             "working_directory": str(self.working_directory),
         }
+        if self.environment:
+            payload["environment"] = dict(self.environment)
+        return payload
 
 
 @dataclass(frozen=True, slots=True)
@@ -405,6 +464,7 @@ def _parse_launch(value: object, *, location: str) -> ClientLaunchConfig:
         value,
         location=location,
         required=frozenset({"executable", "arguments", "working_directory"}),
+        optional=frozenset({"environment"}),
     )
     return ClientLaunchConfig(
         executable=_parse_absolute_windows_path(
@@ -416,6 +476,11 @@ def _parse_launch(value: object, *, location: str) -> ClientLaunchConfig:
         working_directory=_parse_absolute_windows_path(
             payload["working_directory"],
             location=f"{location}.working_directory",
+        ),
+        environment=(
+            _parse_environment(payload["environment"], location=f"{location}.environment")
+            if "environment" in payload
+            else ()
         ),
     )
 

@@ -286,6 +286,43 @@ class SupervisorValueTests(unittest.TestCase):
             shell=False,
         )
 
+    def test_subprocess_launcher_applies_only_reviewed_environment_changes(self) -> None:
+        process = MagicMock(pid=2468)
+        process.poll.return_value = None
+        inspector = FakeProcessInspector()
+        inspector.results[2468] = ProcessLifetimeSnapshot(
+            process_id=2468,
+            process_started_at_100ns=2468000,
+        )
+        command = ReviewedLaunchCommand(
+            (r"C:\Games\WonderBane\sb.exe",),
+            working_directory=PROCESS_DIRECTORY,
+            environment=(
+                ("GALLIUM_DRIVER", "llvmpipe"),
+                ("MESA_GL_VERSION_OVERRIDE", None),
+            ),
+        )
+        with (
+            patch.dict(
+                "shadowbane_lab.manager.supervisor.os.environ",
+                {"PATH": r"C:\Windows", "MESA_GL_VERSION_OVERRIDE": "4.6"},
+                clear=True,
+            ),
+            patch(
+                "shadowbane_lab.manager.supervisor.subprocess.Popen",
+                return_value=process,
+            ) as popen,
+        ):
+            receipt = SubprocessLauncher(inspector).launch(command)
+
+        self.assertEqual(2468, receipt.process_id)
+        popen.assert_called_once_with(
+            command.argv,
+            cwd=PROCESS_DIRECTORY,
+            shell=False,
+            env={"PATH": r"C:\Windows", "GALLIUM_DRIVER": "llvmpipe"},
+        )
+
     def test_manifest_slot_translates_without_tactical_or_machine_role_state(self) -> None:
         manifest = parse_manager_manifest(
             {
@@ -298,6 +335,10 @@ class SupervisorValueTests(unittest.TestCase):
                             "executable": rf"{PROCESS_DIRECTORY}\launcher.exe",
                             "arguments": ["-windowed"],
                             "working_directory": PROCESS_DIRECTORY,
+                            "environment": {
+                                "GALLIUM_DRIVER": "llvmpipe",
+                                "MESA_EXTENSION_MAX_YEAR": "2001",
+                            },
                         },
                         "expected_process_directory": PROCESS_DIRECTORY,
                         "expected_executable_names": ["sb.exe", "Shadowbane.exe"],
@@ -321,6 +362,13 @@ class SupervisorValueTests(unittest.TestCase):
         self.assertEqual(
             (rf"{PROCESS_DIRECTORY}\launcher.exe", "-windowed"),
             command.argv,
+        )
+        self.assertEqual(
+            (
+                ("GALLIUM_DRIVER", "llvmpipe"),
+                ("MESA_EXTENSION_MAX_YEAR", "2001"),
+            ),
+            command.environment,
         )
         self.assertEqual(
             WindowRectangle(left=-960, top=0, width=960, height=540),

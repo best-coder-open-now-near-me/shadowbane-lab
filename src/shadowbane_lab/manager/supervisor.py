@@ -147,6 +147,7 @@ class ReviewedLaunchCommand:
 
     argv: tuple[str, ...]
     working_directory: str | None = None
+    environment: tuple[tuple[str, str | None], ...] = ()
 
     def __post_init__(self) -> None:
         if not isinstance(self.argv, tuple) or not self.argv:
@@ -168,6 +169,29 @@ class ReviewedLaunchCommand:
             _require_canonical_text(self.working_directory, "working_directory")
             if not ntpath.isabs(self.working_directory):
                 raise ValueError("working_directory must be an absolute Windows path")
+        if not isinstance(self.environment, tuple):
+            raise ValueError("environment must be an immutable tuple")
+        names: list[str] = []
+        for item in self.environment:
+            if (
+                not isinstance(item, tuple)
+                or len(item) != 2
+                or not isinstance(item[0], str)
+                or not item[0]
+                or any(character in item[0] for character in "=\0\r\n")
+                or not (item[1] is None or isinstance(item[1], str))
+                or (
+                    isinstance(item[1], str)
+                    and ("\0" in item[1] or "\r" in item[1] or "\n" in item[1])
+                )
+            ):
+                raise ValueError(
+                    "environment must contain name and string-or-None pairs "
+                    "without control characters"
+                )
+            names.append(item[0])
+        if names != sorted(names) or len(names) != len(set(names)):
+            raise ValueError("environment names must be unique and sorted")
 
 
 def selector_from_config(
@@ -193,6 +217,7 @@ def launch_command_from_config(config: ManagedClientConfig) -> ReviewedLaunchCom
     return ReviewedLaunchCommand(
         argv=config.launch.command,
         working_directory=str(config.launch.working_directory),
+        environment=config.launch.environment,
     )
 
 
@@ -521,10 +546,19 @@ class SubprocessLauncher:
         if not isinstance(command, ReviewedLaunchCommand):
             raise ValueError("command must be ReviewedLaunchCommand")
         self._reap_finished_children()
+        launch_environment = None
+        if command.environment:
+            launch_environment = os.environ.copy()
+            for name, value in command.environment:
+                if value is None:
+                    launch_environment.pop(name, None)
+                else:
+                    launch_environment[name] = value
         process = subprocess.Popen(
             command.argv,
             cwd=command.working_directory,
             shell=False,
+            **({} if launch_environment is None else {"env": launch_environment}),
         )
         self._children[process.pid] = process
         lifetime = self._process_inspector.inspect(process.pid)

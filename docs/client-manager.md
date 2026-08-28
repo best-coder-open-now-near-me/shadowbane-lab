@@ -81,6 +81,13 @@ duplicate rectangles, credentials, character identities, and tactical/caller rol
 Put login handling and character configuration behind separate guarded boundaries rather than
 embedding either in this file.
 
+`launch.environment` is optional and intentionally narrower than a general process environment.
+It accepts only the reviewed Mesa variables used by the WonderBane invisible-text compatibility
+launcher: software rendering through `llvmpipe`, the `2001` extension ceiling, and explicit
+removal of the GL/GLSL version overrides. PATH changes, credentials, arbitrary renderer settings,
+and every other variable are rejected. The manager merges accepted settings into a fresh copy of
+its own environment immediately before the direct launch.
+
 `launch.arguments` is a JSON array of separate tokens, but it is not an arbitrary command-line
 escape hatch. The complete accepted grammar is:
 
@@ -104,6 +111,10 @@ python -m shadowbane_lab.cli manager app `
   'C:\path\to\client-manager.json' `
   --live
 ```
+
+For the standard WonderBane VM, the supported logon installer generates the one-client manifest,
+retains the Mesa text fix, starts the command listener, and opens this dashboard without requiring
+an interactive terminal. See [VM setup](vm-setup.md#install-the-vm-control-center-at-logon).
 
 `--live` is mandatory because reviewed dashboard actions can launch, tile, or request a graceful
 close. Opening the app never starts a client automatically. The terminal prints a per-run URL

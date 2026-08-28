@@ -157,6 +157,51 @@ class ManagerManifestTests(unittest.TestCase):
                 parsed = parse_manager_manifest(_payload(client))
                 self.assertEqual(tuple(arguments), parsed.clients[0].launch.arguments)
 
+    def test_accepts_only_reviewed_legacy_renderer_environment(self) -> None:
+        client = _client()
+        client["launch"]["environment"] = {
+            "LIBGL_ALWAYS_SOFTWARE": "true",
+            "GALLIUM_DRIVER": "llvmpipe",
+            "MESA_EXTENSION_MAX_YEAR": "2001",
+            "MESA_GL_VERSION_OVERRIDE": None,
+            "MESA_GLSL_VERSION_OVERRIDE": None,
+        }
+
+        manifest = parse_manager_manifest(_payload(client))
+
+        self.assertEqual(
+            (
+                ("GALLIUM_DRIVER", "llvmpipe"),
+                ("LIBGL_ALWAYS_SOFTWARE", "true"),
+                ("MESA_EXTENSION_MAX_YEAR", "2001"),
+                ("MESA_GLSL_VERSION_OVERRIDE", None),
+                ("MESA_GL_VERSION_OVERRIDE", None),
+            ),
+            manifest.clients[0].launch.environment,
+        )
+        self.assertEqual(
+            client["launch"]["environment"],
+            manifest.to_dict()["clients"][0]["launch"]["environment"],
+        )
+
+        rejected = (
+            {"PATH": r"C:\unreviewed"},
+            {"ACCOUNT_TOKEN": "secret"},
+            {"GALLIUM_DRIVER": "hardware"},
+            {"LIBGL_ALWAYS_SOFTWARE": True},
+            {"MESA_EXTENSION_MAX_YEAR": "2026"},
+            {"MESA_GL_VERSION_OVERRIDE": "4.6"},
+        )
+        for environment in rejected:
+            client = _client()
+            client["launch"]["environment"] = environment
+            with self.subTest(environment=environment):
+                with self.assertRaisesRegex(
+                    ManagerManifestError,
+                    "unsupported variable|must be one of",
+                ):
+                    parse_manager_manifest(_payload(client))
+
     def test_rejects_unknown_launch_flags_aliases_and_positional_values(self) -> None:
         rejected = (
             ["--fullscreen"],
@@ -319,6 +364,23 @@ class ManagerManifestTests(unittest.TestCase):
         self.assertEqual((client,), manifest.clients)
         with self.assertRaisesRegex(ManagerManifestError, "immutable tuple"):
             ManagerManifest(node_id="node-a", clients=[client])  # type: ignore[arg-type]
+        with self.assertRaisesRegex(ManagerManifestError, "name/value pairs"):
+            ClientLaunchConfig(
+                executable=launch.executable,
+                arguments=(),
+                working_directory=launch.working_directory,
+                environment=(("GALLIUM_DRIVER",),),  # type: ignore[arg-type]
+            )
+        with self.assertRaisesRegex(ManagerManifestError, "must be unique"):
+            ClientLaunchConfig(
+                executable=launch.executable,
+                arguments=(),
+                working_directory=launch.working_directory,
+                environment=(
+                    ("GALLIUM_DRIVER", "llvmpipe"),
+                    ("GALLIUM_DRIVER", "llvmpipe"),
+                ),
+            )
 
 
 if __name__ == "__main__":

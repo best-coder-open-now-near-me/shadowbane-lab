@@ -95,3 +95,29 @@ notepad .\configs\wonderbane.local.json
 Keep `live_input_enabled` set to `false` through calibration and recording-mode verification.
 The separate [client-input runbook](client-input-harness.md) covers dry-run and controlled
 live enablement.
+
+## Install the VM control center at logon
+
+VirtualBox must expose the persistent `codexrepo` and `codexdiag` machine folders before this
+step. Install a VM-local bootstrap and start it immediately with:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
+  \\VBOXSVR\codexrepo\scripts\install-wonderbane-vm-control-center.ps1 `
+  -StartNow
+```
+
+The installer writes the operational manager manifest and runner beneath
+`%LOCALAPPDATA%\ShadowbaneLab`, creates a desktop shortcut, and creates a current-user Startup
+shortcut. The small share-waiting bootstrap is deliberately local so Windows can load it before
+the VirtualBox shares are ready. It waits up to 90 seconds and then invokes the current runner
+from `codexrepo`, so fetched runner changes take effect on the next logon without reinstalling.
+The runner starts the guarded in-game command listener, preflights the manager manifest, and
+starts the authenticated localhost dashboard. A listener configuration failure is logged without
+hiding the lifecycle dashboard. The dashboard opens automatically but does not launch a game
+client until its Start control is used.
+
+The manager launches `sb.exe` directly with the reviewed Mesa text-rendering environment. The
+listener starts even when several character hotbar files exist; exact hotbar validation is deferred
+until `/pve` is requested. Bootstrap and manager logs stay under
+`%LOCALAPPDATA%\ShadowbaneLab\logs`; listener evidence stays in `codexdiag`.
