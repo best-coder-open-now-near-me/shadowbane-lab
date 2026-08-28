@@ -406,10 +406,12 @@ class PvERunner:
                             approach_input_reason=approach_reason,
                         )
                     )
-                    terminal = self._controller.stop(
-                        "guarded_movement_input_rejected",
-                        now_ms=now_ms,
+                    stop_reason = (
+                        "emergency_stop"
+                        if self._stop_signal.is_set()
+                        else "guarded_movement_input_rejected"
                     )
+                    terminal = self._controller.stop(stop_reason, now_ms=now_ms)
                     record(self._trace(terminal, observation=observation))
                     break
             if approach_decision is not None and approach_decision.terminal:
@@ -437,10 +439,12 @@ class PvERunner:
                                 movement_stop_reason=movement_stop_reason,
                             )
                         )
-                        terminal = self._controller.stop(
-                            "movement_stop_rejected",
-                            now_ms=now_ms,
+                        stop_reason = (
+                            "emergency_stop"
+                            if self._stop_signal.is_set()
+                            else "movement_stop_rejected"
                         )
+                        terminal = self._controller.stop(stop_reason, now_ms=now_ms)
                         record(self._trace(terminal, observation=observation))
                         break
             if approach is not None and approach.status is PvEApproachStatus.FAILED:
@@ -497,10 +501,12 @@ class PvERunner:
                             input_reason=reason,
                         )
                     )
-                    terminal = self._controller.stop(
-                        "guarded_input_rejected",
-                        now_ms=now_ms,
+                    stop_reason = (
+                        "emergency_stop"
+                        if self._stop_signal.is_set()
+                        else "guarded_input_rejected"
                     )
+                    terminal = self._controller.stop(stop_reason, now_ms=now_ms)
                     record(self._trace(terminal, observation=observation))
                     break
             record(
@@ -549,7 +555,7 @@ class PvERunner:
                         movement_stop_reason=cleanup_reason,
                     )
                 )
-                if not cleanup_accepted:
+                if not cleanup_accepted and not self._stop_signal.is_set():
                     final_phase = PvEPhase.STOPPED
                     terminal_reason = "movement_stop_rejected"
         return PvERunResult(

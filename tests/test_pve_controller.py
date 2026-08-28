@@ -1677,6 +1677,20 @@ class RecordingPvEDispatcher:
         )
 
 
+class StopRacingPvEDispatcher:
+    def __init__(self, stop: EventEmergencyStop) -> None:
+        self.stop = stop
+
+    def dispatch(self, intent: PvEIntent, *, sequence: int) -> DispatchResult:
+        self.stop.trip()
+        return DispatchResult(
+            adapter_name="pve-test",
+            correlation_id=f"pve-test:{sequence}",
+            accepted=False,
+            reason="emergency stop is set",
+        )
+
+
 class RecordingMovementDispatcher:
     def __init__(self) -> None:
         self.decisions = []
@@ -1711,6 +1725,27 @@ class AdvancingClock:
 
 
 class PvERunnerTests(unittest.TestCase):
+    def test_stop_racing_with_dispatch_is_a_clean_emergency_stop(self) -> None:
+        clock = AdvancingClock()
+        stop = EventEmergencyStop()
+        runner = PvERunner(
+            controller=PvEController(PvEControllerConfig()),
+            health_reader=SequenceHealthSource((_absent(),)),
+            player_vitals_reader=SequencePlayerVitalsSource((_player(),)),
+            combat_log_reader=SequenceCombatLogSource(((),)),
+            dispatcher=StopRacingPvEDispatcher(stop),
+            stop_signal=stop,
+            poll_interval_ms=100,
+            clock=clock,
+            sleeper=clock.sleep,
+        )
+
+        result = runner.run()
+
+        self.assertEqual(PvEPhase.STOPPED, result.final_phase)
+        self.assertEqual("emergency_stop", result.terminal_reason)
+        self.assertFalse(result.trace[0].input_accepted)
+
     def test_runner_journals_every_step_while_retaining_only_a_bounded_tail(self) -> None:
         clock = AdvancingClock()
         journaled = []
