@@ -134,6 +134,25 @@ class GoChatCommandAssembler:
         return None
 
 
+@dataclass(frozen=True, slots=True)
+class PhysicalPointerInteraction:
+    """One non-injected physical pointer press observed over the game."""
+
+    screen_x: int
+    screen_y: int
+    button: str
+
+    def __post_init__(self) -> None:
+        for value, field_name in (
+            (self.screen_x, "screen_x"),
+            (self.screen_y, "screen_y"),
+        ):
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise ValueError(f"{field_name} must be an integer")
+        if self.button not in {"left", "right", "middle", "x"}:
+            raise ValueError("button must identify a supported physical pointer button")
+
+
 class WindowsGoChatCommandListener:
     """Observe keyboard events only while the calibrated game owns foreground focus.
 
@@ -178,6 +197,7 @@ class WindowsGoChatCommandListener:
         *,
         on_command: Callable[[str], None],
         on_interaction: Callable[[], None] | None = None,
+        on_pointer: Callable[[PhysicalPointerInteraction], None] | None = None,
     ) -> None:
         if not isinstance(guard, ForegroundWindowGuard):
             raise ValueError("guard must be ForegroundWindowGuard")
@@ -185,9 +205,12 @@ class WindowsGoChatCommandListener:
             raise ValueError("on_command must be callable")
         if on_interaction is not None and not callable(on_interaction):
             raise ValueError("on_interaction must be callable when present")
+        if on_pointer is not None and not callable(on_pointer):
+            raise ValueError("on_pointer must be callable when present")
         self._guard = guard
         self._on_command = on_command
         self._on_interaction = on_interaction
+        self._on_pointer = on_pointer
         self._assembler = GoChatCommandAssembler()
         self._closed = threading.Event()
         self._ready = threading.Event()
@@ -332,7 +355,18 @@ class WindowsGoChatCommandListener:
                 ).contents
                 if not event.flags & self._LLMHF_INJECTED:
                     try:
-                        self._handle_pointer_interaction()
+                        self._handle_pointer_interaction(
+                            PhysicalPointerInteraction(
+                                screen_x=int(event.point.x),
+                                screen_y=int(event.point.y),
+                                button={
+                                    self._WM_LBUTTONDOWN: "left",
+                                    self._WM_RBUTTONDOWN: "right",
+                                    self._WM_MBUTTONDOWN: "middle",
+                                    self._WM_XBUTTONDOWN: "x",
+                                }[int(message)],
+                            )
+                        )
                     except Exception:
                         self._assembler.reset()
             return int(
@@ -442,7 +476,10 @@ class WindowsGoChatCommandListener:
         if update.submitted_command is not None:
             self._on_command(update.submitted_command)
 
-    def _handle_pointer_interaction(self) -> None:
+    def _handle_pointer_interaction(
+        self,
+        interaction: PhysicalPointerInteraction | None = None,
+    ) -> None:
         try:
             self._guard.require_target()
         except WindowGuardError:
@@ -451,6 +488,8 @@ class WindowsGoChatCommandListener:
         self._assembler.reset()
         if self._on_interaction is not None:
             self._on_interaction()
+        if interaction is not None and self._on_pointer is not None:
+            self._on_pointer(interaction)
 
     @classmethod
     def _character_for(cls, virtual_key: int, *, shift_down: bool) -> str | None:

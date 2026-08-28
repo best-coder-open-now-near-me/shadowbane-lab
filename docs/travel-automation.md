@@ -43,6 +43,19 @@ event. For example:
 /go Black Drake Swamp
 ```
 
+The open world map is also a native destination input: right-click a point on the map to
+start the same closed-loop `/go` route. Left-clicks retain their normal client behavior.
+The listener reads `ArcWorldMapHud`'s live rectangle, hidden state, world dimensions, zoom,
+and pan and applies the client's inverse projection; it does not assume a fixed resolution or
+full-world zoom. A right-click is ignored unless the guarded Shadowbane window owns focus, the
+world map is open, the pixel lies inside its HUD, and the projected LT/LG remains inside the
+active world's bounds. Accepted events use `native_world_map` as their destination source.
+Inspect that read-only projection without clicking with:
+
+```powershell
+python -m shadowbane_lab.cli client observe-native-world-map --json
+```
+
 The installed `WorldDef.cfg` enables client-defined names such as `/go black drake swamp`.
 Runegates are different: the listener reads the active registry populated by the server's
 CityData message and replaces the incomplete baked `WorldDef.cfg` runegate candidates with
@@ -76,6 +89,8 @@ game's input, and retains only text that is still a possible `/go`, `/pve`, or `
 Opening chat cancels the bridge's active operation before more automated input is issued. A
 physical foreground mouse-button press does the same, while the listener ignores mouse input
 injected by its own guarded actuators. This lets manual input take ownership immediately.
+An accepted world-map right-click first revokes the old operation, then starts its replacement
+route from the resolved native coordinate.
 Ordinary chat and all other slash-command prefixes are discarded.
 
 When more than one `sb.exe` process exists, each command binds native position and vitals

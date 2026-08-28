@@ -6,7 +6,11 @@ from shadowbane_lab.client_input import (
     ForegroundWindowGuard,
     StaticWindowInspector,
 )
-from shadowbane_lab.travel import GoChatCommandAssembler, WindowsGoChatCommandListener
+from shadowbane_lab.travel import (
+    GoChatCommandAssembler,
+    PhysicalPointerInteraction,
+    WindowsGoChatCommandListener,
+)
 from tests.test_client_input_compiler import _load_profile
 from tests.test_client_input_executor import _valid_snapshot
 
@@ -140,17 +144,21 @@ class GoChatCommandAssemblerTests(unittest.TestCase):
 
     def test_foreground_physical_pointer_interaction_revokes_active_route(self) -> None:
         interactions: list[str] = []
+        pointer_events: list[PhysicalPointerInteraction] = []
         listener = WindowsGoChatCommandListener(
             ForegroundWindowGuard(_load_profile(), StaticWindowInspector(_valid_snapshot())),
             on_command=lambda _: None,
             on_interaction=lambda: interactions.append("cancel"),
+            on_pointer=pointer_events.append,
         )
         listener._assembler.handle_enter()
         listener._assembler.handle_character("/")
 
-        listener._handle_pointer_interaction()
+        pointer = PhysicalPointerInteraction(800, 400, "right")
+        listener._handle_pointer_interaction(pointer)
 
         self.assertEqual(["cancel"], interactions)
+        self.assertEqual([pointer], pointer_events)
         self.assertFalse(listener._assembler.line_active)
 
 

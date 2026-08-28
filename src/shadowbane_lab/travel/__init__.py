@@ -3,6 +3,7 @@
 from shadowbane_lab.travel.chat import (
     GoChatCommandAssembler,
     GoChatCommandUpdate,
+    PhysicalPointerInteraction,
     WindowsGoChatCommandListener,
 )
 from shadowbane_lab.travel.controller import TravelController
@@ -78,6 +79,7 @@ __all__ = [
     "NavigationCell",
     "NavigationCostGrid",
     "PlayerVitalsSource",
+    "PhysicalPointerInteraction",
     "PositionSource",
     "ResolvedNamedDestination",
     "SparseNavigationMap",

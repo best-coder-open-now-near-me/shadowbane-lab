@@ -69,6 +69,7 @@ from shadowbane_lab.client_observation import (
     NativeTargetPositionProfileLoadError,
     NativeTrainingProfileLoadError,
     NativeVitalsProfileLoadError,
+    NativeWorldMapError,
     NativeZoneProfileLoadError,
     ObservationCalibrationLoadError,
     ObservationDetectionError,
@@ -85,6 +86,7 @@ from shadowbane_lab.client_observation import (
     load_bundled_native_target_position_profile,
     load_bundled_native_training_profile,
     load_bundled_native_vitals_profile,
+    load_bundled_native_world_map_profile,
     load_bundled_native_zone_profile,
     load_native_character_population_profile,
     load_native_group_profile,
@@ -98,6 +100,7 @@ from shadowbane_lab.client_observation import (
     load_native_target_position_profile,
     load_native_training_profile,
     load_native_vitals_profile,
+    load_native_world_map_profile,
     load_native_zone_profile,
     load_observation_calibration,
     open_windows_native_character_population_reader,
@@ -113,6 +116,7 @@ from shadowbane_lab.client_observation import (
     open_windows_native_target_health_reader,
     open_windows_native_target_identity_reader,
     open_windows_native_target_position_reader,
+    open_windows_native_world_map_reader,
 )
 from shadowbane_lab.progression import (
     audit_proc_assassin_training,
@@ -137,6 +141,7 @@ from shadowbane_lab.pve import (
 )
 from shadowbane_lab.travel import (
     ClientTravelDecisionDispatcher,
+    PhysicalPointerInteraction,
     SparseNavigationMap,
     TravelController,
     TravelControllerConfig,
@@ -354,6 +359,19 @@ def _parser() -> argparse.ArgumentParser:
         help="native runegate profile; defaults to the verified bundled WonderBane build",
     )
     observe_native_runegates.add_argument(
+        "--json", action="store_true", help="emit machine-readable JSON"
+    )
+
+    observe_native_world_map = client_commands.add_parser(
+        "observe-native-world-map",
+        help="read the live world-map bounds, visibility, zoom, and pan",
+    )
+    observe_native_world_map.add_argument(
+        "--profile",
+        type=Path,
+        help="native world-map profile; defaults to the verified bundled WonderBane build",
+    )
+    observe_native_world_map.add_argument(
         "--json", action="store_true", help="emit machine-readable JSON"
     )
 
@@ -601,6 +619,7 @@ def _parser() -> argparse.ArgumentParser:
     listen_go.add_argument("--native-position-profile", type=Path)
     listen_go.add_argument("--native-vitals-profile", type=Path)
     listen_go.add_argument("--native-runegate-profile", type=Path)
+    listen_go.add_argument("--native-world-map-profile", type=Path)
     listen_go.add_argument(
         "--world-def",
         type=Path,
@@ -1319,6 +1338,58 @@ def _observe_native_runegates(profile_path: Path | None, *, as_json: bool) -> in
                 f"{label}: LT {runegate.lt:.2f}, LG {runegate.lg:.2f}, "
                 f"ALT {runegate.altitude:.2f}"
             )
+    return 0
+
+
+def _observe_native_world_map(profile_path: Path | None, *, as_json: bool) -> int:
+    try:
+        profile = (
+            load_native_world_map_profile(profile_path)
+            if profile_path is not None
+            else load_bundled_native_world_map_profile()
+        )
+        with open_windows_native_world_map_reader(profile) as reader:
+            observation = reader.observe()
+            process_id = reader.process_id
+    except (NativeWorldMapError, OSError, ValueError) as exc:
+        return _error(f"native world-map observation failed: {exc}", as_json=as_json)
+    payload = {
+        "ok": True,
+        "profile_id": profile.profile_id,
+        "process_id": process_id,
+        "is_open": observation.is_open,
+        "rectangle": {
+            "left": observation.left,
+            "top": observation.top,
+            "right": observation.right,
+            "bottom": observation.bottom,
+        },
+        "padding": {
+            "left": observation.left_padding,
+            "top": observation.top_padding,
+            "right": observation.right_padding,
+            "bottom": observation.bottom_padding,
+        },
+        "zoom": observation.zoom,
+        "pan": {
+            "horizontal": observation.horizontal_pan,
+            "vertical": observation.vertical_pan,
+        },
+        "world": {
+            "length": observation.world_length,
+            "width": observation.world_width,
+        },
+        "snapshot_token": observation.snapshot_token,
+    }
+    if as_json:
+        print(json.dumps(payload, sort_keys=True))
+    else:
+        state = "open" if observation.is_open else "closed"
+        print(
+            f"World map {state}: ({observation.left}, {observation.top})-"
+            f"({observation.right}, {observation.bottom}), zoom {observation.zoom:g}, "
+            f"pan ({observation.horizontal_pan}, {observation.vertical_pan})"
+        )
     return 0
 
 
@@ -2562,6 +2633,7 @@ def _listen_for_go_commands(
     pve_continuous: bool = False,
     pve_camp_radius: float = 120.0,
     pve_retained_trace_steps: int = 2_000,
+    native_world_map_profile_path: Path | None = None,
 ) -> int:
     if not live:
         return _error("chat travel requires the explicit --live flag", as_json=as_json)
@@ -2589,6 +2661,11 @@ def _listen_for_go_commands(
                 else load_bundled_native_runegate_registry_profile()
             )
         )
+        world_map_profile = (
+            load_native_world_map_profile(native_world_map_profile_path)
+            if native_world_map_profile_path is not None
+            else load_bundled_native_world_map_profile()
+        )
         if pve_client_profile_path is not None:
             pve_profile = load_calibration(pve_client_profile_path)
             if not pve_profile.live_input_enabled:
@@ -2614,7 +2691,7 @@ def _listen_for_go_commands(
     ) as exc:
         return _error(f"chat control failed: {exc}", as_json=as_json)
 
-    commands: queue.Queue[str] = queue.Queue()
+    commands: queue.Queue[str | PhysicalPointerInteraction] = queue.Queue()
     active_lock = threading.Lock()
     active_operation_stop: EventEmergencyStop | None = None
 
@@ -2626,6 +2703,12 @@ def _listen_for_go_commands(
     def submit_command(command: str) -> None:
         commands.put(command)
 
+    def submit_pointer(interaction: PhysicalPointerInteraction) -> None:
+        if interaction.button == "right":
+            commands.put(interaction)
+
+    world_map_reader = None
+
     try:
         with (
             WindowsHotkeyEmergencyStop() as service_stop,
@@ -2633,6 +2716,7 @@ def _listen_for_go_commands(
                 guard,
                 on_command=submit_command,
                 on_interaction=cancel_active_operation,
+                on_pointer=submit_pointer,
             ),
             WindowsZoneSearchOverlay() as zone_overlay,
         ):
@@ -2648,11 +2732,21 @@ def _listen_for_go_commands(
             _print_go_listener_event("listening", as_json=as_json)
             while not service_stop.is_set():
                 try:
-                    command = commands.get(timeout=0.1)
+                    interaction = commands.get(timeout=0.1)
                 except queue.Empty:
                     continue
 
-                normalized = command.strip().casefold()
+                pointer_destination = None
+                destination_source = None
+                if isinstance(interaction, PhysicalPointerInteraction):
+                    command = (
+                        "world-map right-click "
+                        f"({interaction.screen_x}, {interaction.screen_y})"
+                    )
+                    normalized = None
+                else:
+                    command = interaction
+                    normalized = command.strip().casefold()
                 named_resolution = None
                 if normalized == "/stop":
                     stop_sequence += 1
@@ -2677,7 +2771,35 @@ def _listen_for_go_commands(
                         reason=str(exc),
                     )
                     continue
-                if normalized == "/zone" or normalized.startswith("/zone "):
+                if isinstance(interaction, PhysicalPointerInteraction):
+                    try:
+                        if (
+                            world_map_reader is None
+                            or world_map_reader.process_id != command_process_id
+                        ):
+                            if world_map_reader is not None:
+                                world_map_reader.close()
+                            world_map_reader = open_windows_native_world_map_reader(
+                                world_map_profile,
+                                process_id=command_process_id,
+                            )
+                        point = world_map_reader.resolve_screen_point(
+                            interaction.screen_x,
+                            interaction.screen_y,
+                        )
+                        pointer_destination = TravelDestination(point.lt, point.lg)
+                        destination_source = "native_world_map"
+                    except (NativeWorldMapError, OSError, RuntimeError, ValueError) as exc:
+                        _print_go_listener_event(
+                            "world_map_click_ignored",
+                            as_json=as_json,
+                            command=command,
+                            reason=str(exc),
+                        )
+                        continue
+                if normalized is not None and (
+                    normalized == "/zone" or normalized.startswith("/zone ")
+                ):
                     try:
                         query = parse_zone_search_command(command)
                         if named_catalog is None:
@@ -2768,7 +2890,12 @@ def _listen_for_go_commands(
                             if active_operation_stop is operation_stop:
                                 active_operation_stop = None
                     continue
-                if normalized == "/go":
+                if pointer_destination is not None:
+                    destination = pointer_destination
+                    lt = destination.lt
+                    lg = destination.lg
+                    radius = destination.arrival_radius
+                elif normalized == "/go":
                     lt = None
                     lg = None
                     radius = None
@@ -2845,7 +2972,7 @@ def _listen_for_go_commands(
                             else named_resolution.candidate_count
                         ),
                         destination_source=(
-                            None
+                            destination_source
                             if named_resolution is None
                             else named_resolution.source
                         ),
@@ -2875,6 +3002,9 @@ def _listen_for_go_commands(
         pass
     except (OSError, RuntimeError, ValueError) as exc:
         return _error(f"chat control failed: {exc}", as_json=as_json)
+    finally:
+        if world_map_reader is not None:
+            world_map_reader.close()
 
     _print_go_listener_event("stopped", as_json=as_json)
     return 0
@@ -2930,6 +3060,8 @@ def _print_go_listener_event(
             else f" -> {resolved_name} at LT {lt:g}, LG {lg:g}"
         )
         print(f"Accepted chat command: {command}{detail}", flush=True)
+    elif event == "world_map_click_ignored":
+        print(f"Ignored {command}: {reason}", flush=True)
     else:
         print(f"Rejected chat command {command!r}: {reason}", file=sys.stderr, flush=True)
 
@@ -3114,6 +3246,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         and arguments.client_command == "observe-native-runegates"
     ):
         return _observe_native_runegates(arguments.profile, as_json=arguments.json)
+    if (
+        arguments.command == "client"
+        and arguments.client_command == "observe-native-world-map"
+    ):
+        return _observe_native_world_map(arguments.profile, as_json=arguments.json)
     if arguments.command == "client" and arguments.client_command == "observe-native-player":
         return _observe_native_player(arguments.profile, as_json=arguments.json)
     if arguments.command == "client" and arguments.client_command == "observe-native-position":
@@ -3199,6 +3336,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             native_position_profile_path=arguments.native_position_profile,
             native_vitals_profile_path=arguments.native_vitals_profile,
             native_runegate_profile_path=arguments.native_runegate_profile,
+            native_world_map_profile_path=arguments.native_world_map_profile,
             world_def_path=arguments.world_def,
             named_destination_overrides_path=arguments.named_destination_overrides,
             pve_client_profile_path=arguments.pve_client_profile,
