@@ -20,6 +20,7 @@ from shadowbane_lab.client_observation.native_vendor_dialog import (
     NativeVendorDialogTracer,
     NativeVendorDialogTraceSummary,
     load_bundled_native_vendor_dialog_profile,
+    load_bundled_native_vendor_dialog_profiles,
 )
 
 
@@ -247,6 +248,18 @@ class NativeVendorDialogProfileTests(unittest.TestCase):
         self.assertEqual(0x3614D0, breakpoints["inbound_entry"])
         self.assertEqual(0x361A29, breakpoints["outbound_complete"])
 
+    def test_bundled_profiles_cover_original_and_text_fix_executables(self) -> None:
+        profiles = load_bundled_native_vendor_dialog_profiles()
+
+        self.assertEqual(
+            {
+                "ef43784ba6ffa0de6c0c16c76569f864393ad1530e7149395bb560e5cca30f13",
+                "2b186aef864ea1ce16d8ec959c450f1f2e301d1ba25d9daa3b14ab6c65d68c3d",
+            },
+            {profile.executable_sha256 for profile in profiles},
+        )
+        self.assertEqual(1, len({profile.message_vtable_rva for profile in profiles}))
+
 
 class FakeCliTracer:
     backend = SimpleNamespace(pid=77)
@@ -283,12 +296,8 @@ class NativeVendorDialogCliTests(unittest.TestCase):
             evidence = Path(temporary_directory) / "pelt.jsonl"
             with (
                 patch(
-                    "shadowbane_lab.cli.load_bundled_native_vendor_dialog_profile",
-                    return_value=_profile(),
-                ),
-                patch(
-                    "shadowbane_lab.cli.open_windows_native_vendor_dialog_tracer",
-                    return_value=tracer,
+                    "shadowbane_lab.cli.open_windows_bundled_native_vendor_dialog_tracer",
+                    return_value=(_profile(), tracer),
                 ),
                 redirect_stdout(output),
                 redirect_stderr(errors),

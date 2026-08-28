@@ -210,8 +210,10 @@ from shadowbane_lab.client_observation.native_vendor_dialog import (
     NativeVendorDialogTraceSummary,
     WindowsVendorDialogDebugBackend,
     load_bundled_native_vendor_dialog_profile,
+    load_bundled_native_vendor_dialog_profiles,
     load_native_vendor_dialog_profile,
     load_native_vendor_dialog_profile_text,
+    open_windows_bundled_native_vendor_dialog_tracer,
     open_windows_native_vendor_dialog_tracer,
 )
 from shadowbane_lab.client_observation.native_vitals import (
@@ -440,6 +442,7 @@ __all__ = [
     "load_bundled_native_world_map_profile",
     "load_bundled_native_training_profile",
     "load_bundled_native_vendor_dialog_profile",
+    "load_bundled_native_vendor_dialog_profiles",
     "load_bundled_native_target_position_profile",
     "load_bundled_native_target_action_profile",
     "load_bundled_native_target_identity_profile",
@@ -488,6 +491,7 @@ __all__ = [
     "open_windows_native_world_map_reader",
     "open_windows_native_player_training_reader",
     "open_windows_native_vendor_dialog_tracer",
+    "open_windows_bundled_native_vendor_dialog_tracer",
     "open_windows_native_player_vitals_reader",
     "open_windows_native_current_zone_reader",
     "open_windows_native_group_reader",
