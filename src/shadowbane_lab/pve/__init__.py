@@ -18,8 +18,10 @@ from shadowbane_lab.pve.calibration import (
 )
 from shadowbane_lab.pve.controller import PvEController
 from shadowbane_lab.pve.evidence import (
+    PVE_TRACE_JOURNAL_SCHEMA_VERSION,
     PVE_TRACE_SCHEMA_VERSION,
     PvETraceEvidenceError,
+    PvETraceJournal,
     load_pve_trace_evidence,
     save_pve_trace_evidence,
     validate_pve_trace_evidence,
@@ -55,6 +57,7 @@ __all__ = [
     "EmptyCombatLogSource",
     "ObservedSampleSummary",
     "PVE_COMBAT_CALIBRATION_SCHEMA_VERSION",
+    "PVE_TRACE_JOURNAL_SCHEMA_VERSION",
     "PVE_TRACE_SCHEMA_VERSION",
     "PvEApproachConfig",
     "PvEApproachController",
@@ -74,6 +77,7 @@ __all__ = [
     "PvEObservation",
     "PvEPhase",
     "PvETraceEvidenceError",
+    "PvETraceJournal",
     "PvERunResult",
     "PvERunTraceStep",
     "PvERunner",

@@ -119,6 +119,7 @@ from shadowbane_lab.pve import (
     PvEIntent,
     PvERunner,
     PvETraceEvidenceError,
+    PvETraceJournal,
     compile_pve_combat_calibration_files,
     save_pve_combat_calibration,
     save_pve_trace_evidence,
@@ -415,7 +416,7 @@ def _parser() -> argparse.ArgumentParser:
 
     run_pve = client_commands.add_parser(
         "run-pve",
-        help="run a bounded native-observation PvE loop against nearby mobiles",
+        help="run native-observation PvE against nearby mobiles",
     )
     run_pve.add_argument("--client-profile", type=Path, required=True)
     run_pve.add_argument(
@@ -450,6 +451,23 @@ def _parser() -> argparse.ArgumentParser:
     run_pve.add_argument("--max-kills", type=int, default=1)
     run_pve.add_argument("--max-seconds", type=float, default=120.0)
     run_pve.add_argument("--max-encounter-seconds", type=float, default=120.0)
+    run_pve.add_argument(
+        "--continuous",
+        action="store_true",
+        help="run until explicitly stopped while remaining inside the starting camp",
+    )
+    run_pve.add_argument(
+        "--camp-radius",
+        type=float,
+        default=120.0,
+        help="continuous target-admission radius around the starting LT/LG",
+    )
+    run_pve.add_argument(
+        "--retained-trace-steps",
+        type=int,
+        default=2_000,
+        help="maximum continuous trace tail retained in memory",
+    )
     run_pve.add_argument("--recovery-timeout-seconds", type=float, default=30.0)
     run_pve.add_argument("--recovery-health-fraction", type=float, default=0.75)
     run_pve.add_argument("--recovery-mana-fraction", type=float, default=0.15)
@@ -459,14 +477,14 @@ def _parser() -> argparse.ArgumentParser:
     run_pve.add_argument(
         "--evidence-output",
         type=Path,
-        help="atomically write the complete versioned live PvE trace as JSON",
+        help="write final versioned evidence; continuous mode adds a JSONL journal",
     )
     run_pve.add_argument(
         "--policy",
         choices=("basic", "proc-assassin"),
         default="basic",
         help=(
-            "bounded control policy; proc-assassin accepts auto-targets and uses "
+            "control policy; proc-assassin accepts auto-targets and uses "
             "Shadow Touch to interrupt a native queued attack"
         ),
     )
@@ -565,6 +583,13 @@ def _parser() -> argparse.ArgumentParser:
     listen_go.add_argument("--pve-max-kills", type=int, default=3)
     listen_go.add_argument("--pve-max-seconds", type=float, default=300.0)
     listen_go.add_argument("--pve-max-encounter-seconds", type=float, default=120.0)
+    listen_go.add_argument(
+        "--pve-continuous",
+        action="store_true",
+        help="make /pve run until stopped inside a camp anchored at startup",
+    )
+    listen_go.add_argument("--pve-camp-radius", type=float, default=120.0)
+    listen_go.add_argument("--pve-retained-trace-steps", type=int, default=2_000)
     listen_go.add_argument("--pve-recovery-timeout-seconds", type=float, default=30.0)
     listen_go.add_argument("--pve-poll-ms", type=int, default=100)
     listen_go.add_argument("--max-seconds", type=float, default=300.0)
@@ -1591,11 +1616,31 @@ def _run_pve(
     recovery_stamina_fraction: float = 0.25,
     stop_signal: StopSignal | None = None,
     client_process_id: int | None = None,
+    continuous: bool = False,
+    camp_radius: float = 120.0,
+    retained_trace_steps: int = 2_000,
 ) -> int:
     if not live:
         return _error("PvE execution requires the explicit --live flag", as_json=as_json)
     if isinstance(max_kills, bool) or not 1 <= max_kills <= 10:
         return _error("max-kills must be in [1, 10]", as_json=as_json)
+    if not isinstance(continuous, bool):
+        return _error("continuous must be a boolean", as_json=as_json)
+    if not 20.0 <= camp_radius <= 1_000.0:
+        return _error("camp-radius must be in [20, 1000]", as_json=as_json)
+    if (
+        isinstance(retained_trace_steps, bool)
+        or not 100 <= retained_trace_steps <= 100_000
+    ):
+        return _error(
+            "retained-trace-steps must be in [100, 100000]",
+            as_json=as_json,
+        )
+    if continuous and evidence_output_path is None:
+        return _error(
+            "continuous PvE requires --evidence-output for its durable journal",
+            as_json=as_json,
+        )
     if not 1.0 <= max_seconds <= 900.0:
         return _error("max-seconds must be in [1, 900]", as_json=as_json)
     if not 5.0 <= max_encounter_seconds <= 300.0:
@@ -1630,6 +1675,11 @@ def _run_pve(
             return _error("combat-source log requires --combat-log", as_json=as_json)
         if not combat_log_path.is_file():
             return _error(f"combat log does not exist: {combat_log_path}", as_json=as_json)
+    journal_path = (
+        evidence_output_path.with_name(f"{evidence_output_path.stem}.events.jsonl")
+        if continuous and evidence_output_path is not None
+        else None
+    )
     terrain_navigation_payload: dict[str, object] = {
         "enabled": navigation_cache_directory is not None,
         "status": "not_configured",
@@ -1662,6 +1712,8 @@ def _run_pve(
                 maximum_stalled_retargets=4 if policy == "proc-assassin" else 0,
                 nearest_target_sample_count=6,
                 target_sample_interval_ms=350,
+                continuous=continuous,
+                camp_radius=camp_radius if continuous else None,
             )
         )
         mapped_actions = {mapping.action_key for mapping in client_profile.actions}
@@ -1891,6 +1943,24 @@ def _run_pve(
                 DecisionInputCompiler(client_profile, StaticBindingPointResolver()),
                 executor,
             )
+            journal = (
+                None
+                if journal_path is None
+                else stack.enter_context(
+                    PvETraceJournal(
+                        journal_path,
+                        {
+                            "run_mode": "continuous",
+                            "policy": policy,
+                            "process_id": process_id,
+                            "executable_sha256": health_profile.executable_sha256,
+                            "camp_radius": camp_radius,
+                            "poll_ms": poll_ms,
+                            "terrain_navigation": terrain_navigation_payload,
+                        },
+                    )
+                )
+            )
             result = PvERunner(
                 controller=controller,
                 health_reader=health_reader,
@@ -1908,7 +1978,24 @@ def _run_pve(
                 movement_dispatcher=ClientTravelDecisionDispatcher(adapter),
                 stop_signal=active_stop_signal,
                 poll_interval_ms=poll_ms,
+                maximum_retained_trace_steps=(
+                    retained_trace_steps if continuous else None
+                ),
+                trace_sink=(
+                    None
+                    if journal is None
+                    else lambda step: journal.append_step(step.as_dict())
+                ),
             ).run()
+            if journal is not None:
+                journal.finish(
+                    {
+                        "final_phase": result.final_phase.value,
+                        "terminal_reason": result.terminal_reason,
+                        "kills": result.kills,
+                        "total_steps": getattr(result, "total_steps", len(result.trace)),
+                    }
+                )
     except (
         CalibrationLoadError,
         ArcaneHotbarLoadError,
@@ -1945,23 +2032,57 @@ def _run_pve(
         for step in result.trace
         if step.decision.intent is not None
     ]
+    total_steps = getattr(result, "total_steps", len(result.trace))
+    trace_truncated = getattr(result, "trace_truncated", total_steps > len(result.trace))
+    camp = controller.camp
+    successful = result.final_phase.value == "complete" or (
+        continuous and result.terminal_reason == "emergency_stop"
+    )
     payload = {
         "trace_schema_version": PVE_TRACE_SCHEMA_VERSION,
-        "ok": result.final_phase.value == "complete",
+        "ok": successful,
         "final_phase": result.final_phase.value,
         "terminal_reason": result.terminal_reason,
+        "run_mode": "continuous" if continuous else "bounded",
         "policy": policy,
         "kills": result.kills,
         "steps": len(result.trace),
-        "farm_limits": {
-            "maximum_kills": max_kills,
-            "maximum_session_seconds": max_seconds,
-            "maximum_encounter_seconds": max_encounter_seconds,
-            "recovery_timeout_seconds": recovery_timeout_seconds,
-            "recovery_health_fraction": recovery_health_fraction,
-            "recovery_mana_fraction": recovery_mana_fraction,
-            "recovery_stamina_fraction": recovery_stamina_fraction,
-        },
+        "total_steps": total_steps,
+        "trace_truncated": trace_truncated,
+        "journal_path": None if journal_path is None else str(journal_path),
+        "camp_lease": (
+            None
+            if camp is None
+            else {
+                "anchor_lt": camp.anchor_lt,
+                "anchor_lg": camp.anchor_lg,
+                "radius": camp.radius,
+                "return_radius": camp.return_radius,
+            }
+        ),
+        "farm_limits": (
+            None
+            if continuous
+            else {
+                "maximum_kills": max_kills,
+                "maximum_session_seconds": max_seconds,
+                "maximum_encounter_seconds": max_encounter_seconds,
+                "recovery_timeout_seconds": recovery_timeout_seconds,
+                "recovery_health_fraction": recovery_health_fraction,
+                "recovery_mana_fraction": recovery_mana_fraction,
+                "recovery_stamina_fraction": recovery_stamina_fraction,
+            }
+        ),
+        "continuous_policy": (
+            None
+            if not continuous
+            else {
+                "camp_radius": camp_radius,
+                "retained_trace_steps": retained_trace_steps,
+                "encounter_timeout_seconds": max_encounter_seconds,
+                "failed_targets_expire": True,
+            }
+        ),
         "dispatched": dispatched,
         "native_observation": {
             "process_id": process_id,
@@ -2233,6 +2354,9 @@ def _listen_for_go_commands(
     click_interval_ms: int,
     live: bool,
     as_json: bool,
+    pve_continuous: bool = False,
+    pve_camp_radius: float = 120.0,
+    pve_retained_trace_steps: int = 2_000,
 ) -> int:
     if not live:
         return _error("chat travel requires the explicit --live flag", as_json=as_json)
@@ -2260,6 +2384,8 @@ def _listen_for_go_commands(
             )
         if pve_evidence_directory is not None:
             pve_evidence_directory.mkdir(parents=True, exist_ok=True)
+        if pve_continuous and pve_evidence_directory is None:
+            raise ValueError("continuous /pve requires a PvE evidence directory")
     except (
         ArcaneHotbarLoadError,
         CalibrationLoadError,
@@ -2377,6 +2503,9 @@ def _listen_for_go_commands(
                             combat_source="state",
                             stop_signal=AnyStopSignal(service_stop, operation_stop),
                             client_process_id=command_process_id,
+                            continuous=pve_continuous,
+                            camp_radius=pve_camp_radius,
+                            retained_trace_steps=pve_retained_trace_steps,
                         )
                     finally:
                         with active_lock:
@@ -2712,6 +2841,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             live=arguments.live,
             as_json=arguments.json,
             evidence_output_path=arguments.evidence_output,
+            continuous=arguments.continuous,
+            camp_radius=arguments.camp_radius,
+            retained_trace_steps=arguments.retained_trace_steps,
         )
     if arguments.command == "client" and arguments.client_command == "go":
         return _run_travel(
@@ -2745,6 +2877,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             pve_max_encounter_seconds=arguments.pve_max_encounter_seconds,
             pve_recovery_timeout_seconds=arguments.pve_recovery_timeout_seconds,
             pve_poll_ms=arguments.pve_poll_ms,
+            pve_continuous=arguments.pve_continuous,
+            pve_camp_radius=arguments.pve_camp_radius,
+            pve_retained_trace_steps=arguments.pve_retained_trace_steps,
             max_seconds=arguments.max_seconds,
             wait_for_client_seconds=arguments.wait_for_client_seconds,
             poll_ms=arguments.poll_ms,

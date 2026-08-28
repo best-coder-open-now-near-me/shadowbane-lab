@@ -744,6 +744,8 @@ class PvERunResult:
     terminal_reason: str
     kills: int
     trace: tuple[PvERunTraceStep, ...]
+    total_steps: int
+    trace_truncated: bool
 
     def __post_init__(self) -> None:
         if self.final_phase not in (PvEPhase.COMPLETE, PvEPhase.STOPPED):
@@ -753,3 +755,10 @@ class PvERunResult:
         _non_negative_integer(self.kills, "kills")
         if any(not isinstance(step, PvERunTraceStep) for step in self.trace):
             raise ValueError("trace must contain PvERunTraceStep values")
+        _non_negative_integer(self.total_steps, "total_steps")
+        if self.total_steps < len(self.trace):
+            raise ValueError("total_steps cannot be below retained trace length")
+        if not isinstance(self.trace_truncated, bool):
+            raise ValueError("trace_truncated must be boolean")
+        if self.trace_truncated != (self.total_steps > len(self.trace)):
+            raise ValueError("trace_truncated must match the retained trace length")

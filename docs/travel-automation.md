@@ -13,7 +13,7 @@ python -m shadowbane_lab.cli client listen-go `
 
 Inside the configured VM, the checked-in launcher starts the same listener in a hidden
 process, upgrades a legacy travel-only listener without creating a duplicate, enables the
-bounded `/pve` battle command from the current verified hotbar, and writes JSON Lines status
+camp-scoped continuous `/pve` battle command from the current verified hotbar, and writes JSON Lines status
 plus errors to the `codexdiag` shared folder:
 
 ```powershell
@@ -39,12 +39,17 @@ transition to Oblivion; the travel controller stops at that Runegate and does no
 portal automatically. Unknown names fail closed and appear as rejected events in the listener
 log.
 
-Enter `/pve` to run the configured three-kill, five-minute bounded proc-Assassin battle loop.
+Enter `/pve` to run the continuous proc-Assassin battle loop inside a 120-unit lease centered on
+the exact LT/LG where the command starts. It returns toward that anchor when the camp is empty or
+the player drifts, and it remains active until `/stop`, manual interaction, the emergency hotkey,
+player death, a health-safety stop, or a hard observation/input failure.
 The in-game command uses exact target health, player vitals, positions, and target action state;
 it also projects the active zone's cache-backed height field into its weighted-A* approach map,
 adds high traversal cost for explicit zone-local water, then layers stall-learned obstacles onto
 that static seed. It does not require the native message HUD to contain a current transcript. Each run writes a
-uniquely named evidence artifact beside the listener logs. Use `/stop` to
+uniquely named final evidence artifact and an incrementally flushed JSONL journal beside the
+listener logs. The in-memory trace is a bounded tail rather than an ever-growing session log.
+Use `/stop` to
 cancel either an active battle or route and immediately clear Shadowbane's last click-to-move
 destination through the same guarded minimap-center input path. The listener observes keyboard
 events only while the calibrated `sb.exe` window owns foreground focus, never suppresses the

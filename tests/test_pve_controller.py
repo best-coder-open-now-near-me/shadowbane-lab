@@ -335,6 +335,69 @@ class PvEControllerTests(unittest.TestCase):
         self.assertEqual(PvEPhase.POST_KILL, killed.phase)
         self.assertFalse(killed.terminal)
 
+    def test_continuous_stalled_target_exclusion_expires_after_camp_idle(self) -> None:
+        controller = PvEController(
+            PvEControllerConfig(
+                continuous=True,
+                camp_radius=50.0,
+                camp_idle_ms=500,
+                failed_target_cooldown_ms=500,
+            )
+        )
+        controller.step(
+            _observation(
+                0,
+                _absent(),
+                player_position=_player_position(),
+                target_position=_target_position(None),
+            )
+        )
+        controller.step(
+            _observation(
+                100,
+                _target("mob"),
+                player_position=_player_position(),
+                target_position=_target_position("mob"),
+            )
+        )
+        abandoned = controller.step(
+            _observation(
+                2_600,
+                _target("mob"),
+                player_position=_player_position(),
+                target_position=_target_position("mob"),
+            )
+        )
+        idle = controller.step(
+            _observation(
+                2_700,
+                _target("mob"),
+                player_position=_player_position(),
+                target_position=_target_position("mob"),
+            )
+        )
+        controller.step(
+            _observation(
+                3_200,
+                _absent(),
+                player_position=_player_position(),
+                target_position=_target_position(None),
+            )
+        )
+        retried = controller.step(
+            _observation(
+                3_300,
+                _target("mob"),
+                player_position=_player_position(),
+                target_position=_target_position("mob"),
+            )
+        )
+
+        self.assertEqual(PvEPhase.SEEKING, abandoned.phase)
+        self.assertEqual(PvEPhase.CAMP_IDLE, idle.phase)
+        self.assertEqual(PvEPhase.ENGAGED, retried.phase)
+        self.assertFalse(retried.terminal)
+
     def test_spatial_observation_derives_coherent_target_ranges(self) -> None:
         observation = PvEObservation(
             now_ms=0,
@@ -1648,6 +1711,32 @@ class AdvancingClock:
 
 
 class PvERunnerTests(unittest.TestCase):
+    def test_runner_journals_every_step_while_retaining_only_a_bounded_tail(self) -> None:
+        clock = AdvancingClock()
+        journaled = []
+        runner = PvERunner(
+            controller=PvEController(PvEControllerConfig(maximum_kills=1)),
+            health_reader=SequenceHealthSource(
+                (_absent(), _target("mob"), _target("mob", current=0.0))
+            ),
+            player_vitals_reader=SequencePlayerVitalsSource((_player(),) * 3),
+            combat_log_reader=SequenceCombatLogSource(((),) * 3),
+            dispatcher=RecordingPvEDispatcher(),
+            stop_signal=EventEmergencyStop(),
+            maximum_retained_trace_steps=2,
+            trace_sink=journaled.append,
+            poll_interval_ms=100,
+            clock=clock,
+            sleeper=clock.sleep,
+        )
+
+        result = runner.run()
+
+        self.assertEqual(3, result.total_steps)
+        self.assertTrue(result.trace_truncated)
+        self.assertEqual([1, 2], [step.decision.decision_id for step in result.trace])
+        self.assertEqual([0, 1, 2], [step.decision.decision_id for step in journaled])
+
     def test_state_combat_source_never_invents_text_events(self) -> None:
         source = EmptyCombatLogSource()
 

@@ -10,6 +10,11 @@ param(
     [string] $PveNavigationCacheDirectory = "$env:USERPROFILE\Downloads\WonderbaneClient\Wonderbane\cache",
     [ValidateRange(1, 10)]
     [int] $PveMaxKills = 3,
+    [ValidateRange(20, 1000)]
+    [double] $PveCampRadius = 120,
+    [ValidateRange(100, 100000)]
+    [int] $PveRetainedTraceSteps = 2000,
+    [switch] $BoundedPve,
     [string] $LogDirectory = "\\VBOXSVR\codexdiag"
 )
 
@@ -96,6 +101,8 @@ $arguments = @(
     "--pve-max-encounter-seconds", "120",
     "--pve-recovery-timeout-seconds", "30",
     "--pve-poll-ms", "100",
+    "--pve-camp-radius", "$PveCampRadius",
+    "--pve-retained-trace-steps", "$PveRetainedTraceSteps",
     "--max-seconds", "300",
     "--wait-for-client-seconds", "10",
     "--poll-ms", "200",
@@ -103,6 +110,9 @@ $arguments = @(
     "--live",
     "--json"
 )
+if (-not $BoundedPve) {
+    $arguments += "--pve-continuous"
+}
 
 $process = Start-Process `
     -FilePath $PythonPath `

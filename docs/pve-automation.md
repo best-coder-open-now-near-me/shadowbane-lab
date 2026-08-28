@@ -1,15 +1,19 @@
-# Bounded PvE automation
+# Camp-scoped PvE automation
 
-The live PvE slice repeatedly acquires nearby mobiles, attacks only a newly confirmed living
-target, waits for bounded resource recovery after each kill, and stops at explicit kill,
-encounter, recovery, or session limits. It consumes exact player vitals and position,
+The live PvE slice repeatedly acquires nearby mobiles and attacks only a newly confirmed living
+target. The persistent `/pve` command runs continuously inside a spatial lease centered on the
+player's exact LT/LG when the command starts. Targets outside that camp radius are never admitted;
+an empty camp becomes an idle respawn wait, and drift is routed back to the anchor through the
+same terrain-seeded A* controller. The one-shot command retains its bounded kill, encounter,
+recovery, and session limits for validation runs. Both modes consume exact player vitals and position,
 selected-target health, position, action state, local-player animation state, and native
 service-role identity. Native message events are optional evidence;
 the persistent in-game command does not depend on a populated message HUD.
 
 ## Control loop
 
-The controller progresses through `INITIALIZING`, `SEEKING`, `ENGAGED`, and `POST_KILL`.
+The controller progresses through `INITIALIZING`, `SEEKING`, `OPENING`, `ENGAGED`,
+`POST_KILL`, and, in continuous mode, `CAMP_IDLE`.
 It records the initially selected object's opaque token, sends `Target Next Mob`, and will
 attack only after observing a different, valid target token. A kill must be confirmed by a
 typed native `TARGET_KILLED` event or exact selected-target health reaching zero before it
@@ -111,14 +115,15 @@ input if `shadowbane.assassin.shadow_touch` is absent. The dry-run replay exerci
 cycle, automatic selection, attack interruption, automatic attack observation, and the bounded direct-attack
 fallback through the same guarded input compiler and executor without touching the VM.
 
-The farming loop separates the total session bound from a per-encounter bound. The verified
+The bounded farming loop separates the total session bound from a per-encounter bound. The verified
 live target started 61 units away, `Attack Selected` closed to melee range, and automatic
 attacks removed about 2,400 of 5,526 health during the first 28 seconds. The former 30-second
 ceiling was therefore too short for that target. The default encounter allowance is now 120
 seconds, while the no-progress detector still retries or abandons stalled targets much sooner.
 After a confirmed kill, the controller waits for 75% health, 15% mana, and 25% stamina before
-acquiring another mob. If those floors are not reached within 30 seconds, the run stops rather
-than entering another fight depleted.
+acquiring another mob. A bounded run stops if those floors are not reached within 30 seconds.
+A continuous run keeps waiting—while the independent 50% health safety stop remains active—so
+a temporary mana or stamina deficit cannot end an otherwise healthy camp session.
 
 ## Fail-closed behavior
 
@@ -129,20 +134,25 @@ The run stops without issuing more input when any of these conditions occurs:
 - native process identity or executable hash validation fails;
 - three consecutive native observation polls fail pointer, health, identity, action, or resource validation;
 - exact player health reaches the 50-percent safety threshold;
-- the selected target changes while an engagement is active;
 - the native message HUD reports player death or multiple ambiguous kills;
-- post-kill resources fail to recover to their configured floors in time;
-- acquisition, combat progress, engagement, session, or kill bounds are exceeded; or
 - an input plan is rejected or interrupted.
+
+Bounded runs additionally stop when selection, recovery, acquisition, engagement, session,
+kill, or stalled-target limits are exceeded. Continuous runs turn those ordinary farming
+conditions into resumable states: a bad or changed target is temporarily excluded, an encounter
+timeout seeks another target, and an empty scan idles before trying the camp again. Failed target
+tokens expire after 30 seconds so respawns and transient client/server disagreement do not poison
+the session forever. A failed return route waits before replanning instead of producing a click loop.
 
 The runner never attacks a target that was already selected when it started. A stalled
 proc-Assassin selection gets a one-second grace for a fresh native hit, then the controller
 uses the verified Target Next Mob binding to acquire a different mobile. A stalled fight may
 retry the direct attack command twice. If the client still makes no combat progress, the
-proc-Assassin policy remembers that target for the rest of the session, abandons it, and uses
+proc-Assassin policy remembers that target for the rest of a bounded session, abandons it, and uses
 the verified Target Next Mob binding to seek a different mobile. It requires a new native
-target token before engaging again and permits at most four such retargets, so an unresponsive
-cluster cannot create an input loop.
+target token before engaging again. Bounded runs permit at most four such retargets; continuous
+runs instead idle the camp and expire exclusions after the cooldown, so an unresponsive cluster
+cannot create a tight input loop or become permanently poisoned.
 
 If the player loses health within melee range while the selected target loses none, and the
 player is natively idle rather than animating, the controller can request at most two combat
@@ -197,14 +207,17 @@ powershell.exe -NoProfile -File \\VBOXSVR\codexrepo\scripts\start-wonderbane-go-
 ```
 
 With Shadowbane focused, submit `/pve` in game chat. The launcher configures that command for
-three kills, a 300-second session, a 120-second per-target bound, and the verified current
+continuous operation inside a 120-unit radius around the starting LT/LG and the verified current
 Shadow Touch hotbar mapping. It uses the native-state combat source, so exact selected-target
 health confirms kills, target identity excludes protected characters, and target action state
 drives interrupts. Submit `/stop`, open chat,
 click a mouse button, or press
 `Ctrl+Shift+F12` to cancel it. `/stop` keeps the background listener alive for another `/pve`;
-the emergency hotkey shuts down the listener itself. Each `/pve` run writes a unique
-`pve-chat-*.json` evidence artifact to `\\VBOXSVR\codexdiag`.
+the emergency hotkey shuts down the listener itself. Each `/pve` run writes a unique final
+`pve-chat-*.json` evidence artifact plus an incrementally flushed `pve-chat-*.events.jsonl` journal to
+`\\VBOXSVR\codexdiag`. Only the latest 2,000 steps are retained in RAM; the journal preserves
+the full sequence even if the process does not reach final evidence assembly. Restart the listener
+with `-BoundedPve` when intentionally validating the older finite kill/session lifecycle.
 
 ## Run one bounded encounter
 

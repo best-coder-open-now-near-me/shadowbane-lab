@@ -1,4 +1,4 @@
-"""Durable, versioned evidence artifacts produced by bounded live PvE runs."""
+"""Durable final artifacts and append-only journals for live PvE runs."""
 
 from __future__ import annotations
 
@@ -7,12 +7,138 @@ import os
 from collections.abc import Mapping
 from math import isfinite
 from pathlib import Path
+from typing import TextIO
 
 PVE_TRACE_SCHEMA_VERSION = 1
+PVE_TRACE_JOURNAL_SCHEMA_VERSION = 1
 
 
 class PvETraceEvidenceError(ValueError):
     """Raised when a PvE evidence artifact cannot be validated or persisted."""
+
+
+class PvETraceJournal:
+    """Append-only JSONL trace that survives interruption of a continuous run."""
+
+    def __init__(
+        self,
+        path: str | Path,
+        metadata: Mapping[str, object],
+        *,
+        sync_interval_steps: int = 10,
+    ) -> None:
+        if not isinstance(metadata, Mapping):
+            raise PvETraceEvidenceError("PvE journal metadata must be an object")
+        if (
+            isinstance(sync_interval_steps, bool)
+            or not isinstance(sync_interval_steps, int)
+            or sync_interval_steps <= 0
+        ):
+            raise PvETraceEvidenceError("journal sync interval must be positive")
+        self._path = Path(path)
+        self._metadata = dict(metadata)
+        self._sync_interval_steps = sync_interval_steps
+        self._stream: TextIO | None = None
+        self._steps = 0
+        self._finished = False
+        self._validate_record(self._metadata)
+
+    @property
+    def path(self) -> Path:
+        return self._path
+
+    @property
+    def steps(self) -> int:
+        return self._steps
+
+    def __enter__(self) -> PvETraceJournal:
+        if self._stream is not None:
+            raise PvETraceEvidenceError("PvE journal is already open")
+        try:
+            self._path.parent.mkdir(parents=True, exist_ok=True)
+            self._stream = self._path.open("x", encoding="utf-8", newline="\n")
+            self._write_record(
+                {
+                    "record_type": "pve_trace_header",
+                    "journal_schema_version": PVE_TRACE_JOURNAL_SCHEMA_VERSION,
+                    "trace_schema_version": PVE_TRACE_SCHEMA_VERSION,
+                    "metadata": self._metadata,
+                },
+                sync=True,
+            )
+        except (OSError, TypeError, ValueError) as exc:
+            self.close()
+            raise PvETraceEvidenceError(f"could not open PvE trace journal: {exc}") from exc
+        return self
+
+    def append_step(self, step: Mapping[str, object]) -> None:
+        if not isinstance(step, Mapping):
+            raise PvETraceEvidenceError("PvE journal step must be an object")
+        if self._finished:
+            raise PvETraceEvidenceError("cannot append to a finished PvE journal")
+        step_number = self._steps + 1
+        self._write_record(
+            {
+                "record_type": "pve_trace_step",
+                "step_number": step_number,
+                "step": dict(step),
+            },
+            sync=step_number % self._sync_interval_steps == 0,
+        )
+        self._steps = step_number
+
+    def finish(self, summary: Mapping[str, object]) -> None:
+        if not isinstance(summary, Mapping):
+            raise PvETraceEvidenceError("PvE journal summary must be an object")
+        if self._finished:
+            raise PvETraceEvidenceError("PvE journal is already finished")
+        self._write_record(
+            {
+                "record_type": "pve_trace_footer",
+                "steps": self._steps,
+                "summary": dict(summary),
+            },
+            sync=True,
+        )
+        self._finished = True
+
+    def close(self) -> None:
+        stream = self._stream
+        self._stream = None
+        if stream is None:
+            return
+        try:
+            stream.flush()
+            os.fsync(stream.fileno())
+        except OSError:
+            pass
+        finally:
+            stream.close()
+
+    def __exit__(self, *_: object) -> None:
+        self.close()
+
+    def _write_record(self, record: Mapping[str, object], *, sync: bool) -> None:
+        if self._stream is None:
+            raise PvETraceEvidenceError("PvE journal is not open")
+        self._validate_record(record)
+        try:
+            self._stream.write(
+                json.dumps(record, allow_nan=False, sort_keys=True, separators=(",", ":"))
+                + "\n"
+            )
+            self._stream.flush()
+            if sync:
+                os.fsync(self._stream.fileno())
+        except (OSError, TypeError, ValueError) as exc:
+            raise PvETraceEvidenceError(f"could not write PvE trace journal: {exc}") from exc
+
+    @staticmethod
+    def _validate_record(record: Mapping[str, object]) -> None:
+        try:
+            json.dumps(record, allow_nan=False, sort_keys=True)
+        except (TypeError, ValueError) as exc:
+            raise PvETraceEvidenceError(f"PvE journal record is not finite JSON: {exc}") from exc
 
 
 def load_pve_trace_evidence(path: str | Path) -> dict[str, object]:
@@ -64,6 +190,54 @@ def validate_pve_trace_evidence(payload: object) -> dict[str, object]:
         if isinstance(value, bool) or not isinstance(value, int) or value < 0:
             raise PvETraceEvidenceError(
                 f"PvE evidence {field_name} must be a non-negative integer"
+            )
+    total_steps = payload.get("total_steps", payload["steps"])
+    if (
+        isinstance(total_steps, bool)
+        or not isinstance(total_steps, int)
+        or total_steps < payload["steps"]
+    ):
+        raise PvETraceEvidenceError(
+            "PvE evidence total_steps must be at least the retained step count"
+        )
+    trace_truncated = payload.get("trace_truncated", False)
+    if not isinstance(trace_truncated, bool):
+        raise PvETraceEvidenceError("PvE evidence trace_truncated must be a boolean")
+    if trace_truncated != (total_steps > payload["steps"]):
+        raise PvETraceEvidenceError(
+            "PvE evidence trace_truncated does not match total_steps"
+        )
+    run_mode = payload.get("run_mode")
+    if run_mode is not None and run_mode not in ("bounded", "continuous"):
+        raise PvETraceEvidenceError(
+            "PvE evidence run_mode must be bounded or continuous"
+        )
+    journal_path = payload.get("journal_path")
+    if journal_path is not None and (
+        not isinstance(journal_path, str) or not journal_path.strip()
+    ):
+        raise PvETraceEvidenceError(
+            "PvE evidence journal_path must be a non-empty string when present"
+        )
+    camp_lease = payload.get("camp_lease")
+    if camp_lease is not None:
+        if not isinstance(camp_lease, dict):
+            raise PvETraceEvidenceError("PvE evidence camp_lease must be an object")
+        for field_name in ("anchor_lt", "anchor_lg"):
+            value = camp_lease.get(field_name)
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not isfinite(value)
+            ):
+                raise PvETraceEvidenceError(
+                    f"PvE evidence camp_lease.{field_name} must be finite"
+                )
+        for field_name in ("radius", "return_radius"):
+            _positive_number(camp_lease, field_name, prefix="camp_lease")
+        if camp_lease["return_radius"] >= camp_lease["radius"]:
+            raise PvETraceEvidenceError(
+                "PvE evidence camp_lease.return_radius must be below radius"
             )
     native = payload.get("native_observation")
     if not isinstance(native, dict):

@@ -237,6 +237,25 @@ class ClientCliTests(unittest.TestCase):
         self.assertEqual(2, result)
         self.assertIn("safety threshold", payload["error"])
 
+    def test_continuous_pve_requires_a_durable_evidence_destination(self) -> None:
+        output = io.StringIO()
+        with redirect_stdout(output):
+            result = main(
+                (
+                    "client",
+                    "run-pve",
+                    "--client-profile",
+                    "pve.json",
+                    "--continuous",
+                    "--live",
+                    "--json",
+                )
+            )
+
+        payload = json.loads(output.getvalue())
+        self.assertEqual(2, result)
+        self.assertIn("evidence-output", payload["error"])
+
     def test_chat_travel_command_requires_explicit_live_flag(self) -> None:
         output = io.StringIO()
         with redirect_stdout(output):
@@ -340,6 +359,9 @@ class ClientCliTests(unittest.TestCase):
                 click_interval_ms=4_000,
                 live=True,
                 as_json=True,
+                pve_continuous=True,
+                pve_camp_radius=140.0,
+                pve_retained_trace_steps=1_500,
             )
 
         self.assertEqual(0, result)
@@ -347,6 +369,9 @@ class ClientCliTests(unittest.TestCase):
         self.assertEqual(3, captured["max_kills"])
         self.assertEqual("proc-assassin", captured["policy"])
         self.assertEqual("state", captured["combat_source"])
+        self.assertTrue(captured["continuous"])
+        self.assertEqual(140.0, captured["camp_radius"])
+        self.assertEqual(1_500, captured["retained_trace_steps"])
         self.assertEqual(Path(directory) / "cache", captured["navigation_cache_directory"])
         self.assertTrue(captured["stop_signal"].is_set())
         evidence_path = captured["evidence_output_path"]

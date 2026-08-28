@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from collections import deque
 from collections.abc import Callable
 from typing import Protocol, runtime_checkable
 
@@ -140,6 +141,8 @@ class PvERunner:
         stop_signal: StopSignal,
         poll_interval_ms: int = 100,
         maximum_consecutive_observation_failures: int = 3,
+        maximum_retained_trace_steps: int | None = None,
+        trace_sink: Callable[[PvERunTraceStep], None] | None = None,
         clock: Callable[[], float] = time.monotonic,
         sleeper: Callable[[float], None] = time.sleep,
     ) -> None:
@@ -210,6 +213,16 @@ class PvERunner:
             raise ValueError(
                 "maximum_consecutive_observation_failures must be a positive integer"
             )
+        if maximum_retained_trace_steps is not None and (
+            isinstance(maximum_retained_trace_steps, bool)
+            or not isinstance(maximum_retained_trace_steps, int)
+            or maximum_retained_trace_steps <= 0
+        ):
+            raise ValueError("maximum_retained_trace_steps must be positive when present")
+        if trace_sink is not None and not callable(trace_sink):
+            raise ValueError("trace_sink must be callable when present")
+        if controller.continuous and maximum_retained_trace_steps is None:
+            maximum_retained_trace_steps = 2_000
         self._controller = controller
         self._health_reader = health_reader
         self._player_vitals_reader = player_vitals_reader
@@ -227,12 +240,27 @@ class PvERunner:
         self._maximum_consecutive_observation_failures = (
             maximum_consecutive_observation_failures
         )
+        self._maximum_retained_trace_steps = maximum_retained_trace_steps
+        self._trace_sink = trace_sink
         self._clock = clock
         self._sleeper = sleeper
         self._parser = NativeCombatEventParser()
 
     def run(self) -> PvERunResult:
-        trace: list[PvERunTraceStep] = []
+        trace: list[PvERunTraceStep] | deque[PvERunTraceStep]
+        if self._maximum_retained_trace_steps is None:
+            trace = []
+        else:
+            trace = deque(maxlen=self._maximum_retained_trace_steps)
+        total_steps = 0
+
+        def record(step: PvERunTraceStep) -> None:
+            nonlocal total_steps
+            trace.append(step)
+            total_steps += 1
+            if self._trace_sink is not None:
+                self._trace_sink(step)
+
         started_at = self._clock()
         terminal = None
         last_observation: PvEObservation | None = None
@@ -241,7 +269,7 @@ class PvERunner:
             now_ms = round((self._clock() - started_at) * 1000)
             if self._stop_signal.is_set():
                 terminal = self._controller.stop("emergency_stop", now_ms=now_ms)
-                trace.append(self._trace(terminal, observation=None))
+                record(self._trace(terminal, observation=None))
                 break
             try:
                 target = self._health_reader.observe()
@@ -337,7 +365,7 @@ class PvERunner:
                     f"observation_failure:{type(exc).__name__}{detail}",
                     now_ms=now_ms,
                 )
-                trace.append(self._trace(terminal, observation=None))
+                record(self._trace(terminal, observation=None))
                 break
             consecutive_observation_failures = 0
 
@@ -354,7 +382,7 @@ class PvERunner:
                     approach_result = self._movement_dispatcher.dispatch(approach_decision)
                 except Exception as exc:
                     approach_reason = f"input_failure:{type(exc).__name__}"
-                    trace.append(
+                    record(
                         self._trace(
                             decision,
                             observation=observation,
@@ -364,12 +392,12 @@ class PvERunner:
                         )
                     )
                     terminal = self._controller.stop(approach_reason, now_ms=now_ms)
-                    trace.append(self._trace(terminal, observation=observation))
+                    record(self._trace(terminal, observation=observation))
                     break
                 approach_accepted = approach_result.accepted
                 approach_reason = approach_result.reason
                 if not approach_result.accepted:
-                    trace.append(
+                    record(
                         self._trace(
                             decision,
                             observation=observation,
@@ -382,7 +410,7 @@ class PvERunner:
                         "guarded_movement_input_rejected",
                         now_ms=now_ms,
                     )
-                    trace.append(self._trace(terminal, observation=observation))
+                    record(self._trace(terminal, observation=observation))
                     break
             if approach_decision is not None and approach_decision.terminal:
                 assert self._movement_dispatcher is not None
@@ -398,7 +426,7 @@ class PvERunner:
                         movement_stop_accepted = stop_result.accepted
                         movement_stop_reason = stop_result.reason
                     if movement_stop_accepted is False:
-                        trace.append(
+                        record(
                             self._trace(
                                 decision,
                                 observation=observation,
@@ -413,12 +441,12 @@ class PvERunner:
                             "movement_stop_rejected",
                             now_ms=now_ms,
                         )
-                        trace.append(self._trace(terminal, observation=observation))
+                        record(self._trace(terminal, observation=observation))
                         break
             if approach is not None and approach.status is PvEApproachStatus.FAILED:
                 assert approach_decision is not None
                 terminal_reason = approach_decision.terminal_reason or "unknown"
-                trace.append(
+                record(
                     self._trace(
                         decision,
                         observation=observation,
@@ -433,7 +461,7 @@ class PvERunner:
                     observation,
                     terminal_reason,
                 )
-                trace.append(self._trace(recovery, observation=observation))
+                record(self._trace(recovery, observation=observation))
                 if recovery.terminal:
                     terminal = recovery
                     break
@@ -447,7 +475,7 @@ class PvERunner:
                     )
                 except Exception as exc:
                     reason = f"input_failure:{type(exc).__name__}"
-                    trace.append(
+                    record(
                         self._trace(
                             decision,
                             observation=observation,
@@ -456,12 +484,12 @@ class PvERunner:
                         )
                     )
                     terminal = self._controller.stop(reason, now_ms=now_ms)
-                    trace.append(self._trace(terminal, observation=observation))
+                    record(self._trace(terminal, observation=observation))
                     break
                 accepted = result.accepted
                 reason = result.reason
                 if not result.accepted:
-                    trace.append(
+                    record(
                         self._trace(
                             decision,
                             observation=observation,
@@ -473,9 +501,9 @@ class PvERunner:
                         "guarded_input_rejected",
                         now_ms=now_ms,
                     )
-                    trace.append(self._trace(terminal, observation=observation))
+                    record(self._trace(terminal, observation=observation))
                     break
-            trace.append(
+            record(
                 self._trace(
                     decision,
                     observation=observation,
@@ -512,7 +540,7 @@ class PvERunner:
                 else:
                     cleanup_accepted = cleanup_result.accepted
                     cleanup_reason = cleanup_result.reason
-                trace.append(
+                record(
                     self._trace(
                         terminal,
                         observation=last_observation,
@@ -529,6 +557,8 @@ class PvERunner:
             terminal_reason=terminal_reason,
             kills=terminal.kills,
             trace=tuple(trace),
+            total_steps=total_steps,
+            trace_truncated=total_steps > len(trace),
         )
 
     @staticmethod

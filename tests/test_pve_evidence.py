@@ -5,6 +5,7 @@ from pathlib import Path
 
 from shadowbane_lab.pve import (
     PvETraceEvidenceError,
+    PvETraceJournal,
     load_pve_trace_evidence,
     save_pve_trace_evidence,
     validate_pve_trace_evidence,
@@ -47,6 +48,31 @@ def _payload() -> dict[str, object]:
 
 
 class PvETraceEvidenceTests(unittest.TestCase):
+    def test_journal_flushes_header_steps_and_footer_as_json_lines(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "continuous.jsonl"
+            with PvETraceJournal(
+                path,
+                {"policy": "proc-assassin", "continuous": True},
+                sync_interval_steps=1,
+            ) as journal:
+                journal.append_step(_payload()["trace"][0])
+                journal.finish({"terminal_reason": "emergency_stop", "kills": 4})
+
+            records = [json.loads(line) for line in path.read_text().splitlines()]
+
+        self.assertEqual("pve_trace_header", records[0]["record_type"])
+        self.assertEqual("pve_trace_step", records[1]["record_type"])
+        self.assertEqual(1, records[1]["step_number"])
+        self.assertEqual("pve_trace_footer", records[2]["record_type"])
+        self.assertEqual(1, records[2]["steps"])
+
+    def test_journal_rejects_non_finite_steps(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            with PvETraceJournal(Path(directory) / "continuous.jsonl", {}) as journal:
+                with self.assertRaisesRegex(PvETraceEvidenceError, "finite JSON"):
+                    journal.append_step({"at_ms": 0, "health": float("nan")})
+
     def test_atomically_round_trips_a_versioned_trace(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "nested" / "pve-evidence.json"
