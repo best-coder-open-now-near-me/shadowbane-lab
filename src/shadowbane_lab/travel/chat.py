@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import queue
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -153,6 +154,14 @@ class PhysicalPointerInteraction:
             raise ValueError("button must identify a supported physical pointer button")
 
 
+@dataclass(frozen=True, slots=True)
+class _PhysicalKeyboardInteraction:
+    """Minimal keyboard state copied before returning from the Win32 hook."""
+
+    virtual_key: int
+    shift_down: bool
+
+
 class WindowsGoChatCommandListener:
     """Observe keyboard events only while the calibrated game owns foreground focus.
 
@@ -214,10 +223,31 @@ class WindowsGoChatCommandListener:
         self._assembler = GoChatCommandAssembler()
         self._closed = threading.Event()
         self._ready = threading.Event()
+        self._pending_input: queue.SimpleQueue[
+            _PhysicalKeyboardInteraction | PhysicalPointerInteraction | None
+        ] = queue.SimpleQueue()
         self._thread: threading.Thread | None = None
+        self._processor_thread: threading.Thread | None = None
         self._thread_id: int | None = None
         self._startup_error: BaseException | None = None
         self._mutex_handle: int | None = None
+
+    @property
+    def is_alive(self) -> bool:
+        """Whether both the Win32 hook and guarded input processor are running."""
+
+        return bool(
+            self._thread is not None
+            and self._thread.is_alive()
+            and self._processor_thread is not None
+            and self._processor_thread.is_alive()
+        )
+
+    @property
+    def failure_detail(self) -> str | None:
+        """Describe a hook-thread failure when one was observed."""
+
+        return None if self._startup_error is None else str(self._startup_error)
 
     def start(self) -> None:
         if os.name != "nt":
@@ -225,14 +255,22 @@ class WindowsGoChatCommandListener:
         if self._thread is not None:
             raise RuntimeError("chat-command listener has already been started")
         self._acquire_single_instance()
+        self._processor_thread = threading.Thread(
+            target=self._process_pending_input,
+            name="shadowbane-chat-command-processor",
+            daemon=True,
+        )
         self._thread = threading.Thread(
             target=self._listen,
             name="shadowbane-chat-command-listener",
             daemon=True,
         )
         try:
+            self._processor_thread.start()
             self._thread.start()
         except BaseException:
+            self._closed.set()
+            self._pending_input.put(None)
             self._release_single_instance()
             raise
         if not self._ready.wait(timeout=5.0):
@@ -245,6 +283,7 @@ class WindowsGoChatCommandListener:
 
     def close(self) -> None:
         self._closed.set()
+        self._pending_input.put(None)
         thread_id = self._thread_id
         if thread_id is not None and os.name == "nt":
             import ctypes
@@ -252,6 +291,8 @@ class WindowsGoChatCommandListener:
             ctypes.windll.user32.PostThreadMessageW(thread_id, self._WM_QUIT, 0, 0)
         if self._thread is not None:
             self._thread.join(timeout=2.0)
+        if self._processor_thread is not None:
+            self._processor_thread.join(timeout=2.0)
         self._release_single_instance()
 
     def __enter__(self) -> WindowsGoChatCommandListener:
@@ -323,15 +364,14 @@ class WindowsGoChatCommandListener:
                     ctypes.POINTER(KeyboardEvent),
                 ).contents
                 if not event.flags & self._LLKHF_INJECTED:
-                    try:
-                        self._handle_key(
+                    self._pending_input.put(
+                        _PhysicalKeyboardInteraction(
                             int(event.vk_code),
-                            shift_down=bool(
+                            bool(
                                 user32.GetAsyncKeyState(self._VK_SHIFT) & 0x8000
                             ),
                         )
-                    except Exception:
-                        self._assembler.reset()
+                    )
             return int(
                 user32.CallNextHookEx(
                     keyboard_hook,
@@ -354,21 +394,18 @@ class WindowsGoChatCommandListener:
                     ctypes.POINTER(MouseEvent),
                 ).contents
                 if not event.flags & self._LLMHF_INJECTED:
-                    try:
-                        self._handle_pointer_interaction(
-                            PhysicalPointerInteraction(
-                                screen_x=int(event.point.x),
-                                screen_y=int(event.point.y),
-                                button={
-                                    self._WM_LBUTTONDOWN: "left",
-                                    self._WM_RBUTTONDOWN: "right",
-                                    self._WM_MBUTTONDOWN: "middle",
-                                    self._WM_XBUTTONDOWN: "x",
-                                }[int(message)],
-                            )
+                    self._pending_input.put(
+                        PhysicalPointerInteraction(
+                            screen_x=int(event.point.x),
+                            screen_y=int(event.point.y),
+                            button={
+                                self._WM_LBUTTONDOWN: "left",
+                                self._WM_RBUTTONDOWN: "right",
+                                self._WM_MBUTTONDOWN: "middle",
+                                self._WM_XBUTTONDOWN: "x",
+                            }[int(message)],
                         )
-                    except Exception:
-                        self._assembler.reset()
+                    )
             return int(
                 user32.CallNextHookEx(
                     mouse_hook,
@@ -413,6 +450,24 @@ class WindowsGoChatCommandListener:
                 user32.UnhookWindowsHookEx(mouse_hook)
             if keyboard_hook:
                 user32.UnhookWindowsHookEx(keyboard_hook)
+
+    def _process_pending_input(self) -> None:
+        """Perform guarded work away from the latency-sensitive Win32 hook."""
+
+        while True:
+            interaction = self._pending_input.get()
+            if interaction is None:
+                return
+            try:
+                if isinstance(interaction, _PhysicalKeyboardInteraction):
+                    self._handle_key(
+                        interaction.virtual_key,
+                        shift_down=interaction.shift_down,
+                    )
+                else:
+                    self._handle_pointer_interaction(interaction)
+            except Exception:
+                self._assembler.reset()
 
     def _acquire_single_instance(self) -> None:
         import ctypes

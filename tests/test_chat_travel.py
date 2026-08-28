@@ -1,3 +1,4 @@
+import threading
 import unittest
 
 from shadowbane_lab.client_input import (
@@ -176,6 +177,31 @@ class GoChatCommandAssemblerTests(unittest.TestCase):
 
         self.assertEqual([], interactions)
         self.assertEqual([pointer], pointer_events)
+
+    def test_queued_pointer_is_guarded_off_the_hook_thread(self) -> None:
+        delivered = threading.Event()
+        pointer_events: list[PhysicalPointerInteraction] = []
+
+        def record_pointer(pointer: PhysicalPointerInteraction) -> None:
+            pointer_events.append(pointer)
+            delivered.set()
+
+        listener = WindowsGoChatCommandListener(
+            ForegroundWindowGuard(_load_profile(), StaticWindowInspector(_valid_snapshot())),
+            on_command=lambda _: None,
+            on_pointer=record_pointer,
+        )
+        processor = threading.Thread(target=listener._process_pending_input)
+        listener._processor_thread = processor
+        processor.start()
+        pointer = PhysicalPointerInteraction(800, 400, "right")
+
+        listener._pending_input.put(pointer)
+
+        self.assertTrue(delivered.wait(timeout=1.0))
+        listener.close()
+        self.assertEqual([pointer], pointer_events)
+        self.assertFalse(processor.is_alive())
 
 
 class AnyStopSignalTests(unittest.TestCase):

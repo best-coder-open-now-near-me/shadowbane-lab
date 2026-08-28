@@ -349,6 +349,77 @@ class ClientCliTests(unittest.TestCase):
         self.assertEqual(0, result)
         verify_hotbar.assert_not_called()
 
+    def test_chat_listener_reports_an_input_hook_that_dies_after_startup(self) -> None:
+        template = Path(__file__).parents[1] / "configs" / "wonderbane-travel.template.json"
+        profile = replace(load_calibration(template), live_input_enabled=True)
+        service_stop = EventEmergencyStop()
+
+        class DeadListener:
+            is_alive = False
+            failure_detail = "hook thread exited"
+
+            def __init__(
+                self, _guard, *, on_command, on_interaction, on_pointer
+            ) -> None:
+                pass
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args) -> None:
+                return None
+
+        class InertZoneOverlay:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args) -> None:
+                return None
+
+        emergency_stop = MagicMock()
+        emergency_stop.__enter__.return_value = service_stop
+        output = io.StringIO()
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch("shadowbane_lab.cli.load_calibration", return_value=profile),
+            patch(
+                "shadowbane_lab.cli.WindowsHotkeyEmergencyStop",
+                return_value=emergency_stop,
+            ),
+            patch("shadowbane_lab.cli.WindowsGoChatCommandListener", DeadListener),
+            patch("shadowbane_lab.cli.WindowsZoneSearchOverlay", InertZoneOverlay),
+            redirect_stdout(output),
+        ):
+            result = _listen_for_go_commands(
+                destination_state_path=Path(directory) / "travel.json",
+                client_profile_path=template,
+                native_position_profile_path=None,
+                native_vitals_profile_path=None,
+                native_runegate_profile_path=None,
+                world_def_path=None,
+                named_destination_overrides_path=None,
+                pve_client_profile_path=None,
+                pve_hotbar_config_path=None,
+                pve_evidence_directory=None,
+                navigation_cache_directory=None,
+                pve_max_kills=3,
+                pve_max_seconds=300,
+                pve_max_encounter_seconds=120,
+                pve_recovery_timeout_seconds=30,
+                pve_poll_ms=100,
+                max_seconds=300,
+                wait_for_client_seconds=0,
+                poll_ms=200,
+                click_interval_ms=4_000,
+                live=True,
+                as_json=True,
+            )
+
+        events = [json.loads(line) for line in output.getvalue().splitlines()]
+        self.assertEqual(2, result)
+        self.assertEqual("listening", events[0]["event"])
+        self.assertIn("hook thread exited", events[1]["error"])
+
     def test_chat_pve_command_runs_on_the_guarded_client_and_stays_stoppable(self) -> None:
         template = Path(__file__).parents[1] / "configs" / "wonderbane-travel.template.json"
         profile = replace(load_calibration(template), live_input_enabled=True)

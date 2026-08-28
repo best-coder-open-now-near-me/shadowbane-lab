@@ -3542,16 +3542,17 @@ def _listen_for_go_commands(
             commands.put(interaction)
 
     world_map_reader = None
+    listener = WindowsGoChatCommandListener(
+        guard,
+        on_command=submit_command,
+        on_interaction=cancel_active_operation,
+        on_pointer=submit_pointer,
+    )
 
     try:
         with (
             WindowsHotkeyEmergencyStop() as service_stop,
-            WindowsGoChatCommandListener(
-                guard,
-                on_command=submit_command,
-                on_interaction=cancel_active_operation,
-                on_pointer=submit_pointer,
-            ),
+            listener,
             WindowsZoneSearchOverlay() as zone_overlay,
         ):
             stop_adapter = ClientInputAdapter(
@@ -3569,7 +3570,21 @@ def _listen_for_go_commands(
             )
             stop_sequence = 0
             _print_go_listener_event("listening", as_json=as_json)
+            next_listener_heartbeat = time.monotonic() + 30.0
             while not service_stop.is_set():
+                if getattr(listener, "is_alive", True) is False:
+                    failure_detail = getattr(listener, "failure_detail", None)
+                    raise RuntimeError(
+                        "Windows input hook stopped unexpectedly"
+                        + (
+                            ""
+                            if not failure_detail
+                            else f": {failure_detail}"
+                        )
+                    )
+                if time.monotonic() >= next_listener_heartbeat:
+                    _print_go_listener_event("heartbeat", as_json=as_json)
+                    next_listener_heartbeat = time.monotonic() + 30.0
                 try:
                     interaction = commands.get(timeout=0.1)
                 except queue.Empty:
@@ -3933,6 +3948,8 @@ def _print_go_listener_event(
         )
     elif event == "stopped":
         print("Stopped listening for Shadowbane commands.", flush=True)
+    elif event == "heartbeat":
+        print("Shadowbane command listener is healthy.", flush=True)
     elif event == "accepted":
         detail = (
             ""
