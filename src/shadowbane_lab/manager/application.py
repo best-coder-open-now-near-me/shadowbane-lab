@@ -19,6 +19,7 @@ from .session import (
     ManagerSessionSnapshot,
     ManagerSlotSnapshot,
 )
+from .worker import WorkerHealthState, WorkerSlotHealthSnapshot
 
 
 class SessionControl(Protocol):
@@ -64,6 +65,20 @@ class ManifestRegistryProvider(Protocol):
     """Fresh manifest-wide registry used only for local status and candidate selection."""
 
     def inspect(self) -> ClientRegistrySnapshot: ...
+
+
+class WorkerStatusProvider(Protocol):
+    """Fail-closed health evaluation for workers attached to exact local slots."""
+
+    def inspect(
+        self,
+        client_id: str,
+        *,
+        instance_id: str | None,
+        lifecycle_dispatch_enabled: bool,
+    ) -> WorkerSlotHealthSnapshot: ...
+
+    def revoke(self, client_id: str, *, reason: str) -> object: ...
 
 
 def _require_positive_finite(value: float, field_name: str) -> float:
@@ -137,6 +152,7 @@ class ManagerDashboardApplication:
         manifest: ManagerManifest,
         session: SessionControl,
         registry: ManifestRegistryProvider,
+        worker_supervisor: WorkerStatusProvider,
         *,
         launch_timeout_seconds: float = 30.0,
         poll_seconds: float = 0.5,
@@ -161,9 +177,15 @@ class ManagerDashboardApplication:
             raise ValueError("session does not implement the dashboard session contract")
         if not callable(getattr(registry, "inspect", None)):
             raise ValueError("registry must provide inspect()")
+        if any(
+            not callable(getattr(worker_supervisor, method, None))
+            for method in ("inspect", "revoke")
+        ):
+            raise ValueError("worker_supervisor must provide inspect() and revoke()")
         self._manifest = manifest
         self._session = session
         self._registry = registry
+        self._worker_supervisor = worker_supervisor
         self._launch_timeout_seconds = _require_positive_finite(
             launch_timeout_seconds,
             "launch_timeout_seconds",
@@ -201,6 +223,8 @@ class ManagerDashboardApplication:
                     current_bound_ids.add(slot.instance_id)
                     current_bindings[slot.client_id] = current
             slots: list[dict[str, object]] = []
+            healthy_worker_count = 0
+            dispatch_ready_count = 0
             for slot in session.slots:
                 config = self._configs.get(slot.client_id)
                 if config is None:
@@ -213,6 +237,23 @@ class ManagerDashboardApplication:
                     payload["status_detail"] = (
                         "exact bound process/window identity is absent from current registry"
                     )
+                lifecycle_dispatch_enabled = bool(payload["dispatch_enabled"])
+                worker = self._worker_supervisor.inspect(
+                    slot.client_id,
+                    instance_id=None if binding is None else binding.instance_id,
+                    lifecycle_dispatch_enabled=lifecycle_dispatch_enabled,
+                )
+                if not isinstance(worker, WorkerSlotHealthSnapshot):
+                    raise RuntimeError("worker supervisor returned an invalid snapshot")
+                if worker.client_id != slot.client_id:
+                    raise RuntimeError("worker supervisor returned the wrong manifest slot")
+                if worker.state is WorkerHealthState.HEALTHY:
+                    healthy_worker_count += 1
+                if worker.dispatch_allowed:
+                    dispatch_ready_count += 1
+                payload["lifecycle_dispatch_enabled"] = lifecycle_dispatch_enabled
+                payload["dispatch_enabled"] = worker.dispatch_allowed
+                payload["worker"] = worker.to_dict()
                 payload["binding"] = None if binding is None else _client_summary(binding)
                 payload["candidates"] = [
                     _client_summary(client)
@@ -233,6 +274,8 @@ class ManagerDashboardApplication:
                 "node_id": session.node_id,
                 "configured_count": len(slots),
                 "bound_count": len(current_bound_ids),
+                "healthy_worker_count": healthy_worker_count,
+                "dispatch_ready_count": dispatch_ready_count,
                 "slots": slots,
             }
 
@@ -264,6 +307,7 @@ class ManagerDashboardApplication:
         if action == "start-all":
             self._require_global(action, client_id, instance_id)
             self._require_clear_launch_baseline()
+            self._revoke_unbound_slots("group launch invalidated prior worker ownership")
             self._session.start_all(
                 timeout_seconds=self._launch_timeout_seconds,
                 poll_seconds=self._poll_seconds,
@@ -283,6 +327,10 @@ class ManagerDashboardApplication:
             if instance_id is not None:
                 raise DashboardError("invalid-action-fields", "start does not accept instance_id")
             self._require_clear_launch_baseline(client_id=client_id)
+            self._worker_supervisor.revoke(
+                client_id,
+                reason="client launch invalidated prior worker ownership",
+            )
             self._session.start(
                 client_id,
                 timeout_seconds=self._launch_timeout_seconds,
@@ -292,9 +340,18 @@ class ManagerDashboardApplication:
         if instance_id is None:
             raise DashboardError("invalid-action-fields", f"{action} requires instance_id")
         if action == "attach":
+            self._worker_supervisor.revoke(
+                client_id,
+                reason="exact client attachment requires a new worker ownership lease",
+            )
             self._session.attach(client_id, instance_id=instance_id)
             return
         self._require_exact_binding(client_id, instance_id)
+        if action in {"pause", "detach", "close"}:
+            self._worker_supervisor.revoke(
+                client_id,
+                reason=f"manager {action} action revoked worker dispatch",
+            )
         actions = {
             "tile": self._session.tile,
             "pause": self._session.pause,
@@ -306,6 +363,23 @@ class ManagerDashboardApplication:
         if operation is None:
             raise DashboardError("unknown-action", "The manager action is not supported.")
         operation(client_id)
+
+    def revoke_all_workers(self, *, reason: str) -> None:
+        """Fail closed synchronously before the manager process shuts down."""
+
+        with self._lock:
+            for config in self._manifest.clients:
+                self._worker_supervisor.revoke(config.client_id, reason=reason)
+
+    def _revoke_unbound_slots(self, reason: str) -> None:
+        session = self._session.snapshot()
+        if not isinstance(session, ManagerSessionSnapshot) or (
+            session.node_id != self._manifest.node_id
+        ):
+            raise RuntimeError("manager session returned an invalid snapshot")
+        for slot in session.slots:
+            if slot.instance_id is None:
+                self._worker_supervisor.revoke(slot.client_id, reason=reason)
 
     def _require_clear_launch_baseline(self, *, client_id: str | None = None) -> None:
         registry = self._registry.inspect()
@@ -369,4 +443,5 @@ __all__ = [
     "ManagerDashboardApplication",
     "ManifestRegistryProvider",
     "SessionControl",
+    "WorkerStatusProvider",
 ]

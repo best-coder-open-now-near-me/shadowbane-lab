@@ -349,6 +349,7 @@ class ManagerCliTests(unittest.TestCase):
                 self.exited = True
 
         output = io.StringIO()
+        permit_payload: dict[str, object] | None = None
         with tempfile.TemporaryDirectory() as directory:
             game_directory = Path(directory) / "Wonderbane"
             game_directory.mkdir()
@@ -364,6 +365,7 @@ class ManagerCliTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
+            worker_state_directory = Path(directory) / "workers"
             with (
                 patch(
                     "shadowbane_lab.cli.WindowsVisibleWindowInspector",
@@ -389,10 +391,20 @@ class ManagerCliTests(unittest.TestCase):
                         "manager",
                         "app",
                         str(manifest_path),
+                        "--worker-state-directory",
+                        str(worker_state_directory),
                         "--live",
                         "--no-browser",
                     )
                 )
+            permit_payload = json.loads(
+                (
+                    worker_state_directory
+                    / "gaming-pc-east"
+                    / "client-01"
+                    / "dispatch.permit"
+                ).read_text(encoding="utf-8")
+            )
 
         self.assertEqual(0, result)
         self.assertEqual(1, len(created_servers))
@@ -400,6 +412,10 @@ class ManagerCliTests(unittest.TestCase):
         self.assertTrue(server.exited)
         self.assertEqual("gaming-pc-east", server.service.status()["node_id"])
         self.assertIn("managed clients will remain open", output.getvalue())
+        self.assertIsNotNone(permit_payload)
+        assert permit_payload is not None
+        self.assertFalse(permit_payload["allowed"])
+        self.assertIn("shutdown", permit_payload["reason"])
 
     def test_inspection_failure_is_structured(self) -> None:
         output = io.StringIO()

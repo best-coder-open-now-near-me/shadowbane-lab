@@ -53,7 +53,7 @@
       box-shadow: var(--shadow);
     }
     .toolbar { display: flex; flex-wrap: wrap; gap: .65rem; padding: .9rem; border-radius: .9rem; }
-    .summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 1rem 0; border-radius: .9rem; overflow: hidden; }
+    .summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 1rem 0; border-radius: .9rem; overflow: hidden; }
     .metric { padding: .85rem 1rem; border-right: 1px solid var(--line); }
     .metric:last-child { border-right: 0; }
     .metric span { display: block; color: var(--muted); font-size: .74rem; text-transform: uppercase; letter-spacing: .09em; }
@@ -61,14 +61,14 @@
     .notice { margin: 1rem 0; padding: .8rem 1rem; border-radius: .75rem; color: var(--muted); }
     .notice.error { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 50%, var(--line)); }
     .slots { display: grid; gap: .8rem; }
-    .slot { display: grid; grid-template-columns: minmax(10rem, 1.2fr) minmax(12rem, 1fr) minmax(15rem, 2fr); align-items: center; gap: 1rem; padding: 1rem; border-radius: .9rem; }
+    .slot { display: grid; grid-template-columns: minmax(9rem, 1fr) minmax(11rem, 1fr) minmax(12rem, 1.2fr) minmax(15rem, 1.8fr); align-items: center; gap: 1rem; padding: 1rem; border-radius: .9rem; }
     .slot h2 { margin: 0 0 .25rem; font-size: 1rem; overflow-wrap: anywhere; }
     .detail { margin: .45rem 0 0; color: var(--muted); font-size: .78rem; overflow-wrap: anywhere; }
     .detail.failure { color: var(--danger); }
     .state { display: inline-flex; align-items: center; gap: .4rem; color: var(--muted); }
     .state::before { content: ""; width: .55rem; height: .55rem; border-radius: 50%; background: var(--warn); }
-    .state.running::before, .state.attached::before, .state.active::before { background: var(--accent); box-shadow: 0 0 0 .22rem rgba(137, 224, 174, .12); }
-    .state.failed::before, .state.stale::before { background: var(--danger); }
+    .state.running::before, .state.attached::before, .state.active::before, .state.healthy::before { background: var(--accent); box-shadow: 0 0 0 .22rem rgba(137, 224, 174, .12); }
+    .state.failed::before, .state.stale::before, .state.exited::before, .state.invalid::before, .state.conflict::before, .state.emergency_stopped::before, .state.identity_mismatch::before { background: var(--danger); }
     .binding { min-width: 0; }
     .binding span { display: block; color: var(--muted); font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; }
     .binding code { display: block; margin-top: .25rem; overflow: hidden; text-overflow: ellipsis; color: var(--ink); }
@@ -109,6 +109,7 @@
     <section class="summary" aria-label="Manager summary">
       <div class="metric"><span>Configured</span><strong id="configured-count">—</strong></div>
       <div class="metric"><span>Bound</span><strong id="bound-count">—</strong></div>
+      <div class="metric"><span>Dispatch ready</span><strong id="dispatch-ready-count">—</strong></div>
       <div class="metric"><span>Updated</span><strong id="updated-at">—</strong></div>
     </section>
 
@@ -130,7 +131,9 @@
       const nodeElement = document.getElementById("node-id");
       const configuredElement = document.getElementById("configured-count");
       const boundElement = document.getElementById("bound-count");
+      const dispatchReadyElement = document.getElementById("dispatch-ready-count");
       const updatedElement = document.getElementById("updated-at");
+      let actionInFlight = false;
 
       const request = async (path, options = {}) => {
         const headers = new Headers(options.headers || {});
@@ -184,6 +187,11 @@
           .filter((candidate) => candidate && typeof candidate.instance_id === "string");
       };
 
+      const workerFor = (slot) => {
+        if (slot && typeof slot.worker === "object" && slot.worker !== null) return slot.worker;
+        return null;
+      };
+
       const actionButton = (label, action, slot, instanceSource, className = "") => {
         const button = document.createElement("button");
         button.type = "button";
@@ -233,6 +241,45 @@
         bindingValue.textContent = text(rememberedInstance, "Not bound");
         binding.append(bindingLabel, bindingValue);
 
+        const workerPanel = document.createElement("div");
+        workerPanel.className = "binding";
+        const worker = workerFor(slot);
+        const workerLabel = document.createElement("span");
+        workerLabel.textContent = "Worker health";
+        const workerState = document.createElement("div");
+        const workerStateName = text(worker?.state, "unavailable").toLowerCase();
+        workerState.className = `state ${workerStateName.replace(/[^a-z0-9_-]/g, "")}`;
+        workerState.textContent = workerStateName;
+        workerPanel.append(workerLabel, workerState);
+        const workerId = worker?.heartbeat?.worker_id;
+        if (workerId) {
+          const workerIdentity = document.createElement("code");
+          workerIdentity.textContent = text(workerId);
+          workerPanel.append(workerIdentity);
+        }
+        const workerFacts = [];
+        if (Number.isFinite(worker?.heartbeat_age_seconds)) {
+          workerFacts.push(`${worker.heartbeat_age_seconds.toFixed(1)}s heartbeat age`);
+        }
+        if (Number.isInteger(worker?.heartbeat?.evidence_sequence)) {
+          workerFacts.push(`evidence #${worker.heartbeat.evidence_sequence}`);
+        }
+        if (worker?.heartbeat?.emergency_stop === true) {
+          workerFacts.push("emergency stop latched");
+        }
+        if (workerFacts.length) {
+          const workerMetadata = document.createElement("p");
+          workerMetadata.className = "detail";
+          workerMetadata.textContent = workerFacts.join(" · ");
+          workerPanel.append(workerMetadata);
+        }
+        if (worker?.detail) {
+          const workerDetail = document.createElement("p");
+          workerDetail.className = "detail";
+          workerDetail.textContent = text(worker.detail);
+          workerPanel.append(workerDetail);
+        }
+
         const controls = document.createElement("div");
         controls.className = "actions";
         const boundInstance = () => instanceFor(slot);
@@ -267,16 +314,20 @@
           actionButton("Close", "close", slot, boundInstance, "danger")
         );
 
-        article.append(identity, binding, controls);
+        article.append(identity, binding, workerPanel, controls);
         return article;
       };
 
-      const render = (status) => {
+      const render = (status, { quiet = false } = {}) => {
         const slots = Array.isArray(status.slots) ? status.slots : [];
         nodeElement.textContent = text(status.node_id);
         configuredElement.textContent = text(status.configured_count ?? slots.length, "0");
         boundElement.textContent = text(
           status.bound_count ?? slots.filter((slot) => Boolean(instanceFor(slot))).length,
+          "0"
+        );
+        dispatchReadyElement.textContent = text(
+          status.dispatch_ready_count ?? slots.filter((slot) => slot?.dispatch_enabled === true).length,
           "0"
         );
         updatedElement.textContent = status.updated_at
@@ -289,19 +340,22 @@
           empty.textContent = "No client slots are configured on this node.";
           slotsElement.append(empty);
         }
-        notice.textContent = "Manager status is current.";
-        notice.className = "notice";
+        if (!quiet) {
+          notice.textContent = "Manager status is current.";
+          notice.className = "notice";
+        }
       };
 
-      const loadStatus = async () => {
+      const loadStatus = async ({ quiet = false } = {}) => {
         if (!authorizationToken) {
           throw new Error("No dashboard token was supplied. Reopen the URL printed by the manager.");
         }
-        render(await request("/api/v1/status"));
+        render(await request("/api/v1/status"), { quiet });
       };
 
       const execute = async (body) => {
         app.classList.add("busy");
+        actionInFlight = true;
         try {
           notice.textContent = `Running ${body.action}…`;
           notice.className = "notice";
@@ -315,6 +369,7 @@
           notice.textContent = error.message;
           notice.className = "notice error";
         } finally {
+          actionInFlight = false;
           app.classList.remove("busy");
         }
       };
@@ -329,6 +384,13 @@
         notice.textContent = error.message;
         notice.className = "notice error";
       });
+      window.setInterval(() => {
+        if (actionInFlight || document.hidden) return;
+        loadStatus({ quiet: true }).catch((error) => {
+          notice.textContent = error.message;
+          notice.className = "notice error";
+        });
+      }, 2000);
     })();
   </script>
 </body>

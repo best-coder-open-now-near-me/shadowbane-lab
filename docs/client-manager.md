@@ -128,7 +128,8 @@ header/body deadlines, suppresses request logging, and sends restrictive CSP, fr
 content-type, and referrer headers. It is intentionally not a cross-PC control plane. Run one app
 on each PC.
 
-The dashboard shows manifest slots, exact bindings, and unbound matching instances. If clients
+The dashboard shows manifest slots, exact bindings, worker health, and unbound matching instances.
+It refreshes health every two seconds while visible. If clients
 are already open after a manager restart, attach each exact instance to a slot before launching
 more. Group start is sequential and fail-fast, and it refuses to run while an unbound matching
 instance or incomplete matching identity needs review. This prevents a later launch from being
@@ -140,6 +141,87 @@ dashboard with Ctrl+C stops only the manager UI; game clients remain open. If a 
 binding is absent from the current window inventory, native window actions remain disabled while
 Detach stays available so the operator can deliberately forget the stale identity and attach a
 replacement.
+
+## Per-slot worker supervision
+
+The app reads durable worker heartbeats from the node-local control-center state root by default.
+This remains local even if an operator temporarily reads the manager manifest from a VirtualBox
+share:
+
+```text
+%LOCALAPPDATA%\ShadowbaneLab\workers\<node_id>\<client_id>\
+├── worker-<id>.json
+└── dispatch.permit
+```
+
+Use `manager app --worker-state-directory ABSOLUTE_LOCAL_PATH` only when a different node-local
+state root is intentional. UNC roots are rejected. The heartbeat directory is local operational
+state; it is not a shared tactical bus and should not be placed on `codexrepo` or `codexdiag`.
+
+Each worker creates a fresh `WorkerHeartbeatPublisher` for one manifest `client_id`, one exact
+manager `instance_id`, and its own verified PID/creation-time lifetime. Publish at least once per
+second while active; the manager's default expiry is five seconds. A typical worker integration
+has this shape:
+
+```python
+import os
+from pathlib import Path
+
+from shadowbane_lab.manager import (
+    ProcessLifetimeSnapshot,
+    Win32ProcessLifetimeInspector,
+    WorkerHeartbeatLedger,
+    WorkerHeartbeatPublisher,
+    WorkerRuntimeState,
+    load_manager_manifest,
+)
+
+manifest = load_manager_manifest(manifest_path)
+inspector = Win32ProcessLifetimeInspector()
+process = inspector.inspect(os.getpid())
+if not isinstance(process, ProcessLifetimeSnapshot):
+    raise RuntimeError("worker process lifetime could not be verified")
+
+publisher = WorkerHeartbeatPublisher(
+    WorkerHeartbeatLedger(
+        manifest,
+        Path(os.environ["LOCALAPPDATA"]) / "ShadowbaneLab" / "workers",
+    ),
+    node_id=manifest.node_id,
+    client_id=client_id,
+    instance_id=instance_id,
+    process=process,
+)
+publisher.publish(WorkerRuntimeState.STARTING)
+# Publish RUNNING with dispatch_ready=True only after all worker guards are ready.
+dispatch_gate = publisher.dispatch_gate()
+# Pass dispatch_gate into the live input stop-signal chain and check it before every action.
+```
+
+The publisher sequences atomic records and latches emergency stop for the lifetime of that worker.
+After an emergency trip, the same worker identity cannot re-enable dispatch; create a new worker
+process after operator review. `evidence_sequence` is an optional non-negative cursor for liveness
+diagnostics, not a path or tactical payload. Call `publisher.close()` on orderly shutdown.
+
+Effective `dispatch_enabled` is deliberately stricter than client attachment. It is true only when
+the exact game process/window binding is current, lifecycle dispatch is resumed, exactly one fresh
+worker owns that exact instance, the worker PID/creation time is still live, its runtime is healthy,
+and its own guarded dispatch is ready. Missing, stale, corrupt, duplicated, mismatched, stopped,
+failed, degraded, or emergency-tripped workers all fail closed and remain visible in the dashboard.
+`lifecycle_dispatch_enabled` remains separately visible so an operator can distinguish a manual
+pause from a worker-health block.
+
+The manager continuously writes an atomic `dispatch.permit` beside each slot's heartbeat records.
+An allow permit names the exact game instance, worker ID, worker PID/creation time, and last verified
+heartbeat, and expires after two seconds. `pause`, `detach`, `close`, a new launch/attach, and orderly
+manager shutdown write a denial synchronously; a crashed or unreachable manager simply stops
+renewing the allow permit. `publisher.dispatch_gate()` implements the live input `StopSignal`
+contract and must be included in every worker's guarded-input stop chain. Treating the dashboard
+field as informational without consuming this permit is not a valid worker integration.
+
+The existing `/go` and `/pve` chat listener is a node-level guarded operator service, not a per-slot
+worker. Keep its startup and singleton ownership separate. The later game/worker bootstrap should
+start one publisher-backed bot worker only after the manager has assigned an exact client instance.
 
 ## Multi-PC boundary
 

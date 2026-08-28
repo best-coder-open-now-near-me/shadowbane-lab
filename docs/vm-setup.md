@@ -117,6 +117,18 @@ starts the authenticated localhost dashboard. A listener configuration failure i
 hiding the lifecycle dashboard. The dashboard opens automatically but does not launch a game
 client until its Start control is used.
 
+The dashboard also watches `%LOCALAPPDATA%\ShadowbaneLab\workers` for strict per-slot worker
+heartbeats. The control center does not start bot workers yet: game launch and per-slot worker
+bootstrap remain an explicit follow-on. When that bootstrap is connected, each worker must bind
+its heartbeat to the manager's exact `client_id` and `instance_id`; a PC name or character role is
+not an ownership key. Missing or unhealthy workers keep effective dispatch disabled without
+preventing lifecycle inspection, attach, tile, or close operations.
+
+Every live-input worker must also consume its publisher's dynamic dispatch gate. The manager
+renews exact allow permits while the binding and worker remain healthy, revokes them for lifecycle
+actions and shutdown, and otherwise lets them expire within two seconds. A heartbeat producer that
+does not put this gate in its guarded-input stop chain is incomplete and must not be started live.
+
 The manager launches `sb.exe` directly with the reviewed Mesa text-rendering environment. The
 listener starts even when several character hotbar files exist; exact hotbar validation is deferred
 until `/pve` is requested. Bootstrap and manager logs stay under

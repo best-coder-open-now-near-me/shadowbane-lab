@@ -11,6 +11,10 @@ from shadowbane_lab.manager.session import (
     ManagerSlotState,
     SessionActionError,
 )
+from shadowbane_lab.manager.worker import (
+    WorkerHealthState,
+    WorkerSlotHealthSnapshot,
+)
 
 NODE_ID = "gaming-pc-east"
 PROCESS_DIRECTORY = r"C:\Games\Shadowbane"
@@ -95,6 +99,7 @@ class _StaticRegistry:
     def __init__(self, snapshot: ClientRegistrySnapshot) -> None:
         self.snapshot = snapshot
         self.inspection_count = 0
+        self.worker_supervisor: object | None = None
 
     def inspect(self) -> ClientRegistrySnapshot:
         self.inspection_count += 1
@@ -168,9 +173,42 @@ class _RecordingSession:
         return self.status(client_id)
 
 
+class _StaticWorkerSupervisor:
+    def __init__(self, state: WorkerHealthState = WorkerHealthState.HEALTHY) -> None:
+        self.state = state
+        self.revocations: list[tuple[str, str]] = []
+
+    def inspect(
+        self,
+        client_id: str,
+        *,
+        instance_id: str | None,
+        lifecycle_dispatch_enabled: bool,
+    ) -> WorkerSlotHealthSnapshot:
+        if instance_id is None:
+            return WorkerSlotHealthSnapshot(
+                client_id=client_id,
+                state=WorkerHealthState.UNBOUND,
+                dispatch_allowed=False,
+                active_worker_count=0,
+            )
+        return WorkerSlotHealthSnapshot(
+            client_id=client_id,
+            state=self.state,
+            dispatch_allowed=(
+                lifecycle_dispatch_enabled and self.state is WorkerHealthState.HEALTHY
+            ),
+            active_worker_count=1,
+        )
+
+    def revoke(self, client_id: str, *, reason: str) -> None:
+        self.revocations.append((client_id, reason))
+
+
 def _application(
     session: _RecordingSession,
     *clients: ClientInstanceSnapshot,
+    worker_state: WorkerHealthState = WorkerHealthState.HEALTHY,
 ) -> tuple[ManagerDashboardApplication, _StaticRegistry]:
     registry = _StaticRegistry(
         ClientRegistrySnapshot(
@@ -190,11 +228,14 @@ def _application(
             ),
         )
     )
+    worker_supervisor = _StaticWorkerSupervisor(worker_state)
+    registry.worker_supervisor = worker_supervisor
     return (
         ManagerDashboardApplication(
             _manifest(),
             session,
             registry,
+            worker_supervisor,
             launch_timeout_seconds=12.0,
             poll_seconds=0.25,
         ),
@@ -223,7 +264,12 @@ class ManagerDashboardApplicationTests(unittest.TestCase):
         self.assertTrue(status["ok"])
         self.assertEqual(2, status["configured_count"])
         self.assertEqual(1, status["bound_count"])
+        self.assertEqual(1, status["healthy_worker_count"])
+        self.assertEqual(1, status["dispatch_ready_count"])
         self.assertEqual(bound.instance_id, status["slots"][0]["binding"]["instance_id"])
+        self.assertTrue(status["slots"][0]["lifecycle_dispatch_enabled"])
+        self.assertTrue(status["slots"][0]["dispatch_enabled"])
+        self.assertEqual("healthy", status["slots"][0]["worker"]["state"])
         self.assertEqual(
             [candidate.instance_id],
             [item["instance_id"] for item in status["slots"][0]["candidates"]],
@@ -306,6 +352,31 @@ class ManagerDashboardApplicationTests(unittest.TestCase):
         self.assertEqual("stale-instance-selection", context.exception.code)
         self.assertEqual([], session.calls)
 
+    def test_worker_health_is_a_required_effective_dispatch_gate(self) -> None:
+        bound = _client("instance-101", 101)
+        session = _RecordingSession(
+            ManagerSessionSnapshot(
+                node_id=NODE_ID,
+                slots=(
+                    _slot("client-01", instance_id=bound.instance_id),
+                    _slot("client-02"),
+                ),
+            )
+        )
+        application, _ = _application(
+            session,
+            bound,
+            worker_state=WorkerHealthState.MISSING,
+        )
+
+        status = application.status()
+
+        slot = status["slots"][0]
+        self.assertTrue(slot["lifecycle_dispatch_enabled"])
+        self.assertFalse(slot["dispatch_enabled"])
+        self.assertEqual("missing", slot["worker"]["state"])
+        self.assertEqual(0, status["dispatch_ready_count"])
+
     def test_launch_requires_existing_candidates_to_be_attached_first(self) -> None:
         candidate = _client("instance-existing", 202)
         session = _RecordingSession(
@@ -332,7 +403,7 @@ class ManagerDashboardApplicationTests(unittest.TestCase):
                 ),
             )
         )
-        application, _ = _application(session)
+        application, registry = _application(session)
 
         application.execute("start-all")
         application.execute("refresh")
@@ -364,6 +435,20 @@ class ManagerDashboardApplicationTests(unittest.TestCase):
                 ("close", "client-01"),
             ],
             session.calls,
+        )
+        self.assertIsInstance(registry.worker_supervisor, _StaticWorkerSupervisor)
+        worker_supervisor = registry.worker_supervisor
+        assert isinstance(worker_supervisor, _StaticWorkerSupervisor)
+        self.assertEqual(
+            [
+                "client-02",
+                "client-02",
+                "client-02",
+                "client-01",
+                "client-01",
+                "client-01",
+            ],
+            [client_id for client_id, _reason in worker_supervisor.revocations],
         )
 
     def test_session_failures_become_structured_dashboard_conflicts(self) -> None:
