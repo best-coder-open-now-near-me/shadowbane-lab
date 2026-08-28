@@ -124,6 +124,7 @@ from shadowbane_lab.client_observation import (
     open_windows_native_target_position_reader,
     open_windows_native_world_map_reader,
 )
+from shadowbane_lab.manager import ClientWindowRegistry
 from shadowbane_lab.progression import (
     CalculatorReviewStatus,
     WonderbaneCalculatorImportError,
@@ -706,6 +707,38 @@ def _parser() -> argparse.ArgumentParser:
     )
     listen_go.add_argument("--json", action="store_true", help="emit JSON Lines events")
 
+    manager = commands.add_parser(
+        "manager",
+        help="inspect local client instances without focusing them or sending input",
+    )
+    manager_commands = manager.add_subparsers(dest="manager_command", required=True)
+    manager_inspect = manager_commands.add_parser(
+        "inspect",
+        help="emit a node-tagged inventory of matching visible clients",
+    )
+    manager_inspect.add_argument(
+        "--node-id",
+        required=True,
+        help="stable identifier for this PC in manager evidence and client identities",
+    )
+    manager_inspect.add_argument(
+        "--process-directory",
+        type=Path,
+        help="optional exact directory containing the expected game executable",
+    )
+    manager_inspect.add_argument(
+        "--executable-name",
+        dest="executable_names",
+        action="append",
+        metavar="NAME",
+        help="allowed executable file name; repeatable and defaults to sb.exe",
+    )
+    manager_inspect.add_argument(
+        "--json",
+        action="store_true",
+        help="emit machine-readable JSON",
+    )
+
     progression = commands.add_parser(
         "progression",
         help="import and inspect sourced character-progression data",
@@ -796,6 +829,48 @@ def _inspect_client(*, as_json: bool) -> int:
             as_json=as_json,
         )
     _print_snapshot(snapshot, as_json=as_json)
+    return 0
+
+
+def _inspect_manager(
+    *,
+    node_id: str,
+    executable_names: Sequence[str],
+    process_directory: Path | None,
+    as_json: bool,
+) -> int:
+    if process_directory is not None and not process_directory.is_dir():
+        return _error(
+            f"process directory does not exist: {process_directory}",
+            as_json=as_json,
+        )
+    resolved_names = tuple(executable_names) or ("sb.exe",)
+    try:
+        snapshot = ClientWindowRegistry(
+            WindowsVisibleWindowInspector(),
+            node_id=node_id,
+            executable_names=resolved_names,
+            process_directory=process_directory,
+        ).inspect()
+    except (OSError, RuntimeError, ValueError) as exc:
+        return _error(f"manager inspection failed: {exc}", as_json=as_json)
+
+    payload = {"ok": True, **snapshot.as_dict()}
+    if as_json:
+        print(json.dumps(payload, sort_keys=True))
+        return 0
+
+    print(f"Node: {snapshot.node_id}")
+    print(f"Attachable clients: {len(snapshot.clients)}")
+    for client in snapshot.clients:
+        print(
+            f"- {client.instance_id}: pid={client.process_id} "
+            f"hwnd={client.window_handle} {client.executable_name} {client.title!r}"
+        )
+    print(f"Rejected windows: {len(snapshot.rejected)}")
+    for window in snapshot.rejected:
+        reasons = ", ".join(reason.value for reason in window.reasons)
+        print(f"- {window.executable_name} {window.title!r}: {reasons}")
     return 0
 
 
@@ -3482,6 +3557,13 @@ def _error(message: str, *, as_json: bool) -> int:
 
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = _parser().parse_args(argv)
+    if arguments.command == "manager" and arguments.manager_command == "inspect":
+        return _inspect_manager(
+            node_id=arguments.node_id,
+            executable_names=arguments.executable_names or (),
+            process_directory=arguments.process_directory,
+            as_json=arguments.json,
+        )
     if (
         arguments.command == "progression"
         and arguments.progression_command == "import-wonderbane-calculator"
