@@ -22,15 +22,23 @@ from shadowbane_lab.combat.model import (
     WeaponProcProfile,
     WeaponProfile,
 )
+from shadowbane_lab.combat.types import (
+    RESISTED_DAMAGE_TYPES,
+    DamageType,
+    ResistanceType,
+)
 
 __all__ = [
     "StackPriority",
     "CombatSheet",
+    "DamageType",
+    "ResistanceType",
     "CompatibilityStatus",
     "SheetModifiers",
     "WeaponDamageInputs",
     "WeaponProcProfile",
     "WeaponProfile",
+    "RESISTED_DAMAGE_TYPES",
     "defense_rating",
     "effective_resistance",
     "melee_hit_chance_percent",

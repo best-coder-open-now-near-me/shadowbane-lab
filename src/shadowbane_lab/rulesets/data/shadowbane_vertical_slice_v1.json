@@ -93,7 +93,8 @@
         "required_actor_tags": [],
         "forbidden_actor_tags": [],
         "features": [{"name": "movement_quantum_ms", "value": 200}],
-        "tags": ["movement", "locomotion"]
+        "tags": ["movement", "locomotion"],
+        "hit_roll": null
       }
     },
     {
@@ -145,7 +146,7 @@
             "kind": "active",
             "duration_ms": 1000,
             "effects": [
-              {"op": "deal_damage", "subject": "target", "amount": 10, "damage_type": "physical"}
+              {"op": "deal_damage", "subject": "target", "amount": 10, "damage_type": "crush"}
             ],
             "delivery": {"kind": "immediate", "projectile_speed_units_per_second": null},
             "interruptible": true,
@@ -159,7 +160,8 @@
           {"name": "expected_damage", "value": 10},
           {"name": "active_time_ms", "value": 1000}
         ],
-        "tags": ["combat", "attack", "melee", "physical"]
+        "tags": ["combat", "attack", "melee", "physical"],
+        "hit_roll": null
       }
     },
     {
@@ -332,7 +334,8 @@
           {"name": "expected_damage", "value": 28.5},
           {"name": "control_duration_ms", "value": 3000}
         ],
-        "tags": ["combat", "damage", "cold", "control", "anti_flight"]
+        "tags": ["combat", "damage", "cold", "control", "anti_flight"],
+        "hit_roll": "power"
       }
     },
     {
@@ -485,7 +488,8 @@
           "value_min": 3000,
           "value_max": 9000
         }}],
-        "tags": ["combat", "control", "anti_flight"]
+        "tags": ["combat", "control", "anti_flight"],
+        "hit_roll": "power"
       }
     },
     {
@@ -652,7 +656,8 @@
             "value_max": 3000
           }}
         ],
-        "tags": ["combat", "damage", "mental", "control", "anti_flight"]
+        "tags": ["combat", "damage", "mental", "control", "anti_flight"],
+        "hit_roll": "power"
       }
     },
     {
@@ -762,7 +767,8 @@
         "required_actor_tags": [],
         "forbidden_actor_tags": [],
         "features": [{"name": "expected_healing", "value": 64.5}],
-        "tags": ["combat", "healing", "self"]
+        "tags": ["combat", "healing", "self"],
+        "hit_roll": null
       }
     },
     {
@@ -847,7 +853,117 @@
         "required_actor_tags": [],
         "forbidden_actor_tags": [],
         "features": [{"name": "effect_duration_ms", "value": 300000}],
-        "tags": ["movement", "buff", "flight"]
+        "tags": ["movement", "buff", "flight"],
+        "hit_roll": null
+      }
+    },
+    {
+      "action_key": "shadowbane.assassin.shadow_mantle",
+      "display_name": "Shadow Mantle",
+      "rank": 40,
+      "progression": {
+        "professions": ["assassin"],
+        "granted_level": 42,
+        "maximum_rank": 40,
+        "fixed_rank": null,
+        "skill_requirements": [
+          {"training_key": "shadowmastery", "minimum_rank": 97}
+        ],
+        "power_requirements": []
+      },
+      "status": "compiled_with_override",
+      "concrete": {
+        "server_power_token": 429410121,
+        "server_id_string": null,
+        "client_binding_key": "shadowbane.assassin.shadow_mantle"
+      },
+      "provenance": [
+        {
+          "fields": [
+            "rank",
+            "progression",
+            "spec.costs",
+            "spec.targeting.maximum_range",
+            "spec.phases[0].duration_ms",
+            "spec.phases[0].effects",
+            "spec.cooldown_ms"
+          ],
+          "source_id": "morloch-assassin-36339",
+          "locator": "Shadow Mantle rank 0-40 table",
+          "note": "Rank 40 costs 95 mana, casts in one second, recycles in 15 seconds, and prevents healing from powers at or below rank 40 for 30 seconds. Cooldown includes cast plus recycle."
+        },
+        {
+          "fields": ["concrete.server_power_token"],
+          "source_id": "wonderbane-native-training-ef43784b",
+          "locator": "live player power vector token 0x19984749"
+        },
+        {
+          "fields": [
+            "concrete.client_binding_key",
+            "spec.targeting",
+            "spec.phases[0].effects",
+            "spec.features",
+            "spec.tags"
+          ],
+          "source_id": "lab-action-algebra-v1",
+          "locator": "Shadow Mantle typed-action mapping"
+        }
+      ],
+      "unresolved": [
+        "The published static power row has not yet been differentially verified against the current WonderBane deployment.",
+        "Deployment power data is still required to verify effect stack-order and dispel precedence."
+      ],
+      "spec": {
+        "targeting": {
+          "kind": "entity",
+          "allowed_relations": ["enemy"],
+          "minimum_range": 0,
+          "maximum_range": 100,
+          "requires_line_of_sight": true
+        },
+        "costs": [
+          {
+            "resource_key": "mana",
+            "amount": {
+              "interpolation": "linear",
+              "rank_min": 0,
+              "rank_max": 40,
+              "value_min": 55,
+              "value_max": 95
+            }
+          }
+        ],
+        "phases": [
+          {
+            "kind": "active",
+            "duration_ms": 1000,
+            "effects": [
+              {
+                "op": "apply_effect",
+                "subject": "target",
+                "effect_key": "shadow_mantle",
+                "duration_ms": 30000,
+                "magnitude": 1,
+                "stacking_key": "BMHealing",
+                "tags": ["debuff", "effect"],
+                "modifiers": [
+                  {"op": "resource_immunity", "resource_key": "health"}
+                ]
+              }
+            ],
+            "delivery": {"kind": "immediate", "projectile_speed_units_per_second": null},
+            "interruptible": true,
+            "movement_allowed": false
+          }
+        ],
+        "cooldown_ms": 16000,
+        "required_actor_tags": [],
+        "forbidden_actor_tags": [],
+        "features": [
+          {"name": "healing_denial_ms", "value": 30000}
+        ],
+        "tags": ["combat", "debuff", "healing_denial"],
+        "hit_roll": null
       }
     },
     {

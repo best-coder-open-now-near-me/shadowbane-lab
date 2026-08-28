@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
+from shadowbane_lab.combat import DamageType
+
 
 def _identifier(value: str, field_name: str) -> None:
     if not isinstance(value, str) or not value.strip():
@@ -139,6 +141,7 @@ class ProcEffectProfile:
     base_minimum_damage: float
     base_maximum_damage: float
     focus_scaling: bool
+    damage_type: DamageType
     source_id: str
 
     def __post_init__(self) -> None:
@@ -150,6 +153,10 @@ class ProcEffectProfile:
             raise ValueError("proc base damage range is invalid")
         if not isinstance(self.focus_scaling, bool):
             raise ValueError("focus_scaling must be a boolean")
+        if not isinstance(self.damage_type, DamageType):
+            raise ValueError("damage_type must be a DamageType")
+        if self.damage_type is DamageType.UNKNOWN:
+            raise ValueError("proc effects require a known damage type")
 
 
 @dataclass(frozen=True, slots=True)

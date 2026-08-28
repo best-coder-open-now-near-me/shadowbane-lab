@@ -20,12 +20,14 @@ from shadowbane_lab.protocol import Relation, TargetKind
 from shadowbane_lab.rulesets import CharacterBuild, load_shadowbane_vertical_slice
 from shadowbane_lab.sim import (
     ActionPhase,
+    ApplyEffect,
     AreaEffect,
     AreaOrigin,
     AttackGate,
     ChanceGate,
     DealDamage,
     PhaseKind,
+    ResourceImmunity,
     SubjectRef,
     TargetingSpec,
     TriangularAmount,
@@ -33,6 +35,7 @@ from shadowbane_lab.sim import (
 
 SHADOW_BOLT = "shadowbane.assassin.shadow_bolt"
 SHADOW_TOUCH = "shadowbane.assassin.shadow_touch"
+SHADOW_MANTLE = "shadowbane.assassin.shadow_mantle"
 
 
 def _sheet() -> CombatSheet:
@@ -93,6 +96,36 @@ def _build() -> CharacterBuild:
 
 
 class CombatCompilerTests(unittest.TestCase):
+    def test_no_hit_roll_debuff_needs_no_focus_and_compiles_without_attack_gate(self) -> None:
+        build = replace(
+            _build(),
+            power_ranks=((SHADOW_MANTLE, 40),),
+            enabled_power_keys=(SHADOW_MANTLE,),
+        )
+        sheet = replace(_sheet(), power_focus_values=())
+        policy = CombatCompilePolicy(
+            accepted_compatibility=(CompatibilityStatus.SOURCE_REVISION_ACCEPTED,),
+            allow_ruleset_overrides=True,
+        )
+
+        compiled = compile_combatant(
+            sheet,
+            build,
+            load_shadowbane_vertical_slice(),
+            policy=policy,
+        )
+
+        mantle = compiled.catalog.get(compiled.action_key(SHADOW_MANTLE))
+        effect = mantle.phases[0].effects[0]
+        self.assertIsInstance(effect, ApplyEffect)
+        assert isinstance(effect, ApplyEffect)
+        self.assertEqual(40, effect.trains)
+        self.assertEqual((ResourceImmunity("health"),), effect.modifiers)
+        self.assertEqual(
+            16_000.0,
+            {feature.name: feature.value for feature in mantle.features}["commitment_ms"],
+        )
+
     def test_default_policy_rejects_unverified_compatibility_and_ruleset_overrides(self) -> None:
         with self.assertRaises(CombatReadinessError) as raised:
             compile_combatant(_sheet(), _build(), load_shadowbane_vertical_slice())

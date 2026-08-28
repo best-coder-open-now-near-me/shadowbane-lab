@@ -9,7 +9,7 @@ from math import isfinite
 from pathlib import Path
 from typing import Any, cast
 
-from shadowbane_lab.combat import StackPriority
+from shadowbane_lab.combat import DamageType, ResistanceType, StackPriority
 from shadowbane_lab.protocol import NamedScalar, Relation, TargetKind
 from shadowbane_lab.rulesets.model import (
     CompilationStatus,
@@ -43,6 +43,7 @@ from shadowbane_lab.sim import (
     PhaseKind,
     RemoveEffect,
     ResourceCost,
+    ResourceImmunity,
     RestoreResource,
     ScalarOperation,
     SubjectRef,
@@ -236,6 +237,11 @@ def _parse_action(data: Mapping[str, Any], action_key: str, rank: int) -> Action
         forbidden_actor_tags=tuple(_strings(data, "forbidden_actor_tags")),
         features=features,
         tags=tuple(_strings(data, "tags")),
+        hit_roll=(
+            None
+            if _nullable_string(data, "hit_roll") is None
+            else AttackKind(_string(data, "hit_roll"))
+        ),
         cancel_on_damage=_optional_boolean(data, "cancel_on_damage", False),
         cancel_on_stun=_optional_boolean(data, "cancel_on_stun", False),
     )
@@ -307,9 +313,10 @@ def _parse_effect(data: Mapping[str, Any], rank: int) -> EffectPrimitive:
         return DealDamage(
             subject=SubjectRef(_string(data, "subject")),
             amount=_resolved_amount(_required(data, "amount"), rank),
-            damage_type=_string(data, "damage_type"),
+            damage_type=DamageType(_string(data, "damage_type")),
             uses_resistance=_optional_boolean(data, "uses_resistance", False),
             power_trains=_resolved_integer(data.get("power_trains", 0), rank),
+            source_key=_optional_string(data, "source_key"),
         )
     if operation == "restore_resource":
         return RestoreResource(
@@ -318,7 +325,11 @@ def _parse_effect(data: Mapping[str, Any], rank: int) -> EffectPrimitive:
             amount=_resolved_amount(_required(data, "amount"), rank),
             uses_resistance=_optional_boolean(data, "uses_resistance", False),
             power_trains=_resolved_integer(data.get("power_trains", 0), rank),
-            resistance_type=_optional_string(data, "resistance_type"),
+            resistance_type=(
+                None
+                if _optional_string(data, "resistance_type") is None
+                else ResistanceType(_string(data, "resistance_type"))
+            ),
         )
     if operation == "modify_scalar":
         return ModifyScalar(
@@ -341,6 +352,10 @@ def _parse_effect(data: Mapping[str, Any], rank: int) -> EffectPrimitive:
             magnitude=_resolved_number(data.get("magnitude", 1.0), rank),
             stacking_key=_nullable_string(data, "stacking_key"),
             tags=tuple(_strings(data, "tags")),
+            modifiers=tuple(
+                _parse_effect_modifier(item)
+                for item in _optional_objects(data, "modifiers")
+            ),
             stack_order=_resolved_integer(data.get("stack_order", 0), rank),
             trains=_resolved_integer(data.get("trains", 0), rank),
             stack_priority=StackPriority(
@@ -377,6 +392,13 @@ def _parse_effect(data: Mapping[str, Any], rank: int) -> EffectPrimitive:
             stance=CombatStance(_string(data, "stance")),
         )
     raise RulesetLoadError(f"unsupported effect operation: {operation}")
+
+
+def _parse_effect_modifier(data: Mapping[str, Any]) -> ResourceImmunity:
+    operation = _string(data, "op")
+    if operation == "resource_immunity":
+        return ResourceImmunity(resource_key=_string(data, "resource_key"))
+    raise RulesetLoadError(f"unsupported effect modifier operation: {operation}")
 
 
 def _resolved_amount(value: Any, rank: int) -> AmountSpec:
@@ -463,6 +485,14 @@ def _object(data: Mapping[str, Any], key: str) -> Mapping[str, Any]:
 
 def _objects(data: Mapping[str, Any], key: str) -> tuple[Mapping[str, Any], ...]:
     return tuple(_mapping(item, f"{key} item") for item in _sequence(data, key))
+
+
+def _optional_objects(
+    data: Mapping[str, Any], key: str
+) -> tuple[Mapping[str, Any], ...]:
+    if key not in data:
+        return ()
+    return _objects(data, key)
 
 
 def _sequence(data: Mapping[str, Any], key: str) -> Sequence[Any]:

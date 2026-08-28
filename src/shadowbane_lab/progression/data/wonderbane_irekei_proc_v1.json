@@ -184,6 +184,7 @@
       "base_minimum_damage": 20,
       "base_maximum_damage": 46,
       "focus_scaling": false,
+      "damage_type": "mental",
       "source_id": "morloch-proc-33392"
     },
     {
@@ -193,6 +194,7 @@
       "base_minimum_damage": 69,
       "base_maximum_damage": 148,
       "focus_scaling": false,
+      "damage_type": "poison",
       "source_id": "morloch-assassin-powers-36339"
     }
   ],

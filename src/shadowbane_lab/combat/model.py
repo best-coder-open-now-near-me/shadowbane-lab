@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from enum import StrEnum
 from math import isfinite
 
+from shadowbane_lab.combat.types import DamageType, ResistanceType
+
 
 def _finite(value: float, field_name: str) -> None:
     if isinstance(value, bool) or not isinstance(value, (int, float)) or not isfinite(value):
@@ -77,12 +79,18 @@ class WeaponProcProfile:
     probability: float
     minimum: float
     maximum: float
-    damage_type: str
+    damage_type: DamageType
     trains: int = 0
 
     def __post_init__(self) -> None:
         _identifier(self.proc_key, "proc_key")
-        _identifier(self.damage_type, "damage_type")
+        if not isinstance(self.damage_type, DamageType):
+            try:
+                object.__setattr__(self, "damage_type", DamageType(self.damage_type))
+            except (TypeError, ValueError) as exc:
+                raise ValueError("damage_type must be a DamageType") from exc
+        if self.damage_type is DamageType.UNKNOWN:
+            raise ValueError("weapon procs require a known damage type")
         _finite(self.probability, "probability")
         if not 0.0 < self.probability <= 1.0:
             raise ValueError("proc probability must be in (0, 1]")
@@ -96,7 +104,7 @@ class WeaponProcProfile:
 @dataclass(frozen=True, slots=True)
 class WeaponProfile:
     weapon_key: str
-    damage_type: str
+    damage_type: DamageType
     skill_key: str
     mastery_key: str
     base_minimum: float
@@ -125,11 +133,17 @@ class WeaponProfile:
     def __post_init__(self) -> None:
         for value, field_name in (
             (self.weapon_key, "weapon_key"),
-            (self.damage_type, "damage_type"),
             (self.skill_key, "skill_key"),
             (self.mastery_key, "mastery_key"),
         ):
             _identifier(value, field_name)
+        if not isinstance(self.damage_type, DamageType):
+            try:
+                object.__setattr__(self, "damage_type", DamageType(self.damage_type))
+            except (TypeError, ValueError) as exc:
+                raise ValueError("damage_type must be a DamageType") from exc
+        if self.damage_type is DamageType.UNKNOWN:
+            raise ValueError("weapons require a known damage type")
         for field_name in (
             "base_minimum",
             "base_maximum",
@@ -193,7 +207,7 @@ class CombatSheet:
     passive_defenses: tuple[tuple[str, float], ...]
     modifiers: SheetModifiers = SheetModifiers()
     weapon: WeaponProfile | None = None
-    protection_type: str | None = None
+    protection_type: DamageType | None = None
     protection_trains: int = 0
     tags: tuple[str, ...] = ()
 
@@ -233,6 +247,13 @@ class CombatSheet:
         _numeric_pairs(self.skill_values, "skill_values", non_negative=True)
         _numeric_pairs(self.power_focus_values, "power_focus_values", non_negative=True)
         _numeric_pairs(self.resistances, "resistances", non_negative=False)
+        normalized_resistances: list[tuple[str, float]] = []
+        for key, value in self.resistances:
+            try:
+                normalized_key = ResistanceType(key).value
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"unknown resistance type: {key}") from exc
+            normalized_resistances.append((normalized_key, value))
         _numeric_pairs(self.passive_defenses, "passive_defenses", non_negative=True)
         if any(value > 75 for _, value in self.passive_defenses):
             raise ValueError("passive defense chances must not exceed 75")
@@ -241,7 +262,15 @@ class CombatSheet:
         if self.weapon is not None and not isinstance(self.weapon, WeaponProfile):
             raise ValueError("weapon must be a WeaponProfile or null")
         if self.protection_type is not None:
-            _identifier(self.protection_type, "protection_type")
+            if not isinstance(self.protection_type, DamageType):
+                try:
+                    object.__setattr__(
+                        self, "protection_type", DamageType(self.protection_type)
+                    )
+                except (TypeError, ValueError) as exc:
+                    raise ValueError("protection_type must be a DamageType") from exc
+            if self.protection_type is DamageType.UNKNOWN:
+                raise ValueError("protection requires a known damage type")
         _non_negative_integer(self.protection_trains, "protection_trains")
         if self.protection_type is None and self.protection_trains != 0:
             raise ValueError("protection_trains requires protection_type")
@@ -249,12 +278,8 @@ class CombatSheet:
             raise ValueError("tags must not contain duplicates")
         for tag in self.tags:
             _identifier(tag, "tag")
-        for field_name in (
-            "skill_values",
-            "power_focus_values",
-            "resistances",
-            "passive_defenses",
-        ):
+        object.__setattr__(self, "resistances", tuple(sorted(normalized_resistances)))
+        for field_name in ("skill_values", "power_focus_values", "passive_defenses"):
             object.__setattr__(self, field_name, tuple(sorted(getattr(self, field_name))))
         object.__setattr__(self, "tags", tuple(sorted(self.tags)))
 

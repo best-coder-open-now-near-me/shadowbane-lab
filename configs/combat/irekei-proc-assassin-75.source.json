@@ -1,0 +1,135 @@
+{
+  "schema_version": 1,
+  "sheet": {
+    "sheet_id": "irekei-proc-assassin-75-source-v1",
+    "profession": "assassin",
+    "level": 75,
+    "source": {
+      "source_id": "wonderbane-calculator+live-progression+morloch-proc-assassin",
+      "source_revision": "2026-08-28-source-scenario-v1",
+      "formula_revision": "3649c629b709c67625a09150a3752107f4b873cc",
+      "compatibility": "source_revision_accepted"
+    },
+    "attributes": {
+      "strength": 35,
+      "dexterity": 130,
+      "constitution": 85,
+      "intelligence": 165,
+      "spirit": 15
+    },
+    "resources": {
+      "health": 1731,
+      "mana": 377,
+      "stamina": 390
+    },
+    "move_speed": 30,
+    "equipment_defense": 0,
+    "skill_values": {
+      "unarmed": 161,
+      "unarmed_mastery": 70
+    },
+    "power_focus_values": {
+      "shadowbane.assassin.shadow_bolt": 97,
+      "shadowbane.assassin.shadow_touch": 97
+    },
+    "resistances": {
+      "slash": 0,
+      "crush": 0,
+      "pierce": 0,
+      "magic": 0,
+      "bleed": 0,
+      "poison": 0,
+      "mental": 0,
+      "holy": 0,
+      "unholy": 0,
+      "lightning": 0,
+      "fire": 0,
+      "cold": 0,
+      "healing": 0
+    },
+    "passive_defenses": {
+      "block": 0,
+      "parry": 0,
+      "dodge": 0
+    },
+    "modifiers": {
+      "flat_ocv": 0,
+      "positive_ocv_percent": 0,
+      "negative_ocv_percent": 0,
+      "flat_dcv": 0,
+      "positive_dcv_percent": 0,
+      "negative_dcv_percent": 0,
+      "armor_piercing": 0
+    },
+    "weapon": {
+      "weapon_key": "rha-khanakar",
+      "damage_type": "crush",
+      "skill_key": "unarmed",
+      "mastery_key": "unarmed_mastery",
+      "base_minimum": 4,
+      "base_maximum": 16,
+      "speed_tenths": 20,
+      "range_units": 6,
+      "strength_based": false,
+      "ranged": false,
+      "dual_wielding": false,
+      "item_minimum_flat": 0,
+      "item_maximum_flat": 0,
+      "item_damage_flat": 0,
+      "item_minimum_percent": 0,
+      "item_maximum_percent": 0,
+      "item_damage_percent": 0,
+      "character_minimum_flat": 0,
+      "character_maximum_flat": 0,
+      "character_damage_flat": 0,
+      "character_minimum_percent": 0,
+      "character_maximum_percent": 0,
+      "character_damage_percent": 0,
+      "weapon_speed_percent": 0,
+      "attack_delay_percent": 0,
+      "procs": [
+        {
+          "proc_key": "tier-three-mental",
+          "probability": 0.05,
+          "minimum": 20,
+          "maximum": 46,
+          "damage_type": "mental",
+          "trains": 0
+        },
+        {
+          "proc_key": "poison-blade-rank-40",
+          "probability": 0.05,
+          "minimum": 69,
+          "maximum": 148,
+          "damage_type": "poison",
+          "trains": 40
+        }
+      ]
+    },
+    "protection": {
+      "type": null,
+      "trains": 0
+    },
+    "tags": [
+      "build.unarmed_proc",
+      "scenario.naked_source_sheet"
+    ]
+  },
+  "build": {
+    "profession": "assassin",
+    "level": 75,
+    "skill_ranks": {
+      "shadowmastery": 97
+    },
+    "power_ranks": {
+      "shadowbane.assassin.shadow_bolt": 40,
+      "shadowbane.assassin.shadow_mantle": 40,
+      "shadowbane.assassin.shadow_touch": 40
+    },
+    "enabled_power_keys": [
+      "shadowbane.assassin.shadow_bolt",
+      "shadowbane.assassin.shadow_mantle",
+      "shadowbane.assassin.shadow_touch"
+    ]
+  }
+}

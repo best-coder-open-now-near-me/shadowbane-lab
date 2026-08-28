@@ -85,8 +85,54 @@ class CombatProfileLoaderTests(unittest.TestCase):
         with self.assertRaisesRegex(CombatProfileLoadError, "unsupported fields"):
             load_combat_profile_text(json.dumps(payload))
 
+    def test_unknown_resistance_channel_is_rejected_at_profile_boundary(self) -> None:
+        payload = _profile_payload(_sheet(), _build())
+        payload["sheet"]["resistances"]["physical"] = 0  # type: ignore[index]
+
+        with self.assertRaisesRegex(CombatProfileLoadError, "unknown resistance type"):
+            load_combat_profile_text(json.dumps(payload))
+
 
 class VerifiedDuelTests(unittest.TestCase):
+    def test_bundled_level_75_source_scenario_profiles_compile_and_run(self) -> None:
+        assassin_sheet, assassin_build = load_combat_profile_text(
+            Path("configs/combat/irekei-proc-assassin-75.source.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        warlock_sheet, warlock_build = load_combat_profile_text(
+            Path("configs/combat/nephilim-resist-warlock-75.source.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        policy = CombatCompilePolicy(
+            accepted_compatibility=(CompatibilityStatus.SOURCE_REVISION_ACCEPTED,),
+            allow_ruleset_overrides=True,
+        )
+        config = VerifiedDuelConfig(
+            left=VerifiedCombatantConfig(
+                "assassin", "assassin", assassin_sheet, assassin_build
+            ),
+            right=VerifiedCombatantConfig(
+                "warlock", "warlock", warlock_sheet, warlock_build
+            ),
+            compile_policy=policy,
+            max_ticks=1_000,
+            seed=3,
+        )
+
+        result = run_verified_duel_batch(config, episodes=3)
+
+        self.assertEqual(3, result.episodes)
+        self.assertEqual(
+            3,
+            result.draws + sum(item.wins for item in result.combatants),
+        )
+        self.assertEqual(
+            0,
+            sum(item.total_rejected_actions for item in result.combatants),
+        )
+
     def test_complete_sheet_duel_is_reproducible_and_carries_acceptance_metadata(self) -> None:
         assassin_sheet, assassin_build = _sheet(), _build()
         warlock_sheet, warlock_build = _warlock_profile()

@@ -325,13 +325,14 @@ class UtilityDuelPolicy:
             entity for entity in exchange.observation.entities if entity.relation is Relation.SELF
         )
         health = _scalar(actor.scalars, "health")
+        actor_tags = frozenset(actor.tags)
         target_tags = {
             entity.entity_id: frozenset(entity.tags)
             for entity in exchange.observation.entities
             if entity.relation is Relation.ENEMY
         }
         scored = tuple(
-            (self._score(item, health, target_tags, exchange), item)
+            (self._score(item, health, actor_tags, target_tags, exchange), item)
             for item in affordances
         )
         score, selected = max(
@@ -346,6 +347,7 @@ class UtilityDuelPolicy:
         self,
         affordance: Affordance,
         health: float,
+        actor_tags: frozenset[str],
         target_tags: dict[str, frozenset[str]],
         exchange: AgentExchange,
     ) -> float:
@@ -354,6 +356,8 @@ class UtilityDuelPolicy:
         commitment_ms = max(1.0, features.get("commitment_ms", 1.0))
 
         if "healing" in tags:
+            if "immunity.resource.health" in actor_tags:
+                return float("-inf")
             health_fraction = health / self._maximum_health
             if health_fraction > self._heal_threshold:
                 return -100.0
@@ -363,9 +367,15 @@ class UtilityDuelPolicy:
 
         expected_damage = features.get("expected_damage", 0.0)
         control_ms = features.get("control_duration_ms", 0.0)
+        healing_denial_ms = features.get("healing_denial_ms", 0.0)
         target_id = affordance.binding.target_entity_id
+        selected_target_tags = target_tags.get(target_id, ()) if target_id is not None else ()
         if target_id is not None and "immunity.stun" in target_tags.get(target_id, ()):
             control_ms = 0.0
+        if healing_denial_ms > 0.0:
+            if "immunity.resource.health" in selected_target_tags:
+                return float("-inf")
+            return 12.0 + healing_denial_ms / 300.0
         if expected_damage > 0.0 or control_ms > 0.0:
             return expected_damage * 1_000.0 / commitment_ms + control_ms / 300.0
 

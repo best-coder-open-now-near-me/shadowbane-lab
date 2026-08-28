@@ -6,7 +6,11 @@ from shadowbane_lab.sim import (
     ActionPhase,
     ActionSpec,
     ApplyEffect,
+    AreaEffect,
+    AreaOrigin,
+    AttackKind,
     ChanceGate,
+    DamageType,
     DealDamage,
     DeliveryKind,
     DeliverySpec,
@@ -14,7 +18,9 @@ from shadowbane_lab.sim import (
     MoveEntity,
     MovementMode,
     PhaseKind,
+    ResistanceType,
     ResourceCost,
+    ResourceImmunity,
     RestoreResource,
     SubjectRef,
     TargetingSpec,
@@ -51,7 +57,7 @@ def representative_actions() -> tuple[ActionSpec, ...]:
             ActionPhase(
                 kind=PhaseKind.ACTIVE,
                 duration_ms=600,
-                effects=(DealDamage(SubjectRef.TARGET, 12.0, "physical"),),
+                effects=(DealDamage(SubjectRef.TARGET, 12.0, "crush"),),
             ),
         ),
         cooldown_ms=800,
@@ -161,6 +167,113 @@ def representative_actions() -> tuple[ActionSpec, ...]:
 
 
 class ActionAlgebraTests(unittest.TestCase):
+    def test_damage_and_resistance_channels_are_closed_vocabularies(self) -> None:
+        damage = DealDamage(SubjectRef.TARGET, 12.0, "cold")
+        healing = RestoreResource(
+            SubjectRef.TARGET,
+            "health",
+            12.0,
+            uses_resistance=True,
+            resistance_type="healing",
+        )
+
+        self.assertIs(DamageType.COLD, damage.damage_type)
+        self.assertIs(ResistanceType.HEALING, healing.resistance_type)
+        with self.assertRaisesRegex(ValueError, "DamageType"):
+            DealDamage(SubjectRef.TARGET, 12.0, "physical")
+        with self.assertRaisesRegex(ValueError, "unknown damage cannot use resistance"):
+            DealDamage(
+                SubjectRef.TARGET,
+                12.0,
+                DamageType.UNKNOWN,
+                uses_resistance=True,
+            )
+        with self.assertRaisesRegex(ValueError, "ResistanceType"):
+            RestoreResource(
+                SubjectRef.TARGET,
+                "health",
+                12.0,
+                uses_resistance=True,
+                resistance_type="invented",
+            )
+
+    def test_area_is_a_target_set_combinator_not_a_second_damage_primitive(self) -> None:
+        damage = DealDamage(SubjectRef.TARGET, 12.0, DamageType.FIRE)
+        direct = ActionSpec(
+            action_key="direct",
+            targeting=TargetingSpec(
+                kind=TargetKind.ENTITY,
+                allowed_relations=(Relation.ENEMY,),
+            ),
+            phases=(ActionPhase(PhaseKind.ACTIVE, 0, (damage,)),),
+        )
+        area = ActionSpec(
+            action_key="area",
+            targeting=TargetingSpec(kind=TargetKind.SELF),
+            phases=(
+                ActionPhase(
+                    PhaseKind.ACTIVE,
+                    0,
+                    (
+                        AreaEffect(
+                            origin=AreaOrigin.ACTOR,
+                            radius=10.0,
+                            allowed_relations=(Relation.ENEMY,),
+                            effects=(damage,),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        self.assertIs(damage, direct.phases[0].effects[0])
+        wrapped = area.phases[0].effects[0]
+        assert isinstance(wrapped, AreaEffect)
+        self.assertIs(damage, wrapped.effects[0])
+
+    def test_hit_resolution_is_independent_of_target_shape(self) -> None:
+        hostile = ActionSpec(
+            action_key="hostile-power",
+            targeting=TargetingSpec(
+                kind=TargetKind.ENTITY,
+                allowed_relations=(Relation.ENEMY,),
+            ),
+            phases=(
+                ActionPhase(
+                    PhaseKind.ACTIVE,
+                    0,
+                    (DealDamage(SubjectRef.TARGET, 1.0, DamageType.MENTAL),),
+                ),
+            ),
+            hit_roll=AttackKind.POWER,
+        )
+
+        self.assertIs(AttackKind.POWER, hostile.hit_roll)
+        with self.assertRaisesRegex(ValueError, "hostile"):
+            ActionSpec(
+                action_key="self-hit-roll",
+                targeting=TargetingSpec(kind=TargetKind.SELF),
+                phases=(ActionPhase(PhaseKind.ACTIVE, 0),),
+                hit_roll=AttackKind.POWER,
+            )
+
+    def test_effect_mechanics_are_typed_instead_of_runtime_tag_conventions(self) -> None:
+        effect = ApplyEffect(
+            SubjectRef.TARGET,
+            "healing-lock",
+            1_000,
+            modifiers=(ResourceImmunity("health"),),
+        )
+
+        self.assertEqual(("immunity.resource.health",), effect.modifiers[0].semantic_tags)
+        with self.assertRaisesRegex(ValueError, "typed effect modifiers"):
+            ApplyEffect(
+                SubjectRef.TARGET,
+                "invalid",
+                1_000,
+                modifiers=(object(),),  # type: ignore[arg-type]
+            )
+
     def test_chance_gate_requires_a_bounded_direct_effect_bundle(self) -> None:
         gate = ChanceGate(
             "weapon_proc",
@@ -187,7 +300,7 @@ class ActionAlgebraTests(unittest.TestCase):
         amount = UniformIntegerAmount(4, 5)
 
         self.assertEqual(4.5, amount.expected)
-        self.assertEqual(amount, DealDamage(SubjectRef.TARGET, amount, "physical").amount)
+        self.assertEqual(amount, DealDamage(SubjectRef.TARGET, amount, "crush").amount)
 
         with self.assertRaisesRegex(ValueError, "must be an integer"):
             UniformIntegerAmount(4, 5.5)  # type: ignore[arg-type]
@@ -197,7 +310,7 @@ class ActionAlgebraTests(unittest.TestCase):
 
         self.assertEqual(4, amount.total_weight)
         self.assertEqual(32.5, amount.expected)
-        self.assertEqual(amount, DealDamage(SubjectRef.TARGET, amount, "observed").amount)
+        self.assertEqual(amount, DealDamage(SubjectRef.TARGET, amount, "unknown").amount)
 
         with self.assertRaisesRegex(ValueError, "sorted"):
             WeightedAmount(((40.0, 1), (10.0, 1)))

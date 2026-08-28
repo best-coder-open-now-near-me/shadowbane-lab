@@ -6,6 +6,7 @@ import json
 from importlib.resources import files
 from typing import Any
 
+from shadowbane_lab.combat import DamageType
 from shadowbane_lab.progression.model import (
     IdentityProfile,
     ProcEffectProfile,
@@ -122,6 +123,7 @@ def _proc_effect(data: dict[str, Any]) -> ProcEffectProfile:
         base_minimum_damage=_number(data, "base_minimum_damage"),
         base_maximum_damage=_number(data, "base_maximum_damage"),
         focus_scaling=focus_scaling,
+        damage_type=DamageType(_string(data, "damage_type")),
         source_id=_string(data, "source_id"),
     )
 

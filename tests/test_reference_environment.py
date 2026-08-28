@@ -242,7 +242,7 @@ class ReferenceEnvironmentTests(unittest.TestCase):
                 ActionPhase(
                     kind=PhaseKind.ACTIVE,
                     duration_ms=0,
-                    effects=(DealDamage(SubjectRef.TARGET, 10.0, "physical"),),
+                    effects=(DealDamage(SubjectRef.TARGET, 10.0, "crush"),),
                 ),
             ),
         )
@@ -374,7 +374,7 @@ class ReferenceEnvironmentTests(unittest.TestCase):
                         DealDamage(
                             SubjectRef.TARGET,
                             UniformAmount(4.0, 9.0),
-                            "physical",
+                            "crush",
                         ),
                     ),
                 ),
@@ -427,7 +427,7 @@ class ReferenceEnvironmentTests(unittest.TestCase):
                         DealDamage(
                             SubjectRef.TARGET,
                             WeightedAmount(((5.0, 1), (17.0, 2))),
-                            "observed",
+                            "unknown",
                         ),
                     ),
                 ),
@@ -493,7 +493,7 @@ class ReferenceEnvironmentTests(unittest.TestCase):
                 ActionPhase(
                     kind=PhaseKind.ACTIVE,
                     duration_ms=0,
-                    effects=(DealDamage(SubjectRef.TARGET, 1.0, "arcane"),),
+                    effects=(DealDamage(SubjectRef.TARGET, 1.0, "magic"),),
                 ),
             ),
             costs=(ResourceCost("mana", 5.0),),

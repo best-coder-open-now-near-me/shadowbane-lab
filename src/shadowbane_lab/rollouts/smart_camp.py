@@ -30,6 +30,7 @@ from shadowbane_lab.sim import (
     ActionSpec,
     AgentExchange,
     ChanceGate,
+    DamageType,
     DealDamage,
     EntityState,
     PhaseKind,
@@ -778,7 +779,8 @@ def _compile_scenario(config: SmartCampConfig) -> _CompiledSmartCamp:
             DealDamage(
                 SubjectRef.TARGET,
                 config.observed_unattributed_damage,
-                "observed_unattributed",
+                DamageType.UNKNOWN,
+                source_key="observed_unattributed",
             ),
         )
         expected_damage += config.observed_unattributed_damage.expected
@@ -862,7 +864,7 @@ def _mechanistic_weapon_effects(
                 round(weapon.base_minimum_damage),
                 round(weapon.base_maximum_damage),
             ),
-            "physical",
+            DamageType.CRUSH,
         )
     ]
     expected_damage = (weapon.base_minimum_damage + weapon.base_maximum_damage) / 2.0
@@ -883,7 +885,8 @@ def _mechanistic_weapon_effects(
                     DealDamage(
                         SubjectRef.TARGET,
                         UniformAmount(minimum, maximum),
-                        f"proc.{effect.key}",
+                        effect.damage_type,
+                        source_key=effect.key,
                     ),
                 ),
             )
@@ -926,7 +929,7 @@ def _mob_action(config: CampMobConfig) -> ActionSpec:
                             config.attack_damage_minimum,
                             config.attack_damage_maximum,
                         ),
-                        "physical",
+                        DamageType.CRUSH,
                     ),
                 ),
             ),
@@ -981,9 +984,9 @@ def _result(
                     proc_checks[key] += 1
                     proc_triggers[key] += round(scalars.get("triggered", 0.0))
         elif event.kind == EventKind.DAMAGE_APPLIED and event.source_entity_id == _PLAYER_ID:
-            if "damage.physical" in event.tags:
+            if "damage.crush" in event.tags:
                 physical_damage += scalars.get("effective", 0.0)
-            if "damage.observed_unattributed" in event.tags:
+            if "damage_source.observed_unattributed" in event.tags:
                 observed_unattributed_damage += scalars.get("effective", 0.0)
             for key in config.proc_effect_keys:
                 if f"damage.proc.{key}" in event.tags:

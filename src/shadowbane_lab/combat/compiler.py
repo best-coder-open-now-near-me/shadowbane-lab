@@ -17,6 +17,7 @@ from shadowbane_lab.combat.model import (
     CompatibilityStatus,
     WeaponDamageInputs,
 )
+from shadowbane_lab.combat.types import ResistanceType
 from shadowbane_lab.protocol import EntityKind, NamedScalar, Relation, TargetKind, Vector2
 from shadowbane_lab.rulesets.model import (
     CharacterBuild,
@@ -47,23 +48,7 @@ from shadowbane_lab.sim import (
 )
 
 MAGICBANE_COMBAT_FORMULA_REVISION = "3649c629b709c67625a09150a3752107f4b873cc"
-REQUIRED_RESISTANCE_TYPES = frozenset(
-    {
-        "slash",
-        "crush",
-        "pierce",
-        "magic",
-        "bleed",
-        "poison",
-        "mental",
-        "holy",
-        "unholy",
-        "lightning",
-        "fire",
-        "cold",
-        "healing",
-    }
-)
+REQUIRED_RESISTANCE_TYPES = frozenset(item.value for item in ResistanceType)
 REQUIRED_PASSIVE_DEFENSES = frozenset({"block", "parry", "dodge"})
 _BASIC_ATTACK = "shadowbane.basic_attack"
 _MOVEMENT = "shadowbane.move"
@@ -295,7 +280,7 @@ def _compile_scalars(sheet: CombatSheet) -> dict[str, float]:
 def _compile_tags(sheet: CombatSheet) -> tuple[str, ...]:
     tags = {f"profession.{sheet.profession.casefold()}", *sheet.tags}
     if sheet.protection_type is not None:
-        tags.add(f"protection.{sheet.protection_type}")
+        tags.add(f"protection.{sheet.protection_type.value}")
     return tuple(sorted(tags))
 
 
@@ -404,7 +389,7 @@ def _compile_power_action(sheet: CombatSheet, action: ActionSpec, rank: int) -> 
     focus = sheet.power_focus(action.action_key) if _action_needs_focus(action) else 0.0
     phases = tuple(_compile_power_phase(sheet, phase, rank, focus) for phase in action.phases)
     compiled_key = _compiled_action_key(sheet.sheet_id, action.action_key)
-    if _hostile_action(action):
+    if _action_requires_attack_gate(action):
         phases = tuple(_add_power_attack_gates(action, phase) for phase in phases)
     expected_damage = _expected_effect_amount(phases, DealDamage)
     expected_healing = _expected_effect_amount(phases, RestoreResource)
@@ -413,6 +398,10 @@ def _compile_power_action(sheet: CombatSheet, action: ActionSpec, rank: int) -> 
         feature_values["expected_damage"] = expected_damage
     if expected_healing > 0:
         feature_values["expected_healing"] = expected_healing
+    feature_values.setdefault(
+        "commitment_ms",
+        float(max(action.cooldown_ms, sum(phase.duration_ms for phase in phases), 1)),
+    )
     return replace(
         action,
         action_key=compiled_key,
@@ -487,7 +476,7 @@ def _add_power_attack_gates(action: ActionSpec, phase: ActionPhase) -> ActionPha
         effect for effect in phase.effects if not isinstance(effect, AreaEffect)
     )
     target_gate = (
-        _power_attack_gate(action.action_key, non_area_effects)
+        _power_attack_gate(action.action_key, action.hit_roll, non_area_effects)
         if entity_target_is_enemy and non_area_effects
         else None
     )
@@ -500,7 +489,7 @@ def _add_power_attack_gates(action: ActionSpec, phase: ActionPhase) -> ActionPha
                     replace(
                         effect,
                         effects=(
-                            _power_attack_gate(action.action_key, effect.effects),
+                            _power_attack_gate(action.action_key, action.hit_roll, effect.effects),
                         ),
                     )
                 )
@@ -517,11 +506,14 @@ def _add_power_attack_gates(action: ActionSpec, phase: ActionPhase) -> ActionPha
 
 def _power_attack_gate(
     action_key: str,
+    kind: AttackKind | None,
     effects: tuple[DirectEffectPrimitive | ChanceGate, ...],
 ) -> AttackGate:
+    if kind is None:
+        raise CombatReadinessError(("attack-gated power is missing its hit-roll kind",))
     return AttackGate(
         attack_key=action_key,
-        kind=AttackKind.POWER,
+        kind=kind,
         attack_rating_key=f"attack.power.{action_key}",
         defense_rating_key="defense",
         effects=effects,
@@ -605,8 +597,12 @@ def _hostile_action(action: ActionSpec) -> bool:
     )
 
 
+def _action_requires_attack_gate(action: ActionSpec) -> bool:
+    return action.hit_roll is not None
+
+
 def _action_needs_focus(action: ActionSpec) -> bool:
-    if _hostile_action(action):
+    if _action_requires_attack_gate(action):
         return True
     return any(
         _effect_needs_focus(effect)

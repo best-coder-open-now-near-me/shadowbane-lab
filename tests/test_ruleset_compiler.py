@@ -60,12 +60,12 @@ class RulesetCompilerTests(unittest.TestCase):
         ruleset = load_shadowbane_vertical_slice()
 
         self.assertEqual("shadowbane.vertical-slice.v1", ruleset.ruleset_id)
-        self.assertEqual(8, len(ruleset.records))
-        self.assertEqual(7, len(ruleset.catalog))
+        self.assertEqual(9, len(ruleset.records))
+        self.assertEqual(8, len(ruleset.catalog))
         self.assertEqual(
             {
                 CompilationStatus.COMPILED: 0,
-                CompilationStatus.COMPILED_WITH_OVERRIDE: 7,
+                CompilationStatus.COMPILED_WITH_OVERRIDE: 8,
                 CompilationStatus.UNRESOLVED: 1,
             },
             ruleset.status_counts(),

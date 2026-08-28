@@ -15,6 +15,7 @@ from shadowbane_lab.combat.model import (
     WeaponProcProfile,
     WeaponProfile,
 )
+from shadowbane_lab.combat.types import DamageType
 from shadowbane_lab.rulesets import CharacterBuild
 
 COMBAT_PROFILE_SCHEMA_VERSION = 1
@@ -181,7 +182,11 @@ def _sheet(data: Mapping[str, Any]) -> CombatSheet:
         passive_defenses=_number_pairs(_object(data, "passive_defenses")),
         modifiers=_modifiers(_object(data, "modifiers")),
         weapon=_nullable_weapon(data.get("weapon")),
-        protection_type=_nullable_string(protection, "type"),
+        protection_type=(
+            None
+            if _nullable_string(protection, "type") is None
+            else DamageType(_string(protection, "type"))
+        ),
         protection_trains=_integer(protection, "trains"),
         tags=_strings(data, "tags"),
     )
@@ -246,7 +251,7 @@ def _nullable_weapon(value: Any) -> WeaponProfile | None:
     }
     return WeaponProfile(
         weapon_key=_string(data, "weapon_key"),
-        damage_type=_string(data, "damage_type"),
+        damage_type=DamageType(_string(data, "damage_type")),
         skill_key=_string(data, "skill_key"),
         mastery_key=_string(data, "mastery_key"),
         strength_based=_boolean(data, "strength_based"),
@@ -268,7 +273,7 @@ def _proc(data: Mapping[str, Any]) -> WeaponProcProfile:
         probability=_number(data, "probability"),
         minimum=_number(data, "minimum"),
         maximum=_number(data, "maximum"),
-        damage_type=_string(data, "damage_type"),
+        damage_type=DamageType(_string(data, "damage_type")),
         trains=_integer(data, "trains"),
     )
 

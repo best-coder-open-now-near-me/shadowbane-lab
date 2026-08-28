@@ -7,7 +7,7 @@ from math import isfinite
 
 from shadowbane_lab.combat import StackPriority
 from shadowbane_lab.protocol import EntityKind, Vector2
-from shadowbane_lab.sim.actions import CombatStance
+from shadowbane_lab.sim.actions import CombatStance, EffectModifier, ResourceImmunity
 
 
 def _identifier(value: str, field_name: str) -> None:
@@ -32,6 +32,7 @@ class ActiveEffectSnapshot:
     expires_at_ms: int
     stacking_key: str | None
     tags: tuple[str, ...]
+    modifiers: tuple[EffectModifier, ...]
     stack_order: int
     trains: int
     stack_priority: StackPriority
@@ -45,6 +46,7 @@ class ActiveEffectState:
     expires_at_ms: int
     stacking_key: str | None = None
     tags: set[str] = field(default_factory=set)
+    modifiers: tuple[EffectModifier, ...] = ()
     stack_order: int = 0
     trains: int = 0
     stack_priority: StackPriority = StackPriority.ALWAYS
@@ -69,6 +71,8 @@ class ActiveEffectState:
         self.tags = set(self.tags)
         for tag in self.tags:
             _identifier(tag, "effect tag")
+        if any(not isinstance(modifier, ResourceImmunity) for modifier in self.modifiers):
+            raise ValueError("modifiers must contain typed effect modifiers")
         for value, field_name in (
             (self.stack_order, "stack_order"),
             (self.trains, "trains"),
@@ -86,6 +90,7 @@ class ActiveEffectState:
             expires_at_ms=self.expires_at_ms,
             stacking_key=self.stacking_key,
             tags=tuple(sorted(self.tags)),
+            modifiers=self.modifiers,
             stack_order=self.stack_order,
             trains=self.trains,
             stack_priority=self.stack_priority,
@@ -100,6 +105,7 @@ class ActiveEffectState:
             expires_at_ms=snapshot.expires_at_ms,
             stacking_key=snapshot.stacking_key,
             tags=set(snapshot.tags),
+            modifiers=snapshot.modifiers,
             stack_order=snapshot.stack_order,
             trains=snapshot.trains,
             stack_priority=snapshot.stack_priority,
@@ -200,7 +206,15 @@ class EntityState:
         effect_tags = {
             tag for effect in self.effects.values() for tag in (effect.effect_key, *effect.tags)
         }
-        return frozenset(self.tags | effect_tags | {f"stance.{self.stance.value}"})
+        modifier_tags = {
+            tag
+            for effect in self.effects.values()
+            for modifier in effect.modifiers
+            for tag in modifier.semantic_tags
+        }
+        return frozenset(
+            self.tags | effect_tags | modifier_tags | {f"stance.{self.stance.value}"}
+        )
 
     def snapshot(self) -> EntitySnapshot:
         return EntitySnapshot(

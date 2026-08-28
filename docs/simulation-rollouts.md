@@ -17,6 +17,7 @@ The current executable slice uses these published grant points:
 | --- | --- | ---: | --- | --- |
 | Assassin | Shadow Bolt | 10 | Shadowmastery 15 | Executable |
 | Assassin | Shadow Touch | 15 | Shadowmastery 36 | Executable |
+| Assassin | Shadow Mantle | 42 | Shadowmastery 97 | Executable |
 | Assassin | Passwall | 28 | Shadowmastery 66 | Unresolved and excluded |
 | Warlock | Mind Strike | 10 | None published | Executable |
 | Warlock | Levitation | 22 | Warlockry 52 | Executable at fixed rank 5 |
@@ -59,6 +60,14 @@ an independent power-hit and dodge resolution for each eligible victim. These ar
 semantics; numeric stance modifiers and each power's current radius, cap, and origin still require
 current WonderBane rows rather than inferred defaults.
 
+The action grammar does not define “single-target” and “AoE” as different attack types. A direct
+effect addresses its bound subject; `AreaEffect` maps that same effect bundle over an explicit
+eligible target set. Basic-versus-power is a separate hit-resolution choice, and actions such as
+Shadow Mantle explicitly omit a hit roll. Damage uses a closed channel vocabulary independent of
+its weapon, spell, proc, or hazard source. Shadow Mantle's healing denial is likewise a typed
+ranked `ResourceImmunity` modifier on a timed effect, not a power-name special case or a runtime
+string-tag convention.
+
 Run one accepted-source duel:
 
 ```powershell
@@ -79,6 +88,18 @@ mana use, rejected actions, formula revision, and both sheet acceptance records.
 `--accept-source-revision` to require `live_verified` sheets. Omit
 `--accept-ruleset-overrides` to reject the current archived static Assassin/Warlock power rows
 until current WonderBane differential traces promote them.
+
+The checked-in level-75 source scenarios are
+`configs/combat/irekei-proc-assassin-75.source.json` and
+`configs/combat/nephilim-resist-warlock-75.source.json`. They intentionally describe naked
+calculator-derived sheets with zeroed gear, resistance, and passive-defense contributions, so
+they test the formula/action pipeline rather than approximate finished PvP builds. In a
+1,000-seed run starting at seed 0, the current partial action catalog produced 1,000 Warlock wins,
+no draws, no rejected actions, and zero effective healing because Shadow Mantle blocked every
+attempt at or below its rank. The Assassin dealt 1,220.50 mean damage and the Warlock finished
+with 655.50 mean health. This is not a balance result: the Warlock and Assassin catalogs still
+omit major buffs, debuffs, absorbs, damage-over-time, stealth/openers, and equipment, and the
+generic utility policy is not a player rotation.
 
 ## Run the bracket
 

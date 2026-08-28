@@ -41,6 +41,7 @@ from shadowbane_lab.sim.actions import (
     MoveEntity,
     MovementMode,
     RemoveEffect,
+    ResourceImmunity,
     RestoreResource,
     ScalarOperation,
     SubjectRef,
@@ -395,10 +396,10 @@ class EffectExecutor:
         armor_piercing = 0.0
         if effect.uses_resistance:
             actor = self._entity(item.actor_id)
-            resistance = self._required_scalar(subject, f"resist.{effect.damage_type}")
+            resistance = self._required_scalar(subject, f"resist.{effect.damage_type.value}")
             armor_piercing = self._required_scalar(actor, "armor_piercing")
             protection_applies = (
-                f"protection.{effect.damage_type}" in subject.effective_tags
+                f"protection.{effect.damage_type.value}" in subject.effective_tags
             )
             protection_trains = 0
             if protection_applies:
@@ -416,7 +417,7 @@ class EffectExecutor:
                 protection_applies=protection_applies,
             )
             mitigated = resisted_amount(amount, resistance, armor_piercing)
-            if f"immunity.damage.{effect.damage_type}" in subject.effective_tags:
+            if f"immunity.damage.{effect.damage_type.value}" in subject.effective_tags:
                 mitigated = 0.0
             if "state.sitting" in subject.effective_tags:
                 mitigated *= 2.5
@@ -438,7 +439,10 @@ class EffectExecutor:
                     NamedScalar("armor_piercing", armor_piercing),
                     NamedScalar("effective", before - after),
                 ),
-                tags=(f"damage.{effect.damage_type}",),
+                tags=(
+                    f"damage.{effect.damage_type.value}",
+                    *((f"damage_source.{effect.source_key}",) if effect.source_key else ()),
+                ),
             )
         )
         if before - after > 0.0:
@@ -524,11 +528,22 @@ class EffectExecutor:
         mitigated = amount
         resistance = 0.0
         armor_piercing = 0.0
+        restoration_blocked = any(
+            any(
+                isinstance(modifier, ResourceImmunity)
+                and modifier.resource_key == effect.resource_key
+                for modifier in active.modifiers
+            )
+            and active.trains >= effect.power_trains
+            for active in subject.effects.values()
+        )
         if effect.uses_resistance:
             actor = self._entity(item.actor_id)
             if effect.resistance_type is None:
                 raise SimulationConfigurationError("resisted restoration requires a type")
-            resistance = self._required_scalar(subject, f"resist.{effect.resistance_type}")
+            resistance = self._required_scalar(
+                subject, f"resist.{effect.resistance_type.value}"
+            )
             armor_piercing = self._required_scalar(actor, "armor_piercing")
             resistance = effective_resistance(
                 resistance,
@@ -537,6 +552,8 @@ class EffectExecutor:
                 protection_applies=False,
             )
             mitigated = resisted_amount(amount, resistance, armor_piercing)
+        if restoration_blocked:
+            mitigated = 0.0
         before = subject.scalars.get(effect.resource_key, 0.0)
         maximum = subject.maximums.get(effect.resource_key)
         after = before + mitigated
@@ -558,7 +575,10 @@ class EffectExecutor:
                     NamedScalar("armor_piercing", armor_piercing),
                     NamedScalar("effective", after - before),
                 ),
-                tags=(f"resource.{effect.resource_key}",),
+                tags=(
+                    f"resource.{effect.resource_key}",
+                    *(('outcome.blocked_by_resource_immunity',) if restoration_blocked else ()),
+                ),
             )
         )
 
@@ -718,6 +738,7 @@ class EffectExecutor:
             expires_at_ms=due_time + effect.duration_ms,
             stacking_key=effect.stacking_key,
             tags=set(effect.tags),
+            modifiers=effect.modifiers,
             stack_order=effect.stack_order,
             trains=effect.trains,
             stack_priority=effect.stack_priority,

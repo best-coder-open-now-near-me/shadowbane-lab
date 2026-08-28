@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from math import isfinite
 
-from shadowbane_lab.combat import StackPriority
+from shadowbane_lab.combat import DamageType, ResistanceType, StackPriority
 from shadowbane_lab.protocol import NamedScalar, Relation, TargetKind
 
 
@@ -273,18 +273,27 @@ class ModifyScalar:
 class DealDamage:
     subject: SubjectRef
     amount: AmountSpec
-    damage_type: str
+    damage_type: DamageType
     uses_resistance: bool = False
     power_trains: int = 0
+    source_key: str | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.subject, SubjectRef):
             raise ValueError("subject must be a SubjectRef")
         _positive_amount(self.amount, "damage amount")
-        _identifier(self.damage_type, "damage_type")
+        if not isinstance(self.damage_type, DamageType):
+            try:
+                object.__setattr__(self, "damage_type", DamageType(self.damage_type))
+            except (TypeError, ValueError) as exc:
+                raise ValueError("damage_type must be a DamageType") from exc
         if not isinstance(self.uses_resistance, bool):
             raise ValueError("uses_resistance must be a boolean")
+        if self.damage_type is DamageType.UNKNOWN and self.uses_resistance:
+            raise ValueError("unknown damage cannot use resistance")
         _non_negative_integer(self.power_trains, "power_trains")
+        if self.source_key is not None:
+            _identifier(self.source_key, "source_key")
 
 
 @dataclass(frozen=True, slots=True)
@@ -294,7 +303,7 @@ class RestoreResource:
     amount: AmountSpec
     uses_resistance: bool = False
     power_trains: int = 0
-    resistance_type: str | None = None
+    resistance_type: ResistanceType | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.subject, SubjectRef):
@@ -307,7 +316,17 @@ class RestoreResource:
         if self.uses_resistance:
             if self.resistance_type is None:
                 raise ValueError("resisted restoration requires resistance_type")
-            _identifier(self.resistance_type, "resistance_type")
+            if not isinstance(self.resistance_type, ResistanceType):
+                try:
+                    object.__setattr__(
+                        self,
+                        "resistance_type",
+                        ResistanceType(self.resistance_type),
+                    )
+                except (TypeError, ValueError) as exc:
+                    raise ValueError(
+                        "resistance_type must be a ResistanceType"
+                    ) from exc
         elif self.resistance_type is not None:
             raise ValueError("resistance_type requires uses_resistance")
 
@@ -327,6 +346,24 @@ class ModifyTag:
 
 
 @dataclass(frozen=True, slots=True)
+class ResourceImmunity:
+    """Prevent restoration of one resource by effects at or below the carrier's trains."""
+
+    resource_key: str
+
+    def __post_init__(self) -> None:
+        _identifier(self.resource_key, "resource_key")
+
+    @property
+    def semantic_tags(self) -> tuple[str, ...]:
+        return (f"immunity.resource.{self.resource_key}",)
+
+
+EffectModifier = ResourceImmunity
+_EFFECT_MODIFIER_TYPES = (ResourceImmunity,)
+
+
+@dataclass(frozen=True, slots=True)
 class ApplyEffect:
     subject: SubjectRef
     effect_key: str
@@ -334,6 +371,7 @@ class ApplyEffect:
     magnitude: float = 1.0
     stacking_key: str | None = None
     tags: tuple[str, ...] = ()
+    modifiers: tuple[EffectModifier, ...] = ()
     stack_order: int = 0
     trains: int = 0
     stack_priority: StackPriority = StackPriority.ALWAYS
@@ -349,6 +387,15 @@ class ApplyEffect:
         if self.stacking_key is not None:
             _identifier(self.stacking_key, "stacking_key")
         _unique_strings(self.tags, "tags")
+        if any(
+            not isinstance(modifier, _EFFECT_MODIFIER_TYPES)
+            for modifier in self.modifiers
+        ):
+            raise ValueError("modifiers must contain typed effect modifiers")
+        modifier_keys = tuple(
+            tag for modifier in self.modifiers for tag in modifier.semantic_tags
+        )
+        _unique_strings(modifier_keys, "effect modifier keys")
         _non_negative_integer(self.stack_order, "stack_order")
         _non_negative_integer(self.trains, "trains")
         if not isinstance(self.stack_priority, StackPriority):
@@ -589,6 +636,7 @@ class ActionSpec:
     forbidden_actor_tags: tuple[str, ...] = ()
     features: tuple[NamedScalar, ...] = ()
     tags: tuple[str, ...] = ()
+    hit_roll: AttackKind | None = None
     cancel_on_damage: bool = False
     cancel_on_stun: bool = False
 
@@ -614,6 +662,8 @@ class ActionSpec:
         feature_names = tuple(feature.name for feature in self.features)
         _unique_strings(feature_names, "feature names")
         _unique_strings(self.tags, "tags")
+        if self.hit_roll is not None and not isinstance(self.hit_roll, AttackKind):
+            raise ValueError("hit_roll must be an AttackKind or null")
         if not isinstance(self.cancel_on_damage, bool):
             raise ValueError("cancel_on_damage must be a boolean")
         if not isinstance(self.cancel_on_stun, bool):
@@ -634,6 +684,12 @@ class ActionSpec:
         if any(effect.origin is AreaOrigin.TARGET for effect in area_effects):
             if self.targeting.kind not in {TargetKind.ENTITY, TargetKind.POSITION}:
                 raise ValueError("target-area effects require entity or position targeting")
+        hostile_target = (
+            self.targeting.kind is TargetKind.ENTITY
+            and Relation.ENEMY in self.targeting.allowed_relations
+        ) or any(Relation.ENEMY in effect.allowed_relations for effect in area_effects)
+        if self.hit_roll is not None and not hostile_target:
+            raise ValueError("hit rolls require a hostile entity or area target")
 
 
 class ActionCatalog:

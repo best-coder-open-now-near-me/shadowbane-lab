@@ -1,5 +1,6 @@
 """Deterministic reference simulation primitives."""
 
+from shadowbane_lab.combat import DamageType, ResistanceType
 from shadowbane_lab.sim.actions import (
     ActionCatalog,
     ActionPhase,
@@ -25,6 +26,7 @@ from shadowbane_lab.sim.actions import (
     PhaseKind,
     RemoveEffect,
     ResourceCost,
+    ResourceImmunity,
     RestoreResource,
     ScalarOperation,
     SubjectRef,
@@ -76,6 +78,8 @@ __all__ = [
     "ChanceGate",
     "ChangeStance",
     "CombatStance",
+    "DamageType",
+    "ResistanceType",
     "ActiveEffectSnapshot",
     "ActiveEffectState",
     "ClockSnapshot",
@@ -101,6 +105,7 @@ __all__ = [
     "RangeRelation",
     "ReferenceEnvironment",
     "RemoveEffect",
+    "ResourceImmunity",
     "ResourceCost",
     "RestoreResource",
     "ScalarOperation",

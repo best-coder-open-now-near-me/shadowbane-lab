@@ -15,6 +15,8 @@ from shadowbane_lab.sim import (
     EntityState,
     PhaseKind,
     ReferenceEnvironment,
+    ResourceImmunity,
+    RestoreResource,
     SubjectRef,
     TargetingSpec,
     TriangularAmount,
@@ -74,6 +76,101 @@ def _decision(environment: ReferenceEnvironment, correlation_id: str = "attack")
 
 
 class ShadowbaneCombatRuntimeTests(unittest.TestCase):
+    def test_ranked_resource_immunity_blocks_only_equal_or_weaker_restoration(self) -> None:
+        mantle = ActionSpec(
+            action_key="mantle",
+            targeting=TargetingSpec(
+                kind=TargetKind.ENTITY,
+                allowed_relations=(Relation.ENEMY,),
+                maximum_range=3.0,
+            ),
+            phases=(
+                ActionPhase(
+                    PhaseKind.ACTIVE,
+                    0,
+                    (
+                        ApplyEffect(
+                            SubjectRef.TARGET,
+                            "healing-lock",
+                            30_000,
+                            modifiers=(ResourceImmunity("health"),),
+                            trains=40,
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        def heal(action_key: str, trains: int) -> ActionSpec:
+            return ActionSpec(
+                action_key=action_key,
+                targeting=TargetingSpec(
+                    kind=TargetKind.ENTITY,
+                    allowed_relations=(Relation.SELF, Relation.ALLY),
+                    maximum_range=3.0,
+                ),
+                phases=(
+                    ActionPhase(
+                        PhaseKind.ACTIVE,
+                        0,
+                        (
+                            RestoreResource(
+                                SubjectRef.TARGET,
+                                "health",
+                                25.0,
+                                power_trains=trains,
+                            ),
+                        ),
+                    ),
+                ),
+            )
+
+        target = _actor("target", "blue", (), {"health": 100.0})
+        target.maximums["health"] = 200.0
+        environment = ReferenceEnvironment(
+            ActionCatalog((mantle, heal("weak-heal", 40), heal("strong-heal", 41))),
+            (
+                _actor("assassin", "red", ("mantle",), {"health": 200.0}),
+                _actor(
+                    "healer",
+                    "blue",
+                    ("weak-heal", "strong-heal"),
+                    {"health": 200.0},
+                ),
+                target,
+            ),
+            seed=1,
+        )
+
+        def decision(actor_id: str, action_key: str, target_id: str):
+            exchange = environment.exchange(actor_id)
+            affordance = next(
+                item
+                for item in exchange.affordances.affordances
+                if item.action_key == action_key
+                and item.binding.target_entity_id == target_id
+            )
+            return exchange.decision(affordance.affordance_id, action_key)
+
+        environment.step((decision("assassin", "mantle", "target"),))
+        self.assertIn(
+            "immunity.resource.health",
+            environment.entity("target").effective_tags,
+        )
+        blocked = environment.step((decision("healer", "weak-heal", "target"),))
+
+        self.assertEqual(100.0, environment.entity("target").scalars["health"])
+        blocked_event = next(
+            event
+            for event in blocked.events
+            if event.kind == EventKind.RESOURCE_RESTORED
+        )
+        self.assertIn("outcome.blocked_by_resource_immunity", blocked_event.tags)
+
+        environment.step((decision("healer", "strong-heal", "target"),))
+
+        self.assertEqual(125.0, environment.entity("target").scalars["health"])
+
     def test_triangular_amount_consumes_two_seeded_rolls(self) -> None:
         action = ActionSpec(
             action_key="strike",
