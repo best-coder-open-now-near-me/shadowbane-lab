@@ -59,6 +59,17 @@ class GoChatCommandAssemblerTests(unittest.TestCase):
 
         self.assertEqual("/go runegate", assembler.handle_enter().submitted_command)
 
+    def test_submits_zone_search_with_fuzzy_query(self) -> None:
+        assembler = GoChatCommandAssembler()
+        assembler.handle_enter()
+        for character in "/Zone blak drak swmp":
+            assembler.handle_character(character)
+
+        self.assertEqual(
+            "/zone blak drak swmp",
+            assembler.handle_enter().submitted_command.casefold(),
+        )
+
     def test_discards_pve_command_with_arguments(self) -> None:
         assembler = GoChatCommandAssembler()
         assembler.handle_enter()

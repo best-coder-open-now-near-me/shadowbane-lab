@@ -30,8 +30,20 @@ Stop that background listener by resolving and validating its recorded process i
 powershell.exe -NoProfile -File \\VBOXSVR\codexrepo\scripts\stop-wonderbane-go-listener.ps1
 ```
 
-While that process is running, enter `/go LT LG` in Shadowbane's chat command line. The
-installed `WorldDef.cfg` enables client-defined names such as `/go black drake swamp`.
+While that process is running, enter `/go LT LG` in Shadowbane's chat command line. Enter
+`/zone QUERY` first when the canonical destination name is unknown. It fuzzy-ranks up to
+five names from the same catalog accepted by `/go`, including active server runegates, and
+shows each result with its exact LT/LG plus a ready-to-type `/go NAME` line. The temporary
+topmost overlay does not take focus or mouse input, starts no movement, and disappears after
+15 seconds. The same result set is written to the listener JSONL log as a `zone_results`
+event. For example:
+
+```text
+/zone drake swamp
+/go Black Drake Swamp
+```
+
+The installed `WorldDef.cfg` enables client-defined names such as `/go black drake swamp`.
 Runegates are different: the listener reads the active registry populated by the server's
 CityData message and replaces the incomplete baked `WorldDef.cfg` runegate candidates with
 those live records. Each record supplies its object identity, parent-zone label, and exact

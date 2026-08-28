@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
-from difflib import get_close_matches
+from difflib import SequenceMatcher, get_close_matches
 from math import cos, isfinite, radians, sin
 from pathlib import Path
 
@@ -18,6 +18,10 @@ from shadowbane_lab.world_data import WorldDefinition, ZonePlacement, load_world
 
 _NAMED_GO_PATTERN = re.compile(
     r"^\s*/?go\s+(?P<name>[a-z][a-z0-9 '\-_]*?)\s*$",
+    re.IGNORECASE,
+)
+_ZONE_SEARCH_PATTERN = re.compile(
+    r"^\s*/?zone\s+(?P<query>[a-z0-9][a-z0-9 '\-_]*?)\s*$",
     re.IGNORECASE,
 )
 _CAMEL_CASE_BOUNDARY = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
@@ -58,6 +62,30 @@ class ResolvedNamedDestination:
     template_id: int | None
     destination: TravelDestination
     source: str
+
+
+@dataclass(frozen=True, slots=True)
+class ZoneSearchResult:
+    """One fuzzy-ranked destination that can be passed directly to ``/go``."""
+
+    canonical_name: str
+    aliases: tuple[str, ...]
+    template_id: int | None
+    destination: TravelDestination
+    source: str
+    score: float
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.canonical_name, str) or not self.canonical_name.strip():
+            raise ValueError("zone search canonical_name must be non-empty")
+        if not self.aliases or self.canonical_name not in self.aliases:
+            raise ValueError("zone search aliases must contain the canonical name")
+        if not isinstance(self.destination, TravelDestination):
+            raise ValueError("zone search destination must be TravelDestination")
+        if not isinstance(self.source, str) or not self.source.strip():
+            raise ValueError("zone search source must be non-empty")
+        if not isfinite(self.score) or not 0.0 <= self.score <= 1.0:
+            raise ValueError("zone search score must be between zero and one")
 
 
 class WorldDestinationCatalog:
@@ -195,6 +223,48 @@ class WorldDestinationCatalog:
             source=selected.source,
         )
 
+    def search(self, query: str, *, limit: int = 5) -> tuple[ZoneSearchResult, ...]:
+        """Return the best fuzzy matches from the same names accepted by ``/go``."""
+
+        if not isinstance(query, str) or not query.strip():
+            raise NamedTravelDestinationError("zone search query must be non-empty")
+        if isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0:
+            raise ValueError("zone search limit must be a positive integer")
+        normalized_query = _normalize_name(query)
+        if not normalized_query:
+            raise NamedTravelDestinationError("zone search query contains no name characters")
+        threshold = 0.72 if len(normalized_query) <= 2 else 0.42
+        ranked: list[ZoneSearchResult] = []
+        for entry in self._entries:
+            scored_names = tuple(
+                (_fuzzy_name_score(normalized_query, _normalize_name(name)), name)
+                for name in entry.names
+            )
+            score, matched_name = max(scored_names, key=lambda item: item[0])
+            if score < threshold:
+                continue
+            canonical_name = matched_name
+            ranked.append(
+                ZoneSearchResult(
+                    canonical_name=canonical_name,
+                    aliases=entry.names,
+                    template_id=entry.template_id,
+                    destination=entry.destination,
+                    source=entry.source,
+                    score=score,
+                )
+            )
+        ranked.sort(
+            key=lambda item: (
+                -item.score,
+                len(_normalize_name(item.canonical_name)),
+                _normalize_name(item.canonical_name),
+                item.destination.lt,
+                item.destination.lg,
+            )
+        )
+        return tuple(ranked[:limit])
+
 
 def parse_named_go_command(command: str) -> str:
     if not isinstance(command, str):
@@ -203,6 +273,15 @@ def parse_named_go_command(command: str) -> str:
     if match is None:
         raise NamedTravelDestinationError("named go command must use: go NAME")
     return " ".join(match.group("name").split())
+
+
+def parse_zone_search_command(command: str) -> str:
+    if not isinstance(command, str):
+        raise NamedTravelDestinationError("zone search command must be a string")
+    match = _ZONE_SEARCH_PATTERN.fullmatch(command)
+    if match is None:
+        raise NamedTravelDestinationError("zone search command must use: /zone QUERY")
+    return " ".join(match.group("query").split())
 
 
 def load_world_destination_catalog(
@@ -388,6 +467,38 @@ def _normalize_name(value: str) -> str:
 
 def _is_runegate_entry(entry: WorldDestinationEntry) -> bool:
     return any("runegate" in _normalize_name(name).split() for name in entry.names)
+
+
+def _fuzzy_name_score(query: str, candidate: str) -> float:
+    if query == candidate:
+        return 1.0
+    if candidate.startswith(query):
+        return max(0.92, 0.99 - (len(candidate) - len(query)) * 0.004)
+    candidate_tokens = candidate.split()
+    if any(token.startswith(query) for token in candidate_tokens):
+        return 0.94
+    if query in candidate:
+        return max(0.84, 0.92 - (len(candidate) - len(query)) * 0.003)
+
+    query_tokens = query.split()
+    sequence_score = SequenceMatcher(None, query, candidate).ratio()
+    token_score = max(
+        (
+            SequenceMatcher(None, query, token).ratio()
+            for token in candidate_tokens
+        ),
+        default=0.0,
+    )
+    prefix_token_matches = sum(
+        any(candidate_token.startswith(query_token) for candidate_token in candidate_tokens)
+        for query_token in query_tokens
+    )
+    prefix_score = (
+        0.0
+        if not query_tokens
+        else 0.9 * prefix_token_matches / len(query_tokens)
+    )
+    return min(1.0, max(sequence_score, token_score * 0.92, prefix_score))
 
 
 def _clean_coordinate(value: float) -> float:

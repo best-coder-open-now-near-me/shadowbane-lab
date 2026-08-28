@@ -58,6 +58,7 @@ from shadowbane_lab.client_observation import (
     NativePositionProfileLoadError,
     NativeProgressionCoreProfileLoadError,
     NativeRunegateRegistryError,
+    NativeRunegateRegistryProfile,
     NativeRunegateRegistryProfileLoadError,
     NativeTargetActionError,
     NativeTargetActionProfileLoadError,
@@ -145,10 +146,14 @@ from shadowbane_lab.travel import (
     TravelPlan,
     TravelRunner,
     WindowsGoChatCommandListener,
+    WindowsZoneSearchOverlay,
+    WorldDestinationCatalog,
+    ZoneSearchResult,
     load_active_zone_terrain_navigation,
     load_world_destination_catalog,
     parse_go_command,
     parse_named_go_command,
+    parse_zone_search_command,
     resolve_travel_destination,
 )
 from shadowbane_lab.world_data import (
@@ -584,7 +589,7 @@ def _parser() -> argparse.ArgumentParser:
 
     listen_go = client_commands.add_parser(
         "listen-go",
-        help="listen for foreground in-game /go, /pve, and /stop commands",
+        help="listen for foreground in-game /go, /zone, /pve, and /stop commands",
     )
     listen_go.add_argument(
         "--destination-state",
@@ -2509,6 +2514,27 @@ def _run_travel(
     return 0 if payload["ok"] else 2
 
 
+def _catalog_with_live_runegates(
+    catalog: WorldDestinationCatalog,
+    profile: NativeRunegateRegistryProfile | None,
+    *,
+    process_id: int,
+) -> WorldDestinationCatalog:
+    if profile is None:
+        return catalog
+    try:
+        with open_windows_native_runegate_registry_reader(
+            profile,
+            process_id=process_id,
+        ) as reader:
+            registry = reader.observe()
+    except NativeRunegateRegistryError:
+        # Confirmed overrides and client placements remain available while CityData is
+        # temporarily absent or changing.
+        return catalog
+    return catalog.with_authoritative_runegates(registry)
+
+
 def _listen_for_go_commands(
     *,
     destination_state_path: Path,
@@ -2608,6 +2634,7 @@ def _listen_for_go_commands(
                 on_command=submit_command,
                 on_interaction=cancel_active_operation,
             ),
+            WindowsZoneSearchOverlay() as zone_overlay,
         ):
             stop_adapter = ClientInputAdapter(
                 DecisionInputCompiler(client_profile, StaticBindingPointResolver()),
@@ -2648,6 +2675,42 @@ def _listen_for_go_commands(
                         as_json=as_json,
                         command=command,
                         reason=str(exc),
+                    )
+                    continue
+                if normalized == "/zone" or normalized.startswith("/zone "):
+                    try:
+                        query = parse_zone_search_command(command)
+                        if named_catalog is None:
+                            raise ValueError("/zone requires --world-def")
+                        active_named_catalog = _catalog_with_live_runegates(
+                            named_catalog,
+                            runegate_profile,
+                            process_id=command_process_id,
+                        )
+                        results = active_named_catalog.search(query, limit=5)
+                    except (
+                        OSError,
+                        RuntimeError,
+                        UnicodeError,
+                        ValueError,
+                    ) as exc:
+                        _print_go_listener_event(
+                            "rejected",
+                            as_json=as_json,
+                            command=command,
+                            reason=str(exc),
+                        )
+                        continue
+                    presentation_error = None
+                    try:
+                        zone_overlay.show(query, results)
+                    except (OSError, RuntimeError, ValueError) as exc:
+                        presentation_error = str(exc)
+                    _print_zone_search_results(
+                        query,
+                        results,
+                        presentation_error=presentation_error,
+                        as_json=as_json,
                     )
                     continue
                 if normalized == "/pve":
@@ -2732,21 +2795,11 @@ def _listen_for_go_commands(
                                 process_id=command_process_id,
                             ) as position_reader:
                                 origin = position_reader.observe()
-                            active_named_catalog = named_catalog
-                            if runegate_profile is not None:
-                                try:
-                                    with open_windows_native_runegate_registry_reader(
-                                        runegate_profile,
-                                        process_id=command_process_id,
-                                    ) as runegate_reader:
-                                        registry = runegate_reader.observe()
-                                    active_named_catalog = (
-                                        named_catalog.with_authoritative_runegates(registry)
-                                    )
-                                except NativeRunegateRegistryError:
-                                    # Confirmed overrides and client placements remain a
-                                    # safe fallback while CityData is absent or changing.
-                                    pass
+                            active_named_catalog = _catalog_with_live_runegates(
+                                named_catalog,
+                                runegate_profile,
+                                process_id=command_process_id,
+                            )
                             named_resolution = active_named_catalog.resolve(
                                 query,
                                 origin=origin,
@@ -2865,7 +2918,7 @@ def _print_go_listener_event(
         return
     if event == "listening":
         print(
-            "Listening for foreground Shadowbane commands (/go, /pve, /stop).",
+            "Listening for foreground Shadowbane commands (/go, /zone, /pve, /stop).",
             flush=True,
         )
     elif event == "stopped":
@@ -2898,6 +2951,55 @@ def _print_go_stop_result(
         print("Stopped Shadowbane click-to-move.", flush=True)
     else:
         print(f"Could not stop Shadowbane movement: {reason}", file=sys.stderr, flush=True)
+
+
+def _print_zone_search_results(
+    query: str,
+    results: Sequence[ZoneSearchResult],
+    *,
+    presentation_error: str | None,
+    as_json: bool,
+) -> None:
+    if as_json:
+        payload: dict[str, object] = {
+            "ok": True,
+            "event": "zone_results",
+            "query": query,
+            "match_count": len(results),
+            "results": [
+                {
+                    "canonical_name": result.canonical_name,
+                    "aliases": list(result.aliases),
+                    "score": result.score,
+                    "template_id": result.template_id,
+                    "source": result.source,
+                    "destination": {
+                        "lt": result.destination.lt,
+                        "lg": result.destination.lg,
+                    },
+                }
+                for result in results
+            ],
+        }
+        if presentation_error is not None:
+            payload["presentation_error"] = presentation_error
+        print(json.dumps(payload, sort_keys=True), flush=True)
+        return
+    print(f"Zone matches for {query!r}:", flush=True)
+    for result in results:
+        print(
+            f"  {result.canonical_name}: LT {result.destination.lt:g}, "
+            f"LG {result.destination.lg:g}",
+            flush=True,
+        )
+    if not results:
+        print("  no matches", flush=True)
+    if presentation_error is not None:
+        print(
+            f"Zone overlay unavailable: {presentation_error}",
+            file=sys.stderr,
+            flush=True,
+        )
 
 
 def _verify_hotbar_power_mapping(

@@ -28,9 +28,11 @@ from shadowbane_lab.travel import (
     TravelPlan,
     TravelRunner,
     build_world_destination_catalog,
+    format_zone_search_overlay,
     load_world_destination_catalog,
     parse_go_command,
     parse_named_go_command,
+    parse_zone_search_command,
     resolve_travel_destination,
 )
 from shadowbane_lab.world_data import parse_world_definition
@@ -79,8 +81,79 @@ class GoCommandTests(unittest.TestCase):
         with self.assertRaisesRegex(NamedTravelDestinationError, "go NAME"):
             parse_named_go_command("/go 120000 60000")
 
+    def test_zone_search_command_requires_a_query(self) -> None:
+        self.assertEqual(
+            "blak drak swmp",
+            parse_zone_search_command(" /zone   blak drak swmp "),
+        )
+        with self.assertRaisesRegex(NamedTravelDestinationError, "/zone QUERY"):
+            parse_zone_search_command("/zone")
+
 
 class NamedWorldDestinationTests(unittest.TestCase):
+    def test_fuzzy_zone_search_returns_go_resolvable_names_without_moving(self) -> None:
+        world = parse_world_definition(
+            """
+            WORLDNAME= Aerynth
+            WORLDNUM= 1
+            LENGTH= 512
+            WIDTH= 384
+            <BEGINZONE> 1
+                CENTX= 65536
+                CENTZ= -49152
+                <BEGINZONE> 3000
+                    CENTX= 1000
+                    CENTZ= -2000
+                    ZONELOADFILE= BlackDrakeSwamp.cfg
+                <ENDZONE>
+                <BEGINZONE> 3001
+                    CENTX= 5000
+                    CENTZ= -6000
+                    ZONELOADFILE= Esh.cfg
+                <ENDZONE>
+            <ENDZONE>
+            """
+        )
+        catalog = build_world_destination_catalog(world)
+
+        typo_results = catalog.search("blak drak swmp")
+        short_results = catalog.search("esh")
+
+        self.assertEqual("Black Drake Swamp", typo_results[0].canonical_name)
+        self.assertEqual(TravelDestination(66_536, 51_152), typo_results[0].destination)
+        self.assertEqual("Esh", short_results[0].canonical_name)
+        self.assertEqual(1.0, short_results[0].score)
+        self.assertEqual(
+            TravelDestination(70_536, 55_152),
+            catalog.resolve("esh", origin=_position(0, 0)).destination,
+        )
+
+    def test_zone_search_overlay_formats_names_as_direct_go_commands(self) -> None:
+        world = parse_world_definition(
+            """
+            WORLDNAME= Aerynth
+            WORLDNUM= 1
+            LENGTH= 512
+            WIDTH= 384
+            <BEGINZONE> 1
+                CENTX= 65536
+                CENTZ= -49152
+                <BEGINZONE> 3001
+                    CENTX= 5000
+                    CENTZ= -6000
+                    ZONELOADFILE= Esh.cfg
+                <ENDZONE>
+            <ENDZONE>
+            """
+        )
+        result = build_world_destination_catalog(world).search("esh")
+
+        rendered = format_zone_search_overlay("esh", result)
+
+        self.assertIn('Zone search: "esh"', rendered)
+        self.assertIn("1. Esh  [LT 70536, LG 55152]", rendered)
+        self.assertIn("/go Esh", rendered)
+
     def test_composes_worlddef_centers_and_selects_nearest_oblivion_runegate(self) -> None:
         world = parse_world_definition(
             """

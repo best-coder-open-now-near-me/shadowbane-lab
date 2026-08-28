@@ -20,7 +20,12 @@ from shadowbane_lab.client_input import (
 )
 from shadowbane_lab.client_observation import NativePlayerPositionObservation
 from shadowbane_lab.pve import PvEIntent, PvEPhase
-from shadowbane_lab.travel import SparseNavigationMap, TravelPhase
+from shadowbane_lab.travel import (
+    SparseNavigationMap,
+    TravelDestination,
+    TravelPhase,
+    ZoneSearchResult,
+)
 from tests.test_client_input_executor import _valid_snapshot
 
 
@@ -379,6 +384,123 @@ class ClientCliTests(unittest.TestCase):
         evidence_path = captured["evidence_output_path"]
         self.assertIsInstance(evidence_path, Path)
         self.assertEqual(evidence_directory, evidence_path.parent)
+
+    def test_chat_zone_search_presents_ranked_results_without_starting_travel(self) -> None:
+        template = Path(__file__).parents[1] / "configs" / "wonderbane-travel.template.json"
+        profile = replace(load_calibration(template), live_input_enabled=True)
+        snapshot = WindowSnapshot(
+            executable_name=profile.target.executable_names[0],
+            title="Shadowbane",
+            client_bounds=WindowBounds(
+                left=0,
+                top=0,
+                width=profile.target.reference_width,
+                height=profile.target.reference_height,
+            ),
+            dpi_scale=profile.target.dpi_scale,
+            is_foreground=True,
+            is_visible=True,
+            process_id=4320,
+        )
+        service_stop = EventEmergencyStop()
+        search_result = ZoneSearchResult(
+            canonical_name="Esh",
+            aliases=("Esh",),
+            template_id=3001,
+            destination=TravelDestination(70_536, 55_152),
+            source="client_world_definition",
+            score=1.0,
+        )
+        catalog = MagicMock()
+        catalog.search.return_value = (search_result,)
+        presented: dict[str, object] = {}
+
+        class OneCommandListener:
+            def __init__(self, _guard, *, on_command, on_interaction) -> None:
+                self.on_command = on_command
+
+            def __enter__(self):
+                self.on_command("/zone esh")
+                return self
+
+            def __exit__(self, *_args) -> None:
+                return None
+
+        class RecordingZoneOverlay:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args) -> None:
+                return None
+
+            def show(self, query, results) -> None:
+                presented["query"] = query
+                presented["results"] = results
+                service_stop.trip()
+
+        emergency_stop = MagicMock()
+        emergency_stop.__enter__.return_value = service_stop
+        output = io.StringIO()
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch("shadowbane_lab.cli.load_calibration", return_value=profile),
+            patch(
+                "shadowbane_lab.cli.WindowsForegroundWindowInspector",
+                return_value=StaticWindowInspector(snapshot),
+            ),
+            patch(
+                "shadowbane_lab.cli.WindowsHotkeyEmergencyStop",
+                return_value=emergency_stop,
+            ),
+            patch("shadowbane_lab.cli.WindowsGoChatCommandListener", OneCommandListener),
+            patch("shadowbane_lab.cli.WindowsZoneSearchOverlay", RecordingZoneOverlay),
+            patch("shadowbane_lab.cli.load_world_destination_catalog", return_value=catalog),
+            patch(
+                "shadowbane_lab.cli.load_bundled_native_runegate_registry_profile",
+                return_value=SimpleNamespace(),
+            ),
+            patch(
+                "shadowbane_lab.cli._catalog_with_live_runegates",
+                return_value=catalog,
+            ),
+            patch(
+                "shadowbane_lab.cli.PyAutoGuiBackend",
+                return_value=RecordingInputBackend(),
+            ),
+            redirect_stdout(output),
+        ):
+            result = _listen_for_go_commands(
+                destination_state_path=Path(directory) / "travel.json",
+                client_profile_path=template,
+                native_position_profile_path=None,
+                native_vitals_profile_path=None,
+                native_runegate_profile_path=None,
+                world_def_path=Path(directory) / "WorldDef.cfg",
+                named_destination_overrides_path=None,
+                pve_client_profile_path=None,
+                pve_hotbar_config_path=None,
+                pve_evidence_directory=None,
+                pve_navigation_cache_directory=None,
+                pve_max_kills=3,
+                pve_max_seconds=300,
+                pve_max_encounter_seconds=120,
+                pve_recovery_timeout_seconds=30,
+                pve_poll_ms=100,
+                max_seconds=300,
+                wait_for_client_seconds=0,
+                poll_ms=200,
+                click_interval_ms=4_000,
+                live=True,
+                as_json=True,
+            )
+
+        events = [json.loads(line) for line in output.getvalue().splitlines()]
+        self.assertEqual(0, result)
+        self.assertEqual("esh", presented["query"])
+        self.assertEqual((search_result,), presented["results"])
+        self.assertEqual("zone_results", events[1]["event"])
+        self.assertEqual("Esh", events[1]["results"][0]["canonical_name"])
+        self.assertEqual(70_536, events[1]["results"][0]["destination"]["lt"])
 
     def test_travel_binds_native_readers_to_the_guarded_client_process(self) -> None:
         template = Path(__file__).parents[1] / "configs" / "wonderbane-travel.template.json"

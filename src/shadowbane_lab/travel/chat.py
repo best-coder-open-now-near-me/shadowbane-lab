@@ -92,7 +92,13 @@ class GoChatCommandAssembler:
         normalized = candidate.casefold()
         if any(
             command.startswith(normalized)
-            for command in ("/go", "/pve", "/stop", *GoChatCommandAssembler._DIRECT_COMMAND_ALIASES)
+            for command in (
+                "/go",
+                "/pve",
+                "/stop",
+                "/zone",
+                *GoChatCommandAssembler._DIRECT_COMMAND_ALIASES,
+            )
         ):
             return True
         if normalized.startswith("/go "):
@@ -101,6 +107,8 @@ class GoChatCommandAssembler:
             return not normalized.removeprefix("/pve").strip()
         if normalized.startswith("/stop"):
             return not normalized.removeprefix("/stop").strip()
+        if normalized.startswith("/zone "):
+            return True
         for alias in GoChatCommandAssembler._DIRECT_COMMAND_ALIASES:
             if normalized.startswith(alias):
                 return not normalized.removeprefix(alias).strip()
@@ -119,6 +127,8 @@ class GoChatCommandAssembler:
             or normalized.startswith("/go ")
             or normalized.rstrip() == "/pve"
             or normalized.rstrip() == "/stop"
+            or normalized.rstrip() == "/zone"
+            or normalized.startswith("/zone ")
         ):
             return candidate
         return None

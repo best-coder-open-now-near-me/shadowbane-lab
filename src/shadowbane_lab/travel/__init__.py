@@ -23,10 +23,12 @@ from shadowbane_lab.travel.named import (
     ResolvedNamedDestination,
     WorldDestinationCatalog,
     WorldDestinationEntry,
+    ZoneSearchResult,
     build_world_destination_catalog,
     load_world_destination_catalog,
     load_world_destination_overrides,
     parse_named_go_command,
+    parse_zone_search_command,
     runegate_destination_entries,
 )
 from shadowbane_lab.travel.pathfinding import (
@@ -59,6 +61,10 @@ from shadowbane_lab.travel.terrain import (
     TerrainObjectDensityLayerSeed,
     load_active_zone_terrain_navigation,
     seed_height_raster_navigation,
+)
+from shadowbane_lab.travel.zone_overlay import (
+    WindowsZoneSearchOverlay,
+    format_zone_search_overlay,
 )
 
 __all__ = [
@@ -93,8 +99,10 @@ __all__ = [
     "TerrainObjectDensityLayer",
     "TerrainObjectDensityLayerSeed",
     "WindowsGoChatCommandListener",
+    "WindowsZoneSearchOverlay",
     "WorldDestinationCatalog",
     "WorldDestinationEntry",
+    "ZoneSearchResult",
     "WeightedAStarConfig",
     "WeightedAStarPlanner",
     "load_active_zone_terrain_navigation",
@@ -107,5 +115,7 @@ __all__ = [
     "resolve_travel_destination",
     "runegate_destination_entries",
     "parse_named_go_command",
+    "parse_zone_search_command",
     "save_travel_destination",
+    "format_zone_search_overlay",
 ]
