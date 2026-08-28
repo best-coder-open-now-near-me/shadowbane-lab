@@ -40,6 +40,7 @@ from shadowbane_lab.sim import (
     ModifyTag,
     MoveEntity,
     MovementMode,
+    PeriodicPulse,
     PhaseKind,
     RemoveEffect,
     ResourceCost,
@@ -353,7 +354,7 @@ def _parse_effect(data: Mapping[str, Any], rank: int) -> EffectPrimitive:
             stacking_key=_nullable_string(data, "stacking_key"),
             tags=tuple(_strings(data, "tags")),
             modifiers=tuple(
-                _parse_effect_modifier(item)
+                _parse_effect_modifier(item, rank)
                 for item in _optional_objects(data, "modifiers")
             ),
             stack_order=_resolved_integer(data.get("stack_order", 0), rank),
@@ -394,10 +395,24 @@ def _parse_effect(data: Mapping[str, Any], rank: int) -> EffectPrimitive:
     raise RulesetLoadError(f"unsupported effect operation: {operation}")
 
 
-def _parse_effect_modifier(data: Mapping[str, Any]) -> ResourceImmunity:
+def _parse_effect_modifier(
+    data: Mapping[str, Any], rank: int
+) -> ResourceImmunity | PeriodicPulse:
     operation = _string(data, "op")
     if operation == "resource_immunity":
         return ResourceImmunity(resource_key=_string(data, "resource_key"))
+    if operation == "periodic_pulse":
+        try:
+            return PeriodicPulse(
+                periodic_key=_string(data, "periodic_key"),
+                interval_ms=_resolved_integer(_required(data, "interval_ms"), rank),
+                tick_count=_resolved_integer(_required(data, "tick_count"), rank),
+                effects=tuple(
+                    _parse_effect(item, rank) for item in _objects(data, "effects")
+                ),
+            )
+        except ValueError as exc:
+            raise RulesetLoadError(str(exc)) from exc
     raise RulesetLoadError(f"unsupported effect modifier operation: {operation}")
 
 

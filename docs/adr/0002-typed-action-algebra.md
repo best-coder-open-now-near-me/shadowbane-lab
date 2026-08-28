@@ -50,11 +50,16 @@ Timed effects carry typed mechanical modifiers. For example, Shadow Mantle is an
 derived from that modifier. Free-form tags may describe and query state, but adding a tag alone
 must not invent simulator behavior.
 
+Damage-over-time and other repeated state use `PeriodicPulse`: a positive interval, finite tick
+count, and nonrecursive direct-effect bundle attached to an `ApplyEffect`. Pulses have stable
+virtual-time ordering and deterministic effect-instance identity. Replacing, dispelling, or
+expiring the carrier invalidates its old scheduled pulses, and snapshots preserve the complete
+schedule and random state.
+
 Exceptional Shadowbane mechanics must be represented by reviewed, reusable typed extensions
 rather than arbitrary callbacks or power-name branches embedded in ruleset data. The next
-required extensions are a generic periodic scheduler for damage-over-time effects and generic
-damage interception for absorbs. Until those exist, powers requiring them remain unresolved;
-they must not be approximated through bespoke code.
+required extension is generic damage interception for absorbs. Until it exists, powers requiring
+it remain unresolved; they must not be approximated through bespoke code.
 
 Action values are concrete after ruleset compilation. Rank curves, build modifiers, and
 source-specific formulas belong to the ruleset compiler, while the simulator executes the

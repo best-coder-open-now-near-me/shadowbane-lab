@@ -18,6 +18,7 @@ from shadowbane_lab.sim.actions import (
     AttackKind,
     ChanceGate,
     DealDamage,
+    PeriodicPulse,
     RestoreResource,
     TriangularAmount,
     UniformAmount,
@@ -56,6 +57,47 @@ def matching_decision(
 
 
 class RulesetCompilerTests(unittest.TestCase):
+    def test_periodic_modifier_compiles_from_bounded_ruleset_data(self) -> None:
+        source = bundled_source()
+        shadow_touch = next(
+            action
+            for action in source["actions"]
+            if action["action_key"] == SHADOW_TOUCH
+        )
+        applied = next(
+            effect
+            for effect in shadow_touch["spec"]["phases"][0]["effects"]
+            if effect["op"] == "apply_effect"
+        )
+        applied["modifiers"] = [
+            {
+                "op": "periodic_pulse",
+                "periodic_key": "test-dot",
+                "interval_ms": 1_000,
+                "tick_count": 2,
+                "effects": [
+                    {
+                        "op": "deal_damage",
+                        "subject": "target",
+                        "amount": 5,
+                        "damage_type": "poison",
+                    }
+                ],
+            }
+        ]
+
+        action = load_ruleset_text(json.dumps(source)).record(SHADOW_TOUCH).action
+
+        assert action is not None
+        effect = next(
+            item for item in action.phases[0].effects if isinstance(item, ApplyEffect)
+        )
+        self.assertIsInstance(effect.modifiers[0], PeriodicPulse)
+        pulse = effect.modifiers[0]
+        assert isinstance(pulse, PeriodicPulse)
+        self.assertEqual(2, pulse.tick_count)
+        self.assertEqual("poison", pulse.effects[0].damage_type)
+
     def test_bundled_slice_loads_with_explicit_quality_states(self) -> None:
         ruleset = load_shadowbane_vertical_slice()
 

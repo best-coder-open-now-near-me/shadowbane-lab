@@ -345,6 +345,44 @@ class ModifyTag:
             raise ValueError("operation must be a TagOperation")
 
 
+PeriodicDirectEffectPrimitive = ModifyScalar | DealDamage | RestoreResource | ModifyTag
+_PERIODIC_DIRECT_EFFECT_TYPES = (ModifyScalar, DealDamage, RestoreResource, ModifyTag)
+
+
+@dataclass(frozen=True, slots=True)
+class PeriodicPulse:
+    """Apply a bounded direct-effect bundle at fixed intervals while its effect is active."""
+
+    periodic_key: str
+    interval_ms: int
+    tick_count: int
+    effects: tuple[PeriodicDirectEffectPrimitive, ...]
+
+    def __post_init__(self) -> None:
+        _identifier(self.periodic_key, "periodic_key")
+        _non_negative_integer(self.interval_ms, "interval_ms")
+        if self.interval_ms == 0:
+            raise ValueError("periodic interval must be positive")
+        _non_negative_integer(self.tick_count, "tick_count")
+        if self.tick_count == 0:
+            raise ValueError("periodic tick count must be positive")
+        if not self.effects:
+            raise ValueError("periodic pulse requires at least one direct effect")
+        if any(
+            not isinstance(effect, _PERIODIC_DIRECT_EFFECT_TYPES)
+            for effect in self.effects
+        ):
+            raise ValueError("periodic pulse effects must be nonrecursive direct effects")
+
+    @property
+    def duration_ms(self) -> int:
+        return self.interval_ms * self.tick_count
+
+    @property
+    def semantic_tags(self) -> tuple[str, ...]:
+        return (f"periodic.{self.periodic_key}",)
+
+
 @dataclass(frozen=True, slots=True)
 class ResourceImmunity:
     """Prevent restoration of one resource by effects at or below the carrier's trains."""
@@ -359,8 +397,8 @@ class ResourceImmunity:
         return (f"immunity.resource.{self.resource_key}",)
 
 
-EffectModifier = ResourceImmunity
-_EFFECT_MODIFIER_TYPES = (ResourceImmunity,)
+EffectModifier = ResourceImmunity | PeriodicPulse
+_EFFECT_MODIFIER_TYPES = (ResourceImmunity, PeriodicPulse)
 
 
 @dataclass(frozen=True, slots=True)
@@ -396,6 +434,12 @@ class ApplyEffect:
             tag for modifier in self.modifiers for tag in modifier.semantic_tags
         )
         _unique_strings(modifier_keys, "effect modifier keys")
+        if any(
+            isinstance(modifier, PeriodicPulse)
+            and modifier.duration_ms > self.duration_ms
+            for modifier in self.modifiers
+        ):
+            raise ValueError("periodic pulses must complete within the effect duration")
         _non_negative_integer(self.stack_order, "stack_order")
         _non_negative_integer(self.trains, "trains")
         if not isinstance(self.stack_priority, StackPriority):

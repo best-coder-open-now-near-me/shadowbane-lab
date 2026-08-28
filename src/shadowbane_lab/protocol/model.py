@@ -70,6 +70,7 @@ class EventKind(StrEnum):
     RESOURCE_RESTORED = "resource_restored"
     EFFECT_ADDED = "effect_added"
     EFFECT_BLOCKED = "effect_blocked"
+    EFFECT_PULSED = "effect_pulsed"
     EFFECT_REMOVED = "effect_removed"
     STANCE_CHANGED = "stance_changed"
     ENTITY_SPAWNED = "entity_spawned"

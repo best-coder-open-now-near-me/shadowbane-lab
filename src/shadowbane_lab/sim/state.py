@@ -7,7 +7,12 @@ from math import isfinite
 
 from shadowbane_lab.combat import StackPriority
 from shadowbane_lab.protocol import EntityKind, Vector2
-from shadowbane_lab.sim.actions import CombatStance, EffectModifier, ResourceImmunity
+from shadowbane_lab.sim.actions import (
+    CombatStance,
+    EffectModifier,
+    PeriodicPulse,
+    ResourceImmunity,
+)
 
 
 def _identifier(value: str, field_name: str) -> None:
@@ -28,6 +33,7 @@ def _finite_mapping(values: dict[str, float], field_name: str) -> dict[str, floa
 class ActiveEffectSnapshot:
     effect_key: str
     source_entity_id: str
+    instance_id: str | None
     magnitude: float
     expires_at_ms: int
     stacking_key: str | None
@@ -44,6 +50,7 @@ class ActiveEffectState:
     source_entity_id: str
     magnitude: float
     expires_at_ms: int
+    instance_id: str | None = None
     stacking_key: str | None = None
     tags: set[str] = field(default_factory=set)
     modifiers: tuple[EffectModifier, ...] = ()
@@ -54,6 +61,8 @@ class ActiveEffectState:
     def __post_init__(self) -> None:
         _identifier(self.effect_key, "effect_key")
         _identifier(self.source_entity_id, "source_entity_id")
+        if self.instance_id is not None:
+            _identifier(self.instance_id, "instance_id")
         if (
             isinstance(self.magnitude, bool)
             or not isinstance(self.magnitude, (int, float))
@@ -71,7 +80,10 @@ class ActiveEffectState:
         self.tags = set(self.tags)
         for tag in self.tags:
             _identifier(tag, "effect tag")
-        if any(not isinstance(modifier, ResourceImmunity) for modifier in self.modifiers):
+        if any(
+            not isinstance(modifier, (ResourceImmunity, PeriodicPulse))
+            for modifier in self.modifiers
+        ):
             raise ValueError("modifiers must contain typed effect modifiers")
         for value, field_name in (
             (self.stack_order, "stack_order"),
@@ -86,6 +98,7 @@ class ActiveEffectState:
         return ActiveEffectSnapshot(
             effect_key=self.effect_key,
             source_entity_id=self.source_entity_id,
+            instance_id=self.instance_id,
             magnitude=float(self.magnitude),
             expires_at_ms=self.expires_at_ms,
             stacking_key=self.stacking_key,
@@ -101,6 +114,7 @@ class ActiveEffectState:
         return cls(
             effect_key=snapshot.effect_key,
             source_entity_id=snapshot.source_entity_id,
+            instance_id=snapshot.instance_id,
             magnitude=snapshot.magnitude,
             expires_at_ms=snapshot.expires_at_ms,
             stacking_key=snapshot.stacking_key,

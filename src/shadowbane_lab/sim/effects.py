@@ -40,6 +40,7 @@ from shadowbane_lab.sim.actions import (
     ModifyTag,
     MoveEntity,
     MovementMode,
+    PeriodicPulse,
     RemoveEffect,
     ResourceImmunity,
     RestoreResource,
@@ -354,11 +355,68 @@ class EffectExecutor:
         if (
             active is None
             or active.effect_key != item.expected_effect_key
+            or active.instance_id != item.expected_effect_instance_id
             or active.expires_at_ms != due_time
         ):
             return
         subject.effects.pop(item.effect_storage_key)
         events.append(self._effect_removed_event(subject, active, due_time, item, "reason.expired"))
+
+    def resolve_effect_pulse(
+        self,
+        item: ScheduledItem,
+        due_time: int,
+        eligible_alive: frozenset[str],
+        events: list[Event],
+    ) -> None:
+        if (
+            item.effect_entity_id is None
+            or item.effect_storage_key is None
+            or item.periodic_key is None
+        ):
+            raise SimulationConfigurationError("effect pulse is missing effect identity")
+        subject = self._entities.get(item.effect_entity_id)
+        if subject is None:
+            return
+        active = subject.effects.get(item.effect_storage_key)
+        if (
+            active is None
+            or active.effect_key != item.expected_effect_key
+            or active.instance_id != item.expected_effect_instance_id
+        ):
+            return
+        periodic = next(
+            (
+                modifier
+                for modifier in active.modifiers
+                if isinstance(modifier, PeriodicPulse)
+                and modifier.periodic_key == item.periodic_key
+            ),
+            None,
+        )
+        if (
+            periodic is None
+            or item.pulse_index > periodic.tick_count
+            or item.effects != periodic.effects
+        ):
+            raise SimulationConfigurationError("effect pulse does not match its active modifier")
+        events.append(
+            self._event(
+                EventKind.EFFECT_PULSED,
+                due_time,
+                correlation_id=item.correlation_id,
+                source_entity_id=item.actor_id,
+                target_entity_id=subject.entity_id,
+                action_key=item.action_key,
+                scalars=(NamedScalar("pulse_index", float(item.pulse_index)),),
+                tags=(
+                    f"effect.{active.effect_key}",
+                    f"periodic.{periodic.periodic_key}",
+                ),
+            )
+        )
+        for effect in item.effects:
+            self._resolve_direct(item, effect, due_time, eligible_alive, events)
 
     def resolve_deaths(
         self,
@@ -731,9 +789,11 @@ class EffectExecutor:
             events.append(
                 self._effect_removed_event(subject, existing, due_time, item, "reason.replaced")
             )
+        instance_id = f"effect-instance:{self._take_schedule_order():012d}"
         active = ActiveEffectState(
             effect_key=effect.effect_key,
             source_entity_id=item.actor_id,
+            instance_id=instance_id,
             magnitude=effect.magnitude,
             expires_at_ms=due_time + effect.duration_ms,
             stacking_key=effect.stacking_key,
@@ -761,6 +821,30 @@ class EffectExecutor:
                 tags=(f"effect.{effect.effect_key}",),
             )
         )
+        if item.binding is None:
+            raise SimulationConfigurationError("effect application requires a binding")
+        for modifier in effect.modifiers:
+            if not isinstance(modifier, PeriodicPulse):
+                continue
+            for pulse_index in range(1, modifier.tick_count + 1):
+                self._schedule(
+                    ScheduledItem(
+                        due_time_ms=due_time + pulse_index * modifier.interval_ms,
+                        order=self._take_schedule_order(),
+                        kind=ScheduledKind.EFFECT_PULSE,
+                        actor_id=item.actor_id,
+                        correlation_id=item.correlation_id,
+                        action_key=item.action_key,
+                        binding=item.binding,
+                        effects=modifier.effects,
+                        effect_entity_id=subject.entity_id,
+                        effect_storage_key=storage_key,
+                        expected_effect_key=effect.effect_key,
+                        expected_effect_instance_id=instance_id,
+                        periodic_key=modifier.periodic_key,
+                        pulse_index=pulse_index,
+                    )
+                )
         self._schedule(
             ScheduledItem(
                 due_time_ms=active.expires_at_ms,
@@ -772,6 +856,7 @@ class EffectExecutor:
                 effect_entity_id=subject.entity_id,
                 effect_storage_key=storage_key,
                 expected_effect_key=effect.effect_key,
+                expected_effect_instance_id=instance_id,
             )
         )
         if "control.stun" in effect.tags:

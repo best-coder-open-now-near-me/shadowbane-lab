@@ -13,6 +13,7 @@ from shadowbane_lab.sim import (
     DealDamage,
     DeterministicRandom,
     EntityState,
+    PeriodicPulse,
     PhaseKind,
     ReferenceEnvironment,
     ResourceImmunity,
@@ -76,6 +77,139 @@ def _decision(environment: ReferenceEnvironment, correlation_id: str = "attack")
 
 
 class ShadowbaneCombatRuntimeTests(unittest.TestCase):
+    def test_periodic_effect_ticks_on_virtual_time_and_snapshot_replays_exactly(self) -> None:
+        damage = DealDamage(
+            SubjectRef.TARGET,
+            5.0,
+            "poison",
+            source_key="test-dot",
+        )
+        action = ActionSpec(
+            action_key="dot",
+            targeting=TargetingSpec(
+                kind=TargetKind.ENTITY,
+                allowed_relations=(Relation.ENEMY,),
+                maximum_range=3.0,
+            ),
+            phases=(
+                ActionPhase(
+                    PhaseKind.ACTIVE,
+                    0,
+                    (
+                        ApplyEffect(
+                            SubjectRef.TARGET,
+                            "poisoned",
+                            600,
+                            modifiers=(
+                                PeriodicPulse(
+                                    "poison",
+                                    interval_ms=200,
+                                    tick_count=3,
+                                    effects=(damage,),
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        environment = ReferenceEnvironment(
+            ActionCatalog((action,)),
+            (
+                _actor("caster", "red", ("dot",), {"health": 50.0}),
+                _actor("target", "blue", (), {"health": 50.0}),
+            ),
+            seed=4,
+        )
+
+        first = environment.step((_decision(environment, "dot"),))
+        snapshot = environment.snapshot()
+        expected_second = environment.step()
+        expected_third = environment.step()
+        expected_snapshot = environment.snapshot()
+
+        self.assertEqual(45.0, snapshot.entities[1].scalars[0][1])
+        self.assertEqual(
+            [200],
+            [
+                event.sim_time_ms
+                for event in first.events
+                if event.kind == EventKind.EFFECT_PULSED
+            ],
+        )
+        self.assertNotIn("poisoned", environment.entity("target").effects)
+
+        environment.restore(snapshot)
+        actual_second = environment.step()
+        actual_third = environment.step()
+
+        self.assertEqual(expected_second, actual_second)
+        self.assertEqual(expected_third, actual_third)
+        self.assertEqual(expected_snapshot, environment.snapshot())
+        self.assertEqual(35.0, environment.entity("target").scalars["health"])
+        pulse_times = [
+            event.sim_time_ms
+            for batch in (first, actual_second, actual_third)
+            for event in batch.events
+            if event.kind == EventKind.EFFECT_PULSED
+        ]
+        self.assertEqual([200, 400, 600], pulse_times)
+
+    def test_replacing_periodic_effect_invalidates_old_scheduled_pulses(self) -> None:
+        action = ActionSpec(
+            action_key="dot",
+            targeting=TargetingSpec(
+                kind=TargetKind.ENTITY,
+                allowed_relations=(Relation.ENEMY,),
+                maximum_range=3.0,
+            ),
+            phases=(
+                ActionPhase(
+                    PhaseKind.ACTIVE,
+                    0,
+                    (
+                        ApplyEffect(
+                            SubjectRef.TARGET,
+                            "poisoned",
+                            600,
+                            stacking_key="poison",
+                            modifiers=(
+                                PeriodicPulse(
+                                    "poison",
+                                    interval_ms=200,
+                                    tick_count=3,
+                                    effects=(
+                                        DealDamage(
+                                            SubjectRef.TARGET,
+                                            5.0,
+                                            "poison",
+                                        ),
+                                    ),
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        environment = ReferenceEnvironment(
+            ActionCatalog((action,)),
+            (
+                _actor("caster", "red", ("dot",), {"health": 50.0}),
+                _actor("target", "blue", (), {"health": 50.0}),
+            ),
+            seed=5,
+        )
+
+        environment.step((_decision(environment, "first"),))
+        second = environment.step((_decision(environment, "replacement"),))
+
+        self.assertEqual(40.0, environment.entity("target").scalars["health"])
+        self.assertEqual(
+            1,
+            sum(event.kind == EventKind.EFFECT_PULSED for event in second.events),
+        )
+
     def test_ranked_resource_immunity_blocks_only_equal_or_weaker_restoration(self) -> None:
         mantle = ActionSpec(
             action_key="mantle",

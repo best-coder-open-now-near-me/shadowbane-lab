@@ -299,6 +299,13 @@ class ReferenceEnvironment:
                             action_key=item.action_key,
                         )
                     )
+                elif item.kind is ScheduledKind.EFFECT_PULSE:
+                    self._effect_executor.resolve_effect_pulse(
+                        item,
+                        due_time,
+                        eligible_alive,
+                        events,
+                    )
                 else:
                     self._effect_executor.expire_effect(item, due_time, events)
             self._effect_executor.resolve_deaths(due_time, events, life_terminated)

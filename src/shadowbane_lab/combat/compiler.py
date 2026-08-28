@@ -37,6 +37,7 @@ from shadowbane_lab.sim import (
     DirectEffectPrimitive,
     EffectPrimitive,
     EntityState,
+    PeriodicPulse,
     PhaseKind,
     RestoreResource,
     SubjectRef,
@@ -559,7 +560,22 @@ def _compile_direct_power_effect(
             resistance_type="healing",
         )
     if isinstance(effect, ApplyEffect):
-        return replace(effect, trains=rank)
+        return replace(
+            effect,
+            trains=rank,
+            modifiers=tuple(
+                replace(
+                    modifier,
+                    effects=tuple(
+                        _compile_direct_power_effect(sheet, nested, rank, focus)
+                        for nested in modifier.effects
+                    ),
+                )
+                if isinstance(modifier, PeriodicPulse)
+                else modifier
+                for modifier in effect.modifiers
+            ),
+        )
     return effect
 
 
@@ -616,6 +632,13 @@ def _effect_needs_focus(effect: EffectPrimitive) -> bool:
         return True
     if isinstance(effect, (ChanceGate, AttackGate, AreaEffect)):
         return any(_effect_needs_focus(nested) for nested in effect.effects)
+    if isinstance(effect, ApplyEffect):
+        return any(
+            _effect_needs_focus(nested)
+            for modifier in effect.modifiers
+            if isinstance(modifier, PeriodicPulse)
+            for nested in modifier.effects
+        )
     return False
 
 
@@ -643,6 +666,16 @@ def _expected_nested_amount(
     if isinstance(effect, (AttackGate, AreaEffect)):
         return sum(
             _expected_nested_amount(nested, effect_type) for nested in effect.effects
+        )
+    if isinstance(effect, ApplyEffect):
+        return sum(
+            modifier.tick_count
+            * sum(
+                _expected_nested_amount(nested, effect_type)
+                for nested in modifier.effects
+            )
+            for modifier in effect.modifiers
+            if isinstance(modifier, PeriodicPulse)
         )
     return 0.0
 

@@ -20,6 +20,7 @@ from shadowbane_lab.sim.state import EntitySnapshot
 class ScheduledKind(StrEnum):
     RESOLUTION = "resolution"
     COMPLETION = "completion"
+    EFFECT_PULSE = "effect_pulse"
     EFFECT_EXPIRY = "effect_expiry"
 
 
@@ -37,6 +38,9 @@ class ScheduledItem:
     effect_entity_id: str | None = None
     effect_storage_key: str | None = None
     expected_effect_key: str | None = None
+    expected_effect_instance_id: str | None = None
+    periodic_key: str | None = None
+    pulse_index: int = 0
     interruptible: bool = False
     cancel_on_damage: bool = False
     cancel_on_stun: bool = False
@@ -65,11 +69,11 @@ class ScheduledItem:
             or self.phase_duration_ms < 0
         ):
             raise ValueError("phase_duration_ms must be a non-negative integer")
-        if self.kind is ScheduledKind.RESOLUTION:
+        if self.kind in {ScheduledKind.RESOLUTION, ScheduledKind.EFFECT_PULSE}:
             if self.binding is None or not self.effects:
-                raise ValueError("resolutions require a binding and effects")
+                raise ValueError("resolutions and effect pulses require a binding and effects")
         elif self.binding is not None or self.effects:
-            raise ValueError("only resolutions may carry bindings or effects")
+            raise ValueError("only resolutions and effect pulses may carry bindings or effects")
         for value, name in (
             (self.interruptible, "interruptible"),
             (self.cancel_on_damage, "cancel_on_damage"),
@@ -77,27 +81,40 @@ class ScheduledItem:
         ):
             if not isinstance(value, bool):
                 raise ValueError(f"{name} must be a boolean")
-        if self.kind is ScheduledKind.EFFECT_EXPIRY and (
+        if self.kind in {ScheduledKind.EFFECT_EXPIRY, ScheduledKind.EFFECT_PULSE} and (
             self.interruptible or self.cancel_on_damage or self.cancel_on_stun
         ):
-            raise ValueError("effect expiry items cannot carry interruption flags")
-        if self.kind is ScheduledKind.EFFECT_EXPIRY:
+            raise ValueError("effect schedule items cannot carry interruption flags")
+        if self.kind in {ScheduledKind.EFFECT_EXPIRY, ScheduledKind.EFFECT_PULSE}:
             for value, name in (
                 (self.effect_entity_id, "effect_entity_id"),
                 (self.effect_storage_key, "effect_storage_key"),
                 (self.expected_effect_key, "expected_effect_key"),
+                (self.expected_effect_instance_id, "expected_effect_instance_id"),
             ):
                 if not isinstance(value, str) or not value.strip():
-                    raise ValueError(f"effect expiry requires {name}")
+                    raise ValueError(f"effect schedule requires {name}")
         elif any(
             value is not None
             for value in (
                 self.effect_entity_id,
                 self.effect_storage_key,
                 self.expected_effect_key,
+                self.expected_effect_instance_id,
             )
         ):
-            raise ValueError("only effect expiry items may carry effect identifiers")
+            raise ValueError("only effect schedule items may carry effect identifiers")
+        if self.kind is ScheduledKind.EFFECT_PULSE:
+            if not isinstance(self.periodic_key, str) or not self.periodic_key.strip():
+                raise ValueError("effect pulse requires periodic_key")
+            if (
+                isinstance(self.pulse_index, bool)
+                or not isinstance(self.pulse_index, int)
+                or self.pulse_index < 1
+            ):
+                raise ValueError("effect pulse requires a positive pulse_index")
+        elif self.periodic_key is not None or self.pulse_index != 0:
+            raise ValueError("only effect pulses may carry periodic pulse fields")
 
 
 @dataclass(frozen=True, slots=True)

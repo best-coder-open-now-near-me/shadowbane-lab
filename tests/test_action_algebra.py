@@ -17,6 +17,7 @@ from shadowbane_lab.sim import (
     ModifyObjective,
     MoveEntity,
     MovementMode,
+    PeriodicPulse,
     PhaseKind,
     ResistanceType,
     ResourceCost,
@@ -272,6 +273,37 @@ class ActionAlgebraTests(unittest.TestCase):
                 "invalid",
                 1_000,
                 modifiers=(object(),),  # type: ignore[arg-type]
+            )
+
+    def test_periodic_pulses_are_bounded_nonrecursive_effect_modifiers(self) -> None:
+        pulse = PeriodicPulse(
+            "poison",
+            interval_ms=1_000,
+            tick_count=3,
+            effects=(DealDamage(SubjectRef.TARGET, 5.0, DamageType.POISON),),
+        )
+        effect = ApplyEffect(
+            SubjectRef.TARGET,
+            "poisoned",
+            3_000,
+            modifiers=(pulse,),
+        )
+
+        self.assertEqual(3_000, pulse.duration_ms)
+        self.assertEqual((pulse,), effect.modifiers)
+        with self.assertRaisesRegex(ValueError, "complete within"):
+            ApplyEffect(
+                SubjectRef.TARGET,
+                "too-short",
+                2_999,
+                modifiers=(pulse,),
+            )
+        with self.assertRaisesRegex(ValueError, "nonrecursive"):
+            PeriodicPulse(
+                "nested",
+                interval_ms=1_000,
+                tick_count=1,
+                effects=(effect,),  # type: ignore[arg-type]
             )
 
     def test_chance_gate_requires_a_bounded_direct_effect_bundle(self) -> None:
