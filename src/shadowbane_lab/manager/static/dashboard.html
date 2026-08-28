@@ -131,6 +131,8 @@
       const configuredElement = document.getElementById("configured-count");
       const boundElement = document.getElementById("bound-count");
       const updatedElement = document.getElementById("updated-at");
+      const statusPollMilliseconds = 2000;
+      let statusRequest = null;
 
       const request = async (path, options = {}) => {
         const headers = new Headers(options.headers || {});
@@ -293,11 +295,27 @@
         notice.className = "notice";
       };
 
-      const loadStatus = async () => {
+      const loadStatus = () => {
         if (!authorizationToken) {
-          throw new Error("No dashboard token was supplied. Reopen the URL printed by the manager.");
+          return Promise.reject(
+            new Error("No dashboard token was supplied. Reopen the URL printed by the manager.")
+          );
         }
-        render(await request("/api/v1/status"));
+        if (statusRequest) return statusRequest;
+        statusRequest = request("/api/v1/status")
+          .then(render)
+          .finally(() => { statusRequest = null; });
+        return statusRequest;
+      };
+
+      const reportStatusError = (error) => {
+        notice.textContent = error.message;
+        notice.className = "notice error";
+      };
+
+      const pollStatus = () => {
+        if (document.hidden || app.classList.contains("busy")) return;
+        loadStatus().catch(reportStatusError);
       };
 
       const execute = async (body) => {
@@ -310,6 +328,7 @@
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(body)
           });
+          if (statusRequest) await statusRequest.catch(() => {});
           await loadStatus();
         } catch (error) {
           notice.textContent = error.message;
@@ -325,10 +344,9 @@
       document.getElementById("refresh").addEventListener("click", () => execute({ action: "refresh" }));
       document.getElementById("tile-all").addEventListener("click", () => execute({ action: "tile-all" }));
 
-      loadStatus().catch((error) => {
-        notice.textContent = error.message;
-        notice.className = "notice error";
-      });
+      document.addEventListener("visibilitychange", pollStatus);
+      window.setInterval(pollStatus, statusPollMilliseconds);
+      loadStatus().catch(reportStatusError);
     })();
   </script>
 </body>

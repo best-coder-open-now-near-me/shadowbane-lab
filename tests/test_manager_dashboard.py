@@ -491,6 +491,15 @@ class DashboardServerTests(unittest.TestCase):
         self.assertNotIn("caller", source)
         self.assertNotIn("tactical", source)
 
+    def test_dashboard_ui_polls_read_only_status_while_visible(self) -> None:
+        _, _, body = self._request("GET", "/")
+        source = body.decode("utf-8")
+
+        self.assertIn('request("/api/v1/status")', source)
+        self.assertIn("window.setInterval(pollStatus, statusPollMilliseconds)", source)
+        self.assertIn('document.addEventListener("visibilitychange", pollStatus)', source)
+        self.assertIn("document.hidden", source)
+
     def test_stop_is_idempotent_and_closed_server_cannot_restart(self) -> None:
         self.assertTrue(self.server.is_running)
 
