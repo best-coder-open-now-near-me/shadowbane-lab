@@ -3995,7 +3995,11 @@ def _listen_for_go_commands(
                         )
                     )
                 if time.monotonic() >= next_listener_heartbeat:
-                    _print_go_listener_event("heartbeat", as_json=as_json)
+                    _print_go_listener_event(
+                        "heartbeat",
+                        as_json=as_json,
+                        hook_diagnostics=getattr(listener, "diagnostics", None),
+                    )
                     next_listener_heartbeat = time.monotonic() + 30.0
                 try:
                     interaction = commands.get(timeout=0.1)
@@ -4408,6 +4412,7 @@ def _print_go_listener_event(
     operation_id: str | None = None,
     client_id: str | None = None,
     operation_state: str | None = None,
+    hook_diagnostics: dict[str, int | str | None] | None = None,
 ) -> None:
     if as_json:
         payload = {"ok": event != "rejected", "event": event}
@@ -4429,6 +4434,8 @@ def _print_go_listener_event(
             payload["client_id"] = client_id
         if operation_state is not None:
             payload["operation_state"] = operation_state
+        if hook_diagnostics is not None:
+            payload["hook_diagnostics"] = hook_diagnostics
         print(json.dumps(payload, sort_keys=True), flush=True)
         return
     if event == "listening":

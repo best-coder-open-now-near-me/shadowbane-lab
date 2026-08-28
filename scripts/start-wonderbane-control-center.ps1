@@ -56,13 +56,10 @@ try {
 
     if (-not $SkipListener) {
         try {
-            $listenerStatus = & powershell.exe `
-                -NoProfile `
-                -ExecutionPolicy Bypass `
-                -File $listenerScript 2>&1
-            if ($LASTEXITCODE -ne 0) {
-                throw "Listener bootstrap failed: $($listenerStatus -join ' ')"
-            }
+            # Invoke the reviewed launcher in-process. Capturing a nested native
+            # powershell.exe pipeline can keep its output pipe alive through the
+            # long-running listener process tree and block manager startup forever.
+            $listenerStatus = @(& $listenerScript 2>&1)
             Write-BootstrapLog ($listenerStatus -join " ")
         }
         catch {

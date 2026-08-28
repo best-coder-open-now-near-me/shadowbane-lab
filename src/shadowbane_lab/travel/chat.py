@@ -231,6 +231,15 @@ class WindowsGoChatCommandListener:
         self._thread_id: int | None = None
         self._startup_error: BaseException | None = None
         self._mutex_handle: int | None = None
+        self._keyboard_hook_events = 0
+        self._physical_keyboard_events = 0
+        self._mouse_hook_events = 0
+        self._physical_mouse_events = 0
+        self._processed_events = 0
+        self._guard_rejections = 0
+        self._last_guard_rejection: str | None = None
+        self._submitted_commands = 0
+        self._submitted_pointers = 0
 
     @property
     def is_alive(self) -> bool:
@@ -248,6 +257,22 @@ class WindowsGoChatCommandListener:
         """Describe a hook-thread failure when one was observed."""
 
         return None if self._startup_error is None else str(self._startup_error)
+
+    @property
+    def diagnostics(self) -> dict[str, int | str | None]:
+        """Return aggregate hook health counters without retaining user input."""
+
+        return {
+            "keyboard_hook_events": self._keyboard_hook_events,
+            "physical_keyboard_events": self._physical_keyboard_events,
+            "mouse_hook_events": self._mouse_hook_events,
+            "physical_mouse_events": self._physical_mouse_events,
+            "processed_events": self._processed_events,
+            "guard_rejections": self._guard_rejections,
+            "last_guard_rejection": self._last_guard_rejection,
+            "submitted_commands": self._submitted_commands,
+            "submitted_pointers": self._submitted_pointers,
+        }
 
     def start(self) -> None:
         if os.name != "nt":
@@ -359,11 +384,13 @@ class WindowsGoChatCommandListener:
         @callback_type
         def keyboard_callback(code: int, message: int, event_pointer: int) -> int:
             if code >= 0 and message in (self._WM_KEYDOWN, self._WM_SYSKEYDOWN):
+                self._keyboard_hook_events += 1
                 event = ctypes.cast(
                     event_pointer,
                     ctypes.POINTER(KeyboardEvent),
                 ).contents
                 if not event.flags & self._LLKHF_INJECTED:
+                    self._physical_keyboard_events += 1
                     self._pending_input.put(
                         _PhysicalKeyboardInteraction(
                             int(event.vk_code),
@@ -389,11 +416,13 @@ class WindowsGoChatCommandListener:
                 self._WM_MBUTTONDOWN,
                 self._WM_XBUTTONDOWN,
             ):
+                self._mouse_hook_events += 1
                 event = ctypes.cast(
                     event_pointer,
                     ctypes.POINTER(MouseEvent),
                 ).contents
                 if not event.flags & self._LLMHF_INJECTED:
+                    self._physical_mouse_events += 1
                     self._pending_input.put(
                         PhysicalPointerInteraction(
                             screen_x=int(event.point.x),
@@ -458,6 +487,7 @@ class WindowsGoChatCommandListener:
             interaction = self._pending_input.get()
             if interaction is None:
                 return
+            self._processed_events += 1
             try:
                 if isinstance(interaction, _PhysicalKeyboardInteraction):
                     self._handle_key(
@@ -510,7 +540,9 @@ class WindowsGoChatCommandListener:
     def _handle_key(self, virtual_key: int, *, shift_down: bool) -> None:
         try:
             self._guard.require_target()
-        except WindowGuardError:
+        except WindowGuardError as exc:
+            self._guard_rejections += 1
+            self._last_guard_rejection = str(exc)[:512]
             self._assembler.reset()
             return
 
@@ -529,6 +561,7 @@ class WindowsGoChatCommandListener:
         if update.interaction_started and self._on_interaction is not None:
             self._on_interaction()
         if update.submitted_command is not None:
+            self._submitted_commands += 1
             self._on_command(update.submitted_command)
 
     def _handle_pointer_interaction(
@@ -537,7 +570,9 @@ class WindowsGoChatCommandListener:
     ) -> None:
         try:
             self._guard.require_target()
-        except WindowGuardError:
+        except WindowGuardError as exc:
+            self._guard_rejections += 1
+            self._last_guard_rejection = str(exc)[:512]
             self._assembler.reset()
             return
         self._assembler.reset()
@@ -545,6 +580,7 @@ class WindowsGoChatCommandListener:
         if cancels_active_operation and self._on_interaction is not None:
             self._on_interaction()
         if interaction is not None and self._on_pointer is not None:
+            self._submitted_pointers += 1
             self._on_pointer(interaction)
 
     @classmethod

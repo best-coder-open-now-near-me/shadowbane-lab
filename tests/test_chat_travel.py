@@ -1,5 +1,6 @@
 import threading
 import unittest
+from dataclasses import replace
 
 from shadowbane_lab.client_input import (
     AnyStopSignal,
@@ -202,6 +203,20 @@ class GoChatCommandAssemblerTests(unittest.TestCase):
         listener.close()
         self.assertEqual([pointer], pointer_events)
         self.assertFalse(processor.is_alive())
+
+    def test_diagnostics_expose_guard_failure_without_retaining_input(self) -> None:
+        background = replace(_valid_snapshot(), is_foreground=False)
+        listener = WindowsGoChatCommandListener(
+            ForegroundWindowGuard(_load_profile(), StaticWindowInspector(background)),
+            on_command=lambda _: None,
+        )
+
+        listener._handle_key(listener._VK_RETURN, shift_down=False)
+
+        diagnostics = listener.diagnostics
+        self.assertEqual(1, diagnostics["guard_rejections"])
+        self.assertIn("foreground", str(diagnostics["last_guard_rejection"]))
+        self.assertNotIn("retained_text", diagnostics)
 
 
 class AnyStopSignalTests(unittest.TestCase):
