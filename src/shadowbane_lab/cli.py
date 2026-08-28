@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import ntpath
+import os
 import queue
 import sys
 import threading
@@ -143,6 +144,8 @@ from shadowbane_lab.manager import (
     VisibleWindowRegistrySource,
     Win32ProcessLifetimeInspector,
     Win32WindowApi,
+    WorkerHeartbeatLedger,
+    WorkerSupervisor,
     load_manager_manifest,
 )
 from shadowbane_lab.progression import (
@@ -822,6 +825,13 @@ def _parser() -> argparse.ArgumentParser:
     manager_app.add_argument("--launch-timeout-seconds", type=float, default=30.0)
     manager_app.add_argument("--poll-ms", type=int, default=500)
     manager_app.add_argument(
+        "--worker-state-directory",
+        type=Path,
+        help=(
+            "local worker heartbeat root; defaults beneath LOCALAPPDATA\\ShadowbaneLab\\workers"
+        ),
+    )
+    manager_app.add_argument(
         "--no-browser",
         action="store_true",
         help="print the authenticated dashboard URL without opening a browser",
@@ -1085,6 +1095,7 @@ def _run_manager_app(
     port: int,
     launch_timeout_seconds: float,
     poll_ms: int,
+    worker_state_directory: Path | None,
     open_browser: bool,
     live: bool,
 ) -> int:
@@ -1142,6 +1153,15 @@ def _run_manager_app(
 
         inspector = WindowsVisibleWindowInspector()
         process_inspector = Win32ProcessLifetimeInspector()
+        if worker_state_directory is None:
+            local_app_data = os.environ.get("LOCALAPPDATA")
+            if not local_app_data:
+                raise RuntimeError("LOCALAPPDATA is required for default worker state")
+            heartbeat_root = Path(local_app_data) / "ShadowbaneLab" / "workers"
+        else:
+            heartbeat_root = worker_state_directory
+        worker_ledger = WorkerHeartbeatLedger(manifest, heartbeat_root)
+        worker_supervisor = WorkerSupervisor(worker_ledger, process_inspector)
         aggregate_registry = ManifestClientRegistryProvider(inspector, manifest)
         window_control = GuardedWindowControl(aggregate_registry, Win32WindowApi())
         supervisor = ClientLifecycleSupervisor(
@@ -1155,12 +1175,15 @@ def _run_manager_app(
             manifest,
             session,
             aggregate_registry,
+            worker_supervisor,
             launch_timeout_seconds=launch_timeout_seconds,
             poll_seconds=poll_ms / 1_000.0,
         )
+        application.status()
         server = DashboardServer(application, port=port)
         with server:
             print(f"Manager dashboard: {server.suggested_url}")
+            print(f"Worker heartbeat root: {heartbeat_root}")
             print("Press Ctrl+C to stop the dashboard; managed clients will remain open.")
             if open_browser:
                 try:
@@ -1170,10 +1193,18 @@ def _run_manager_app(
                     print("Could not open a browser; use the printed dashboard URL.")
             try:
                 while server.is_running:
-                    time.sleep(0.25)
+                    application.status()
+                    time.sleep(0.75)
             except KeyboardInterrupt:
                 print("Stopping manager dashboard...")
                 return 0
+            finally:
+                try:
+                    application.revoke_all_workers(
+                        reason="manager dashboard shutdown revoked worker dispatch"
+                    )
+                except (OSError, RuntimeError, ValueError) as exc:
+                    print(f"Could not persist worker shutdown revocation: {exc}", file=sys.stderr)
             raise RuntimeError("manager dashboard stopped unexpectedly")
     except (OSError, RuntimeError, ValueError) as exc:
         return _error(f"manager app failed: {exc}", as_json=False)
@@ -3943,6 +3974,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             port=arguments.port,
             launch_timeout_seconds=arguments.launch_timeout_seconds,
             poll_ms=arguments.poll_ms,
+            worker_state_directory=arguments.worker_state_directory,
             open_browser=not arguments.no_browser,
             live=arguments.live,
         )
