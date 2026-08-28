@@ -112,8 +112,9 @@ class WorldDestinationCatalog:
     ) -> WorldDestinationCatalog:
         """Replace baked runegates with the active server registry.
 
-        Emulator-confirmed overrides remain as coordinate-deduplicated fallbacks so a
-        temporarily incomplete or racing CityData snapshot does not forget a verified gate.
+        Emulator-confirmed overrides replace CityData records with the same normalized
+        name or coordinates. This lets a verified correction win over an emulator record
+        whose label is right but whose stored placement is not.
         """
 
         if not isinstance(observation, NativeRunegateRegistryObservation):
@@ -122,24 +123,35 @@ class WorldDestinationCatalog:
             entry
             for entry in self._entries
             if not _is_runegate_entry(entry)
-            or entry.source == "wonderbane_server_confirmed"
         )
-        authoritative = runegate_destination_entries(observation)
-        authoritative_coordinates = {
-            (round(entry.destination.lt, 3), round(entry.destination.lg, 3))
-            for entry in authoritative
-        }
-        retained = tuple(
+        confirmed = tuple(
             entry
-            for entry in retained
-            if not _is_runegate_entry(entry)
-            or (
+            for entry in self._entries
+            if _is_runegate_entry(entry)
+            and entry.source == "wonderbane_server_confirmed"
+        )
+        confirmed_names = {
+            _normalize_name(name)
+            for entry in confirmed
+            for name in entry.names
+        }
+        confirmed_coordinates = {
+            (round(entry.destination.lt, 3), round(entry.destination.lg, 3))
+            for entry in confirmed
+        }
+        authoritative = tuple(
+            entry
+            for entry in runegate_destination_entries(observation)
+            if not confirmed_names.intersection(
+                _normalize_name(name) for name in entry.names
+            )
+            and (
                 round(entry.destination.lt, 3),
                 round(entry.destination.lg, 3),
             )
-            not in authoritative_coordinates
+            not in confirmed_coordinates
         )
-        return WorldDestinationCatalog(self._world, retained + authoritative)
+        return WorldDestinationCatalog(self._world, retained + confirmed + authoritative)
 
     def resolve(
         self,

@@ -35,12 +35,13 @@ installed `WorldDef.cfg` enables client-defined names such as `/go black drake s
 Runegates are different: the listener reads the active registry populated by the server's
 CityData message and replaces the incomplete baked `WorldDef.cfg` runegate candidates with
 those live records. Each record supplies its object identity, parent-zone label, and exact
-LT/LG. `configs/wonderbane-named-destinations.json` remains as a coordinate-deduplicated
-fallback for emulator-confirmed additions, including Sea Dog's Rest at LT 88980/LG 45020,
-if CityData is temporarily absent or changing. Duplicate names resolve to the placement
-nearest the exact current player position, and the accepted listener event records whether
-the result came from the live server registry, static client definition, or confirmed
-fallback. `/runegate` is a shortcut for `/go runegate`.
+LT/LG. `configs/wonderbane-named-destinations.json` remains as a normalized-name and
+coordinate override for emulator-confirmed additions or corrections, including Sea Dog's
+Rest at LT 88980/LG 45020. A confirmed correction replaces a CityData record with the same
+gate name even if the emulator stored a different placement. Other duplicate names resolve
+to the placement nearest the exact current player position. The accepted listener event
+records whether the result came from the live server registry, static client definition,
+or confirmed fallback. `/runegate` is a shortcut for `/go runegate`.
 `/go oblivion gate`, `/go death gate`, and `/go doomgate` use the same Runegate candidate set;
 the travel controller stops at the gate and does not enter its portal automatically. Unknown
 names fail closed and appear as rejected events in the listener log.

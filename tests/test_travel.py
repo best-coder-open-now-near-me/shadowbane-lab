@@ -223,7 +223,7 @@ class NamedWorldDestinationTests(unittest.TestCase):
         static = build_world_destination_catalog(world)
         confirmed = static.entries + (
             static.entries[0].__class__(
-                names=("Runegate Sea Dog's Rest",),
+                names=("Runegate Sea Dog's Rest", "Sea Dog's Rest Runegate"),
                 template_id=None,
                 destination=TravelDestination(88_980, 45_020),
                 source="wonderbane_server_confirmed",
@@ -236,8 +236,8 @@ class NamedWorldDestinationTests(unittest.TestCase):
                     object_type=7,
                     object_uuid=401,
                     zone_name="Sea Dog's Rest",
-                    lt=88_980,
-                    lg=45_020,
+                    lt=101_000,
+                    lg=61_000,
                     altitude=132,
                 ),
                 NativeRunegateObservation(
@@ -257,11 +257,18 @@ class NamedWorldDestinationTests(unittest.TestCase):
             "runegate",
             origin=_position(88_900, 45_100),
         )
+        exact_sea_dog = resolved_catalog.resolve(
+            "sea dogs rest runegate",
+            origin=_position(0, 0),
+        )
 
         self.assertEqual(2, sea_dog.candidate_count)
         self.assertEqual("Runegate Sea Dog's Rest", sea_dog.matched_name)
-        self.assertEqual("server_citydata_runegate_registry", sea_dog.source)
+        self.assertEqual("wonderbane_server_confirmed", sea_dog.source)
         self.assertEqual(TravelDestination(88_980, 45_020), sea_dog.destination)
+        self.assertEqual(1, exact_sea_dog.candidate_count)
+        self.assertEqual("wonderbane_server_confirmed", exact_sea_dog.source)
+        self.assertEqual(TravelDestination(88_980, 45_020), exact_sea_dog.destination)
 
 
 class TravelDestinationStateTests(unittest.TestCase):
