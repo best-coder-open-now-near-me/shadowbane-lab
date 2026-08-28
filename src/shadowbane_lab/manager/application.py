@@ -1,0 +1,372 @@
+"""Operational facade joining one manager session to the localhost dashboard."""
+
+from __future__ import annotations
+
+import ntpath
+import threading
+from math import isfinite
+from typing import Protocol
+
+from .dashboard import DashboardError
+from .manifest import ManagedClientConfig, ManagerManifest
+from .model import (
+    ClientInstanceSnapshot,
+    ClientRegistrySnapshot,
+    RejectedWindowSnapshot,
+)
+from .session import (
+    ManagerSessionError,
+    ManagerSessionSnapshot,
+    ManagerSlotSnapshot,
+)
+
+
+class SessionControl(Protocol):
+    """Session operations used by the local dashboard application."""
+
+    def snapshot(self) -> ManagerSessionSnapshot: ...
+
+    def status(self, client_id: str) -> ManagerSlotSnapshot: ...
+
+    def refresh(self) -> ManagerSessionSnapshot: ...
+
+    def start(
+        self,
+        client_id: str,
+        *,
+        timeout_seconds: float,
+        poll_seconds: float,
+    ) -> ManagerSlotSnapshot: ...
+
+    def start_all(
+        self,
+        *,
+        timeout_seconds: float,
+        poll_seconds: float,
+    ) -> ManagerSessionSnapshot: ...
+
+    def attach(self, client_id: str, *, instance_id: str) -> ManagerSlotSnapshot: ...
+
+    def tile(self, client_id: str) -> ManagerSlotSnapshot: ...
+
+    def tile_all(self) -> ManagerSessionSnapshot: ...
+
+    def pause(self, client_id: str) -> ManagerSlotSnapshot: ...
+
+    def resume(self, client_id: str) -> ManagerSlotSnapshot: ...
+
+    def detach(self, client_id: str) -> ManagerSlotSnapshot: ...
+
+    def request_close(self, client_id: str) -> ManagerSlotSnapshot: ...
+
+
+class ManifestRegistryProvider(Protocol):
+    """Fresh manifest-wide registry used only for local status and candidate selection."""
+
+    def inspect(self) -> ClientRegistrySnapshot: ...
+
+
+def _require_positive_finite(value: float, field_name: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{field_name} must be numeric")
+    if not isfinite(value) or value <= 0:
+        raise ValueError(f"{field_name} must be finite and positive")
+    return float(value)
+
+
+def _normalize_windows_path(path: str) -> str:
+    return ntpath.normcase(ntpath.normpath(ntpath.abspath(path))).casefold()
+
+
+def _matches_config(client: ClientInstanceSnapshot, config: ManagedClientConfig) -> bool:
+    if client.executable_path is None:
+        return False
+    allowed_names = {name.casefold() for name in config.expected_executable_names}
+    return client.executable_name.casefold() in allowed_names and _normalize_windows_path(
+        ntpath.dirname(client.executable_path)
+    ) == _normalize_windows_path(str(config.expected_process_directory))
+
+
+def _rejected_matches_config(
+    window: RejectedWindowSnapshot,
+    config: ManagedClientConfig,
+) -> bool:
+    if window.executable_path is None:
+        return False
+    allowed_names = {name.casefold() for name in config.expected_executable_names}
+    return window.executable_name.casefold() in allowed_names and _normalize_windows_path(
+        ntpath.dirname(window.executable_path)
+    ) == _normalize_windows_path(str(config.expected_process_directory))
+
+
+def _client_summary(client: ClientInstanceSnapshot) -> dict[str, object]:
+    return {
+        "instance_id": client.instance_id,
+        "process_id": client.process_id,
+        "process_started_at_100ns": client.process_started_at_100ns,
+        "window_handle": client.window_handle,
+        "executable_name": client.executable_name,
+        "title": client.title,
+        "is_foreground": client.is_foreground,
+        "is_visible": client.is_visible,
+        "client_bounds": {
+            "left": client.client_bounds.left,
+            "top": client.client_bounds.top,
+            "width": client.client_bounds.width,
+            "height": client.client_bounds.height,
+        },
+    }
+
+
+def _rejected_summary(window: RejectedWindowSnapshot) -> dict[str, object]:
+    return {
+        "process_id": window.process_id,
+        "process_started_at_100ns": window.process_started_at_100ns,
+        "window_handle": window.window_handle,
+        "executable_name": window.executable_name,
+        "title": window.title,
+        "reasons": [reason.value for reason in window.reasons],
+    }
+
+
+class ManagerDashboardApplication:
+    """Expose reviewed local lifecycle actions without adding strategy or remote control."""
+
+    def __init__(
+        self,
+        manifest: ManagerManifest,
+        session: SessionControl,
+        registry: ManifestRegistryProvider,
+        *,
+        launch_timeout_seconds: float = 30.0,
+        poll_seconds: float = 0.5,
+    ) -> None:
+        if not isinstance(manifest, ManagerManifest):
+            raise ValueError("manifest must be ManagerManifest")
+        session_methods = (
+            "snapshot",
+            "status",
+            "refresh",
+            "start",
+            "start_all",
+            "attach",
+            "tile",
+            "tile_all",
+            "pause",
+            "resume",
+            "detach",
+            "request_close",
+        )
+        if any(not callable(getattr(session, method, None)) for method in session_methods):
+            raise ValueError("session does not implement the dashboard session contract")
+        if not callable(getattr(registry, "inspect", None)):
+            raise ValueError("registry must provide inspect()")
+        self._manifest = manifest
+        self._session = session
+        self._registry = registry
+        self._launch_timeout_seconds = _require_positive_finite(
+            launch_timeout_seconds,
+            "launch_timeout_seconds",
+        )
+        self._poll_seconds = _require_positive_finite(poll_seconds, "poll_seconds")
+        self._configs = {config.client_id: config for config in manifest.clients}
+        self._lock = threading.RLock()
+
+    def status(self) -> dict[str, object]:
+        """Return a fresh local inventory plus remembered exact slot bindings."""
+
+        with self._lock:
+            registry = self._registry.inspect()
+            if not isinstance(registry, ClientRegistrySnapshot):
+                raise RuntimeError("manifest registry returned an invalid snapshot")
+            if registry.node_id != self._manifest.node_id:
+                raise RuntimeError("manifest registry returned the wrong node")
+            session = self._session.snapshot()
+            if not isinstance(session, ManagerSessionSnapshot):
+                raise RuntimeError("manager session returned an invalid snapshot")
+            if session.node_id != self._manifest.node_id:
+                raise RuntimeError("manager session returned the wrong node")
+
+            clients_by_id = {client.instance_id: client for client in registry.clients}
+            current_bound_ids: set[str] = set()
+            current_bindings: dict[str, ClientInstanceSnapshot] = {}
+            for slot in session.slots:
+                config = self._configs.get(slot.client_id)
+                if config is None:
+                    raise RuntimeError("manager session returned an unknown manifest slot")
+                if slot.instance_id is None:
+                    continue
+                current = clients_by_id.get(slot.instance_id)
+                if current is not None and _matches_config(current, config):
+                    current_bound_ids.add(slot.instance_id)
+                    current_bindings[slot.client_id] = current
+            slots: list[dict[str, object]] = []
+            for slot in session.slots:
+                config = self._configs.get(slot.client_id)
+                if config is None:
+                    raise RuntimeError("manager session returned an unknown manifest slot")
+                payload = slot.to_dict()
+                binding = current_bindings.get(slot.client_id)
+                if slot.instance_id is not None and binding is None:
+                    payload["state"] = "stale"
+                    payload["dispatch_enabled"] = False
+                    payload["status_detail"] = (
+                        "exact bound process/window identity is absent from current registry"
+                    )
+                payload["binding"] = None if binding is None else _client_summary(binding)
+                payload["candidates"] = [
+                    _client_summary(client)
+                    for client in registry.clients
+                    if client.instance_id not in current_bound_ids
+                    and _matches_config(client, config)
+                ]
+                payload["rejected_windows"] = [
+                    _rejected_summary(window)
+                    for window in registry.rejected
+                    if _rejected_matches_config(window, config)
+                ]
+                slots.append(payload)
+
+            return {
+                "ok": True,
+                "schema_version": session.schema_version,
+                "node_id": session.node_id,
+                "configured_count": len(slots),
+                "bound_count": len(current_bound_ids),
+                "slots": slots,
+            }
+
+    def execute(
+        self,
+        action: str,
+        *,
+        client_id: str | None = None,
+        instance_id: str | None = None,
+    ) -> dict[str, object]:
+        """Execute one route-validated action and preserve exact binding ownership."""
+
+        with self._lock:
+            try:
+                self._execute(action, client_id=client_id, instance_id=instance_id)
+            except DashboardError:
+                raise
+            except ManagerSessionError as exc:
+                raise DashboardError("manager-action-failed", str(exc)) from exc
+            return {"ok": True, "action": action}
+
+    def _execute(
+        self,
+        action: str,
+        *,
+        client_id: str | None,
+        instance_id: str | None,
+    ) -> None:
+        if action == "start-all":
+            self._require_global(action, client_id, instance_id)
+            self._require_clear_launch_baseline()
+            self._session.start_all(
+                timeout_seconds=self._launch_timeout_seconds,
+                poll_seconds=self._poll_seconds,
+            )
+            return
+        if action == "refresh":
+            self._require_global(action, client_id, instance_id)
+            self._session.refresh()
+            return
+        if action == "tile-all":
+            self._require_global(action, client_id, instance_id)
+            self._session.tile_all()
+            return
+        if client_id is None:
+            raise DashboardError("invalid-action-fields", f"{action} requires client_id")
+        if action == "start":
+            if instance_id is not None:
+                raise DashboardError("invalid-action-fields", "start does not accept instance_id")
+            self._require_clear_launch_baseline(client_id=client_id)
+            self._session.start(
+                client_id,
+                timeout_seconds=self._launch_timeout_seconds,
+                poll_seconds=self._poll_seconds,
+            )
+            return
+        if instance_id is None:
+            raise DashboardError("invalid-action-fields", f"{action} requires instance_id")
+        if action == "attach":
+            self._session.attach(client_id, instance_id=instance_id)
+            return
+        self._require_exact_binding(client_id, instance_id)
+        actions = {
+            "tile": self._session.tile,
+            "pause": self._session.pause,
+            "resume": self._session.resume,
+            "detach": self._session.detach,
+            "close": self._session.request_close,
+        }
+        operation = actions.get(action)
+        if operation is None:
+            raise DashboardError("unknown-action", "The manager action is not supported.")
+        operation(client_id)
+
+    def _require_clear_launch_baseline(self, *, client_id: str | None = None) -> None:
+        registry = self._registry.inspect()
+        session = self._session.snapshot()
+        if not isinstance(registry, ClientRegistrySnapshot) or (
+            registry.node_id != self._manifest.node_id
+        ):
+            raise RuntimeError("manifest registry returned an invalid launch baseline")
+        if not isinstance(session, ManagerSessionSnapshot) or (
+            session.node_id != self._manifest.node_id
+        ):
+            raise RuntimeError("manager session returned an invalid launch baseline")
+        bound_ids = {slot.instance_id for slot in session.slots if slot.instance_id is not None}
+        for slot in session.slots:
+            if slot.instance_id is not None or (
+                client_id is not None and slot.client_id != client_id
+            ):
+                continue
+            config = self._configs.get(slot.client_id)
+            if config is None:
+                raise RuntimeError("manager session returned an unknown manifest slot")
+            if any(
+                window.instance_id not in bound_ids and _matches_config(window, config)
+                for window in registry.clients
+            ):
+                raise DashboardError(
+                    "attach-selection-required",
+                    f"{slot.client_id} has an existing matching client; attach it explicitly "
+                    "before launching another slot.",
+                )
+            if any(_rejected_matches_config(window, config) for window in registry.rejected):
+                raise DashboardError(
+                    "unsafe-client-identity",
+                    f"{slot.client_id} has a matching window with incomplete identity.",
+                )
+
+    @staticmethod
+    def _require_global(
+        action: str,
+        client_id: str | None,
+        instance_id: str | None,
+    ) -> None:
+        if client_id is not None or instance_id is not None:
+            raise DashboardError(
+                "invalid-action-fields",
+                f"{action} does not accept client_id or instance_id",
+            )
+
+    def _require_exact_binding(self, client_id: str, instance_id: str) -> None:
+        slot = self._session.status(client_id)
+        if not isinstance(slot, ManagerSlotSnapshot):
+            raise RuntimeError("manager session returned an invalid slot snapshot")
+        if slot.instance_id != instance_id:
+            raise DashboardError(
+                "stale-instance-selection",
+                "The selected instance no longer owns this slot; refresh before retrying.",
+            )
+
+
+__all__ = [
+    "ManagerDashboardApplication",
+    "ManifestRegistryProvider",
+    "SessionControl",
+]

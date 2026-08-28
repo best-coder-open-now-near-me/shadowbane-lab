@@ -15,16 +15,20 @@ from shadowbane_lab.manager.supervisor import (
     ClientLifecycleSupervisor,
     DuplicateManagedClientError,
     InvalidLifecycleTransitionError,
+    LaunchProvenance,
     LaunchReceipt,
     LaunchTimeoutError,
     ManagedClientState,
     NoMatchingClientError,
+    ProcessLifetimeSnapshot,
     RegistryContractError,
     ReviewedLaunchCommand,
     StaleManagedClientError,
     SubprocessLauncher,
     SupervisorError,
     UnknownManagedClientError,
+    UnownedLaunchBaselineError,
+    UnprovenLaunchProvenanceError,
     UnsafeClientIdentityError,
     WindowControllerUnavailableError,
     launch_command_from_config,
@@ -117,7 +121,7 @@ def _snapshot(
 
 
 class FakeRegistry:
-    def __init__(self, snapshots: list[ClientRegistrySnapshot]) -> None:
+    def __init__(self, snapshots: list[ClientRegistrySnapshot | Exception]) -> None:
         if not snapshots:
             raise ValueError("snapshots must not be empty")
         self.snapshots = list(snapshots)
@@ -126,8 +130,12 @@ class FakeRegistry:
     def inspect(self, selector: ClientInstanceSelector) -> ClientRegistrySnapshot:
         self.selectors.append(selector)
         if len(self.snapshots) > 1:
-            return self.snapshots.pop(0)
-        return self.snapshots[0]
+            result = self.snapshots.pop(0)
+        else:
+            result = self.snapshots[0]
+        if isinstance(result, Exception):
+            raise result
+        return result
 
 
 class FakeClock:
@@ -149,13 +157,37 @@ class AdvancingSleeper:
 
 
 class FakeLauncher:
-    def __init__(self, process_id: int = 9000) -> None:
-        self.receipt = LaunchReceipt(process_id=process_id)
+    def __init__(
+        self,
+        process_id: int = 9000,
+        process_started_at_100ns: int | None = None,
+    ) -> None:
+        self.receipt = LaunchReceipt(
+            process_id=process_id,
+            process_started_at_100ns=(
+                process_started_at_100ns
+                if process_started_at_100ns is not None
+                else process_id * 1000
+            ),
+        )
         self.commands: list[ReviewedLaunchCommand] = []
 
     def launch(self, command: ReviewedLaunchCommand) -> LaunchReceipt:
         self.commands.append(command)
         return self.receipt
+
+
+class FakeProcessInspector:
+    def __init__(self) -> None:
+        self.results: dict[int, ProcessLifetimeSnapshot | Exception | None] = {}
+        self.calls: list[int] = []
+
+    def inspect(self, process_id: int) -> ProcessLifetimeSnapshot | None:
+        self.calls.append(process_id)
+        result = self.results.get(process_id)
+        if isinstance(result, Exception):
+            raise result
+        return result
 
 
 class FakeWindowController:
@@ -189,6 +221,7 @@ def _supervisor(
     clock: FakeClock | None = None,
     sleeper: AdvancingSleeper | None = None,
     controller: FakeWindowController | None = None,
+    process_inspector: FakeProcessInspector | None = None,
 ) -> ClientLifecycleSupervisor:
     resolved_clock = clock or FakeClock()
     return ClientLifecycleSupervisor(
@@ -197,6 +230,7 @@ def _supervisor(
         clock=resolved_clock,
         sleeper=sleeper or AdvancingSleeper(resolved_clock),
         window_controller=controller,
+        process_inspector=process_inspector or FakeProcessInspector(),
     )
 
 
@@ -229,6 +263,11 @@ class SupervisorValueTests(unittest.TestCase):
     def test_subprocess_launcher_never_uses_a_shell(self) -> None:
         process = MagicMock(pid=2468)
         process.poll.return_value = None
+        inspector = FakeProcessInspector()
+        inspector.results[2468] = ProcessLifetimeSnapshot(
+            process_id=2468,
+            process_started_at_100ns=2468000,
+        )
         command = ReviewedLaunchCommand(
             (r"C:\Games\WonderBane\sb.exe", "--windowed"),
             working_directory=PROCESS_DIRECTORY,
@@ -237,9 +276,10 @@ class SupervisorValueTests(unittest.TestCase):
             "shadowbane_lab.manager.supervisor.subprocess.Popen",
             return_value=process,
         ) as popen:
-            receipt = SubprocessLauncher().launch(command)
+            receipt = SubprocessLauncher(inspector).launch(command)
 
         self.assertEqual(2468, receipt.process_id)
+        self.assertEqual(2468000, receipt.process_started_at_100ns)
         popen.assert_called_once_with(
             command.argv,
             cwd=PROCESS_DIRECTORY,
@@ -357,23 +397,33 @@ class ClientLifecycleSupervisorTests(unittest.TestCase):
             supervisor.attach(_selector())
 
     def test_launch_attaches_only_the_single_new_identity(self) -> None:
-        old_client = _client(101)
-        new_client = _client(202)
+        new_client = _client(202, process_started_at_100ns=8_081_000)
         registry = FakeRegistry(
             [
-                _snapshot(old_client),
-                _snapshot(old_client),
-                _snapshot(old_client, new_client),
+                _snapshot(),
+                _snapshot(),
+                _snapshot(new_client),
             ]
         )
         clock = FakeClock()
         sleeper = AdvancingSleeper(clock)
         launcher = FakeLauncher(process_id=8080)
+        inspector = FakeProcessInspector()
+        inspector.results[new_client.process_id] = ProcessLifetimeSnapshot(
+            process_id=new_client.process_id,
+            process_started_at_100ns=new_client.process_started_at_100ns,
+            parent_process_id=launcher.receipt.process_id,
+        )
+        inspector.results[launcher.receipt.process_id] = ProcessLifetimeSnapshot(
+            process_id=launcher.receipt.process_id,
+            process_started_at_100ns=launcher.receipt.process_started_at_100ns,
+        )
         supervisor = _supervisor(
             registry,
             launcher=launcher,
             clock=clock,
             sleeper=sleeper,
+            process_inspector=inspector,
         )
         command = ReviewedLaunchCommand((r"C:\Games\WonderBane\launcher.exe", "--client"))
 
@@ -387,20 +437,119 @@ class ClientLifecycleSupervisorTests(unittest.TestCase):
         self.assertEqual(new_client, result.client)
         self.assertTrue(result.launched_by_manager)
         self.assertEqual(8080, result.launcher_process_id)
+        self.assertEqual(
+            LaunchProvenance.DESCENDANT_PROCESS,
+            result.launch_provenance,
+        )
         self.assertEqual([command], launcher.commands)
         self.assertEqual([0.25], sleeper.calls)
 
+    def test_launch_accepts_exact_direct_process_lifetime(self) -> None:
+        launcher = FakeLauncher(process_id=5050, process_started_at_100ns=5_050_123)
+        client = _client(
+            launcher.receipt.process_id,
+            process_started_at_100ns=launcher.receipt.process_started_at_100ns,
+        )
+        supervisor = _supervisor(
+            FakeRegistry([_snapshot(), _snapshot(client)]),
+            launcher=launcher,
+        )
+
+        result = supervisor.launch_and_attach(
+            _selector(),
+            ReviewedLaunchCommand((rf"{PROCESS_DIRECTORY}\sb.exe",)),
+            timeout_seconds=1.0,
+        )
+
+        self.assertEqual(LaunchProvenance.DIRECT_PROCESS, result.launch_provenance)
+        self.assertEqual(
+            launcher.receipt.process_started_at_100ns,
+            result.launcher_process_started_at_100ns,
+        )
+
+    def test_launch_rejects_unowned_client_already_in_baseline(self) -> None:
+        external = _client(101)
+        launcher = FakeLauncher()
+        supervisor = _supervisor(
+            FakeRegistry([_snapshot(external)]),
+            launcher=launcher,
+        )
+
+        with self.assertRaisesRegex(UnownedLaunchBaselineError, "explicit attach"):
+            supervisor.launch_and_attach(
+                _selector(),
+                ReviewedLaunchCommand((rf"{PROCESS_DIRECTORY}\launcher.exe",)),
+                timeout_seconds=1.0,
+            )
+
+        self.assertEqual([], launcher.commands)
+
+    def test_launch_rejects_racing_new_client_without_process_provenance(self) -> None:
+        racing = _client(777)
+        launcher = FakeLauncher()
+        supervisor = _supervisor(
+            FakeRegistry([_snapshot(), _snapshot(racing)]),
+            launcher=launcher,
+        )
+
+        with self.assertRaisesRegex(UnprovenLaunchProvenanceError, "explicit attach"):
+            supervisor.launch_and_attach(
+                _selector(),
+                ReviewedLaunchCommand((rf"{PROCESS_DIRECTORY}\launcher.exe",)),
+                timeout_seconds=1.0,
+            )
+
+        self.assertEqual((), supervisor.snapshots())
+
+    def test_launch_rejects_proven_candidate_when_any_unowned_racer_appears(self) -> None:
+        launcher = FakeLauncher(process_id=5050, process_started_at_100ns=5_050_123)
+        proven = _client(
+            launcher.receipt.process_id,
+            process_started_at_100ns=launcher.receipt.process_started_at_100ns,
+        )
+        racing = _client(6060)
+        supervisor = _supervisor(
+            FakeRegistry([_snapshot(), _snapshot(proven, racing)]),
+            launcher=launcher,
+        )
+
+        with self.assertRaises(UnprovenLaunchProvenanceError):
+            supervisor.launch_and_attach(
+                _selector(),
+                ReviewedLaunchCommand((rf"{PROCESS_DIRECTORY}\launcher.exe",)),
+                timeout_seconds=1.0,
+            )
+
+        self.assertEqual((), supervisor.snapshots())
+
     def test_launch_fails_on_multiple_new_clients(self) -> None:
-        old_client = _client(101)
+        first = _client(202, process_started_at_100ns=9_001_000)
+        second = _client(303, process_started_at_100ns=9_002_000)
         registry = FakeRegistry(
             [
-                _snapshot(old_client),
-                _snapshot(old_client, _client(202), _client(303)),
+                _snapshot(),
+                _snapshot(first, second),
             ]
         )
-        supervisor = _supervisor(registry)
+        launcher = FakeLauncher()
+        inspector = FakeProcessInspector()
+        for client in (first, second):
+            inspector.results[client.process_id] = ProcessLifetimeSnapshot(
+                process_id=client.process_id,
+                process_started_at_100ns=client.process_started_at_100ns,
+                parent_process_id=launcher.receipt.process_id,
+            )
+        inspector.results[launcher.receipt.process_id] = ProcessLifetimeSnapshot(
+            process_id=launcher.receipt.process_id,
+            process_started_at_100ns=launcher.receipt.process_started_at_100ns,
+        )
+        supervisor = _supervisor(
+            registry,
+            launcher=launcher,
+            process_inspector=inspector,
+        )
 
-        with self.assertRaisesRegex(AmbiguousClientError, "2 new"):
+        with self.assertRaisesRegex(AmbiguousClientError, "2 provenance"):
             supervisor.launch_and_attach(
                 _selector(),
                 ReviewedLaunchCommand((rf"{PROCESS_DIRECTORY}\launcher.exe",)),
@@ -410,8 +559,15 @@ class ClientLifecycleSupervisorTests(unittest.TestCase):
 
     def test_launch_fails_when_a_baseline_identity_disappears(self) -> None:
         old_client = _client(101)
-        registry = FakeRegistry([_snapshot(old_client), _snapshot(_client(202))])
+        registry = FakeRegistry(
+            [
+                _snapshot(old_client),
+                _snapshot(old_client),
+                _snapshot(_client(202)),
+            ]
+        )
         supervisor = _supervisor(registry)
+        supervisor.attach(_selector(), instance_id=old_client.instance_id)
 
         with self.assertRaisesRegex(StaleManagedClientError, "disappeared"):
             supervisor.launch_and_attach(
@@ -421,7 +577,7 @@ class ClientLifecycleSupervisorTests(unittest.TestCase):
             )
 
     def test_launch_times_out_without_a_new_identity(self) -> None:
-        baseline = _snapshot(_client(101))
+        baseline = _snapshot()
         clock = FakeClock()
         sleeper = AdvancingSleeper(clock)
         supervisor = _supervisor(
@@ -595,6 +751,111 @@ class ClientLifecycleSupervisorTests(unittest.TestCase):
 
         with self.assertRaises(InvalidLifecycleTransitionError):
             supervisor.request_close(attached.instance_id)
+
+    def test_window_disappearance_does_not_close_while_exact_process_is_alive(self) -> None:
+        client = _client(101)
+        inspector = FakeProcessInspector()
+        inspector.results[client.process_id] = ProcessLifetimeSnapshot(
+            process_id=client.process_id,
+            process_started_at_100ns=client.process_started_at_100ns,
+        )
+        supervisor = _supervisor(
+            FakeRegistry([_snapshot(client), _snapshot(client), _snapshot()]),
+            controller=FakeWindowController(),
+            process_inspector=inspector,
+        )
+        attached = supervisor.attach(_selector())
+        supervisor.request_close(attached.instance_id)
+
+        refreshed = supervisor.refresh(attached.instance_id)
+
+        self.assertEqual(ManagedClientState.CLOSE_REQUESTED, refreshed.state)
+        self.assertFalse(refreshed.dispatch_enabled)
+        self.assertIn("still running", refreshed.status_detail)
+        self.assertEqual((refreshed,), supervisor.snapshots())
+
+    def test_close_retains_binding_when_process_lifetime_verification_fails(self) -> None:
+        client = _client(101)
+        inspector = FakeProcessInspector()
+        inspector.results[client.process_id] = OSError("process query denied")
+        supervisor = _supervisor(
+            FakeRegistry([_snapshot(client), _snapshot(client), _snapshot()]),
+            controller=FakeWindowController(),
+            process_inspector=inspector,
+        )
+        attached = supervisor.attach(_selector())
+        supervisor.request_close(attached.instance_id)
+
+        refreshed = supervisor.refresh(attached.instance_id)
+
+        self.assertEqual(ManagedClientState.CLOSE_REQUESTED, refreshed.state)
+        self.assertFalse(refreshed.dispatch_enabled)
+        self.assertIn("verification failed", refreshed.status_detail)
+        self.assertEqual(attached.instance_id, supervisor.status(attached.instance_id).instance_id)
+
+    def test_registry_failure_does_not_close_without_verified_process_exit(self) -> None:
+        client = _client(101)
+        inspector = FakeProcessInspector()
+        inspector.results[client.process_id] = ProcessLifetimeSnapshot(
+            process_id=client.process_id,
+            process_started_at_100ns=client.process_started_at_100ns,
+        )
+        supervisor = _supervisor(
+            FakeRegistry(
+                [
+                    _snapshot(client),
+                    _snapshot(client),
+                    OSError("window enumeration failed"),
+                ]
+            ),
+            controller=FakeWindowController(),
+            process_inspector=inspector,
+        )
+        attached = supervisor.attach(_selector())
+        supervisor.request_close(attached.instance_id)
+
+        refreshed = supervisor.refresh(attached.instance_id)
+
+        self.assertEqual(ManagedClientState.CLOSE_REQUESTED, refreshed.state)
+        self.assertIn("window verification failed", refreshed.status_detail)
+        self.assertIn("still running", refreshed.status_detail)
+
+    def test_verified_process_exit_is_distinct_from_generic_window_staleness(self) -> None:
+        client = _client(101)
+        supervisor = _supervisor(
+            FakeRegistry([_snapshot(client), _snapshot(client), _snapshot()]),
+            controller=FakeWindowController(),
+            process_inspector=FakeProcessInspector(),
+        )
+        attached = supervisor.attach(_selector())
+        supervisor.request_close(attached.instance_id)
+
+        refreshed = supervisor.refresh(attached.instance_id)
+
+        self.assertEqual(ManagedClientState.EXITED, refreshed.state)
+        self.assertFalse(refreshed.dispatch_enabled)
+        self.assertIn("verified exact process lifetime exited", refreshed.status_detail)
+        self.assertEqual((refreshed,), supervisor.snapshots())
+
+    def test_pid_reuse_proves_only_the_original_process_lifetime_exited(self) -> None:
+        client = _client(101)
+        inspector = FakeProcessInspector()
+        inspector.results[client.process_id] = ProcessLifetimeSnapshot(
+            process_id=client.process_id,
+            process_started_at_100ns=client.process_started_at_100ns + 1,
+        )
+        supervisor = _supervisor(
+            FakeRegistry([_snapshot(client), _snapshot(client), _snapshot()]),
+            controller=FakeWindowController(),
+            process_inspector=inspector,
+        )
+        attached = supervisor.attach(_selector())
+        supervisor.request_close(attached.instance_id)
+
+        refreshed = supervisor.refresh(attached.instance_id)
+
+        self.assertEqual(ManagedClientState.EXITED, refreshed.state)
+        self.assertEqual(client.process_id, refreshed.client.process_id)
 
 
 if __name__ == "__main__":

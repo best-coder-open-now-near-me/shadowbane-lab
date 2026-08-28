@@ -126,7 +126,10 @@ class ManagerManifestTests(unittest.TestCase):
                     parse_manager_manifest(_payload(client))
 
         for argument in (
+            "plaintext-password",
             "--password=secret",
+            "--auth-token=secret",
+            "--pass-word",
             "/account:someone",
             "--character",
             "--role=caller",
@@ -135,7 +138,74 @@ class ManagerManifestTests(unittest.TestCase):
             client = _client()
             client["launch"]["arguments"] = [argument]
             with self.subTest(argument=argument):
-                with self.assertRaisesRegex(ManagerManifestError, "operational launch data"):
+                with self.assertRaisesRegex(ManagerManifestError, "not an allowed operational"):
+                    parse_manager_manifest(_payload(client))
+
+    def test_accepts_only_the_documented_operational_launch_grammar(self) -> None:
+        accepted = (
+            [],
+            ["-windowed"],
+            ["--windowed"],
+            ["--client"],
+            ["--client", "-windowed", "-resolution", "1920x1080"],
+            ["-resolution", "1x16384", "--windowed", "--client"],
+        )
+        for arguments in accepted:
+            client = _client()
+            client["launch"]["arguments"] = arguments
+            with self.subTest(arguments=arguments):
+                parsed = parse_manager_manifest(_payload(client))
+                self.assertEqual(tuple(arguments), parsed.clients[0].launch.arguments)
+
+    def test_rejects_unknown_launch_flags_aliases_and_positional_values(self) -> None:
+        rejected = (
+            ["--fullscreen"],
+            ["-Windowed"],
+            ["/windowed"],
+            ["windowed"],
+            ["--resolution", "1920x1080"],
+            ["-resolution=1920x1080"],
+            ["--client-mode"],
+            ["launcher-profile.json"],
+        )
+        for arguments in rejected:
+            client = _client()
+            client["launch"]["arguments"] = arguments
+            with self.subTest(arguments=arguments):
+                with self.assertRaisesRegex(ManagerManifestError, "not an allowed operational"):
+                    parse_manager_manifest(_payload(client))
+
+    def test_resolution_argument_is_canonical_bounded_and_complete(self) -> None:
+        rejected = (
+            ["-resolution"],
+            ["-resolution", "0x720"],
+            ["-resolution", "001x720"],
+            ["-resolution", "1920X1080"],
+            ["-resolution", "1920*1080"],
+            ["-resolution", "16385x720"],
+            ["-resolution", 1080],
+        )
+        for arguments in rejected:
+            client = _client()
+            client["launch"]["arguments"] = arguments
+            with self.subTest(arguments=arguments):
+                with self.assertRaisesRegex(
+                    ManagerManifestError,
+                    "following WIDTHxHEIGHT|display resolution|dimensions|non-empty string",
+                ):
+                    parse_manager_manifest(_payload(client))
+
+    def test_launch_options_cannot_be_repeated_or_aliased_twice(self) -> None:
+        for arguments in (
+            ["-windowed", "-windowed"],
+            ["-windowed", "--windowed"],
+            ["--client", "--client"],
+            ["-resolution", "1280x720", "-resolution", "1920x1080"],
+        ):
+            client = _client()
+            client["launch"]["arguments"] = arguments
+            with self.subTest(arguments=arguments):
+                with self.assertRaisesRegex(ManagerManifestError, "duplicates launch option"):
                     parse_manager_manifest(_payload(client))
 
     def test_requires_schema_version_one_and_all_required_fields(self) -> None:

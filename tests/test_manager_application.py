@@ -1,0 +1,387 @@
+import unittest
+
+from shadowbane_lab.client_input import WindowBounds
+from shadowbane_lab.manager.application import ManagerDashboardApplication
+from shadowbane_lab.manager.dashboard import DashboardError
+from shadowbane_lab.manager.manifest import ManagerManifest, parse_manager_manifest
+from shadowbane_lab.manager.model import ClientInstanceSnapshot, ClientRegistrySnapshot
+from shadowbane_lab.manager.session import (
+    ManagerSessionSnapshot,
+    ManagerSlotSnapshot,
+    ManagerSlotState,
+    SessionActionError,
+)
+
+NODE_ID = "gaming-pc-east"
+PROCESS_DIRECTORY = r"C:\Games\Shadowbane"
+
+
+def _manifest() -> ManagerManifest:
+    return parse_manager_manifest(
+        {
+            "schema_version": 1,
+            "node_id": NODE_ID,
+            "clients": [
+                {
+                    "client_id": client_id,
+                    "launch": {
+                        "executable": rf"{PROCESS_DIRECTORY}\launcher.exe",
+                        "arguments": ["-windowed"],
+                        "working_directory": PROCESS_DIRECTORY,
+                    },
+                    "expected_process_directory": PROCESS_DIRECTORY,
+                    "expected_executable_names": ["sb.exe"],
+                    "window_tile": {
+                        "left": left,
+                        "top": 0,
+                        "width": 800,
+                        "height": 600,
+                    },
+                }
+                for client_id, left in (("client-01", 0), ("client-02", 800))
+            ],
+        }
+    )
+
+
+def _slot(
+    client_id: str,
+    *,
+    instance_id: str | None = None,
+    state: ManagerSlotState | None = None,
+) -> ManagerSlotSnapshot:
+    attached = instance_id is not None
+    resolved_state = state or (
+        ManagerSlotState.ATTACHED if attached else ManagerSlotState.CONFIGURED
+    )
+    return ManagerSlotSnapshot(
+        client_id=client_id,
+        state=resolved_state,
+        instance_id=instance_id,
+        dispatch_enabled=resolved_state is ManagerSlotState.ATTACHED,
+        launched_by_manager=False,
+        launcher_process_id=None,
+        launcher_process_started_at_100ns=None,
+        launch_provenance=None,
+        attached_at=None,
+        last_verified_at=None,
+        window_tile=(0, 0, 800, 600),
+    )
+
+
+def _client(
+    instance_id: str,
+    process_id: int,
+    *,
+    directory: str = PROCESS_DIRECTORY,
+) -> ClientInstanceSnapshot:
+    return ClientInstanceSnapshot(
+        node_id=NODE_ID,
+        instance_id=instance_id,
+        process_id=process_id,
+        process_started_at_100ns=133_700_000_000_000_000 + process_id,
+        window_handle=10_000 + process_id,
+        executable_name="sb.exe",
+        executable_path=rf"{directory}\sb.exe",
+        title=f"Shadowbane {process_id}",
+        client_bounds=WindowBounds(left=0, top=0, width=800, height=600),
+        dpi_scale=1.0,
+        is_foreground=False,
+        is_visible=True,
+    )
+
+
+class _StaticRegistry:
+    def __init__(self, snapshot: ClientRegistrySnapshot) -> None:
+        self.snapshot = snapshot
+        self.inspection_count = 0
+
+    def inspect(self) -> ClientRegistrySnapshot:
+        self.inspection_count += 1
+        return self.snapshot
+
+
+class _RecordingSession:
+    def __init__(self, snapshot: ManagerSessionSnapshot) -> None:
+        self.snapshot_value = snapshot
+        self.calls: list[tuple[object, ...]] = []
+        self.error: Exception | None = None
+
+    def snapshot(self) -> ManagerSessionSnapshot:
+        return self.snapshot_value
+
+    def status(self, client_id: str) -> ManagerSlotSnapshot:
+        return next(slot for slot in self.snapshot_value.slots if slot.client_id == client_id)
+
+    def _record(self, *call: object) -> ManagerSessionSnapshot:
+        self.calls.append(call)
+        if self.error is not None:
+            raise self.error
+        return self.snapshot_value
+
+    def refresh(self) -> ManagerSessionSnapshot:
+        return self._record("refresh")
+
+    def start(
+        self,
+        client_id: str,
+        *,
+        timeout_seconds: float,
+        poll_seconds: float,
+    ) -> ManagerSlotSnapshot:
+        self._record("start", client_id, timeout_seconds, poll_seconds)
+        return self.status(client_id)
+
+    def start_all(
+        self,
+        *,
+        timeout_seconds: float,
+        poll_seconds: float,
+    ) -> ManagerSessionSnapshot:
+        return self._record("start-all", timeout_seconds, poll_seconds)
+
+    def attach(self, client_id: str, *, instance_id: str) -> ManagerSlotSnapshot:
+        self._record("attach", client_id, instance_id)
+        return self.status(client_id)
+
+    def tile(self, client_id: str) -> ManagerSlotSnapshot:
+        self._record("tile", client_id)
+        return self.status(client_id)
+
+    def tile_all(self) -> ManagerSessionSnapshot:
+        return self._record("tile-all")
+
+    def pause(self, client_id: str) -> ManagerSlotSnapshot:
+        self._record("pause", client_id)
+        return self.status(client_id)
+
+    def resume(self, client_id: str) -> ManagerSlotSnapshot:
+        self._record("resume", client_id)
+        return self.status(client_id)
+
+    def detach(self, client_id: str) -> ManagerSlotSnapshot:
+        self._record("detach", client_id)
+        return self.status(client_id)
+
+    def request_close(self, client_id: str) -> ManagerSlotSnapshot:
+        self._record("close", client_id)
+        return self.status(client_id)
+
+
+def _application(
+    session: _RecordingSession,
+    *clients: ClientInstanceSnapshot,
+) -> tuple[ManagerDashboardApplication, _StaticRegistry]:
+    registry = _StaticRegistry(
+        ClientRegistrySnapshot(
+            node_id=NODE_ID,
+            clients=tuple(
+                sorted(
+                    clients,
+                    key=lambda client: (
+                        client.node_id,
+                        client.executable_name.casefold(),
+                        client.process_id,
+                        client.process_started_at_100ns,
+                        client.window_handle,
+                        client.instance_id,
+                    ),
+                )
+            ),
+        )
+    )
+    return (
+        ManagerDashboardApplication(
+            _manifest(),
+            session,
+            registry,
+            launch_timeout_seconds=12.0,
+            poll_seconds=0.25,
+        ),
+        registry,
+    )
+
+
+class ManagerDashboardApplicationTests(unittest.TestCase):
+    def test_status_enriches_exact_binding_and_excludes_it_from_candidates(self) -> None:
+        bound = _client("instance-101", 101)
+        candidate = _client("instance-202", 202)
+        unrelated = _client("instance-303", 303, directory=r"D:\Other")
+        session = _RecordingSession(
+            ManagerSessionSnapshot(
+                node_id=NODE_ID,
+                slots=(
+                    _slot("client-01", instance_id=bound.instance_id),
+                    _slot("client-02"),
+                ),
+            )
+        )
+        application, registry = _application(session, unrelated, candidate, bound)
+
+        status = application.status()
+
+        self.assertTrue(status["ok"])
+        self.assertEqual(2, status["configured_count"])
+        self.assertEqual(1, status["bound_count"])
+        self.assertEqual(bound.instance_id, status["slots"][0]["binding"]["instance_id"])
+        self.assertEqual(
+            [candidate.instance_id],
+            [item["instance_id"] for item in status["slots"][0]["candidates"]],
+        )
+        self.assertEqual(
+            [candidate.instance_id],
+            [item["instance_id"] for item in status["slots"][1]["candidates"]],
+        )
+        self.assertEqual(1, registry.inspection_count)
+
+    def test_status_derives_absent_remembered_binding_as_stale_and_unbound(self) -> None:
+        session = _RecordingSession(
+            ManagerSessionSnapshot(
+                node_id=NODE_ID,
+                slots=(
+                    _slot("client-01", instance_id="instance-gone"),
+                    _slot("client-02"),
+                ),
+            )
+        )
+        application, _ = _application(session)
+
+        status = application.status()
+
+        self.assertEqual(0, status["bound_count"])
+        effective = status["slots"][0]
+        self.assertEqual("stale", effective["state"])
+        self.assertFalse(effective["dispatch_enabled"])
+        self.assertIsNone(effective["binding"])
+        self.assertEqual("instance-gone", effective["instance_id"])
+        self.assertIn("absent", effective["status_detail"])
+
+    def test_status_never_substitutes_new_matching_candidate_for_absent_binding(self) -> None:
+        replacement = _client("instance-replacement", 202)
+        session = _RecordingSession(
+            ManagerSessionSnapshot(
+                node_id=NODE_ID,
+                slots=(
+                    _slot(
+                        "client-01",
+                        instance_id="instance-gone",
+                        state=ManagerSlotState.CLOSE_REQUESTED,
+                    ),
+                    _slot("client-02"),
+                ),
+            )
+        )
+        application, _ = _application(session, replacement)
+
+        status = application.status()
+
+        effective = status["slots"][0]
+        self.assertEqual(0, status["bound_count"])
+        self.assertEqual("stale", effective["state"])
+        self.assertIsNone(effective["binding"])
+        self.assertEqual(
+            [replacement.instance_id],
+            [candidate["instance_id"] for candidate in effective["candidates"]],
+        )
+
+    def test_stale_browser_instance_cannot_act_on_a_rebound_slot(self) -> None:
+        session = _RecordingSession(
+            ManagerSessionSnapshot(
+                node_id=NODE_ID,
+                slots=(
+                    _slot("client-01", instance_id="instance-current"),
+                    _slot("client-02"),
+                ),
+            )
+        )
+        application, _ = _application(session)
+
+        with self.assertRaisesRegex(DashboardError, "no longer owns") as context:
+            application.execute(
+                "pause",
+                client_id="client-01",
+                instance_id="instance-stale",
+            )
+
+        self.assertEqual("stale-instance-selection", context.exception.code)
+        self.assertEqual([], session.calls)
+
+    def test_launch_requires_existing_candidates_to_be_attached_first(self) -> None:
+        candidate = _client("instance-existing", 202)
+        session = _RecordingSession(
+            ManagerSessionSnapshot(
+                node_id=NODE_ID,
+                slots=(_slot("client-01"), _slot("client-02")),
+            )
+        )
+        application, _ = _application(session, candidate)
+
+        with self.assertRaises(DashboardError) as context:
+            application.execute("start-all")
+
+        self.assertEqual("attach-selection-required", context.exception.code)
+        self.assertEqual([], session.calls)
+
+    def test_reviewed_actions_map_to_session_with_configured_launch_limits(self) -> None:
+        session = _RecordingSession(
+            ManagerSessionSnapshot(
+                node_id=NODE_ID,
+                slots=(
+                    _slot("client-01", instance_id="instance-101"),
+                    _slot("client-02"),
+                ),
+            )
+        )
+        application, _ = _application(session)
+
+        application.execute("start-all")
+        application.execute("refresh")
+        application.execute("tile-all")
+        application.execute("start", client_id="client-02")
+        application.execute(
+            "attach",
+            client_id="client-02",
+            instance_id="instance-existing",
+        )
+        for action in ("tile", "pause", "resume", "detach", "close"):
+            application.execute(
+                action,
+                client_id="client-01",
+                instance_id="instance-101",
+            )
+
+        self.assertEqual(
+            [
+                ("start-all", 12.0, 0.25),
+                ("refresh",),
+                ("tile-all",),
+                ("start", "client-02", 12.0, 0.25),
+                ("attach", "client-02", "instance-existing"),
+                ("tile", "client-01"),
+                ("pause", "client-01"),
+                ("resume", "client-01"),
+                ("detach", "client-01"),
+                ("close", "client-01"),
+            ],
+            session.calls,
+        )
+
+    def test_session_failures_become_structured_dashboard_conflicts(self) -> None:
+        session = _RecordingSession(
+            ManagerSessionSnapshot(
+                node_id=NODE_ID,
+                slots=(_slot("client-01"), _slot("client-02")),
+            )
+        )
+        session.error = SessionActionError("start failed safely")
+        application, _ = _application(session)
+
+        with self.assertRaises(DashboardError) as context:
+            application.execute("start", client_id="client-01")
+
+        self.assertEqual("manager-action-failed", context.exception.code)
+        self.assertIn("start failed safely", context.exception.message)
+
+
+if __name__ == "__main__":
+    unittest.main()

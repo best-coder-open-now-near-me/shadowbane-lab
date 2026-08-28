@@ -1,13 +1,9 @@
 # Local multi-client manager
 
 The manager owns local process and window lifecycle on each Windows PC. It does not own
-character strategy. The current command line exposes read-only inventory and lifecycle
-preflight; the reusable supervisor layer supports exact attach, shell-free launch correlation,
-dispatch pause/resume, non-activating tiling, detach, and graceful close requests.
-
-No manager command currently performs a live lifecycle mutation. That remains behind the
-supervisor boundary until the persistent manager application can present reviewed per-client
-actions and durable status.
+character strategy. The command line exposes read-only inventory and preflight plus an explicit
+live, localhost-only dashboard. The persistent session supports exact attach, shell-free launch
+correlation, dispatch pause/resume, non-activating tiling, detach, and graceful close requests.
 
 ## Inspect one PC
 
@@ -71,16 +67,68 @@ valid report returns one binding status per slot:
 - `unsafe_identity`: at least one matching window lacks a complete process lifetime identity.
 
 Identical client filters are inspected once. Preflight deliberately does not guess which
-already-open window belongs to which logical slot. On a fresh start, the supervisor instead
-launches slots sequentially and binds only the single new instance found relative to each
-launch baseline.
+already-open window belongs to which logical slot. On a fresh start, the supervisor launches
+slots sequentially and binds only a single new instance whose exact PID and creation-time
+lifetime is either the reviewed launch process or a verified live descendant. An unowned
+baseline client, a racing unrelated client, incomplete identity, or unprovable launcher lineage
+fails closed to explicit attach instead of being assigned by timing.
 
-The manifest is local operational topology only. It accepts direct executable and argument
-tokens, a working directory, expected process directory and executable names, and an optional
-unique window rectangle. Commands are passed directly with `shell=False`. Unknown fields,
-duplicate JSON keys, relative paths, duplicate slot IDs, duplicate rectangles, credentials,
-character identities, and tactical/caller roles are rejected. Put login handling and character
-configuration behind separate guarded boundaries rather than embedding either in this file.
+The manifest is local operational topology only. It accepts a direct executable, a strictly
+allowlisted operational argument grammar, a working directory, expected process directory and
+executable names, and an optional unique window rectangle. Commands are passed directly with
+`shell=False`. Unknown fields, duplicate JSON keys, relative paths, duplicate slot IDs,
+duplicate rectangles, credentials, character identities, and tactical/caller roles are rejected.
+Put login handling and character configuration behind separate guarded boundaries rather than
+embedding either in this file.
+
+`launch.arguments` is a JSON array of separate tokens, but it is not an arbitrary command-line
+escape hatch. The complete accepted grammar is:
+
+- `-windowed` or its reviewed alias `--windowed`, at most one of the two;
+- `--client`, at most once, for a launcher that needs the reviewed client-mode marker; and
+- `-resolution` followed immediately by canonical `WIDTHxHEIGHT`, at most once. Width and height
+  are base-10 integers without signs or leading zeroes, each from `1` through `16384`.
+
+These options may appear in any order, and the array may be empty. Tokens are passed exactly as
+written, so case variants, combined forms such as `-resolution=1920x1080`, positional values,
+unknown options, duplicates, and unreviewed aliases all fail closed. Supporting another
+operational launcher flag requires a code-reviewed allowlist and test update; credentials or
+tactical identity must never be introduced as arguments.
+
+## Run the local manager app
+
+Run preflight first, then start the per-PC dashboard:
+
+```powershell
+python -m shadowbane_lab.cli manager app `
+  'C:\path\to\client-manager.json' `
+  --live
+```
+
+`--live` is mandatory because reviewed dashboard actions can launch, tile, or request a graceful
+close. Opening the app never starts a client automatically. The terminal prints a per-run URL
+and normally opens it in the default browser; use `--no-browser` to print it only. The control
+token lives in the URL fragment, is removed from the visible address after page load, is kept
+only in page memory, and is required as a bearer token for every status or action request.
+
+The server binds only to IPv4 loopback (`127.0.0.1`), does not enable CORS, rejects unreviewed
+routes and request shapes, caps action bodies, bounds concurrent request workers, enforces short
+header/body deadlines, suppresses request logging, and sends restrictive CSP, frame, cache,
+content-type, and referrer headers. It is intentionally not a cross-PC control plane. Run one app
+on each PC.
+
+The dashboard shows manifest slots, exact bindings, and unbound matching instances. If clients
+are already open after a manager restart, attach each exact instance to a slot before launching
+more. Group start is sequential and fail-fast, and it refuses to run while an unbound matching
+instance or incomplete matching identity needs review. This prevents a later launch from being
+silently assigned to the wrong logical slot.
+
+Available controls are start one/all, refresh, tile one/all, exact attach, pause/resume dispatch,
+detach, and graceful close. Start-all and close require browser confirmation. Closing the
+dashboard with Ctrl+C stops only the manager UI; game clients remain open. If a remembered
+binding is absent from the current window inventory, native window actions remain disabled while
+Detach stays available so the operator can deliberately forget the stale identity and attach a
+replacement.
 
 ## Multi-PC boundary
 
@@ -113,13 +161,16 @@ There is no force-kill path in this slice.
 Every tile or close request refreshes the registry and revalidates node ID, deterministic
 instance ID, PID, process creation time, and HWND immediately before the native action. Missing,
 restarted, reused, duplicated, or ambiguous identities disable dispatch and fail closed. The
-launcher PID is retained only as audit information because a launcher may create a different
-game process; attachment is based on the new registered game-window identity instead.
+launch root's PID and creation time are retained as a provenance anchor: automatic attachment
+requires the game process to be that exact lifetime or a verified live descendant. A graceful
+close is complete only after the exact bound PID/creation-time lifetime is verified exited;
+window disappearance, enumeration failure, or process-query failure retains the binding with
+dispatch disabled.
 
-## Persistent manager application
+## Next manager boundary
 
-The next presentation slice should wrap this core in one local background manager per PC with a
-small dashboard or tray UI. It can load the manifest, launch each slot sequentially, show exact
-bindings and health, tile all reviewed bindings, and expose pause, detach, and graceful-close
-buttons. A later overview may aggregate status from several PCs, but live squad behavior and
-the designated bot caller must not depend on that overview or on a central tactical service.
+The next manager slice is worker supervision and operational health: bind one bot worker to each
+exact session slot, surface heartbeat/evidence/emergency-stop state, and gate dispatch through the
+session's verified `dispatch_enabled` result. A later read-only overview may aggregate status from
+several PCs, but live squad behavior and the designated bot caller must not depend on that
+overview or on a central tactical service.

@@ -9,6 +9,7 @@ import queue
 import sys
 import threading
 import time
+import webbrowser
 from collections.abc import Sequence
 from contextlib import ExitStack
 from datetime import UTC, datetime
@@ -125,8 +126,18 @@ from shadowbane_lab.client_observation import (
     open_windows_native_world_map_reader,
 )
 from shadowbane_lab.manager import (
+    ClientLifecycleSupervisor,
     ClientRegistrySnapshot,
     ClientWindowRegistry,
+    DashboardServer,
+    GuardedWindowControl,
+    ManagerDashboardApplication,
+    ManagerSession,
+    ManifestClientRegistryProvider,
+    SubprocessLauncher,
+    VisibleWindowRegistrySource,
+    Win32ProcessLifetimeInspector,
+    Win32WindowApi,
     load_manager_manifest,
 )
 from shadowbane_lab.progression import (
@@ -756,6 +767,33 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="emit machine-readable JSON",
     )
+    manager_app = manager_commands.add_parser(
+        "app",
+        help="run the authenticated localhost lifecycle dashboard",
+    )
+    manager_app.add_argument(
+        "manifest",
+        type=Path,
+        help="strict schema-v1 manager manifest JSON",
+    )
+    manager_app.add_argument(
+        "--port",
+        type=int,
+        default=0,
+        help="loopback TCP port; defaults to an ephemeral available port",
+    )
+    manager_app.add_argument("--launch-timeout-seconds", type=float, default=30.0)
+    manager_app.add_argument("--poll-ms", type=int, default=500)
+    manager_app.add_argument(
+        "--no-browser",
+        action="store_true",
+        help="print the authenticated dashboard URL without opening a browser",
+    )
+    manager_app.add_argument(
+        "--live",
+        action="store_true",
+        help="required because dashboard actions may launch, tile, or close clients",
+    )
 
     progression = commands.add_parser(
         "progression",
@@ -1002,6 +1040,106 @@ def _preflight_manager(manifest_path: Path, *, as_json: bool) -> int:
             f"environment_ready={str(client['environment_ready']).lower()}"
         )
     return 0
+
+
+def _run_manager_app(
+    manifest_path: Path,
+    *,
+    port: int,
+    launch_timeout_seconds: float,
+    poll_ms: int,
+    open_browser: bool,
+    live: bool,
+) -> int:
+    if not live:
+        return _error(
+            "manager app is live lifecycle control; pass --live to enable it",
+            as_json=False,
+        )
+    if (
+        isinstance(launch_timeout_seconds, bool)
+        or not isinstance(launch_timeout_seconds, (int, float))
+        or not 1.0 <= launch_timeout_seconds <= 600.0
+    ):
+        return _error(
+            "launch-timeout-seconds must be in [1, 600]",
+            as_json=False,
+        )
+    if isinstance(poll_ms, bool) or not isinstance(poll_ms, int) or not 25 <= poll_ms <= 10_000:
+        return _error("poll-ms must be in [25, 10000]", as_json=False)
+
+    try:
+        manifest = load_manager_manifest(manifest_path)
+        missing_environment: list[str] = []
+        for config in manifest.clients:
+            checks = (
+                (
+                    "launch executable",
+                    _manager_path_status(Path(config.launch.executable), kind="file"),
+                ),
+                (
+                    "working directory",
+                    _manager_path_status(
+                        Path(config.launch.working_directory),
+                        kind="directory",
+                    ),
+                ),
+                (
+                    "expected process directory",
+                    _manager_path_status(
+                        Path(config.expected_process_directory),
+                        kind="directory",
+                    ),
+                ),
+            )
+            missing_environment.extend(
+                f"{config.client_id} {label}: {check['path']}"
+                for label, check in checks
+                if not check["ready"]
+            )
+        if missing_environment:
+            return _error(
+                "manager app environment is not ready: " + "; ".join(missing_environment),
+                as_json=False,
+            )
+
+        inspector = WindowsVisibleWindowInspector()
+        process_inspector = Win32ProcessLifetimeInspector()
+        aggregate_registry = ManifestClientRegistryProvider(inspector, manifest)
+        window_control = GuardedWindowControl(aggregate_registry, Win32WindowApi())
+        supervisor = ClientLifecycleSupervisor(
+            VisibleWindowRegistrySource(inspector),
+            launcher=SubprocessLauncher(process_inspector),
+            window_controller=window_control,
+            process_inspector=process_inspector,
+        )
+        session = ManagerSession(manifest, supervisor)
+        application = ManagerDashboardApplication(
+            manifest,
+            session,
+            aggregate_registry,
+            launch_timeout_seconds=launch_timeout_seconds,
+            poll_seconds=poll_ms / 1_000.0,
+        )
+        server = DashboardServer(application, port=port)
+        with server:
+            print(f"Manager dashboard: {server.suggested_url}")
+            print("Press Ctrl+C to stop the dashboard; managed clients will remain open.")
+            if open_browser:
+                try:
+                    if not webbrowser.open(server.suggested_url, new=1):
+                        print("Could not open a browser; use the printed dashboard URL.")
+                except (OSError, webbrowser.Error):
+                    print("Could not open a browser; use the printed dashboard URL.")
+            try:
+                while server.is_running:
+                    time.sleep(0.25)
+            except KeyboardInterrupt:
+                print("Stopping manager dashboard...")
+                return 0
+            raise RuntimeError("manager dashboard stopped unexpectedly")
+    except (OSError, RuntimeError, ValueError) as exc:
+        return _error(f"manager app failed: {exc}", as_json=False)
 
 
 def _print_snapshot(snapshot: WindowSnapshot, *, as_json: bool) -> None:
@@ -3696,6 +3834,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
     if arguments.command == "manager" and arguments.manager_command == "preflight":
         return _preflight_manager(arguments.manifest, as_json=arguments.json)
+    if arguments.command == "manager" and arguments.manager_command == "app":
+        return _run_manager_app(
+            arguments.manifest,
+            port=arguments.port,
+            launch_timeout_seconds=arguments.launch_timeout_seconds,
+            poll_ms=arguments.poll_ms,
+            open_browser=not arguments.no_browser,
+            live=arguments.live,
+        )
     if (
         arguments.command == "progression"
         and arguments.progression_command == "import-wonderbane-calculator"

@@ -19,31 +19,19 @@ MANAGER_MANIFEST_SCHEMA_VERSION = 1
 
 _ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
 _INVALID_WINDOWS_COMPONENT_PATTERN = re.compile(r'[<>:"|?*]|[\x00-\x1f]')
+_DISPLAY_RESOLUTION_PATTERN = re.compile(r"([1-9][0-9]{0,4})x([1-9][0-9]{0,4})\Z")
+_MAX_DISPLAY_DIMENSION = 16_384
 _SIGNED_WIN32_MIN = -(2**31)
 _SIGNED_WIN32_MAX = (2**31) - 1
-_RESERVED_LAUNCH_OPTION_NAMES = frozenset(
-    {
-        "account",
-        "account_id",
-        "caller",
-        "character",
-        "character_id",
-        "character_name",
-        "credential",
-        "credentials",
-        "email",
-        "login",
-        "password",
-        "passwd",
-        "role",
-        "secret",
-        "strategy",
-        "tactic",
-        "tactical_role",
-        "token",
-        "user",
-        "username",
-    }
+_LAUNCH_FLAG_OPTIONS = {
+    "-windowed": "windowed",
+    "--windowed": "windowed",
+    "--client": "launcher-client",
+}
+_LAUNCH_VALUE_OPTIONS = {"-resolution": "resolution"}
+_LAUNCH_GRAMMAR = (
+    "-windowed or --windowed, --client, and -resolution WIDTHxHEIGHT "
+    f"(each dimension 1..{_MAX_DISPLAY_DIMENSION})"
 )
 
 
@@ -113,34 +101,86 @@ def _parse_absolute_windows_path(
 
 
 def _parse_arguments(value: object, *, location: str) -> tuple[str, ...]:
+    """Parse the complete allowlisted operational argv grammar.
+
+    The public manifest remains a JSON token array so the resulting tuple can be
+    passed directly to ``subprocess.Popen(shell=False)``.  It is not an opaque argv
+    escape hatch: only the flags declared above and the value belonging to
+    ``-resolution`` are accepted.
+    """
+
     if not isinstance(value, list):
         _fail(f"{location} must be a JSON array of separate argument tokens")
     arguments: list[str] = []
-    for index, argument in enumerate(value):
+    seen_options: set[str] = set()
+    index = 0
+    while index < len(value):
+        argument = value[index]
         argument_location = f"{location}[{index}]"
-        if not isinstance(argument, str) or not argument or "\0" in argument:
-            _fail(f"{argument_location} must be a non-empty string without NUL characters")
-        if "\r" in argument or "\n" in argument:
-            _fail(f"{argument_location} must not contain line breaks")
-        if _reserved_option_name(argument) in _RESERVED_LAUNCH_OPTION_NAMES:
-            _fail(
-                f"{argument_location} contains a credential, character, or tactical option; "
-                "manager manifests may contain operational launch data only"
+        _require_launch_token(argument, location=argument_location)
+        assert isinstance(argument, str)
+
+        option_key = _LAUNCH_FLAG_OPTIONS.get(argument)
+        if option_key is not None:
+            _reject_duplicate_launch_option(
+                option_key,
+                seen_options=seen_options,
+                location=argument_location,
             )
-        arguments.append(argument)
+            arguments.append(argument)
+            index += 1
+            continue
+
+        option_key = _LAUNCH_VALUE_OPTIONS.get(argument)
+        if option_key is None:
+            _fail(
+                f"{argument_location} is not an allowed operational launch option; "
+                f"accepted grammar: {_LAUNCH_GRAMMAR}"
+            )
+        _reject_duplicate_launch_option(
+            option_key,
+            seen_options=seen_options,
+            location=argument_location,
+        )
+        value_index = index + 1
+        if value_index >= len(value):
+            _fail(f"{argument_location} requires a following WIDTHxHEIGHT value")
+        option_value = value[value_index]
+        value_location = f"{location}[{value_index}]"
+        _require_launch_token(option_value, location=value_location)
+        assert isinstance(option_value, str)
+        _parse_display_resolution(option_value, location=value_location)
+        arguments.extend((argument, option_value))
+        index += 2
     return tuple(arguments)
 
 
-def _reserved_option_name(argument: str) -> str | None:
-    candidate = argument
-    if candidate.startswith("--"):
-        candidate = candidate[2:]
-    elif candidate.startswith(("-", "/")):
-        candidate = candidate[1:]
-    elif "=" not in candidate:
-        return None
-    candidate = re.split(r"[=:]", candidate, maxsplit=1)[0]
-    return candidate.casefold().replace("-", "_")
+def _require_launch_token(value: object, *, location: str) -> None:
+    if not isinstance(value, str) or not value or "\0" in value:
+        _fail(f"{location} must be a non-empty string without NUL characters")
+    if "\r" in value or "\n" in value:
+        _fail(f"{location} must not contain line breaks")
+
+
+def _reject_duplicate_launch_option(
+    option_key: str,
+    *,
+    seen_options: set[str],
+    location: str,
+) -> None:
+    if option_key in seen_options:
+        _fail(f"{location} duplicates launch option {option_key!r}")
+    seen_options.add(option_key)
+
+
+def _parse_display_resolution(value: str, *, location: str) -> tuple[int, int]:
+    match = _DISPLAY_RESOLUTION_PATTERN.fullmatch(value)
+    if match is None:
+        _fail(f"{location} must be a canonical WIDTHxHEIGHT display resolution")
+    width, height = (int(component) for component in match.groups())
+    if width > _MAX_DISPLAY_DIMENSION or height > _MAX_DISPLAY_DIMENSION:
+        _fail(f"{location} dimensions must be between 1 and {_MAX_DISPLAY_DIMENSION} pixels")
+    return width, height
 
 
 def _parse_executable_names(value: object, *, location: str) -> tuple[str, ...]:

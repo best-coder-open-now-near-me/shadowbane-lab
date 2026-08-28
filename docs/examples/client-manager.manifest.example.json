@@ -7,7 +7,9 @@
       "launch": {
         "executable": "C:\\Games\\Wonderbane\\Shadowbane.exe",
         "arguments": [
-          "-windowed"
+          "-windowed",
+          "-resolution",
+          "960x540"
         ],
         "working_directory": "C:\\Games\\Wonderbane"
       },
@@ -28,7 +30,9 @@
       "launch": {
         "executable": "C:\\Games\\Wonderbane\\Shadowbane.exe",
         "arguments": [
-          "-windowed"
+          "-windowed",
+          "-resolution",
+          "960x540"
         ],
         "working_directory": "C:\\Games\\Wonderbane"
       },

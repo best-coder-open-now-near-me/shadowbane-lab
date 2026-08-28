@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shadowbane Client Manager</title>
+  <style nonce="__CSP_NONCE__">
+    :root {
+      color-scheme: dark;
+      --ink: #eef2e9;
+      --muted: #96a498;
+      --panel: #171d1a;
+      --panel-2: #202824;
+      --line: #35413a;
+      --accent: #89e0ae;
+      --accent-ink: #092416;
+      --warn: #f0bf6e;
+      --danger: #ff8f87;
+      --shadow: 0 18px 50px rgba(0, 0, 0, .32);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 15% 0%, rgba(64, 119, 83, .24), transparent 36rem),
+        #0e1311;
+    }
+    button, select { font: inherit; }
+    button {
+      border: 1px solid var(--line);
+      border-radius: .62rem;
+      padding: .55rem .78rem;
+      color: var(--ink);
+      background: var(--panel-2);
+      cursor: pointer;
+    }
+    button:hover:not(:disabled) { border-color: var(--accent); }
+    button:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    button:disabled { cursor: not-allowed; opacity: .42; }
+    button.primary { color: var(--accent-ink); border-color: var(--accent); background: var(--accent); font-weight: 750; }
+    button.danger { color: var(--danger); }
+    main { width: min(1180px, calc(100% - 2rem)); margin: 0 auto; padding: 2rem 0 4rem; }
+    header { display: flex; align-items: end; justify-content: space-between; gap: 1rem; margin-bottom: 1.2rem; }
+    h1 { margin: 0; font-size: clamp(1.45rem, 3vw, 2.3rem); letter-spacing: -.035em; }
+    .eyebrow { margin: 0 0 .35rem; color: var(--accent); font-size: .75rem; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
+    .node { color: var(--muted); text-align: right; }
+    .toolbar, .summary, .slot, .notice {
+      border: 1px solid var(--line);
+      background: color-mix(in srgb, var(--panel) 94%, transparent);
+      box-shadow: var(--shadow);
+    }
+    .toolbar { display: flex; flex-wrap: wrap; gap: .65rem; padding: .9rem; border-radius: .9rem; }
+    .summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 1rem 0; border-radius: .9rem; overflow: hidden; }
+    .metric { padding: .85rem 1rem; border-right: 1px solid var(--line); }
+    .metric:last-child { border-right: 0; }
+    .metric span { display: block; color: var(--muted); font-size: .74rem; text-transform: uppercase; letter-spacing: .09em; }
+    .metric strong { display: block; margin-top: .18rem; font-size: 1.25rem; }
+    .notice { margin: 1rem 0; padding: .8rem 1rem; border-radius: .75rem; color: var(--muted); }
+    .notice.error { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 50%, var(--line)); }
+    .slots { display: grid; gap: .8rem; }
+    .slot { display: grid; grid-template-columns: minmax(10rem, 1.2fr) minmax(12rem, 1fr) minmax(15rem, 2fr); align-items: center; gap: 1rem; padding: 1rem; border-radius: .9rem; }
+    .slot h2 { margin: 0 0 .25rem; font-size: 1rem; overflow-wrap: anywhere; }
+    .detail { margin: .45rem 0 0; color: var(--muted); font-size: .78rem; overflow-wrap: anywhere; }
+    .detail.failure { color: var(--danger); }
+    .state { display: inline-flex; align-items: center; gap: .4rem; color: var(--muted); }
+    .state::before { content: ""; width: .55rem; height: .55rem; border-radius: 50%; background: var(--warn); }
+    .state.running::before, .state.attached::before, .state.active::before { background: var(--accent); box-shadow: 0 0 0 .22rem rgba(137, 224, 174, .12); }
+    .state.failed::before, .state.stale::before { background: var(--danger); }
+    .binding { min-width: 0; }
+    .binding span { display: block; color: var(--muted); font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; }
+    .binding code { display: block; margin-top: .25rem; overflow: hidden; text-overflow: ellipsis; color: var(--ink); }
+    .actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .45rem; }
+    .candidate { width: 100%; margin-bottom: .5rem; padding: .5rem; color: var(--ink); border: 1px solid var(--line); border-radius: .55rem; background: var(--panel-2); }
+    .empty { padding: 2rem; color: var(--muted); text-align: center; border: 1px dashed var(--line); border-radius: .9rem; }
+    .busy { opacity: .7; pointer-events: none; }
+    @media (max-width: 800px) {
+      .slot { grid-template-columns: 1fr; }
+      .actions { justify-content: flex-start; }
+    }
+    @media (max-width: 520px) {
+      main { width: min(100% - 1rem, 1180px); padding-top: 1rem; }
+      header { align-items: start; flex-direction: column; }
+      .node { text-align: left; }
+      .summary { grid-template-columns: 1fr; }
+      .metric { border-right: 0; border-bottom: 1px solid var(--line); }
+      .metric:last-child { border-bottom: 0; }
+    }
+  </style>
+</head>
+<body>
+  <main id="app">
+    <header>
+      <div>
+        <p class="eyebrow">Local client operations</p>
+        <h1>Shadowbane Client Manager</h1>
+      </div>
+      <div class="node">Node <strong id="node-id">—</strong></div>
+    </header>
+
+    <section class="toolbar" aria-label="Group actions">
+      <button id="start-all" class="primary" type="button">Start all</button>
+      <button id="refresh" type="button">Refresh</button>
+      <button id="tile-all" type="button">Tile all</button>
+    </section>
+
+    <section class="summary" aria-label="Manager summary">
+      <div class="metric"><span>Configured</span><strong id="configured-count">—</strong></div>
+      <div class="metric"><span>Bound</span><strong id="bound-count">—</strong></div>
+      <div class="metric"><span>Updated</span><strong id="updated-at">—</strong></div>
+    </section>
+
+    <div id="notice" class="notice" role="status" aria-live="polite">Connecting to the local manager…</div>
+    <section id="slots" class="slots" aria-label="Client slots"></section>
+  </main>
+
+  <script nonce="__CSP_NONCE__">
+    (() => {
+      "use strict";
+
+      const fragment = new URLSearchParams(window.location.hash.slice(1));
+      const authorizationToken = fragment.get("token") || "";
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+
+      const app = document.getElementById("app");
+      const notice = document.getElementById("notice");
+      const slotsElement = document.getElementById("slots");
+      const nodeElement = document.getElementById("node-id");
+      const configuredElement = document.getElementById("configured-count");
+      const boundElement = document.getElementById("bound-count");
+      const updatedElement = document.getElementById("updated-at");
+
+      const request = async (path, options = {}) => {
+        const headers = new Headers(options.headers || {});
+        headers.set("Authorization", `Bearer ${authorizationToken}`);
+        const response = await fetch(path, {
+          ...options,
+          headers,
+          cache: "no-store",
+          credentials: "omit",
+          redirect: "error"
+        });
+        const payload = await response.json().catch(() => ({
+          ok: false,
+          error: { message: "The local manager returned an unreadable response." }
+        }));
+        if (!response.ok) {
+          const error = new Error(payload?.error?.message || `Request failed (${response.status}).`);
+          error.status = response.status;
+          throw error;
+        }
+        return payload;
+      };
+
+      const text = (value, fallback = "—") => {
+        if (value === null || value === undefined || value === "") return fallback;
+        return String(value);
+      };
+
+      const bindingFor = (slot) => {
+        if (slot && typeof slot.binding === "object" && slot.binding !== null) return slot.binding;
+        return null;
+      };
+
+      const instanceFor = (slot) => {
+        const binding = bindingFor(slot);
+        return binding?.instance_id || null;
+      };
+
+      const rememberedInstanceFor = (slot) => {
+        const current = instanceFor(slot);
+        if (current) return current;
+        return typeof slot?.instance_id === "string" && slot.instance_id ? slot.instance_id : null;
+      };
+
+      const candidatesFor = (slot) => {
+        const values = Array.isArray(slot?.attachable_instances)
+          ? slot.attachable_instances
+          : (Array.isArray(slot?.candidates) ? slot.candidates : []);
+        return values
+          .map((candidate) => typeof candidate === "string" ? { instance_id: candidate } : candidate)
+          .filter((candidate) => candidate && typeof candidate.instance_id === "string");
+      };
+
+      const actionButton = (label, action, slot, instanceSource, className = "") => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = label;
+        if (className) button.className = className;
+        const instanceId = instanceSource();
+        if (action !== "start" && !instanceId) button.disabled = true;
+        button.addEventListener("click", async () => {
+          const currentInstanceId = instanceSource();
+          if (action === "close" && !window.confirm(`Request a graceful close for ${slot.client_id}?`)) return;
+          const body = { action, client_id: slot.client_id };
+          if (action !== "start") body.instance_id = currentInstanceId;
+          await execute(body);
+        });
+        return button;
+      };
+
+      const renderSlot = (slot) => {
+        const article = document.createElement("article");
+        article.className = "slot";
+
+        const identity = document.createElement("div");
+        const heading = document.createElement("h2");
+        heading.textContent = text(slot.client_id, "Unnamed slot");
+        const state = document.createElement("span");
+        const stateName = text(slot.state, "unknown").toLowerCase();
+        state.className = `state ${stateName.replace(/[^a-z0-9_-]/g, "")}`;
+        state.textContent = stateName;
+        identity.append(heading, state);
+        const detailText = slot.failure_detail || slot.status_detail;
+        if (detailText) {
+          const detail = document.createElement("p");
+          detail.className = `detail${slot.failure_detail ? " failure" : ""}`;
+          detail.textContent = text(detailText);
+          identity.append(detail);
+        }
+
+        const binding = document.createElement("div");
+        binding.className = "binding";
+        const bindingLabel = document.createElement("span");
+        const currentInstance = instanceFor(slot);
+        const rememberedInstance = rememberedInstanceFor(slot);
+        bindingLabel.textContent = currentInstance
+          ? "Bound instance"
+          : (rememberedInstance ? "Remembered instance" : "Bound instance");
+        const bindingValue = document.createElement("code");
+        bindingValue.textContent = text(rememberedInstance, "Not bound");
+        binding.append(bindingLabel, bindingValue);
+
+        const controls = document.createElement("div");
+        controls.className = "actions";
+        const boundInstance = () => instanceFor(slot);
+        const rememberedInstanceId = () => rememberedInstanceFor(slot);
+        const startButton = actionButton("Start", "start", slot, () => null);
+        startButton.disabled = Boolean(rememberedInstanceId());
+        controls.append(startButton);
+
+        const candidates = candidatesFor(slot);
+        let candidateSelect = null;
+        if (candidates.length) {
+          candidateSelect = document.createElement("select");
+          candidateSelect.className = "candidate";
+          candidateSelect.setAttribute("aria-label", `Attachable instance for ${slot.client_id}`);
+          for (const candidate of candidates) {
+            const option = document.createElement("option");
+            option.value = candidate.instance_id;
+            option.textContent = text(candidate.label || candidate.title || candidate.instance_id);
+            candidateSelect.append(option);
+          }
+          controls.append(candidateSelect);
+        }
+        const selectedCandidate = () => candidateSelect?.value || null;
+        const attachButton = actionButton("Attach", "attach", slot, selectedCandidate);
+        attachButton.disabled = Boolean(rememberedInstanceId()) || !selectedCandidate();
+        controls.append(
+          attachButton,
+          actionButton("Tile", "tile", slot, boundInstance),
+          actionButton("Pause", "pause", slot, boundInstance),
+          actionButton("Resume", "resume", slot, boundInstance),
+          actionButton("Detach", "detach", slot, rememberedInstanceId),
+          actionButton("Close", "close", slot, boundInstance, "danger")
+        );
+
+        article.append(identity, binding, controls);
+        return article;
+      };
+
+      const render = (status) => {
+        const slots = Array.isArray(status.slots) ? status.slots : [];
+        nodeElement.textContent = text(status.node_id);
+        configuredElement.textContent = text(status.configured_count ?? slots.length, "0");
+        boundElement.textContent = text(
+          status.bound_count ?? slots.filter((slot) => Boolean(instanceFor(slot))).length,
+          "0"
+        );
+        updatedElement.textContent = status.updated_at
+          ? new Date(status.updated_at).toLocaleTimeString()
+          : new Date().toLocaleTimeString();
+        slotsElement.replaceChildren(...slots.map(renderSlot));
+        if (!slots.length) {
+          const empty = document.createElement("div");
+          empty.className = "empty";
+          empty.textContent = "No client slots are configured on this node.";
+          slotsElement.append(empty);
+        }
+        notice.textContent = "Manager status is current.";
+        notice.className = "notice";
+      };
+
+      const loadStatus = async () => {
+        if (!authorizationToken) {
+          throw new Error("No dashboard token was supplied. Reopen the URL printed by the manager.");
+        }
+        render(await request("/api/v1/status"));
+      };
+
+      const execute = async (body) => {
+        app.classList.add("busy");
+        try {
+          notice.textContent = `Running ${body.action}…`;
+          notice.className = "notice";
+          await request("/api/v1/actions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body)
+          });
+          await loadStatus();
+        } catch (error) {
+          notice.textContent = error.message;
+          notice.className = "notice error";
+        } finally {
+          app.classList.remove("busy");
+        }
+      };
+
+      document.getElementById("start-all").addEventListener("click", () => {
+        if (window.confirm("Start every configured client on this node?")) execute({ action: "start-all" });
+      });
+      document.getElementById("refresh").addEventListener("click", () => execute({ action: "refresh" }));
+      document.getElementById("tile-all").addEventListener("click", () => execute({ action: "tile-all" }));
+
+      loadStatus().catch((error) => {
+        notice.textContent = error.message;
+        notice.className = "notice error";
+      });
+    })();
+  </script>
+</body>
+</html>

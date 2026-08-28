@@ -2,7 +2,7 @@ import io
 import json
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
@@ -280,6 +280,126 @@ class ManagerCliTests(unittest.TestCase):
         self.assertEqual(2, result)
         self.assertFalse(payload["ok"])
         self.assertIn("manager preflight failed", payload["error"])
+
+    def test_manager_app_requires_explicit_live_authority(self) -> None:
+        error = io.StringIO()
+
+        with redirect_stderr(error):
+            result = main(("manager", "app", "missing.json", "--no-browser"))
+
+        self.assertEqual(2, result)
+        self.assertIn("pass --live", error.getvalue())
+
+    def test_manager_app_refuses_an_incomplete_local_environment(self) -> None:
+        error = io.StringIO()
+        with tempfile.TemporaryDirectory() as directory:
+            game_directory = Path(directory) / "Wonderbane"
+            manifest_path = Path(directory) / "manager.json"
+            manifest_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "node_id": "gaming-pc-east",
+                        "clients": [_manifest_client(game_directory)],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            with redirect_stderr(error):
+                result = main(
+                    (
+                        "manager",
+                        "app",
+                        str(manifest_path),
+                        "--live",
+                        "--no-browser",
+                    )
+                )
+
+        self.assertEqual(2, result)
+        self.assertIn("environment is not ready", error.getvalue())
+
+    def test_manager_app_wires_local_session_and_stops_without_closing_clients(self) -> None:
+        class FakeNativeWindowApi:
+            def set_window_pos(self, *_: object) -> None:
+                raise AssertionError("no window action expected")
+
+            def post_message(self, *_: object) -> None:
+                raise AssertionError("no window action expected")
+
+        class FakeProcessLifetimeInspector:
+            def inspect(self, _process_id: int) -> object:
+                raise AssertionError("no process inspection expected")
+
+        created_servers: list[object] = []
+
+        class FakeDashboardServer:
+            def __init__(self, service: object, *, port: int) -> None:
+                self.service = service
+                self.port = port
+                self.suggested_url = "http://127.0.0.1:12345/#token=test"
+                self.is_running = True
+                self.exited = False
+                created_servers.append(self)
+
+            def __enter__(self) -> object:
+                return self
+
+            def __exit__(self, *_: object) -> None:
+                self.exited = True
+
+        output = io.StringIO()
+        with tempfile.TemporaryDirectory() as directory:
+            game_directory = Path(directory) / "Wonderbane"
+            game_directory.mkdir()
+            (game_directory / "launcher.exe").touch()
+            manifest_path = Path(directory) / "manager.json"
+            manifest_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "node_id": "gaming-pc-east",
+                        "clients": [_manifest_client(game_directory)],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            with (
+                patch(
+                    "shadowbane_lab.cli.WindowsVisibleWindowInspector",
+                    return_value=StaticVisibleWindowInspector(()),
+                ),
+                patch(
+                    "shadowbane_lab.cli.Win32WindowApi",
+                    return_value=FakeNativeWindowApi(),
+                ),
+                patch(
+                    "shadowbane_lab.cli.Win32ProcessLifetimeInspector",
+                    return_value=FakeProcessLifetimeInspector(),
+                ),
+                patch(
+                    "shadowbane_lab.cli.DashboardServer",
+                    FakeDashboardServer,
+                ),
+                patch("shadowbane_lab.cli.time.sleep", side_effect=KeyboardInterrupt),
+                redirect_stdout(output),
+            ):
+                result = main(
+                    (
+                        "manager",
+                        "app",
+                        str(manifest_path),
+                        "--live",
+                        "--no-browser",
+                    )
+                )
+
+        self.assertEqual(0, result)
+        self.assertEqual(1, len(created_servers))
+        server = created_servers[0]
+        self.assertTrue(server.exited)
+        self.assertEqual("gaming-pc-east", server.service.status()["node_id"])
+        self.assertIn("managed clients will remain open", output.getvalue())
 
     def test_inspection_failure_is_structured(self) -> None:
         output = io.StringIO()

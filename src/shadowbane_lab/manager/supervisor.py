@@ -8,6 +8,7 @@ request delegated to an injected controller.
 from __future__ import annotations
 
 import ntpath
+import os
 import subprocess
 import threading
 import time
@@ -68,12 +69,28 @@ class WindowControllerUnavailableError(SupervisorError):
     """Raised when a requested window operation has no configured controller."""
 
 
+class UnownedLaunchBaselineError(SupervisorError):
+    """Raised when launch baseline contains a matching client not owned here."""
+
+
+class UnprovenLaunchProvenanceError(SupervisorError):
+    """Raised when a new matching client cannot be tied to the reviewed launch."""
+
+
 class ManagedClientState(StrEnum):
     ATTACHED = "attached"
     PAUSED = "paused"
     CLOSE_REQUESTED = "close_requested"
     STALE = "stale"
+    EXITED = "exited"
     DETACHED = "detached"
+
+
+class LaunchProvenance(StrEnum):
+    """How a manager-launched client was proven to descend from its launch."""
+
+    DIRECT_PROCESS = "direct_process"
+    DESCENDANT_PROCESS = "descendant_process"
 
 
 def _require_canonical_text(value: str, field_name: str) -> None:
@@ -196,17 +213,42 @@ def window_rectangle_from_config(config: ManagedClientConfig) -> WindowRectangle
 
 
 @dataclass(frozen=True, slots=True)
-class LaunchReceipt:
-    """Identity of the process directly created by a launcher.
-
-    The launched process may be a bootstrapper whose child becomes the registered
-    game client, so this PID is audit information rather than an attach criterion.
-    """
+class ProcessLifetimeSnapshot:
+    """One verified, currently running Windows process lifetime."""
 
     process_id: int
+    process_started_at_100ns: int
+    parent_process_id: int | None = None
 
     def __post_init__(self) -> None:
         _positive_integer(self.process_id, "process_id")
+        _positive_integer(self.process_started_at_100ns, "process_started_at_100ns")
+        if self.parent_process_id is not None:
+            _positive_integer(self.parent_process_id, "parent_process_id")
+            if self.parent_process_id == self.process_id:
+                raise ValueError("a process cannot be its own parent")
+
+
+class ProcessLifetimeInspector(Protocol):
+    """Resolve only currently running processes to exact PID/creation-time identities."""
+
+    def inspect(self, process_id: int) -> ProcessLifetimeSnapshot | None: ...
+
+
+@dataclass(frozen=True, slots=True)
+class LaunchReceipt:
+    """Exact lifetime identity of the reviewed launch's root process.
+
+    A registered game window may bind only when its process is this exact lifetime
+    or a verified live descendant of it.
+    """
+
+    process_id: int
+    process_started_at_100ns: int
+
+    def __post_init__(self) -> None:
+        _positive_integer(self.process_id, "process_id")
+        _positive_integer(self.process_started_at_100ns, "process_started_at_100ns")
 
 
 @dataclass(frozen=True, slots=True)
@@ -219,6 +261,8 @@ class ManagedClientSnapshot:
     dispatch_enabled: bool
     launched_by_manager: bool
     launcher_process_id: int | None
+    launcher_process_started_at_100ns: int | None
+    launch_provenance: LaunchProvenance | None
     attached_at: float
     last_verified_at: float
     status_detail: str | None = None
@@ -238,8 +282,30 @@ class ManagedClientSnapshot:
             raise ValueError("launched_by_manager must be a boolean")
         if self.launcher_process_id is not None:
             _positive_integer(self.launcher_process_id, "launcher_process_id")
-        if self.launched_by_manager != (self.launcher_process_id is not None):
-            raise ValueError("manager-launched clients require a launcher process ID")
+        if self.launcher_process_started_at_100ns is not None:
+            _positive_integer(
+                self.launcher_process_started_at_100ns,
+                "launcher_process_started_at_100ns",
+            )
+        has_launch_identity = (
+            self.launcher_process_id is not None
+            and self.launcher_process_started_at_100ns is not None
+            and self.launch_provenance is not None
+        )
+        if self.launched_by_manager != has_launch_identity:
+            raise ValueError(
+                "manager-launched clients require complete launcher identity and provenance"
+            )
+        if self.launch_provenance is not None and not isinstance(
+            self.launch_provenance, LaunchProvenance
+        ):
+            raise ValueError("launch_provenance must be LaunchProvenance or None")
+        if not self.launched_by_manager and (
+            self.launcher_process_id is not None
+            or self.launcher_process_started_at_100ns is not None
+            or self.launch_provenance is not None
+        ):
+            raise ValueError("externally attached clients must not carry launch provenance")
         _finite_non_negative(self.attached_at, "attached_at")
         _finite_non_negative(self.last_verified_at, "last_verified_at")
         if self.last_verified_at < self.attached_at:
@@ -300,10 +366,155 @@ class VisibleWindowRegistrySource:
         ).inspect()
 
 
+class Win32ProcessLifetimeInspector:
+    """Read exact running-process lifetimes and live parent links from Windows."""
+
+    _PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+    _SYNCHRONIZE = 0x00100000
+    _TH32CS_SNAPPROCESS = 0x00000002
+    _WAIT_OBJECT_0 = 0x00000000
+    _WAIT_TIMEOUT = 0x00000102
+    _INVALID_HANDLE_VALUE = -1
+
+    def __init__(self) -> None:
+        if os.name != "nt":
+            raise RuntimeError("Win32 process-lifetime inspection requires Windows")
+
+        import ctypes
+        from ctypes import wintypes
+
+        class ProcessEntry32W(ctypes.Structure):
+            _fields_ = (
+                ("dwSize", wintypes.DWORD),
+                ("cntUsage", wintypes.DWORD),
+                ("th32ProcessID", wintypes.DWORD),
+                ("th32DefaultHeapID", ctypes.c_size_t),
+                ("th32ModuleID", wintypes.DWORD),
+                ("cntThreads", wintypes.DWORD),
+                ("th32ParentProcessID", wintypes.DWORD),
+                ("pcPriClassBase", ctypes.c_long),
+                ("dwFlags", wintypes.DWORD),
+                ("szExeFile", wintypes.WCHAR * 260),
+            )
+
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.OpenProcess.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
+        kernel32.OpenProcess.restype = wintypes.HANDLE
+        kernel32.WaitForSingleObject.argtypes = (wintypes.HANDLE, wintypes.DWORD)
+        kernel32.WaitForSingleObject.restype = wintypes.DWORD
+        kernel32.GetProcessTimes.argtypes = (
+            wintypes.HANDLE,
+            ctypes.POINTER(wintypes.FILETIME),
+            ctypes.POINTER(wintypes.FILETIME),
+            ctypes.POINTER(wintypes.FILETIME),
+            ctypes.POINTER(wintypes.FILETIME),
+        )
+        kernel32.GetProcessTimes.restype = wintypes.BOOL
+        kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
+        kernel32.CloseHandle.restype = wintypes.BOOL
+        kernel32.CreateToolhelp32Snapshot.argtypes = (wintypes.DWORD, wintypes.DWORD)
+        kernel32.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
+        kernel32.Process32FirstW.argtypes = (
+            wintypes.HANDLE,
+            ctypes.POINTER(ProcessEntry32W),
+        )
+        kernel32.Process32FirstW.restype = wintypes.BOOL
+        kernel32.Process32NextW.argtypes = (
+            wintypes.HANDLE,
+            ctypes.POINTER(ProcessEntry32W),
+        )
+        kernel32.Process32NextW.restype = wintypes.BOOL
+        self._ctypes = ctypes
+        self._wintypes = wintypes
+        self._kernel32 = kernel32
+        self._process_entry_type = ProcessEntry32W
+
+    def inspect(self, process_id: int) -> ProcessLifetimeSnapshot | None:
+        _positive_integer(process_id, "process_id")
+        self._ctypes.set_last_error(0)
+        handle = self._kernel32.OpenProcess(
+            self._PROCESS_QUERY_LIMITED_INFORMATION | self._SYNCHRONIZE,
+            False,
+            process_id,
+        )
+        if not handle:
+            error = self._ctypes.get_last_error()
+            if error in {87, 1168}:  # invalid parameter / not found
+                return None
+            raise OSError(error, f"OpenProcess failed for PID {process_id}")
+        try:
+            wait_result = self._kernel32.WaitForSingleObject(handle, 0)
+            if wait_result == self._WAIT_OBJECT_0:
+                return None
+            if wait_result != self._WAIT_TIMEOUT:
+                raise OSError(
+                    self._ctypes.get_last_error(),
+                    f"WaitForSingleObject failed for PID {process_id}",
+                )
+            creation = self._wintypes.FILETIME()
+            exit_time = self._wintypes.FILETIME()
+            kernel_time = self._wintypes.FILETIME()
+            user_time = self._wintypes.FILETIME()
+            self._ctypes.set_last_error(0)
+            if not self._kernel32.GetProcessTimes(
+                handle,
+                self._ctypes.byref(creation),
+                self._ctypes.byref(exit_time),
+                self._ctypes.byref(kernel_time),
+                self._ctypes.byref(user_time),
+            ):
+                raise OSError(
+                    self._ctypes.get_last_error(),
+                    f"GetProcessTimes failed for PID {process_id}",
+                )
+            started_at = (creation.dwHighDateTime << 32) | creation.dwLowDateTime
+            if started_at <= 0:
+                raise OSError(
+                    f"GetProcessTimes returned invalid creation time for PID {process_id}"
+                )
+            return ProcessLifetimeSnapshot(
+                process_id=process_id,
+                process_started_at_100ns=started_at,
+                parent_process_id=self._parent_process_id(process_id),
+            )
+        finally:
+            self._kernel32.CloseHandle(handle)
+
+    def _parent_process_id(self, process_id: int) -> int | None:
+        self._ctypes.set_last_error(0)
+        snapshot = self._kernel32.CreateToolhelp32Snapshot(self._TH32CS_SNAPPROCESS, 0)
+        invalid_handle = self._ctypes.c_void_p(self._INVALID_HANDLE_VALUE).value
+        if not snapshot or snapshot == invalid_handle:
+            raise OSError(self._ctypes.get_last_error(), "process snapshot failed")
+        try:
+            entry = self._process_entry_type()
+            entry.dwSize = self._ctypes.sizeof(entry)
+            self._ctypes.set_last_error(0)
+            if not self._kernel32.Process32FirstW(snapshot, self._ctypes.byref(entry)):
+                raise OSError(self._ctypes.get_last_error(), "Process32FirstW failed")
+            while True:
+                if entry.th32ProcessID == process_id:
+                    parent = int(entry.th32ParentProcessID)
+                    return parent if parent > 0 and parent != process_id else None
+                self._ctypes.set_last_error(0)
+                if not self._kernel32.Process32NextW(snapshot, self._ctypes.byref(entry)):
+                    error = self._ctypes.get_last_error()
+                    if error == 18:  # ERROR_NO_MORE_FILES
+                        return None
+                    raise OSError(error, "Process32NextW failed")
+        finally:
+            self._kernel32.CloseHandle(snapshot)
+
+
 class SubprocessLauncher:
     """Launch reviewed argv commands directly with ``shell=False``."""
 
-    def __init__(self) -> None:
+    def __init__(self, process_inspector: ProcessLifetimeInspector | None = None) -> None:
+        self._process_inspector = (
+            process_inspector if process_inspector is not None else Win32ProcessLifetimeInspector()
+        )
+        if not callable(getattr(self._process_inspector, "inspect", None)):
+            raise ValueError("process_inspector must provide inspect(process_id)")
         self._children: dict[int, subprocess.Popen[bytes]] = {}
 
     def launch(self, command: ReviewedLaunchCommand) -> LaunchReceipt:
@@ -316,7 +527,15 @@ class SubprocessLauncher:
             shell=False,
         )
         self._children[process.pid] = process
-        return LaunchReceipt(process_id=process.pid)
+        lifetime = self._process_inspector.inspect(process.pid)
+        if lifetime is None or lifetime.process_id != process.pid:
+            raise SupervisorError(
+                "launched process lifetime could not be verified; explicit attach is required"
+            )
+        return LaunchReceipt(
+            process_id=lifetime.process_id,
+            process_started_at_100ns=lifetime.process_started_at_100ns,
+        )
 
     def _reap_finished_children(self) -> None:
         self._children = {
@@ -344,6 +563,8 @@ class _ManagedBinding:
     dispatch_enabled: bool
     launched_by_manager: bool
     launcher_process_id: int | None
+    launcher_process_started_at_100ns: int | None
+    launch_provenance: LaunchProvenance | None
     attached_at: float
     last_verified_at: float
     status_detail: str | None = None
@@ -356,6 +577,8 @@ class _ManagedBinding:
             dispatch_enabled=self.dispatch_enabled,
             launched_by_manager=self.launched_by_manager,
             launcher_process_id=self.launcher_process_id,
+            launcher_process_started_at_100ns=self.launcher_process_started_at_100ns,
+            launch_provenance=self.launch_provenance,
             attached_at=self.attached_at,
             last_verified_at=self.last_verified_at,
             status_detail=self.status_detail,
@@ -373,6 +596,7 @@ class ClientLifecycleSupervisor:
         clock: MonotonicClock | None = None,
         sleeper: Sleeper | None = None,
         window_controller: WindowLifecycleController | None = None,
+        process_inspector: ProcessLifetimeInspector | None = None,
     ) -> None:
         if not hasattr(registry, "inspect"):
             raise ValueError("registry must provide inspect(selector)")
@@ -383,6 +607,11 @@ class ClientLifecycleSupervisor:
         self._clock = clock if clock is not None else SystemMonotonicClock()
         self._sleeper = sleeper if sleeper is not None else SystemSleeper()
         self._window_controller = window_controller
+        self._process_inspector = (
+            process_inspector if process_inspector is not None else Win32ProcessLifetimeInspector()
+        )
+        if not callable(getattr(self._process_inspector, "inspect", None)):
+            raise ValueError("process_inspector must provide inspect(process_id)")
         self._bindings: dict[str, _ManagedBinding] = {}
         self._lock = threading.RLock()
 
@@ -413,13 +642,23 @@ class ClientLifecycleSupervisor:
                     )
                 if len(matches) != 1:
                     raise AmbiguousClientError(f"registered client {instance_id!r} was not unique")
-                return self._bind(selector, matches[0], launch_receipt=None)
+                return self._bind(
+                    selector,
+                    matches[0],
+                    launch_receipt=None,
+                    launch_provenance=None,
+                )
             if len(snapshot.clients) != 1:
                 raise AmbiguousClientError(
                     f"found {len(snapshot.clients)} pre-existing clients; "
                     "select an exact instance_id"
                 )
-            return self._bind(selector, snapshot.clients[0], launch_receipt=None)
+            return self._bind(
+                selector,
+                snapshot.clients[0],
+                launch_receipt=None,
+                launch_provenance=None,
+            )
 
     def launch_and_attach(
         self,
@@ -444,6 +683,17 @@ class ClientLifecycleSupervisor:
 
         with self._lock:
             baseline = self._read_safe_snapshot(selector)
+            unowned_baseline = tuple(
+                client
+                for client in baseline.clients
+                if not self._binding_owns_exact_identity(client)
+            )
+            if unowned_baseline:
+                raise UnownedLaunchBaselineError(
+                    "launch baseline contains matching client(s) not owned by this supervisor; "
+                    "explicit attach is required: "
+                    + ", ".join(client.instance_id for client in unowned_baseline)
+                )
             baseline_by_id = {client.instance_id: client for client in baseline.clients}
             receipt = self._launcher.launch(command)
             if not isinstance(receipt, LaunchReceipt):
@@ -470,12 +720,32 @@ class ClientLifecycleSupervisor:
                 new_clients = tuple(
                     client for client in current.clients if client.instance_id not in baseline_by_id
                 )
-                if len(new_clients) > 1:
-                    raise AmbiguousClientError(
-                        f"launch produced {len(new_clients)} new matching clients"
+                proven: list[tuple[ClientInstanceSnapshot, LaunchProvenance]] = []
+                unproven: list[ClientInstanceSnapshot] = []
+                for client in new_clients:
+                    provenance = self._launch_provenance(client, receipt)
+                    if provenance is None:
+                        unproven.append(client)
+                    else:
+                        proven.append((client, provenance))
+                if unproven:
+                    raise UnprovenLaunchProvenanceError(
+                        "new matching client(s) were not the reviewed launch process or a "
+                        "verified live descendant; explicit attach is required: "
+                        + ", ".join(client.instance_id for client in unproven)
                     )
-                if len(new_clients) == 1:
-                    return self._bind(selector, new_clients[0], launch_receipt=receipt)
+                if len(proven) > 1:
+                    raise AmbiguousClientError(
+                        f"launch produced {len(proven)} provenance-matched clients"
+                    )
+                if len(proven) == 1:
+                    client, provenance = proven[0]
+                    return self._bind(
+                        selector,
+                        client,
+                        launch_receipt=receipt,
+                        launch_provenance=provenance,
+                    )
 
                 now = self._now()
                 remaining = deadline - now
@@ -490,7 +760,7 @@ class ClientLifecycleSupervisor:
 
         with self._lock:
             binding = self._require_binding(instance_id)
-            if binding.state is ManagedClientState.STALE:
+            if binding.state in {ManagedClientState.STALE, ManagedClientState.EXITED}:
                 raise StaleManagedClientError(binding.status_detail or "client binding is stale")
             if binding.state is ManagedClientState.CLOSE_REQUESTED:
                 raise InvalidLifecycleTransitionError("cannot pause after close was requested")
@@ -504,10 +774,13 @@ class ClientLifecycleSupervisor:
 
         with self._lock:
             binding = self._require_binding(instance_id)
-            if binding.state is ManagedClientState.CLOSE_REQUESTED:
+            if binding.state in {
+                ManagedClientState.CLOSE_REQUESTED,
+                ManagedClientState.EXITED,
+            }:
                 raise InvalidLifecycleTransitionError("cannot resume after close was requested")
             binding = self._refresh_binding(binding)
-            if binding.state is ManagedClientState.STALE:
+            if binding.state in {ManagedClientState.STALE, ManagedClientState.EXITED}:
                 raise StaleManagedClientError(binding.status_detail or "client binding is stale")
             binding.state = ManagedClientState.ATTACHED
             binding.dispatch_enabled = True
@@ -555,10 +828,13 @@ class ClientLifecycleSupervisor:
             if self._window_controller is None:
                 raise WindowControllerUnavailableError("no window controller is configured")
             binding = self._require_binding(instance_id)
-            if binding.state is ManagedClientState.CLOSE_REQUESTED:
+            if binding.state in {
+                ManagedClientState.CLOSE_REQUESTED,
+                ManagedClientState.EXITED,
+            }:
                 raise InvalidLifecycleTransitionError("close was already requested")
             binding = self._refresh_binding(binding)
-            if binding.state is ManagedClientState.STALE:
+            if binding.state in {ManagedClientState.STALE, ManagedClientState.EXITED}:
                 raise StaleManagedClientError(binding.status_detail or "client binding is stale")
             binding.state = ManagedClientState.PAUSED
             binding.dispatch_enabled = False
@@ -586,7 +862,7 @@ class ClientLifecycleSupervisor:
             if not isinstance(rectangle, WindowRectangle):
                 raise ValueError("rectangle must be WindowRectangle")
             binding = self._refresh_binding(self._require_binding(instance_id))
-            if binding.state is ManagedClientState.STALE:
+            if binding.state in {ManagedClientState.STALE, ManagedClientState.EXITED}:
                 raise StaleManagedClientError(binding.status_detail or "client binding is stale")
             if binding.state is ManagedClientState.CLOSE_REQUESTED:
                 raise InvalidLifecycleTransitionError(
@@ -605,7 +881,10 @@ class ClientLifecycleSupervisor:
         client: ClientInstanceSnapshot,
         *,
         launch_receipt: LaunchReceipt | None,
+        launch_provenance: LaunchProvenance | None,
     ) -> ManagedClientSnapshot:
+        if (launch_receipt is None) != (launch_provenance is None):
+            raise SupervisorError("launch receipt and provenance must be recorded together")
         self._reject_managed_duplicate(client)
         now = self._now()
         binding = _ManagedBinding(
@@ -615,11 +894,69 @@ class ClientLifecycleSupervisor:
             dispatch_enabled=True,
             launched_by_manager=launch_receipt is not None,
             launcher_process_id=(launch_receipt.process_id if launch_receipt is not None else None),
+            launcher_process_started_at_100ns=(
+                launch_receipt.process_started_at_100ns if launch_receipt is not None else None
+            ),
+            launch_provenance=launch_provenance,
             attached_at=now,
             last_verified_at=now,
         )
         self._bindings[client.instance_id] = binding
         return binding.snapshot()
+
+    def _binding_owns_exact_identity(self, client: ClientInstanceSnapshot) -> bool:
+        binding = self._bindings.get(client.instance_id)
+        return binding is not None and _immutable_identity(binding.client) == _immutable_identity(
+            client
+        )
+
+    def _launch_provenance(
+        self,
+        client: ClientInstanceSnapshot,
+        receipt: LaunchReceipt,
+    ) -> LaunchProvenance | None:
+        launch_identity = (
+            receipt.process_id,
+            receipt.process_started_at_100ns,
+        )
+        client_identity = (
+            client.process_id,
+            client.process_started_at_100ns,
+        )
+        if client_identity == launch_identity:
+            return LaunchProvenance.DIRECT_PROCESS
+
+        try:
+            current = self._process_inspector.inspect(client.process_id)
+            if (
+                current is None
+                or (
+                    current.process_id,
+                    current.process_started_at_100ns,
+                )
+                != client_identity
+            ):
+                return None
+            visited = {current.process_id}
+            for _ in range(64):
+                parent_process_id = current.parent_process_id
+                if parent_process_id is None or parent_process_id in visited:
+                    return None
+                parent = self._process_inspector.inspect(parent_process_id)
+                if parent is None or parent.process_id != parent_process_id:
+                    return None
+                if parent.process_started_at_100ns > current.process_started_at_100ns:
+                    return None
+                if (
+                    parent.process_id,
+                    parent.process_started_at_100ns,
+                ) == launch_identity:
+                    return LaunchProvenance.DESCENDANT_PROCESS
+                visited.add(parent_process_id)
+                current = parent
+        except (OSError, RuntimeError, ValueError):
+            return None
+        return None
 
     def _read_safe_snapshot(self, selector: ClientInstanceSelector) -> ClientRegistrySnapshot:
         snapshot = self._read_snapshot(selector)
@@ -690,7 +1027,7 @@ class ClientLifecycleSupervisor:
                 )
 
     def _refresh_binding(self, binding: _ManagedBinding) -> _ManagedBinding:
-        if binding.state is ManagedClientState.STALE:
+        if binding.state in {ManagedClientState.STALE, ManagedClientState.EXITED}:
             return binding
         try:
             snapshot = self._read_snapshot(binding.selector)
@@ -700,6 +1037,11 @@ class ClientLifecycleSupervisor:
                 if client.instance_id == binding.client.instance_id
             )
             if len(matches) != 1:
+                if binding.state is ManagedClientState.CLOSE_REQUESTED:
+                    return self._refresh_close_without_window(
+                        binding,
+                        "exact window identity is absent after graceful close request",
+                    )
                 return self._mark_stale(
                     binding,
                     "immutable client identity is no longer present exactly once",
@@ -708,9 +1050,50 @@ class ClientLifecycleSupervisor:
             if _immutable_identity(current) != _immutable_identity(binding.client):
                 return self._mark_stale(binding, "immutable client identity changed")
         except (OSError, RuntimeError, ValueError) as exc:
+            if binding.state is ManagedClientState.CLOSE_REQUESTED:
+                return self._refresh_close_without_window(
+                    binding,
+                    f"window verification failed after graceful close request: {exc}",
+                )
             return self._mark_stale(binding, f"client verification failed: {exc}")
         binding.client = current
         binding.last_verified_at = self._now()
+        return binding
+
+    def _refresh_close_without_window(
+        self,
+        binding: _ManagedBinding,
+        window_detail: str,
+    ) -> _ManagedBinding:
+        binding.dispatch_enabled = False
+        binding.last_verified_at = self._now()
+        expected_start = binding.client.process_started_at_100ns
+        try:
+            lifetime = self._process_inspector.inspect(binding.client.process_id)
+        except (OSError, RuntimeError, ValueError) as exc:
+            binding.state = ManagedClientState.CLOSE_REQUESTED
+            binding.status_detail = (
+                f"{window_detail}; exact process-lifetime verification failed: {exc}"
+            )
+            return binding
+        if lifetime is not None and lifetime.process_id != binding.client.process_id:
+            binding.state = ManagedClientState.CLOSE_REQUESTED
+            binding.status_detail = (
+                f"{window_detail}; process inspector returned the wrong PID and exit "
+                "could not be verified"
+            )
+            return binding
+        if lifetime is not None and (
+            lifetime.process_id == binding.client.process_id
+            and lifetime.process_started_at_100ns == expected_start
+        ):
+            binding.state = ManagedClientState.CLOSE_REQUESTED
+            binding.status_detail = f"{window_detail}; exact process lifetime is still running"
+            return binding
+        binding.state = ManagedClientState.EXITED
+        binding.status_detail = (
+            "verified exact process lifetime exited after graceful close request"
+        )
         return binding
 
     def _mark_stale(self, binding: _ManagedBinding, detail: str) -> _ManagedBinding:
@@ -771,12 +1154,15 @@ __all__ = [
     "DuplicateManagedClientError",
     "InvalidLifecycleTransitionError",
     "LaunchReceipt",
+    "LaunchProvenance",
     "LaunchTimeoutError",
     "ManagedClientSnapshot",
     "ManagedClientState",
     "MonotonicClock",
     "NoMatchingClientError",
     "ProcessLauncher",
+    "ProcessLifetimeInspector",
+    "ProcessLifetimeSnapshot",
     "RegistryContractError",
     "ReviewedLaunchCommand",
     "Sleeper",
@@ -787,7 +1173,10 @@ __all__ = [
     "SystemSleeper",
     "UnknownManagedClientError",
     "UnsafeClientIdentityError",
+    "UnownedLaunchBaselineError",
+    "UnprovenLaunchProvenanceError",
     "VisibleWindowRegistrySource",
+    "Win32ProcessLifetimeInspector",
     "WindowControllerUnavailableError",
     "WindowLifecycleController",
     "launch_command_from_config",

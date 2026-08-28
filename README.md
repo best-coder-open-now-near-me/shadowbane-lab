@@ -33,7 +33,8 @@ player/mob encounters across contiguous deterministic seeds without client targe
 window-safety machinery; a separate bridge tests the guarded production PvE controller.
 The local multi-client manager now provides strict per-PC lifecycle manifests, read-only
 preflight, exact launch/attach correlation, dispatch-only pause/resume, non-activating window
-tiling, and graceful-close primitives without coupling character tactics to a host PC.
+tiling, graceful-close primitives, and an authenticated localhost dashboard without coupling
+character tactics to a host PC.
 Differential traces can record and compare
 simulator and emulator semantics
 without relying on producer-specific IDs. The input adapter compiles the same semantic
