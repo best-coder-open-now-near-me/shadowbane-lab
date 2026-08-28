@@ -630,7 +630,7 @@ class ClientCliTests(unittest.TestCase):
                 click_interval_ms=4_000,
                 live=True,
                 as_json=True,
-                arcane_pref_path=Path("ArcanePref.cfg"),
+                hotkey_config_path=Path("SCREEN_GAME_character.cfg"),
             )
 
         events = [json.loads(line) for line in output.getvalue().splitlines()]

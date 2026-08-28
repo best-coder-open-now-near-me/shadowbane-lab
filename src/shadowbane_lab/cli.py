@@ -626,9 +626,9 @@ def _parser() -> argparse.ArgumentParser:
     listen_go.add_argument("--native-runegate-profile", type=Path)
     listen_go.add_argument("--native-world-map-profile", type=Path)
     listen_go.add_argument(
-        "--arcane-pref",
+        "--hotkey-config",
         type=Path,
-        help="ArcanePref.cfg used to close the world map with its active binding",
+        help="config containing BEGINHOTKEYS, used to close the world map",
     )
     listen_go.add_argument(
         "--world-def",
@@ -2644,7 +2644,7 @@ def _listen_for_go_commands(
     pve_camp_radius: float = 120.0,
     pve_retained_trace_steps: int = 2_000,
     native_world_map_profile_path: Path | None = None,
-    arcane_pref_path: Path | None = None,
+    hotkey_config_path: Path | None = None,
 ) -> int:
     if not live:
         return _error("chat travel requires the explicit --live flag", as_json=as_json)
@@ -2678,13 +2678,13 @@ def _listen_for_go_commands(
             else load_bundled_native_world_map_profile()
         )
         world_map_close_plan = None
-        if arcane_pref_path is not None:
-            world_map_bindings = load_arcane_hotkeys(arcane_pref_path).bindings_for(
+        if hotkey_config_path is not None:
+            world_map_bindings = load_arcane_hotkeys(hotkey_config_path).bindings_for(
                 ArcaneClientAction.WORLD_MAP
             )
             if len(world_map_bindings) != 1:
                 raise ValueError(
-                    "ArcanePref must contain exactly one WorldMap hotkey binding; "
+                    "hotkey config must contain exactly one WorldMap binding; "
                     f"found {len(world_map_bindings)}"
                 )
             world_map_keys = world_map_bindings[0].input_keys
@@ -3385,7 +3385,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             native_vitals_profile_path=arguments.native_vitals_profile,
             native_runegate_profile_path=arguments.native_runegate_profile,
             native_world_map_profile_path=arguments.native_world_map_profile,
-            arcane_pref_path=arguments.arcane_pref,
+            hotkey_config_path=arguments.hotkey_config,
             world_def_path=arguments.world_def,
             named_destination_overrides_path=arguments.named_destination_overrides,
             pve_client_profile_path=arguments.pve_client_profile,

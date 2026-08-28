@@ -7,7 +7,7 @@ minimap as the actuator. Start the foreground-scoped chat bridge once per client
 python -m shadowbane_lab.cli client listen-go `
   --destination-state .\last-travel-destination.json `
   --client-profile .\configs\wonderbane-travel.local.json `
-  --arcane-pref 'C:\path\to\Wonderbane\Config\ArcanePref.cfg' `
+  --hotkey-config 'C:\path\to\Wonderbane\Config\SCREEN_GAME_character.cfg' `
   --world-def 'C:\path\to\Wonderbane\Config\WorldDef.cfg' `
   --live --json
 ```
@@ -49,7 +49,7 @@ start the same closed-loop `/go` route. Left-clicks retain their normal client b
 The listener reads `ArcWorldMapHud`'s live rectangle, hidden state, world dimensions, zoom,
 and pan and applies the client's inverse projection; it does not assume a fixed resolution or
 full-world zoom. After accepting the destination it closes the map through the current
-`ArcanePref.cfg` WorldMap binding before steering begins, so an extra physical exit click does
+`BEGINHOTKEYS` WorldMap binding before steering begins, so an extra physical exit click does
 not immediately cancel the new route. A right-click is ignored unless the guarded Shadowbane
 window owns focus, the world map is open, the pixel lies inside its HUD, and the projected LT/LG
 remains inside the active world's bounds. Accepted events use `native_world_map` as their destination source.

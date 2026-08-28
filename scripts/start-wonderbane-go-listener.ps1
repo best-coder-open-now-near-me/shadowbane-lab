@@ -6,7 +6,6 @@ param(
     [string] $DestinationState = "\\VBOXSVR\codexdiag\bounded-route-state.json",
     [string] $WorldDef = "$env:USERPROFILE\Downloads\WonderbaneClient\Wonderbane\Config\WorldDef.cfg",
     [string] $NamedDestinationOverrides = "\\VBOXSVR\codexrepo\configs\wonderbane-named-destinations.json",
-    [string] $ArcanePref = "$env:USERPROFILE\Downloads\WonderbaneClient\Wonderbane\Config\ArcanePref.cfg",
     [string] $PveClientProfile = "\\VBOXSVR\codexrepo\configs\wonderbane-pve.local.json",
     [string] $PveHotbarConfig = "",
     [string] $PveNavigationCacheDirectory = "$env:USERPROFILE\Downloads\WonderbaneClient\Wonderbane\cache",
@@ -36,9 +35,6 @@ if (-not (Test-Path -LiteralPath $WorldDef -PathType Leaf)) {
 }
 if (-not (Test-Path -LiteralPath $NamedDestinationOverrides -PathType Leaf)) {
     throw "Named-destination overrides were not found: $NamedDestinationOverrides"
-}
-if (-not (Test-Path -LiteralPath $ArcanePref -PathType Leaf)) {
-    throw "WonderBane ArcanePref was not found: $ArcanePref"
 }
 if (-not (Test-Path -LiteralPath $PveClientProfile -PathType Leaf)) {
     throw "Live PvE profile was not found: $PveClientProfile"
@@ -101,7 +97,7 @@ $arguments = @(
     "--client-profile", $ClientProfile,
     "--world-def", $WorldDef,
     "--named-destination-overrides", $NamedDestinationOverrides,
-    "--arcane-pref", $ArcanePref,
+    "--hotkey-config", $PveHotbarConfig,
     "--pve-client-profile", $PveClientProfile,
     "--pve-hotbar-config", $PveHotbarConfig,
     "--pve-evidence-directory", $LogDirectory,
