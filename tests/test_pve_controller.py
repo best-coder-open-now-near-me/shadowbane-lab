@@ -2,6 +2,8 @@ import unittest
 
 from shadowbane_lab.client_input import EventEmergencyStop
 from shadowbane_lab.client_observation import (
+    NativeCharacterObservation,
+    NativeCharacterPopulationObservation,
     NativeCombatEvent,
     NativeCombatEventKind,
     NativeCombatLogEntry,
@@ -30,7 +32,13 @@ from shadowbane_lab.pve import (
     PvEPhase,
     PvERunner,
 )
-from shadowbane_lab.travel import SparseNavigationMap, TravelControllerConfig, TravelManeuver
+from shadowbane_lab.travel import (
+    AStarRouteNotFound,
+    SparseNavigationMap,
+    TravelControllerConfig,
+    TravelManeuver,
+    WeightedAStarPlanner,
+)
 
 
 def _absent() -> NativeTargetHealthObservation:
@@ -163,6 +171,43 @@ def _target_identity(
     )
 
 
+def _population(
+    selected: str | None,
+    *characters: NativeCharacterObservation,
+    action_target: str | None = None,
+) -> NativeCharacterPopulationObservation:
+    return NativeCharacterPopulationObservation(
+        characters=characters,
+        selected_target_token=selected,
+        player_action_target_token=action_target,
+        scan_generation=1,
+        rejected_candidates=0,
+    )
+
+
+def _character(
+    token: str,
+    *,
+    lt: float,
+    lg: float = 200.0,
+    health: float = 10.0,
+    trainer: bool = False,
+) -> NativeCharacterObservation:
+    return NativeCharacterObservation(
+        token=token,
+        current_health=health,
+        maximum_health=health,
+        lt=lt,
+        lg=lg,
+        altitude=10.0,
+        merchant=False,
+        shopkeeper=False,
+        banker=False,
+        trainer=trainer,
+        minion=False,
+    )
+
+
 def _observation(
     now_ms: int,
     target: NativeTargetHealthObservation,
@@ -173,6 +218,7 @@ def _observation(
     target_identity: NativeTargetIdentityObservation | None = None,
     player_position: NativePlayerPositionObservation | None = None,
     target_position: NativeTargetPositionObservation | None = None,
+    population: NativeCharacterPopulationObservation | None = None,
 ) -> PvEObservation:
     return PvEObservation(
         now_ms=now_ms,
@@ -184,10 +230,122 @@ def _observation(
         target_action=target_action,
         player_action=player_action,
         target_identity=target_identity,
+        population=population,
     )
 
 
 class PvEControllerTests(unittest.TestCase):
+    def test_native_population_ranks_every_loaded_mob_before_selection(self) -> None:
+        controller = PvEController(
+            PvEControllerConfig(
+                use_native_population=True,
+                require_target_identity=True,
+                acquisition_retry_ms=100,
+                target_sample_interval_ms=100,
+            )
+        )
+        turtle = _character("turtle", lt=105.0)
+        crab = _character("crab", lt=115.0)
+        trainer = _character("trainer", lt=101.0, trainer=True, health=750.0)
+        characters = (trainer, crab, turtle)
+
+        initial = controller.step(
+            _observation(
+                0,
+                _target("trainer", 750.0, 750.0),
+                target_identity=_target_identity("trainer", trainer=True),
+                player_position=_player_position(),
+                target_position=_target_position("trainer", 101.0, 200.0),
+                population=_population("trainer", *characters),
+            )
+        )
+        skipped = controller.step(
+            _observation(
+                100,
+                _target("crab"),
+                target_identity=_target_identity("crab"),
+                player_position=_player_position(),
+                target_position=_target_position("crab", 115.0, 200.0),
+                population=_population("crab", *characters),
+            )
+        )
+        selected = controller.step(
+            _observation(
+                200,
+                _target("turtle"),
+                target_identity=_target_identity("turtle"),
+                player_position=_player_position(),
+                target_position=_target_position("turtle", 105.0, 200.0),
+                population=_population("turtle", *characters),
+            )
+        )
+
+        self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB, initial.intent)
+        self.assertEqual("turtle", initial.acquisition_target_token)
+        self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB, skipped.intent)
+        self.assertEqual("turtle", skipped.acquisition_target_token)
+        self.assertEqual(PvEIntent.ATTACK_SELECTED_TARGET, selected.intent)
+        self.assertEqual(PvEPhase.ENGAGED, selected.phase)
+
+    def test_native_population_skips_candidate_missing_from_target_cycle(self) -> None:
+        controller = PvEController(
+            PvEControllerConfig(
+                use_native_population=True,
+                require_target_identity=True,
+                acquisition_retry_ms=100,
+                target_sample_interval_ms=100,
+            )
+        )
+        turtle = _character("turtle", lt=105.0)
+        crab = _character("crab", lt=110.0)
+        trainer = _character("trainer", lt=101.0, trainer=True, health=750.0)
+        characters = (trainer, turtle, crab)
+
+        controller.step(
+            _observation(
+                0,
+                _target("trainer", 750.0, 750.0),
+                target_identity=_target_identity("trainer", trainer=True),
+                player_position=_player_position(),
+                target_position=_target_position("trainer", 101.0, 200.0),
+                population=_population("trainer", *characters),
+            )
+        )
+        controller.step(
+            _observation(
+                100,
+                _target("crab"),
+                target_identity=_target_identity("crab"),
+                player_position=_player_position(),
+                target_position=_target_position("crab", 110.0, 200.0),
+                population=_population("crab", *characters),
+            )
+        )
+        wrapped = controller.step(
+            _observation(
+                200,
+                _target("trainer", 750.0, 750.0),
+                target_identity=_target_identity("trainer", trainer=True),
+                player_position=_player_position(),
+                target_position=_target_position("trainer", 101.0, 200.0),
+                population=_population("trainer", *characters),
+            )
+        )
+        engaged = controller.step(
+            _observation(
+                300,
+                _target("crab"),
+                target_identity=_target_identity("crab"),
+                player_position=_player_position(),
+                target_position=_target_position("crab", 110.0, 200.0),
+                population=_population("crab", *characters),
+            )
+        )
+
+        self.assertEqual("crab", wrapped.acquisition_target_token)
+        self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB, wrapped.intent)
+        self.assertEqual(PvEPhase.ENGAGED, engaged.phase)
+
     def test_continuous_configuration_requires_a_valid_camp_boundary(self) -> None:
         with self.assertRaisesRegex(ValueError, "requires a camp_radius"):
             PvEControllerConfig(continuous=True)
@@ -267,9 +425,17 @@ class PvEControllerTests(unittest.TestCase):
                 target_position=_target_position(None),
             )
         )
-        returning = controller.step(
+        near_anchor = controller.step(
             _observation(
                 100,
+                _absent(),
+                player_position=_player_position(125.0, 200.0),
+                target_position=_target_position(None),
+            )
+        )
+        returning = controller.step(
+            _observation(
+                200,
                 _absent(),
                 player_position=_player_position(140.0, 200.0),
                 target_position=_target_position(None),
@@ -277,7 +443,7 @@ class PvEControllerTests(unittest.TestCase):
         )
         arrived = controller.step(
             _observation(
-                200,
+                300,
                 _absent(),
                 player_position=_player_position(105.0, 200.0),
                 target_position=_target_position(None),
@@ -285,13 +451,15 @@ class PvEControllerTests(unittest.TestCase):
         )
         rescan = controller.step(
             _observation(
-                600,
+                700,
                 _absent(),
                 player_position=_player_position(105.0, 200.0),
                 target_position=_target_position(None),
             )
         )
 
+        self.assertEqual(30.0, near_anchor.camp.return_trigger_radius)
+        self.assertFalse(near_anchor.return_to_camp)
         self.assertEqual(PvEPhase.CAMP_IDLE, returning.phase)
         self.assertTrue(returning.return_to_camp)
         self.assertFalse(arrived.return_to_camp)
@@ -420,7 +588,7 @@ class PvEControllerTests(unittest.TestCase):
                 target_position=_target_position("other-mob"),
             )
 
-    def test_crossing_melee_radius_reissues_attack_after_approach(self) -> None:
+    def test_explicit_far_target_starts_native_chase_and_reissues_at_arrival(self) -> None:
         controller = PvEController(
             PvEControllerConfig(
                 automatic_attack_expected=True,
@@ -455,7 +623,7 @@ class PvEControllerTests(unittest.TestCase):
             )
         )
 
-        self.assertIsNone(engaged.intent)
+        self.assertEqual(PvEIntent.ATTACK_SELECTED_TARGET, engaged.intent)
         self.assertEqual(PvEIntent.ATTACK_SELECTED_TARGET, arrived.intent)
 
     def test_opener_configuration_rejects_non_power_and_unbounded_mana_cost(self) -> None:
@@ -1555,6 +1723,43 @@ class PvEApproachControllerTests(unittest.TestCase):
         self.assertEqual("moving", replanned.status.value)
         self.assertEqual(TravelManeuver.DIRECT, replanned.decision.maneuver)
         self.assertGreater(len(navigation.blocked), 0)
+
+    def test_initial_astar_no_route_becomes_recoverable_approach_failure(self) -> None:
+        class NoRoutePlanner(WeightedAStarPlanner):
+            def plan(self, *_args, **_kwargs):
+                raise AStarRouteNotFound("test route is blocked")
+
+        approach = PvEApproachController(
+            PvEApproachConfig(native_progress_grace_ms=100),
+            planner=NoRoutePlanner(),
+        )
+        observation = PvEObservation(
+            now_ms=0,
+            target=_target("turtle"),
+            player=_player(),
+            player_position=_player_position(),
+            target_position=_target_position("turtle", 200.0, 200.0),
+        )
+
+        self.assertEqual(
+            "idle",
+            approach.step(observation, phase=PvEPhase.ENGAGED).status.value,
+        )
+        failed = approach.step(
+            PvEObservation(
+                now_ms=100,
+                target=observation.target,
+                player=observation.player,
+                player_position=observation.player_position,
+                target_position=observation.target_position,
+            ),
+            phase=PvEPhase.ENGAGED,
+        )
+
+        self.assertEqual("failed", failed.status.value)
+        self.assertEqual("stopped", failed.decision.phase.value)
+        self.assertEqual(0, failed.decision.click_count)
+        self.assertIn("astar_route_not_found", failed.decision.terminal_reason)
 
 
 class SequenceHealthSource:

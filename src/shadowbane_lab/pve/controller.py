@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from math import hypot
+
 from shadowbane_lab.client_observation import (
     NativeCombatEvent,
     NativeCombatEventKind,
@@ -65,6 +67,9 @@ class PvEController:
         self._camp: PvECampLease | None = None
         self._camp_return_retry_at: int | None = None
         self._last_target_inside_camp: bool | None = None
+        self._population_desired_target_token: str | None = None
+        self._population_cycle_seen: set[str | None] = set()
+        self._attack_already_active = False
 
     @property
     def phase(self) -> PvEPhase:
@@ -85,6 +90,10 @@ class PvEController:
     @property
     def requires_target_identity(self) -> bool:
         return self._config.require_target_identity
+
+    @property
+    def requires_population(self) -> bool:
+        return self._config.use_native_population
 
     @property
     def continuous(self) -> bool:
@@ -112,7 +121,10 @@ class PvEController:
             PvEIntent.ACQUIRE_NEXT_MOB,
             PvEIntent.ATTACK_SELECTED_TARGET,
         }
-        if self._config.nearest_target_sample_count > 1:
+        if (
+            self._config.nearest_target_sample_count > 1
+            and not self._config.use_native_population
+        ):
             intents.add(PvEIntent.ACQUIRE_PREVIOUS_MOB)
         if self._config.opening_intent is not None:
             intents.add(self._config.opening_intent)
@@ -177,15 +189,19 @@ class PvEController:
 
         if self._phase is PvEPhase.INITIALIZING:
             if (
+                not self._config.use_native_population
+                and
                 self._config.accept_automatic_targets
                 and observation.target.target_present
                 and observation.target.current_health != 0.0
                 and self._target_attack_eligible(observation)
                 and self._automatic_target_confirmed(events)
             ):
-                return self._begin_engagement(observation)
+                return self._begin_engagement(observation, attack_already_active=True)
             self._baseline_target_token = observation.target.target_token
             self._enter(PvEPhase.SEEKING, now)
+            if self._config.use_native_population:
+                return self._seek_population(observation)
             if self._config.accept_automatic_targets and observation.target.target_present:
                 return self._emit(now)
             return self._emit(now, PvEIntent.ACQUIRE_NEXT_MOB)
@@ -221,6 +237,8 @@ class PvEController:
         events: tuple[NativeCombatEvent, ...],
     ) -> PvEControllerDecision:
         now = observation.now_ms
+        if self._config.use_native_population:
+            return self._seek_population(observation)
         target = observation.target
         self._expire_failed_targets(now)
         if target.target_present and target.current_health != 0.0:
@@ -244,7 +262,7 @@ class PvEController:
                 self._config.accept_automatic_targets
                 and self._automatic_target_confirmed(events)
             ):
-                return self._begin_engagement(observation)
+                return self._begin_engagement(observation, attack_already_active=True)
         if self._phase_elapsed(now) >= self._config.acquisition_timeout_ms:
             if self._config.continuous:
                 return self._begin_camp_idle(observation)
@@ -276,6 +294,62 @@ class PvEController:
             self._last_acquire_at is None
             or now - self._last_acquire_at >= self._config.acquisition_retry_ms
         ):
+            return self._emit(now, PvEIntent.ACQUIRE_NEXT_MOB)
+        return self._emit(now)
+
+    def _seek_population(self, observation: PvEObservation) -> PvEControllerDecision:
+        now = observation.now_ms
+        population = observation.population
+        player_position = observation.player_position
+        if population is None or player_position is None:
+            return self.stop("native_population_unavailable", now_ms=now)
+        self._expire_failed_targets(now)
+        ranked = sorted(
+            (
+                (
+                    hypot(
+                        character.lt - player_position.lt,
+                        character.lg - player_position.lg,
+                    ),
+                    character.token,
+                )
+                for character in population.characters
+                if character.attack_eligible
+                and character.token not in self._failed_target_tokens
+                and (self._camp is None or self._camp.contains(character.lt, character.lg))
+            ),
+            key=lambda item: (item[0], item[1]),
+        )
+        candidate_tokens = {token for _, token in ranked}
+        if self._population_desired_target_token not in candidate_tokens:
+            self._population_desired_target_token = ranked[0][1] if ranked else None
+            self._population_cycle_seen.clear()
+        desired = self._population_desired_target_token
+        if desired is None:
+            if self._config.continuous:
+                return self._begin_camp_idle(observation)
+            if self._phase_elapsed(now) >= self._config.acquisition_timeout_ms:
+                return self.stop("mob_acquisition_timeout", now_ms=now)
+            return self._emit(now)
+        selected = population.selected_target_token
+        if selected == desired:
+            target = observation.target
+            if (
+                target.target_present
+                and target.target_token == desired
+                and target.current_health != 0.0
+                and self._target_attack_eligible(observation)
+            ):
+                self._require_different_target = False
+                return self._begin_engagement(observation)
+            return self._emit(now)
+        if selected in self._population_cycle_seen:
+            self._failed_target_tokens[desired] = now
+            self._population_desired_target_token = None
+            self._population_cycle_seen.clear()
+            return self._seek_population(observation)
+        self._population_cycle_seen.add(selected)
+        if self._target_sample_ready(now):
             return self._emit(now, PvEIntent.ACQUIRE_NEXT_MOB)
         return self._emit(now)
 
@@ -537,6 +611,8 @@ class PvEController:
             return self._emit(now)
         previous_target_token = self._engaged_target_token
         if (
+            not self._config.use_native_population
+            and
             self._config.accept_automatic_targets
             and observation.target.target_present
             and observation.target.current_health != 0.0
@@ -544,7 +620,7 @@ class PvEController:
             and self._target_attack_eligible(observation)
         ):
             if self._automatic_target_confirmed(events):
-                return self._begin_engagement(observation)
+                return self._begin_engagement(observation, attack_already_active=True)
             self._baseline_target_token = observation.target.target_token
             self._clear_engagement()
             self._enter(PvEPhase.SEEKING, now)
@@ -552,9 +628,16 @@ class PvEController:
         self._baseline_target_token = observation.target.target_token
         self._clear_engagement()
         self._enter(PvEPhase.SEEKING, now)
+        if self._config.use_native_population:
+            return self._seek_population(observation)
         return self._emit(now, PvEIntent.ACQUIRE_NEXT_MOB)
 
-    def _begin_engagement(self, observation: PvEObservation) -> PvEControllerDecision:
+    def _begin_engagement(
+        self,
+        observation: PvEObservation,
+        *,
+        attack_already_active: bool = False,
+    ) -> PvEControllerDecision:
         target = observation.target
         assert target.target_present
         assert target.target_token is not None
@@ -595,6 +678,9 @@ class PvEController:
             self._best_approach_distance is not None
             and self._best_approach_distance > self._config.melee_approach_radius
         )
+        self._attack_already_active = attack_already_active
+        self._population_desired_target_token = None
+        self._population_cycle_seen.clear()
         if not self._outside_melee and self._best_approach_distance is not None:
             self._melee_entered_at = now
         opener = self._config.opening_intent
@@ -602,7 +688,7 @@ class PvEController:
             self._enter(PvEPhase.OPENING, now)
             return self._emit(now, opener)
         self._enter(PvEPhase.ENGAGED, now)
-        if self._config.automatic_attack_expected and (
+        if attack_already_active and (
             self._outside_melee or self._best_approach_distance is None
         ):
             return self._emit(now)
@@ -676,7 +762,7 @@ class PvEController:
             self._outside_melee = distance > self._config.melee_approach_radius
             if not self._outside_melee:
                 self._melee_entered_at = now
-        if self._config.automatic_attack_expected and (
+        if self._attack_already_active and (
             distance is None or distance > self._config.melee_approach_radius
         ):
             return self._emit(now)
@@ -778,6 +864,8 @@ class PvEController:
         self._clear_engagement()
         self._require_different_target = True
         self._enter(PvEPhase.SEEKING, now)
+        if self._config.use_native_population:
+            return self._seek_population(observation)
         return self._emit(now, PvEIntent.ACQUIRE_NEXT_MOB)
 
     def recover_from_approach_failure(
@@ -820,6 +908,8 @@ class PvEController:
         self._clear_engagement()
         self._require_different_target = True
         self._enter(PvEPhase.SEEKING, now)
+        if self._config.use_native_population:
+            return self._seek_population(observation)
         return self._emit(now, PvEIntent.ACQUIRE_NEXT_MOB)
 
     def _capture_camp(self, observation: PvEObservation) -> None:
@@ -832,6 +922,11 @@ class PvEController:
             anchor_lg=observation.player_position.lg,
             radius=float(self._config.camp_radius),
             return_radius=float(self._config.camp_return_radius),
+            return_trigger_radius=(
+                None
+                if self._config.camp_return_trigger_radius is None
+                else float(self._config.camp_return_trigger_radius)
+            ),
         )
 
     def _target_inside_camp(self, observation: PvEObservation) -> bool | None:
@@ -871,6 +966,8 @@ class PvEController:
             return self._emit(now)
         self._baseline_target_token = observation.target.target_token
         self._enter(PvEPhase.SEEKING, now)
+        if self._config.use_native_population:
+            return self._seek_population(observation)
         return self._emit(now, PvEIntent.ACQUIRE_NEXT_MOB)
 
     def _should_return_to_camp(self, observation: PvEObservation) -> bool:
@@ -881,7 +978,7 @@ class PvEController:
                 observation.player_position.lt,
                 observation.player_position.lg,
             )
-            > self._camp.return_radius
+            > self._camp.return_trigger_radius
         )
 
     def _expire_failed_targets(self, now_ms: int) -> None:
@@ -912,6 +1009,7 @@ class PvEController:
         self._interrupts_for_target = 0
         self._best_approach_distance = None
         self._outside_melee = False
+        self._attack_already_active = False
 
     def _enter(self, phase: PvEPhase, now_ms: int) -> None:
         self._phase = phase
@@ -923,6 +1021,8 @@ class PvEController:
             self._last_sampled_target_token = None
             self._target_sampling_complete = False
             self._target_sample_cycle_at = None
+            self._population_desired_target_token = None
+            self._population_cycle_seen.clear()
 
     def _phase_elapsed(self, now_ms: int) -> int:
         assert self._phase_entered_at is not None
@@ -950,6 +1050,11 @@ class PvEController:
             return_to_camp=return_to_camp,
             terminal_reason=terminal_reason,
             kill_confirmation=kill_confirmation,
+            acquisition_target_token=(
+                self._population_desired_target_token
+                if self._phase is PvEPhase.SEEKING
+                else None
+            ),
         )
         self._decision_id += 1
         if intent in (PvEIntent.ACQUIRE_NEXT_MOB, PvEIntent.ACQUIRE_PREVIOUS_MOB):

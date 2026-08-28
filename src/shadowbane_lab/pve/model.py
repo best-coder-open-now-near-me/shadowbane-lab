@@ -7,6 +7,7 @@ from enum import StrEnum
 from math import hypot, isfinite
 
 from shadowbane_lab.client_observation import (
+    NativeCharacterPopulationObservation,
     NativeCombatEvent,
     NativePlayerActionObservation,
     NativePlayerPositionObservation,
@@ -60,13 +61,23 @@ class PvECampLease:
     anchor_lg: float
     radius: float
     return_radius: float
+    return_trigger_radius: float | None = None
 
     def __post_init__(self) -> None:
+        if self.return_trigger_radius is None:
+            object.__setattr__(
+                self,
+                "return_trigger_radius",
+                self.return_radius
+                + min(18.0, (self.radius - self.return_radius) / 2.0),
+            )
+        assert self.return_trigger_radius is not None
         for value, field_name in (
             (self.anchor_lt, "anchor_lt"),
             (self.anchor_lg, "anchor_lg"),
             (self.radius, "radius"),
             (self.return_radius, "return_radius"),
+            (self.return_trigger_radius, "return_trigger_radius"),
         ):
             if (
                 isinstance(value, bool)
@@ -78,6 +89,10 @@ class PvECampLease:
             raise ValueError("camp radius must be positive")
         if self.return_radius <= 0 or self.return_radius >= self.radius:
             raise ValueError("camp return_radius must be positive and below radius")
+        if not self.return_radius < self.return_trigger_radius < self.radius:
+            raise ValueError(
+                "camp return_trigger_radius must be above return_radius and below radius"
+            )
 
     def contains(self, lt: float, lg: float) -> bool:
         return hypot(lt - self.anchor_lt, lg - self.anchor_lg) <= self.radius
@@ -130,11 +145,13 @@ class PvEControllerConfig:
     automatic_attack_expected: bool = False
     automatic_target_requires_combat_event: bool = False
     require_target_identity: bool = False
+    use_native_population: bool = False
     melee_approach_radius: float = 20.0
     minimum_approach_progress: float = 8.0
     continuous: bool = False
     camp_radius: float | None = None
     camp_return_radius: float = 12.0
+    camp_return_trigger_radius: float | None = None
     camp_idle_ms: int = 5_000
     camp_return_retry_ms: int = 5_000
     failed_target_cooldown_ms: int = 30_000
@@ -230,6 +247,7 @@ class PvEControllerConfig:
                 "automatic_target_requires_combat_event",
             ),
             (self.require_target_identity, "require_target_identity"),
+            (self.use_native_population, "use_native_population"),
             (self.continuous, "continuous"),
         ):
             if not isinstance(value, bool):
@@ -248,6 +266,13 @@ class PvEControllerConfig:
             or self.camp_return_radius <= 0
         ):
             raise ValueError("camp_return_radius must be positive")
+        if self.camp_return_trigger_radius is not None and (
+            isinstance(self.camp_return_trigger_radius, bool)
+            or not isinstance(self.camp_return_trigger_radius, (int, float))
+            or not isfinite(self.camp_return_trigger_radius)
+            or self.camp_return_trigger_radius <= 0
+        ):
+            raise ValueError("camp_return_trigger_radius must be positive when present")
         if self.continuous and self.camp_radius is None:
             raise ValueError("continuous PvE requires a camp_radius")
         if (
@@ -255,6 +280,17 @@ class PvEControllerConfig:
             and self.camp_return_radius >= self.camp_radius
         ):
             raise ValueError("camp_return_radius must be below camp_radius")
+        if self.camp_return_trigger_radius is not None and (
+            self.camp_return_trigger_radius <= self.camp_return_radius
+            or (
+                self.camp_radius is not None
+                and self.camp_return_trigger_radius >= self.camp_radius
+            )
+        ):
+            raise ValueError(
+                "camp_return_trigger_radius must be above camp_return_radius and below "
+                "camp_radius"
+            )
         if self.opening_intent is not None and not isinstance(self.opening_intent, PvEIntent):
             raise ValueError("opening_intent must be PvEIntent when present")
         if self.opening_intent in (
@@ -323,6 +359,7 @@ class PvEObservation:
     target_action: NativeTargetActionObservation | None = None
     player_action: NativePlayerActionObservation | None = None
     target_identity: NativeTargetIdentityObservation | None = None
+    population: NativeCharacterPopulationObservation | None = None
 
     def __post_init__(self) -> None:
         _non_negative_integer(self.now_ms, "now_ms")
@@ -360,6 +397,14 @@ class PvEObservation:
                 and self.target.target_token != self.target_identity.target_token
             ):
                 raise ValueError("target health and identity resolved different targets")
+        if self.population is not None:
+            if not isinstance(self.population, NativeCharacterPopulationObservation):
+                raise ValueError("population must be NativeCharacterPopulationObservation")
+            if (
+                self.target.target_present
+                and self.target.target_token != self.population.selected_target_token
+            ):
+                raise ValueError("target health and population resolved different selections")
         if (self.player_position is None) != (self.target_position is None):
             raise ValueError("player and target positions must be observed together")
         if self.player_position is None:
@@ -426,6 +471,7 @@ class PvEControllerDecision:
     return_to_camp: bool = False
     terminal_reason: str | None = None
     kill_confirmation: PvEKillConfirmation | None = None
+    acquisition_target_token: str | None = None
 
     def __post_init__(self) -> None:
         _non_negative_integer(self.decision_id, "decision_id")
@@ -460,6 +506,10 @@ class PvEControllerDecision:
             raise ValueError("kill-confirmation decisions cannot dispatch input")
         if self.kill_confirmation is not None and self.reposition_requested:
             raise ValueError("kill-confirmation decisions cannot request repositioning")
+        if self.acquisition_target_token is not None and not self.acquisition_target_token.strip():
+            raise ValueError("acquisition_target_token must be non-empty when present")
+        if self.acquisition_target_token is not None and self.phase is not PvEPhase.SEEKING:
+            raise ValueError("acquisition_target_token is valid only while seeking")
         terminal = self.phase in (PvEPhase.COMPLETE, PvEPhase.STOPPED)
         if terminal != (self.terminal_reason is not None):
             raise ValueError("terminal phases require exactly one terminal reason")
@@ -505,6 +555,11 @@ class PvERunTraceStep:
     approach_input_reason: str | None = None
     movement_stop_accepted: bool | None = None
     movement_stop_reason: str | None = None
+    population_character_count: int | None = None
+    population_attack_eligible_count: int | None = None
+    population_selected_target_token: str | None = None
+    population_player_action_target_token: str | None = None
+    population_scan_generation: int | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.decision, PvEControllerDecision):
@@ -572,6 +627,13 @@ class PvERunTraceStep:
             raise ValueError("target_identity must be NativeTargetIdentityObservation")
         if any(not isinstance(event, NativeCombatEvent) for event in self.combat_events):
             raise ValueError("combat_events must contain NativeCombatEvent values")
+        for value, field_name in (
+            (self.population_character_count, "population_character_count"),
+            (self.population_attack_eligible_count, "population_attack_eligible_count"),
+            (self.population_scan_generation, "population_scan_generation"),
+        ):
+            if value is not None:
+                _non_negative_integer(value, field_name)
 
     def as_dict(self) -> dict[str, object]:
         return {
@@ -585,6 +647,7 @@ class PvERunTraceStep:
                 else self.decision.kill_confirmation.value
             ),
             "intent": None if self.decision.intent is None else self.decision.intent.value,
+            "acquisition_target_token": self.decision.acquisition_target_token,
             "reposition_requested": self.decision.reposition_requested,
             "camp": (
                 None
@@ -594,6 +657,9 @@ class PvERunTraceStep:
                     "anchor_lg": self.decision.camp.anchor_lg,
                     "radius": self.decision.camp.radius,
                     "return_radius": self.decision.camp.return_radius,
+                    "return_trigger_radius": (
+                        self.decision.camp.return_trigger_radius
+                    ),
                     "target_inside": self.decision.target_inside_camp,
                     "return_requested": self.decision.return_to_camp,
                 }
@@ -676,6 +742,19 @@ class PvERunTraceStep:
                     }
                 ),
             },
+            "population": (
+                None
+                if self.population_character_count is None
+                else {
+                    "character_count": self.population_character_count,
+                    "attack_eligible_count": self.population_attack_eligible_count,
+                    "selected_target_token": self.population_selected_target_token,
+                    "player_action_target_token": (
+                        self.population_player_action_target_token
+                    ),
+                    "scan_generation": self.population_scan_generation,
+                }
+            ),
             "combat_events": [
                 {
                     "sequence": event.sequence,

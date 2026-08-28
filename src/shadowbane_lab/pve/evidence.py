@@ -233,11 +233,20 @@ def validate_pve_trace_evidence(payload: object) -> dict[str, object]:
                 raise PvETraceEvidenceError(
                     f"PvE evidence camp_lease.{field_name} must be finite"
                 )
-        for field_name in ("radius", "return_radius"):
+        for field_name in ("radius", "return_radius", "return_trigger_radius"):
             _positive_number(camp_lease, field_name, prefix="camp_lease")
         if camp_lease["return_radius"] >= camp_lease["radius"]:
             raise PvETraceEvidenceError(
                 "PvE evidence camp_lease.return_radius must be below radius"
+            )
+        if not (
+            camp_lease["return_radius"]
+            < camp_lease["return_trigger_radius"]
+            < camp_lease["radius"]
+        ):
+            raise PvETraceEvidenceError(
+                "PvE evidence camp_lease.return_trigger_radius must be above "
+                "return_radius and below radius"
             )
     native = payload.get("native_observation")
     if not isinstance(native, dict):

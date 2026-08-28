@@ -57,6 +57,8 @@ from shadowbane_lab.client_observation import (
     NativePlayerVitalsError,
     NativePositionProfileLoadError,
     NativeProgressionCoreProfileLoadError,
+    NativeRunegateRegistryError,
+    NativeRunegateRegistryProfileLoadError,
     NativeTargetActionError,
     NativeTargetActionProfileLoadError,
     NativeTargetHealthError,
@@ -76,6 +78,7 @@ from shadowbane_lab.client_observation import (
     load_bundled_native_message_hud_profile,
     load_bundled_native_position_profile,
     load_bundled_native_progression_core_profile,
+    load_bundled_native_runegate_registry_profile,
     load_bundled_native_target_action_profile,
     load_bundled_native_target_identity_profile,
     load_bundled_native_target_position_profile,
@@ -88,6 +91,7 @@ from shadowbane_lab.client_observation import (
     load_native_message_hud_profile,
     load_native_position_profile,
     load_native_progression_core_profile,
+    load_native_runegate_registry_profile,
     load_native_target_action_profile,
     load_native_target_identity_profile,
     load_native_target_position_profile,
@@ -103,6 +107,7 @@ from shadowbane_lab.client_observation import (
     open_windows_native_player_progression_core_reader,
     open_windows_native_player_training_reader,
     open_windows_native_player_vitals_reader,
+    open_windows_native_runegate_registry_reader,
     open_windows_native_target_action_reader,
     open_windows_native_target_health_reader,
     open_windows_native_target_identity_reader,
@@ -334,6 +339,19 @@ def _parser() -> argparse.ArgumentParser:
         "--json", action="store_true", help="emit machine-readable JSON"
     )
 
+    observe_native_runegates = client_commands.add_parser(
+        "observe-native-runegates",
+        help="read the active server-supplied runegate registry from a calibrated build",
+    )
+    observe_native_runegates.add_argument(
+        "--profile",
+        type=Path,
+        help="native runegate profile; defaults to the verified bundled WonderBane build",
+    )
+    observe_native_runegates.add_argument(
+        "--json", action="store_true", help="emit machine-readable JSON"
+    )
+
     observe_native_player = client_commands.add_parser(
         "observe-native-player",
         help="read exact local-player health, mana, and stamina from a calibrated build",
@@ -461,6 +479,7 @@ def _parser() -> argparse.ArgumentParser:
     run_pve.add_argument("--native-target-position-profile", type=Path)
     run_pve.add_argument("--native-target-action-profile", type=Path)
     run_pve.add_argument("--native-target-identity-profile", type=Path)
+    run_pve.add_argument("--native-character-population-profile", type=Path)
     run_pve.add_argument(
         "--navigation-cache-directory",
         type=Path,
@@ -576,10 +595,16 @@ def _parser() -> argparse.ArgumentParser:
     listen_go.add_argument("--client-profile", type=Path, required=True)
     listen_go.add_argument("--native-position-profile", type=Path)
     listen_go.add_argument("--native-vitals-profile", type=Path)
+    listen_go.add_argument("--native-runegate-profile", type=Path)
     listen_go.add_argument(
         "--world-def",
         type=Path,
         help="installed Config/WorldDef.cfg used to resolve named /go destinations",
+    )
+    listen_go.add_argument(
+        "--named-destination-overrides",
+        type=Path,
+        help="emulator-confirmed named destinations layered over client WorldDef entries",
     )
     listen_go.add_argument(
         "--pve-client-profile",
@@ -1241,6 +1266,57 @@ def _observe_native_population(profile_path: Path | None, *, as_json: bool) -> i
     return 0
 
 
+def _observe_native_runegates(profile_path: Path | None, *, as_json: bool) -> int:
+    try:
+        profile = (
+            load_native_runegate_registry_profile(profile_path)
+            if profile_path is not None
+            else load_bundled_native_runegate_registry_profile()
+        )
+        with open_windows_native_runegate_registry_reader(profile) as reader:
+            observation = reader.observe()
+            process_id = reader.process_id
+    except (
+        NativeRunegateRegistryError,
+        NativeRunegateRegistryProfileLoadError,
+        OSError,
+        ValueError,
+    ) as exc:
+        return _error(
+            f"native runegate-registry observation failed: {exc}",
+            as_json=as_json,
+        )
+    payload = {
+        "ok": True,
+        "profile_id": profile.profile_id,
+        "process_id": process_id,
+        "registry_token": observation.registry_token,
+        "runegate_count": len(observation.runegates),
+        "runegates": [
+            {
+                "object_type": runegate.object_type,
+                "object_uuid": runegate.object_uuid,
+                "zone_name": runegate.zone_name,
+                "lt": runegate.lt,
+                "lg": runegate.lg,
+                "altitude": runegate.altitude,
+            }
+            for runegate in observation.runegates
+        ],
+    }
+    if as_json:
+        print(json.dumps(payload, sort_keys=True))
+    else:
+        print(f"Server runegates: {len(observation.runegates)}")
+        for runegate in observation.runegates:
+            label = runegate.zone_name or f"object {runegate.object_uuid}"
+            print(
+                f"{label}: LT {runegate.lt:.2f}, LG {runegate.lg:.2f}, "
+                f"ALT {runegate.altitude:.2f}"
+            )
+    return 0
+
+
 def _observe_native_player(profile_path: Path | None, *, as_json: bool) -> int:
     try:
         profile = (
@@ -1698,6 +1774,7 @@ def _run_pve(
     continuous: bool = False,
     camp_radius: float = 120.0,
     retained_trace_steps: int = 2_000,
+    native_character_population_profile_path: Path | None = None,
 ) -> int:
     if not live:
         return _error("PvE execution requires the explicit --live flag", as_json=as_json)
@@ -1788,8 +1865,9 @@ def _run_pve(
                 automatic_attack_expected=policy == "proc-assassin",
                 automatic_target_requires_combat_event=policy == "proc-assassin",
                 require_target_identity=True,
+                use_native_population=True,
                 maximum_stalled_retargets=4 if policy == "proc-assassin" else 0,
-                nearest_target_sample_count=6,
+                nearest_target_sample_count=1,
                 target_sample_interval_ms=350,
                 continuous=continuous,
                 camp_radius=camp_radius if continuous else None,
@@ -1846,6 +1924,13 @@ def _run_pve(
             if native_target_identity_profile_path is not None
             else load_bundled_native_target_identity_profile()
         )
+        character_population_profile = (
+            load_native_character_population_profile(
+                native_character_population_profile_path
+            )
+            if native_character_population_profile_path is not None
+            else load_bundled_native_character_population_profile()
+        )
         zone_profile = (
             None
             if navigation_cache_directory is None
@@ -1862,6 +1947,7 @@ def _run_pve(
             target_position_profile.executable_sha256,
             target_action_profile.executable_sha256,
             target_identity_profile.executable_sha256,
+            character_population_profile.executable_sha256,
         }
         if message_hud_profile is not None:
             native_profile_hashes.add(message_hud_profile.executable_sha256)
@@ -1920,6 +2006,12 @@ def _run_pve(
             target_identity_reader = stack.enter_context(
                 open_windows_native_target_identity_reader(
                     target_identity_profile,
+                    process_id=process_id,
+                )
+            )
+            population_reader = stack.enter_context(
+                open_windows_native_character_population_reader(
+                    character_population_profile,
                     process_id=process_id,
                 )
             )
@@ -2006,6 +2098,7 @@ def _run_pve(
                 target_position_reader.process_id,
                 target_action_reader.process_id,
                 target_identity_reader.process_id,
+                population_reader.process_id,
             }
             if message_hud_profile is not None:
                 reader_process_ids.add(combat_reader.process_id)
@@ -2049,6 +2142,7 @@ def _run_pve(
                 target_action_reader=target_action_reader,
                 player_action_reader=target_action_reader,
                 target_identity_reader=target_identity_reader,
+                population_reader=population_reader,
                 combat_log_reader=combat_reader,
                 dispatcher=ClientPvEIntentDispatcher(adapter),
                 approach_controller=PvEApproachController(
@@ -2079,6 +2173,8 @@ def _run_pve(
         CalibrationLoadError,
         ArcaneHotbarLoadError,
         NativeHealthProfileLoadError,
+        NativeCharacterPopulationError,
+        NativeCharacterPopulationProfileLoadError,
         NativeMessageHudError,
         NativeMessageHudProfileLoadError,
         NativePlayerVitalsError,
@@ -2137,6 +2233,7 @@ def _run_pve(
                 "anchor_lg": camp.anchor_lg,
                 "radius": camp.radius,
                 "return_radius": camp.return_radius,
+                "return_trigger_radius": camp.return_trigger_radius,
             }
         ),
         "farm_limits": (
@@ -2167,6 +2264,7 @@ def _run_pve(
             "process_id": process_id,
             "executable_sha256": health_profile.executable_sha256,
             "target_health_profile_id": health_profile.profile_id,
+            "character_population_profile_id": character_population_profile.profile_id,
             "player_vitals_profile_id": vitals_profile.profile_id,
             "player_position_profile_id": position_profile.profile_id,
             "target_position_profile_id": target_position_profile.profile_id,
@@ -2417,7 +2515,9 @@ def _listen_for_go_commands(
     client_profile_path: Path,
     native_position_profile_path: Path | None,
     native_vitals_profile_path: Path | None,
+    native_runegate_profile_path: Path | None,
     world_def_path: Path | None,
+    named_destination_overrides_path: Path | None,
     pve_client_profile_path: Path | None,
     pve_hotbar_config_path: Path | None,
     pve_evidence_directory: Path | None,
@@ -2447,7 +2547,21 @@ def _listen_for_go_commands(
         named_catalog = (
             None
             if world_def_path is None
-            else load_world_destination_catalog(world_def_path)
+            else load_world_destination_catalog(
+                world_def_path,
+                overrides_path=named_destination_overrides_path,
+            )
+        )
+        if named_destination_overrides_path is not None and world_def_path is None:
+            raise ValueError("named-destination overrides require --world-def")
+        runegate_profile = (
+            None
+            if named_catalog is None
+            else (
+                load_native_runegate_registry_profile(native_runegate_profile_path)
+                if native_runegate_profile_path is not None
+                else load_bundled_native_runegate_registry_profile()
+            )
         )
         if pve_client_profile_path is not None:
             pve_profile = load_calibration(pve_client_profile_path)
@@ -2618,7 +2732,22 @@ def _listen_for_go_commands(
                                 process_id=command_process_id,
                             ) as position_reader:
                                 origin = position_reader.observe()
-                            named_resolution = named_catalog.resolve(
+                            active_named_catalog = named_catalog
+                            if runegate_profile is not None:
+                                try:
+                                    with open_windows_native_runegate_registry_reader(
+                                        runegate_profile,
+                                        process_id=command_process_id,
+                                    ) as runegate_reader:
+                                        registry = runegate_reader.observe()
+                                    active_named_catalog = (
+                                        named_catalog.with_authoritative_runegates(registry)
+                                    )
+                                except NativeRunegateRegistryError:
+                                    # Confirmed overrides and client placements remain a
+                                    # safe fallback while CityData is absent or changing.
+                                    pass
+                            named_resolution = active_named_catalog.resolve(
                                 query,
                                 origin=origin,
                             )
@@ -2661,6 +2790,11 @@ def _listen_for_go_commands(
                             None
                             if named_resolution is None
                             else named_resolution.candidate_count
+                        ),
+                        destination_source=(
+                            None
+                            if named_resolution is None
+                            else named_resolution.source
                         ),
                     )
                     _run_travel(
@@ -2711,6 +2845,7 @@ def _print_go_listener_event(
     lt: float | None = None,
     lg: float | None = None,
     candidate_count: int | None = None,
+    destination_source: str | None = None,
 ) -> None:
     if as_json:
         payload = {"ok": event != "rejected", "event": event}
@@ -2724,6 +2859,8 @@ def _print_go_listener_event(
             payload["destination"] = {"lt": lt, "lg": lg}
         if candidate_count is not None:
             payload["candidate_count"] = candidate_count
+        if destination_source is not None:
+            payload["destination_source"] = destination_source
         print(json.dumps(payload, sort_keys=True), flush=True)
         return
     if event == "listening":
@@ -2870,6 +3007,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         and arguments.client_command == "observe-native-population"
     ):
         return _observe_native_population(arguments.profile, as_json=arguments.json)
+    if (
+        arguments.command == "client"
+        and arguments.client_command == "observe-native-runegates"
+    ):
+        return _observe_native_runegates(arguments.profile, as_json=arguments.json)
     if arguments.command == "client" and arguments.client_command == "observe-native-player":
         return _observe_native_player(arguments.profile, as_json=arguments.json)
     if arguments.command == "client" and arguments.client_command == "observe-native-position":
@@ -2911,6 +3053,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             native_target_position_profile_path=arguments.native_target_position_profile,
             native_target_action_profile_path=arguments.native_target_action_profile,
             native_target_identity_profile_path=arguments.native_target_identity_profile,
+            native_character_population_profile_path=(
+                arguments.native_character_population_profile
+            ),
             navigation_cache_directory=arguments.navigation_cache_directory,
             max_kills=arguments.max_kills,
             max_seconds=arguments.max_seconds,
@@ -2951,7 +3096,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             client_profile_path=arguments.client_profile,
             native_position_profile_path=arguments.native_position_profile,
             native_vitals_profile_path=arguments.native_vitals_profile,
+            native_runegate_profile_path=arguments.native_runegate_profile,
             world_def_path=arguments.world_def,
+            named_destination_overrides_path=arguments.named_destination_overrides,
             pve_client_profile_path=arguments.pve_client_profile,
             pve_hotbar_config_path=arguments.pve_hotbar_config,
             pve_evidence_directory=arguments.pve_evidence_directory,

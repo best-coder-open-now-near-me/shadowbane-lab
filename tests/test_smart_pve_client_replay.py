@@ -181,6 +181,7 @@ class SmartPvEClientReplayTests(unittest.TestCase):
             (
                 KeyPressInvocation(";"),
                 KeyPressInvocation("2"),
+                HotkeyInvocation(("ctrl", "a")),
                 KeyPressInvocation("2"),
                 HotkeyInvocation(("ctrl", "a")),
             ),
@@ -188,7 +189,7 @@ class SmartPvEClientReplayTests(unittest.TestCase):
         )
         self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB, decisions[0].intent)
         self.assertEqual(PvEIntent.CAST_SHADOW_TOUCH, decisions[1].intent)
-        self.assertIsNone(decisions[2].intent)
+        self.assertEqual(PvEIntent.ATTACK_SELECTED_TARGET, decisions[2].intent)
         self.assertIsNone(decisions[3].intent)
         self.assertEqual(PvEIntent.CAST_SHADOW_TOUCH, decisions[5].intent)
         self.assertIsNone(decisions[6].intent)

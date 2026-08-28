@@ -25,7 +25,9 @@ from shadowbane_lab.travel.named import (
     WorldDestinationEntry,
     build_world_destination_catalog,
     load_world_destination_catalog,
+    load_world_destination_overrides,
     parse_named_go_command,
+    runegate_destination_entries,
 )
 from shadowbane_lab.travel.pathfinding import (
     AStarRoute,
@@ -101,7 +103,9 @@ __all__ = [
     "parse_go_command",
     "load_travel_destination",
     "load_world_destination_catalog",
+    "load_world_destination_overrides",
     "resolve_travel_destination",
+    "runegate_destination_entries",
     "parse_named_go_command",
     "save_travel_destination",
 ]

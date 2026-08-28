@@ -9,6 +9,7 @@ from typing import Protocol, runtime_checkable
 
 from shadowbane_lab.client_input import ClientInputAdapter, StopSignal
 from shadowbane_lab.client_observation import (
+    NativeCharacterPopulationObservation,
     NativeCombatEventParser,
     NativeCombatLogEntry,
     NativePlayerActionObservation,
@@ -78,6 +79,11 @@ class TargetIdentitySource(Protocol):
 
 
 @runtime_checkable
+class CharacterPopulationSource(Protocol):
+    def observe(self) -> NativeCharacterPopulationObservation: ...
+
+
+@runtime_checkable
 class CombatLogSource(Protocol):
     def read_new_entries(self) -> tuple[NativeCombatLogEntry, ...]: ...
 
@@ -134,6 +140,7 @@ class PvERunner:
         target_action_reader: TargetActionSource | None = None,
         player_action_reader: PlayerActionSource | None = None,
         target_identity_reader: TargetIdentitySource | None = None,
+        population_reader: CharacterPopulationSource | None = None,
         combat_log_reader: CombatLogSource,
         dispatcher: PvEIntentDispatcher,
         approach_controller: PvEApproachController | None = None,
@@ -179,6 +186,13 @@ class PvERunner:
             raise ValueError("target_identity_reader must implement TargetIdentitySource")
         if controller.requires_target_identity and target_identity_reader is None:
             raise ValueError("configured target policy requires a target identity reader")
+        if population_reader is not None and not isinstance(
+            population_reader,
+            CharacterPopulationSource,
+        ):
+            raise ValueError("population_reader must implement CharacterPopulationSource")
+        if controller.requires_population and population_reader is None:
+            raise ValueError("configured target policy requires a population reader")
         if not isinstance(combat_log_reader, CombatLogSource):
             raise ValueError("combat_log_reader must implement CombatLogSource")
         if not isinstance(dispatcher, PvEIntentDispatcher):
@@ -231,6 +245,7 @@ class PvERunner:
         self._target_action_reader = target_action_reader
         self._player_action_reader = player_action_reader
         self._target_identity_reader = target_identity_reader
+        self._population_reader = population_reader
         self._combat_log_reader = combat_log_reader
         self._dispatcher = dispatcher
         self._approach_controller = approach_controller
@@ -273,6 +288,11 @@ class PvERunner:
                 break
             try:
                 target = self._health_reader.observe()
+                population = (
+                    None
+                    if self._population_reader is None
+                    else self._population_reader.observe()
+                )
                 target_action = (
                     None
                     if self._target_action_reader is None
@@ -337,6 +357,7 @@ class PvERunner:
                     target_action=target_action,
                     player_action=player_action,
                     target_identity=target_identity,
+                    population=population,
                 )
                 last_observation = observation
                 decision = self._controller.step(observation)
@@ -605,6 +626,34 @@ class PvERunner:
             target_action=(None if observation is None else observation.target_action),
             player_action=(None if observation is None else observation.player_action),
             target_identity=(None if observation is None else observation.target_identity),
+            population_character_count=(
+                None
+                if observation is None or observation.population is None
+                else len(observation.population.characters)
+            ),
+            population_attack_eligible_count=(
+                None
+                if observation is None or observation.population is None
+                else sum(
+                    character.attack_eligible
+                    for character in observation.population.characters
+                )
+            ),
+            population_selected_target_token=(
+                None
+                if observation is None or observation.population is None
+                else observation.population.selected_target_token
+            ),
+            population_player_action_target_token=(
+                None
+                if observation is None or observation.population is None
+                else observation.population.player_action_target_token
+            ),
+            population_scan_generation=(
+                None
+                if observation is None or observation.population is None
+                else observation.population.scan_generation
+            ),
             target_planar_distance=(
                 None if observation is None else observation.target_planar_distance
             ),

@@ -1,3 +1,4 @@
+import json
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -11,6 +12,8 @@ from shadowbane_lab.client_input import (
 from shadowbane_lab.client_observation import (
     NativePlayerPositionObservation,
     NativePlayerVitalsObservation,
+    NativeRunegateObservation,
+    NativeRunegateRegistryObservation,
 )
 from shadowbane_lab.protocol import DispatchResult, Vector2
 from shadowbane_lab.travel import (
@@ -25,6 +28,7 @@ from shadowbane_lab.travel import (
     TravelPlan,
     TravelRunner,
     build_world_destination_catalog,
+    load_world_destination_catalog,
     parse_go_command,
     parse_named_go_command,
     resolve_travel_destination,
@@ -147,6 +151,117 @@ class NamedWorldDestinationTests(unittest.TestCase):
         self.assertEqual(TravelDestination(66_536, 51_152), resolved.destination)
         with self.assertRaisesRegex(NamedTravelDestinationError, "unknown"):
             catalog.resolve("definitely nowhere", origin=_position(0, 0))
+
+    def test_server_confirmed_overlay_adds_emulator_runegate(self) -> None:
+        world_text = """
+            WORLDNAME= Aerynth
+            WORLDNUM= 1
+            LENGTH= 512
+            WIDTH= 384
+            <BEGINZONE> 1
+                CENTX= 65536
+                CENTZ= -49152
+                <BEGINZONE> 11006
+                    # ZONE_#NAME= "Runegate"
+                    CENTX= -18816
+                    CENTZ= -4480
+                <ENDZONE>
+            <ENDZONE>
+        """
+        overlay = {
+            "schema_version": 1,
+            "world_name": "Aerynth",
+            "destinations": [
+                {
+                    "names": ["Runegate Sea Dog's Rest"],
+                    "lt": 88980,
+                    "lg": 45020,
+                    "arrival_radius": 75,
+                    "source": "wonderbane_server_confirmed",
+                }
+            ],
+        }
+        with TemporaryDirectory() as directory:
+            world_path = Path(directory) / "WorldDef.cfg"
+            overlay_path = Path(directory) / "destinations.json"
+            world_path.write_text(world_text, encoding="utf-8")
+            overlay_path.write_text(json.dumps(overlay), encoding="utf-8")
+
+            catalog = load_world_destination_catalog(
+                world_path,
+                overrides_path=overlay_path,
+            )
+            resolved = catalog.resolve(
+                "runegate",
+                origin=_position(88_900, 45_100),
+            )
+
+        self.assertEqual(2, resolved.candidate_count)
+        self.assertEqual("Runegate Sea Dog's Rest", resolved.matched_name)
+        self.assertIsNone(resolved.template_id)
+        self.assertEqual("wonderbane_server_confirmed", resolved.source)
+        self.assertEqual(TravelDestination(88_980, 45_020), resolved.destination)
+
+    def test_server_registry_replaces_static_runegates_and_deduplicates_override(self) -> None:
+        world = parse_world_definition(
+            """
+            WORLDNAME= Aerynth
+            WORLDNUM= 1
+            LENGTH= 512
+            WIDTH= 384
+            <BEGINZONE> 1
+                CENTX= 65536
+                CENTZ= -49152
+                <BEGINZONE> 11006
+                    # ZONE_#NAME= "Runegate"
+                    CENTX= -18816
+                    CENTZ= -4480
+                <ENDZONE>
+            <ENDZONE>
+            """
+        )
+        static = build_world_destination_catalog(world)
+        confirmed = static.entries + (
+            static.entries[0].__class__(
+                names=("Runegate Sea Dog's Rest",),
+                template_id=None,
+                destination=TravelDestination(88_980, 45_020),
+                source="wonderbane_server_confirmed",
+            ),
+        )
+        catalog = static.__class__(world, confirmed)
+        registry = NativeRunegateRegistryObservation(
+            runegates=(
+                NativeRunegateObservation(
+                    object_type=7,
+                    object_uuid=401,
+                    zone_name="Sea Dog's Rest",
+                    lt=88_980,
+                    lg=45_020,
+                    altitude=132,
+                ),
+                NativeRunegateObservation(
+                    object_type=7,
+                    object_uuid=402,
+                    zone_name="Tyranth",
+                    lt=46_720,
+                    lg=53_632,
+                    altitude=144,
+                ),
+            ),
+            registry_token="ab" * 12,
+        )
+
+        resolved_catalog = catalog.with_authoritative_runegates(registry)
+        sea_dog = resolved_catalog.resolve(
+            "runegate",
+            origin=_position(88_900, 45_100),
+        )
+
+        self.assertEqual(2, sea_dog.candidate_count)
+        self.assertEqual("Runegate Sea Dog's Rest", sea_dog.matched_name)
+        self.assertEqual("server_citydata_runegate_registry", sea_dog.source)
+        self.assertEqual(TravelDestination(88_980, 45_020), sea_dog.destination)
 
 
 class TravelDestinationStateTests(unittest.TestCase):

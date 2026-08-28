@@ -4,18 +4,26 @@ The live PvE slice repeatedly acquires nearby mobiles and attacks only a newly c
 target. The persistent `/pve` command runs continuously inside a spatial lease centered on the
 player's exact LT/LG when the command starts. Targets outside that camp radius are never admitted;
 an empty camp becomes an idle respawn wait, and drift is routed back to the anchor through the
-same terrain-seeded A* controller. The one-shot command retains its bounded kill, encounter,
+same terrain-seeded A* controller. Camp return uses hysteresis: the default lease starts a return
+only beyond 30 units and considers it complete inside 12 units, preventing boundary chatter. An
+unroutable A* request becomes a recoverable target/camp failure instead of terminating the whole
+session as an observation error. The one-shot command retains its bounded kill, encounter,
 recovery, and session limits for validation runs. Both modes consume exact player vitals and position,
 selected-target health, position, action state, local-player animation state, and native
-service-role identity. Native message events are optional evidence;
+service-role identity. It also reads the complete loaded native character population without
+changing selection. Native message events are optional evidence;
 the persistent in-game command does not depend on a populated message HUD.
 
 ## Control loop
 
 The controller progresses through `INITIALIZING`, `SEEKING`, `OPENING`, `ENGAGED`,
 `POST_KILL`, and, in continuous mode, `CAMP_IDLE`.
-It records the initially selected object's opaque token, sends `Target Next Mob`, and will
-attack only after observing a different, valid target token. A kill must be confirmed by a
+It ranks all loaded, living, attack-eligible characters inside the camp by exact player distance.
+Only after choosing a target does it use `Target Next Mob`, stopping as soon as the selected
+opaque token matches that chosen character; a wrapped selection cycle marks only that candidate
+temporarily unavailable and advances to the next ranked one. Selection and the player's current
+action target remain separate observations, so melee commitment can continue while selection is
+prepared for a power. A kill must be confirmed by a
 typed native `TARGET_KILLED` event or exact selected-target health reaching zero before it
 counts or another target can be acquired. A zero-health acquisition candidate is treated as a
 corpse and is never attacked.
@@ -34,9 +42,8 @@ The live profile maps semantic operations to the installed client's captured nat
 preferences:
 
 - `client.pve.target_next_mobile` uses `;` (`Target Next Mob`, native action `188`); and
-- `client.pve.target_previous_mobile` uses `'` (`Target Previous Mob`, native action `189`);
-  the nearest-target sampler uses it to rewind directly through the bounded sample instead of
-  traversing the rest of a crowded camp; and
+- `client.pve.target_previous_mobile` uses `'` (`Target Previous Mob`, native action `189`) and
+  remains available to the controller's legacy bounded-selection fallback; and
 - `shadowbane.basic_attack` uses `Ctrl+A` (`Attack Selected`).
 
 `Clear Target` is native action `102`, but it had no key record in that capture, so the harness

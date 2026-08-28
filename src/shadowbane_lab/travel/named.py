@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
 from difflib import get_close_matches
-from math import cos, radians, sin
+from math import cos, isfinite, radians, sin
 from pathlib import Path
 
-from shadowbane_lab.client_observation import NativePlayerPositionObservation
+from shadowbane_lab.client_observation import (
+    NativePlayerPositionObservation,
+    NativeRunegateRegistryObservation,
+)
 from shadowbane_lab.travel.model import TravelDestination
 from shadowbane_lab.world_data import WorldDefinition, ZonePlacement, load_world_definition
 
@@ -27,18 +31,23 @@ class NamedTravelDestinationError(ValueError):
 @dataclass(frozen=True, slots=True)
 class WorldDestinationEntry:
     names: tuple[str, ...]
-    template_id: int
+    template_id: int | None
     destination: TravelDestination
+    source: str = "client_world_definition"
 
     def __post_init__(self) -> None:
         if not self.names or any(not item.strip() for item in self.names):
             raise ValueError("world destination names must be non-empty")
-        if isinstance(self.template_id, bool) or not isinstance(self.template_id, int):
-            raise ValueError("world destination template_id must be an integer")
-        if self.template_id < 0:
+        if self.template_id is not None and (
+            isinstance(self.template_id, bool) or not isinstance(self.template_id, int)
+        ):
+            raise ValueError("world destination template_id must be an integer when present")
+        if self.template_id is not None and self.template_id < 0:
             raise ValueError("world destination template_id must be non-negative")
         if not isinstance(self.destination, TravelDestination):
             raise ValueError("world destination must be TravelDestination")
+        if not isinstance(self.source, str) or not self.source.strip():
+            raise ValueError("world destination source must be non-empty")
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,8 +55,9 @@ class ResolvedNamedDestination:
     query: str
     matched_name: str
     candidate_count: int
-    template_id: int
+    template_id: int | None
     destination: TravelDestination
+    source: str
 
 
 class WorldDestinationCatalog:
@@ -96,6 +106,41 @@ class WorldDestinationCatalog:
     def entries(self) -> tuple[WorldDestinationEntry, ...]:
         return self._entries
 
+    def with_authoritative_runegates(
+        self,
+        observation: NativeRunegateRegistryObservation,
+    ) -> WorldDestinationCatalog:
+        """Replace baked runegates with the active server registry.
+
+        Emulator-confirmed overrides remain as coordinate-deduplicated fallbacks so a
+        temporarily incomplete or racing CityData snapshot does not forget a verified gate.
+        """
+
+        if not isinstance(observation, NativeRunegateRegistryObservation):
+            raise ValueError("observation must be NativeRunegateRegistryObservation")
+        retained = tuple(
+            entry
+            for entry in self._entries
+            if not _is_runegate_entry(entry)
+            or entry.source == "wonderbane_server_confirmed"
+        )
+        authoritative = runegate_destination_entries(observation)
+        authoritative_coordinates = {
+            (round(entry.destination.lt, 3), round(entry.destination.lg, 3))
+            for entry in authoritative
+        }
+        retained = tuple(
+            entry
+            for entry in retained
+            if not _is_runegate_entry(entry)
+            or (
+                round(entry.destination.lt, 3),
+                round(entry.destination.lg, 3),
+            )
+            not in authoritative_coordinates
+        )
+        return WorldDestinationCatalog(self._world, retained + authoritative)
+
     def resolve(
         self,
         query: str,
@@ -135,6 +180,7 @@ class WorldDestinationCatalog:
             candidate_count=len(candidates),
             template_id=selected.template_id,
             destination=destination,
+            source=selected.source,
         )
 
 
@@ -147,8 +193,115 @@ def parse_named_go_command(command: str) -> str:
     return " ".join(match.group("name").split())
 
 
-def load_world_destination_catalog(path: str | Path) -> WorldDestinationCatalog:
-    return build_world_destination_catalog(load_world_definition(path))
+def load_world_destination_catalog(
+    path: str | Path,
+    *,
+    overrides_path: str | Path | None = None,
+) -> WorldDestinationCatalog:
+    world = load_world_definition(path)
+    catalog = build_world_destination_catalog(world)
+    if overrides_path is None:
+        return catalog
+    overrides = load_world_destination_overrides(overrides_path, world=world)
+    return WorldDestinationCatalog(world, catalog.entries + overrides)
+
+
+def load_world_destination_overrides(
+    path: str | Path,
+    *,
+    world: WorldDefinition,
+) -> tuple[WorldDestinationEntry, ...]:
+    """Load emulator-confirmed destinations layered over client WorldDef candidates."""
+
+    try:
+        payload = json.loads(Path(path).read_text(encoding="utf-8-sig"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise NamedTravelDestinationError(
+            f"could not load named-destination overrides: {exc}"
+        ) from exc
+    if not isinstance(payload, dict):
+        raise NamedTravelDestinationError("named-destination overrides must be an object")
+    if payload.get("schema_version") != 1:
+        raise NamedTravelDestinationError(
+            "named-destination overrides require schema_version 1"
+        )
+    if payload.get("world_name") != world.name:
+        raise NamedTravelDestinationError(
+            "named-destination overrides target a different world"
+        )
+    raw_destinations = payload.get("destinations")
+    if not isinstance(raw_destinations, list):
+        raise NamedTravelDestinationError(
+            "named-destination overrides require a destinations array"
+        )
+
+    entries: list[WorldDestinationEntry] = []
+    for index, raw in enumerate(raw_destinations):
+        label = f"named-destination override {index}"
+        if not isinstance(raw, dict):
+            raise NamedTravelDestinationError(f"{label} must be an object")
+        raw_names = raw.get("names")
+        if (
+            not isinstance(raw_names, list)
+            or not raw_names
+            or any(not isinstance(item, str) or not item.strip() for item in raw_names)
+        ):
+            raise NamedTravelDestinationError(f"{label} requires non-empty names")
+        names = tuple(dict.fromkeys(" ".join(item.split()) for item in raw_names))
+        lt = _override_coordinate(raw.get("lt"), label=label, axis="LT")
+        lg = _override_coordinate(raw.get("lg"), label=label, axis="LG")
+        if not 0.0 <= lt <= world.length * 256.0:
+            raise NamedTravelDestinationError(f"{label} has LT outside world bounds")
+        if not 0.0 <= lg <= world.width * 256.0:
+            raise NamedTravelDestinationError(f"{label} has LG outside world bounds")
+        arrival_radius = raw.get("arrival_radius", 75.0)
+        if (
+            isinstance(arrival_radius, bool)
+            or not isinstance(arrival_radius, (int, float))
+            or not isfinite(float(arrival_radius))
+            or float(arrival_radius) <= 0
+        ):
+            raise NamedTravelDestinationError(
+                f"{label} arrival_radius must be a positive finite number"
+            )
+        source = raw.get("source")
+        if not isinstance(source, str) or not source.strip():
+            raise NamedTravelDestinationError(f"{label} requires a non-empty source")
+        entries.append(
+            WorldDestinationEntry(
+                names=names,
+                template_id=None,
+                destination=TravelDestination(lt, lg, float(arrival_radius)),
+                source=source.strip(),
+            )
+        )
+    return tuple(entries)
+
+
+def runegate_destination_entries(
+    observation: NativeRunegateRegistryObservation,
+) -> tuple[WorldDestinationEntry, ...]:
+    """Convert the active server registry into named travel destinations."""
+
+    if not isinstance(observation, NativeRunegateRegistryObservation):
+        raise ValueError("observation must be NativeRunegateRegistryObservation")
+    entries = []
+    for runegate in observation.runegates:
+        label = " ".join(runegate.zone_name.split())
+        discriminator = label or str(runegate.object_uuid)
+        names = (
+            f"Runegate {discriminator}",
+            f"{discriminator} Runegate",
+        )
+        entries.append(
+            WorldDestinationEntry(
+                names=names,
+                template_id=None,
+                destination=TravelDestination(runegate.lt, runegate.lg),
+                source="server_citydata_runegate_registry",
+            )
+        )
+    return tuple(entries)
 
 
 def build_world_destination_catalog(world: WorldDefinition) -> WorldDestinationCatalog:
@@ -221,6 +374,20 @@ def _normalize_name(value: str) -> str:
     return " ".join(_NON_NAME_CHARACTER.sub(" ", without_apostrophes).split())
 
 
+def _is_runegate_entry(entry: WorldDestinationEntry) -> bool:
+    return any("runegate" in _normalize_name(name).split() for name in entry.names)
+
+
 def _clean_coordinate(value: float) -> float:
     rounded = round(value)
     return float(rounded) if abs(value - rounded) < 1e-9 else value
+
+
+def _override_coordinate(value: object, *, label: str, axis: str) -> float:
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or not isfinite(float(value))
+    ):
+        raise NamedTravelDestinationError(f"{label} {axis} must be a finite number")
+    return float(value)

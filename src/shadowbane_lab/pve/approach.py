@@ -281,7 +281,27 @@ class PvEApproachController:
         destination: TravelDestination,
     ) -> PvEApproachUpdate:
         if self._travel is None:
-            self._travel = self._plan_route(observation, destination)
+            try:
+                self._travel = self._plan_route(observation, destination)
+            except AStarRouteNotFound as exc:
+                assert observation.player_position is not None
+                self._terminal_reported = True
+                message = " ".join(str(exc).split())
+                detail = f":{message}" if message else ""
+                return PvEApproachUpdate(
+                    PvEApproachStatus.FAILED,
+                    TravelDecision(
+                        decision_id=0,
+                        now_ms=observation.now_ms,
+                        phase=TravelPhase.STOPPED,
+                        waypoint_index=0,
+                        distance_remaining=destination.distance_from(
+                            observation.player_position
+                        ),
+                        click_count=0,
+                        terminal_reason=f"astar_route_not_found{detail}",
+                    ),
+                )
         else:
             self._travel.update_final_destination(destination)
         decision = self._travel.step(self._last_travel_observation)

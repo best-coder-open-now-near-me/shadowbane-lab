@@ -31,13 +31,19 @@ powershell.exe -NoProfile -File \\VBOXSVR\codexrepo\scripts\stop-wonderbane-go-l
 ```
 
 While that process is running, enter `/go LT LG` in Shadowbane's chat command line. The
-installed `WorldDef.cfg` also enables names such as `/go black drake swamp` and numbered
-placements such as `/go runegate 1`. Duplicate names resolve to the placement nearest the
-exact current player position. `/go oblivion gate`, `/go death gate`, and `/go doomgate`
-resolve to the nearest Runegate because the black Death portal at any Runegate is the actual
-transition to Oblivion; the travel controller stops at that Runegate and does not enter the
-portal automatically. Unknown names fail closed and appear as rejected events in the listener
-log.
+installed `WorldDef.cfg` enables client-defined names such as `/go black drake swamp`.
+Runegates are different: the listener reads the active registry populated by the server's
+CityData message and replaces the incomplete baked `WorldDef.cfg` runegate candidates with
+those live records. Each record supplies its object identity, parent-zone label, and exact
+LT/LG. `configs/wonderbane-named-destinations.json` remains as a coordinate-deduplicated
+fallback for emulator-confirmed additions, including Sea Dog's Rest at LT 88980/LG 45020,
+if CityData is temporarily absent or changing. Duplicate names resolve to the placement
+nearest the exact current player position, and the accepted listener event records whether
+the result came from the live server registry, static client definition, or confirmed
+fallback. `/runegate` is a shortcut for `/go runegate`.
+`/go oblivion gate`, `/go death gate`, and `/go doomgate` use the same Runegate candidate set;
+the travel controller stops at the gate and does not enter its portal automatically. Unknown
+names fail closed and appear as rejected events in the listener log.
 
 Enter `/pve` to run the continuous proc-Assassin battle loop inside a 120-unit lease centered on
 the exact LT/LG where the command starts. It returns toward that anchor when the camp is empty or
@@ -90,6 +96,13 @@ Named coordinates are not a hand-maintained list. The listener preserves the cli
 `ZONE_#NAME` comments and `ZONELOADFILE` names, composes every nested `CENTX`/`CENTZ` through
 its parent placement and rotation, and maps the resulting world X/-Z values to LT/LG. It
 validates every named point against the installed world's declared bounds before listening.
+The runegate exception is intentional: emulator servers can inject buildings that are absent
+from `WorldDef.cfg`, so the calibrated read-only runegate reader follows the client's native
+server registry instead. Inspect that registry without moving or selecting anything with:
+
+```powershell
+python -m shadowbane_lab.cli client observe-native-runegates --json
+```
 
 The calibrated WonderBane build exposes the canonical position vector through the player
 object's verified position component. The native reader follows that exact object path and
