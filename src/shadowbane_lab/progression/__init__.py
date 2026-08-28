@@ -19,6 +19,26 @@ from shadowbane_lab.progression.calculator import (
     rogue_training_points_for_level,
     spell_damage_range,
 )
+from shadowbane_lab.progression.catalog import (
+    ALL_CHARACTER_SEXES,
+    BaseClassProfile,
+    CatalogVariantStatus,
+    CharacterSex,
+    CoreBuildIdentity,
+    CoverageEntry,
+    CoverageStatus,
+    DisciplineProfile,
+    GameCatalog,
+    IllegalCoreBuildError,
+    ProfessionProfile,
+    RaceProfile,
+)
+from shadowbane_lab.progression.catalog_loader import (
+    GameCatalogLoadError,
+    load_game_catalog,
+    load_game_catalog_text,
+    load_shadowbane_legacy_catalog,
+)
 from shadowbane_lab.progression.loader import (
     ProgressionProfileLoadError,
     load_wonderbane_irekei_proc_profile,
@@ -42,9 +62,20 @@ from shadowbane_lab.progression.model import (
 )
 
 __all__ = [
+    "ALL_CHARACTER_SEXES",
+    "BaseClassProfile",
+    "CatalogVariantStatus",
     "CharacterProgression",
+    "CharacterSex",
+    "CoreBuildIdentity",
+    "CoverageEntry",
+    "CoverageStatus",
+    "DisciplineProfile",
+    "GameCatalog",
+    "GameCatalogLoadError",
     "IdentityProfile",
     "IllegalProgressionError",
+    "IllegalCoreBuildError",
     "PowerTarget",
     "ProcAssassinRoadmap",
     "ProcAssassinTrainingAudit",
@@ -56,6 +87,8 @@ __all__ = [
     "ProgressionLimits",
     "ProgressionProfile",
     "ProgressionProfileLoadError",
+    "ProfessionProfile",
+    "RaceProfile",
     "RuneKind",
     "RankTargetAudit",
     "RuneProfile",
@@ -71,6 +104,9 @@ __all__ = [
     "focus_skill_cap",
     "irekei_proc_assassin_roadmap",
     "load_wonderbane_irekei_proc_profile",
+    "load_game_catalog",
+    "load_game_catalog_text",
+    "load_shadowbane_legacy_catalog",
     "melee_attack_rating",
     "rogue_training_points_for_level",
     "spell_damage_range",

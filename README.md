@@ -23,6 +23,9 @@ power ranges at explicit training-rank brackets. A sourced WonderBane progressio
 evaluates level/ability/training budgets and normalized unarmed-proc output for an Irekei
 Rogue Assassin. Build-guarded native readers now expose the live scalar progression core plus
 lossless skill and power vectors, and the sourced roadmap can audit those ranks directly.
+A provenance-aware legacy identity catalog provides a fail-closed baseline for race, base-class,
+profession, sex, and racial-discipline legality while current WonderBane creation-screen values
+are captured and verified.
 Native LT/LG feedback, selected-target and group-leader coordinates, and calibrated minimap axes
 support bounded closed-loop travel.
 Direct semantic PvE batches run known
@@ -37,6 +40,7 @@ an emergency stop, and explicit profile confirmation. See [the architecture](doc
 [camp-scoped PvE runbook](docs/pve-automation.md),
 [closed-loop travel runbook](docs/travel-automation.md),
 [client world-data notes](docs/world-data.md),
+[PvP data catalog and capture guide](docs/pvp-data.md),
 [automated VM setup](docs/vm-setup.md),
 [simulation rollout guide](docs/simulation-rollouts.md),
 [differential-validation contract](docs/differential-validation.md), and
