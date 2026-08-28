@@ -22,6 +22,8 @@ class WindowSnapshot:
     is_visible: bool
     executable_path: str | None = None
     process_id: int | None = None
+    window_handle: int | None = None
+    process_started_at_100ns: int | None = None
 
     def __post_init__(self) -> None:
         if not self.executable_name.strip():
@@ -46,6 +48,20 @@ class WindowSnapshot:
                 or self.process_id <= 0
             ):
                 raise ValueError("process_id must be a positive integer or None")
+        if self.window_handle is not None:
+            if (
+                isinstance(self.window_handle, bool)
+                or not isinstance(self.window_handle, int)
+                or self.window_handle <= 0
+            ):
+                raise ValueError("window_handle must be a positive integer or None")
+        if self.process_started_at_100ns is not None:
+            if (
+                isinstance(self.process_started_at_100ns, bool)
+                or not isinstance(self.process_started_at_100ns, int)
+                or self.process_started_at_100ns <= 0
+            ):
+                raise ValueError("process_started_at_100ns must be a positive integer or None")
 
 
 @runtime_checkable
@@ -206,6 +222,14 @@ class _WindowsWindowApi:
             ctypes.POINTER(wintypes.DWORD),
         )
         self._kernel32.QueryFullProcessImageNameW.restype = wintypes.BOOL
+        self._kernel32.GetProcessTimes.argtypes = (
+            wintypes.HANDLE,
+            ctypes.POINTER(wintypes.FILETIME),
+            ctypes.POINTER(wintypes.FILETIME),
+            ctypes.POINTER(wintypes.FILETIME),
+            ctypes.POINTER(wintypes.FILETIME),
+        )
+        self._kernel32.GetProcessTimes.restype = wintypes.BOOL
         self._kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
         self._kernel32.CloseHandle.restype = wintypes.BOOL
         if hasattr(self._user32, "GetDpiForWindow"):
@@ -256,6 +280,23 @@ class _WindowsWindowApi:
                 return None
             executable_path = path_buffer.value
             executable_name = Path(executable_path).name
+            creation_time = wintypes.FILETIME()
+            exit_time = wintypes.FILETIME()
+            kernel_time = wintypes.FILETIME()
+            user_time = wintypes.FILETIME()
+            if not kernel32.GetProcessTimes(
+                process,
+                ctypes.byref(creation_time),
+                ctypes.byref(exit_time),
+                ctypes.byref(kernel_time),
+                ctypes.byref(user_time),
+            ):
+                return None
+            process_started_at_100ns = (
+                creation_time.dwHighDateTime << 32
+            ) | creation_time.dwLowDateTime
+            if process_started_at_100ns <= 0:
+                return None
         finally:
             kernel32.CloseHandle(process)
 
@@ -281,6 +322,8 @@ class _WindowsWindowApi:
             is_visible=bool(user32.IsWindowVisible(window)),
             executable_path=executable_path,
             process_id=process_id.value,
+            window_handle=int(window),
+            process_started_at_100ns=process_started_at_100ns,
         )
 
     def visible_snapshots(self) -> tuple[WindowSnapshot, ...]:

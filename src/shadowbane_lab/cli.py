@@ -9,6 +9,7 @@ import queue
 import sys
 import threading
 import time
+import webbrowser
 from collections.abc import Sequence
 from contextlib import ExitStack
 from datetime import UTC, datetime
@@ -123,6 +124,21 @@ from shadowbane_lab.client_observation import (
     open_windows_native_target_identity_reader,
     open_windows_native_target_position_reader,
     open_windows_native_world_map_reader,
+)
+from shadowbane_lab.manager import (
+    ClientLifecycleSupervisor,
+    ClientRegistrySnapshot,
+    ClientWindowRegistry,
+    DashboardServer,
+    GuardedWindowControl,
+    ManagerDashboardApplication,
+    ManagerSession,
+    ManifestClientRegistryProvider,
+    SubprocessLauncher,
+    VisibleWindowRegistrySource,
+    Win32ProcessLifetimeInspector,
+    Win32WindowApi,
+    load_manager_manifest,
 )
 from shadowbane_lab.progression import (
     CalculatorReviewStatus,
@@ -706,6 +722,79 @@ def _parser() -> argparse.ArgumentParser:
     )
     listen_go.add_argument("--json", action="store_true", help="emit JSON Lines events")
 
+    manager = commands.add_parser(
+        "manager",
+        help="inspect local client instances without focusing them or sending input",
+    )
+    manager_commands = manager.add_subparsers(dest="manager_command", required=True)
+    manager_inspect = manager_commands.add_parser(
+        "inspect",
+        help="emit a node-tagged inventory of matching visible clients",
+    )
+    manager_inspect.add_argument(
+        "--node-id",
+        required=True,
+        help="stable identifier for this PC in manager evidence and client identities",
+    )
+    manager_inspect.add_argument(
+        "--process-directory",
+        type=Path,
+        help="optional exact directory containing the expected game executable",
+    )
+    manager_inspect.add_argument(
+        "--executable-name",
+        dest="executable_names",
+        action="append",
+        metavar="NAME",
+        help="allowed executable file name; repeatable and defaults to sb.exe",
+    )
+    manager_inspect.add_argument(
+        "--json",
+        action="store_true",
+        help="emit machine-readable JSON",
+    )
+    manager_preflight = manager_commands.add_parser(
+        "preflight",
+        help="validate a local lifecycle manifest and inventory its matching clients",
+    )
+    manager_preflight.add_argument(
+        "manifest",
+        type=Path,
+        help="strict schema-v1 manager manifest JSON",
+    )
+    manager_preflight.add_argument(
+        "--json",
+        action="store_true",
+        help="emit machine-readable JSON",
+    )
+    manager_app = manager_commands.add_parser(
+        "app",
+        help="run the authenticated localhost lifecycle dashboard",
+    )
+    manager_app.add_argument(
+        "manifest",
+        type=Path,
+        help="strict schema-v1 manager manifest JSON",
+    )
+    manager_app.add_argument(
+        "--port",
+        type=int,
+        default=0,
+        help="loopback TCP port; defaults to an ephemeral available port",
+    )
+    manager_app.add_argument("--launch-timeout-seconds", type=float, default=30.0)
+    manager_app.add_argument("--poll-ms", type=int, default=500)
+    manager_app.add_argument(
+        "--no-browser",
+        action="store_true",
+        help="print the authenticated dashboard URL without opening a browser",
+    )
+    manager_app.add_argument(
+        "--live",
+        action="store_true",
+        help="required because dashboard actions may launch, tile, or close clients",
+    )
+
     progression = commands.add_parser(
         "progression",
         help="import and inspect sourced character-progression data",
@@ -797,6 +886,260 @@ def _inspect_client(*, as_json: bool) -> int:
         )
     _print_snapshot(snapshot, as_json=as_json)
     return 0
+
+
+def _inspect_manager(
+    *,
+    node_id: str,
+    executable_names: Sequence[str],
+    process_directory: Path | None,
+    as_json: bool,
+) -> int:
+    if process_directory is not None and not process_directory.is_dir():
+        return _error(
+            f"process directory does not exist: {process_directory}",
+            as_json=as_json,
+        )
+    resolved_names = tuple(executable_names) or ("sb.exe",)
+    try:
+        snapshot = ClientWindowRegistry(
+            WindowsVisibleWindowInspector(),
+            node_id=node_id,
+            executable_names=resolved_names,
+            process_directory=process_directory,
+        ).inspect()
+    except (OSError, RuntimeError, ValueError) as exc:
+        return _error(f"manager inspection failed: {exc}", as_json=as_json)
+
+    payload = {"ok": True, **snapshot.as_dict()}
+    if as_json:
+        print(json.dumps(payload, sort_keys=True))
+        return 0
+
+    print(f"Node: {snapshot.node_id}")
+    print(f"Attachable clients: {len(snapshot.clients)}")
+    for client in snapshot.clients:
+        print(
+            f"- {client.instance_id}: pid={client.process_id} "
+            f"hwnd={client.window_handle} {client.executable_name} {client.title!r}"
+        )
+    print(f"Rejected windows: {len(snapshot.rejected)}")
+    for window in snapshot.rejected:
+        reasons = ", ".join(reason.value for reason in window.reasons)
+        print(f"- {window.executable_name} {window.title!r}: {reasons}")
+    return 0
+
+
+def _manager_path_status(path: Path, *, kind: str) -> dict[str, object]:
+    exists = path.exists()
+    correct_kind = path.is_file() if kind == "file" else path.is_dir()
+    return {
+        "path": str(path),
+        "expected_kind": kind,
+        "exists": exists,
+        "correct_kind": correct_kind,
+        "ready": exists and correct_kind,
+    }
+
+
+def _preflight_manager(manifest_path: Path, *, as_json: bool) -> int:
+    try:
+        manifest = load_manager_manifest(manifest_path)
+        inspector = WindowsVisibleWindowInspector()
+        group_sizes: dict[tuple[tuple[str, ...], str], int] = {}
+        snapshots: dict[tuple[tuple[str, ...], str], ClientRegistrySnapshot] = {}
+        keys: list[tuple[tuple[str, ...], str]] = []
+        for config in manifest.clients:
+            key = (
+                tuple(sorted(name.casefold() for name in config.expected_executable_names)),
+                ntpath.normcase(
+                    ntpath.normpath(ntpath.abspath(str(config.expected_process_directory)))
+                ).casefold(),
+            )
+            keys.append(key)
+            group_sizes[key] = group_sizes.get(key, 0) + 1
+            if key not in snapshots:
+                snapshots[key] = ClientWindowRegistry(
+                    inspector,
+                    node_id=manifest.node_id,
+                    executable_names=config.expected_executable_names,
+                    process_directory=config.expected_process_directory,
+                ).inspect()
+
+        clients: list[dict[str, object]] = []
+        ready = True
+        for config, key in zip(manifest.clients, keys, strict=True):
+            snapshot = snapshots[key]
+            launch_executable = _manager_path_status(
+                Path(config.launch.executable),
+                kind="file",
+            )
+            working_directory = _manager_path_status(
+                Path(config.launch.working_directory),
+                kind="directory",
+            )
+            process_directory = _manager_path_status(
+                Path(config.expected_process_directory),
+                kind="directory",
+            )
+            environment_ready = all(
+                item["ready"]
+                for item in (launch_executable, working_directory, process_directory)
+            )
+            if snapshot.rejected:
+                binding_status = "unsafe_identity"
+            elif not snapshot.clients:
+                binding_status = "ready_to_launch"
+            elif len(snapshot.clients) == 1 and group_sizes[key] == 1:
+                binding_status = "attachable"
+            else:
+                binding_status = "selection_required"
+            client_ready = environment_ready and binding_status != "unsafe_identity"
+            ready = ready and client_ready
+            clients.append(
+                {
+                    "client_id": config.client_id,
+                    "environment_ready": environment_ready,
+                    "binding_status": binding_status,
+                    "filesystem": {
+                        "launch_executable": launch_executable,
+                        "working_directory": working_directory,
+                        "expected_process_directory": process_directory,
+                    },
+                    "expected_executable_names": list(config.expected_executable_names),
+                    "window_tile": (
+                        None if config.window_tile is None else config.window_tile.to_dict()
+                    ),
+                    "matching_instances": [
+                        client.to_dict() for client in snapshot.clients
+                    ],
+                    "rejected_windows": [
+                        window.to_dict() for window in snapshot.rejected
+                    ],
+                }
+            )
+    except (OSError, RuntimeError, ValueError) as exc:
+        return _error(f"manager preflight failed: {exc}", as_json=as_json)
+
+    payload = {
+        "ok": True,
+        "ready": ready,
+        "schema_version": manifest.schema_version,
+        "node_id": manifest.node_id,
+        "clients": clients,
+    }
+    if as_json:
+        print(json.dumps(payload, sort_keys=True))
+        return 0
+
+    print(f"Node: {manifest.node_id}")
+    print(f"Lifecycle preflight ready: {'yes' if ready else 'no'}")
+    for client in clients:
+        print(
+            f"- {client['client_id']}: {client['binding_status']} "
+            f"environment_ready={str(client['environment_ready']).lower()}"
+        )
+    return 0
+
+
+def _run_manager_app(
+    manifest_path: Path,
+    *,
+    port: int,
+    launch_timeout_seconds: float,
+    poll_ms: int,
+    open_browser: bool,
+    live: bool,
+) -> int:
+    if not live:
+        return _error(
+            "manager app is live lifecycle control; pass --live to enable it",
+            as_json=False,
+        )
+    if (
+        isinstance(launch_timeout_seconds, bool)
+        or not isinstance(launch_timeout_seconds, (int, float))
+        or not 1.0 <= launch_timeout_seconds <= 600.0
+    ):
+        return _error(
+            "launch-timeout-seconds must be in [1, 600]",
+            as_json=False,
+        )
+    if isinstance(poll_ms, bool) or not isinstance(poll_ms, int) or not 25 <= poll_ms <= 10_000:
+        return _error("poll-ms must be in [25, 10000]", as_json=False)
+
+    try:
+        manifest = load_manager_manifest(manifest_path)
+        missing_environment: list[str] = []
+        for config in manifest.clients:
+            checks = (
+                (
+                    "launch executable",
+                    _manager_path_status(Path(config.launch.executable), kind="file"),
+                ),
+                (
+                    "working directory",
+                    _manager_path_status(
+                        Path(config.launch.working_directory),
+                        kind="directory",
+                    ),
+                ),
+                (
+                    "expected process directory",
+                    _manager_path_status(
+                        Path(config.expected_process_directory),
+                        kind="directory",
+                    ),
+                ),
+            )
+            missing_environment.extend(
+                f"{config.client_id} {label}: {check['path']}"
+                for label, check in checks
+                if not check["ready"]
+            )
+        if missing_environment:
+            return _error(
+                "manager app environment is not ready: " + "; ".join(missing_environment),
+                as_json=False,
+            )
+
+        inspector = WindowsVisibleWindowInspector()
+        process_inspector = Win32ProcessLifetimeInspector()
+        aggregate_registry = ManifestClientRegistryProvider(inspector, manifest)
+        window_control = GuardedWindowControl(aggregate_registry, Win32WindowApi())
+        supervisor = ClientLifecycleSupervisor(
+            VisibleWindowRegistrySource(inspector),
+            launcher=SubprocessLauncher(process_inspector),
+            window_controller=window_control,
+            process_inspector=process_inspector,
+        )
+        session = ManagerSession(manifest, supervisor)
+        application = ManagerDashboardApplication(
+            manifest,
+            session,
+            aggregate_registry,
+            launch_timeout_seconds=launch_timeout_seconds,
+            poll_seconds=poll_ms / 1_000.0,
+        )
+        server = DashboardServer(application, port=port)
+        with server:
+            print(f"Manager dashboard: {server.suggested_url}")
+            print("Press Ctrl+C to stop the dashboard; managed clients will remain open.")
+            if open_browser:
+                try:
+                    if not webbrowser.open(server.suggested_url, new=1):
+                        print("Could not open a browser; use the printed dashboard URL.")
+                except (OSError, webbrowser.Error):
+                    print("Could not open a browser; use the printed dashboard URL.")
+            try:
+                while server.is_running:
+                    time.sleep(0.25)
+            except KeyboardInterrupt:
+                print("Stopping manager dashboard...")
+                return 0
+            raise RuntimeError("manager dashboard stopped unexpectedly")
+    except (OSError, RuntimeError, ValueError) as exc:
+        return _error(f"manager app failed: {exc}", as_json=False)
 
 
 def _print_snapshot(snapshot: WindowSnapshot, *, as_json: bool) -> None:
@@ -3482,6 +3825,24 @@ def _error(message: str, *, as_json: bool) -> int:
 
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = _parser().parse_args(argv)
+    if arguments.command == "manager" and arguments.manager_command == "inspect":
+        return _inspect_manager(
+            node_id=arguments.node_id,
+            executable_names=arguments.executable_names or (),
+            process_directory=arguments.process_directory,
+            as_json=arguments.json,
+        )
+    if arguments.command == "manager" and arguments.manager_command == "preflight":
+        return _preflight_manager(arguments.manifest, as_json=arguments.json)
+    if arguments.command == "manager" and arguments.manager_command == "app":
+        return _run_manager_app(
+            arguments.manifest,
+            port=arguments.port,
+            launch_timeout_seconds=arguments.launch_timeout_seconds,
+            poll_ms=arguments.poll_ms,
+            open_browser=not arguments.no_browser,
+            live=arguments.live,
+        )
     if (
         arguments.command == "progression"
         and arguments.progression_command == "import-wonderbane-calculator"

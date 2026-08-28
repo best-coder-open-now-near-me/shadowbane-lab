@@ -37,6 +37,7 @@ where = ["src"]
 "shadowbane_lab.rulesets" = ["data/*.json"]
 "shadowbane_lab.differential" = ["data/*.json"]
 "shadowbane_lab.client_observation" = ["data/*.json"]
+"shadowbane_lab.manager" = ["static/*.html"]
 "shadowbane_lab.progression" = ["data/*.json"]
 
 [tool.ruff]

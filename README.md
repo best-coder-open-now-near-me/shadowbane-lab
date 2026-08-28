@@ -38,12 +38,17 @@ support bounded closed-loop travel.
 Direct semantic PvE batches run known
 player/mob encounters across contiguous deterministic seeds without client targeting or
 window-safety machinery; a separate bridge tests the guarded production PvE controller.
+The local multi-client manager now provides strict per-PC lifecycle manifests, read-only
+preflight, exact launch/attach correlation, dispatch-only pause/resume, non-activating window
+tiling, graceful-close primitives, and an authenticated localhost dashboard without coupling
+character tactics to a host PC.
 Differential traces can record and compare
 simulator and emulator semantics
 without relying on producer-specific IDs. The input adapter compiles the same semantic
 decisions into calibrated plans and keeps live PyAutoGUI input locked behind window guards,
 an emergency stop, and explicit profile confirmation. See [the architecture](docs/architecture.md),
 [client-input runbook](docs/client-input-harness.md),
+[local multi-client manager](docs/client-manager.md),
 [camp-scoped PvE runbook](docs/pve-automation.md),
 [closed-loop travel runbook](docs/travel-automation.md),
 [client world-data notes](docs/world-data.md),
