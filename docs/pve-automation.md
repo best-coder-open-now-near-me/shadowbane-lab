@@ -3,8 +3,8 @@
 The live PvE slice repeatedly acquires nearby mobiles, attacks only a newly confirmed living
 target, waits for bounded resource recovery after each kill, and stops at explicit kill,
 encounter, recovery, or session limits. It consumes exact player vitals and position,
-selected-target health, position, action state, and native service-role identity. Native message
-events are optional evidence;
+selected-target health, position, action state, local-player animation state, and native
+service-role identity. Native message events are optional evidence;
 the persistent in-game command does not depend on a populated message HUD.
 
 ## Control loop
@@ -56,9 +56,12 @@ is the client's direct attack-selected command and therefore avoids an unobserve
 target the game acquired automatically only after a fresh native player-hit record, then
 observes that target's native action queue. It uses rank-40 Shadow Touch once when the mob
 queues or begins an attack aimed at the local player and native mana is at least its verified
-55-point cost. It sends `Ctrl+A` only after five seconds
-without a health decrease or player-hit record. A newly auto-selected target is accepted only
-after the previous kill has been confirmed by the native message stream.
+55-point cost. When an explicitly acquired target is already within measured melee range, it
+sends `Ctrl+A` immediately. If neither participant deals damage, the controller watches the
+local player's native action sequence: it cycles a target after 1.5 seconds when the attack
+animation never begins, or after 2.5 seconds when an animation begins but still produces no
+hit. A newly auto-selected target is accepted only after the previous kill has been confirmed
+by the native message stream.
 
 The target-action profile is locked to the verified WonderBane executable hash and reads the
 selected `ArcCharacter` action-pending flag, current `ArcMotion` ID, impact marker, and
@@ -78,11 +81,29 @@ impact marker; the next queue arrived 12.3 seconds later and was correctly ignor
 once-per-target guard. This proves the native signal-to-semantic-input path on the calibrated
 client build; it does not claim every creature has identical animation timing.
 
+The same guarded `ArcCharacter`/`ArcMotion` layout is sampled for the local player. Each trace
+records player motion ID, action-pending flag, impact frame, selected action target, derived
+phase, action sequence, and exact motion-transition sequence. A targeted action or motion
+transition after dispatch proves that an attack animation started; unrelated player animations
+do not extend the target grace period. Live validation also showed that the local player's
+impact marker can linger while motion and targets change, so impact alone is neither treated as
+a fresh animation nor allowed to suppress recovery. There is not yet a separately decoded
+player-stun bit; actual LT/LG displacement—not the input dispatch—is the authority for whether
+a reposition succeeded.
+
 The current WonderBane 1.0.5 regression also exercised mixed town targets. A preselected Tree
 of Life was classified as a non-character and cycled without attack input; service characters
 were skipped by their native role data. A later run abandoned a nonresponsive 75-health Crab,
 kept its opaque token excluded, acquired a 10-health Turtle, normalized the client's signed
 overkill health to zero, and completed at the one-kill limit.
+
+The local-player animation regression then repeated that path with the native-state source. In
+the final bounded run, two 75-health targets showed targeted motion transitions from motion 15
+to motion 3 but no health exchange; they were excluded 2,500 and 2,563 ms after direct attack.
+A later 10-health target transitioned through the same motion evidence and reached exact native
+health zero, completing the one-kill run. The trace also confirmed that player impact-frame
+state lingered across multiple motion and target changes, which is why motion sequence—not an
+impact marker by itself—is the animation authority.
 
 Shadow Touch must have a real key mapping in the local client profile before this policy can
 run. The checked profile intentionally does not invent one; a proc-Assassin run fails before
@@ -122,6 +143,13 @@ proc-Assassin policy remembers that target for the rest of the session, abandons
 the verified Target Next Mob binding to seek a different mobile. It requires a new native
 target token before engaging again and permits at most four such retargets, so an unresponsive
 cluster cannot create an input loop.
+
+If the player loses health within melee range while the selected target loses none, and the
+player is natively idle rather than animating, the controller can request at most two combat
+repositions per target. The approach layer tightens its arrival radius from 20 units to 3 and
+reuses the terrain-seeded weighted-A* and learned-obstacle recovery. Continued input without
+measured displacement does not count as successful recovery; the existing engagement and
+stalled-target bounds still terminate or retarget.
 
 A single torn native observation is not treated as a trustworthy state change. The runner
 withholds all input while retrying up to three consecutive polls and resets that count only
@@ -262,7 +290,8 @@ weakening pointer or coherence validation.
 The versioned JSON result includes native build/profile provenance, the active terrain seed, and a sample-by-sample
 trace: player health/mana/stamina and LT/LG/altitude, target native role flags, opaque identity,
 health/position, planar
-and three-dimensional target range, native action phase/motion/impact/target-of-target state,
+and three-dimensional target range, target and local-player native action
+phase/motion/impact/action-sequence/motion-sequence state,
 typed native combat events, controller phase, and guarded
 input outcome. This is the evidence boundary used to calibrate later simulator profiles. A
 successful first trial ends with `kill_limit_reached`. Move the pointer to a PyAutoGUI

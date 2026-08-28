@@ -8,6 +8,7 @@ from math import hypot, isfinite
 
 from shadowbane_lab.client_observation import (
     NativeCombatEvent,
+    NativePlayerActionObservation,
     NativePlayerPositionObservation,
     NativePlayerVitalsObservation,
     NativeTargetActionObservation,
@@ -61,11 +62,16 @@ class PvEControllerConfig:
     target_sample_interval_ms: int = 350
     engagement_timeout_ms: int = 30_000
     stalled_progress_ms: int = 5_000
+    quiet_melee_timeout_ms: int = 2_500
+    missing_attack_animation_timeout_ms: int = 1_500
+    incoming_reposition_grace_ms: int = 1_500
+    incoming_reposition_window_ms: int = 3_000
     selection_loss_grace_ms: int = 750
     post_kill_delay_ms: int = 1_000
     recovery_timeout_ms: int = 30_000
     maximum_reengage_attempts: int = 2
     maximum_stalled_retargets: int = 0
+    maximum_combat_repositions: int = 2
     minimum_player_health_fraction: float = 0.5
     minimum_recovery_health_fraction: float = 0.0
     minimum_recovery_mana_fraction: float = 0.0
@@ -95,6 +101,13 @@ class PvEControllerConfig:
             (self.target_sample_interval_ms, "target_sample_interval_ms"),
             (self.engagement_timeout_ms, "engagement_timeout_ms"),
             (self.stalled_progress_ms, "stalled_progress_ms"),
+            (self.quiet_melee_timeout_ms, "quiet_melee_timeout_ms"),
+            (
+                self.missing_attack_animation_timeout_ms,
+                "missing_attack_animation_timeout_ms",
+            ),
+            (self.incoming_reposition_grace_ms, "incoming_reposition_grace_ms"),
+            (self.incoming_reposition_window_ms, "incoming_reposition_window_ms"),
             (self.selection_loss_grace_ms, "selection_loss_grace_ms"),
             (self.post_kill_delay_ms, "post_kill_delay_ms"),
             (self.recovery_timeout_ms, "recovery_timeout_ms"),
@@ -103,6 +116,10 @@ class PvEControllerConfig:
             _positive_integer(value, field_name)
         _non_negative_integer(self.maximum_reengage_attempts, "maximum_reengage_attempts")
         _non_negative_integer(self.maximum_stalled_retargets, "maximum_stalled_retargets")
+        _non_negative_integer(
+            self.maximum_combat_repositions,
+            "maximum_combat_repositions",
+        )
         _non_negative_integer(self.interrupt_cooldown_ms, "interrupt_cooldown_ms")
         _non_negative_integer(
             self.maximum_interrupts_per_target,
@@ -122,6 +139,10 @@ class PvEControllerConfig:
             raise ValueError("target sample interval cannot exceed acquisition timeout")
         if self.stalled_progress_ms > self.engagement_timeout_ms:
             raise ValueError("stalled progress timeout cannot exceed engagement timeout")
+        if self.missing_attack_animation_timeout_ms > self.quiet_melee_timeout_ms:
+            raise ValueError(
+                "missing attack-animation timeout cannot exceed quiet melee timeout"
+            )
         if self.selection_loss_grace_ms > self.engagement_timeout_ms:
             raise ValueError("selection loss grace cannot exceed engagement timeout")
         if self.post_kill_delay_ms > self.recovery_timeout_ms:
@@ -226,6 +247,7 @@ class PvEObservation:
     player_position: NativePlayerPositionObservation | None = None
     target_position: NativeTargetPositionObservation | None = None
     target_action: NativeTargetActionObservation | None = None
+    player_action: NativePlayerActionObservation | None = None
     target_identity: NativeTargetIdentityObservation | None = None
 
     def __post_init__(self) -> None:
@@ -249,6 +271,11 @@ class PvEObservation:
                 and self.target.target_token != self.target_action.target_token
             ):
                 raise ValueError("target health and action resolved different targets")
+        if self.player_action is not None and not isinstance(
+            self.player_action,
+            NativePlayerActionObservation,
+        ):
+            raise ValueError("player_action must be NativePlayerActionObservation")
         if self.target_identity is not None:
             if not isinstance(self.target_identity, NativeTargetIdentityObservation):
                 raise ValueError("target_identity must be NativeTargetIdentityObservation")
@@ -319,6 +346,7 @@ class PvEControllerDecision:
     phase: PvEPhase
     kills: int
     intent: PvEIntent | None = None
+    reposition_requested: bool = False
     terminal_reason: str | None = None
     kill_confirmation: PvEKillConfirmation | None = None
 
@@ -330,17 +358,23 @@ class PvEControllerDecision:
             raise ValueError("phase must be PvEPhase")
         if self.intent is not None and not isinstance(self.intent, PvEIntent):
             raise ValueError("intent must be PvEIntent when present")
+        if not isinstance(self.reposition_requested, bool):
+            raise ValueError("reposition_requested must be boolean")
         if self.kill_confirmation is not None and not isinstance(
             self.kill_confirmation, PvEKillConfirmation
         ):
             raise ValueError("kill_confirmation must be PvEKillConfirmation when present")
         if self.kill_confirmation is not None and self.intent is not None:
             raise ValueError("kill-confirmation decisions cannot dispatch input")
+        if self.kill_confirmation is not None and self.reposition_requested:
+            raise ValueError("kill-confirmation decisions cannot request repositioning")
         terminal = self.phase in (PvEPhase.COMPLETE, PvEPhase.STOPPED)
         if terminal != (self.terminal_reason is not None):
             raise ValueError("terminal phases require exactly one terminal reason")
         if terminal and self.intent is not None:
             raise ValueError("terminal decisions cannot dispatch an intent")
+        if terminal and self.reposition_requested:
+            raise ValueError("terminal decisions cannot request repositioning")
 
     @property
     def terminal(self) -> bool:
@@ -363,6 +397,7 @@ class PvERunTraceStep:
     player_position: NativePlayerPositionObservation | None = None
     target_position: NativeTargetPositionObservation | None = None
     target_action: NativeTargetActionObservation | None = None
+    player_action: NativePlayerActionObservation | None = None
     target_identity: NativeTargetIdentityObservation | None = None
     target_planar_distance: float | None = None
     target_altitude_delta: float | None = None
@@ -432,6 +467,11 @@ class PvERunTraceStep:
             self.target_action, NativeTargetActionObservation
         ):
             raise ValueError("target_action must be NativeTargetActionObservation")
+        if self.player_action is not None and not isinstance(
+            self.player_action,
+            NativePlayerActionObservation,
+        ):
+            raise ValueError("player_action must be NativePlayerActionObservation")
         if self.target_identity is not None and not isinstance(
             self.target_identity, NativeTargetIdentityObservation
         ):
@@ -451,6 +491,7 @@ class PvERunTraceStep:
                 else self.decision.kill_confirmation.value
             ),
             "intent": None if self.decision.intent is None else self.decision.intent.value,
+            "reposition_requested": self.decision.reposition_requested,
             "target": {
                 "present": self.target_present,
                 "token": self.target_token,
@@ -513,6 +554,20 @@ class PvERunTraceStep:
                 "lg": None if self.player_position is None else self.player_position.lg,
                 "altitude": (
                     None if self.player_position is None else self.player_position.altitude
+                ),
+                "action": (
+                    None
+                    if self.player_action is None
+                    else {
+                        "phase": self.player_action.phase.value,
+                        "targeting_selected": self.player_action.targeting_selected,
+                        "motion_id": self.player_action.motion_id,
+                        "action_pending": self.player_action.action_pending,
+                        "impact_frame": self.player_action.impact_frame,
+                        "action_sequence": self.player_action.action_sequence,
+                        "motion_sequence": self.player_action.motion_sequence,
+                        "action_active": self.player_action.action_active,
+                    }
                 ),
             },
             "combat_events": [

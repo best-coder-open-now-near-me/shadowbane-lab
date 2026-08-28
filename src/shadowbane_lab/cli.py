@@ -1898,6 +1898,7 @@ def _run_pve(
                 player_position_reader=player_position_reader,
                 target_position_reader=target_position_reader,
                 target_action_reader=target_action_reader,
+                player_action_reader=target_action_reader,
                 target_identity_reader=target_identity_reader,
                 combat_log_reader=combat_reader,
                 dispatcher=ClientPvEIntentDispatcher(adapter),

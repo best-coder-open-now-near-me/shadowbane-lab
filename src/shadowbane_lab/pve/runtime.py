@@ -10,6 +10,7 @@ from shadowbane_lab.client_input import ClientInputAdapter, StopSignal
 from shadowbane_lab.client_observation import (
     NativeCombatEventParser,
     NativeCombatLogEntry,
+    NativePlayerActionObservation,
     NativePlayerPositionObservation,
     NativePlayerVitalsObservation,
     NativeTargetActionObservation,
@@ -63,6 +64,11 @@ class TargetPositionSource(Protocol):
 @runtime_checkable
 class TargetActionSource(Protocol):
     def observe(self) -> NativeTargetActionObservation: ...
+
+
+@runtime_checkable
+class PlayerActionSource(Protocol):
+    def observe_player(self) -> NativePlayerActionObservation: ...
 
 
 @runtime_checkable
@@ -125,6 +131,7 @@ class PvERunner:
         player_position_reader: PlayerPositionSource | None = None,
         target_position_reader: TargetPositionSource | None = None,
         target_action_reader: TargetActionSource | None = None,
+        player_action_reader: PlayerActionSource | None = None,
         target_identity_reader: TargetIdentitySource | None = None,
         combat_log_reader: CombatLogSource,
         dispatcher: PvEIntentDispatcher,
@@ -158,6 +165,11 @@ class PvERunner:
             raise ValueError("target_action_reader must implement TargetActionSource")
         if controller.requires_target_action and target_action_reader is None:
             raise ValueError("configured interrupt policy requires a target action reader")
+        if player_action_reader is not None and not isinstance(
+            player_action_reader,
+            PlayerActionSource,
+        ):
+            raise ValueError("player_action_reader must implement PlayerActionSource")
         if target_identity_reader is not None and not isinstance(
             target_identity_reader, TargetIdentitySource
         ):
@@ -204,6 +216,7 @@ class PvERunner:
         self._player_position_reader = player_position_reader
         self._target_position_reader = target_position_reader
         self._target_action_reader = target_action_reader
+        self._player_action_reader = player_action_reader
         self._target_identity_reader = target_identity_reader
         self._combat_log_reader = combat_log_reader
         self._dispatcher = dispatcher
@@ -237,6 +250,12 @@ class PvERunner:
                     if self._target_action_reader is None
                     or not self._controller.target_action_observation_active
                     else self._target_action_reader.observe()
+                )
+                player_action = (
+                    None
+                    if self._player_action_reader is None
+                    or not self._controller.player_action_observation_active
+                    else self._player_action_reader.observe_player()
                 )
                 target_identity = None
                 if self._target_identity_reader is not None:
@@ -288,6 +307,7 @@ class PvERunner:
                     player_position=player_position,
                     target_position=target_position,
                     target_action=target_action,
+                    player_action=player_action,
                     target_identity=target_identity,
                 )
                 last_observation = observation
@@ -298,6 +318,7 @@ class PvERunner:
                     else self._approach_controller.step(
                         observation,
                         phase=decision.phase,
+                        reposition_requested=decision.reposition_requested,
                     )
                 )
             except Exception as exc:
@@ -540,6 +561,7 @@ class PvERunner:
             player_position=(None if observation is None else observation.player_position),
             target_position=(None if observation is None else observation.target_position),
             target_action=(None if observation is None else observation.target_action),
+            player_action=(None if observation is None else observation.player_action),
             target_identity=(None if observation is None else observation.target_identity),
             target_planar_distance=(
                 None if observation is None else observation.target_planar_distance

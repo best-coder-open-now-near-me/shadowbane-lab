@@ -35,6 +35,7 @@ class PvEApproachConfig:
     """Bounds native chase grace and minimap-assisted obstacle recovery."""
 
     arrival_radius: float = 20.0
+    reposition_arrival_radius: float = 3.0
     native_progress_grace_ms: int = 2_500
     native_minimum_progress: float = 8.0
     maximum_astar_replans_per_target: int = 6
@@ -58,6 +59,16 @@ class PvEApproachConfig:
             or self.arrival_radius <= 0
         ):
             raise ValueError("arrival_radius must be positive")
+        if (
+            isinstance(self.reposition_arrival_radius, bool)
+            or not isinstance(self.reposition_arrival_radius, (int, float))
+            or not isfinite(self.reposition_arrival_radius)
+            or self.reposition_arrival_radius <= 0
+            or self.reposition_arrival_radius >= self.arrival_radius
+        ):
+            raise ValueError(
+                "reposition_arrival_radius must be positive and below arrival_radius"
+            )
         if (
             isinstance(self.native_progress_grace_ms, bool)
             or not isinstance(self.native_progress_grace_ms, int)
@@ -127,6 +138,7 @@ class PvEApproachController:
         self._terminal_reported = False
         self._last_travel_observation: TravelObservation | None = None
         self._astar_replans = 0
+        self._forced_reposition = False
 
     @property
     def config(self) -> PvEApproachConfig:
@@ -137,11 +149,14 @@ class PvEApproachController:
         observation: PvEObservation,
         *,
         phase: PvEPhase,
+        reposition_requested: bool = False,
     ) -> PvEApproachUpdate:
         if not isinstance(observation, PvEObservation):
             raise ValueError("observation must be PvEObservation")
         if not isinstance(phase, PvEPhase):
             raise ValueError("phase must be PvEPhase")
+        if not isinstance(reposition_requested, bool):
+            raise ValueError("reposition_requested must be boolean")
         if phase not in (PvEPhase.OPENING, PvEPhase.ENGAGED):
             return self.cancel("combat_phase_changed")
         if (
@@ -162,24 +177,47 @@ class PvEApproachController:
                 return self.cancel("selected_target_changed")
             self._begin_target(target_token, distance, observation.now_ms)
 
-        destination = self._destination(observation)
-        if distance <= self._config.arrival_radius:
+        if (
+            reposition_requested
+            and distance > self._config.reposition_arrival_radius
+        ):
+            self._begin_target(
+                target_token,
+                distance,
+                observation.now_ms,
+                forced_reposition=True,
+            )
+
+        arrival_radius = (
+            self._config.reposition_arrival_radius
+            if self._forced_reposition
+            else self._config.arrival_radius
+        )
+        destination = self._destination(observation, arrival_radius=arrival_radius)
+        if distance <= arrival_radius:
             if self._travel is None or self._terminal_reported:
+                self._forced_reposition = False
                 return PvEApproachUpdate(PvEApproachStatus.ARRIVED)
             self._travel.update_final_destination(destination)
             decision = self._travel.arrive(self._last_travel_observation)
             self._terminal_reported = True
+            self._forced_reposition = False
             return PvEApproachUpdate(PvEApproachStatus.ARRIVED, decision)
 
         if self._travel is not None and self._travel.terminal:
-            self._begin_target(target_token, distance, observation.now_ms)
+            self._begin_target(
+                target_token,
+                distance,
+                observation.now_ms,
+                forced_reposition=self._forced_reposition,
+            )
 
         assert self._best_distance is not None
         assert self._last_native_progress_at is not None
         if distance <= self._best_distance - self._config.native_minimum_progress:
             self._best_distance = distance
             self._last_native_progress_at = observation.now_ms
-        if self._travel is None and (
+        if self._travel is None and not self._forced_reposition and (
             observation.now_ms - self._last_native_progress_at
             < self._config.native_progress_grace_ms
         ):
@@ -225,13 +263,21 @@ class PvEApproachController:
         self._reset()
         return PvEApproachUpdate(PvEApproachStatus.CANCELLED, decision)
 
-    def _begin_target(self, target_token: str, distance: float, now_ms: int) -> None:
+    def _begin_target(
+        self,
+        target_token: str,
+        distance: float,
+        now_ms: int,
+        *,
+        forced_reposition: bool = False,
+    ) -> None:
         self._target_token = target_token
         self._best_distance = distance
         self._last_native_progress_at = now_ms
         self._travel = None
         self._terminal_reported = False
         self._astar_replans = 0
+        self._forced_reposition = forced_reposition
 
     def _reset(self) -> None:
         self._target_token = None
@@ -241,6 +287,7 @@ class PvEApproachController:
         self._terminal_reported = False
         self._last_travel_observation = None
         self._astar_replans = 0
+        self._forced_reposition = False
 
     def _plan_route(
         self,
@@ -263,14 +310,19 @@ class PvEApproachController:
             self._config.travel,
         )
 
-    def _destination(self, observation: PvEObservation) -> TravelDestination:
+    def _destination(
+        self,
+        observation: PvEObservation,
+        *,
+        arrival_radius: float,
+    ) -> TravelDestination:
         assert observation.target_position is not None
         assert observation.target_position.lt is not None
         assert observation.target_position.lg is not None
         return TravelDestination(
             lt=observation.target_position.lt,
             lg=observation.target_position.lg,
-            arrival_radius=self._config.arrival_radius,
+            arrival_radius=arrival_radius,
         )
 
     @staticmethod

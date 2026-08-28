@@ -108,6 +108,7 @@ from shadowbane_lab.client_observation.native_progression_core import (
 )
 from shadowbane_lab.client_observation.native_target_action import (
     NATIVE_TARGET_ACTION_PROFILE_SCHEMA_VERSION,
+    NativePlayerActionObservation,
     NativeTargetActionCompatibilityError,
     NativeTargetActionError,
     NativeTargetActionObservation,
@@ -257,6 +258,7 @@ __all__ = [
     "NativeTargetPositionProfileLoadError",
     "NativeTargetPositionReadError",
     "NativeTargetPositionReader",
+    "NativePlayerActionObservation",
     "NativeTargetActionCompatibilityError",
     "NativeTargetActionError",
     "NativeTargetActionObservation",

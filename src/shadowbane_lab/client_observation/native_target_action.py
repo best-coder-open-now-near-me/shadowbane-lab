@@ -200,6 +200,52 @@ class NativeTargetActionObservation:
 
 
 @dataclass(frozen=True, slots=True)
+class NativePlayerActionObservation:
+    """One coherent local-player motion/action snapshot."""
+
+    phase: NativeTargetActionPhase
+    targeting_selected: bool
+    motion_id: int
+    action_pending: bool
+    impact_frame: int | None
+    action_sequence: int
+    motion_sequence: int
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.phase, NativeTargetActionPhase):
+            raise ValueError("player action phase must be NativeTargetActionPhase")
+        if not isinstance(self.targeting_selected, bool):
+            raise ValueError("targeting_selected must be boolean")
+        if isinstance(self.motion_id, bool) or not isinstance(self.motion_id, int):
+            raise ValueError("player action requires an integer motion ID")
+        if not isinstance(self.action_pending, bool):
+            raise ValueError("player action_pending must be boolean")
+        if self.impact_frame is not None and (
+            isinstance(self.impact_frame, bool) or not isinstance(self.impact_frame, int)
+        ):
+            raise ValueError("player impact_frame must be an integer when present")
+        if (
+            isinstance(self.action_sequence, bool)
+            or not isinstance(self.action_sequence, int)
+            or self.action_sequence < 0
+        ):
+            raise ValueError("player action_sequence must be non-negative")
+        if (
+            isinstance(self.motion_sequence, bool)
+            or not isinstance(self.motion_sequence, int)
+            or self.motion_sequence < 0
+        ):
+            raise ValueError("player motion_sequence must be non-negative")
+
+    @property
+    def action_active(self) -> bool:
+        return self.phase in (
+            NativeTargetActionPhase.QUEUED,
+            NativeTargetActionPhase.WINDUP,
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class _RawTargetActionSnapshot:
     selected: int
     player: int
@@ -268,6 +314,11 @@ class NativeTargetActionReader:
         self._last_action_active = False
         self._last_action_pending = False
         self._action_sequence = 0
+        self._last_player_action_active = False
+        self._last_player_action_pending = False
+        self._last_player_motion_id: int | None = None
+        self._player_action_sequence = 0
+        self._player_motion_sequence = 0
 
     @property
     def profile(self) -> NativeTargetActionProfile:
@@ -305,6 +356,29 @@ class NativeTargetActionReader:
             return self._observation(second)
         raise NativeTargetActionReadError(
             "selected-target action changed during every stable-read attempt"
+        )
+
+    def observe_player(self) -> NativePlayerActionObservation:
+        """Read the local player's animation/action state from the same guarded layout."""
+
+        if self._closed:
+            raise NativeTargetActionReadError("native target-action reader is closed")
+        for _ in range(self._stability_attempts):
+            player = self._read_pointer(self._player_pointer_slot, "local player")
+            selected = self._read_pointer(self._selected_pointer_slot, "selected target")
+            first = self._read_player_snapshot(player, selected)
+            second = self._read_player_snapshot(player, selected)
+            if first != second:
+                continue
+            if (
+                self._read_pointer(self._player_pointer_slot, "local player") != player
+                or self._read_pointer(self._selected_pointer_slot, "selected target")
+                != selected
+            ):
+                continue
+            return self._player_observation(second)
+        raise NativeTargetActionReadError(
+            "local-player action changed during every stable-read attempt"
         )
 
     def close(self) -> None:
@@ -388,21 +462,85 @@ class NativeTargetActionReader:
             target_of_target=target_of_target,
         )
 
+    def _read_player_snapshot(
+        self,
+        player: int,
+        selected: int,
+    ) -> _RawTargetActionSnapshot:
+        profile = self._profile
+        self._require_object_pointer(
+            player,
+            profile.target_of_target_pointer_offset + profile.pointer_size,
+            "local player",
+        )
+        player_vtable = self._read_pointer(player, "local-player vtable")
+        if player_vtable != self._character_vtable:
+            raise NativeTargetActionReadError(
+                "local player is not the calibrated ArcCharacter type"
+            )
+        motion_pointer, motion_id = struct.unpack(
+            "<II",
+            self._read_exact(
+                player + profile.current_motion_pointer_offset,
+                8,
+                "local-player current motion and ID",
+            ),
+        )
+        impact_frame = struct.unpack(
+            "<i",
+            self._read_exact(
+                player + profile.impact_frame_offset,
+                4,
+                "local-player impact frame",
+            ),
+        )[0]
+        action_pending_raw = self._read_pointer(
+            player + profile.action_pending_offset,
+            "local-player action-pending flag",
+        )
+        action_target = self._read_pointer(
+            player + profile.target_of_target_pointer_offset,
+            "local-player action target",
+        )
+        self._require_object_pointer(motion_pointer, profile.pointer_size, "current motion")
+        motion_vtable = self._read_pointer(motion_pointer, "current-motion vtable")
+        if motion_vtable != self._motion_vtable:
+            raise NativeTargetActionReadError(
+                "local player uses an unsupported current-motion type"
+            )
+        if motion_id > profile.maximum_motion_id:
+            raise NativeTargetActionReadError("player motion ID exceeds calibrated bounds")
+        if action_pending_raw not in (0, 1):
+            raise NativeTargetActionReadError("player action-pending flag is not boolean")
+        if not (
+            impact_frame == profile.no_impact_frame_sentinel
+            or 0 <= impact_frame <= profile.maximum_impact_frame
+        ):
+            raise NativeTargetActionReadError("player impact frame is outside calibrated bounds")
+        if action_target != 0:
+            self._require_object_pointer(
+                action_target,
+                profile.pointer_size,
+                "local-player action target",
+            )
+        return _RawTargetActionSnapshot(
+            selected=player,
+            player=selected,
+            selected_vtable=player_vtable,
+            motion_pointer=motion_pointer,
+            motion_vtable=motion_vtable,
+            motion_id=motion_id,
+            impact_frame=impact_frame,
+            action_pending=bool(action_pending_raw),
+            target_of_target=action_target,
+        )
+
     def _observation(
         self,
         snapshot: _RawTargetActionSnapshot,
     ) -> NativeTargetActionObservation:
         profile = self._profile
-        if snapshot.action_pending:
-            phase = NativeTargetActionPhase.QUEUED
-        elif snapshot.impact_frame != profile.no_impact_frame_sentinel:
-            phase = NativeTargetActionPhase.IMPACT
-        elif snapshot.motion_id in profile.observed_attack_motion_ids:
-            phase = NativeTargetActionPhase.WINDUP
-        elif snapshot.motion_id in profile.idle_motion_ids:
-            phase = NativeTargetActionPhase.IDLE
-        else:
-            phase = NativeTargetActionPhase.OTHER_MOTION
+        phase = _phase_for_snapshot(profile, snapshot)
         action_active = phase in (
             NativeTargetActionPhase.QUEUED,
             NativeTargetActionPhase.WINDUP,
@@ -430,6 +568,44 @@ class NativeTargetActionReader:
                 else snapshot.impact_frame
             ),
             action_sequence=self._action_sequence,
+        )
+
+    def _player_observation(
+        self,
+        snapshot: _RawTargetActionSnapshot,
+    ) -> NativePlayerActionObservation:
+        profile = self._profile
+        phase = _phase_for_snapshot(profile, snapshot)
+        action_active = phase in (
+            NativeTargetActionPhase.QUEUED,
+            NativeTargetActionPhase.WINDUP,
+            NativeTargetActionPhase.IMPACT,
+        )
+        new_queue = snapshot.action_pending and not self._last_player_action_pending
+        if new_queue or (action_active and not self._last_player_action_active):
+            self._player_action_sequence += 1
+        if (
+            self._last_player_motion_id is not None
+            and snapshot.motion_id != self._last_player_motion_id
+        ):
+            self._player_motion_sequence += 1
+        self._last_player_action_active = action_active
+        self._last_player_action_pending = snapshot.action_pending
+        self._last_player_motion_id = snapshot.motion_id
+        return NativePlayerActionObservation(
+            phase=phase,
+            targeting_selected=(
+                snapshot.player != 0 and snapshot.target_of_target == snapshot.player
+            ),
+            motion_id=snapshot.motion_id,
+            action_pending=snapshot.action_pending,
+            impact_frame=(
+                None
+                if snapshot.impact_frame == profile.no_impact_frame_sentinel
+                else snapshot.impact_frame
+            ),
+            action_sequence=self._player_action_sequence,
+            motion_sequence=self._player_motion_sequence,
         )
 
     def _read_pointer(self, address: int, label: str) -> int:
@@ -465,6 +641,21 @@ class NativeTargetActionReader:
         digest.update(self._profile.executable_sha256.encode("ascii"))
         digest.update(struct.pack("<II", self._process.pid, selected))
         return digest.hexdigest()
+
+
+def _phase_for_snapshot(
+    profile: NativeTargetActionProfile,
+    snapshot: _RawTargetActionSnapshot,
+) -> NativeTargetActionPhase:
+    if snapshot.action_pending:
+        return NativeTargetActionPhase.QUEUED
+    if snapshot.impact_frame != profile.no_impact_frame_sentinel:
+        return NativeTargetActionPhase.IMPACT
+    if snapshot.motion_id in profile.observed_attack_motion_ids:
+        return NativeTargetActionPhase.WINDUP
+    if snapshot.motion_id in profile.idle_motion_ids:
+        return NativeTargetActionPhase.IDLE
+    return NativeTargetActionPhase.OTHER_MOTION
 
 
 def open_windows_native_target_action_reader(

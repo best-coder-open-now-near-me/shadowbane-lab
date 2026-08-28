@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from shadowbane_lab.client_observation import (
+    NativePlayerActionObservation,
     NativeTargetActionCompatibilityError,
     NativeTargetActionObservation,
     NativeTargetActionPhase,
@@ -53,6 +54,7 @@ class FakeProcessMemory:
     player = 0x12300000
     target = 0x12400000
     motion = 0x12500000
+    player_motion = 0x12600000
 
     def __init__(self, profile: NativeTargetActionProfile) -> None:
         self.profile = profile
@@ -62,7 +64,12 @@ class FakeProcessMemory:
         self.pending = False
         self.impact_frame = -1
         self.target_of_target = self.player
+        self.player_motion_id = 21
+        self.player_pending = False
+        self.player_impact_frame = -1
+        self.player_action_target = self.target
         self.selected_vtable = self.base_address + profile.arc_character_vtable_rva
+        self.player_vtable = self.selected_vtable
         self.motion_vtable = self.base_address + profile.arc_motion_vtable_rva
         self.read_sizes: list[int] = []
 
@@ -76,7 +83,11 @@ class FakeProcessMemory:
             return struct.pack("<I", self.player)
         if address == self.selected:
             return struct.pack("<I", self.selected_vtable)
+        if address == self.player:
+            return struct.pack("<I", self.player_vtable)
         if address == self.motion:
+            return struct.pack("<I", self.motion_vtable)
+        if address == self.player_motion:
             return struct.pack("<I", self.motion_vtable)
         if address == self.selected + self.profile.current_motion_pointer_offset:
             if size != 8:
@@ -88,6 +99,16 @@ class FakeProcessMemory:
             return struct.pack("<I", int(self.pending))
         if address == self.selected + self.profile.target_of_target_pointer_offset:
             return struct.pack("<I", self.target_of_target)
+        if address == self.player + self.profile.current_motion_pointer_offset:
+            if size != 8:
+                raise AssertionError(f"unexpected player motion read size {size}")
+            return struct.pack("<II", self.player_motion, self.player_motion_id)
+        if address == self.player + self.profile.impact_frame_offset:
+            return struct.pack("<i", self.player_impact_frame)
+        if address == self.player + self.profile.action_pending_offset:
+            return struct.pack("<I", int(self.player_pending))
+        if address == self.player + self.profile.target_of_target_pointer_offset:
+            return struct.pack("<I", self.player_action_target)
         raise AssertionError(f"unexpected read at 0x{address:X} ({size} bytes)")
 
     def close(self) -> None:
@@ -184,6 +205,54 @@ class NativeTargetActionReaderTests(unittest.TestCase):
         self.assertEqual(NativeTargetActionPhase.QUEUED, queued.phase)
         self.assertEqual(2, queued.action_sequence)
         self.assertTrue(queued.interrupt_opportunity)
+
+    def test_observes_local_player_animation_sequence_and_selected_target(self) -> None:
+        profile = _profile()
+        process = FakeProcessMemory(profile)
+        reader = NativeTargetActionReader(profile, process)
+
+        idle = reader.observe_player()
+        process.player_pending = True
+        queued = reader.observe_player()
+        process.player_pending = False
+        process.player_motion_id = 107
+        windup = reader.observe_player()
+
+        self.assertEqual(
+            NativePlayerActionObservation(
+                phase=NativeTargetActionPhase.IDLE,
+                targeting_selected=True,
+                motion_id=21,
+                action_pending=False,
+                impact_frame=None,
+                action_sequence=0,
+                motion_sequence=0,
+            ),
+            idle,
+        )
+        self.assertEqual(NativeTargetActionPhase.QUEUED, queued.phase)
+        self.assertTrue(queued.action_active)
+        self.assertEqual(1, queued.action_sequence)
+        self.assertEqual(NativeTargetActionPhase.WINDUP, windup.phase)
+        self.assertEqual(1, windup.action_sequence)
+
+    def test_unknown_targeted_player_motion_still_advances_observed_sequence(self) -> None:
+        profile = _profile()
+        process = FakeProcessMemory(profile)
+        reader = NativeTargetActionReader(profile, process)
+        reader.observe_player()
+
+        process.player_motion_id = 777
+        unknown_motion = reader.observe_player()
+        process.player_motion_id = 21
+        idle_again = reader.observe_player()
+
+        self.assertEqual(NativeTargetActionPhase.OTHER_MOTION, unknown_motion.phase)
+        self.assertEqual(0, unknown_motion.action_sequence)
+        self.assertEqual(1, unknown_motion.motion_sequence)
+        self.assertFalse(unknown_motion.action_active)
+        self.assertEqual(0, idle_again.action_sequence)
+        self.assertEqual(2, idle_again.motion_sequence)
 
     def test_wrong_selected_type_fails_closed(self) -> None:
         profile = _profile()

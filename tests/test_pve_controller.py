@@ -5,6 +5,7 @@ from shadowbane_lab.client_observation import (
     NativeCombatEvent,
     NativeCombatEventKind,
     NativeCombatLogEntry,
+    NativePlayerActionObservation,
     NativePlayerPositionObservation,
     NativePlayerVitalsObservation,
     NativeTargetActionObservation,
@@ -120,6 +121,24 @@ def _target_action(
     )
 
 
+def _player_action(
+    *,
+    phase: NativeTargetActionPhase = NativeTargetActionPhase.IDLE,
+    sequence: int = 0,
+    motion_sequence: int = 0,
+    targeting_selected: bool = True,
+) -> NativePlayerActionObservation:
+    return NativePlayerActionObservation(
+        phase=phase,
+        targeting_selected=targeting_selected,
+        motion_id=21 if phase is NativeTargetActionPhase.IDLE else 106,
+        action_pending=phase is NativeTargetActionPhase.QUEUED,
+        impact_frame=19 if phase is NativeTargetActionPhase.IMPACT else None,
+        action_sequence=sequence,
+        motion_sequence=motion_sequence,
+    )
+
+
 def _target_identity(
     token: str | None,
     *,
@@ -149,14 +168,20 @@ def _observation(
     *events: NativeCombatEvent,
     player: NativePlayerVitalsObservation | None = None,
     target_action: NativeTargetActionObservation | None = None,
+    player_action: NativePlayerActionObservation | None = None,
     target_identity: NativeTargetIdentityObservation | None = None,
+    player_position: NativePlayerPositionObservation | None = None,
+    target_position: NativeTargetPositionObservation | None = None,
 ) -> PvEObservation:
     return PvEObservation(
         now_ms=now_ms,
         target=target,
         player=_player() if player is None else player,
         combat_events=events,
+        player_position=player_position,
+        target_position=target_position,
         target_action=target_action,
+        player_action=player_action,
         target_identity=target_identity,
     )
 
@@ -574,6 +599,243 @@ class PvEControllerTests(unittest.TestCase):
         self.assertEqual(PvEIntent.ATTACK_SELECTED_TARGET, reachable_attack.intent)
         self.assertEqual(PvEPhase.ENGAGED, reachable_attack.phase)
 
+    def test_missing_attack_animation_fast_cycles_a_quiet_melee_target(self) -> None:
+        controller = PvEController(
+            PvEControllerConfig(
+                automatic_attack_expected=True,
+                maximum_stalled_retargets=1,
+                quiet_melee_timeout_ms=2_500,
+                missing_attack_animation_timeout_ms=1_500,
+            )
+        )
+        controller.step(
+            _observation(
+                0,
+                _absent(),
+                player_position=_player_position(),
+                target_position=_target_position(None),
+            )
+        )
+        attack = controller.step(
+            _observation(
+                100,
+                _target("quiet-crab"),
+                player_action=_player_action(),
+                player_position=_player_position(),
+                target_position=_target_position("quiet-crab", 106.0, 200.0),
+            )
+        )
+        waiting = controller.step(
+            _observation(
+                1_599,
+                _target("quiet-crab"),
+                player_action=_player_action(),
+                player_position=_player_position(),
+                target_position=_target_position("quiet-crab", 106.0, 200.0),
+            )
+        )
+        cycle = controller.step(
+            _observation(
+                1_600,
+                _target("quiet-crab"),
+                player_action=_player_action(),
+                player_position=_player_position(),
+                target_position=_target_position("quiet-crab", 106.0, 200.0),
+            )
+        )
+
+        self.assertEqual(PvEIntent.ATTACK_SELECTED_TARGET, attack.intent)
+        self.assertIsNone(waiting.intent)
+        self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB, cycle.intent)
+        self.assertEqual(PvEPhase.SEEKING, cycle.phase)
+
+    def test_observed_attack_animation_uses_full_quiet_melee_timeout(self) -> None:
+        controller = PvEController(
+            PvEControllerConfig(
+                automatic_attack_expected=True,
+                maximum_stalled_retargets=1,
+                quiet_melee_timeout_ms=2_500,
+                missing_attack_animation_timeout_ms=1_500,
+            )
+        )
+        controller.step(
+            _observation(
+                0,
+                _absent(),
+                player_position=_player_position(),
+                target_position=_target_position(None),
+            )
+        )
+        controller.step(
+            _observation(
+                100,
+                _target("animated-crab"),
+                player_action=_player_action(sequence=8),
+                player_position=_player_position(),
+                target_position=_target_position("animated-crab", 106.0, 200.0),
+            )
+        )
+        controller.step(
+            _observation(
+                200,
+                _target("animated-crab"),
+                player_action=_player_action(
+                    phase=NativeTargetActionPhase.IMPACT,
+                    sequence=8,
+                    motion_sequence=1,
+                ),
+                player_position=_player_position(),
+                target_position=_target_position("animated-crab", 106.0, 200.0),
+            )
+        )
+        waiting = controller.step(
+            _observation(
+                1_600,
+                _target("animated-crab"),
+                player_action=_player_action(sequence=8, motion_sequence=1),
+                player_position=_player_position(),
+                target_position=_target_position("animated-crab", 106.0, 200.0),
+            )
+        )
+        cycle = controller.step(
+            _observation(
+                2_600,
+                _target("animated-crab"),
+                player_action=_player_action(sequence=8, motion_sequence=1),
+                player_position=_player_position(),
+                target_position=_target_position("animated-crab", 106.0, 200.0),
+            )
+        )
+
+        self.assertIsNone(waiting.intent)
+        self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB, cycle.intent)
+
+    def test_incoming_hits_without_outgoing_damage_request_reposition(self) -> None:
+        controller = PvEController(
+            PvEControllerConfig(
+                automatic_attack_expected=True,
+                incoming_reposition_grace_ms=1_500,
+                incoming_reposition_window_ms=3_000,
+            )
+        )
+        controller.step(
+            _observation(
+                0,
+                _absent(),
+                player_position=_player_position(),
+                target_position=_target_position(None),
+            )
+        )
+        controller.step(
+            _observation(
+                100,
+                _target("bugged-mob"),
+                player_action=_player_action(),
+                player_position=_player_position(),
+                target_position=_target_position("bugged-mob", 106.0, 200.0),
+            )
+        )
+        controller.step(
+            _observation(
+                1_000,
+                _target("bugged-mob"),
+                player=_player(current_health=90.0),
+                player_action=_player_action(),
+                player_position=_player_position(),
+                target_position=_target_position("bugged-mob", 106.0, 200.0),
+            )
+        )
+        reposition = controller.step(
+            _observation(
+                1_600,
+                _target("bugged-mob"),
+                player=_player(current_health=90.0),
+                player_action=_player_action(),
+                player_position=_player_position(),
+                target_position=_target_position("bugged-mob", 106.0, 200.0),
+            )
+        )
+
+        self.assertTrue(reposition.reposition_requested)
+        self.assertIsNone(reposition.intent)
+
+    def test_outgoing_damage_suppresses_reposition_for_same_incoming_hit(self) -> None:
+        controller = PvEController(
+            PvEControllerConfig(
+                automatic_attack_expected=True,
+                incoming_reposition_grace_ms=1_500,
+            )
+        )
+        controller.step(
+            _observation(
+                0,
+                _absent(),
+                player_position=_player_position(),
+                target_position=_target_position(None),
+            )
+        )
+        controller.step(
+            _observation(
+                100,
+                _target("trading-mob"),
+                player_action=_player_action(),
+                player_position=_player_position(),
+                target_position=_target_position("trading-mob", 106.0, 200.0),
+            )
+        )
+        trading = controller.step(
+            _observation(
+                1_600,
+                _target("trading-mob", current=9.0),
+                player=_player(current_health=90.0),
+                player_action=_player_action(),
+                player_position=_player_position(),
+                target_position=_target_position("trading-mob", 106.0, 200.0),
+            )
+        )
+
+        self.assertFalse(trading.reposition_requested)
+
+    def test_lingering_player_animation_does_not_block_reposition(self) -> None:
+        controller = PvEController(
+            PvEControllerConfig(
+                automatic_attack_expected=True,
+                incoming_reposition_grace_ms=1_500,
+            )
+        )
+        controller.step(
+            _observation(
+                0,
+                _absent(),
+                player_position=_player_position(),
+                target_position=_target_position(None),
+            )
+        )
+        controller.step(
+            _observation(
+                100,
+                _target("busy-player"),
+                player_action=_player_action(sequence=3),
+                player_position=_player_position(),
+                target_position=_target_position("busy-player", 106.0, 200.0),
+            )
+        )
+        busy = controller.step(
+            _observation(
+                1_600,
+                _target("busy-player"),
+                player=_player(current_health=90.0),
+                player_action=_player_action(
+                    phase=NativeTargetActionPhase.WINDUP,
+                    sequence=4,
+                ),
+                player_position=_player_position(),
+                target_position=_target_position("busy-player", 106.0, 200.0),
+            )
+        )
+
+        self.assertTrue(busy.reposition_requested)
+
     def test_two_kill_limit_reacquires_after_post_kill_delay(self) -> None:
         controller = PvEController(
             PvEControllerConfig(maximum_kills=2, post_kill_delay_ms=100)
@@ -976,6 +1238,42 @@ class PvEControllerTests(unittest.TestCase):
 
 
 class PvEApproachControllerTests(unittest.TestCase):
+    def test_reposition_request_tightens_range_and_uses_position_feedback(self) -> None:
+        approach = PvEApproachController(
+            PvEApproachConfig(
+                arrival_radius=20.0,
+                reposition_arrival_radius=3.0,
+            )
+        )
+
+        def observe(
+            now_ms: int,
+            *,
+            player_lt: float,
+            reposition_requested: bool = False,
+        ):
+            return approach.step(
+                PvEObservation(
+                    now_ms=now_ms,
+                    target=_target("bugged-mob"),
+                    player=_player(),
+                    player_position=_player_position(player_lt, 200.0),
+                    target_position=_target_position("bugged-mob", 106.0, 200.0),
+                ),
+                phase=PvEPhase.ENGAGED,
+                reposition_requested=reposition_requested,
+            )
+
+        self.assertEqual("arrived", observe(0, player_lt=100.0).status.value)
+
+        moving = observe(100, player_lt=100.0, reposition_requested=True)
+        arrived = observe(200, player_lt=104.0)
+
+        self.assertEqual("moving", moving.status.value)
+        self.assertEqual(TravelManeuver.DIRECT, moving.decision.maneuver)
+        self.assertEqual("arrived", arrived.status.value)
+        self.assertTrue(arrived.decision.terminal)
+
     def test_stalled_native_chase_replans_with_astar_before_blind_escape(self) -> None:
         navigation = SparseNavigationMap()
         approach = PvEApproachController(
@@ -1060,6 +1358,14 @@ class SequenceTargetActionSource:
         self.values = list(values)
 
     def observe(self) -> NativeTargetActionObservation:
+        return self.values.pop(0)
+
+
+class SequencePlayerActionSource:
+    def __init__(self, values: tuple[NativePlayerActionObservation, ...]) -> None:
+        self.values = list(values)
+
+    def observe_player(self) -> NativePlayerActionObservation:
         return self.values.pop(0)
 
 
@@ -1166,6 +1472,39 @@ class PvERunnerTests(unittest.TestCase):
 
         self.assertEqual((), source.read_new_entries())
         self.assertIsInstance(source, CombatLogSource)
+
+    def test_runner_samples_and_traces_player_animation_before_attack(self) -> None:
+        clock = AdvancingClock()
+        runner = PvERunner(
+            controller=PvEController(PvEControllerConfig(maximum_kills=1)),
+            health_reader=SequenceHealthSource(
+                (_absent(), _target("mob"), _target("mob", current=0))
+            ),
+            player_action_reader=SequencePlayerActionSource(
+                (
+                    _player_action(sequence=4),
+                    _player_action(
+                        phase=NativeTargetActionPhase.WINDUP,
+                        sequence=5,
+                    ),
+                )
+            ),
+            player_vitals_reader=SequencePlayerVitalsSource((_player(),) * 3),
+            combat_log_reader=SequenceCombatLogSource(((),) * 3),
+            dispatcher=RecordingPvEDispatcher(),
+            stop_signal=EventEmergencyStop(),
+            poll_interval_ms=100,
+            clock=clock,
+            sleeper=clock.sleep,
+        )
+
+        result = runner.run()
+
+        acquired_action = result.trace[1].as_dict()["player"]["action"]
+        combat_action = result.trace[2].as_dict()["player"]["action"]
+        self.assertEqual(4, acquired_action["action_sequence"])
+        self.assertEqual("windup", combat_action["phase"])
+        self.assertTrue(combat_action["action_active"])
 
     def test_runner_cycles_protected_identity_and_traces_valid_target(self) -> None:
         clock = AdvancingClock()
