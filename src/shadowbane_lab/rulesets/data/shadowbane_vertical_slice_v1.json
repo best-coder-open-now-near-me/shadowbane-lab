@@ -24,6 +24,13 @@
       "retrieved_on": "2026-08-25"
     },
     {
+      "source_id": "magicbane-patch-history",
+      "kind": "emulator_source",
+      "uri": "https://repo.magicbane.com/MagicBane/Server/wiki/Shadowbane-Patch-Notes",
+      "revision": "retrieved-2026-08-28",
+      "retrieved_on": "2026-08-28"
+    },
+    {
       "source_id": "lab-action-algebra-v1",
       "kind": "reviewed_override",
       "uri": "docs/adr/0002-typed-action-algebra.md",
@@ -854,6 +861,380 @@
         "forbidden_actor_tags": [],
         "features": [{"name": "effect_duration_ms", "value": 300000}],
         "tags": ["movement", "buff", "flight"],
+        "hit_roll": null
+      }
+    },
+    {
+      "action_key": "shadowbane.assassin.steal_breath",
+      "display_name": "Steal Breath",
+      "rank": 40,
+      "progression": {
+        "professions": ["assassin"],
+        "granted_level": 18,
+        "maximum_rank": 40,
+        "fixed_rank": null,
+        "skill_requirements": [
+          {"training_key": "shadowmastery", "minimum_rank": 43}
+        ],
+        "power_requirements": []
+      },
+      "status": "compiled_with_override",
+      "concrete": {
+        "server_power_token": 429246281,
+        "server_id_string": "ASS-019",
+        "client_binding_key": "shadowbane.assassin.steal_breath"
+      },
+      "provenance": [
+        {
+          "fields": [
+            "rank",
+            "progression",
+            "spec.costs",
+            "spec.targeting.maximum_range",
+            "spec.phases[0].duration_ms",
+            "spec.phases[0].effects",
+            "spec.cooldown_ms"
+          ],
+          "source_id": "morloch-assassin-36339",
+          "locator": "Steal Breath rank 0-40 table",
+          "note": "The published rank-40 row provides one 12-19 poison hit, six 5-second poison pulses over 30 seconds, a 60% snare for 15 seconds, 96.8 mana, 0.2-second cast, and 5-second recycle. Cooldown includes cast plus recycle."
+        },
+        {
+          "fields": ["concrete.server_power_token"],
+          "source_id": "wonderbane-native-training-ef43784b",
+          "locator": "live player power vector token 0x1995c749"
+        },
+        {
+          "fields": ["concrete.server_id_string"],
+          "source_id": "magicbane-power-hashes-511a36b",
+          "locator": "ASS-019 hash entry"
+        },
+        {
+          "fields": [
+            "concrete.client_binding_key",
+            "spec.targeting",
+            "spec.phases[0].effects",
+            "spec.features",
+            "spec.tags"
+          ],
+          "source_id": "lab-action-algebra-v1",
+          "locator": "Steal Breath typed-action mapping",
+          "note": "Maps the direct hit, bounded periodic carrier, anti-flight removal, and timed movement multiplier without power-specific runtime code."
+        }
+      ],
+      "unresolved": [
+        "The published static power row has not yet been differentially verified against the current WonderBane deployment.",
+        "Exact same-power refresh and snare stack precedence require deployment traces."
+      ],
+      "spec": {
+        "targeting": {
+          "kind": "entity",
+          "allowed_relations": ["enemy"],
+          "minimum_range": 0,
+          "maximum_range": 120,
+          "requires_line_of_sight": true
+        },
+        "costs": [
+          {
+            "resource_key": "mana",
+            "amount": {
+              "interpolation": "linear",
+              "rank_min": 0,
+              "rank_max": 40,
+              "value_min": 62,
+              "value_max": 96.8
+            }
+          }
+        ],
+        "phases": [
+          {
+            "kind": "active",
+            "duration_ms": 200,
+            "effects": [
+              {
+                "op": "deal_damage",
+                "subject": "target",
+                "amount": {
+                  "distribution": "uniform",
+                  "minimum": {
+                    "interpolation": "linear",
+                    "rank_min": 0,
+                    "rank_max": 40,
+                    "value_min": 8,
+                    "value_max": 12
+                  },
+                  "maximum": {
+                    "interpolation": "linear",
+                    "rank_min": 0,
+                    "rank_max": 40,
+                    "value_min": 12,
+                    "value_max": 19
+                  }
+                },
+                "damage_type": "poison",
+                "source_key": "steal_breath.initial"
+              },
+              {
+                "op": "apply_effect",
+                "subject": "target",
+                "effect_key": "steal_breath_poison",
+                "duration_ms": 30000,
+                "magnitude": 1,
+                "stacking_key": null,
+                "tags": ["poison"],
+                "modifiers": [
+                  {
+                    "op": "periodic_pulse",
+                    "periodic_key": "steal_breath.poison",
+                    "interval_ms": 5000,
+                    "tick_count": 6,
+                    "effects": [
+                      {
+                        "op": "deal_damage",
+                        "subject": "target",
+                        "amount": {
+                          "distribution": "uniform",
+                          "minimum": {
+                            "interpolation": "linear",
+                            "rank_min": 0,
+                            "rank_max": 40,
+                            "value_min": 8,
+                            "value_max": 12
+                          },
+                          "maximum": {
+                            "interpolation": "linear",
+                            "rank_min": 0,
+                            "rank_max": 40,
+                            "value_min": 12,
+                            "value_max": 19
+                          }
+                        },
+                        "damage_type": "poison",
+                        "source_key": "steal_breath.periodic"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "op": "remove_effect",
+                "subject": "target",
+                "effect_key": null,
+                "matching_tag": "movement.flight"
+              },
+              {
+                "op": "apply_effect",
+                "subject": "target",
+                "effect_key": "steal_breath_snare",
+                "duration_ms": {
+                  "interpolation": "linear",
+                  "rank_min": 0,
+                  "rank_max": 40,
+                  "value_min": 7000,
+                  "value_max": 15000
+                },
+                "magnitude": 1,
+                "stacking_key": "Snare",
+                "tags": ["debuff", "effect", "snare"],
+                "modifiers": [
+                  {
+                    "op": "scalar_multiplier",
+                    "scalar_key": "move_speed",
+                    "factor": {
+                      "interpolation": "linear",
+                      "rank_min": 0,
+                      "rank_max": 40,
+                      "value_min": 0.89,
+                      "value_max": 0.4
+                    }
+                  }
+                ]
+              }
+            ],
+            "delivery": {"kind": "immediate", "projectile_speed_units_per_second": null},
+            "interruptible": true,
+            "movement_allowed": false
+          }
+        ],
+        "cooldown_ms": 5200,
+        "required_actor_tags": [],
+        "forbidden_actor_tags": [],
+        "features": [
+          {"name": "expected_damage", "value": {
+            "interpolation": "linear",
+            "rank_min": 0,
+            "rank_max": 40,
+            "value_min": 70,
+            "value_max": 108.5
+          }},
+          {"name": "snare_duration_ms", "value": {
+            "interpolation": "linear",
+            "rank_min": 0,
+            "rank_max": 40,
+            "value_min": 7000,
+            "value_max": 15000
+          }}
+        ],
+        "tags": ["combat", "damage", "poison", "damage_over_time", "control", "snare", "anti_flight"],
+        "hit_roll": "power"
+      }
+    },
+    {
+      "action_key": "shadowbane.warlock.psychic_shield",
+      "display_name": "Psychic Shield",
+      "rank": 40,
+      "progression": {
+        "professions": ["warlock"],
+        "granted_level": 18,
+        "maximum_rank": 40,
+        "fixed_rank": null,
+        "skill_requirements": [
+          {"training_key": "warlockry", "minimum_rank": 43}
+        ],
+        "power_requirements": []
+      },
+      "status": "compiled_with_override",
+      "concrete": {
+        "server_power_token": null,
+        "server_id_string": null,
+        "client_binding_key": "shadowbane.warlock.psychic_shield"
+      },
+      "provenance": [
+        {
+          "fields": [
+            "rank",
+            "progression",
+            "spec.costs",
+            "spec.phases[0].duration_ms",
+            "spec.phases[0].effects",
+            "spec.cooldown_ms"
+          ],
+          "source_id": "morloch-warlock-36352",
+          "locator": "Psychic Shield rank 0-40 table",
+          "note": "The pinned row provides +75 crush, pierce, and slash resistance, a 1000-point post-resistance breakpoint, 300-second duration, 23 mana, 0.2-second cast, and 300-second recycle at rank 40. Cooldown includes cast plus recycle."
+        },
+        {
+          "fields": ["spec.phases[0].effects", "unresolved"],
+          "source_id": "magicbane-patch-history",
+          "locator": "Patch 18 damage absorber notes",
+          "note": "Patch history confirms that the breakpoint counts damage after resistances, but reports a later 750-point value that conflicts with the pinned 1000-point power table."
+        },
+        {
+          "fields": [
+            "concrete.client_binding_key",
+            "spec.targeting",
+            "spec.phases[0].effects",
+            "spec.features",
+            "spec.tags"
+          ],
+          "source_id": "lab-action-algebra-v1",
+          "locator": "Psychic Shield typed-action mapping",
+          "note": "Maps the published absorber as three typed resistance adjustments plus one cumulative post-resistance damage breakpoint."
+        }
+      ],
+      "unresolved": [
+        "Current WonderBane deployment power data must resolve the published 1000-point row versus the later MagicBane 750-point patch value.",
+        "Server power token, IDString, and exact effect stack-order require the deployment power-data export."
+      ],
+      "spec": {
+        "targeting": {
+          "kind": "self",
+          "allowed_relations": [],
+          "minimum_range": 0,
+          "maximum_range": null,
+          "requires_line_of_sight": false
+        },
+        "costs": [
+          {"resource_key": "mana", "amount": 23}
+        ],
+        "phases": [
+          {
+            "kind": "active",
+            "duration_ms": 200,
+            "effects": [
+              {
+                "op": "apply_effect",
+                "subject": "actor",
+                "effect_key": "psychic_shield",
+                "duration_ms": 300000,
+                "magnitude": 1,
+                "stacking_key": "DamageAbsorber",
+                "tags": ["buff", "effect", "damage_absorber"],
+                "modifiers": [
+                  {
+                    "op": "resistance_adjustment",
+                    "damage_type": "crush",
+                    "amount": {
+                      "interpolation": "linear",
+                      "rank_min": 0,
+                      "rank_max": 40,
+                      "value_min": 15,
+                      "value_max": 75
+                    }
+                  },
+                  {
+                    "op": "resistance_adjustment",
+                    "damage_type": "pierce",
+                    "amount": {
+                      "interpolation": "linear",
+                      "rank_min": 0,
+                      "rank_max": 40,
+                      "value_min": 15,
+                      "value_max": 75
+                    }
+                  },
+                  {
+                    "op": "resistance_adjustment",
+                    "damage_type": "slash",
+                    "amount": {
+                      "interpolation": "linear",
+                      "rank_min": 0,
+                      "rank_max": 40,
+                      "value_min": 15,
+                      "value_max": 75
+                    }
+                  },
+                  {
+                    "op": "damage_breakpoint",
+                    "breakpoint_key": "physical",
+                    "threshold": {
+                      "interpolation": "linear",
+                      "rank_min": 0,
+                      "rank_max": 40,
+                      "value_min": 250,
+                      "value_max": 1000
+                    },
+                    "damage_types": ["crush", "pierce", "slash"]
+                  }
+                ]
+              }
+            ],
+            "delivery": {"kind": "immediate", "projectile_speed_units_per_second": null},
+            "interruptible": true,
+            "movement_allowed": false
+          }
+        ],
+        "cooldown_ms": 300200,
+        "required_actor_tags": [],
+        "forbidden_actor_tags": [],
+        "features": [
+          {"name": "resistance_bonus", "value": {
+            "interpolation": "linear",
+            "rank_min": 0,
+            "rank_max": 40,
+            "value_min": 15,
+            "value_max": 75
+          }},
+          {"name": "damage_breakpoint", "value": {
+            "interpolation": "linear",
+            "rank_min": 0,
+            "rank_max": 40,
+            "value_min": 250,
+            "value_max": 1000
+          }},
+          {"name": "effect_duration_ms", "value": 300000}
+        ],
+        "tags": ["combat", "buff", "defensive", "damage_absorber", "physical"],
         "hit_roll": null
       }
     },

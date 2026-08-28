@@ -30,6 +30,7 @@
     },
     "power_focus_values": {
       "shadowbane.assassin.shadow_bolt": 97,
+      "shadowbane.assassin.steal_breath": 97,
       "shadowbane.assassin.shadow_touch": 97
     },
     "resistances": {
@@ -124,11 +125,13 @@
     "power_ranks": {
       "shadowbane.assassin.shadow_bolt": 40,
       "shadowbane.assassin.shadow_mantle": 40,
+      "shadowbane.assassin.steal_breath": 40,
       "shadowbane.assassin.shadow_touch": 40
     },
     "enabled_power_keys": [
       "shadowbane.assassin.shadow_bolt",
       "shadowbane.assassin.shadow_mantle",
+      "shadowbane.assassin.steal_breath",
       "shadowbane.assassin.shadow_touch"
     ]
   }

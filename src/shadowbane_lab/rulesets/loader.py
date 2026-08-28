@@ -48,6 +48,7 @@ from shadowbane_lab.sim import (
     ResourceCost,
     ResourceImmunity,
     RestoreResource,
+    ScalarMultiplier,
     ScalarOperation,
     SubjectRef,
     TagOperation,
@@ -399,7 +400,13 @@ def _parse_effect(data: Mapping[str, Any], rank: int) -> EffectPrimitive:
 
 def _parse_effect_modifier(
     data: Mapping[str, Any], rank: int
-) -> ResourceImmunity | PeriodicPulse | ResistanceAdjustment | DamageBreakpoint:
+) -> (
+    ResourceImmunity
+    | PeriodicPulse
+    | ResistanceAdjustment
+    | ScalarMultiplier
+    | DamageBreakpoint
+):
     operation = _string(data, "op")
     if operation == "resource_immunity":
         return ResourceImmunity(resource_key=_string(data, "resource_key"))
@@ -419,6 +426,11 @@ def _parse_effect_modifier(
         return ResistanceAdjustment(
             damage_type=DamageType(_string(data, "damage_type")),
             amount=_resolved_number(_required(data, "amount"), rank),
+        )
+    if operation == "scalar_multiplier":
+        return ScalarMultiplier(
+            scalar_key=_string(data, "scalar_key"),
+            factor=_resolved_number(_required(data, "factor"), rank),
         )
     if operation == "damage_breakpoint":
         return DamageBreakpoint(

@@ -5,6 +5,7 @@ from shadowbane_lab.sim import (
     ActiveEffectState,
     DeterministicRandom,
     EntityState,
+    ScalarMultiplier,
     SimulationClock,
 )
 
@@ -80,6 +81,7 @@ class EntityStateTests(unittest.TestCase):
                     expires_at_ms=5_000,
                     stacking_key="concealment",
                     tags={"visibility.concealed"},
+                    modifiers=(ScalarMultiplier("mana", 0.5),),
                 )
             },
             cooldowns={"generic.move": 200},
@@ -94,6 +96,7 @@ class EntityStateTests(unittest.TestCase):
         self.assertNotIn("mutated", restored.tags)
         self.assertEqual(snapshot, restored.snapshot())
         self.assertIn("visibility.concealed", restored.effective_tags)
+        self.assertEqual(20.0, restored.effective_scalar("mana"))
 
 
 if __name__ == "__main__":

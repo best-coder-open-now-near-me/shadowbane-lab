@@ -25,6 +25,7 @@ from shadowbane_lab.sim import (
     ResourceCost,
     ResourceImmunity,
     RestoreResource,
+    ScalarMultiplier,
     SubjectRef,
     TargetingSpec,
     TransferItem,
@@ -332,6 +333,23 @@ class ActionAlgebraTests(unittest.TestCase):
                 100.0,
                 (DamageType.CRUSH, DamageType.CRUSH),
             )
+
+    def test_timed_scalar_multiplier_is_generic_and_bounded(self) -> None:
+        modifier = ScalarMultiplier("move_speed", 0.4)
+        effect = ApplyEffect(
+            SubjectRef.TARGET,
+            "snared",
+            15_000,
+            modifiers=(modifier,),
+        )
+
+        self.assertEqual((modifier,), effect.modifiers)
+        self.assertEqual(
+            ("modifier.scalar_multiplier.move_speed",),
+            modifier.semantic_tags,
+        )
+        with self.assertRaisesRegex(ValueError, "must not be negative"):
+            ScalarMultiplier("move_speed", -0.1)
 
     def test_chance_gate_requires_a_bounded_direct_effect_bundle(self) -> None:
         gate = ChanceGate(

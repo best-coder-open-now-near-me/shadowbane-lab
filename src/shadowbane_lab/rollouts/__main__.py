@@ -57,7 +57,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         default="duels",
     )
     parser.add_argument("--level", type=int, default=59)
-    parser.add_argument("--levels", type=_integers, default=(10, 15, 22, 26, 40))
+    parser.add_argument("--levels", type=_integers, default=(10, 15, 18, 22, 26, 40))
     parser.add_argument("--ranks", type=_integers, default=(0, 20, 40))
     parser.add_argument("--max-ticks", type=int, default=1_000)
     parser.add_argument("--seed", type=int, default=1)

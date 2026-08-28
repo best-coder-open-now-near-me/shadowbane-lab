@@ -422,6 +422,24 @@ class ResistanceAdjustment:
 
 
 @dataclass(frozen=True, slots=True)
+class ScalarMultiplier:
+    """Multiply one base scalar while the carrying effect is active."""
+
+    scalar_key: str
+    factor: float
+
+    def __post_init__(self) -> None:
+        _identifier(self.scalar_key, "scalar_key")
+        _finite(self.factor, "scalar multiplier factor")
+        if self.factor < 0:
+            raise ValueError("scalar multiplier factor must not be negative")
+
+    @property
+    def semantic_tags(self) -> tuple[str, ...]:
+        return (f"modifier.scalar_multiplier.{self.scalar_key}",)
+
+
+@dataclass(frozen=True, slots=True)
 class DamageBreakpoint:
     """Remove the carrying effect after cumulative matching damage exceeds a threshold."""
 
@@ -459,12 +477,17 @@ class DamageBreakpoint:
 
 
 EffectModifier = (
-    ResourceImmunity | PeriodicPulse | ResistanceAdjustment | DamageBreakpoint
+    ResourceImmunity
+    | PeriodicPulse
+    | ResistanceAdjustment
+    | ScalarMultiplier
+    | DamageBreakpoint
 )
 _EFFECT_MODIFIER_TYPES = (
     ResourceImmunity,
     PeriodicPulse,
     ResistanceAdjustment,
+    ScalarMultiplier,
     DamageBreakpoint,
 )
 

@@ -212,7 +212,8 @@ class AffordanceBuilder:
             position=entity.position,
             velocity=entity.velocity,
             scalars=tuple(
-                NamedScalar(name, value) for name, value in sorted(entity.scalars.items())
+                NamedScalar(name, entity.effective_scalar(name))
+                for name in sorted(entity.scalars)
             ),
             tags=tuple(sorted(entity.effective_tags)),
         )

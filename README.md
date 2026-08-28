@@ -29,7 +29,9 @@ are captured and verified.
 The PvP simulator also has a fail-closed complete-sheet path: strict versioned Assassin and
 Warlock profiles compile source-pinned hit, attack/defense, weapon and spell scaling, centered
 damage, resistance/protection, proc, passive-defense, stacking, immunity, and interruption
-mechanics into reproducible single duels or streaming multi-seed batches. Source-revision and
+mechanics into reproducible single duels or streaming multi-seed batches. Timed scalar
+modifiers, deterministic periodic pulses, and post-resistance damage breakpoints now execute
+Steal Breath and Psychic Shield through the same typed algebra. Source-revision and
 ruleset-override acceptance are explicit CLI switches; unverified profiles cannot run.
 Native LT/LG feedback, selected-target and group-leader coordinates, and calibrated minimap axes
 support bounded closed-loop travel.

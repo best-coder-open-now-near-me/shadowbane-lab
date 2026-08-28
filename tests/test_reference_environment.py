@@ -18,6 +18,7 @@ from shadowbane_lab.sim import (
     PhaseKind,
     ReferenceEnvironment,
     ResourceCost,
+    ScalarMultiplier,
     SubjectRef,
     TargetingSpec,
     TransferItem,
@@ -546,6 +547,47 @@ class ReferenceEnvironmentTests(unittest.TestCase):
         environment.step((decision,))
 
         self.assertEqual(Vector2(2.0, 0.0), environment.entity("bot").position)
+
+    def test_movement_and_observation_use_active_scalar_multiplier(self) -> None:
+        move = ActionSpec(
+            action_key="move",
+            targeting=TargetingSpec(kind=TargetKind.DIRECTION),
+            phases=(
+                ActionPhase(
+                    kind=PhaseKind.ACTIVE,
+                    duration_ms=200,
+                    effects=(MoveEntity(SubjectRef.ACTOR, MovementMode.WALK),),
+                ),
+            ),
+        )
+        bot = actor("bot", "red", Vector2(0.0, 0.0), ("move",))
+        bot.effects["Snare"] = ActiveEffectState(
+            effect_key="snared",
+            source_entity_id="enemy",
+            magnitude=1.0,
+            expires_at_ms=15_000,
+            stacking_key="Snare",
+            modifiers=(ScalarMultiplier("move_speed", 0.4),),
+        )
+        environment = ReferenceEnvironment(ActionCatalog((move,)), (bot,), seed=6)
+        exchange = environment.exchange("bot")
+        observed = next(
+            scalar.value
+            for scalar in exchange.observation.entities[0].scalars
+            if scalar.name == "move_speed"
+        )
+        decision = action_for(
+            environment,
+            "bot",
+            "move",
+            direction=Vector2(1.0, 0.0),
+            correlation_id="snared-move",
+        )
+
+        environment.step((decision,))
+
+        self.assertEqual(4.0, observed)
+        self.assertEqual(Vector2(0.8, 0.0), environment.entity("bot").position)
 
     def test_push_moves_the_target_away_from_the_actor(self) -> None:
         push = ActionSpec(

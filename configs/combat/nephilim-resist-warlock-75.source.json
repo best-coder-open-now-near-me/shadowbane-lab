@@ -106,11 +106,13 @@
     },
     "power_ranks": {
       "shadowbane.warlock.mind_strike": 40,
-      "shadowbane.warlock.psychic_healing": 40
+      "shadowbane.warlock.psychic_healing": 40,
+      "shadowbane.warlock.psychic_shield": 40
     },
     "enabled_power_keys": [
       "shadowbane.warlock.mind_strike",
-      "shadowbane.warlock.psychic_healing"
+      "shadowbane.warlock.psychic_healing",
+      "shadowbane.warlock.psychic_shield"
     ]
   }
 }

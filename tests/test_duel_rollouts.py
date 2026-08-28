@@ -17,6 +17,8 @@ SHADOW_BOLT = "shadowbane.assassin.shadow_bolt"
 SHADOW_TOUCH = "shadowbane.assassin.shadow_touch"
 MIND_STRIKE = "shadowbane.warlock.mind_strike"
 PSYCHIC_HEALING = "shadowbane.warlock.psychic_healing"
+STEAL_BREATH = "shadowbane.assassin.steal_breath"
+PSYCHIC_SHIELD = "shadowbane.warlock.psychic_shield"
 
 
 def build(profession: str, level: int, rank: int) -> CharacterBuild:
@@ -54,7 +56,7 @@ class DuelRolloutTests(unittest.TestCase):
 
     def test_level_gates_change_action_usage(self) -> None:
         results = matched_progression_duels(
-            levels=(10, 15, 26), power_ranks=(40,), max_ticks=1_000
+            levels=(10, 15, 18, 26), power_ranks=(40,), max_ticks=1_000
         )
 
         by_level = {level: result for level, _, result in results}
@@ -67,14 +69,18 @@ class DuelRolloutTests(unittest.TestCase):
         warlock_15 = dict(
             (item.action_key, item.count) for item in by_level[15].combatants[1].actions
         )
-        warlock_26 = dict(
-            (item.action_key, item.count) for item in by_level[26].combatants[1].actions
+        assassin_18 = dict(
+            (item.action_key, item.count) for item in by_level[18].combatants[0].actions
+        )
+        warlock_18 = dict(
+            (item.action_key, item.count) for item in by_level[18].combatants[1].actions
         )
 
         self.assertNotIn(SHADOW_TOUCH, assassin_10)
         self.assertGreater(assassin_15.get(SHADOW_TOUCH, 0), 0)
         self.assertNotIn(PSYCHIC_HEALING, warlock_15)
-        self.assertGreater(warlock_26.get(PSYCHIC_HEALING, 0), 0)
+        self.assertGreater(assassin_18.get(STEAL_BREATH, 0), 0)
+        self.assertGreater(warlock_18.get(PSYCHIC_SHIELD, 0), 0)
 
     def test_rank_brackets_change_compiled_power_usage_or_outcome(self) -> None:
         results = matched_progression_duels(

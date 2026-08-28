@@ -88,6 +88,28 @@
       "action_key": null,
       "max_absolute_delta": null,
       "evidence_trace_ids": []
+    },
+    {
+      "gap_id": "SB-GAP-009",
+      "status": "open",
+      "category": "damage",
+      "scenario_pattern": "steal_breath.*",
+      "path_pattern": "trace/steps/*/after/entities/*/scalars/health",
+      "description": "The sourced direct poison hit, six five-second pulses, focus scaling, and refresh behavior require a controlled current-WonderBane trace; snare magnitude and stack precedence require the corresponding movement trace.",
+      "action_key": "shadowbane.assassin.steal_breath",
+      "max_absolute_delta": null,
+      "evidence_trace_ids": []
+    },
+    {
+      "gap_id": "SB-GAP-010",
+      "status": "open",
+      "category": "effect",
+      "scenario_pattern": "psychic_shield.*",
+      "path_pattern": "trace/steps/*/after/entities/*",
+      "description": "The pinned Psychic Shield table uses a 1000-point post-resistance breakpoint while later MagicBane patch history reports 750; a current WonderBane trace must resolve the threshold, resistance application, and stack precedence.",
+      "action_key": "shadowbane.warlock.psychic_shield",
+      "max_absolute_delta": null,
+      "evidence_trace_ids": []
     }
   ]
 }

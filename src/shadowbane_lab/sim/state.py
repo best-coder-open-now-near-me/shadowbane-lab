@@ -14,6 +14,7 @@ from shadowbane_lab.sim.actions import (
     PeriodicPulse,
     ResistanceAdjustment,
     ResourceImmunity,
+    ScalarMultiplier,
 )
 
 
@@ -91,6 +92,7 @@ class ActiveEffectState:
                     ResourceImmunity,
                     PeriodicPulse,
                     ResistanceAdjustment,
+                    ScalarMultiplier,
                     DamageBreakpoint,
                 ),
             )
@@ -253,6 +255,23 @@ class EntityState:
         return frozenset(
             self.tags | effect_tags | modifier_tags | {f"stance.{self.stance.value}"}
         )
+
+    def effective_scalar(self, scalar_key: str) -> float:
+        """Return a base scalar after all active typed multipliers."""
+
+        _identifier(scalar_key, "scalar_key")
+        if scalar_key not in self.scalars:
+            raise KeyError(scalar_key)
+        factor = 1.0
+        for storage_key in sorted(self.effects):
+            effect = self.effects[storage_key]
+            for modifier in effect.modifiers:
+                if (
+                    isinstance(modifier, ScalarMultiplier)
+                    and modifier.scalar_key == scalar_key
+                ):
+                    factor *= modifier.factor
+        return float(self.scalars[scalar_key]) * factor
 
     def snapshot(self) -> EntitySnapshot:
         return EntitySnapshot(

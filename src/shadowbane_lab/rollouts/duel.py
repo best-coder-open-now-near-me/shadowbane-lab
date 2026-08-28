@@ -38,6 +38,8 @@ SHADOW_BOLT = "shadowbane.assassin.shadow_bolt"
 SHADOW_TOUCH = "shadowbane.assassin.shadow_touch"
 MIND_STRIKE = "shadowbane.warlock.mind_strike"
 PSYCHIC_HEALING = "shadowbane.warlock.psychic_healing"
+STEAL_BREATH = "shadowbane.assassin.steal_breath"
+PSYCHIC_SHIELD = "shadowbane.warlock.psychic_shield"
 _DIRECTIONAL_MOVE = "shadowbane.move"
 _CLOSE_RANGE = "sim.range.close"
 _MELEE_RANGE = 3.0
@@ -354,6 +356,15 @@ class UtilityDuelPolicy:
         features = {feature.name: feature.value for feature in affordance.features}
         tags = frozenset(affordance.tags)
         commitment_ms = max(1.0, features.get("commitment_ms", 1.0))
+
+        if "damage_absorber" in tags:
+            if any(tag.startswith("breakpoint.damage.") for tag in actor_tags):
+                return float("-inf")
+            return (
+                1_000.0
+                + features.get("damage_breakpoint", 0.0) / 10.0
+                + features.get("effect_duration_ms", 0.0) / 1_000.0
+            )
 
         if "healing" in tags:
             if "immunity.resource.health" in actor_tags:
@@ -674,7 +685,7 @@ def _aggregate_verified_combatant(
 
 def matched_progression_duels(
     *,
-    levels: tuple[int, ...] = (10, 15, 22, 26, 40),
+    levels: tuple[int, ...] = (10, 15, 18, 22, 26, 40),
     power_ranks: tuple[int, ...] = (0, 20, 40),
     max_ticks: int = 1_000,
     seed: int = 1,
@@ -702,7 +713,9 @@ def matched_progression_duels(
 
 def _progression_build(profession: str, level: int, rank: int) -> CharacterBuild:
     power_keys = (
-        (SHADOW_BOLT, SHADOW_TOUCH) if profession == "assassin" else (MIND_STRIKE, PSYCHIC_HEALING)
+        (SHADOW_BOLT, SHADOW_TOUCH, STEAL_BREATH)
+        if profession == "assassin"
+        else (MIND_STRIKE, PSYCHIC_HEALING, PSYCHIC_SHIELD)
     )
     skill_key = "shadowmastery" if profession == "assassin" else "warlockry"
     return CharacterBuild(

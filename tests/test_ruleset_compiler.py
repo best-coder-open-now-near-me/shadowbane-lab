@@ -22,6 +22,7 @@ from shadowbane_lab.sim.actions import (
     PeriodicPulse,
     ResistanceAdjustment,
     RestoreResource,
+    ScalarMultiplier,
     TriangularAmount,
     UniformAmount,
     UniformIntegerAmount,
@@ -32,6 +33,8 @@ SHADOW_TOUCH = "shadowbane.assassin.shadow_touch"
 MIND_STRIKE = "shadowbane.warlock.mind_strike"
 PSYCHIC_HEALING = "shadowbane.warlock.psychic_healing"
 LEVITATION = "shadowbane.warlock.levitation"
+STEAL_BREATH = "shadowbane.assassin.steal_breath"
+PSYCHIC_SHIELD = "shadowbane.warlock.psychic_shield"
 PASSWALL = "shadowbane.assassin.passwall"
 
 
@@ -124,6 +127,11 @@ class RulesetCompilerTests(unittest.TestCase):
                 "threshold": 1_000,
                 "damage_types": ["crush", "pierce", "slash"],
             },
+            {
+                "op": "scalar_multiplier",
+                "scalar_key": "move_speed",
+                "factor": 0.4,
+            },
         ]
 
         action = load_ruleset_text(json.dumps(source)).record(SHADOW_TOUCH).action
@@ -144,17 +152,21 @@ class RulesetCompilerTests(unittest.TestCase):
             ),
             effect.modifiers[1],
         )
+        self.assertEqual(
+            ScalarMultiplier("move_speed", 0.4),
+            effect.modifiers[2],
+        )
 
     def test_bundled_slice_loads_with_explicit_quality_states(self) -> None:
         ruleset = load_shadowbane_vertical_slice()
 
         self.assertEqual("shadowbane.vertical-slice.v1", ruleset.ruleset_id)
-        self.assertEqual(9, len(ruleset.records))
-        self.assertEqual(8, len(ruleset.catalog))
+        self.assertEqual(11, len(ruleset.records))
+        self.assertEqual(10, len(ruleset.catalog))
         self.assertEqual(
             {
                 CompilationStatus.COMPILED: 0,
-                CompilationStatus.COMPILED_WITH_OVERRIDE: 8,
+                CompilationStatus.COMPILED_WITH_OVERRIDE: 10,
                 CompilationStatus.UNRESOLVED: 1,
             },
             ruleset.status_counts(),
@@ -280,6 +292,68 @@ class RulesetCompilerTests(unittest.TestCase):
         self.assertEqual(UniformAmount(33.0, 52.0), damage.amount)
         self.assertEqual(3_600, mind_strike.cooldown_ms)
         self.assertEqual(9_000, shadow_touch.features[0].value)
+
+    def test_steal_breath_compiles_direct_periodic_and_snare_primitives(self) -> None:
+        record = load_shadowbane_vertical_slice().record(STEAL_BREATH)
+        action = record.action
+
+        assert action is not None
+        self.assertEqual(429246281, record.mapping.server_power_token)
+        self.assertEqual("ASS-019", record.mapping.server_id_string)
+        self.assertEqual(96.8, action.costs[0].amount)
+        self.assertEqual(200, action.phases[0].duration_ms)
+        self.assertEqual(5_200, action.cooldown_ms)
+        damage = next(
+            effect for effect in action.phases[0].effects if isinstance(effect, DealDamage)
+        )
+        carriers = tuple(
+            effect for effect in action.phases[0].effects if isinstance(effect, ApplyEffect)
+        )
+        pulse = next(
+            modifier
+            for effect in carriers
+            for modifier in effect.modifiers
+            if isinstance(modifier, PeriodicPulse)
+        )
+        snare = next(
+            modifier
+            for effect in carriers
+            for modifier in effect.modifiers
+            if isinstance(modifier, ScalarMultiplier)
+        )
+        self.assertEqual(UniformAmount(12.0, 19.0), damage.amount)
+        self.assertEqual((5_000, 6), (pulse.interval_ms, pulse.tick_count))
+        self.assertEqual(UniformAmount(12.0, 19.0), pulse.effects[0].amount)
+        self.assertEqual(ScalarMultiplier("move_speed", 0.4), snare)
+
+    def test_psychic_shield_compiles_resistance_and_post_mitigation_breakpoint(self) -> None:
+        action = load_shadowbane_vertical_slice().record(PSYCHIC_SHIELD).action
+
+        assert action is not None
+        self.assertEqual(23.0, action.costs[0].amount)
+        self.assertEqual(300_200, action.cooldown_ms)
+        carrier = next(
+            effect for effect in action.phases[0].effects if isinstance(effect, ApplyEffect)
+        )
+        resistances = tuple(
+            modifier
+            for modifier in carrier.modifiers
+            if isinstance(modifier, ResistanceAdjustment)
+        )
+        breakpoint = next(
+            modifier
+            for modifier in carrier.modifiers
+            if isinstance(modifier, DamageBreakpoint)
+        )
+        self.assertEqual(
+            (("crush", 75.0), ("pierce", 75.0), ("slash", 75.0)),
+            tuple((item.damage_type.value, item.amount) for item in resistances),
+        )
+        self.assertEqual(1_000.0, breakpoint.threshold)
+        self.assertEqual(
+            ("crush", "pierce", "slash"),
+            tuple(item.value for item in breakpoint.damage_types),
+        )
 
     def test_unresolved_action_is_excluded_from_executable_catalog(self) -> None:
         ruleset = load_shadowbane_vertical_slice()

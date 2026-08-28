@@ -17,9 +17,11 @@ The current executable slice uses these published grant points:
 | --- | --- | ---: | --- | --- |
 | Assassin | Shadow Bolt | 10 | Shadowmastery 15 | Executable |
 | Assassin | Shadow Touch | 15 | Shadowmastery 36 | Executable |
+| Assassin | Steal Breath | 18 | Shadowmastery 43 | Executable |
 | Assassin | Shadow Mantle | 42 | Shadowmastery 97 | Executable |
 | Assassin | Passwall | 28 | Shadowmastery 66 | Unresolved and excluded |
 | Warlock | Mind Strike | 10 | None published | Executable |
+| Warlock | Psychic Shield | 18 | Warlockry 43 | Executable |
 | Warlock | Levitation | 22 | Warlockry 52 | Executable at fixed rank 5 |
 | Warlock | Psychic Healing | 26 | Warlockry 61 | Executable |
 
@@ -66,7 +68,10 @@ eligible target set. Basic-versus-power is a separate hit-resolution choice, and
 Shadow Mantle explicitly omit a hit roll. Damage uses a closed channel vocabulary independent of
 its weapon, spell, proc, or hazard source. Shadow Mantle's healing denial is likewise a typed
 ranked `ResourceImmunity` modifier on a timed effect, not a power-name special case or a runtime
-string-tag convention.
+string-tag convention. Steal Breath composes one direct poison hit, a bounded six-pulse poison
+schedule, anti-flight removal, and a timed `move_speed` multiplier. Psychic Shield composes
+three resistance adjustments with a cumulative post-resistance physical-damage breakpoint;
+neither power adds name-based behavior to the runtime.
 
 Run one accepted-source duel:
 
@@ -94,12 +99,19 @@ The checked-in level-75 source scenarios are
 `configs/combat/nephilim-resist-warlock-75.source.json`. They intentionally describe naked
 calculator-derived sheets with zeroed gear, resistance, and passive-defense contributions, so
 they test the formula/action pipeline rather than approximate finished PvP builds. In a
-1,000-seed run starting at seed 0, the current partial action catalog produced 1,000 Warlock wins,
-no draws, no rejected actions, and zero effective healing because Shadow Mantle blocked every
-attempt at or below its rank. The Assassin dealt 1,220.50 mean damage and the Warlock finished
-with 655.50 mean health. This is not a balance result: the Warlock and Assassin catalogs still
-omit major buffs, debuffs, absorbs, damage-over-time, stealth/openers, and equipment, and the
-generic utility policy is not a player rotation.
+1,000-seed run starting at seed 0, the current Steal Breath plus Psychic Shield slice produced
+1,000 Warlock wins, no draws, no rejected actions, and zero effective healing because Shadow
+Mantle covered the fight's healing window. The Assassin dealt 970.11 mean damage, the Warlock
+finished with 905.89 mean health, and fights averaged 150.448 ticks. The prior slice without
+these two powers had the Assassin dealing 1,220.50 mean damage and the Warlock finishing at
+655.50 health; the physical absorber outweighed the newly added poison pressure in this naked
+source-sheet matchup.
+
+This is a source-bounded mechanics result, not a balance result. The pinned Psychic Shield row
+uses a 1,000-point breakpoint, while later MagicBane patch history reports 750 points after
+resistance; current WonderBane deployment data must resolve that conflict. The catalogs also
+omit Mental Shield, many buffs and debuffs, stealth/openers, authoritative equipment, and a
+player rotation.
 
 ## Run the bracket
 
@@ -113,7 +125,7 @@ python -m shadowbane_lab.rollouts
 Machine-readable output and custom brackets are available:
 
 ```powershell
-python -m shadowbane_lab.rollouts --levels 10,15,22,26,40 --ranks 0,20,40 --json
+python -m shadowbane_lab.rollouts --levels 10,15,18,22,26,40 --ranks 0,20,40 --json
 ```
 
 The built-in matched progression sweep assumes the published focus prerequisites are met.
@@ -130,13 +142,14 @@ bracket produces:
 | ---: | --- | --- | --- |
 | 10 | Warlock | Assassin | Assassin |
 | 15 | Warlock | Assassin | Assassin |
+| 18 | Warlock | Assassin | Assassin |
 | 22 | Warlock | Assassin | Assassin |
-| 26 | Warlock | Warlock | Assassin |
-| 40 | Warlock | Warlock | Assassin |
+| 26 | Warlock | Assassin | Assassin |
+| 40 | Warlock | Assassin | Assassin |
 
-These are harness baselines, not balance claims. In particular, Psychic Healing changes the
-rank-20 outcome after its level-26 unlock, while rank-40 Shadow Touch gives the baseline
-Assassin a large control advantage after level 15.
+These are harness baselines, not balance claims. Steal Breath and Psychic Shield enter the
+bracket at level 18, while rank-40 Shadow Touch gives the baseline Assassin a large control
+advantage after level 15.
 
 ## Legacy bracket fidelity gaps
 
@@ -147,7 +160,8 @@ a character sheet. It does not model:
 - hit rolls, attack rating, defense, resistances, or authoritative roll distributions;
 - stat/focus modifiers, regeneration, equipment, or weapon-specific basic attacks;
 - cast interruption, obstacle line of sight, collision, or full flight movement semantics;
-- selected area-power rows, damage-over-time ticks, absorbs, or broad buff/debuff interactions.
+- selected area-power rows or broad buff/debuff interactions beyond the current periodic,
+  scalar-modifier, immunity, and damage-breakpoint slice.
 
 In that legacy bracket, published damage and healing ranges use a reviewed continuous-uniform approximation. The
 specified PCG32 stream makes those rolls exactly replayable by seed and snapshot, while

@@ -122,6 +122,7 @@ class VerifiedDuelTests(unittest.TestCase):
         )
 
         result = run_verified_duel_batch(config, episodes=3)
+        single = run_verified_duel(config).duel
 
         self.assertEqual(3, result.episodes)
         self.assertEqual(
@@ -131,6 +132,19 @@ class VerifiedDuelTests(unittest.TestCase):
         self.assertEqual(
             0,
             sum(item.total_rejected_actions for item in result.combatants),
+        )
+        actions = {
+            action.action_key
+            for combatant in single.combatants
+            for action in combatant.actions
+        }
+        self.assertIn(
+            "shadowbane.assassin.steal_breath@irekei-proc-assassin-75-source-v1",
+            actions,
+        )
+        self.assertIn(
+            "shadowbane.warlock.psychic_shield@nephilim-resist-warlock-75-source-v1",
+            actions,
         )
 
     def test_complete_sheet_duel_is_reproducible_and_carries_acceptance_metadata(self) -> None:

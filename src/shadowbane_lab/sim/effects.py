@@ -460,7 +460,8 @@ class EffectExecutor:
             resistance = self._required_scalar(subject, f"resist.{effect.damage_type.value}")
             resistance += sum(
                 modifier.amount
-                for active in subject.effects.values()
+                for storage_key in sorted(subject.effects)
+                for active in (subject.effects[storage_key],)
                 for modifier in active.modifiers
                 if isinstance(modifier, ResistanceAdjustment)
                 and modifier.damage_type is effect.damage_type
@@ -972,7 +973,11 @@ class EffectExecutor:
             direction = self._movement_direction(item.binding, effect, subject)
             distance = effect.distance
             if distance is None:
-                speed = subject.scalars.get("move_speed", 0.0)
+                speed = (
+                    subject.effective_scalar("move_speed")
+                    if "move_speed" in subject.scalars
+                    else 0.0
+                )
                 distance = speed * item.phase_duration_ms / 1_000.0
             after = Vector2(
                 subject.position.x + direction.x * distance,
@@ -1186,7 +1191,7 @@ class EffectExecutor:
     @staticmethod
     def _required_scalar(entity: EntityState, scalar_key: str) -> float:
         try:
-            return float(entity.scalars[scalar_key])
+            return entity.effective_scalar(scalar_key)
         except KeyError as exc:
             raise SimulationConfigurationError(
                 f"entity {entity.entity_id} is missing required scalar {scalar_key}"

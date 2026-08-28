@@ -23,8 +23,9 @@ files, locators, and hashes recorded in
 and power hit curves, weapon and power attack rating, defense, weapon damage, stat/focus scaling,
 centered health-effect rolls, resistance/protection/armor piercing, and effect overwrite rules.
 The same manifest pins the historical editor power-hash table. Current WonderBane native training
-data confirms Shadow Touch as `ASS-013` / `428918601` and Shadow Bolt as `ASS-018` / `429213513` on
-client SHA-256 `ef43784ba6ffa0de6c0c16c76569f864393ad1530e7149395bb560e5cca30f13`.
+data confirms Shadow Touch as `ASS-013` / `428918601`, Shadow Bolt as `ASS-018` / `429213513`,
+and Steal Breath as `ASS-019` / `429246281` on client SHA-256
+`ef43784ba6ffa0de6c0c16c76569f864393ad1530e7149395bb560e5cca30f13`.
 
 These formulas are not treated as silently current. `CombatSheet` carries its exact formula
 revision and a `live_verified`, `source_revision_accepted`, or `unverified` compatibility state.
@@ -40,6 +41,12 @@ target caps, and per-victim power-hit checks. This supplies the durable executio
 does not invent stance modifiers or AoE rows: current values for offensive, defensive, and
 precise tradeoffs, each power's origin/radius/cap, and edge behavior such as fully immune hits
 remain acquisition fields.
+
+Timed effects now carry deterministic periodic schedules, scalar multipliers, resistance
+adjustments, and stateful damage breakpoints. Steal Breath and Psychic Shield exercise those
+generic primitives in the checked level-75 source matchup. The Psychic Shield breakpoint remains
+source-conflicted (`1000` in the pinned power table, `750` in later MagicBane patch history), so
+the row stays `compiled_with_override` until current WonderBane data resolves it.
 
 ## Legacy comparison catalog
 

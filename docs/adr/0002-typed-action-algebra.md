@@ -56,6 +56,10 @@ virtual-time ordering and deterministic effect-instance identity. Replacing, dis
 expiring the carrier invalidates its old scheduled pulses, and snapshots preserve the complete
 schedule and random state.
 
+Continuous timed buffs and debuffs use `ScalarMultiplier` over a named base scalar. Effective
+values are derived from active effect state for observations and resolution, while the stored
+base scalar remains unchanged; expiry and snapshot restore therefore need no inverse mutation.
+
 Exceptional Shadowbane mechanics must be represented by reviewed, reusable typed extensions
 rather than arbitrary callbacks or power-name branches embedded in ruleset data. Shadowbane's
 damage "absorbers" are represented by their server-side composition: one or more

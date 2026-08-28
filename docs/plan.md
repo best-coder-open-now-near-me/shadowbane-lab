@@ -134,15 +134,18 @@ server correction remains observable.
   proc, passive-defense, stacking, immunity, and interruption mechanics without fallback stats.
 - Single-seed and compiled-once multi-seed Assassin-versus-Warlock runs carry formula revision,
   sheet source revision, and compatibility acceptance in every result.
-- Shadow Touch and Shadow Bolt now carry current-client token mappings as well as historical
-  canonical IDStrings.
+- Shadow Touch, Shadow Bolt, and Steal Breath now carry current-client token mappings as well as
+  historical canonical IDStrings.
 - Stances are mutually exclusive snapshot state, travel drops to normal on an unavoided hit, and
   caster-centered versus target/ground-centered areas resolve explicit radius, relations, target
   caps, and per-victim hit gates.
+- Timed scalar modifiers, deterministic periodic pulses, resistance adjustments, and cumulative
+  post-resistance breakpoints execute Steal Breath and Psychic Shield without power-name logic.
 - The remaining data work is current WonderBane differential validation, complete live combat
-  sheets, authoritative stance modifiers and AoE rows, and expansion from the present
-  representative action slice to the selected Assassin and Warlock movesets. The runner rejects
-  any selected unresolved action meanwhile.
+  sheets, authoritative stance modifiers and AoE rows, resolution of the Psychic Shield
+  1000-versus-750 breakpoint conflict, and expansion from the present representative action
+  slice to the selected Assassin and Warlock movesets. The runner rejects any selected unresolved
+  action meanwhile.
 
 **Gate:** representative live traces promote both sheets and selected action rows to
 `live_verified`, after which the default strict CLI runs without acceptance overrides.
