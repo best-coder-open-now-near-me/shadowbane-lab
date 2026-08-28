@@ -51,6 +51,14 @@ class GoChatCommandAssemblerTests(unittest.TestCase):
 
         self.assertEqual("/pve  ", assembler.handle_enter().submitted_command.casefold())
 
+    def test_expands_direct_runegate_command_to_named_go_command(self) -> None:
+        assembler = GoChatCommandAssembler()
+        assembler.handle_enter()
+        for character in "/Runegate  ":
+            assembler.handle_character(character)
+
+        self.assertEqual("/go runegate", assembler.handle_enter().submitted_command)
+
     def test_discards_pve_command_with_arguments(self) -> None:
         assembler = GoChatCommandAssembler()
         assembler.handle_enter()

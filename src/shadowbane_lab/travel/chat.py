@@ -19,7 +19,11 @@ class GoChatCommandUpdate:
 
 
 class GoChatCommandAssembler:
-    """Retain only a possible ``/go``, ``/pve``, or ``/stop`` line."""
+    """Retain only a supported Shadowbane Lab control-command line."""
+
+    _DIRECT_COMMAND_ALIASES = {
+        "/runegate": "/go runegate",
+    }
 
     def __init__(self, *, maximum_length: int = 128) -> None:
         if isinstance(maximum_length, bool) or not isinstance(maximum_length, int):
@@ -44,7 +48,7 @@ class GoChatCommandAssembler:
             self._candidate = ""
             return GoChatCommandUpdate(interaction_started=True)
 
-        command = self._candidate if self._is_complete_control_command(self._candidate) else None
+        command = self._submitted_control_command(self._candidate)
         self.reset()
         return GoChatCommandUpdate(submitted_command=command)
 
@@ -88,7 +92,7 @@ class GoChatCommandAssembler:
         normalized = candidate.casefold()
         if any(
             command.startswith(normalized)
-            for command in ("/go", "/pve", "/stop")
+            for command in ("/go", "/pve", "/stop", *GoChatCommandAssembler._DIRECT_COMMAND_ALIASES)
         ):
             return True
         if normalized.startswith("/go "):
@@ -97,27 +101,35 @@ class GoChatCommandAssembler:
             return not normalized.removeprefix("/pve").strip()
         if normalized.startswith("/stop"):
             return not normalized.removeprefix("/stop").strip()
+        for alias in GoChatCommandAssembler._DIRECT_COMMAND_ALIASES:
+            if normalized.startswith(alias):
+                return not normalized.removeprefix(alias).strip()
         return False
 
     @staticmethod
-    def _is_complete_control_command(candidate: str | None) -> bool:
+    def _submitted_control_command(candidate: str | None) -> str | None:
         if candidate is None:
-            return False
+            return None
         normalized = candidate.casefold()
-        return (
+        alias = GoChatCommandAssembler._DIRECT_COMMAND_ALIASES.get(normalized.rstrip())
+        if alias is not None:
+            return alias
+        if (
             normalized == "/go"
             or normalized.startswith("/go ")
             or normalized.rstrip() == "/pve"
             or normalized.rstrip() == "/stop"
-        )
+        ):
+            return candidate
+        return None
 
 
 class WindowsGoChatCommandListener:
     """Observe keyboard events only while the calibrated game owns foreground focus.
 
     The hook never suppresses or injects input. It keeps at most one possible ``/go``,
-    ``/pve``, or ``/stop`` command and immediately forgets ordinary chat and unrelated
-    commands.
+    ``/pve``, ``/stop``, or direct travel-alias command and immediately forgets ordinary
+    chat and unrelated commands.
     """
 
     _WH_KEYBOARD_LL = 13
