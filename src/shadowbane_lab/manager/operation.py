@@ -367,6 +367,24 @@ class WorkerOperationSubmission:
 
 
 @dataclass(frozen=True, slots=True)
+class WorkerOperationExecution:
+    """Terminal outcome returned by an exact worker's operation executor."""
+
+    state: WorkerOperationState
+    detail: str | None = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.state, WorkerOperationState) or not self.state.terminal:
+            raise ValueError("execution state must be terminal")
+        if self.state in {
+            WorkerOperationState.EXPIRED,
+            WorkerOperationState.REJECTED,
+        }:
+            raise ValueError("executor may return only succeeded, failed, or cancelled")
+        _detail(self.detail)
+
+
+@dataclass(frozen=True, slots=True)
 class WorkerOperationSnapshot:
     operation: WorkerOperation
     receipt: WorkerOperationReceipt | None
@@ -882,6 +900,7 @@ __all__ = [
     "WORKER_OPERATION_SCHEMA_VERSION",
     "WorkerOperation",
     "WorkerOperationError",
+    "WorkerOperationExecution",
     "WorkerOperationFormatError",
     "WorkerOperationKind",
     "WorkerOperationLedger",

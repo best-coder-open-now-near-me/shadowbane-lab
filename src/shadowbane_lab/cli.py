@@ -149,6 +149,11 @@ from shadowbane_lab.manager import (
     Win32ProcessLifetimeInspector,
     Win32WindowApi,
     WorkerHeartbeatLedger,
+    WorkerOperation,
+    WorkerOperationExecution,
+    WorkerOperationKind,
+    WorkerOperationLedger,
+    WorkerOperationState,
     WorkerSupervisor,
     expand_manager_slots,
     load_manager_manifest,
@@ -881,6 +886,59 @@ def _parser() -> argparse.ArgumentParser:
     manager_worker.add_argument("--game-window-handle", type=int, required=True)
     manager_worker.add_argument("--heartbeat-ms", type=int, default=1_000)
     manager_worker.add_argument(
+        "--destination-state",
+        type=Path,
+        default=Path(r"\\VBOXSVR\codexdiag\bounded-route-state.json"),
+    )
+    manager_worker.add_argument(
+        "--client-profile",
+        type=Path,
+        default=Path(r"\\VBOXSVR\codexdiag\wonderbane-travel.local.json"),
+    )
+    manager_worker.add_argument("--native-position-profile", type=Path)
+    manager_worker.add_argument("--native-vitals-profile", type=Path)
+    manager_worker.add_argument(
+        "--pve-client-profile",
+        type=Path,
+        default=Path(r"\\VBOXSVR\codexrepo\configs\wonderbane-pve.local.json"),
+    )
+    manager_worker.add_argument("--pve-hotbar-config", type=Path)
+    manager_worker.add_argument(
+        "--pve-evidence-directory",
+        type=Path,
+        default=Path(r"\\VBOXSVR\codexdiag"),
+    )
+    manager_worker.add_argument(
+        "--navigation-cache-directory",
+        type=Path,
+        default=(
+            Path.home()
+            / "Downloads"
+            / "WonderbaneClient"
+            / "Wonderbane"
+            / "cache"
+        ),
+    )
+    manager_worker.add_argument(
+        "--learned-navigation-state",
+        type=Path,
+        default=Path(r"\\VBOXSVR\codexdiag\learned-navigation-state.json"),
+    )
+    manager_worker.add_argument("--pve-max-kills", type=int, default=3)
+    manager_worker.add_argument("--pve-max-seconds", type=float, default=300.0)
+    manager_worker.add_argument(
+        "--pve-max-encounter-seconds", type=float, default=120.0
+    )
+    manager_worker.add_argument(
+        "--pve-recovery-timeout-seconds", type=float, default=30.0
+    )
+    manager_worker.add_argument("--pve-poll-ms", type=int, default=100)
+    manager_worker.add_argument("--pve-camp-radius", type=float, default=120.0)
+    manager_worker.add_argument("--pve-retained-trace-steps", type=int, default=2_000)
+    manager_worker.add_argument("--travel-max-seconds", type=float, default=300.0)
+    manager_worker.add_argument("--travel-poll-ms", type=int, default=200)
+    manager_worker.add_argument("--travel-click-interval-ms", type=int, default=2_000)
+    manager_worker.add_argument(
         "--live",
         action="store_true",
         help="required because this worker is the live-input ownership boundary",
@@ -1313,6 +1371,7 @@ def _run_manager_app(
             aggregate_registry,
             worker_supervisor,
             worker_controller=worker_controller,
+            operation_status=WorkerOperationLedger(manifest, heartbeat_root),
             launch_timeout_seconds=launch_timeout_seconds,
             poll_seconds=poll_ms / 1_000.0,
         )
@@ -1357,6 +1416,25 @@ def _run_manager_worker(
     game_process_started_at_100ns: int,
     game_window_handle: int,
     heartbeat_ms: int,
+    destination_state_path: Path,
+    client_profile_path: Path,
+    native_position_profile_path: Path | None,
+    native_vitals_profile_path: Path | None,
+    pve_client_profile_path: Path,
+    pve_hotbar_config_path: Path | None,
+    pve_evidence_directory: Path,
+    navigation_cache_directory: Path,
+    learned_navigation_state_path: Path,
+    pve_max_kills: int,
+    pve_max_seconds: float,
+    pve_max_encounter_seconds: float,
+    pve_recovery_timeout_seconds: float,
+    pve_poll_ms: int,
+    pve_camp_radius: float,
+    pve_retained_trace_steps: int,
+    travel_max_seconds: float,
+    travel_poll_ms: int,
+    travel_click_interval_ms: int,
     live: bool,
 ) -> int:
     if not live:
@@ -1388,11 +1466,242 @@ def _run_manager_worker(
             WorkerHeartbeatLedger(manifest, worker_state_directory),
             ManifestClientRegistryProvider(inspector, manifest),
             process_inspector,
+            operation_ledger=WorkerOperationLedger(
+                manifest,
+                worker_state_directory,
+            ),
+            operation_executor=_ExactWorkerEngineExecutor(
+                binding,
+                destination_state_path=destination_state_path,
+                client_profile_path=client_profile_path,
+                native_position_profile_path=native_position_profile_path,
+                native_vitals_profile_path=native_vitals_profile_path,
+                pve_client_profile_path=pve_client_profile_path,
+                pve_hotbar_config_path=pve_hotbar_config_path,
+                pve_evidence_directory=pve_evidence_directory,
+                navigation_cache_directory=navigation_cache_directory,
+                learned_navigation_state_path=learned_navigation_state_path,
+                pve_max_kills=pve_max_kills,
+                pve_max_seconds=pve_max_seconds,
+                pve_max_encounter_seconds=pve_max_encounter_seconds,
+                pve_recovery_timeout_seconds=pve_recovery_timeout_seconds,
+                pve_poll_ms=pve_poll_ms,
+                pve_camp_radius=pve_camp_radius,
+                pve_retained_trace_steps=pve_retained_trace_steps,
+                travel_max_seconds=travel_max_seconds,
+                travel_poll_ms=travel_poll_ms,
+                travel_click_interval_ms=travel_click_interval_ms,
+            ),
             heartbeat_interval_seconds=heartbeat_ms / 1_000.0,
         )
         return runtime.serve()
     except (OSError, RuntimeError, ValueError) as exc:
         return _error(f"manager worker failed: {exc}", as_json=False)
+
+
+class _ExactWorkerEngineExecutor:
+    """Compose existing travel/PvE engines behind one exact worker dispatch gate."""
+
+    def __init__(
+        self,
+        binding: ExactClientWorkerBinding,
+        *,
+        destination_state_path: Path,
+        client_profile_path: Path,
+        native_position_profile_path: Path | None,
+        native_vitals_profile_path: Path | None,
+        pve_client_profile_path: Path,
+        pve_hotbar_config_path: Path | None,
+        pve_evidence_directory: Path,
+        navigation_cache_directory: Path,
+        learned_navigation_state_path: Path,
+        pve_max_kills: int,
+        pve_max_seconds: float,
+        pve_max_encounter_seconds: float,
+        pve_recovery_timeout_seconds: float,
+        pve_poll_ms: int,
+        pve_camp_radius: float,
+        pve_retained_trace_steps: int,
+        travel_max_seconds: float,
+        travel_poll_ms: int,
+        travel_click_interval_ms: int,
+    ) -> None:
+        self._binding = binding
+        self._destination_state_path = destination_state_path
+        self._client_profile_path = client_profile_path
+        self._native_position_profile_path = native_position_profile_path
+        self._native_vitals_profile_path = native_vitals_profile_path
+        self._pve_client_profile_path = pve_client_profile_path
+        self._pve_hotbar_config_path = pve_hotbar_config_path
+        self._pve_evidence_directory = pve_evidence_directory
+        self._navigation_cache_directory = navigation_cache_directory
+        self._learned_navigation_state_path = learned_navigation_state_path
+        self._pve_max_kills = pve_max_kills
+        self._pve_max_seconds = pve_max_seconds
+        self._pve_max_encounter_seconds = pve_max_encounter_seconds
+        self._pve_recovery_timeout_seconds = pve_recovery_timeout_seconds
+        self._pve_poll_ms = pve_poll_ms
+        self._pve_camp_radius = pve_camp_radius
+        self._pve_retained_trace_steps = pve_retained_trace_steps
+        self._travel_max_seconds = travel_max_seconds
+        self._travel_poll_ms = travel_poll_ms
+        self._travel_click_interval_ms = travel_click_interval_ms
+        self._navigation_map = load_learned_navigation_map(
+            learned_navigation_state_path
+        )
+
+    def execute(
+        self,
+        operation: WorkerOperation,
+        *,
+        stop_signal: StopSignal,
+    ) -> WorkerOperationExecution:
+        if operation.instance_id != self._binding.instance_id:
+            return WorkerOperationExecution(
+                WorkerOperationState.FAILED,
+                "operation does not own this exact game instance",
+            )
+        if stop_signal.is_set():
+            return WorkerOperationExecution(
+                WorkerOperationState.CANCELLED,
+                "worker dispatch gate closed before execution",
+            )
+        try:
+            if operation.kind is WorkerOperationKind.STOP:
+                result = self._execute_stop(stop_signal=stop_signal)
+            elif operation.kind is WorkerOperationKind.TRAVEL:
+                result = self._execute_travel(operation, stop_signal=stop_signal)
+            elif operation.kind is WorkerOperationKind.PVE:
+                result = self._execute_pve(stop_signal=stop_signal)
+            else:
+                raise ValueError(f"unsupported operation kind {operation.kind!r}")
+        finally:
+            save_learned_navigation_map(
+                self._learned_navigation_state_path,
+                self._navigation_map,
+            )
+        return result
+
+    def _execute_stop(self, *, stop_signal: StopSignal) -> WorkerOperationExecution:
+        profile = load_calibration(self._client_profile_path)
+        guard = ForegroundWindowGuard(
+            profile,
+            WindowsForegroundWindowInspector(),
+            expected_process_id=self._binding.game_process_id,
+        )
+        adapter = ClientInputAdapter(
+            DecisionInputCompiler(profile, StaticBindingPointResolver()),
+            GuardedInputExecutor(
+                guard=guard,
+                backend=PyAutoGuiBackend(),
+                stop_signal=stop_signal,
+            ),
+        )
+        result = adapter.dispatch_movement_stop(
+            correlation_id=f"worker:{self._binding.client_id}:stop"
+        )
+        return WorkerOperationExecution(
+            (
+                WorkerOperationState.SUCCEEDED
+                if result.accepted
+                else WorkerOperationState.FAILED
+            ),
+            result.reason,
+        )
+
+    def _execute_travel(
+        self,
+        operation: WorkerOperation,
+        *,
+        stop_signal: StopSignal,
+    ) -> WorkerOperationExecution:
+        destination = operation.destination
+        if destination is None:
+            raise ValueError("travel operation lacks a resolved destination")
+        result = _run_travel(
+            lt=destination.lt,
+            lg=destination.lg,
+            radius=destination.radius,
+            destination_state_path=self._destination_state_path,
+            client_profile_path=self._client_profile_path,
+            native_position_profile_path=self._native_position_profile_path,
+            native_vitals_profile_path=self._native_vitals_profile_path,
+            max_seconds=self._travel_max_seconds,
+            wait_for_client_seconds=0,
+            poll_ms=self._travel_poll_ms,
+            click_interval_ms=self._travel_click_interval_ms,
+            live=True,
+            as_json=True,
+            stop_signal=stop_signal,
+            client_process_id=self._binding.game_process_id,
+            navigation_cache_directory=self._navigation_cache_directory,
+            navigation_map=self._navigation_map,
+        )
+        if stop_signal.is_set():
+            return WorkerOperationExecution(
+                WorkerOperationState.CANCELLED,
+                "travel stopped by priority or dispatch revocation",
+            )
+        return WorkerOperationExecution(
+            WorkerOperationState.SUCCEEDED if result == 0 else WorkerOperationState.FAILED,
+            "travel completed" if result == 0 else f"travel exited with status {result}",
+        )
+
+    def _execute_pve(self, *, stop_signal: StopSignal) -> WorkerOperationExecution:
+        hotbar_path = self._pve_hotbar_config_path
+        if hotbar_path is None:
+            candidates = tuple(
+                sorted(
+                    (
+                        Path.home()
+                        / "Downloads"
+                        / "WonderbaneClient"
+                        / "Wonderbane"
+                        / "Config"
+                    ).glob("SCREEN_GAME_*_Wonderbane.cfg")
+                )
+            )
+            if len(candidates) == 1:
+                hotbar_path = candidates[0]
+        self._pve_evidence_directory.mkdir(parents=True, exist_ok=True)
+        evidence_output = _new_chat_pve_evidence_path(self._pve_evidence_directory)
+        result = _run_pve(
+            client_profile_path=self._pve_client_profile_path,
+            combat_log_path=None,
+            hotbar_config_path=hotbar_path,
+            native_health_profile_path=None,
+            native_vitals_profile_path=self._native_vitals_profile_path,
+            native_position_profile_path=self._native_position_profile_path,
+            native_target_position_profile_path=None,
+            native_target_action_profile_path=None,
+            navigation_cache_directory=self._navigation_cache_directory,
+            max_kills=self._pve_max_kills,
+            max_seconds=self._pve_max_seconds,
+            max_encounter_seconds=self._pve_max_encounter_seconds,
+            recovery_timeout_seconds=self._pve_recovery_timeout_seconds,
+            wait_for_client_seconds=0,
+            poll_ms=self._pve_poll_ms,
+            policy="proc-assassin",
+            live=True,
+            as_json=True,
+            evidence_output_path=evidence_output,
+            combat_source="state",
+            stop_signal=stop_signal,
+            client_process_id=self._binding.game_process_id,
+            continuous=True,
+            camp_radius=self._pve_camp_radius,
+            retained_trace_steps=self._pve_retained_trace_steps,
+            navigation_map=self._navigation_map,
+        )
+        if stop_signal.is_set():
+            return WorkerOperationExecution(
+                WorkerOperationState.CANCELLED,
+                "PvE stopped by priority or dispatch revocation",
+            )
+        return WorkerOperationExecution(
+            WorkerOperationState.SUCCEEDED if result == 0 else WorkerOperationState.FAILED,
+            "PvE completed" if result == 0 else f"PvE exited with status {result}",
+        )
 
 
 def _print_snapshot(snapshot: WindowSnapshot, *, as_json: bool) -> None:
@@ -4199,6 +4508,25 @@ def main(argv: Sequence[str] | None = None) -> int:
             game_process_started_at_100ns=arguments.game_process_started_at_100ns,
             game_window_handle=arguments.game_window_handle,
             heartbeat_ms=arguments.heartbeat_ms,
+            destination_state_path=arguments.destination_state,
+            client_profile_path=arguments.client_profile,
+            native_position_profile_path=arguments.native_position_profile,
+            native_vitals_profile_path=arguments.native_vitals_profile,
+            pve_client_profile_path=arguments.pve_client_profile,
+            pve_hotbar_config_path=arguments.pve_hotbar_config,
+            pve_evidence_directory=arguments.pve_evidence_directory,
+            navigation_cache_directory=arguments.navigation_cache_directory,
+            learned_navigation_state_path=arguments.learned_navigation_state,
+            pve_max_kills=arguments.pve_max_kills,
+            pve_max_seconds=arguments.pve_max_seconds,
+            pve_max_encounter_seconds=arguments.pve_max_encounter_seconds,
+            pve_recovery_timeout_seconds=arguments.pve_recovery_timeout_seconds,
+            pve_poll_ms=arguments.pve_poll_ms,
+            pve_camp_radius=arguments.pve_camp_radius,
+            pve_retained_trace_steps=arguments.pve_retained_trace_steps,
+            travel_max_seconds=arguments.travel_max_seconds,
+            travel_poll_ms=arguments.travel_poll_ms,
+            travel_click_interval_ms=arguments.travel_click_interval_ms,
             live=arguments.live,
         )
     if (

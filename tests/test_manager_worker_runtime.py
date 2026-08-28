@@ -1,6 +1,7 @@
 import json
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -14,12 +15,19 @@ from shadowbane_lab.manager import (
     ManagedWorkerController,
     ProcessLifetimeSnapshot,
     SubprocessWorkerLauncher,
+    WorkerDispatchPermit,
+    WorkerHealthState,
     WorkerHeartbeat,
     WorkerHeartbeatLedger,
+    WorkerOperationExecution,
+    WorkerOperationKind,
+    WorkerOperationLedger,
+    WorkerOperationState,
     WorkerRuntimeState,
     WorkerStopRequest,
     derive_client_instance_id,
     loads_worker_stop_request,
+    new_worker_operation,
     parse_manager_manifest,
 )
 
@@ -112,6 +120,27 @@ class _RecordingLauncher:
     def launch(self, binding: ExactClientWorkerBinding) -> int:
         self.bindings.append(binding)
         return 7777
+
+
+class _RecordingOperationExecutor:
+    def __init__(self) -> None:
+        self.operations = []
+
+    def execute(self, operation, *, stop_signal):
+        self.operations.append(operation)
+        if operation.kind is WorkerOperationKind.PVE:
+            deadline = time.monotonic() + 1.0
+            while not stop_signal.is_set() and time.monotonic() < deadline:
+                time.sleep(0.005)
+            if stop_signal.is_set():
+                return WorkerOperationExecution(
+                    WorkerOperationState.CANCELLED,
+                    "preempted by priority stop",
+                )
+        return WorkerOperationExecution(
+            WorkerOperationState.SUCCEEDED,
+            "operation completed",
+        )
 
 
 def _heartbeat(*, instance_id: str, observed_at: float = 100.0) -> WorkerHeartbeat:
@@ -228,6 +257,161 @@ class ExactClientWorkerRuntimeTests(unittest.TestCase):
         self.assertEqual(WorkerRuntimeState.STOPPED, final.runtime_state)
         self.assertTrue(final.emergency_stop)
         self.assertIn("no longer uniquely visible", final.detail or "")
+
+    def test_runtime_acknowledges_and_executes_through_exact_worker_gate(self) -> None:
+        manifest = _manifest()
+        client = _client()
+        worker_process = ProcessLifetimeSnapshot(
+            WORKER_PROCESS_ID,
+            WORKER_PROCESS_STARTED,
+        )
+        stop = _StopSignal()
+        executor = _RecordingOperationExecutor()
+        sleeps = 0
+        operation = None
+        with tempfile.TemporaryDirectory() as directory:
+            heartbeat_ledger = WorkerHeartbeatLedger(manifest, directory)
+            operation_ledger = WorkerOperationLedger(manifest, directory)
+
+            def drive(_seconds: float) -> None:
+                nonlocal sleeps, operation
+                sleeps += 1
+                heartbeat = heartbeat_ledger.inspect(CLIENT_ID).records[0]
+                permit = WorkerDispatchPermit(
+                    node_id=NODE_ID,
+                    client_id=CLIENT_ID,
+                    instance_id=client.instance_id,
+                    worker_id=heartbeat.worker_id,
+                    process_id=heartbeat.process_id,
+                    process_started_at_100ns=heartbeat.process_started_at_100ns,
+                    heartbeat_sequence=heartbeat.sequence,
+                    health_state=WorkerHealthState.HEALTHY,
+                    allowed=True,
+                    issued_at=time.time(),
+                    expires_at=time.time() + 30.0,
+                    reason="test manager authorizes exact worker",
+                )
+                heartbeat_ledger.publish_permit(permit)
+                if sleeps == 1:
+                    operation = new_worker_operation(
+                        permit,
+                        WorkerOperationKind.TRAVEL,
+                        "/go 120000 60000",
+                    )
+                    operation_ledger.submit(operation)
+                elif sleeps >= 3:
+                    stop.stopped = True
+                time.sleep(0.01)
+
+            runtime = ExactClientWorkerRuntime(
+                manifest,
+                ExactClientWorkerBinding.from_client(CLIENT_ID, client),
+                heartbeat_ledger,
+                _StaticRegistry(client),
+                _ProcessInspector(worker_process),
+                operation_ledger=operation_ledger,
+                operation_executor=executor,
+                process_id=WORKER_PROCESS_ID,
+                sleeper=drive,
+            )
+
+            result = runtime.serve(stop_signal=stop)
+            assert operation is not None
+            receipt = operation_ledger.inspect_receipt(CLIENT_ID, operation.operation_id)
+
+        self.assertEqual(0, result)
+        self.assertEqual([operation], executor.operations)
+        self.assertIsNotNone(receipt)
+        assert receipt is not None
+        self.assertEqual(WorkerOperationState.SUCCEEDED, receipt.state)
+
+    def test_priority_stop_preempts_active_operation_then_executes_stop(self) -> None:
+        manifest = _manifest()
+        client = _client()
+        worker_process = ProcessLifetimeSnapshot(
+            WORKER_PROCESS_ID,
+            WORKER_PROCESS_STARTED,
+        )
+        stop_runtime = _StopSignal()
+        executor = _RecordingOperationExecutor()
+        sleeps = 0
+        pve_operation = None
+        stop_operation = None
+        with tempfile.TemporaryDirectory() as directory:
+            heartbeat_ledger = WorkerHeartbeatLedger(manifest, directory)
+            operation_ledger = WorkerOperationLedger(manifest, directory)
+
+            def drive(_seconds: float) -> None:
+                nonlocal sleeps, pve_operation, stop_operation
+                sleeps += 1
+                heartbeat = heartbeat_ledger.inspect(CLIENT_ID).records[0]
+                permit = WorkerDispatchPermit(
+                    node_id=NODE_ID,
+                    client_id=CLIENT_ID,
+                    instance_id=client.instance_id,
+                    worker_id=heartbeat.worker_id,
+                    process_id=heartbeat.process_id,
+                    process_started_at_100ns=heartbeat.process_started_at_100ns,
+                    heartbeat_sequence=heartbeat.sequence,
+                    health_state=WorkerHealthState.HEALTHY,
+                    allowed=True,
+                    issued_at=time.time(),
+                    expires_at=time.time() + 30.0,
+                    reason="test manager authorizes exact worker",
+                )
+                heartbeat_ledger.publish_permit(permit)
+                if sleeps == 1:
+                    pve_operation = new_worker_operation(
+                        permit,
+                        WorkerOperationKind.PVE,
+                        "/pve",
+                    )
+                    operation_ledger.submit(pve_operation)
+                elif sleeps == 2:
+                    stop_operation = new_worker_operation(
+                        permit,
+                        WorkerOperationKind.STOP,
+                        "/stop",
+                    )
+                    operation_ledger.submit(stop_operation)
+                elif sleeps >= 5:
+                    stop_runtime.stopped = True
+                time.sleep(0.02)
+
+            runtime = ExactClientWorkerRuntime(
+                manifest,
+                ExactClientWorkerBinding.from_client(CLIENT_ID, client),
+                heartbeat_ledger,
+                _StaticRegistry(client),
+                _ProcessInspector(worker_process),
+                operation_ledger=operation_ledger,
+                operation_executor=executor,
+                process_id=WORKER_PROCESS_ID,
+                sleeper=drive,
+            )
+
+            result = runtime.serve(stop_signal=stop_runtime)
+            assert pve_operation is not None
+            assert stop_operation is not None
+            pve_receipt = operation_ledger.inspect_receipt(
+                CLIENT_ID,
+                pve_operation.operation_id,
+            )
+            stop_receipt = operation_ledger.inspect_receipt(
+                CLIENT_ID,
+                stop_operation.operation_id,
+            )
+
+        self.assertEqual(0, result)
+        self.assertEqual(
+            [WorkerOperationKind.PVE, WorkerOperationKind.STOP],
+            [operation.kind for operation in executor.operations],
+        )
+        self.assertIsNotNone(pve_receipt)
+        self.assertIsNotNone(stop_receipt)
+        assert pve_receipt is not None and stop_receipt is not None
+        self.assertEqual(WorkerOperationState.CANCELLED, pve_receipt.state)
+        self.assertEqual(WorkerOperationState.SUCCEEDED, stop_receipt.state)
 
 
 class ManagedWorkerControllerTests(unittest.TestCase):

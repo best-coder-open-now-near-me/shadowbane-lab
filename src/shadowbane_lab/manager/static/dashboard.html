@@ -280,6 +280,35 @@
           workerDetail.textContent = text(worker.detail);
           workerPanel.append(workerDetail);
         }
+        const operation = slot?.operation;
+        const activeOperation = operation?.active;
+        const latestResult = operation?.latest_result;
+        const operationFacts = [];
+        if (Number.isInteger(operation?.queued_count) && operation.queued_count > 0) {
+          operationFacts.push(`${operation.queued_count} queued`);
+        }
+        if (activeOperation?.operation) {
+          operationFacts.push(
+            `active ${text(activeOperation.operation.kind)} · ${text(activeOperation.operation.operation_id)}`
+          );
+        }
+        if (latestResult?.receipt) {
+          operationFacts.push(
+            `last ${text(latestResult.operation?.kind)} · ${text(latestResult.receipt.state)}`
+          );
+        }
+        if (operationFacts.length) {
+          const operationMetadata = document.createElement("p");
+          operationMetadata.className = "detail";
+          operationMetadata.textContent = operationFacts.join(" · ");
+          workerPanel.append(operationMetadata);
+        }
+        if (latestResult?.receipt?.detail) {
+          const operationDetail = document.createElement("p");
+          operationDetail.className = "detail";
+          operationDetail.textContent = text(latestResult.receipt.detail);
+          workerPanel.append(operationDetail);
+        }
 
         const controls = document.createElement("div");
         controls.className = "actions";

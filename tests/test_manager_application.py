@@ -5,6 +5,13 @@ from shadowbane_lab.manager.application import ManagerDashboardApplication
 from shadowbane_lab.manager.dashboard import DashboardError
 from shadowbane_lab.manager.manifest import ManagerManifest, parse_manager_manifest
 from shadowbane_lab.manager.model import ClientInstanceSnapshot, ClientRegistrySnapshot
+from shadowbane_lab.manager.operation import (
+    WorkerOperationKind,
+    WorkerOperationReceipt,
+    WorkerOperationSnapshot,
+    WorkerOperationState,
+    new_worker_operation,
+)
 from shadowbane_lab.manager.session import (
     ManagerSessionSnapshot,
     ManagerSlotSnapshot,
@@ -12,6 +19,7 @@ from shadowbane_lab.manager.session import (
     SessionActionError,
 )
 from shadowbane_lab.manager.worker import (
+    WorkerDispatchPermit,
     WorkerHealthState,
     WorkerSlotHealthSnapshot,
 )
@@ -219,11 +227,20 @@ class _RecordingWorkerController:
         return 1
 
 
+class _StaticOperationStatus:
+    def __init__(self, *snapshots: WorkerOperationSnapshot) -> None:
+        self.snapshots = tuple(snapshots)
+
+    def inspect_slot(self, _client_id: str) -> tuple[WorkerOperationSnapshot, ...]:
+        return self.snapshots
+
+
 def _application(
     session: _RecordingSession,
     *clients: ClientInstanceSnapshot,
     worker_state: WorkerHealthState = WorkerHealthState.HEALTHY,
     worker_controller: _RecordingWorkerController | None = None,
+    operation_status: _StaticOperationStatus | None = None,
 ) -> tuple[ManagerDashboardApplication, _StaticRegistry]:
     registry = _StaticRegistry(
         ClientRegistrySnapshot(
@@ -252,6 +269,7 @@ def _application(
             registry,
             worker_supervisor,
             worker_controller=worker_controller,
+            operation_status=operation_status,
             launch_timeout_seconds=12.0,
             poll_seconds=0.25,
         ),
@@ -260,6 +278,78 @@ def _application(
 
 
 class ManagerDashboardApplicationTests(unittest.TestCase):
+    def test_status_reports_active_operation_and_latest_terminal_result(self) -> None:
+        bound = _client("instance-101", 101)
+        session = _RecordingSession(
+            ManagerSessionSnapshot(
+                node_id=NODE_ID,
+                slots=(_slot("client-01", instance_id=bound.instance_id),),
+            )
+        )
+        permit = WorkerDispatchPermit(
+            node_id=NODE_ID,
+            client_id="client-01",
+            instance_id=bound.instance_id,
+            worker_id="worker-0123456789abcdef0123456789abcdef",
+            process_id=9001,
+            process_started_at_100ns=133_700_000_000_009_001,
+            heartbeat_sequence=4,
+            health_state=WorkerHealthState.HEALTHY,
+            allowed=True,
+            issued_at=100.0,
+            expires_at=102.0,
+            reason="exact worker is healthy",
+        )
+        completed = new_worker_operation(
+            permit,
+            WorkerOperationKind.TRAVEL,
+            "/go 1 2",
+            now=100.0,
+            operation_id="operation-11111111111111111111111111111111",
+        )
+        active = new_worker_operation(
+            permit,
+            WorkerOperationKind.PVE,
+            "/pve",
+            now=101.0,
+            operation_id="operation-22222222222222222222222222222222",
+        )
+        operation_status = _StaticOperationStatus(
+            WorkerOperationSnapshot(
+                completed,
+                WorkerOperationReceipt.for_operation(
+                    completed,
+                    WorkerOperationState.SUCCEEDED,
+                    observed_at=100.5,
+                ),
+            ),
+            WorkerOperationSnapshot(
+                active,
+                WorkerOperationReceipt.for_operation(
+                    active,
+                    WorkerOperationState.ACTIVE,
+                    observed_at=101.1,
+                ),
+            ),
+        )
+        application, _ = _application(
+            session,
+            bound,
+            operation_status=operation_status,
+        )
+
+        operation = application.status()["slots"][0]["operation"]
+
+        self.assertEqual(0, operation["queued_count"])
+        self.assertEqual(
+            active.operation_id,
+            operation["active"]["operation"]["operation_id"],
+        )
+        self.assertEqual(
+            "succeeded",
+            operation["latest_result"]["receipt"]["state"],
+        )
+
     def test_resume_bootstraps_exact_worker_and_detach_stops_it(self) -> None:
         bound = _client("instance-101", 101)
         session = _RecordingSession(

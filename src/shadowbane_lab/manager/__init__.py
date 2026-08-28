@@ -33,6 +33,7 @@ from .operation import (
     WORKER_OPERATION_SCHEMA_VERSION,
     WorkerOperation,
     WorkerOperationError,
+    WorkerOperationExecution,
     WorkerOperationFormatError,
     WorkerOperationKind,
     WorkerOperationLedger,
@@ -125,6 +126,7 @@ from .worker_runtime import (
     ExactClientWorkerRuntime,
     ManagedWorkerController,
     SubprocessWorkerLauncher,
+    WorkerOperationExecutor,
 )
 
 __all__ = [
@@ -203,6 +205,8 @@ __all__ = [
     "WorkerHeartbeatPublisher",
     "WorkerOperation",
     "WorkerOperationError",
+    "WorkerOperationExecution",
+    "WorkerOperationExecutor",
     "WorkerOperationFormatError",
     "WorkerOperationKind",
     "WorkerOperationLedger",

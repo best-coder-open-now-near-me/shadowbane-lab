@@ -14,6 +14,7 @@ from .model import (
     ClientRegistrySnapshot,
     RejectedWindowSnapshot,
 )
+from .operation import WorkerOperationSnapshot, WorkerOperationState
 from .session import (
     ManagerSessionError,
     ManagerSessionSnapshot,
@@ -93,6 +94,12 @@ class WorkerLifecycleControl(Protocol):
     def request_stop(self, client_id: str, *, reason: str) -> int: ...
 
 
+class WorkerOperationStatusProvider(Protocol):
+    """Read-only operation status for one node-local manifest slot."""
+
+    def inspect_slot(self, client_id: str) -> tuple[WorkerOperationSnapshot, ...]: ...
+
+
 def _require_positive_finite(value: float, field_name: str) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError(f"{field_name} must be numeric")
@@ -167,6 +174,7 @@ class ManagerDashboardApplication:
         worker_supervisor: WorkerStatusProvider,
         *,
         worker_controller: WorkerLifecycleControl | None = None,
+        operation_status: WorkerOperationStatusProvider | None = None,
         launch_timeout_seconds: float = 30.0,
         poll_seconds: float = 0.5,
     ) -> None:
@@ -202,11 +210,16 @@ class ManagerDashboardApplication:
             raise ValueError(
                 "worker_controller must provide ensure_started() and request_stop()"
             )
+        if operation_status is not None and not callable(
+            getattr(operation_status, "inspect_slot", None)
+        ):
+            raise ValueError("operation_status must provide inspect_slot()")
         self._manifest = manifest
         self._session = session
         self._registry = registry
         self._worker_supervisor = worker_supervisor
         self._worker_controller = worker_controller
+        self._operation_status = operation_status
         self._launch_timeout_seconds = _require_positive_finite(
             launch_timeout_seconds,
             "launch_timeout_seconds",
@@ -275,6 +288,10 @@ class ManagerDashboardApplication:
                 payload["lifecycle_dispatch_enabled"] = lifecycle_dispatch_enabled
                 payload["dispatch_enabled"] = worker.dispatch_allowed
                 payload["worker"] = worker.to_dict()
+                payload["operation"] = self._operation_summary(
+                    slot.client_id,
+                    instance_id=None if binding is None else binding.instance_id,
+                )
                 payload["binding"] = None if binding is None else _client_summary(binding)
                 payload["candidates"] = [
                     _client_summary(client)
@@ -299,6 +316,51 @@ class ManagerDashboardApplication:
                 "dispatch_ready_count": dispatch_ready_count,
                 "slots": slots,
             }
+
+    def _operation_summary(
+        self,
+        client_id: str,
+        *,
+        instance_id: str | None,
+    ) -> dict[str, object]:
+        if self._operation_status is None:
+            return {"queued_count": 0, "active": None, "latest_result": None}
+        snapshots = self._operation_status.inspect_slot(client_id)
+        if not isinstance(snapshots, tuple) or any(
+            not isinstance(item, WorkerOperationSnapshot) for item in snapshots
+        ):
+            raise RuntimeError("operation status provider returned an invalid snapshot")
+        relevant = tuple(
+            snapshot
+            for snapshot in snapshots
+            if instance_id is None or snapshot.operation.instance_id == instance_id
+        )
+        queued = tuple(snapshot for snapshot in relevant if snapshot.receipt is None)
+        active = next(
+            (
+                snapshot
+                for snapshot in reversed(relevant)
+                if snapshot.receipt is not None
+                and snapshot.receipt.state
+                in {WorkerOperationState.ACCEPTED, WorkerOperationState.ACTIVE}
+            ),
+            None,
+        )
+        latest_result = next(
+            (
+                snapshot
+                for snapshot in reversed(relevant)
+                if snapshot.receipt is not None and snapshot.receipt.state.terminal
+            ),
+            None,
+        )
+        return {
+            "queued_count": len(queued),
+            "active": None if active is None else active.to_dict(),
+            "latest_result": (
+                None if latest_result is None else latest_result.to_dict()
+            ),
+        }
 
     def execute(
         self,
@@ -522,4 +584,5 @@ __all__ = [
     "SessionControl",
     "WorkerStatusProvider",
     "WorkerLifecycleControl",
+    "WorkerOperationStatusProvider",
 ]

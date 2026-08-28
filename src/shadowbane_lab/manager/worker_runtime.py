@@ -8,8 +8,10 @@ host into which travel, PvE, and later group tactics are composed.
 from __future__ import annotations
 
 import os
+import queue
 import subprocess
 import sys
+import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -19,6 +21,14 @@ from typing import Protocol
 
 from .manifest import ManagerManifest
 from .model import ClientInstanceSnapshot, ClientRegistrySnapshot
+from .operation import (
+    WorkerOperation,
+    WorkerOperationExecution,
+    WorkerOperationKind,
+    WorkerOperationLedger,
+    WorkerOperationReceipt,
+    WorkerOperationState,
+)
 from .registry import derive_client_instance_id
 from .supervisor import ProcessLifetimeInspector, ProcessLifetimeSnapshot
 from .worker import (
@@ -91,6 +101,61 @@ class WorkerProcessLauncher(Protocol):
     def launch(self, binding: ExactClientWorkerBinding) -> int: ...
 
 
+class WorkerOperationExecutor(Protocol):
+    def execute(
+        self,
+        operation: WorkerOperation,
+        *,
+        stop_signal: StopSignal,
+    ) -> WorkerOperationExecution: ...
+
+
+class _OperationStopSignal:
+    def __init__(
+        self,
+        dispatch_gate: StopSignal,
+        operation_ledger: WorkerOperationLedger,
+        binding: ExactClientWorkerBinding,
+        worker_id: str,
+        worker_process_id: int,
+        worker_process_started_at_100ns: int,
+    ) -> None:
+        self._dispatch_gate = dispatch_gate
+        self._ledger = operation_ledger
+        self._binding = binding
+        self._worker_id = worker_id
+        self._worker_process_id = worker_process_id
+        self._worker_process_started_at_100ns = worker_process_started_at_100ns
+        self._local = threading.Event()
+
+    def trip(self) -> None:
+        self._local.set()
+
+    def is_set(self) -> bool:
+        if self._local.is_set() or self._dispatch_gate.is_set():
+            return True
+        try:
+            pending = self._ledger.pending_for(
+                client_id=self._binding.client_id,
+                instance_id=self._binding.instance_id,
+                worker_id=self._worker_id,
+                worker_process_id=self._worker_process_id,
+                worker_process_started_at_100ns=self._worker_process_started_at_100ns,
+                now=time.time(),
+            )
+        except (OSError, RuntimeError, ValueError):
+            return True
+        return any(operation.kind is WorkerOperationKind.STOP for operation in pending)
+
+
+@dataclass(slots=True)
+class _ActiveWorkerOperation:
+    operation: WorkerOperation
+    thread: threading.Thread
+    stop_signal: _OperationStopSignal
+    results: queue.Queue[WorkerOperationExecution]
+
+
 class ExactClientWorkerRuntime:
     """Publish health only while one exact visible game identity remains current."""
 
@@ -102,6 +167,8 @@ class ExactClientWorkerRuntime:
         registry: RegistryProvider,
         process_inspector: ProcessLifetimeInspector,
         *,
+        operation_ledger: WorkerOperationLedger | None = None,
+        operation_executor: WorkerOperationExecutor | None = None,
         process_id: int | None = None,
         heartbeat_interval_seconds: float = 1.0,
         sleeper: Callable[[float], None] = time.sleep,
@@ -125,6 +192,18 @@ class ExactClientWorkerRuntime:
             raise ValueError("heartbeat_interval_seconds must be finite and positive")
         if not callable(sleeper):
             raise ValueError("sleeper must be callable")
+        if (operation_ledger is None) != (operation_executor is None):
+            raise ValueError(
+                "operation_ledger and operation_executor must be configured together"
+            )
+        if operation_ledger is not None and not isinstance(
+            operation_ledger, WorkerOperationLedger
+        ):
+            raise ValueError("operation_ledger must be WorkerOperationLedger")
+        if operation_executor is not None and not callable(
+            getattr(operation_executor, "execute", None)
+        ):
+            raise ValueError("operation_executor must provide execute()")
         binding.validate_for(manifest)
         if ledger.node_id != manifest.node_id:
             raise ExactClientWorkerError("worker ledger belongs to a different manager node")
@@ -145,6 +224,8 @@ class ExactClientWorkerRuntime:
         self._process = process
         self._interval = float(heartbeat_interval_seconds)
         self._sleep = sleeper
+        self._operation_ledger = operation_ledger
+        self._operation_executor = operation_executor
 
     @property
     def process(self) -> ProcessLifetimeSnapshot:
@@ -165,6 +246,8 @@ class ExactClientWorkerRuntime:
             detail="verifying exact game process and window identity",
         )
         final_detail = "worker runtime stopped"
+        active_operation: _ActiveWorkerOperation | None = None
+        evidence_sequence = 0
         try:
             while stop_signal is None or not stop_signal.is_set():
                 request = self._ledger.inspect_stop_request(
@@ -174,6 +257,11 @@ class ExactClientWorkerRuntime:
                 if request is not None:
                     self._require_matching_stop_request(request, publisher)
                     final_detail = request.reason
+                    if active_operation is not None:
+                        self._cancel_active_operation(
+                            active_operation,
+                            detail=request.reason,
+                        )
                     publisher.publish(
                         WorkerRuntimeState.STOPPING,
                         detail=request.reason,
@@ -181,13 +269,32 @@ class ExactClientWorkerRuntime:
                     return 0
 
                 self._require_exact_game_identity()
+                if active_operation is not None and not active_operation.thread.is_alive():
+                    self._complete_active_operation(active_operation)
+                    evidence_sequence += 1
+                    active_operation = None
+                if active_operation is None:
+                    active_operation = self._start_next_operation(publisher)
                 publisher.publish(
                     WorkerRuntimeState.RUNNING,
                     dispatch_ready=True,
-                    detail="exact game identity and guarded dispatch boundary are ready",
+                    detail=(
+                        "exact game identity and guarded dispatch boundary are ready"
+                        if active_operation is None
+                        else (
+                            f"{active_operation.operation.kind.value} operation "
+                            f"{active_operation.operation.operation_id} is active"
+                        )
+                    ),
+                    evidence_sequence=evidence_sequence,
                 )
                 self._sleep(self._interval)
             final_detail = "local worker stop signal was set"
+            if active_operation is not None:
+                self._cancel_active_operation(
+                    active_operation,
+                    detail=final_detail,
+                )
             publisher.publish(
                 WorkerRuntimeState.STOPPING,
                 detail=final_detail,
@@ -195,6 +302,11 @@ class ExactClientWorkerRuntime:
             return 0
         except KeyboardInterrupt:
             final_detail = "worker interrupted locally"
+            if active_operation is not None:
+                self._cancel_active_operation(
+                    active_operation,
+                    detail=final_detail,
+                )
             publisher.publish(
                 WorkerRuntimeState.STOPPING,
                 detail=final_detail,
@@ -202,6 +314,11 @@ class ExactClientWorkerRuntime:
             return 0
         except Exception as exc:
             final_detail = str(exc)[:512] or "worker runtime failed"
+            if active_operation is not None:
+                self._cancel_active_operation(
+                    active_operation,
+                    detail=final_detail,
+                )
             publisher.publish(
                 WorkerRuntimeState.FAILED,
                 emergency_stop=True,
@@ -210,6 +327,146 @@ class ExactClientWorkerRuntime:
             return 1
         finally:
             publisher.close(detail=final_detail)
+
+    def _start_next_operation(
+        self,
+        publisher: WorkerHeartbeatPublisher,
+    ) -> _ActiveWorkerOperation | None:
+        ledger = self._operation_ledger
+        executor = self._operation_executor
+        if ledger is None or executor is None:
+            return None
+        pending = ledger.pending_for(
+            client_id=self._binding.client_id,
+            instance_id=self._binding.instance_id,
+            worker_id=publisher.worker_id,
+            worker_process_id=self._process.process_id,
+            worker_process_started_at_100ns=self._process.process_started_at_100ns,
+            now=time.time(),
+        )
+        if not pending:
+            return None
+        operation = pending[0]
+        observed_at = time.time()
+        ledger.publish_receipt(
+            WorkerOperationReceipt.for_operation(
+                operation,
+                WorkerOperationState.ACCEPTED,
+                observed_at=observed_at,
+                detail="accepted by exact per-client worker",
+            )
+        )
+        ledger.publish_receipt(
+            WorkerOperationReceipt.for_operation(
+                operation,
+                WorkerOperationState.ACTIVE,
+                observed_at=max(time.time(), observed_at),
+                detail="executing through the exact worker dispatch gate",
+            )
+        )
+        operation_stop = _OperationStopSignal(
+            publisher.dispatch_gate(),
+            ledger,
+            self._binding,
+            publisher.worker_id,
+            self._process.process_id,
+            self._process.process_started_at_100ns,
+        )
+        results: queue.Queue[WorkerOperationExecution] = queue.Queue(maxsize=1)
+
+        def execute() -> None:
+            try:
+                result = executor.execute(operation, stop_signal=operation_stop)
+                if not isinstance(result, WorkerOperationExecution):
+                    raise ExactClientWorkerError(
+                        "worker operation executor returned an invalid result"
+                    )
+            except Exception as exc:
+                result = WorkerOperationExecution(
+                    WorkerOperationState.FAILED,
+                    detail=(str(exc)[:512] or "worker operation failed"),
+                )
+            results.put(result)
+
+        thread = threading.Thread(
+            target=execute,
+            name=f"shadowbane-{self._binding.client_id}-{operation.kind.value}",
+            daemon=True,
+        )
+        try:
+            thread.start()
+        except Exception as exc:
+            ledger.publish_receipt(
+                WorkerOperationReceipt.for_operation(
+                    operation,
+                    WorkerOperationState.FAILED,
+                    observed_at=time.time(),
+                    detail=(str(exc)[:512] or "operation thread failed to start"),
+                )
+            )
+            return None
+        return _ActiveWorkerOperation(operation, thread, operation_stop, results)
+
+    def _complete_active_operation(self, active: _ActiveWorkerOperation) -> None:
+        ledger = self._operation_ledger
+        if ledger is None:
+            raise ExactClientWorkerError("active operation has no operation ledger")
+        try:
+            result = active.results.get_nowait()
+        except queue.Empty as exc:
+            raise ExactClientWorkerError(
+                "operation thread exited without a terminal result"
+            ) from exc
+        ledger.publish_receipt(
+            WorkerOperationReceipt.for_operation(
+                active.operation,
+                result.state,
+                observed_at=time.time(),
+                detail=result.detail,
+            )
+        )
+
+    def _cancel_active_operation(
+        self,
+        active: _ActiveWorkerOperation,
+        *,
+        detail: str,
+    ) -> None:
+        ledger = self._operation_ledger
+        if ledger is None:
+            raise ExactClientWorkerError("active operation has no operation ledger")
+        active.stop_signal.trip()
+        active.thread.join(timeout=max(2.0, self._interval * 2.0))
+        if active.thread.is_alive():
+            ledger.publish_receipt(
+                WorkerOperationReceipt.for_operation(
+                    active.operation,
+                    WorkerOperationState.FAILED,
+                    observed_at=time.time(),
+                    detail="operation did not stop before its worker runtime exited",
+                )
+            )
+            return
+        try:
+            result = active.results.get_nowait()
+        except queue.Empty:
+            result = WorkerOperationExecution(
+                WorkerOperationState.CANCELLED,
+                detail=detail[:512],
+            )
+        if result.state is WorkerOperationState.SUCCEEDED:
+            result = WorkerOperationExecution(
+                WorkerOperationState.CANCELLED,
+                detail=detail[:512],
+            )
+        ledger.publish_receipt(
+            WorkerOperationReceipt.for_operation(
+                active.operation,
+                result.state,
+                observed_at=time.time(),
+                detail=result.detail,
+            )
+        )
 
     def _require_exact_game_identity(self) -> ClientInstanceSnapshot:
         snapshot = self._registry.inspect()
