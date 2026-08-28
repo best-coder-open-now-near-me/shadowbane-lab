@@ -46,6 +46,32 @@ capture as provenance; transcribed values should cite the capture identifier and
 number. Values are promoted to `wonderbane_verified` only after all affected legality edges are
 cross-checked and the resulting catalog passes validation.
 
+### Passive incoming capture
+
+If manually cycling the menu is impractical, capture the server payload delivered when the
+creation screen is entered. With WonderBane running and logged in, launch this from a regular
+PowerShell window inside the VM; accept the Windows administrator prompt required by Packet
+Monitor:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
+  \\VBOXSVR\codexrepo\scripts\start-wonderbane-incoming-capture.ps1
+```
+
+Leave and re-enter character creation once. The collector is read-only and filters traffic to
+the TCP and UDP endpoints currently owned by that exact `sb.exe` process. Stop and export it
+with:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
+  \\VBOXSVR\codexrepo\scripts\stop-wonderbane-incoming-capture.ps1
+```
+
+The stop command converts the bounded circular ETL to PCAPNG and copies the PCAPNG plus a client
+hash/endpoint manifest to `\\VBOXSVR\codexdiag\incoming-captures`. Raw network traffic may
+contain account, session, or chat data. Keep captures private and extract only the game-definition
+records needed by the catalog.
+
 The menu does not establish later promotion choices, discipline-slot rules, complete power
 rank curves, equipment statistics, resource formulas, hit/defense/resistance behavior, or
 interrupt and crowd-control rules unless it explicitly displays them. Those remain separate
