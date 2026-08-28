@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from math import isfinite
 
-from shadowbane_lab.pve.model import PvEObservation, PvEPhase
+from shadowbane_lab.pve.model import PvECampLease, PvEObservation, PvEPhase
 from shadowbane_lab.travel import (
     AStarRouteNotFound,
     SparseNavigationMap,
@@ -150,6 +150,8 @@ class PvEApproachController:
         *,
         phase: PvEPhase,
         reposition_requested: bool = False,
+        camp: PvECampLease | None = None,
+        return_to_camp: bool = False,
     ) -> PvEApproachUpdate:
         if not isinstance(observation, PvEObservation):
             raise ValueError("observation must be PvEObservation")
@@ -157,6 +159,14 @@ class PvEApproachController:
             raise ValueError("phase must be PvEPhase")
         if not isinstance(reposition_requested, bool):
             raise ValueError("reposition_requested must be boolean")
+        if camp is not None and not isinstance(camp, PvECampLease):
+            raise ValueError("camp must be PvECampLease when present")
+        if not isinstance(return_to_camp, bool):
+            raise ValueError("return_to_camp must be boolean")
+        if return_to_camp:
+            if phase is not PvEPhase.CAMP_IDLE or camp is None:
+                raise ValueError("camp return requires camp-idle phase and a camp lease")
+            return self._return_to_camp(observation, camp)
         if phase not in (PvEPhase.OPENING, PvEPhase.ENGAGED):
             return self.cancel("combat_phase_changed")
         if (
@@ -222,6 +232,54 @@ class PvEApproachController:
             < self._config.native_progress_grace_ms
         ):
             return PvEApproachUpdate(PvEApproachStatus.IDLE)
+        return self._advance_travel(observation, destination)
+
+    def _return_to_camp(
+        self,
+        observation: PvEObservation,
+        camp: PvECampLease,
+    ) -> PvEApproachUpdate:
+        if observation.player_position is None:
+            return self.cancel("player_position_unavailable")
+        distance = camp.distance_from_anchor(
+            observation.player_position.lt,
+            observation.player_position.lg,
+        )
+        self._last_travel_observation = self._travel_observation(observation)
+        camp_token = f"camp:{camp.anchor_lt:.6f}:{camp.anchor_lg:.6f}"
+        if self._target_token != camp_token:
+            if self._travel is not None and not self._travel.terminal:
+                return self.cancel("camp_anchor_changed")
+            self._begin_target(
+                camp_token,
+                distance,
+                observation.now_ms,
+                forced_reposition=True,
+            )
+        destination = camp.return_destination
+        if distance <= camp.return_radius:
+            if self._travel is None or self._terminal_reported:
+                self._forced_reposition = False
+                return PvEApproachUpdate(PvEApproachStatus.ARRIVED)
+            self._travel.update_final_destination(destination)
+            decision = self._travel.arrive(self._last_travel_observation)
+            self._terminal_reported = True
+            self._forced_reposition = False
+            return PvEApproachUpdate(PvEApproachStatus.ARRIVED, decision)
+        if self._travel is not None and self._travel.terminal:
+            self._begin_target(
+                camp_token,
+                distance,
+                observation.now_ms,
+                forced_reposition=True,
+            )
+        return self._advance_travel(observation, destination)
+
+    def _advance_travel(
+        self,
+        observation: PvEObservation,
+        destination: TravelDestination,
+    ) -> PvEApproachUpdate:
         if self._travel is None:
             self._travel = self._plan_route(observation, destination)
         else:

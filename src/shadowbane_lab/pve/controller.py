@@ -7,6 +7,7 @@ from shadowbane_lab.client_observation import (
     NativeCombatEventKind,
 )
 from shadowbane_lab.pve.model import (
+    PvECampLease,
     PvEControllerConfig,
     PvEControllerDecision,
     PvEIntent,
@@ -48,7 +49,7 @@ class PvEController:
         self._selection_lost_at: int | None = None
         self._reengage_attempts = 0
         self._stalled_retargets = 0
-        self._failed_target_tokens: set[str] = set()
+        self._failed_target_tokens: dict[str, int] = {}
         self._require_different_target = False
         self._last_power_at: dict[PvEIntent, int] = {}
         self._last_interrupt_action_sequence: int | None = None
@@ -60,6 +61,10 @@ class PvEController:
         self._last_sampled_target_token: str | None = None
         self._target_sampling_complete = False
         self._target_sample_cycle_at: int | None = None
+        self._empty_target_cycles = 0
+        self._camp: PvECampLease | None = None
+        self._camp_return_retry_at: int | None = None
+        self._last_target_inside_camp: bool | None = None
 
     @property
     def phase(self) -> PvEPhase:
@@ -80,6 +85,14 @@ class PvEController:
     @property
     def requires_target_identity(self) -> bool:
         return self._config.require_target_identity
+
+    @property
+    def continuous(self) -> bool:
+        return self._config.continuous
+
+    @property
+    def camp(self) -> PvECampLease | None:
+        return self._camp
 
     @property
     def target_action_observation_active(self) -> bool:
@@ -119,6 +132,10 @@ class PvEController:
         if self._started_at is None:
             self._started_at = now
             self._phase_entered_at = now
+            self._capture_camp(observation)
+        if self._camp is not None and observation.player_position is None:
+            return self.stop("camp_position_unavailable", now_ms=now)
+        self._last_target_inside_camp = self._target_inside_camp(observation)
 
         events = tuple(
             event
@@ -132,7 +149,10 @@ class PvEController:
         if observation.player.health_fraction <= self._config.minimum_player_health_fraction:
             return self.stop("player_health_safety_threshold", now_ms=now)
         assert self._started_at is not None
-        if now - self._started_at >= self._config.maximum_session_ms:
+        if (
+            not self._config.continuous
+            and now - self._started_at >= self._config.maximum_session_ms
+        ):
             return self.stop("maximum_session_elapsed", now_ms=now)
 
         if self._phase in (PvEPhase.OPENING, PvEPhase.ENGAGED):
@@ -177,6 +197,8 @@ class PvEController:
             return self._engage(observation, events)
         if self._phase is PvEPhase.POST_KILL:
             return self._post_kill(observation, events)
+        if self._phase is PvEPhase.CAMP_IDLE:
+            return self._camp_idle(observation)
         raise RuntimeError("unreachable PvE phase")
 
     def stop(self, reason: str, *, now_ms: int | None = None) -> PvEControllerDecision:
@@ -200,7 +222,9 @@ class PvEController:
     ) -> PvEControllerDecision:
         now = observation.now_ms
         target = observation.target
+        self._expire_failed_targets(now)
         if target.target_present and target.current_health != 0.0:
+            self._empty_target_cycles = 0
             assert target.target_token is not None
             if target.target_token in self._failed_target_tokens:
                 return self._reject_target(observation)
@@ -222,11 +246,20 @@ class PvEController:
             ):
                 return self._begin_engagement(observation)
         if self._phase_elapsed(now) >= self._config.acquisition_timeout_ms:
+            if self._config.continuous:
+                return self._begin_camp_idle(observation)
             return self.stop("mob_acquisition_timeout", now_ms=now)
         if self._config.nearest_target_sample_count > 1 and (
             not target.target_present or target.current_health == 0.0
         ):
             if self._target_sample_ready(now):
+                self._empty_target_cycles += 1
+                if (
+                    self._config.continuous
+                    and self._empty_target_cycles
+                    >= self._config.nearest_target_sample_count
+                ):
+                    return self._begin_camp_idle(observation)
                 return self._cycle_target_sample(now)
             return self._emit(now)
         if target.target_present and self._config.accept_automatic_targets:
@@ -324,7 +357,15 @@ class PvEController:
         ):
             self._target_sampling_complete = True
         if self._phase_elapsed(now) >= self._config.acquisition_timeout_ms:
+            if self._config.continuous:
+                return self._begin_camp_idle(observation)
             return self.stop("mob_acquisition_timeout", now_ms=now)
+        if (
+            self._config.continuous
+            and self._target_sampling_complete
+            and not self._target_candidates
+        ):
+            return self._begin_camp_idle(observation)
         if self._target_sample_ready(now):
             return self._cycle_target_sample(
                 now,
@@ -367,8 +408,12 @@ class PvEController:
             return self._emit(now)
         self._selection_lost_at = None
         if not self._target_attack_eligible(observation):
+            if self._config.continuous:
+                return self._recover_invalid_engagement(observation)
             return self.stop("engaged_target_became_attack_ineligible", now_ms=now)
         if target.target_token != self._engaged_target_token:
+            if self._config.continuous:
+                return self._recover_invalid_engagement(observation)
             return self.stop("selected_target_changed_during_engagement", now_ms=now)
         assert target.current_health is not None
         approach_arrived = False
@@ -462,6 +507,8 @@ class PvEController:
             return self._emit(now, reposition_requested=True)
 
         if self._phase_elapsed(now) >= self._config.engagement_timeout_ms:
+            if self._config.continuous:
+                return self._abandon_stalled_target(observation)
             return self.stop("engagement_timeout", now_ms=now)
         assert self._last_progress_at is not None
         if now - self._last_progress_at >= self._config.stalled_progress_ms:
@@ -482,7 +529,10 @@ class PvEController:
         if elapsed < self._config.post_kill_delay_ms:
             return self._emit(now)
         if not self._resources_recovered(observation):
-            if elapsed >= self._config.recovery_timeout_ms:
+            if (
+                not self._config.continuous
+                and elapsed >= self._config.recovery_timeout_ms
+            ):
                 return self.stop("post_kill_recovery_timeout", now_ms=now)
             return self._emit(now)
         previous_target_token = self._engaged_target_token
@@ -588,10 +638,16 @@ class PvEController:
         now = observation.now_ms
         target = observation.target
         if not target.target_present:
+            if self._config.continuous:
+                return self._recover_invalid_engagement(observation)
             return self.stop("selection_lost_during_opener", now_ms=now)
         if not self._target_attack_eligible(observation):
+            if self._config.continuous:
+                return self._recover_invalid_engagement(observation)
             return self.stop("opening_target_became_attack_ineligible", now_ms=now)
         if target.target_token != self._engaged_target_token:
+            if self._config.continuous:
+                return self._recover_invalid_engagement(observation)
             return self.stop("selected_target_changed_during_opener", now_ms=now)
         assert target.current_health is not None
         outgoing_hit = bool(
@@ -666,7 +722,7 @@ class PvEController:
     ) -> PvEControllerDecision:
         now = observation.now_ms
         self._kills += 1
-        if self._kills >= self._config.maximum_kills:
+        if not self._config.continuous and self._kills >= self._config.maximum_kills:
             self._enter(PvEPhase.COMPLETE, now)
             return self._emit(
                 now,
@@ -695,6 +751,9 @@ class PvEController:
         )
 
     def _target_attack_eligible(self, observation: PvEObservation) -> bool:
+        inside_camp = self._target_inside_camp(observation)
+        if inside_camp is False:
+            return False
         eligible = observation.target_attack_eligible
         if eligible is None:
             return not self._config.require_target_identity
@@ -708,15 +767,130 @@ class PvEController:
         assert target.target_present
         assert target.target_token is not None
         now = observation.now_ms
-        if self._stalled_retargets >= self._config.maximum_stalled_retargets:
+        if (
+            not self._config.continuous
+            and self._stalled_retargets >= self._config.maximum_stalled_retargets
+        ):
             return self.stop("engagement_stalled", now_ms=now)
         self._stalled_retargets += 1
-        self._failed_target_tokens.add(target.target_token)
+        self._failed_target_tokens[target.target_token] = now
         self._baseline_target_token = target.target_token
         self._clear_engagement()
         self._require_different_target = True
         self._enter(PvEPhase.SEEKING, now)
         return self._emit(now, PvEIntent.ACQUIRE_NEXT_MOB)
+
+    def recover_from_approach_failure(
+        self,
+        observation: PvEObservation,
+        reason: str,
+    ) -> PvEControllerDecision:
+        """Turns a recoverable movement failure into a bounded camp retry."""
+
+        if not isinstance(observation, PvEObservation):
+            raise ValueError("observation must be PvEObservation")
+        if not isinstance(reason, str) or not reason.strip():
+            raise ValueError("approach failure reason must be non-empty")
+        if self.terminal:
+            raise RuntimeError("terminal PvE controller cannot recover movement")
+        if self._last_now is not None and observation.now_ms < self._last_now:
+            raise ValueError("PvE observation time must be monotonic")
+        self._last_now = observation.now_ms
+        if not self._config.continuous:
+            return self.stop(f"approach_{reason}", now_ms=observation.now_ms)
+        if self._phase in (PvEPhase.OPENING, PvEPhase.ENGAGED):
+            if observation.target.target_present:
+                return self._abandon_stalled_target(observation)
+            return self._recover_invalid_engagement(observation)
+        if self._phase is PvEPhase.CAMP_IDLE:
+            self._camp_return_retry_at = (
+                observation.now_ms + self._config.camp_return_retry_ms
+            )
+            return self._emit(observation.now_ms)
+        return self.stop(f"approach_{reason}", now_ms=observation.now_ms)
+
+    def _recover_invalid_engagement(
+        self,
+        observation: PvEObservation,
+    ) -> PvEControllerDecision:
+        now = observation.now_ms
+        if self._engaged_target_token is not None:
+            self._failed_target_tokens[self._engaged_target_token] = now
+        self._baseline_target_token = observation.target.target_token
+        self._clear_engagement()
+        self._require_different_target = True
+        self._enter(PvEPhase.SEEKING, now)
+        return self._emit(now, PvEIntent.ACQUIRE_NEXT_MOB)
+
+    def _capture_camp(self, observation: PvEObservation) -> None:
+        if self._config.camp_radius is None:
+            return
+        if observation.player_position is None:
+            raise ValueError("camp-scoped PvE requires native player position")
+        self._camp = PvECampLease(
+            anchor_lt=observation.player_position.lt,
+            anchor_lg=observation.player_position.lg,
+            radius=float(self._config.camp_radius),
+            return_radius=float(self._config.camp_return_radius),
+        )
+
+    def _target_inside_camp(self, observation: PvEObservation) -> bool | None:
+        if self._camp is None:
+            return None
+        target_position = observation.target_position
+        if target_position is None or not target_position.target_present:
+            return None
+        assert target_position.lt is not None
+        assert target_position.lg is not None
+        return self._camp.contains(target_position.lt, target_position.lg)
+
+    def _begin_camp_idle(
+        self,
+        observation: PvEObservation,
+    ) -> PvEControllerDecision:
+        self._baseline_target_token = observation.target.target_token
+        self._clear_engagement()
+        self._require_different_target = False
+        self._enter(PvEPhase.CAMP_IDLE, observation.now_ms)
+        return self._emit(
+            observation.now_ms,
+            return_to_camp=self._should_return_to_camp(observation),
+        )
+
+    def _camp_idle(self, observation: PvEObservation) -> PvEControllerDecision:
+        now = observation.now_ms
+        self._expire_failed_targets(now)
+        if self._should_return_to_camp(observation):
+            retry_at = self._camp_return_retry_at
+            return self._emit(
+                now,
+                return_to_camp=retry_at is None or now >= retry_at,
+            )
+        self._camp_return_retry_at = None
+        if self._phase_elapsed(now) < self._config.camp_idle_ms:
+            return self._emit(now)
+        self._baseline_target_token = observation.target.target_token
+        self._enter(PvEPhase.SEEKING, now)
+        return self._emit(now, PvEIntent.ACQUIRE_NEXT_MOB)
+
+    def _should_return_to_camp(self, observation: PvEObservation) -> bool:
+        if self._camp is None or observation.player_position is None:
+            return False
+        return (
+            self._camp.distance_from_anchor(
+                observation.player_position.lt,
+                observation.player_position.lg,
+            )
+            > self._camp.return_radius
+        )
+
+    def _expire_failed_targets(self, now_ms: int) -> None:
+        cutoff = now_ms - self._config.failed_target_cooldown_ms
+        self._failed_target_tokens = {
+            token: failed_at
+            for token, failed_at in self._failed_target_tokens.items()
+            if failed_at > cutoff
+        }
 
     def _clear_engagement(self) -> None:
         self._engaged_target_token = None
@@ -743,6 +917,7 @@ class PvEController:
         self._phase = phase
         self._phase_entered_at = now_ms
         if phase is PvEPhase.SEEKING:
+            self._empty_target_cycles = 0
             self._target_candidates.clear()
             self._observed_target_tokens.clear()
             self._last_sampled_target_token = None
@@ -761,6 +936,7 @@ class PvEController:
         terminal_reason: str | None = None,
         kill_confirmation: PvEKillConfirmation | None = None,
         reposition_requested: bool = False,
+        return_to_camp: bool = False,
     ) -> PvEControllerDecision:
         decision = PvEControllerDecision(
             decision_id=self._decision_id,
@@ -769,6 +945,9 @@ class PvEController:
             kills=self._kills,
             intent=intent,
             reposition_requested=reposition_requested,
+            camp=self._camp,
+            target_inside_camp=self._last_target_inside_camp,
+            return_to_camp=return_to_camp,
             terminal_reason=terminal_reason,
             kill_confirmation=kill_confirmation,
         )

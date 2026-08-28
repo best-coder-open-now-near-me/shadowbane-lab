@@ -21,6 +21,7 @@ from shadowbane_lab.pve import (
     EmptyCombatLogSource,
     PvEApproachConfig,
     PvEApproachController,
+    PvECampLease,
     PvEController,
     PvEControllerConfig,
     PvEIntent,
@@ -187,6 +188,153 @@ def _observation(
 
 
 class PvEControllerTests(unittest.TestCase):
+    def test_continuous_configuration_requires_a_valid_camp_boundary(self) -> None:
+        with self.assertRaisesRegex(ValueError, "requires a camp_radius"):
+            PvEControllerConfig(continuous=True)
+        with self.assertRaisesRegex(ValueError, "below camp_radius"):
+            PvEControllerConfig(
+                continuous=True,
+                camp_radius=10.0,
+                camp_return_radius=10.0,
+            )
+
+    def test_continuous_run_captures_starting_camp_and_rejects_outside_target(self) -> None:
+        controller = PvEController(
+            PvEControllerConfig(
+                continuous=True,
+                camp_radius=50.0,
+                maximum_session_ms=1,
+            )
+        )
+        initial = controller.step(
+            _observation(
+                0,
+                _absent(),
+                player_position=_player_position(100.0, 200.0),
+                target_position=_target_position(None),
+            )
+        )
+        outside = controller.step(
+            _observation(
+                100,
+                _target("far-mob"),
+                player_position=_player_position(100.0, 200.0),
+                target_position=_target_position("far-mob", 151.0, 200.0),
+            )
+        )
+        rescan = controller.step(
+            _observation(
+                5_100,
+                _target("far-mob"),
+                player_position=_player_position(100.0, 200.0),
+                target_position=_target_position("far-mob", 151.0, 200.0),
+            )
+        )
+        inside = controller.step(
+            _observation(
+                5_200,
+                _target("camp-mob"),
+                player_position=_player_position(100.0, 200.0),
+                target_position=_target_position("camp-mob", 120.0, 200.0),
+            )
+        )
+
+        self.assertEqual((100.0, 200.0), (initial.camp.anchor_lt, initial.camp.anchor_lg))
+        self.assertEqual(50.0, initial.camp.radius)
+        self.assertFalse(outside.target_inside_camp)
+        self.assertIsNone(outside.intent)
+        self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB, rescan.intent)
+        self.assertTrue(inside.target_inside_camp)
+        self.assertEqual(PvEPhase.ENGAGED, inside.phase)
+
+    def test_continuous_empty_camp_returns_to_anchor_then_rescans(self) -> None:
+        controller = PvEController(
+            PvEControllerConfig(
+                continuous=True,
+                camp_radius=50.0,
+                acquisition_retry_ms=100,
+                acquisition_timeout_ms=100,
+                stale_selection_cycle_delay_ms=100,
+                target_sample_interval_ms=100,
+                camp_idle_ms=500,
+            )
+        )
+        controller.step(
+            _observation(
+                0,
+                _absent(),
+                player_position=_player_position(100.0, 200.0),
+                target_position=_target_position(None),
+            )
+        )
+        returning = controller.step(
+            _observation(
+                100,
+                _absent(),
+                player_position=_player_position(140.0, 200.0),
+                target_position=_target_position(None),
+            )
+        )
+        arrived = controller.step(
+            _observation(
+                200,
+                _absent(),
+                player_position=_player_position(105.0, 200.0),
+                target_position=_target_position(None),
+            )
+        )
+        rescan = controller.step(
+            _observation(
+                600,
+                _absent(),
+                player_position=_player_position(105.0, 200.0),
+                target_position=_target_position(None),
+            )
+        )
+
+        self.assertEqual(PvEPhase.CAMP_IDLE, returning.phase)
+        self.assertTrue(returning.return_to_camp)
+        self.assertFalse(arrived.return_to_camp)
+        self.assertEqual(PvEPhase.SEEKING, rescan.phase)
+        self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB, rescan.intent)
+
+    def test_continuous_kill_limit_is_telemetry_not_a_terminal_bound(self) -> None:
+        controller = PvEController(
+            PvEControllerConfig(
+                continuous=True,
+                camp_radius=50.0,
+                maximum_kills=1,
+            )
+        )
+        controller.step(
+            _observation(
+                0,
+                _absent(),
+                player_position=_player_position(),
+                target_position=_target_position(None),
+            )
+        )
+        controller.step(
+            _observation(
+                100,
+                _target("mob"),
+                player_position=_player_position(),
+                target_position=_target_position("mob"),
+            )
+        )
+        killed = controller.step(
+            _observation(
+                200,
+                _target("mob", current=0.0),
+                player_position=_player_position(),
+                target_position=_target_position("mob"),
+            )
+        )
+
+        self.assertEqual(1, killed.kills)
+        self.assertEqual(PvEPhase.POST_KILL, killed.phase)
+        self.assertFalse(killed.terminal)
+
     def test_spatial_observation_derives_coherent_target_ranges(self) -> None:
         observation = PvEObservation(
             now_ms=0,
@@ -1238,6 +1386,39 @@ class PvEControllerTests(unittest.TestCase):
 
 
 class PvEApproachControllerTests(unittest.TestCase):
+    def test_camp_return_uses_anchor_as_an_immediate_astar_destination(self) -> None:
+        approach = PvEApproachController()
+        camp = PvECampLease(100.0, 200.0, radius=50.0, return_radius=12.0)
+
+        moving = approach.step(
+            _observation(
+                0,
+                _absent(),
+                player_position=_player_position(140.0, 200.0),
+                target_position=_target_position(None),
+            ),
+            phase=PvEPhase.CAMP_IDLE,
+            camp=camp,
+            return_to_camp=True,
+        )
+        arrived = approach.step(
+            _observation(
+                100,
+                _absent(),
+                player_position=_player_position(105.0, 200.0),
+                target_position=_target_position(None),
+            ),
+            phase=PvEPhase.CAMP_IDLE,
+            camp=camp,
+            return_to_camp=True,
+        )
+
+        self.assertEqual("moving", moving.status.value)
+        self.assertEqual(40.0, moving.decision.distance_remaining)
+        self.assertLess(moving.decision.minimap_direction.x, 0.0)
+        self.assertEqual("arrived", arrived.status.value)
+        self.assertTrue(arrived.decision.terminal)
+
     def test_reposition_request_tightens_range_and_uses_position_feedback(self) -> None:
         approach = PvEApproachController(
             PvEApproachConfig(

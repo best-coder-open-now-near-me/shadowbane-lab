@@ -16,7 +16,7 @@ from shadowbane_lab.client_observation import (
     NativeTargetIdentityObservation,
     NativeTargetPositionObservation,
 )
-from shadowbane_lab.travel.model import TravelDecision
+from shadowbane_lab.travel.model import TravelDecision, TravelDestination
 
 
 def _positive_integer(value: int, field_name: str) -> None:
@@ -42,6 +42,7 @@ class PvEPhase(StrEnum):
     OPENING = "opening"
     ENGAGED = "engaged"
     POST_KILL = "post_kill"
+    CAMP_IDLE = "camp_idle"
     COMPLETE = "complete"
     STOPPED = "stopped"
 
@@ -49,6 +50,48 @@ class PvEPhase(StrEnum):
 class PvEKillConfirmation(StrEnum):
     NATIVE_COMBAT_EVENT = "native_combat_event"
     NATIVE_HEALTH_ZERO = "native_health_zero"
+
+
+@dataclass(frozen=True, slots=True)
+class PvECampLease:
+    """The spatial operating boundary captured where a continuous run starts."""
+
+    anchor_lt: float
+    anchor_lg: float
+    radius: float
+    return_radius: float
+
+    def __post_init__(self) -> None:
+        for value, field_name in (
+            (self.anchor_lt, "anchor_lt"),
+            (self.anchor_lg, "anchor_lg"),
+            (self.radius, "radius"),
+            (self.return_radius, "return_radius"),
+        ):
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not isfinite(value)
+            ):
+                raise ValueError(f"camp {field_name} must be finite")
+        if self.radius <= 0:
+            raise ValueError("camp radius must be positive")
+        if self.return_radius <= 0 or self.return_radius >= self.radius:
+            raise ValueError("camp return_radius must be positive and below radius")
+
+    def contains(self, lt: float, lg: float) -> bool:
+        return hypot(lt - self.anchor_lt, lg - self.anchor_lg) <= self.radius
+
+    def distance_from_anchor(self, lt: float, lg: float) -> float:
+        return hypot(lt - self.anchor_lt, lg - self.anchor_lg)
+
+    @property
+    def return_destination(self) -> TravelDestination:
+        return TravelDestination(
+            lt=self.anchor_lt,
+            lg=self.anchor_lg,
+            arrival_radius=self.return_radius,
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,6 +132,12 @@ class PvEControllerConfig:
     require_target_identity: bool = False
     melee_approach_radius: float = 20.0
     minimum_approach_progress: float = 8.0
+    continuous: bool = False
+    camp_radius: float | None = None
+    camp_return_radius: float = 12.0
+    camp_idle_ms: int = 5_000
+    camp_return_retry_ms: int = 5_000
+    failed_target_cooldown_ms: int = 30_000
 
     def __post_init__(self) -> None:
         for value, field_name in (
@@ -112,6 +161,9 @@ class PvEControllerConfig:
             (self.post_kill_delay_ms, "post_kill_delay_ms"),
             (self.recovery_timeout_ms, "recovery_timeout_ms"),
             (self.opening_followup_delay_ms, "opening_followup_delay_ms"),
+            (self.camp_idle_ms, "camp_idle_ms"),
+            (self.camp_return_retry_ms, "camp_return_retry_ms"),
+            (self.failed_target_cooldown_ms, "failed_target_cooldown_ms"),
         ):
             _positive_integer(value, field_name)
         _non_negative_integer(self.maximum_reengage_attempts, "maximum_reengage_attempts")
@@ -178,9 +230,31 @@ class PvEControllerConfig:
                 "automatic_target_requires_combat_event",
             ),
             (self.require_target_identity, "require_target_identity"),
+            (self.continuous, "continuous"),
         ):
             if not isinstance(value, bool):
                 raise ValueError(f"{field_name} must be a boolean")
+        if self.camp_radius is not None and (
+            isinstance(self.camp_radius, bool)
+            or not isinstance(self.camp_radius, (int, float))
+            or not isfinite(self.camp_radius)
+            or self.camp_radius <= 0
+        ):
+            raise ValueError("camp_radius must be positive when present")
+        if (
+            isinstance(self.camp_return_radius, bool)
+            or not isinstance(self.camp_return_radius, (int, float))
+            or not isfinite(self.camp_return_radius)
+            or self.camp_return_radius <= 0
+        ):
+            raise ValueError("camp_return_radius must be positive")
+        if self.continuous and self.camp_radius is None:
+            raise ValueError("continuous PvE requires a camp_radius")
+        if (
+            self.camp_radius is not None
+            and self.camp_return_radius >= self.camp_radius
+        ):
+            raise ValueError("camp_return_radius must be below camp_radius")
         if self.opening_intent is not None and not isinstance(self.opening_intent, PvEIntent):
             raise ValueError("opening_intent must be PvEIntent when present")
         if self.opening_intent in (
@@ -347,6 +421,9 @@ class PvEControllerDecision:
     kills: int
     intent: PvEIntent | None = None
     reposition_requested: bool = False
+    camp: PvECampLease | None = None
+    target_inside_camp: bool | None = None
+    return_to_camp: bool = False
     terminal_reason: str | None = None
     kill_confirmation: PvEKillConfirmation | None = None
 
@@ -360,6 +437,21 @@ class PvEControllerDecision:
             raise ValueError("intent must be PvEIntent when present")
         if not isinstance(self.reposition_requested, bool):
             raise ValueError("reposition_requested must be boolean")
+        if self.camp is not None and not isinstance(self.camp, PvECampLease):
+            raise ValueError("camp must be PvECampLease when present")
+        if self.target_inside_camp is not None and not isinstance(
+            self.target_inside_camp,
+            bool,
+        ):
+            raise ValueError("target_inside_camp must be boolean when present")
+        if self.target_inside_camp is not None and self.camp is None:
+            raise ValueError("target_inside_camp requires a camp lease")
+        if not isinstance(self.return_to_camp, bool):
+            raise ValueError("return_to_camp must be boolean")
+        if self.return_to_camp and self.camp is None:
+            raise ValueError("return_to_camp requires a camp lease")
+        if self.return_to_camp and self.phase is not PvEPhase.CAMP_IDLE:
+            raise ValueError("return_to_camp is valid only while camp-idle")
         if self.kill_confirmation is not None and not isinstance(
             self.kill_confirmation, PvEKillConfirmation
         ):
@@ -375,6 +467,8 @@ class PvEControllerDecision:
             raise ValueError("terminal decisions cannot dispatch an intent")
         if terminal and self.reposition_requested:
             raise ValueError("terminal decisions cannot request repositioning")
+        if terminal and self.return_to_camp:
+            raise ValueError("terminal decisions cannot return to camp")
 
     @property
     def terminal(self) -> bool:
@@ -492,6 +586,18 @@ class PvERunTraceStep:
             ),
             "intent": None if self.decision.intent is None else self.decision.intent.value,
             "reposition_requested": self.decision.reposition_requested,
+            "camp": (
+                None
+                if self.decision.camp is None
+                else {
+                    "anchor_lt": self.decision.camp.anchor_lt,
+                    "anchor_lg": self.decision.camp.anchor_lg,
+                    "radius": self.decision.camp.radius,
+                    "return_radius": self.decision.camp.return_radius,
+                    "target_inside": self.decision.target_inside_camp,
+                    "return_requested": self.decision.return_to_camp,
+                }
+            ),
             "target": {
                 "present": self.target_present,
                 "token": self.target_token,

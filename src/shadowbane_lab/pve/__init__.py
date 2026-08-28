@@ -1,4 +1,4 @@
-"""Bounded, observation-driven PvE control."""
+"""Observation-driven bounded and camp-scoped continuous PvE control."""
 
 from shadowbane_lab.pve.approach import (
     PvEApproachConfig,
@@ -25,6 +25,7 @@ from shadowbane_lab.pve.evidence import (
     validate_pve_trace_evidence,
 )
 from shadowbane_lab.pve.model import (
+    PvECampLease,
     PvEControllerConfig,
     PvEControllerDecision,
     PvEIntent,
@@ -61,6 +62,7 @@ __all__ = [
     "PvEApproachUpdate",
     "PvECombatCalibration",
     "PvECombatCalibrationError",
+    "PvECampLease",
     "PvEController",
     "PvEControllerConfig",
     "PvEControllerDecision",

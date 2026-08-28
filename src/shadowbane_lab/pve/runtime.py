@@ -319,6 +319,8 @@ class PvERunner:
                         observation,
                         phase=decision.phase,
                         reposition_requested=decision.reposition_requested,
+                        camp=decision.camp,
+                        return_to_camp=decision.return_to_camp,
                     )
                 )
             except Exception as exc:
@@ -427,12 +429,16 @@ class PvERunner:
                         movement_stop_reason=movement_stop_reason,
                     )
                 )
-                terminal = self._controller.stop(
-                    f"approach_{terminal_reason}",
-                    now_ms=now_ms,
+                recovery = self._controller.recover_from_approach_failure(
+                    observation,
+                    terminal_reason,
                 )
-                trace.append(self._trace(terminal, observation=observation))
-                break
+                trace.append(self._trace(recovery, observation=observation))
+                if recovery.terminal:
+                    terminal = recovery
+                    break
+                self._sleeper(self._poll_interval_seconds)
+                continue
             if decision.intent is not None:
                 try:
                     result = self._dispatcher.dispatch(
