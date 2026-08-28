@@ -37,6 +37,25 @@ def _snapshot(
     )
 
 
+def _manifest_client(
+    game_directory: Path,
+    *,
+    client_id: str = "client-01",
+    left: int = 0,
+) -> dict[str, object]:
+    return {
+        "client_id": client_id,
+        "launch": {
+            "executable": str(game_directory / "launcher.exe"),
+            "arguments": ["-windowed"],
+            "working_directory": str(game_directory),
+        },
+        "expected_process_directory": str(game_directory),
+        "expected_executable_names": ["sb.exe"],
+        "window_tile": {"left": left, "top": 0, "width": 800, "height": 600},
+    }
+
+
 class ManagerCliTests(unittest.TestCase):
     def test_inspect_emits_attachable_and_rejected_clients_for_node(self) -> None:
         attachable = _snapshot()
@@ -156,6 +175,111 @@ class ManagerCliTests(unittest.TestCase):
         self.assertEqual(0, result)
         self.assertEqual([], payload["clients"])
         self.assertEqual([], payload["rejected"])
+
+    def test_preflight_validates_environment_and_reports_attachable_instance(self) -> None:
+        output = io.StringIO()
+        with tempfile.TemporaryDirectory() as directory:
+            game_directory = Path(directory) / "Wonderbane"
+            game_directory.mkdir()
+            (game_directory / "launcher.exe").touch()
+            manifest_path = Path(directory) / "manager.json"
+            manifest_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "node_id": "gaming-pc-east",
+                        "clients": [_manifest_client(game_directory)],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            inspector = StaticVisibleWindowInspector(
+                (
+                    _snapshot(
+                        executable_path=str(game_directory / "sb.exe"),
+                    ),
+                )
+            )
+            with (
+                patch(
+                    "shadowbane_lab.cli.WindowsVisibleWindowInspector",
+                    return_value=inspector,
+                ),
+                redirect_stdout(output),
+            ):
+                result = main(("manager", "preflight", str(manifest_path), "--json"))
+
+        payload = json.loads(output.getvalue())
+        self.assertEqual(0, result)
+        self.assertTrue(payload["ok"])
+        self.assertTrue(payload["ready"])
+        self.assertEqual("attachable", payload["clients"][0]["binding_status"])
+        self.assertTrue(payload["clients"][0]["environment_ready"])
+        self.assertEqual([101], [
+            item["process_id"]
+            for item in payload["clients"][0]["matching_instances"]
+        ])
+        self.assertEqual(1, inspector.inspection_count)
+
+    def test_preflight_groups_identical_filters_and_requires_exact_selection(self) -> None:
+        output = io.StringIO()
+        with tempfile.TemporaryDirectory() as directory:
+            game_directory = Path(directory) / "Wonderbane"
+            game_directory.mkdir()
+            (game_directory / "launcher.exe").touch()
+            manifest_path = Path(directory) / "manager.json"
+            manifest_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "node_id": "gaming-pc-east",
+                        "clients": [
+                            _manifest_client(game_directory, client_id="client-01"),
+                            _manifest_client(
+                                game_directory,
+                                client_id="client-02",
+                                left=800,
+                            ),
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            inspector = StaticVisibleWindowInspector(
+                (_snapshot(executable_path=str(game_directory / "sb.exe")),)
+            )
+            with (
+                patch(
+                    "shadowbane_lab.cli.WindowsVisibleWindowInspector",
+                    return_value=inspector,
+                ),
+                redirect_stdout(output),
+            ):
+                result = main(("manager", "preflight", str(manifest_path), "--json"))
+
+        payload = json.loads(output.getvalue())
+        self.assertEqual(0, result)
+        self.assertEqual(
+            ["selection_required", "selection_required"],
+            [client["binding_status"] for client in payload["clients"]],
+        )
+        self.assertEqual(1, inspector.inspection_count)
+
+    def test_preflight_manifest_failure_is_structured(self) -> None:
+        output = io.StringIO()
+        with tempfile.TemporaryDirectory() as directory:
+            manifest_path = Path(directory) / "manager.json"
+            manifest_path.write_text(
+                '{"schema_version":2,"node_id":"node","clients":[]}',
+                encoding="utf-8",
+            )
+            with redirect_stdout(output):
+                result = main(("manager", "preflight", str(manifest_path), "--json"))
+
+        payload = json.loads(output.getvalue())
+        self.assertEqual(2, result)
+        self.assertFalse(payload["ok"])
+        self.assertIn("manager preflight failed", payload["error"])
 
     def test_inspection_failure_is_structured(self) -> None:
         output = io.StringIO()

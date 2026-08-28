@@ -1,9 +1,13 @@
 # Local multi-client manager
 
-The first manager slice is a read-only inventory of every matching visible Shadowbane
-client on one Windows PC. It does not focus a window, send input, launch a client, or stop a
-process. Its output is the attachment boundary for later lifecycle supervision and per-client
-workers.
+The manager owns local process and window lifecycle on each Windows PC. It does not own
+character strategy. The current command line exposes read-only inventory and lifecycle
+preflight; the reusable supervisor layer supports exact attach, shell-free launch correlation,
+dispatch pause/resume, non-activating tiling, detach, and graceful close requests.
+
+No manager command currently performs a live lifecycle mutation. That remains behind the
+supervisor boundary until the persistent manager application can present reviewed per-client
+actions and durable status.
 
 ## Inspect one PC
 
@@ -45,6 +49,39 @@ inspection.
 Zero clients is a successful inventory snapshot. This lets a future supervisor distinguish
 an idle node from an inspection failure.
 
+## Define and preflight a local group
+
+Copy [the example manifest](examples/client-manager.manifest.example.json), assign this PC a
+stable `node_id`, and define one operational client slot per window. Then run:
+
+```powershell
+python -m shadowbane_lab.cli manager preflight `
+  'C:\path\to\client-manager.json' `
+  --json
+```
+
+Preflight validates the strict schema, checks the configured executable and directories, and
+inspects matching windows without launching, focusing, moving, closing, or sending input. A
+valid report returns one binding status per slot:
+
+- `ready_to_launch`: no matching client is open;
+- `attachable`: one slot and one matching immutable instance;
+- `selection_required`: multiple slots or instances share the filter, so an exact
+  `instance_id` must be selected; or
+- `unsafe_identity`: at least one matching window lacks a complete process lifetime identity.
+
+Identical client filters are inspected once. Preflight deliberately does not guess which
+already-open window belongs to which logical slot. On a fresh start, the supervisor instead
+launches slots sequentially and binds only the single new instance found relative to each
+launch baseline.
+
+The manifest is local operational topology only. It accepts direct executable and argument
+tokens, a working directory, expected process directory and executable names, and an optional
+unique window rectangle. Commands are passed directly with `shell=False`. Unknown fields,
+duplicate JSON keys, relative paths, duplicate slot IDs, duplicate rectangles, credentials,
+character identities, and tactical/caller roles are rejected. Put login handling and character
+configuration behind separate guarded boundaries rather than embedding either in this file.
+
 ## Multi-PC boundary
 
 Each PC owns its local window manager and local client workers. `node_id` is operational
@@ -66,9 +103,23 @@ behavior whether or not a chat call can be emitted.
 Networked central strategy is therefore not required. A later dashboard may aggregate node
 snapshots for convenience without becoming a dependency of live squad behavior.
 
-## Next lifecycle slice
+## Lifecycle safety contract
 
-The next manager step is an explicit instance manifest and a supervisor that can launch,
-attach, tile, pause, and request graceful shutdown for exact registered instances. Forceful
-termination remains a separate guarded operation and must revalidate node, PID, creation time,
-and window handle immediately before acting.
+Pause and resume change only whether the manager may dispatch work for a binding; they never
+suspend the Windows process. Detach forgets a binding without changing the client. Tiling uses
+`SetWindowPos` with `SWP_NOACTIVATE` and no Z-order change. Graceful close posts `WM_CLOSE` only.
+There is no force-kill path in this slice.
+
+Every tile or close request refreshes the registry and revalidates node ID, deterministic
+instance ID, PID, process creation time, and HWND immediately before the native action. Missing,
+restarted, reused, duplicated, or ambiguous identities disable dispatch and fail closed. The
+launcher PID is retained only as audit information because a launcher may create a different
+game process; attachment is based on the new registered game-window identity instead.
+
+## Persistent manager application
+
+The next presentation slice should wrap this core in one local background manager per PC with a
+small dashboard or tray UI. It can load the manifest, launch each slot sequentially, show exact
+bindings and health, tile all reviewed bindings, and expose pause, detach, and graceful-close
+buttons. A later overview may aggregate status from several PCs, but live squad behavior and
+the designated bot caller must not depend on that overview or on a central tactical service.

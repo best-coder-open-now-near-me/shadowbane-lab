@@ -124,7 +124,11 @@ from shadowbane_lab.client_observation import (
     open_windows_native_target_position_reader,
     open_windows_native_world_map_reader,
 )
-from shadowbane_lab.manager import ClientWindowRegistry
+from shadowbane_lab.manager import (
+    ClientRegistrySnapshot,
+    ClientWindowRegistry,
+    load_manager_manifest,
+)
 from shadowbane_lab.progression import (
     CalculatorReviewStatus,
     WonderbaneCalculatorImportError,
@@ -738,6 +742,20 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="emit machine-readable JSON",
     )
+    manager_preflight = manager_commands.add_parser(
+        "preflight",
+        help="validate a local lifecycle manifest and inventory its matching clients",
+    )
+    manager_preflight.add_argument(
+        "manifest",
+        type=Path,
+        help="strict schema-v1 manager manifest JSON",
+    )
+    manager_preflight.add_argument(
+        "--json",
+        action="store_true",
+        help="emit machine-readable JSON",
+    )
 
     progression = commands.add_parser(
         "progression",
@@ -871,6 +889,118 @@ def _inspect_manager(
     for window in snapshot.rejected:
         reasons = ", ".join(reason.value for reason in window.reasons)
         print(f"- {window.executable_name} {window.title!r}: {reasons}")
+    return 0
+
+
+def _manager_path_status(path: Path, *, kind: str) -> dict[str, object]:
+    exists = path.exists()
+    correct_kind = path.is_file() if kind == "file" else path.is_dir()
+    return {
+        "path": str(path),
+        "expected_kind": kind,
+        "exists": exists,
+        "correct_kind": correct_kind,
+        "ready": exists and correct_kind,
+    }
+
+
+def _preflight_manager(manifest_path: Path, *, as_json: bool) -> int:
+    try:
+        manifest = load_manager_manifest(manifest_path)
+        inspector = WindowsVisibleWindowInspector()
+        group_sizes: dict[tuple[tuple[str, ...], str], int] = {}
+        snapshots: dict[tuple[tuple[str, ...], str], ClientRegistrySnapshot] = {}
+        keys: list[tuple[tuple[str, ...], str]] = []
+        for config in manifest.clients:
+            key = (
+                tuple(sorted(name.casefold() for name in config.expected_executable_names)),
+                ntpath.normcase(
+                    ntpath.normpath(ntpath.abspath(str(config.expected_process_directory)))
+                ).casefold(),
+            )
+            keys.append(key)
+            group_sizes[key] = group_sizes.get(key, 0) + 1
+            if key not in snapshots:
+                snapshots[key] = ClientWindowRegistry(
+                    inspector,
+                    node_id=manifest.node_id,
+                    executable_names=config.expected_executable_names,
+                    process_directory=config.expected_process_directory,
+                ).inspect()
+
+        clients: list[dict[str, object]] = []
+        ready = True
+        for config, key in zip(manifest.clients, keys, strict=True):
+            snapshot = snapshots[key]
+            launch_executable = _manager_path_status(
+                Path(config.launch.executable),
+                kind="file",
+            )
+            working_directory = _manager_path_status(
+                Path(config.launch.working_directory),
+                kind="directory",
+            )
+            process_directory = _manager_path_status(
+                Path(config.expected_process_directory),
+                kind="directory",
+            )
+            environment_ready = all(
+                item["ready"]
+                for item in (launch_executable, working_directory, process_directory)
+            )
+            if snapshot.rejected:
+                binding_status = "unsafe_identity"
+            elif not snapshot.clients:
+                binding_status = "ready_to_launch"
+            elif len(snapshot.clients) == 1 and group_sizes[key] == 1:
+                binding_status = "attachable"
+            else:
+                binding_status = "selection_required"
+            client_ready = environment_ready and binding_status != "unsafe_identity"
+            ready = ready and client_ready
+            clients.append(
+                {
+                    "client_id": config.client_id,
+                    "environment_ready": environment_ready,
+                    "binding_status": binding_status,
+                    "filesystem": {
+                        "launch_executable": launch_executable,
+                        "working_directory": working_directory,
+                        "expected_process_directory": process_directory,
+                    },
+                    "expected_executable_names": list(config.expected_executable_names),
+                    "window_tile": (
+                        None if config.window_tile is None else config.window_tile.to_dict()
+                    ),
+                    "matching_instances": [
+                        client.to_dict() for client in snapshot.clients
+                    ],
+                    "rejected_windows": [
+                        window.to_dict() for window in snapshot.rejected
+                    ],
+                }
+            )
+    except (OSError, RuntimeError, ValueError) as exc:
+        return _error(f"manager preflight failed: {exc}", as_json=as_json)
+
+    payload = {
+        "ok": True,
+        "ready": ready,
+        "schema_version": manifest.schema_version,
+        "node_id": manifest.node_id,
+        "clients": clients,
+    }
+    if as_json:
+        print(json.dumps(payload, sort_keys=True))
+        return 0
+
+    print(f"Node: {manifest.node_id}")
+    print(f"Lifecycle preflight ready: {'yes' if ready else 'no'}")
+    for client in clients:
+        print(
+            f"- {client['client_id']}: {client['binding_status']} "
+            f"environment_ready={str(client['environment_ready']).lower()}"
+        )
     return 0
 
 
@@ -3564,6 +3694,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             process_directory=arguments.process_directory,
             as_json=arguments.json,
         )
+    if arguments.command == "manager" and arguments.manager_command == "preflight":
+        return _preflight_manager(arguments.manifest, as_json=arguments.json)
     if (
         arguments.command == "progression"
         and arguments.progression_command == "import-wonderbane-calculator"

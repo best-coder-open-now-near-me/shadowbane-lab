@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "node_id": "gaming-pc-east",
+  "clients": [
+    {
+      "client_id": "client-01",
+      "launch": {
+        "executable": "C:\\Games\\Wonderbane\\Shadowbane.exe",
+        "arguments": [
+          "-windowed"
+        ],
+        "working_directory": "C:\\Games\\Wonderbane"
+      },
+      "expected_process_directory": "C:\\Games\\Wonderbane",
+      "expected_executable_names": [
+        "sb.exe",
+        "Shadowbane.exe"
+      ],
+      "window_tile": {
+        "left": 0,
+        "top": 0,
+        "width": 960,
+        "height": 540
+      }
+    },
+    {
+      "client_id": "client-02",
+      "launch": {
+        "executable": "C:\\Games\\Wonderbane\\Shadowbane.exe",
+        "arguments": [
+          "-windowed"
+        ],
+        "working_directory": "C:\\Games\\Wonderbane"
+      },
+      "expected_process_directory": "C:\\Games\\Wonderbane",
+      "expected_executable_names": [
+        "sb.exe",
+        "Shadowbane.exe"
+      ],
+      "window_tile": {
+        "left": 960,
+        "top": 0,
+        "width": 960,
+        "height": 540
+      }
+    }
+  ]
+}
