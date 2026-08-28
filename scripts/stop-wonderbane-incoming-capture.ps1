@@ -107,6 +107,7 @@ if (-not (Test-Path -LiteralPath $outputDirectory -PathType Container)) {
 }
 $outputPcapPath = Join-Path $outputDirectory ([IO.Path]::GetFileName($pcapPath))
 $outputManifestPath = Join-Path $outputDirectory ([IO.Path]::GetFileName($manifestPath))
+$sharedActivePath = Join-Path $outputDirectory "wonderbane-incoming-active.json"
 Copy-Item -LiteralPath $pcapPath -Destination $outputPcapPath
 $manifest | Add-Member -NotePropertyName output_pcapng_path -NotePropertyValue $outputPcapPath -Force
 $manifest | Add-Member -NotePropertyName output_manifest_path -NotePropertyValue $outputManifestPath -Force
@@ -114,6 +115,7 @@ $manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $manifestPath -En
 Copy-Item -LiteralPath $manifestPath -Destination $outputManifestPath
 
 Remove-Item -LiteralPath $activeStatePath
+Remove-Item -LiteralPath $sharedActivePath -Force -ErrorAction SilentlyContinue
 
 Write-Output "WonderBane incoming capture completed."
 Write-Output "Capture ID: $($state.capture_id)"

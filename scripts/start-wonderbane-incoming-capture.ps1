@@ -46,6 +46,35 @@ if (-not (Test-Administrator)) {
     exit $elevated.ExitCode
 }
 
+$startErrorPath = Join-Path $OutputDirectory "wonderbane-incoming-start-error.json"
+$sharedActivePath = Join-Path $OutputDirectory "wonderbane-incoming-active.json"
+$started = $false
+trap {
+    $failure = [ordered]@{
+        schema_version = 1
+        status = "failed"
+        failed_at_utc = (Get-Date).ToUniversalTime().ToString("o")
+        error = $_.Exception.Message
+        position = $_.InvocationInfo.PositionMessage
+    }
+    try {
+        if (-not (Test-Path -LiteralPath $OutputDirectory -PathType Container)) {
+            New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
+        }
+        $failure |
+            ConvertTo-Json -Depth 4 |
+            Set-Content -LiteralPath $startErrorPath -Encoding utf8
+        if ($started) {
+            Remove-Item -LiteralPath $sharedActivePath -Force -ErrorAction SilentlyContinue
+        }
+    }
+    catch {
+        Write-Warning "Could not write the shared capture error report: $($_.Exception.Message)"
+    }
+    [Console]::Error.WriteLine($failure.error)
+    exit 1
+}
+
 $packetMonitor = "$env:SystemRoot\System32\pktmon.exe"
 if (-not (Test-Path -LiteralPath $packetMonitor -PathType Leaf)) {
     throw "Windows Packet Monitor was not found: $packetMonitor"
@@ -136,7 +165,6 @@ foreach ($endpoint in $udpEndpoints) {
     })
 }
 
-$started = $false
 try {
     Invoke-PacketMonitor -Arguments @("filter", "remove") | Out-Null
     $filterNumber = 0
@@ -203,6 +231,19 @@ try {
         pcapng_path = $pcapPath
         output_directory = $OutputDirectory
     } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $activeStatePath -Encoding utf8
+    if (-not (Test-Path -LiteralPath $OutputDirectory -PathType Container)) {
+        New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
+    }
+    [ordered]@{
+        schema_version = 1
+        capture_id = $captureId
+        status = "recording"
+        started_at_utc = $startedAt.ToString("o")
+        client_sha256 = $clientHash
+    } |
+        ConvertTo-Json -Depth 4 |
+        Set-Content -LiteralPath $sharedActivePath -Encoding utf8
+    Remove-Item -LiteralPath $startErrorPath -Force -ErrorAction SilentlyContinue
 }
 catch {
     if ($started) {
