@@ -226,6 +226,25 @@ ineligible without dereferencing sparse data. Missing sparse entries use the cli
 non-boolean values, and build drift fail closed. Its target token is directly joinable with
 native health, position, and action snapshots.
 
+## Native loaded-character population
+
+The selected-object pointer is not the only source of live actor data. The guarded population
+reader enumerates the current build's private `ArcCharacter` allocations by their exact vtable,
+then reads health, position, protected service roles, and each character's action target without
+changing game selection. It also reports the player's selected-object token and action-target
+token separately; Shadowbane can keep a melee action committed to one character while another
+object is selected.
+
+```powershell
+.\.venv\Scripts\python.exe -m shadowbane_lab.cli client observe-native-population --json
+```
+
+The allocation scan is cached for 15 seconds while character fields are refreshed on every
+observation. Exact executable identity, private/read-write memory type, `ArcCharacter` vtable,
+pointer bounds, health bounds, position chain, world bounds, sparse role descriptors, and
+selection stability all fail closed. This is the acquisition source for distance-ranked PvE;
+target-cycle input is retained only to place the chosen object into the client's selected slot.
+
 ## Pixel cross-check
 
 The checked-in `wonderbane-1920x955` profile is based on three captures from the text-fixed

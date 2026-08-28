@@ -41,6 +41,8 @@ from shadowbane_lab.client_input import (
 )
 from shadowbane_lab.client_observation import (
     ClientTargetObserver,
+    NativeCharacterPopulationError,
+    NativeCharacterPopulationProfileLoadError,
     NativeCombatLogFormatError,
     NativeCombatLogReader,
     NativeCurrentZoneError,
@@ -68,6 +70,7 @@ from shadowbane_lab.client_observation import (
     ObservationCalibrationLoadError,
     ObservationDetectionError,
     PyAutoGuiFrameCapture,
+    load_bundled_native_character_population_profile,
     load_bundled_native_group_profile,
     load_bundled_native_health_profile,
     load_bundled_native_message_hud_profile,
@@ -79,6 +82,7 @@ from shadowbane_lab.client_observation import (
     load_bundled_native_training_profile,
     load_bundled_native_vitals_profile,
     load_bundled_native_zone_profile,
+    load_native_character_population_profile,
     load_native_group_profile,
     load_native_health_profile,
     load_native_message_hud_profile,
@@ -91,6 +95,7 @@ from shadowbane_lab.client_observation import (
     load_native_vitals_profile,
     load_native_zone_profile,
     load_observation_calibration,
+    open_windows_native_character_population_reader,
     open_windows_native_current_zone_reader,
     open_windows_native_group_reader,
     open_windows_native_message_hud_reader,
@@ -310,6 +315,22 @@ def _parser() -> argparse.ArgumentParser:
         ),
     )
     observe_native_target_identity.add_argument(
+        "--json", action="store_true", help="emit machine-readable JSON"
+    )
+
+    observe_native_population = client_commands.add_parser(
+        "observe-native-population",
+        help="enumerate loaded characters without changing the selected target",
+    )
+    observe_native_population.add_argument(
+        "--profile",
+        type=Path,
+        help=(
+            "native character-population profile; defaults to the verified bundled "
+            "WonderBane build"
+        ),
+    )
+    observe_native_population.add_argument(
         "--json", action="store_true", help="emit machine-readable JSON"
     )
 
@@ -1159,6 +1180,64 @@ def _observe_native_target_identity(profile_path: Path | None, *, as_json: bool)
             roles = ", ".join(observation.protected_roles) or "none"
             print(f"Protected roles: {roles}")
             print(f"Attack eligible: {observation.attack_eligible}")
+    return 0
+
+
+def _observe_native_population(profile_path: Path | None, *, as_json: bool) -> int:
+    try:
+        profile = (
+            load_native_character_population_profile(profile_path)
+            if profile_path is not None
+            else load_bundled_native_character_population_profile()
+        )
+        with open_windows_native_character_population_reader(profile) as reader:
+            observation = reader.observe()
+            process_id = reader.process_id
+    except (
+        NativeCharacterPopulationError,
+        NativeCharacterPopulationProfileLoadError,
+        OSError,
+        ValueError,
+    ) as exc:
+        return _error(
+            f"native character-population observation failed: {exc}",
+            as_json=as_json,
+        )
+    payload = {
+        "ok": True,
+        "profile_id": profile.profile_id,
+        "process_id": process_id,
+        "scan_generation": observation.scan_generation,
+        "rejected_candidates": observation.rejected_candidates,
+        "selected_target_token": observation.selected_target_token,
+        "player_action_target_token": observation.player_action_target_token,
+        "characters": [
+            {
+                "token": character.token,
+                "current_health": character.current_health,
+                "maximum_health": character.maximum_health,
+                "lt": character.lt,
+                "lg": character.lg,
+                "altitude": character.altitude,
+                "protected_roles": list(character.protected_roles),
+                "attack_eligible": character.attack_eligible,
+                "action_target_token": character.action_target_token,
+            }
+            for character in observation.characters
+        ],
+    }
+    if as_json:
+        print(json.dumps(payload, sort_keys=True))
+    else:
+        print(f"Loaded characters: {len(observation.characters)}")
+        print(f"Rejected candidates: {observation.rejected_candidates}")
+        for character in observation.characters:
+            roles = ",".join(character.protected_roles) or "attackable"
+            print(
+                f"{character.token} {character.current_health:g}/"
+                f"{character.maximum_health:g} LT={character.lt:.2f} "
+                f"LG={character.lg:.2f} {roles}"
+            )
     return 0
 
 
@@ -2786,6 +2865,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         and arguments.client_command == "observe-native-target-identity"
     ):
         return _observe_native_target_identity(arguments.profile, as_json=arguments.json)
+    if (
+        arguments.command == "client"
+        and arguments.client_command == "observe-native-population"
+    ):
+        return _observe_native_population(arguments.profile, as_json=arguments.json)
     if arguments.command == "client" and arguments.client_command == "observe-native-player":
         return _observe_native_player(arguments.profile, as_json=arguments.json)
     if arguments.command == "client" and arguments.client_command == "observe-native-position":
