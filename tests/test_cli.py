@@ -19,6 +19,7 @@ from shadowbane_lab.client_input import (
     load_calibration,
 )
 from shadowbane_lab.client_observation import NativePlayerPositionObservation
+from shadowbane_lab.manager import WorkerOperationKind, WorkerOperationState
 from shadowbane_lab.pve import PvEIntent, PvEPhase
 from shadowbane_lab.travel import (
     PhysicalPointerInteraction,
@@ -528,6 +529,116 @@ class ClientCliTests(unittest.TestCase):
         evidence_path = captured["evidence_output_path"]
         self.assertIsInstance(evidence_path, Path)
         self.assertEqual(evidence_directory, evidence_path.parent)
+
+    def test_chat_pve_routes_to_the_exact_foreground_worker_when_configured(self) -> None:
+        template = Path(__file__).parents[1] / "configs" / "wonderbane-travel.template.json"
+        profile = replace(load_calibration(template), live_input_enabled=True)
+        snapshot = WindowSnapshot(
+            executable_name=profile.target.executable_names[0],
+            title="Shadowbane",
+            client_bounds=WindowBounds(
+                left=0,
+                top=0,
+                width=profile.target.reference_width,
+                height=profile.target.reference_height,
+            ),
+            dpi_scale=profile.target.dpi_scale,
+            is_foreground=True,
+            is_visible=True,
+            process_id=4320,
+        )
+        service_stop = EventEmergencyStop()
+        captured: dict[str, object] = {}
+
+        class OneCommandListener:
+            def __init__(
+                self, _guard, *, on_command, on_interaction, on_pointer
+            ) -> None:
+                self.on_command = on_command
+
+            def __enter__(self):
+                self.on_command("/pve")
+                return self
+
+            def __exit__(self, *_args) -> None:
+                return None
+
+        class ExactIngress:
+            def dispatch(self, kind, command, **kwargs):
+                captured.update(kind=kind, command=command, **kwargs)
+                service_stop.trip()
+                return SimpleNamespace(
+                    operation=SimpleNamespace(
+                        operation_id="operation-0123456789abcdef0123456789abcdef",
+                        client_id="client-01",
+                    ),
+                    acknowledgement=SimpleNamespace(
+                        state=WorkerOperationState.ACCEPTED,
+                        detail="accepted by exact worker",
+                    ),
+                )
+
+        emergency_stop = MagicMock()
+        emergency_stop.__enter__.return_value = service_stop
+        output = io.StringIO()
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch("shadowbane_lab.cli.load_calibration", return_value=profile),
+            patch(
+                "shadowbane_lab.cli.WindowsForegroundWindowInspector",
+                return_value=StaticWindowInspector(snapshot),
+            ),
+            patch(
+                "shadowbane_lab.cli.WindowsHotkeyEmergencyStop",
+                return_value=emergency_stop,
+            ),
+            patch("shadowbane_lab.cli.WindowsGoChatCommandListener", OneCommandListener),
+            patch("shadowbane_lab.cli.load_manager_manifest", return_value=MagicMock()),
+            patch("shadowbane_lab.cli.ManifestClientRegistryProvider"),
+            patch("shadowbane_lab.cli.WorkerHeartbeatLedger"),
+            patch("shadowbane_lab.cli.WorkerOperationLedger"),
+            patch(
+                "shadowbane_lab.cli.ForegroundWorkerOperationIngress",
+                return_value=ExactIngress(),
+            ),
+            patch("shadowbane_lab.cli._run_pve") as run_pve,
+            redirect_stdout(output),
+        ):
+            result = _listen_for_go_commands(
+                destination_state_path=Path(directory) / "travel.json",
+                client_profile_path=template,
+                native_position_profile_path=None,
+                native_vitals_profile_path=None,
+                native_runegate_profile_path=None,
+                world_def_path=None,
+                named_destination_overrides_path=None,
+                pve_client_profile_path=None,
+                pve_hotbar_config_path=None,
+                pve_evidence_directory=None,
+                navigation_cache_directory=None,
+                pve_max_kills=3,
+                pve_max_seconds=300,
+                pve_max_encounter_seconds=120,
+                pve_recovery_timeout_seconds=30,
+                pve_poll_ms=100,
+                max_seconds=300,
+                wait_for_client_seconds=0,
+                poll_ms=200,
+                click_interval_ms=4_000,
+                manager_manifest_path=Path(directory) / "manager.json",
+                worker_state_directory=Path(directory) / "workers",
+                live=True,
+                as_json=True,
+            )
+
+        self.assertEqual(0, result)
+        self.assertEqual(WorkerOperationKind.PVE, captured["kind"])
+        self.assertEqual("/pve", captured["command"])
+        self.assertEqual(4320, captured["expected_process_id"])
+        run_pve.assert_not_called()
+        events = [json.loads(line) for line in output.getvalue().splitlines()]
+        self.assertEqual("accepted", events[1]["event"])
+        self.assertEqual("client-01", events[1]["client_id"])
 
     def test_chat_zone_search_presents_ranked_results_without_starting_travel(self) -> None:
         template = Path(__file__).parents[1] / "configs" / "wonderbane-travel.template.json"

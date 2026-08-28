@@ -49,6 +49,11 @@ from .operation import (
     parse_worker_operation,
     parse_worker_operation_receipt,
 )
+from .operation_ingress import (
+    ForegroundWorkerOperationIngress,
+    WorkerOperationDispatch,
+    WorkerOperationIngressError,
+)
 from .registry import (
     ClientRegistryError,
     ClientWindowRegistry,
@@ -208,6 +213,9 @@ __all__ = [
     "WorkerOperationExecution",
     "WorkerOperationExecutor",
     "WorkerOperationFormatError",
+    "ForegroundWorkerOperationIngress",
+    "WorkerOperationDispatch",
+    "WorkerOperationIngressError",
     "WorkerOperationKind",
     "WorkerOperationLedger",
     "WorkerOperationLedgerError",

@@ -18,7 +18,9 @@ param(
     [int] $PveRetainedTraceSteps = 2000,
     [switch] $BoundedPve,
     [string] $LogDirectory = "\\VBOXSVR\codexdiag",
-    [string] $LearnedNavigationState = ""
+    [string] $LearnedNavigationState = "",
+    [string] $ManagerManifest = "$env:LOCALAPPDATA\ShadowbaneLab\client-manager.json",
+    [string] $WorkerStateDirectory = "$env:LOCALAPPDATA\ShadowbaneLab\workers"
 )
 
 $ErrorActionPreference = "Stop"
@@ -43,6 +45,12 @@ if (-not (Test-Path -LiteralPath $PveClientProfile -PathType Leaf)) {
 }
 if (-not (Test-Path -LiteralPath $NavigationCacheDirectory -PathType Container)) {
     throw "WonderBane client cache directory was not found: $NavigationCacheDirectory"
+}
+if (-not (Test-Path -LiteralPath $ManagerManifest -PathType Leaf)) {
+    throw "Manager manifest was not found: $ManagerManifest"
+}
+if (-not (Test-Path -LiteralPath $WorkerStateDirectory -PathType Container)) {
+    New-Item -ItemType Directory -Path $WorkerStateDirectory -Force | Out-Null
 }
 if (-not $PveHotbarConfig) {
     $hotbars = @(
@@ -106,6 +114,8 @@ $arguments = @(
     "--pve-evidence-directory", $LogDirectory,
     "--navigation-cache-directory", $NavigationCacheDirectory,
     "--learned-navigation-state", $LearnedNavigationState,
+    "--manager-manifest", $ManagerManifest,
+    "--worker-state-directory", $WorkerStateDirectory,
     "--pve-max-kills", "$PveMaxKills",
     "--pve-max-seconds", "300",
     "--pve-max-encounter-seconds", "120",

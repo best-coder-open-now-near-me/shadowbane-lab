@@ -138,6 +138,7 @@ from shadowbane_lab.manager import (
     DashboardServer,
     ExactClientWorkerBinding,
     ExactClientWorkerRuntime,
+    ForegroundWorkerOperationIngress,
     GuardedWindowControl,
     ManagedWorkerController,
     ManagerDashboardApplication,
@@ -155,6 +156,7 @@ from shadowbane_lab.manager import (
     WorkerOperationLedger,
     WorkerOperationState,
     WorkerSupervisor,
+    WorkerTravelDestination,
     expand_manager_slots,
     load_manager_manifest,
 )
@@ -765,6 +767,16 @@ def _parser() -> argparse.ArgumentParser:
     listen_go.add_argument("--wait-for-client-seconds", type=float, default=30.0)
     listen_go.add_argument("--poll-ms", type=int, default=200)
     listen_go.add_argument("--click-interval-ms", type=int, default=2_000)
+    listen_go.add_argument(
+        "--manager-manifest",
+        type=Path,
+        help="manager manifest used to resolve the foreground client to its exact worker",
+    )
+    listen_go.add_argument(
+        "--worker-state-directory",
+        type=Path,
+        help="node-local manager worker state containing permits and operation inboxes",
+    )
     listen_go.add_argument(
         "--live",
         action="store_true",
@@ -3746,6 +3758,8 @@ def _listen_for_go_commands(
     native_world_map_profile_path: Path | None = None,
     hotkey_config_path: Path | None = None,
     learned_navigation_state_path: Path | None = None,
+    manager_manifest_path: Path | None = None,
+    worker_state_directory: Path | None = None,
 ) -> int:
     if not live:
         return _error("chat travel requires the explicit --live flag", as_json=as_json)
@@ -3754,6 +3768,23 @@ def _listen_for_go_commands(
         if not client_profile.live_input_enabled:
             raise ValueError("client profile is not enabled for live input")
         guard = ForegroundWindowGuard(client_profile, WindowsForegroundWindowInspector())
+        if (manager_manifest_path is None) != (worker_state_directory is None):
+            raise ValueError(
+                "--manager-manifest and --worker-state-directory must be supplied together"
+            )
+        worker_ingress = None
+        if manager_manifest_path is not None:
+            assert worker_state_directory is not None
+            manager_manifest = load_manager_manifest(manager_manifest_path)
+            worker_ingress = ForegroundWorkerOperationIngress(
+                manager_manifest,
+                ManifestClientRegistryProvider(
+                    WindowsVisibleWindowInspector(),
+                    manager_manifest,
+                ),
+                WorkerHeartbeatLedger(manager_manifest, worker_state_directory),
+                WorkerOperationLedger(manager_manifest, worker_state_directory),
+            )
         named_catalog = (
             None
             if world_def_path is None
@@ -3839,6 +3870,9 @@ def _listen_for_go_commands(
     active_operation_stop: EventEmergencyStop | None = None
 
     def cancel_active_operation() -> None:
+        if worker_ingress is not None:
+            commands.put("/stop")
+            return
         with active_lock:
             if active_operation_stop is not None:
                 active_operation_stop.trip()
@@ -3849,6 +3883,75 @@ def _listen_for_go_commands(
     def submit_pointer(interaction: PhysicalPointerInteraction) -> None:
         if interaction.button == "right":
             commands.put(interaction)
+
+    def dispatch_to_exact_worker(
+        kind: WorkerOperationKind,
+        command: str,
+        *,
+        process_id: int,
+        destination: WorkerTravelDestination | None = None,
+        resolved_name: str | None = None,
+        candidate_count: int | None = None,
+        destination_source: str | None = None,
+    ) -> bool:
+        if worker_ingress is None:
+            raise RuntimeError("exact-worker ingress is not configured")
+        try:
+            dispatch = worker_ingress.dispatch(
+                kind,
+                command,
+                destination=destination,
+                expected_process_id=process_id,
+            )
+        except (OSError, RuntimeError, ValueError) as exc:
+            _print_go_listener_event(
+                "rejected",
+                as_json=as_json,
+                command=command,
+                reason=str(exc),
+            )
+            return False
+        acknowledgement = dispatch.acknowledgement
+        if acknowledgement is not None and acknowledgement.state in {
+            WorkerOperationState.FAILED,
+            WorkerOperationState.CANCELLED,
+            WorkerOperationState.EXPIRED,
+            WorkerOperationState.REJECTED,
+        }:
+            _print_go_listener_event(
+                "rejected",
+                as_json=as_json,
+                command=command,
+                reason=(
+                    acknowledgement.detail
+                    or f"exact worker reported {acknowledgement.state.value}"
+                ),
+                operation_id=dispatch.operation.operation_id,
+                client_id=dispatch.operation.client_id,
+                operation_state=acknowledgement.state.value,
+            )
+            return False
+        _print_go_listener_event(
+            "accepted" if acknowledgement is not None else "submitted",
+            as_json=as_json,
+            command=command,
+            reason=(
+                None
+                if acknowledgement is not None
+                else "exact worker acknowledgement timed out; operation remains visible"
+            ),
+            resolved_name=resolved_name,
+            lt=None if destination is None else destination.lt,
+            lg=None if destination is None else destination.lg,
+            candidate_count=candidate_count,
+            destination_source=destination_source,
+            operation_id=dispatch.operation.operation_id,
+            client_id=dispatch.operation.client_id,
+            operation_state=(
+                None if acknowledgement is None else acknowledgement.state.value
+            ),
+        )
+        return True
 
     world_map_reader = None
     listener = WindowsGoChatCommandListener(
@@ -3911,7 +4014,7 @@ def _listen_for_go_commands(
                     command = interaction
                     normalized = command.strip().casefold()
                 named_resolution = None
-                if normalized == "/stop":
+                if normalized == "/stop" and worker_ingress is None:
                     stop_sequence += 1
                     result = stop_adapter.dispatch_movement_stop(
                         correlation_id=f"travel:chat-stop:{stop_sequence}"
@@ -3932,6 +4035,13 @@ def _listen_for_go_commands(
                         as_json=as_json,
                         command=command,
                         reason=str(exc),
+                    )
+                    continue
+                if normalized == "/stop":
+                    dispatch_to_exact_worker(
+                        WorkerOperationKind.STOP,
+                        command,
+                        process_id=command_process_id,
                     )
                     continue
                 if isinstance(interaction, PhysicalPointerInteraction):
@@ -3999,6 +4109,13 @@ def _listen_for_go_commands(
                     )
                     continue
                 if normalized == "/pve":
+                    if worker_ingress is not None:
+                        dispatch_to_exact_worker(
+                            WorkerOperationKind.PVE,
+                            command,
+                            process_id=command_process_id,
+                        )
+                        continue
                     if pve_client_profile_path is None or pve_profile is None:
                         _print_go_listener_event(
                             "rejected",
@@ -4136,6 +4253,61 @@ def _listen_for_go_commands(
                     lg = destination.lg
                     radius = destination.arrival_radius
 
+                if worker_ingress is not None:
+                    try:
+                        resolved_destination = resolve_travel_destination(
+                            destination_state_path,
+                            lt=lt,
+                            lg=lg,
+                            radius=radius,
+                        )
+                    except (TravelDestinationStateError, ValueError) as exc:
+                        _print_go_listener_event(
+                            "rejected",
+                            as_json=as_json,
+                            command=command,
+                            reason=str(exc),
+                        )
+                        continue
+                    if pointer_destination is not None and world_map_close_plan is not None:
+                        try:
+                            world_map_executor.execute(world_map_close_plan)
+                        except InputExecutionError as exc:
+                            _print_go_listener_event(
+                                "rejected",
+                                as_json=as_json,
+                                command=command,
+                                reason=f"could not close world map: {exc}",
+                            )
+                            continue
+                    worker_destination = WorkerTravelDestination(
+                        resolved_destination.lt,
+                        resolved_destination.lg,
+                        resolved_destination.arrival_radius,
+                    )
+                    dispatch_to_exact_worker(
+                        WorkerOperationKind.TRAVEL,
+                        command,
+                        process_id=command_process_id,
+                        destination=worker_destination,
+                        resolved_name=(
+                            None
+                            if named_resolution is None
+                            else named_resolution.matched_name
+                        ),
+                        candidate_count=(
+                            None
+                            if named_resolution is None
+                            else named_resolution.candidate_count
+                        ),
+                        destination_source=(
+                            destination_source
+                            if named_resolution is None
+                            else named_resolution.source
+                        ),
+                    )
+                    continue
+
                 route_stop = EventEmergencyStop()
                 with active_lock:
                     active_operation_stop = route_stop
@@ -4233,6 +4405,9 @@ def _print_go_listener_event(
     lg: float | None = None,
     candidate_count: int | None = None,
     destination_source: str | None = None,
+    operation_id: str | None = None,
+    client_id: str | None = None,
+    operation_state: str | None = None,
 ) -> None:
     if as_json:
         payload = {"ok": event != "rejected", "event": event}
@@ -4248,6 +4423,12 @@ def _print_go_listener_event(
             payload["candidate_count"] = candidate_count
         if destination_source is not None:
             payload["destination_source"] = destination_source
+        if operation_id is not None:
+            payload["operation_id"] = operation_id
+        if client_id is not None:
+            payload["client_id"] = client_id
+        if operation_state is not None:
+            payload["operation_state"] = operation_state
         print(json.dumps(payload, sort_keys=True), flush=True)
         return
     if event == "listening":
@@ -4259,13 +4440,18 @@ def _print_go_listener_event(
         print("Stopped listening for Shadowbane commands.", flush=True)
     elif event == "heartbeat":
         print("Shadowbane command listener is healthy.", flush=True)
-    elif event == "accepted":
+    elif event in {"accepted", "submitted"}:
         detail = (
             ""
             if resolved_name is None
             else f" -> {resolved_name} at LT {lt:g}, LG {lg:g}"
         )
-        print(f"Accepted chat command: {command}{detail}", flush=True)
+        verb = "Accepted" if event == "accepted" else "Submitted"
+        worker_detail = "" if client_id is None else f" [{client_id}]"
+        print(
+            f"{verb} chat command{worker_detail}: {command}{detail}",
+            flush=True,
+        )
     elif event == "world_map_click_ignored":
         print(f"Ignored {command}: {reason}", flush=True)
     else:
@@ -4721,6 +4907,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             wait_for_client_seconds=arguments.wait_for_client_seconds,
             poll_ms=arguments.poll_ms,
             click_interval_ms=arguments.click_interval_ms,
+            manager_manifest_path=arguments.manager_manifest,
+            worker_state_directory=arguments.worker_state_directory,
             live=arguments.live,
             as_json=arguments.json,
         )
