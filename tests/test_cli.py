@@ -280,6 +280,75 @@ class ClientCliTests(unittest.TestCase):
         self.assertFalse(payload["ok"])
         self.assertIn("--live", payload["error"])
 
+    def test_chat_listener_defers_hotbar_verification_until_pve_command(self) -> None:
+        template = Path(__file__).parents[1] / "configs" / "wonderbane-travel.template.json"
+        profile = replace(load_calibration(template), live_input_enabled=True)
+        service_stop = EventEmergencyStop()
+
+        class StopImmediatelyListener:
+            def __init__(
+                self, _guard, *, on_command, on_interaction, on_pointer
+            ) -> None:
+                pass
+
+            def __enter__(self):
+                service_stop.trip()
+                return self
+
+            def __exit__(self, *_args) -> None:
+                return None
+
+        class InertZoneOverlay:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args) -> None:
+                return None
+
+        emergency_stop = MagicMock()
+        emergency_stop.__enter__.return_value = service_stop
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch("shadowbane_lab.cli.load_calibration", return_value=profile),
+            patch(
+                "shadowbane_lab.cli.WindowsHotkeyEmergencyStop",
+                return_value=emergency_stop,
+            ),
+            patch(
+                "shadowbane_lab.cli.WindowsGoChatCommandListener",
+                StopImmediatelyListener,
+            ),
+            patch("shadowbane_lab.cli.WindowsZoneSearchOverlay", InertZoneOverlay),
+            patch("shadowbane_lab.cli._verify_hotbar_power_mapping") as verify_hotbar,
+        ):
+            result = _listen_for_go_commands(
+                destination_state_path=Path(directory) / "travel.json",
+                client_profile_path=template,
+                native_position_profile_path=None,
+                native_vitals_profile_path=None,
+                native_runegate_profile_path=None,
+                world_def_path=None,
+                named_destination_overrides_path=None,
+                pve_client_profile_path=Path(directory) / "pve.json",
+                pve_hotbar_config_path=None,
+                pve_evidence_directory=None,
+                navigation_cache_directory=None,
+                pve_max_kills=3,
+                pve_max_seconds=300,
+                pve_max_encounter_seconds=120,
+                pve_recovery_timeout_seconds=30,
+                pve_poll_ms=100,
+                max_seconds=300,
+                wait_for_client_seconds=0,
+                poll_ms=200,
+                click_interval_ms=4_000,
+                live=True,
+                as_json=True,
+            )
+
+        self.assertEqual(0, result)
+        verify_hotbar.assert_not_called()
+
     def test_chat_pve_command_runs_on_the_guarded_client_and_stays_stoppable(self) -> None:
         template = Path(__file__).parents[1] / "configs" / "wonderbane-travel.template.json"
         profile = replace(load_calibration(template), live_input_enabled=True)
@@ -337,7 +406,7 @@ class ClientCliTests(unittest.TestCase):
                 "shadowbane_lab.cli.WindowsGoChatCommandListener",
                 OneCommandListener,
             ),
-            patch("shadowbane_lab.cli._verify_hotbar_power_mapping"),
+            patch("shadowbane_lab.cli._verify_hotbar_power_mapping") as verify_hotbar,
             patch("shadowbane_lab.cli._run_pve", side_effect=run_pve),
             patch(
                 "shadowbane_lab.cli.PyAutoGuiBackend",
@@ -384,6 +453,7 @@ class ClientCliTests(unittest.TestCase):
         self.assertEqual(1_500, captured["retained_trace_steps"])
         self.assertEqual(Path(directory) / "cache", captured["navigation_cache_directory"])
         self.assertTrue(captured["stop_signal"].is_set())
+        verify_hotbar.assert_called_once()
         evidence_path = captured["evidence_output_path"]
         self.assertIsInstance(evidence_path, Path)
         self.assertEqual(evidence_directory, evidence_path.parent)

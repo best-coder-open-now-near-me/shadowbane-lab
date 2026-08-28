@@ -23,6 +23,11 @@ plus errors to the `codexdiag` shared folder:
 powershell.exe -NoProfile -File \\VBOXSVR\codexrepo\scripts\start-wonderbane-go-listener.ps1
 ```
 
+The listener no longer requires exactly one character `SCREEN_GAME` file at startup. When one
+unambiguous file exists it is supplied automatically; otherwise travel and zone commands remain
+available and `/pve` rejects at command time until `-PveHotbarConfig` identifies the reviewed
+active character hotbar.
+
 Running the launcher again replaces every process whose command line identifies this scoped
 listener, so checked-out code changes take effect without a VM reboot and accidental duplicate
 listeners collapse back to one instance.

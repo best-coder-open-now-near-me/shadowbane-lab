@@ -48,14 +48,14 @@ if (-not $PveHotbarConfig) {
     $hotbars = @(
         Get-ChildItem `
             "$env:USERPROFILE\Downloads\WonderbaneClient\Wonderbane\Config\SCREEN_GAME_*_Wonderbane.cfg" `
-            -File
+            -File `
+            -ErrorAction SilentlyContinue
     )
-    if ($hotbars.Count -ne 1) {
-        throw "Expected exactly one WonderBane character hotbar; found $($hotbars.Count)."
+    if ($hotbars.Count -eq 1) {
+        $PveHotbarConfig = $hotbars[0].FullName
     }
-    $PveHotbarConfig = $hotbars[0].FullName
 }
-if (-not (Test-Path -LiteralPath $PveHotbarConfig -PathType Leaf)) {
+if ($PveHotbarConfig -and -not (Test-Path -LiteralPath $PveHotbarConfig -PathType Leaf)) {
     throw "WonderBane character hotbar was not found: $PveHotbarConfig"
 }
 if (-not (Test-Path -LiteralPath $LogDirectory -PathType Container)) {
@@ -102,9 +102,7 @@ $arguments = @(
     "--client-profile", $ClientProfile,
     "--world-def", $WorldDef,
     "--named-destination-overrides", $NamedDestinationOverrides,
-    "--hotkey-config", $PveHotbarConfig,
     "--pve-client-profile", $PveClientProfile,
-    "--pve-hotbar-config", $PveHotbarConfig,
     "--pve-evidence-directory", $LogDirectory,
     "--navigation-cache-directory", $NavigationCacheDirectory,
     "--learned-navigation-state", $LearnedNavigationState,
@@ -122,6 +120,12 @@ $arguments = @(
     "--live",
     "--json"
 )
+if ($PveHotbarConfig) {
+    $arguments += @(
+        "--hotkey-config", $PveHotbarConfig,
+        "--pve-hotbar-config", $PveHotbarConfig
+    )
+}
 if (-not $BoundedPve) {
     $arguments += "--pve-continuous"
 }

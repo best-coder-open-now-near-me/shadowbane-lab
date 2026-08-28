@@ -3183,18 +3183,13 @@ def _listen_for_go_commands(
                 action_key="client.world-map.close",
                 commands=(WaitCommand(75), world_map_command),
             )
+        pve_profile = None
         if pve_client_profile_path is not None:
             pve_profile = load_calibration(pve_client_profile_path)
             if not pve_profile.live_input_enabled:
                 raise ValueError("PvE client profile is not enabled for live input")
             if pve_profile.target != client_profile.target:
                 raise ValueError("travel and PvE profiles target different client windows")
-            _verify_hotbar_power_mapping(
-                pve_profile.actions,
-                pve_hotbar_config_path,
-                action_key=PvEIntent.CAST_SHADOW_TOUCH.value,
-                power_name=ArcaneClientPower.SHADOW_TOUCH,
-            )
         if pve_evidence_directory is not None:
             pve_evidence_directory.mkdir(parents=True, exist_ok=True)
         if pve_continuous and pve_evidence_directory is None:
@@ -3371,12 +3366,27 @@ def _listen_for_go_commands(
                     )
                     continue
                 if normalized == "/pve":
-                    if pve_client_profile_path is None:
+                    if pve_client_profile_path is None or pve_profile is None:
                         _print_go_listener_event(
                             "rejected",
                             as_json=as_json,
                             command=command,
                             reason="the listener was started without a PvE profile",
+                        )
+                        continue
+                    try:
+                        _verify_hotbar_power_mapping(
+                            pve_profile.actions,
+                            pve_hotbar_config_path,
+                            action_key=PvEIntent.CAST_SHADOW_TOUCH.value,
+                            power_name=ArcaneClientPower.SHADOW_TOUCH,
+                        )
+                    except (ArcaneHotbarLoadError, OSError, ValueError) as exc:
+                        _print_go_listener_event(
+                            "rejected",
+                            as_json=as_json,
+                            command=command,
+                            reason=str(exc),
                         )
                         continue
                     operation_stop = EventEmergencyStop()
