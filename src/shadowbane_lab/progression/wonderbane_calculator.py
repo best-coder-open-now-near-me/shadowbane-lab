@@ -28,6 +28,7 @@ CALCULATOR_SOURCE_URL = "https://wonderbane.com/"
 CALCULATOR_EVIDENCE_STATUS = "wonderbane_calculator_derived"
 _MAXIMUM_SNAPSHOT_BYTES = 2 * 1024 * 1024
 _BUNDLED_REVIEW_NAME = "data/wonderbane_calculator_review_v1.json"
+_BUNDLED_CATALOG_NAME = "data/wonderbane_calculator_catalog_v1.json"
 _DECLARATION_NAMES = ("RACES", "BASES", "PROMOS", "RUNES")
 _FORMULA_NAMES = (
     "levelBonus",
@@ -326,6 +327,85 @@ class WonderbaneCalculatorCatalog:
     def rune(self, record_id: int) -> CalculatorRune:
         return _record_by_id(self.runes, record_id, "rune")
 
+    def eligible_runes(
+        self,
+        *,
+        race_id: int,
+        base_class_id: int,
+        promotion_id: int | None,
+        level: int,
+        trained_modifiers: StatLine | None = None,
+        category: CalculatorRuneCategory | None = None,
+    ) -> tuple[CalculatorRune, ...]:
+        """Return individually legal runes for the calculator's pre-rune build state."""
+
+        if self.review_status is not CalculatorReviewStatus.ACCEPTED:
+            raise WonderbaneCalculatorImportError(
+                "calculator declarations require review before legality can be evaluated"
+            )
+        _integer(level, "level", minimum=1)
+        if level > 80:
+            raise WonderbaneCalculatorImportError("level must not exceed the calculator's 80 cap")
+        if category is not None and not isinstance(category, CalculatorRuneCategory):
+            raise WonderbaneCalculatorImportError(
+                "rune category must be a CalculatorRuneCategory"
+            )
+        race = self.race(race_id)
+        base = self.base_class(base_class_id)
+        promotion = self.promotion(promotion_id) if promotion_id is not None else None
+        if promotion is not None and base.name not in promotion.allowed_base_classes:
+            raise WonderbaneCalculatorImportError(
+                f"{promotion.name} does not promote from {base.name}"
+            )
+        modifiers = trained_modifiers or StatLine(0, 0, 0, 0, 0)
+        if any(value < -5 for value in modifiers.values()):
+            raise WonderbaneCalculatorImportError(
+                "trained modifiers cannot dump a stat below -5"
+            )
+        before_runes = _sum_stats(
+            race.starting_attributes,
+            base.attribute_modifiers,
+            modifiers,
+            StatLine(*(self.formulas.boon for _ in range(5))),
+        )
+        if any(
+            value > maximum
+            for value, maximum in zip(
+                before_runes.values(), race.maximum_attributes.values(), strict=True
+            )
+        ):
+            raise WonderbaneCalculatorImportError(
+                "trained modifiers exceed a race attribute cap before runes"
+            )
+        eligible: list[CalculatorRune] = []
+        for rune in self.runes:
+            if category is not None and rune.category is not category:
+                continue
+            try:
+                _validate_rune_access(rune, race, base, promotion, level, before_runes)
+            except WonderbaneCalculatorImportError:
+                continue
+            eligible.append(rune)
+        return tuple(sorted(eligible, key=lambda item: (item.name.casefold(), item.record_id)))
+
+    def eligible_disciplines(
+        self,
+        *,
+        race_id: int,
+        base_class_id: int,
+        promotion_id: int,
+        level: int,
+        trained_modifiers: StatLine | None = None,
+    ) -> tuple[CalculatorRune, ...]:
+        return self.eligible_runes(
+            race_id=race_id,
+            base_class_id=base_class_id,
+            promotion_id=promotion_id,
+            level=level,
+            trained_modifiers=trained_modifiers,
+            category=CalculatorRuneCategory.DISCIPLINE,
+        )
+
     def calculate(
         self,
         *,
@@ -486,6 +566,146 @@ class CalculatorSnapshotArtifacts:
 def load_bundled_calculator_review_profile() -> CalculatorReviewProfile:
     resource = files("shadowbane_lab.progression").joinpath(_BUNDLED_REVIEW_NAME)
     return load_calculator_review_profile_text(resource.read_text(encoding="utf-8"))
+
+
+def load_bundled_wonderbane_calculator_catalog() -> WonderbaneCalculatorCatalog:
+    resource = files("shadowbane_lab.progression").joinpath(_BUNDLED_CATALOG_NAME)
+    return load_wonderbane_calculator_catalog_text(resource.read_text(encoding="utf-8"))
+
+
+def load_wonderbane_calculator_catalog(path: str | Path) -> WonderbaneCalculatorCatalog:
+    return load_wonderbane_calculator_catalog_text(Path(path).read_text(encoding="utf-8"))
+
+
+def load_wonderbane_calculator_catalog_text(text: str) -> WonderbaneCalculatorCatalog:
+    """Strictly load a reviewed normalized catalog without requiring its HTML snapshot."""
+
+    try:
+        data = _mapping(json.loads(text), "calculator catalog")
+    except (json.JSONDecodeError, TypeError) as exc:
+        raise WonderbaneCalculatorImportError("calculator catalog is not valid JSON") from exc
+    _exact_fields(
+        data,
+        {
+            "schema_version",
+            "source",
+            "counts",
+            "unresolved_references",
+            "formulas",
+            "races",
+            "base_classes",
+            "promotions",
+            "runes",
+        },
+        field_name="calculator catalog",
+    )
+    if _integer(data["schema_version"], "schema version") != CALCULATOR_SCHEMA_VERSION:
+        raise WonderbaneCalculatorImportError("unsupported calculator catalog schema version")
+    source = _mapping(data["source"], "calculator catalog source")
+    _exact_fields(
+        source,
+        {
+            "url",
+            "snapshot_sha256",
+            "declaration_sha256",
+            "review_profile_id",
+            "review_status",
+            "evidence_status",
+        },
+        field_name="calculator catalog source",
+    )
+    formulas = _parse_normalized_formulas(data["formulas"])
+    races = tuple(
+        _parse_normalized_race(item) for item in _array(data["races"], "catalog races")
+    )
+    bases = tuple(
+        _parse_normalized_class(item, "base class")
+        for item in _array(data["base_classes"], "catalog base classes")
+    )
+    promotions = tuple(
+        _parse_normalized_class(item, "promotion")
+        for item in _array(data["promotions"], "catalog promotions")
+    )
+    runes = tuple(
+        _parse_normalized_rune(item) for item in _array(data["runes"], "catalog runes")
+    )
+    unresolved = _strings(data["unresolved_references"], "unresolved references")
+    recomputed_unresolved = _unresolved_references(races, bases, promotions, runes)
+    if unresolved != recomputed_unresolved:
+        raise WonderbaneCalculatorImportError(
+            "calculator catalog unresolved references do not match its records"
+        )
+    counts = _mapping(data["counts"], "calculator catalog counts")
+    _exact_fields(
+        counts,
+        {
+            "race_records",
+            "race_families",
+            "base_classes",
+            "promotions",
+            "runes",
+            "disciplines",
+        },
+        field_name="calculator catalog counts",
+    )
+    expected_counts = {
+        "race_records": len(races),
+        "race_families": len({item.family for item in races}),
+        "base_classes": len(bases),
+        "promotions": len(promotions),
+        "runes": len(runes),
+        "disciplines": sum(
+            item.category is CalculatorRuneCategory.DISCIPLINE for item in runes
+        ),
+    }
+    parsed_counts = {
+        key: _integer(counts[key], f"calculator catalog {key}", minimum=0)
+        for key in expected_counts
+    }
+    if parsed_counts != expected_counts:
+        raise WonderbaneCalculatorImportError(
+            "calculator catalog counts do not match its records"
+        )
+    try:
+        review_status = CalculatorReviewStatus(_required_string(source, "review_status"))
+    except ValueError as exc:
+        raise WonderbaneCalculatorImportError("unknown calculator review status") from exc
+    profile = load_bundled_calculator_review_profile()
+    declaration_sha256 = _required_string(source, "declaration_sha256")
+    profile_id = _required_string(source, "review_profile_id")
+    source_url = _required_string(source, "url")
+    evidence_status = _required_string(source, "evidence_status")
+    if review_status is CalculatorReviewStatus.ACCEPTED and (
+        declaration_sha256 != profile.declaration_sha256
+        or profile_id != profile.profile_id
+        or len(races) != profile.race_records
+        or len(bases) != profile.base_classes
+        or len(promotions) != profile.promotions
+        or len(runes) != profile.runes
+    ):
+        raise WonderbaneCalculatorImportError(
+            "accepted calculator catalog does not match the bundled review profile"
+        )
+    if source_url != CALCULATOR_SOURCE_URL:
+        raise WonderbaneCalculatorImportError("calculator catalog source URL is not WonderBane")
+    if evidence_status != CALCULATOR_EVIDENCE_STATUS:
+        raise WonderbaneCalculatorImportError(
+            "calculator catalog has an unknown evidence status"
+        )
+    return WonderbaneCalculatorCatalog(
+        source_url=source_url,
+        snapshot_sha256=_required_string(source, "snapshot_sha256"),
+        declaration_sha256=declaration_sha256,
+        review_status=review_status,
+        review_profile_id=profile_id,
+        evidence_status=evidence_status,
+        races=races,
+        base_classes=bases,
+        promotions=promotions,
+        runes=runes,
+        formulas=formulas,
+        unresolved_references=unresolved,
+    )
 
 
 def load_calculator_review_profile_text(text: str) -> CalculatorReviewProfile:
@@ -1040,6 +1260,186 @@ def _parse_rune(value: object) -> CalculatorRune:
         allowed_promotions=_strings(data["promos"], "rune promotions"),
         description=description,
         powers=_strings(data.get("powers", []), "rune powers"),
+        skill_grants=tuple(skill_grants),
+    )
+
+
+def _parse_normalized_formulas(value: object) -> CalculatorFormulaEvidence:
+    data = _mapping(value, "calculator formulas")
+    _exact_fields(data, {"boon", "function_sha256"}, field_name="calculator formulas")
+    hashes = _mapping(data["function_sha256"], "calculator function hashes")
+    _exact_fields(
+        hashes,
+        set(_FORMULA_NAMES),
+        field_name="calculator function hashes",
+    )
+    normalized: list[tuple[str, str]] = []
+    for name in _FORMULA_NAMES:
+        digest = _required_string(hashes, name)
+        if not re.fullmatch(r"[0-9a-f]{64}", digest):
+            raise WonderbaneCalculatorImportError(
+                f"calculator {name} function hash must be lowercase SHA-256"
+            )
+        normalized.append((name, digest))
+    return CalculatorFormulaEvidence(
+        boon=_integer(data["boon"], "calculator boon"),
+        function_sha256=tuple(normalized),
+    )
+
+
+def _parse_normalized_race(value: object) -> CalculatorRace:
+    data = _mapping(value, "catalog race")
+    _exact_fields(
+        data,
+        {
+            "id",
+            "name",
+            "family",
+            "sex",
+            "starting_attributes",
+            "maximum_attributes",
+            "creation_points",
+            "health_base",
+            "mana_base",
+            "stamina_base",
+        },
+        field_name="catalog race",
+    )
+    sex = _required_string(data, "sex")
+    if sex not in {"female", "male"}:
+        raise WonderbaneCalculatorImportError("catalog race sex must be female or male")
+    name = _required_string(data, "name")
+    family = _required_string(data, "family")
+    if name != f"{family}, {sex.title()}":
+        raise WonderbaneCalculatorImportError(
+            "catalog race name must agree with its family and sex"
+        )
+    return CalculatorRace(
+        record_id=_integer(data["id"], "race id", minimum=1),
+        name=name,
+        family=family,
+        sex=sex,
+        starting_attributes=_stats(
+            data["starting_attributes"], "race starting attributes"
+        ),
+        maximum_attributes=_stats(
+            data["maximum_attributes"], "race maximum attributes"
+        ),
+        creation_points=_integer(
+            data["creation_points"], "race creation points", minimum=0
+        ),
+        health_base=_integer(data["health_base"], "race health base", minimum=0),
+        mana_base=_integer(data["mana_base"], "race mana base", minimum=0),
+        stamina_base=_integer(data["stamina_base"], "race stamina base", minimum=0),
+    )
+
+
+def _parse_normalized_class(value: object, field_name: str) -> CalculatorClass:
+    data = _mapping(value, f"catalog {field_name}")
+    _exact_fields(
+        data,
+        {
+            "id",
+            "name",
+            "allowed_base_classes",
+            "attribute_modifiers",
+            "health_growth",
+            "mana_growth",
+            "stamina_growth",
+        },
+        field_name=f"catalog {field_name}",
+    )
+    return CalculatorClass(
+        record_id=_integer(data["id"], f"{field_name} id", minimum=1),
+        name=_required_string(data, "name"),
+        allowed_base_classes=_strings(
+            data["allowed_base_classes"], f"{field_name} allowed base classes"
+        ),
+        attribute_modifiers=_stats(
+            data["attribute_modifiers"], f"{field_name} attribute modifiers"
+        ),
+        health_growth=_integer(
+            data["health_growth"], f"{field_name} health growth", minimum=0
+        ),
+        mana_growth=_integer(
+            data["mana_growth"], f"{field_name} mana growth", minimum=0
+        ),
+        stamina_growth=_integer(
+            data["stamina_growth"], f"{field_name} stamina growth", minimum=0
+        ),
+    )
+
+
+def _parse_normalized_rune(value: object) -> CalculatorRune:
+    data = _mapping(value, "catalog rune")
+    _exact_fields(
+        data,
+        {
+            "id",
+            "name",
+            "category",
+            "source_kind",
+            "cost",
+            "minimum_level",
+            "stat_grants",
+            "cap_grants",
+            "minimum_stats",
+            "allowed_races",
+            "allowed_base_classes",
+            "allowed_promotions",
+            "description",
+            "powers",
+            "skill_grants",
+        },
+        field_name="catalog rune",
+    )
+    try:
+        category = CalculatorRuneCategory(_required_string(data, "category"))
+    except ValueError as exc:
+        raise WonderbaneCalculatorImportError("unknown calculator rune category") from exc
+    source_kind = _required_string(data, "source_kind")
+    if (category is CalculatorRuneCategory.DISCIPLINE) != (source_kind == "disc"):
+        raise WonderbaneCalculatorImportError(
+            "calculator rune category does not agree with its source kind"
+        )
+    if source_kind not in {"disc", "stat"}:
+        raise WonderbaneCalculatorImportError("unsupported calculator rune source kind")
+    description = data["description"]
+    if description is not None and (not isinstance(description, str) or not description.strip()):
+        raise WonderbaneCalculatorImportError(
+            "catalog rune description must be a non-empty string or null"
+        )
+    skill_grants: list[CalculatorSkillGrant] = []
+    for value in _array(data["skill_grants"], "catalog rune skill grants"):
+        skill = _mapping(value, "catalog rune skill grant")
+        _exact_fields(
+            skill,
+            {"name", "amount"},
+            field_name="catalog rune skill grant",
+        )
+        skill_grants.append(
+            CalculatorSkillGrant(
+                name=_required_string(skill, "name"),
+                amount=_integer(skill["amount"], "skill grant amount", minimum=0),
+            )
+        )
+    return CalculatorRune(
+        record_id=_integer(data["id"], "rune id", minimum=1),
+        name=_required_string(data, "name"),
+        category=category,
+        source_kind=source_kind,
+        cost=_integer(data["cost"], "rune cost", minimum=0),
+        minimum_level=_integer(data["minimum_level"], "rune minimum level", minimum=0),
+        stat_grants=_stats(data["stat_grants"], "rune stat grants"),
+        cap_grants=_stats(data["cap_grants"], "rune cap grants"),
+        minimum_stats=_stats(data["minimum_stats"], "rune minimum stats"),
+        allowed_races=_strings(data["allowed_races"], "rune races"),
+        allowed_base_classes=_strings(
+            data["allowed_base_classes"], "rune base classes"
+        ),
+        allowed_promotions=_strings(data["allowed_promotions"], "rune promotions"),
+        description=description,
+        powers=_strings(data["powers"], "rune powers"),
         skill_grants=tuple(skill_grants),
     )
 

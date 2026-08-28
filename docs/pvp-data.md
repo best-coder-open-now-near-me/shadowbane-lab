@@ -4,7 +4,18 @@ PvP simulations need two different kinds of data: legal character identities and
 mechanics that make those identities fight differently. Keep those layers separate so a
 client-screen observation cannot silently become an assumed combat formula.
 
-## Current catalog
+## Source order
+
+Use the current WonderBane calculator first for static identity, rune, discipline, progression,
+and published resource formulas. Treat its outputs as `wonderbane_calculator_derived` until a
+representative live-client cross-check agrees. Use build-identified live observations next,
+then executable or memory analysis only for fields the calculator omits or where the two sources
+disagree. Revision-pinned emulator and wiki data remain comparison fallbacks.
+
+Conflicts do not get averaged or guessed. Preserve both sources, mark the affected field
+unresolved, and design a focused observation that distinguishes them.
+
+## Legacy comparison catalog
 
 `shadowbane_legacy_catalog_v1.json` is a normalized, revision-pinned comparison baseline. It
 contains 12 races, 4 base classes, 22 professions, 47 disciplines, and 319 legal combinations
@@ -28,11 +39,64 @@ catalog.validate_core_build(
 )
 ```
 
+## Pinned WonderBane calculator
+
+The public [WonderBane Character Calculator](https://wonderbane.com/) says it mirrors server stat
+formulas and exposes race, base-class, promotion, starting-rune, stat-rune, and discipline inputs.
+The 2026-08-28 snapshot is preserved under `evidence/pvp/calculator` with its SHA-256 manifest and
+normalized catalog. Its reviewed declarations contain:
+
+- 22 race/sex records across 12 race families;
+- 4 base classes;
+- 23 promotions, including Ninja;
+- 179 combined rune records, 48 of which are classified as disciplines;
+- attribute starts, caps, modifiers, costs, prerequisites, skill/power grants, and rune legality;
+- level-point, base/promotion growth, health, mana, stamina, defense, and discipline-limit
+  declarations.
+
+The importer uses a restricted array/object/string/integer grammar and never evaluates downloaded
+JavaScript. It accepts only the known `RACES`, `BASES`, `PROMOS`, `RUNES`, `BOON`, and reviewed
+formula declarations. It also limits downloads to two MiB from the exact WonderBane HTTPS home
+page. A full-page SHA-256 preserves the source snapshot; a separate declaration SHA-256 prevents
+unrelated page changes from silently changing calculator data. Declaration or record-count drift
+writes a `review_required` candidate and disables formula evaluation until the review profile is
+updated deliberately.
+
+```powershell
+shadowbane-lab progression import-wonderbane-calculator `
+  --download `
+  --output evidence/pvp/calculator `
+  --json
+```
+
+The pinned catalog retains seven unresolved legality references: several runes name Saetor, but
+the calculator has no Saetor race/sex record. Those edges are preserved rather than invented.
+The calculator also adds a universal `BOON = 5` to derived attributes. The controlled creation-pane
+observation did not display that extra five for the selected Aracoix/Fighter values, so the boon
+formula remains calculator-derived; it may describe a post-creation server adjustment, but a live
+character-sheet comparison is required before promotion.
+
+The reviewed normalized catalog is bundled for offline simulator and harness use. Discipline
+eligibility can be queried without accessing the web or running downloaded code:
+
+```python
+from shadowbane_lab.progression import load_bundled_wonderbane_calculator_catalog
+
+catalog = load_bundled_wonderbane_calculator_catalog()
+disciplines = catalog.eligible_disciplines(
+    race_id=2013,       # Irekei, Male
+    base_class_id=2502, # Rogue
+    promotion_id=2504,  # Assassin
+    level=59,
+)
+```
+
 ## WonderBane character-creation capture
 
-The character-creation menu is the preferred source for the current client-visible identity
-layer. A single continuous screen recording is sufficient if it clearly shows the client build
-and every selection pane. Capture the following without creating or deleting a character:
+The character-creation menu is the live verification source for current client-visible values and
+calculator conflicts. A single continuous screen recording is sufficient if it clearly shows the
+client build and every selection pane. Capture the following without creating or deleting a
+character:
 
 1. Record the capture date, client version, and executable SHA-256.
 2. Select each race and show its description, creation cost, starting attributes, attribute
@@ -96,26 +160,29 @@ focused trace should correlate the single 4-byte client request and following fi
 segments with writes to candidate decoded buffers, then export only normalized definitions and
 their capture provenance.
 
+### 2026-08-28 decoded creation cache
+
+A subsequent read-only observation located the post-decryption creation-definition cache for the
+same executable SHA-256. The redacted summary in
+`evidence/pvp/wonderbane-native-creation-20260828.summary.json` preserves 28 identified race,
+base-class, and promotion descriptions/effect strings. It contains no process id, heap address,
+arbitrary memory, or account/session data.
+
+The cache is a definition population table, not an active-selection pointer: selecting Centaur
+did not replace the anchored Aracoix record. Shade and Mage were not present in the bounded table
+segment and remain known missing cache keys. The controlled Aracoix/Fighter and Centaur/Fighter
+selection values agree with calculator race starts plus Fighter modifiers before `BOON = 5`, which
+is why the boon remains an explicit unresolved cross-source difference.
+
 The menu does not establish later promotion choices, discipline-slot rules, complete power
 rank curves, equipment statistics, resource formulas, hit/defense/resistance behavior, or
 interrupt and crowd-control rules unless it explicitly displays them. Those remain separate
 coverage domains.
 
-## Evidence priority
-
-For WonderBane parity, prefer evidence in this order:
-
-1. Current WonderBane server data or observed server behavior.
-2. Current, build-identified WonderBane client data and UI captures.
-3. Repeatable live-client experiments with recorded conditions.
-4. Revision-pinned emulator source.
-5. Revision-pinned legacy wiki pages.
-
-Conflicts do not get averaged or guessed. Preserve both sources, mark the affected domain
-unresolved, and design a focused observation that distinguishes them.
-
 ## Remaining acquisition order
 
-After character creation is captured, collect promotion and discipline legality, racial and
-class passive effects, ranked power definitions, equipment and enchantments, and finally the
-combat formulas needed to turn those records into PvP state transitions.
+Cross-check representative calculator builds against live character sheets, starting with the
+universal boon and resource totals. Then collect the mechanics the calculator does not expose:
+ranked power definitions, equipment and enchantments, hit and attack rating, weapon damage, armor,
+resistance, power scaling, interrupts, and effect stacking. Use focused executable analysis only
+for those missing or conflicting fields.

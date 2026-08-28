@@ -16,6 +16,8 @@ from shadowbane_lab.progression import (
     capture_wonderbane_calculator_snapshot,
     import_wonderbane_calculator_snapshot,
     load_bundled_calculator_review_profile,
+    load_bundled_wonderbane_calculator_catalog,
+    load_wonderbane_calculator_catalog_text,
     parse_wonderbane_calculator_snapshot,
 )
 
@@ -25,6 +27,12 @@ _SNAPSHOT = (
     / "pvp"
     / "calculator"
     / "wonderbane-calculator-20260828T074250Z.html"
+)
+_NATIVE_CREATION_EVIDENCE = (
+    Path(__file__).parents[1]
+    / "evidence"
+    / "pvp"
+    / "wonderbane-native-creation-20260828.summary.json"
 )
 
 
@@ -86,6 +94,68 @@ class WonderbaneCalculatorImportTests(unittest.TestCase):
         self.assertEqual(78, result.mana)
         self.assertEqual(127, result.stamina)
         self.assertEqual(100, result.defense)
+
+    def test_bundled_catalog_exposes_build_specific_discipline_legality(self) -> None:
+        catalog = load_bundled_wonderbane_calculator_catalog()
+
+        disciplines = catalog.eligible_disciplines(
+            race_id=2013,
+            base_class_id=2502,
+            promotion_id=2504,
+            level=59,
+        )
+        names = {item.name for item in disciplines}
+
+        self.assertEqual(12, len(disciplines))
+        self.assertIn("Sun Dancer", names)
+        self.assertIn("Saboteur", names)
+        self.assertNotIn("Blood Prophet", names)
+        self.assertNotIn("Black Mask", names)
+
+    def test_normalized_catalog_loader_rejects_unreviewed_record_drift(self) -> None:
+        source = self.catalog.to_dict()
+        source["runes"][0]["allowed_races"].append("Bog Folk")
+
+        with self.assertRaisesRegex(
+            WonderbaneCalculatorImportError,
+            "unresolved references",
+        ):
+            load_wonderbane_calculator_catalog_text(json.dumps(source))
+
+    def test_live_creation_evidence_keeps_the_calculator_boon_conflict_explicit(self) -> None:
+        evidence = json.loads(_NATIVE_CREATION_EVIDENCE.read_text(encoding="utf-8"))
+        aracoix = self.catalog.race(2002)
+        fighter = self.catalog.base_class(2500)
+        observed = next(
+            item
+            for item in evidence["controlled_selection_observations"]
+            if item["race"] == "Aracoix"
+        )
+        raw_plus_class = [
+            left + right
+            for left, right in zip(
+                aracoix.starting_attributes.values(),
+                fighter.attribute_modifiers.values(),
+                strict=True,
+            )
+        ]
+
+        self.assertEqual(28, len(evidence["definitions"]))
+        self.assertEqual(raw_plus_class, observed["visible_attributes"])
+        self.assertEqual(
+            [value + 5 for value in observed["visible_attributes"]],
+            list(
+                self.catalog.calculate(
+                    race_id=2002,
+                    base_class_id=2500,
+                    promotion_id=None,
+                    level=1,
+                ).attributes.values()
+            ),
+        )
+        serialized = json.dumps(evidence)
+        for forbidden in ('"process_id"', '"pointer_field"', '"begin"', '"end"'):
+            self.assertNotIn(forbidden, serialized)
 
     def test_discipline_limit_and_pre_rune_requirements_fail_closed(self) -> None:
         with self.assertRaisesRegex(

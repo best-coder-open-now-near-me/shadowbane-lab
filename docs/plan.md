@@ -28,6 +28,8 @@ traces; snapshot forks remain reproducible.
 - Compile representative Assassin powers, then Warlock powers.
 - Classify rules as `COMPILED`, `COMPILED_WITH_OVERRIDE`, or `UNRESOLVED`.
 - Preserve provenance for every concrete value and semantic interpretation.
+- Prefer the pinned WonderBane calculator for static tables and published formulas, then verify
+  representative outputs against the live client before promoting calculator-derived values.
 
 **Gate:** the representative slice exercises the major action families without silent
 approximations.

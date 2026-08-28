@@ -1,0 +1,525 @@
+{
+  "schema_version": 1,
+  "evidence_id": "wonderbane.client-memory.character-definitions.20260828.v1",
+  "target_variant": "wonderbane",
+  "evidence_status": "live_client_observed",
+  "source": {
+    "source_id": "wonderbane-client-ef43784b-creation-cache",
+    "kind": "live_client_memory",
+    "client_executable_sha256": "ef43784ba6ffa0de6c0c16c76569f864393ad1530e7149395bb560e5cca30f13",
+    "observed_on": "2026-08-28",
+    "acquisition": "read-only post-decryption private-memory observation"
+  },
+  "layout": {
+    "record_stride_bytes": 808,
+    "effect_field_offset_bytes": 24,
+    "maximum_characters_per_field": 4096,
+    "discovery_anchor": "exact Aracoix description and effect pair",
+    "heap_addresses_persisted": false
+  },
+  "definitions": [
+    {
+      "key": "aelfborn",
+      "name": "Aelfborn",
+      "kind": "race",
+      "relative_index": -2,
+      "description": "The sterile offspring of Human and Elf unions, these beings\n are distrusted by both Man and Elf-kind.",
+      "effect": "Granted 'Wildkin's Chase' power",
+      "provenance": {
+        "source_id": "wonderbane-client-ef43784b-creation-cache",
+        "fields": [
+          "description",
+          "effect"
+        ],
+        "locator": "decoded creation-definition cache record -2"
+      }
+    },
+    {
+      "key": "aracoix",
+      "name": "Aracoix",
+      "kind": "race",
+      "relative_index": 0,
+      "description": "Strangers from another world, these winged humanoids can fly,\n but have little aptitude for magic.",
+      "effect": "+10 to Mental resistance\nGranted 'Flight' ability",
+      "provenance": {
+        "source_id": "wonderbane-client-ef43784b-creation-cache",
+        "fields": [
+          "description",
+          "effect"
+        ],
+        "locator": "decoded creation-definition cache record 0"
+      }
+    },
+    {
+      "key": "nephilim",
+      "name": "Nephilim",
+      "kind": "race",
+      "relative_index": 2,
+      "description": "Often called the Tainted Ones, Nephilim are winged fusions \nof Human and Demon from the Pit of Chaos. They are renowned \nfor their strange beauty, their cruelty, and their aptitude \nwith magic.",
+      "effect": "+30 to Fire Resistance\n+30 to Lightning Resistance\n+30 to Magic Resitstance\n+30 to Mental Resistance\n+30 to Poison Resistance\n+30 to Cold Resistance\n+30 to Unholy Resistance\nGranted 'Mundane Eidolon' power\nGranted 'Flight' ability",
+      "provenance": {
+        "source_id": "wonderbane-client-ef43784b-creation-cache",
+        "fields": [
+          "description",
+          "effect"
+        ],
+        "locator": "decoded creation-definition cache record 2"
+      }
+    },
+    {
+      "key": "assassin",
+      "name": "Assassin",
+      "kind": "promotion",
+      "relative_index": 6,
+      "description": "Skilled in the arts of dealing death, Assassins are users of\npoison and stealth. They use the mysterious power of\nShadowmastery, which allows them to shape and use living\nshadow to slay their targets.",
+      "effect": null,
+      "provenance": {
+        "source_id": "wonderbane-client-ef43784b-creation-cache",
+        "fields": [
+          "description",
+          "effect"
+        ],
+        "locator": "decoded creation-definition cache record 6"
+      }
+    },
+    {
+      "key": "elf",
+      "name": "Elf",
+      "kind": "race",
+      "relative_index": 7,
+      "description": "One-time masters of the world, the Elves' power was broken \nlong ago, their empires scattered and destroyed, yet they \nretain their arrogance.",
+      "effect": "+5 to Magic resistance\n-5 to Poison resistance\n+10 to Sword skill\n-15 to Heal Resistance",
+      "provenance": {
+        "source_id": "wonderbane-client-ef43784b-creation-cache",
+        "fields": [
+          "description",
+          "effect"
+        ],
+        "locator": "decoded creation-definition cache record 7"
+      }
+    },
+    {
+      "key": "half_giant",
+      "name": "Half-Giant",
+      "kind": "race",
+      "relative_index": 8,
+      "description": "Mortals born with a touch of the blood of Giants within them, \nthese folk grow to massive size -- half again the height of a \ntall human -- and are as strong and hardy as they are tall.",
+      "effect": "+5 to Cold resistance\n-5 to Fire resistance\n+10 to Axe skill\n+10 to Great Axe Mastery\n+10 to Great Hammer Mastery\n+10 to Great Sword Master\nGranted Athletics and Toughness skills\nGranted 'Undaunted' power",
+      "provenance": {
+        "source_id": "wonderbane-client-ef43784b-creation-cache",
+        "fields": [
+          "description",
+          "effect"
+        ],
+        "locator": "decoded creation-definition cache record 8"
+      }
+    },
+    {
+      "key": "rogue",
+      "name": "Rogue",
+      "kind": "base_class",
+      "relative_index": 15,
+      "description": "Stealthy and unscrupulous, rogues excel at \nthe pilfering arts and dishonorable combat.",
+      "effect": "+5 DEX\n+5 INT\n-10 SPI",
+      "provenance": {
+        "source_id": "wonderbane-client-ef43784b-creation-cache",
+        "fields": [
+          "description",
+          "effect"
+        ],
+        "locator": "decoded creation-definition cache record 15"
+      }
+    },
+    {
+      "key": "human",
+      "name": "Human",
+      "kind": "race",
+      "relative_index": 17,
+      "description": "Granted 20 Extra Stat Points\nMost common of the races of the world of Shadowbane, Humans \nare the rightful children of the All-Father and inheritors \nof the world.",
+      "effect": null,
+      "provenance": {
+        "source_id": "wonderbane-client-ef43784b-creation-cache",
+        "fields": [
+          "description",
+          "effect"
+        ],
+        "locator": "decoded creation-definition cache record 17"
+      }
+    },
+    {
+      "key": "dwarf",
+      "name": "Dwarf",
+      "kind": "race",
+      "relative_index": 18,
+      "description": "Shaped from raw stone itself, the Dwarves were once the \nservants of Thurin and the All-Father beneath the earth.",
+      "effect": "+10 to Slashing resistance\n+10 to Piercing resistance\n+5 to Crushing resistance\n+5 to Lightning resistance\n-5 to Magic resistance\n-5 to Unholy resistance\n+10 to Axe skill\n+10 to Hammer skill\nGranted Toughness skill",
+      "provenance": {
+        "source_id": "wonderbane-client-ef43784b-creation-cache",
+        "fields": [
+          "description",
+          "effect"
+        ],
+        "locator": "decoded creation-definition cache record 18"
+      }
+    },
+    {
+      "key": "irekei",
+      "name": "Irekei",
+      "kind": "race",
+      "relative_index": 19,
+      "description": "Strange crimson-skinned inhabitants of the mighty deserts, \nthe Irekei are fearsome raiders and nomads.",
+      "effect": "-10 to Cold resistance\n+20 to Fire resistance\n+10 to Dagger skill\n+10 to Unarmed Combat skill",
+      "provenance": {
+        "source_id": "wonderbane-client-ef43784b-creation-cache",
+        "fields": [
+          "description",
+          "effect"
+        ],
+        "locator": "decoded creation-definition cache record 19"
+      }
+    },
+    {
+      "key": "centaur",
+      "name": "Centaur",
+      "kind": "race",
+      "relative_index": 20,
+      "description": "Proud and strong fusions of horse and man, the Centaurs are \nthe largest and swiftest of the races of the world.",
+      "effect": "-5 to Unholy resistance\nImproved Stamina recovery\n+10 to Spear skill",
+      "provenance": {
+        "source_id": "wonderbane-client-ef43784b-creation-cache",
+        "fields": [
+          "description",
+          "effect"
+        ],
+        "locator": "decoded creation-definition cache record 20"
+      }
+    },
+    {
+      "key": "minotaur",
+      "name": "Minotaur",
+      "kind": "race",
+      "relative_index": 21,
+      "description": "Half-man, half-bull, the offspring of a sorcerous experiment \nby Elves upon Humans, the slow-witted but powerful \nMinotaurs were used for labor and as shock troops.",
+      "effect": "+10 to Pole Arm skill\n+5 to Slashing, Piercing, Crushing resistance\n+20 to Cold resistance\n-5 to Magic resistance\n-10 to Mental resistance\nImmune to Stun\nImproved Health recovery\nGranted Toughness skill",
+      "provenance": {
+        "source_id": "wonderbane-client-ef43784b-creation-cache",
+        "fields": [
+          "description",
+          "effect"
+        ],
+        "locator": "decoded creation-definition cache record 21"
+      }
+    },
+    {
+      "key": "vampire",
+      "name": "Vampire",
+      "kind": "race",
+      "relative_index": 22,
+      "description": "Unholy terrors born of other races, Vampires are reborn in \nundeath through pacts with the Void. Their dead flesh is \nuncannily resilient, but must drink the blood of the living \nto survive.",
+      "effect": "+10 to Poison resistance\n+10 to Cold resistance\n\n+10 Unholy to resistance\n+15 to Healing resistance\n-35% to Healing Regeneration\n-25 to Holy resistance\n-25 to Fire resistance\n+10 to Bloodcraft\nAll powers cost health\nGranted powers",
+      "provenance": {
+        "source_id": "wonderbane-client-ef43784b-creation-cache",
+        "fields": [
+          "description",
+          "effect"
+        ],
+        "locator": "decoded creation-definition cache record 22"
+      }
+    },
+    {
+      "key": "saetor",
+      "name": "Saetor",
+      "kind": "race",
+      "relative_index": 23,
+      "description": "Half goat half man, the Saetor race does the bidding of the Chaos Gods.",
+      "effect": "+15 to Staff skill\nGranted Staff skill\nGranted Parry skill\nGranted Staff Mastery skill",
+      "provenance": {
+        "source_id": "wonderbane-client-ef43784b-creation-cache",
+        "fields": [
+          "description",
+          "effect"
+        ],
+        "locator": "decoded creation-definition cache record 23"
+      }
+    },
+    {
+      "key": "healer",
+      "name": "Healer",
+      "kind": "base_class",
+      "relative_index": 24,
+      "description": "Blessed with powers of healing and prayer, the Healers \nworship their gods in different ways.",
+      "effect": "-10 DEX\n+5 CON\n+5 SPI",
+      "provenance": {
+        "source_id": "wonderbane-client-ef43784b-creation-cache",
+        "fields": [
+          "description",
+          "effect"
+        ],
+        "locator": "decoded creation-definition cache record 24"
+      }
+    },
+    {
+      "key": "barbarian",
+      "name": "Barbarian",
+      "kind": "promotion",
+      "relative_index": 25,
+      "description": "Hardy and fierce, these warriors of the Frozen North are\nbold and competent in battle. Toughened by a rough life\namong the glaciers, Barbarians are capable of uncanny\nfeats of endurance and strength.",
+      "effect": null,
+      "provenance": {
+        "source_id": "wonderbane-client-ef43784b-creation-cache",
+        "fields": [
+          "description",
+          "effect"
+        ],
+        "locator": "decoded creation-definition cache record 25"
+      }
+    },
+    {
+      "key": "bard",
+      "name": "Bard",
+      "kind": "promotion",
+      "relative_index": 26,
+      "description": "Keepers of lore and wandering musicians, Bards are gifted\nwith magical powers born of verse and song. Their songs\ncan bring victory to their allies as readily as they bring\nwoe to the Bard's enemies.",
+      "effect": null,
+      "provenance": {
+        "source_id": "wonderbane-client-ef43784b-creation-cache",
+        "fields": [
+          "description",
+          "effect"
+        ],
+        "locator": "decoded creation-definition cache record 26"
+      }
+    },
+    {
+      "key": "fighter",
+      "name": "Fighter",
+      "kind": "base_class",
+      "relative_index": 27,
+      "description": "The most direct of the fighting classes, these individuals \nhave found cold steel to be the most reliable way \nto make one's point.",
+      "effect": "+5 STR\n+5 CON\n-10 INT",
+      "provenance": {
+        "source_id": "wonderbane-client-ef43784b-creation-cache",
+        "fields": [
+          "description",
+          "effect"
+        ],
+        "locator": "decoded creation-definition cache record 27"
+      }
+    },
+    {
+      "key": "channeler",
+      "name": "Channeler",
+      "kind": "promotion",
+      "relative_index": 28,
+      "description": "Magic-users who have managed to tap the primal forces of\nfire, water, wind, and earth, Channelers use the energies\nof the Cosmic Tapestry to blast their foes, ride the\nwinds, and call up elemental spirits.",
+      "effect": null,
+      "provenance": {
+        "source_id": "wonderbane-client-ef43784b-creation-cache",
+        "fields": [
+          "description",
+          "effect"
+        ],
+        "locator": "decoded creation-definition cache record 28"
+      }
+    },
+    {
+      "key": "confessor",
+      "name": "Confessor",
+      "kind": "promotion",
+      "relative_index": 29,
+      "description": "Priests of the Temple of the Cleansing Flame, these clerics\nare charged with seeking out and eliminating sin in the\nworld. In the course of their sacred duties they bring\naid to the ill and fiery death to unbelievers.",
+      "effect": null,
+      "provenance": {
+        "source_id": "wonderbane-client-ef43784b-creation-cache",
+        "fields": [
+          "description",
+          "effect"
+        ],
+        "locator": "decoded creation-definition cache record 29"
+      }
+    },
+    {
+      "key": "fury",
+      "name": "Fury",
+      "kind": "promotion",
+      "relative_index": 30,
+      "description": "Amazonian warrior-witches, Furies are children of storms -\nwild and untamable, commanding lightning and tempest.\nFierce and proud, Furies are as powerful as they are\nunpredictable.",
+      "effect": null,
+      "provenance": {
+        "source_id": "wonderbane-client-ef43784b-creation-cache",
+        "fields": [
+          "description",
+          "effect"
+        ],
+        "locator": "decoded creation-definition cache record 30"
+      }
+    },
+    {
+      "key": "druid",
+      "name": "Druid",
+      "kind": "promotion",
+      "relative_index": 31,
+      "description": "Attuned to the forces of nature and the wild, these woods-\npriests are the keepers of much secret knowledge and lore.\nDruids are allies to plants, beasts, and those who live\nin harmony with the wild.",
+      "effect": null,
+      "provenance": {
+        "source_id": "wonderbane-client-ef43784b-creation-cache",
+        "fields": [
+          "description",
+          "effect"
+        ],
+        "locator": "decoded creation-definition cache record 31"
+      }
+    },
+    {
+      "key": "crusader",
+      "name": "Crusader",
+      "kind": "promotion",
+      "relative_index": 32,
+      "description": "Defenders of the Church of the All-Father, these blessed\nwarriors have taken up arms to defend the weak from those\nwho would threaten the Church's power. Soldiers of faith,\nCrusaders wander the world earning redemption in battle.",
+      "effect": null,
+      "provenance": {
+        "source_id": "wonderbane-client-ef43784b-creation-cache",
+        "fields": [
+          "description",
+          "effect"
+        ],
+        "locator": "decoded creation-definition cache record 32"
+      }
+    },
+    {
+      "key": "huntress",
+      "name": "Huntress",
+      "kind": "promotion",
+      "relative_index": 33,
+      "description": "Women who live by the ancient traditions of the Amazons,\nthe Huntresses are at home upon battlefield and forest.\nThey often are found with great cats for allies, and are\ndeadly in combat.",
+      "effect": null,
+      "provenance": {
+        "source_id": "wonderbane-client-ef43784b-creation-cache",
+        "fields": [
+          "description",
+          "effect"
+        ],
+        "locator": "decoded creation-definition cache record 33"
+      }
+    },
+    {
+      "key": "prelate",
+      "name": "Prelate",
+      "kind": "promotion",
+      "relative_index": 34,
+      "description": "The spiritual arm of the Church of the All-Father, these\nservants of Pandarrion spread the gospel of the All-Father\nand minister to the needy and the weak. Though they are\nless aggressive than Crusaders, do not mistake them for\npacifists!",
+      "effect": null,
+      "provenance": {
+        "source_id": "wonderbane-client-ef43784b-creation-cache",
+        "fields": [
+          "description",
+          "effect"
+        ],
+        "locator": "decoded creation-definition cache record 34"
+      }
+    },
+    {
+      "key": "ranger",
+      "name": "Ranger",
+      "kind": "promotion",
+      "relative_index": 35,
+      "description": "Long associated with the ancient Druids, these secretive \nand solitary wardens of the forest walk a fine line, defending \ninnocents from savage nature while protecting the wilderness \nfrom the ravages of civilization.",
+      "effect": null,
+      "provenance": {
+        "source_id": "wonderbane-client-ef43784b-creation-cache",
+        "fields": [
+          "description",
+          "effect"
+        ],
+        "locator": "decoded creation-definition cache record 35"
+      }
+    },
+    {
+      "key": "scout",
+      "name": "Scout",
+      "kind": "promotion",
+      "relative_index": 36,
+      "description": "Charged with exploration, battlefield reconnaissance, and\nguiding travelers through long-hidden ways, the Scout is a\ncombination of Ranger, Rogue, and Warrior. Masters of the\nbow, most find work as mercenaries or spies.",
+      "effect": null,
+      "provenance": {
+        "source_id": "wonderbane-client-ef43784b-creation-cache",
+        "fields": [
+          "description",
+          "effect"
+        ],
+        "locator": "decoded creation-definition cache record 36"
+      }
+    },
+    {
+      "key": "templar",
+      "name": "Templar",
+      "kind": "promotion",
+      "relative_index": 37,
+      "description": "Created as the militant wing of the Temple of the Cleansing\nFlame, the fanatical, armored knights of the Order of\nTemplars combat the sinful and wicked in St. Malorn's\nname. Zealous beyond reason, Templars live for battle.",
+      "effect": null,
+      "provenance": {
+        "source_id": "wonderbane-client-ef43784b-creation-cache",
+        "fields": [
+          "description",
+          "effect"
+        ],
+        "locator": "decoded creation-definition cache record 37"
+      }
+    }
+  ],
+  "controlled_selection_observations": [
+    {
+      "race": "Aracoix",
+      "base_class": "Fighter",
+      "visible_attributes": [
+        55,
+        55,
+        50,
+        25,
+        30
+      ],
+      "visible_resources": {
+        "health": 1061,
+        "mana": 52,
+        "stamina": 351
+      },
+      "visible_creation_points": 15
+    },
+    {
+      "race": "Centaur",
+      "base_class": "Fighter",
+      "visible_attributes": [
+        50,
+        35,
+        60,
+        25,
+        50
+      ],
+      "visible_resources": {
+        "health": 1077,
+        "mana": 67,
+        "stamina": 331
+      },
+      "visible_creation_points": 20
+    }
+  ],
+  "reconciliation": {
+    "source_precedence": [
+      "live_client_observed",
+      "wonderbane_calculator_derived"
+    ],
+    "confirmed_overlap": "The visible Aracoix and Centaur attributes equal calculator race starts plus Fighter modifiers before the calculator BOON constant.",
+    "unresolved_conflict": "The calculator adds BOON = 5 to every derived attribute; the controlled creation pane did not display that addition.",
+    "known_missing_cache_keys": [
+      "shade",
+      "mage"
+    ],
+    "cache_semantics": "Definition population cache; the selected race transition did not replace the anchored Aracoix record."
+  },
+  "privacy": {
+    "arbitrary_memory_committed": false,
+    "process_id_committed": false,
+    "heap_addresses_committed": false,
+    "account_or_session_data_committed": false
+  }
+}
