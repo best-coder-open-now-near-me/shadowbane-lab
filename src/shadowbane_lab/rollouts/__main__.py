@@ -7,6 +7,9 @@ import json
 from collections.abc import Sequence
 from pathlib import Path
 
+from shadowbane_lab.combat import CompatibilityStatus
+from shadowbane_lab.combat.compiler import CombatCompilePolicy
+from shadowbane_lab.combat.loader import load_combat_profile
 from shadowbane_lab.progression import (
     irekei_proc_assassin_roadmap,
     load_wonderbane_irekei_proc_profile,
@@ -14,6 +17,8 @@ from shadowbane_lab.progression import (
 from shadowbane_lab.pve import load_pve_combat_calibration
 from shadowbane_lab.rollouts import (
     SmartCampResult,
+    VerifiedCombatantConfig,
+    VerifiedDuelConfig,
     apply_pve_combat_calibration,
     frost_walker_observed_config,
     irekei_proc_assassin_smart_camp_config,
@@ -22,6 +27,8 @@ from shadowbane_lab.rollouts import (
     run_pure_pve_batch,
     run_smart_camp,
     run_smart_camp_batch,
+    run_verified_duel,
+    run_verified_duel_batch,
 )
 
 
@@ -41,6 +48,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--scenario",
         choices=(
             "duels",
+            "verified-duel",
             "frost-walker",
             "pure-frost-walker",
             "irekei-proc",
@@ -60,9 +68,78 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="live PvE calibration artifact applied to the smart-camp scenario",
     )
     parser.add_argument("--json", action="store_true")
+    parser.add_argument("--left-profile", type=Path)
+    parser.add_argument("--right-profile", type=Path)
+    parser.add_argument("--accept-source-revision", action="store_true")
+    parser.add_argument("--accept-ruleset-overrides", action="store_true")
     arguments = parser.parse_args(argv)
     if arguments.pve_calibration is not None and arguments.scenario != "smart-camp":
         parser.error("--pve-calibration is supported only by --scenario smart-camp")
+    if arguments.scenario == "verified-duel":
+        if arguments.left_profile is None or arguments.right_profile is None:
+            parser.error("verified-duel requires --left-profile and --right-profile")
+        left_sheet, left_build = load_combat_profile(arguments.left_profile)
+        right_sheet, right_build = load_combat_profile(arguments.right_profile)
+        accepted = [CompatibilityStatus.LIVE_VERIFIED]
+        if arguments.accept_source_revision:
+            accepted.append(CompatibilityStatus.SOURCE_REVISION_ACCEPTED)
+        config = VerifiedDuelConfig(
+            left=VerifiedCombatantConfig(
+                "left",
+                "left",
+                left_sheet,
+                left_build,
+            ),
+            right=VerifiedCombatantConfig(
+                "right",
+                "right",
+                right_sheet,
+                right_build,
+            ),
+            compile_policy=CombatCompilePolicy(
+                accepted_compatibility=tuple(accepted),
+                allow_ruleset_overrides=arguments.accept_ruleset_overrides,
+            ),
+            starting_distance=10.0,
+            max_ticks=arguments.max_ticks,
+            seed=arguments.seed,
+        )
+        result = (
+            run_verified_duel(config)
+            if arguments.episodes == 1
+            else run_verified_duel_batch(
+                config,
+                episodes=arguments.episodes,
+                seed_start=arguments.seed,
+            )
+        )
+        if arguments.json:
+            print(json.dumps(result.as_dict(), indent=2, sort_keys=True))
+        elif arguments.episodes != 1:
+            print(
+                f"complete-sheet batch: episodes={result.episodes}; "
+                f"draws={result.draws}; mean_ticks={result.mean_ticks:.1f}; "
+                f"formula={result.formula_revision[:12]}"
+            )
+            for combatant in result.combatants:
+                print(
+                    f"{combatant.entity_id}: wins={combatant.wins}; "
+                    f"mean_health={combatant.mean_final_health:.1f}; "
+                    f"mean_damage={combatant.mean_damage_dealt:.1f}"
+                )
+        else:
+            duel = result.duel
+            print(
+                f"complete-sheet duel: winner={duel.winner_entity_id or 'draw'}; "
+                f"reason={duel.reason.value}; ticks={duel.ticks}; "
+                f"formula={result.formula_revision[:12]}"
+            )
+            for combatant in duel.combatants:
+                print(
+                    f"{combatant.entity_id}: health={combatant.final_health:.1f}; "
+                    f"mana={combatant.final_mana:.1f}; damage={combatant.damage_dealt:.1f}"
+                )
+        return 0
     if arguments.scenario == "smart-camp":
         config = irekei_proc_assassin_smart_camp_config(
             seed=arguments.seed,

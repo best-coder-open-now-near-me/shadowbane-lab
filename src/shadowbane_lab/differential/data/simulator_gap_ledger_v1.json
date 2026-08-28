@@ -18,7 +18,7 @@
       "category": "damage",
       "scenario_pattern": "basic_attack.*",
       "path_pattern": "trace/steps/*/after/entities/*/scalars/health",
-      "description": "Weapon timing, hit/defense resolution, damage rolls, resists, and procs are represented by a placeholder.",
+      "description": "The complete-sheet path compiles source-pinned weapon timing, hit/defense, centered damage, resistance, and proc mechanics; current WonderBane sheet inputs and differential traces are still required for deployment parity.",
       "action_key": "shadowbane.basic_attack",
       "max_absolute_delta": null,
       "evidence_trace_ids": []
@@ -29,7 +29,7 @@
       "category": "damage",
       "scenario_pattern": "shadow_bolt.*",
       "path_pattern": "trace/steps/*/after/entities/*/scalars/health",
-      "description": "Shadow Bolt uses a deterministic uniform approximation over its published range without hit-roll, resist, or exact damage-distribution parity.",
+      "description": "The complete-sheet path applies source-pinned power hit, stat/focus scaling, centered rolls, resistance, and train semantics to the archived Shadow Bolt row; the current WonderBane row and differential distribution remain unverified.",
       "action_key": "shadowbane.assassin.shadow_bolt",
       "max_absolute_delta": null,
       "evidence_trace_ids": []
@@ -51,7 +51,7 @@
       "category": "damage",
       "scenario_pattern": "psychic_healing.*",
       "path_pattern": "trace/steps/*/after/entities/*/scalars/health",
-      "description": "Psychic Healing uses a deterministic uniform approximation over its published range without exact heal-distribution or build-modifier parity.",
+      "description": "The complete-sheet path applies source-pinned stat/focus scaling, centered rolls, healing resistance, and train semantics to the archived Psychic Healing row; the current WonderBane row and differential distribution remain unverified.",
       "action_key": "shadowbane.warlock.psychic_healing",
       "max_absolute_delta": null,
       "evidence_trace_ids": []

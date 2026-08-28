@@ -181,7 +181,10 @@ class EffectExecutor:
                 if triggered:
                     return
         for nested in effect.effects:
-            self._resolve_direct(item, nested, due_time, eligible_alive, events)
+            if isinstance(nested, ChanceGate):
+                self._resolve_chance(item, nested, due_time, eligible_alive, events)
+            else:
+                self._resolve_direct(item, nested, due_time, eligible_alive, events)
 
     def _resolve_chance(
         self,
@@ -371,9 +374,25 @@ class EffectExecutor:
         if subject is None:
             raise SimulationConfigurationError("resource restoration requires an entity subject")
         amount = self._resolve_amount(effect.amount)
+        mitigated = amount
+        resistance = 0.0
+        armor_piercing = 0.0
+        if effect.uses_resistance:
+            actor = self._entity(item.actor_id)
+            if effect.resistance_type is None:
+                raise SimulationConfigurationError("resisted restoration requires a type")
+            resistance = self._required_scalar(subject, f"resist.{effect.resistance_type}")
+            armor_piercing = self._required_scalar(actor, "armor_piercing")
+            resistance = effective_resistance(
+                resistance,
+                protection_trains=0,
+                incoming_trains=effect.power_trains,
+                protection_applies=False,
+            )
+            mitigated = resisted_amount(amount, resistance, armor_piercing)
         before = subject.scalars.get(effect.resource_key, 0.0)
         maximum = subject.maximums.get(effect.resource_key)
-        after = before + amount
+        after = before + mitigated
         if maximum is not None:
             after = min(after, maximum)
         subject.scalars[effect.resource_key] = after
@@ -387,6 +406,9 @@ class EffectExecutor:
                 action_key=item.action_key,
                 scalars=(
                     NamedScalar("requested", amount),
+                    NamedScalar("mitigated", mitigated),
+                    NamedScalar("resistance_percent", resistance),
+                    NamedScalar("armor_piercing", armor_piercing),
                     NamedScalar("effective", after - before),
                 ),
                 tags=(f"resource.{effect.resource_key}",),

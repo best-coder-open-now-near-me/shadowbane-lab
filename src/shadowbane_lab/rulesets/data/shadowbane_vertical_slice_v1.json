@@ -29,6 +29,20 @@
       "uri": "docs/adr/0002-typed-action-algebra.md",
       "revision": "local-v1",
       "retrieved_on": "2026-08-25"
+    },
+    {
+      "source_id": "magicbane-power-hashes-511a36b",
+      "kind": "emulator_data",
+      "uri": "https://repo.magicbane.com/MagicBane/mbEditorPro/src/commit/511a36b1f7fef856b53649ad76a08e2e8dab1bdf/mbEditorPro/arcane/enums/hashes/powers.txt",
+      "revision": "511a36b1f7fef856b53649ad76a08e2e8dab1bdf",
+      "retrieved_on": "2026-08-28"
+    },
+    {
+      "source_id": "wonderbane-native-training-ef43784b",
+      "kind": "observed_trace",
+      "uri": "src/shadowbane_lab/client_observation/data/wonderbane-ef43784b.native-training.json",
+      "revision": "ef43784ba6ffa0de6c0c16c76569f864393ad1530e7149395bb560e5cca30f13",
+      "retrieved_on": "2026-08-28"
     }
   ],
   "actions": [
@@ -164,8 +178,8 @@
       },
       "status": "compiled_with_override",
       "concrete": {
-        "server_power_token": null,
-        "server_id_string": null,
+        "server_power_token": 429213513,
+        "server_id_string": "ASS-018",
         "client_binding_key": "shadowbane.assassin.shadow_bolt"
       },
       "provenance": [
@@ -190,6 +204,23 @@
         },
         {
           "fields": [
+            "concrete.server_power_token",
+            "concrete.server_id_string"
+          ],
+          "source_id": "magicbane-power-hashes-511a36b",
+          "locator": "ASS-018 hash entry",
+          "note": "The historical editor table provides the canonical IDString-to-token mapping."
+        },
+        {
+          "fields": [
+            "concrete.server_power_token"
+          ],
+          "source_id": "wonderbane-native-training-ef43784b",
+          "locator": "power_tokens entry for Shadow Bolt",
+          "note": "The current WonderBane client build exposes the same token in the live player power vector."
+        },
+        {
+          "fields": [
             "concrete.client_binding_key",
             "spec.targeting",
             "spec.phases[0].effects",
@@ -202,9 +233,8 @@
         }
       ],
       "unresolved": [
-        "Server power token and IDString require the deployment power-data export.",
-        "Hit-roll, exact damage distribution, resists, and train/modifier formulas are not compiled.",
-        "Effect rank/stacking precedence and player-versus-monster target distinctions need differential traces."
+        "The published static power row has not yet been differentially verified against the current WonderBane deployment.",
+        "Deployment power data is still required to verify effect stack-order/priority and player-versus-monster target distinctions."
       ],
       "spec": {
         "targeting": {
@@ -321,8 +351,8 @@
       },
       "status": "compiled_with_override",
       "concrete": {
-        "server_power_token": null,
-        "server_id_string": null,
+        "server_power_token": 428918601,
+        "server_id_string": "ASS-013",
         "client_binding_key": "shadowbane.assassin.shadow_touch"
       },
       "provenance": [
@@ -346,6 +376,23 @@
         },
         {
           "fields": [
+            "concrete.server_power_token",
+            "concrete.server_id_string"
+          ],
+          "source_id": "magicbane-power-hashes-511a36b",
+          "locator": "ASS-013 hash entry",
+          "note": "The historical editor table provides the canonical IDString-to-token mapping."
+        },
+        {
+          "fields": [
+            "concrete.server_power_token"
+          ],
+          "source_id": "wonderbane-native-training-ef43784b",
+          "locator": "power_tokens entry for Shadow Touch",
+          "note": "The current WonderBane client build exposes the same token in the live player power vector."
+        },
+        {
+          "fields": [
             "concrete.client_binding_key",
             "spec.targeting",
             "spec.phases[0].effects",
@@ -358,8 +405,8 @@
         }
       ],
       "unresolved": [
-        "Server power token and IDString require the deployment power-data export.",
-        "Hit-roll, effect rank, and stacking precedence need differential traces."
+        "The published static power row has not yet been differentially verified against the current WonderBane deployment.",
+        "Deployment power data is still required to verify effect stack-order/priority."
       ],
       "spec": {
         "targeting": {

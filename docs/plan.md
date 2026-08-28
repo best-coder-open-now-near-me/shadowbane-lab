@@ -127,3 +127,18 @@ cannot bypass authoritative validation.
 **Gate:** a recorded destination identifies its active terrain resources, produces an auditable
 local route or native waypoint stream, and converges without blind fixed-direction detours while
 server correction remains observable.
+
+## Current PvP simulator readiness
+
+- Complete-sheet JSON profiles compile source-pinned attack, defense, weapon, power, mitigation,
+  proc, passive-defense, stacking, immunity, and interruption mechanics without fallback stats.
+- Single-seed and compiled-once multi-seed Assassin-versus-Warlock runs carry formula revision,
+  sheet source revision, and compatibility acceptance in every result.
+- Shadow Touch and Shadow Bolt now carry current-client token mappings as well as historical
+  canonical IDStrings.
+- The remaining data work is current WonderBane differential validation, complete live combat
+  sheets, and expansion from the present representative action slice to the selected Assassin and
+  Warlock movesets. The runner rejects any selected unresolved action meanwhile.
+
+**Gate:** representative live traces promote both sheets and selected action rows to
+`live_verified`, after which the default strict CLI runs without acceptance overrides.

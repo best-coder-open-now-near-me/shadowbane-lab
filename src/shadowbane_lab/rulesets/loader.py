@@ -270,8 +270,8 @@ def _parse_effect(data: Mapping[str, Any], rank: int) -> EffectPrimitive:
             raise RulesetLoadError(str(exc)) from exc
     if operation == "attack_gate":
         nested = tuple(_parse_effect(item, rank) for item in _objects(data, "effects"))
-        if any(isinstance(effect, (ChanceGate, AttackGate)) for effect in nested):
-            raise RulesetLoadError("gates cannot be nested")
+        if any(isinstance(effect, AttackGate) for effect in nested):
+            raise RulesetLoadError("attack gates cannot be nested")
         try:
             return AttackGate(
                 attack_key=_string(data, "attack_key"),
@@ -296,6 +296,9 @@ def _parse_effect(data: Mapping[str, Any], rank: int) -> EffectPrimitive:
             subject=SubjectRef(_string(data, "subject")),
             resource_key=_string(data, "resource_key"),
             amount=_resolved_amount(_required(data, "amount"), rank),
+            uses_resistance=_optional_boolean(data, "uses_resistance", False),
+            power_trains=_resolved_integer(data.get("power_trains", 0), rank),
+            resistance_type=_optional_string(data, "resistance_type"),
         )
     if operation == "modify_scalar":
         return ModifyScalar(

@@ -143,6 +143,8 @@ class RulesetCompilerTests(unittest.TestCase):
 
         self.assertIsNotNone(action)
         assert action is not None
+        self.assertEqual(429213513, record.mapping.server_power_token)
+        self.assertEqual("ASS-018", record.mapping.server_id_string)
         self.assertEqual(39.8, action.costs[0].amount)
         self.assertEqual(2_000, action.phases[0].duration_ms)
         self.assertEqual(2_000, action.cooldown_ms)
@@ -175,11 +177,14 @@ class RulesetCompilerTests(unittest.TestCase):
     def test_mind_strike_and_shadow_touch_are_compiled(self) -> None:
         ruleset = load_shadowbane_vertical_slice()
         mind_strike = ruleset.record(MIND_STRIKE).action
-        shadow_touch = ruleset.record(SHADOW_TOUCH).action
+        shadow_touch_record = ruleset.record(SHADOW_TOUCH)
+        shadow_touch = shadow_touch_record.action
 
         self.assertIsNotNone(mind_strike)
         self.assertIsNotNone(shadow_touch)
         assert mind_strike is not None and shadow_touch is not None
+        self.assertEqual(428918601, shadow_touch_record.mapping.server_power_token)
+        self.assertEqual("ASS-013", shadow_touch_record.mapping.server_id_string)
         damage = next(
             effect for effect in mind_strike.phases[0].effects if isinstance(effect, DealDamage)
         )

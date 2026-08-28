@@ -2,9 +2,17 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass
 from enum import StrEnum
 
+from shadowbane_lab.combat import CombatSheet
+from shadowbane_lab.combat.compiler import (
+    MAGICBANE_COMBAT_FORMULA_REVISION,
+    CombatCompilePolicy,
+    CompiledCombatant,
+    compile_combatant,
+)
 from shadowbane_lab.protocol import (
     Affordance,
     DecisionMessage,
@@ -156,6 +164,147 @@ class DuelResult:
         }
 
 
+@dataclass(frozen=True, slots=True)
+class VerifiedCombatantConfig:
+    entity_id: str
+    team_id: str
+    sheet: CombatSheet
+    build: CharacterBuild
+
+    def __post_init__(self) -> None:
+        for value, name in ((self.entity_id, "entity_id"), (self.team_id, "team_id")):
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"{name} must be a non-empty string")
+        if not isinstance(self.sheet, CombatSheet):
+            raise ValueError("sheet must be a CombatSheet")
+        if not isinstance(self.build, CharacterBuild):
+            raise ValueError("build must be a CharacterBuild")
+
+
+@dataclass(frozen=True, slots=True)
+class VerifiedDuelConfig:
+    left: VerifiedCombatantConfig
+    right: VerifiedCombatantConfig
+    compile_policy: CombatCompilePolicy = CombatCompilePolicy()
+    starting_distance: float = 10.0
+    max_ticks: int = 1_000
+    seed: int = 1
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.left, VerifiedCombatantConfig) or not isinstance(
+            self.right, VerifiedCombatantConfig
+        ):
+            raise ValueError("left and right must be VerifiedCombatantConfig values")
+        if self.left.entity_id == self.right.entity_id:
+            raise ValueError("duel combatants require different entity ids")
+        if self.left.team_id == self.right.team_id:
+            raise ValueError("duel combatants require different team ids")
+        if self.left.sheet.sheet_id == self.right.sheet.sheet_id:
+            raise ValueError("verified duel sheets require distinct sheet ids")
+        if not isinstance(self.compile_policy, CombatCompilePolicy):
+            raise ValueError("compile_policy must be a CombatCompilePolicy")
+        _positive_number(self.starting_distance, "starting_distance")
+        if isinstance(self.max_ticks, bool) or not isinstance(self.max_ticks, int):
+            raise ValueError("max_ticks must be an integer")
+        if self.max_ticks < 1:
+            raise ValueError("max_ticks must be positive")
+        if isinstance(self.seed, bool) or not isinstance(self.seed, int) or self.seed < 0:
+            raise ValueError("seed must be a non-negative integer")
+
+
+@dataclass(frozen=True, slots=True)
+class VerifiedDuelResult:
+    duel: DuelResult
+    formula_revision: str
+    sheet_acceptance: tuple[tuple[str, str, str], ...]
+    ruleset_overrides_accepted: bool
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "mode": "complete_combat_sheet",
+            "formula_revision": self.formula_revision,
+            "ruleset_overrides_accepted": self.ruleset_overrides_accepted,
+            "sheet_acceptance": [
+                {
+                    "sheet_id": sheet_id,
+                    "source_revision": source_revision,
+                    "compatibility": compatibility,
+                }
+                for sheet_id, source_revision, compatibility in self.sheet_acceptance
+            ],
+            **self.duel.as_dict(),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class VerifiedDuelBatchCombatant:
+    entity_id: str
+    wins: int
+    mean_final_health: float
+    mean_final_mana: float
+    mean_damage_dealt: float
+    mean_healing_received: float
+    mean_mana_spent: float
+    total_rejected_actions: int
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "entity_id": self.entity_id,
+            "wins": self.wins,
+            "mean_final_health": self.mean_final_health,
+            "mean_final_mana": self.mean_final_mana,
+            "mean_damage_dealt": self.mean_damage_dealt,
+            "mean_healing_received": self.mean_healing_received,
+            "mean_mana_spent": self.mean_mana_spent,
+            "total_rejected_actions": self.total_rejected_actions,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class VerifiedDuelBatchResult:
+    episodes: int
+    seed_start: int
+    formula_revision: str
+    sheet_acceptance: tuple[tuple[str, str, str], ...]
+    ruleset_overrides_accepted: bool
+    draws: int
+    mean_ticks: float
+    termination_counts: tuple[tuple[TerminationReason, int], ...]
+    combatants: tuple[VerifiedDuelBatchCombatant, VerifiedDuelBatchCombatant]
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "mode": "complete_combat_sheet_batch",
+            "episodes": self.episodes,
+            "seed_start": self.seed_start,
+            "formula_revision": self.formula_revision,
+            "ruleset_overrides_accepted": self.ruleset_overrides_accepted,
+            "sheet_acceptance": [
+                {
+                    "sheet_id": sheet_id,
+                    "source_revision": source_revision,
+                    "compatibility": compatibility,
+                }
+                for sheet_id, source_revision, compatibility in self.sheet_acceptance
+            ],
+            "draws": self.draws,
+            "mean_ticks": self.mean_ticks,
+            "termination_counts": {
+                reason.value: count for reason, count in self.termination_counts
+            },
+            "combatants": [item.as_dict() for item in self.combatants],
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class _PreparedVerifiedDuel:
+    left: CompiledCombatant
+    right: CompiledCombatant
+    formula_revision: str
+    sheet_acceptance: tuple[tuple[str, str, str], ...]
+    ruleset_overrides_accepted: bool
+
+
 class UtilityDuelPolicy:
     """Small deterministic baseline over generic affordance tags and features."""
 
@@ -285,6 +434,231 @@ def run_duel(config: DuelConfig) -> DuelResult:
         seed=config.seed,
         total_events=len(events),
         combatants=(results[0], results[1]),
+    )
+
+
+def run_verified_duel(config: VerifiedDuelConfig) -> VerifiedDuelResult:
+    """Run a duel only after both complete sheets pass the explicit readiness policy."""
+
+    prepared = _prepare_verified_duel(config)
+    return _run_prepared_verified_duel(config, prepared, seed=config.seed)
+
+
+def run_verified_duel_batch(
+    config: VerifiedDuelConfig,
+    *,
+    episodes: int,
+    seed_start: int | None = None,
+) -> VerifiedDuelBatchResult:
+    """Compile once and stream a contiguous deterministic seed batch into aggregates."""
+
+    if isinstance(episodes, bool) or not isinstance(episodes, int) or episodes < 1:
+        raise ValueError("episodes must be a positive integer")
+    if seed_start is None:
+        seed_start = config.seed
+    if isinstance(seed_start, bool) or not isinstance(seed_start, int) or seed_start < 0:
+        raise ValueError("seed_start must be a non-negative integer")
+
+    prepared = _prepare_verified_duel(config)
+    termination_counts: Counter[TerminationReason] = Counter()
+    winner_counts: Counter[str] = Counter()
+    draws = 0
+    total_ticks = 0
+    aggregate_values = [
+        {
+            "final_health": 0.0,
+            "final_mana": 0.0,
+            "damage_dealt": 0.0,
+            "healing_received": 0.0,
+            "mana_spent": 0.0,
+            "rejected_actions": 0.0,
+        }
+        for _ in range(2)
+    ]
+    for offset in range(episodes):
+        outcome = _run_prepared_verified_duel(
+            config,
+            prepared,
+            seed=seed_start + offset,
+        ).duel
+        termination_counts[outcome.reason] += 1
+        total_ticks += outcome.ticks
+        if outcome.winner_entity_id is None:
+            draws += 1
+        else:
+            winner_counts[outcome.winner_entity_id] += 1
+        for index, combatant in enumerate(outcome.combatants):
+            totals = aggregate_values[index]
+            totals["final_health"] += combatant.final_health
+            totals["final_mana"] += combatant.final_mana
+            totals["damage_dealt"] += combatant.damage_dealt
+            totals["healing_received"] += combatant.healing_received
+            totals["mana_spent"] += combatant.mana_spent
+            totals["rejected_actions"] += combatant.rejected_actions
+
+    combatants = tuple(
+        _aggregate_verified_combatant(
+            entity_id,
+            aggregate_values[index],
+            winner_counts[entity_id],
+            episodes,
+        )
+        for index, entity_id in enumerate(
+            (config.left.entity_id, config.right.entity_id)
+        )
+    )
+    return VerifiedDuelBatchResult(
+        episodes=episodes,
+        seed_start=seed_start,
+        formula_revision=prepared.formula_revision,
+        sheet_acceptance=prepared.sheet_acceptance,
+        ruleset_overrides_accepted=prepared.ruleset_overrides_accepted,
+        draws=draws,
+        mean_ticks=total_ticks / episodes,
+        termination_counts=tuple(sorted(termination_counts.items(), key=lambda item: item[0])),
+        combatants=(combatants[0], combatants[1]),
+    )
+
+
+def _prepare_verified_duel(config: VerifiedDuelConfig) -> _PreparedVerifiedDuel:
+    rank_overrides = _merge_rank_overrides(config.left.build, config.right.build)
+    ruleset = load_shadowbane_vertical_slice(rank_overrides=rank_overrides)
+    left = compile_combatant(
+        config.left.sheet,
+        config.left.build,
+        ruleset,
+        policy=config.compile_policy,
+    )
+    right = compile_combatant(
+        config.right.sheet,
+        config.right.build,
+        ruleset,
+        policy=config.compile_policy,
+    )
+    return _PreparedVerifiedDuel(
+        left=left,
+        right=right,
+        formula_revision=MAGICBANE_COMBAT_FORMULA_REVISION,
+        sheet_acceptance=tuple(
+            (
+                item.sheet.sheet_id,
+                item.sheet.source_revision,
+                item.sheet.compatibility.value,
+            )
+            for item in (config.left, config.right)
+        ),
+        ruleset_overrides_accepted=config.compile_policy.allow_ruleset_overrides,
+    )
+
+
+def _run_prepared_verified_duel(
+    config: VerifiedDuelConfig,
+    prepared: _PreparedVerifiedDuel,
+    *,
+    seed: int,
+) -> VerifiedDuelResult:
+    left = prepared.left
+    right = prepared.right
+    close = close_range_action(RangeBand(maximum=_MELEE_RANGE))
+    catalog = ActionCatalog((*left.catalog.actions, *right.catalog.actions, close))
+    left_entity = left.entity(config.left.entity_id, config.left.team_id, Vector2(0.0, 0.0))
+    right_entity = right.entity(
+        config.right.entity_id,
+        config.right.team_id,
+        Vector2(config.starting_distance, 0.0),
+    )
+    left_entity.action_keys = (*left_entity.action_keys, _CLOSE_RANGE)
+    right_entity.action_keys = (*right_entity.action_keys, _CLOSE_RANGE)
+    environment = ReferenceEnvironment(
+        catalog,
+        (left_entity, right_entity),
+        seed=seed,
+        terminate_on_last_team=True,
+    )
+    combatants = (config.left, config.right)
+    policies = {
+        config.left.entity_id: UtilityDuelPolicy(config.left.sheet.maximum_health),
+        config.right.entity_id: UtilityDuelPolicy(config.right.sheet.maximum_health),
+    }
+    events: list[Event] = []
+    reason = TerminationReason.TIME_LIMIT
+    for step_number in range(config.max_ticks):
+        decisions = []
+        for item in combatants:
+            exchange = environment.exchange(item.entity_id)
+            decision = policies[item.entity_id].decide(
+                exchange,
+                f"verified-duel:{seed}:{step_number}:{item.entity_id}",
+            )
+            if decision is not None:
+                decisions.append(decision)
+        batch = environment.step(
+            tuple(decisions),
+            truncated=step_number == config.max_ticks - 1,
+        )
+        events.extend(batch.events)
+        if batch.world_terminated:
+            reason = TerminationReason.LAST_TEAM_STANDING
+            break
+
+    states = {item.entity_id: environment.entity(item.entity_id) for item in combatants}
+    living = tuple(entity_id for entity_id, state in states.items() if state.alive)
+    winner = living[0] if len(living) == 1 else None
+    legacy_configs = (
+        CombatantConfig(
+            config.left.entity_id,
+            config.left.team_id,
+            config.left.build,
+            health=config.left.sheet.maximum_health,
+            mana=config.left.sheet.maximum_mana,
+            stamina=config.left.sheet.maximum_stamina,
+            move_speed=config.left.sheet.move_speed,
+        ),
+        CombatantConfig(
+            config.right.entity_id,
+            config.right.team_id,
+            config.right.build,
+            health=config.right.sheet.maximum_health,
+            mana=config.right.sheet.maximum_mana,
+            stamina=config.right.sheet.maximum_stamina,
+            move_speed=config.right.sheet.move_speed,
+        ),
+    )
+    results = tuple(
+        _combatant_result(item, states[item.entity_id], events) for item in legacy_configs
+    )
+    duel = DuelResult(
+        winner_entity_id=winner,
+        reason=reason,
+        ticks=environment.tick,
+        sim_time_ms=environment.now_ms,
+        seed=seed,
+        total_events=len(events),
+        combatants=(results[0], results[1]),
+    )
+    return VerifiedDuelResult(
+        duel=duel,
+        formula_revision=prepared.formula_revision,
+        sheet_acceptance=prepared.sheet_acceptance,
+        ruleset_overrides_accepted=prepared.ruleset_overrides_accepted,
+    )
+
+
+def _aggregate_verified_combatant(
+    entity_id: str,
+    totals: dict[str, float],
+    wins: int,
+    episodes: int,
+) -> VerifiedDuelBatchCombatant:
+    return VerifiedDuelBatchCombatant(
+        entity_id=entity_id,
+        wins=wins,
+        mean_final_health=totals["final_health"] / episodes,
+        mean_final_mana=totals["final_mana"] / episodes,
+        mean_damage_dealt=totals["damage_dealt"] / episodes,
+        mean_healing_received=totals["healing_received"] / episodes,
+        mean_mana_spent=totals["mana_spent"] / episodes,
+        total_rejected_actions=int(totals["rejected_actions"]),
     )
 
 

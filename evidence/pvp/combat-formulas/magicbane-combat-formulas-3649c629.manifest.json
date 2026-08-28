@@ -16,7 +16,20 @@
     {
       "path": "src/engine/gameManager/PowersManager.java",
       "sha256": "4c33ddea06211e937a00b87e03d3b47f3ec603d480b12bd5807c48ca320d7f54",
-      "locators": ["924-966 effect overwrite", "2231-2288 power hit roll"]
+      "locators": [
+        "924-966 effect overwrite",
+        "2231-2288 power hit roll",
+        "cancelOnTakeDamage and cancelOnStun cast cancellation"
+      ]
+    },
+    {
+      "path": "src/engine/powers/PowersBase.java",
+      "sha256": "a31eae78f45e39b8712bd63c306542988d950e83e1985513054c45031383ab81",
+      "locators": [
+        "94-107 movement and cancellation fields",
+        "403-408 cancellation accessors",
+        "604-609 cancellation setters"
+      ]
     },
     {
       "path": "src/engine/objects/PlayerCharacter.java",

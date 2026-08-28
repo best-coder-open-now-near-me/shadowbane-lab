@@ -14,11 +14,23 @@ from shadowbane_lab.combat.formulas import (
     weapon_attack_rating,
     weapon_damage_bounds,
 )
-from shadowbane_lab.combat.model import WeaponDamageInputs
+from shadowbane_lab.combat.model import (
+    CombatSheet,
+    CompatibilityStatus,
+    SheetModifiers,
+    WeaponDamageInputs,
+    WeaponProcProfile,
+    WeaponProfile,
+)
 
 __all__ = [
     "StackPriority",
+    "CombatSheet",
+    "CompatibilityStatus",
+    "SheetModifiers",
     "WeaponDamageInputs",
+    "WeaponProcProfile",
+    "WeaponProfile",
     "defense_rating",
     "effective_resistance",
     "melee_hit_chance_percent",

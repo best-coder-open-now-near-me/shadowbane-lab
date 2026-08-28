@@ -32,6 +32,44 @@ rank 0 through 40 independently. A ruleset must be compiled at those exact ranks
 unknown powers, invalid fixed-rank overrides, unmet levels, and unmet prerequisites fail
 closed.
 
+## Complete-sheet Assassin-versus-Warlock simulation
+
+The production duel path consumes one strict version-1 combat profile per character. Each file
+contains the character's attributes and resources; complete resistance and passive-defense
+vectors; equipment defense and attack/defense modifiers; weapon base values, speed, range, and
+procs; actual skill and power-focus values; trained ranks; and immutable source/compatibility
+metadata. `configs/combat/complete-sheet-v1.example.json` documents the complete shape and is
+deliberately marked `unverified`, so it cannot accidentally produce a result.
+
+The compiler uses the pinned MagicBane formula revision
+`3649c629b709c67625a09150a3752107f4b873cc` for weapon and power attack rating, defense, weapon
+damage bounds, stat/focus health-effect scaling, centered two-roll damage, hit curves,
+resistance/protection/armor-piercing order, and effect overwrite priority. The reference runtime
+also resolves block, parry, dodge, proc gates, stun immunity, and damage/stun interruption. A
+profile with a different formula revision, a missing field, an unresolved selected power, or an
+unaccepted source classification is rejected before the first simulation tick.
+
+Run one accepted-source duel:
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m shadowbane_lab.rollouts `
+  --scenario verified-duel `
+  --left-profile .\assassin.json `
+  --right-profile .\warlock.json `
+  --episodes 1 `
+  --accept-source-revision `
+  --accept-ruleset-overrides `
+  --json
+```
+
+Run a compiled-once, streaming 10,000-seed matchup sweep by changing `--episodes` to `10000`.
+The batch result records wins, draws, termination reasons, mean final resources, damage, healing,
+mana use, rejected actions, formula revision, and both sheet acceptance records. Omit
+`--accept-source-revision` to require `live_verified` sheets. Omit
+`--accept-ruleset-overrides` to reject the current archived static Assassin/Warlock power rows
+until current WonderBane differential traces promote them.
+
 ## Run the bracket
 
 From the repository root:
@@ -69,23 +107,27 @@ These are harness baselines, not balance claims. In particular, Psychic Healing 
 rank-20 outcome after its level-26 unlock, while rank-40 Shadow Touch gives the baseline
 Assassin a large control advantage after level 15.
 
-## Known fidelity gaps
+## Legacy bracket fidelity gaps
 
-The result must remain labeled `compiled_with_override` until differential traces replace
-the scalar assumptions. The current slice does not yet model:
+The built-in progression bracket above remains labeled `compiled_with_override`; unlike the
+complete-sheet path, it intentionally uses small baseline resources and action-row values without
+a character sheet. It does not model:
 
 - hit rolls, attack rating, defense, resistances, or authoritative roll distributions;
 - stat/focus modifiers, regeneration, equipment, or weapon-specific basic attacks;
 - cast interruption, obstacle line of sight, collision, or full flight movement semantics;
 - area targets, damage-over-time ticks, absorbs, or broad buff/debuff interactions.
 
-Published damage and healing ranges use a reviewed continuous-uniform approximation. The
+In that legacy bracket, published damage and healing ranges use a reviewed continuous-uniform approximation. The
 specified PCG32 stream makes those rolls exactly replayable by seed and snapshot, while
 expected-value policy features remain the published range midpoint. Basic attack damage and
 timing are still reviewed placeholders. The useful signal at this stage is legal action flow,
 progression gating, resource exhaustion, control timing, healing timing, bounded outcome
 variation, and win/loss termination. Emulator differential fixtures are the next authority
-for replacing the assumed distribution and closing the remaining combat gaps.
+for replacing the assumed distribution and closing the remaining action-row gaps. The
+complete-sheet path instead compiles the source-pinned combat formulas and fails closed on absent
+sheet data; its remaining acceptance boundary is current WonderBane differential validation and
+full power-catalog coverage.
 
 ## Pure semantic PvE batches
 

@@ -26,6 +26,11 @@ lossless skill and power vectors, and the sourced roadmap can audit those ranks 
 A provenance-aware legacy identity catalog provides a fail-closed baseline for race, base-class,
 profession, sex, and racial-discipline legality while current WonderBane creation-screen values
 are captured and verified.
+The PvP simulator also has a fail-closed complete-sheet path: strict versioned Assassin and
+Warlock profiles compile source-pinned hit, attack/defense, weapon and spell scaling, centered
+damage, resistance/protection, proc, passive-defense, stacking, immunity, and interruption
+mechanics into reproducible single duels or streaming multi-seed batches. Source-revision and
+ruleset-override acceptance are explicit CLI switches; unverified profiles cannot run.
 Native LT/LG feedback, selected-target and group-leader coordinates, and calibrated minimap axes
 support bounded closed-loop travel.
 Direct semantic PvE batches run known
@@ -55,6 +60,7 @@ $env:PYTHONPATH = "src"
 python -m unittest discover -s tests -v
 python -m shadowbane_lab.rollouts
 python -m shadowbane_lab.rollouts --scenario irekei-proc --level 59 --json
+python -m shadowbane_lab.rollouts --scenario verified-duel --left-profile .\assassin.json --right-profile .\warlock.json --episodes 1000 --accept-source-revision --accept-ruleset-overrides --json
 python -m shadowbane_lab.cli client observe-native-progression --json
 python -m shadowbane_lab.cli client observe-native-training --json
 python -m shadowbane_lab.cli client advise-irekei-proc --json

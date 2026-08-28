@@ -279,12 +279,24 @@ class RestoreResource:
     subject: SubjectRef
     resource_key: str
     amount: AmountSpec
+    uses_resistance: bool = False
+    power_trains: int = 0
+    resistance_type: str | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.subject, SubjectRef):
             raise ValueError("subject must be a SubjectRef")
         _identifier(self.resource_key, "resource_key")
         _positive_amount(self.amount, "restoration amount")
+        if not isinstance(self.uses_resistance, bool):
+            raise ValueError("uses_resistance must be a boolean")
+        _non_negative_integer(self.power_trains, "power_trains")
+        if self.uses_resistance:
+            if self.resistance_type is None:
+                raise ValueError("resisted restoration requires resistance_type")
+            _identifier(self.resistance_type, "resistance_type")
+        elif self.resistance_type is not None:
+            raise ValueError("resistance_type requires uses_resistance")
 
 
 @dataclass(frozen=True, slots=True)
@@ -451,7 +463,7 @@ class AttackGate:
     kind: AttackKind
     attack_rating_key: str
     defense_rating_key: str
-    effects: tuple[DirectEffectPrimitive, ...]
+    effects: tuple[DirectEffectPrimitive | ChanceGate, ...]
     passive_defense_keys: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
@@ -462,8 +474,11 @@ class AttackGate:
         _identifier(self.defense_rating_key, "defense_rating_key")
         if not self.effects:
             raise ValueError("attack gate requires at least one direct effect")
-        if any(not isinstance(effect, _DIRECT_EFFECT_TYPES) for effect in self.effects):
-            raise ValueError("attack gate effects must contain direct effect primitives")
+        if any(
+            not isinstance(effect, (*_DIRECT_EFFECT_TYPES, ChanceGate))
+            for effect in self.effects
+        ):
+            raise ValueError("attack gate effects must contain direct effects or chance gates")
         _unique_strings(self.passive_defense_keys, "passive_defense_keys")
 
 

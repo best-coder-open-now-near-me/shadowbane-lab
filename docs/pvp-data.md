@@ -15,6 +15,24 @@ disagree. Revision-pinned emulator and wiki data remain comparison fallbacks.
 Conflicts do not get averaged or guessed. Preserve both sources, mark the affected field
 unresolved, and design a focused observation that distinguishes them.
 
+## Pinned combat formulas and executable profile boundary
+
+The combat runtime now ports a revision-pinned MagicBane server formula set, with exact source
+files, locators, and hashes recorded in
+`evidence/pvp/combat-formulas/magicbane-combat-formulas-3649c629.manifest.json`. It covers basic
+and power hit curves, weapon and power attack rating, defense, weapon damage, stat/focus scaling,
+centered health-effect rolls, resistance/protection/armor piercing, and effect overwrite rules.
+The same manifest pins the historical editor power-hash table. Current WonderBane native training
+data confirms Shadow Touch as `ASS-013` / `428918601` and Shadow Bolt as `ASS-018` / `429213513` on
+client SHA-256 `ef43784ba6ffa0de6c0c16c76569f864393ad1530e7149395bb560e5cca30f13`.
+
+These formulas are not treated as silently current. `CombatSheet` carries its exact formula
+revision and a `live_verified`, `source_revision_accepted`, or `unverified` compatibility state.
+The complete-sheet compiler requires all runtime inputs and rejects absent resistances, passive
+defenses, weapon/skill data, power-focus values, unresolved selected powers, incompatible source
+revisions, and unaccepted ruleset overrides. See the complete profile and batch commands in
+[simulation-rollouts.md](simulation-rollouts.md).
+
 ## Legacy comparison catalog
 
 `shadowbane_legacy_catalog_v1.json` is a normalized, revision-pinned comparison baseline. It
@@ -182,7 +200,10 @@ coverage domains.
 ## Remaining acquisition order
 
 Cross-check representative calculator builds against live character sheets, starting with the
-universal boon and resource totals. Then collect the mechanics the calculator does not expose:
-ranked power definitions, equipment and enchantments, hit and attack rating, weapon damage, armor,
-resistance, power scaling, interrupts, and effect stacking. Use focused executable analysis only
-for those missing or conflicting fields.
+universal boon and resource totals. Then collect current WonderBane complete combat sheets and
+ranked power definitions. The pinned emulator source now supplies explicit candidate formulas for
+hit/attack rating, weapon damage, resistance, power scaling, interrupts, and effect stacking;
+representative live differentials are still required before profiles may be labeled
+`live_verified`. Use focused executable analysis for current equipment/enchantment rows, full
+Assassin and Warlock power data, and any field where the deployment differs from the pinned
+formula revision.
