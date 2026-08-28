@@ -68,6 +68,10 @@ retaining sparse global costs learned earlier in the same route. If exact positi
 two consecutive steering leases without progress, the controller marks the cell ahead as blocked
 and replans around it before falling back to the bounded zig-zag escape sequence. The final JSON
 event reports A* replan count, terrain refresh count, active zone, and navigation revision.
+Long-distance travel uses two-second steering leases and an eight-unit progress threshold. Learned
+obstacles occupy their measured 20-unit cell without an additional clearance ring, while diagonal
+corner cutting remains forbidden; this keeps single-tree and mushroom detours local instead of
+turning them into 60-unit exclusion squares.
 
 The planner deliberately keeps exact LT/LG feedback and guarded minimap input as the execution
 loop; terrain data supplies route costs and waypoints rather than replacing client movement.

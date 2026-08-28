@@ -113,7 +113,7 @@ $arguments = @(
     "--max-seconds", "300",
     "--wait-for-client-seconds", "10",
     "--poll-ms", "200",
-    "--click-interval-ms", "4000",
+    "--click-interval-ms", "2000",
     "--live",
     "--json"
 )

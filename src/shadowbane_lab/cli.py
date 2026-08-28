@@ -157,6 +157,8 @@ from shadowbane_lab.travel import (
     TravelPhase,
     TravelPlan,
     TravelRunner,
+    WeightedAStarConfig,
+    WeightedAStarPlanner,
     WindowsGoChatCommandListener,
     WindowsZoneSearchOverlay,
     WorldDestinationCatalog,
@@ -609,7 +611,7 @@ def _parser() -> argparse.ArgumentParser:
     go.add_argument("--max-seconds", type=float, default=300.0)
     go.add_argument("--wait-for-client-seconds", type=float, default=30.0)
     go.add_argument("--poll-ms", type=int, default=200)
-    go.add_argument("--click-interval-ms", type=int, default=4_000)
+    go.add_argument("--click-interval-ms", type=int, default=2_000)
     go.add_argument(
         "--live",
         action="store_true",
@@ -684,7 +686,7 @@ def _parser() -> argparse.ArgumentParser:
     listen_go.add_argument("--max-seconds", type=float, default=300.0)
     listen_go.add_argument("--wait-for-client-seconds", type=float, default=30.0)
     listen_go.add_argument("--poll-ms", type=int, default=200)
-    listen_go.add_argument("--click-interval-ms", type=int, default=4_000)
+    listen_go.add_argument("--click-interval-ms", type=int, default=2_000)
     listen_go.add_argument(
         "--live",
         action="store_true",
@@ -2507,6 +2509,7 @@ def _run_travel(
                 500,
                 max(1, round(max_seconds * 1000 / click_interval_ms)),
             ),
+            minimum_progress=8.0,
             maximum_no_progress_clicks=2,
         )
         inspector = WindowsForegroundWindowInspector()
@@ -2568,6 +2571,12 @@ def _run_travel(
                     destination,
                     travel_config,
                     terrain_source,
+                    planner=WeightedAStarPlanner(
+                        WeightedAStarConfig(
+                            obstacle_clearance_cells=0,
+                            waypoint_radius_fraction=0.5,
+                        )
+                    ),
                     plan_id=plan.plan_id,
                 )
                 controller = astar_controller

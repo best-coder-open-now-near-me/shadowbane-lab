@@ -72,6 +72,31 @@ class WeightedAStarTests(unittest.TestCase):
         self.assertEqual(NavigationCell(-3, -3), grid.minimum)
         self.assertEqual(NavigationCell(8, 3), grid.maximum)
 
+    def test_zero_clearance_keeps_single_obstacle_detour_local(self) -> None:
+        navigation = SparseNavigationMap(cell_size=20.0)
+        navigation.mark_blocked_ahead(
+            NativePlayerPositionObservation(10.0, 10.0, 0.0),
+            TravelDestination(200.0, 10.0),
+        )
+        planner = WeightedAStarPlanner(
+            WeightedAStarConfig(
+                obstacle_clearance_cells=0,
+                waypoint_radius_fraction=0.5,
+            )
+        )
+
+        route = planner.plan(
+            navigation,
+            start_lt=10.0,
+            start_lg=10.0,
+            destination=TravelDestination(200.0, 10.0),
+        )
+
+        self.assertEqual(2, len(route.destinations))
+        detour = route.destinations[0]
+        self.assertEqual((10.0, -10.0), (detour.lt, detour.lg))
+        self.assertEqual(10.0, detour.arrival_radius)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -834,7 +834,7 @@ class ClientCliTests(unittest.TestCase):
                 max_seconds=30,
                 wait_for_client_seconds=0,
                 poll_ms=200,
-                click_interval_ms=4000,
+                click_interval_ms=2000,
                 live=True,
                 as_json=True,
                 stop_signal=EventEmergencyStop(),
@@ -861,6 +861,12 @@ class ClientCliTests(unittest.TestCase):
             travel_runner.call_args.kwargs["controller"],
         )
         astar_factory.assert_called_once()
+        travel_config = astar_factory.call_args.args[1]
+        planner = astar_factory.call_args.kwargs["planner"]
+        self.assertEqual(2_000, travel_config.click_interval_ms)
+        self.assertEqual(8.0, travel_config.minimum_progress)
+        self.assertEqual(0, planner.config.obstacle_clearance_cells)
+        self.assertEqual(0.5, planner.config.waypoint_radius_fraction)
 
     def test_pve_binds_every_native_reader_to_the_guarded_client_process(self) -> None:
         template = Path(__file__).parents[1] / "configs" / "wonderbane-pve.template.json"
