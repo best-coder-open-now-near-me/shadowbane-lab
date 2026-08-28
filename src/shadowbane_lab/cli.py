@@ -11,6 +11,7 @@ import threading
 import time
 from collections.abc import Sequence
 from contextlib import ExitStack
+from datetime import UTC, datetime
 from pathlib import Path
 
 from shadowbane_lab.client_input import (
@@ -124,7 +125,11 @@ from shadowbane_lab.client_observation import (
     open_windows_native_world_map_reader,
 )
 from shadowbane_lab.progression import (
+    CalculatorReviewStatus,
+    WonderbaneCalculatorImportError,
     audit_proc_assassin_training,
+    capture_wonderbane_calculator_snapshot,
+    import_wonderbane_calculator_snapshot,
     irekei_proc_assassin_roadmap,
     load_wonderbane_irekei_proc_profile,
 )
@@ -700,6 +705,45 @@ def _parser() -> argparse.ArgumentParser:
         help="required in addition to a profile with live_input_enabled=true",
     )
     listen_go.add_argument("--json", action="store_true", help="emit JSON Lines events")
+
+    progression = commands.add_parser(
+        "progression",
+        help="import and inspect sourced character-progression data",
+    )
+    progression_commands = progression.add_subparsers(
+        dest="progression_command",
+        required=True,
+    )
+    import_calculator = progression_commands.add_parser(
+        "import-wonderbane-calculator",
+        help="snapshot and safely parse the public WonderBane calculator declarations",
+    )
+    calculator_source = import_calculator.add_mutually_exclusive_group(required=True)
+    calculator_source.add_argument(
+        "--snapshot",
+        type=Path,
+        help="existing WonderBane home-page HTML snapshot",
+    )
+    calculator_source.add_argument(
+        "--download",
+        action="store_true",
+        help="download the bounded HTTPS home page without rendering or executing it",
+    )
+    import_calculator.add_argument(
+        "--output",
+        type=Path,
+        required=True,
+        help="directory for the timestamped HTML, manifest, and normalized catalog",
+    )
+    import_calculator.add_argument(
+        "--retrieved-at",
+        help="optional ISO-8601 retrieval timestamp; defaults to current UTC",
+    )
+    import_calculator.add_argument(
+        "--json",
+        action="store_true",
+        help="emit machine-readable result metadata",
+    )
     return parser
 
 
@@ -3354,6 +3398,80 @@ def _require_window_process_id(snapshot: WindowSnapshot) -> int:
     return snapshot.process_id
 
 
+def _import_wonderbane_calculator(
+    snapshot_path: Path | None,
+    output_directory: Path,
+    *,
+    download: bool,
+    retrieved_at_text: str | None,
+    as_json: bool,
+) -> int:
+    try:
+        retrieved_at = _parse_retrieved_at(retrieved_at_text)
+        if download:
+            artifacts = capture_wonderbane_calculator_snapshot(
+                output_directory,
+                retrieved_at=retrieved_at,
+            )
+        else:
+            if snapshot_path is None:
+                raise WonderbaneCalculatorImportError(
+                    "calculator import requires --snapshot or --download"
+                )
+            artifacts = import_wonderbane_calculator_snapshot(
+                snapshot_path,
+                output_directory,
+                retrieved_at=retrieved_at,
+            )
+    except (OSError, ValueError, WonderbaneCalculatorImportError) as exc:
+        return _error(f"WonderBane calculator import failed: {exc}", as_json=as_json)
+
+    catalog = artifacts.catalog
+    payload = {
+        "ok": catalog.review_status is CalculatorReviewStatus.ACCEPTED,
+        "review_status": catalog.review_status.value,
+        "evidence_status": catalog.evidence_status,
+        "snapshot_path": str(artifacts.snapshot_path),
+        "snapshot_sha256": catalog.snapshot_sha256,
+        "manifest_path": str(artifacts.manifest_path),
+        "catalog_path": str(artifacts.catalog_path),
+        "declaration_sha256": catalog.declaration_sha256,
+        "review_profile_id": catalog.review_profile_id,
+        "counts": catalog.to_dict()["counts"],
+        "unresolved_references": list(catalog.unresolved_references),
+    }
+    if as_json:
+        print(json.dumps(payload, sort_keys=True))
+    else:
+        print(f"Snapshot: {artifacts.snapshot_path}")
+        print(f"SHA-256: {catalog.snapshot_sha256}")
+        print(f"Catalog: {artifacts.catalog_path}")
+        print(f"Review: {catalog.review_status.value}")
+        counts = payload["counts"]
+        print(
+            "Records: "
+            f"{counts['race_records']} race/sex, "
+            f"{counts['base_classes']} bases, "
+            f"{counts['promotions']} promotions, "
+            f"{counts['runes']} runes"
+        )
+    return 0 if catalog.review_status is CalculatorReviewStatus.ACCEPTED else 2
+
+
+def _parse_retrieved_at(value: str | None) -> datetime | None:
+    if value is None:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise WonderbaneCalculatorImportError(
+            "retrieved-at must be an ISO-8601 timestamp"
+        ) from exc
+    if parsed.tzinfo is None:
+        raise WonderbaneCalculatorImportError("retrieved-at must include a UTC offset")
+    return parsed.astimezone(UTC)
+
+
 def _error(message: str, *, as_json: bool) -> int:
     if as_json:
         print(json.dumps({"ok": False, "error": message}, sort_keys=True))
@@ -3364,6 +3482,17 @@ def _error(message: str, *, as_json: bool) -> int:
 
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = _parser().parse_args(argv)
+    if (
+        arguments.command == "progression"
+        and arguments.progression_command == "import-wonderbane-calculator"
+    ):
+        return _import_wonderbane_calculator(
+            arguments.snapshot,
+            arguments.output,
+            download=arguments.download,
+            retrieved_at_text=arguments.retrieved_at,
+            as_json=arguments.json,
+        )
     if arguments.command == "client" and arguments.client_command == "inspect":
         return _inspect_client(as_json=arguments.json)
     if arguments.command == "client" and arguments.client_command == "discover":

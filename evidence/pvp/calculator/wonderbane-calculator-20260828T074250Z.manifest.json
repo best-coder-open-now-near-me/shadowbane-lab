@@ -1,0 +1,12 @@
+{
+  "catalog_file": "wonderbane-calculator-20260828T074250Z.catalog.json",
+  "declaration_sha256": "311cc3e496e5362dba268fb56b2f11aecf00a2298d16746e4b0c6d90fcf9c5c0",
+  "evidence_status": "wonderbane_calculator_derived",
+  "retrieved_at": "2026-08-28T07:42:50Z",
+  "review_profile_id": "wonderbane.calculator-review.2026-08-28.v1",
+  "review_status": "accepted",
+  "schema_version": 1,
+  "snapshot_file": "wonderbane-calculator-20260828T074250Z.html",
+  "snapshot_sha256": "1064826fc349d2b25cf295a3f4ca36a15675da642a577893767535d2c37d6395",
+  "source_url": "https://wonderbane.com/"
+}
