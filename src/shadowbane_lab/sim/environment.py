@@ -229,6 +229,9 @@ class ReferenceEnvironment:
                 actor_id=actor.entity_id,
                 correlation_id=decision.correlation_id,
                 action_key=action.action_key,
+                interruptible=any(phase.interruptible for phase in action.phases),
+                cancel_on_damage=action.cancel_on_damage,
+                cancel_on_stun=action.cancel_on_stun,
             )
         )
 
@@ -256,6 +259,9 @@ class ReferenceEnvironment:
                     binding=decision.binding,
                     phase_duration_ms=phase.duration_ms,
                     effects=phase.effects,
+                    interruptible=phase.interruptible,
+                    cancel_on_damage=action.cancel_on_damage,
+                    cancel_on_stun=action.cancel_on_stun,
                 )
             )
 
@@ -340,7 +346,55 @@ class ReferenceEnvironment:
             self._schedule,
             self._take_schedule_order,
             self._random,
+            self._interrupt_actor,
         )
+
+    def _interrupt_actor(
+        self,
+        actor_id: str,
+        trigger: str,
+        due_time: int,
+        events: list[Event],
+    ) -> None:
+        if trigger not in {"damage", "stun"}:
+            raise SimulationConfigurationError(f"unsupported interruption trigger: {trigger}")
+        correlations = {
+            item.correlation_id
+            for item in self._scheduled
+            if item.actor_id == actor_id
+            and item.interruptible
+            and (
+                (trigger == "damage" and item.cancel_on_damage)
+                or (trigger == "stun" and item.cancel_on_stun)
+            )
+        }
+        for correlation_id in sorted(correlations):
+            action_item = next(
+                item
+                for item in self._scheduled
+                if item.correlation_id == correlation_id and item.actor_id == actor_id
+            )
+            self._scheduled = [
+                item
+                for item in self._scheduled
+                if not (
+                    item.actor_id == actor_id
+                    and item.correlation_id == correlation_id
+                    and item.kind in {ScheduledKind.RESOLUTION, ScheduledKind.COMPLETION}
+                )
+            ]
+            actor = self._entity(actor_id)
+            actor.busy_until_ms = min(actor.busy_until_ms, due_time)
+            events.append(
+                self._event(
+                    EventKind.ACTION_INTERRUPTED,
+                    due_time,
+                    correlation_id=correlation_id,
+                    source_entity_id=actor_id,
+                    action_key=action_item.action_key,
+                    tags=(f"reason.{trigger}",),
+                )
+            )
 
     def _schedule(self, item: ScheduledItem) -> None:
         self._scheduled.append(item)

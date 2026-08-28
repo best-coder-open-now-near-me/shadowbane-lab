@@ -5,6 +5,14 @@ from __future__ import annotations
 from collections.abc import Callable
 from math import hypot
 
+from shadowbane_lab.combat import (
+    effective_resistance,
+    melee_hit_chance_percent,
+    power_hit_chance_percent,
+    resisted_amount,
+    should_overwrite_effect,
+    triangular_roll,
+)
 from shadowbane_lab.protocol import (
     ActionBinding,
     EntityKind,
@@ -16,6 +24,8 @@ from shadowbane_lab.protocol import (
 )
 from shadowbane_lab.sim.actions import (
     ApplyEffect,
+    AttackGate,
+    AttackKind,
     ChanceGate,
     DealDamage,
     DirectEffectPrimitive,
@@ -30,6 +40,7 @@ from shadowbane_lab.sim.actions import (
     SubjectRef,
     TagOperation,
     TransferItem,
+    TriangularAmount,
     UniformAmount,
     UniformIntegerAmount,
     WeightedAmount,
@@ -42,6 +53,7 @@ from shadowbane_lab.sim.timeline import ScheduledItem, ScheduledKind
 EventFactory = Callable[..., Event]
 ScheduleCallback = Callable[[ScheduledItem], None]
 OrderCallback = Callable[[], int]
+InterruptCallback = Callable[[str, str, int, list[Event]], None]
 
 
 class EffectExecutor:
@@ -54,12 +66,14 @@ class EffectExecutor:
         schedule: ScheduleCallback,
         take_schedule_order: OrderCallback,
         random: DeterministicRandom,
+        interrupt_actor: InterruptCallback,
     ) -> None:
         self._entities = entities
         self._event = event_factory
         self._schedule = schedule
         self._take_schedule_order = take_schedule_order
         self._random = random
+        self._interrupt_actor = interrupt_actor
 
     def resolve(
         self,
@@ -71,6 +85,15 @@ class EffectExecutor:
         if item.binding is None:
             raise SimulationConfigurationError("resolution is missing its action binding")
         for effect in item.effects:
+            if isinstance(effect, AttackGate):
+                self._resolve_attack(
+                    item,
+                    effect,
+                    due_time,
+                    eligible_alive,
+                    events,
+                )
+                continue
             if isinstance(effect, ChanceGate):
                 self._resolve_chance(
                     item,
@@ -81,6 +104,84 @@ class EffectExecutor:
                 )
                 continue
             self._resolve_direct(item, effect, due_time, eligible_alive, events)
+
+    def _resolve_attack(
+        self,
+        item: ScheduledItem,
+        effect: AttackGate,
+        due_time: int,
+        eligible_alive: frozenset[str],
+        events: list[Event],
+    ) -> None:
+        if item.binding is None or item.binding.target_entity_id is None:
+            raise SimulationConfigurationError("attack resolution requires an entity target")
+        actor = self._entity(item.actor_id)
+        target = self._entity(item.binding.target_entity_id)
+        attack_rating = self._required_scalar(actor, effect.attack_rating_key)
+        defense_rating = self._required_scalar(target, effect.defense_rating_key)
+        chance = (
+            melee_hit_chance_percent(attack_rating, defense_rating)
+            if effect.kind is AttackKind.BASIC
+            else power_hit_chance_percent(attack_rating, defense_rating)
+        )
+        roll = self._random.randbelow(100)
+        hit = roll < chance
+        events.append(
+            self._event(
+                EventKind.ATTACK_RESOLVED,
+                due_time,
+                correlation_id=item.correlation_id,
+                source_entity_id=item.actor_id,
+                target_entity_id=target.entity_id,
+                action_key=item.action_key,
+                scalars=(
+                    NamedScalar("attack_rating", attack_rating),
+                    NamedScalar("defense_rating", defense_rating),
+                    NamedScalar("chance_percent", float(chance)),
+                    NamedScalar("roll", float(roll)),
+                    NamedScalar("hit", float(hit)),
+                ),
+                tags=(
+                    f"attack.{effect.kind.value}",
+                    f"attack.{effect.attack_key}",
+                    "outcome.hit" if hit else "outcome.miss",
+                ),
+            )
+        )
+        if not hit:
+            return
+        if "combat.ignore_passive_defense" not in actor.effective_tags:
+            for passive_key in effect.passive_defense_keys:
+                passive_chance = min(75.0, self._required_scalar(target, passive_key))
+                if passive_chance < 0.0:
+                    raise SimulationConfigurationError(
+                        f"entity {target.entity_id} scalar {passive_key} must not be negative"
+                    )
+                passive_roll = self._random.randbelow(100)
+                triggered = passive_roll < passive_chance
+                events.append(
+                    self._event(
+                        EventKind.PASSIVE_DEFENSE_RESOLVED,
+                        due_time,
+                        correlation_id=item.correlation_id,
+                        source_entity_id=target.entity_id,
+                        target_entity_id=actor.entity_id,
+                        action_key=item.action_key,
+                        scalars=(
+                            NamedScalar("chance_percent", passive_chance),
+                            NamedScalar("roll", float(passive_roll)),
+                            NamedScalar("triggered", float(triggered)),
+                        ),
+                        tags=(
+                            f"passive.{passive_key}",
+                            "outcome.triggered" if triggered else "outcome.not_triggered",
+                        ),
+                    )
+                )
+                if triggered:
+                    return
+        for nested in effect.effects:
+            self._resolve_direct(item, nested, due_time, eligible_alive, events)
 
     def _resolve_chance(
         self,
@@ -205,8 +306,38 @@ class EffectExecutor:
         if subject is None:
             raise SimulationConfigurationError("damage requires an entity subject")
         amount = self._resolve_amount(effect.amount)
+        mitigated = amount
+        resistance = 0.0
+        armor_piercing = 0.0
+        if effect.uses_resistance:
+            actor = self._entity(item.actor_id)
+            resistance = self._required_scalar(subject, f"resist.{effect.damage_type}")
+            armor_piercing = self._required_scalar(actor, "armor_piercing")
+            protection_applies = (
+                f"protection.{effect.damage_type}" in subject.effective_tags
+            )
+            protection_trains = 0
+            if protection_applies:
+                raw_trains = self._required_scalar(subject, "protection.trains")
+                if raw_trains < 0 or not raw_trains.is_integer():
+                    raise SimulationConfigurationError(
+                        f"entity {subject.entity_id} protection.trains must be a "
+                        "non-negative integer"
+                    )
+                protection_trains = int(raw_trains)
+            resistance = effective_resistance(
+                resistance,
+                protection_trains=protection_trains,
+                incoming_trains=effect.power_trains,
+                protection_applies=protection_applies,
+            )
+            mitigated = resisted_amount(amount, resistance, armor_piercing)
+            if f"immunity.damage.{effect.damage_type}" in subject.effective_tags:
+                mitigated = 0.0
+            if "state.sitting" in subject.effective_tags:
+                mitigated *= 2.5
         before = subject.scalars.get("health", 0.0)
-        after = max(0.0, before - amount)
+        after = max(0.0, before - mitigated)
         subject.scalars["health"] = after
         events.append(
             self._event(
@@ -218,11 +349,16 @@ class EffectExecutor:
                 action_key=item.action_key,
                 scalars=(
                     NamedScalar("requested", amount),
+                    NamedScalar("mitigated", mitigated),
+                    NamedScalar("resistance_percent", resistance),
+                    NamedScalar("armor_piercing", armor_piercing),
                     NamedScalar("effective", before - after),
                 ),
                 tags=(f"damage.{effect.damage_type}",),
             )
         )
+        if before - after > 0.0:
+            self._interrupt_actor(subject.entity_id, "damage", due_time, events)
 
     def _restore_resource(
         self,
@@ -258,10 +394,24 @@ class EffectExecutor:
         )
 
     def _resolve_amount(
-        self, amount: float | UniformAmount | UniformIntegerAmount | WeightedAmount
+        self,
+        amount: (
+            float
+            | UniformAmount
+            | TriangularAmount
+            | UniformIntegerAmount
+            | WeightedAmount
+        ),
     ) -> float:
         if isinstance(amount, UniformAmount):
             return self._random.uniform(amount.minimum, amount.maximum)
+        if isinstance(amount, TriangularAmount):
+            return triangular_roll(
+                amount.minimum,
+                amount.maximum,
+                self._random.random(),
+                self._random.random(),
+            )
         if isinstance(amount, UniformIntegerAmount):
             return float(
                 amount.minimum
@@ -348,10 +498,47 @@ class EffectExecutor:
         if subject is None:
             raise SimulationConfigurationError("effect application requires an entity subject")
         if "control.stun" in effect.tags and "immunity.stun" in subject.effective_tags:
+            events.append(
+                self._event(
+                    EventKind.EFFECT_BLOCKED,
+                    due_time,
+                    correlation_id=item.correlation_id,
+                    source_entity_id=item.actor_id,
+                    target_entity_id=subject.entity_id,
+                    action_key=item.action_key,
+                    tags=(f"effect.{effect.effect_key}", "reason.immune"),
+                )
+            )
             return
         storage_key = effect.stacking_key or effect.effect_key
         existing = subject.effects.get(storage_key)
         if existing is not None:
+            if not should_overwrite_effect(
+                incoming_order=effect.stack_order,
+                existing_order=existing.stack_order,
+                incoming_trains=effect.trains,
+                existing_trains=existing.trains,
+                priority=effect.stack_priority,
+                same_power=effect.effect_key == existing.effect_key,
+            ):
+                events.append(
+                    self._event(
+                        EventKind.EFFECT_BLOCKED,
+                        due_time,
+                        correlation_id=item.correlation_id,
+                        source_entity_id=item.actor_id,
+                        target_entity_id=subject.entity_id,
+                        action_key=item.action_key,
+                        scalars=(
+                            NamedScalar("incoming_stack_order", float(effect.stack_order)),
+                            NamedScalar("existing_stack_order", float(existing.stack_order)),
+                            NamedScalar("incoming_trains", float(effect.trains)),
+                            NamedScalar("existing_trains", float(existing.trains)),
+                        ),
+                        tags=(f"effect.{effect.effect_key}", "reason.stack_priority"),
+                    )
+                )
+                return
             events.append(
                 self._effect_removed_event(subject, existing, due_time, item, "reason.replaced")
             )
@@ -362,6 +549,9 @@ class EffectExecutor:
             expires_at_ms=due_time + effect.duration_ms,
             stacking_key=effect.stacking_key,
             tags=set(effect.tags),
+            stack_order=effect.stack_order,
+            trains=effect.trains,
+            stack_priority=effect.stack_priority,
         )
         subject.effects[storage_key] = active
         events.append(
@@ -375,6 +565,8 @@ class EffectExecutor:
                 scalars=(
                     NamedScalar("magnitude", effect.magnitude),
                     NamedScalar("duration_ms", float(effect.duration_ms)),
+                    NamedScalar("stack_order", float(effect.stack_order)),
+                    NamedScalar("trains", float(effect.trains)),
                 ),
                 tags=(f"effect.{effect.effect_key}",),
             )
@@ -392,6 +584,8 @@ class EffectExecutor:
                 expected_effect_key=effect.effect_key,
             )
         )
+        if "control.stun" in effect.tags:
+            self._interrupt_actor(subject.entity_id, "stun", due_time, events)
 
     def _remove_effect(
         self,
@@ -622,3 +816,12 @@ class EffectExecutor:
             return self._entities[entity_id]
         except KeyError as exc:
             raise SimulationConfigurationError(f"unknown entity id: {entity_id}") from exc
+
+    @staticmethod
+    def _required_scalar(entity: EntityState, scalar_key: str) -> float:
+        try:
+            return float(entity.scalars[scalar_key])
+        except KeyError as exc:
+            raise SimulationConfigurationError(
+                f"entity {entity.entity_id} is missing required scalar {scalar_key}"
+            ) from exc

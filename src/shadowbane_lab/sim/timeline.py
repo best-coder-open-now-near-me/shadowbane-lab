@@ -37,6 +37,9 @@ class ScheduledItem:
     effect_entity_id: str | None = None
     effect_storage_key: str | None = None
     expected_effect_key: str | None = None
+    interruptible: bool = False
+    cancel_on_damage: bool = False
+    cancel_on_stun: bool = False
 
     def __post_init__(self) -> None:
         if (
@@ -67,6 +70,17 @@ class ScheduledItem:
                 raise ValueError("resolutions require a binding and effects")
         elif self.binding is not None or self.effects:
             raise ValueError("only resolutions may carry bindings or effects")
+        for value, name in (
+            (self.interruptible, "interruptible"),
+            (self.cancel_on_damage, "cancel_on_damage"),
+            (self.cancel_on_stun, "cancel_on_stun"),
+        ):
+            if not isinstance(value, bool):
+                raise ValueError(f"{name} must be a boolean")
+        if self.kind is ScheduledKind.EFFECT_EXPIRY and (
+            self.interruptible or self.cancel_on_damage or self.cancel_on_stun
+        ):
+            raise ValueError("effect expiry items cannot carry interruption flags")
         if self.kind is ScheduledKind.EFFECT_EXPIRY:
             for value, name in (
                 (self.effect_entity_id, "effect_entity_id"),

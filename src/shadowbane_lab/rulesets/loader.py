@@ -9,6 +9,7 @@ from math import isfinite
 from pathlib import Path
 from typing import Any, cast
 
+from shadowbane_lab.combat import StackPriority
 from shadowbane_lab.protocol import NamedScalar, Relation, TargetKind
 from shadowbane_lab.rulesets.model import (
     CompilationStatus,
@@ -25,6 +26,8 @@ from shadowbane_lab.sim import (
     ActionPhase,
     ActionSpec,
     ApplyEffect,
+    AttackGate,
+    AttackKind,
     DealDamage,
     DeliveryKind,
     DeliverySpec,
@@ -42,6 +45,7 @@ from shadowbane_lab.sim import (
     TagOperation,
     TargetingSpec,
     TransferItem,
+    TriangularAmount,
     UniformAmount,
     UniformIntegerAmount,
 )
@@ -228,6 +232,8 @@ def _parse_action(data: Mapping[str, Any], action_key: str, rank: int) -> Action
         forbidden_actor_tags=tuple(_strings(data, "forbidden_actor_tags")),
         features=features,
         tags=tuple(_strings(data, "tags")),
+        cancel_on_damage=_optional_boolean(data, "cancel_on_damage", False),
+        cancel_on_stun=_optional_boolean(data, "cancel_on_stun", False),
     )
 
 
@@ -252,8 +258,8 @@ def _parse_effect(data: Mapping[str, Any], rank: int) -> EffectPrimitive:
     operation = _string(data, "op")
     if operation == "chance_gate":
         nested = tuple(_parse_effect(item, rank) for item in _objects(data, "effects"))
-        if any(isinstance(effect, ChanceGate) for effect in nested):
-            raise RulesetLoadError("chance gates cannot be nested")
+        if any(isinstance(effect, (ChanceGate, AttackGate)) for effect in nested):
+            raise RulesetLoadError("gates cannot be nested")
         try:
             return ChanceGate(
                 chance_key=_string(data, "chance_key"),
@@ -262,11 +268,28 @@ def _parse_effect(data: Mapping[str, Any], rank: int) -> EffectPrimitive:
             )
         except ValueError as exc:
             raise RulesetLoadError(str(exc)) from exc
+    if operation == "attack_gate":
+        nested = tuple(_parse_effect(item, rank) for item in _objects(data, "effects"))
+        if any(isinstance(effect, (ChanceGate, AttackGate)) for effect in nested):
+            raise RulesetLoadError("gates cannot be nested")
+        try:
+            return AttackGate(
+                attack_key=_string(data, "attack_key"),
+                kind=AttackKind(_string(data, "kind")),
+                attack_rating_key=_string(data, "attack_rating_key"),
+                defense_rating_key=_string(data, "defense_rating_key"),
+                effects=nested,
+                passive_defense_keys=tuple(_strings(data, "passive_defense_keys")),
+            )
+        except ValueError as exc:
+            raise RulesetLoadError(str(exc)) from exc
     if operation == "deal_damage":
         return DealDamage(
             subject=SubjectRef(_string(data, "subject")),
             amount=_resolved_amount(_required(data, "amount"), rank),
             damage_type=_string(data, "damage_type"),
+            uses_resistance=_optional_boolean(data, "uses_resistance", False),
+            power_trains=_resolved_integer(data.get("power_trains", 0), rank),
         )
     if operation == "restore_resource":
         return RestoreResource(
@@ -295,6 +318,11 @@ def _parse_effect(data: Mapping[str, Any], rank: int) -> EffectPrimitive:
             magnitude=_resolved_number(data.get("magnitude", 1.0), rank),
             stacking_key=_nullable_string(data, "stacking_key"),
             tags=tuple(_strings(data, "tags")),
+            stack_order=_resolved_integer(data.get("stack_order", 0), rank),
+            trains=_resolved_integer(data.get("trains", 0), rank),
+            stack_priority=StackPriority(
+                str(data.get("stack_priority", StackPriority.ALWAYS.value))
+            ),
         )
     if operation == "remove_effect":
         return RemoveEffect(
@@ -330,6 +358,11 @@ def _resolved_amount(value: Any, rank: int) -> AmountSpec:
         try:
             if kind == "uniform":
                 return UniformAmount(
+                    minimum=_resolved_number(_required(distribution, "minimum"), rank),
+                    maximum=_resolved_number(_required(distribution, "maximum"), rank),
+                )
+            if kind == "triangular":
+                return TriangularAmount(
                     minimum=_resolved_number(_required(distribution, "minimum"), rank),
                     maximum=_resolved_number(_required(distribution, "maximum"), rank),
                 )
@@ -483,3 +516,9 @@ def _boolean(data: Mapping[str, Any], key: str) -> bool:
     if not isinstance(value, bool):
         raise RulesetLoadError(f"{key} must be a boolean")
     return value
+
+
+def _optional_boolean(data: Mapping[str, Any], key: str, default: bool) -> bool:
+    if key not in data:
+        return default
+    return _boolean(data, key)

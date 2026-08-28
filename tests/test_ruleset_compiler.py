@@ -2,6 +2,7 @@ import json
 import unittest
 from importlib.resources import files
 
+from shadowbane_lab.combat import StackPriority
 from shadowbane_lab.protocol import EntityKind, Vector2
 from shadowbane_lab.rulesets import (
     CharacterBuild,
@@ -13,9 +14,12 @@ from shadowbane_lab.rulesets import (
 from shadowbane_lab.sim import ActiveEffectState, EntityState, ReferenceEnvironment
 from shadowbane_lab.sim.actions import (
     ApplyEffect,
+    AttackGate,
+    AttackKind,
     ChanceGate,
     DealDamage,
     RestoreResource,
+    TriangularAmount,
     UniformAmount,
     UniformIntegerAmount,
 )
@@ -264,6 +268,71 @@ class RulesetCompilerTests(unittest.TestCase):
         assert isinstance(gate, ChanceGate)
         self.assertEqual("weapon_proc", gate.chance_key)
         self.assertEqual(0.05, gate.probability)
+
+    def test_source_combat_primitives_compile_without_runtime_guessing(self) -> None:
+        source = bundled_source()
+        basic_attack = next(
+            action
+            for action in source["actions"]
+            if action["action_key"] == "shadowbane.basic_attack"
+        )
+        basic_attack["spec"]["cancel_on_damage"] = True
+        basic_attack["spec"]["phases"][0]["effects"] = [
+            {
+                "op": "attack_gate",
+                "attack_key": "main_hand",
+                "kind": "basic",
+                "attack_rating_key": "attack.main_hand",
+                "defense_rating_key": "defense",
+                "passive_defense_keys": ["passive.block", "passive.dodge"],
+                "effects": [
+                    {
+                        "op": "deal_damage",
+                        "subject": "target",
+                        "amount": {
+                            "distribution": "triangular",
+                            "minimum": 40,
+                            "maximum": 80,
+                        },
+                        "damage_type": "crush",
+                        "uses_resistance": True,
+                        "power_trains": 20,
+                    },
+                    {
+                        "op": "apply_effect",
+                        "subject": "target",
+                        "effect_key": "debuff",
+                        "duration_ms": 1_000,
+                        "stacking_key": "Debuff",
+                        "tags": [],
+                        "stack_order": 2,
+                        "trains": 20,
+                        "stack_priority": "greater_than_or_equal",
+                    },
+                ],
+            }
+        ]
+
+        action = load_ruleset_text(json.dumps(source)).record(
+            "shadowbane.basic_attack"
+        ).action
+
+        self.assertIsNotNone(action)
+        assert action is not None
+        self.assertTrue(action.cancel_on_damage)
+        gate = action.phases[0].effects[0]
+        self.assertIsInstance(gate, AttackGate)
+        assert isinstance(gate, AttackGate)
+        self.assertIs(gate.kind, AttackKind.BASIC)
+        damage = gate.effects[0]
+        self.assertIsInstance(damage, DealDamage)
+        assert isinstance(damage, DealDamage)
+        self.assertEqual(TriangularAmount(40.0, 80.0), damage.amount)
+        self.assertTrue(damage.uses_resistance)
+        applied = gate.effects[1]
+        self.assertIsInstance(applied, ApplyEffect)
+        assert isinstance(applied, ApplyEffect)
+        self.assertIs(StackPriority.GREATER_THAN_OR_EQUAL, applied.stack_priority)
 
     def test_unknown_provenance_source_fails_closed(self) -> None:
         source = bundled_source()

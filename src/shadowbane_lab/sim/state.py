@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from math import isfinite
 
+from shadowbane_lab.combat import StackPriority
 from shadowbane_lab.protocol import EntityKind, Vector2
 
 
@@ -30,6 +31,9 @@ class ActiveEffectSnapshot:
     expires_at_ms: int
     stacking_key: str | None
     tags: tuple[str, ...]
+    stack_order: int
+    trains: int
+    stack_priority: StackPriority
 
 
 @dataclass(slots=True)
@@ -40,6 +44,9 @@ class ActiveEffectState:
     expires_at_ms: int
     stacking_key: str | None = None
     tags: set[str] = field(default_factory=set)
+    stack_order: int = 0
+    trains: int = 0
+    stack_priority: StackPriority = StackPriority.ALWAYS
 
     def __post_init__(self) -> None:
         _identifier(self.effect_key, "effect_key")
@@ -61,6 +68,14 @@ class ActiveEffectState:
         self.tags = set(self.tags)
         for tag in self.tags:
             _identifier(tag, "effect tag")
+        for value, field_name in (
+            (self.stack_order, "stack_order"),
+            (self.trains, "trains"),
+        ):
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise ValueError(f"{field_name} must be a non-negative integer")
+        if not isinstance(self.stack_priority, StackPriority):
+            raise ValueError("stack_priority must be a StackPriority")
 
     def snapshot(self) -> ActiveEffectSnapshot:
         return ActiveEffectSnapshot(
@@ -70,6 +85,9 @@ class ActiveEffectState:
             expires_at_ms=self.expires_at_ms,
             stacking_key=self.stacking_key,
             tags=tuple(sorted(self.tags)),
+            stack_order=self.stack_order,
+            trains=self.trains,
+            stack_priority=self.stack_priority,
         )
 
     @classmethod
@@ -81,6 +99,9 @@ class ActiveEffectState:
             expires_at_ms=snapshot.expires_at_ms,
             stacking_key=snapshot.stacking_key,
             tags=set(snapshot.tags),
+            stack_order=snapshot.stack_order,
+            trains=snapshot.trains,
+            stack_priority=snapshot.stack_priority,
         )
 
 

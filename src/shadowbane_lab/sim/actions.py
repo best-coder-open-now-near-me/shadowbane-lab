@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from math import isfinite
 
+from shadowbane_lab.combat import StackPriority
 from shadowbane_lab.protocol import NamedScalar, Relation, TargetKind
 
 
@@ -65,6 +66,11 @@ class TagOperation(StrEnum):
     REMOVE = "remove"
 
 
+class AttackKind(StrEnum):
+    BASIC = "basic"
+    POWER = "power"
+
+
 @dataclass(frozen=True, slots=True)
 class UniformAmount:
     """Concrete continuous uniform amount resolved from the environment's seeded RNG."""
@@ -79,6 +85,26 @@ class UniformAmount:
             raise ValueError("uniform amount minimum must be positive")
         if self.maximum <= self.minimum:
             raise ValueError("uniform amount maximum must be greater than minimum")
+
+    @property
+    def expected(self) -> float:
+        return (self.minimum + self.maximum) / 2.0
+
+
+@dataclass(frozen=True, slots=True)
+class TriangularAmount:
+    """Two-uniform centered amount used by Shadowbane weapon and health effects."""
+
+    minimum: float
+    maximum: float
+
+    def __post_init__(self) -> None:
+        _finite(self.minimum, "minimum")
+        _finite(self.maximum, "maximum")
+        if self.minimum <= 0:
+            raise ValueError("triangular amount minimum must be positive")
+        if self.maximum <= self.minimum:
+            raise ValueError("triangular amount maximum must be greater than minimum")
 
     @property
     def expected(self) -> float:
@@ -143,11 +169,11 @@ class WeightedAmount:
         )
 
 
-AmountSpec = float | UniformAmount | UniformIntegerAmount | WeightedAmount
+AmountSpec = float | UniformAmount | TriangularAmount | UniformIntegerAmount | WeightedAmount
 
 
 def _positive_amount(value: AmountSpec, field_name: str) -> None:
-    if isinstance(value, (UniformAmount, UniformIntegerAmount, WeightedAmount)):
+    if isinstance(value, (UniformAmount, TriangularAmount, UniformIntegerAmount, WeightedAmount)):
         return
     _finite(value, field_name)
     if value <= 0:
@@ -235,12 +261,17 @@ class DealDamage:
     subject: SubjectRef
     amount: AmountSpec
     damage_type: str
+    uses_resistance: bool = False
+    power_trains: int = 0
 
     def __post_init__(self) -> None:
         if not isinstance(self.subject, SubjectRef):
             raise ValueError("subject must be a SubjectRef")
         _positive_amount(self.amount, "damage amount")
         _identifier(self.damage_type, "damage_type")
+        if not isinstance(self.uses_resistance, bool):
+            raise ValueError("uses_resistance must be a boolean")
+        _non_negative_integer(self.power_trains, "power_trains")
 
 
 @dataclass(frozen=True, slots=True)
@@ -278,6 +309,9 @@ class ApplyEffect:
     magnitude: float = 1.0
     stacking_key: str | None = None
     tags: tuple[str, ...] = ()
+    stack_order: int = 0
+    trains: int = 0
+    stack_priority: StackPriority = StackPriority.ALWAYS
 
     def __post_init__(self) -> None:
         if not isinstance(self.subject, SubjectRef):
@@ -290,6 +324,10 @@ class ApplyEffect:
         if self.stacking_key is not None:
             _identifier(self.stacking_key, "stacking_key")
         _unique_strings(self.tags, "tags")
+        _non_negative_integer(self.stack_order, "stack_order")
+        _non_negative_integer(self.trains, "trains")
+        if not isinstance(self.stack_priority, StackPriority):
+            raise ValueError("stack_priority must be a StackPriority")
 
 
 @dataclass(frozen=True, slots=True)
@@ -405,9 +443,33 @@ class ChanceGate:
             raise ValueError("chance gate effects must contain direct effect primitives")
 
 
-EffectPrimitive = DirectEffectPrimitive | ChanceGate
+@dataclass(frozen=True, slots=True)
+class AttackGate:
+    """Resolve source-derived hit and optional passive-defense rolls before effects."""
 
-_EFFECT_TYPES = (*_DIRECT_EFFECT_TYPES, ChanceGate)
+    attack_key: str
+    kind: AttackKind
+    attack_rating_key: str
+    defense_rating_key: str
+    effects: tuple[DirectEffectPrimitive, ...]
+    passive_defense_keys: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        _identifier(self.attack_key, "attack_key")
+        if not isinstance(self.kind, AttackKind):
+            raise ValueError("kind must be an AttackKind")
+        _identifier(self.attack_rating_key, "attack_rating_key")
+        _identifier(self.defense_rating_key, "defense_rating_key")
+        if not self.effects:
+            raise ValueError("attack gate requires at least one direct effect")
+        if any(not isinstance(effect, _DIRECT_EFFECT_TYPES) for effect in self.effects):
+            raise ValueError("attack gate effects must contain direct effect primitives")
+        _unique_strings(self.passive_defense_keys, "passive_defense_keys")
+
+
+EffectPrimitive = DirectEffectPrimitive | ChanceGate | AttackGate
+
+_EFFECT_TYPES = (*_DIRECT_EFFECT_TYPES, ChanceGate, AttackGate)
 
 
 @dataclass(frozen=True, slots=True)
@@ -448,6 +510,8 @@ class ActionSpec:
     forbidden_actor_tags: tuple[str, ...] = ()
     features: tuple[NamedScalar, ...] = ()
     tags: tuple[str, ...] = ()
+    cancel_on_damage: bool = False
+    cancel_on_stun: bool = False
 
     def __post_init__(self) -> None:
         _identifier(self.action_key, "action_key")
@@ -471,6 +535,14 @@ class ActionSpec:
         feature_names = tuple(feature.name for feature in self.features)
         _unique_strings(feature_names, "feature names")
         _unique_strings(self.tags, "tags")
+        if not isinstance(self.cancel_on_damage, bool):
+            raise ValueError("cancel_on_damage must be a boolean")
+        if not isinstance(self.cancel_on_stun, bool):
+            raise ValueError("cancel_on_stun must be a boolean")
+        if (self.cancel_on_damage or self.cancel_on_stun) and not any(
+            phase.interruptible for phase in self.phases
+        ):
+            raise ValueError("cancellable actions require an interruptible phase")
 
 
 class ActionCatalog:
