@@ -1,5 +1,9 @@
 """Closed-loop LT/LG travel over guarded minimap input."""
 
+from shadowbane_lab.travel.adaptive import (
+    AStarTravelController,
+    TravelNavigationSource,
+)
 from shadowbane_lab.travel.chat import (
     GoChatCommandAssembler,
     GoChatCommandUpdate,
@@ -37,6 +41,7 @@ from shadowbane_lab.travel.pathfinding import (
     AStarRouteNotFound,
     NavigationCell,
     NavigationCostGrid,
+    NavigationMapSnapshot,
     SparseNavigationMap,
     WeightedAStarConfig,
     WeightedAStarPlanner,
@@ -45,6 +50,7 @@ from shadowbane_lab.travel.runtime import (
     ClientTravelDecisionDispatcher,
     PlayerVitalsSource,
     PositionSource,
+    TravelControl,
     TravelDecisionDispatcher,
     TravelRunner,
 )
@@ -56,6 +62,7 @@ from shadowbane_lab.travel.state import (
 )
 from shadowbane_lab.travel.terrain import (
     ActiveZoneTerrainNavigation,
+    ActiveZoneTerrainNavigationSource,
     TerrainNavigationConfig,
     TerrainNavigationSeed,
     TerrainObjectDensityLayer,
@@ -70,20 +77,24 @@ from shadowbane_lab.travel.zone_overlay import (
 
 __all__ = [
     "ClientTravelDecisionDispatcher",
+    "AStarTravelController",
     "AStarRoute",
     "AStarRouteNotFound",
     "ActiveZoneTerrainNavigation",
+    "ActiveZoneTerrainNavigationSource",
     "GoChatCommandAssembler",
     "GoChatCommandUpdate",
     "NamedTravelDestinationError",
     "NavigationCell",
     "NavigationCostGrid",
+    "NavigationMapSnapshot",
     "PlayerVitalsSource",
     "PhysicalPointerInteraction",
     "PositionSource",
     "ResolvedNamedDestination",
     "SparseNavigationMap",
     "TravelController",
+    "TravelControl",
     "TravelControllerConfig",
     "TravelDecision",
     "TravelDecisionDispatcher",
@@ -95,6 +106,7 @@ __all__ = [
     "TravelPlan",
     "TravelRunResult",
     "TravelRunTraceStep",
+    "TravelNavigationSource",
     "TravelRunner",
     "TerrainNavigationConfig",
     "TerrainNavigationSeed",

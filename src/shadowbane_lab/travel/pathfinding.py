@@ -138,6 +138,20 @@ class AStarRouteNotFound(RuntimeError):
     """Raised when bounded A* cannot connect the requested endpoints."""
 
 
+@dataclass(frozen=True, slots=True)
+class NavigationMapSnapshot:
+    """One revision of the sparse global navigation map available to a route."""
+
+    token: str
+    navigation_map: SparseNavigationMap
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.token, str) or not self.token.strip():
+            raise ValueError("navigation snapshot token must be non-empty")
+        if not isinstance(self.navigation_map, SparseNavigationMap):
+            raise ValueError("navigation snapshot requires a SparseNavigationMap")
+
+
 class SparseNavigationMap:
     """Persistent learned obstacles and costs keyed in global LT/LG cells."""
 

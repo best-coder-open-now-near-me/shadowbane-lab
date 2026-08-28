@@ -3,15 +3,20 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from math import floor, isfinite
+from math import floor, hypot, isfinite
 from pathlib import Path
+from typing import Protocol, runtime_checkable
 
 from shadowbane_lab.client_observation import (
     NativeCurrentZoneObservation,
     NativePlayerPositionObservation,
     NativeZoneGeometry,
 )
-from shadowbane_lab.travel.pathfinding import NavigationCell, SparseNavigationMap
+from shadowbane_lab.travel.pathfinding import (
+    NavigationCell,
+    NavigationMapSnapshot,
+    SparseNavigationMap,
+)
 from shadowbane_lab.world_data import (
     CacheArchive,
     ObjectNavigationResolver,
@@ -171,11 +176,104 @@ class ActiveZoneTerrainNavigation:
     seed: TerrainNavigationSeed | None
 
 
+@runtime_checkable
+class CurrentZoneSource(Protocol):
+    def observe(self) -> NativeCurrentZoneObservation: ...
+
+
+class ActiveZoneTerrainNavigationSource:
+    """Refresh terrain costs as a long route moves or crosses zone ownership."""
+
+    def __init__(
+        self,
+        cache_directory: str | Path,
+        zone_reader: CurrentZoneSource,
+        config: TerrainNavigationConfig | None = None,
+        *,
+        refresh_distance_fraction: float = 0.5,
+    ) -> None:
+        if not isinstance(zone_reader, CurrentZoneSource):
+            raise ValueError("zone_reader must implement CurrentZoneSource")
+        if (
+            isinstance(refresh_distance_fraction, bool)
+            or not isinstance(refresh_distance_fraction, (int, float))
+            or not isfinite(refresh_distance_fraction)
+            or not 0 < refresh_distance_fraction <= 1
+        ):
+            raise ValueError("refresh_distance_fraction must be in (0, 1]")
+        self._cache_directory = Path(cache_directory)
+        self._zone_reader = zone_reader
+        self._config = config or TerrainNavigationConfig()
+        self._refresh_distance = (
+            self._config.seed_radius * float(refresh_distance_fraction)
+        )
+        self._navigation_map = SparseNavigationMap(cell_size=self._config.cell_size)
+        self._snapshot: NavigationMapSnapshot | None = None
+        self._zone_token: str | None = None
+        self._center: tuple[float, float] | None = None
+        self._refresh_count = 0
+        self._last_zone_name: str | None = None
+        self._last_seed: TerrainNavigationSeed | None = None
+
+    @property
+    def refresh_count(self) -> int:
+        return self._refresh_count
+
+    @property
+    def last_zone_name(self) -> str | None:
+        return self._last_zone_name
+
+    @property
+    def last_seed(self) -> TerrainNavigationSeed | None:
+        return self._last_seed
+
+    def observe(
+        self,
+        position: NativePlayerPositionObservation,
+    ) -> NavigationMapSnapshot:
+        if not isinstance(position, NativePlayerPositionObservation):
+            raise ValueError("position must be NativePlayerPositionObservation")
+        zone = self._zone_reader.observe()
+        if self._snapshot is not None and not self._refresh_required(zone, position):
+            return self._snapshot
+        active = load_active_zone_terrain_navigation(
+            self._cache_directory,
+            zone,
+            position,
+            self._config,
+            navigation_map=self._navigation_map,
+        )
+        self._refresh_count += 1
+        self._zone_token = zone.zone_token
+        self._center = (position.lt, position.lg)
+        self._last_zone_name = zone.name
+        self._last_seed = active.seed
+        self._snapshot = NavigationMapSnapshot(
+            token=f"{zone.zone_token}:{self._refresh_count}",
+            navigation_map=active.navigation_map,
+        )
+        return self._snapshot
+
+    def _refresh_required(
+        self,
+        zone: NativeCurrentZoneObservation,
+        position: NativePlayerPositionObservation,
+    ) -> bool:
+        if zone.zone_token != self._zone_token or self._center is None:
+            return True
+        return (
+            hypot(position.lt - self._center[0], position.lg - self._center[1])
+            >= self._refresh_distance
+        )
+
+
 def load_active_zone_terrain_navigation(
     cache_directory: str | Path,
     observation: NativeCurrentZoneObservation,
     origin: NativePlayerPositionObservation,
     config: TerrainNavigationConfig | None = None,
+    *,
+    navigation_map: SparseNavigationMap | None = None,
 ) -> ActiveZoneTerrainNavigation:
     """Load the nearest active height layer and seed one sparse global A* map."""
 
@@ -184,7 +282,12 @@ def load_active_zone_terrain_navigation(
     if not isinstance(origin, NativePlayerPositionObservation):
         raise ValueError("origin must be NativePlayerPositionObservation")
     resolved = config or TerrainNavigationConfig()
-    navigation_map = SparseNavigationMap(cell_size=resolved.cell_size)
+    if navigation_map is None:
+        navigation_map = SparseNavigationMap(cell_size=resolved.cell_size)
+    elif not isinstance(navigation_map, SparseNavigationMap):
+        raise ValueError("navigation_map must be a SparseNavigationMap")
+    elif navigation_map.cell_size != resolved.cell_size:
+        raise ValueError("navigation_map and terrain config cell sizes must match")
     cache_root = Path(cache_directory)
     with (
         CacheArchive(cache_root / "CZone.cache") as zones,

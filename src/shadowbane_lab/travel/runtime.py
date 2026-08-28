@@ -12,7 +12,6 @@ from shadowbane_lab.client_observation import (
     NativePlayerVitalsObservation,
 )
 from shadowbane_lab.protocol import ActionBinding, DecisionMessage, DispatchResult, TargetKind
-from shadowbane_lab.travel.controller import TravelController
 from shadowbane_lab.travel.model import (
     TravelDecision,
     TravelObservation,
@@ -37,6 +36,17 @@ class TravelDecisionDispatcher(Protocol):
     def dispatch(self, decision: TravelDecision) -> DispatchResult: ...
 
     def stop_movement(self, decision: TravelDecision) -> DispatchResult: ...
+
+
+@runtime_checkable
+class TravelControl(Protocol):
+    def step(self, observation: TravelObservation) -> TravelDecision: ...
+
+    def stop(
+        self,
+        reason: str,
+        observation: TravelObservation | None = None,
+    ) -> TravelDecision: ...
 
 
 class ClientTravelDecisionDispatcher:
@@ -93,7 +103,7 @@ class TravelRunner:
     def __init__(
         self,
         *,
-        controller: TravelController,
+        controller: TravelControl,
         position_reader: PositionSource,
         player_vitals_reader: PlayerVitalsSource,
         dispatcher: TravelDecisionDispatcher,
@@ -103,8 +113,8 @@ class TravelRunner:
         clock: Callable[[], float] = time.monotonic,
         sleeper: Callable[[float], None] = time.sleep,
     ) -> None:
-        if not isinstance(controller, TravelController):
-            raise ValueError("controller must be TravelController")
+        if not isinstance(controller, TravelControl):
+            raise ValueError("controller must implement TravelControl")
         if not isinstance(position_reader, PositionSource):
             raise ValueError("position_reader must implement PositionSource")
         if not isinstance(player_vitals_reader, PlayerVitalsSource):
