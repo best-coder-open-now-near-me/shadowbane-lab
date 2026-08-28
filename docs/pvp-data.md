@@ -72,6 +72,30 @@ hash/endpoint manifest to `\\VBOXSVR\codexdiag\incoming-captures`. Raw network t
 contain account, session, or chat data. Keep captures private and extract only the game-definition
 records needed by the catalog.
 
+The VM launcher also writes a redacted `wonderbane-incoming-active.json` marker after Packet
+Monitor starts. Startup failures write `wonderbane-incoming-start-error.json`, allowing the host
+to distinguish a successful capture from a transient elevated-shell failure without reading raw
+packets. The stop script removes the active marker after finalization.
+
+### 2026-08-28 capture result
+
+The first bounded WonderBane capture covered one confirmed leave/re-enter transition on client
+SHA-256 `ef43784ba6ffa0de6c0c16c76569f864393ad1530e7149395bb560e5cca30f13`.
+The private PCAPNG is valid and untruncated, but its application bytes are opaque at the NIC
+boundary: 772 incoming bytes and one 4-byte outgoing payload have 7.7137 bits/byte Shannon
+entropy, random-like printable density, and no printable run longer than seven bytes. This is
+consistent with encrypted or session-obfuscated transport rather than plaintext creation records.
+The redacted structural evidence is preserved in
+`evidence/pvp/wonderbane-incoming-20260828T061802186Z.summary.json`; the raw capture and endpoint
+metadata are not committed.
+
+This observation promotes no catalog values. Repeating the same passive capture is unlikely to
+expose more semantics. The next acquisition boundary is inside `sb.exe`, immediately after its
+transport decoder, or in the decoded character-definition table populated by that handler. A
+focused trace should correlate the single 4-byte client request and following fixed-size incoming
+segments with writes to candidate decoded buffers, then export only normalized definitions and
+their capture provenance.
+
 The menu does not establish later promotion choices, discipline-slot rules, complete power
 rank curves, equipment statistics, resource formulas, hit/defense/resistance behavior, or
 interrupt and crowd-control rules unless it explicitly displays them. Those remain separate
