@@ -2679,8 +2679,10 @@ def _listen_for_go_commands(
         )
         world_map_close_plan = None
         if hotkey_config_path is not None:
-            world_map_bindings = load_arcane_hotkeys(hotkey_config_path).bindings_for(
-                ArcaneClientAction.WORLD_MAP
+            world_map_bindings = load_arcane_hotkeys(
+                hotkey_config_path
+            ).bindings_for_argument(
+                "WorldMap"
             )
             if len(world_map_bindings) != 1:
                 raise ValueError(

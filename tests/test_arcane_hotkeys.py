@@ -31,6 +31,20 @@ class ArcaneHotkeyTests(unittest.TestCase):
     def test_world_map_action_matches_captured_arcane_pref_message(self) -> None:
         self.assertEqual(48, ArcaneClientAction.WORLD_MAP)
 
+    def test_string_argument_disambiguates_overloaded_action_code(self) -> None:
+        table = load_arcane_hotkeys_text(
+            """
+BEGINHOTKEYS
+KEY= "E" FALSE FALSE FALSE 48 0 0 "Equip"
+KEY= "M" FALSE FALSE FALSE 48 0 0 "WorldMap"
+KEY= "S" FALSE FALSE FALSE 48 0 0 "Stats"
+ENDHOTKEYS
+"""
+        )
+
+        self.assertEqual(3, len(table.bindings_for(ArcaneClientAction.WORLD_MAP)))
+        self.assertEqual(("m",), table.bindings_for_argument("worldmap")[0].input_keys)
+
     def test_parses_captured_mob_cycle_bindings_losslessly(self) -> None:
         table = load_arcane_hotkeys_text(_CAPTURED_TARGET_BINDINGS)
 

@@ -148,6 +148,16 @@ class ArcaneHotkeyTable:
             raise ValueError("action must be an integer action code")
         return tuple(item for item in self.bindings if item.action_code == int(action))
 
+    def bindings_for_argument(self, argument: str) -> tuple[ArcaneHotkeyBinding, ...]:
+        """Return bindings selected by the native action's string discriminator."""
+
+        if not isinstance(argument, str) or not argument.strip():
+            raise ValueError("argument must be a non-empty string")
+        normalized = argument.casefold()
+        return tuple(
+            item for item in self.bindings if item.argument.casefold() == normalized
+        )
+
 
 def load_arcane_hotkeys(path: str | Path) -> ArcaneHotkeyTable:
     try:

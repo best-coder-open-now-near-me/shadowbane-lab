@@ -595,7 +595,7 @@ class ClientCliTests(unittest.TestCase):
             patch(
                 "shadowbane_lab.cli.load_arcane_hotkeys",
                 return_value=SimpleNamespace(
-                    bindings_for=lambda _action: (
+                    bindings_for_argument=lambda _argument: (
                         SimpleNamespace(input_keys=("m",)),
                     )
                 ),
