@@ -10,12 +10,14 @@ from shadowbane_lab.sim import (
     ApplyEffect,
     AttackGate,
     AttackKind,
+    DamageBreakpoint,
     DealDamage,
     DeterministicRandom,
     EntityState,
     PeriodicPulse,
     PhaseKind,
     ReferenceEnvironment,
+    ResistanceAdjustment,
     ResourceImmunity,
     RestoreResource,
     SubjectRef,
@@ -77,6 +79,118 @@ def _decision(environment: ReferenceEnvironment, correlation_id: str = "attack")
 
 
 class ShadowbaneCombatRuntimeTests(unittest.TestCase):
+    def test_damage_breakpoint_counts_post_resistance_damage_and_breaks_only_above(self) -> None:
+        shield = ActionSpec(
+            action_key="shield",
+            targeting=TargetingSpec(kind=TargetKind.SELF),
+            phases=(
+                ActionPhase(
+                    PhaseKind.ACTIVE,
+                    0,
+                    (
+                        ApplyEffect(
+                            SubjectRef.ACTOR,
+                            "physical-shield",
+                            10_000,
+                            modifiers=(
+                                ResistanceAdjustment("crush", 50.0),
+                                DamageBreakpoint("physical", 20.0, ("crush",)),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        attack = ActionSpec(
+            action_key="attack",
+            targeting=TargetingSpec(
+                kind=TargetKind.ENTITY,
+                allowed_relations=(Relation.ENEMY,),
+                maximum_range=3.0,
+            ),
+            phases=(
+                ActionPhase(
+                    PhaseKind.ACTIVE,
+                    0,
+                    (
+                        DealDamage(
+                            SubjectRef.TARGET,
+                            20.0,
+                            "crush",
+                            uses_resistance=True,
+                        ),
+                    ),
+                ),
+            ),
+        )
+        environment = ReferenceEnvironment(
+            ActionCatalog((shield, attack)),
+            (
+                _actor(
+                    "caster",
+                    "blue",
+                    ("shield",),
+                    {"health": 1_000.0, "resist.crush": 0.0},
+                ),
+                _actor(
+                    "attacker",
+                    "red",
+                    ("attack",),
+                    {"health": 100.0, "armor_piercing": 0.0},
+                ),
+            ),
+            seed=6,
+        )
+
+        def attack_decision(correlation_id: str):
+            exchange = environment.exchange("attacker")
+            affordance = next(
+                item
+                for item in exchange.affordances.affordances
+                if item.action_key == "attack"
+            )
+            return exchange.decision(affordance.affordance_id, correlation_id)
+
+        environment.step((_decision(environment, "shield"),))
+        first = environment.step((attack_decision("first"),))
+        environment.step((attack_decision("second"),))
+        snapshot = environment.snapshot()
+
+        active = environment.entity("caster").effects["physical-shield"]
+        self.assertEqual(20.0, active.modifier_values["damage_breakpoint.physical"])
+        damage = next(
+            event for event in first.events if event.kind == EventKind.DAMAGE_APPLIED
+        )
+        self.assertEqual(
+            50.0,
+            next(
+                scalar.value
+                for scalar in damage.scalars
+                if scalar.name == "resistance_percent"
+            ),
+        )
+
+        expected = environment.step((attack_decision("third"),))
+        expected_state = environment.snapshot()
+        self.assertNotIn("physical-shield", environment.entity("caster").effects)
+        removed = next(
+            event for event in expected.events if event.kind == EventKind.EFFECT_REMOVED
+        )
+        self.assertIn("reason.damage_breakpoint", removed.tags)
+        self.assertEqual(
+            30.0,
+            next(
+                scalar.value
+                for scalar in removed.scalars
+                if scalar.name == "accumulated_damage"
+            ),
+        )
+
+        environment.restore(snapshot)
+        actual = environment.step((attack_decision("third"),))
+        self.assertEqual(expected, actual)
+        self.assertEqual(expected_state, environment.snapshot())
+
     def test_periodic_effect_ticks_on_virtual_time_and_snapshot_replays_exactly(self) -> None:
         damage = DealDamage(
             SubjectRef.TARGET,

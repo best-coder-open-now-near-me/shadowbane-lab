@@ -9,8 +9,10 @@ from shadowbane_lab.combat import StackPriority
 from shadowbane_lab.protocol import EntityKind, Vector2
 from shadowbane_lab.sim.actions import (
     CombatStance,
+    DamageBreakpoint,
     EffectModifier,
     PeriodicPulse,
+    ResistanceAdjustment,
     ResourceImmunity,
 )
 
@@ -39,6 +41,7 @@ class ActiveEffectSnapshot:
     stacking_key: str | None
     tags: tuple[str, ...]
     modifiers: tuple[EffectModifier, ...]
+    modifier_values: tuple[tuple[str, float], ...]
     stack_order: int
     trains: int
     stack_priority: StackPriority
@@ -54,6 +57,7 @@ class ActiveEffectState:
     stacking_key: str | None = None
     tags: set[str] = field(default_factory=set)
     modifiers: tuple[EffectModifier, ...] = ()
+    modifier_values: dict[str, float] = field(default_factory=dict)
     stack_order: int = 0
     trains: int = 0
     stack_priority: StackPriority = StackPriority.ALWAYS
@@ -81,10 +85,28 @@ class ActiveEffectState:
         for tag in self.tags:
             _identifier(tag, "effect tag")
         if any(
-            not isinstance(modifier, (ResourceImmunity, PeriodicPulse))
+            not isinstance(
+                modifier,
+                (
+                    ResourceImmunity,
+                    PeriodicPulse,
+                    ResistanceAdjustment,
+                    DamageBreakpoint,
+                ),
+            )
             for modifier in self.modifiers
         ):
             raise ValueError("modifiers must contain typed effect modifiers")
+        self.modifier_values = _finite_mapping(self.modifier_values, "modifier_values")
+        expected_modifier_values = {
+            modifier.state_key
+            for modifier in self.modifiers
+            if isinstance(modifier, DamageBreakpoint)
+        }
+        if set(self.modifier_values) != expected_modifier_values:
+            raise ValueError("modifier_values must match stateful effect modifiers")
+        if any(value < 0 for value in self.modifier_values.values()):
+            raise ValueError("modifier_values must not be negative")
         for value, field_name in (
             (self.stack_order, "stack_order"),
             (self.trains, "trains"),
@@ -104,6 +126,7 @@ class ActiveEffectState:
             stacking_key=self.stacking_key,
             tags=tuple(sorted(self.tags)),
             modifiers=self.modifiers,
+            modifier_values=tuple(sorted(self.modifier_values.items())),
             stack_order=self.stack_order,
             trains=self.trains,
             stack_priority=self.stack_priority,
@@ -120,6 +143,7 @@ class ActiveEffectState:
             stacking_key=snapshot.stacking_key,
             tags=set(snapshot.tags),
             modifiers=snapshot.modifiers,
+            modifier_values=dict(snapshot.modifier_values),
             stack_order=snapshot.stack_order,
             trains=snapshot.trains,
             stack_priority=snapshot.stack_priority,

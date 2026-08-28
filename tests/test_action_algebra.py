@@ -10,6 +10,7 @@ from shadowbane_lab.sim import (
     AreaOrigin,
     AttackKind,
     ChanceGate,
+    DamageBreakpoint,
     DamageType,
     DealDamage,
     DeliveryKind,
@@ -19,6 +20,7 @@ from shadowbane_lab.sim import (
     MovementMode,
     PeriodicPulse,
     PhaseKind,
+    ResistanceAdjustment,
     ResistanceType,
     ResourceCost,
     ResourceImmunity,
@@ -304,6 +306,31 @@ class ActionAlgebraTests(unittest.TestCase):
                 interval_ms=1_000,
                 tick_count=1,
                 effects=(effect,),  # type: ignore[arg-type]
+            )
+
+    def test_damage_absorber_is_composed_from_resistance_and_breakpoint_modifiers(self) -> None:
+        resistance = ResistanceAdjustment(DamageType.CRUSH, 75.0)
+        breakpoint = DamageBreakpoint(
+            "physical-shield",
+            1_000.0,
+            (DamageType.SLASH, DamageType.CRUSH, DamageType.PIERCE),
+        )
+        effect = ApplyEffect(
+            SubjectRef.ACTOR,
+            "physical-shield",
+            300_000,
+            modifiers=(resistance, breakpoint),
+        )
+
+        self.assertEqual("damage_breakpoint.physical-shield", breakpoint.state_key)
+        self.assertEqual((resistance, breakpoint), effect.modifiers)
+        with self.assertRaisesRegex(ValueError, "known damage type"):
+            ResistanceAdjustment(DamageType.UNKNOWN, 75.0)
+        with self.assertRaisesRegex(ValueError, "must not contain duplicates"):
+            DamageBreakpoint(
+                "duplicate",
+                100.0,
+                (DamageType.CRUSH, DamageType.CRUSH),
             )
 
     def test_chance_gate_requires_a_bounded_direct_effect_bundle(self) -> None:

@@ -17,8 +17,10 @@ from shadowbane_lab.sim.actions import (
     AttackGate,
     AttackKind,
     ChanceGate,
+    DamageBreakpoint,
     DealDamage,
     PeriodicPulse,
+    ResistanceAdjustment,
     RestoreResource,
     TriangularAmount,
     UniformAmount,
@@ -97,6 +99,51 @@ class RulesetCompilerTests(unittest.TestCase):
         assert isinstance(pulse, PeriodicPulse)
         self.assertEqual(2, pulse.tick_count)
         self.assertEqual("poison", pulse.effects[0].damage_type)
+
+    def test_damage_breakpoint_and_resistance_compile_from_ruleset_data(self) -> None:
+        source = bundled_source()
+        shadow_touch = next(
+            action
+            for action in source["actions"]
+            if action["action_key"] == SHADOW_TOUCH
+        )
+        applied = next(
+            effect
+            for effect in shadow_touch["spec"]["phases"][0]["effects"]
+            if effect["op"] == "apply_effect"
+        )
+        applied["modifiers"] = [
+            {
+                "op": "resistance_adjustment",
+                "damage_type": "crush",
+                "amount": 75,
+            },
+            {
+                "op": "damage_breakpoint",
+                "breakpoint_key": "physical",
+                "threshold": 1_000,
+                "damage_types": ["crush", "pierce", "slash"],
+            },
+        ]
+
+        action = load_ruleset_text(json.dumps(source)).record(SHADOW_TOUCH).action
+
+        assert action is not None
+        effect = next(
+            item for item in action.phases[0].effects if isinstance(item, ApplyEffect)
+        )
+        self.assertEqual(
+            ResistanceAdjustment("crush", 75.0),
+            effect.modifiers[0],
+        )
+        self.assertEqual(
+            DamageBreakpoint(
+                "physical",
+                1_000.0,
+                ("crush", "pierce", "slash"),
+            ),
+            effect.modifiers[1],
+        )
 
     def test_bundled_slice_loads_with_explicit_quality_states(self) -> None:
         ruleset = load_shadowbane_vertical_slice()

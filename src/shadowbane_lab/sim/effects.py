@@ -7,6 +7,7 @@ from dataclasses import replace
 from math import hypot
 
 from shadowbane_lab.combat import (
+    DamageType,
     effective_resistance,
     melee_hit_chance_percent,
     power_hit_chance_percent,
@@ -33,6 +34,7 @@ from shadowbane_lab.sim.actions import (
     ChanceGate,
     ChangeStance,
     CombatStance,
+    DamageBreakpoint,
     DealDamage,
     DirectEffectPrimitive,
     ModifyObjective,
@@ -42,6 +44,7 @@ from shadowbane_lab.sim.actions import (
     MovementMode,
     PeriodicPulse,
     RemoveEffect,
+    ResistanceAdjustment,
     ResourceImmunity,
     RestoreResource,
     ScalarOperation,
@@ -455,6 +458,13 @@ class EffectExecutor:
         if effect.uses_resistance:
             actor = self._entity(item.actor_id)
             resistance = self._required_scalar(subject, f"resist.{effect.damage_type.value}")
+            resistance += sum(
+                modifier.amount
+                for active in subject.effects.values()
+                for modifier in active.modifiers
+                if isinstance(modifier, ResistanceAdjustment)
+                and modifier.damage_type is effect.damage_type
+            )
             armor_piercing = self._required_scalar(actor, "armor_piercing")
             protection_applies = (
                 f"protection.{effect.damage_type.value}" in subject.effective_tags
@@ -503,6 +513,15 @@ class EffectExecutor:
                 ),
             )
         )
+        if mitigated > 0.0:
+            self._accumulate_damage_breakpoints(
+                item,
+                subject,
+                effect.damage_type,
+                mitigated,
+                due_time,
+                events,
+            )
         if before - after > 0.0:
             self._drop_travel_stance(
                 item,
@@ -512,6 +531,51 @@ class EffectExecutor:
                 reason="damage",
             )
             self._interrupt_actor(subject.entity_id, "damage", due_time, events)
+
+    def _accumulate_damage_breakpoints(
+        self,
+        item: ScheduledItem,
+        subject: EntityState,
+        damage_type: DamageType,
+        amount: float,
+        due_time: int,
+        events: list[Event],
+    ) -> None:
+        for storage_key in sorted(tuple(subject.effects)):
+            active = subject.effects.get(storage_key)
+            if active is None:
+                continue
+            matching = tuple(
+                modifier
+                for modifier in active.modifiers
+                if isinstance(modifier, DamageBreakpoint)
+                and damage_type in modifier.damage_types
+            )
+            should_remove = False
+            removal_scalars: tuple[NamedScalar, ...] = ()
+            for modifier in matching:
+                accumulated = active.modifier_values[modifier.state_key] + amount
+                active.modifier_values[modifier.state_key] = accumulated
+                if accumulated > modifier.threshold:
+                    should_remove = True
+                    removal_scalars = (
+                        NamedScalar("breakpoint", modifier.threshold),
+                        NamedScalar("accumulated_damage", accumulated),
+                    )
+                    break
+            if not should_remove:
+                continue
+            subject.effects.pop(storage_key)
+            events.append(
+                self._effect_removed_event(
+                    subject,
+                    active,
+                    due_time,
+                    item,
+                    "reason.damage_breakpoint",
+                    scalars=removal_scalars,
+                )
+            )
 
     def _drop_travel_stance(
         self,
@@ -799,6 +863,11 @@ class EffectExecutor:
             stacking_key=effect.stacking_key,
             tags=set(effect.tags),
             modifiers=effect.modifiers,
+            modifier_values={
+                modifier.state_key: 0.0
+                for modifier in effect.modifiers
+                if isinstance(modifier, DamageBreakpoint)
+            },
             stack_order=effect.stack_order,
             trains=effect.trains,
             stack_priority=effect.stack_priority,
@@ -1039,6 +1108,8 @@ class EffectExecutor:
         due_time: int,
         item: ScheduledItem,
         reason: str,
+        *,
+        scalars: tuple[NamedScalar, ...] = (),
     ) -> Event:
         return self._event(
             EventKind.EFFECT_REMOVED,
@@ -1047,6 +1118,7 @@ class EffectExecutor:
             source_entity_id=active.source_entity_id,
             target_entity_id=subject.entity_id,
             action_key=item.action_key,
+            scalars=scalars,
             tags=(f"effect.{active.effect_key}", reason),
         )
 

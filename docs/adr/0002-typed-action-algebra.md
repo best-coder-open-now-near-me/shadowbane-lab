@@ -57,9 +57,16 @@ expiring the carrier invalidates its old scheduled pulses, and snapshots preserv
 schedule and random state.
 
 Exceptional Shadowbane mechanics must be represented by reviewed, reusable typed extensions
-rather than arbitrary callbacks or power-name branches embedded in ruleset data. The next
-required extension is generic damage interception for absorbs. Until it exists, powers requiring
-it remain unresolved; they must not be approximated through bespoke code.
+rather than arbitrary callbacks or power-name branches embedded in ruleset data. Shadowbane's
+damage "absorbers" are represented by their server-side composition: one or more
+`ResistanceAdjustment` modifiers plus a `DamageBreakpoint` that accumulates matching
+post-resistance damage and removes its carrier only after the configured threshold is exceeded.
+The accumulator is part of effect state, so snapshot/restore and replacement preserve exact
+timeline semantics. This is deliberately not modeled as temporary health or a pre-resistance
+interceptor.
+
+Mechanics not expressible by the reviewed algebra remain unresolved; they must not be
+approximated through bespoke power-name code.
 
 Action values are concrete after ruleset compilation. Rank curves, build modifiers, and
 source-specific formulas belong to the ruleset compiler, while the simulator executes the

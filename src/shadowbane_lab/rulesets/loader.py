@@ -32,6 +32,7 @@ from shadowbane_lab.sim import (
     AttackKind,
     ChangeStance,
     CombatStance,
+    DamageBreakpoint,
     DealDamage,
     DeliveryKind,
     DeliverySpec,
@@ -43,6 +44,7 @@ from shadowbane_lab.sim import (
     PeriodicPulse,
     PhaseKind,
     RemoveEffect,
+    ResistanceAdjustment,
     ResourceCost,
     ResourceImmunity,
     RestoreResource,
@@ -397,7 +399,7 @@ def _parse_effect(data: Mapping[str, Any], rank: int) -> EffectPrimitive:
 
 def _parse_effect_modifier(
     data: Mapping[str, Any], rank: int
-) -> ResourceImmunity | PeriodicPulse:
+) -> ResourceImmunity | PeriodicPulse | ResistanceAdjustment | DamageBreakpoint:
     operation = _string(data, "op")
     if operation == "resource_immunity":
         return ResourceImmunity(resource_key=_string(data, "resource_key"))
@@ -413,6 +415,19 @@ def _parse_effect_modifier(
             )
         except ValueError as exc:
             raise RulesetLoadError(str(exc)) from exc
+    if operation == "resistance_adjustment":
+        return ResistanceAdjustment(
+            damage_type=DamageType(_string(data, "damage_type")),
+            amount=_resolved_number(_required(data, "amount"), rank),
+        )
+    if operation == "damage_breakpoint":
+        return DamageBreakpoint(
+            breakpoint_key=_string(data, "breakpoint_key"),
+            threshold=_resolved_number(_required(data, "threshold"), rank),
+            damage_types=tuple(
+                DamageType(value) for value in _strings(data, "damage_types")
+            ),
+        )
     raise RulesetLoadError(f"unsupported effect modifier operation: {operation}")
 
 

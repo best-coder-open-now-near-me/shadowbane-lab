@@ -397,8 +397,76 @@ class ResourceImmunity:
         return (f"immunity.resource.{self.resource_key}",)
 
 
-EffectModifier = ResourceImmunity | PeriodicPulse
-_EFFECT_MODIFIER_TYPES = (ResourceImmunity, PeriodicPulse)
+@dataclass(frozen=True, slots=True)
+class ResistanceAdjustment:
+    """Adjust one damage resistance channel while the carrying effect is active."""
+
+    damage_type: DamageType
+    amount: float
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.damage_type, DamageType):
+            try:
+                object.__setattr__(self, "damage_type", DamageType(self.damage_type))
+            except (TypeError, ValueError) as exc:
+                raise ValueError("damage_type must be a DamageType") from exc
+        if self.damage_type is DamageType.UNKNOWN:
+            raise ValueError("resistance adjustments require a known damage type")
+        _finite(self.amount, "resistance adjustment")
+        if self.amount == 0:
+            raise ValueError("resistance adjustment must not be zero")
+
+    @property
+    def semantic_tags(self) -> tuple[str, ...]:
+        return (f"modifier.resistance.{self.damage_type.value}",)
+
+
+@dataclass(frozen=True, slots=True)
+class DamageBreakpoint:
+    """Remove the carrying effect after cumulative matching damage exceeds a threshold."""
+
+    breakpoint_key: str
+    threshold: float
+    damage_types: tuple[DamageType, ...]
+
+    def __post_init__(self) -> None:
+        _identifier(self.breakpoint_key, "breakpoint_key")
+        _finite(self.threshold, "damage breakpoint threshold")
+        if self.threshold <= 0:
+            raise ValueError("damage breakpoint threshold must be positive")
+        if not self.damage_types:
+            raise ValueError("damage breakpoint requires at least one damage type")
+        normalized: list[DamageType] = []
+        for damage_type in self.damage_types:
+            try:
+                value = DamageType(damage_type)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("damage_types must contain DamageType values") from exc
+            if value is DamageType.UNKNOWN:
+                raise ValueError("damage breakpoints require known damage types")
+            normalized.append(value)
+        if len(normalized) != len(set(normalized)):
+            raise ValueError("damage breakpoint types must not contain duplicates")
+        object.__setattr__(self, "damage_types", tuple(normalized))
+
+    @property
+    def state_key(self) -> str:
+        return f"damage_breakpoint.{self.breakpoint_key}"
+
+    @property
+    def semantic_tags(self) -> tuple[str, ...]:
+        return (f"breakpoint.damage.{self.breakpoint_key}",)
+
+
+EffectModifier = (
+    ResourceImmunity | PeriodicPulse | ResistanceAdjustment | DamageBreakpoint
+)
+_EFFECT_MODIFIER_TYPES = (
+    ResourceImmunity,
+    PeriodicPulse,
+    ResistanceAdjustment,
+    DamageBreakpoint,
+)
 
 
 @dataclass(frozen=True, slots=True)
