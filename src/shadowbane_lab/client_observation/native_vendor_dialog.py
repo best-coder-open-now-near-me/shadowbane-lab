@@ -22,7 +22,10 @@ from shadowbane_lab.client_observation.native_health import (
 
 NATIVE_VENDOR_DIALOG_PROFILE_SCHEMA_VERSION = 1
 NATIVE_VENDOR_DIALOG_TRACE_SCHEMA_VERSION = 1
-_BUNDLED_PROFILE_NAME = "wonderbane-ef43784b.native-vendor-dialog.json"
+_BUNDLED_PROFILE_NAMES = (
+    "wonderbane-ef43784b.native-vendor-dialog.json",
+    "wonderbane-2b186aef.native-vendor-dialog.json",
+)
 
 _REQUIRED_BREAKPOINT_ROLES = frozenset(
     {"inbound_entry", "inbound_complete", "outbound_entry", "outbound_complete"}
@@ -1255,10 +1258,22 @@ class WindowsVendorDialogDebugBackend:
 
 
 def load_bundled_native_vendor_dialog_profile() -> NativeVendorDialogProfile:
+    """Load the original unmodified WonderBane profile for compatibility."""
+
     resource = files("shadowbane_lab.client_observation").joinpath(
-        "data", _BUNDLED_PROFILE_NAME
+        "data", _BUNDLED_PROFILE_NAMES[0]
     )
     return load_native_vendor_dialog_profile_text(resource.read_text(encoding="utf-8"))
+
+
+def load_bundled_native_vendor_dialog_profiles() -> tuple[NativeVendorDialogProfile, ...]:
+    resources = files("shadowbane_lab.client_observation")
+    return tuple(
+        load_native_vendor_dialog_profile_text(
+            resources.joinpath("data", name).read_text(encoding="utf-8")
+        )
+        for name in _BUNDLED_PROFILE_NAMES
+    )
 
 
 def load_native_vendor_dialog_profile(path: str | Path) -> NativeVendorDialogProfile:
@@ -1316,6 +1331,39 @@ def open_windows_native_vendor_dialog_tracer(
         return NativeVendorDialogTracer(profile, backend)
     except Exception:
         backend.close()
+        raise
+
+
+def open_windows_bundled_native_vendor_dialog_tracer(
+    *,
+    process_id: int | None = None,
+) -> tuple[NativeVendorDialogProfile, NativeVendorDialogTracer]:
+    profiles = load_bundled_native_vendor_dialog_profiles()
+    executable_name = profiles[0].executable_name
+    process = (
+        WindowsReadOnlyProcessMemory.open_unique(executable_name)
+        if process_id is None
+        else WindowsReadOnlyProcessMemory.open_for_process(executable_name, process_id)
+    )
+    profile = next(
+        (
+            candidate
+            for candidate in profiles
+            if candidate.executable_sha256.casefold() == process.executable_sha256.casefold()
+        ),
+        None,
+    )
+    if profile is None:
+        digest = process.executable_sha256
+        process.close()
+        raise NativeVendorDialogCompatibilityError(
+            f"running Shadowbane executable SHA-256 {digest} has no bundled vendor-dialog profile"
+        )
+    try:
+        backend = WindowsVendorDialogDebugBackend(process)
+        return profile, NativeVendorDialogTracer(profile, backend)
+    except Exception:
+        process.close()
         raise
 
 

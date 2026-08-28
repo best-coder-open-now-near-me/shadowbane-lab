@@ -94,7 +94,6 @@ from shadowbane_lab.client_observation import (
     load_bundled_native_target_identity_profile,
     load_bundled_native_target_position_profile,
     load_bundled_native_training_profile,
-    load_bundled_native_vendor_dialog_profile,
     load_bundled_native_vitals_profile,
     load_bundled_native_world_map_profile,
     load_bundled_native_zone_profile,
@@ -114,6 +113,7 @@ from shadowbane_lab.client_observation import (
     load_native_world_map_profile,
     load_native_zone_profile,
     load_observation_calibration,
+    open_windows_bundled_native_vendor_dialog_tracer,
     open_windows_native_character_population_reader,
     open_windows_native_current_zone_reader,
     open_windows_native_group_reader,
@@ -2202,15 +2202,16 @@ def _trace_native_vendor_dialog(
     as_json: bool,
 ) -> int:
     try:
-        profile = (
-            load_native_vendor_dialog_profile(profile_path)
-            if profile_path is not None
-            else load_bundled_native_vendor_dialog_profile()
-        )
-        tracer = open_windows_native_vendor_dialog_tracer(
-            profile,
-            process_id=process_id,
-        )
+        if profile_path is None:
+            profile, tracer = open_windows_bundled_native_vendor_dialog_tracer(
+                process_id=process_id
+            )
+        else:
+            profile = load_native_vendor_dialog_profile(profile_path)
+            tracer = open_windows_native_vendor_dialog_tracer(
+                profile,
+                process_id=process_id,
+            )
 
         def announce_armed() -> None:
             print(
