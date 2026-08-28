@@ -558,6 +558,7 @@ class ClientCliTests(unittest.TestCase):
                 captured["reader_closed"] = True
 
         reader = FakeWorldMapReader()
+        input_backend = RecordingInputBackend()
 
         def run_travel(**kwargs) -> int:
             captured.update(kwargs)
@@ -591,10 +592,18 @@ class ClientCliTests(unittest.TestCase):
                 "shadowbane_lab.cli.open_windows_native_world_map_reader",
                 return_value=reader,
             ),
+            patch(
+                "shadowbane_lab.cli.load_arcane_hotkeys",
+                return_value=SimpleNamespace(
+                    bindings_for=lambda _action: (
+                        SimpleNamespace(input_keys=("m",)),
+                    )
+                ),
+            ),
             patch("shadowbane_lab.cli._run_travel", side_effect=run_travel),
             patch(
                 "shadowbane_lab.cli.PyAutoGuiBackend",
-                return_value=RecordingInputBackend(),
+                return_value=input_backend,
             ),
             redirect_stdout(output),
         ):
@@ -621,6 +630,7 @@ class ClientCliTests(unittest.TestCase):
                 click_interval_ms=4_000,
                 live=True,
                 as_json=True,
+                arcane_pref_path=Path("ArcanePref.cfg"),
             )
 
         events = [json.loads(line) for line in output.getvalue().splitlines()]
@@ -631,6 +641,7 @@ class ClientCliTests(unittest.TestCase):
         self.assertEqual(47_876.0, captured["lg"])
         self.assertEqual(4320, captured["client_process_id"])
         self.assertEqual("native_world_map", accepted["destination_source"])
+        self.assertEqual("m", input_backend.invocations[0].key)
         self.assertTrue(captured["reader_closed"])
 
     def test_travel_binds_native_readers_to_the_guarded_client_process(self) -> None:

@@ -28,6 +28,9 @@ IGNORED= FALSE
 
 
 class ArcaneHotkeyTests(unittest.TestCase):
+    def test_world_map_action_matches_captured_arcane_pref_message(self) -> None:
+        self.assertEqual(48, ArcaneClientAction.WORLD_MAP)
+
     def test_parses_captured_mob_cycle_bindings_losslessly(self) -> None:
         table = load_arcane_hotkeys_text(_CAPTURED_TARGET_BINDINGS)
 

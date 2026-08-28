@@ -26,10 +26,15 @@ from shadowbane_lab.client_input import (
     EventEmergencyStop,
     ForegroundWindowGuard,
     GuardedInputExecutor,
+    HotkeyCommand,
+    InputExecutionError,
+    InputPlan,
+    KeyPressCommand,
     MouseButton,
     PyAutoGuiBackend,
     StaticBindingPointResolver,
     StopSignal,
+    WaitCommand,
     WindowGuardError,
     WindowsForegroundWindowInspector,
     WindowsHotkeyEmergencyStop,
@@ -620,6 +625,11 @@ def _parser() -> argparse.ArgumentParser:
     listen_go.add_argument("--native-vitals-profile", type=Path)
     listen_go.add_argument("--native-runegate-profile", type=Path)
     listen_go.add_argument("--native-world-map-profile", type=Path)
+    listen_go.add_argument(
+        "--arcane-pref",
+        type=Path,
+        help="ArcanePref.cfg used to close the world map with its active binding",
+    )
     listen_go.add_argument(
         "--world-def",
         type=Path,
@@ -2634,6 +2644,7 @@ def _listen_for_go_commands(
     pve_camp_radius: float = 120.0,
     pve_retained_trace_steps: int = 2_000,
     native_world_map_profile_path: Path | None = None,
+    arcane_pref_path: Path | None = None,
 ) -> int:
     if not live:
         return _error("chat travel requires the explicit --live flag", as_json=as_json)
@@ -2666,6 +2677,27 @@ def _listen_for_go_commands(
             if native_world_map_profile_path is not None
             else load_bundled_native_world_map_profile()
         )
+        world_map_close_plan = None
+        if arcane_pref_path is not None:
+            world_map_bindings = load_arcane_hotkeys(arcane_pref_path).bindings_for(
+                ArcaneClientAction.WORLD_MAP
+            )
+            if len(world_map_bindings) != 1:
+                raise ValueError(
+                    "ArcanePref must contain exactly one WorldMap hotkey binding; "
+                    f"found {len(world_map_bindings)}"
+                )
+            world_map_keys = world_map_bindings[0].input_keys
+            world_map_command = (
+                KeyPressCommand(world_map_keys[0])
+                if len(world_map_keys) == 1
+                else HotkeyCommand(world_map_keys)
+            )
+            world_map_close_plan = InputPlan(
+                correlation_id="travel:world-map-close",
+                action_key="client.world-map.close",
+                commands=(WaitCommand(75), world_map_command),
+            )
         if pve_client_profile_path is not None:
             pve_profile = load_calibration(pve_client_profile_path)
             if not pve_profile.live_input_enabled:
@@ -2727,6 +2759,11 @@ def _listen_for_go_commands(
                     backend=PyAutoGuiBackend(),
                     stop_signal=service_stop,
                 ),
+            )
+            world_map_executor = GuardedInputExecutor(
+                guard=guard,
+                backend=PyAutoGuiBackend(),
+                stop_signal=service_stop,
             )
             stop_sequence = 0
             _print_go_listener_event("listening", as_json=as_json)
@@ -2955,6 +2992,17 @@ def _listen_for_go_commands(
                 with active_lock:
                     active_operation_stop = route_stop
                 try:
+                    if pointer_destination is not None and world_map_close_plan is not None:
+                        try:
+                            world_map_executor.execute(world_map_close_plan)
+                        except InputExecutionError as exc:
+                            _print_go_listener_event(
+                                "rejected",
+                                as_json=as_json,
+                                command=command,
+                                reason=f"could not close world map: {exc}",
+                            )
+                            continue
                     _print_go_listener_event(
                         "accepted",
                         as_json=as_json,
@@ -3337,6 +3385,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             native_vitals_profile_path=arguments.native_vitals_profile,
             native_runegate_profile_path=arguments.native_runegate_profile,
             native_world_map_profile_path=arguments.native_world_map_profile,
+            arcane_pref_path=arguments.arcane_pref,
             world_def_path=arguments.world_def,
             named_destination_overrides_path=arguments.named_destination_overrides,
             pve_client_profile_path=arguments.pve_client_profile,

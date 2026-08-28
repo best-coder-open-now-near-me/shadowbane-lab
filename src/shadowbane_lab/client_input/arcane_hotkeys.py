@@ -17,6 +17,7 @@ class ArcaneHotkeyLoadError(ValueError):
 class ArcaneClientAction(IntEnum):
     """Verified native message IDs exposed by the installed WonderBane UI."""
 
+    WORLD_MAP = 48
     CLEAR_TARGET = 102
     TARGET_SELF = 182
     TARGET_NEXT_ALLY = 184
