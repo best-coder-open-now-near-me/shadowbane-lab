@@ -6,6 +6,7 @@ from shadowbane_lab.sim.actions import (
     ActionSpec,
     ActionTriggerSpec,
     ApplyEffect,
+    AttackModifierSpec,
     DealDamage,
     DeliveryKind,
     DeliverySpec,
@@ -25,6 +26,8 @@ from shadowbane_lab.sim.actions import (
     TargetingSpec,
     TransferItem,
     TriggerConsumption,
+    TriggerMoment,
+    WeaponAttackSpec,
 )
 from shadowbane_lab.sim.clock import ClockSnapshot, SimulationClock
 from shadowbane_lab.sim.environment import ReferenceEnvironment
@@ -51,6 +54,7 @@ __all__ = [
     "ActionPhase",
     "ActionSpec",
     "ActionTriggerSpec",
+    "AttackModifierSpec",
     "AgentExchange",
     "ApplyEffect",
     "ActiveEffectSnapshot",
@@ -85,4 +89,6 @@ __all__ = [
     "TargetingSpec",
     "TransferItem",
     "TriggerConsumption",
+    "TriggerMoment",
+    "WeaponAttackSpec",
 ]

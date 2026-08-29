@@ -65,8 +65,19 @@ class TagOperation(StrEnum):
     REMOVE = "remove"
 
 
+class TriggerMoment(StrEnum):
+    ACTION_START = "action_start"
+    ATTEMPT = "attempt"
+    HIT = "hit"
+    DAMAGE = "damage"
+
+
 class TriggerConsumption(StrEnum):
     ACTION_START = "action_start"
+    ATTEMPT = "attempt"
+    HIT = "hit"
+    DAMAGE = "damage"
+    NEVER = "never"
 
 
 @dataclass(frozen=True, slots=True)
@@ -308,21 +319,121 @@ _EFFECT_TYPES = (
 
 
 @dataclass(frozen=True, slots=True)
+class AttackModifierSpec:
+    """Modifies the qualifying weapon attack before its roll and damage."""
+
+    attack_rating_bonus: float = 0.0
+    damage_multiplier: float = 1.0
+    bonus_damage_minimum: float = 0.0
+    bonus_damage_maximum: float = 0.0
+    bypass_defense: bool = False
+    bypass_passive_defense: bool = False
+    damage_type_override: str | None = None
+    tags: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        for value, name in (
+            (self.attack_rating_bonus, "attack_rating_bonus"),
+            (self.damage_multiplier, "damage_multiplier"),
+            (self.bonus_damage_minimum, "bonus_damage_minimum"),
+            (self.bonus_damage_maximum, "bonus_damage_maximum"),
+        ):
+            _finite(value, name)
+        if self.damage_multiplier <= 0:
+            raise ValueError("damage_multiplier must be positive")
+        if self.bonus_damage_minimum < 0:
+            raise ValueError("bonus_damage_minimum must not be negative")
+        if self.bonus_damage_maximum < self.bonus_damage_minimum:
+            raise ValueError("bonus damage maximum must be at least minimum")
+        if not isinstance(self.bypass_defense, bool):
+            raise ValueError("bypass_defense must be a boolean")
+        if not isinstance(self.bypass_passive_defense, bool):
+            raise ValueError("bypass_passive_defense must be a boolean")
+        if self.damage_type_override is not None:
+            _identifier(self.damage_type_override, "damage_type_override")
+        _unique_strings(self.tags, "attack modifier tags")
+
+
+@dataclass(frozen=True, slots=True)
+class WeaponAttackSpec:
+    """Parameterized weapon action resolved by the generic combat pipeline."""
+
+    weapon_slot: str
+    damage_type: str
+    minimum_damage: float
+    maximum_damage: float
+    attack_rating_scalar: str = "attack_rating"
+    defense_scalar: str = "defense"
+    minimum_damage_scalar: str | None = None
+    maximum_damage_scalar: str | None = None
+    default_attack_rating: float = 100.0
+    default_defense: float = 100.0
+    minimum_hit_chance: float = 0.05
+    maximum_hit_chance: float = 0.95
+    passive_defense_keys: tuple[str, ...] = ("block", "dodge", "parry")
+    phase_index: int = 0
+
+    def __post_init__(self) -> None:
+        _identifier(self.weapon_slot, "weapon_slot")
+        _identifier(self.damage_type, "damage_type")
+        for value, name in (
+            (self.minimum_damage, "minimum_damage"),
+            (self.maximum_damage, "maximum_damage"),
+            (self.default_attack_rating, "default_attack_rating"),
+            (self.default_defense, "default_defense"),
+            (self.minimum_hit_chance, "minimum_hit_chance"),
+            (self.maximum_hit_chance, "maximum_hit_chance"),
+        ):
+            _finite(value, name)
+        if self.minimum_damage < 0 or self.maximum_damage < self.minimum_damage:
+            raise ValueError("weapon damage range is invalid")
+        for value, name in (
+            (self.attack_rating_scalar, "attack_rating_scalar"),
+            (self.defense_scalar, "defense_scalar"),
+        ):
+            _identifier(value, name)
+        for value, name in (
+            (self.minimum_damage_scalar, "minimum_damage_scalar"),
+            (self.maximum_damage_scalar, "maximum_damage_scalar"),
+        ):
+            if value is not None:
+                _identifier(value, name)
+        if not 0.0 <= self.minimum_hit_chance <= self.maximum_hit_chance <= 1.0:
+            raise ValueError("weapon hit-chance bounds must be ordered within [0, 1]")
+        _unique_strings(self.passive_defense_keys, "passive_defense_keys")
+        _non_negative_integer(self.phase_index, "phase_index")
+
+    def hit_chance(self, attack_rating: float, defense: float, *, bypass: bool = False) -> float:
+        if bypass:
+            return 1.0
+        _finite(attack_rating, "attack_rating")
+        _finite(defense, "defense")
+        attack = max(0.0, attack_rating)
+        defended = max(0.0, defense)
+        denominator = max(1.0, attack + defended)
+        raw = 0.5 + (attack - defended) / (2.0 * denominator)
+        return max(self.minimum_hit_chance, min(self.maximum_hit_chance, raw))
+
+
+@dataclass(frozen=True, slots=True)
 class ActionTriggerSpec:
-    # Payload armed now and applied by the next qualifying action.
+    """Payload and attack modifier armed for a later qualifying action."""
 
     trigger_key: str
-    payload: tuple[EffectPrimitive, ...]
+    payload: tuple[EffectPrimitive, ...] = ()
     required_action_tags: tuple[str, ...] = ()
     qualifying_action_keys: tuple[str, ...] = ()
     forbidden_action_tags: tuple[str, ...] = ()
+    fire_on: TriggerMoment = TriggerMoment.ACTION_START
     consume_on: TriggerConsumption = TriggerConsumption.ACTION_START
+    chance: float = 1.0
+    attack_modifier: AttackModifierSpec | None = None
     tags: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         _identifier(self.trigger_key, "trigger_key")
-        if not self.payload:
-            raise ValueError("action trigger payload must not be empty")
+        if not self.payload and self.attack_modifier is None:
+            raise ValueError("action trigger requires a payload or attack modifier")
         if any(not isinstance(effect, _EFFECT_TYPES) for effect in self.payload):
             raise ValueError("action trigger payload must contain typed effect primitives")
         for values, name in (
@@ -336,8 +447,17 @@ class ActionTriggerSpec:
             raise ValueError("action trigger requires action tags or explicit action keys")
         if set(self.required_action_tags) & set(self.forbidden_action_tags):
             raise ValueError("trigger action tags cannot be both required and forbidden")
+        if not isinstance(self.fire_on, TriggerMoment):
+            raise ValueError("fire_on must be a TriggerMoment")
         if not isinstance(self.consume_on, TriggerConsumption):
             raise ValueError("consume_on must be a TriggerConsumption")
+        _finite(self.chance, "trigger chance")
+        if not 0.0 <= self.chance <= 1.0:
+            raise ValueError("trigger chance must be between zero and one")
+        if self.attack_modifier is not None and not isinstance(
+            self.attack_modifier, AttackModifierSpec
+        ):
+            raise ValueError("attack_modifier must be an AttackModifierSpec or null")
 
     def matches(self, action_key: str, action_tags: frozenset[str]) -> bool:
         if self.qualifying_action_keys and action_key not in self.qualifying_action_keys:
@@ -384,6 +504,7 @@ class ActionSpec:
     required_actor_tags: tuple[str, ...] = ()
     forbidden_actor_tags: tuple[str, ...] = ()
     features: tuple[NamedScalar, ...] = ()
+    weapon_attack: WeaponAttackSpec | None = None
     armed_trigger: ActionTriggerSpec | None = None
     tags: tuple[str, ...] = ()
 
@@ -408,6 +529,11 @@ class ActionSpec:
             raise ValueError("features must contain NamedScalar values")
         feature_names = tuple(feature.name for feature in self.features)
         _unique_strings(feature_names, "feature names")
+        if self.weapon_attack is not None:
+            if not isinstance(self.weapon_attack, WeaponAttackSpec):
+                raise ValueError("weapon_attack must be a WeaponAttackSpec or null")
+            if self.weapon_attack.phase_index >= len(self.phases):
+                raise ValueError("weapon attack phase_index is outside action phases")
         if self.armed_trigger is not None:
             if not isinstance(self.armed_trigger, ActionTriggerSpec):
                 raise ValueError("armed_trigger must be an ActionTriggerSpec or null")
@@ -453,6 +579,10 @@ class ActionCatalog:
 
     def trigger_for_effect(self, effect_key: str) -> ActionTriggerSpec | None:
         return self._triggers_by_effect_key.get(effect_key)
+
+    @property
+    def trigger_keys(self) -> tuple[str, ...]:
+        return tuple(sorted(self._triggers_by_effect_key))
 
     def __len__(self) -> int:
         return len(self._actions)

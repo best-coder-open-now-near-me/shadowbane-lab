@@ -53,6 +53,8 @@ class PackagePiece:
     display_name: str
     action_keys: tuple[str, ...] = ()
     tags: tuple[str, ...] = ()
+    persistent_trigger_keys: tuple[str, ...] = ()
+    scalar_deltas: tuple[tuple[str, float], ...] = ()
     health_delta: float = 0.0
     mana_delta: float = 0.0
     stamina_delta: float = 0.0
@@ -67,6 +69,7 @@ class PackagePiece:
         for values, name in (
             (self.action_keys, "action_keys"),
             (self.tags, "tags"),
+            (self.persistent_trigger_keys, "persistent_trigger_keys"),
             (self.requires, "requires"),
             (self.conflicts, "conflicts"),
         ):
@@ -82,6 +85,10 @@ class PackagePiece:
             (self.move_speed_delta, "move_speed_delta"),
         ):
             _finite(value, name)
+        scalar_keys = tuple(key for key, _ in self.scalar_deltas)
+        _unique_strings(scalar_keys, "scalar delta keys")
+        for key, value in self.scalar_deltas:
+            _finite(value, f"scalar_deltas.{key}")
         metadata_keys = tuple(key for key, _ in self.metadata)
         _unique_strings(metadata_keys, "metadata keys")
         for key, value in self.metadata:
@@ -100,6 +107,7 @@ class PackageInventory:
     base_stamina: float = 200.0
     base_move_speed: float = 15.0
     base_tags: tuple[str, ...] = ()
+    base_scalars: tuple[tuple[str, float], ...] = ()
     selection_minimum: int = 1
     selection_maximum: int | None = None
 
@@ -110,6 +118,10 @@ class PackageInventory:
         package_ids = tuple(item.package_id for item in self.packages)
         _unique_strings(package_ids, "package ids")
         _unique_strings(self.base_tags, "base_tags")
+        base_scalar_keys = tuple(key for key, _ in self.base_scalars)
+        _unique_strings(base_scalar_keys, "base scalar keys")
+        for key, value in self.base_scalars:
+            _finite(value, f"base_scalars.{key}")
         for value, name in (
             (self.base_health, "base_health"),
             (self.base_mana, "base_mana"),
@@ -243,6 +255,19 @@ def assemble_package_loadout(
             | {tag for package_id in ordered for tag in packages[package_id].tags}
         )
     )
+    scalar_values = dict(inventory.base_scalars)
+    for package_id in ordered:
+        for key, value in packages[package_id].scalar_deltas:
+            scalar_values[key] = scalar_values.get(key, 0.0) + value
+    persistent_trigger_keys = tuple(
+        sorted(
+            {
+                trigger_key
+                for package_id in ordered
+                for trigger_key in packages[package_id].persistent_trigger_keys
+            }
+        )
+    )
     auto_added = tuple(sorted(selected - set(package_ids)))
     loadout = PrimitiveLoadout(
         loadout_id=loadout_id,
@@ -253,6 +278,8 @@ def assemble_package_loadout(
         stamina=stamina,
         move_speed=move_speed,
         tags=tags,
+        scalars=tuple(sorted(scalar_values.items())),
+        persistent_trigger_keys=persistent_trigger_keys,
         metadata=(
             ("inventory_id", inventory.inventory_id),
             ("package_ids", ",".join(ordered)),
@@ -364,6 +391,7 @@ def load_package_inventory_text(text: str) -> PackageInventory:
         base_stamina=body.get("stamina", 200.0),
         base_move_speed=body.get("move_speed", 15.0),
         base_tags=_strings(body, "tags", "body"),
+        base_scalars=tuple(sorted(_number_mapping(body, "scalars", "body").items())),
         selection_minimum=raw.get("selection_minimum", 1),
         selection_maximum=raw.get("selection_maximum"),
     )
@@ -385,6 +413,10 @@ def _parse_package(raw: Any, index: int) -> PackagePiece:
         display_name=raw.get("display_name", ""),
         action_keys=_strings(raw, "action_keys", f"packages[{index}]"),
         tags=_strings(raw, "tags", f"packages[{index}]"),
+        persistent_trigger_keys=_strings(raw, "persistent_trigger_keys", f"packages[{index}]"),
+        scalar_deltas=tuple(
+            sorted(_number_mapping(modifiers, "scalars", f"packages[{index}].modifiers").items())
+        ),
         health_delta=modifiers.get("health", 0.0),
         mana_delta=modifiers.get("mana", 0.0),
         stamina_delta=modifiers.get("stamina", 0.0),
@@ -393,6 +425,24 @@ def _parse_package(raw: Any, index: int) -> PackagePiece:
         conflicts=_strings(raw, "conflicts", f"packages[{index}]"),
         metadata=tuple(sorted(metadata.items())),
     )
+
+
+def _number_mapping(raw: dict[str, Any], key: str, context: str) -> dict[str, float]:
+    values = raw.get(key, {})
+    if not isinstance(values, dict):
+        raise PackageAssemblyError(f"{context}.{key} must be an object")
+    result: dict[str, float] = {}
+    for item_key, item_value in values.items():
+        if (
+            not isinstance(item_key, str)
+            or not item_key.strip()
+            or isinstance(item_value, bool)
+            or not isinstance(item_value, (int, float))
+            or not isfinite(item_value)
+        ):
+            raise PackageAssemblyError(f"{context}.{key} must map strings to numbers")
+        result[item_key] = float(item_value)
+    return result
 
 
 def _strings(raw: dict[str, Any], key: str, context: str) -> tuple[str, ...]:

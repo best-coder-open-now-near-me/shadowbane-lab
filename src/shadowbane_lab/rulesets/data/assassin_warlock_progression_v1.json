@@ -38,21 +38,24 @@
         },
         {
           "fields": [
-            "spec.targeting",
-            "spec.phases[0].effects",
+            "concrete.client_binding_key",
+            "spec.armed_trigger.attack_modifier",
+            "spec.armed_trigger.fire_on",
             "spec.features",
+            "spec.phases[0].effects",
             "spec.tags",
-            "concrete.client_binding_key"
+            "spec.targeting"
           ],
           "source_id": "lab-action-algebra-v1",
           "locator": "Backstab armed next-swing mapping",
-          "note": "The power now arms a generic action trigger; its payload resolves after the next qualifying melee weapon action rather than as immediate damage."
+          "note": "Backstab now modifies the next qualifying weapon attack, bypasses passive defense, adds rank-scaled damage, consumes on attempt, and removes stealth."
         }
       ],
       "unresolved": [
         "Server power token and IDString require the deployment power-data export.",
-        "The 90-second armed duration is a provisional harness value; live behavior must determine timeout, miss retention, and weapon-swap cancellation.",
-        "Weapon damage, attack rating, passive-defense bypass, hit roll, and exact consume-on-miss semantics remain future primitive work."
+        "The 90-second armed duration remains provisional pending live timeout and weapon-swap tests.",
+        "Consumption on swing attempt is explicit but still requires WonderBane miss-retention verification.",
+        "The published passive-defense bypass is represented; the exact attack-rating and base weapon formulas remain provisional."
       ],
       "spec": {
         "targeting": {
@@ -133,31 +136,53 @@
           "forbidden_action_tags": [
             "setup"
           ],
-          "consume_on": "action_start",
+          "consume_on": "attempt",
           "tags": [
             "weapon_power",
             "backstab"
           ],
           "payload": [
             {
-              "op": "deal_damage",
-              "subject": "target",
-              "amount": {
-                "interpolation": "linear",
-                "rank_min": 0,
-                "rank_max": 40,
-                "value_min": 80,
-                "value_max": 400
-              },
-              "damage_type": "physical"
-            },
-            {
               "op": "remove_effect",
               "subject": "actor",
               "effect_key": null,
               "matching_tag": "visibility.invisible"
+            },
+            {
+              "op": "modify_tag",
+              "subject": "actor",
+              "tag": "visibility.invisible",
+              "operation": "remove"
             }
-          ]
+          ],
+          "fire_on": "attempt",
+          "chance": 1.0,
+          "attack_modifier": {
+            "attack_rating_bonus": 0,
+            "damage_multiplier": 1,
+            "bonus_damage_minimum": {
+              "interpolation": "linear",
+              "rank_min": 0,
+              "rank_max": 40,
+              "value_min": 80,
+              "value_max": 400
+            },
+            "bonus_damage_maximum": {
+              "interpolation": "linear",
+              "rank_min": 0,
+              "rank_max": 40,
+              "value_min": 80,
+              "value_max": 400
+            },
+            "bypass_defense": false,
+            "bypass_passive_defense": true,
+            "damage_type_override": null,
+            "tags": [
+              "weapon_power",
+              "backstab",
+              "passive_defense_bypass"
+            ]
+          }
         },
         "tags": [
           "combat",

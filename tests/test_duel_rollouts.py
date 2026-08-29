@@ -231,7 +231,7 @@ class DuelRolloutTests(unittest.TestCase):
             self.assertIn(BASIC_ATTACK, actions)
             self.assertEqual(0, combatant.rejected_actions)
 
-    def test_matrix_aggregates_distances_and_seed_invariance(self) -> None:
+    def test_matrix_aggregates_distances_and_seed_variation(self) -> None:
         cells = progression_duel_matrix(
             levels=(10,),
             power_ranks=(0,),
@@ -244,7 +244,7 @@ class DuelRolloutTests(unittest.TestCase):
         for cell in cells:
             self.assertEqual(2, cell.matches)
             self.assertEqual(cell.matches, cell.assassin_wins + cell.warlock_wins + cell.draws)
-            self.assertEqual(1, cell.unique_trace_count)
+            self.assertEqual(2, cell.unique_trace_count)
 
     def test_cli_emits_machine_readable_results(self) -> None:
         output = io.StringIO()
@@ -282,7 +282,7 @@ class DuelRolloutTests(unittest.TestCase):
         self.assertEqual(0, exit_code)
         self.assertEqual(1, len(payload))
         self.assertEqual(2, payload[0]["matches"])
-        self.assertEqual(1, payload[0]["unique_trace_count"])
+        self.assertEqual(2, payload[0]["unique_trace_count"])
 
 
 if __name__ == "__main__":

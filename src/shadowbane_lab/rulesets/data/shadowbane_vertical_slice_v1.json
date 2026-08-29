@@ -124,20 +124,22 @@
         {
           "fields": [
             "concrete.client_binding_key",
-            "spec.targeting",
-            "spec.phases",
             "spec.cooldown_ms",
             "spec.features",
-            "spec.tags"
+            "spec.phases",
+            "spec.phases[0].effects",
+            "spec.tags",
+            "spec.targeting",
+            "spec.weapon_attack"
           ],
           "source_id": "lab-action-algebra-v1",
           "locator": "Basic attack vertical-slice override",
-          "note": "Damage and timing are placeholders pending weapon/stat trace fixtures."
+          "note": "The generic weapon resolver now owns the hit roll, passive defenses, damage range, resistance, absorbers, triggers, and hand context."
         }
       ],
       "unresolved": [
-        "Weapon speed, attack rating, defense, damage roll, resist, and proc formulas are not compiled.",
-        "The placeholder damage and timing must not be treated as emulator parity."
+        "The centered rating formula and 5%-95% hit caps are provisional harness values pending WonderBane calibration.",
+        "Weapon speed, per-hand cadence, exact passive-defense ordering, and proc data remain build inputs rather than compiled client parity."
       ],
       "spec": {
         "targeting": {
@@ -154,14 +156,7 @@
           {
             "kind": "active",
             "duration_ms": 1000,
-            "effects": [
-              {
-                "op": "deal_damage",
-                "subject": "target",
-                "amount": 10,
-                "damage_type": "physical"
-              }
-            ],
+            "effects": [],
             "delivery": {
               "kind": "immediate",
               "projectile_speed_units_per_second": null
@@ -189,7 +184,27 @@
           "melee",
           "physical",
           "weapon"
-        ]
+        ],
+        "weapon_attack": {
+          "weapon_slot": "main_hand",
+          "damage_type": "physical",
+          "minimum_damage": 8,
+          "maximum_damage": 12,
+          "attack_rating_scalar": "attack_rating",
+          "defense_scalar": "defense",
+          "minimum_damage_scalar": "weapon.main_hand.damage_min",
+          "maximum_damage_scalar": "weapon.main_hand.damage_max",
+          "default_attack_rating": 100,
+          "default_defense": 100,
+          "minimum_hit_chance": 0.05,
+          "maximum_hit_chance": 0.95,
+          "passive_defense_keys": [
+            "block",
+            "dodge",
+            "parry"
+          ],
+          "phase_index": 0
+        }
       }
     },
     {

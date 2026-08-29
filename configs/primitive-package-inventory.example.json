@@ -8,7 +8,13 @@
     "mana": 300,
     "stamina": 200,
     "move_speed": 15,
-    "tags": []
+    "tags": [],
+    "scalars": {
+      "attack_rating": 100,
+      "defense": 100,
+      "weapon.main_hand.damage_min": 8,
+      "weapon.main_hand.damage_max": 12
+    }
   },
   "packages": [
     {
@@ -21,13 +27,15 @@
       ],
       "modifiers": {
         "health": 80,
-        "stamina": 40
+        "stamina": 40,
+        "scalars": {}
       },
       "requires": [],
       "conflicts": [],
       "metadata": {
         "source_kind": "example-body"
-      }
+      },
+      "persistent_trigger_keys": []
     },
     {
       "package_id": "piece.stealth",
@@ -38,13 +46,15 @@
       ],
       "tags": [],
       "modifiers": {
-        "mana": 50
+        "mana": 50,
+        "scalars": {}
       },
       "requires": [],
       "conflicts": [],
       "metadata": {
         "source_kind": "example-rune"
-      }
+      },
+      "persistent_trigger_keys": []
     },
     {
       "package_id": "piece.weapon-power",
@@ -53,7 +63,9 @@
         "shadowbane.assassin.backstab"
       ],
       "tags": [],
-      "modifiers": {},
+      "modifiers": {
+        "scalars": {}
+      },
       "requires": [
         "piece.melee-body",
         "piece.stealth"
@@ -61,7 +73,8 @@
       "conflicts": [],
       "metadata": {
         "source_kind": "example-rune"
-      }
+      },
+      "persistent_trigger_keys": []
     },
     {
       "package_id": "piece.shadow-control",
@@ -72,13 +85,15 @@
       ],
       "tags": [],
       "modifiers": {
-        "mana": 60
+        "mana": 60,
+        "scalars": {}
       },
       "requires": [],
       "conflicts": [],
       "metadata": {
         "source_kind": "example-rune"
-      }
+      },
+      "persistent_trigger_keys": []
     },
     {
       "package_id": "piece.mental-pressure",
@@ -89,13 +104,15 @@
       ],
       "tags": [],
       "modifiers": {
-        "mana": 80
+        "mana": 80,
+        "scalars": {}
       },
       "requires": [],
       "conflicts": [],
       "metadata": {
         "source_kind": "example-rune"
-      }
+      },
+      "persistent_trigger_keys": []
     },
     {
       "package_id": "piece.self-sustain",
@@ -106,13 +123,15 @@
       "tags": [],
       "modifiers": {
         "health": 50,
-        "mana": 50
+        "mana": 50,
+        "scalars": {}
       },
       "requires": [],
       "conflicts": [],
       "metadata": {
         "source_kind": "example-rune"
-      }
+      },
+      "persistent_trigger_keys": []
     },
     {
       "package_id": "piece.flight",
@@ -122,13 +141,15 @@
       ],
       "tags": [],
       "modifiers": {
-        "move_speed": 2
+        "move_speed": 2,
+        "scalars": {}
       },
       "requires": [],
       "conflicts": [],
       "metadata": {
         "source_kind": "example-rune"
-      }
+      },
+      "persistent_trigger_keys": []
     }
   ],
   "notes": [

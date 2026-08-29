@@ -252,6 +252,26 @@ class AffordanceBuilder:
             values["distance"] = self._distance(actor.position, target.position)
         for feature in action.features:
             values[feature.name] = feature.value
+        if action.weapon_attack is not None:
+            attack = action.weapon_attack
+            minimum = (
+                actor.scalars.get(attack.minimum_damage_scalar, attack.minimum_damage)
+                if attack.minimum_damage_scalar is not None
+                else attack.minimum_damage
+            )
+            maximum = (
+                actor.scalars.get(attack.maximum_damage_scalar, attack.maximum_damage)
+                if attack.maximum_damage_scalar is not None
+                else attack.maximum_damage
+            )
+            values["expected_damage"] = (minimum + maximum) / 2.0
+            if binding.target_entity_id is not None:
+                target = self._entities[binding.target_entity_id]
+                attack_rating = actor.scalars.get(
+                    attack.attack_rating_scalar, attack.default_attack_rating
+                )
+                defense = target.scalars.get(attack.defense_scalar, attack.default_defense)
+                values["expected_hit_chance"] = attack.hit_chance(attack_rating, defense)
         trigger_damage = 0.0
         trigger_control_ms = 0.0
         trigger_count = 0
@@ -261,6 +281,11 @@ class AffordanceBuilder:
             if trigger is None or not trigger.matches(action.action_key, action_tags):
                 continue
             trigger_count += 1
+            if trigger.attack_modifier is not None:
+                modifier = trigger.attack_modifier
+                trigger_damage += (
+                    modifier.bonus_damage_minimum + modifier.bonus_damage_maximum
+                ) / 2.0
             for effect in trigger.payload:
                 if isinstance(effect, DealDamage):
                     trigger_damage += effect.amount

@@ -23,6 +23,7 @@ from shadowbane_lab.protocol import (
 from shadowbane_lab.rollouts.ruleset import load_assassin_warlock_duel_ruleset
 from shadowbane_lab.rulesets import CharacterBuild, CompiledRuleset
 from shadowbane_lab.sim import (
+    ActiveEffectState,
     AgentExchange,
     EntityState,
     ReferenceEnvironment,
@@ -82,6 +83,8 @@ class CombatantConfig:
     stamina: float = 200.0
     move_speed: float = 15.0
     tags: tuple[str, ...] = ()
+    extra_scalars: tuple[tuple[str, float], ...] = ()
+    initial_trigger_keys: tuple[str, ...] = ()
     action_keys_override: tuple[str, ...] | None = None
 
     def __post_init__(self) -> None:
@@ -100,6 +103,20 @@ class CombatantConfig:
             raise ValueError("tags must not contain duplicates")
         for tag in self.tags:
             _identifier(tag, "tag")
+        scalar_keys = tuple(key for key, _ in self.extra_scalars)
+        if len(scalar_keys) != len(set(scalar_keys)):
+            raise ValueError("extra_scalars must not contain duplicate keys")
+        reserved = {"health", "mana", "stamina", "move_speed"}
+        if set(scalar_keys) & reserved:
+            raise ValueError("extra_scalars cannot replace reserved body scalars")
+        for key, value in self.extra_scalars:
+            _identifier(key, "extra scalar key")
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise ValueError("extra scalar values must be numbers")
+        if len(self.initial_trigger_keys) != len(set(self.initial_trigger_keys)):
+            raise ValueError("initial_trigger_keys must not contain duplicates")
+        for trigger_key in self.initial_trigger_keys:
+            _identifier(trigger_key, "initial trigger key")
         if self.action_keys_override is not None:
             if len(self.action_keys_override) != len(set(self.action_keys_override)):
                 raise ValueError("action_keys_override must not contain duplicates")
@@ -166,6 +183,11 @@ class CombatantResult:
     mana_spent: float
     stamina_spent: float
     rejected_actions: int
+    attacks_attempted: int
+    weapon_hits: int
+    weapon_misses: int
+    passive_defenses: int
+    damage_absorbed: float
     actions: tuple[ActionCount, ...]
     triggers: tuple[TriggerCount, ...]
 
@@ -212,6 +234,11 @@ class DuelResult:
                     "mana_spent": item.mana_spent,
                     "stamina_spent": item.stamina_spent,
                     "rejected_actions": item.rejected_actions,
+                    "attacks_attempted": item.attacks_attempted,
+                    "weapon_hits": item.weapon_hits,
+                    "weapon_misses": item.weapon_misses,
+                    "passive_defenses": item.passive_defenses,
+                    "damage_absorbed": item.damage_absorbed,
                     "actions": {action.action_key: action.count for action in item.actions},
                     "triggers": {trigger.trigger_key: trigger.count for trigger in item.triggers},
                 }
@@ -651,18 +678,34 @@ def _entity(config: CombatantConfig, position: Vector2, ruleset: CompiledRuleset
         if action is None:
             raise ValueError(f"action override is unresolved: {action_key}")
         tags.update(f"capability.{tag}" for tag in action.tags)
+    scalar_values = {
+        "health": config.health,
+        "mana": config.mana,
+        "stamina": config.stamina,
+        "move_speed": config.move_speed,
+    }
+    scalar_values.update(dict(config.extra_scalars))
+    initial_effects: dict[str, ActiveEffectState] = {}
+    for trigger_key in config.initial_trigger_keys:
+        trigger = ruleset.catalog.trigger_for_effect(trigger_key)
+        if trigger is None:
+            raise ValueError(f"unknown initial trigger key: {trigger_key}")
+        storage_key = f"PersistentTrigger:{trigger_key}"
+        initial_effects[storage_key] = ActiveEffectState(
+            effect_key=trigger_key,
+            source_entity_id=config.entity_id,
+            magnitude=1.0,
+            expires_at_ms=(1 << 63) - 1,
+            stacking_key=storage_key,
+            tags={"trigger.passive"},
+        )
     return EntityState(
         entity_id=config.entity_id,
         life_id=f"{config.entity_id}:1",
         kind=EntityKind.ACTOR,
         team_id=config.team_id,
         position=position,
-        scalars={
-            "health": config.health,
-            "mana": config.mana,
-            "stamina": config.stamina,
-            "move_speed": config.move_speed,
-        },
+        scalars=scalar_values,
         maximums={
             "health": config.health,
             "mana": config.mana,
@@ -670,6 +713,7 @@ def _entity(config: CombatantConfig, position: Vector2, ruleset: CompiledRuleset
         },
         tags=tags,
         action_keys=action_keys,
+        effects=initial_effects,
     )
 
 
@@ -683,11 +727,31 @@ def _combatant_result(
     mana_spent = 0.0
     stamina_spent = 0.0
     rejected_actions = 0
+    attacks_attempted = 0
+    weapon_hits = 0
+    weapon_misses = 0
+    passive_defenses = 0
+    damage_absorbed = 0.0
     for event in events:
         scalars = {scalar.name: scalar.value for scalar in event.scalars}
         if event.kind == EventKind.ACTION_STARTED and event.source_entity_id == config.entity_id:
             if event.action_key is not None:
                 action_counts[event.action_key] = action_counts.get(event.action_key, 0) + 1
+        elif event.kind == EventKind.ATTACK_ROLLED and event.source_entity_id == config.entity_id:
+            attacks_attempted += 1
+            if "result.hit_roll" in event.tags:
+                weapon_hits += 1
+            else:
+                weapon_misses += 1
+        elif (
+            event.kind == EventKind.PASSIVE_DEFENSE_TRIGGERED
+            and event.target_entity_id == config.entity_id
+        ):
+            passive_defenses += 1
+        elif (
+            event.kind == EventKind.ABSORBER_CONSUMED and event.target_entity_id == config.entity_id
+        ):
+            damage_absorbed += scalars.get("absorbed", 0.0)
         elif event.kind == EventKind.TRIGGER_FIRED and event.source_entity_id == config.entity_id:
             trigger_tag = next((tag for tag in event.tags if tag.startswith("trigger.")), None)
             if trigger_tag is not None:
@@ -721,6 +785,11 @@ def _combatant_result(
         mana_spent=mana_spent,
         stamina_spent=stamina_spent,
         rejected_actions=rejected_actions,
+        attacks_attempted=attacks_attempted,
+        weapon_hits=weapon_hits,
+        weapon_misses=weapon_misses,
+        passive_defenses=passive_defenses,
+        damage_absorbed=damage_absorbed,
         actions=tuple(
             ActionCount(action_key, count) for action_key, count in sorted(action_counts.items())
         ),

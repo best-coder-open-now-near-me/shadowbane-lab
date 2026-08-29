@@ -67,6 +67,8 @@ class PrimitiveLoadout:
     stamina: float = 200.0
     move_speed: float = 15.0
     tags: tuple[str, ...] = ()
+    scalars: tuple[tuple[str, float], ...] = ()
+    persistent_trigger_keys: tuple[str, ...] = ()
     metadata: tuple[tuple[str, str], ...] = ()
     notes: tuple[str, ...] = ()
 
@@ -75,7 +77,18 @@ class PrimitiveLoadout:
         _identifier(self.display_name, "display_name")
         _unique_strings(self.action_keys, "action_keys")
         _unique_strings(self.tags, "tags")
+        _unique_strings(self.persistent_trigger_keys, "persistent_trigger_keys")
         _unique_strings(self.notes, "notes")
+        scalar_keys = tuple(key for key, _ in self.scalars)
+        _unique_strings(scalar_keys, "scalar keys")
+        for key, value in self.scalars:
+            _positive(value, f"scalar.{key}") if value > 0 else None
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not isfinite(value)
+            ):
+                raise OpenBuildError(f"scalar.{key} must be finite")
         for value, name in (
             (self.health, "health"),
             (self.mana, "mana"),
@@ -100,6 +113,8 @@ class PrimitiveLoadout:
             "stamina": self.stamina,
             "move_speed": self.move_speed,
             "tags": list(self.tags),
+            "scalars": dict(self.scalars),
+            "persistent_trigger_keys": list(self.persistent_trigger_keys),
             "metadata": dict(self.metadata),
             "notes": list(self.notes),
         }
@@ -114,6 +129,8 @@ class ResolvedPrimitiveLoadout:
     auto_added_tags: tuple[str, ...]
     unsatisfied_requirement_tags: tuple[str, ...]
     capability_tags: tuple[str, ...]
+    executable_persistent_trigger_keys: tuple[str, ...]
+    omitted_persistent_trigger_keys: tuple[str, ...]
 
     @property
     def all_action_keys(self) -> tuple[str, ...]:
@@ -121,8 +138,9 @@ class ResolvedPrimitiveLoadout:
 
     @property
     def coverage_fraction(self) -> float:
-        requested = len(self.loadout.action_keys)
-        return 1.0 if requested == 0 else len(self.executable_action_keys) / requested
+        requested = len(self.loadout.action_keys) + len(self.loadout.persistent_trigger_keys)
+        executable = len(self.executable_action_keys) + len(self.executable_persistent_trigger_keys)
+        return 1.0 if requested == 0 else executable / requested
 
     def as_dict(self) -> dict[str, object]:
         payload = self.loadout.as_dict()
@@ -134,6 +152,8 @@ class ResolvedPrimitiveLoadout:
                 "auto_added_tags": list(self.auto_added_tags),
                 "unsatisfied_requirement_tags": list(self.unsatisfied_requirement_tags),
                 "capability_tags": list(self.capability_tags),
+                "executable_persistent_trigger_keys": list(self.executable_persistent_trigger_keys),
+                "omitted_persistent_trigger_keys": list(self.omitted_persistent_trigger_keys),
                 "coverage_fraction": self.coverage_fraction,
             }
         )
@@ -225,6 +245,13 @@ def resolve_primitive_loadout(
         tag for tag in required_tags - provided_tags if tag.startswith(auto_satisfied_prefixes)
     }
     unsatisfied = required_tags - provided_tags - auto_added
+    known_triggers = set(ruleset.catalog.trigger_keys)
+    executable_persistent = tuple(
+        key for key in loadout.persistent_trigger_keys if key in known_triggers
+    )
+    omitted_persistent = tuple(
+        key for key in loadout.persistent_trigger_keys if key not in known_triggers
+    )
     return ResolvedPrimitiveLoadout(
         loadout=loadout,
         common_action_keys=common,
@@ -233,6 +260,8 @@ def resolve_primitive_loadout(
         auto_added_tags=tuple(sorted(auto_added)),
         unsatisfied_requirement_tags=tuple(sorted(unsatisfied)),
         capability_tags=tuple(sorted(capability_tags)),
+        executable_persistent_trigger_keys=executable_persistent,
+        omitted_persistent_trigger_keys=omitted_persistent,
     )
 
 
@@ -412,6 +441,15 @@ def generate_primitive_loadouts(
                 stamina=round(rng.uniform(140.0, 350.0), 3),
                 move_speed=round(rng.uniform(12.0, 22.0), 3),
                 tags=("profile.generated",),
+                scalars=(
+                    ("attack_rating", round(rng.uniform(70.0, 230.0), 3)),
+                    ("defense", round(rng.uniform(70.0, 230.0), 3)),
+                    ("weapon.main_hand.damage_min", round(rng.uniform(7.0, 18.0), 3)),
+                    ("weapon.main_hand.damage_max", round(rng.uniform(19.0, 36.0), 3)),
+                    ("resistance.physical", round(rng.uniform(0.0, 0.55), 4)),
+                    ("passive.block.chance", round(rng.uniform(0.0, 0.22), 4)),
+                    ("passive.dodge.chance", round(rng.uniform(0.0, 0.18), 4)),
+                ),
                 metadata=(
                     ("generation_seed", str(seed)),
                     ("generation_index", str(index)),
@@ -470,9 +508,29 @@ def _parse_loadout(raw: Any, index: int) -> PrimitiveLoadout:
         stamina=raw.get("stamina", 200.0),
         move_speed=raw.get("move_speed", 15.0),
         tags=strings("tags"),
+        scalars=tuple(sorted(_numeric_mapping(raw, "scalars", index).items())),
+        persistent_trigger_keys=strings("persistent_trigger_keys"),
         metadata=tuple(metadata.items()),
         notes=strings("notes"),
     )
+
+
+def _numeric_mapping(raw: dict[str, Any], key: str, index: int) -> dict[str, float]:
+    value = raw.get(key, {})
+    if not isinstance(value, dict):
+        raise OpenBuildError(f"loadouts[{index}].{key} must be an object")
+    result: dict[str, float] = {}
+    for item_key, item_value in value.items():
+        if (
+            not isinstance(item_key, str)
+            or not item_key.strip()
+            or isinstance(item_value, bool)
+            or not isinstance(item_value, (int, float))
+            or not isfinite(item_value)
+        ):
+            raise OpenBuildError(f"loadouts[{index}].{key} must map strings to numbers")
+        result[item_key] = float(item_value)
+    return result
 
 
 def _combatant(
@@ -498,6 +556,8 @@ def _combatant(
         stamina=resolved.loadout.stamina,
         move_speed=resolved.loadout.move_speed,
         tags=tags,
+        extra_scalars=resolved.loadout.scalars,
+        initial_trigger_keys=resolved.executable_persistent_trigger_keys,
         action_keys_override=resolved.all_action_keys,
     )
 
