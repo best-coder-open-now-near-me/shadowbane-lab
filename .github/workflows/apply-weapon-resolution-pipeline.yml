@@ -34,6 +34,7 @@ jobs:
       - name: Validate and format
         run: |
           python -m pip install -e ".[test]"
+          ruff format src tests
           ruff check --fix src tests
           ruff format src tests
           python -m unittest discover -s tests -v
