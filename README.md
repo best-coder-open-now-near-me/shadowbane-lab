@@ -23,8 +23,11 @@ powers at explicit training-rank brackets. Differential traces can record and co
 simulator and emulator semantics
 without relying on producer-specific IDs. The input adapter compiles the same semantic
 decisions into calibrated plans and keeps live PyAutoGUI input locked behind window guards,
-an emergency stop, and explicit profile confirmation. See [the architecture](docs/architecture.md),
+an emergency stop, and explicit profile confirmation. A separate external read-only character
+collector can fingerprint a running WonderBane client, perform bounded layout discovery, and
+capture only fields declared by a hash-pinned layout. See [the architecture](docs/architecture.md),
 [client-input runbook](docs/client-input-harness.md),
+[read-only character snapshot runbook](docs/character-snapshot.md),
 [automated VM setup](docs/vm-setup.md),
 [simulation rollout guide](docs/simulation-rollouts.md),
 [differential-validation contract](docs/differential-validation.md), and

@@ -55,6 +55,22 @@ class ClientCliTests(unittest.TestCase):
         self.assertTrue(payload["ok"])
         self.assertFalse(payload["live_input_enabled"])
 
+    def test_character_layout_template_validates_and_remains_live_locked(self) -> None:
+        output = io.StringIO()
+        template = (
+            Path(__file__).parents[1] / "configs" / "wonderbane-character-layout.template.json"
+        )
+
+        with redirect_stdout(output):
+            result = main(("character", "validate-layout", str(template), "--json"))
+
+        payload = json.loads(output.getvalue())
+        self.assertEqual(0, result)
+        self.assertTrue(payload["ok"])
+        self.assertEqual(4, payload["pointer_size"])
+        self.assertFalse(payload["live_capture_enabled"])
+        self.assertEqual(1, payload["collection_count"])
+
 
 if __name__ == "__main__":
     unittest.main()
