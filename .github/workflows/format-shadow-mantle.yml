@@ -16,27 +16,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Apply Ruff-compatible fold
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Format loader
         run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          path = Path("src/shadowbane_lab/rulesets/loader.py")
-          source = path.read_text(encoding="utf-8")
-          old = '''    if any(
-              isinstance(effect, RestoreResource)
-              for phase in phases
-              for effect in phase.effects
-          ) and all(feature.name != "effect_rank" for feature in features):
-          '''
-          new = '''    if any(
-              isinstance(effect, RestoreResource) for phase in phases for effect in phase.effects
-          ) and all(feature.name != "effect_rank" for feature in features):
-          '''
-          if old not in source:
-              raise SystemExit("expected loader block was not found")
-          path.write_text(source.replace(old, new), encoding="utf-8")
-          PY
+          python -m pip install "ruff>=0.12"
+          ruff format src/shadowbane_lab/rulesets/loader.py
           git diff --check
       - name: Commit formatting
         run: |
