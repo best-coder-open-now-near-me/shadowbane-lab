@@ -287,6 +287,62 @@ class WeaponResolutionTests(unittest.TestCase):
         self.assertNotIn("one_shot", environment.entity("a").effects)
         self.assertFalse(any(event.kind == EventKind.TRIGGER_FIRED for event in batch.events))
 
+    def test_attack_modifier_applies_only_when_its_trigger_fires(self) -> None:
+        swing = weapon_action()
+        proc_action = ActionSpec(
+            action_key="modifier_provider",
+            targeting=TargetingSpec(kind=TargetKind.SELF),
+            phases=(
+                ActionPhase(
+                    kind=PhaseKind.ACTIVE,
+                    duration_ms=0,
+                    effects=(ApplyEffect(SubjectRef.ACTOR, "chance_modifier", 10_000),),
+                ),
+            ),
+            armed_trigger=ActionTriggerSpec(
+                trigger_key="chance_modifier",
+                required_action_tags=("attack", "weapon"),
+                fire_on=TriggerMoment.ATTEMPT,
+                consume_on=TriggerConsumption.NEVER,
+                chance=0.0,
+                attack_modifier=AttackModifierSpec(
+                    bonus_damage_minimum=20.0,
+                    bonus_damage_maximum=20.0,
+                ),
+            ),
+        )
+        modifier = ActiveEffectState(
+            effect_key="chance_modifier",
+            source_entity_id="a",
+            magnitude=1.0,
+            expires_at_ms=10_000,
+        )
+        environment = ReferenceEnvironment(
+            ActionCatalog((proc_action, swing)),
+            (
+                actor("a", "red", ("swing",), effects={"chance_modifier": modifier}),
+                actor("b", "blue", ()),
+            ),
+            seed=61,
+        )
+
+        batch = environment.step(
+            (decision(environment, "a", "swing", target_id="b", correlation_id="chance"),)
+        )
+
+        self.assertEqual(490.0, environment.entity("b").scalars["health"])
+        checked = next(event for event in batch.events if event.kind == EventKind.TRIGGER_CHECKED)
+        self.assertIn("result.not_fired", checked.tags)
+
+    def test_attack_modifier_requires_attempt_moment(self) -> None:
+        with self.assertRaisesRegex(ValueError, "attempt moment"):
+            ActionTriggerSpec(
+                trigger_key="late_modifier",
+                required_action_tags=("attack", "weapon"),
+                fire_on=TriggerMoment.HIT,
+                attack_modifier=AttackModifierSpec(damage_multiplier=2.0),
+            )
+
     def test_persistent_hit_proc_survives_multiple_attacks(self) -> None:
         swing = weapon_action()
         proc_action = ActionSpec(

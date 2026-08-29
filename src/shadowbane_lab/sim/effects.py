@@ -129,12 +129,7 @@ class EffectExecutor:
         action = self._catalog.get(item.action_key)
         action_tags = frozenset(action.tags)
         contexts = self._matching_trigger_contexts(actor, item.action_key, action_tags)
-        modifiers = tuple(
-            context.trigger.attack_modifier
-            for context in contexts
-            if context.trigger.attack_modifier is not None
-        )
-        self._resolve_trigger_moment(
+        fired_attempt_contexts = self._resolve_trigger_moment(
             contexts,
             TriggerMoment.ATTEMPT,
             actor,
@@ -142,6 +137,11 @@ class EffectExecutor:
             due_time,
             eligible_alive,
             events,
+        )
+        modifiers = tuple(
+            context.trigger.attack_modifier
+            for context in fired_attempt_contexts
+            if context.trigger.attack_modifier is not None
         )
 
         attack = item.weapon_attack
@@ -476,7 +476,8 @@ class EffectExecutor:
         due_time: int,
         eligible_alive: frozenset[str],
         events: list[Event],
-    ) -> None:
+    ) -> tuple[_TriggerContext, ...]:
+        fired_contexts: list[_TriggerContext] = []
         for context in contexts:
             trigger = context.trigger
             if trigger.fire_on is moment:
@@ -503,6 +504,7 @@ class EffectExecutor:
                     )
                 )
                 if fired:
+                    fired_contexts.append(context)
                     events.append(
                         self._event(
                             EventKind.TRIGGER_FIRED,
@@ -555,6 +557,7 @@ class EffectExecutor:
                             "reason.trigger_consumed",
                         )
                     )
+        return tuple(fired_contexts)
 
     def _chance_roll(self, chance: float) -> tuple[float, bool]:
         if chance <= 0.0:

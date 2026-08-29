@@ -458,6 +458,8 @@ class ActionTriggerSpec:
             self.attack_modifier, AttackModifierSpec
         ):
             raise ValueError("attack_modifier must be an AttackModifierSpec or null")
+        if self.attack_modifier is not None and self.fire_on is not TriggerMoment.ATTEMPT:
+            raise ValueError("attack modifiers must fire at the attempt moment")
 
     def matches(self, action_key: str, action_tags: frozenset[str]) -> bool:
         if self.qualifying_action_keys and action_key not in self.qualifying_action_keys:
