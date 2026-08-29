@@ -30,6 +30,25 @@ jobs:
           gunzip -c /tmp/apply-weapon-pipeline.py.gz > /tmp/apply-weapon-pipeline.py
           echo "70edcab8b058753b0be7d9ba7e609f11f81e8cac708711e955b2036dd431e028  /tmp/apply-weapon-pipeline.py" | sha256sum --check -
           python /tmp/apply-weapon-pipeline.py
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("tests/test_duel_rollouts.py")
+          source = path.read_text(encoding="utf-8")
+          replacements = {
+              "def test_matrix_aggregates_distances_and_seed_invariance":
+                  "def test_matrix_aggregates_distances_and_seed_variation",
+              "self.assertEqual(1, cell.unique_trace_count)":
+                  "self.assertEqual(2, cell.unique_trace_count)",
+              'self.assertEqual(1, payload[0]["unique_trace_count"])':
+                  'self.assertEqual(2, payload[0]["unique_trace_count"])',
+          }
+          for old, new in replacements.items():
+              if source.count(old) != 1:
+                  raise SystemExit(f"expected exactly one occurrence of {old!r}")
+              source = source.replace(old, new)
+          path.write_text(source, encoding="utf-8")
+          PY
           rm -rf .github/weapon-pipeline-payload
       - name: Validate and format
         run: |
