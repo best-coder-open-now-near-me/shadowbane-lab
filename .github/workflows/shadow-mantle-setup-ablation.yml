@@ -1,0 +1,116 @@
+name: Shadow Mantle setup ablation
+
+on:
+  push:
+    branches:
+      - codex/shadow-mantle-policy-ablation
+    paths:
+      - ".github/workflows/shadow-mantle-setup-ablation.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  simulate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Reserve mana until Shadow Mantle enters range
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/shadowbane_lab/rollouts/duel.py")
+          source = path.read_text(encoding="utf-8")
+          old = '''        target_id = affordance.binding.target_entity_id
+          target = enemies.get(target_id or "")
+          if target is not None and ("immunity.stun" in target.tags or "control.stun" in target.tags):
+          '''
+          new = '''        target_id = affordance.binding.target_entity_id
+          target = enemies.get(target_id or "")
+          if (
+              SHADOW_MANTLE in self._action_keys
+              and target is not None
+              and "profession.warlock" in target.tags
+              and "healing.block" not in target.tags
+              and _distance(actor.position, target.position) > 100.0
+              and expected_damage > 0.0
+          ):
+              return -50.0
+          if target is not None and ("immunity.stun" in target.tags or "control.stun" in target.tags):
+          '''
+          if source.count(old) != 1:
+              raise SystemExit("expected exactly one damage-target block")
+          path.write_text(source.replace(old, new), encoding="utf-8")
+          PY
+      - name: Run focused progression matrix
+        run: |
+          mkdir -p artifacts
+          python -m shadowbane_lab.rollouts \
+            --matrix \
+            --levels 42,75 \
+            --ranks 0,10,20,40 \
+            --distances 15,60,110 \
+            --seeds 1,2,3 \
+            --max-ticks 1200 \
+            --json > artifacts/mantle-setup-matrix.json
+      - name: Write experiment summary
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          cells = json.loads(Path("artifacts/mantle-setup-matrix.json").read_text(encoding="utf-8"))
+          totals = {
+              "matches": sum(cell["matches"] for cell in cells),
+              "assassin_wins": sum(cell["assassin_wins"] for cell in cells),
+              "warlock_wins": sum(cell["warlock_wins"] for cell in cells),
+              "draws": sum(cell["draws"] for cell in cells),
+              "time_limits": sum(cell["time_limits"] for cell in cells),
+          }
+          rows = []
+          for cell in cells:
+              assassin, warlock = cell["sample"]["combatants"]
+              rows.append(
+                  {
+                      "level": cell["level"],
+                      "power_rank": cell["power_rank"],
+                      "starting_distance": cell["starting_distance"],
+                      "assassin_wins": cell["assassin_wins"],
+                      "warlock_wins": cell["warlock_wins"],
+                      "draws": cell["draws"],
+                      "mean_ticks": cell["mean_ticks"],
+                      "mantle_casts": assassin["actions"].get(
+                          "shadowbane.assassin.shadow_mantle", 0
+                      ),
+                      "psychic_healing_casts": warlock["actions"].get(
+                          "shadowbane.warlock.psychic_healing", 0
+                      ),
+                      "warlock_healing_received": warlock["healing_received"],
+                  }
+              )
+          payload = {
+              "variant": "mantle_setup",
+              "description": "Suppresses Assassin damage utility only while a Warlock target is beyond Shadow Mantle's 100-unit range and is not already blocked, preserving mana for the first legal Mantle cast.",
+              "totals": totals,
+              "cells": rows,
+          }
+          Path("artifacts/mantle-setup-summary.json").write_text(
+              json.dumps(payload, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(payload, indent=2, sort_keys=True))
+          PY
+      - name: Upload experiment artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: shadow-mantle-setup-ablation
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 30
