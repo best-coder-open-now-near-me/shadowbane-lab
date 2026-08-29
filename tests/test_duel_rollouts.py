@@ -8,6 +8,8 @@ from shadowbane_lab.rollouts import (
     DuelConfig,
     TerminationReason,
     matched_progression_duels,
+    progression_build,
+    progression_duel_matrix,
     run_duel,
 )
 from shadowbane_lab.rollouts.__main__ import main
@@ -37,6 +39,13 @@ def build(profession: str, level: int, rank: int) -> CharacterBuild:
 
 
 class DuelRolloutTests(unittest.TestCase):
+    def test_progression_build_clamps_limited_rank_powers(self) -> None:
+        ranks = dict(progression_build("assassin", 75, 40).power_ranks)
+
+        self.assertEqual(40, ranks["shadowbane.assassin.backstab"])
+        self.assertEqual(20, ranks["shadowbane.assassin.fade"])
+        self.assertEqual(20, ranks["shadowbane.assassin.invisibility"])
+
     def test_duel_is_reproducible_and_reaches_a_terminal_outcome(self) -> None:
         config = DuelConfig(
             left=CombatantConfig("assassin", "red", build("assassin", 26, 40)),
@@ -167,6 +176,50 @@ class DuelRolloutTests(unittest.TestCase):
         self.assertEqual(1, len(payload))
         self.assertEqual(10, payload[0]["level"])
         self.assertIn(payload[0]["winner_entity_id"], ("assassin", "warlock", None))
+
+    def test_matrix_aggregates_distances_and_seed_variation(self) -> None:
+        cells = progression_duel_matrix(
+            levels=(10,),
+            power_ranks=(0,),
+            starting_distances=(15.0, 60.0),
+            seeds=(1, 2),
+            max_ticks=25,
+        )
+
+        self.assertEqual(2, len(cells))
+        for cell in cells:
+            self.assertEqual(2, cell.matches)
+            self.assertEqual(
+                cell.matches,
+                cell.assassin_wins + cell.warlock_wins + cell.draws,
+            )
+            self.assertEqual(2, cell.unique_trace_count)
+
+    def test_matrix_cli_emits_aggregate_cells(self) -> None:
+        output = io.StringIO()
+        with redirect_stdout(output):
+            exit_code = main(
+                (
+                    "--matrix",
+                    "--levels",
+                    "10",
+                    "--ranks",
+                    "0",
+                    "--distances",
+                    "15",
+                    "--seeds",
+                    "1,2",
+                    "--max-ticks",
+                    "25",
+                    "--json",
+                )
+            )
+
+        payload = json.loads(output.getvalue())
+        self.assertEqual(0, exit_code)
+        self.assertEqual(1, len(payload))
+        self.assertEqual(2, payload[0]["matches"])
+        self.assertEqual(2, payload[0]["unique_trace_count"])
 
 
 if __name__ == "__main__":

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from math import hypot
 
 from shadowbane_lab.combat import (
@@ -26,6 +26,8 @@ from shadowbane_lab.protocol import (
     Vector2,
 )
 from shadowbane_lab.sim.actions import (
+    ActionCatalog,
+    ActionTriggerSpec,
     ApplyEffect,
     AreaEffect,
     AreaOrigin,
@@ -52,6 +54,7 @@ from shadowbane_lab.sim.actions import (
     TagOperation,
     TransferItem,
     TriangularAmount,
+    TriggerMoment,
     UniformAmount,
     UniformIntegerAmount,
     WeightedAmount,
@@ -67,6 +70,13 @@ OrderCallback = Callable[[], int]
 InterruptCallback = Callable[[str, str, int, list[Event]], None]
 
 
+@dataclass(frozen=True, slots=True)
+class _TriggerContext:
+    storage_key: str
+    active: ActiveEffectState
+    trigger: ActionTriggerSpec
+
+
 class EffectExecutor:
     """Applies primitive effects to one mutable reference-world state."""
 
@@ -76,6 +86,7 @@ class EffectExecutor:
         event_factory: EventFactory,
         schedule: ScheduleCallback,
         take_schedule_order: OrderCallback,
+        catalog: ActionCatalog,
         random: DeterministicRandom,
         interrupt_actor: InterruptCallback,
     ) -> None:
@@ -83,6 +94,7 @@ class EffectExecutor:
         self._event = event_factory
         self._schedule = schedule
         self._take_schedule_order = take_schedule_order
+        self._catalog = catalog
         self._random = random
         self._interrupt_actor = interrupt_actor
 
@@ -118,6 +130,174 @@ class EffectExecutor:
                 )
                 continue
             self._resolve_direct(item, effect, due_time, eligible_alive, events)
+
+    def resolve_weapon_attack(
+        self,
+        item: ScheduledItem,
+        due_time: int,
+        eligible_alive: frozenset[str],
+        events: list[Event],
+    ) -> None:
+        """Resolve one generic weapon attempt through triggers, defenses, and damage."""
+
+        if item.binding is None or item.weapon_attack is None:
+            raise SimulationConfigurationError("weapon attack is missing its binding or spec")
+        actor = self._entities.get(item.actor_id)
+        target = (
+            self._entities.get(item.binding.target_entity_id)
+            if item.binding.target_entity_id is not None
+            else None
+        )
+        if actor is None or target is None:
+            raise SimulationConfigurationError("weapon attack requires actor and entity target")
+        if actor.entity_id not in eligible_alive or target.entity_id not in eligible_alive:
+            return
+
+        action = self._catalog.get(item.action_key)
+        action_tags = frozenset(action.tags)
+        contexts = self._matching_trigger_contexts(actor, item.action_key, action_tags)
+        fired_attempt_contexts = self._resolve_trigger_moment(
+            contexts,
+            TriggerMoment.ATTEMPT,
+            actor,
+            item,
+            due_time,
+            eligible_alive,
+            events,
+        )
+        modifiers = tuple(
+            context.trigger.attack_modifier
+            for context in fired_attempt_contexts
+            if context.trigger.attack_modifier is not None
+        )
+
+        attack = item.weapon_attack
+        attack_rating = actor.scalars.get(
+            attack.attack_rating_scalar, attack.default_attack_rating
+        ) + sum(modifier.attack_rating_bonus for modifier in modifiers)
+        defense = target.scalars.get(attack.defense_scalar, attack.default_defense)
+        bypass_defense = any(modifier.bypass_defense for modifier in modifiers)
+        hit_chance = attack.hit_chance(attack_rating, defense, bypass=bypass_defense)
+        roll, hit_roll_succeeded = self._chance_roll(hit_chance)
+        events.append(
+            self._event(
+                EventKind.ATTACK_ROLLED,
+                due_time,
+                correlation_id=item.correlation_id,
+                source_entity_id=actor.entity_id,
+                target_entity_id=target.entity_id,
+                action_key=item.action_key,
+                scalars=(
+                    NamedScalar("attack_rating", attack_rating),
+                    NamedScalar("defense", defense),
+                    NamedScalar("hit_chance", hit_chance),
+                    NamedScalar("roll", roll),
+                ),
+                tags=(
+                    f"weapon.{attack.weapon_slot}",
+                    "result.hit_roll" if hit_roll_succeeded else "result.miss",
+                    "defense.bypassed" if bypass_defense else "defense.checked",
+                ),
+            )
+        )
+        if not hit_roll_succeeded:
+            return
+
+        bypass_passive = any(modifier.bypass_passive_defense for modifier in modifiers)
+        if not bypass_passive:
+            for defense_key in attack.passive_defense_keys:
+                chance = max(
+                    0.0,
+                    min(1.0, target.scalars.get(f"passive.{defense_key}.chance", 0.0)),
+                )
+                if chance <= 0.0:
+                    continue
+                passive_roll, defended = self._chance_roll(chance)
+                if not defended:
+                    continue
+                events.append(
+                    self._event(
+                        EventKind.PASSIVE_DEFENSE_TRIGGERED,
+                        due_time,
+                        correlation_id=item.correlation_id,
+                        source_entity_id=target.entity_id,
+                        target_entity_id=actor.entity_id,
+                        action_key=item.action_key,
+                        scalars=(
+                            NamedScalar("chance", chance),
+                            NamedScalar("roll", passive_roll),
+                        ),
+                        tags=(
+                            f"passive_defense.{defense_key}",
+                            f"weapon.{attack.weapon_slot}",
+                        ),
+                    )
+                )
+                return
+
+        minimum = (
+            actor.scalars.get(attack.minimum_damage_scalar, attack.minimum_damage)
+            if attack.minimum_damage_scalar is not None
+            else attack.minimum_damage
+        )
+        maximum = (
+            actor.scalars.get(attack.maximum_damage_scalar, attack.maximum_damage)
+            if attack.maximum_damage_scalar is not None
+            else attack.maximum_damage
+        )
+        if minimum < 0.0 or maximum < minimum:
+            raise SimulationConfigurationError("resolved weapon damage range is invalid")
+        requested = self._random.uniform(minimum, maximum)
+        damage_multiplier = 1.0
+        bonus_damage = 0.0
+        damage_type = attack.damage_type
+        modifier_tags: list[str] = []
+        for modifier in modifiers:
+            damage_multiplier *= modifier.damage_multiplier
+            bonus_damage += self._random.uniform(
+                modifier.bonus_damage_minimum,
+                modifier.bonus_damage_maximum,
+            )
+            if modifier.damage_type_override is not None:
+                damage_type = modifier.damage_type_override
+            modifier_tags.extend(modifier.tags)
+        requested = (requested + bonus_damage) * damage_multiplier
+        effective = self._apply_weapon_damage(
+            item,
+            target,
+            requested,
+            damage_type,
+            due_time,
+            events,
+            extra_tags=tuple(
+                dict.fromkeys(
+                    (
+                        "attack.weapon",
+                        f"weapon.{attack.weapon_slot}",
+                        *modifier_tags,
+                    )
+                )
+            ),
+        )
+        self._resolve_trigger_moment(
+            contexts,
+            TriggerMoment.HIT,
+            actor,
+            item,
+            due_time,
+            eligible_alive,
+            events,
+        )
+        if effective > 0.0:
+            self._resolve_trigger_moment(
+                contexts,
+                TriggerMoment.DAMAGE,
+                actor,
+                item,
+                due_time,
+                eligible_alive,
+                events,
+            )
 
     def _resolve_area(
         self,
@@ -440,6 +620,247 @@ class EffectExecutor:
                         tags=(f"life.{entity.life_id}",),
                     )
                 )
+
+    def _apply_weapon_damage(
+        self,
+        item: ScheduledItem,
+        subject: EntityState,
+        amount: float,
+        damage_type: str,
+        due_time: int,
+        events: list[Event],
+        *,
+        extra_tags: tuple[str, ...] = (),
+    ) -> float:
+        raw_resistance = subject.scalars.get(
+            f"resistance.{damage_type}", subject.scalars.get("resistance.all", 0.0)
+        )
+        resistance_cap = subject.scalars.get(
+            f"resistance_cap.{damage_type}", subject.scalars.get("resistance_cap", 0.75)
+        )
+        resistance_floor = subject.scalars.get(
+            f"resistance_floor.{damage_type}",
+            subject.scalars.get("resistance_floor", -1.0),
+        )
+        if resistance_cap < resistance_floor:
+            raise SimulationConfigurationError("resistance cap is below resistance floor")
+        resistance = max(resistance_floor, min(resistance_cap, raw_resistance))
+        after_resistance = max(0.0, amount * (1.0 - resistance))
+        after_absorbers, absorbed = self._consume_weapon_absorbers(
+            item,
+            subject,
+            damage_type,
+            after_resistance,
+            due_time,
+            events,
+        )
+        before = subject.scalars.get("health", 0.0)
+        after = max(0.0, before - after_absorbers)
+        subject.scalars["health"] = after
+        event_tags = [f"damage.{damage_type}", *extra_tags]
+        if item.trigger_key is not None:
+            event_tags.append(f"trigger.{item.trigger_key}")
+        events.append(
+            self._event(
+                EventKind.DAMAGE_APPLIED,
+                due_time,
+                correlation_id=item.correlation_id,
+                source_entity_id=item.actor_id,
+                target_entity_id=subject.entity_id,
+                action_key=item.action_key,
+                scalars=(
+                    NamedScalar("requested", amount),
+                    NamedScalar("resistance", resistance),
+                    NamedScalar("resisted", amount - after_resistance),
+                    NamedScalar("absorbed", absorbed),
+                    NamedScalar("effective", before - after),
+                ),
+                tags=tuple(dict.fromkeys(event_tags)),
+            )
+        )
+        if before - after > 0.0:
+            self._drop_travel_stance(item, subject, due_time, events, reason="damage")
+            self._interrupt_actor(subject.entity_id, "damage", due_time, events)
+        return before - after
+
+    def _consume_weapon_absorbers(
+        self,
+        item: ScheduledItem,
+        subject: EntityState,
+        damage_type: str,
+        amount: float,
+        due_time: int,
+        events: list[Event],
+    ) -> tuple[float, float]:
+        remaining = amount
+        absorbed_total = 0.0
+        candidates = sorted(
+            (
+                (storage_key, active)
+                for storage_key, active in subject.effects.items()
+                if active.magnitude > 0.0
+                and (
+                    "damage.absorb.all" in active.tags
+                    or f"damage.absorb.{damage_type}" in active.tags
+                )
+            ),
+            key=lambda value: (value[1].expires_at_ms, value[0]),
+        )
+        for storage_key, active in candidates:
+            if remaining <= 0.0:
+                break
+            absorbed = min(remaining, active.magnitude)
+            if absorbed <= 0.0:
+                continue
+            active.magnitude -= absorbed
+            remaining -= absorbed
+            absorbed_total += absorbed
+            events.append(
+                self._event(
+                    EventKind.ABSORBER_CONSUMED,
+                    due_time,
+                    correlation_id=item.correlation_id,
+                    source_entity_id=active.source_entity_id,
+                    target_entity_id=subject.entity_id,
+                    action_key=item.action_key,
+                    scalars=(
+                        NamedScalar("absorbed", absorbed),
+                        NamedScalar("remaining", active.magnitude),
+                    ),
+                    tags=(
+                        f"effect.{active.effect_key}",
+                        f"damage.{damage_type}",
+                    ),
+                )
+            )
+            if active.magnitude <= 0.0 and subject.effects.get(storage_key) is active:
+                subject.effects.pop(storage_key)
+                events.append(
+                    self._effect_removed_event(
+                        subject,
+                        active,
+                        due_time,
+                        item,
+                        "reason.depleted",
+                    )
+                )
+        return remaining, absorbed_total
+
+    def _matching_trigger_contexts(
+        self,
+        actor: EntityState,
+        action_key: str,
+        action_tags: frozenset[str],
+    ) -> tuple[_TriggerContext, ...]:
+        contexts: list[_TriggerContext] = []
+        for storage_key in sorted(actor.effects):
+            active = actor.effects[storage_key]
+            trigger = self._catalog.trigger_for_effect(active.effect_key)
+            if trigger is not None and trigger.matches(action_key, action_tags):
+                contexts.append(_TriggerContext(storage_key, active, trigger))
+        return tuple(contexts)
+
+    def _resolve_trigger_moment(
+        self,
+        contexts: tuple[_TriggerContext, ...],
+        moment: TriggerMoment,
+        actor: EntityState,
+        item: ScheduledItem,
+        due_time: int,
+        eligible_alive: frozenset[str],
+        events: list[Event],
+    ) -> tuple[_TriggerContext, ...]:
+        fired_contexts: list[_TriggerContext] = []
+        for context in contexts:
+            trigger = context.trigger
+            if trigger.fire_on is moment:
+                roll, fired = self._chance_roll(trigger.chance)
+                events.append(
+                    self._event(
+                        EventKind.TRIGGER_CHECKED,
+                        due_time,
+                        correlation_id=item.correlation_id,
+                        source_entity_id=actor.entity_id,
+                        target_entity_id=(
+                            item.binding.target_entity_id if item.binding is not None else None
+                        ),
+                        action_key=item.action_key,
+                        scalars=(
+                            NamedScalar("chance", trigger.chance),
+                            NamedScalar("roll", roll),
+                        ),
+                        tags=(
+                            f"trigger.{trigger.trigger_key}",
+                            f"moment.{moment.value}",
+                            "result.fired" if fired else "result.not_fired",
+                        ),
+                    )
+                )
+                if fired:
+                    fired_contexts.append(context)
+                    events.append(
+                        self._event(
+                            EventKind.TRIGGER_FIRED,
+                            due_time,
+                            correlation_id=item.correlation_id,
+                            source_entity_id=actor.entity_id,
+                            target_entity_id=(
+                                item.binding.target_entity_id
+                                if item.binding is not None
+                                else None
+                            ),
+                            action_key=item.action_key,
+                            tags=tuple(
+                                dict.fromkeys(
+                                    (
+                                        f"trigger.{trigger.trigger_key}",
+                                        f"moment.{moment.value}",
+                                        *trigger.tags,
+                                    )
+                                )
+                            ),
+                        )
+                    )
+                    if trigger.payload:
+                        if item.binding is None:
+                            raise SimulationConfigurationError(
+                                "trigger payload requires the qualifying action binding"
+                            )
+                        payload_item = ScheduledItem(
+                            due_time_ms=due_time,
+                            order=item.order,
+                            kind=ScheduledKind.RESOLUTION,
+                            actor_id=item.actor_id,
+                            correlation_id=item.correlation_id,
+                            action_key=item.action_key,
+                            binding=item.binding,
+                            phase_duration_ms=item.phase_duration_ms,
+                            effects=trigger.payload,
+                            trigger_key=trigger.trigger_key,
+                        )
+                        self.resolve(payload_item, due_time, eligible_alive, events)
+            if trigger.consume_on.value == moment.value:
+                current = actor.effects.get(context.storage_key)
+                if current is context.active:
+                    actor.effects.pop(context.storage_key)
+                    events.append(
+                        self._effect_removed_event(
+                            actor,
+                            context.active,
+                            due_time,
+                            item,
+                            "reason.trigger_consumed",
+                        )
+                    )
+        return tuple(fired_contexts)
+
+    def _chance_roll(self, chance: float) -> tuple[float, bool]:
+        if chance <= 0.0:
+            return 1.0, False
+        if chance >= 1.0:
+            return 0.0, True
+        roll = self._random.random()
+        return roll, roll < chance
 
     def _deal_damage(
         self,

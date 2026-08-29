@@ -38,10 +38,11 @@ support bounded closed-loop travel.
 Direct semantic PvE batches run known
 player/mob encounters across contiguous deterministic seeds without client targeting or
 window-safety machinery; a separate bridge tests the guarded production PvE controller.
-The local multi-client manager now provides strict per-PC lifecycle manifests, read-only
-preflight, exact launch/attach correlation, dispatch-only pause/resume, non-activating window
-tiling, graceful-close primitives, and an authenticated localhost dashboard without coupling
-character tactics to a host PC.
+The local multi-client manager now discovers open instances, grows capacity through **Add
+client**, retires closed bindings, and provides exact launch/attach correlation,
+dispatch-only pause/resume, graceful-close primitives, and an authenticated localhost
+dashboard without coupling character tactics to a host PC. Native window tiling remains an
+internal primitive because Shadowbane does not rescale its renderer after an external resize.
 Differential traces can record and compare
 simulator and emulator semantics
 without relying on producer-specific IDs. The input adapter compiles the same semantic
@@ -49,6 +50,7 @@ decisions into calibrated plans and keeps live PyAutoGUI input locked behind win
 an emergency stop, and explicit profile confirmation. See [the architecture](docs/architecture.md),
 [client-input runbook](docs/client-input-harness.md),
 [local multi-client manager](docs/client-manager.md),
+[read-only character snapshot runbook](docs/character-snapshot.md),
 [camp-scoped PvE runbook](docs/pve-automation.md),
 [closed-loop travel runbook](docs/travel-automation.md),
 [client world-data notes](docs/world-data.md),
@@ -66,6 +68,7 @@ The protocol has no runtime dependencies. From the repository root:
 $env:PYTHONPATH = "src"
 python -m unittest discover -s tests -v
 python -m shadowbane_lab.rollouts
+python -m shadowbane_lab.rollouts --matrix --levels 10,42,75 --ranks 0,20,40 --distances 15,60,110 --seeds 1,2,3 --json
 python -m shadowbane_lab.rollouts --scenario irekei-proc --level 59 --json
 python -m shadowbane_lab.rollouts --scenario verified-duel --left-profile .\assassin.json --right-profile .\warlock.json --episodes 1000 --accept-source-revision --accept-ruleset-overrides --json
 python -m shadowbane_lab.cli client observe-native-progression --json
@@ -76,6 +79,7 @@ python -m shadowbane_lab.cli client observe-native-target-position --json
 python -m shadowbane_lab.cli client observe-native-zone --json
 python -m shadowbane_lab.cli client observe-native-zone --cache-directory 'C:\path\to\Wonderbane\cache' --json
 python -m shadowbane_lab.cli client observe-native-group --json
+python -m shadowbane_lab.cli character validate-layout .\configs\wonderbane-character-layout.template.json --json
 ```
 
 When Python is not exposed on `PATH`, use the interpreter configured for the workspace.

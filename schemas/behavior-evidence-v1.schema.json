@@ -1,0 +1,493 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/best-coder-open-now-near-me/shadowbane-lab/schemas/behavior-evidence-v1.schema.json",
+  "title": "Shadowbane behavior evidence corpus",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "corpus_id",
+    "reviewed_on",
+    "profiles",
+    "sources",
+    "claims",
+    "coverage"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "corpus_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "reviewed_on": {
+      "$ref": "#/$defs/date"
+    },
+    "profiles": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/profile"
+      }
+    },
+    "sources": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/source"
+      }
+    },
+    "claims": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/claim"
+      }
+    },
+    "coverage": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/coverage"
+      }
+    }
+  },
+  "$defs": {
+    "date": {
+      "type": "string",
+      "format": "date"
+    },
+    "nonemptyStrings": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile_id",
+        "label",
+        "kind",
+        "description",
+        "status"
+      ],
+      "properties": {
+        "profile_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]*$"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "enum": [
+            "retail",
+            "emulator",
+            "observed_runtime",
+            "lab_model",
+            "alternate_server"
+          ]
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "inherits_from": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "valid_from": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "valid_to": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "enum": [
+            "active",
+            "historical",
+            "pending_identification",
+            "reference_only"
+          ]
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_id",
+        "label",
+        "kind",
+        "authority",
+        "profiles",
+        "uri",
+        "revision",
+        "retrieved_on",
+        "scope",
+        "limitations",
+        "ingestion",
+        "capture_status",
+        "snapshot_path",
+        "content_sha256",
+        "content_type"
+      ],
+      "properties": {
+        "source_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]*$"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "enum": [
+            "emulator_source",
+            "version_control_history",
+            "official_patch_mirror",
+            "emulator_patch_notes",
+            "wiki_revision",
+            "client_data",
+            "runtime_trace",
+            "deployment_data",
+            "reviewed_model",
+            "alternate_server_notes"
+          ]
+        },
+        "authority": {
+          "enum": [
+            "primary_runtime",
+            "primary_implementation",
+            "primary_official",
+            "secondary_reconstruction",
+            "local_reviewed",
+            "alternate_dialect"
+          ]
+        },
+        "profiles": {
+          "$ref": "#/$defs/nonemptyStrings"
+        },
+        "uri": {
+          "type": "string",
+          "minLength": 1
+        },
+        "revision": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "retrieved_on": {
+          "$ref": "#/$defs/date"
+        },
+        "scope": {
+          "$ref": "#/$defs/nonemptyStrings"
+        },
+        "limitations": {
+          "$ref": "#/$defs/nonemptyStrings"
+        },
+        "ingestion": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "method",
+            "automatable",
+            "available"
+          ],
+          "properties": {
+            "method": {
+              "enum": [
+                "git_snapshot",
+                "git_history",
+                "mediawiki_revision",
+                "html_snapshot",
+                "manual_export",
+                "client_capture",
+                "trace_capture",
+                "local_file"
+              ]
+            },
+            "automatable": {
+              "type": "boolean"
+            },
+            "available": {
+              "type": "boolean"
+            },
+            "notes": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "capture_status": {
+          "enum": [
+            "captured",
+            "remote_pinned",
+            "pending",
+            "unavailable"
+          ]
+        },
+        "snapshot_path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "content_sha256": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            }
+          ]
+        },
+        "content_type": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_id",
+        "locator",
+        "stance"
+      ],
+      "properties": {
+        "source_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "locator": {
+          "type": "string",
+          "minLength": 1
+        },
+        "stance": {
+          "enum": [
+            "supports",
+            "contradicts",
+            "qualifies"
+          ]
+        },
+        "note": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "claim_id",
+        "profile_id",
+        "domain",
+        "subject",
+        "predicate",
+        "statement",
+        "parameters",
+        "conditions",
+        "evidence",
+        "confidence",
+        "compile_disposition",
+        "contradiction_group",
+        "test_requirements",
+        "tags",
+        "reviewed_on",
+        "simulator_bindings"
+      ],
+      "properties": {
+        "claim_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]*$"
+        },
+        "profile_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "domain": {
+          "enum": [
+            "progression",
+            "action_lifecycle",
+            "targeting",
+            "hit_resolution",
+            "damage",
+            "resistance",
+            "effects",
+            "stacking",
+            "dispel",
+            "crowd_control",
+            "immunity",
+            "casting",
+            "movement",
+            "flight",
+            "stealth",
+            "resources",
+            "periodic_effects",
+            "absorbers",
+            "weapons",
+            "equipment",
+            "stances_forms",
+            "group_aoe",
+            "pets_ai",
+            "death_respawn",
+            "siege_world",
+            "client_protocol"
+          ]
+        },
+        "subject": {
+          "type": "string",
+          "minLength": 1
+        },
+        "predicate": {
+          "type": "string",
+          "minLength": 1
+        },
+        "statement": {
+          "type": "string",
+          "minLength": 1
+        },
+        "parameters": {
+          "type": "object"
+        },
+        "conditions": {
+          "$ref": "#/$defs/nonemptyStrings"
+        },
+        "valid_from": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "valid_to": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "evidence": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/evidence"
+          }
+        },
+        "confidence": {
+          "enum": [
+            "confirmed",
+            "strong",
+            "provisional",
+            "disputed",
+            "unresolved"
+          ]
+        },
+        "compile_disposition": {
+          "enum": [
+            "compile",
+            "override",
+            "block"
+          ]
+        },
+        "contradiction_group": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "test_requirements": {
+          "$ref": "#/$defs/nonemptyStrings"
+        },
+        "tags": {
+          "$ref": "#/$defs/nonemptyStrings"
+        },
+        "reviewed_on": {
+          "$ref": "#/$defs/date"
+        },
+        "simulator_bindings": {
+          "$ref": "#/$defs/nonemptyStrings"
+        }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "domain",
+        "priority",
+        "source_state",
+        "simulator_state",
+        "next_evidence",
+        "claim_ids"
+      ],
+      "properties": {
+        "domain": {
+          "type": "string",
+          "minLength": 1
+        },
+        "priority": {
+          "enum": [
+            "P0",
+            "P1",
+            "P2"
+          ]
+        },
+        "source_state": {
+          "enum": [
+            "seeded",
+            "partial",
+            "unstarted",
+            "blocked"
+          ]
+        },
+        "simulator_state": {
+          "enum": [
+            "represented",
+            "partial",
+            "absent",
+            "unresolved"
+          ]
+        },
+        "next_evidence": {
+          "$ref": "#/$defs/nonemptyStrings"
+        },
+        "claim_ids": {
+          "$ref": "#/$defs/strings"
+        }
+      }
+    },
+    "strings": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    }
+  },
+  "description": "Versioned evidence, profile, claim, contradiction, coverage and simulator-binding records for reconstructing Shadowbane behavior without silently mixing eras or server dialects."
+}

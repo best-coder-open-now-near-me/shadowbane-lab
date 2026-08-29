@@ -103,7 +103,6 @@
     <section class="toolbar" aria-label="Group actions">
       <button id="add-client" class="primary" type="button">Add client</button>
       <button id="refresh" type="button">Refresh</button>
-      <button id="tile-all" type="button">Tile all</button>
     </section>
 
     <section class="summary" aria-label="Manager summary">
@@ -391,7 +390,6 @@
 
       addClientButton.addEventListener("click", () => execute({ action: "add-client" }));
       document.getElementById("refresh").addEventListener("click", () => execute({ action: "refresh" }));
-      document.getElementById("tile-all").addEventListener("click", () => execute({ action: "tile-all" }));
 
       document.addEventListener("visibilitychange", pollStatus);
       window.setInterval(pollStatus, statusPollMilliseconds);

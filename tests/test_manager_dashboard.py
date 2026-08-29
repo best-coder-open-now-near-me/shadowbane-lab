@@ -480,7 +480,6 @@ class DashboardServerTests(unittest.TestCase):
         for action in (
             "add-client",
             "refresh",
-            "tile-all",
             "pause",
             "resume",
             "close",
@@ -490,6 +489,7 @@ class DashboardServerTests(unittest.TestCase):
             "configure-slots",
             "client-count",
             "start-all",
+            "tile-all",
             'actionbutton("attach"',
             'actionbutton("detach"',
         ):

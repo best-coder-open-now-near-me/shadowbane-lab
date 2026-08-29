@@ -16,7 +16,14 @@ from shadowbane_lab.protocol import (
     TargetKind,
     Vector2,
 )
-from shadowbane_lab.sim.actions import ActionCatalog, ActionSpec, ModifyObjective, TransferItem
+from shadowbane_lab.sim.actions import (
+    ActionCatalog,
+    ActionSpec,
+    ApplyEffect,
+    DealDamage,
+    ModifyObjective,
+    TransferItem,
+)
 from shadowbane_lab.sim.errors import SimulationConfigurationError
 from shadowbane_lab.sim.state import EntityState
 from shadowbane_lab.sim.timeline import AgentExchange
@@ -205,6 +212,21 @@ class AffordanceBuilder:
         )
 
     def _observe_entity(self, actor: EntityState, entity: EntityState) -> EntityObservation:
+        scalars = {
+            name: entity.effective_scalar(name) for name in sorted(entity.scalars)
+        }
+        blocking_prefix = "resource.restore.block."
+        for effect in entity.effects.values():
+            for tag in effect.tags:
+                if not tag.startswith(blocking_prefix):
+                    continue
+                resource_key = tag.removeprefix(blocking_prefix)
+                if not resource_key:
+                    continue
+                scalar_key = f"restore_block_rank.{resource_key}"
+                existing = scalars.get(scalar_key)
+                if existing is None or effect.magnitude > existing:
+                    scalars[scalar_key] = effect.magnitude
         return EntityObservation(
             entity_id=entity.entity_id,
             kind=entity.kind,
@@ -212,8 +234,7 @@ class AffordanceBuilder:
             position=entity.position,
             velocity=entity.velocity,
             scalars=tuple(
-                NamedScalar(name, entity.effective_scalar(name))
-                for name in sorted(entity.scalars)
+                NamedScalar(name, value) for name, value in sorted(scalars.items())
             ),
             tags=tuple(sorted(entity.effective_tags)),
         )
@@ -235,6 +256,57 @@ class AffordanceBuilder:
             values["distance"] = self._distance(actor.position, target.position)
         for feature in action.features:
             values[feature.name] = feature.value
+        if action.weapon_attack is not None:
+            attack = action.weapon_attack
+            minimum = (
+                actor.scalars.get(attack.minimum_damage_scalar, attack.minimum_damage)
+                if attack.minimum_damage_scalar is not None
+                else attack.minimum_damage
+            )
+            maximum = (
+                actor.scalars.get(attack.maximum_damage_scalar, attack.maximum_damage)
+                if attack.maximum_damage_scalar is not None
+                else attack.maximum_damage
+            )
+            values["expected_damage"] = (minimum + maximum) / 2.0
+            if binding.target_entity_id is not None:
+                target = self._entities[binding.target_entity_id]
+                attack_rating = actor.scalars.get(
+                    attack.attack_rating_scalar, attack.default_attack_rating
+                )
+                defense = target.scalars.get(
+                    attack.defense_scalar, attack.default_defense
+                )
+                values["expected_hit_chance"] = attack.hit_chance(
+                    attack_rating, defense
+                )
+        trigger_damage = 0.0
+        trigger_control_ms = 0.0
+        trigger_count = 0
+        action_tags = frozenset(action.tags)
+        for active in actor.effects.values():
+            trigger = self._catalog.trigger_for_effect(active.effect_key)
+            if trigger is None or not trigger.matches(action.action_key, action_tags):
+                continue
+            trigger_count += 1
+            if trigger.attack_modifier is not None:
+                modifier = trigger.attack_modifier
+                trigger_damage += (
+                    modifier.bonus_damage_minimum + modifier.bonus_damage_maximum
+                ) / 2.0
+            for effect in trigger.payload:
+                if isinstance(effect, DealDamage):
+                    trigger_damage += effect.amount
+                elif isinstance(effect, ApplyEffect) and any(
+                    tag.startswith("control.") for tag in effect.tags
+                ):
+                    trigger_control_ms += effect.duration_ms
+        if trigger_count:
+            values["trigger_count"] = float(trigger_count)
+        if trigger_damage:
+            values["trigger_expected_damage"] = trigger_damage
+        if trigger_control_ms:
+            values["trigger_control_duration_ms"] = trigger_control_ms
         return tuple(NamedScalar(name, values[name]) for name in sorted(values))
 
     def _position_in_range(

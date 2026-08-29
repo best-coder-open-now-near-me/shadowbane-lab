@@ -116,8 +116,10 @@ For the standard WonderBane VM, the supported logon installer generates the loca
 retains the Mesa text fix, starts the command listener, and opens this dashboard without requiring
 an interactive terminal. See [VM setup](vm-setup.md#install-the-vm-control-center-at-logon).
 
-The dashboard does not mutate its own topology. To expand an installed manifest to four slots,
-run the reviewed configurator and then restart the control center:
+The dashboard presents running instances rather than exposing its internal slot capacity. Use
+**Add client** to launch another instance; the manager expands its hidden capacity transactionally
+when no free internal slot remains. The reviewed configurator remains available for an explicit
+offline capacity/layout change:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
@@ -143,15 +145,16 @@ header/body deadlines, suppresses request logging, and sends restrictive CSP, fr
 content-type, and referrer headers. It is intentionally not a cross-PC control plane. Run one app
 on each PC.
 
-The dashboard shows manifest slots, exact bindings, worker health, and unbound matching instances.
-It refreshes health every two seconds while visible. If clients
-are already open after a manager restart, attach each exact instance to a slot before launching
-more. Group start is sequential and fail-fast, and it refuses to run while an unbound matching
-instance or incomplete matching identity needs review. This prevents a later launch from being
-silently assigned to the wrong logical slot.
+The dashboard shows open instances, exact bindings, and worker health. It refreshes health every
+two seconds while visible, adopts safely identified clients that were already open, and archives
+their internal bindings after exact process exit is verified.
 
-Available controls are start one/all, refresh, tile one/all, exact attach, pause/resume dispatch,
-detach, and graceful close. Start-all and close require browser confirmation. Closing the
+Available visible controls are Add client, refresh, pause/resume dispatch, and graceful close.
+The legacy native tiling operation remains an internal manager primitive, but it is intentionally
+not exposed in the dashboard: Shadowbane keeps its launch-time render surface when Win32 resizes
+the outer window, which clips the game instead of scaling it. A future multibox display feature
+must choose a compatible per-client `-resolution` before launch and handle restarts explicitly.
+Close requires browser confirmation. Closing the
 dashboard with Ctrl+C stops only the manager UI; game clients remain open. If a remembered
 binding is absent from the current window inventory, native window actions remain disabled while
 Detach stays available so the operator can deliberately forget the stale identity and attach a

@@ -389,11 +389,18 @@ class RulesetCompilerTests(unittest.TestCase):
             for action in source["actions"]
             if action["action_key"] == "shadowbane.basic_attack"
         )
-        basic_attack["spec"]["phases"][0]["effects"][0]["amount"] = {
-            "distribution": "uniform_integer",
-            "minimum": 4,
-            "maximum": 5,
-        }
+        basic_attack["spec"]["phases"][0]["effects"] = [
+            {
+                "op": "deal_damage",
+                "subject": "target",
+                "amount": {
+                    "distribution": "uniform_integer",
+                    "minimum": 4,
+                    "maximum": 5,
+                },
+                "damage_type": "crush",
+            }
+        ]
 
         action = load_ruleset_text(json.dumps(source)).record("shadowbane.basic_attack").action
 

@@ -21,6 +21,9 @@ from shadowbane_lab.sim.actions import (
     ActionPhase,
     ActionSpec,
     DeliveryKind,
+    EffectPrimitive,
+    TriggerConsumption,
+    TriggerMoment,
 )
 from shadowbane_lab.sim.affordances import AffordanceBuilder
 from shadowbane_lab.sim.clock import SimulationClock
@@ -220,7 +223,18 @@ class ReferenceEnvironment:
                 action_key=action.action_key,
             )
         )
-        self._schedule_action_phases(actor, decision, action)
+        triggered_effects = self._consume_action_start_triggers(
+            actor,
+            decision,
+            action,
+            events,
+        )
+        self._schedule_action_phases(
+            actor,
+            decision,
+            action,
+            triggered_effects=triggered_effects,
+        )
         self._schedule(
             ScheduledItem(
                 due_time_ms=self.now_ms + total_phase_ms,
@@ -240,12 +254,84 @@ class ReferenceEnvironment:
         actor: EntityState,
         decision: DecisionMessage,
         action: ActionSpec,
+        *,
+        triggered_effects: tuple[EffectPrimitive, ...] = (),
     ) -> None:
         phase_end_ms = self.now_ms
-        for phase in action.phases:
+        trigger_scheduled = False
+        weapon_scheduled = False
+        for phase_index, phase in enumerate(action.phases):
             phase_end_ms += phase.duration_ms
-            if not phase.effects:
-                continue
+            due_time_ms = phase_end_ms + self._delivery_delay(
+                actor, decision.binding, phase
+            )
+            if action.weapon_attack is not None and action.weapon_attack.phase_index == phase_index:
+                self._schedule(
+                    ScheduledItem(
+                        due_time_ms=due_time_ms,
+                        order=self._take_schedule_order(),
+                        kind=ScheduledKind.WEAPON_ATTACK,
+                        actor_id=actor.entity_id,
+                        correlation_id=decision.correlation_id,
+                        action_key=action.action_key,
+                        binding=decision.binding,
+                        phase_duration_ms=phase.duration_ms,
+                        weapon_attack=action.weapon_attack,
+                        interruptible=phase.interruptible,
+                        cancel_on_damage=action.cancel_on_damage,
+                        cancel_on_stun=action.cancel_on_stun,
+                    )
+                )
+                weapon_scheduled = True
+            if phase.effects:
+                self._schedule(
+                    ScheduledItem(
+                        due_time_ms=due_time_ms,
+                        order=self._take_schedule_order(),
+                        kind=ScheduledKind.RESOLUTION,
+                        actor_id=actor.entity_id,
+                        correlation_id=decision.correlation_id,
+                        action_key=action.action_key,
+                        binding=decision.binding,
+                        phase_duration_ms=phase.duration_ms,
+                        effects=phase.effects,
+                        interruptible=phase.interruptible,
+                        cancel_on_damage=action.cancel_on_damage,
+                        cancel_on_stun=action.cancel_on_stun,
+                    )
+                )
+            if (
+                triggered_effects
+                and not trigger_scheduled
+                and (
+                    phase.effects
+                    or (
+                        action.weapon_attack is not None
+                        and action.weapon_attack.phase_index == phase_index
+                    )
+                )
+            ):
+                self._schedule(
+                    ScheduledItem(
+                        due_time_ms=due_time_ms,
+                        order=self._take_schedule_order(),
+                        kind=ScheduledKind.RESOLUTION,
+                        actor_id=actor.entity_id,
+                        correlation_id=decision.correlation_id,
+                        action_key=action.action_key,
+                        binding=decision.binding,
+                        phase_duration_ms=phase.duration_ms,
+                        effects=triggered_effects,
+                        interruptible=phase.interruptible,
+                        cancel_on_damage=action.cancel_on_damage,
+                        cancel_on_stun=action.cancel_on_stun,
+                    )
+                )
+                trigger_scheduled = True
+        if action.weapon_attack is not None and not weapon_scheduled:
+            raise SimulationConfigurationError("weapon attack was not assigned to an action phase")
+        if triggered_effects and not trigger_scheduled:
+            phase = action.phases[-1]
             self._schedule(
                 ScheduledItem(
                     due_time_ms=(
@@ -258,12 +344,97 @@ class ReferenceEnvironment:
                     action_key=action.action_key,
                     binding=decision.binding,
                     phase_duration_ms=phase.duration_ms,
-                    effects=phase.effects,
+                    effects=triggered_effects,
                     interruptible=phase.interruptible,
                     cancel_on_damage=action.cancel_on_damage,
                     cancel_on_stun=action.cancel_on_stun,
                 )
             )
+
+    def _consume_action_start_triggers(
+        self,
+        actor: EntityState,
+        decision: DecisionMessage,
+        action: ActionSpec,
+        events: list[Event],
+    ) -> tuple[EffectPrimitive, ...]:
+        action_tags = frozenset(action.tags)
+        payload: list[EffectPrimitive] = []
+        for storage_key in sorted(tuple(actor.effects)):
+            active = actor.effects.get(storage_key)
+            if active is None:
+                continue
+            trigger = self._catalog.trigger_for_effect(active.effect_key)
+            if (
+                trigger is None
+                or trigger.fire_on is not TriggerMoment.ACTION_START
+                or not trigger.matches(action.action_key, action_tags)
+            ):
+                continue
+            if trigger.chance >= 1.0:
+                roll, fired = 0.0, True
+            elif trigger.chance <= 0.0:
+                roll, fired = 1.0, False
+            else:
+                roll = self._random.random()
+                fired = roll < trigger.chance
+            events.append(
+                self._event(
+                    EventKind.TRIGGER_CHECKED,
+                    self.now_ms,
+                    correlation_id=decision.correlation_id,
+                    source_entity_id=actor.entity_id,
+                    target_entity_id=decision.binding.target_entity_id,
+                    action_key=action.action_key,
+                    scalars=(
+                        NamedScalar("chance", trigger.chance),
+                        NamedScalar("roll", roll),
+                    ),
+                    tags=(
+                        f"trigger.{trigger.trigger_key}",
+                        "moment.action_start",
+                        "result.fired" if fired else "result.not_fired",
+                    ),
+                )
+            )
+            if fired:
+                events.append(
+                    self._event(
+                        EventKind.TRIGGER_FIRED,
+                        self.now_ms,
+                        correlation_id=decision.correlation_id,
+                        source_entity_id=actor.entity_id,
+                        target_entity_id=decision.binding.target_entity_id,
+                        action_key=action.action_key,
+                        tags=tuple(
+                            dict.fromkeys(
+                                (
+                                    f"trigger.{trigger.trigger_key}",
+                                    "moment.action_start",
+                                    *trigger.tags,
+                                )
+                            )
+                        ),
+                    )
+                )
+                payload.extend(trigger.payload)
+            if trigger.consume_on is TriggerConsumption.ACTION_START:
+                actor.effects.pop(storage_key)
+                events.append(
+                    self._event(
+                        EventKind.EFFECT_REMOVED,
+                        self.now_ms,
+                        correlation_id=decision.correlation_id,
+                        source_entity_id=active.source_entity_id,
+                        target_entity_id=actor.entity_id,
+                        action_key=action.action_key,
+                        tags=(
+                            f"effect.{active.effect_key}",
+                            "reason.trigger_consumed",
+                        ),
+                    )
+                )
+        return tuple(payload)
 
     def _process_due(
         self,
@@ -289,6 +460,10 @@ class ReferenceEnvironment:
             for item in group:
                 if item.kind is ScheduledKind.RESOLUTION:
                     self._effect_executor.resolve(item, due_time, eligible_alive, events)
+                elif item.kind is ScheduledKind.WEAPON_ATTACK:
+                    self._effect_executor.resolve_weapon_attack(
+                        item, due_time, eligible_alive, events
+                    )
                 elif item.kind is ScheduledKind.COMPLETION:
                     events.append(
                         self._event(
@@ -352,6 +527,7 @@ class ReferenceEnvironment:
             self._event,
             self._schedule,
             self._take_schedule_order,
+            self._catalog,
             self._random,
             self._interrupt_actor,
         )
@@ -387,7 +563,12 @@ class ReferenceEnvironment:
                 if not (
                     item.actor_id == actor_id
                     and item.correlation_id == correlation_id
-                    and item.kind in {ScheduledKind.RESOLUTION, ScheduledKind.COMPLETION}
+                    and item.kind
+                    in {
+                        ScheduledKind.RESOLUTION,
+                        ScheduledKind.WEAPON_ATTACK,
+                        ScheduledKind.COMPLETION,
+                    }
                 )
             ]
             actor = self._entity(actor_id)

@@ -11,7 +11,7 @@ from shadowbane_lab.protocol import (
     DecisionMessage,
     ObservationMessage,
 )
-from shadowbane_lab.sim.actions import EffectPrimitive
+from shadowbane_lab.sim.actions import EffectPrimitive, WeaponAttackSpec
 from shadowbane_lab.sim.clock import ClockSnapshot
 from shadowbane_lab.sim.random_source import RandomSnapshot
 from shadowbane_lab.sim.state import EntitySnapshot
@@ -19,6 +19,7 @@ from shadowbane_lab.sim.state import EntitySnapshot
 
 class ScheduledKind(StrEnum):
     RESOLUTION = "resolution"
+    WEAPON_ATTACK = "weapon_attack"
     COMPLETION = "completion"
     EFFECT_PULSE = "effect_pulse"
     EFFECT_EXPIRY = "effect_expiry"
@@ -35,6 +36,8 @@ class ScheduledItem:
     binding: ActionBinding | None = None
     phase_duration_ms: int = 0
     effects: tuple[EffectPrimitive, ...] = ()
+    weapon_attack: WeaponAttackSpec | None = None
+    trigger_key: str | None = None
     effect_entity_id: str | None = None
     effect_storage_key: str | None = None
     expected_effect_key: str | None = None
@@ -70,10 +73,20 @@ class ScheduledItem:
         ):
             raise ValueError("phase_duration_ms must be a non-negative integer")
         if self.kind in {ScheduledKind.RESOLUTION, ScheduledKind.EFFECT_PULSE}:
-            if self.binding is None or not self.effects:
+            if self.binding is None or not self.effects or self.weapon_attack is not None:
                 raise ValueError("resolutions and effect pulses require a binding and effects")
-        elif self.binding is not None or self.effects:
-            raise ValueError("only resolutions and effect pulses may carry bindings or effects")
+        elif self.kind is ScheduledKind.WEAPON_ATTACK:
+            if self.binding is None or self.weapon_attack is None or self.effects:
+                raise ValueError("weapon attacks require a binding and weapon spec only")
+        elif self.binding is not None or self.effects or self.weapon_attack is not None:
+            raise ValueError(
+                "only resolutions, effect pulses, and weapon attacks may carry bindings"
+            )
+        if self.trigger_key is not None:
+            if self.kind is not ScheduledKind.RESOLUTION:
+                raise ValueError("trigger_key is valid only for effect resolutions")
+            if not isinstance(self.trigger_key, str) or not self.trigger_key.strip():
+                raise ValueError("trigger_key must be a non-empty string")
         for value, name in (
             (self.interruptible, "interruptible"),
             (self.cancel_on_damage, "cancel_on_damage"),

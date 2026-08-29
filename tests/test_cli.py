@@ -32,6 +32,23 @@ from tests.test_client_input_executor import _valid_snapshot
 
 
 class ClientCliTests(unittest.TestCase):
+    def test_character_layout_template_validates_and_remains_live_locked(self) -> None:
+        output = io.StringIO()
+        template = (
+            Path(__file__).parents[1]
+            / "configs"
+            / "wonderbane-character-layout.template.json"
+        )
+
+        with redirect_stdout(output):
+            result = main(("character", "validate-layout", str(template), "--json"))
+
+        payload = json.loads(output.getvalue())
+        self.assertEqual(0, result)
+        self.assertTrue(payload["ok"])
+        self.assertFalse(payload["live_capture_enabled"])
+        self.assertEqual(4, payload["pointer_size"])
+
     def test_inspect_emits_machine_readable_window_identity(self) -> None:
         output = io.StringIO()
         inspector = StaticWindowInspector(_valid_snapshot())

@@ -25,11 +25,13 @@ from shadowbane_lab.rulesets.model import (
 from shadowbane_lab.sim import (
     ActionPhase,
     ActionSpec,
+    ActionTriggerSpec,
     ApplyEffect,
     AreaEffect,
     AreaOrigin,
     AttackGate,
     AttackKind,
+    AttackModifierSpec,
     ChangeStance,
     CombatStance,
     DamageBreakpoint,
@@ -55,8 +57,11 @@ from shadowbane_lab.sim import (
     TargetingSpec,
     TransferItem,
     TriangularAmount,
+    TriggerConsumption,
+    TriggerMoment,
     UniformAmount,
     UniformIntegerAmount,
+    WeaponAttackSpec,
 )
 from shadowbane_lab.sim.actions import AmountSpec, ChanceGate, EffectPrimitive
 
@@ -240,6 +245,8 @@ def _parse_action(data: Mapping[str, Any], action_key: str, rank: int) -> Action
         required_actor_tags=tuple(_strings(data, "required_actor_tags")),
         forbidden_actor_tags=tuple(_strings(data, "forbidden_actor_tags")),
         features=features,
+        weapon_attack=_parse_weapon_attack(data, rank),
+        armed_trigger=_parse_action_trigger(data, rank),
         tags=tuple(_strings(data, "tags")),
         hit_roll=(
             None
@@ -249,6 +256,92 @@ def _parse_action(data: Mapping[str, Any], action_key: str, rank: int) -> Action
         cancel_on_damage=_optional_boolean(data, "cancel_on_damage", False),
         cancel_on_stun=_optional_boolean(data, "cancel_on_stun", False),
     )
+
+
+def _parse_weapon_attack(data: Mapping[str, Any], rank: int) -> WeaponAttackSpec | None:
+    raw = data.get("weapon_attack")
+    if raw is None:
+        return None
+    attack = _mapping(raw, "weapon_attack")
+    return WeaponAttackSpec(
+        weapon_slot=_string(attack, "weapon_slot"),
+        damage_type=_string(attack, "damage_type"),
+        minimum_damage=_resolved_number(_required(attack, "minimum_damage"), rank),
+        maximum_damage=_resolved_number(_required(attack, "maximum_damage"), rank),
+        attack_rating_scalar=_string(attack, "attack_rating_scalar"),
+        defense_scalar=_string(attack, "defense_scalar"),
+        minimum_damage_scalar=_nullable_string(attack, "minimum_damage_scalar"),
+        maximum_damage_scalar=_nullable_string(attack, "maximum_damage_scalar"),
+        default_attack_rating=_resolved_number(
+            _required(attack, "default_attack_rating"), rank
+        ),
+        default_defense=_resolved_number(_required(attack, "default_defense"), rank),
+        minimum_hit_chance=_resolved_number(
+            _required(attack, "minimum_hit_chance"), rank
+        ),
+        maximum_hit_chance=_resolved_number(
+            _required(attack, "maximum_hit_chance"), rank
+        ),
+        passive_defense_keys=tuple(_strings(attack, "passive_defense_keys")),
+        phase_index=_resolved_integer(attack.get("phase_index", 0), rank),
+    )
+
+
+def _parse_attack_modifier(
+    data: Mapping[str, Any], rank: int
+) -> AttackModifierSpec | None:
+    raw = data.get("attack_modifier")
+    if raw is None:
+        return None
+    modifier = _mapping(raw, "attack_modifier")
+    return AttackModifierSpec(
+        attack_rating_bonus=_resolved_number(
+            modifier.get("attack_rating_bonus", 0.0), rank
+        ),
+        damage_multiplier=_resolved_number(
+            modifier.get("damage_multiplier", 1.0), rank
+        ),
+        bonus_damage_minimum=_resolved_number(
+            modifier.get("bonus_damage_minimum", 0.0), rank
+        ),
+        bonus_damage_maximum=_resolved_number(
+            modifier.get("bonus_damage_maximum", 0.0), rank
+        ),
+        bypass_defense=_boolean_default(modifier, "bypass_defense", False),
+        bypass_passive_defense=_boolean_default(
+            modifier, "bypass_passive_defense", False
+        ),
+        damage_type_override=_nullable_string(modifier, "damage_type_override"),
+        tags=tuple(_strings(modifier, "tags")),
+    )
+
+
+def _parse_action_trigger(
+    data: Mapping[str, Any], rank: int
+) -> ActionTriggerSpec | None:
+    raw = data.get("armed_trigger")
+    if raw is None:
+        return None
+    trigger = _mapping(raw, "armed_trigger")
+    return ActionTriggerSpec(
+        trigger_key=_string(trigger, "trigger_key"),
+        payload=tuple(_parse_effect(item, rank) for item in _objects(trigger, "payload")),
+        required_action_tags=tuple(_strings(trigger, "required_action_tags")),
+        qualifying_action_keys=tuple(_strings(trigger, "qualifying_action_keys")),
+        forbidden_action_tags=tuple(_strings(trigger, "forbidden_action_tags")),
+        fire_on=TriggerMoment(_string(trigger, "fire_on")),
+        consume_on=TriggerConsumption(_string(trigger, "consume_on")),
+        chance=_resolved_number(trigger.get("chance", 1.0), rank),
+        attack_modifier=_parse_attack_modifier(trigger, rank),
+        tags=tuple(_strings(trigger, "tags")),
+    )
+
+
+def _boolean_default(data: Mapping[str, Any], key: str, default: bool) -> bool:
+    value = data.get(key, default)
+    if not isinstance(value, bool):
+        raise RulesetLoadError(f"{key} must be a boolean")
+    return value
 
 
 def _parse_phase(data: Mapping[str, Any], rank: int) -> ActionPhase:
