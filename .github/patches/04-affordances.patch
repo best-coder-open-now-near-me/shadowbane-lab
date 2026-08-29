@@ -1,0 +1,34 @@
+diff --git a/src/shadowbane_lab/sim/affordances.py b/src/shadowbane_lab/sim/affordances.py
+index cc8ea2e..0000000 100644
+--- a/src/shadowbane_lab/sim/affordances.py
++++ b/src/shadowbane_lab/sim/affordances.py
+@@ -205,15 +205,26 @@ class AffordanceBuilder:
+         )
+ 
+     def _observe_entity(self, actor: EntityState, entity: EntityState) -> EntityObservation:
++        scalars = dict(entity.scalars)
++        blocking_prefix = "resource.restore.block."
++        for effect in entity.effects.values():
++            for tag in effect.tags:
++                if not tag.startswith(blocking_prefix):
++                    continue
++                resource_key = tag.removeprefix(blocking_prefix)
++                if not resource_key:
++                    continue
++                scalar_key = f"restore_block_rank.{resource_key}"
++                existing = scalars.get(scalar_key)
++                if existing is None or effect.magnitude > existing:
++                    scalars[scalar_key] = effect.magnitude
+         return EntityObservation(
+             entity_id=entity.entity_id,
+             kind=entity.kind,
+             relation=self._relation(actor, entity),
+             position=entity.position,
+             velocity=entity.velocity,
+-            scalars=tuple(
+-                NamedScalar(name, value) for name, value in sorted(entity.scalars.items())
+-            ),
++            scalars=tuple(NamedScalar(name, value) for name, value in sorted(scalars.items())),
+             tags=tuple(sorted(entity.effective_tags)),
+         )
+ 

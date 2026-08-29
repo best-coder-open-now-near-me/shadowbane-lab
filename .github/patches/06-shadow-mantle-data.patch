@@ -1,0 +1,138 @@
+diff --git a/src/shadowbane_lab/rulesets/data/assassin_shadow_mantle_v1.json b/src/shadowbane_lab/rulesets/data/assassin_shadow_mantle_v1.json
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/src/shadowbane_lab/rulesets/data/assassin_shadow_mantle_v1.json
+@@ -0,0 +1,132 @@
++{
++  "schema_version": 1,
++  "extension_id": "shadowbane.assassin-warlock-duel-shadow-mantle.v1",
++  "base_ruleset_id": "shadowbane.assassin-warlock-duel.v1",
++  "milestone_levels": [42],
++  "additional_actions": [
++    {
++      "action_key": "shadowbane.assassin.shadow_mantle",
++      "display_name": "Shadow Mantle",
++      "rank": 40,
++      "status": "compiled_with_override",
++      "concrete": {
++        "server_power_token": null,
++        "server_id_string": null,
++        "client_binding_key": "shadowbane.assassin.shadow_mantle"
++      },
++      "provenance": [
++        {
++          "fields": [
++            "rank",
++            "progression",
++            "spec.costs",
++            "spec.targeting.maximum_range",
++            "spec.phases[0].duration_ms",
++            "spec.phases[0].effects",
++            "spec.cooldown_ms"
++          ],
++          "source_id": "morloch-assassin-36339",
++          "locator": "Shadow Mantle rank 0-40 table"
++        },
++        {
++          "fields": [
++            "concrete.client_binding_key",
++            "spec.targeting",
++            "spec.phases[0].effects",
++            "spec.features",
++            "spec.tags"
++          ],
++          "source_id": "lab-action-algebra-v1",
++          "locator": "Shadow Mantle ranked restoration-block mapping",
++          "note": "The published same-or-lower-rank healing immunity is represented by a tagged effect whose magnitude is the compiled power rank."
++        }
++      ],
++      "unresolved": [
++        "Server power token and IDString require the deployment power-data export.",
++        "Effect-rank and stacking precedence still require emulator differential traces.",
++        "Dispel categories and the exact client-visible debuff state are not yet compiled."
++      ],
++      "spec": {
++        "targeting": {
++          "kind": "entity",
++          "allowed_relations": ["enemy"],
++          "minimum_range": 0,
++          "maximum_range": 100,
++          "requires_line_of_sight": true
++        },
++        "costs": [
++          {
++            "resource_key": "mana",
++            "amount": {
++              "interpolation": "linear",
++              "rank_min": 0,
++              "rank_max": 40,
++              "value_min": 55,
++              "value_max": 95
++            }
++          }
++        ],
++        "phases": [
++          {
++            "kind": "active",
++            "duration_ms": 1000,
++            "effects": [
++              {
++                "op": "apply_effect",
++                "subject": "target",
++                "effect_key": "shadow_mantle",
++                "duration_ms": 30000,
++                "magnitude": {
++                  "interpolation": "linear",
++                  "rank_min": 0,
++                  "rank_max": 40,
++                  "value_min": 0,
++                  "value_max": 40
++                },
++                "stacking_key": "BMHealing",
++                "tags": [
++                  "healing.block",
++                  "resource.restore.block.health",
++                  "debuff"
++                ]
++              }
++            ],
++            "delivery": {
++              "kind": "immediate",
++              "projectile_speed_units_per_second": null
++            },
++            "interruptible": true,
++            "movement_allowed": false
++          }
++        ],
++        "cooldown_ms": 16000,
++        "required_actor_tags": [],
++        "forbidden_actor_tags": [],
++        "features": [
++          {
++            "name": "healing_block_rank",
++            "value": {
++              "interpolation": "linear",
++              "rank_min": 0,
++              "rank_max": 40,
++              "value_min": 0,
++              "value_max": 40
++            }
++          },
++          {"name": "control_duration_ms", "value": 30000}
++        ],
++        "tags": ["combat", "control", "healing_block", "debuff"]
++      },
++      "progression": {
++        "professions": ["assassin"],
++        "granted_level": 42,
++        "maximum_rank": 40,
++        "fixed_rank": null,
++        "skill_requirements": [
++          {"training_key": "shadowmastery", "minimum_rank": 97}
++        ],
++        "power_requirements": []
++      }
++    }
++  ]
++}

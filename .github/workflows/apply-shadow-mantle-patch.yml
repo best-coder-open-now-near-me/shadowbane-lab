@@ -1,0 +1,33 @@
+name: Apply Shadow Mantle simulation patch
+
+on:
+  push:
+    branches:
+      - codex/shadow-mantle-sim
+    paths:
+      - ".github/patches/**"
+      - ".github/workflows/apply-shadow-mantle-patch.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply reviewed patch
+        run: |
+          cat .github/patches/*.patch > /tmp/shadow-mantle.patch
+          git apply --recount --check /tmp/shadow-mantle.patch
+          git apply --recount /tmp/shadow-mantle.patch
+          rm -rf .github/patches
+          rm .github/workflows/apply-shadow-mantle-patch.yml
+      - name: Commit patched simulator
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: model ranked Shadow Mantle healing blocks"
+          git push

@@ -1,0 +1,78 @@
+diff --git a/src/shadowbane_lab/rollouts/duel.py b/src/shadowbane_lab/rollouts/duel.py
+index fa5f374..0000000 100644
+--- a/src/shadowbane_lab/rollouts/duel.py
++++ b/src/shadowbane_lab/rollouts/duel.py
+@@ -37,12 +37,13 @@ SHADOW_TOUCH = "shadowbane.assassin.shadow_touch"
+ FADE = "shadowbane.assassin.fade"
+ BACKSTAB = "shadowbane.assassin.backstab"
+ INVISIBILITY = "shadowbane.assassin.invisibility"
++SHADOW_MANTLE = "shadowbane.assassin.shadow_mantle"
+ MIND_STRIKE = "shadowbane.warlock.mind_strike"
+ MIND_SNARE = "shadowbane.warlock.mind_snare"
+ PSYCHIC_HEALING = "shadowbane.warlock.psychic_healing"
+ LEVITATION = "shadowbane.warlock.levitation"
+ 
+-_DEFAULT_LEVELS = (10, 15, 18, 19, 22, 26, 28, 75)
++_DEFAULT_LEVELS = (10, 15, 18, 19, 22, 26, 28, 42, 75)
+ _DEFAULT_POWER_RANKS = (0, 10, 20, 40)
+ 
+ _POWER_MAXIMUMS = {
+@@ -54,6 +55,7 @@ _POWER_MAXIMUMS = {
+         (FADE, 20),
+         (BACKSTAB, 40),
+         (INVISIBILITY, 20),
++        (SHADOW_MANTLE, 40),
+     ),
+     "warlock": (
+         (MIND_STRIKE, 40),
+@@ -282,6 +284,10 @@ class UtilityDuelPolicy:
+         commitment_ms = max(1.0, features.get("commitment_ms", 1.0))
+ 
+         if "healing" in tags:
++            block_rank = _optional_scalar(actor.scalars, "restore_block_rank.health")
++            effect_rank = features.get("effect_rank", 0.0)
++            if block_rank is not None and block_rank >= effect_rank:
++                return -100.0
+             health_fraction = health / self._maximum_health
+             if health_fraction > self._heal_threshold:
+                 return -100.0
+@@ -290,5 +296,7 @@ class UtilityDuelPolicy:
+             return 12.0 + effective * 1_000.0 / commitment_ms
+ 
++        if affordance.action_key == SHADOW_MANTLE:
++            return self._shadow_mantle_score(affordance, enemies, features)
+         if affordance.action_key in {FADE, INVISIBILITY}:
+             return self._stealth_score(affordance, actor, enemies, commitment_ms)
+         if affordance.action_key == MIND_SNARE:
+@@ -352,6 +360,21 @@ class UtilityDuelPolicy:
+         if "movement.flight" not in target.tags:
+             return -20.0
+         return 8.0 + features.get("control_duration_ms", 0.0) / 1_000.0
++
++    @staticmethod
++    def _shadow_mantle_score(
++        affordance: Affordance,
++        enemies: dict[str, EntityObservation],
++        features: dict[str, float],
++    ) -> float:
++        target = enemies.get(affordance.binding.target_entity_id or "")
++        if target is None or "healing.block" in target.tags:
++            return -100.0
++        if "profession.warlock" not in target.tags:
++            return -20.0
++        duration = features.get("control_duration_ms", 0.0)
++        block_rank = features.get("healing_block_rank", 0.0)
++        return 32.0 + min(duration, 30_000.0) / 30_000.0 + min(block_rank, 40.0) / 40.0
+ 
+     @staticmethod
+     def _movement_score(affordance: Affordance, exchange: AgentExchange) -> float:
+@@ -681,5 +706,9 @@ def _scalar(values: tuple[NamedScalar, ...], name: str) -> float:
+     return next((item.value for item in values if item.name == name), 0.0)
+ 
+ 
++def _optional_scalar(values: tuple[NamedScalar, ...], name: str) -> float | None:
++    return next((item.value for item in values if item.name == name), None)
++
++
+ def _distance(left: Vector2, right: Vector2) -> float:
+     return hypot(left.x - right.x, left.y - right.y)

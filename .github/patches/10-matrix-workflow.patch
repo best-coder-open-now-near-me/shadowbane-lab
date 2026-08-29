@@ -1,0 +1,12 @@
+diff --git a/.github/workflows/duel-matrix.yml b/.github/workflows/duel-matrix.yml
+index 033b110..0000000 100644
+--- a/.github/workflows/duel-matrix.yml
++++ b/.github/workflows/duel-matrix.yml
+@@ -40,6 +40,6 @@ jobs:
+           python -m shadowbane_lab.rollouts \
+             --matrix \
+-            --levels 10,15,18,19,22,26,28,75 \
++            --levels 10,15,18,19,22,26,28,42,75 \
+             --ranks 0,10,20,40 \
+             --distances 15,60,110 \
+             --seeds 1,2,3 \
