@@ -1,0 +1,47 @@
+name: Format Shadow Mantle loader
+
+on:
+  push:
+    branches:
+      - codex/shadow-mantle-sim
+    paths:
+      - ".github/workflows/format-shadow-mantle.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply Ruff-compatible fold
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/shadowbane_lab/rulesets/loader.py")
+          source = path.read_text(encoding="utf-8")
+          old = '''    if any(
+              isinstance(effect, RestoreResource)
+              for phase in phases
+              for effect in phase.effects
+          ) and all(feature.name != "effect_rank" for feature in features):
+          '''
+          new = '''    if any(
+              isinstance(effect, RestoreResource) for phase in phases for effect in phase.effects
+          ) and all(feature.name != "effect_rank" for feature in features):
+          '''
+          if old not in source:
+              raise SystemExit("expected loader block was not found")
+          path.write_text(source.replace(old, new), encoding="utf-8")
+          PY
+          git diff --check
+      - name: Commit formatting
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/shadowbane_lab/rulesets/loader.py
+          git commit -m "style: format ranked restoration loader"
+          git push
