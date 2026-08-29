@@ -17,13 +17,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Apply reviewed patch
+      - name: Apply reviewed non-workflow patches
         run: |
-          cat .github/patches/*.patch > /tmp/shadow-mantle.patch
+          for patch in .github/patches/*.patch; do
+            if [[ "$(basename "$patch")" != "10-matrix-workflow.patch" ]]; then
+              cat "$patch"
+            fi
+          done > /tmp/shadow-mantle.patch
           git apply --recount --check /tmp/shadow-mantle.patch
           git apply --recount /tmp/shadow-mantle.patch
           rm -rf .github/patches
-          rm .github/workflows/apply-shadow-mantle-patch.yml
       - name: Commit patched simulator
         run: |
           git config user.name "github-actions[bot]"
