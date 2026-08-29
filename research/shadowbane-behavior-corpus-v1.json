@@ -25,13 +25,13 @@
     },
     {
       "profile_id": "wonderbane-observed",
-      "label": "WonderBane runtime under test",
+      "label": "WonderBane.com live service",
       "kind": "observed_runtime",
-      "description": "The exact client/server environment available to the lab. Its lineage and configuration must be fingerprinted before public-source behavior can be assigned to it.",
+      "description": "The official live Shadowbane emulator service at https://wonderbane.com used by the lab. The target service is identified, but exact client release hashes, patcher state, server implementation lineage, deployment data and runtime configuration still require fingerprinting.",
       "inherits_from": null,
       "valid_from": null,
       "valid_to": null,
-      "status": "pending_identification"
+      "status": "active"
     },
     {
       "profile_id": "sbe-2015-1.5",
@@ -794,6 +794,39 @@
       },
       "capture_status": "captured",
       "snapshot_path": "docs/adr/0002-typed-action-algebra.md",
+      "content_sha256": null,
+      "content_type": "text/markdown"
+    },
+    {
+      "source_id": "wonderbane-official-site-2026-08-29",
+      "label": "WonderBane official website snapshot",
+      "kind": "client_data",
+      "authority": "primary_official",
+      "profiles": [
+        "wonderbane-observed"
+      ],
+      "uri": "https://wonderbane.com/",
+      "revision": "mutable homepage snapshotted 2026-08-29",
+      "retrieved_on": "2026-08-29",
+      "scope": [
+        "official service identity",
+        "official client and patcher distribution",
+        "published character-calculator constraints",
+        "published character stat derivation",
+        "official Discord patch-note channel"
+      ],
+      "limitations": [
+        "The homepage does not expose the server source revision, deployment power/effect rows or live configuration.",
+        "Published calculator behavior still needs comparison against exact client and server runtime outputs."
+      ],
+      "ingestion": {
+        "method": "html_snapshot",
+        "automatable": true,
+        "available": true,
+        "notes": "The repository snapshot records the parsed public statements. Archive downloadable client and patcher hashes separately."
+      },
+      "capture_status": "captured",
+      "snapshot_path": "research/sources/wonderbane-com-home-2026-08-29.md",
       "content_sha256": null,
       "content_type": "text/markdown"
     }
@@ -2093,6 +2126,142 @@
       "simulator_bindings": [
         "profiles.sbe-2015-1.5.ruleset.shadow_mantle"
       ]
+    },
+    {
+      "claim_id": "wonderbane.build.maximum-runes",
+      "profile_id": "wonderbane-observed",
+      "domain": "progression",
+      "subject": "character build",
+      "predicate": "maximum_rune_count",
+      "statement": "The WonderBane character calculator applies a maximum of twelve runes to a character build.",
+      "parameters": {
+        "maximum_runes": 12
+      },
+      "conditions": [
+        "using the official WonderBane.com character calculator",
+        "rune categories are counted under the calculator's published limit"
+      ],
+      "valid_from": null,
+      "valid_to": null,
+      "evidence": [
+        {
+          "source_id": "wonderbane-official-site-2026-08-29",
+          "locator": "Character Calculator introduction",
+          "stance": "supports",
+          "note": "Officially published calculator constraint; live rejection behavior remains to be traced."
+        }
+      ],
+      "confidence": "strong",
+      "compile_disposition": "override",
+      "contradiction_group": null,
+      "test_requirements": [
+        "Construct legal builds with eleven, twelve and thirteen total runes in the official calculator.",
+        "Attempt the same boundary in the live WonderBane client and record the rejection point."
+      ],
+      "tags": [
+        "wonderbane",
+        "build",
+        "runes",
+        "calculator"
+      ],
+      "reviewed_on": "2026-08-29",
+      "simulator_bindings": [
+        "builds.runes.maximum_count"
+      ]
+    },
+    {
+      "claim_id": "wonderbane.build.discipline-threshold",
+      "profile_id": "wonderbane-observed",
+      "domain": "progression",
+      "subject": "discipline selection",
+      "predicate": "maximum_count_by_level",
+      "statement": "WonderBane permits at most two disciplines below level 70 and at most three disciplines at level 70 or above.",
+      "parameters": {
+        "below_level_70": 2,
+        "at_or_above_level_70": 3,
+        "threshold_level": 70
+      },
+      "conditions": [
+        "using the official WonderBane.com character calculator",
+        "discipline eligibility requirements are otherwise satisfied"
+      ],
+      "valid_from": null,
+      "valid_to": null,
+      "evidence": [
+        {
+          "source_id": "wonderbane-official-site-2026-08-29",
+          "locator": "Character Calculator introduction",
+          "stance": "supports",
+          "note": "The homepage explicitly publishes the level threshold and counts."
+        }
+      ],
+      "confidence": "strong",
+      "compile_disposition": "override",
+      "contradiction_group": null,
+      "test_requirements": [
+        "Test second and third discipline selection at levels 69 and 70 in the official calculator.",
+        "Verify live trainer or rune-use behavior at the same boundary with an eligible character."
+      ],
+      "tags": [
+        "wonderbane",
+        "build",
+        "disciplines",
+        "level-gate",
+        "calculator"
+      ],
+      "reviewed_on": "2026-08-29",
+      "simulator_bindings": [
+        "builds.disciplines.maximum_count_by_level"
+      ]
+    },
+    {
+      "claim_id": "wonderbane.build.published-stat-derivation",
+      "profile_id": "wonderbane-observed",
+      "domain": "progression",
+      "subject": "base character stat",
+      "predicate": "derivation_formula",
+      "statement": "The official WonderBane calculator derives a displayed stat from race start, class modifier, a five-point race boon, trained modifier and rune stat grants; rune costs reduce the available pool and rune cap grants increase stat caps.",
+      "parameters": {
+        "formula": "race_start + class_modifier + race_boon_5 + trained_modifier + sum(rune_stat_grants)",
+        "race_boon": 5,
+        "pool_deducts_rune_costs": true,
+        "caps_include_rune_cap_grants": true
+      },
+      "conditions": [
+        "using the official WonderBane.com character calculator",
+        "the selected race, base class, promotion, level and rune gates are legal"
+      ],
+      "valid_from": null,
+      "valid_to": null,
+      "evidence": [
+        {
+          "source_id": "wonderbane-official-site-2026-08-29",
+          "locator": "Character Calculator derived-stat explanation",
+          "stance": "supports",
+          "note": "The page says the calculator mirrors server stat formulas; exact client/server parity still requires fixtures."
+        }
+      ],
+      "confidence": "strong",
+      "compile_disposition": "override",
+      "contradiction_group": null,
+      "test_requirements": [
+        "Compare calculator outputs with clean live characters across several race/base/promotion combinations.",
+        "Add one rune stat grant, one rune cost and one rune cap grant at a time and compare exact deltas.",
+        "Record whether race boon application is universal or conditional in the live character sheet."
+      ],
+      "tags": [
+        "wonderbane",
+        "build",
+        "stats",
+        "runes",
+        "calculator"
+      ],
+      "reviewed_on": "2026-08-29",
+      "simulator_bindings": [
+        "builds.stats.base_derivation",
+        "builds.training.available_pool",
+        "builds.stats.cap_derivation"
+      ]
     }
   ],
   "coverage": [
@@ -2256,11 +2425,15 @@
       "simulator_state": "absent",
       "next_evidence": [
         "Create versioned build profiles from client sheets and item data.",
-        "Compile stat derivation before interpreting level progression."
+        "Compile stat derivation before interpreting level progression.",
+        "Compare the official WonderBane.com calculator against fingerprinted live character sheets at rune, discipline and stat-derivation boundaries."
       ],
       "claim_ids": [
         "retail.skill-does-not-break-selected-persistent-effects",
-        "retail.weapon-powers-dispel-on-unequip"
+        "retail.weapon-powers-dispel-on-unequip",
+        "wonderbane.build.maximum-runes",
+        "wonderbane.build.discipline-threshold",
+        "wonderbane.build.published-stat-derivation"
       ]
     },
     {

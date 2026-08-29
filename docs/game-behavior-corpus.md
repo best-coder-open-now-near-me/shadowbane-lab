@@ -3,8 +3,8 @@
 Simulation results are meaningful only when they name the game implementation and era they
 attempt to reproduce. “Shadowbane behavior” is not one undifferentiated ruleset: retail changed
 over years of patches, public emulators implement particular revisions with incomplete deployment
-data, private servers intentionally diverge, and the WonderBane runtime may not match any public
-description exactly.
+data, private servers intentionally diverge, and the lab's target—the live WonderBane.com
+service—may not match any public implementation or historical description exactly.
 
 This document defines the research system used to collect those distinctions without flattening
 them into simulator folklore.
@@ -29,9 +29,11 @@ game.
 |:---|:---|
 | `retail-final-24.3` | Historical baseline for the final official retail patch dated January 7, 2009. |
 | `magicbane-ab96cfc` | Exact public MagicBane server implementation pinned to commit `ab96cfcda4e983dd7fc1fc205205810f11ddd3de`. |
-| `wonderbane-observed` | The actual client/server environment used for controlled differential observations. It remains pending until binaries, data and server identity are fingerprinted. |
+| `wonderbane-observed` | The live WonderBane.com service used for controlled differential observations. The service is identified; exact client, patcher, server lineage, data and configuration still require fingerprinting. |
 | `sbe-2015-1.5` | A later emulator dialect whose Patch 1.5 must never be confused with retail Patch 1.5 or the final retail rules. |
 | `reference-lab-v1` | The intentionally simplified local simulator model and reviewed approximations. |
+
+The official WonderBane.com homepage is now a first-party source for service identity, client/patcher distribution and published character-calculator rules. It is not evidence that WonderBane uses an unmodified public MagicBane commit.
 
 Profiles do **not** inherit mechanics automatically. A claim supported for one profile may be
 copied to another only through an explicit, separately reviewed claim. This prevents an old retail
@@ -181,9 +183,9 @@ An authorized export should be snapshotted with hashes and parsed into a version
 same applies to accessible WonderBane client tables and assets. No credentials, secrets or
 unauthorized server data belong in the repository.
 
-### 4. Fingerprint the actual runtime
+### 4. Fingerprint the WonderBane.com live runtime
 
-Before calling WonderBane “MagicBane behavior,” record:
+The target service is now identified. Before assigning MagicBane implementation behavior to it, record:
 
 - executable and data-file hashes;
 - client version strings and server identity;
