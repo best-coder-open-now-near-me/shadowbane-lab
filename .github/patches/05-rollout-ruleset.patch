@@ -3,7 +3,6 @@ index 995ed36..0000000 100644
 --- a/src/shadowbane_lab/rollouts/ruleset.py
 +++ b/src/shadowbane_lab/rollouts/ruleset.py
 @@ -10,7 +10,10 @@ from shadowbane_lab.rulesets import CompiledRuleset, RulesetLoadError, load_rule
- from typing import Any, cast
  
  _BASE_RESOURCE = "data/shadowbane_vertical_slice_v1.json"
 -_EXTENSION_RESOURCE = "data/assassin_warlock_progression_v1.json"
