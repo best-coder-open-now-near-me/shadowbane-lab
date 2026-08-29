@@ -1,0 +1,2324 @@
+{
+  "schema_version": 1,
+  "corpus_id": "shadowbane.behavior-corpus.v1",
+  "reviewed_on": "2026-08-29",
+  "profiles": [
+    {
+      "profile_id": "retail-final-24.3",
+      "label": "Shadowbane retail final patch 24.3",
+      "kind": "retail",
+      "description": "Historical retail behavior after the final official January 7, 2009 patch. This is an evidence target, not an assumption that any current emulator matches it.",
+      "inherits_from": null,
+      "valid_from": "2009-01-07",
+      "valid_to": null,
+      "status": "historical"
+    },
+    {
+      "profile_id": "magicbane-ab96cfc",
+      "label": "MagicBane server at ab96cfc",
+      "kind": "emulator",
+      "description": "Public MagicBane server implementation pinned to the same commit used by the current ruleset. Concrete deployment power/effect rows are not included in the public source checkout.",
+      "inherits_from": null,
+      "valid_from": null,
+      "valid_to": null,
+      "status": "active"
+    },
+    {
+      "profile_id": "wonderbane-observed",
+      "label": "WonderBane runtime under test",
+      "kind": "observed_runtime",
+      "description": "The exact client/server environment available to the lab. Its lineage and configuration must be fingerprinted before public-source behavior can be assigned to it.",
+      "inherits_from": null,
+      "valid_from": null,
+      "valid_to": null,
+      "status": "pending_identification"
+    },
+    {
+      "profile_id": "sbe-2015-1.5",
+      "label": "Shadowbane Emulator Patch 1.5 (2015)",
+      "kind": "alternate_server",
+      "description": "A later emulator patch dialect with custom balance changes. Its patch numbering must not be confused with retail Patch 1.5.",
+      "inherits_from": null,
+      "valid_from": "2015-07-16",
+      "valid_to": null,
+      "status": "historical"
+    },
+    {
+      "profile_id": "reference-lab-v1",
+      "label": "Shadowbane Lab reference model v1",
+      "kind": "lab_model",
+      "description": "The deliberately simplified deterministic model used for protocol, engine and policy experiments. Approximations belong here unless promoted by profile-specific evidence.",
+      "inherits_from": null,
+      "valid_from": "2026-08-25",
+      "valid_to": null,
+      "status": "reference_only"
+    }
+  ],
+  "sources": [
+    {
+      "source_id": "magicbane-server-ab96cfc",
+      "label": "MagicBane Server revision ab96cfc",
+      "kind": "emulator_source",
+      "authority": "primary_implementation",
+      "profiles": [
+        "magicbane-ab96cfc"
+      ],
+      "uri": "https://repo.magicbane.com/MagicBane/Server/src/commit/ab96cfcda4e983dd7fc1fc205205810f11ddd3de",
+      "revision": "ab96cfcda4e983dd7fc1fc205205810f11ddd3de",
+      "retrieved_on": "2026-08-29",
+      "scope": [
+        "server implementation",
+        "power execution",
+        "effect modifiers",
+        "combat",
+        "movement",
+        "AI",
+        "items",
+        "world systems"
+      ],
+      "limitations": [
+        "The public source checkout does not contain the concrete deployment power/effect rows required to bind every token and numeric value.",
+        "Implementation behavior describes this emulator profile, not automatically final retail or WonderBane."
+      ],
+      "ingestion": {
+        "method": "git_snapshot",
+        "automatable": true,
+        "available": true,
+        "notes": "Index by commit, path, symbol and line range. Preserve the repository's own history as a separate source."
+      },
+      "capture_status": "remote_pinned",
+      "snapshot_path": null,
+      "content_sha256": null,
+      "content_type": "text/html"
+    },
+    {
+      "source_id": "magicbane-server-history",
+      "label": "MagicBane Server commit history",
+      "kind": "version_control_history",
+      "authority": "primary_implementation",
+      "profiles": [
+        "magicbane-ab96cfc"
+      ],
+      "uri": "https://repo.magicbane.com/MagicBane/Server/commits/branch/master",
+      "revision": "discovery index retrieved 2026-08-29",
+      "retrieved_on": "2026-08-29",
+      "scope": [
+        "implementation change history",
+        "bug-fix rationale",
+        "behavior regressions"
+      ],
+      "limitations": [
+        "Master history may contain changes after the pinned simulator target.",
+        "Commit messages and diffs require behavior-level review before use."
+      ],
+      "ingestion": {
+        "method": "git_history",
+        "automatable": true,
+        "available": true,
+        "notes": "Use ancestry-relative history ending at the pinned commit for the profile; use later commits only as qualifying evidence."
+      },
+      "capture_status": "pending",
+      "snapshot_path": null,
+      "content_sha256": null,
+      "content_type": "text/html"
+    },
+    {
+      "source_id": "magicbane-patch-notes",
+      "label": "MagicBane mirror of Shadowbane patch notes",
+      "kind": "emulator_patch_notes",
+      "authority": "primary_official",
+      "profiles": [
+        "retail-final-24.3",
+        "magicbane-ab96cfc"
+      ],
+      "uri": "https://repo.magicbane.com/MagicBane/Server/wiki/Shadowbane-Patch-Notes",
+      "revision": "wiki page revision 1, edited 2022-05-06",
+      "retrieved_on": "2026-08-29",
+      "scope": [
+        "retail patch chronology",
+        "intentional behavior changes",
+        "edge-case fixes"
+      ],
+      "limitations": [
+        "This is a community-hosted mirror, not the original Ubisoft publication endpoint.",
+        "Patch intent does not prove that every target implementation matches it."
+      ],
+      "ingestion": {
+        "method": "html_snapshot",
+        "automatable": true,
+        "available": true,
+        "notes": "Split entries by dated retail patch and preserve exact section anchors or quoted issue identifiers."
+      },
+      "capture_status": "pending",
+      "snapshot_path": null,
+      "content_sha256": null,
+      "content_type": "text/html"
+    },
+    {
+      "source_id": "morloch-patch-history-33861",
+      "label": "Morloch Patch History revision 33861",
+      "kind": "wiki_revision",
+      "authority": "secondary_reconstruction",
+      "profiles": [
+        "retail-final-24.3",
+        "sbe-2015-1.5"
+      ],
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Patch_History&oldid=33861",
+      "revision": "oldid=33861",
+      "retrieved_on": "2026-08-29",
+      "scope": [
+        "retail/emulator era classification",
+        "patch index",
+        "patch dates"
+      ],
+      "limitations": [
+        "The page mixes retail history and later emulator history; every referenced patch must be assigned to a profile before extraction."
+      ],
+      "ingestion": {
+        "method": "mediawiki_revision",
+        "automatable": true,
+        "available": true,
+        "notes": "Use oldid and crawl linked patch pages while retaining the era heading."
+      },
+      "capture_status": "remote_pinned",
+      "snapshot_path": null,
+      "content_sha256": null,
+      "content_type": "text/html"
+    },
+    {
+      "source_id": "morloch-patch-24.3-31885",
+      "label": "Morloch mirror of official Patch 24.3",
+      "kind": "official_patch_mirror",
+      "authority": "primary_official",
+      "profiles": [
+        "retail-final-24.3"
+      ],
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Patch_24.3&oldid=31885",
+      "revision": "oldid=31885",
+      "retrieved_on": "2026-08-29",
+      "scope": [
+        "final retail behavior changes",
+        "weapon power range",
+        "Sneak",
+        "Invisibility",
+        "Passwall",
+        "Backstab",
+        "Shadow Mantle"
+      ],
+      "limitations": [
+        "A final-patch change establishes the post-patch retail claim but does not identify emulator implementation code or all unchanged base mechanics."
+      ],
+      "ingestion": {
+        "method": "mediawiki_revision",
+        "automatable": true,
+        "available": true,
+        "notes": null
+      },
+      "capture_status": "remote_pinned",
+      "snapshot_path": null,
+      "content_sha256": null,
+      "content_type": "text/html"
+    },
+    {
+      "source_id": "morloch-power-34596",
+      "label": "Morloch Power mechanics revision 34596",
+      "kind": "wiki_revision",
+      "authority": "secondary_reconstruction",
+      "profiles": [
+        "retail-final-24.3"
+      ],
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Power&oldid=34596",
+      "revision": "oldid=34596",
+      "retrieved_on": "2026-08-29",
+      "scope": [
+        "power metadata",
+        "cast/recycle",
+        "target/range",
+        "stack category/rank",
+        "standard replacement rule"
+      ],
+      "limitations": [
+        "Community reconstruction may simplify exceptions implemented by individual powers or patches.",
+        "Exact effect rank versus trained power rank terminology requires data/code cross-checking."
+      ],
+      "ingestion": {
+        "method": "mediawiki_revision",
+        "automatable": true,
+        "available": true,
+        "notes": null
+      },
+      "capture_status": "remote_pinned",
+      "snapshot_path": null,
+      "content_sha256": null,
+      "content_type": "text/html"
+    },
+    {
+      "source_id": "morloch-formulas-29158",
+      "label": "Morloch Formulas revision 29158",
+      "kind": "wiki_revision",
+      "authority": "secondary_reconstruction",
+      "profiles": [
+        "retail-final-24.3"
+      ],
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Formulas&oldid=29158",
+      "revision": "oldid=29158",
+      "retrieved_on": "2026-08-29",
+      "scope": [
+        "resistance cap",
+        "resistance debuff order",
+        "negative resistance",
+        "armor piercing formula"
+      ],
+      "limitations": [
+        "Some formulas are marked or described as reconstructions rather than code-derived facts.",
+        "Its armor-piercing description conflicts with a separate Morloch mechanics page."
+      ],
+      "ingestion": {
+        "method": "mediawiki_revision",
+        "automatable": true,
+        "available": true,
+        "notes": null
+      },
+      "capture_status": "remote_pinned",
+      "snapshot_path": null,
+      "content_sha256": null,
+      "content_type": "text/html"
+    },
+    {
+      "source_id": "morloch-hit-roll-35171",
+      "label": "Morloch Hit Roll revision 35171",
+      "kind": "wiki_revision",
+      "authority": "secondary_reconstruction",
+      "profiles": [
+        "retail-final-24.3"
+      ],
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Hit_Roll&oldid=35171",
+      "revision": "oldid=35171",
+      "retrieved_on": "2026-08-29",
+      "scope": [
+        "attack rating",
+        "defense",
+        "minimum hit chance",
+        "hit roll formula hypotheses"
+      ],
+      "limitations": [
+        "Formula details require implementation or statistical trace confirmation.",
+        "The page's stated minimum hit chance is stronger than its formula provenance."
+      ],
+      "ingestion": {
+        "method": "mediawiki_revision",
+        "automatable": true,
+        "available": true,
+        "notes": null
+      },
+      "capture_status": "remote_pinned",
+      "snapshot_path": null,
+      "content_sha256": null,
+      "content_type": "text/html"
+    },
+    {
+      "source_id": "morloch-crowd-control-34882",
+      "label": "Morloch Crowd Control revision 34882",
+      "kind": "wiki_revision",
+      "authority": "secondary_reconstruction",
+      "profiles": [
+        "retail-final-24.3"
+      ],
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Crowd_Control&oldid=34882",
+      "revision": "oldid=34882",
+      "retrieved_on": "2026-08-29",
+      "scope": [
+        "powerblock",
+        "root",
+        "snare",
+        "stun",
+        "mesmerize",
+        "break conditions",
+        "defense bypass"
+      ],
+      "limitations": [
+        "Mob-only and player behavior are mixed on the page and must remain target-class conditional."
+      ],
+      "ingestion": {
+        "method": "mediawiki_revision",
+        "automatable": true,
+        "available": true,
+        "notes": null
+      },
+      "capture_status": "remote_pinned",
+      "snapshot_path": null,
+      "content_sha256": null,
+      "content_type": "text/html"
+    },
+    {
+      "source_id": "morloch-stun-34464",
+      "label": "Morloch Stun revision 34464",
+      "kind": "wiki_revision",
+      "authority": "secondary_reconstruction",
+      "profiles": [
+        "retail-final-24.3"
+      ],
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Stun&oldid=34464",
+      "revision": "oldid=34464",
+      "retrieved_on": "2026-08-29",
+      "scope": [
+        "stun affordance suppression",
+        "exceptions",
+        "immunity duration",
+        "immunity refresh"
+      ],
+      "limitations": [
+        "Client-visible action descriptions require implementation or runtime confirmation for precise event ordering."
+      ],
+      "ingestion": {
+        "method": "mediawiki_revision",
+        "automatable": true,
+        "available": true,
+        "notes": null
+      },
+      "capture_status": "remote_pinned",
+      "snapshot_path": null,
+      "content_sha256": null,
+      "content_type": "text/html"
+    },
+    {
+      "source_id": "morloch-invisibility-36076",
+      "label": "Morloch Invisibility revision 36076",
+      "kind": "wiki_revision",
+      "authority": "secondary_reconstruction",
+      "profiles": [
+        "retail-final-24.3"
+      ],
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Invisibility&oldid=36076",
+      "revision": "oldid=36076",
+      "retrieved_on": "2026-08-29",
+      "scope": [
+        "visibility",
+        "break conditions",
+        "AoE interaction",
+        "reveal behavior"
+      ],
+      "limitations": [
+        "Detection thresholds and implementation timing are not fully specified."
+      ],
+      "ingestion": {
+        "method": "mediawiki_revision",
+        "automatable": true,
+        "available": true,
+        "notes": null
+      },
+      "capture_status": "remote_pinned",
+      "snapshot_path": null,
+      "content_sha256": null,
+      "content_type": "text/html"
+    },
+    {
+      "source_id": "morloch-flight-34572",
+      "label": "Morloch Flight revision 34572",
+      "kind": "wiki_revision",
+      "authority": "secondary_reconstruction",
+      "profiles": [
+        "retail-final-24.3"
+      ],
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Flight&oldid=34572",
+      "revision": "oldid=34572",
+      "retrieved_on": "2026-08-29",
+      "scope": [
+        "flight tiers",
+        "vertical transitions",
+        "horizontal movement restrictions",
+        "attack legality",
+        "casted versus natural flight",
+        "grounding"
+      ],
+      "limitations": [
+        "Approximate transition timing and terrain interactions require traces.",
+        "Specific powers can carry explicit exceptions."
+      ],
+      "ingestion": {
+        "method": "mediawiki_revision",
+        "automatable": true,
+        "available": true,
+        "notes": null
+      },
+      "capture_status": "remote_pinned",
+      "snapshot_path": null,
+      "content_sha256": null,
+      "content_type": "text/html"
+    },
+    {
+      "source_id": "morloch-movement-speed-34545",
+      "label": "Morloch Movement Speed revision 34545",
+      "kind": "wiki_revision",
+      "authority": "secondary_reconstruction",
+      "profiles": [
+        "retail-final-24.3"
+      ],
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Movement_Speed&oldid=34545",
+      "revision": "oldid=34545",
+      "retrieved_on": "2026-08-29",
+      "scope": [
+        "base movement",
+        "Running",
+        "flight modifier",
+        "speed cap",
+        "snare/buff composition"
+      ],
+      "limitations": [
+        "Formula ordering relative to state transitions and the cap needs implementation and runtime checks."
+      ],
+      "ingestion": {
+        "method": "mediawiki_revision",
+        "automatable": true,
+        "available": true,
+        "notes": null
+      },
+      "capture_status": "remote_pinned",
+      "snapshot_path": null,
+      "content_sha256": null,
+      "content_type": "text/html"
+    },
+    {
+      "source_id": "morloch-stamina-34558",
+      "label": "Morloch Stamina revision 34558",
+      "kind": "wiki_revision",
+      "authority": "secondary_reconstruction",
+      "profiles": [
+        "retail-final-24.3"
+      ],
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Stamina&oldid=34558",
+      "revision": "oldid=34558",
+      "retrieved_on": "2026-08-29",
+      "scope": [
+        "stamina depletion",
+        "movement mode",
+        "flight grounding",
+        "weapon use"
+      ],
+      "limitations": [
+        "Exact thresholds, event ordering and recovery behavior require runtime or implementation evidence."
+      ],
+      "ingestion": {
+        "method": "mediawiki_revision",
+        "automatable": true,
+        "available": true,
+        "notes": null
+      },
+      "capture_status": "remote_pinned",
+      "snapshot_path": null,
+      "content_sha256": null,
+      "content_type": "text/html"
+    },
+    {
+      "source_id": "morloch-skill-27874",
+      "label": "Morloch Skill revision 27874",
+      "kind": "wiki_revision",
+      "authority": "secondary_reconstruction",
+      "profiles": [
+        "retail-final-24.3"
+      ],
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Skill&oldid=27874",
+      "revision": "oldid=27874",
+      "retrieved_on": "2026-08-29",
+      "scope": [
+        "skill versus spell classification",
+        "persistent-effect break semantics"
+      ],
+      "limitations": [
+        "Individual actions can have exceptions and must be classified from concrete power data."
+      ],
+      "ingestion": {
+        "method": "mediawiki_revision",
+        "automatable": true,
+        "available": true,
+        "notes": null
+      },
+      "capture_status": "remote_pinned",
+      "snapshot_path": null,
+      "content_sha256": null,
+      "content_type": "text/html"
+    },
+    {
+      "source_id": "morloch-assassin-36339",
+      "label": "Morloch Assassin Powers revision 36339",
+      "kind": "wiki_revision",
+      "authority": "secondary_reconstruction",
+      "profiles": [
+        "retail-final-24.3",
+        "magicbane-ab96cfc"
+      ],
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Assassin_Powers&oldid=36339",
+      "revision": "oldid=36339",
+      "retrieved_on": "2026-08-29",
+      "scope": [
+        "Assassin progression",
+        "power rank tables",
+        "costs",
+        "ranges",
+        "cast/recycle",
+        "effect descriptions"
+      ],
+      "limitations": [
+        "Published tables do not prove emulator token bindings, hit formulas, modifier order or every stacking interaction."
+      ],
+      "ingestion": {
+        "method": "mediawiki_revision",
+        "automatable": true,
+        "available": true,
+        "notes": null
+      },
+      "capture_status": "remote_pinned",
+      "snapshot_path": null,
+      "content_sha256": null,
+      "content_type": "text/html"
+    },
+    {
+      "source_id": "morloch-warlock-36352",
+      "label": "Morloch Warlock Powers revision 36352",
+      "kind": "wiki_revision",
+      "authority": "secondary_reconstruction",
+      "profiles": [
+        "retail-final-24.3",
+        "magicbane-ab96cfc"
+      ],
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Warlock_Powers&oldid=36352",
+      "revision": "oldid=36352",
+      "retrieved_on": "2026-08-29",
+      "scope": [
+        "Warlock progression",
+        "power rank tables",
+        "costs",
+        "ranges",
+        "cast/recycle",
+        "effect descriptions"
+      ],
+      "limitations": [
+        "Published tables do not prove emulator token bindings, hit formulas, modifier order or every stacking interaction."
+      ],
+      "ingestion": {
+        "method": "mediawiki_revision",
+        "automatable": true,
+        "available": true,
+        "notes": null
+      },
+      "capture_status": "remote_pinned",
+      "snapshot_path": null,
+      "content_sha256": null,
+      "content_type": "text/html"
+    },
+    {
+      "source_id": "sbe-patch-1.5-2015",
+      "label": "Shadowbane Emulator Patch 1.5 (July 2015)",
+      "kind": "alternate_server_notes",
+      "authority": "alternate_dialect",
+      "profiles": [
+        "sbe-2015-1.5"
+      ],
+      "uri": "https://morloch.shadowbaneemulator.com/index.php/Patch_1.5",
+      "revision": null,
+      "retrieved_on": "2026-08-29",
+      "scope": [
+        "custom emulator balance changes",
+        "custom Shadow Mantle behavior"
+      ],
+      "limitations": [
+        "This is a mutable current URL without an oldid in the seed.",
+        "Its behavior must never be imported into retail-final or WonderBane without separate evidence."
+      ],
+      "ingestion": {
+        "method": "html_snapshot",
+        "automatable": true,
+        "available": true,
+        "notes": "Resolve and store a permanent revision before promoting additional claims."
+      },
+      "capture_status": "pending",
+      "snapshot_path": null,
+      "content_sha256": null,
+      "content_type": "text/html"
+    },
+    {
+      "source_id": "lakebane-patch-notes-2026-04-17",
+      "label": "Lakebane patch notes through April 17, 2026",
+      "kind": "alternate_server_notes",
+      "authority": "alternate_dialect",
+      "profiles": [
+        "sbe-2015-1.5"
+      ],
+      "uri": "https://lakebane.com/patch_notes.html",
+      "revision": "current through 2026-04-17",
+      "retrieved_on": "2026-08-29",
+      "scope": [
+        "example of modern custom-server divergence",
+        "class/power/item balance variants"
+      ],
+      "limitations": [
+        "Lakebane is not the WonderBane target and is not evidence for retail behavior.",
+        "The page is mutable and included only to demonstrate profile separation."
+      ],
+      "ingestion": {
+        "method": "html_snapshot",
+        "automatable": true,
+        "available": true,
+        "notes": "Keep out of the core fidelity queue unless Lakebane becomes an explicit target."
+      },
+      "capture_status": "pending",
+      "snapshot_path": null,
+      "content_sha256": null,
+      "content_type": "text/html"
+    },
+    {
+      "source_id": "wonderbane-client-data",
+      "label": "WonderBane client data and executable fingerprint",
+      "kind": "client_data",
+      "authority": "primary_runtime",
+      "profiles": [
+        "wonderbane-observed"
+      ],
+      "uri": "local://wonderbane/client-data",
+      "revision": null,
+      "retrieved_on": "2026-08-29",
+      "scope": [
+        "client version",
+        "binary/data hashes",
+        "power metadata",
+        "UI descriptions",
+        "animation and timing identifiers"
+      ],
+      "limitations": [
+        "Not yet collected.",
+        "Client data can describe presentation or intended values without proving server authority."
+      ],
+      "ingestion": {
+        "method": "client_capture",
+        "automatable": false,
+        "available": false,
+        "notes": "Collect only from the user's local authorized installation; never commit credentials or sensitive server material."
+      },
+      "capture_status": "pending",
+      "snapshot_path": null,
+      "content_sha256": null,
+      "content_type": null
+    },
+    {
+      "source_id": "wonderbane-runtime-traces",
+      "label": "Controlled WonderBane differential traces",
+      "kind": "runtime_trace",
+      "authority": "primary_runtime",
+      "profiles": [
+        "wonderbane-observed"
+      ],
+      "uri": "local://wonderbane/traces",
+      "revision": null,
+      "retrieved_on": "2026-08-29",
+      "scope": [
+        "actual target behavior",
+        "timing",
+        "event ordering",
+        "boundary conditions",
+        "implementation differentials"
+      ],
+      "limitations": [
+        "Not yet collected.",
+        "A trace establishes only its exact build, character state, equipment, server configuration and scenario."
+      ],
+      "ingestion": {
+        "method": "trace_capture",
+        "automatable": false,
+        "available": false,
+        "notes": "Store scenario manifests, semantic events, source/client fingerprints and relevant screenshots or logs."
+      },
+      "capture_status": "pending",
+      "snapshot_path": null,
+      "content_sha256": null,
+      "content_type": null
+    },
+    {
+      "source_id": "magicbane-deployment-export",
+      "label": "Authorized MagicBane deployment power/effect export",
+      "kind": "deployment_data",
+      "authority": "primary_implementation",
+      "profiles": [
+        "magicbane-ab96cfc",
+        "wonderbane-observed"
+      ],
+      "uri": "local://magicbane/deployment-data",
+      "revision": null,
+      "retrieved_on": "2026-08-29",
+      "scope": [
+        "concrete power tokens",
+        "ID strings",
+        "effect rows",
+        "modifier values",
+        "stacking categories",
+        "target flags"
+      ],
+      "limitations": [
+        "Not present in the public server source and not yet available to the lab.",
+        "Any export must be authorized, versioned and matched to a server revision/configuration."
+      ],
+      "ingestion": {
+        "method": "manual_export",
+        "automatable": false,
+        "available": false,
+        "notes": null
+      },
+      "capture_status": "pending",
+      "snapshot_path": null,
+      "content_sha256": null,
+      "content_type": null
+    },
+    {
+      "source_id": "lab-action-algebra-v1",
+      "label": "Shadowbane Lab typed action algebra v1",
+      "kind": "reviewed_model",
+      "authority": "local_reviewed",
+      "profiles": [
+        "reference-lab-v1"
+      ],
+      "uri": "docs/adr/0002-typed-action-algebra.md",
+      "revision": "local-v1",
+      "retrieved_on": "2026-08-29",
+      "scope": [
+        "available simulator primitives",
+        "reviewed mappings",
+        "known representational limits"
+      ],
+      "limitations": [
+        "A simulator primitive or approximation is not evidence that the game behaved that way."
+      ],
+      "ingestion": {
+        "method": "local_file",
+        "automatable": true,
+        "available": true,
+        "notes": null
+      },
+      "capture_status": "captured",
+      "snapshot_path": "docs/adr/0002-typed-action-algebra.md",
+      "content_sha256": null,
+      "content_type": "text/markdown"
+    }
+  ],
+  "claims": [
+    {
+      "claim_id": "retail.effect.standard-stack-replacement",
+      "profile_id": "retail-final-24.3",
+      "domain": "stacking",
+      "subject": "standard categorized effects",
+      "predicate": "replacement_precedence",
+      "statement": "Under the standard stack rule, a newly cast effect replaces an existing equal-category/equal-rank effect only when the new spell power is greater than or equal to the existing spell power.",
+      "parameters": {
+        "comparison": "new_power_rank >= existing_power_rank"
+      },
+      "conditions": [
+        "same effect stack category",
+        "same stack rank",
+        "no power-specific exception"
+      ],
+      "valid_from": null,
+      "valid_to": null,
+      "evidence": [
+        {
+          "source_id": "morloch-power-34596",
+          "locator": "Stack Category and Stack Rank sections",
+          "stance": "supports",
+          "note": "The page gives the standard rule but warns implicitly through per-power metadata that exceptions may exist."
+        }
+      ],
+      "confidence": "provisional",
+      "compile_disposition": "block",
+      "contradiction_group": null,
+      "test_requirements": [
+        "Compile two otherwise identical effects at adjacent ranks and test both cast orders on WonderBane.",
+        "Extract the exact MagicBane effect collision path."
+      ],
+      "tags": [
+        "stacking",
+        "rank",
+        "effect-collision"
+      ],
+      "reviewed_on": "2026-08-29",
+      "simulator_bindings": [
+        "engine.effects.stack_resolution.standard_rank_precedence"
+      ]
+    },
+    {
+      "claim_id": "retail.powerblock.immunity-two-times",
+      "profile_id": "retail-final-24.3",
+      "domain": "immunity",
+      "subject": "powerblock",
+      "predicate": "immunity_duration_multiplier",
+      "statement": "A successful powerblock applies powerblock immunity for twice the block duration.",
+      "parameters": {
+        "immunity_duration_multiplier": 2.0
+      },
+      "conditions": [
+        "ordinary powerblock that grants immunity",
+        "excluding final-patch self-powerblock exceptions"
+      ],
+      "valid_from": null,
+      "valid_to": null,
+      "evidence": [
+        {
+          "source_id": "magicbane-patch-notes",
+          "locator": "Patch 2.0: immunity to powerblocks is now twice the duration of the powerblock",
+          "stance": "supports",
+          "note": null
+        },
+        {
+          "source_id": "morloch-crowd-control-34882",
+          "locator": "Powerblock section",
+          "stance": "qualifies",
+          "note": "Crowd-control reconstruction should be checked for exceptions and refresh semantics."
+        }
+      ],
+      "confidence": "confirmed",
+      "compile_disposition": "compile",
+      "contradiction_group": null,
+      "test_requirements": [
+        "Verify whether a blocked powerblock refreshes, preserves or ignores an existing immunity.",
+        "Verify self-powerblock exceptions from Patch 24.3."
+      ],
+      "tags": [
+        "powerblock",
+        "immunity",
+        "duration"
+      ],
+      "reviewed_on": "2026-08-29",
+      "simulator_bindings": [
+        "engine.effects.immunity.powerblock.duration_multiplier"
+      ]
+    },
+    {
+      "claim_id": "retail.stun.immunity-three-times",
+      "profile_id": "retail-final-24.3",
+      "domain": "immunity",
+      "subject": "stun",
+      "predicate": "immunity_duration_multiplier",
+      "statement": "A successful stun applies stun immunity for three times the stun duration.",
+      "parameters": {
+        "immunity_duration_multiplier": 3.0
+      },
+      "conditions": [
+        "ordinary stun",
+        "target is not already immune"
+      ],
+      "valid_from": null,
+      "valid_to": null,
+      "evidence": [
+        {
+          "source_id": "morloch-stun-34464",
+          "locator": "Stun immunity section",
+          "stance": "supports",
+          "note": null
+        },
+        {
+          "source_id": "magicbane-server-ab96cfc",
+          "locator": "effect modifier and power action subsystem; exact construction still to extract",
+          "stance": "qualifies",
+          "note": "Source tree exists, but this seed has not yet linked the exact data row/action path."
+        }
+      ],
+      "confidence": "strong",
+      "compile_disposition": "override",
+      "contradiction_group": null,
+      "test_requirements": [
+        "Extract stun-immunity construction from the pinned emulator source.",
+        "Measure expiry for at least three stun durations in WonderBane."
+      ],
+      "tags": [
+        "stun",
+        "immunity",
+        "duration"
+      ],
+      "reviewed_on": "2026-08-29",
+      "simulator_bindings": [
+        "engine.effects.immunity.stun.duration_multiplier"
+      ]
+    },
+    {
+      "claim_id": "retail.stun.failed-attempt-refreshes-immunity",
+      "profile_id": "retail-final-24.3",
+      "domain": "immunity",
+      "subject": "stun immunity",
+      "predicate": "refresh_on_stun_attempt",
+      "statement": "Attempting another stun while stun immunity is active resets the immunity duration.",
+      "parameters": {
+        "refreshes_immunity": true
+      },
+      "conditions": [
+        "target currently has stun immunity",
+        "another stun is attempted"
+      ],
+      "valid_from": null,
+      "valid_to": null,
+      "evidence": [
+        {
+          "source_id": "morloch-stun-34464",
+          "locator": "Stun immunity section",
+          "stance": "supports",
+          "note": "The precise event boundary—attempt, hit, or effect application—requires confirmation."
+        }
+      ],
+      "confidence": "provisional",
+      "compile_disposition": "block",
+      "contradiction_group": null,
+      "test_requirements": [
+        "Trace repeated stun attempts at multiple remaining durations.",
+        "Confirm whether rank, hit failure or target immunity changes refresh behavior."
+      ],
+      "tags": [
+        "stun",
+        "immunity",
+        "refresh"
+      ],
+      "reviewed_on": "2026-08-29",
+      "simulator_bindings": [
+        "engine.effects.immunity.stun.refresh_on_attempt"
+      ]
+    },
+    {
+      "claim_id": "retail.stun.disabled-actions",
+      "profile_id": "retail-final-24.3",
+      "domain": "crowd_control",
+      "subject": "stunned actor",
+      "predicate": "affordance_suppression",
+      "statement": "Stun prevents attacks, casting, passive defense and horizontal movement, while chat, emotes, flight-tier changes, combat-mode toggle and sit toggle remain available.",
+      "parameters": {
+        "prevents": [
+          "attack",
+          "cast",
+          "passive_defense",
+          "horizontal_movement"
+        ],
+        "allows": [
+          "chat",
+          "emote",
+          "flight_tier_change",
+          "combat_mode_toggle",
+          "sit_toggle"
+        ]
+      },
+      "conditions": [
+        "ordinary player stun"
+      ],
+      "valid_from": null,
+      "valid_to": null,
+      "evidence": [
+        {
+          "source_id": "morloch-stun-34464",
+          "locator": "Effects and Exceptions sections",
+          "stance": "supports",
+          "note": null
+        },
+        {
+          "source_id": "magicbane-server-ab96cfc",
+          "locator": "StunnedEffectModifier",
+          "stance": "qualifies",
+          "note": "Pinned implementation cancels on-stun actions, clears casting and stops movement; passive defense and exception surface still need full extraction."
+        }
+      ],
+      "confidence": "strong",
+      "compile_disposition": "override",
+      "contradiction_group": null,
+      "test_requirements": [
+        "Map each action family to an affordance suppression test.",
+        "Confirm the listed exceptions in the actual WonderBane client."
+      ],
+      "tags": [
+        "stun",
+        "affordance",
+        "passive-defense",
+        "movement"
+      ],
+      "reviewed_on": "2026-08-29",
+      "simulator_bindings": [
+        "engine.affordances.suppression.stun",
+        "engine.combat.passive_defense.stun"
+      ]
+    },
+    {
+      "claim_id": "retail.root.breaks-on-damage",
+      "profile_id": "retail-final-24.3",
+      "domain": "crowd_control",
+      "subject": "root",
+      "predicate": "break_conditions",
+      "statement": "Root prevents horizontal movement, bypasses defense and breaks when the rooted target takes damage after application.",
+      "parameters": {
+        "prevents": [
+          "horizontal_movement"
+        ],
+        "bypasses_defense": true,
+        "break_on": [
+          "damage_taken"
+        ]
+      },
+      "conditions": [
+        "damage occurs after root application",
+        "ordinary root without a power-specific exception"
+      ],
+      "valid_from": null,
+      "valid_to": null,
+      "evidence": [
+        {
+          "source_id": "morloch-crowd-control-34882",
+          "locator": "Root section",
+          "stance": "supports",
+          "note": null
+        }
+      ],
+      "confidence": "provisional",
+      "compile_disposition": "block",
+      "contradiction_group": null,
+      "test_requirements": [
+        "Test immediate damage in the same server frame versus later damage.",
+        "Test zero, absorbed and resisted damage.",
+        "Extract root break-condition implementation."
+      ],
+      "tags": [
+        "root",
+        "movement",
+        "break-condition",
+        "defense-bypass"
+      ],
+      "reviewed_on": "2026-08-29",
+      "simulator_bindings": [
+        "engine.affordances.suppression.root",
+        "engine.effects.break_conditions.damage_taken"
+      ]
+    },
+    {
+      "claim_id": "retail.mesmerize.breaks-on-damage-without-own-immunity",
+      "profile_id": "retail-final-24.3",
+      "domain": "crowd_control",
+      "subject": "mesmerize",
+      "predicate": "suppression_and_break_conditions",
+      "statement": "Mesmerize suppresses actions like stun, normally lasts longer, breaks on damage, grants no mesmerize immunity, and is prevented by stun immunity.",
+      "parameters": {
+        "break_on": [
+          "damage_taken"
+        ],
+        "grants_immunity": false,
+        "blocked_by": [
+          "stun_immunity"
+        ]
+      },
+      "conditions": [
+        "mobile target class supported by mesmerize"
+      ],
+      "valid_from": null,
+      "valid_to": null,
+      "evidence": [
+        {
+          "source_id": "morloch-crowd-control-34882",
+          "locator": "Mesmerize section",
+          "stance": "supports",
+          "note": "The page describes it as generally mob-oriented; exact target classes must be preserved."
+        }
+      ],
+      "confidence": "provisional",
+      "compile_disposition": "block",
+      "contradiction_group": null,
+      "test_requirements": [
+        "Verify target classes and pet ownership cases.",
+        "Test absorbed or zero damage.",
+        "Test stun-immunity interaction."
+      ],
+      "tags": [
+        "mesmerize",
+        "mob-control",
+        "break-condition",
+        "immunity"
+      ],
+      "reviewed_on": "2026-08-29",
+      "simulator_bindings": [
+        "engine.affordances.suppression.mesmerize",
+        "engine.effects.break_conditions.damage_taken"
+      ]
+    },
+    {
+      "claim_id": "retail.weapon-power-range-final-15",
+      "profile_id": "retail-final-24.3",
+      "domain": "targeting",
+      "subject": "weapon powers",
+      "predicate": "maximum_range",
+      "statement": "The final official patch increased weapon-power range from 10 to 15 units.",
+      "parameters": {
+        "previous_units": 10.0,
+        "maximum_units": 15.0
+      },
+      "conditions": [
+        "weapon power governed by the global final-patch change",
+        "no explicit per-power exception"
+      ],
+      "valid_from": "2009-01-07",
+      "valid_to": null,
+      "evidence": [
+        {
+          "source_id": "morloch-patch-24.3-31885",
+          "locator": "General: weapon power ranges increased from 10 to 15",
+          "stance": "supports",
+          "note": null
+        }
+      ],
+      "confidence": "confirmed",
+      "compile_disposition": "compile",
+      "contradiction_group": null,
+      "test_requirements": [
+        "Check deployment rows for explicit per-power ranges.",
+        "Measure legality at the 15-unit boundary with movement desync."
+      ],
+      "tags": [
+        "weapon-power",
+        "range",
+        "final-patch"
+      ],
+      "reviewed_on": "2026-08-29",
+      "simulator_bindings": [
+        "ruleset.weapon_powers.targeting.maximum_range"
+      ]
+    },
+    {
+      "claim_id": "retail.sneak-self-powerblock-final",
+      "profile_id": "retail-final-24.3",
+      "domain": "casting",
+      "subject": "Sneak",
+      "predicate": "self_powerblock",
+      "statement": "Sneak applies a 1.5-second self powerblock that cannot be prevented by powerblock immunity and does not grant powerblock immunity.",
+      "parameters": {
+        "duration_ms": 1500,
+        "ignores_immunity": true,
+        "grants_immunity": false
+      },
+      "conditions": [
+        "retail final patch 24.3"
+      ],
+      "valid_from": "2009-01-07",
+      "valid_to": null,
+      "evidence": [
+        {
+          "source_id": "morloch-patch-24.3-31885",
+          "locator": "General: Sneak 1.5-second self powerblock change",
+          "stance": "supports",
+          "note": null
+        }
+      ],
+      "confidence": "confirmed",
+      "compile_disposition": "compile",
+      "contradiction_group": null,
+      "test_requirements": [
+        "Confirm whether the lockout starts at activation, cast completion or effect application.",
+        "Verify which skills or UI actions remain legal."
+      ],
+      "tags": [
+        "sneak",
+        "powerblock",
+        "self-lockout",
+        "final-patch"
+      ],
+      "reviewed_on": "2026-08-29",
+      "simulator_bindings": [
+        "ruleset.sneak.self_powerblock"
+      ]
+    },
+    {
+      "claim_id": "retail.invisibility-self-powerblock-final",
+      "profile_id": "retail-final-24.3",
+      "domain": "casting",
+      "subject": "Invisibility",
+      "predicate": "self_powerblock",
+      "statement": "Invisibility applies a 1.5-second self powerblock that cannot be prevented by powerblock immunity and does not grant powerblock immunity.",
+      "parameters": {
+        "duration_ms": 1500,
+        "ignores_immunity": true,
+        "grants_immunity": false
+      },
+      "conditions": [
+        "retail final patch 24.3"
+      ],
+      "valid_from": "2009-01-07",
+      "valid_to": null,
+      "evidence": [
+        {
+          "source_id": "morloch-patch-24.3-31885",
+          "locator": "Assassin: Invisibility 1.5-second self powerblock change",
+          "stance": "supports",
+          "note": null
+        }
+      ],
+      "confidence": "confirmed",
+      "compile_disposition": "compile",
+      "contradiction_group": null,
+      "test_requirements": [
+        "Confirm exact start time and interaction with queued Backstab or Passwall.",
+        "Verify whether this is Assassin Invisibility only or all powers sharing the name."
+      ],
+      "tags": [
+        "invisibility",
+        "powerblock",
+        "self-lockout",
+        "final-patch"
+      ],
+      "reviewed_on": "2026-08-29",
+      "simulator_bindings": [
+        "ruleset.invisibility.self_powerblock"
+      ]
+    },
+    {
+      "claim_id": "retail.shadow-mantle-blocks-hot-initial-tick-final",
+      "profile_id": "retail-final-24.3",
+      "domain": "periodic_effects",
+      "subject": "Shadow Mantle",
+      "predicate": "blocks_initial_hot_tick",
+      "statement": "Shadow Mantle blocks the initial healing tick of all heal-over-time effects.",
+      "parameters": {
+        "blocks_initial_hot_tick": true
+      },
+      "conditions": [
+        "retail final patch 24.3",
+        "heal-over-time initial application tick"
+      ],
+      "valid_from": "2009-01-07",
+      "valid_to": null,
+      "evidence": [
+        {
+          "source_id": "morloch-patch-24.3-31885",
+          "locator": "Assassin: Shadow Mantle now correctly blocks initial tick of all HoTs",
+          "stance": "supports",
+          "note": null
+        }
+      ],
+      "confidence": "confirmed",
+      "compile_disposition": "compile",
+      "contradiction_group": null,
+      "test_requirements": [
+        "Represent initial ticks explicitly rather than as an implicit periodic tick at time zero.",
+        "Test HoT applied before Mantle, during Mantle and after Mantle expiry."
+      ],
+      "tags": [
+        "shadow-mantle",
+        "healing-block",
+        "periodic",
+        "initial-tick",
+        "final-patch"
+      ],
+      "reviewed_on": "2026-08-29",
+      "simulator_bindings": [
+        "engine.periodic_effects.initial_tick",
+        "ruleset.shadow_mantle.restore_block"
+      ]
+    },
+    {
+      "claim_id": "retail.invisibility-break-conditions",
+      "profile_id": "retail-final-24.3",
+      "domain": "stealth",
+      "subject": "invisibility",
+      "predicate": "break_conditions",
+      "statement": "Invisibility ends when its bearer is damaged, attacks, uses an item or casts a power; successful AoE damage can reveal an invisible target.",
+      "parameters": {
+        "break_on": [
+          "damage_taken",
+          "attack",
+          "item_use",
+          "power_cast"
+        ],
+        "aoe_can_hit": true
+      },
+      "conditions": [
+        "ordinary invisibility",
+        "no effect-specific exception"
+      ],
+      "valid_from": null,
+      "valid_to": null,
+      "evidence": [
+        {
+          "source_id": "morloch-invisibility-36076",
+          "locator": "Break conditions and AoE discussion",
+          "stance": "supports",
+          "note": null
+        },
+        {
+          "source_id": "morloch-skill-27874",
+          "locator": "Skill versus spell persistent-effect behavior",
+          "stance": "qualifies",
+          "note": "Skills may not count as power casts for this break condition."
+        }
+      ],
+      "confidence": "strong",
+      "compile_disposition": "override",
+      "contradiction_group": null,
+      "test_requirements": [
+        "Separate attempted versus successful attack/cast/item use.",
+        "Test zero damage, absorbed damage, DoT ticks and damage shields.",
+        "Determine whether skills break invisibility."
+      ],
+      "tags": [
+        "invisibility",
+        "break-condition",
+        "aoe",
+        "skill-spell-distinction"
+      ],
+      "reviewed_on": "2026-08-29",
+      "simulator_bindings": [
+        "engine.visibility.invisibility.break_conditions",
+        "engine.targeting.invisible_aoe"
+      ]
+    },
+    {
+      "claim_id": "retail.skill-does-not-break-selected-persistent-effects",
+      "profile_id": "retail-final-24.3",
+      "domain": "stances_forms",
+      "subject": "skills",
+      "predicate": "persistent_effect_break_semantics",
+      "statement": "Skills do not interrupt invisibility, wereforms or Traveling Stance in the same way spellcasting does.",
+      "parameters": {
+        "preserves": [
+          "invisibility",
+          "wereform",
+          "traveling_stance"
+        ]
+      },
+      "conditions": [
+        "action is classified as a skill rather than a spell"
+      ],
+      "valid_from": null,
+      "valid_to": null,
+      "evidence": [
+        {
+          "source_id": "morloch-skill-27874",
+          "locator": "Skill behavior description",
+          "stance": "supports",
+          "note": null
+        }
+      ],
+      "confidence": "strong",
+      "compile_disposition": "override",
+      "contradiction_group": null,
+      "test_requirements": [
+        "Build a per-action flag table from client/deployment data.",
+        "Verify every currently modeled Assassin and Warlock action."
+      ],
+      "tags": [
+        "skill",
+        "spell",
+        "invisibility",
+        "wereform",
+        "traveling-stance"
+      ],
+      "reviewed_on": "2026-08-29",
+      "simulator_bindings": [
+        "engine.actions.classification.skill",
+        "engine.effects.break_conditions.power_cast"
+      ]
+    },
+    {
+      "claim_id": "retail.casted-flight-grounded-by-equal-or-higher-control",
+      "profile_id": "retail-final-24.3",
+      "domain": "flight",
+      "subject": "casted flight",
+      "predicate": "grounding_precedence",
+      "statement": "A stun or snare of equal or higher rank immediately grounds a character using casted flight and dispels the enabling flight buff.",
+      "parameters": {
+        "trigger_effects": [
+          "stun",
+          "snare"
+        ],
+        "rank_comparison": "control_rank >= flight_rank",
+        "dispels_flight": true
+      },
+      "conditions": [
+        "flight comes from a casted effect rather than racial/natural flight"
+      ],
+      "valid_from": null,
+      "valid_to": null,
+      "evidence": [
+        {
+          "source_id": "morloch-flight-34572",
+          "locator": "Casted Flight section",
+          "stance": "supports",
+          "note": null
+        }
+      ],
+      "confidence": "strong",
+      "compile_disposition": "override",
+      "contradiction_group": null,
+      "test_requirements": [
+        "Test rank boundary at one rank below, equal and one above.",
+        "Observe descent versus teleport-to-ground ordering.",
+        "Test stun or snare immunity."
+      ],
+      "tags": [
+        "flight",
+        "stun",
+        "snare",
+        "rank",
+        "dispel"
+      ],
+      "reviewed_on": "2026-08-29",
+      "simulator_bindings": [
+        "engine.movement.flight.casted.grounding_rank"
+      ]
+    },
+    {
+      "claim_id": "retail.natural-flight-not-grounded-by-stun-or-snare",
+      "profile_id": "retail-final-24.3",
+      "domain": "flight",
+      "subject": "natural flight",
+      "predicate": "ordinary_control_grounding",
+      "statement": "Natural flight is not interrupted by ordinary stuns or snares, although explicit grounding powers can pause it.",
+      "parameters": {
+        "ordinary_stun_or_snare_grounds": false,
+        "explicit_grounding_can_pause": true
+      },
+      "conditions": [
+        "racial or natural flight",
+        "ordinary stun or snare without explicit grounding component"
+      ],
+      "valid_from": null,
+      "valid_to": null,
+      "evidence": [
+        {
+          "source_id": "morloch-flight-34572",
+          "locator": "Natural Flight and grounding discussion",
+          "stance": "supports",
+          "note": null
+        }
+      ],
+      "confidence": "strong",
+      "compile_disposition": "override",
+      "contradiction_group": null,
+      "test_requirements": [
+        "Enumerate every explicit Ground/Dispel Flight tag.",
+        "Test natural flyer during stun, snare, root and powerblock."
+      ],
+      "tags": [
+        "flight",
+        "natural-flight",
+        "grounding",
+        "control"
+      ],
+      "reviewed_on": "2026-08-29",
+      "simulator_bindings": [
+        "engine.movement.flight.natural.grounding_rules"
+      ]
+    },
+    {
+      "claim_id": "retail.flight-tier-combat-geometry",
+      "profile_id": "retail-final-24.3",
+      "domain": "flight",
+      "subject": "flight tiers",
+      "predicate": "vertical_movement_and_attack_legality",
+      "statement": "Flight has seven sequential tiers; a tier transition takes about two seconds and forbids horizontal movement, while a grounded attacker cannot hit a target two or more tiers above.",
+      "parameters": {
+        "tiers": 7,
+        "transition_ms_approx": 2000,
+        "horizontal_movement_during_transition": false,
+        "grounded_max_vertical_difference_for_hit": 1
+      },
+      "conditions": [
+        "ordinary flight movement",
+        "no power-specific vertical targeting exception"
+      ],
+      "valid_from": null,
+      "valid_to": null,
+      "evidence": [
+        {
+          "source_id": "morloch-flight-34572",
+          "locator": "Flight tiers and combat reach sections",
+          "stance": "supports",
+          "note": "The transition time is approximate and should not compile as exact timing yet."
+        }
+      ],
+      "confidence": "provisional",
+      "compile_disposition": "block",
+      "contradiction_group": null,
+      "test_requirements": [
+        "Measure transition times and quantization in WonderBane.",
+        "Test spells, bows, crossbows and melee separately.",
+        "Add terrain and line-of-sight fixtures."
+      ],
+      "tags": [
+        "flight",
+        "verticality",
+        "targeting",
+        "movement"
+      ],
+      "reviewed_on": "2026-08-29",
+      "simulator_bindings": [
+        "engine.movement.flight.tiers",
+        "engine.targeting.vertical_legality"
+      ]
+    },
+    {
+      "claim_id": "retail.movement-speed-formula-and-cap",
+      "profile_id": "retail-final-24.3",
+      "domain": "movement",
+      "subject": "horizontal movement speed",
+      "predicate": "composition_and_cap",
+      "statement": "Final horizontal speed is base speed multiplied by one plus cumulative speed modifiers, with Running increasing base speed by 0.25% per skill point, horizontal flight adding 30% to base, and a 41-unit-per-second cap.",
+      "parameters": {
+        "formula": "base_speed * (1 + sum(speed_modifiers))",
+        "running_base_bonus_per_point": 0.0025,
+        "flight_base_multiplier": 1.3,
+        "cap_units_per_second": 41.0
+      },
+      "conditions": [
+        "horizontal movement",
+        "before unknown implementation-specific rounding or state exceptions"
+      ],
+      "valid_from": null,
+      "valid_to": null,
+      "evidence": [
+        {
+          "source_id": "morloch-movement-speed-34545",
+          "locator": "Movement speed formula, Running, flight and cap sections",
+          "stance": "supports",
+          "note": null
+        },
+        {
+          "source_id": "magicbane-server-ab96cfc",
+          "locator": "movement subsystem; exact formula path still to extract",
+          "stance": "qualifies",
+          "note": "The implementation profile may apply different order, rounding or caps."
+        }
+      ],
+      "confidence": "provisional",
+      "compile_disposition": "block",
+      "contradiction_group": null,
+      "test_requirements": [
+        "Extract MovementManager formula at the target commit.",
+        "Measure displacement over fixed intervals for racial bases, Running, buffs and snares.",
+        "Test whether the cap applies before or after snares."
+      ],
+      "tags": [
+        "movement",
+        "running",
+        "flight",
+        "speed-cap",
+        "formula"
+      ],
+      "reviewed_on": "2026-08-29",
+      "simulator_bindings": [
+        "engine.movement.horizontal_speed"
+      ]
+    },
+    {
+      "claim_id": "retail.stamina-zero-forces-locomotion-and-attack-state",
+      "profile_id": "retail-final-24.3",
+      "domain": "resources",
+      "subject": "stamina depletion",
+      "predicate": "state_transitions",
+      "statement": "At very low or zero stamina, the character falls back to walk mode, returns to the ground if flying, and stops using the weapon.",
+      "parameters": {
+        "forces_walk": true,
+        "grounds_flight": true,
+        "stops_weapon_use": true
+      },
+      "conditions": [
+        "stamina exhaustion threshold is crossed"
+      ],
+      "valid_from": null,
+      "valid_to": null,
+      "evidence": [
+        {
+          "source_id": "morloch-stamina-34558",
+          "locator": "Effects of low/zero stamina",
+          "stance": "supports",
+          "note": "The page language does not establish the exact numerical threshold or ordering."
+        }
+      ],
+      "confidence": "strong",
+      "compile_disposition": "override",
+      "contradiction_group": null,
+      "test_requirements": [
+        "Determine exact threshold and event ordering.",
+        "Test queued weapon powers, auto-attack, natural flight and casted flight.",
+        "Measure recovery before actions become legal again."
+      ],
+      "tags": [
+        "stamina",
+        "exhaustion",
+        "movement",
+        "flight",
+        "weapon"
+      ],
+      "reviewed_on": "2026-08-29",
+      "simulator_bindings": [
+        "engine.resources.stamina.exhaustion_transitions"
+      ]
+    },
+    {
+      "claim_id": "retail.resistance-soft-cap-and-raw-debuff-order",
+      "profile_id": "retail-final-24.3",
+      "domain": "resistance",
+      "subject": "typed resistance",
+      "predicate": "cap_and_debuff_order",
+      "statement": "Effective resistance is soft-capped at 75%, while debuffs subtract from the uncapped raw resistance before the cap is applied; negative resistance increases damage.",
+      "parameters": {
+        "effective_cap": 0.75,
+        "debuff_applies_to_raw_value": true,
+        "negative_values_allowed": true
+      },
+      "conditions": [
+        "ordinary typed damage resistance",
+        "excluding explicit immunity or special absorber logic"
+      ],
+      "valid_from": null,
+      "valid_to": null,
+      "evidence": [
+        {
+          "source_id": "morloch-formulas-29158",
+          "locator": "Resistances section",
+          "stance": "supports",
+          "note": null
+        },
+        {
+          "source_id": "magicbane-server-ab96cfc",
+          "locator": "CombatManager/effect-modifier paths pending extraction",
+          "stance": "qualifies",
+          "note": "The exact emulator arithmetic and rounding order are not yet linked."
+        }
+      ],
+      "confidence": "strong",
+      "compile_disposition": "override",
+      "contradiction_group": null,
+      "test_requirements": [
+        "Extract damage and resistance order from CombatManager.",
+        "Test raw resistance above cap with exposes of several magnitudes.",
+        "Test negative resistance and absorber ordering."
+      ],
+      "tags": [
+        "resistance",
+        "soft-cap",
+        "debuff",
+        "negative-resistance",
+        "ordering"
+      ],
+      "reviewed_on": "2026-08-29",
+      "simulator_bindings": [
+        "engine.damage.resistance.ordering"
+      ]
+    },
+    {
+      "claim_id": "retail.armor-piercing-multiplicative-current-resist",
+      "profile_id": "retail-final-24.3",
+      "domain": "resistance",
+      "subject": "weapon suffix armor piercing",
+      "predicate": "formula",
+      "statement": "One Morloch formula reconstruction says weapon-suffix armor piercing reduces the target's current resistance multiplicatively.",
+      "parameters": {
+        "formula": "resist - (resist * armor_pierce_fraction)"
+      },
+      "conditions": [
+        "weapon-suffix armor piercing",
+        "interpretation from formulas page"
+      ],
+      "valid_from": null,
+      "valid_to": null,
+      "evidence": [
+        {
+          "source_id": "morloch-formulas-29158",
+          "locator": "Armor Piercing section",
+          "stance": "supports",
+          "note": null
+        }
+      ],
+      "confidence": "disputed",
+      "compile_disposition": "block",
+      "contradiction_group": "armor-piercing-semantics",
+      "test_requirements": [
+        "Extract ArmorPiercingEffectModifier and damage order at the pinned server commit.",
+        "Run fixed-damage tests at 0, 25, 75 and 100 raw resistance."
+      ],
+      "tags": [
+        "armor-piercing",
+        "resistance",
+        "formula",
+        "contradiction"
+      ],
+      "reviewed_on": "2026-08-29",
+      "simulator_bindings": [
+        "engine.damage.armor_piercing.formula"
+      ]
+    },
+    {
+      "claim_id": "retail.armor-piercing-flat-effective-resist",
+      "profile_id": "retail-final-24.3",
+      "domain": "resistance",
+      "subject": "armor piercing",
+      "predicate": "formula",
+      "statement": "A separate Morloch mechanics page describes armor piercing as a flat reduction from effective resistance, including against raw resistance above the 75% cap.",
+      "parameters": {
+        "formula": "effective_resist - armor_pierce_points",
+        "applies_after_soft_cap": true
+      },
+      "conditions": [
+        "interpretation from Armor Piercing mechanics page"
+      ],
+      "valid_from": null,
+      "valid_to": null,
+      "evidence": [
+        {
+          "source_id": "morloch-formulas-29158",
+          "locator": "Resist cap behavior used to qualify ordering",
+          "stance": "contradicts",
+          "note": "The formulas page gives a multiplicative current-resistance formula instead."
+        },
+        {
+          "source_id": "morloch-power-34596",
+          "locator": "General power/effect metadata does not resolve armor-piercing arithmetic",
+          "stance": "qualifies",
+          "note": "The dedicated Armor Piercing page must be pinned as its own source in the next ingestion pass."
+        }
+      ],
+      "confidence": "disputed",
+      "compile_disposition": "block",
+      "contradiction_group": "armor-piercing-semantics",
+      "test_requirements": [
+        "Pin the Armor Piercing page revision.",
+        "Extract implementation and run the same resistance matrix as the multiplicative hypothesis."
+      ],
+      "tags": [
+        "armor-piercing",
+        "resistance",
+        "formula",
+        "contradiction",
+        "missing-source-pin"
+      ],
+      "reviewed_on": "2026-08-29",
+      "simulator_bindings": [
+        "engine.damage.armor_piercing.formula"
+      ]
+    },
+    {
+      "claim_id": "retail.hit-chance-floor-five-percent",
+      "profile_id": "retail-final-24.3",
+      "domain": "hit_resolution",
+      "subject": "hit roll",
+      "predicate": "minimum_probability",
+      "statement": "The hit chance never falls below five percent.",
+      "parameters": {
+        "minimum_hit_probability": 0.05
+      },
+      "conditions": [
+        "ordinary attack or power hit roll",
+        "not an automatic hit/miss exception"
+      ],
+      "valid_from": null,
+      "valid_to": null,
+      "evidence": [
+        {
+          "source_id": "morloch-hit-roll-35171",
+          "locator": "Minimum hit chance statement",
+          "stance": "supports",
+          "note": "The precise formula and clamp order remain unverified."
+        }
+      ],
+      "confidence": "provisional",
+      "compile_disposition": "block",
+      "contradiction_group": null,
+      "test_requirements": [
+        "Extract exact hit-roll function and clamp order.",
+        "Run enough deterministic seeds to distinguish a 5% floor from neighboring hypotheses."
+      ],
+      "tags": [
+        "hit-roll",
+        "minimum-chance",
+        "attack-rating",
+        "defense"
+      ],
+      "reviewed_on": "2026-08-29",
+      "simulator_bindings": [
+        "engine.combat.hit_resolution.minimum_probability"
+      ]
+    },
+    {
+      "claim_id": "retail.backstab-ignores-passive-defense",
+      "profile_id": "retail-final-24.3",
+      "domain": "weapons",
+      "subject": "Backstab",
+      "predicate": "next_swing_and_passive_defense",
+      "statement": "Backstab is a next-swing weapon modifier that ignores passive defense.",
+      "parameters": {
+        "next_swing_modifier": true,
+        "ignores_passive_defense": true
+      },
+      "conditions": [
+        "Backstab modifier remains active until the qualifying weapon swing",
+        "final retail includes the passive-defense fix"
+      ],
+      "valid_from": null,
+      "valid_to": null,
+      "evidence": [
+        {
+          "source_id": "magicbane-patch-notes",
+          "locator": "Patch 1.5: Backstab ignores passive defense",
+          "stance": "supports",
+          "note": null
+        },
+        {
+          "source_id": "morloch-patch-24.3-31885",
+          "locator": "Assassin: Backstab fixes",
+          "stance": "qualifies",
+          "note": "Final patch contains additional Backstab fixes that require separate claims."
+        }
+      ],
+      "confidence": "confirmed",
+      "compile_disposition": "compile",
+      "contradiction_group": null,
+      "test_requirements": [
+        "Represent activation separately from the later weapon swing.",
+        "Test miss, active defense, target death, weapon swap and timeout between activation and swing."
+      ],
+      "tags": [
+        "backstab",
+        "weapon-power",
+        "next-swing",
+        "passive-defense"
+      ],
+      "reviewed_on": "2026-08-29",
+      "simulator_bindings": [
+        "ruleset.backstab.next_swing",
+        "engine.combat.passive_defense.bypass"
+      ]
+    },
+    {
+      "claim_id": "retail.weapon-powers-dispel-on-unequip",
+      "profile_id": "retail-final-24.3",
+      "domain": "equipment",
+      "subject": "weapon-dependent powers",
+      "predicate": "required_equipment_break_condition",
+      "statement": "Weapon powers dispel when the required weapon is unequipped.",
+      "parameters": {
+        "break_on": [
+          "required_weapon_unequipped"
+        ]
+      },
+      "conditions": [
+        "effect requires the equipped weapon category"
+      ],
+      "valid_from": null,
+      "valid_to": null,
+      "evidence": [
+        {
+          "source_id": "magicbane-patch-notes",
+          "locator": "Patch 1.5: weapon powers dispel if weapon unequipped",
+          "stance": "supports",
+          "note": null
+        }
+      ],
+      "confidence": "confirmed",
+      "compile_disposition": "compile",
+      "contradiction_group": null,
+      "test_requirements": [
+        "Test next-swing modifiers, ongoing weapon buffs and deferred effects separately.",
+        "Test weapon swap after launch but before resolution."
+      ],
+      "tags": [
+        "weapon-power",
+        "equipment",
+        "dispel",
+        "break-condition"
+      ],
+      "reviewed_on": "2026-08-29",
+      "simulator_bindings": [
+        "engine.effects.break_conditions.required_equipment"
+      ]
+    },
+    {
+      "claim_id": "retail.damage-absorber-budget-counts-post-resistance-damage",
+      "profile_id": "retail-final-24.3",
+      "domain": "absorbers",
+      "subject": "damage absorbers",
+      "predicate": "budget_depletion_order",
+      "statement": "Specified damage absorbers deplete from damage actually inflicted after resistances, rather than from pre-resistance raw damage.",
+      "parameters": {
+        "depletion_uses_post_resistance_damage": true
+      },
+      "conditions": [
+        "absorber governed by the documented corrected behavior",
+        "typed damage reaches the absorber"
+      ],
+      "valid_from": null,
+      "valid_to": null,
+      "evidence": [
+        {
+          "source_id": "magicbane-patch-notes",
+          "locator": "Patch note correction: absorbers count 750 damage actually inflicted after resistance",
+          "stance": "supports",
+          "note": "The affected absorber list and universal versus power-specific scope require extraction."
+        }
+      ],
+      "confidence": "confirmed",
+      "compile_disposition": "compile",
+      "contradiction_group": null,
+      "test_requirements": [
+        "Extract common absorber path to determine whether the rule is universal or power-specific.",
+        "Test partial absorption, overkill, negative resistance and multiple damage types."
+      ],
+      "tags": [
+        "absorber",
+        "resistance",
+        "damage-order",
+        "budget"
+      ],
+      "reviewed_on": "2026-08-29",
+      "simulator_bindings": [
+        "engine.damage.absorber.depletion_order"
+      ]
+    },
+    {
+      "claim_id": "retail.pulsing-powers-check-powerblock",
+      "profile_id": "retail-final-24.3",
+      "domain": "periodic_effects",
+      "subject": "pulsing powers",
+      "predicate": "per_pulse_powerblock_check",
+      "statement": "Pulsing powers check powerblock state rather than continuing unconditionally.",
+      "parameters": {
+        "checks_powerblock": true
+      },
+      "conditions": [
+        "power has repeated pulse actions",
+        "post-fix retail behavior"
+      ],
+      "valid_from": null,
+      "valid_to": null,
+      "evidence": [
+        {
+          "source_id": "magicbane-patch-notes",
+          "locator": "Patch 3.0: pulsing powers check powerblocks",
+          "stance": "supports",
+          "note": null
+        }
+      ],
+      "confidence": "confirmed",
+      "compile_disposition": "compile",
+      "contradiction_group": null,
+      "test_requirements": [
+        "Determine whether powerblock suppresses future ticks, cancels the pulse, or pauses and resumes.",
+        "Test source powerblock versus target powerblock."
+      ],
+      "tags": [
+        "periodic",
+        "pulse",
+        "powerblock",
+        "legality"
+      ],
+      "reviewed_on": "2026-08-29",
+      "simulator_bindings": [
+        "engine.periodic_effects.pulse_legality.powerblock"
+      ]
+    },
+    {
+      "claim_id": "retail.deferred-components-may-have-own-hit-roll",
+      "profile_id": "retail-final-24.3",
+      "domain": "hit_resolution",
+      "subject": "deferred power components",
+      "predicate": "independent_hit_roll",
+      "statement": "Some deferred components perform their own hit roll independently of the initiating weapon hit.",
+      "parameters": {
+        "independent_deferred_hit_roll": true
+      },
+      "conditions": [
+        "power/action explicitly uses the corrected deferred-hit behavior"
+      ],
+      "valid_from": null,
+      "valid_to": null,
+      "evidence": [
+        {
+          "source_id": "magicbane-patch-notes",
+          "locator": "Patch 3.0: specified deferred components require their own hit roll",
+          "stance": "supports",
+          "note": "The specific component list must be extracted into per-power claims."
+        }
+      ],
+      "confidence": "confirmed",
+      "compile_disposition": "compile",
+      "contradiction_group": null,
+      "test_requirements": [
+        "Model delivery/resolution stages with distinct rolls.",
+        "Catalog which powers use inherited hit success versus independent deferred rolls."
+      ],
+      "tags": [
+        "deferred",
+        "hit-roll",
+        "weapon-power",
+        "action-lifecycle"
+      ],
+      "reviewed_on": "2026-08-29",
+      "simulator_bindings": [
+        "engine.actions.deferred_resolution.hit_roll"
+      ]
+    },
+    {
+      "claim_id": "sbe2015.shadow-mantle-custom-values",
+      "profile_id": "sbe-2015-1.5",
+      "domain": "periodic_effects",
+      "subject": "Shadow Mantle",
+      "predicate": "custom_balance_values",
+      "statement": "The 2015 emulator Patch 1.5 made Shadow Mantle block percent heals, use a one-second cast, last 30 seconds and recycle in 30 seconds.",
+      "parameters": {
+        "blocks_percent_heals": true,
+        "cast_ms": 1000,
+        "duration_ms": 30000,
+        "recycle_ms": 30000
+      },
+      "conditions": [
+        "Shadowbane Emulator Patch 1.5 profile",
+        "not retail Patch 1.5 and not automatically WonderBane"
+      ],
+      "valid_from": "2015-07-16",
+      "valid_to": null,
+      "evidence": [
+        {
+          "source_id": "sbe-patch-1.5-2015",
+          "locator": "Assassin / Shadow Mantle changes",
+          "stance": "supports",
+          "note": "The mutable page still needs a permanent revision snapshot."
+        }
+      ],
+      "confidence": "confirmed",
+      "compile_disposition": "compile",
+      "contradiction_group": null,
+      "test_requirements": [
+        "Do not inherit these values into retail-final or WonderBane without a profile match.",
+        "Fingerprint WonderBane patch lineage before comparison."
+      ],
+      "tags": [
+        "alternate-profile",
+        "shadow-mantle",
+        "percent-heal",
+        "custom-balance"
+      ],
+      "reviewed_on": "2026-08-29",
+      "simulator_bindings": [
+        "profiles.sbe-2015-1.5.ruleset.shadow_mantle"
+      ]
+    }
+  ],
+  "coverage": [
+    {
+      "domain": "Power metadata and progression",
+      "priority": "P0",
+      "source_state": "seeded",
+      "simulator_state": "partial",
+      "next_evidence": [
+        "Export concrete power/effect rows.",
+        "Harvest all profession, race and discipline power pages at pinned revisions."
+      ],
+      "claim_ids": []
+    },
+    {
+      "domain": "Action lifecycle, cast, recycle, launch, interrupt and cancellation",
+      "priority": "P0",
+      "source_state": "partial",
+      "simulator_state": "partial",
+      "next_evidence": [
+        "Extract PowersManager, action jobs and character cancel methods.",
+        "Capture cast-start, cast-complete and interruption traces."
+      ],
+      "claim_ids": [
+        "retail.sneak-self-powerblock-final",
+        "retail.invisibility-self-powerblock-final",
+        "retail.deferred-components-may-have-own-hit-roll"
+      ]
+    },
+    {
+      "domain": "Target legality, range, line of sight and verticality",
+      "priority": "P0",
+      "source_state": "partial",
+      "simulator_state": "partial",
+      "next_evidence": [
+        "Extract target/fail-condition code.",
+        "Create boundary traces for range, flight tier, terrain and structures."
+      ],
+      "claim_ids": [
+        "retail.weapon-power-range-final-15",
+        "retail.flight-tier-combat-geometry"
+      ]
+    },
+    {
+      "domain": "Attack rating, defense, hit rolls and passive defense",
+      "priority": "P0",
+      "source_state": "partial",
+      "simulator_state": "absent",
+      "next_evidence": [
+        "Extract CombatManager and passive-defense formula paths.",
+        "Run statistical differential fixtures with fixed character sheets."
+      ],
+      "claim_ids": [
+        "retail.hit-chance-floor-five-percent",
+        "retail.backstab-ignores-passive-defense",
+        "retail.deferred-components-may-have-own-hit-roll"
+      ]
+    },
+    {
+      "domain": "Damage rolls, typed resistance, exposes and armor piercing",
+      "priority": "P0",
+      "source_state": "partial",
+      "simulator_state": "partial",
+      "next_evidence": [
+        "Resolve the armor-piercing contradiction.",
+        "Capture pre-resist, post-resist and final damage observations."
+      ],
+      "claim_ids": [
+        "retail.resistance-soft-cap-and-raw-debuff-order",
+        "retail.armor-piercing-multiplicative-current-resist",
+        "retail.armor-piercing-flat-effective-resist"
+      ]
+    },
+    {
+      "domain": "Effect stacking, rank precedence, dispels and break conditions",
+      "priority": "P0",
+      "source_state": "seeded",
+      "simulator_state": "partial",
+      "next_evidence": [
+        "Extract EffectsBase and AbstractEffectJob stacking paths.",
+        "Build pairwise effect-collision fixtures."
+      ],
+      "claim_ids": [
+        "retail.effect.standard-stack-replacement",
+        "retail.weapon-powers-dispel-on-unequip",
+        "retail.invisibility-break-conditions",
+        "retail.skill-does-not-break-selected-persistent-effects"
+      ]
+    },
+    {
+      "domain": "Crowd control and immunities",
+      "priority": "P0",
+      "source_state": "seeded",
+      "simulator_state": "partial",
+      "next_evidence": [
+        "Confirm stun and powerblock refresh semantics.",
+        "Add root, snare, silence, mesmerize and immunity families."
+      ],
+      "claim_ids": [
+        "retail.powerblock.immunity-two-times",
+        "retail.stun.immunity-three-times",
+        "retail.stun.failed-attempt-refreshes-immunity",
+        "retail.stun.disabled-actions",
+        "retail.root.breaks-on-damage",
+        "retail.mesmerize.breaks-on-damage-without-own-immunity"
+      ]
+    },
+    {
+      "domain": "Movement, flight, stamina and positioning",
+      "priority": "P0",
+      "source_state": "seeded",
+      "simulator_state": "partial",
+      "next_evidence": [
+        "Extract MovementManager and flight state transitions.",
+        "Measure displacement, tier changes and stamina drain."
+      ],
+      "claim_ids": [
+        "retail.casted-flight-grounded-by-equal-or-higher-control",
+        "retail.natural-flight-not-grounded-by-stun-or-snare",
+        "retail.flight-tier-combat-geometry",
+        "retail.movement-speed-formula-and-cap",
+        "retail.stamina-zero-forces-locomotion-and-attack-state"
+      ]
+    },
+    {
+      "domain": "Stealth, detection, Backstab and reveal timing",
+      "priority": "P0",
+      "source_state": "seeded",
+      "simulator_state": "partial",
+      "next_evidence": [
+        "Separate stealth activation from next-swing resolution.",
+        "Capture visibility and detection thresholds."
+      ],
+      "claim_ids": [
+        "retail.invisibility-break-conditions",
+        "retail.invisibility-self-powerblock-final",
+        "retail.skill-does-not-break-selected-persistent-effects",
+        "retail.backstab-ignores-passive-defense"
+      ]
+    },
+    {
+      "domain": "Periodic effects, initial ticks, drains and absorbers",
+      "priority": "P0",
+      "source_state": "seeded",
+      "simulator_state": "partial",
+      "next_evidence": [
+        "Implement explicit pulse schedules and initial-tick policy.",
+        "Extract post-resistance absorber depletion."
+      ],
+      "claim_ids": [
+        "retail.shadow-mantle-blocks-hot-initial-tick-final",
+        "retail.damage-absorber-budget-counts-post-resistance-damage",
+        "retail.pulsing-powers-check-powerblock",
+        "sbe2015.shadow-mantle-custom-values"
+      ]
+    },
+    {
+      "domain": "Build-derived attributes, skills, equipment, stances and forms",
+      "priority": "P0",
+      "source_state": "partial",
+      "simulator_state": "absent",
+      "next_evidence": [
+        "Create versioned build profiles from client sheets and item data.",
+        "Compile stat derivation before interpreting level progression."
+      ],
+      "claim_ids": [
+        "retail.skill-does-not-break-selected-persistent-effects",
+        "retail.weapon-powers-dispel-on-unequip"
+      ]
+    },
+    {
+      "domain": "Group and AoE selection, friendly fire and target caps",
+      "priority": "P1",
+      "source_state": "partial",
+      "simulator_state": "absent",
+      "next_evidence": [
+        "Extract AoE target filtering and caps.",
+        "Capture group exclusion and caster-inclusion cases."
+      ],
+      "claim_ids": [
+        "retail.invisibility-break-conditions"
+      ]
+    },
+    {
+      "domain": "Pets, mob AI, aggro, hate and taunt",
+      "priority": "P1",
+      "source_state": "partial",
+      "simulator_state": "absent",
+      "next_evidence": [
+        "Extract mobileAI and hate-list logic.",
+        "Create deterministic pet and mob scenarios."
+      ],
+      "claim_ids": []
+    },
+    {
+      "domain": "Death, corpse, respawn, resurrection and state cleanup",
+      "priority": "P1",
+      "source_state": "partial",
+      "simulator_state": "partial",
+      "next_evidence": [
+        "Extract death jobs and cleanup ordering.",
+        "Trace pending effects and projectiles across death."
+      ],
+      "claim_ids": []
+    },
+    {
+      "domain": "Siege, buildings, cities and world systems",
+      "priority": "P2",
+      "source_state": "partial",
+      "simulator_state": "absent",
+      "next_evidence": [
+        "Keep separate from duel fidelity until combat core stabilizes.",
+        "Index building, guard and siege source subsystems."
+      ],
+      "claim_ids": []
+    },
+    {
+      "domain": "Client protocol, input queues, animation and desync",
+      "priority": "P1",
+      "source_state": "blocked",
+      "simulator_state": "partial",
+      "next_evidence": [
+        "Fingerprint WonderBane client files.",
+        "Record semantic decisions beside packets, UI state and screenshots."
+      ],
+      "claim_ids": []
+    }
+  ]
+}
