@@ -5,6 +5,7 @@ from shadowbane_lab.sim import (
     ActionCatalog,
     ActionPhase,
     ActionSpec,
+    ActionTriggerSpec,
     ActiveEffectState,
     ApplyEffect,
     DealDamage,
@@ -21,6 +22,7 @@ from shadowbane_lab.sim import (
     SubjectRef,
     TargetingSpec,
     TransferItem,
+    TriggerConsumption,
 )
 
 
@@ -458,6 +460,121 @@ class ReferenceEnvironmentTests(unittest.TestCase):
         environment.step((strong,))
 
         self.assertEqual(10.0, environment.entity("target").scalars["health"])
+
+    def test_armed_payload_waits_for_and_is_consumed_by_qualifying_action(self) -> None:
+        trigger = ActionTriggerSpec(
+            trigger_key="armed_strike",
+            payload=(DealDamage(SubjectRef.TARGET, 20.0, "physical"),),
+            required_action_tags=("attack", "weapon", "melee"),
+            forbidden_action_tags=("setup",),
+            consume_on=TriggerConsumption.ACTION_START,
+            tags=("weapon_power",),
+        )
+        arm = ActionSpec(
+            action_key="arm",
+            targeting=TargetingSpec(kind=TargetKind.SELF),
+            phases=(
+                ActionPhase(
+                    kind=PhaseKind.ACTIVE,
+                    duration_ms=0,
+                    effects=(
+                        ApplyEffect(
+                            SubjectRef.ACTOR,
+                            "armed_strike",
+                            5_000,
+                            stacking_key="NextWeaponPower",
+                            tags=("trigger.armed",),
+                        ),
+                    ),
+                ),
+            ),
+            armed_trigger=trigger,
+            tags=("setup", "weapon_power", "armed_trigger"),
+        )
+        spell = ActionSpec(
+            action_key="spell",
+            targeting=TargetingSpec(
+                kind=TargetKind.ENTITY,
+                allowed_relations=(Relation.ENEMY,),
+                maximum_range=10.0,
+            ),
+            phases=(
+                ActionPhase(
+                    kind=PhaseKind.ACTIVE,
+                    duration_ms=0,
+                    effects=(DealDamage(SubjectRef.TARGET, 2.0, "cold"),),
+                ),
+            ),
+            tags=("attack", "spell"),
+        )
+        weapon = ActionSpec(
+            action_key="weapon",
+            targeting=TargetingSpec(
+                kind=TargetKind.ENTITY,
+                allowed_relations=(Relation.ENEMY,),
+                maximum_range=10.0,
+            ),
+            phases=(
+                ActionPhase(
+                    kind=PhaseKind.ACTIVE,
+                    duration_ms=0,
+                    effects=(DealDamage(SubjectRef.TARGET, 3.0, "physical"),),
+                ),
+            ),
+            tags=("attack", "weapon", "melee"),
+        )
+        environment = ReferenceEnvironment(
+            ActionCatalog((arm, spell, weapon)),
+            (
+                actor(
+                    "attacker",
+                    "red",
+                    Vector2(0.0, 0.0),
+                    ("arm", "spell", "weapon"),
+                ),
+                actor("target", "blue", Vector2(1.0, 0.0), (), health=50.0),
+            ),
+            seed=52,
+        )
+
+        arm_decision = action_for(environment, "attacker", "arm", correlation_id="arm")
+        environment.step((arm_decision,))
+        self.assertIn("NextWeaponPower", environment.entity("attacker").effects)
+
+        spell_decision = action_for(
+            environment,
+            "attacker",
+            "spell",
+            target_id="target",
+            correlation_id="spell",
+        )
+        environment.step((spell_decision,))
+        self.assertEqual(48.0, environment.entity("target").scalars["health"])
+        self.assertIn("NextWeaponPower", environment.entity("attacker").effects)
+
+        weapon_decision = action_for(
+            environment,
+            "attacker",
+            "weapon",
+            target_id="target",
+            correlation_id="weapon-1",
+        )
+        triggered = environment.step((weapon_decision,))
+        self.assertEqual(25.0, environment.entity("target").scalars["health"])
+        self.assertNotIn("NextWeaponPower", environment.entity("attacker").effects)
+        self.assertEqual(
+            1, sum(event.kind == EventKind.TRIGGER_FIRED for event in triggered.events)
+        )
+
+        second_weapon = action_for(
+            environment,
+            "attacker",
+            "weapon",
+            target_id="target",
+            correlation_id="weapon-2",
+        )
+        environment.step((second_weapon,))
+        self.assertEqual(22.0, environment.entity("target").scalars["health"])
 
     def test_movement_uses_bound_direction_and_phase_duration(self) -> None:
         move = ActionSpec(

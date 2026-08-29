@@ -24,6 +24,7 @@ from shadowbane_lab.rulesets.model import (
 from shadowbane_lab.sim import (
     ActionPhase,
     ActionSpec,
+    ActionTriggerSpec,
     ApplyEffect,
     DealDamage,
     DeliveryKind,
@@ -42,6 +43,7 @@ from shadowbane_lab.sim import (
     TagOperation,
     TargetingSpec,
     TransferItem,
+    TriggerConsumption,
 )
 from shadowbane_lab.sim.actions import EffectPrimitive
 
@@ -223,7 +225,24 @@ def _parse_action(data: Mapping[str, Any], action_key: str, rank: int) -> Action
         required_actor_tags=tuple(_strings(data, "required_actor_tags")),
         forbidden_actor_tags=tuple(_strings(data, "forbidden_actor_tags")),
         features=tuple(features),
+        armed_trigger=_parse_action_trigger(data, rank),
         tags=tuple(_strings(data, "tags")),
+    )
+
+
+def _parse_action_trigger(data: Mapping[str, Any], rank: int) -> ActionTriggerSpec | None:
+    raw = data.get("armed_trigger")
+    if raw is None:
+        return None
+    trigger = _mapping(raw, "armed_trigger")
+    return ActionTriggerSpec(
+        trigger_key=_string(trigger, "trigger_key"),
+        payload=tuple(_parse_effect(item, rank) for item in _objects(trigger, "payload")),
+        required_action_tags=tuple(_strings(trigger, "required_action_tags")),
+        qualifying_action_keys=tuple(_strings(trigger, "qualifying_action_keys")),
+        forbidden_action_tags=tuple(_strings(trigger, "forbidden_action_tags")),
+        consume_on=TriggerConsumption(_string(trigger, "consume_on")),
+        tags=tuple(_strings(trigger, "tags")),
     )
 
 

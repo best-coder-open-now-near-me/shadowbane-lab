@@ -65,6 +65,10 @@ class TagOperation(StrEnum):
     REMOVE = "remove"
 
 
+class TriggerConsumption(StrEnum):
+    ACTION_START = "action_start"
+
+
 @dataclass(frozen=True, slots=True)
 class TargetingSpec:
     kind: TargetKind
@@ -304,6 +308,46 @@ _EFFECT_TYPES = (
 
 
 @dataclass(frozen=True, slots=True)
+class ActionTriggerSpec:
+    # Payload armed now and applied by the next qualifying action.
+
+    trigger_key: str
+    payload: tuple[EffectPrimitive, ...]
+    required_action_tags: tuple[str, ...] = ()
+    qualifying_action_keys: tuple[str, ...] = ()
+    forbidden_action_tags: tuple[str, ...] = ()
+    consume_on: TriggerConsumption = TriggerConsumption.ACTION_START
+    tags: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        _identifier(self.trigger_key, "trigger_key")
+        if not self.payload:
+            raise ValueError("action trigger payload must not be empty")
+        if any(not isinstance(effect, _EFFECT_TYPES) for effect in self.payload):
+            raise ValueError("action trigger payload must contain typed effect primitives")
+        for values, name in (
+            (self.required_action_tags, "required_action_tags"),
+            (self.qualifying_action_keys, "qualifying_action_keys"),
+            (self.forbidden_action_tags, "forbidden_action_tags"),
+            (self.tags, "trigger tags"),
+        ):
+            _unique_strings(values, name)
+        if not self.required_action_tags and not self.qualifying_action_keys:
+            raise ValueError("action trigger requires action tags or explicit action keys")
+        if set(self.required_action_tags) & set(self.forbidden_action_tags):
+            raise ValueError("trigger action tags cannot be both required and forbidden")
+        if not isinstance(self.consume_on, TriggerConsumption):
+            raise ValueError("consume_on must be a TriggerConsumption")
+
+    def matches(self, action_key: str, action_tags: frozenset[str]) -> bool:
+        if self.qualifying_action_keys and action_key not in self.qualifying_action_keys:
+            return False
+        if not set(self.required_action_tags).issubset(action_tags):
+            return False
+        return not bool(set(self.forbidden_action_tags) & action_tags)
+
+
+@dataclass(frozen=True, slots=True)
 class ActionPhase:
     kind: PhaseKind
     duration_ms: int
@@ -340,6 +384,7 @@ class ActionSpec:
     required_actor_tags: tuple[str, ...] = ()
     forbidden_actor_tags: tuple[str, ...] = ()
     features: tuple[NamedScalar, ...] = ()
+    armed_trigger: ActionTriggerSpec | None = None
     tags: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
@@ -363,6 +408,19 @@ class ActionSpec:
             raise ValueError("features must contain NamedScalar values")
         feature_names = tuple(feature.name for feature in self.features)
         _unique_strings(feature_names, "feature names")
+        if self.armed_trigger is not None:
+            if not isinstance(self.armed_trigger, ActionTriggerSpec):
+                raise ValueError("armed_trigger must be an ActionTriggerSpec or null")
+            applied_effect_keys = {
+                effect.effect_key
+                for phase in self.phases
+                for effect in phase.effects
+                if isinstance(effect, ApplyEffect)
+            }
+            if self.armed_trigger.trigger_key not in applied_effect_keys:
+                raise ValueError(
+                    "an armed trigger requires this action to apply its trigger effect"
+                )
         _unique_strings(self.tags, "tags")
 
 
@@ -376,6 +434,12 @@ class ActionCatalog:
         _unique_strings(keys, "action keys")
         self._actions = tuple(sorted(actions, key=lambda action: action.action_key))
         self._by_key = {action.action_key: action for action in self._actions}
+        trigger_specs = tuple(
+            action.armed_trigger for action in self._actions if action.armed_trigger is not None
+        )
+        trigger_keys = tuple(trigger.trigger_key for trigger in trigger_specs)
+        _unique_strings(trigger_keys, "armed trigger keys")
+        self._triggers_by_effect_key = {trigger.trigger_key: trigger for trigger in trigger_specs}
 
     @property
     def actions(self) -> tuple[ActionSpec, ...]:
@@ -386,6 +450,9 @@ class ActionCatalog:
             return self._by_key[action_key]
         except KeyError as exc:
             raise KeyError(f"unknown action key: {action_key}") from exc
+
+    def trigger_for_effect(self, effect_key: str) -> ActionTriggerSpec | None:
+        return self._triggers_by_effect_key.get(effect_key)
 
     def __len__(self) -> int:
         return len(self._actions)

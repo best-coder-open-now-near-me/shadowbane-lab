@@ -5,6 +5,7 @@ from shadowbane_lab.sim import (
     ActionCatalog,
     ActionPhase,
     ActionSpec,
+    ActionTriggerSpec,
     ApplyEffect,
     DealDamage,
     DeliveryKind,
@@ -18,6 +19,7 @@ from shadowbane_lab.sim import (
     SubjectRef,
     TargetingSpec,
     TransferItem,
+    TriggerConsumption,
 )
 
 
@@ -203,6 +205,44 @@ class ActionAlgebraTests(unittest.TestCase):
                 duration_ms=0,
                 effects=(object(),),  # type: ignore[arg-type]
             )
+
+    def test_action_trigger_requires_a_matching_arming_effect(self) -> None:
+        trigger = ActionTriggerSpec(
+            trigger_key="armed_strike",
+            payload=(DealDamage(SubjectRef.TARGET, 20.0, "physical"),),
+            required_action_tags=("attack", "weapon"),
+            consume_on=TriggerConsumption.ACTION_START,
+        )
+        with self.assertRaisesRegex(ValueError, "apply its trigger effect"):
+            ActionSpec(
+                action_key="arm",
+                targeting=TargetingSpec(kind=TargetKind.SELF),
+                phases=(ActionPhase(kind=PhaseKind.ACTIVE, duration_ms=0),),
+                armed_trigger=trigger,
+            )
+
+        action = ActionSpec(
+            action_key="arm",
+            targeting=TargetingSpec(kind=TargetKind.SELF),
+            phases=(
+                ActionPhase(
+                    kind=PhaseKind.ACTIVE,
+                    duration_ms=0,
+                    effects=(
+                        ApplyEffect(
+                            SubjectRef.ACTOR,
+                            "armed_strike",
+                            5_000,
+                            tags=("trigger.armed",),
+                        ),
+                    ),
+                ),
+            ),
+            armed_trigger=trigger,
+        )
+
+        self.assertTrue(action.armed_trigger.matches("swing", frozenset({"attack", "weapon"})))
+        self.assertFalse(action.armed_trigger.matches("spell", frozenset({"attack", "spell"})))
 
 
 if __name__ == "__main__":

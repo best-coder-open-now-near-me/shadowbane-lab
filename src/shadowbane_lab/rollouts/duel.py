@@ -82,6 +82,7 @@ class CombatantConfig:
     stamina: float = 200.0
     move_speed: float = 15.0
     tags: tuple[str, ...] = ()
+    action_keys_override: tuple[str, ...] | None = None
 
     def __post_init__(self) -> None:
         _identifier(self.entity_id, "entity_id")
@@ -99,6 +100,11 @@ class CombatantConfig:
             raise ValueError("tags must not contain duplicates")
         for tag in self.tags:
             _identifier(tag, "tag")
+        if self.action_keys_override is not None:
+            if len(self.action_keys_override) != len(set(self.action_keys_override)):
+                raise ValueError("action_keys_override must not contain duplicates")
+            for action_key in self.action_keys_override:
+                _identifier(action_key, "action override key")
 
 
 @dataclass(frozen=True, slots=True)
@@ -139,6 +145,12 @@ class ActionCount:
 
 
 @dataclass(frozen=True, slots=True)
+class TriggerCount:
+    trigger_key: str
+    count: int
+
+
+@dataclass(frozen=True, slots=True)
 class CombatantResult:
     entity_id: str
     profession: str
@@ -155,6 +167,7 @@ class CombatantResult:
     stamina_spent: float
     rejected_actions: int
     actions: tuple[ActionCount, ...]
+    triggers: tuple[TriggerCount, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -200,6 +213,7 @@ class DuelResult:
                     "stamina_spent": item.stamina_spent,
                     "rejected_actions": item.rejected_actions,
                     "actions": {action.action_key: action.count for action in item.actions},
+                    "triggers": {trigger.trigger_key: trigger.count for trigger in item.triggers},
                 }
                 for item in self.combatants
             ],
@@ -305,17 +319,30 @@ class UtilityDuelPolicy:
             effective = min(missing, features.get("expected_healing", 0.0))
             return 12.0 + effective * 1_000.0 / commitment_ms
 
-        if affordance.action_key == SHADOW_MANTLE:
-            return self._shadow_mantle_score(affordance, enemies, features)
-        if affordance.action_key in {FADE, INVISIBILITY}:
+        if "healing_block" in tags:
+            return self._healing_block_score(affordance, enemies, features)
+        if "stealth" in tags or "invisibility" in tags:
             return self._stealth_score(affordance, actor, enemies, commitment_ms)
-        if affordance.action_key == MIND_SNARE:
-            return self._mind_snare_score(affordance, enemies, features)
-        if affordance.action_key == LEVITATION:
+        if "snare" in tags:
+            return self._snare_score(affordance, enemies, features)
+        if "flight" in tags:
             return -30.0
+        if "armed_trigger" in tags:
+            trigger_damage = features.get("expected_trigger_damage", 0.0)
+            trigger_control_ms = features.get("expected_trigger_control_duration_ms", 0.0)
+            followup_ms = max(1.0, features.get("expected_followup_commitment_ms", 1_000.0))
+            return (
+                8.0
+                + trigger_damage * 1_000.0 / (commitment_ms + followup_ms)
+                + trigger_control_ms / 300.0
+            )
 
-        expected_damage = features.get("expected_damage", 0.0)
-        control_ms = features.get("control_duration_ms", 0.0)
+        expected_damage = features.get("expected_damage", 0.0) + features.get(
+            "trigger_expected_damage", 0.0
+        )
+        control_ms = features.get("control_duration_ms", 0.0) + features.get(
+            "trigger_control_duration_ms", 0.0
+        )
         target_id = affordance.binding.target_entity_id
         target = enemies.get(target_id or "")
         if target is not None and ("immunity.stun" in target.tags or "control.stun" in target.tags):
@@ -337,7 +364,7 @@ class UtilityDuelPolicy:
         enemies: dict[str, EntityObservation],
         commitment_ms: float,
     ) -> float:
-        if BACKSTAB not in self._action_keys or "visibility.invisible" in actor.tags:
+        if "capability.stealth_required" not in actor.tags or "visibility.invisible" in actor.tags:
             return float("-inf")
         if not enemies:
             return float("-inf")
@@ -348,7 +375,7 @@ class UtilityDuelPolicy:
         return base - commitment_ms / 1_000.0
 
     @staticmethod
-    def _mind_snare_score(
+    def _snare_score(
         affordance: Affordance,
         enemies: dict[str, EntityObservation],
         features: dict[str, float],
@@ -361,7 +388,7 @@ class UtilityDuelPolicy:
         return 8.0 + features.get("control_duration_ms", 0.0) / 1_000.0
 
     @staticmethod
-    def _shadow_mantle_score(
+    def _healing_block_score(
         affordance: Affordance,
         enemies: dict[str, EntityObservation],
         features: dict[str, float],
@@ -369,7 +396,7 @@ class UtilityDuelPolicy:
         target = enemies.get(affordance.binding.target_entity_id or "")
         if target is None or "healing.block" in target.tags:
             return -100.0
-        if "profession.warlock" not in target.tags:
+        if "capability.healing" not in target.tags:
             return -20.0
         duration = features.get("control_duration_ms", 0.0)
         block_rank = features.get("healing_block_rank", 0.0)
@@ -396,11 +423,17 @@ class UtilityDuelPolicy:
         return 1.0 + alignment
 
 
-def run_duel(config: DuelConfig) -> DuelResult:
+def run_duel(config: DuelConfig, *, ruleset: CompiledRuleset | None = None) -> DuelResult:
     """Run one deterministic duel until one team remains or the tick budget expires."""
 
     rank_overrides = _merge_rank_overrides(config.left.build, config.right.build)
-    ruleset = load_assassin_warlock_duel_ruleset(rank_overrides=rank_overrides)
+    if ruleset is None:
+        ruleset = load_assassin_warlock_duel_ruleset(rank_overrides=rank_overrides)
+    else:
+        for action_key, rank in rank_overrides.items():
+            record = ruleset.record(action_key)
+            if record.rank != rank:
+                raise ValueError(f"{action_key} was compiled at rank {record.rank}, not {rank}")
     entities = (
         _entity(config.left, Vector2(0.0, 0.0), ruleset),
         _entity(config.right, Vector2(config.starting_distance, 0.0), ruleset),
@@ -596,9 +629,28 @@ def _merge_rank_overrides(*builds: CharacterBuild) -> dict[str, int]:
 
 def _entity(config: CombatantConfig, position: Vector2, ruleset: CompiledRuleset) -> EntityState:
     tags = set(config.tags)
-    tags.add(f"profession.{config.build.profession}")
+    if config.build.profession != "open":
+        tags.add(f"profession.{config.build.profession}")
     if config.build.profession == "assassin":
         tags.update(("equipment.melee_weapon", "power.stalk"))
+    if config.action_keys_override is None:
+        action_keys = ruleset.action_keys_for(config.build)
+    else:
+        compiled_keys = {
+            record.action_key for record in ruleset.records if record.action is not None
+        }
+        unknown = set(config.action_keys_override) - compiled_keys
+        if unknown:
+            raise ValueError(
+                "action override contains unknown or unresolved actions: "
+                + ", ".join(sorted(unknown))
+            )
+        action_keys = tuple(sorted(config.action_keys_override))
+    for action_key in action_keys:
+        action = ruleset.record(action_key).action
+        if action is None:
+            raise ValueError(f"action override is unresolved: {action_key}")
+        tags.update(f"capability.{tag}" for tag in action.tags)
     return EntityState(
         entity_id=config.entity_id,
         life_id=f"{config.entity_id}:1",
@@ -617,7 +669,7 @@ def _entity(config: CombatantConfig, position: Vector2, ruleset: CompiledRuleset
             "stamina": config.stamina,
         },
         tags=tags,
-        action_keys=ruleset.action_keys_for(config.build),
+        action_keys=action_keys,
     )
 
 
@@ -625,6 +677,7 @@ def _combatant_result(
     config: CombatantConfig, state: EntityState, events: list[Event]
 ) -> CombatantResult:
     action_counts: dict[str, int] = {}
+    trigger_counts: dict[str, int] = {}
     damage_dealt = 0.0
     healing_received = 0.0
     mana_spent = 0.0
@@ -635,6 +688,11 @@ def _combatant_result(
         if event.kind == EventKind.ACTION_STARTED and event.source_entity_id == config.entity_id:
             if event.action_key is not None:
                 action_counts[event.action_key] = action_counts.get(event.action_key, 0) + 1
+        elif event.kind == EventKind.TRIGGER_FIRED and event.source_entity_id == config.entity_id:
+            trigger_tag = next((tag for tag in event.tags if tag.startswith("trigger.")), None)
+            if trigger_tag is not None:
+                trigger_key = trigger_tag.removeprefix("trigger.")
+                trigger_counts[trigger_key] = trigger_counts.get(trigger_key, 0) + 1
         elif event.kind == EventKind.DAMAGE_APPLIED and event.source_entity_id == config.entity_id:
             damage_dealt += scalars.get("effective", 0.0)
         elif (
@@ -665,6 +723,10 @@ def _combatant_result(
         rejected_actions=rejected_actions,
         actions=tuple(
             ActionCount(action_key, count) for action_key, count in sorted(action_counts.items())
+        ),
+        triggers=tuple(
+            TriggerCount(trigger_key, count)
+            for trigger_key, count in sorted(trigger_counts.items())
         ),
     )
 

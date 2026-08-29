@@ -16,7 +16,14 @@ from shadowbane_lab.protocol import (
     TargetKind,
     Vector2,
 )
-from shadowbane_lab.sim.actions import ActionCatalog, ActionSpec, ModifyObjective, TransferItem
+from shadowbane_lab.sim.actions import (
+    ActionCatalog,
+    ActionSpec,
+    ApplyEffect,
+    DealDamage,
+    ModifyObjective,
+    TransferItem,
+)
 from shadowbane_lab.sim.errors import SimulationConfigurationError
 from shadowbane_lab.sim.state import EntityState
 from shadowbane_lab.sim.timeline import AgentExchange
@@ -245,6 +252,28 @@ class AffordanceBuilder:
             values["distance"] = self._distance(actor.position, target.position)
         for feature in action.features:
             values[feature.name] = feature.value
+        trigger_damage = 0.0
+        trigger_control_ms = 0.0
+        trigger_count = 0
+        action_tags = frozenset(action.tags)
+        for active in actor.effects.values():
+            trigger = self._catalog.trigger_for_effect(active.effect_key)
+            if trigger is None or not trigger.matches(action.action_key, action_tags):
+                continue
+            trigger_count += 1
+            for effect in trigger.payload:
+                if isinstance(effect, DealDamage):
+                    trigger_damage += effect.amount
+                elif isinstance(effect, ApplyEffect) and any(
+                    tag.startswith("control.") for tag in effect.tags
+                ):
+                    trigger_control_ms += effect.duration_ms
+        if trigger_count:
+            values["trigger_count"] = float(trigger_count)
+        if trigger_damage:
+            values["trigger_expected_damage"] = trigger_damage
+        if trigger_control_ms:
+            values["trigger_control_duration_ms"] = trigger_control_ms
         return tuple(NamedScalar(name, values[name]) for name in sorted(values))
 
     def _position_in_range(

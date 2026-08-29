@@ -64,6 +64,7 @@ class EventKind(StrEnum):
     MOVEMENT_CHANGED = "movement_changed"
     DAMAGE_APPLIED = "damage_applied"
     RESOURCE_RESTORED = "resource_restored"
+    TRIGGER_FIRED = "trigger_fired"
     EFFECT_ADDED = "effect_added"
     EFFECT_REMOVED = "effect_removed"
     ENTITY_SPAWNED = "entity_spawned"

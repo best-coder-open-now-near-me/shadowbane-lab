@@ -3,6 +3,7 @@ import json
 import unittest
 from contextlib import redirect_stdout
 
+from shadowbane_lab.protocol import TargetKind
 from shadowbane_lab.rollouts import (
     CombatantConfig,
     DuelConfig,
@@ -48,6 +49,26 @@ class DuelRolloutTests(unittest.TestCase):
         )
         for action_key in (FADE, BACKSTAB, INVISIBILITY, MIND_SNARE, SHADOW_MANTLE):
             self.assertIsNotNone(ruleset.record(action_key).action)
+
+    def test_backstab_arms_the_next_qualifying_weapon_action(self) -> None:
+        action = load_assassin_warlock_duel_ruleset().record(BACKSTAB).action
+
+        self.assertIsNotNone(action)
+        self.assertEqual(TargetKind.SELF, action.targeting.kind)
+        self.assertIsNotNone(action.armed_trigger)
+        self.assertEqual("backstab_armed", action.armed_trigger.trigger_key)
+        self.assertTrue(
+            action.armed_trigger.matches(
+                BASIC_ATTACK,
+                frozenset({"combat", "attack", "melee", "physical", "weapon"}),
+            )
+        )
+        self.assertFalse(
+            action.armed_trigger.matches(
+                SHADOW_BOLT,
+                frozenset({"combat", "damage", "cold", "control"}),
+            )
+        )
 
     def test_progression_build_clamps_twenty_rank_stealth_powers(self) -> None:
         build = progression_build("assassin", 75, 40)

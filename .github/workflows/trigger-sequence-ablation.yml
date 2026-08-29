@@ -1,0 +1,171 @@
+name: Armed-trigger sequence ablation
+
+on:
+  push:
+    branches:
+      - codex/open-build-exploration
+    paths:
+      - ".github/workflows/trigger-sequence-ablation.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  simulate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Run fixed-body sequence ablation
+        run: |
+          mkdir -p artifacts
+          python - <<'PY'
+          import json
+          from collections import defaultdict
+          from pathlib import Path
+          from statistics import fmean
+
+          from shadowbane_lab.rollouts.duel import (
+              BACKSTAB,
+              INVISIBILITY,
+              MIND_STRIKE,
+              SHADOW_TOUCH,
+          )
+          from shadowbane_lab.rollouts.open_builds import PrimitiveLoadout, run_open_duel
+          from shadowbane_lab.rollouts.ruleset import load_assassin_warlock_duel_ruleset
+
+          ruleset = load_assassin_warlock_duel_ruleset()
+          body = dict(health=650.0, mana=360.0, stamina=240.0, move_speed=16.0)
+          variants = (
+              PrimitiveLoadout(
+                  loadout_id="ablation.basic",
+                  display_name="Common actions only",
+                  action_keys=(),
+                  **body,
+              ),
+              PrimitiveLoadout(
+                  loadout_id="ablation.backstab_only",
+                  display_name="Backstab without a stealth source",
+                  action_keys=(BACKSTAB,),
+                  **body,
+              ),
+              PrimitiveLoadout(
+                  loadout_id="ablation.invisibility_only",
+                  display_name="Invisibility without an armed payload",
+                  action_keys=(INVISIBILITY,),
+                  **body,
+              ),
+              PrimitiveLoadout(
+                  loadout_id="ablation.invisibility_backstab",
+                  display_name="Invisibility into Backstab into weapon action",
+                  action_keys=(INVISIBILITY, BACKSTAB),
+                  **body,
+              ),
+              PrimitiveLoadout(
+                  loadout_id="ablation.invisibility_backstab_touch",
+                  display_name="Trigger sequence plus a control action",
+                  action_keys=(INVISIBILITY, BACKSTAB, SHADOW_TOUCH),
+                  **body,
+              ),
+          )
+          opponent = PrimitiveLoadout(
+              loadout_id="ablation.pressure",
+              display_name="Fixed Mind Strike pressure",
+              action_keys=(MIND_STRIKE,),
+              **body,
+          )
+
+          raw_runs = []
+          summary = []
+          for variant in variants:
+              runs = []
+              for distance in (15.0, 60.0, 110.0):
+                  for mirrored in (False, True):
+                      left, right = (opponent, variant) if mirrored else (variant, opponent)
+                      run = run_open_duel(
+                          ruleset,
+                          left,
+                          right,
+                          starting_distance=distance,
+                          max_ticks=1_200,
+                          seed=1,
+                      )
+                      payload = run.as_dict()
+                      raw_runs.append(
+                          {
+                              "variant_id": variant.loadout_id,
+                              "distance": distance,
+                              "mirrored": mirrored,
+                              "run": payload,
+                          }
+                      )
+                      candidate = next(
+                          item
+                          for item in payload["duel"]["combatants"]
+                          if item["entity_id"] == variant.loadout_id
+                      )
+                      runs.append((payload["duel"], candidate))
+
+              actions = defaultdict(int)
+              triggers = defaultdict(int)
+              for _, candidate in runs:
+                  for key, count in candidate["actions"].items():
+                      actions[key] += count
+                  for key, count in candidate["triggers"].items():
+                      triggers[key] += count
+              wins = sum(duel["winner_entity_id"] == variant.loadout_id for duel, _ in runs)
+              losses = sum(duel["winner_entity_id"] == opponent.loadout_id for duel, _ in runs)
+              draws = len(runs) - wins - losses
+              summary.append(
+                  {
+                      "variant_id": variant.loadout_id,
+                      "display_name": variant.display_name,
+                      "matches": len(runs),
+                      "wins": wins,
+                      "losses": losses,
+                      "draws": draws,
+                      "mean_ticks": fmean(duel["ticks"] for duel, _ in runs),
+                      "mean_damage_dealt": fmean(candidate["damage_dealt"] for _, candidate in runs),
+                      "mean_final_health": fmean(candidate["final_health"] for _, candidate in runs),
+                      "action_starts": dict(sorted(actions.items())),
+                      "trigger_fires": dict(sorted(triggers.items())),
+                  }
+              )
+
+          result = {"summary": summary, "runs": raw_runs}
+          Path("artifacts/trigger-sequence-ablation.json").write_text(
+              json.dumps(result, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          lines = [
+              "# Armed-trigger sequence ablation",
+              "",
+              "Identical bodies against identical Mind Strike pressure; each variant runs at 15, 60, and 110 units from both spawn sides.",
+              "",
+              "| Variant | W-L-D | Mean damage | Mean ticks | Backstab starts | Trigger fires |",
+              "|:---|:---:|---:|---:|---:|---:|",
+          ]
+          for row in summary:
+              lines.append(
+                  f"| `{row['variant_id']}` | {row['wins']}-{row['losses']}-{row['draws']} | "
+                  f"{row['mean_damage_dealt']:.1f} | {row['mean_ticks']:.1f} | "
+                  f"{row['action_starts'].get(BACKSTAB, 0)} | "
+                  f"{row['trigger_fires'].get('backstab_armed', 0)} |"
+              )
+          markdown = "\n".join(lines) + "\n"
+          Path("artifacts/trigger-sequence-ablation.md").write_text(markdown, encoding="utf-8")
+          print(markdown)
+          PY
+          cat artifacts/trigger-sequence-ablation.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload result
+        uses: actions/upload-artifact@v4
+        with:
+          name: trigger-sequence-ablation
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 30

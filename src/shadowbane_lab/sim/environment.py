@@ -21,6 +21,7 @@ from shadowbane_lab.sim.actions import (
     ActionPhase,
     ActionSpec,
     DeliveryKind,
+    EffectPrimitive,
 )
 from shadowbane_lab.sim.affordances import AffordanceBuilder
 from shadowbane_lab.sim.clock import SimulationClock
@@ -220,7 +221,18 @@ class ReferenceEnvironment:
                 action_key=action.action_key,
             )
         )
-        self._schedule_action_phases(actor, decision, action)
+        triggered_effects = self._consume_action_triggers(
+            actor,
+            decision,
+            action,
+            events,
+        )
+        self._schedule_action_phases(
+            actor,
+            decision,
+            action,
+            triggered_effects=triggered_effects,
+        )
         self._schedule(
             ScheduledItem(
                 due_time_ms=self.now_ms + total_phase_ms,
@@ -237,17 +249,19 @@ class ReferenceEnvironment:
         actor: EntityState,
         decision: DecisionMessage,
         action: ActionSpec,
+        *,
+        triggered_effects: tuple[EffectPrimitive, ...] = (),
     ) -> None:
         phase_end_ms = self.now_ms
+        trigger_scheduled = False
         for phase in action.phases:
             phase_end_ms += phase.duration_ms
             if not phase.effects:
                 continue
+            due_time_ms = phase_end_ms + self._delivery_delay(actor, decision.binding, phase)
             self._schedule(
                 ScheduledItem(
-                    due_time_ms=(
-                        phase_end_ms + self._delivery_delay(actor, decision.binding, phase)
-                    ),
+                    due_time_ms=due_time_ms,
                     order=self._take_schedule_order(),
                     kind=ScheduledKind.RESOLUTION,
                     actor_id=actor.entity_id,
@@ -258,6 +272,79 @@ class ReferenceEnvironment:
                     effects=phase.effects,
                 )
             )
+            if triggered_effects and not trigger_scheduled:
+                self._schedule(
+                    ScheduledItem(
+                        due_time_ms=due_time_ms,
+                        order=self._take_schedule_order(),
+                        kind=ScheduledKind.RESOLUTION,
+                        actor_id=actor.entity_id,
+                        correlation_id=decision.correlation_id,
+                        action_key=action.action_key,
+                        binding=decision.binding,
+                        phase_duration_ms=phase.duration_ms,
+                        effects=triggered_effects,
+                    )
+                )
+                trigger_scheduled = True
+        if triggered_effects and not trigger_scheduled:
+            phase = action.phases[-1]
+            self._schedule(
+                ScheduledItem(
+                    due_time_ms=phase_end_ms + self._delivery_delay(actor, decision.binding, phase),
+                    order=self._take_schedule_order(),
+                    kind=ScheduledKind.RESOLUTION,
+                    actor_id=actor.entity_id,
+                    correlation_id=decision.correlation_id,
+                    action_key=action.action_key,
+                    binding=decision.binding,
+                    phase_duration_ms=phase.duration_ms,
+                    effects=triggered_effects,
+                )
+            )
+
+    def _consume_action_triggers(
+        self,
+        actor: EntityState,
+        decision: DecisionMessage,
+        action: ActionSpec,
+        events: list[Event],
+    ) -> tuple[EffectPrimitive, ...]:
+        action_tags = frozenset(action.tags)
+        payload: list[EffectPrimitive] = []
+        for storage_key in sorted(tuple(actor.effects)):
+            active = actor.effects.get(storage_key)
+            if active is None:
+                continue
+            trigger = self._catalog.trigger_for_effect(active.effect_key)
+            if trigger is None or not trigger.matches(action.action_key, action_tags):
+                continue
+            actor.effects.pop(storage_key)
+            events.append(
+                self._event(
+                    EventKind.EFFECT_REMOVED,
+                    self.now_ms,
+                    correlation_id=decision.correlation_id,
+                    source_entity_id=active.source_entity_id,
+                    target_entity_id=actor.entity_id,
+                    action_key=action.action_key,
+                    tags=(f"effect.{active.effect_key}", "reason.triggered"),
+                )
+            )
+            event_tags = tuple(dict.fromkeys((f"trigger.{trigger.trigger_key}", *trigger.tags)))
+            events.append(
+                self._event(
+                    EventKind.TRIGGER_FIRED,
+                    self.now_ms,
+                    correlation_id=decision.correlation_id,
+                    source_entity_id=actor.entity_id,
+                    target_entity_id=decision.binding.target_entity_id,
+                    action_key=action.action_key,
+                    tags=event_tags,
+                )
+            )
+            payload.extend(trigger.payload)
+        return tuple(payload)
 
     def _process_due(
         self,

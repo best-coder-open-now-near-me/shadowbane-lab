@@ -1,0 +1,159 @@
+name: Classless trigger tournament
+
+on:
+  push:
+    branches:
+      - codex/open-build-exploration
+    paths:
+      - ".github/workflows/open-build-trigger-experiment.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  simulate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Generate and cross primitive loadouts
+        run: |
+          mkdir -p artifacts
+          python -m shadowbane_lab.rollouts.open_builds \
+            --generate 16 \
+            --generation-seed 19 \
+            --min-actions 2 \
+            --max-actions 6 \
+            --distances 15,60,110 \
+            --seeds 1,2,3 \
+            --max-ticks 600 \
+            --output artifacts/open-build-trigger-tournament.json
+      - name: Summarize tournament
+        run: |
+          python - <<'PY'
+          import json
+          from collections import defaultdict
+          from pathlib import Path
+
+          source = Path("artifacts/open-build-trigger-tournament.json")
+          data = json.loads(source.read_text(encoding="utf-8"))
+          loadouts = {item["loadout_id"]: item for item in data["loadouts"]}
+          score = defaultdict(lambda: {"wins": 0, "losses": 0, "draws": 0, "matches": 0})
+          total_matches = 0
+          total_limits = 0
+          unique_traces = 0
+          for cell in data["matchups"]:
+              first = cell["first_loadout_id"]
+              second = cell["second_loadout_id"]
+              score[first]["wins"] += cell["first_wins"]
+              score[first]["losses"] += cell["second_wins"]
+              score[first]["draws"] += cell["draws"]
+              score[first]["matches"] += cell["matches"]
+              score[second]["wins"] += cell["second_wins"]
+              score[second]["losses"] += cell["first_wins"]
+              score[second]["draws"] += cell["draws"]
+              score[second]["matches"] += cell["matches"]
+              total_matches += cell["matches"]
+              total_limits += cell["time_limits"]
+              unique_traces += cell["unique_trace_count"]
+
+          ranking = sorted(
+              score,
+              key=lambda key: (
+                  score[key]["wins"] / max(1, score[key]["matches"]),
+                  score[key]["wins"],
+                  key,
+              ),
+              reverse=True,
+          )
+          trigger_fires = defaultdict(int)
+          backstab_starts = defaultdict(int)
+          for cell in data["matchups"]:
+              sample = cell["sample"]
+              for side in (sample["left"], sample["right"]):
+                  key = side["loadout_id"]
+                  actions = sample["duel"]["combatants"][0 if sample["duel"]["combatants"][0]["entity_id"] == key else 1]["actions"]
+                  backstab_starts[key] += actions.get("shadowbane.assassin.backstab", 0)
+
+          has_backstab = [key for key, item in loadouts.items() if "shadowbane.assassin.backstab" in item["executable_action_keys"]]
+          no_backstab = [key for key in loadouts if key not in has_backstab]
+          def aggregate_rate(keys):
+              wins = sum(score[key]["wins"] for key in keys)
+              matches = sum(score[key]["matches"] for key in keys)
+              return wins / matches if matches else 0.0
+
+          lines = [
+              "# Classless primitive tournament after armed-trigger modeling",
+              "",
+              f"Loadouts: {len(loadouts)}",
+              f"Pair cells: {len(data['matchups'])}",
+              f"Mirrored playouts: {total_matches}",
+              f"Time limits: {total_limits}",
+              f"Summed per-cell unique traces: {unique_traces}",
+              f"Backstab-bag aggregate win rate: {aggregate_rate(has_backstab):.1%}",
+              f"Non-Backstab-bag aggregate win rate: {aggregate_rate(no_backstab):.1%}",
+              "",
+              "| Rank | Loadout | Win rate | W-L-D | Actions | Unsatisfied requirements |",
+              "|---:|:---|---:|:---:|:---|:---|",
+          ]
+          for index, key in enumerate(ranking, start=1):
+              row = score[key]
+              rate = row["wins"] / max(1, row["matches"])
+              actions = ", ".join(
+                  action.rsplit(".", 1)[-1]
+                  for action in loadouts[key]["executable_action_keys"]
+              )
+              unsatisfied = ", ".join(loadouts[key]["unsatisfied_requirement_tags"])
+              lines.append(
+                  f"| {index} | `{key}` | {rate:.1%} | "
+                  f"{row['wins']}-{row['losses']}-{row['draws']} | {actions} | {unsatisfied} |"
+              )
+          lines.extend(["", "## Top-loadout details", ""])
+          for key in ranking[:5]:
+              item = loadouts[key]
+              lines.extend(
+                  [
+                      f"### `{key}`",
+                      "",
+                      f"- Health/mana/stamina/speed: {item['health']} / {item['mana']} / "
+                      f"{item['stamina']} / {item['move_speed']}",
+                      f"- Coverage: {item['coverage_fraction']:.0%}",
+                      f"- Actions: {', '.join(item['executable_action_keys'])}",
+                      f"- Unsatisfied requirements: {', '.join(item['unsatisfied_requirement_tags']) or 'none'}",
+                      "",
+                  ]
+              )
+          summary = "\n".join(lines) + "\n"
+          Path("artifacts/open-build-trigger-summary.md").write_text(summary, encoding="utf-8")
+          Path("artifacts/open-build-trigger-ranking.json").write_text(
+              json.dumps(
+                  {
+                      "ranking": ranking,
+                      "scores": score,
+                      "total_matches": total_matches,
+                      "time_limits": total_limits,
+                      "backstab_loadouts": has_backstab,
+                      "backstab_aggregate_win_rate": aggregate_rate(has_backstab),
+                      "non_backstab_aggregate_win_rate": aggregate_rate(no_backstab),
+                  },
+                  indent=2,
+                  sort_keys=True,
+              )
+              + "\n",
+              encoding="utf-8",
+          )
+          print(summary)
+          PY
+          cat artifacts/open-build-trigger-summary.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload tournament
+        uses: actions/upload-artifact@v4
+        with:
+          name: open-build-trigger-tournament
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 30

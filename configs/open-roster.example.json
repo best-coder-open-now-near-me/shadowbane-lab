@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "loadouts": [
+    {
+      "loadout_id": "mixed-control-burst",
+      "display_name": "Mixed control and burst",
+      "action_keys": [
+        "shadowbane.assassin.shadow_touch",
+        "shadowbane.warlock.mind_strike",
+        "shadowbane.assassin.shadow_mantle",
+        "future.periodic.poison"
+      ],
+      "health": 540,
+      "mana": 360,
+      "stamina": 220,
+      "move_speed": 17,
+      "tags": [
+        "equipment.melee_weapon"
+      ],
+      "metadata": {
+        "race": "optional label",
+        "promotion": "optional label",
+        "discipline": "optional label"
+      },
+      "notes": [
+        "The unknown periodic-poison recipe is retained and reported as omitted."
+      ]
+    },
+    {
+      "loadout_id": "stealth-heal",
+      "display_name": "Stealth and recovery",
+      "action_keys": [
+        "shadowbane.assassin.fade",
+        "shadowbane.assassin.backstab",
+        "shadowbane.warlock.psychic_healing"
+      ],
+      "health": 470,
+      "mana": 420,
+      "stamina": 260,
+      "move_speed": 19,
+      "tags": [],
+      "metadata": {
+        "origin": "invented behavior mix"
+      },
+      "notes": []
+    }
+  ]
+}
