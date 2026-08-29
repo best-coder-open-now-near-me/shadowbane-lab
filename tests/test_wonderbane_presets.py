@@ -61,9 +61,7 @@ class WonderBanePresetTests(unittest.TestCase):
             enabled,
         )
         self.assertIn("discipline.commander", preset.tags)
-        self.assertTrue(
-            any("no chant bonus is assumed" in issue for issue in preset.unresolved)
-        )
+        self.assertTrue(any("no chant bonus is assumed" in issue for issue in preset.unresolved))
 
     def test_concrete_matchup_smoke_runs_only_currently_executable_subset(self) -> None:
         config = wonderbane_sundancer_vs_deflock(
