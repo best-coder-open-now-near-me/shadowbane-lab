@@ -10,55 +10,67 @@ from typing import Any, cast
 from shadowbane_lab.rulesets import CompiledRuleset, RulesetLoadError, load_ruleset_text
 
 _BASE_RESOURCE = "data/shadowbane_vertical_slice_v1.json"
-_EXTENSION_RESOURCE = "data/assassin_warlock_progression_v1.json"
+_EXTENSION_RESOURCES = (
+    "data/assassin_warlock_progression_v1.json",
+    "data/assassin_shadow_mantle_v1.json",
+)
 
 
 def load_assassin_warlock_duel_ruleset(
     *, rank_overrides: Mapping[str, int] | None = None
 ) -> CompiledRuleset:
-    """Compile the base slice plus the reviewed Assassin/Warlock duel extension."""
+    """Compile the base slice plus the reviewed Assassin/Warlock duel extensions."""
 
     base = _load_json(_BASE_RESOURCE)
-    extension = _load_json(_EXTENSION_RESOURCE)
-    if _integer(extension, "schema_version") != 1:
-        raise RulesetLoadError("unsupported Assassin/Warlock extension version")
-    base_ruleset_id = _string(base, "ruleset_id")
-    if _string(extension, "base_ruleset_id") != base_ruleset_id:
-        raise RulesetLoadError("Assassin/Warlock extension targets another base ruleset")
-
-    base_actions = _object_array(base, "actions")
-    additional_actions = _object_array(extension, "additional_actions")
-    base_keys = {_string(item, "action_key") for item in base_actions}
-    additional_keys = tuple(_string(item, "action_key") for item in additional_actions)
-    if len(additional_keys) != len(set(additional_keys)):
-        raise RulesetLoadError("Assassin/Warlock extension action keys must be unique")
-    overlap = base_keys & set(additional_keys)
-    if overlap:
-        raise RulesetLoadError(
-            f"Assassin/Warlock extension duplicates base actions: {', '.join(sorted(overlap))}"
-        )
-
     merged = dict(base)
-    merged["ruleset_id"] = _string(extension, "extension_id")
-    merged["actions"] = [*base_actions, *additional_actions]
+    merged_actions = list(_object_array(base, "actions"))
+    known_keys = {_string(item, "action_key") for item in merged_actions}
+    current_ruleset_id = _string(base, "ruleset_id")
+
+    for resource_name in _EXTENSION_RESOURCES:
+        extension = _load_json(resource_name)
+        if _integer(extension, "schema_version") != 1:
+            raise RulesetLoadError("unsupported Assassin/Warlock extension version")
+        if _string(extension, "base_ruleset_id") != current_ruleset_id:
+            raise RulesetLoadError("Assassin/Warlock extension targets another base ruleset")
+
+        additional_actions = _object_array(extension, "additional_actions")
+        additional_keys = tuple(_string(item, "action_key") for item in additional_actions)
+        if len(additional_keys) != len(set(additional_keys)):
+            raise RulesetLoadError("Assassin/Warlock extension action keys must be unique")
+        overlap = known_keys & set(additional_keys)
+        if overlap:
+            raise RulesetLoadError(
+                f"Assassin/Warlock extension duplicates existing actions: "
+                f"{', '.join(sorted(overlap))}"
+            )
+        merged_actions.extend(additional_actions)
+        known_keys.update(additional_keys)
+        current_ruleset_id = _string(extension, "extension_id")
+
+    merged["ruleset_id"] = current_ruleset_id
+    merged["actions"] = merged_actions
     return load_ruleset_text(json.dumps(merged), rank_overrides=rank_overrides)
 
 
 def progression_milestones() -> tuple[int, ...]:
     """Return reviewed level breakpoints where either profession gains a power."""
 
-    extension = _load_json(_EXTENSION_RESOURCE)
-    values = extension.get("milestone_levels")
-    if not isinstance(values, list) or not values:
-        raise RulesetLoadError("milestone_levels must be a non-empty array")
-    milestones: list[int] = []
-    for value in values:
-        if isinstance(value, bool) or not isinstance(value, int) or value < 1:
-            raise RulesetLoadError("milestone levels must be positive integers")
-        milestones.append(value)
-    if len(milestones) != len(set(milestones)):
-        raise RulesetLoadError("milestone levels must be unique")
-    return tuple(milestones)
+    milestones: set[int] = set()
+    for resource_name in _EXTENSION_RESOURCES:
+        extension = _load_json(resource_name)
+        values = extension.get("milestone_levels")
+        if not isinstance(values, list) or not values:
+            raise RulesetLoadError("milestone_levels must be a non-empty array")
+        extension_milestones: list[int] = []
+        for value in values:
+            if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+                raise RulesetLoadError("milestone levels must be positive integers")
+            extension_milestones.append(value)
+        if len(extension_milestones) != len(set(extension_milestones)):
+            raise RulesetLoadError("milestone levels must be unique within an extension")
+        milestones.update(extension_milestones)
+    return tuple(sorted(milestones))
 
 
 def _load_json(resource_name: str) -> dict[str, Any]:
