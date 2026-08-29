@@ -12,14 +12,14 @@ from dataclasses import dataclass
 
 from shadowbane_lab.rollouts.duel import (
     BACKSTAB,
-    CombatantConfig,
-    DuelConfig,
     MIND_SNARE,
     MIND_STRIKE,
     PSYCHIC_HEALING,
     SHADOW_BOLT,
     SHADOW_MANTLE,
     SHADOW_TOUCH,
+    CombatantConfig,
+    DuelConfig,
 )
 from shadowbane_lab.rulesets import CharacterBuild
 
