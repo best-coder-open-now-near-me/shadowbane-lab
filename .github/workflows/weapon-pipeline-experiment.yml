@@ -1,0 +1,262 @@
+name: Weapon-pipeline open tournament
+
+on:
+  push:
+    branches:
+      - codex/open-build-exploration
+    paths:
+      - ".github/workflows/weapon-pipeline-experiment.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  simulate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Generate and cross primitive loadouts
+        run: |
+          mkdir -p artifacts
+          python - <<'PY'
+          import json
+          from collections import defaultdict
+          from itertools import combinations
+          from pathlib import Path
+
+          from shadowbane_lab.rollouts.open_builds import (
+              generate_primitive_loadouts,
+              resolve_primitive_loadout,
+              run_open_duel,
+          )
+          from shadowbane_lab.rollouts.ruleset import load_assassin_warlock_duel_ruleset
+          from shadowbane_lab.rollouts.duel import TerminationReason
+
+          ruleset = load_assassin_warlock_duel_ruleset()
+          loadouts = generate_primitive_loadouts(
+              ruleset,
+              count=16,
+              seed=19,
+              minimum_actions=2,
+              maximum_actions=6,
+          )
+          distances = (15.0, 60.0, 110.0)
+          seeds = (1, 2, 3)
+          score = defaultdict(
+              lambda: {
+                  "wins": 0,
+                  "losses": 0,
+                  "draws": 0,
+                  "matches": 0,
+                  "attacks": 0,
+                  "hits": 0,
+                  "misses": 0,
+                  "passive_defenses": 0,
+                  "absorbed": 0.0,
+                  "triggers": 0,
+              }
+          )
+          runs = []
+          traces_by_cell = defaultdict(set)
+          time_limits = 0
+
+          for first, second in combinations(loadouts, 2):
+              for distance in distances:
+                  for seed in seeds:
+                      for left, right in ((first, second), (second, first)):
+                          result = run_open_duel(
+                              ruleset,
+                              left,
+                              right,
+                              starting_distance=distance,
+                              max_ticks=600,
+                              seed=seed,
+                          )
+                          duel = result.duel
+                          cell_key = (left.loadout_id, right.loadout_id, distance)
+                          traces_by_cell[cell_key].add(duel.trace_digest)
+                          time_limits += duel.reason is TerminationReason.TIME_LIMIT
+
+                          combatants = {item.entity_id: item for item in duel.combatants}
+                          for loadout in (left, right):
+                              item = combatants[loadout.loadout_id]
+                              row = score[loadout.loadout_id]
+                              row["matches"] += 1
+                              row["draws"] += duel.winner_entity_id is None
+                              row["wins"] += duel.winner_entity_id == loadout.loadout_id
+                              row["losses"] += (
+                                  duel.winner_entity_id is not None
+                                  and duel.winner_entity_id != loadout.loadout_id
+                              )
+                              row["attacks"] += item.attacks_attempted
+                              row["hits"] += item.weapon_hits
+                              row["misses"] += item.weapon_misses
+                              row["passive_defenses"] += item.passive_defenses
+                              row["absorbed"] += item.damage_absorbed
+                              row["triggers"] += sum(trigger.count for trigger in item.triggers)
+
+                          runs.append(
+                              {
+                                  "left": left.loadout_id,
+                                  "right": right.loadout_id,
+                                  "distance": distance,
+                                  "seed": seed,
+                                  "winner": duel.winner_entity_id,
+                                  "reason": duel.reason.value,
+                                  "ticks": duel.ticks,
+                                  "trace_digest": duel.trace_digest,
+                                  "combatants": duel.as_dict()["combatants"],
+                              }
+                          )
+
+          resolved = {
+              item.loadout_id: resolve_primitive_loadout(item, ruleset).as_dict()
+              for item in loadouts
+          }
+          ranking = sorted(
+              score,
+              key=lambda key: (
+                  score[key]["wins"] / max(1, score[key]["matches"]),
+                  score[key]["wins"],
+                  key,
+              ),
+              reverse=True,
+          )
+          backstab_key = "shadowbane.assassin.backstab"
+          with_backstab = [
+              key for key in ranking if backstab_key in resolved[key]["executable_action_keys"]
+          ]
+          without_backstab = [key for key in ranking if key not in with_backstab]
+
+          def group_rate(keys):
+              wins = sum(score[key]["wins"] for key in keys)
+              matches = sum(score[key]["matches"] for key in keys)
+              return wins / matches if matches else 0.0
+
+          total_attacks = sum(row["attacks"] for row in score.values())
+          total_hits = sum(row["hits"] for row in score.values())
+          total_misses = sum(row["misses"] for row in score.values())
+          total_passives = sum(row["passive_defenses"] for row in score.values())
+          total_absorbed = sum(row["absorbed"] for row in score.values())
+          total_triggers = sum(row["triggers"] for row in score.values())
+          varied_cells = sum(len(traces) > 1 for traces in traces_by_cell.values())
+
+          payload = {
+              "ruleset_id": ruleset.ruleset_id,
+              "loadouts": resolved,
+              "ranking": ranking,
+              "scores": dict(score),
+              "runs": runs,
+              "totals": {
+                  "loadouts": len(loadouts),
+                  "pairings": len(loadouts) * (len(loadouts) - 1) // 2,
+                  "playouts": len(runs),
+                  "time_limits": time_limits,
+                  "unique_traces": len({run["trace_digest"] for run in runs}),
+                  "seed_varied_cells": varied_cells,
+                  "seed_cells": len(traces_by_cell),
+                  "weapon_attacks": total_attacks,
+                  "weapon_hits": total_hits,
+                  "weapon_misses": total_misses,
+                  "passive_defenses": total_passives,
+                  "damage_absorbed": total_absorbed,
+                  "triggers_fired": total_triggers,
+              },
+              "backstab": {
+                  "loadout_count": len(with_backstab),
+                  "with_win_rate": group_rate(with_backstab),
+                  "without_win_rate": group_rate(without_backstab),
+                  "loadouts": with_backstab,
+              },
+          }
+          Path("artifacts/weapon-pipeline-tournament.json").write_text(
+              json.dumps(payload, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+
+          totals = payload["totals"]
+          lines = [
+              "# Generic weapon-pipeline open tournament",
+              "",
+              f"Loadouts: {totals['loadouts']}",
+              f"Pairings: {totals['pairings']}",
+              f"Mirrored playouts: {totals['playouts']}",
+              f"Time limits: {totals['time_limits']}",
+              f"Globally unique traces: {totals['unique_traces']}",
+              (
+                  "Seed-varying oriented distance cells: "
+                  f"{totals['seed_varied_cells']} / {totals['seed_cells']}"
+              ),
+              "",
+              "## Resolution activity",
+              "",
+              f"- Weapon attacks attempted: {totals['weapon_attacks']}",
+              f"- Hit-roll successes: {totals['weapon_hits']}",
+              f"- Hit-roll misses: {totals['weapon_misses']}",
+              f"- Passive defenses triggered: {totals['passive_defenses']}",
+              f"- Damage absorbed: {totals['damage_absorbed']:.3f}",
+              f"- Trigger payloads fired: {totals['triggers_fired']}",
+              "",
+              "## Backstab stress check",
+              "",
+              f"- Loadouts containing Backstab: {len(with_backstab)}",
+              f"- Their pooled win rate: {group_rate(with_backstab):.1%}",
+              f"- Other loadouts' pooled win rate: {group_rate(without_backstab):.1%}",
+              "",
+              "| Rank | Loadout | Win rate | W-L-D | Hit rate | Passive defenses | Triggers | Actions |",
+              "|---:|:---|---:|:---:|---:|---:|---:|:---|",
+          ]
+          for index, key in enumerate(ranking, start=1):
+              row = score[key]
+              rate = row["wins"] / max(1, row["matches"])
+              hit_rate = row["hits"] / max(1, row["attacks"])
+              actions = ", ".join(
+                  action.rsplit(".", 1)[-1]
+                  for action in resolved[key]["executable_action_keys"]
+              )
+              lines.append(
+                  f"| {index} | `{key}` | {rate:.1%} | "
+                  f"{row['wins']}-{row['losses']}-{row['draws']} | {hit_rate:.1%} | "
+                  f"{row['passive_defenses']} | {row['triggers']} | {actions} |"
+              )
+          lines.extend(["", "## Top-loadout bodies", ""])
+          for key in ranking[:5]:
+              item = resolved[key]
+              lines.extend(
+                  [
+                      f"### `{key}`",
+                      "",
+                      (
+                          "- Health / mana / stamina / speed: "
+                          f"{item['health']} / {item['mana']} / {item['stamina']} / "
+                          f"{item['move_speed']}"
+                      ),
+                      f"- Scalars: `{json.dumps(item['scalars'], sort_keys=True)}`",
+                      (
+                          "- Recipes: "
+                          + ", ".join(item["executable_action_keys"])
+                      ),
+                      "",
+                  ]
+              )
+          summary = "\n".join(lines) + "\n"
+          Path("artifacts/weapon-pipeline-summary.md").write_text(
+              summary,
+              encoding="utf-8",
+          )
+          print(summary)
+          PY
+          cat artifacts/weapon-pipeline-summary.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload tournament
+        uses: actions/upload-artifact@v4
+        with:
+          name: weapon-pipeline-open-tournament
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 30
