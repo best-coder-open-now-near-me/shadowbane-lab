@@ -211,9 +211,7 @@ def _parse_action(data: Mapping[str, Any], action_key: str, rank: int) -> Action
         for item in _objects(data, "features")
     ]
     if any(
-        isinstance(effect, RestoreResource)
-        for phase in phases
-        for effect in phase.effects
+        isinstance(effect, RestoreResource) for phase in phases for effect in phase.effects
     ) and all(feature.name != "effect_rank" for feature in features):
         features.append(NamedScalar("effect_rank", float(rank)))
     return ActionSpec(
