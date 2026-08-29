@@ -15,6 +15,10 @@ from importlib.resources import files
 from pathlib import Path
 from typing import Any, Protocol, cast, runtime_checkable
 
+from shadowbane_lab.client_observation.build_compatibility import (
+    canonical_native_layout_sha256,
+    native_layout_is_compatible,
+)
 from shadowbane_lab.client_observation.native_health import (
     NativeMemoryRegion,
     WindowsReadOnlyProcessMemory,
@@ -417,7 +421,10 @@ class NativeVendorDialogTracer:
             raise NativeVendorDialogCompatibilityError(
                 f"expected {profile.executable_name}, found {backend.executable_name}"
             )
-        if backend.executable_sha256.casefold() != profile.executable_sha256.casefold():
+        if not native_layout_is_compatible(
+            profile.executable_sha256,
+            backend.executable_sha256,
+        ):
             raise NativeVendorDialogCompatibilityError(
                 "running Shadowbane executable does not match the calibrated SHA-256"
             )
@@ -1345,14 +1352,29 @@ def open_windows_bundled_native_vendor_dialog_tracer(
         if process_id is None
         else WindowsReadOnlyProcessMemory.open_for_process(executable_name, process_id)
     )
+    observed_digest = process.executable_sha256.casefold()
+    canonical_digest = canonical_native_layout_sha256(observed_digest)
     profile = next(
         (
             candidate
             for candidate in profiles
-            if candidate.executable_sha256.casefold() == process.executable_sha256.casefold()
+            if candidate.executable_sha256.casefold() == observed_digest
         ),
         None,
     )
+    if profile is None:
+        profile = next(
+            (
+                candidate
+                for candidate in profiles
+                if candidate.executable_sha256.casefold() == canonical_digest
+                and native_layout_is_compatible(
+                    candidate.executable_sha256,
+                    observed_digest,
+                )
+            ),
+            None,
+        )
     if profile is None:
         digest = process.executable_sha256
         process.close()

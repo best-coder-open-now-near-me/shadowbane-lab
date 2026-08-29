@@ -11,6 +11,9 @@ from math import dist, isfinite
 from pathlib import Path
 from typing import Any, cast
 
+from shadowbane_lab.client_observation.build_compatibility import (
+    native_layout_is_compatible,
+)
 from shadowbane_lab.client_observation.native_health import (
     ReadOnlyProcessMemory,
     WindowsReadOnlyProcessMemory,
@@ -179,7 +182,10 @@ class NativePlayerPositionReader:
             raise NativePlayerPositionCompatibilityError(
                 f"expected {profile.executable_name}, found {process.executable_name}"
             )
-        if process.executable_sha256.casefold() != profile.executable_sha256.casefold():
+        if not native_layout_is_compatible(
+            profile.executable_sha256,
+            process.executable_sha256,
+        ):
             raise NativePlayerPositionCompatibilityError(
                 "running Shadowbane executable does not match the calibrated SHA-256"
             )

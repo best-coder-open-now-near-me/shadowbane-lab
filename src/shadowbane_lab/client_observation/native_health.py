@@ -16,6 +16,10 @@ from math import isfinite
 from pathlib import Path
 from typing import Any, Protocol, cast, runtime_checkable
 
+from shadowbane_lab.client_observation.build_compatibility import (
+    native_layout_is_compatible,
+)
+
 NATIVE_HEALTH_PROFILE_SCHEMA_VERSION = 2
 _LEGACY_NATIVE_HEALTH_PROFILE_SCHEMA_VERSION = 1
 _BUNDLED_PROFILE_NAME = "wonderbane-ef43784b.native-health.json"
@@ -194,7 +198,10 @@ class NativeTargetHealthReader:
             raise NativeTargetHealthCompatibilityError(
                 f"expected {profile.executable_name}, found {process.executable_name}"
             )
-        if process.executable_sha256.casefold() != profile.executable_sha256.casefold():
+        if not native_layout_is_compatible(
+            profile.executable_sha256,
+            process.executable_sha256,
+        ):
             raise NativeTargetHealthCompatibilityError(
                 "running Shadowbane executable does not match the calibrated SHA-256"
             )
