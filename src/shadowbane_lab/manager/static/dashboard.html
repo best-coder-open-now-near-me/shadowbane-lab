@@ -53,7 +53,7 @@
       box-shadow: var(--shadow);
     }
     .toolbar { display: flex; flex-wrap: wrap; gap: .65rem; padding: .9rem; border-radius: .9rem; }
-    .summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 1rem 0; border-radius: .9rem; overflow: hidden; }
+    .summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 1rem 0; border-radius: .9rem; overflow: hidden; }
     .metric { padding: .85rem 1rem; border-right: 1px solid var(--line); }
     .metric:last-child { border-right: 0; }
     .metric span { display: block; color: var(--muted); font-size: .74rem; text-transform: uppercase; letter-spacing: .09em; }
@@ -101,20 +101,19 @@
     </header>
 
     <section class="toolbar" aria-label="Group actions">
-      <button id="start-all" class="primary" type="button">Start all</button>
+      <button id="add-client" class="primary" type="button">Add client</button>
       <button id="refresh" type="button">Refresh</button>
       <button id="tile-all" type="button">Tile all</button>
     </section>
 
     <section class="summary" aria-label="Manager summary">
-      <div class="metric"><span>Configured</span><strong id="configured-count">—</strong></div>
-      <div class="metric"><span>Bound</span><strong id="bound-count">—</strong></div>
+      <div class="metric"><span>Open</span><strong id="open-count">—</strong></div>
       <div class="metric"><span>Dispatch ready</span><strong id="dispatch-ready-count">—</strong></div>
       <div class="metric"><span>Updated</span><strong id="updated-at">—</strong></div>
     </section>
 
     <div id="notice" class="notice" role="status" aria-live="polite">Connecting to the local manager…</div>
-    <section id="slots" class="slots" aria-label="Client slots"></section>
+    <section id="slots" class="slots" aria-label="Open Shadowbane clients"></section>
   </main>
 
   <script nonce="__CSP_NONCE__">
@@ -129,10 +128,10 @@
       const notice = document.getElementById("notice");
       const slotsElement = document.getElementById("slots");
       const nodeElement = document.getElementById("node-id");
-      const configuredElement = document.getElementById("configured-count");
-      const boundElement = document.getElementById("bound-count");
+      const openElement = document.getElementById("open-count");
       const dispatchReadyElement = document.getElementById("dispatch-ready-count");
       const updatedElement = document.getElementById("updated-at");
+      const addClientButton = document.getElementById("add-client");
       const statusPollMilliseconds = 2000;
       let statusRequest = null;
 
@@ -179,15 +178,6 @@
         return typeof slot?.instance_id === "string" && slot.instance_id ? slot.instance_id : null;
       };
 
-      const candidatesFor = (slot) => {
-        const values = Array.isArray(slot?.attachable_instances)
-          ? slot.attachable_instances
-          : (Array.isArray(slot?.candidates) ? slot.candidates : []);
-        return values
-          .map((candidate) => typeof candidate === "string" ? { instance_id: candidate } : candidate)
-          .filter((candidate) => candidate && typeof candidate.instance_id === "string");
-      };
-
       const workerFor = (slot) => {
         if (slot && typeof slot.worker === "object" && slot.worker !== null) return slot.worker;
         return null;
@@ -199,12 +189,12 @@
         button.textContent = label;
         if (className) button.className = className;
         const instanceId = instanceSource();
-        if (action !== "start" && !instanceId) button.disabled = true;
+        if (!instanceId) button.disabled = true;
         button.addEventListener("click", async () => {
           const currentInstanceId = instanceSource();
           if (action === "close" && !window.confirm(`Request a graceful close for ${slot.client_id}?`)) return;
           const body = { action, client_id: slot.client_id };
-          if (action !== "start") body.instance_id = currentInstanceId;
+          body.instance_id = currentInstanceId;
           await execute(body);
         });
         return button;
@@ -216,7 +206,11 @@
 
         const identity = document.createElement("div");
         const heading = document.createElement("h2");
-        heading.textContent = text(slot.client_id, "Unnamed slot");
+        const currentBinding = bindingFor(slot);
+        heading.textContent = text(
+          currentBinding?.title,
+          currentBinding?.process_id ? `Shadowbane ${currentBinding.process_id}` : "Shadowbane client"
+        );
         const state = document.createElement("span");
         const stateName = text(slot.state, "unknown").toLowerCase();
         state.className = `state ${stateName.replace(/[^a-z0-9_-]/g, "")}`;
@@ -235,9 +229,7 @@
         const bindingLabel = document.createElement("span");
         const currentInstance = instanceFor(slot);
         const rememberedInstance = rememberedInstanceFor(slot);
-        bindingLabel.textContent = currentInstance
-          ? "Bound instance"
-          : (rememberedInstance ? "Remembered instance" : "Bound instance");
+        bindingLabel.textContent = currentInstance ? "Instance" : "Remembered instance";
         const bindingValue = document.createElement("code");
         bindingValue.textContent = text(rememberedInstance, "Not bound");
         binding.append(bindingLabel, bindingValue);
@@ -313,34 +305,10 @@
         const controls = document.createElement("div");
         controls.className = "actions";
         const boundInstance = () => instanceFor(slot);
-        const rememberedInstanceId = () => rememberedInstanceFor(slot);
-        const startButton = actionButton("Start", "start", slot, () => null);
-        startButton.disabled = Boolean(rememberedInstanceId());
-        controls.append(startButton);
-
-        const candidates = candidatesFor(slot);
-        let candidateSelect = null;
-        if (candidates.length) {
-          candidateSelect = document.createElement("select");
-          candidateSelect.className = "candidate";
-          candidateSelect.setAttribute("aria-label", `Attachable instance for ${slot.client_id}`);
-          for (const candidate of candidates) {
-            const option = document.createElement("option");
-            option.value = candidate.instance_id;
-            option.textContent = text(candidate.label || candidate.title || candidate.instance_id);
-            candidateSelect.append(option);
-          }
-          controls.append(candidateSelect);
-        }
-        const selectedCandidate = () => candidateSelect?.value || null;
-        const attachButton = actionButton("Attach", "attach", slot, selectedCandidate);
-        attachButton.disabled = Boolean(rememberedInstanceId()) || !selectedCandidate();
         controls.append(
-          attachButton,
           actionButton("Tile", "tile", slot, boundInstance),
           actionButton("Pause", "pause", slot, boundInstance),
           actionButton("Resume", "resume", slot, boundInstance),
-          actionButton("Detach", "detach", slot, rememberedInstanceId),
           actionButton("Close", "close", slot, boundInstance, "danger")
         );
 
@@ -351,9 +319,8 @@
       const render = (status) => {
         const slots = Array.isArray(status.slots) ? status.slots : [];
         nodeElement.textContent = text(status.node_id);
-        configuredElement.textContent = text(status.configured_count ?? slots.length, "0");
-        boundElement.textContent = text(
-          status.bound_count ?? slots.filter((slot) => Boolean(instanceFor(slot))).length,
+        openElement.textContent = text(
+          status.open_count ?? slots.filter((slot) => Boolean(rememberedInstanceFor(slot))).length,
           "0"
         );
         dispatchReadyElement.textContent = text(
@@ -363,11 +330,12 @@
         updatedElement.textContent = status.updated_at
           ? new Date(status.updated_at).toLocaleTimeString()
           : new Date().toLocaleTimeString();
+        addClientButton.disabled = status.can_add_client === false;
         slotsElement.replaceChildren(...slots.map(renderSlot));
         if (!slots.length) {
           const empty = document.createElement("div");
           empty.className = "empty";
-          empty.textContent = "No client slots are configured on this node.";
+          empty.textContent = "No Shadowbane clients are open.";
           slotsElement.append(empty);
         }
         notice.textContent = "Manager status is current.";
@@ -388,7 +356,9 @@
       };
 
       const reportStatusError = (error) => {
-        notice.textContent = error.message;
+        notice.textContent = error instanceof TypeError
+          ? "The local manager is no longer reachable. Start WonderBane Control Center and use the newly opened dashboard."
+          : error.message;
         notice.className = "notice error";
       };
 
@@ -410,16 +380,16 @@
           if (statusRequest) await statusRequest.catch(() => {});
           await loadStatus();
         } catch (error) {
-          notice.textContent = error.message;
+          notice.textContent = error instanceof TypeError
+            ? "The local manager is no longer reachable. Start WonderBane Control Center and use the newly opened dashboard."
+            : error.message;
           notice.className = "notice error";
         } finally {
           app.classList.remove("busy");
         }
       };
 
-      document.getElementById("start-all").addEventListener("click", () => {
-        if (window.confirm("Start every configured client on this node?")) execute({ action: "start-all" });
-      });
+      addClientButton.addEventListener("click", () => execute({ action: "add-client" }));
       document.getElementById("refresh").addEventListener("click", () => execute({ action: "refresh" }));
       document.getElementById("tile-all").addEventListener("click", () => execute({ action: "tile-all" }));
 

@@ -1061,7 +1061,7 @@ class ClientLifecycleSupervisor:
                 )
 
     def _refresh_binding(self, binding: _ManagedBinding) -> _ManagedBinding:
-        if binding.state in {ManagedClientState.STALE, ManagedClientState.EXITED}:
+        if binding.state is ManagedClientState.EXITED:
             return binding
         try:
             snapshot = self._read_snapshot(binding.selector)
@@ -1071,30 +1071,31 @@ class ClientLifecycleSupervisor:
                 if client.instance_id == binding.client.instance_id
             )
             if len(matches) != 1:
-                if binding.state is ManagedClientState.CLOSE_REQUESTED:
-                    return self._refresh_close_without_window(
-                        binding,
-                        "exact window identity is absent after graceful close request",
-                    )
-                return self._mark_stale(
+                return self._refresh_without_window(
                     binding,
-                    "immutable client identity is no longer present exactly once",
+                    (
+                        "exact window identity is absent after graceful close request"
+                        if binding.state is ManagedClientState.CLOSE_REQUESTED
+                        else "immutable client identity is no longer present exactly once"
+                    ),
                 )
             current = matches[0]
             if _immutable_identity(current) != _immutable_identity(binding.client):
                 return self._mark_stale(binding, "immutable client identity changed")
         except (OSError, RuntimeError, ValueError) as exc:
-            if binding.state is ManagedClientState.CLOSE_REQUESTED:
-                return self._refresh_close_without_window(
-                    binding,
-                    f"window verification failed after graceful close request: {exc}",
-                )
-            return self._mark_stale(binding, f"client verification failed: {exc}")
+            return self._refresh_without_window(
+                binding,
+                (
+                    f"window verification failed after graceful close request: {exc}"
+                    if binding.state is ManagedClientState.CLOSE_REQUESTED
+                    else f"client verification failed: {exc}"
+                ),
+            )
         binding.client = current
         binding.last_verified_at = self._now()
         return binding
 
-    def _refresh_close_without_window(
+    def _refresh_without_window(
         self,
         binding: _ManagedBinding,
         window_detail: str,
@@ -1105,13 +1106,15 @@ class ClientLifecycleSupervisor:
         try:
             lifetime = self._process_inspector.inspect(binding.client.process_id)
         except (OSError, RuntimeError, ValueError) as exc:
-            binding.state = ManagedClientState.CLOSE_REQUESTED
+            if binding.state is not ManagedClientState.CLOSE_REQUESTED:
+                binding.state = ManagedClientState.STALE
             binding.status_detail = (
                 f"{window_detail}; exact process-lifetime verification failed: {exc}"
             )
             return binding
         if lifetime is not None and lifetime.process_id != binding.client.process_id:
-            binding.state = ManagedClientState.CLOSE_REQUESTED
+            if binding.state is not ManagedClientState.CLOSE_REQUESTED:
+                binding.state = ManagedClientState.STALE
             binding.status_detail = (
                 f"{window_detail}; process inspector returned the wrong PID and exit "
                 "could not be verified"
@@ -1121,7 +1124,8 @@ class ClientLifecycleSupervisor:
             lifetime.process_id == binding.client.process_id
             and lifetime.process_started_at_100ns == expected_start
         ):
-            binding.state = ManagedClientState.CLOSE_REQUESTED
+            if binding.state is not ManagedClientState.CLOSE_REQUESTED:
+                binding.state = ManagedClientState.STALE
             binding.status_detail = f"{window_detail}; exact process lifetime is still running"
             return binding
         binding.state = ManagedClientState.EXITED

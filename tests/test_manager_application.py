@@ -117,6 +117,7 @@ class _StaticRegistry:
 class _RecordingSession:
     def __init__(self, snapshot: ManagerSessionSnapshot) -> None:
         self.snapshot_value = snapshot
+        self.refresh_value: ManagerSessionSnapshot | None = None
         self.calls: list[tuple[object, ...]] = []
         self.error: Exception | None = None
 
@@ -133,7 +134,10 @@ class _RecordingSession:
         return self.snapshot_value
 
     def refresh(self) -> ManagerSessionSnapshot:
-        return self._record("refresh")
+        self._record("refresh")
+        if self.refresh_value is not None:
+            self.snapshot_value = self.refresh_value
+        return self.snapshot_value
 
     def start(
         self,
@@ -155,6 +159,15 @@ class _RecordingSession:
 
     def attach(self, client_id: str, *, instance_id: str) -> ManagerSlotSnapshot:
         self._record("attach", client_id, instance_id)
+        self.snapshot_value = ManagerSessionSnapshot(
+            node_id=self.snapshot_value.node_id,
+            slots=tuple(
+                _slot(slot.client_id, instance_id=instance_id)
+                if slot.client_id == client_id
+                else slot
+                for slot in self.snapshot_value.slots
+            ),
+        )
         return self.status(client_id)
 
     def tile(self, client_id: str) -> ManagerSlotSnapshot:
@@ -278,6 +291,65 @@ def _application(
 
 
 class ManagerDashboardApplicationTests(unittest.TestCase):
+    def test_reconciliation_adopts_each_safe_open_instance_once(self) -> None:
+        first = _client("instance-101", 101)
+        second = _client("instance-202", 202)
+        session = _RecordingSession(
+            ManagerSessionSnapshot(
+                node_id=NODE_ID,
+                slots=(_slot("client-01"), _slot("client-02")),
+            )
+        )
+        controller = _RecordingWorkerController()
+        application, _ = _application(
+            session,
+            second,
+            first,
+            worker_controller=controller,
+        )
+
+        result = application.reconcile_instances()
+
+        self.assertEqual(["client-01", "client-02"], result["adopted_client_ids"])
+        self.assertEqual([], result["archived_client_ids"])
+        self.assertEqual(
+            {first.instance_id, second.instance_id},
+            {slot.instance_id for slot in session.snapshot().slots},
+        )
+        self.assertEqual(
+            [("client-01", first.instance_id), ("client-02", second.instance_id)],
+            controller.starts,
+        )
+
+    def test_reconciliation_releases_worker_after_verified_exit(self) -> None:
+        bound = _client("instance-101", 101)
+        session = _RecordingSession(
+            ManagerSessionSnapshot(
+                node_id=NODE_ID,
+                slots=(_slot("client-01", instance_id=bound.instance_id), _slot("client-02")),
+            )
+        )
+        session.refresh_value = ManagerSessionSnapshot(
+            node_id=NODE_ID,
+            slots=(
+                _slot("client-01", state=ManagerSlotState.CLOSED),
+                _slot("client-02"),
+            ),
+        )
+        controller = _RecordingWorkerController()
+        application, registry = _application(
+            session,
+            worker_controller=controller,
+        )
+
+        result = application.reconcile_instances()
+
+        self.assertEqual(["client-01"], result["archived_client_ids"])
+        self.assertEqual(1, len(controller.stops))
+        worker_supervisor = registry.worker_supervisor
+        assert isinstance(worker_supervisor, _StaticWorkerSupervisor)
+        self.assertEqual("client-01", worker_supervisor.revocations[0][0])
+
     def test_status_reports_active_operation_and_latest_terminal_result(self) -> None:
         bound = _client("instance-101", 101)
         session = _RecordingSession(

@@ -476,6 +476,28 @@ class ManagerSessionTests(unittest.TestCase):
         self.assertEqual([attached.instance_id], supervisor.detach_calls)
         self.assertIn("process exit was verified", closed.status_detail)
 
+    def test_verified_external_process_exit_archives_and_releases_slot(self) -> None:
+        manifest = _manifest()
+        supervisor = FakeSupervisor()
+        attached = _managed(_selector(manifest, "client-01"), "instance-101", 101)
+        supervisor.start_outcomes.append(attached)
+        session = ManagerSession(manifest, supervisor)
+        session.start("client-01")
+        exited = replace(
+            supervisor.statuses[attached.instance_id],
+            state=ManagedClientState.EXITED,
+            dispatch_enabled=False,
+            status_detail="verified exact process lifetime exited",
+        )
+        supervisor.refresh_outcomes[attached.instance_id] = [exited]
+
+        archived = session.refresh("client-01")
+
+        self.assertEqual(ManagerSlotState.CLOSED, archived.state)
+        self.assertIsNone(archived.instance_id)
+        self.assertEqual([attached.instance_id], supervisor.detach_calls)
+        self.assertIn("binding was archived", archived.status_detail)
+
     def test_verified_exit_can_recover_after_intermediate_generic_stale_status(self) -> None:
         manifest = _manifest()
         supervisor = FakeSupervisor()

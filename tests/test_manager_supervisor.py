@@ -685,8 +685,14 @@ class ClientLifecycleSupervisorTests(unittest.TestCase):
 
     def test_stale_refresh_permanently_disables_dispatch(self) -> None:
         client = _client(101)
+        inspector = FakeProcessInspector()
+        inspector.results[client.process_id] = ProcessLifetimeSnapshot(
+            process_id=client.process_id,
+            process_started_at_100ns=client.process_started_at_100ns,
+        )
         supervisor = _supervisor(
             FakeRegistry([_snapshot(client), _snapshot()]),
+            process_inspector=inspector,
         )
         attached = supervisor.attach(_selector())
 
@@ -699,8 +705,14 @@ class ClientLifecycleSupervisorTests(unittest.TestCase):
 
     def test_dispatch_check_reverifies_and_fails_closed(self) -> None:
         client = _client(101)
+        inspector = FakeProcessInspector()
+        inspector.results[client.process_id] = ProcessLifetimeSnapshot(
+            process_id=client.process_id,
+            process_started_at_100ns=client.process_started_at_100ns,
+        )
         supervisor = _supervisor(
             FakeRegistry([_snapshot(client), _snapshot()]),
+            process_inspector=inspector,
         )
         attached = supervisor.attach(_selector())
 
@@ -884,6 +896,20 @@ class ClientLifecycleSupervisorTests(unittest.TestCase):
         self.assertFalse(refreshed.dispatch_enabled)
         self.assertIn("verified exact process lifetime exited", refreshed.status_detail)
         self.assertEqual((refreshed,), supervisor.snapshots())
+
+    def test_verified_external_process_exit_is_archivable_without_close_request(self) -> None:
+        client = _client(101)
+        supervisor = _supervisor(
+            FakeRegistry([_snapshot(client), _snapshot()]),
+            process_inspector=FakeProcessInspector(),
+        )
+        attached = supervisor.attach(_selector())
+
+        refreshed = supervisor.refresh(attached.instance_id)
+
+        self.assertEqual(ManagedClientState.EXITED, refreshed.state)
+        self.assertFalse(refreshed.dispatch_enabled)
+        self.assertIn("verified exact process lifetime exited", refreshed.status_detail)
 
     def test_pid_reuse_proves_only_the_original_process_lifetime_exited(self) -> None:
         client = _client(101)

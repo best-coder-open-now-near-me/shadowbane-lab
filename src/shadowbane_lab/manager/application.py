@@ -228,6 +228,96 @@ class ManagerDashboardApplication:
         self._configs = {config.client_id: config for config in manifest.clients}
         self._lock = threading.RLock()
 
+    def reconcile_instances(self) -> dict[str, object]:
+        """Adopt safe open clients and archive bindings after an exact process exit."""
+
+        with self._lock:
+            before = self._session.snapshot()
+            if not isinstance(before, ManagerSessionSnapshot) or (
+                before.node_id != self._manifest.node_id
+            ):
+                raise RuntimeError("manager session returned an invalid snapshot")
+            issues: list[dict[str, str]] = []
+            try:
+                self._session.refresh()
+            except (ManagerSessionError, OSError, RuntimeError, ValueError) as exc:
+                issues.append({"client_id": "manager", "detail": str(exc)})
+
+            current = self._session.snapshot()
+            if not isinstance(current, ManagerSessionSnapshot) or (
+                current.node_id != self._manifest.node_id
+            ):
+                raise RuntimeError("manager session returned an invalid snapshot")
+            current_by_id = {slot.client_id: slot for slot in current.slots}
+            archived: list[str] = []
+            for prior in before.slots:
+                refreshed = current_by_id.get(prior.client_id)
+                if (
+                    prior.instance_id is None
+                    or refreshed is None
+                    or refreshed.instance_id is not None
+                ):
+                    continue
+                archived.append(prior.client_id)
+                reason = "exact game process exited; internal client ownership was archived"
+                try:
+                    self._worker_supervisor.revoke(prior.client_id, reason=reason)
+                    if self._worker_controller is not None:
+                        self._worker_controller.request_stop(prior.client_id, reason=reason)
+                except (OSError, RuntimeError, ValueError) as exc:
+                    issues.append({"client_id": prior.client_id, "detail": str(exc)})
+
+            registry = self._registry.inspect()
+            if not isinstance(registry, ClientRegistrySnapshot):
+                raise RuntimeError("manifest registry returned an invalid snapshot")
+            if registry.node_id != self._manifest.node_id:
+                raise RuntimeError("manifest registry returned the wrong node")
+
+            owned_instance_ids = {
+                slot.instance_id for slot in current.slots if slot.instance_id is not None
+            }
+            free_client_ids = [
+                slot.client_id for slot in current.slots if slot.instance_id is None
+            ]
+            adopted: list[str] = []
+            for client in registry.clients:
+                if client.instance_id in owned_instance_ids:
+                    continue
+                client_id = next(
+                    (
+                        candidate_id
+                        for candidate_id in free_client_ids
+                        if _matches_config(client, self._configs[candidate_id])
+                    ),
+                    None,
+                )
+                if client_id is None:
+                    continue
+                try:
+                    self._execute(
+                        "attach",
+                        client_id=client_id,
+                        instance_id=client.instance_id,
+                    )
+                except (
+                    DashboardError,
+                    ManagerSessionError,
+                    OSError,
+                    RuntimeError,
+                    ValueError,
+                ) as exc:
+                    issues.append({"client_id": client_id, "detail": str(exc)})
+                    continue
+                free_client_ids.remove(client_id)
+                owned_instance_ids.add(client.instance_id)
+                adopted.append(client_id)
+
+            return {
+                "adopted_client_ids": adopted,
+                "archived_client_ids": archived,
+                "issues": issues,
+            }
+
     def status(self) -> dict[str, object]:
         """Return a fresh local inventory plus remembered exact slot bindings."""
 

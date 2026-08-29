@@ -23,10 +23,14 @@ DEFAULT_HEADER_TIMEOUT_SECONDS = 2.0
 DEFAULT_BODY_TIMEOUT_SECONDS = 2.0
 
 _IDENTIFIER_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
-_GLOBAL_ACTIONS = frozenset({"start-all", "refresh", "tile-all"})
+_GLOBAL_ACTIONS = frozenset({"add-client", "start-all", "refresh", "tile-all"})
 _CLIENT_ACTIONS_WITHOUT_INSTANCE = frozenset({"start"})
 _CLIENT_ACTIONS_WITH_INSTANCE = frozenset({"attach", "tile", "pause", "resume", "detach", "close"})
-_ALL_ACTIONS = _GLOBAL_ACTIONS | _CLIENT_ACTIONS_WITHOUT_INSTANCE | _CLIENT_ACTIONS_WITH_INSTANCE
+_ALL_ACTIONS = (
+    _GLOBAL_ACTIONS
+    | _CLIENT_ACTIONS_WITHOUT_INSTANCE
+    | _CLIENT_ACTIONS_WITH_INSTANCE
+)
 
 
 class DashboardError(RuntimeError):
@@ -64,7 +68,6 @@ class DashboardService(Protocol):
         client_id: str | None = None,
         instance_id: str | None = None,
     ) -> dict[str, object]: ...
-
 
 @dataclass(frozen=True, slots=True)
 class _DashboardContext:
@@ -178,7 +181,9 @@ def _require_identifier(value: object, field_name: str) -> str:
     return value
 
 
-def _validate_action_payload(payload: object) -> tuple[str, str | None, str | None]:
+def _validate_action_payload(
+    payload: object,
+) -> tuple[str, str | None, str | None]:
     if not isinstance(payload, dict) or any(not isinstance(key, str) for key in payload):
         _request_error(
             HTTPStatus.BAD_REQUEST,

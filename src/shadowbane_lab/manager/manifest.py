@@ -17,6 +17,7 @@ from pathlib import Path, PureWindowsPath
 from typing import NoReturn
 
 MANAGER_MANIFEST_SCHEMA_VERSION = 1
+MAX_MANAGER_CLIENT_SLOTS = 32
 
 _ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
 _INVALID_WINDOWS_COMPONENT_PATTERN = re.compile(r'[<>:"|?*]|[\x00-\x1f]')
@@ -524,6 +525,8 @@ def expand_manager_slots(
     manifest: ManagerManifest,
     total_count: int,
     *,
+    display_left: int = 0,
+    display_top: int = 0,
     display_width: int = 1920,
     display_height: int = 955,
 ) -> ManagerManifest:
@@ -543,8 +546,13 @@ def expand_manager_slots(
     ):
         if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
             raise ManagerManifestError(f"{field_name} must be a positive integer")
-    if total_count > 32:
-        raise ManagerManifestError("total_count must not exceed 32 local client slots")
+    for value, field_name in ((display_left, "display_left"), (display_top, "display_top")):
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise ManagerManifestError(f"{field_name} must be an integer")
+    if total_count > MAX_MANAGER_CLIENT_SLOTS:
+        raise ManagerManifestError(
+            f"total_count must not exceed {MAX_MANAGER_CLIENT_SLOTS} local client slots"
+        )
     if total_count < len(manifest.clients):
         raise ManagerManifestError(
             "slot configuration cannot shrink a manifest; remove slots only through reviewed JSON"
@@ -577,10 +585,10 @@ def expand_manager_slots(
     for index, client in enumerate(clients):
         column = index % columns
         row = index // columns
-        left = (display_width * column) // columns
-        right = (display_width * (column + 1)) // columns
-        top = (display_height * row) // rows
-        bottom = (display_height * (row + 1)) // rows
+        left = display_left + (display_width * column) // columns
+        right = display_left + (display_width * (column + 1)) // columns
+        top = display_top + (display_height * row) // rows
+        bottom = display_top + (display_height * (row + 1)) // rows
         tiled.append(
             replace(
                 client,
@@ -658,6 +666,7 @@ def load_manager_manifest(path: str | PathLike[str]) -> ManagerManifest:
 
 __all__ = [
     "MANAGER_MANIFEST_SCHEMA_VERSION",
+    "MAX_MANAGER_CLIENT_SLOTS",
     "ClientLaunchConfig",
     "ManagedClientConfig",
     "ManagerManifest",

@@ -1,5 +1,6 @@
 import io
 import json
+import os
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -452,6 +453,15 @@ class ManagerCliTests(unittest.TestCase):
                 encoding="utf-8",
             )
             worker_state_directory = Path(directory) / "workers"
+            manager_pid_path = Path(directory) / "manager.pid"
+
+            def interrupt_after_pid_claim(_seconds: float) -> None:
+                self.assertEqual(
+                    str(os.getpid()),
+                    manager_pid_path.read_text(encoding="ascii").strip(),
+                )
+                raise KeyboardInterrupt
+
             with (
                 patch(
                     "shadowbane_lab.cli.WindowsVisibleWindowInspector",
@@ -469,7 +479,10 @@ class ManagerCliTests(unittest.TestCase):
                     "shadowbane_lab.cli.DashboardServer",
                     FakeDashboardServer,
                 ),
-                patch("shadowbane_lab.cli.time.sleep", side_effect=KeyboardInterrupt),
+                patch(
+                    "shadowbane_lab.cli.time.sleep",
+                    side_effect=interrupt_after_pid_claim,
+                ),
                 redirect_stdout(output),
             ):
                 result = main(
@@ -479,6 +492,8 @@ class ManagerCliTests(unittest.TestCase):
                         str(manifest_path),
                         "--worker-state-directory",
                         str(worker_state_directory),
+                        "--pid-file",
+                        str(manager_pid_path),
                         "--live",
                         "--no-browser",
                     )
@@ -491,6 +506,7 @@ class ManagerCliTests(unittest.TestCase):
                     / "dispatch.permit"
                 ).read_text(encoding="utf-8")
             )
+            self.assertFalse(manager_pid_path.exists())
 
         self.assertEqual(0, result)
         self.assertEqual(1, len(created_servers))

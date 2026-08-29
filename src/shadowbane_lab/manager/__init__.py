@@ -7,8 +7,13 @@ from .aggregate_registry import (
 )
 from .application import ManagerDashboardApplication
 from .dashboard import DashboardError, DashboardServer
+from .live_configuration import (
+    LiveConfiguredManagerApplication,
+    replace_manager_manifest,
+)
 from .manifest import (
     MANAGER_MANIFEST_SCHEMA_VERSION,
+    MAX_MANAGER_CLIENT_SLOTS,
     ClientLaunchConfig,
     ManagedClientConfig,
     ManagerManifest,
@@ -67,6 +72,11 @@ from .session import (
     ManagerSessionSnapshot,
     ManagerSlotSnapshot,
     ManagerSlotState,
+)
+from .startup_recovery import (
+    BindingRecoveryIssue,
+    BindingRecoverySnapshot,
+    recover_manager_bindings,
 )
 from .supervisor import (
     AmbiguousClientError,
@@ -146,6 +156,8 @@ __all__ = [
     "AggregateRegistryConflictError",
     "AggregateRegistryError",
     "AmbiguousClientError",
+    "BindingRecoveryIssue",
+    "BindingRecoverySnapshot",
     "ClientInstanceSnapshot",
     "ClientInstanceSelector",
     "ClientLaunchConfig",
@@ -166,6 +178,8 @@ __all__ = [
     "GuardedWindowControl",
     "LaunchProvenance",
     "LaunchTimeoutError",
+    "LiveConfiguredManagerApplication",
+    "MAX_MANAGER_CLIENT_SLOTS",
     "ManagedClientConfig",
     "ManagedClientSnapshot",
     "ManagedClientState",
@@ -245,6 +259,8 @@ __all__ = [
     "parse_worker_stop_request",
     "loads_manager_manifest",
     "parse_manager_manifest",
+    "replace_manager_manifest",
+    "recover_manager_bindings",
     "selector_from_config",
     "window_rectangle_from_config",
 ]

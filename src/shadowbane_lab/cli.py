@@ -140,8 +140,10 @@ from shadowbane_lab.manager import (
     ExactClientWorkerRuntime,
     ForegroundWorkerOperationIngress,
     GuardedWindowControl,
+    LiveConfiguredManagerApplication,
     ManagedWorkerController,
     ManagerDashboardApplication,
+    ManagerManifest,
     ManagerSession,
     ManifestClientRegistryProvider,
     SubprocessLauncher,
@@ -159,6 +161,8 @@ from shadowbane_lab.manager import (
     WorkerTravelDestination,
     expand_manager_slots,
     load_manager_manifest,
+    recover_manager_bindings,
+    replace_manager_manifest,
 )
 from shadowbane_lab.progression import (
     CalculatorReviewStatus,
@@ -868,6 +872,11 @@ def _parser() -> argparse.ArgumentParser:
         ),
     )
     manager_app.add_argument(
+        "--pid-file",
+        type=Path,
+        help="runtime-owned PID file written by the actual manager interpreter",
+    )
+    manager_app.add_argument(
         "--no-browser",
         action="store_true",
         help="print the authenticated dashboard URL without opening a browser",
@@ -1217,22 +1226,6 @@ def _configure_manager_slots(
             "slot configuration replaces the manager manifest; pass --apply to confirm",
             as_json=as_json,
         )
-    manifest_path = manifest_path.resolve(strict=False)
-    if (
-        not manifest_path.exists()
-        or manifest_path.is_symlink()
-        or not manifest_path.is_file()
-    ):
-        return _error(
-            f"manager manifest must be an existing regular file: {manifest_path}",
-            as_json=as_json,
-        )
-    temporary_path = manifest_path.with_name(
-        f".{manifest_path.name}.{os.getpid()}.{time.time_ns()}.tmp"
-    )
-    backup_path = manifest_path.with_name(
-        f"{manifest_path.stem}.before-slots-{time.time_ns()}{manifest_path.suffix}"
-    )
     try:
         current = load_manager_manifest(manifest_path)
         configured = expand_manager_slots(
@@ -1241,28 +1234,12 @@ def _configure_manager_slots(
             display_width=display_width,
             display_height=display_height,
         )
-        payload = (
-            json.dumps(configured.to_dict(), indent=2, ensure_ascii=True, allow_nan=False)
-            + "\n"
-        ).encode("utf-8")
-        with temporary_path.open("xb") as destination:
-            destination.write(payload)
-            destination.flush()
-            os.fsync(destination.fileno())
-        verified = load_manager_manifest(temporary_path)
-        if verified != configured:
-            raise RuntimeError("written manager manifest did not round-trip exactly")
-        manifest_path.replace(backup_path)
-        try:
-            temporary_path.replace(manifest_path)
-        except OSError:
-            backup_path.replace(manifest_path)
-            raise
+        backup_path = replace_manager_manifest(
+            manifest_path,
+            expected=current,
+            replacement=configured,
+        )
     except (OSError, RuntimeError, ValueError) as exc:
-        try:
-            temporary_path.unlink(missing_ok=True)
-        except OSError:
-            pass
         return _error(f"manager slot configuration failed: {exc}", as_json=as_json)
 
     result = {
@@ -1283,6 +1260,36 @@ def _configure_manager_slots(
     return 0
 
 
+def _write_manager_pid_file(path: Path) -> None:
+    pid_path = path.resolve(strict=False)
+    if pid_path.exists() and (pid_path.is_symlink() or not pid_path.is_file()):
+        raise RuntimeError(f"manager PID path is not a regular file: {pid_path}")
+    parent = pid_path.parent
+    if not parent.exists() or parent.is_symlink() or not parent.is_dir():
+        raise RuntimeError(f"manager PID directory is not a regular directory: {parent}")
+    temporary = pid_path.with_name(
+        f".{pid_path.name}.{os.getpid()}.{time.time_ns()}.tmp"
+    )
+    try:
+        with temporary.open("xb") as destination:
+            destination.write(f"{os.getpid()}\n".encode("ascii"))
+            destination.flush()
+            os.fsync(destination.fileno())
+        temporary.replace(pid_path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def _remove_manager_pid_file(path: Path) -> None:
+    pid_path = path.resolve(strict=False)
+    try:
+        value = pid_path.read_text(encoding="ascii").strip()
+    except FileNotFoundError:
+        return
+    if value == str(os.getpid()):
+        pid_path.unlink(missing_ok=True)
+
+
 def _run_manager_app(
     manifest_path: Path,
     *,
@@ -1290,6 +1297,7 @@ def _run_manager_app(
     launch_timeout_seconds: float,
     poll_ms: int,
     worker_state_directory: Path | None,
+    pid_file: Path | None,
     open_browser: bool,
     live: bool,
 ) -> int:
@@ -1345,8 +1353,6 @@ def _run_manager_app(
                 as_json=False,
             )
 
-        inspector = WindowsVisibleWindowInspector()
-        process_inspector = Win32ProcessLifetimeInspector()
         if worker_state_directory is None:
             local_app_data = os.environ.get("LOCALAPPDATA")
             if not local_app_data:
@@ -1356,56 +1362,97 @@ def _run_manager_app(
         else:
             heartbeat_root = worker_state_directory
             manager_state_root = heartbeat_root.parent
-        worker_ledger = WorkerHeartbeatLedger(manifest, heartbeat_root)
-        worker_supervisor = WorkerSupervisor(worker_ledger, process_inspector)
-        worker_controller = ManagedWorkerController(
+
+        def build_application(
+            application_manifest: ManagerManifest,
+        ) -> ManagerDashboardApplication:
+            if not isinstance(application_manifest, ManagerManifest):
+                raise ValueError("application manifest has the wrong type")
+            inspector = WindowsVisibleWindowInspector()
+            process_inspector = Win32ProcessLifetimeInspector()
+            worker_ledger = WorkerHeartbeatLedger(application_manifest, heartbeat_root)
+            worker_supervisor = WorkerSupervisor(worker_ledger, process_inspector)
+            worker_controller = ManagedWorkerController(
+                application_manifest,
+                worker_ledger,
+                process_inspector,
+                SubprocessWorkerLauncher(
+                    manifest_path=manifest_path,
+                    worker_state_directory=heartbeat_root,
+                    log_directory=manager_state_root / "logs",
+                ),
+            )
+            aggregate_registry = ManifestClientRegistryProvider(
+                inspector,
+                application_manifest,
+            )
+            window_control = GuardedWindowControl(aggregate_registry, Win32WindowApi())
+            supervisor = ClientLifecycleSupervisor(
+                VisibleWindowRegistrySource(inspector),
+                launcher=SubprocessLauncher(process_inspector),
+                window_controller=window_control,
+                process_inspector=process_inspector,
+            )
+            session = ManagerSession(application_manifest, supervisor)
+            application = ManagerDashboardApplication(
+                application_manifest,
+                session,
+                aggregate_registry,
+                worker_supervisor,
+                worker_controller=worker_controller,
+                operation_status=WorkerOperationLedger(
+                    application_manifest,
+                    heartbeat_root,
+                ),
+                launch_timeout_seconds=launch_timeout_seconds,
+                poll_seconds=poll_ms / 1_000.0,
+            )
+            recovery = recover_manager_bindings(
+                application_manifest,
+                aggregate_registry,
+                worker_ledger,
+                session,
+                worker_controller,
+            )
+            if recovery.recovered_client_ids:
+                print(
+                    "Recovered exact manager binding(s): "
+                    + ", ".join(recovery.recovered_client_ids)
+                )
+            for issue in recovery.issues:
+                print(
+                    f"Could not recover {issue.client_id}: {issue.detail}",
+                    file=sys.stderr,
+                )
+            return application
+
+        application = LiveConfiguredManagerApplication(
+            manifest_path,
             manifest,
-            worker_ledger,
-            process_inspector,
-            SubprocessWorkerLauncher(
-                manifest_path=manifest_path,
-                worker_state_directory=heartbeat_root,
-                log_directory=manager_state_root / "logs",
-            ),
-        )
-        aggregate_registry = ManifestClientRegistryProvider(inspector, manifest)
-        window_control = GuardedWindowControl(aggregate_registry, Win32WindowApi())
-        supervisor = ClientLifecycleSupervisor(
-            VisibleWindowRegistrySource(inspector),
-            launcher=SubprocessLauncher(process_inspector),
-            window_controller=window_control,
-            process_inspector=process_inspector,
-        )
-        session = ManagerSession(manifest, supervisor)
-        application = ManagerDashboardApplication(
-            manifest,
-            session,
-            aggregate_registry,
-            worker_supervisor,
-            worker_controller=worker_controller,
-            operation_status=WorkerOperationLedger(manifest, heartbeat_root),
-            launch_timeout_seconds=launch_timeout_seconds,
-            poll_seconds=poll_ms / 1_000.0,
+            build_application,
         )
         application.status()
         server = DashboardServer(application, port=port)
         with server:
-            print(f"Manager dashboard: {server.suggested_url}")
-            print(f"Worker heartbeat root: {heartbeat_root}")
-            print("Press Ctrl+C to stop the dashboard; managed clients will remain open.")
-            if open_browser:
-                try:
-                    if not webbrowser.open(server.suggested_url, new=1):
-                        print("Could not open a browser; use the printed dashboard URL.")
-                except (OSError, webbrowser.Error):
-                    print("Could not open a browser; use the printed dashboard URL.")
             try:
-                while server.is_running:
-                    application.status()
-                    time.sleep(0.75)
-            except KeyboardInterrupt:
-                print("Stopping manager dashboard...")
-                return 0
+                if pid_file is not None:
+                    _write_manager_pid_file(pid_file)
+                print(f"Manager dashboard: {server.suggested_url}")
+                print(f"Worker heartbeat root: {heartbeat_root}")
+                print("Press Ctrl+C to stop the dashboard; managed clients will remain open.")
+                if open_browser:
+                    try:
+                        if not webbrowser.open(server.suggested_url, new=1):
+                            print("Could not open a browser; use the printed dashboard URL.")
+                    except (OSError, webbrowser.Error):
+                        print("Could not open a browser; use the printed dashboard URL.")
+                try:
+                    while server.is_running:
+                        application.status()
+                        time.sleep(0.75)
+                except KeyboardInterrupt:
+                    print("Stopping manager dashboard...")
+                    return 0
             finally:
                 try:
                     application.revoke_all_workers(
@@ -1413,6 +1460,11 @@ def _run_manager_app(
                     )
                 except (OSError, RuntimeError, ValueError) as exc:
                     print(f"Could not persist worker shutdown revocation: {exc}", file=sys.stderr)
+                if pid_file is not None:
+                    try:
+                        _remove_manager_pid_file(pid_file)
+                    except OSError as exc:
+                        print(f"Could not remove manager PID file: {exc}", file=sys.stderr)
             raise RuntimeError("manager dashboard stopped unexpectedly")
     except (OSError, RuntimeError, ValueError) as exc:
         return _error(f"manager app failed: {exc}", as_json=False)
@@ -4688,6 +4740,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             launch_timeout_seconds=arguments.launch_timeout_seconds,
             poll_ms=arguments.poll_ms,
             worker_state_directory=arguments.worker_state_directory,
+            pid_file=arguments.pid_file,
             open_browser=not arguments.no_browser,
             live=arguments.live,
         )

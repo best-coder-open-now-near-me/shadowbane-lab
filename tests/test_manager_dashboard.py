@@ -52,7 +52,6 @@ class _RecordingService:
             raise self.execute_error
         return {"ok": True, "action": action}
 
-
 class DashboardServerTests(unittest.TestCase):
     def setUp(self) -> None:
         self.service = _RecordingService()
@@ -315,7 +314,7 @@ class DashboardServerTests(unittest.TestCase):
     def test_all_reviewed_action_shapes_dispatch_exact_arguments(self) -> None:
         requests = [
             ({"action": action}, (action, None, None))
-            for action in ("start-all", "refresh", "tile-all")
+            for action in ("add-client", "start-all", "refresh", "tile-all")
         ]
         requests.append(
             (
@@ -359,6 +358,8 @@ class DashboardServerTests(unittest.TestCase):
             ({"action": "close", "client_id": "slot"}, "invalid-fields"),
             ({"action": "refresh", "client_id": "slot"}, "invalid-fields"),
             ({"action": "start", "client_id": "../slot"}, "invalid-field"),
+            ({"action": "configure-slots"}, "unknown-action"),
+            ({"action": "add-client", "client_count": 2}, "invalid-fields"),
         )
         headers = {**self._authorization, "Content-Type": "application/json"}
 
@@ -477,17 +478,23 @@ class DashboardServerTests(unittest.TestCase):
         source = body.decode("utf-8").casefold()
 
         for action in (
-            "start-all",
+            "add-client",
             "refresh",
             "tile-all",
-            "attach",
             "pause",
             "resume",
-            "detach",
             "close",
         ):
             self.assertIn(action, source)
-        self.assertGreaterEqual(source.count("window.confirm"), 2)
+        for hidden_control in (
+            "configure-slots",
+            "client-count",
+            "start-all",
+            'actionbutton("attach"',
+            'actionbutton("detach"',
+        ):
+            self.assertNotIn(hidden_control, source)
+        self.assertGreaterEqual(source.count("window.confirm"), 1)
         self.assertNotIn("caller", source)
         self.assertNotIn("tactical", source)
 

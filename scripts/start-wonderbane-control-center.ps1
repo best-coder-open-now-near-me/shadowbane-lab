@@ -53,6 +53,7 @@ try {
         Wait-RequiredPath $listenerScript "Listener launcher" $deadline
     }
     $env:PYTHONPATH = $managerSource
+    $managerPidPath = Join-Path $stateRoot "manager.pid"
 
     if (-not $SkipListener) {
         try {
@@ -67,21 +68,43 @@ try {
         }
     }
 
+    $expectedManifest = [regex]::Escape($ManagerManifest)
     $existingManagers = @(
         Get-CimInstance Win32_Process -Filter "Name = 'python.exe'" |
             Where-Object {
                 $_.CommandLine -match (
                     "shadowbane_lab\.cli\s+manager\s+app\s+" +
-                    [regex]::Escape($ManagerManifest)
+                    $expectedManifest
                 )
             }
     )
-    if ($existingManagers.Count -gt 0) {
+    $trackedManager = $null
+    if (Test-Path -LiteralPath $managerPidPath -PathType Leaf) {
+        $trackedText = (Get-Content -LiteralPath $managerPidPath -Raw).Trim()
+        $trackedId = 0
+        if ([int]::TryParse($trackedText, [ref]$trackedId) -and $trackedId -gt 0) {
+            $trackedManager = $existingManagers |
+                Where-Object { $_.ProcessId -eq $trackedId } |
+                Select-Object -First 1
+        }
+        if ($null -eq $trackedManager) {
+            Remove-Item -LiteralPath $managerPidPath -Force
+            Write-BootstrapLog "Removed a stale manager PID file."
+        }
+    }
+    if ($null -ne $trackedManager) {
         Write-BootstrapLog (
-            "WonderBane control center is already running (PID(s) " +
-            (($existingManagers.ProcessId | Sort-Object) -join ", ") + ")."
+            "WonderBane control center is already running (PID " +
+            $trackedManager.ProcessId + ")."
         )
         exit 0
+    }
+    if ($existingManagers.Count -gt 0) {
+        throw (
+            "Found an untracked WonderBane manager process (PID(s) " +
+            (($existingManagers.ProcessId | Sort-Object) -join ", ") +
+            "); refusing to start a competing dashboard."
+        )
     }
 
     $preflight = @(
@@ -105,7 +128,9 @@ try {
         "manager",
         "app",
         $ManagerManifest,
-        "--live"
+        "--live",
+        "--pid-file",
+        $managerPidPath
     )
     if ($NoBrowser) {
         $managerArguments += "--no-browser"
@@ -121,22 +146,44 @@ try {
         -RedirectStandardError $managerStderr `
         -PassThru
 
-    Start-Sleep -Milliseconds 1000
-    $managerProcess.Refresh()
-    if ($managerProcess.HasExited) {
-        $detail = if (Test-Path -LiteralPath $managerStderr) {
-            (Get-Content -LiteralPath $managerStderr -Raw).Trim()
+    $startupDeadline = (Get-Date).AddSeconds(10)
+    $runtimeManagerId = 0
+    while ((Get-Date) -lt $startupDeadline) {
+        $managerProcess.Refresh()
+        if ($managerProcess.HasExited) {
+            $detail = if (Test-Path -LiteralPath $managerStderr) {
+                (Get-Content -LiteralPath $managerStderr -Raw).Trim()
+            }
+            else {
+                "manager exited without an error log"
+            }
+            throw "WonderBane control center failed to start: $detail"
         }
-        else {
-            "manager exited without an error log"
+        if (Test-Path -LiteralPath $managerPidPath -PathType Leaf) {
+            $runtimeText = (Get-Content -LiteralPath $managerPidPath -Raw).Trim()
+            if ([int]::TryParse($runtimeText, [ref]$runtimeManagerId) -and (
+                $runtimeManagerId -gt 0
+            )) {
+                $runtimeProcess = Get-CimInstance `
+                    Win32_Process `
+                    -Filter "ProcessId = $runtimeManagerId" `
+                    -ErrorAction SilentlyContinue
+                if (
+                    $null -ne $runtimeProcess -and
+                    $runtimeProcess.Name -eq "python.exe" -and
+                    $runtimeProcess.CommandLine -match "shadowbane_lab\.cli\s+manager\s+app" -and
+                    $runtimeProcess.CommandLine -match $expectedManifest
+                ) {
+                    Write-BootstrapLog (
+                        "WonderBane control center started (runtime PID $runtimeManagerId)."
+                    )
+                    exit 0
+                }
+            }
         }
-        throw "WonderBane control center failed to start: $detail"
+        Start-Sleep -Milliseconds 100
     }
-    Set-Content `
-        -LiteralPath (Join-Path $stateRoot "manager.pid") `
-        -Value $managerProcess.Id `
-        -Encoding ascii
-    Write-BootstrapLog "WonderBane control center started (PID $($managerProcess.Id))."
+    throw "WonderBane control center did not publish a valid runtime PID within ten seconds."
 }
 catch {
     Write-BootstrapLog "ERROR: $($_.Exception.Message)"

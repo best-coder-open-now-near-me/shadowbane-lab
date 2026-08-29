@@ -57,28 +57,61 @@ if (Test-Path -LiteralPath $managerPidPath -PathType Leaf) {
     )) {
         throw "Manager PID file does not contain a positive integer: $managerPidPath"
     }
-    $managerProcess = Get-CimInstance `
-        Win32_Process `
-        -Filter "ProcessId = $managerProcessId" `
-        -ErrorAction SilentlyContinue
+    $expectedManifest = [regex]::Escape($manifestPath)
+    $exactManagers = @(
+        Get-CimInstance Win32_Process -Filter "Name = 'python.exe'" |
+            Where-Object {
+                $_.CommandLine -match "shadowbane_lab\.cli\s+manager\s+app" -and
+                $_.CommandLine -match $expectedManifest
+            }
+    )
+    $managerProcess = $exactManagers |
+        Where-Object { $_.ProcessId -eq $managerProcessId } |
+        Select-Object -First 1
     if ($null -ne $managerProcess) {
-        $expectedManifest = [regex]::Escape($manifestPath)
-        if (
-            $managerProcess.Name -ne "python.exe" -or
-            $managerProcess.CommandLine -notmatch "shadowbane_lab\.cli\s+manager\s+app" -or
-            $managerProcess.CommandLine -notmatch $expectedManifest
-        ) {
-            throw "Refusing to stop PID $managerProcessId because it is not the exact manager process."
+        $familyIds = [System.Collections.Generic.HashSet[int]]::new()
+        [void] $familyIds.Add($managerProcessId)
+        do {
+            $added = $false
+            foreach ($candidate in $exactManagers) {
+                if ($familyIds.Contains([int] $candidate.ParentProcessId)) {
+                    if ($familyIds.Add([int] $candidate.ProcessId)) {
+                        $added = $true
+                    }
+                }
+                if ($familyIds.Contains([int] $candidate.ProcessId)) {
+                    $parentIsExact = @(
+                        $exactManagers |
+                            Where-Object { $_.ProcessId -eq $candidate.ParentProcessId }
+                    ).Count -eq 1
+                    if (
+                        $parentIsExact -and
+                        $familyIds.Add([int] $candidate.ParentProcessId)
+                    ) {
+                        $added = $true
+                    }
+                }
+            }
+        } while ($added)
+        $familyProcesses = @(
+            $exactManagers | Where-Object { $familyIds.Contains([int] $_.ProcessId) }
+        )
+        if ($familyProcesses.Count -ne $exactManagers.Count) {
+            throw "Refusing to stop multiple unrelated manager process families."
         }
-        Stop-Process -Id $managerProcessId
+        $familyProcessIds = @($familyProcesses.ProcessId | Sort-Object -Descending)
+        Stop-Process -Id $familyProcessIds
         $deadline = (Get-Date).AddSeconds(5)
-        while (Get-Process -Id $managerProcessId -ErrorAction SilentlyContinue) {
+        while (@(Get-Process -Id $familyProcessIds -ErrorAction SilentlyContinue).Count -gt 0) {
             if ((Get-Date) -ge $deadline) {
-                throw "Manager PID $managerProcessId did not stop within five seconds."
+                throw "Manager process family did not stop within five seconds."
             }
             Start-Sleep -Milliseconds 100
         }
-        Write-Output "Stopped the prior control-center manager PID $managerProcessId."
+        Write-Output (
+            "Stopped the prior control-center manager process family: " +
+            ($familyProcessIds -join ", ") + "."
+        )
     }
 }
 

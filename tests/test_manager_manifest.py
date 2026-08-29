@@ -81,6 +81,23 @@ class ManagerManifestTests(unittest.TestCase):
         with self.assertRaisesRegex(ManagerManifestError, "cannot shrink"):
             expand_manager_slots(expanded, 2)
 
+    def test_slot_expansion_preserves_virtual_display_origin(self) -> None:
+        manifest = parse_manager_manifest(_payload())
+
+        expanded = expand_manager_slots(
+            manifest,
+            2,
+            display_left=-1920,
+            display_top=-40,
+            display_width=1920,
+            display_height=1000,
+        )
+
+        self.assertEqual(
+            ((-1920, -40, 960, 1000), (-960, -40, 960, 1000)),
+            tuple(client.window_tile.assignment for client in expanded.clients),
+        )
+
     def test_parses_operational_topology_into_immutable_values(self) -> None:
         manifest = parse_manager_manifest(
             _payload(_client("client-01"), _client("client-02", left=1280))

@@ -540,7 +540,7 @@ class ManagerSession:
                 managed,
                 expected_instance_id=instance_id,
             )
-            if close_was_requested and managed.state is ManagedClientState.EXITED:
+            if managed.state is ManagedClientState.EXITED:
                 detached = self._supervisor.detach(instance_id)
                 self._require_managed_result(
                     slot,
@@ -550,7 +550,11 @@ class ManagerSession:
                 self._clear_binding(
                     slot,
                     state=ManagerSlotState.CLOSED,
-                    detail="graceful close completed; exact process exit was verified",
+                    detail=(
+                        "graceful close completed; exact process exit was verified"
+                        if close_was_requested
+                        else "exact process exit was verified; client binding was archived"
+                    ),
                 )
             else:
                 self._apply_managed(slot, managed)
