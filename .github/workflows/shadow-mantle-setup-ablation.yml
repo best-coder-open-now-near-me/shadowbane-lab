@@ -28,26 +28,22 @@ jobs:
 
           path = Path("src/shadowbane_lab/rollouts/duel.py")
           source = path.read_text(encoding="utf-8")
-          old = '''        target_id = affordance.binding.target_entity_id
-          target = enemies.get(target_id or "")
-          if target is not None and ("immunity.stun" in target.tags or "control.stun" in target.tags):
-          '''
-          new = '''        target_id = affordance.binding.target_entity_id
-          target = enemies.get(target_id or "")
-          if (
-              SHADOW_MANTLE in self._action_keys
-              and target is not None
-              and "profession.warlock" in target.tags
-              and "healing.block" not in target.tags
-              and _distance(actor.position, target.position) > 100.0
-              and expected_damage > 0.0
-          ):
-              return -50.0
-          if target is not None and ("immunity.stun" in target.tags or "control.stun" in target.tags):
-          '''
-          if source.count(old) != 1:
-              raise SystemExit("expected exactly one damage-target block")
-          path.write_text(source.replace(old, new), encoding="utf-8")
+          needle = '        target = enemies.get(target_id or "")\n'
+          insertion = (
+              needle
+              + "        if (\n"
+              + "            SHADOW_MANTLE in self._action_keys\n"
+              + "            and target is not None\n"
+              + '            and "profession.warlock" in target.tags\n'
+              + '            and "healing.block" not in target.tags\n'
+              + "            and _distance(actor.position, target.position) > 100.0\n"
+              + "            and expected_damage > 0.0\n"
+              + "        ):\n"
+              + "            return -50.0\n"
+          )
+          if source.count(needle) != 1:
+              raise SystemExit("expected exactly one damage-target assignment")
+          path.write_text(source.replace(needle, insertion), encoding="utf-8")
           PY
       - name: Run focused progression matrix
         run: |
