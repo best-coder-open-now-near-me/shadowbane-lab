@@ -38,7 +38,7 @@ jobs:
           mkdir -p artifacts
           python -m shadowbane_lab.rollouts \
             --matrix \
-            --levels 10,15,18,19,22,26,28,75 \
+            --levels 10,15,18,19,22,26,28,42,75 \
             --ranks 0,10,20,40 \
             --distances 15,60,110 \
             --seeds 1,2,3 \
