@@ -161,6 +161,7 @@ class RestoreResource:
     subject: SubjectRef
     resource_key: str
     amount: float
+    effect_rank: int = 0
 
     def __post_init__(self) -> None:
         if not isinstance(self.subject, SubjectRef):
@@ -169,6 +170,7 @@ class RestoreResource:
         _finite(self.amount, "amount")
         if self.amount <= 0:
             raise ValueError("restoration amount must be positive")
+        _non_negative_integer(self.effect_rank, "effect_rank")
 
 
 @dataclass(frozen=True, slots=True)

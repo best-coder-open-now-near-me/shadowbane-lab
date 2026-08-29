@@ -203,13 +203,19 @@ def _parse_action(data: Mapping[str, Any], action_key: str, rank: int) -> Action
         for item in _objects(data, "costs")
     )
     phases = tuple(_parse_phase(item, rank) for item in _objects(data, "phases"))
-    features = tuple(
+    features = [
         NamedScalar(
             name=_string(item, "name"),
             value=_resolved_number(_required(item, "value"), rank),
         )
         for item in _objects(data, "features")
-    )
+    ]
+    if any(
+        isinstance(effect, RestoreResource)
+        for phase in phases
+        for effect in phase.effects
+    ) and all(feature.name != "effect_rank" for feature in features):
+        features.append(NamedScalar("effect_rank", float(rank)))
     return ActionSpec(
         action_key=action_key,
         targeting=targeting,
@@ -218,7 +224,7 @@ def _parse_action(data: Mapping[str, Any], action_key: str, rank: int) -> Action
         costs=costs,
         required_actor_tags=tuple(_strings(data, "required_actor_tags")),
         forbidden_actor_tags=tuple(_strings(data, "forbidden_actor_tags")),
-        features=features,
+        features=tuple(features),
         tags=tuple(_strings(data, "tags")),
     )
 
@@ -253,6 +259,7 @@ def _parse_effect(data: Mapping[str, Any], rank: int) -> EffectPrimitive:
             subject=SubjectRef(_string(data, "subject")),
             resource_key=_string(data, "resource_key"),
             amount=_resolved_number(_required(data, "amount"), rank),
+            effect_rank=_resolved_integer(data.get("effect_rank", rank), rank),
         )
     if operation == "modify_scalar":
         return ModifyScalar(

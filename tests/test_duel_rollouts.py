@@ -24,6 +24,7 @@ FADE = "shadowbane.assassin.fade"
 BACKSTAB = "shadowbane.assassin.backstab"
 INVISIBILITY = "shadowbane.assassin.invisibility"
 PASSWALL = "shadowbane.assassin.passwall"
+SHADOW_MANTLE = "shadowbane.assassin.shadow_mantle"
 MIND_STRIKE = "shadowbane.warlock.mind_strike"
 MIND_SNARE = "shadowbane.warlock.mind_snare"
 PSYCHIC_HEALING = "shadowbane.warlock.psychic_healing"
@@ -34,18 +35,18 @@ class DuelRolloutTests(unittest.TestCase):
     def test_duel_extension_loads_without_duplicate_base_actions(self) -> None:
         ruleset = load_assassin_warlock_duel_ruleset()
 
-        self.assertEqual("shadowbane.assassin-warlock-duel.v1", ruleset.ruleset_id)
-        self.assertEqual(12, len(ruleset.records))
-        self.assertEqual(11, len(ruleset.catalog))
+        self.assertEqual("shadowbane.assassin-warlock-duel-shadow-mantle.v1", ruleset.ruleset_id)
+        self.assertEqual(13, len(ruleset.records))
+        self.assertEqual(12, len(ruleset.catalog))
         self.assertEqual(
             {
                 CompilationStatus.COMPILED: 0,
-                CompilationStatus.COMPILED_WITH_OVERRIDE: 11,
+                CompilationStatus.COMPILED_WITH_OVERRIDE: 12,
                 CompilationStatus.UNRESOLVED: 1,
             },
             ruleset.status_counts(),
         )
-        for action_key in (FADE, BACKSTAB, INVISIBILITY, MIND_SNARE):
+        for action_key in (FADE, BACKSTAB, INVISIBILITY, MIND_SNARE, SHADOW_MANTLE):
             self.assertIsNotNone(ruleset.record(action_key).action)
 
     def test_progression_build_clamps_twenty_rank_stealth_powers(self) -> None:
@@ -56,10 +57,11 @@ class DuelRolloutTests(unittest.TestCase):
         self.assertEqual(40, ranks[BACKSTAB])
         self.assertEqual(20, ranks[FADE])
         self.assertEqual(20, ranks[INVISIBILITY])
+        self.assertEqual(40, ranks[SHADOW_MANTLE])
 
     def test_level_and_power_prerequisites_change_available_kits(self) -> None:
         results = matched_progression_duels(
-            levels=(10, 15, 18, 19, 22, 26, 28, 75),
+            levels=(10, 15, 18, 19, 22, 26, 28, 42, 75),
             power_ranks=(20,),
             max_ticks=1,
         )
@@ -69,6 +71,7 @@ class DuelRolloutTests(unittest.TestCase):
         assassin_15 = set(by_level[15].combatants[0].available_actions)
         assassin_19 = set(by_level[19].combatants[0].available_actions)
         assassin_28 = set(by_level[28].combatants[0].available_actions)
+        assassin_42 = set(by_level[42].combatants[0].available_actions)
         warlock_10 = set(by_level[10].combatants[1].available_actions)
         warlock_18 = set(by_level[18].combatants[1].available_actions)
         warlock_22 = set(by_level[22].combatants[1].available_actions)
@@ -79,6 +82,8 @@ class DuelRolloutTests(unittest.TestCase):
         self.assertIn(SHADOW_TOUCH, assassin_15)
         self.assertIn(INVISIBILITY, assassin_19)
         self.assertNotIn(PASSWALL, assassin_28)
+        self.assertNotIn(SHADOW_MANTLE, assassin_28)
+        self.assertIn(SHADOW_MANTLE, assassin_42)
         self.assertIn(MIND_STRIKE, warlock_10)
         self.assertNotIn(MIND_SNARE, warlock_10)
         self.assertIn(MIND_SNARE, warlock_18)
@@ -91,6 +96,20 @@ class DuelRolloutTests(unittest.TestCase):
 
         self.assertNotIn(INVISIBILITY, low.combatants[0].available_actions)
         self.assertIn(INVISIBILITY, high.combatants[0].available_actions)
+
+    def test_shadow_mantle_is_selected_against_equal_rank_psychic_healing(self) -> None:
+        result = matched_progression_duels(
+            levels=(42,),
+            power_ranks=(40,),
+            max_ticks=10,
+        )[0][2]
+
+        assassin = result.combatants[0]
+        warlock = result.combatants[1]
+        action_counts = {item.action_key: item.count for item in assassin.actions}
+        self.assertIn(SHADOW_MANTLE, assassin.available_actions)
+        self.assertIn(PSYCHIC_HEALING, warlock.available_actions)
+        self.assertGreater(action_counts.get(SHADOW_MANTLE, 0), 0)
 
     def test_duel_is_reproducible_and_reaches_a_terminal_outcome(self) -> None:
         config = DuelConfig(

@@ -172,10 +172,31 @@ class EffectExecutor:
             raise SimulationConfigurationError("resource restoration requires an entity subject")
         before = subject.scalars.get(effect.resource_key, 0.0)
         maximum = subject.maximums.get(effect.resource_key)
-        after = before + effect.amount
-        if maximum is not None:
-            after = min(after, maximum)
+        blocking_tag = f"resource.restore.block.{effect.resource_key}"
+        blocker = max(
+            (
+                active
+                for active in subject.effects.values()
+                if blocking_tag in active.tags and active.magnitude >= effect.effect_rank
+            ),
+            key=lambda active: (active.magnitude, active.effect_key, active.source_entity_id),
+            default=None,
+        )
+        after = before
+        if blocker is None:
+            after += effect.amount
+            if maximum is not None:
+                after = min(after, maximum)
         subject.scalars[effect.resource_key] = after
+        scalars = [
+            NamedScalar("requested", effect.amount),
+            NamedScalar("effective", after - before),
+            NamedScalar("effect_rank", float(effect.effect_rank)),
+        ]
+        tags = [f"resource.{effect.resource_key}"]
+        if blocker is not None:
+            scalars.append(NamedScalar("blocking_rank", blocker.magnitude))
+            tags.extend(("reason.blocked_by_rank", f"effect.{blocker.effect_key}"))
         events.append(
             self._event(
                 EventKind.RESOURCE_RESTORED,
@@ -184,11 +205,8 @@ class EffectExecutor:
                 source_entity_id=item.actor_id,
                 target_entity_id=subject.entity_id,
                 action_key=item.action_key,
-                scalars=(
-                    NamedScalar("requested", effect.amount),
-                    NamedScalar("effective", after - before),
-                ),
-                tags=(f"resource.{effect.resource_key}",),
+                scalars=tuple(scalars),
+                tags=tuple(tags),
             )
         )
 
