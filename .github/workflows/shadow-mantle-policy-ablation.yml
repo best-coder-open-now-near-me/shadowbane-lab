@@ -1,0 +1,101 @@
+name: Shadow Mantle policy ablation
+
+on:
+  push:
+    branches:
+      - codex/shadow-mantle-policy-ablation
+    paths:
+      - ".github/workflows/shadow-mantle-policy-ablation.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  simulate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Force Shadow Mantle whenever it is available
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/shadowbane_lab/rollouts/duel.py")
+          source = path.read_text(encoding="utf-8")
+          old = "return 32.0 + min(duration, 30_000.0) / 30_000.0 + min(block_rank, 40.0) / 40.0"
+          new = "return 10_000.0 + min(duration, 30_000.0) / 30_000.0 + min(block_rank, 40.0) / 40.0"
+          if source.count(old) != 1:
+              raise SystemExit("expected exactly one Shadow Mantle utility expression")
+          path.write_text(source.replace(old, new), encoding="utf-8")
+          PY
+      - name: Run focused progression matrix
+        run: |
+          mkdir -p artifacts
+          python -m shadowbane_lab.rollouts \
+            --matrix \
+            --levels 42,75 \
+            --ranks 0,10,20,40 \
+            --distances 15,60,110 \
+            --seeds 1,2,3 \
+            --max-ticks 1200 \
+            --json > artifacts/mantle-first-matrix.json
+      - name: Write experiment summary
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          cells = json.loads(Path("artifacts/mantle-first-matrix.json").read_text(encoding="utf-8"))
+          totals = {
+              "matches": sum(cell["matches"] for cell in cells),
+              "assassin_wins": sum(cell["assassin_wins"] for cell in cells),
+              "warlock_wins": sum(cell["warlock_wins"] for cell in cells),
+              "draws": sum(cell["draws"] for cell in cells),
+              "time_limits": sum(cell["time_limits"] for cell in cells),
+          }
+          rows = []
+          for cell in cells:
+              assassin, warlock = cell["sample"]["combatants"]
+              rows.append(
+                  {
+                      "level": cell["level"],
+                      "power_rank": cell["power_rank"],
+                      "starting_distance": cell["starting_distance"],
+                      "assassin_wins": cell["assassin_wins"],
+                      "warlock_wins": cell["warlock_wins"],
+                      "draws": cell["draws"],
+                      "mean_ticks": cell["mean_ticks"],
+                      "mantle_casts": assassin["actions"].get(
+                          "shadowbane.assassin.shadow_mantle", 0
+                      ),
+                      "psychic_healing_casts": warlock["actions"].get(
+                          "shadowbane.warlock.psychic_healing", 0
+                      ),
+                      "warlock_healing_received": warlock["healing_received"],
+                  }
+              )
+          payload = {
+              "variant": "mantle_first",
+              "description": "Adds a 10,000-point utility bonus to Shadow Mantle whenever it is currently legal, without changing mechanics, stats, or other utilities.",
+              "totals": totals,
+              "cells": rows,
+          }
+          Path("artifacts/mantle-first-summary.json").write_text(
+              json.dumps(payload, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(payload, indent=2, sort_keys=True))
+          PY
+      - name: Upload experiment artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: shadow-mantle-policy-ablation
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 30
