@@ -188,6 +188,42 @@ class CombatCompilerTests(unittest.TestCase):
         self.assertEqual(0.05, scalars["armor_piercing"])
         self.assertEqual(1_200.0, dict(compiled.maximums)["health"])
 
+    def test_dual_wield_sheet_compiles_independent_per_hand_attack_schedules(self) -> None:
+        main_hand = replace(_sheet().weapon, dual_wielding=True)
+        assert main_hand is not None
+        off_hand = replace(
+            main_hand,
+            weapon_key="khan-xhir",
+            speed_tenths=21.5,
+            procs=(),
+        )
+        sheet = replace(
+            _sheet(),
+            weapon=main_hand,
+            off_hand_weapon=off_hand,
+        )
+        policy = CombatCompilePolicy(
+            accepted_compatibility=(CompatibilityStatus.SOURCE_REVISION_ACCEPTED,),
+            allow_ruleset_overrides=True,
+        )
+
+        compiled = compile_combatant(
+            sheet,
+            _build(),
+            load_shadowbane_vertical_slice(),
+            policy=policy,
+        )
+
+        main = compiled.catalog.get(compiled.action_key("shadowbane.basic_attack"))
+        off = compiled.catalog.get(
+            compiled.action_key("shadowbane.basic_attack.off_hand")
+        )
+        self.assertEqual(2_000, main.cooldown_ms)
+        self.assertEqual(2_100, off.cooldown_ms)
+        self.assertIn("weapon.main_hand", main.tags)
+        self.assertIn("weapon.off_hand", off.tags)
+        self.assertIn("attack.off_hand", dict(compiled.scalars))
+
     def test_missing_complete_resistance_vector_fails_before_simulation(self) -> None:
         sheet = replace(
             _sheet(),

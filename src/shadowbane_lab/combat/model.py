@@ -207,6 +207,7 @@ class CombatSheet:
     passive_defenses: tuple[tuple[str, float], ...]
     modifiers: SheetModifiers = SheetModifiers()
     weapon: WeaponProfile | None = None
+    off_hand_weapon: WeaponProfile | None = None
     protection_type: DamageType | None = None
     protection_trains: int = 0
     tags: tuple[str, ...] = ()
@@ -261,6 +262,16 @@ class CombatSheet:
             raise ValueError("modifiers must be a SheetModifiers")
         if self.weapon is not None and not isinstance(self.weapon, WeaponProfile):
             raise ValueError("weapon must be a WeaponProfile or null")
+        if self.off_hand_weapon is not None and not isinstance(
+            self.off_hand_weapon, WeaponProfile
+        ):
+            raise ValueError("off_hand_weapon must be a WeaponProfile or null")
+        if self.off_hand_weapon is not None and self.weapon is None:
+            raise ValueError("off_hand_weapon requires a main-hand weapon")
+        if self.off_hand_weapon is not None and (
+            not self.weapon.dual_wielding or not self.off_hand_weapon.dual_wielding
+        ):
+            raise ValueError("both weapon profiles must mark a dual-wield loadout")
         if self.protection_type is not None:
             if not isinstance(self.protection_type, DamageType):
                 try:

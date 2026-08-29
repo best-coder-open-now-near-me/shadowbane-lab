@@ -172,10 +172,16 @@ class EffectExecutor:
         )
 
         attack = item.weapon_attack
-        attack_rating = actor.scalars.get(
-            attack.attack_rating_scalar, attack.default_attack_rating
+        attack_rating = self._scalar_or_default(
+            actor,
+            attack.attack_rating_scalar,
+            attack.default_attack_rating,
         ) + sum(modifier.attack_rating_bonus for modifier in modifiers)
-        defense = target.scalars.get(attack.defense_scalar, attack.default_defense)
+        defense = self._scalar_or_default(
+            target,
+            attack.defense_scalar,
+            attack.default_defense,
+        )
         bypass_defense = any(modifier.bypass_defense for modifier in modifiers)
         hit_chance = attack.hit_chance(attack_rating, defense, bypass=bypass_defense)
         roll, hit_roll_succeeded = self._chance_roll(hit_chance)
@@ -208,7 +214,14 @@ class EffectExecutor:
             for defense_key in attack.passive_defense_keys:
                 chance = max(
                     0.0,
-                    min(1.0, target.scalars.get(f"passive.{defense_key}.chance", 0.0)),
+                    min(
+                        1.0,
+                        self._scalar_or_default(
+                            target,
+                            f"passive.{defense_key}.chance",
+                            0.0,
+                        ),
+                    ),
                 )
                 if chance <= 0.0:
                     continue
@@ -236,12 +249,20 @@ class EffectExecutor:
                 return
 
         minimum = (
-            actor.scalars.get(attack.minimum_damage_scalar, attack.minimum_damage)
+            self._scalar_or_default(
+                actor,
+                attack.minimum_damage_scalar,
+                attack.minimum_damage,
+            )
             if attack.minimum_damage_scalar is not None
             else attack.minimum_damage
         )
         maximum = (
-            actor.scalars.get(attack.maximum_damage_scalar, attack.maximum_damage)
+            self._scalar_or_default(
+                actor,
+                attack.maximum_damage_scalar,
+                attack.maximum_damage,
+            )
             if attack.maximum_damage_scalar is not None
             else attack.maximum_damage
         )
@@ -1617,3 +1638,14 @@ class EffectExecutor:
             raise SimulationConfigurationError(
                 f"entity {entity.entity_id} is missing required scalar {scalar_key}"
             ) from exc
+
+    @staticmethod
+    def _scalar_or_default(
+        entity: EntityState,
+        scalar_key: str,
+        default: float,
+    ) -> float:
+        try:
+            return entity.effective_scalar(scalar_key)
+        except KeyError:
+            return float(default)

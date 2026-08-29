@@ -52,6 +52,7 @@ MAGICBANE_COMBAT_FORMULA_REVISION = "3649c629b709c67625a09150a3752107f4b873cc"
 REQUIRED_RESISTANCE_TYPES = frozenset(item.value for item in ResistanceType)
 REQUIRED_PASSIVE_DEFENSES = frozenset({"block", "parry", "dodge"})
 _BASIC_ATTACK = "shadowbane.basic_attack"
+_OFF_HAND_ATTACK = "shadowbane.basic_attack.off_hand"
 _MOVEMENT = "shadowbane.move"
 
 
@@ -133,9 +134,23 @@ def compile_combatant(
     actions: list[ActionSpec] = []
     mappings: list[tuple[str, str]] = []
     if sheet.weapon is not None:
-        basic = _compile_basic_attack(sheet)
+        basic = _compile_basic_attack(
+            sheet,
+            sheet.weapon,
+            weapon_slot="main_hand",
+            canonical_action_key=_BASIC_ATTACK,
+        )
         actions.append(basic)
         mappings.append((_BASIC_ATTACK, basic.action_key))
+    if sheet.off_hand_weapon is not None:
+        off_hand = _compile_basic_attack(
+            sheet,
+            sheet.off_hand_weapon,
+            weapon_slot="off_hand",
+            canonical_action_key=_OFF_HAND_ATTACK,
+        )
+        actions.append(off_hand)
+        mappings.append((_OFF_HAND_ATTACK, off_hand.action_key))
 
     selected = ruleset.action_keys_for(build)
     for canonical_key in selected:
@@ -195,9 +210,12 @@ def _readiness_issues(
         issues.append("weapon profile is required, including explicit unarmed profiles")
     else:
         skill_keys = {key for key, _ in sheet.skill_values}
-        for key in (sheet.weapon.skill_key, sheet.weapon.mastery_key):
-            if key not in skill_keys:
-                issues.append(f"missing weapon skill value {key}")
+        for weapon in (sheet.weapon, sheet.off_hand_weapon):
+            if weapon is None:
+                continue
+            for key in (weapon.skill_key, weapon.mastery_key):
+                if key not in skill_keys:
+                    issues.append(f"missing weapon skill value {key}")
 
     try:
         selected = ruleset.action_keys_for(build)
@@ -253,11 +271,16 @@ def _compile_scalars(sheet: CombatSheet) -> dict[str, float]:
     )
     if sheet.protection_type is not None:
         result["protection.trains"] = float(sheet.protection_trains)
-    if sheet.weapon is not None:
-        result["attack.main_hand"] = float(
+    for weapon_slot, weapon in (
+        ("main_hand", sheet.weapon),
+        ("off_hand", sheet.off_hand_weapon),
+    ):
+        if weapon is None:
+            continue
+        result[f"attack.{weapon_slot}"] = float(
             weapon_attack_rating(
-                sheet.skill_value(sheet.weapon.skill_key),
-                sheet.skill_value(sheet.weapon.mastery_key),
+                sheet.skill_value(weapon.skill_key),
+                sheet.skill_value(weapon.mastery_key),
                 sheet.strength,
                 sheet.dexterity,
                 flat_ocv=modifiers.flat_ocv,
@@ -285,10 +308,13 @@ def _compile_tags(sheet: CombatSheet) -> tuple[str, ...]:
     return tuple(sorted(tags))
 
 
-def _compile_basic_attack(sheet: CombatSheet) -> ActionSpec:
-    weapon = sheet.weapon
-    if weapon is None:
-        raise CombatReadinessError(("weapon profile is required",))
+def _compile_basic_attack(
+    sheet: CombatSheet,
+    weapon: WeaponProfile,
+    *,
+    weapon_slot: str,
+    canonical_action_key: str,
+) -> ActionSpec:
     primary = sheet.strength if weapon.strength_based else sheet.dexterity
     secondary = sheet.dexterity if weapon.strength_based else sheet.strength
     minimum, maximum = weapon_damage_bounds(
@@ -352,7 +378,7 @@ def _compile_basic_attack(sheet: CombatSheet) -> ActionSpec:
         proc.probability * (proc.minimum + proc.maximum) / 2.0
         for proc in weapon.procs
     )
-    action_key = _compiled_action_key(sheet.sheet_id, _BASIC_ATTACK)
+    action_key = _compiled_action_key(sheet.sheet_id, canonical_action_key)
     return ActionSpec(
         action_key=action_key,
         targeting=TargetingSpec(
@@ -367,9 +393,9 @@ def _compile_basic_attack(sheet: CombatSheet) -> ActionSpec:
                 duration_ms=0,
                 effects=(
                     AttackGate(
-                        attack_key="main_hand",
+                        attack_key=weapon_slot,
                         kind=AttackKind.BASIC,
-                        attack_rating_key="attack.main_hand",
+                        attack_rating_key=f"attack.{weapon_slot}",
                         defense_rating_key="defense",
                         effects=tuple(post_hit),
                         passive_defense_keys=tuple(passives),
@@ -382,7 +408,13 @@ def _compile_basic_attack(sheet: CombatSheet) -> ActionSpec:
             NamedScalar("expected_damage", expected_damage),
             NamedScalar("commitment_ms", float(cooldown_ms)),
         ),
-        tags=("combat", "attack", "melee" if not weapon.ranged else "ranged"),
+        tags=(
+            "combat",
+            "attack",
+            "weapon",
+            "melee" if not weapon.ranged else "ranged",
+            f"weapon.{weapon_slot}",
+        ),
     )
 
 

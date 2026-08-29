@@ -39,6 +39,12 @@ def combat_profile_dict(
     if sheet.weapon is not None:
         weapon = asdict(sheet.weapon)
         weapon["procs"] = [asdict(proc) for proc in sheet.weapon.procs]
+    off_hand_weapon = None
+    if sheet.off_hand_weapon is not None:
+        off_hand_weapon = asdict(sheet.off_hand_weapon)
+        off_hand_weapon["procs"] = [
+            asdict(proc) for proc in sheet.off_hand_weapon.procs
+        ]
     return {
         "schema_version": COMBAT_PROFILE_SCHEMA_VERSION,
         "sheet": {
@@ -71,6 +77,7 @@ def combat_profile_dict(
             "passive_defenses": dict(sheet.passive_defenses),
             "modifiers": asdict(sheet.modifiers),
             "weapon": weapon,
+            "off_hand_weapon": off_hand_weapon,
             "protection": {
                 "type": sheet.protection_type,
                 "trains": sheet.protection_trains,
@@ -141,7 +148,7 @@ def _sheet(data: Mapping[str, Any]) -> CombatSheet:
         "protection",
         "tags",
     }
-    _exact_keys(data, expected, "sheet")
+    _exact_keys(data, expected, "sheet", optional={"off_hand_weapon"})
     source = _object(data, "source")
     _exact_keys(
         source,
@@ -182,6 +189,7 @@ def _sheet(data: Mapping[str, Any]) -> CombatSheet:
         passive_defenses=_number_pairs(_object(data, "passive_defenses")),
         modifiers=_modifiers(_object(data, "modifiers")),
         weapon=_nullable_weapon(data.get("weapon")),
+        off_hand_weapon=_nullable_weapon(data.get("off_hand_weapon")),
         protection_type=(
             None
             if _nullable_string(protection, "type") is None
@@ -296,9 +304,16 @@ def _build(data: Mapping[str, Any]) -> CharacterBuild:
     )
 
 
-def _exact_keys(data: Mapping[str, Any], expected: set[str], field_name: str) -> None:
+def _exact_keys(
+    data: Mapping[str, Any],
+    expected: set[str],
+    field_name: str,
+    *,
+    optional: set[str] | None = None,
+) -> None:
+    optional = optional or set()
     missing = expected - set(data)
-    extra = set(data) - expected
+    extra = set(data) - expected - optional
     if missing:
         raise CombatProfileLoadError(
             f"{field_name} is missing fields: {', '.join(sorted(missing))}"

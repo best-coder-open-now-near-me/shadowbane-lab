@@ -259,23 +259,35 @@ class AffordanceBuilder:
         if action.weapon_attack is not None:
             attack = action.weapon_attack
             minimum = (
-                actor.scalars.get(attack.minimum_damage_scalar, attack.minimum_damage)
+                self._scalar_or_default(
+                    actor,
+                    attack.minimum_damage_scalar,
+                    attack.minimum_damage,
+                )
                 if attack.minimum_damage_scalar is not None
                 else attack.minimum_damage
             )
             maximum = (
-                actor.scalars.get(attack.maximum_damage_scalar, attack.maximum_damage)
+                self._scalar_or_default(
+                    actor,
+                    attack.maximum_damage_scalar,
+                    attack.maximum_damage,
+                )
                 if attack.maximum_damage_scalar is not None
                 else attack.maximum_damage
             )
             values["expected_damage"] = (minimum + maximum) / 2.0
             if binding.target_entity_id is not None:
                 target = self._entities[binding.target_entity_id]
-                attack_rating = actor.scalars.get(
-                    attack.attack_rating_scalar, attack.default_attack_rating
+                attack_rating = self._scalar_or_default(
+                    actor,
+                    attack.attack_rating_scalar,
+                    attack.default_attack_rating,
                 )
-                defense = target.scalars.get(
-                    attack.defense_scalar, attack.default_defense
+                defense = self._scalar_or_default(
+                    target,
+                    attack.defense_scalar,
+                    attack.default_defense,
                 )
                 values["expected_hit_chance"] = attack.hit_chance(
                     attack_rating, defense
@@ -330,6 +342,17 @@ class AffordanceBuilder:
         if actor.team_id == target.team_id:
             return Relation.ALLY
         return Relation.ENEMY
+
+    @staticmethod
+    def _scalar_or_default(
+        entity: EntityState,
+        scalar_key: str,
+        default: float,
+    ) -> float:
+        try:
+            return entity.effective_scalar(scalar_key)
+        except KeyError:
+            return float(default)
 
     @staticmethod
     def _distance(left: Vector2, right: Vector2) -> float:

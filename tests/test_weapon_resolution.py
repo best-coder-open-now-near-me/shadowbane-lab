@@ -15,6 +15,7 @@ from shadowbane_lab.sim import (
     PhaseKind,
     ReferenceEnvironment,
     RemoveEffect,
+    ScalarMultiplier,
     SubjectRef,
     TagOperation,
     TargetingSpec,
@@ -97,6 +98,75 @@ def weapon_action(
 
 
 class WeaponResolutionTests(unittest.TestCase):
+    def test_weapon_roll_uses_active_scalar_modifiers(self) -> None:
+        swing = weapon_action()
+        offense = ActiveEffectState(
+            effect_key="offense",
+            source_entity_id="a",
+            magnitude=1.0,
+            expires_at_ms=10_000,
+            modifiers=(ScalarMultiplier("attack_rating", 1.5),),
+        )
+        defense = ActiveEffectState(
+            effect_key="defense",
+            source_entity_id="b",
+            magnitude=1.0,
+            expires_at_ms=10_000,
+            modifiers=(ScalarMultiplier("defense", 1.25),),
+        )
+        environment = ReferenceEnvironment(
+            ActionCatalog((swing,)),
+            (
+                actor(
+                    "a",
+                    "red",
+                    ("swing",),
+                    scalars={"attack_rating": 100.0},
+                    effects={"offense": offense},
+                ),
+                actor(
+                    "b",
+                    "blue",
+                    (),
+                    scalars={"defense": 80.0},
+                    effects={"defense": defense},
+                ),
+            ),
+            seed=91,
+        )
+
+        batch = environment.step(
+            (decision(environment, "a", "swing", target_id="b", correlation_id="buffed"),)
+        )
+
+        rolled = next(event for event in batch.events if event.kind == EventKind.ATTACK_ROLLED)
+        values = {item.name: item.value for item in rolled.scalars}
+        self.assertEqual(150.0, values["attack_rating"])
+        self.assertEqual(100.0, values["defense"])
+
+    def test_combat_start_effect_expires_on_the_normal_timeline(self) -> None:
+        timed = ActiveEffectState(
+            effect_key="timed",
+            source_entity_id="a",
+            instance_id="initial:timed",
+            magnitude=1.0,
+            expires_at_ms=200,
+            tags={"buff"},
+        )
+        environment = ReferenceEnvironment(
+            ActionCatalog((weapon_action(),)),
+            (
+                actor("a", "red", (), effects={"timed": timed}),
+                actor("b", "blue", ()),
+            ),
+            seed=92,
+        )
+
+        batch = environment.step()
+
+        self.assertNotIn("timed", environment.entity("a").effects)
+        self.assertTrue(any(event.kind == EventKind.EFFECT_REMOVED for event in batch.events))
+
     def test_attack_roll_can_miss_without_applying_damage(self) -> None:
         swing = weapon_action(minimum_hit_chance=0.0, maximum_hit_chance=0.0)
         environment = ReferenceEnvironment(

@@ -78,6 +78,22 @@ class CombatProfileLoaderTests(unittest.TestCase):
         self.assertEqual(sheet, loaded_sheet)
         self.assertEqual(build, loaded_build)
 
+    def test_optional_off_hand_weapon_round_trips_without_breaking_v1_profiles(self) -> None:
+        main_hand = replace(_sheet().weapon, dual_wielding=True)
+        assert main_hand is not None
+        sheet = replace(
+            _sheet(),
+            weapon=main_hand,
+            off_hand_weapon=replace(main_hand, weapon_key="off-hand"),
+        )
+
+        loaded_sheet, loaded_build = load_combat_profile_text(
+            encode_combat_profile(sheet, _build())
+        )
+
+        self.assertEqual(sheet, loaded_sheet)
+        self.assertEqual(_build(), loaded_build)
+
     def test_unknown_profile_field_is_rejected(self) -> None:
         payload = _profile_payload(_sheet(), _build())
         payload["sheet"]["guessed_damage"] = 9000  # type: ignore[index]

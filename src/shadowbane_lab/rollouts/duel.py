@@ -10,7 +10,7 @@ from hashlib import sha256
 from math import hypot
 from statistics import fmean
 
-from shadowbane_lab.combat import CombatSheet
+from shadowbane_lab.combat import CombatSheet, StackPriority
 from shadowbane_lab.combat.compiler import (
     MAGICBANE_COMBAT_FORMULA_REVISION,
     CombatCompilePolicy,
@@ -33,6 +33,8 @@ from shadowbane_lab.sim import (
     RANGE_MAXIMUM_FEATURE,
     ActionCatalog,
     ActiveEffectState,
+    CombatStance,
+    DamageBreakpoint,
     AgentExchange,
     EntityState,
     RangeBand,
@@ -40,6 +42,7 @@ from shadowbane_lab.sim import (
     ScheduledKind,
     close_range_action,
 )
+from shadowbane_lab.sim.actions import EffectModifier, PeriodicPulse
 
 SHADOW_BOLT = "shadowbane.assassin.shadow_bolt"
 SHADOW_TOUCH = "shadowbane.assassin.shadow_touch"
@@ -86,6 +89,75 @@ def _positive_number(value: float, field_name: str) -> None:
 
 
 @dataclass(frozen=True, slots=True)
+class InitialEffectConfig:
+    """Immutable combat-start effect state with simulator-native modifiers."""
+
+    effect_key: str
+    duration_ms: int | None = None
+    magnitude: float = 1.0
+    stacking_key: str | None = None
+    tags: tuple[str, ...] = ()
+    modifiers: tuple[EffectModifier, ...] = ()
+    stack_order: int = 0
+    trains: int = 0
+    stack_priority: StackPriority = StackPriority.ALWAYS
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.effect_key, str) or not self.effect_key.strip():
+            raise ValueError("effect_key must be a non-empty string")
+        if self.duration_ms is not None and (
+            isinstance(self.duration_ms, bool)
+            or not isinstance(self.duration_ms, int)
+            or self.duration_ms < 1
+        ):
+            raise ValueError("duration_ms must be a positive integer or null")
+        if isinstance(self.magnitude, bool) or not isinstance(
+            self.magnitude, (int, float)
+        ):
+            raise ValueError("magnitude must be a number")
+        if self.stacking_key is not None and (
+            not isinstance(self.stacking_key, str) or not self.stacking_key.strip()
+        ):
+            raise ValueError("stacking_key must be a non-empty string or null")
+        if len(self.tags) != len(set(self.tags)) or any(
+            not isinstance(tag, str) or not tag.strip() for tag in self.tags
+        ):
+            raise ValueError("initial effect tags must be unique non-empty strings")
+        for value, field_name in (
+            (self.stack_order, "stack_order"),
+            (self.trains, "trains"),
+        ):
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise ValueError(f"{field_name} must be a non-negative integer")
+        if not isinstance(self.stack_priority, StackPriority):
+            raise ValueError("stack_priority must be a StackPriority")
+        # ActiveEffectState owns validation of the closed modifier union and its state keys.
+        ActiveEffectState(
+            effect_key=self.effect_key,
+            source_entity_id="initial-effect-validator",
+            magnitude=float(self.magnitude),
+            expires_at_ms=self.duration_ms or (1 << 63) - 1,
+            stacking_key=self.stacking_key,
+            tags=set(self.tags),
+            modifiers=self.modifiers,
+            modifier_values={
+                modifier.state_key: 0.0
+                for modifier in self.modifiers
+                if isinstance(modifier, DamageBreakpoint)
+            },
+            stack_order=self.stack_order,
+            trains=self.trains,
+            stack_priority=self.stack_priority,
+        )
+        if self.duration_ms is not None and any(
+            isinstance(modifier, PeriodicPulse)
+            and modifier.duration_ms > self.duration_ms
+            for modifier in self.modifiers
+        ):
+            raise ValueError("periodic pulses must complete within the initial effect duration")
+
+
+@dataclass(frozen=True, slots=True)
 class CombatantConfig:
     entity_id: str
     team_id: str
@@ -97,6 +169,8 @@ class CombatantConfig:
     tags: tuple[str, ...] = ()
     extra_scalars: tuple[tuple[str, float], ...] = ()
     initial_trigger_keys: tuple[str, ...] = ()
+    initial_effects: tuple[InitialEffectConfig, ...] = ()
+    initial_stance: CombatStance = CombatStance.NORMAL
     action_keys_override: tuple[str, ...] | None = None
 
     def __post_init__(self) -> None:
@@ -133,6 +207,15 @@ class CombatantConfig:
         for trigger_key in self.initial_trigger_keys:
             if not isinstance(trigger_key, str) or not trigger_key.strip():
                 raise ValueError("initial trigger keys must be non-empty strings")
+        if any(not isinstance(effect, InitialEffectConfig) for effect in self.initial_effects):
+            raise ValueError("initial_effects must contain InitialEffectConfig values")
+        storage_keys = tuple(
+            effect.stacking_key or effect.effect_key for effect in self.initial_effects
+        )
+        if len(storage_keys) != len(set(storage_keys)):
+            raise ValueError("initial_effects must not share storage keys")
+        if not isinstance(self.initial_stance, CombatStance):
+            raise ValueError("initial_stance must be a CombatStance")
         if self.action_keys_override is not None:
             if len(self.action_keys_override) != len(set(self.action_keys_override)):
                 raise ValueError("action_keys_override must not contain duplicates")
@@ -306,6 +389,8 @@ class VerifiedCombatantConfig:
     team_id: str
     sheet: CombatSheet
     build: CharacterBuild
+    initial_effects: tuple[InitialEffectConfig, ...] = ()
+    initial_stance: CombatStance = CombatStance.NORMAL
 
     def __post_init__(self) -> None:
         for value, name in ((self.entity_id, "entity_id"), (self.team_id, "team_id")):
@@ -315,6 +400,15 @@ class VerifiedCombatantConfig:
             raise ValueError("sheet must be a CombatSheet")
         if not isinstance(self.build, CharacterBuild):
             raise ValueError("build must be a CharacterBuild")
+        if any(not isinstance(effect, InitialEffectConfig) for effect in self.initial_effects):
+            raise ValueError("initial_effects must contain InitialEffectConfig values")
+        storage_keys = tuple(
+            effect.stacking_key or effect.effect_key for effect in self.initial_effects
+        )
+        if len(storage_keys) != len(set(storage_keys)):
+            raise ValueError("initial_effects must not share storage keys")
+        if not isinstance(self.initial_stance, CombatStance):
+            raise ValueError("initial_stance must be a CombatStance")
 
 
 @dataclass(frozen=True, slots=True)
@@ -735,7 +829,7 @@ def run_verified_duel_batch(
 
 def _prepare_verified_duel(config: VerifiedDuelConfig) -> _PreparedVerifiedDuel:
     rank_overrides = _merge_rank_overrides(config.left.build, config.right.build)
-    ruleset = load_shadowbane_vertical_slice(rank_overrides=rank_overrides)
+    ruleset = load_assassin_warlock_duel_ruleset(rank_overrides=rank_overrides)
     left = compile_combatant(
         config.left.sheet,
         config.left.build,
@@ -779,6 +873,16 @@ def _run_prepared_verified_duel(
         config.right.entity_id,
         config.right.team_id,
         Vector2(config.starting_distance, 0.0),
+    )
+    _apply_initial_state(
+        left_entity,
+        config.left.initial_effects,
+        config.left.initial_stance,
+    )
+    _apply_initial_state(
+        right_entity,
+        config.right.initial_effects,
+        config.right.initial_stance,
     )
     left_entity.action_keys = (*left_entity.action_keys, _CLOSE_RANGE)
     right_entity.action_keys = (*right_entity.action_keys, _CLOSE_RANGE)
@@ -1075,7 +1179,7 @@ def _entity(config: CombatantConfig, position: Vector2, ruleset: CompiledRuleset
             stacking_key=storage_key,
             tags={"trigger.passive"},
         )
-    return EntityState(
+    entity = EntityState(
         entity_id=config.entity_id,
         life_id=f"{config.entity_id}:1",
         kind=EntityKind.ACTOR,
@@ -1090,7 +1194,40 @@ def _entity(config: CombatantConfig, position: Vector2, ruleset: CompiledRuleset
         tags=tags,
         action_keys=action_keys,
         effects=initial_effects,
+        stance=config.initial_stance,
     )
+    _apply_initial_state(entity, config.initial_effects, config.initial_stance)
+    return entity
+
+
+def _apply_initial_state(
+    entity: EntityState,
+    effects: tuple[InitialEffectConfig, ...],
+    stance: CombatStance,
+) -> None:
+    entity.stance = stance
+    for index, effect in enumerate(effects):
+        storage_key = effect.stacking_key or effect.effect_key
+        if storage_key in entity.effects:
+            raise ValueError(f"duplicate initial effect storage key: {storage_key}")
+        entity.effects[storage_key] = ActiveEffectState(
+            effect_key=effect.effect_key,
+            source_entity_id=entity.entity_id,
+            instance_id=f"initial-effect:{entity.entity_id}:{index:04d}",
+            magnitude=effect.magnitude,
+            expires_at_ms=effect.duration_ms or (1 << 63) - 1,
+            stacking_key=effect.stacking_key,
+            tags=set(effect.tags),
+            modifiers=effect.modifiers,
+            modifier_values={
+                modifier.state_key: 0.0
+                for modifier in effect.modifiers
+                if isinstance(modifier, DamageBreakpoint)
+            },
+            stack_order=effect.stack_order,
+            trains=effect.trains,
+            stack_priority=effect.stack_priority,
+        )
 
 
 def _combatant_result(

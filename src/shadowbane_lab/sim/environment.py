@@ -6,6 +6,7 @@ from math import ceil, hypot
 
 from shadowbane_lab.protocol import (
     ActionBinding,
+    ActionBinding,
     DecisionMessage,
     EntityKind,
     Event,
@@ -13,6 +14,7 @@ from shadowbane_lab.protocol import (
     EventKind,
     NamedScalar,
     ProtocolMismatchError,
+    TargetKind,
     Vector2,
     validate_exchange,
 )
@@ -22,6 +24,7 @@ from shadowbane_lab.sim.actions import (
     ActionSpec,
     DeliveryKind,
     EffectPrimitive,
+    PeriodicPulse,
     TriggerConsumption,
     TriggerMoment,
 )
@@ -90,6 +93,7 @@ class ReferenceEnvironment:
             if entity.kind is EntityKind.ACTOR and entity.team_id is not None
         )
         self._effect_executor = self._create_effect_executor()
+        self._schedule_initial_effects()
         self._initial_snapshot = self.snapshot()
 
     @property
@@ -531,6 +535,67 @@ class ReferenceEnvironment:
             self._random,
             self._interrupt_actor,
         )
+
+    def _schedule_initial_effects(self) -> None:
+        """Seed expiry and pulse work for effects present at combat start."""
+
+        persistent_expiry = (1 << 63) - 1
+        for entity_id in sorted(self._entities):
+            entity = self._entities[entity_id]
+            for storage_key in sorted(entity.effects):
+                active = entity.effects[storage_key]
+                if active.instance_id is None:
+                    active.instance_id = (
+                        f"initial-effect-instance:{entity_id}:{self._take_schedule_order():012d}"
+                    )
+                correlation_id = f"initial-effect:{entity_id}:{storage_key}"
+                action_key = f"initial.{active.effect_key}"
+                binding = ActionBinding(
+                    actor_id=active.source_entity_id,
+                    target_kind=TargetKind.ENTITY,
+                    target_entity_id=entity_id,
+                )
+                for modifier in active.modifiers:
+                    if not isinstance(modifier, PeriodicPulse):
+                        continue
+                    for pulse_index in range(1, modifier.tick_count + 1):
+                        due_time_ms = pulse_index * modifier.interval_ms
+                        if due_time_ms > active.expires_at_ms:
+                            break
+                        self._schedule(
+                            ScheduledItem(
+                                due_time_ms=due_time_ms,
+                                order=self._take_schedule_order(),
+                                kind=ScheduledKind.EFFECT_PULSE,
+                                actor_id=active.source_entity_id,
+                                correlation_id=correlation_id,
+                                action_key=action_key,
+                                binding=binding,
+                                effects=modifier.effects,
+                                effect_entity_id=entity_id,
+                                effect_storage_key=storage_key,
+                                expected_effect_key=active.effect_key,
+                                expected_effect_instance_id=active.instance_id,
+                                periodic_key=modifier.periodic_key,
+                                pulse_index=pulse_index,
+                            )
+                        )
+                if active.expires_at_ms == persistent_expiry:
+                    continue
+                self._schedule(
+                    ScheduledItem(
+                        due_time_ms=active.expires_at_ms,
+                        order=self._take_schedule_order(),
+                        kind=ScheduledKind.EFFECT_EXPIRY,
+                        actor_id=active.source_entity_id,
+                        correlation_id=correlation_id,
+                        action_key=action_key,
+                        effect_entity_id=entity_id,
+                        effect_storage_key=storage_key,
+                        expected_effect_key=active.effect_key,
+                        expected_effect_instance_id=active.instance_id,
+                    )
+                )
 
     def _interrupt_actor(
         self,

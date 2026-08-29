@@ -24,6 +24,8 @@ def load_assassin_warlock_duel_ruleset(
 
     base = _load_json(_BASE_RESOURCE)
     merged = dict(base)
+    merged_sources = list(_object_array(base, "sources"))
+    known_source_ids = {_string(item, "source_id") for item in merged_sources}
     merged_actions = list(_object_array(base, "actions"))
     known_keys = {_string(item, "action_key") for item in merged_actions}
     current_ruleset_id = _string(base, "ruleset_id")
@@ -34,6 +36,27 @@ def load_assassin_warlock_duel_ruleset(
             raise RulesetLoadError("unsupported Assassin/Warlock extension version")
         if _string(extension, "base_ruleset_id") != current_ruleset_id:
             raise RulesetLoadError("Assassin/Warlock extension targets another base ruleset")
+
+        additional_sources = tuple(
+            cast(dict[str, Any], item)
+            for item in extension.get("additional_sources", [])
+            if isinstance(item, dict)
+        )
+        if len(additional_sources) != len(extension.get("additional_sources", [])):
+            raise RulesetLoadError("additional_sources must contain objects")
+        additional_source_ids = tuple(
+            _string(item, "source_id") for item in additional_sources
+        )
+        if len(additional_source_ids) != len(set(additional_source_ids)):
+            raise RulesetLoadError("extension source ids must be unique")
+        source_overlap = known_source_ids & set(additional_source_ids)
+        if source_overlap:
+            raise RulesetLoadError(
+                "extension duplicates existing sources: "
+                + ", ".join(sorted(source_overlap))
+            )
+        merged_sources.extend(additional_sources)
+        known_source_ids.update(additional_source_ids)
 
         additional_actions = _object_array(extension, "additional_actions")
         additional_keys = tuple(_string(item, "action_key") for item in additional_actions)
@@ -55,6 +78,7 @@ def load_assassin_warlock_duel_ruleset(
         current_ruleset_id = _string(extension, "extension_id")
 
     merged["ruleset_id"] = current_ruleset_id
+    merged["sources"] = merged_sources
     merged["actions"] = merged_actions
     return load_ruleset_text(json.dumps(merged), rank_overrides=rank_overrides)
 
