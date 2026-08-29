@@ -1,0 +1,48 @@
+name: Apply generic weapon-resolution pipeline
+
+on:
+  push:
+    branches:
+      - codex/open-build-exploration
+    paths:
+      - ".github/weapon-pipeline-payload/**"
+      - ".github/workflows/apply-weapon-resolution-pipeline.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Reconstruct and apply reviewed pipeline patch
+        shell: bash
+        run: |
+          cat .github/weapon-pipeline-payload/part-* > /tmp/apply-weapon-pipeline.py.gz.b64
+          base64 --decode /tmp/apply-weapon-pipeline.py.gz.b64 > /tmp/apply-weapon-pipeline.py.gz
+          echo "f6b3159c320238a06efbd37f17d83002db99f88e694af9403d09cf67e240286d  /tmp/apply-weapon-pipeline.py.gz" | sha256sum --check -
+          gunzip -c /tmp/apply-weapon-pipeline.py.gz > /tmp/apply-weapon-pipeline.py
+          echo "70edcab8b058753b0be7d9ba7e609f11f81e8cac708711e955b2036dd431e028  /tmp/apply-weapon-pipeline.py" | sha256sum --check -
+          python /tmp/apply-weapon-pipeline.py
+          rm -rf .github/weapon-pipeline-payload
+      - name: Validate and format
+        run: |
+          python -m pip install -e ".[test]"
+          ruff check --fix src tests
+          ruff format src tests
+          python -m unittest discover -s tests -v
+          ruff check src tests
+          ruff format --check src tests
+      - name: Commit weapon pipeline
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: add generic weapon-resolution pipeline"
+          git push
