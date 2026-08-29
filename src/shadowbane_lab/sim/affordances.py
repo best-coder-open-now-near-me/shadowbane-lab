@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from math import hypot
 
+from shadowbane_lab.combat import melee_hit_chance_percent, power_hit_chance_percent
 from shadowbane_lab.protocol import (
     ActionBinding,
     Affordance,
@@ -20,6 +21,9 @@ from shadowbane_lab.sim.actions import (
     ActionCatalog,
     ActionSpec,
     ApplyEffect,
+    AreaEffect,
+    AttackGate,
+    AttackKind,
     DealDamage,
     ModifyObjective,
     TransferItem,
@@ -58,6 +62,7 @@ class AffordanceBuilder:
             self._observe_entity(actor, self._entities[entity_id])
             for entity_id in sorted(self._entities)
             if self._entities[entity_id].alive or entity_id == agent_id
+            if self._can_observe(actor, self._entities[entity_id])
         )
         observation = ObservationMessage(
             message_id=f"message:{observation_id}",
@@ -152,6 +157,8 @@ class AffordanceBuilder:
                 continue
             if self._relation(actor, target) not in action.targeting.allowed_relations:
                 continue
+            if not self._can_observe(actor, target):
+                continue
             if not self._position_in_range(actor.position, target.position, action):
                 continue
             if modifies_objective and target.kind is not EntityKind.OBJECTIVE:
@@ -207,14 +214,14 @@ class AffordanceBuilder:
             return False
         if set(action.forbidden_actor_tags) & tags:
             return False
+        if "control.silence" in tags and "power" in action.tags:
+            return False
         return all(
             actor.scalars.get(cost.resource_key, 0.0) >= cost.amount for cost in action.costs
         )
 
     def _observe_entity(self, actor: EntityState, entity: EntityState) -> EntityObservation:
-        scalars = {
-            name: entity.effective_scalar(name) for name in sorted(entity.scalars)
-        }
+        scalars = {name: entity.effective_scalar(name) for name in sorted(entity.scalars)}
         blocking_prefix = "resource.restore.block."
         for effect in entity.effects.values():
             for tag in effect.tags:
@@ -233,9 +240,7 @@ class AffordanceBuilder:
             relation=self._relation(actor, entity),
             position=entity.position,
             velocity=entity.velocity,
-            scalars=tuple(
-                NamedScalar(name, value) for name, value in sorted(scalars.items())
-            ),
+            scalars=tuple(NamedScalar(name, value) for name, value in sorted(scalars.items())),
             tags=tuple(sorted(entity.effective_tags)),
         )
 
@@ -256,6 +261,12 @@ class AffordanceBuilder:
             values["distance"] = self._distance(actor.position, target.position)
         for feature in action.features:
             values[feature.name] = feature.value
+        active_triggers = tuple(
+            trigger
+            for active in actor.effects.values()
+            if (trigger := self._catalog.trigger_for_effect(active.effect_key)) is not None
+            and trigger.matches(action.action_key, frozenset(action.tags))
+        )
         if action.weapon_attack is not None:
             attack = action.weapon_attack
             minimum = (
@@ -289,17 +300,39 @@ class AffordanceBuilder:
                     attack.defense_scalar,
                     attack.default_defense,
                 )
-                values["expected_hit_chance"] = attack.hit_chance(
-                    attack_rating, defense
+                values["expected_hit_chance"] = attack.hit_chance(attack_rating, defense)
+        elif binding.target_entity_id is not None:
+            attack_gate = next(self._attack_gates(action), None)
+            if attack_gate is not None:
+                target = self._entities[binding.target_entity_id]
+                modifiers = tuple(
+                    trigger.attack_modifier
+                    for trigger in active_triggers
+                    if trigger.attack_modifier is not None
                 )
+                attack_rating = self._scalar_or_default(
+                    actor,
+                    attack_gate.attack_rating_key,
+                    0.0,
+                ) + sum(modifier.attack_rating_bonus for modifier in modifiers)
+                defense = self._scalar_or_default(
+                    target,
+                    attack_gate.defense_rating_key,
+                    0.0,
+                )
+                bypass = any(modifier.bypass_defense for modifier in modifiers)
+                chance_percent = (
+                    100
+                    if bypass
+                    else melee_hit_chance_percent(attack_rating, defense)
+                    if attack_gate.kind is AttackKind.BASIC
+                    else power_hit_chance_percent(attack_rating, defense)
+                )
+                values["expected_hit_chance"] = chance_percent / 100.0
         trigger_damage = 0.0
         trigger_control_ms = 0.0
         trigger_count = 0
-        action_tags = frozenset(action.tags)
-        for active in actor.effects.values():
-            trigger = self._catalog.trigger_for_effect(active.effect_key)
-            if trigger is None or not trigger.matches(action.action_key, action_tags):
-                continue
+        for trigger in active_triggers:
             trigger_count += 1
             if trigger.attack_modifier is not None:
                 modifier = trigger.attack_modifier
@@ -308,7 +341,11 @@ class AffordanceBuilder:
                 ) / 2.0
             for effect in trigger.payload:
                 if isinstance(effect, DealDamage):
-                    trigger_damage += effect.amount
+                    trigger_damage += (
+                        float(effect.amount)
+                        if isinstance(effect.amount, (int, float))
+                        else effect.amount.expected
+                    )
                 elif isinstance(effect, ApplyEffect) and any(
                     tag.startswith("control.") for tag in effect.tags
                 ):
@@ -320,6 +357,17 @@ class AffordanceBuilder:
         if trigger_control_ms:
             values["trigger_control_duration_ms"] = trigger_control_ms
         return tuple(NamedScalar(name, values[name]) for name in sorted(values))
+
+    @staticmethod
+    def _attack_gates(action: ActionSpec):
+        for phase in action.phases:
+            for effect in phase.effects:
+                if isinstance(effect, AttackGate):
+                    yield effect
+                elif isinstance(effect, AreaEffect):
+                    yield from (
+                        nested for nested in effect.effects if isinstance(nested, AttackGate)
+                    )
 
     def _position_in_range(
         self,
@@ -342,6 +390,14 @@ class AffordanceBuilder:
         if actor.team_id == target.team_id:
             return Relation.ALLY
         return Relation.ENEMY
+
+    @staticmethod
+    def _can_observe(actor: EntityState, target: EntityState) -> bool:
+        return (
+            target.entity_id == actor.entity_id
+            or "visibility.invisible" not in target.effective_tags
+            or "detection.see_invisible" in actor.effective_tags
+        )
 
     @staticmethod
     def _scalar_or_default(

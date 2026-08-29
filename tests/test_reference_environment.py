@@ -74,6 +74,95 @@ def actor(
 
 
 class ReferenceEnvironmentTests(unittest.TestCase):
+    def test_invisible_enemy_is_hidden_until_actor_has_detection(self) -> None:
+        attack = ActionSpec(
+            action_key="attack",
+            targeting=TargetingSpec(
+                kind=TargetKind.ENTITY,
+                allowed_relations=(Relation.ENEMY,),
+                maximum_range=3.0,
+            ),
+            phases=(ActionPhase(kind=PhaseKind.ACTIVE, duration_ms=0),),
+        )
+
+        def exchange(*, detected: bool):
+            attacker = actor("attacker", "red", Vector2(0.0, 0.0), ("attack",))
+            if detected:
+                attacker.tags.add("detection.see_invisible")
+            target = actor("target", "blue", Vector2(1.0, 0.0), ())
+            target.effects["Invisible"] = ActiveEffectState(
+                effect_key="invisible",
+                source_entity_id="target",
+                magnitude=1.0,
+                expires_at_ms=30_000,
+                tags=("visibility.invisible",),
+            )
+            environment = ReferenceEnvironment(
+                ActionCatalog((attack,)),
+                (attacker, target),
+                seed=1,
+            )
+            return environment.exchange("attacker")
+
+        hidden = exchange(detected=False)
+        detected = exchange(detected=True)
+
+        self.assertEqual(
+            ("attacker",), tuple(item.entity_id for item in hidden.observation.entities)
+        )
+        self.assertEqual((), hidden.affordances.affordances)
+        self.assertEqual(
+            ("attacker", "target"),
+            tuple(item.entity_id for item in detected.observation.entities),
+        )
+        self.assertEqual(1, len(detected.affordances.affordances))
+
+    def test_silence_blocks_power_affordances_but_not_weapon_attacks(self) -> None:
+        targeting = TargetingSpec(
+            kind=TargetKind.ENTITY,
+            allowed_relations=(Relation.ENEMY,),
+            maximum_range=3.0,
+        )
+        weapon = ActionSpec(
+            action_key="weapon",
+            targeting=targeting,
+            phases=(ActionPhase(kind=PhaseKind.ACTIVE, duration_ms=0),),
+            tags=("attack", "weapon"),
+        )
+        power = ActionSpec(
+            action_key="power",
+            targeting=targeting,
+            phases=(ActionPhase(kind=PhaseKind.ACTIVE, duration_ms=0),),
+            tags=("attack", "power"),
+        )
+        silenced = actor(
+            "silenced",
+            "red",
+            Vector2(0.0, 0.0),
+            ("weapon", "power"),
+        )
+        silenced.effects["Silence"] = ActiveEffectState(
+            effect_key="silenced",
+            source_entity_id="target",
+            magnitude=1.0,
+            expires_at_ms=30_000,
+            tags=("control.silence",),
+        )
+        environment = ReferenceEnvironment(
+            ActionCatalog((weapon, power)),
+            (
+                silenced,
+                actor("target", "blue", Vector2(1.0, 0.0), ()),
+            ),
+            seed=1,
+        )
+
+        actions = {
+            item.action_key for item in environment.exchange("silenced").affordances.affordances
+        }
+
+        self.assertEqual({"weapon"}, actions)
+
     def test_chance_gate_emits_seeded_outcome_and_applies_damage_only_on_success(self) -> None:
         proc_attack = ActionSpec(
             action_key="proc_attack",
@@ -166,9 +255,7 @@ class ReferenceEnvironmentTests(unittest.TestCase):
             ),
             seed=1,
         )
-        decision = action_for(
-            environment, "a", "stun", target_id="b", correlation_id="stun-b"
-        )
+        decision = action_for(environment, "a", "stun", target_id="b", correlation_id="stun-b")
 
         environment.step((decision,))
 
@@ -217,9 +304,7 @@ class ReferenceEnvironmentTests(unittest.TestCase):
             ),
             seed=1,
         )
-        decision = action_for(
-            environment, "a", "stun", target_id="b", correlation_id="immune"
-        )
+        decision = action_for(environment, "a", "stun", target_id="b", correlation_id="immune")
 
         events = environment.step((decision,)).events
 

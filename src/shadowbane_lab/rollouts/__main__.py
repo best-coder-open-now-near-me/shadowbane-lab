@@ -30,6 +30,8 @@ from shadowbane_lab.rollouts import (
     run_smart_camp_batch,
     run_verified_duel,
     run_verified_duel_batch,
+    wonderbane_sundancer_deflock_matrix,
+    wonderbane_sundancer_vs_deflock,
 )
 
 
@@ -60,6 +62,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         choices=(
             "duels",
             "verified-duel",
+            "wonderbane-guide-duel",
             "frost-walker",
             "pure-frost-walker",
             "irekei-proc",
@@ -87,11 +90,80 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--right-profile", type=Path)
     parser.add_argument("--accept-source-revision", action="store_true")
     parser.add_argument("--accept-ruleset-overrides", action="store_true")
+    parser.add_argument("--assassin-stealthed", action="store_true")
     arguments = parser.parse_args(argv)
     if arguments.pve_calibration is not None and arguments.scenario != "smart-camp":
         parser.error("--pve-calibration is supported only by --scenario smart-camp")
-    if arguments.matrix and arguments.scenario != "duels":
-        parser.error("--matrix is supported only by --scenario duels")
+    if arguments.matrix and arguments.scenario not in ("duels", "wonderbane-guide-duel"):
+        parser.error("--matrix is supported only by duel scenarios")
+    if arguments.scenario == "wonderbane-guide-duel":
+        if arguments.left_profile is not None or arguments.right_profile is not None:
+            parser.error("wonderbane-guide-duel uses its bundled guide profiles")
+        if arguments.matrix:
+            cells = wonderbane_sundancer_deflock_matrix(
+                starting_distances=arguments.distances,
+                assassin_stealth_openers=(arguments.assassin_stealthed,),
+                episodes=arguments.episodes,
+                max_ticks=arguments.max_ticks,
+                seed_start=arguments.seed,
+            )
+            if arguments.json:
+                print(
+                    json.dumps(
+                        [cell.as_dict() for cell in cells],
+                        indent=2,
+                        sort_keys=True,
+                    )
+                )
+            else:
+                print("range  hidden  episodes  A-wins  W-wins  draws  mean_ticks")
+                for cell in cells:
+                    wins = {item.entity_id: item.wins for item in cell.batch.combatants}
+                    print(
+                        f"{cell.starting_distance:>5.1f}  "
+                        f"{str(cell.assassin_starts_stealthed):>6}  "
+                        f"{cell.batch.episodes:>8}  {wins['assassin']:>6}  "
+                        f"{wins['warlock']:>6}  {cell.batch.draws:>5}  "
+                        f"{cell.batch.mean_ticks:>10.1f}"
+                    )
+            return 0
+        config = wonderbane_sundancer_vs_deflock(
+            starting_distance=arguments.distance,
+            max_ticks=arguments.max_ticks,
+            seed=arguments.seed,
+            assassin_starts_stealthed=arguments.assassin_stealthed,
+        )
+        result = (
+            run_verified_duel(config)
+            if arguments.episodes == 1
+            else run_verified_duel_batch(
+                config,
+                episodes=arguments.episodes,
+                seed_start=arguments.seed,
+            )
+        )
+        if arguments.json:
+            print(json.dumps(result.as_dict(), indent=2, sort_keys=True))
+        elif arguments.episodes == 1:
+            duel = result.duel
+            print(
+                f"WonderBane guide duel: winner={duel.winner_entity_id or 'draw'}; "
+                f"reason={duel.reason.value}; ticks={duel.ticks}; "
+                f"hidden={arguments.assassin_stealthed}"
+            )
+            for combatant in duel.combatants:
+                print(
+                    f"{combatant.entity_id}: health={combatant.final_health:.1f}; "
+                    f"mana={combatant.final_mana:.1f}; damage={combatant.damage_dealt:.1f}"
+                )
+        else:
+            wins = {item.entity_id: item.wins for item in result.combatants}
+            print(
+                f"WonderBane guide batch: episodes={result.episodes}; "
+                f"assassin_wins={wins['assassin']}; warlock_wins={wins['warlock']}; "
+                f"draws={result.draws}; mean_ticks={result.mean_ticks:.1f}"
+            )
+        return 0
     if arguments.scenario == "verified-duel":
         if arguments.left_profile is None or arguments.right_profile is None:
             parser.error("verified-duel requires --left-profile and --right-profile")
@@ -117,7 +189,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 accepted_compatibility=tuple(accepted),
                 allow_ruleset_overrides=arguments.accept_ruleset_overrides,
             ),
-            starting_distance=10.0,
+            starting_distance=arguments.distance,
             max_ticks=arguments.max_ticks,
             seed=arguments.seed,
         )

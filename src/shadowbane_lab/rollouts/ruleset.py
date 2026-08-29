@@ -13,6 +13,7 @@ _BASE_RESOURCE = "data/shadowbane_vertical_slice_v1.json"
 _EXTENSION_RESOURCES = (
     "data/assassin_warlock_progression_v1.json",
     "data/assassin_shadow_mantle_v1.json",
+    "data/wonderbane_sundancer_deflock_v1.json",
 )
 _PROMOTED_BASE_ACTIONS = frozenset({"shadowbane.assassin.shadow_mantle"})
 

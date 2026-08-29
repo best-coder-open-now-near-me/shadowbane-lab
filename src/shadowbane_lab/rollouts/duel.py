@@ -28,14 +28,14 @@ from shadowbane_lab.protocol import (
     Vector2,
 )
 from shadowbane_lab.rollouts.ruleset import load_assassin_warlock_duel_ruleset
-from shadowbane_lab.rulesets import CharacterBuild, CompiledRuleset, load_shadowbane_vertical_slice
+from shadowbane_lab.rulesets import CharacterBuild, CompiledRuleset
 from shadowbane_lab.sim import (
     RANGE_MAXIMUM_FEATURE,
     ActionCatalog,
     ActiveEffectState,
+    AgentExchange,
     CombatStance,
     DamageBreakpoint,
-    AgentExchange,
     EntityState,
     RangeBand,
     ReferenceEnvironment,
@@ -554,8 +554,6 @@ class UtilityDuelPolicy:
         actor = next(
             entity for entity in exchange.observation.entities if entity.relation is Relation.SELF
         )
-        if "control.power_block" in actor.tags:
-            return None
         health = _scalar(actor.scalars, "health")
         actor_tags = frozenset(actor.tags)
         target_tags = {
@@ -586,6 +584,9 @@ class UtilityDuelPolicy:
         features = {feature.name: feature.value for feature in affordance.features}
         tags = frozenset(affordance.tags)
         commitment_ms = max(1.0, features.get("commitment_ms", 1.0))
+        actor = next(
+            entity for entity in exchange.observation.entities if entity.relation is Relation.SELF
+        )
 
         if "damage_absorber" in tags:
             if any(tag.startswith("breakpoint.damage.") for tag in actor_tags):
@@ -619,11 +620,6 @@ class UtilityDuelPolicy:
             )
             if not enemies:
                 return float("-inf")
-            actor = next(
-                entity
-                for entity in exchange.observation.entities
-                if entity.relation is Relation.SELF
-            )
             distance = min(_distance(actor.position, enemy.position) for enemy in enemies)
             if distance > 15.0:
                 return -25.0
@@ -645,10 +641,38 @@ class UtilityDuelPolicy:
             )
 
         expected_damage = features.get("expected_damage", 0.0)
+        expected_damage += features.get("trigger_expected_damage", 0.0)
+        expected_hit_chance = features.get("expected_hit_chance", 1.0)
         control_ms = features.get("control_duration_ms", 0.0)
         healing_denial_ms = features.get("healing_denial_ms", 0.0)
         target_id = affordance.binding.target_entity_id
         selected_target_tags = target_tags.get(target_id, ()) if target_id is not None else ()
+        applied_effects = tuple(
+            tag.removeprefix("applies.") for tag in tags if tag.startswith("applies.")
+        )
+        if applied_effects and any(
+            effect_key in selected_target_tags for effect_key in applied_effects
+        ):
+            return float("-inf")
+        if "cleanse" in tags:
+            return 35.0 if "debuff" in actor_tags else float("-inf")
+        if "resource_conversion" in tags:
+            stamina = _scalar(actor.scalars, "stamina")
+            if stamina > features.get("stamina_threshold", 50.0):
+                return float("-inf")
+            return 10.0 + features.get("expected_stamina_restoration", 0.0)
+        debuff_value = (
+            features.get("attack_penalty_fraction", 0.0) * 30.0
+            + features.get("defense_penalty_fraction", 0.0) * 25.0
+            + features.get("resistance_penalty", 0.0) / 4.0
+            + features.get("attribute_penalty", 0.0) / 8.0
+        )
+        if "debuff" in tags and debuff_value > 0.0:
+            setup_window_ms = min(
+                features.get("effect_duration_ms", 0.0),
+                20_000.0,
+            )
+            return 12.0 + debuff_value * setup_window_ms / commitment_ms
         if target_id is not None and "immunity.stun" in target_tags.get(target_id, ()):
             control_ms = 0.0
         if healing_denial_ms > 0.0:
@@ -656,7 +680,9 @@ class UtilityDuelPolicy:
                 return float("-inf")
             return 12.0 + healing_denial_ms / 300.0
         if expected_damage > 0.0 or control_ms > 0.0:
-            return expected_damage * 1_000.0 / commitment_ms + control_ms / 300.0
+            return expected_hit_chance * (
+                expected_damage * 1_000.0 / commitment_ms + control_ms / 300.0
+            )
 
         if "range.close" in tags:
             distance = features.get("distance")
@@ -1257,8 +1283,26 @@ def _combatant_result(
             else:
                 weapon_misses += 1
         elif (
-            event.kind == EventKind.PASSIVE_DEFENSE_TRIGGERED
-            and event.target_entity_id == config.entity_id
+            event.kind == EventKind.ATTACK_RESOLVED
+            and event.source_entity_id == config.entity_id
+            and "attack.basic" in event.tags
+        ):
+            attacks_attempted += 1
+            if "outcome.hit" in event.tags:
+                weapon_hits += 1
+            else:
+                weapon_misses += 1
+        elif (
+            event.kind
+            in (
+                EventKind.PASSIVE_DEFENSE_TRIGGERED,
+                EventKind.PASSIVE_DEFENSE_RESOLVED,
+            )
+            and event.source_entity_id == config.entity_id
+            and (
+                event.kind == EventKind.PASSIVE_DEFENSE_TRIGGERED
+                or "outcome.triggered" in event.tags
+            )
         ):
             passive_defenses += 1
         elif (

@@ -94,6 +94,28 @@ mana use, rejected actions, formula revision, and both sheet acceptance records.
 `--accept-ruleset-overrides` to reject the current archived static Assassin/Warlock power rows
 until current WonderBane differential traces promote them.
 
+## Archived guide matchup
+
+The bundled `wonderbane-guide-duel` scenario needs no external profile files. It compiles the full
+combat-relevant archived high-Intelligence Irekei Sun Dancer proc Assassin and Shade Fighter
+Deflock builds, including their per-hand weapons, complete selected power kits, disciplines and
+ordinary combat-start effects:
+
+```powershell
+python -m shadowbane_lab.rollouts `
+  --scenario wonderbane-guide-duel `
+  --matrix `
+  --distances 6,15,40,100 `
+  --episodes 1000 `
+  --assassin-stealthed `
+  --max-ticks 2400 `
+  --json
+```
+
+The scenario accepts its bundled source-revision sheets and reviewed static ruleset overrides
+explicitly. See [wonderbane-sundancer-deflock-presets.md](wonderbane-sundancer-deflock-presets.md)
+for the complete inputs, first sweep and remaining live calibration boundaries.
+
 The checked-in level-75 source scenarios are
 `configs/combat/irekei-proc-assassin-75.source.json` and
 `configs/combat/nephilim-resist-warlock-75.source.json`. They intentionally describe naked

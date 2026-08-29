@@ -183,7 +183,7 @@ class DuelRolloutTests(unittest.TestCase):
             power_ranks=(0,),
             starting_distances=(15.0, 60.0),
             seeds=(1, 2),
-            max_ticks=25,
+            max_ticks=100,
         )
 
         self.assertEqual(2, len(cells))
@@ -210,7 +210,7 @@ class DuelRolloutTests(unittest.TestCase):
                     "--seeds",
                     "1,2",
                     "--max-ticks",
-                    "25",
+                    "100",
                     "--json",
                 )
             )

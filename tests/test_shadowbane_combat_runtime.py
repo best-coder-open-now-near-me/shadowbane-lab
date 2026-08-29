@@ -6,10 +6,12 @@ from shadowbane_lab.sim import (
     ActionCatalog,
     ActionPhase,
     ActionSpec,
+    ActionTriggerSpec,
     ActiveEffectState,
     ApplyEffect,
     AttackGate,
     AttackKind,
+    AttackModifierSpec,
     DamageBreakpoint,
     DealDamage,
     DeterministicRandom,
@@ -23,6 +25,8 @@ from shadowbane_lab.sim import (
     SubjectRef,
     TargetingSpec,
     TriangularAmount,
+    TriggerConsumption,
+    TriggerMoment,
 )
 
 
@@ -31,6 +35,8 @@ def _actor(
     team_id: str,
     action_keys: tuple[str, ...],
     scalars: dict[str, float],
+    *,
+    effects: dict[str, ActiveEffectState] | None = None,
 ) -> EntityState:
     health = scalars["health"]
     return EntityState(
@@ -42,6 +48,7 @@ def _actor(
         scalars=scalars,
         maximums={"health": health},
         action_keys=action_keys,
+        effects=effects or {},
     )
 
 
@@ -79,6 +86,94 @@ def _decision(environment: ReferenceEnvironment, correlation_id: str = "attack")
 
 
 class ShadowbaneCombatRuntimeTests(unittest.TestCase):
+    def test_attack_gate_modifier_inherits_typed_base_damage_channel(self) -> None:
+        attack = ActionSpec(
+            action_key="weapon",
+            targeting=TargetingSpec(
+                kind=TargetKind.ENTITY,
+                allowed_relations=(Relation.ENEMY,),
+                maximum_range=3.0,
+            ),
+            phases=(
+                ActionPhase(
+                    PhaseKind.ACTIVE,
+                    0,
+                    (
+                        AttackGate(
+                            "main_hand",
+                            AttackKind.BASIC,
+                            "attack.main_hand",
+                            "defense",
+                            (
+                                DealDamage(
+                                    SubjectRef.TARGET,
+                                    10.0,
+                                    "crush",
+                                    uses_resistance=True,
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+            tags=("attack", "weapon", "melee"),
+        )
+        provider = ActionSpec(
+            action_key="provider",
+            targeting=TargetingSpec(kind=TargetKind.SELF),
+            phases=(
+                ActionPhase(
+                    PhaseKind.ACTIVE,
+                    0,
+                    (ApplyEffect(SubjectRef.ACTOR, "armed", 10_000),),
+                ),
+            ),
+            armed_trigger=ActionTriggerSpec(
+                trigger_key="armed",
+                required_action_tags=("attack", "weapon", "melee"),
+                fire_on=TriggerMoment.ATTEMPT,
+                consume_on=TriggerConsumption.ATTEMPT,
+                attack_modifier=AttackModifierSpec(
+                    bonus_damage_minimum=20.0,
+                    bonus_damage_maximum=20.0,
+                    bypass_defense=True,
+                ),
+            ),
+        )
+        armed = ActiveEffectState(
+            effect_key="armed",
+            source_entity_id="caster",
+            magnitude=1.0,
+            expires_at_ms=10_000,
+        )
+        environment = ReferenceEnvironment(
+            ActionCatalog((attack, provider)),
+            (
+                _actor(
+                    "caster",
+                    "red",
+                    ("weapon",),
+                    {
+                        "health": 100.0,
+                        "attack.main_hand": 100.0,
+                        "armor_piercing": 0.0,
+                    },
+                    effects={"armed": armed},
+                ),
+                _actor(
+                    "target",
+                    "blue",
+                    (),
+                    {"health": 100.0, "defense": 100.0, "resist.crush": 0.0},
+                ),
+            ),
+            seed=1,
+        )
+
+        environment.step((_decision(environment),))
+
+        self.assertEqual(70.0, environment.entity("target").scalars["health"])
+
     def test_damage_breakpoint_counts_post_resistance_damage_and_breaks_only_above(self) -> None:
         shield = ActionSpec(
             action_key="shield",

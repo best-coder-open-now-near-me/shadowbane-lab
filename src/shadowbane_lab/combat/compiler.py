@@ -16,6 +16,7 @@ from shadowbane_lab.combat.model import (
     CombatSheet,
     CompatibilityStatus,
     WeaponDamageInputs,
+    WeaponProfile,
 )
 from shadowbane_lab.combat.types import ResistanceType
 from shadowbane_lab.protocol import EntityKind, NamedScalar, Relation, TargetKind, Vector2
@@ -255,6 +256,10 @@ def _compile_scalars(sheet: CombatSheet) -> dict[str, float]:
         "stamina": float(sheet.maximum_stamina),
         "move_speed": float(sheet.move_speed),
         "armor_piercing": float(modifiers.armor_piercing),
+        "outgoing.power.damage.factor": 1.0,
+        "outgoing.power.healing.factor": 1.0,
+        "outgoing.proc.damage.factor": 1.0,
+        "outgoing.weapon.damage.factor": 1.0,
         "defense": float(
             defense_rating(
                 sheet.dexterity,
@@ -361,6 +366,7 @@ def _compile_basic_attack(
                     proc.damage_type,
                     uses_resistance=True,
                     power_trains=proc.trains,
+                    source_key=f"proc.{proc.proc_key}",
                 ),
             ),
         )
@@ -442,6 +448,7 @@ def _compile_power_action(sheet: CombatSheet, action: ActionSpec, rank: int) -> 
         features=tuple(
             NamedScalar(name, value) for name, value in sorted(feature_values.items())
         ),
+        tags=tuple(dict.fromkeys((*action.tags, "power"))),
     )
 
 
@@ -660,8 +667,10 @@ def _action_needs_focus(action: ActionSpec) -> bool:
 
 
 def _effect_needs_focus(effect: EffectPrimitive) -> bool:
-    if isinstance(effect, (DealDamage, RestoreResource)):
+    if isinstance(effect, DealDamage):
         return True
+    if isinstance(effect, RestoreResource):
+        return effect.resource_key == "health"
     if isinstance(effect, (ChanceGate, AttackGate, AreaEffect)):
         return any(_effect_needs_focus(nested) for nested in effect.effects)
     if isinstance(effect, ApplyEffect):

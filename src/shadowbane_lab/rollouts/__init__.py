@@ -43,7 +43,9 @@ from shadowbane_lab.rollouts.open_builds import (
 )
 from shadowbane_lab.rollouts.presets import (
     CombatantPreset,
+    WonderBaneMatchupCell,
     wonderbane_deflock,
+    wonderbane_sundancer_deflock_matrix,
     wonderbane_sundancer_proc_assassin,
     wonderbane_sundancer_vs_deflock,
 )
@@ -111,6 +113,7 @@ __all__ = [
     "VerifiedDuelBatchResult",
     "VerifiedDuelConfig",
     "VerifiedDuelResult",
+    "WonderBaneMatchupCell",
     "apply_pve_combat_calibration",
     "generate_primitive_loadouts",
     "matched_progression_duels",
@@ -134,6 +137,7 @@ __all__ = [
     "run_smart_camp",
     "run_smart_camp_batch",
     "wonderbane_deflock",
+    "wonderbane_sundancer_deflock_matrix",
     "wonderbane_sundancer_proc_assassin",
     "wonderbane_sundancer_vs_deflock",
 ]

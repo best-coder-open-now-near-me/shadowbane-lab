@@ -20,7 +20,7 @@ weapon action reaches its configured phase
     -> consume each trigger at its configured boundary
 ```
 
-The action declares its weapon slot, damage type, phase index, scalar names, fallback values, hit-chance bounds, and passive-defense order. Character bodies and equipment provide concrete values through ordinary scalar maps such as:
+The action declares its weapon slot, damage type, phase index, scalar names, fallback values, hit-chance bounds, and passive-defense order. Complete-sheet `AttackGate` weapons use the same trigger moments and modifier ordering, including independent main- and off-hand schedules. Character bodies and equipment provide concrete values through ordinary scalar maps such as:
 
 ```text
 attack_rating
@@ -116,9 +116,12 @@ Focused regressions cover:
 4. a miss consuming Backstab without firing its hit result;
 5. a never-consumed on-hit proc firing repeatedly;
 6. multiple armed attack modifiers contributing to the same qualifying swing;
-7. generic body scalars flowing through loadouts and package assemblies.
+7. generic body scalars flowing through loadouts and package assemblies;
+8. complete-sheet per-hand attacks firing persistent procs and armed weapon powers; and
+9. typed bonus damage inheriting its qualifying weapon's damage channel.
 
-The complete repository suite currently passes 139 tests on Python 3.11, 3.12 and 3.13, together with Ruff lint and formatting checks.
+The complete repository suite passes on the project environment, with focused Ruff checks over
+the combat and rollout slice.
 
 ## First body-versus-recipe ablation
 
@@ -151,12 +154,11 @@ Within the fixed-body sample, healing, ranged damage and invisibility were assoc
 
 The most reusable next additions are:
 
-1. per-hand and dual-wield attack schedules;
-2. attack-delay modifiers and recovery timing;
-3. typed exposes and armor-piercing interaction with resistance;
-4. shields and non-pool defensive effects;
-5. periodic effects and pulse-triggered procs;
-6. live-derived body and equipment scalar packages;
-7. availability constraints for actual owned runes and equipment.
+1. authoritative attack-delay and recovery timing;
+2. typed exposes and armor-piercing interaction with resistance;
+3. shields and non-pool defensive effects;
+4. live-derived body and equipment scalar packages;
+5. numeric stance modifiers and stance-selection policy; and
+6. availability constraints for actual owned runes and equipment.
 
 The pipeline is already able to accept later WonderBane corrections by changing scalar values, action recipes, trigger moments, consumption rules, or ordering policies without restoring class-specific combat code.

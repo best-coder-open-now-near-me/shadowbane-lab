@@ -395,12 +395,36 @@ class EffectExecutor:
             raise SimulationConfigurationError("attack resolution requires an entity target")
         actor = self._entity(item.actor_id)
         target = self._entity(item.binding.target_entity_id)
-        attack_rating = self._required_scalar(actor, effect.attack_rating_key)
+        action = self._catalog.get(item.action_key)
+        action_tags = frozenset(action.tags)
+        contexts = self._matching_trigger_contexts(actor, item.action_key, action_tags)
+        fired_attempt_contexts = self._resolve_trigger_moment(
+            contexts,
+            TriggerMoment.ATTEMPT,
+            actor,
+            item,
+            due_time,
+            eligible_alive,
+            events,
+        )
+        modifiers = tuple(
+            context.trigger.attack_modifier
+            for context in fired_attempt_contexts
+            if context.trigger.attack_modifier is not None
+        )
+        attack_rating = self._required_scalar(actor, effect.attack_rating_key) + sum(
+            modifier.attack_rating_bonus for modifier in modifiers
+        )
         defense_rating = self._required_scalar(target, effect.defense_rating_key)
+        bypass_defense = any(modifier.bypass_defense for modifier in modifiers)
         chance = (
-            melee_hit_chance_percent(attack_rating, defense_rating)
-            if effect.kind is AttackKind.BASIC
-            else power_hit_chance_percent(attack_rating, defense_rating)
+            100
+            if bypass_defense
+            else (
+                melee_hit_chance_percent(attack_rating, defense_rating)
+                if effect.kind is AttackKind.BASIC
+                else power_hit_chance_percent(attack_rating, defense_rating)
+            )
         )
         roll = self._random.randbelow(100)
         hit = roll < chance
@@ -428,7 +452,8 @@ class EffectExecutor:
         )
         if not hit:
             return
-        if "combat.ignore_passive_defense" not in actor.effective_tags:
+        bypass_passive = any(modifier.bypass_passive_defense for modifier in modifiers)
+        if "combat.ignore_passive_defense" not in actor.effective_tags and not bypass_passive:
             for passive_key in effect.passive_defense_keys:
                 passive_chance = min(75.0, self._required_scalar(target, passive_key))
                 if passive_chance < 0.0:
@@ -465,11 +490,78 @@ class EffectExecutor:
             events,
             reason="hit",
         )
+        before_health = target.scalars.get("health", 0.0)
+        damage_multiplier = 1.0
+        for modifier in modifiers:
+            damage_multiplier *= modifier.damage_multiplier
         for nested in effect.effects:
-            if isinstance(nested, ChanceGate):
-                self._resolve_chance(item, nested, due_time, eligible_alive, events)
+            resolved_nested = (
+                replace(
+                    nested,
+                    amount=self._scaled_amount(nested.amount, damage_multiplier),
+                )
+                if isinstance(nested, DealDamage) and damage_multiplier != 1.0
+                else nested
+            )
+            if isinstance(resolved_nested, ChanceGate):
+                self._resolve_chance(
+                    item, resolved_nested, due_time, eligible_alive, events
+                )
             else:
-                self._resolve_direct(item, nested, due_time, eligible_alive, events)
+                self._resolve_direct(
+                    item, resolved_nested, due_time, eligible_alive, events
+                )
+        for modifier in modifiers:
+            if modifier.bonus_damage_maximum <= 0.0:
+                continue
+            bonus = self._random.uniform(
+                modifier.bonus_damage_minimum,
+                modifier.bonus_damage_maximum,
+            )
+            base_damage = next(
+                (nested for nested in effect.effects if isinstance(nested, DealDamage)),
+                None,
+            )
+            if modifier.damage_type_override is not None:
+                damage_type = modifier.damage_type_override
+            elif base_damage is not None:
+                damage_type = base_damage.damage_type.value
+            else:
+                raise SimulationConfigurationError(
+                    "bonus attack damage requires a typed base-damage effect or override"
+                )
+            self._deal_damage(
+                item,
+                DealDamage(
+                    SubjectRef.TARGET,
+                    max(bonus, 1e-12),
+                    damage_type,
+                    uses_resistance=True,
+                    source_key="weapon_power.attack_modifier",
+                ),
+                target,
+                due_time,
+                events,
+            )
+        self._resolve_trigger_moment(
+            contexts,
+            TriggerMoment.HIT,
+            actor,
+            item,
+            due_time,
+            eligible_alive,
+            events,
+        )
+        if target.scalars.get("health", 0.0) < before_health:
+            self._resolve_trigger_moment(
+                contexts,
+                TriggerMoment.DAMAGE,
+                actor,
+                item,
+                due_time,
+                eligible_alive,
+                events,
+            )
 
     def _resolve_chance(
         self,
@@ -653,6 +745,12 @@ class EffectExecutor:
         *,
         extra_tags: tuple[str, ...] = (),
     ) -> float:
+        actor = self._entity(item.actor_id)
+        amount *= self._scalar_or_default(
+            actor,
+            "outgoing.weapon.damage.factor",
+            1.0,
+        )
         raw_resistance = subject.scalars.get(
             f"resistance.{damage_type}", subject.scalars.get("resistance.all", 0.0)
         )
@@ -894,11 +992,21 @@ class EffectExecutor:
         if subject is None:
             raise SimulationConfigurationError("damage requires an entity subject")
         amount = self._resolve_amount(effect.amount)
+        actor = self._entity(item.actor_id)
+        factor_key = (
+            "outgoing.proc.damage.factor"
+            if effect.source_key is not None and effect.source_key.startswith("proc.")
+            else (
+                "outgoing.power.damage.factor"
+                if self._action_has_tag(item.action_key, "power")
+                else "outgoing.weapon.damage.factor"
+            )
+        )
+        amount *= self._scalar_or_default(actor, factor_key, 1.0)
         mitigated = amount
         resistance = 0.0
         armor_piercing = 0.0
         if effect.uses_resistance:
-            actor = self._entity(item.actor_id)
             resistance = self._required_scalar(subject, f"resist.{effect.damage_type.value}")
             resistance += sum(
                 modifier.amount
@@ -1090,6 +1198,12 @@ class EffectExecutor:
         if subject is None:
             raise SimulationConfigurationError("resource restoration requires an entity subject")
         amount = self._resolve_amount(effect.amount)
+        if effect.resource_key == "health":
+            amount *= self._scalar_or_default(
+                self._entity(item.actor_id),
+                "outgoing.power.healing.factor",
+                1.0,
+            )
         mitigated = amount
         resistance = 0.0
         armor_piercing = 0.0
@@ -1182,6 +1296,29 @@ class EffectExecutor:
                 "weighted amount selection did not reach an outcome"
             )
         return amount
+
+    @staticmethod
+    def _scaled_amount(
+        amount: (
+            float
+            | UniformAmount
+            | TriangularAmount
+            | UniformIntegerAmount
+            | WeightedAmount
+        ),
+        factor: float,
+    ) -> float | UniformAmount | TriangularAmount | WeightedAmount:
+        if isinstance(amount, UniformAmount):
+            return UniformAmount(amount.minimum * factor, amount.maximum * factor)
+        if isinstance(amount, TriangularAmount):
+            return TriangularAmount(amount.minimum * factor, amount.maximum * factor)
+        if isinstance(amount, UniformIntegerAmount):
+            return UniformAmount(amount.minimum * factor, amount.maximum * factor)
+        if isinstance(amount, WeightedAmount):
+            return WeightedAmount(
+                tuple((value * factor, weight) for value, weight in amount.outcomes)
+            )
+        return amount * factor
 
     def _modify_scalar(
         self,
@@ -1649,3 +1786,9 @@ class EffectExecutor:
             return entity.effective_scalar(scalar_key)
         except KeyError:
             return float(default)
+
+    def _action_has_tag(self, action_key: str, tag: str) -> bool:
+        try:
+            return tag in self._catalog.get(action_key).tags
+        except KeyError:
+            return False
