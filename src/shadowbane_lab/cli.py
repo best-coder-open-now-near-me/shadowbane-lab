@@ -25,7 +25,16 @@ from shadowbane_lab.character_capture import (
     capture_character,
     load_character_layout,
 )
-from shadowbane_lab.client_extension import ExtensionHeartbeatStatusProvider
+from shadowbane_lab.client_action import (
+    ClientActionEvidenceError,
+    ClientActionRunner,
+    WorldMapDestinationClickAction,
+    save_client_action_evidence,
+)
+from shadowbane_lab.client_extension import (
+    ExtensionHeartbeatStatusProvider,
+    open_windows_extension_event_channel_reader,
+)
 from shadowbane_lab.client_input import (
     ActionInputMapping,
     AnyStopSignal,
@@ -505,6 +514,54 @@ def _parser() -> argparse.ArgumentParser:
     )
     observe_native_world_map.add_argument(
         "--json", action="store_true", help="emit machine-readable JSON"
+    )
+
+    test_world_map_click = client_commands.add_parser(
+        "test-world-map-click",
+        help="dispatch and natively verify one bounded world-map destination click",
+    )
+    test_world_map_click.add_argument("--client-profile", type=Path, required=True)
+    test_world_map_click.add_argument(
+        "--native-world-map-profile",
+        type=Path,
+        help="native world-map profile; defaults to the verified bundled WonderBane build",
+    )
+    test_world_map_click.add_argument(
+        "--map-x-fraction",
+        type=float,
+        required=True,
+        help="horizontal test point in the live map rectangle, from 0 through 1",
+    )
+    test_world_map_click.add_argument(
+        "--map-y-fraction",
+        type=float,
+        required=True,
+        help="vertical test point in the live map rectangle, from 0 through 1",
+    )
+    test_world_map_click.add_argument(
+        "--wait-for-client-seconds",
+        type=float,
+        default=15.0,
+        help="time allowed to foreground the exact client with its world map open",
+    )
+    test_world_map_click.add_argument(
+        "--timeout-seconds",
+        type=float,
+        default=2.0,
+        help="bounded wait for the matching native extension event",
+    )
+    test_world_map_click.add_argument(
+        "--evidence-output",
+        type=Path,
+        help="write a new versioned action-lifecycle evidence artifact",
+    )
+    test_world_map_click.add_argument(
+        "--live",
+        action="store_true",
+        help="required in addition to a profile with live_input_enabled=true",
+    )
+    test_world_map_click.add_argument(
+        "--json", action="store_true", help="emit machine-readable lifecycle evidence"
     )
 
     observe_native_player = client_commands.add_parser(
@@ -2658,6 +2715,125 @@ def _observe_native_world_map(profile_path: Path | None, *, as_json: bool) -> in
             f"pan ({observation.horizontal_pan}, {observation.vertical_pan})"
         )
     return 0
+
+
+def _test_world_map_click(
+    *,
+    client_profile_path: Path,
+    native_world_map_profile_path: Path | None,
+    map_x_fraction: float,
+    map_y_fraction: float,
+    wait_for_client_seconds: float,
+    timeout_seconds: float,
+    evidence_output_path: Path | None,
+    live: bool,
+    as_json: bool,
+) -> int:
+    if not live:
+        return _error(
+            "world-map click testing requires the explicit --live flag",
+            as_json=as_json,
+        )
+    if not 0.0 <= map_x_fraction <= 1.0 or not 0.0 <= map_y_fraction <= 1.0:
+        return _error("map fractions must be in [0, 1]", as_json=as_json)
+    if not 0.0 <= wait_for_client_seconds <= 300.0:
+        return _error(
+            "wait-for-client-seconds must be in [0, 300]",
+            as_json=as_json,
+        )
+    if not 0.1 <= timeout_seconds <= 30.0:
+        return _error("timeout-seconds must be in [0.1, 30]", as_json=as_json)
+    if evidence_output_path is not None and evidence_output_path.exists():
+        return _error(
+            f"client-action evidence destination already exists: {evidence_output_path}",
+            as_json=as_json,
+        )
+
+    try:
+        client_profile = load_calibration(client_profile_path)
+        if not client_profile.live_input_enabled:
+            raise ValueError("client profile is not enabled for live input")
+        world_map_profile = (
+            load_native_world_map_profile(native_world_map_profile_path)
+            if native_world_map_profile_path is not None
+            else load_bundled_native_world_map_profile()
+        )
+        inspector = WindowsForegroundWindowInspector()
+        initial_guard = ForegroundWindowGuard(client_profile, inspector)
+        window = _wait_for_guarded_client(
+            initial_guard,
+            wait_seconds=wait_for_client_seconds,
+        )
+        if (
+            window.process_id is None
+            or window.process_started_at_100ns is None
+            or window.window_handle is None
+        ):
+            raise WindowGuardError(
+                "foreground client lacks an exact process/window lifetime"
+            )
+        guard = ForegroundWindowGuard(
+            client_profile,
+            inspector,
+            expected_process_id=window.process_id,
+            expected_process_started_at_100ns=window.process_started_at_100ns,
+            expected_window_handle=window.window_handle,
+        )
+        with (
+            open_windows_native_world_map_reader(
+                world_map_profile,
+                process_id=window.process_id,
+            ) as world_map_reader,
+            WindowsHotkeyEmergencyStop() as emergency_stop,
+        ):
+            event_reader = open_windows_extension_event_channel_reader(
+                window.process_id,
+                window.process_started_at_100ns,
+            )
+            executor = GuardedInputExecutor(
+                guard=guard,
+                backend=PyAutoGuiBackend(),
+                stop_signal=emergency_stop,
+            )
+            result = ClientActionRunner().run(
+                WorldMapDestinationClickAction(
+                    window_guard=guard,
+                    world_map=world_map_reader,
+                    events=event_reader,
+                    executor=executor,
+                    map_x_fraction=map_x_fraction,
+                    map_y_fraction=map_y_fraction,
+                    timeout_ms=round(timeout_seconds * 1000),
+                )
+            )
+        if evidence_output_path is not None:
+            save_client_action_evidence(evidence_output_path, result)
+    except (
+        CalibrationLoadError,
+        ClientActionEvidenceError,
+        NativeWorldMapError,
+        OSError,
+        RuntimeError,
+        ValueError,
+    ) as exc:
+        return _error(f"world-map click test failed: {exc}", as_json=as_json)
+
+    payload = {"ok": result.succeeded, **result.to_dict()}
+    if evidence_output_path is not None:
+        payload["evidence_output"] = str(evidence_output_path)
+    if as_json:
+        print(json.dumps(payload, allow_nan=False, sort_keys=True))
+    else:
+        for boundary in result.boundaries:
+            print(
+                f"{boundary.at_ms:06d}ms "
+                f"{boundary.boundary.value.upper():<20} {boundary.detail}"
+            )
+        status = "PASS" if result.succeeded else "FAIL"
+        print(f"{status}: {result.terminal_reason}")
+        if evidence_output_path is not None:
+            print(f"Evidence: {evidence_output_path}")
+    return 0 if result.succeeded else 2
 
 
 def _observe_native_player(profile_path: Path | None, *, as_json: bool) -> int:
@@ -5041,6 +5217,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _observe_native_runegates(arguments.profile, as_json=arguments.json)
     if arguments.command == "client" and arguments.client_command == "observe-native-world-map":
         return _observe_native_world_map(arguments.profile, as_json=arguments.json)
+    if arguments.command == "client" and arguments.client_command == "test-world-map-click":
+        return _test_world_map_click(
+            client_profile_path=arguments.client_profile,
+            native_world_map_profile_path=arguments.native_world_map_profile,
+            map_x_fraction=arguments.map_x_fraction,
+            map_y_fraction=arguments.map_y_fraction,
+            wait_for_client_seconds=arguments.wait_for_client_seconds,
+            timeout_seconds=arguments.timeout_seconds,
+            evidence_output_path=arguments.evidence_output,
+            live=arguments.live,
+            as_json=arguments.json,
+        )
     if arguments.command == "client" and arguments.client_command == "observe-native-player":
         return _observe_native_player(arguments.profile, as_json=arguments.json)
     if arguments.command == "client" and arguments.client_command == "observe-native-position":

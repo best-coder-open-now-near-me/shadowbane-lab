@@ -60,6 +60,9 @@ full-world zoom. After accepting the destination it closes the map through the c
 not immediately cancel the new route. A right-click is ignored unless the guarded Shadowbane
 window owns focus, the world map is open, the pixel lies inside its HUD, and the projected LT/LG
 remains inside the active world's bounds. Accepted events use `native_world_map` as their destination source.
+The patched-client destination event can be exercised independently through the
+[bounded client-action harness](client-action-harness.md) before route acceptance and movement
+progress are tested.
 Inspect that read-only projection without clicking with:
 
 ```powershell

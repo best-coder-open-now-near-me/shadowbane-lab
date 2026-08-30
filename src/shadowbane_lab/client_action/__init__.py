@@ -1,5 +1,10 @@
 """Bounded, evidence-bearing acceptance actions for the live client."""
 
+from .evidence import (
+    ClientActionEvidenceError,
+    load_client_action_evidence,
+    save_client_action_evidence,
+)
 from .model import (
     CLIENT_ACTION_RESULT_SCHEMA_VERSION,
     ActionEvidenceValue,
@@ -29,6 +34,7 @@ __all__ = [
     "ClientActionBoundaryRecord",
     "ClientActionCheckpoint",
     "ClientActionEffectObservation",
+    "ClientActionEvidenceError",
     "ClientActionResult",
     "ClientActionRunner",
     "ClientActionSpec",
@@ -39,4 +45,6 @@ __all__ = [
     "WorldMapDestinationClickAction",
     "WorldMapDestinationClickError",
     "WorldMapObservationSource",
+    "load_client_action_evidence",
+    "save_client_action_evidence",
 ]
