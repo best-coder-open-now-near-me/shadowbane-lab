@@ -66,6 +66,7 @@ class ExtensionEventRouterPoll:
     dispatched_events: int
     rejected_events: int
     pending_events: int
+    dispatched_process_ids: tuple[int, ...]
     issues: tuple[str, ...]
 
     def __post_init__(self) -> None:
@@ -81,6 +82,15 @@ class ExtensionEventRouterPoll:
             not isinstance(issue, str) or not issue for issue in self.issues
         ):
             raise ValueError("issues must contain non-empty strings")
+        if (
+            not isinstance(self.dispatched_process_ids, tuple)
+            or any(
+                isinstance(process_id, bool) or not isinstance(process_id, int) or process_id <= 0
+                for process_id in self.dispatched_process_ids
+            )
+            or len(self.dispatched_process_ids) != self.dispatched_events
+        ):
+            raise ValueError("dispatched_process_ids must identify every dispatched event")
 
 
 class ExactExtensionEventRouter:
@@ -134,6 +144,7 @@ class ExactExtensionEventRouter:
 
         issues: list[str] = []
         dispatched = 0
+        dispatched_process_ids: list[int] = []
         rejected = 0
         pending = 0
         for identity, client in clients.items():
@@ -173,6 +184,7 @@ class ExactExtensionEventRouter:
                     break
                 if outcome == "dispatched":
                     dispatched += 1
+                    dispatched_process_ids.append(client.process_id)
                 else:
                     rejected += 1
         return ExtensionEventRouterPoll(
@@ -180,6 +192,7 @@ class ExactExtensionEventRouter:
             dispatched_events=dispatched,
             rejected_events=rejected,
             pending_events=pending,
+            dispatched_process_ids=tuple(dispatched_process_ids),
             issues=tuple(issues[:16]),
         )
 

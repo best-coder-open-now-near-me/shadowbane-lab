@@ -168,8 +168,11 @@ success. The harness still requires one exact native event and acknowledges it o
 identity, pixel, button, snapshot, and coordinate field matches.
 
 This milestone intentionally stops at destination capture. It suppresses the captured down/up pair
-instead of forwarding it to the original map handler, and no extension code yet accepts a route or
-moves the character. Those are separate action boundaries. The status ABI continues to report the
+instead of forwarding it to the original map handler, and no extension code accepts a route or
+moves the character. The node-level manager listener is the downstream API boundary: its exclusive
+consumer validates the exact process lifetime and window, then submits deterministic stop/travel
+operations to that client's existing worker. If the listener is absent, stale, or cannot renew its
+lease, physical clicks pass through to the original client instead of being swallowed. The status ABI continues to report the
 heartbeat path, ABI/version, process ID, initialization state, and Win32 result.
 `verify-heartbeat <heartbeat.json>` strictly checks the schema and binds the file name to the PID
 plus process-creation FILETIME.

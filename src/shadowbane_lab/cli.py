@@ -158,6 +158,7 @@ from shadowbane_lab.manager import (
     DashboardServer,
     ExactClientWorkerBinding,
     ExactClientWorkerRuntime,
+    ExactExtensionEventRouter,
     ForegroundWorkerOperationIngress,
     GuardedWindowControl,
     LiveConfiguredManagerApplication,
@@ -2770,9 +2771,7 @@ def _test_world_map_click(
             or window.process_started_at_100ns is None
             or window.window_handle is None
         ):
-            raise WindowGuardError(
-                "foreground client lacks an exact process/window lifetime"
-            )
+            raise WindowGuardError("foreground client lacks an exact process/window lifetime")
         guard = ForegroundWindowGuard(
             client_profile,
             inspector,
@@ -2826,10 +2825,7 @@ def _test_world_map_click(
         print(json.dumps(payload, allow_nan=False, sort_keys=True))
     else:
         for boundary in result.boundaries:
-            print(
-                f"{boundary.at_ms:06d}ms "
-                f"{boundary.boundary.value.upper():<20} {boundary.detail}"
-            )
+            print(f"{boundary.at_ms:06d}ms {boundary.boundary.value.upper():<20} {boundary.detail}")
         status = "PASS" if result.succeeded else "FAIL"
         print(f"{status}: {result.terminal_reason}")
         if evidence_output_path is not None:
@@ -4201,17 +4197,24 @@ def _listen_for_go_commands(
                 "--manager-manifest and --worker-state-directory must be supplied together"
             )
         worker_ingress = None
+        extension_router = None
         if manager_manifest_path is not None:
             assert worker_state_directory is not None
             manager_manifest = load_manager_manifest(manager_manifest_path)
+            manager_registry = ManifestClientRegistryProvider(
+                WindowsVisibleWindowInspector(),
+                manager_manifest,
+            )
             worker_ingress = ForegroundWorkerOperationIngress(
                 manager_manifest,
-                ManifestClientRegistryProvider(
-                    WindowsVisibleWindowInspector(),
-                    manager_manifest,
-                ),
+                manager_registry,
                 WorkerHeartbeatLedger(manager_manifest, worker_state_directory),
                 WorkerOperationLedger(manager_manifest, worker_state_directory),
+            )
+            extension_router = ExactExtensionEventRouter(
+                manager_manifest,
+                manager_registry,
+                worker_ingress,
             )
         named_catalog = (
             None
@@ -4289,7 +4292,7 @@ def _listen_for_go_commands(
     ) as exc:
         return _error(f"chat control failed: {exc}", as_json=as_json)
 
-    commands: queue.Queue[str | PhysicalPointerInteraction] = queue.Queue()
+    commands: queue.Queue[str | tuple[PhysicalPointerInteraction, float]] = queue.Queue()
     active_lock = threading.Lock()
     active_operation_stop: EventEmergencyStop | None = None
 
@@ -4306,7 +4309,17 @@ def _listen_for_go_commands(
 
     def submit_pointer(interaction: PhysicalPointerInteraction) -> None:
         if interaction.button == "right":
-            commands.put(interaction)
+            commands.put((interaction, time.monotonic()))
+
+    extension_dispatch_times: dict[int, float] = {}
+
+    def poll_extension_events() -> None:
+        if extension_router is None:
+            return
+        result = extension_router.poll_once()
+        observed_at = time.monotonic()
+        for process_id in result.dispatched_process_ids:
+            extension_dispatch_times[process_id] = observed_at
 
     def dispatch_to_exact_worker(
         kind: WorkerOperationKind,
@@ -4375,12 +4388,16 @@ def _listen_for_go_commands(
         return True
 
     world_map_reader = None
-    listener = WindowsGoChatCommandListener(
-        guard,
-        on_command=submit_command,
-        on_interaction=cancel_active_operation,
-        on_pointer=submit_pointer,
-    )
+    listener_callbacks = {
+        "on_command": submit_command,
+        "on_interaction": cancel_active_operation,
+        "on_pointer": submit_pointer,
+    }
+    if extension_router is not None:
+        listener_callbacks["pointer_claims_interaction"] = lambda interaction: (
+            interaction.button == "right"
+        )
+    listener = WindowsGoChatCommandListener(guard, **listener_callbacks)
 
     try:
         with (
@@ -4405,6 +4422,7 @@ def _listen_for_go_commands(
             _print_go_listener_event("listening", as_json=as_json)
             next_listener_heartbeat = time.monotonic() + 30.0
             while not service_stop.is_set():
+                poll_extension_events()
                 if getattr(listener, "is_alive", True) is False:
                     failure_detail = getattr(listener, "failure_detail", None)
                     raise RuntimeError(
@@ -4424,8 +4442,10 @@ def _listen_for_go_commands(
                     continue
 
                 pointer_destination = None
+                pointer_observed_at = None
                 destination_source = None
-                if isinstance(interaction, PhysicalPointerInteraction):
+                if isinstance(interaction, tuple):
+                    interaction, pointer_observed_at = interaction
                     command = (
                         f"world-map right-click ({interaction.screen_x}, {interaction.screen_y})"
                     )
@@ -4463,6 +4483,28 @@ def _listen_for_go_commands(
                     )
                     continue
                 if isinstance(interaction, PhysicalPointerInteraction):
+                    if extension_router is not None:
+                        assert pointer_observed_at is not None
+                        for attempt in range(4):
+                            if (
+                                extension_dispatch_times.get(command_process_id, -1.0)
+                                >= pointer_observed_at
+                            ):
+                                break
+                            if attempt:
+                                time.sleep(0.025)
+                            poll_extension_events()
+                        if (
+                            extension_dispatch_times.get(command_process_id, -1.0)
+                            >= pointer_observed_at
+                        ):
+                            continue
+                        if not dispatch_to_exact_worker(
+                            WorkerOperationKind.STOP,
+                            f"extension-fallback-stop:{command}",
+                            process_id=command_process_id,
+                        ):
+                            continue
                     try:
                         if (
                             world_map_reader is None
@@ -4785,6 +4827,8 @@ def _listen_for_go_commands(
     except (OSError, RuntimeError, ValueError) as exc:
         return _error(f"chat control failed: {exc}", as_json=as_json)
     finally:
+        if extension_router is not None:
+            extension_router.close()
         if world_map_reader is not None:
             world_map_reader.close()
 

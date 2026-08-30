@@ -263,8 +263,13 @@ launching the new exact host.
 
 The existing `/go` and `/pve` chat listener is a node-level guarded operator service, not a per-slot
 worker. It keeps separate singleton ownership because physical chat input belongs to whichever game
-window is foreground. It must not be duplicated once per client. The next automation boundary is
-to route its accepted operation into the already-running exact worker for that foreground client.
+window is foreground. It must not be duplicated once per client. The listener also owns one
+renewable extension-event consumer lease per visible exact client lifetime. A current world-map
+destination event is converted into deterministic stop and travel operations for that event's PID,
+process-creation FILETIME, and HWND even if focus changes after capture. Reused PIDs, rebound HWNDs,
+stale events, unavailable workers, and competing consumers fail closed; an event is acknowledged
+only after its immutable operations are accepted by the node-local ledger. Operation state and the
+worker receipt remain visible through the same `/api/v1/status` response as chat-originated work.
 
 ## Multi-PC boundary
 

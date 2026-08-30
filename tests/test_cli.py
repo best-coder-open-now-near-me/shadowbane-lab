@@ -576,7 +576,15 @@ class ClientCliTests(unittest.TestCase):
         captured: dict[str, object] = {}
 
         class OneCommandListener:
-            def __init__(self, _guard, *, on_command, on_interaction, on_pointer) -> None:
+            def __init__(
+                self,
+                _guard,
+                *,
+                on_command,
+                on_interaction,
+                on_pointer,
+                pointer_claims_interaction,
+            ) -> None:
                 self.on_command = on_command
 
             def __enter__(self):
@@ -603,6 +611,7 @@ class ClientCliTests(unittest.TestCase):
 
         emergency_stop = MagicMock()
         emergency_stop.__enter__.return_value = service_stop
+        extension_router = MagicMock()
         output = io.StringIO()
         with (
             tempfile.TemporaryDirectory() as directory,
@@ -631,6 +640,10 @@ class ClientCliTests(unittest.TestCase):
             patch(
                 "shadowbane_lab.cli.ForegroundWorkerOperationIngress",
                 return_value=ExactIngress(),
+            ),
+            patch(
+                "shadowbane_lab.cli.ExactExtensionEventRouter",
+                return_value=extension_router,
             ),
             patch("shadowbane_lab.cli._run_pve") as run_pve,
             redirect_stdout(output),
@@ -666,6 +679,8 @@ class ClientCliTests(unittest.TestCase):
         self.assertEqual(WorkerOperationKind.PVE, captured["kind"])
         self.assertEqual("/pve", captured["command"])
         self.assertEqual(4320, captured["expected_process_id"])
+        extension_router.poll_once.assert_called()
+        extension_router.close.assert_called_once_with()
         run_pve.assert_not_called()
         events = [json.loads(line) for line in output.getvalue().splitlines()]
         self.assertEqual("accepted", events[1]["event"])

@@ -53,9 +53,13 @@ event. For example:
 
 The open world map is also a native destination input: right-click a point on the map to
 start the same closed-loop `/go` route. Left-clicks retain their normal client behavior.
-The listener reads `ArcWorldMapHud`'s live rectangle, hidden state, world dimensions, zoom,
-and pan and applies the client's inverse projection; it does not assume a fixed resolution or
-full-world zoom. After accepting the destination it closes the map through the current
+On the patched client, the in-process extension snapshots `ArcWorldMapHud`'s live rectangle,
+hidden state, world dimensions, zoom, and pan and applies the client's inverse projection; it
+does not assume a fixed resolution or full-world zoom. A versioned process-lifetime channel hands
+the destination to the node listener, which submits stop then travel through the exact client's
+worker API. The older guarded out-of-process projection remains only as a fail-open fallback when
+the extension does not claim the physical click. A short handoff window prevents listener restarts
+from executing both paths. After accepting the destination it closes the map through the current
 `BEGINHOTKEYS` WorldMap binding before steering begins, so an extra physical exit click does
 not immediately cancel the new route. A right-click is ignored unless the guarded Shadowbane
 window owns focus, the world map is open, the pixel lies inside its HUD, and the projected LT/LG

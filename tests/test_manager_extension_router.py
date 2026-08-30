@@ -129,6 +129,7 @@ class ExtensionEventRouterTests(unittest.TestCase):
         result = router.poll_once()
 
         self.assertEqual(1, result.dispatched_events)
+        self.assertEqual((PROCESS_ID,), result.dispatched_process_ids)
         self.assertEqual([consumer.events[0]], consumer.acknowledged)
         self.assertEqual(
             [WorkerOperationKind.STOP, WorkerOperationKind.TRAVEL],
