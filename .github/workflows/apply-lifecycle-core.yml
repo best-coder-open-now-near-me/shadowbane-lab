@@ -22,6 +22,25 @@ jobs:
           python-version: "3.11"
       - name: Apply lifecycle refactor
         run: python .github/scripts/apply_lifecycle_core.py
+      - name: Repair generated guard
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/shadowbane_lab/sim/timeline.py")
+          text = path.read_text(encoding="utf-8")
+          old = '''        if self.kind in {ScheduledKind.PHASE_RELEASE, ScheduledKind.PHASE_TRANSITION}
+                  and self.phase_index is None:
+          '''
+          new = '''        if (
+              self.kind in {ScheduledKind.PHASE_RELEASE, ScheduledKind.PHASE_TRANSITION}
+              and self.phase_index is None
+          ):
+          '''
+          if old not in text:
+              raise RuntimeError("generated phase guard was not found")
+          path.write_text(text.replace(old, new), encoding="utf-8")
+          PY
       - name: Remove temporary applicator
         run: rm .github/scripts/apply_lifecycle_core.py .github/workflows/apply-lifecycle-core.yml
       - name: Install test dependencies
