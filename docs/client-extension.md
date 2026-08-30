@@ -46,6 +46,20 @@ then atomically publishes the frozen directory.
 Keep the baseline and executable private because they are local game artifacts. Do not commit
 either one.
 
+## Patch manifest and alignment evidence
+
+Schema version 1 pins the source executable by file name, length, PE machine, pointer size, and
+SHA-256. It separately pins the x86 extension artifact and the predicted patched executable hash.
+Each canonically ordered patch site records its PE section, reviewed RVA, exact original and
+replacement bytes, and a bounded masked signature. Signatures must wildcard any bytes the patch
+changes, so an already-patched output can be verified without trusting its file hash alone.
+
+Site alignment is evidence, not write authority. It reports exact, uniquely relocated, missing,
+ambiguous, missing-section, and architecture-mismatch results for a candidate PE. A compatible
+candidate is still rejected by the patch planner unless its complete SHA-256 is the manifest's
+reviewed source hash. The planner also rejects overlapping writes, changed precondition bytes, and
+any in-memory result whose SHA-256 differs from the manifest's predicted output.
+
 ## Loader boundary
 
 The extension DLL's `DllMain` remains minimal. Initialization and heartbeat work happen through
