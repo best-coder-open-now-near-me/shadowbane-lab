@@ -43,6 +43,7 @@ jobs:
           ruff check --fix src/shadowbane_lab/composition tests/test_composition_views.py tests/test_composition_io.py
           ruff format src/shadowbane_lab/composition tests/test_composition_views.py tests/test_composition_io.py
       - name: Validate repository
+        # The example assertion includes both race and consumable attribute grants.
         run: |
           python -m unittest discover -s tests -v
           ruff check src tests
