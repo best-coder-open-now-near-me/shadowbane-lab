@@ -74,6 +74,7 @@ class AStarTravelController:
         self._click_count = 0
         self._replan_count = 0
         self._direct_fallback_count = 0
+        self._partial_route_count = 0
         self._route_mode: str | None = None
         self._travel_reaches_destination = False
         self._terminal: TravelDecision | None = None
@@ -85,6 +86,10 @@ class AStarTravelController:
     @property
     def direct_fallback_count(self) -> int:
         return self._direct_fallback_count
+
+    @property
+    def partial_route_count(self) -> int:
+        return self._partial_route_count
 
     @property
     def route_mode(self) -> str | None:
@@ -125,7 +130,7 @@ class AStarTravelController:
                 ) = self._plan(
                     observation,
                     reason="terrain_refresh",
-                    allow_direct_fallback=True,
+                    allow_partial_fallback=True,
                 )
             except AStarRouteNotFound as exc:
                 return self._stop(self._route_failure(exc), observation)
@@ -133,10 +138,17 @@ class AStarTravelController:
         assert self._travel is not None
         decision = self._travel.step(observation)
         if decision.phase is TravelPhase.COMPLETE and not self._travel_reaches_destination:
-            self._travel = self._direct_plan(reason="horizon_complete")
-            self._travel_reaches_destination = True
-            self._route_mode = "direct_fallback"
-            self._direct_fallback_count += 1
+            if self._replan_count >= self._maximum_replans:
+                return self._stop("maximum_replans", observation)
+            try:
+                self._travel, self._travel_reaches_destination, self._route_mode = self._plan(
+                    observation,
+                    reason="frontier_complete",
+                    allow_partial_fallback=True,
+                )
+            except AStarRouteNotFound as exc:
+                return self._stop(self._route_failure(exc), observation)
+            self._replan_count += 1
             decision = self._travel.step(observation)
         if (
             decision.maneuver is not None
@@ -153,10 +165,10 @@ class AStarTravelController:
                 replacement, reaches_destination, route_mode = self._plan(
                     observation,
                     reason="learned_obstacle",
-                    allow_direct_fallback=False,
+                    allow_partial_fallback=True,
                 )
-            except AStarRouteNotFound:
-                pass
+            except AStarRouteNotFound as exc:
+                return self._stop(self._route_failure(exc), observation)
             else:
                 self._travel = replacement
                 self._travel_reaches_destination = reaches_destination
@@ -181,7 +193,7 @@ class AStarTravelController:
         observation: TravelObservation,
         *,
         reason: str,
-        allow_direct_fallback: bool,
+        allow_partial_fallback: bool,
     ) -> tuple[TravelController, bool, str]:
         assert self._navigation is not None
         planning_destination = self._planning_destination(observation)
@@ -194,10 +206,18 @@ class AStarTravelController:
                 destination=planning_destination,
             )
         except AStarRouteNotFound:
-            if reaches_destination or not allow_direct_fallback:
+            if reaches_destination or not allow_partial_fallback:
                 raise
-            self._direct_fallback_count += 1
-            return self._direct_plan(reason=reason), True, "direct_fallback"
+            route = self._planner.plan_reachable_frontier(
+                self._navigation.navigation_map,
+                start_lt=observation.position.lt,
+                start_lg=observation.position.lg,
+                destination=planning_destination,
+            )
+            self._partial_route_count += 1
+            route_mode = "astar_partial"
+        else:
+            route_mode = "astar_final" if reaches_destination else "astar_horizon"
         return (
             TravelController(
                 TravelPlan(
@@ -210,20 +230,7 @@ class AStarTravelController:
                 self._config,
             ),
             reaches_destination,
-            "astar_final" if reaches_destination else "astar_horizon",
-        )
-
-    def _direct_plan(self, *, reason: str) -> TravelController:
-        assert self._navigation is not None
-        return TravelController(
-            TravelPlan(
-                plan_id=(
-                    f"{self._plan_id}:{reason}:{self._replan_count}:"
-                    f"{self._navigation.token}:direct"
-                ),
-                destinations=(self._destination,),
-            ),
-            self._config,
+            route_mode,
         )
 
     def _planning_destination(self, observation: TravelObservation) -> TravelDestination:
@@ -279,7 +286,8 @@ class AStarTravelController:
     ) -> TravelDecision:
         if self._travel is not None:
             internal = self._travel.stop(reason, observation)
-            return self._translate(internal)
+            if internal.phase is TravelPhase.STOPPED:
+                return self._translate(internal)
         now_ms = 0 if observation is None else observation.now_ms
         distance = (
             0.0 if observation is None else self._destination.distance_from(observation.position)

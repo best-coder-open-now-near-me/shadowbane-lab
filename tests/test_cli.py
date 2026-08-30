@@ -1145,6 +1145,7 @@ class ClientCliTests(unittest.TestCase):
         astar_controller = SimpleNamespace(
             replan_count=2,
             direct_fallback_count=1,
+            partial_route_count=1,
             route_mode="astar_horizon",
             navigation_token="zone-token:3",
         )
@@ -1233,6 +1234,7 @@ class ClientCliTests(unittest.TestCase):
                 "enabled": True,
                 "direct_fallbacks": 1,
                 "navigation_token": "zone-token:3",
+                "partial_routes": 1,
                 "replans": 2,
                 "route_mode": "astar_horizon",
                 "terrain_refreshes": 3,

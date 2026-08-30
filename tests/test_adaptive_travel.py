@@ -11,6 +11,7 @@ from shadowbane_lab.travel import (
     ActiveZoneTerrainNavigationSource,
     AStarRouteNotFound,
     AStarTravelController,
+    NavigationCell,
     NavigationMapSnapshot,
     NavigationPlanningWindow,
     SparseNavigationMap,
@@ -20,6 +21,7 @@ from shadowbane_lab.travel import (
     TravelManeuver,
     TravelObservation,
     TravelPhase,
+    WeightedAStarConfig,
     WeightedAStarPlanner,
 )
 
@@ -118,7 +120,7 @@ class AStarTravelControllerTests(unittest.TestCase):
         self.assertGreater(horizon.lt, 55.0)
         self.assertLess(horizon.lt, 500.0)
 
-    def test_far_destination_uses_direct_motion_when_local_horizon_has_no_route(self) -> None:
+    def test_far_destination_uses_reachable_frontier_when_local_horizon_has_no_route(self) -> None:
         class NoRoutePlanner(WeightedAStarPlanner):
             def plan(self, *_args, **_kwargs):
                 raise AStarRouteNotFound("local terrain is disconnected")
@@ -138,13 +140,63 @@ class AStarTravelControllerTests(unittest.TestCase):
 
         self.assertEqual(TravelPhase.TRAVELING, decision.phase)
         self.assertEqual(TravelManeuver.DIRECT, decision.maneuver)
-        self.assertEqual("direct_fallback", controller.route_mode)
-        self.assertEqual(1, controller.direct_fallback_count)
+        self.assertEqual("astar_partial", controller.route_mode)
+        self.assertEqual(0, controller.direct_fallback_count)
+        self.assertEqual(1, controller.partial_route_count)
         assert controller.active_plan is not None
-        self.assertEqual(
+        self.assertLess(controller.active_plan.destinations[-1].lt, 500.0)
+
+    def test_far_destination_stops_when_no_safe_frontier_exists(self) -> None:
+        class NoRoutePlanner(WeightedAStarPlanner):
+            def plan(self, *_args, **_kwargs):
+                raise AStarRouteNotFound("local terrain is disconnected")
+
+            def plan_reachable_frontier(self, *_args, **_kwargs):
+                raise AStarRouteNotFound("no safe reachable frontier")
+
+        controller = AStarTravelController(
             TravelDestination(500.0, 5.0, 5.0),
-            controller.active_plan.destinations[-1],
+            TravelControllerConfig(click_interval_ms=100),
+            StaticNavigationSource(
+                SparseNavigationMap(cell_size=10.0),
+                NavigationPlanningWindow(5.0, 5.0, 100.0, 50.0),
+            ),
+            planner=NoRoutePlanner(),
         )
+
+        decision = controller.step(_observation(0, 5.0, 5.0))
+
+        self.assertEqual(TravelPhase.STOPPED, decision.phase)
+        self.assertEqual(0, decision.click_count)
+        self.assertIn("no safe reachable frontier", decision.terminal_reason)
+
+    def test_partial_frontier_exhaustion_stops_without_escape_clicks(self) -> None:
+        navigation = SparseNavigationMap(cell_size=10.0)
+        for y in range(-12, 13):
+            navigation.mark_blocked(NavigationCell(3, y))
+        controller = AStarTravelController(
+            TravelDestination(500.0, 5.0, 5.0),
+            TravelControllerConfig(click_interval_ms=100),
+            StaticNavigationSource(
+                navigation,
+                NavigationPlanningWindow(5.0, 5.0, 100.0, 50.0),
+            ),
+            planner=WeightedAStarPlanner(
+                WeightedAStarConfig(
+                    planning_margin_cells=8,
+                    obstacle_clearance_cells=0,
+                )
+            ),
+        )
+
+        first = controller.step(_observation(0, 5.0, 5.0))
+        stopped = controller.step(_observation(100, 25.0, 5.0))
+
+        self.assertEqual(TravelPhase.TRAVELING, first.phase)
+        self.assertEqual("astar_partial", controller.route_mode)
+        self.assertEqual(TravelPhase.STOPPED, stopped.phase)
+        self.assertEqual(1, stopped.click_count)
+        self.assertIn("A* found no route", stopped.terminal_reason)
 
     def test_local_no_route_remains_terminal_instead_of_crossing_known_terrain(self) -> None:
         class NoRoutePlanner(WeightedAStarPlanner):
