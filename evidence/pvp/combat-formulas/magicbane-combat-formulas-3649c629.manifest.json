@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "evidence_id": "magicbane.combat-formulas.3649c629b709c67625a09150a3752107f4b873cc",
+  "retrieved_on": "2026-08-28",
+  "source": {
+    "repository": "https://repo.magicbane.com/MagicBane/Server",
+    "revision": "3649c629b709c67625a09150a3752107f4b873cc",
+    "license": "MIT"
+  },
+  "files": [
+    {
+      "path": "src/engine/gameManager/CombatManager.java",
+      "sha256": "0b5d021adf387a2f4b3ef6189b3a1deb67b88f67652422e81c5c7587b38d9cbc",
+      "locators": ["600-667 basic hit roll", "1008-1028 centered damage roll"]
+    },
+    {
+      "path": "src/engine/gameManager/PowersManager.java",
+      "sha256": "4c33ddea06211e937a00b87e03d3b47f3ec603d480b12bd5807c48ca320d7f54",
+      "locators": [
+        "924-966 effect overwrite",
+        "2231-2288 power hit roll",
+        "cancelOnTakeDamage and cancelOnStun cast cancellation"
+      ]
+    },
+    {
+      "path": "src/engine/powers/PowersBase.java",
+      "sha256": "a31eae78f45e39b8712bd63c306542988d950e83e1985513054c45031383ab81",
+      "locators": [
+        "94-107 movement and cancellation fields",
+        "403-408 cancellation accessors",
+        "604-609 cancellation setters"
+      ]
+    },
+    {
+      "path": "src/engine/objects/PlayerCharacter.java",
+      "sha256": "cb307c99f06a9ce7afa713298f64fdeed2ba690a90333c096a9f3b622d0aef3c",
+      "locators": ["3791-3852 defense", "3858-4085 weapon attack, speed, and damage"]
+    },
+    {
+      "path": "src/engine/objects/CharacterSkill.java",
+      "sha256": "781752fb885ccd7fa443ba20a39a7531fd4ff39c0219cfadfe88f494e58c0e4a",
+      "locators": ["297-320 power attack rating", "713-715 trained focus attack rating"]
+    },
+    {
+      "path": "src/engine/objects/Resists.java",
+      "sha256": "9f93b3a2bdf3939ba978c15cb17e0e51b169355fc8af1772910dd3437819b55a",
+      "locators": ["259-275 resist cap and protection", "395-420 mitigation and armor piercing"]
+    },
+    {
+      "path": "src/engine/powers/effectmodifiers/HealthEffectModifier.java",
+      "sha256": "12357ae274adb836e3177bd1f0f89fc11f5b537553301f14115f030d70adde07",
+      "locators": ["45-52 stat/focus scaling", "284-318 centered roll and mitigation"]
+    },
+    {
+      "path": "src/engine/powers/ActionsBase.java",
+      "sha256": "21f98ad098df18b07ce6d0017930fcbad22f067bcd97bfd0f1175a9d1c4bd505",
+      "locators": ["56-81 stack priority decoding"]
+    },
+    {
+      "path": "src/engine/objects/AbstractWorldObject.java",
+      "sha256": "bed2515619585090b0adcef7de30c36d279a3132cc8df59e943be82392a984a0",
+      "locators": ["227-237 effect storage"]
+    }
+  ],
+  "client_identifier_source": {
+    "repository": "https://repo.magicbane.com/MagicBane/mbEditorPro",
+    "revision": "511a36b1f7fef856b53649ad76a08e2e8dab1bdf",
+    "files": [
+      {
+        "path": "mbEditorPro/arcane/util/hasher.py",
+        "git_blob": "5393ede205d97d229fb1bbf2d58f6a64bb9adba3"
+      },
+      {
+        "path": "mbEditorPro/arcane/enums/hashes/powers.txt",
+        "git_blob": "6fe28e731678e50d24a088aa89b2e184ac3a1773"
+      }
+    ]
+  },
+  "compatibility_boundary": {
+    "status": "emulator_source_derived_pending_wonderbane_differential_validation",
+    "statement": "The formulas are executable only for profiles that explicitly accept this source revision or carry representative WonderBane differential evidence. Static power rows and equipment remain separately versioned inputs."
+  }
+}

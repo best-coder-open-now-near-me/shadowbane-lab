@@ -1,0 +1,434 @@
+{
+  "schema_version": 1,
+  "extension_id": "shadowbane.wonderbane-sundancer-deflock.v1",
+  "base_ruleset_id": "shadowbane.assassin-warlock-duel-shadow-mantle.v1",
+  "milestone_levels": [75],
+  "additional_sources": [
+    {
+      "source_id": "wonderbane-sundancer-template-20260829",
+      "kind": "wiki",
+      "uri": "https://shadowbanetemplates.weebly.com/assassin-rogue-templates.html",
+      "revision": "retrieved-2026-08-29",
+      "retrieved_on": "2026-08-29"
+    },
+    {
+      "source_id": "morloch-deflock-build-20260829",
+      "kind": "wiki",
+      "uri": "https://morloch.shadowbaneemulator.com/index.php/Warlock_Builds",
+      "revision": "retrieved-2026-08-29",
+      "retrieved_on": "2026-08-29"
+    },
+    {
+      "source_id": "morloch-discipline-powers-20260829",
+      "kind": "wiki",
+      "uri": "https://morloch.shadowbaneemulator.com/index.php/Category:Disciplines",
+      "revision": "retrieved-2026-08-29",
+      "retrieved_on": "2026-08-29"
+    }
+  ],
+  "additional_actions": [
+    {
+      "action_key": "shadowbane.assassin.blind",
+      "display_name": "Blind",
+      "rank": 12,
+      "status": "compiled_with_override",
+      "concrete": {"server_power_token": null, "server_id_string": null, "client_binding_key": "shadowbane.assassin.blind"},
+      "provenance": [{"fields": ["rank", "progression", "spec"], "source_id": "morloch-assassin-36339", "locator": "Blind rank 0-40 table"}],
+      "unresolved": ["Server power token, stack order, and deployment-specific effect identifiers remain unverified."],
+      "spec": {
+        "targeting": {"kind": "entity", "allowed_relations": ["enemy"], "minimum_range": 0, "maximum_range": 100, "requires_line_of_sight": true},
+        "costs": [{"resource_key": "mana", "amount": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 18, "value_max": 58}}],
+        "phases": [{
+          "kind": "active", "duration_ms": 4000,
+          "effects": [{
+            "op": "apply_effect", "subject": "target", "effect_key": "blind", "duration_ms": 30000,
+            "magnitude": 1, "stacking_key": "Blind", "tags": ["debuff", "blind"],
+            "modifiers": [
+              {"op": "scalar_multiplier", "scalar_key": "attack.main_hand", "factor": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 0.9, "value_max": 0.5}},
+              {"op": "scalar_multiplier", "scalar_key": "attack.off_hand", "factor": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 0.9, "value_max": 0.5}},
+              {"op": "scalar_multiplier", "scalar_key": "attack.power.shadowbane.warlock.mind_strike", "factor": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 0.9, "value_max": 0.5}},
+              {"op": "scalar_multiplier", "scalar_key": "attack.power.shadowbane.warlock.psychic_shout", "factor": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 0.9, "value_max": 0.5}},
+              {"op": "scalar_multiplier", "scalar_key": "defense", "factor": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 0.9, "value_max": 0.5}}
+            ]
+          }],
+          "delivery": {"kind": "immediate", "projectile_speed_units_per_second": null}, "interruptible": true, "movement_allowed": false
+        }],
+        "cooldown_ms": 124000, "required_actor_tags": [], "forbidden_actor_tags": [],
+        "features": [
+          {"name": "attack_penalty_fraction", "value": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 0.1, "value_max": 0.5}},
+          {"name": "defense_penalty_fraction", "value": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 0.1, "value_max": 0.5}},
+          {"name": "effect_duration_ms", "value": 30000}
+        ],
+        "tags": ["combat", "debuff", "blind", "applies.blind"], "hit_roll": null
+      },
+      "progression": {"professions": ["assassin"], "granted_level": 10, "maximum_rank": 40, "fixed_rank": null, "skill_requirements": [], "power_requirements": []}
+    },
+    {
+      "action_key": "shadowbane.assassin.shadow_of_blindness",
+      "display_name": "Shadow of Blindness",
+      "rank": 30,
+      "status": "compiled_with_override",
+      "concrete": {"server_power_token": null, "server_id_string": null, "client_binding_key": "shadowbane.assassin.shadow_of_blindness"},
+      "provenance": [{"fields": ["rank", "progression", "spec"], "source_id": "morloch-assassin-36339", "locator": "Shadow of Blindness rank 0-40 table"}],
+      "unresolved": ["Server power token, stack order, and exact area target ordering remain unverified."],
+      "spec": {
+        "targeting": {"kind": "self", "allowed_relations": [], "minimum_range": 0, "maximum_range": null, "requires_line_of_sight": false},
+        "costs": [{"resource_key": "mana", "amount": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 60, "value_max": 100}}],
+        "phases": [{
+          "kind": "active", "duration_ms": 5000,
+          "effects": [{
+            "op": "area_effect", "origin": "actor", "radius": 30, "allowed_relations": ["enemy"], "maximum_targets": 7,
+            "effects": [{
+              "op": "apply_effect", "subject": "target", "effect_key": "shadow_of_blindness", "duration_ms": 30000,
+              "magnitude": 1, "stacking_key": "Blind", "tags": ["debuff", "blind"],
+              "modifiers": [
+                {"op": "scalar_multiplier", "scalar_key": "attack.main_hand", "factor": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 0.9, "value_max": 0.5}},
+                {"op": "scalar_multiplier", "scalar_key": "attack.off_hand", "factor": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 0.9, "value_max": 0.5}},
+                {"op": "scalar_multiplier", "scalar_key": "attack.power.shadowbane.warlock.mind_strike", "factor": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 0.9, "value_max": 0.5}},
+                {"op": "scalar_multiplier", "scalar_key": "attack.power.shadowbane.warlock.psychic_shout", "factor": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 0.9, "value_max": 0.5}},
+                {"op": "scalar_multiplier", "scalar_key": "defense", "factor": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 0.9, "value_max": 0.5}}
+              ]
+            }]
+          }],
+          "delivery": {"kind": "immediate", "projectile_speed_units_per_second": null}, "interruptible": true, "movement_allowed": false
+        }],
+        "cooldown_ms": 125000, "required_actor_tags": [], "forbidden_actor_tags": [],
+        "features": [
+          {"name": "attack_penalty_fraction", "value": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 0.1, "value_max": 0.5}},
+          {"name": "defense_penalty_fraction", "value": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 0.1, "value_max": 0.5}},
+          {"name": "effect_duration_ms", "value": 30000}
+        ],
+        "tags": ["combat", "debuff", "blind", "area", "applies.shadow_of_blindness"], "hit_roll": null
+      },
+      "progression": {"professions": ["assassin"], "granted_level": 10, "maximum_rank": 40, "fixed_rank": null, "skill_requirements": [], "power_requirements": []}
+    },
+    {
+      "action_key": "shadowbane.assassin.silence",
+      "display_name": "Silence",
+      "rank": 1,
+      "status": "compiled_with_override",
+      "concrete": {"server_power_token": null, "server_id_string": null, "client_binding_key": "shadowbane.assassin.silence"},
+      "provenance": [{"fields": ["rank", "progression", "spec"], "source_id": "morloch-assassin-36339", "locator": "Silence rank 0-40 table"}],
+      "unresolved": ["Exact deployment chant categories and UI chat suppression remain unverified."],
+      "spec": {
+        "targeting": {"kind": "entity", "allowed_relations": ["enemy"], "minimum_range": 0, "maximum_range": 100, "requires_line_of_sight": true},
+        "costs": [{"resource_key": "mana", "amount": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 44, "value_max": 84}}],
+        "phases": [{
+          "kind": "active", "duration_ms": 5000,
+          "effects": [
+            {"op": "remove_effect", "subject": "target", "effect_key": null, "matching_tag": "chant"},
+            {"op": "apply_effect", "subject": "target", "effect_key": "silenced", "duration_ms": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 60000, "value_max": 120000}, "magnitude": 1, "stacking_key": "Silence", "tags": ["effect", "control.block.action_tag.chant"]}
+          ],
+          "delivery": {"kind": "immediate", "projectile_speed_units_per_second": null}, "interruptible": true, "movement_allowed": false
+        }],
+        "cooldown_ms": 15000, "required_actor_tags": [], "forbidden_actor_tags": [],
+        "features": [{"name": "action_denial_duration_ms", "value": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 60000, "value_max": 120000}}],
+        "tags": ["combat", "action_denial", "chant_denial", "denies.action_tag.chant", "applies.silenced"], "hit_roll": null
+      },
+      "progression": {"professions": ["assassin"], "granted_level": 10, "maximum_rank": 40, "fixed_rank": null, "skill_requirements": [], "power_requirements": []}
+    },
+    {
+      "action_key": "shadowbane.assassin.poison_blade",
+      "display_name": "Poison Blade",
+      "rank": 40,
+      "status": "compiled_with_override",
+      "concrete": {"server_power_token": null, "server_id_string": null, "client_binding_key": "shadowbane.assassin.poison_blade"},
+      "provenance": [{"fields": ["rank", "progression", "spec"], "source_id": "morloch-assassin-36339", "locator": "Poison Blade rank 0-40 table"}],
+      "unresolved": ["Proc payload is source-derived but deployment power token and exact proc event ordering remain unverified."],
+      "spec": {
+        "targeting": {"kind": "self", "allowed_relations": [], "minimum_range": 0, "maximum_range": null, "requires_line_of_sight": false},
+        "costs": [{"resource_key": "mana", "amount": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 40, "value_max": 80}}],
+        "phases": [{
+          "kind": "active", "duration_ms": 6000,
+          "effects": [{"op": "apply_effect", "subject": "actor", "effect_key": "poison_blade_proc", "duration_ms": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 300000, "value_max": 900000}, "magnitude": 1, "stacking_key": "PoisonBladeProc", "tags": ["buff", "trigger.passive", "proc.poison_blade"]}],
+          "delivery": {"kind": "immediate", "projectile_speed_units_per_second": null}, "interruptible": true, "movement_allowed": false
+        }],
+        "cooldown_ms": 306000, "required_actor_tags": [], "forbidden_actor_tags": ["poison_blade_proc"],
+        "features": [{"name": "expected_trigger_damage", "value": 5.425}, {"name": "expected_followup_commitment_ms", "value": 2000}],
+        "armed_trigger": {
+          "trigger_key": "poison_blade_proc", "required_action_tags": ["attack", "weapon", "melee"], "qualifying_action_keys": [], "forbidden_action_tags": [],
+          "fire_on": "hit", "consume_on": "never", "chance": 0.05, "tags": ["proc", "poison_blade"],
+          "payload": [{"op": "deal_damage", "subject": "target", "amount": {"distribution": "uniform", "minimum": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 21, "value_max": 69}, "maximum": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 45, "value_max": 148}}, "damage_type": "poison", "uses_resistance": true, "power_trains": 40, "source_key": "proc.poison_blade"}],
+          "attack_modifier": null
+        },
+        "tags": ["combat", "buff", "setup", "armed_trigger", "proc"], "hit_roll": null
+      },
+      "progression": {"professions": ["assassin"], "granted_level": 10, "maximum_rank": 40, "fixed_rank": null, "skill_requirements": [], "power_requirements": []}
+    },
+    {
+      "action_key": "shadowbane.undead_hunter.consecrate_weapon",
+      "display_name": "Consecrate Weapon",
+      "rank": 1,
+      "status": "compiled_with_override",
+      "concrete": {"server_power_token": null, "server_id_string": null, "client_binding_key": "shadowbane.undead_hunter.consecrate_weapon"},
+      "provenance": [{"fields": ["rank", "progression", "spec"], "source_id": "morloch-discipline-powers-20260829", "locator": "Undead Hunter: Consecrate Weapon rank 0-20 table"}],
+      "unresolved": ["Target creature-type restrictions and deployment identifiers remain unverified; this matchup explicitly marks the Shade target as undead."],
+      "spec": {
+        "targeting": {"kind": "self", "allowed_relations": [], "minimum_range": 0, "maximum_range": null, "requires_line_of_sight": false},
+        "costs": [{"resource_key": "mana", "amount": {"interpolation": "linear", "rank_min": 0, "rank_max": 20, "value_min": 40, "value_max": 60}}],
+        "phases": [{
+          "kind": "active", "duration_ms": 9000,
+          "effects": [{"op": "apply_effect", "subject": "actor", "effect_key": "consecrate_weapon_proc", "duration_ms": {"interpolation": "linear", "rank_min": 0, "rank_max": 20, "value_min": 300000, "value_max": 600000}, "magnitude": 1, "stacking_key": "ConsecrateWeaponProc", "tags": ["buff", "trigger.passive", "proc.consecrate_weapon"]}],
+          "delivery": {"kind": "immediate", "projectile_speed_units_per_second": null}, "interruptible": true, "movement_allowed": false
+        }],
+        "cooldown_ms": 309000, "required_actor_tags": [], "forbidden_actor_tags": ["consecrate_weapon_proc"],
+        "features": [{"name": "expected_trigger_damage", "value": 1.77125}, {"name": "expected_followup_commitment_ms", "value": 2000}],
+        "armed_trigger": {
+          "trigger_key": "consecrate_weapon_proc", "required_action_tags": ["attack", "weapon", "melee"], "qualifying_action_keys": [], "forbidden_action_tags": [],
+          "fire_on": "hit", "consume_on": "never", "chance": 0.05, "tags": ["proc", "consecrate_weapon"],
+          "payload": [{"op": "deal_damage", "subject": "target", "amount": {"distribution": "uniform", "minimum": {"interpolation": "linear", "rank_min": 0, "rank_max": 20, "value_min": 17, "value_max": 37}, "maximum": {"interpolation": "linear", "rank_min": 0, "rank_max": 20, "value_min": 50, "value_max": 107}}, "damage_type": "holy", "uses_resistance": true, "power_trains": 1, "source_key": "proc.consecrate_weapon"}],
+          "attack_modifier": null
+        },
+        "tags": ["combat", "buff", "setup", "armed_trigger", "proc", "discipline"], "hit_roll": null
+      },
+      "progression": {"professions": ["assassin"], "granted_level": 10, "maximum_rank": 20, "fixed_rank": null, "skill_requirements": [], "power_requirements": []}
+    },
+    {
+      "action_key": "shadowbane.warlock.psychic_shout",
+      "display_name": "Psychic Shout",
+      "rank": 40,
+      "status": "compiled_with_override",
+      "concrete": {"server_power_token": null, "server_id_string": null, "client_binding_key": "shadowbane.warlock.psychic_shout"},
+      "provenance": [{"fields": ["rank", "progression", "spec"], "source_id": "morloch-warlock-36352", "locator": "Psychic Shout rank 0-40 table"}],
+      "unresolved": ["Exact target ordering and deployment identifiers remain unverified."],
+      "spec": {
+        "targeting": {"kind": "entity", "allowed_relations": ["enemy"], "minimum_range": 0, "maximum_range": 100, "requires_line_of_sight": true},
+        "costs": [{"resource_key": "mana", "amount": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 26, "value_max": 41.2}}],
+        "phases": [{
+          "kind": "active", "duration_ms": 3600,
+          "effects": [
+            {
+              "op": "area_effect",
+              "origin": "target",
+              "radius": 32,
+              "allowed_relations": [
+                "enemy"
+              ],
+              "maximum_targets": 7,
+              "effects": [
+                {
+                  "op": "deal_damage",
+                  "subject": "target",
+                  "amount": {
+                    "distribution": "uniform",
+                    "minimum": {
+                      "interpolation": "linear",
+                      "rank_min": 0,
+                      "rank_max": 40,
+                      "value_min": 12,
+                      "value_max": 16
+                    },
+                    "maximum": {
+                      "interpolation": "linear",
+                      "rank_min": 0,
+                      "rank_max": 40,
+                      "value_min": 57,
+                      "value_max": 75
+                    }
+                  },
+                  "damage_type": "mental"
+                },
+                {
+                  "op": "outcome_conditional",
+                  "conditional_key": "psychic_shout_stun_followups",
+                  "condition": {
+                    "op": "apply_effect",
+                    "subject": "target",
+                    "effect_key": "psychic_shout_stun",
+                    "duration_ms": {
+                      "interpolation": "linear",
+                      "rank_min": 0,
+                      "rank_max": 40,
+                      "value_min": 1000,
+                      "value_max": 3000
+                    },
+                    "magnitude": 1,
+                    "stacking_key": "Stun",
+                    "tags": [
+                      "control.stun"
+                    ],
+                    "immunity_tags": [
+                      "immunity.stun"
+                    ]
+                  },
+                  "outcomes": [
+                    "applied"
+                  ],
+                  "effects": [
+                    {
+                      "op": "remove_effect",
+                      "subject": "target",
+                      "effect_key": null,
+                      "matching_tag": "movement.flight"
+                    },
+                    {
+                      "op": "apply_effect",
+                      "subject": "target",
+                      "effect_key": "stun_immunity",
+                      "duration_ms": {
+                        "interpolation": "linear",
+                        "rank_min": 0,
+                        "rank_max": 40,
+                        "value_min": 3000,
+                        "value_max": 9000
+                      },
+                      "magnitude": 1,
+                      "stacking_key": "NoStun",
+                      "tags": [
+                        "immunity.stun"
+                      ]
+                    }
+                  ],
+                  "else_effects": []
+                }
+              ]
+            }
+          ],
+          "delivery": {"kind": "immediate", "projectile_speed_units_per_second": null}, "interruptible": true, "movement_allowed": false
+        }],
+        "cooldown_ms": 13600, "required_actor_tags": [], "forbidden_actor_tags": [],
+        "features": [{"name": "expected_damage", "value": 45.5}, {"name": "control_duration_ms", "value": 3000}],
+        "tags": ["combat", "damage", "mental", "control", "area", "anti_flight"], "hit_roll": "power"
+      },
+      "progression": {"professions": ["warlock"], "granted_level": 10, "maximum_rank": 40, "fixed_rank": null, "skill_requirements": [], "power_requirements": []}
+    },
+    {
+      "action_key": "shadowbane.warlock.shatter_will",
+      "display_name": "Shatter Will",
+      "rank": 40,
+      "status": "compiled_with_override",
+      "concrete": {"server_power_token": null, "server_id_string": null, "client_binding_key": "shadowbane.warlock.shatter_will"},
+      "provenance": [{"fields": ["rank", "progression", "spec"], "source_id": "morloch-warlock-36352", "locator": "Shatter Will rank 0-40 table"}],
+      "unresolved": ["Stack order and deployment effect identifiers remain unverified."],
+      "spec": {
+        "targeting": {"kind": "entity", "allowed_relations": ["enemy"], "minimum_range": 0, "maximum_range": 100, "requires_line_of_sight": true},
+        "costs": [{"resource_key": "mana", "amount": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 21, "value_max": 61}}],
+        "phases": [{
+          "kind": "active", "duration_ms": 1500,
+          "effects": [{"op": "apply_effect", "subject": "target", "effect_key": "shatter_will", "duration_ms": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 30000, "value_max": 60000}, "magnitude": 1, "stacking_key": "MentalResistanceDebuff", "tags": ["debuff", "resistance.mental"], "modifiers": [{"op": "resistance_adjustment", "damage_type": "mental", "amount": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": -10, "value_max": -50}}]}],
+          "delivery": {"kind": "immediate", "projectile_speed_units_per_second": null}, "interruptible": true, "movement_allowed": false
+        }],
+        "cooldown_ms": 11500, "required_actor_tags": [], "forbidden_actor_tags": [],
+        "features": [{"name": "resistance_penalty", "value": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 10, "value_max": 50}}, {"name": "effect_duration_ms", "value": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 30000, "value_max": 60000}}],
+        "tags": ["combat", "debuff", "mental", "applies.shatter_will"], "hit_roll": null
+      },
+      "progression": {"professions": ["warlock"], "granted_level": 10, "maximum_rank": 40, "fixed_rank": null, "skill_requirements": [], "power_requirements": []}
+    },
+    {
+      "action_key": "shadowbane.warlock.break_enchantment",
+      "display_name": "Break Enchantment",
+      "rank": 40,
+      "status": "compiled_with_override",
+      "concrete": {"server_power_token": null, "server_id_string": null, "client_binding_key": "shadowbane.warlock.break_enchantment"},
+      "provenance": [{"fields": ["rank", "progression", "spec"], "source_id": "morloch-warlock-36352", "locator": "Break Enchantment rank 0-40 table"}],
+      "unresolved": ["The source category is mapped to the simulator's reviewed debuff tag; deployment identifiers remain unverified."],
+      "spec": {
+        "targeting": {"kind": "self", "allowed_relations": [], "minimum_range": 0, "maximum_range": null, "requires_line_of_sight": false},
+        "costs": [{"resource_key": "mana", "amount": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 20, "value_max": 60}}],
+        "phases": [{"kind": "active", "duration_ms": 2000, "effects": [{"op": "remove_effect", "subject": "actor", "effect_key": null, "matching_tag": "debuff", "maximum_count": 1}], "delivery": {"kind": "immediate", "projectile_speed_units_per_second": null}, "interruptible": true, "movement_allowed": false}],
+        "cooldown_ms": 2000, "required_actor_tags": [], "forbidden_actor_tags": [], "features": [],
+        "tags": ["combat", "cleanse"], "hit_roll": null
+      },
+      "progression": {"professions": ["warlock"], "granted_level": 10, "maximum_rank": 40, "fixed_rank": null, "skill_requirements": [], "power_requirements": []}
+    },
+    {
+      "action_key": "shadowbane.warlock.dull_the_mind",
+      "display_name": "Dull the Mind",
+      "rank": 20,
+      "status": "compiled_with_override",
+      "concrete": {"server_power_token": null, "server_id_string": null, "client_binding_key": "shadowbane.warlock.dull_the_mind"},
+      "provenance": [{"fields": ["rank", "progression", "spec"], "source_id": "morloch-warlock-36352", "locator": "Dull the Mind rank 0-40 table"}],
+      "unresolved": ["Dynamic attribute-to-output recompilation is represented by reviewed power, heal, and proc output multipliers pending live calibration."],
+      "spec": {
+        "targeting": {"kind": "entity", "allowed_relations": ["enemy"], "minimum_range": 0, "maximum_range": 100, "requires_line_of_sight": true},
+        "costs": [{"resource_key": "mana", "amount": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 25, "value_max": 65}}],
+        "phases": [{
+          "kind": "active", "duration_ms": 200,
+          "effects": [{"op": "apply_effect", "subject": "target", "effect_key": "dull_the_mind", "duration_ms": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 30000, "value_max": 60000}, "magnitude": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 20, "value_max": 50}, "stacking_key": "MentalAttributeDebuff", "tags": ["debuff", "attribute.intelligence", "attribute.spirit"], "modifiers": [
+            {"op": "scalar_multiplier", "scalar_key": "outgoing.power.damage.factor", "factor": 0.8},
+            {"op": "scalar_multiplier", "scalar_key": "outgoing.power.healing.factor", "factor": 0.8},
+            {"op": "scalar_multiplier", "scalar_key": "outgoing.proc.damage.factor", "factor": 0.75}
+          ]}],
+          "delivery": {"kind": "immediate", "projectile_speed_units_per_second": null}, "interruptible": true, "movement_allowed": false
+        }],
+        "cooldown_ms": 10200, "required_actor_tags": [], "forbidden_actor_tags": [],
+        "features": [{"name": "attribute_penalty", "value": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 20, "value_max": 50}}, {"name": "effect_duration_ms", "value": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 30000, "value_max": 60000}}],
+        "tags": ["combat", "debuff", "attribute", "applies.dull_the_mind"], "hit_roll": null
+      },
+      "progression": {"professions": ["warlock"], "granted_level": 10, "maximum_rank": 40, "fixed_rank": null, "skill_requirements": [], "power_requirements": []}
+    },
+    {
+      "action_key": "shadowbane.warlock.dull_the_body",
+      "display_name": "Dull the Body",
+      "rank": 20,
+      "status": "compiled_with_override",
+      "concrete": {"server_power_token": null, "server_id_string": null, "client_binding_key": "shadowbane.warlock.dull_the_body"},
+      "provenance": [{"fields": ["rank", "progression", "spec"], "source_id": "morloch-warlock-36352", "locator": "Dull the Body rank 0-40 table"}],
+      "unresolved": ["Dynamic attribute-to-rating recompilation is represented by reviewed defense, attack, and weapon-output multipliers pending live calibration."],
+      "spec": {
+        "targeting": {"kind": "entity", "allowed_relations": ["enemy"], "minimum_range": 0, "maximum_range": 100, "requires_line_of_sight": true},
+        "costs": [{"resource_key": "mana", "amount": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 18, "value_max": 58}}],
+        "phases": [{
+          "kind": "active", "duration_ms": 200,
+          "effects": [{"op": "apply_effect", "subject": "target", "effect_key": "dull_the_body", "duration_ms": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 30000, "value_max": 60000}, "magnitude": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 20, "value_max": 50}, "stacking_key": "PhysicalAttributeDebuff", "tags": ["debuff", "attribute.strength", "attribute.dexterity"], "modifiers": [
+            {"op": "scalar_multiplier", "scalar_key": "attack.main_hand", "factor": 0.8},
+            {"op": "scalar_multiplier", "scalar_key": "attack.off_hand", "factor": 0.8},
+            {"op": "scalar_multiplier", "scalar_key": "defense", "factor": 0.75},
+            {"op": "scalar_multiplier", "scalar_key": "outgoing.weapon.damage.factor", "factor": 0.8}
+          ]}],
+          "delivery": {"kind": "immediate", "projectile_speed_units_per_second": null}, "interruptible": true, "movement_allowed": false
+        }],
+        "cooldown_ms": 10200, "required_actor_tags": [], "forbidden_actor_tags": [],
+        "features": [{"name": "attribute_penalty", "value": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 20, "value_max": 50}}, {"name": "effect_duration_ms", "value": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 30000, "value_max": 60000}}],
+        "tags": ["combat", "debuff", "attribute", "applies.dull_the_body"], "hit_roll": null
+      },
+      "progression": {"professions": ["warlock"], "granted_level": 10, "maximum_rank": 40, "fixed_rank": null, "skill_requirements": [], "power_requirements": []}
+    },
+    {
+      "action_key": "shadowbane.warlock.surpass_limits",
+      "display_name": "Surpass Limits",
+      "rank": 5,
+      "status": "compiled_with_override",
+      "concrete": {"server_power_token": null, "server_id_string": null, "client_binding_key": "shadowbane.warlock.surpass_limits"},
+      "provenance": [{"fields": ["rank", "progression", "spec"], "source_id": "morloch-warlock-36352", "locator": "Surpass Limits rank 0-40 table"}],
+      "unresolved": ["The published amount/efficiency fields are mapped to a conservative health cost and stamina return pending a live resource trace."],
+      "spec": {
+        "targeting": {"kind": "self", "allowed_relations": [], "minimum_range": 0, "maximum_range": null, "requires_line_of_sight": false},
+        "costs": [{"resource_key": "health", "amount": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 12, "value_max": 29.2}}],
+        "phases": [{"kind": "active", "duration_ms": 2500, "effects": [{"op": "restore_resource", "subject": "actor", "resource_key": "stamina", "amount": 9}], "delivery": {"kind": "immediate", "projectile_speed_units_per_second": null}, "interruptible": true, "movement_allowed": false}],
+        "cooldown_ms": 2500, "required_actor_tags": [], "forbidden_actor_tags": [],
+        "features": [{"name": "expected_stamina_restoration", "value": 9}, {"name": "stamina_threshold", "value": 80}],
+        "tags": ["combat", "resource_conversion"], "hit_roll": null
+      },
+      "progression": {"professions": ["warlock"], "granted_level": 10, "maximum_rank": 40, "fixed_rank": null, "skill_requirements": [], "power_requirements": []}
+    },
+    {
+      "action_key": "shadowbane.warlock.needs_of_the_one",
+      "display_name": "Needs of the One",
+      "rank": 1,
+      "status": "compiled_with_override",
+      "concrete": {"server_power_token": null, "server_id_string": null, "client_binding_key": "shadowbane.warlock.needs_of_the_one"},
+      "provenance": [{"fields": ["rank", "progression", "spec"], "source_id": "morloch-warlock-36352", "locator": "Needs of the One rank 0-40 table"}],
+      "unresolved": ["Resource transfer rounding and the exact target cap ordering remain unverified."],
+      "spec": {
+        "targeting": {"kind": "self", "allowed_relations": [], "minimum_range": 0, "maximum_range": null, "requires_line_of_sight": false},
+        "costs": [],
+        "phases": [{
+          "kind": "active", "duration_ms": 2500,
+          "effects": [{"op": "area_effect", "origin": "actor", "radius": 32, "allowed_relations": ["enemy"], "maximum_targets": 7, "effects": [
+            {"op": "transfer_resource", "from_subject": "target", "to_subject": "actor", "resource_key": "mana", "amount": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 17, "value_max": 23}, "efficiency": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 0.4, "value_max": 1.0}}
+          ]}],
+          "delivery": {"kind": "immediate", "projectile_speed_units_per_second": null}, "interruptible": true, "movement_allowed": false
+        }],
+        "cooldown_ms": 14500, "required_actor_tags": [], "forbidden_actor_tags": [],
+        "features": [
+          {"name": "expected_mana_drain", "value": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 17, "value_max": 23}},
+          {"name": "transfer_efficiency", "value": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 0.4, "value_max": 1.0}},
+          {"name": "area_radius", "value": 32}
+        ],
+        "tags": ["combat", "resource_drain", "resource.mana", "area"], "hit_roll": "power"
+      },
+      "progression": {"professions": ["warlock"], "granted_level": 10, "maximum_rank": 40, "fixed_rank": null, "skill_requirements": [], "power_requirements": []}
+    }
+  ]
+}

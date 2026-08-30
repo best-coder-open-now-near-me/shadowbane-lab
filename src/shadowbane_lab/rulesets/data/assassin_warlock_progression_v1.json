@@ -1,0 +1,672 @@
+{
+  "schema_version": 1,
+  "extension_id": "shadowbane.assassin-warlock-duel.v1",
+  "base_ruleset_id": "shadowbane.vertical-slice.v1",
+  "milestone_levels": [
+    10,
+    15,
+    18,
+    19,
+    22,
+    26,
+    28,
+    75
+  ],
+  "additional_actions": [
+    {
+      "action_key": "shadowbane.assassin.backstab",
+      "display_name": "Backstab",
+      "rank": 40,
+      "status": "compiled_with_override",
+      "concrete": {
+        "server_power_token": null,
+        "server_id_string": null,
+        "client_binding_key": "shadowbane.assassin.backstab"
+      },
+      "provenance": [
+        {
+          "fields": [
+            "rank",
+            "progression",
+            "spec.costs",
+            "spec.phases[0].duration_ms",
+            "spec.cooldown_ms",
+            "spec.required_actor_tags"
+          ],
+          "source_id": "morloch-assassin-36339",
+          "locator": "Backstab rank 0-40 table"
+        },
+        {
+          "fields": [
+            "concrete.client_binding_key",
+            "spec.armed_trigger.attack_modifier",
+            "spec.armed_trigger.fire_on",
+            "spec.features",
+            "spec.phases[0].effects",
+            "spec.tags",
+            "spec.targeting"
+          ],
+          "source_id": "lab-action-algebra-v1",
+          "locator": "Backstab armed next-swing mapping",
+          "note": "Backstab now modifies the next qualifying weapon attack, bypasses passive defense, adds rank-scaled damage, consumes on attempt, and removes stealth."
+        }
+      ],
+      "unresolved": [
+        "Server power token and IDString require the deployment power-data export.",
+        "The 90-second armed duration remains provisional pending live timeout and weapon-swap tests.",
+        "Consumption on swing attempt is explicit but still requires WonderBane miss-retention verification.",
+        "The published passive-defense bypass is represented; the exact attack-rating and base weapon formulas remain provisional."
+      ],
+      "spec": {
+        "hit_roll": null,
+        "targeting": {
+          "kind": "self",
+          "allowed_relations": [],
+          "minimum_range": 0,
+          "maximum_range": null,
+          "requires_line_of_sight": false
+        },
+        "costs": [
+          {
+            "resource_key": "stamina",
+            "amount": 20
+          }
+        ],
+        "phases": [
+          {
+            "kind": "active",
+            "duration_ms": 200,
+            "effects": [
+              {
+                "op": "apply_effect",
+                "subject": "actor",
+                "effect_key": "backstab_armed",
+                "duration_ms": 90000,
+                "magnitude": 1,
+                "stacking_key": "NextWeaponPower",
+                "tags": [
+                  "trigger.armed",
+                  "trigger.weapon_power",
+                  "trigger.backstab"
+                ]
+              }
+            ],
+            "delivery": {
+              "kind": "immediate",
+              "projectile_speed_units_per_second": null
+            },
+            "interruptible": true,
+            "movement_allowed": false
+          }
+        ],
+        "cooldown_ms": 90200,
+        "required_actor_tags": [
+          "visibility.invisible",
+          "equipment.melee_weapon",
+          "power.stalk"
+        ],
+        "forbidden_actor_tags": [],
+        "features": [
+          {
+            "name": "expected_trigger_damage",
+            "value": {
+              "interpolation": "linear",
+              "rank_min": 0,
+              "rank_max": 40,
+              "value_min": 80,
+              "value_max": 400
+            }
+          },
+          {
+            "name": "expected_followup_commitment_ms",
+            "value": 1000
+          },
+          {
+            "name": "trigger_duration_ms",
+            "value": 90000
+          }
+        ],
+        "armed_trigger": {
+          "trigger_key": "backstab_armed",
+          "required_action_tags": [
+            "attack",
+            "weapon",
+            "melee"
+          ],
+          "qualifying_action_keys": [],
+          "forbidden_action_tags": [
+            "setup"
+          ],
+          "consume_on": "attempt",
+          "tags": [
+            "weapon_power",
+            "backstab"
+          ],
+          "payload": [
+            {
+              "op": "remove_effect",
+              "subject": "actor",
+              "effect_key": null,
+              "matching_tag": "visibility.invisible"
+            },
+            {
+              "op": "modify_tag",
+              "subject": "actor",
+              "tag": "visibility.invisible",
+              "operation": "remove"
+            }
+          ],
+          "fire_on": "attempt",
+          "chance": 1.0,
+          "attack_modifier": {
+            "attack_rating_bonus": 0,
+            "damage_multiplier": 1,
+            "bonus_damage_minimum": {
+              "interpolation": "linear",
+              "rank_min": 0,
+              "rank_max": 40,
+              "value_min": 80,
+              "value_max": 400
+            },
+            "bonus_damage_maximum": {
+              "interpolation": "linear",
+              "rank_min": 0,
+              "rank_max": 40,
+              "value_min": 80,
+              "value_max": 400
+            },
+            "bypass_defense": false,
+            "bypass_passive_defense": true,
+            "damage_type_override": null,
+            "tags": [
+              "weapon_power",
+              "backstab",
+              "passive_defense_bypass"
+            ]
+          }
+        },
+        "tags": [
+          "combat",
+          "setup",
+          "weapon_power",
+          "armed_trigger",
+          "stealth_required"
+        ]
+      },
+      "progression": {
+        "professions": [
+          "assassin"
+        ],
+        "granted_level": 10,
+        "maximum_rank": 40,
+        "fixed_rank": null,
+        "skill_requirements": [
+          {
+            "training_key": "stalk",
+            "minimum_rank": 1
+          }
+        ],
+        "power_requirements": []
+      }
+    },
+    {
+      "action_key": "shadowbane.assassin.fade",
+      "display_name": "Fade",
+      "rank": 20,
+      "status": "compiled_with_override",
+      "concrete": {
+        "server_power_token": null,
+        "server_id_string": null,
+        "client_binding_key": "shadowbane.assassin.fade"
+      },
+      "provenance": [
+        {
+          "fields": [
+            "rank",
+            "progression",
+            "spec.costs",
+            "spec.phases[0].duration_ms",
+            "spec.phases[0].effects",
+            "spec.cooldown_ms"
+          ],
+          "source_id": "morloch-assassin-36339",
+          "locator": "Fade rank 0-20 table"
+        },
+        {
+          "fields": [
+            "concrete.client_binding_key",
+            "spec.targeting",
+            "spec.phases[0].effects",
+            "spec.features",
+            "spec.tags"
+          ],
+          "source_id": "lab-action-algebra-v1",
+          "locator": "Fade typed-action mapping",
+          "note": "Invisibility is represented as a tagged timed effect; aggro clearing and movement-rate application remain unresolved."
+        }
+      ],
+      "unresolved": [
+        "Server power token and IDString require the deployment power-data export.",
+        "Target visibility, mobile aggro clearing, and the movement-rate modifier are not yet enforced by the reference simulator."
+      ],
+      "spec": {
+        "hit_roll": null,
+        "targeting": {
+          "kind": "self",
+          "allowed_relations": [],
+          "minimum_range": 0,
+          "maximum_range": null,
+          "requires_line_of_sight": false
+        },
+        "costs": [
+          {
+            "resource_key": "mana",
+            "amount": {
+              "interpolation": "linear",
+              "rank_min": 0,
+              "rank_max": 20,
+              "value_min": 14,
+              "value_max": 34
+            }
+          }
+        ],
+        "phases": [
+          {
+            "kind": "active",
+            "duration_ms": {
+              "interpolation": "linear",
+              "rank_min": 0,
+              "rank_max": 20,
+              "value_min": 16000,
+              "value_max": 3000
+            },
+            "effects": [
+              {
+                "op": "apply_effect",
+                "subject": "actor",
+                "effect_key": "invisible",
+                "duration_ms": 300000,
+                "magnitude": {
+                  "interpolation": "linear",
+                  "rank_min": 0,
+                  "rank_max": 20,
+                  "value_min": -0.4,
+                  "value_max": -0.2
+                },
+                "stacking_key": "Invisible",
+                "tags": [
+                  "visibility.invisible",
+                  "movement.modifier"
+                ]
+              }
+            ],
+            "delivery": {
+              "kind": "immediate",
+              "projectile_speed_units_per_second": null
+            },
+            "interruptible": true,
+            "movement_allowed": false
+          }
+        ],
+        "cooldown_ms": {
+          "interpolation": "linear",
+          "rank_min": 0,
+          "rank_max": 20,
+          "value_min": 26000,
+          "value_max": 13000
+        },
+        "required_actor_tags": [],
+        "forbidden_actor_tags": [
+          "visibility.invisible"
+        ],
+        "features": [
+          {
+            "name": "invisibility_duration_ms",
+            "value": 300000
+          }
+        ],
+        "tags": [
+          "combat",
+          "utility",
+          "stealth",
+          "invisibility"
+        ]
+      },
+      "progression": {
+        "professions": [
+          "assassin"
+        ],
+        "granted_level": 10,
+        "maximum_rank": 20,
+        "fixed_rank": null,
+        "skill_requirements": [
+          {
+            "training_key": "sorcery",
+            "minimum_rank": 1
+          }
+        ],
+        "power_requirements": []
+      }
+    },
+    {
+      "action_key": "shadowbane.assassin.invisibility",
+      "display_name": "Invisibility",
+      "rank": 20,
+      "status": "compiled_with_override",
+      "concrete": {
+        "server_power_token": null,
+        "server_id_string": null,
+        "client_binding_key": "shadowbane.assassin.invisibility"
+      },
+      "provenance": [
+        {
+          "fields": [
+            "rank",
+            "progression",
+            "spec.costs",
+            "spec.phases[0].duration_ms",
+            "spec.phases[0].effects",
+            "spec.cooldown_ms"
+          ],
+          "source_id": "morloch-assassin-36339",
+          "locator": "Invisibility rank 0-20 table"
+        },
+        {
+          "fields": [
+            "concrete.client_binding_key",
+            "spec.targeting",
+            "spec.phases[0].effects",
+            "spec.features",
+            "spec.tags"
+          ],
+          "source_id": "lab-action-algebra-v1",
+          "locator": "Invisibility typed-action mapping",
+          "note": "The post-cast power inhibitor is represented as an action-blocking timed effect."
+        }
+      ],
+      "unresolved": [
+        "Server power token and IDString require the deployment power-data export.",
+        "Target visibility, mobile aggro clearing, and the movement-speed bonus are not yet enforced by the reference simulator."
+      ],
+      "spec": {
+        "hit_roll": null,
+        "targeting": {
+          "kind": "self",
+          "allowed_relations": [],
+          "minimum_range": 0,
+          "maximum_range": null,
+          "requires_line_of_sight": false
+        },
+        "costs": [
+          {
+            "resource_key": "mana",
+            "amount": 45
+          }
+        ],
+        "phases": [
+          {
+            "kind": "active",
+            "duration_ms": {
+              "interpolation": "linear",
+              "rank_min": 0,
+              "rank_max": 20,
+              "value_min": 10000,
+              "value_max": 200
+            },
+            "effects": [
+              {
+                "op": "apply_effect",
+                "subject": "actor",
+                "effect_key": "invisible",
+                "duration_ms": 30000,
+                "magnitude": {
+                  "interpolation": "linear",
+                  "rank_min": 0,
+                  "rank_max": 20,
+                  "value_min": 0.3,
+                  "value_max": 0.5
+                },
+                "stacking_key": "Invisible",
+                "tags": [
+                  "visibility.invisible",
+                  "movement.modifier"
+                ]
+              },
+              {
+                "op": "apply_effect",
+                "subject": "actor",
+                "effect_key": "power_inhibitor",
+                "duration_ms": 1500,
+                "magnitude": 1,
+                "stacking_key": "PowerInhibitor",
+                "tags": [
+                  "control.power_block"
+                ]
+              }
+            ],
+            "delivery": {
+              "kind": "immediate",
+              "projectile_speed_units_per_second": null
+            },
+            "interruptible": true,
+            "movement_allowed": false
+          }
+        ],
+        "cooldown_ms": {
+          "interpolation": "linear",
+          "rank_min": 0,
+          "rank_max": 20,
+          "value_min": 130000,
+          "value_max": 120200
+        },
+        "required_actor_tags": [],
+        "forbidden_actor_tags": [
+          "visibility.invisible"
+        ],
+        "features": [
+          {
+            "name": "invisibility_duration_ms",
+            "value": 30000
+          },
+          {
+            "name": "power_block_duration_ms",
+            "value": 1500
+          }
+        ],
+        "tags": [
+          "combat",
+          "utility",
+          "stealth",
+          "invisibility"
+        ]
+      },
+      "progression": {
+        "professions": [
+          "assassin"
+        ],
+        "granted_level": 19,
+        "maximum_rank": 20,
+        "fixed_rank": null,
+        "skill_requirements": [],
+        "power_requirements": [
+          {
+            "training_key": "shadowbane.assassin.fade",
+            "minimum_rank": 18
+          }
+        ]
+      }
+    },
+    {
+      "action_key": "shadowbane.warlock.mind_snare",
+      "display_name": "Mind Snare",
+      "rank": 40,
+      "status": "compiled_with_override",
+      "concrete": {
+        "server_power_token": null,
+        "server_id_string": null,
+        "client_binding_key": "shadowbane.warlock.mind_snare"
+      },
+      "provenance": [
+        {
+          "fields": [
+            "rank",
+            "progression",
+            "spec.costs",
+            "spec.targeting.maximum_range",
+            "spec.phases[0].duration_ms",
+            "spec.phases[0].effects",
+            "spec.cooldown_ms"
+          ],
+          "source_id": "morloch-warlock-36352",
+          "locator": "Mind Snare rank 0-40 table"
+        },
+        {
+          "fields": [
+            "concrete.client_binding_key",
+            "spec.targeting",
+            "spec.phases[0].effects",
+            "spec.features",
+            "spec.tags"
+          ],
+          "source_id": "lab-action-algebra-v1",
+          "locator": "Mind Snare typed-action mapping",
+          "note": "The snare is retained as a tagged effect while movement-rate application remains a simulator gap."
+        }
+      ],
+      "unresolved": [
+        "Server power token and IDString require the deployment power-data export.",
+        "The published 0.02-second cast requires emulator timing verification.",
+        "Exact deployment movement-rate rounding remains unverified."
+      ],
+      "spec": {
+        "hit_roll": null,
+        "targeting": {
+          "kind": "entity",
+          "allowed_relations": [
+            "enemy"
+          ],
+          "minimum_range": 0,
+          "maximum_range": 100,
+          "requires_line_of_sight": true
+        },
+        "costs": [
+          {
+            "resource_key": "mana",
+            "amount": {
+              "interpolation": "linear",
+              "rank_min": 0,
+              "rank_max": 40,
+              "value_min": 20,
+              "value_max": 60
+            }
+          }
+        ],
+        "phases": [
+          {
+            "kind": "active",
+            "duration_ms": 20,
+            "effects": [
+              {
+                "op": "remove_effect",
+                "subject": "target",
+                "effect_key": null,
+                "matching_tag": "movement.flight"
+              },
+              {
+                "op": "apply_effect",
+                "subject": "target",
+                "effect_key": "snared",
+                "duration_ms": {
+                  "interpolation": "linear",
+                  "rank_min": 0,
+                  "rank_max": 40,
+                  "value_min": 7000,
+                  "value_max": 15000
+                },
+                "magnitude": {
+                  "interpolation": "linear",
+                  "rank_min": 0,
+                  "rank_max": 40,
+                  "value_min": 0.11,
+                  "value_max": 0.6
+                },
+                "stacking_key": "Snare",
+                "tags": [
+                  "control.snare",
+                  "movement.slow",
+                  "debuff"
+                ],
+                "modifiers": [
+                  {
+                    "op": "scalar_multiplier",
+                    "scalar_key": "move_speed",
+                    "factor": {
+                      "interpolation": "linear",
+                      "rank_min": 0,
+                      "rank_max": 40,
+                      "value_min": 0.89,
+                      "value_max": 0.4
+                    }
+                  }
+                ]
+              }
+            ],
+            "delivery": {
+              "kind": "immediate",
+              "projectile_speed_units_per_second": null
+            },
+            "interruptible": true,
+            "movement_allowed": false
+          }
+        ],
+        "cooldown_ms": 5020,
+        "required_actor_tags": [],
+        "forbidden_actor_tags": [],
+        "features": [
+          {
+            "name": "control_duration_ms",
+            "value": {
+              "interpolation": "linear",
+              "rank_min": 0,
+              "rank_max": 40,
+              "value_min": 7000,
+              "value_max": 15000
+            }
+          },
+          {
+            "name": "movement_slow_fraction",
+            "value": {
+              "interpolation": "linear",
+              "rank_min": 0,
+              "rank_max": 40,
+              "value_min": 0.11,
+              "value_max": 0.6
+            }
+          }
+        ],
+        "tags": [
+          "combat",
+          "control",
+          "snare",
+          "anti_flight",
+          "applies.snared"
+        ]
+      },
+      "progression": {
+        "professions": [
+          "warlock"
+        ],
+        "granted_level": 18,
+        "maximum_rank": 40,
+        "fixed_rank": null,
+        "skill_requirements": [
+          {
+            "training_key": "warlockry",
+            "minimum_rank": 43
+          }
+        ],
+        "power_requirements": []
+      }
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "profile_id": "wonderbane-ef43784b-native-message-hud",
+  "executable_name": "sb.exe",
+  "executable_sha256": "ef43784ba6ffa0de6c0c16c76569f864393ad1530e7149395bb560e5cca30f13",
+  "pointer_size": 4,
+  "minimum_user_address": 65536,
+  "maximum_user_address": 2147418111,
+  "maximum_scan_address": 536870912,
+  "scan_memory_type": 131072,
+  "scan_protection": 4,
+  "channel_colors": [
+    "255000000",
+    "000255000"
+  ],
+  "minimum_markers_per_buffer": 3,
+  "maximum_marker_gap_bytes": 4096,
+  "maximum_prefix_slack_bytes": 256,
+  "maximum_transcript_characters": 65536,
+  "maximum_candidate_buffers": 64
+}

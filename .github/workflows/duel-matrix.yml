@@ -1,0 +1,107 @@
+name: Assassin-Warlock duel matrix
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - codex/progression-duel-sim
+    paths:
+      - ".github/workflows/duel-matrix.yml"
+      - "src/shadowbane_lab/rollouts/**"
+      - "src/shadowbane_lab/rulesets/**"
+  pull_request:
+    paths:
+      - ".github/workflows/duel-matrix.yml"
+      - "src/shadowbane_lab/rollouts/**"
+      - "src/shadowbane_lab/rulesets/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: duel-matrix-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  matrix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Run progression and range matrix
+        run: |
+          mkdir -p artifacts
+          python -m shadowbane_lab.rollouts \
+            --matrix \
+            --levels 10,15,18,19,22,26,28,42,75 \
+            --ranks 0,10,20,40 \
+            --distances 15,60,110 \
+            --seeds 1,2,3 \
+            --max-ticks 1200 \
+            --json > artifacts/assassin-warlock-duel-matrix.json
+      - name: Summarize matrix
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from collections import defaultdict
+          from pathlib import Path
+
+          source = Path("artifacts/assassin-warlock-duel-matrix.json")
+          cells = json.loads(source.read_text(encoding="utf-8"))
+          by_level = defaultdict(lambda: {"matches": 0, "assassin": 0, "warlock": 0, "draws": 0, "limits": 0})
+          totals = {"matches": 0, "assassin": 0, "warlock": 0, "draws": 0, "limits": 0}
+          for cell in cells:
+              row = by_level[cell["level"]]
+              values = {
+                  "matches": cell["matches"],
+                  "assassin": cell["assassin_wins"],
+                  "warlock": cell["warlock_wins"],
+                  "draws": cell["draws"],
+                  "limits": cell["time_limits"],
+              }
+              for key, value in values.items():
+                  row[key] += value
+                  totals[key] += value
+
+          lines = [
+              "# Assassin vs Warlock progression matrix",
+              "",
+              f"Cells: {len(cells)}; playouts: {totals['matches']}",
+              "",
+              "| Level | Playouts | Assassin wins | Warlock wins | Draws | Time limits |",
+              "|---:|---:|---:|---:|---:|---:|",
+          ]
+          for level in sorted(by_level):
+              row = by_level[level]
+              lines.append(
+                  f"| {level} | {row['matches']} | {row['assassin']} | {row['warlock']} | "
+                  f"{row['draws']} | {row['limits']} |"
+              )
+          lines.extend(
+              [
+                  "",
+                  f"**Total:** Assassin {totals['assassin']}, Warlock {totals['warlock']}, "
+                  f"draws {totals['draws']}, time limits {totals['limits']}.",
+              ]
+          )
+          summary = "\n".join(lines) + "\n"
+          Path("artifacts/assassin-warlock-duel-summary.md").write_text(summary, encoding="utf-8")
+          with Path("artifacts/assassin-warlock-duel-summary.json").open("w", encoding="utf-8") as handle:
+              json.dump({"cells": len(cells), "totals": totals, "by_level": by_level}, handle, indent=2, sort_keys=True)
+              handle.write("\n")
+          print(summary)
+          PY
+          cat artifacts/assassin-warlock-duel-summary.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload matrix artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: assassin-warlock-duel-matrix
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 30

@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "evidence_id": "wonderbane.incoming.character-creation.20260828T061802186Z",
+  "target_variant": "wonderbane",
+  "capture_status": "completed_private",
+  "capture_window": {
+    "started_at_utc": "2026-08-28T06:18:02.1866977Z",
+    "stopped_at_utc": "2026-08-28T06:30:23.7987656Z",
+    "duration_seconds": 741.61,
+    "observed_transition": "leave_and_reenter_character_creation"
+  },
+  "client_executable_sha256": "ef43784ba6ffa0de6c0c16c76569f864393ad1530e7149395bb560e5cca30f13",
+  "private_capture": {
+    "committed": false,
+    "pcapng_size_bytes": 3996,
+    "pcapng_sha256": "77691877e38183233daa9238f2a8c85ef23f99a4ab2caffbeced7897ba449791",
+    "container_valid": true,
+    "truncated_frames": 0
+  },
+  "redacted_transport_summary": {
+    "transport": "tcp",
+    "frames": 35,
+    "application_payload_frames": 16,
+    "application_payload_bytes": 776,
+    "incoming_payload_frames": 15,
+    "incoming_payload_bytes": 772,
+    "outgoing_payload_frames": 1,
+    "outgoing_payload_bytes": 4,
+    "payload_lengths": [
+      16,
+      54,
+      54,
+      54,
+      54,
+      54,
+      54,
+      54,
+      54,
+      54,
+      54,
+      54,
+      54,
+      54,
+      54,
+      4
+    ],
+    "unique_byte_values": 238,
+    "shannon_bits_per_byte": 7.7137,
+    "printable_percent": 37.5,
+    "longest_printable_run": 7
+  },
+  "assessment": {
+    "status": "opaque_transport_payload",
+    "finding": "The NIC-level payload is consistent with encrypted or session-obfuscated data and exposes no plaintext character-creation records.",
+    "catalog_values_promoted": [],
+    "next_acquisition_boundary": "Instrument the client after transport decoding or locate its decoded character-definition table in process memory."
+  },
+  "privacy": {
+    "raw_packets_private": true,
+    "endpoint_metadata_redacted": true,
+    "payload_bytes_redacted": true
+  }
+}

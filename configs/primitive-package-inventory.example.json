@@ -1,0 +1,159 @@
+{
+  "schema_version": 1,
+  "inventory_id": "example.primitive-toolbox",
+  "selection_minimum": 1,
+  "selection_maximum": 4,
+  "body": {
+    "health": 500,
+    "mana": 300,
+    "stamina": 200,
+    "move_speed": 15,
+    "tags": [],
+    "scalars": {
+      "attack_rating": 100,
+      "defense": 100,
+      "weapon.main_hand.damage_min": 8,
+      "weapon.main_hand.damage_max": 12
+    }
+  },
+  "packages": [
+    {
+      "package_id": "piece.melee-body",
+      "display_name": "Melee weapon access",
+      "action_keys": [],
+      "tags": [
+        "equipment.melee_weapon",
+        "power.stalk"
+      ],
+      "modifiers": {
+        "health": 80,
+        "stamina": 40,
+        "scalars": {}
+      },
+      "requires": [],
+      "conflicts": [],
+      "metadata": {
+        "source_kind": "example-body"
+      },
+      "persistent_trigger_keys": []
+    },
+    {
+      "package_id": "piece.stealth",
+      "display_name": "Stealth access",
+      "action_keys": [
+        "shadowbane.assassin.fade",
+        "shadowbane.assassin.invisibility"
+      ],
+      "tags": [],
+      "modifiers": {
+        "mana": 50,
+        "scalars": {}
+      },
+      "requires": [],
+      "conflicts": [],
+      "metadata": {
+        "source_kind": "example-rune"
+      },
+      "persistent_trigger_keys": []
+    },
+    {
+      "package_id": "piece.weapon-power",
+      "display_name": "Next-swing weapon power",
+      "action_keys": [
+        "shadowbane.assassin.backstab"
+      ],
+      "tags": [],
+      "modifiers": {
+        "scalars": {}
+      },
+      "requires": [
+        "piece.melee-body",
+        "piece.stealth"
+      ],
+      "conflicts": [],
+      "metadata": {
+        "source_kind": "example-rune"
+      },
+      "persistent_trigger_keys": []
+    },
+    {
+      "package_id": "piece.shadow-control",
+      "display_name": "Shadow control",
+      "action_keys": [
+        "shadowbane.assassin.shadow_touch",
+        "shadowbane.assassin.shadow_mantle"
+      ],
+      "tags": [],
+      "modifiers": {
+        "mana": 60,
+        "scalars": {}
+      },
+      "requires": [],
+      "conflicts": [],
+      "metadata": {
+        "source_kind": "example-rune"
+      },
+      "persistent_trigger_keys": []
+    },
+    {
+      "package_id": "piece.mental-pressure",
+      "display_name": "Mental pressure",
+      "action_keys": [
+        "shadowbane.warlock.mind_strike",
+        "shadowbane.warlock.mind_snare"
+      ],
+      "tags": [],
+      "modifiers": {
+        "mana": 80,
+        "scalars": {}
+      },
+      "requires": [],
+      "conflicts": [],
+      "metadata": {
+        "source_kind": "example-rune"
+      },
+      "persistent_trigger_keys": []
+    },
+    {
+      "package_id": "piece.self-sustain",
+      "display_name": "Self sustain",
+      "action_keys": [
+        "shadowbane.warlock.psychic_healing"
+      ],
+      "tags": [],
+      "modifiers": {
+        "health": 50,
+        "mana": 50,
+        "scalars": {}
+      },
+      "requires": [],
+      "conflicts": [],
+      "metadata": {
+        "source_kind": "example-rune"
+      },
+      "persistent_trigger_keys": []
+    },
+    {
+      "package_id": "piece.flight",
+      "display_name": "Flight access",
+      "action_keys": [
+        "shadowbane.warlock.levitation"
+      ],
+      "tags": [],
+      "modifiers": {
+        "move_speed": 2,
+        "scalars": {}
+      },
+      "requires": [],
+      "conflicts": [],
+      "metadata": {
+        "source_kind": "example-rune"
+      },
+      "persistent_trigger_keys": []
+    }
+  ],
+  "notes": [
+    "This is a mechanics-only example, not a claim that one WonderBane character can equip every listed source.",
+    "Replace these pieces with the user's actual rune, body, equipment, and consumable inventory."
+  ]
+}

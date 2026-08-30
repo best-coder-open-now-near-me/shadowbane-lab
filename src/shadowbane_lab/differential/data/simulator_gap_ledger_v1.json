@@ -1,0 +1,115 @@
+{
+  "schema_version": 1,
+  "entries": [
+    {
+      "gap_id": "SB-GAP-001",
+      "status": "open",
+      "category": "movement",
+      "scenario_pattern": "*",
+      "path_pattern": "trace/steps/*/*/entities/*/position/*",
+      "description": "Collision, acceleration, flight-layer movement, and terrain traversal require controlled emulator traces.",
+      "action_key": "shadowbane.move",
+      "max_absolute_delta": null,
+      "evidence_trace_ids": []
+    },
+    {
+      "gap_id": "SB-GAP-002",
+      "status": "open",
+      "category": "damage",
+      "scenario_pattern": "basic_attack.*",
+      "path_pattern": "trace/steps/*/after/entities/*/scalars/health",
+      "description": "The complete-sheet path compiles source-pinned weapon timing, hit/defense, centered damage, resistance, and proc mechanics; current WonderBane sheet inputs and differential traces are still required for deployment parity.",
+      "action_key": "shadowbane.basic_attack",
+      "max_absolute_delta": null,
+      "evidence_trace_ids": []
+    },
+    {
+      "gap_id": "SB-GAP-003",
+      "status": "open",
+      "category": "damage",
+      "scenario_pattern": "shadow_bolt.*",
+      "path_pattern": "trace/steps/*/after/entities/*/scalars/health",
+      "description": "The complete-sheet path applies source-pinned power hit, stat/focus scaling, centered rolls, resistance, and train semantics to the archived Shadow Bolt row; the current WonderBane row and differential distribution remain unverified.",
+      "action_key": "shadowbane.assassin.shadow_bolt",
+      "max_absolute_delta": null,
+      "evidence_trace_ids": []
+    },
+    {
+      "gap_id": "SB-GAP-004",
+      "status": "open",
+      "category": "stacking",
+      "scenario_pattern": "shadow_bolt.*",
+      "path_pattern": "trace/steps/*/after/entities/*/effects/*/stacking_key",
+      "description": "Stun and immunity stack precedence must be checked against authoritative effect-stack traces.",
+      "action_key": "shadowbane.assassin.shadow_bolt",
+      "max_absolute_delta": null,
+      "evidence_trace_ids": []
+    },
+    {
+      "gap_id": "SB-GAP-005",
+      "status": "open",
+      "category": "damage",
+      "scenario_pattern": "psychic_healing.*",
+      "path_pattern": "trace/steps/*/after/entities/*/scalars/health",
+      "description": "The complete-sheet path applies source-pinned stat/focus scaling, centered rolls, healing resistance, and train semantics to the archived Psychic Healing row; the current WonderBane row and differential distribution remain unverified.",
+      "action_key": "shadowbane.warlock.psychic_healing",
+      "max_absolute_delta": null,
+      "evidence_trace_ids": []
+    },
+    {
+      "gap_id": "SB-GAP-006",
+      "status": "open",
+      "category": "interruption",
+      "scenario_pattern": "passwall.*",
+      "path_pattern": "trace/steps/*",
+      "description": "Passwall remains non-executable pending ground-target, terrain, invisibility, and damage-interrupt semantics.",
+      "action_key": "shadowbane.assassin.passwall",
+      "max_absolute_delta": null,
+      "evidence_trace_ids": []
+    },
+    {
+      "gap_id": "SB-GAP-007",
+      "status": "open",
+      "category": "effect",
+      "scenario_pattern": "stance.*",
+      "path_pattern": "trace/steps/*/after/entities/*/tags/*",
+      "description": "The runtime represents normal, offensive, defensive, precise, and travel as one exclusive state, compiles source-pinned class/rank rating, damage, delay, movement, and recovery modifiers, exposes legal 20-second stance actions, and drops travel on an unavoided hit; current WonderBane modifier parity, stamina-recovery timing, and immune-hit edge behavior require controlled traces.",
+      "action_key": null,
+      "max_absolute_delta": null,
+      "evidence_trace_ids": []
+    },
+    {
+      "gap_id": "SB-GAP-008",
+      "status": "open",
+      "category": "structure",
+      "scenario_pattern": "area.*",
+      "path_pattern": "trace/steps/*/events/*/target_entity_id",
+      "description": "Caster- and target-centered radius execution is implemented with relation filters, deterministic caps, and per-victim hit gates; current per-power origin, radius, cap, line-of-sight, and avoidance rows require authoritative traces.",
+      "action_key": null,
+      "max_absolute_delta": null,
+      "evidence_trace_ids": []
+    },
+    {
+      "gap_id": "SB-GAP-009",
+      "status": "open",
+      "category": "damage",
+      "scenario_pattern": "steal_breath.*",
+      "path_pattern": "trace/steps/*/after/entities/*/scalars/health",
+      "description": "The sourced direct poison hit, six five-second pulses, focus scaling, and refresh behavior require a controlled current-WonderBane trace; snare magnitude and stack precedence require the corresponding movement trace.",
+      "action_key": "shadowbane.assassin.steal_breath",
+      "max_absolute_delta": null,
+      "evidence_trace_ids": []
+    },
+    {
+      "gap_id": "SB-GAP-010",
+      "status": "open",
+      "category": "effect",
+      "scenario_pattern": "psychic_shield.*",
+      "path_pattern": "trace/steps/*/after/entities/*",
+      "description": "The pinned Psychic Shield table uses a 1000-point post-resistance breakpoint while later MagicBane patch history reports 750; a current WonderBane trace must resolve the threshold, resistance application, and stack precedence.",
+      "action_key": "shadowbane.warlock.psychic_shield",
+      "max_absolute_delta": null,
+      "evidence_trace_ids": []
+    }
+  ]
+}

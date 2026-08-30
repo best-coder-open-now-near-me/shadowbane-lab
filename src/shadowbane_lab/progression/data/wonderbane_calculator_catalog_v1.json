@@ -1,0 +1,8437 @@
+{
+  "base_classes": [
+    {
+      "allowed_base_classes": [],
+      "attribute_modifiers": [
+        5,
+        0,
+        5,
+        -10,
+        0
+      ],
+      "health_growth": 20,
+      "id": 2500,
+      "mana_growth": 5,
+      "name": "Fighter",
+      "stamina_growth": 3
+    },
+    {
+      "allowed_base_classes": [],
+      "attribute_modifiers": [
+        0,
+        -10,
+        5,
+        0,
+        5
+      ],
+      "health_growth": 15,
+      "id": 2501,
+      "mana_growth": 16,
+      "name": "Healer",
+      "stamina_growth": 1
+    },
+    {
+      "allowed_base_classes": [],
+      "attribute_modifiers": [
+        0,
+        5,
+        0,
+        5,
+        -10
+      ],
+      "health_growth": 17,
+      "id": 2502,
+      "mana_growth": 10,
+      "name": "Rogue",
+      "stamina_growth": 8
+    },
+    {
+      "allowed_base_classes": [],
+      "attribute_modifiers": [
+        -10,
+        0,
+        0,
+        5,
+        5
+      ],
+      "health_growth": 15,
+      "id": 2503,
+      "mana_growth": 20,
+      "name": "Mage",
+      "stamina_growth": 1
+    }
+  ],
+  "counts": {
+    "base_classes": 4,
+    "disciplines": 48,
+    "promotions": 23,
+    "race_families": 12,
+    "race_records": 22,
+    "runes": 179
+  },
+  "formulas": {
+    "boon": 5,
+    "function_sha256": {
+      "categoryOf": "7e590121a05629851671635f9b2430553146fcfcea5ddedf6e2b87c8298844f0",
+      "compute": "094dddd976387ea6b209ae2a78e8e6d890e2470de2cb750768c4b37aade02aa9",
+      "disciplineLimit": "fa232d300fb136ffd35734f5af946709e38113ab5922eecd4ddcfe4f80aa46f1",
+      "fgForLevel": "92af30b6af222f9857e5eaeba017f9bbcb44904171c21342aa3040593d4d7261",
+      "levelBonus": "c8f6a2b7b0962079b4ebe12cecb4011d7f984f83b135ee24ab7a7d9e05693786",
+      "runeAllowed": "ef01934b5a96136089e5e1ed4fcdac76acbdc6c4b1ec06ec662efd797f9b2db4",
+      "runeMinsMet": "244b83a51f9531d12c6c3e3c038723148d4e93a50c16074c989b5af77919976f"
+    }
+  },
+  "promotions": [
+    {
+      "allowed_base_classes": [
+        "Mage",
+        "Rogue"
+      ],
+      "attribute_modifiers": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "health_growth": 50,
+      "id": 2504,
+      "mana_growth": 16,
+      "name": "Assassin",
+      "stamina_growth": 0
+    },
+    {
+      "allowed_base_classes": [
+        "Rogue",
+        "Fighter"
+      ],
+      "attribute_modifiers": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "health_growth": 65,
+      "id": 2505,
+      "mana_growth": 0,
+      "name": "Barbarian",
+      "stamina_growth": 0
+    },
+    {
+      "allowed_base_classes": [
+        "Mage",
+        "Rogue"
+      ],
+      "attribute_modifiers": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "health_growth": 51,
+      "id": 2506,
+      "mana_growth": 16,
+      "name": "Bard",
+      "stamina_growth": 0
+    },
+    {
+      "allowed_base_classes": [
+        "Mage",
+        "Healer"
+      ],
+      "attribute_modifiers": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "health_growth": 45,
+      "id": 2507,
+      "mana_growth": 18,
+      "name": "Channeler",
+      "stamina_growth": 0
+    },
+    {
+      "allowed_base_classes": [
+        "Healer"
+      ],
+      "attribute_modifiers": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "health_growth": 45,
+      "id": 2508,
+      "mana_growth": 16,
+      "name": "Confessor",
+      "stamina_growth": 0
+    },
+    {
+      "allowed_base_classes": [
+        "Fighter",
+        "Healer"
+      ],
+      "attribute_modifiers": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "health_growth": 51,
+      "id": 2509,
+      "mana_growth": 14,
+      "name": "Crusader",
+      "stamina_growth": 0
+    },
+    {
+      "allowed_base_classes": [
+        "Healer",
+        "Mage",
+        "Rogue"
+      ],
+      "attribute_modifiers": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "health_growth": 45,
+      "id": 2510,
+      "mana_growth": 16,
+      "name": "Druid",
+      "stamina_growth": 0
+    },
+    {
+      "allowed_base_classes": [
+        "Mage"
+      ],
+      "attribute_modifiers": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "health_growth": 45,
+      "id": 2511,
+      "mana_growth": 20,
+      "name": "Fury",
+      "stamina_growth": 0
+    },
+    {
+      "allowed_base_classes": [
+        "Rogue",
+        "Fighter"
+      ],
+      "attribute_modifiers": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "health_growth": 51,
+      "id": 2512,
+      "mana_growth": 12,
+      "name": "Huntress",
+      "stamina_growth": 0
+    },
+    {
+      "allowed_base_classes": [
+        "Healer"
+      ],
+      "attribute_modifiers": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "health_growth": 45,
+      "id": 2513,
+      "mana_growth": 16,
+      "name": "Prelate",
+      "stamina_growth": 0
+    },
+    {
+      "allowed_base_classes": [
+        "Rogue",
+        "Fighter"
+      ],
+      "attribute_modifiers": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "health_growth": 51,
+      "id": 2514,
+      "mana_growth": 12,
+      "name": "Ranger",
+      "stamina_growth": 0
+    },
+    {
+      "allowed_base_classes": [
+        "Rogue"
+      ],
+      "attribute_modifiers": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "health_growth": 51,
+      "id": 2515,
+      "mana_growth": 0,
+      "name": "Scout",
+      "stamina_growth": 0
+    },
+    {
+      "allowed_base_classes": [
+        "Fighter"
+      ],
+      "attribute_modifiers": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "health_growth": 62,
+      "id": 2516,
+      "mana_growth": 14,
+      "name": "Templar",
+      "stamina_growth": 0
+    },
+    {
+      "allowed_base_classes": [
+        "Mage",
+        "Fighter"
+      ],
+      "attribute_modifiers": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "health_growth": 51,
+      "id": 2517,
+      "mana_growth": 15,
+      "name": "Warlock",
+      "stamina_growth": 0
+    },
+    {
+      "allowed_base_classes": [
+        "Fighter"
+      ],
+      "attribute_modifiers": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "health_growth": 60,
+      "id": 2518,
+      "mana_growth": 0,
+      "name": "Warrior",
+      "stamina_growth": 0
+    },
+    {
+      "allowed_base_classes": [
+        "Healer"
+      ],
+      "attribute_modifiers": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "health_growth": 45,
+      "id": 2519,
+      "mana_growth": 16,
+      "name": "Priest",
+      "stamina_growth": 0
+    },
+    {
+      "allowed_base_classes": [
+        "Rogue"
+      ],
+      "attribute_modifiers": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "health_growth": 51,
+      "id": 2520,
+      "mana_growth": 0,
+      "name": "Thief",
+      "stamina_growth": 0
+    },
+    {
+      "allowed_base_classes": [
+        "Mage"
+      ],
+      "attribute_modifiers": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "health_growth": 45,
+      "id": 2521,
+      "mana_growth": 20,
+      "name": "Wizard",
+      "stamina_growth": 0
+    },
+    {
+      "allowed_base_classes": [
+        "Mage",
+        "Healer"
+      ],
+      "attribute_modifiers": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "health_growth": 45,
+      "id": 2523,
+      "mana_growth": 20,
+      "name": "Doomsayer",
+      "stamina_growth": 0
+    },
+    {
+      "allowed_base_classes": [
+        "Fighter"
+      ],
+      "attribute_modifiers": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "health_growth": 60,
+      "id": 2524,
+      "mana_growth": 16,
+      "name": "Sentinel",
+      "stamina_growth": 0
+    },
+    {
+      "allowed_base_classes": [
+        "Mage"
+      ],
+      "attribute_modifiers": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "health_growth": 45,
+      "id": 2525,
+      "mana_growth": 20,
+      "name": "Necromancer",
+      "stamina_growth": 0
+    },
+    {
+      "allowed_base_classes": [
+        "Rogue"
+      ],
+      "attribute_modifiers": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "health_growth": 50,
+      "id": 2526,
+      "mana_growth": 16,
+      "name": "Nightstalker",
+      "stamina_growth": 0
+    },
+    {
+      "allowed_base_classes": [
+        "Rogue"
+      ],
+      "attribute_modifiers": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "health_growth": 50,
+      "id": 2527,
+      "mana_growth": 16,
+      "name": "Ninja",
+      "stamina_growth": 0
+    }
+  ],
+  "races": [
+    {
+      "creation_points": 15,
+      "family": "Aracoix",
+      "health_base": 0,
+      "id": 2002,
+      "mana_base": 20,
+      "maximum_attributes": [
+        115,
+        120,
+        105,
+        85,
+        85
+      ],
+      "name": "Aracoix, Male",
+      "sex": "male",
+      "stamina_base": 100,
+      "starting_attributes": [
+        50,
+        55,
+        45,
+        35,
+        30
+      ]
+    },
+    {
+      "creation_points": 15,
+      "family": "Aracoix",
+      "health_base": 0,
+      "id": 2003,
+      "mana_base": 20,
+      "maximum_attributes": [
+        115,
+        120,
+        105,
+        85,
+        85
+      ],
+      "name": "Aracoix, Female",
+      "sex": "female",
+      "stamina_base": 100,
+      "starting_attributes": [
+        50,
+        55,
+        45,
+        35,
+        30
+      ]
+    },
+    {
+      "creation_points": 25,
+      "family": "Aelfborn",
+      "health_base": 0,
+      "id": 2000,
+      "mana_base": 30,
+      "maximum_attributes": [
+        95,
+        120,
+        95,
+        105,
+        85
+      ],
+      "name": "Aelfborn, Male",
+      "sex": "male",
+      "stamina_base": 70,
+      "starting_attributes": [
+        40,
+        50,
+        40,
+        45,
+        35
+      ]
+    },
+    {
+      "creation_points": 25,
+      "family": "Aelfborn",
+      "health_base": 0,
+      "id": 2001,
+      "mana_base": 30,
+      "maximum_attributes": [
+        95,
+        120,
+        95,
+        105,
+        85
+      ],
+      "name": "Aelfborn, Female",
+      "sex": "female",
+      "stamina_base": 70,
+      "starting_attributes": [
+        40,
+        50,
+        40,
+        45,
+        35
+      ]
+    },
+    {
+      "creation_points": 20,
+      "family": "Centaur",
+      "health_base": 5,
+      "id": 2004,
+      "mana_base": 15,
+      "maximum_attributes": [
+        110,
+        85,
+        125,
+        85,
+        105
+      ],
+      "name": "Centaur, Male",
+      "sex": "male",
+      "stamina_base": 70,
+      "starting_attributes": [
+        45,
+        35,
+        55,
+        35,
+        50
+      ]
+    },
+    {
+      "creation_points": 20,
+      "family": "Centaur",
+      "health_base": 5,
+      "id": 2005,
+      "mana_base": 15,
+      "maximum_attributes": [
+        110,
+        85,
+        125,
+        85,
+        105
+      ],
+      "name": "Centaur, Female",
+      "sex": "female",
+      "stamina_base": 70,
+      "starting_attributes": [
+        45,
+        35,
+        55,
+        35,
+        50
+      ]
+    },
+    {
+      "creation_points": 15,
+      "family": "Dwarf",
+      "health_base": 30,
+      "id": 2006,
+      "mana_base": 15,
+      "maximum_attributes": [
+        110,
+        80,
+        140,
+        70,
+        100
+      ],
+      "name": "Dwarf, Male",
+      "sex": "male",
+      "stamina_base": 90,
+      "starting_attributes": [
+        45,
+        35,
+        60,
+        30,
+        40
+      ]
+    },
+    {
+      "creation_points": 15,
+      "family": "Elf",
+      "health_base": 0,
+      "id": 2008,
+      "mana_base": 35,
+      "maximum_attributes": [
+        70,
+        140,
+        70,
+        120,
+        100
+      ],
+      "name": "Elf, Male",
+      "sex": "male",
+      "stamina_base": 70,
+      "starting_attributes": [
+        35,
+        60,
+        35,
+        50,
+        40
+      ]
+    },
+    {
+      "creation_points": 15,
+      "family": "Elf",
+      "health_base": 0,
+      "id": 2009,
+      "mana_base": 35,
+      "maximum_attributes": [
+        70,
+        140,
+        70,
+        120,
+        100
+      ],
+      "name": "Elf, Female",
+      "sex": "female",
+      "stamina_base": 70,
+      "starting_attributes": [
+        35,
+        60,
+        35,
+        50,
+        40
+      ]
+    },
+    {
+      "creation_points": 20,
+      "family": "Half-Giant",
+      "health_base": 20,
+      "id": 2010,
+      "mana_base": 5,
+      "maximum_attributes": [
+        150,
+        65,
+        140,
+        85,
+        60
+      ],
+      "name": "Half-Giant, Male",
+      "sex": "male",
+      "stamina_base": 70,
+      "starting_attributes": [
+        60,
+        40,
+        60,
+        30,
+        30
+      ]
+    },
+    {
+      "creation_points": 20,
+      "family": "Half-Giant",
+      "health_base": 20,
+      "id": 2027,
+      "mana_base": 5,
+      "maximum_attributes": [
+        150,
+        65,
+        140,
+        85,
+        60
+      ],
+      "name": "Half-Giant, Female",
+      "sex": "female",
+      "stamina_base": 70,
+      "starting_attributes": [
+        60,
+        40,
+        60,
+        30,
+        30
+      ]
+    },
+    {
+      "creation_points": 30,
+      "family": "Human",
+      "health_base": 0,
+      "id": 2011,
+      "mana_base": 25,
+      "maximum_attributes": [
+        100,
+        100,
+        100,
+        100,
+        100
+      ],
+      "name": "Human, Male",
+      "sex": "male",
+      "stamina_base": 70,
+      "starting_attributes": [
+        45,
+        45,
+        45,
+        45,
+        45
+      ]
+    },
+    {
+      "creation_points": 30,
+      "family": "Human",
+      "health_base": 0,
+      "id": 2012,
+      "mana_base": 25,
+      "maximum_attributes": [
+        100,
+        100,
+        100,
+        100,
+        100
+      ],
+      "name": "Human, Female",
+      "sex": "female",
+      "stamina_base": 70,
+      "starting_attributes": [
+        45,
+        45,
+        45,
+        45,
+        45
+      ]
+    },
+    {
+      "creation_points": 15,
+      "family": "Irekei",
+      "health_base": 0,
+      "id": 2013,
+      "mana_base": 20,
+      "maximum_attributes": [
+        85,
+        130,
+        90,
+        110,
+        85
+      ],
+      "name": "Irekei, Male",
+      "sex": "male",
+      "stamina_base": 70,
+      "starting_attributes": [
+        40,
+        55,
+        40,
+        45,
+        30
+      ]
+    },
+    {
+      "creation_points": 15,
+      "family": "Irekei",
+      "health_base": 0,
+      "id": 2014,
+      "mana_base": 20,
+      "maximum_attributes": [
+        85,
+        130,
+        90,
+        110,
+        85
+      ],
+      "name": "Irekei, Female",
+      "sex": "female",
+      "stamina_base": 70,
+      "starting_attributes": [
+        40,
+        55,
+        40,
+        45,
+        30
+      ]
+    },
+    {
+      "creation_points": 15,
+      "family": "Minotaur",
+      "health_base": 20,
+      "id": 2017,
+      "mana_base": 0,
+      "maximum_attributes": [
+        170,
+        70,
+        140,
+        65,
+        65
+      ],
+      "name": "Minotaur, Male",
+      "sex": "male",
+      "stamina_base": 70,
+      "starting_attributes": [
+        75,
+        25,
+        70,
+        25,
+        25
+      ]
+    },
+    {
+      "creation_points": 15,
+      "family": "Nephilim",
+      "health_base": 0,
+      "id": 2025,
+      "mana_base": 35,
+      "maximum_attributes": [
+        140,
+        60,
+        90,
+        130,
+        80
+      ],
+      "name": "Nephilim, Male",
+      "sex": "male",
+      "stamina_base": 70,
+      "starting_attributes": [
+        55,
+        15,
+        40,
+        65,
+        30
+      ]
+    },
+    {
+      "creation_points": 15,
+      "family": "Nephilim",
+      "health_base": 0,
+      "id": 2026,
+      "mana_base": 35,
+      "maximum_attributes": [
+        140,
+        60,
+        90,
+        130,
+        80
+      ],
+      "name": "Nephilim, Female",
+      "sex": "female",
+      "stamina_base": 70,
+      "starting_attributes": [
+        55,
+        15,
+        40,
+        65,
+        30
+      ]
+    },
+    {
+      "creation_points": 20,
+      "family": "Shade",
+      "health_base": 0,
+      "id": 2015,
+      "mana_base": 30,
+      "maximum_attributes": [
+        90,
+        115,
+        95,
+        110,
+        90
+      ],
+      "name": "Shade, Male",
+      "sex": "male",
+      "stamina_base": 70,
+      "starting_attributes": [
+        40,
+        50,
+        40,
+        45,
+        30
+      ]
+    },
+    {
+      "creation_points": 20,
+      "family": "Shade",
+      "health_base": 0,
+      "id": 2016,
+      "mana_base": 30,
+      "maximum_attributes": [
+        90,
+        115,
+        95,
+        110,
+        90
+      ],
+      "name": "Shade, Female",
+      "sex": "female",
+      "stamina_base": 70,
+      "starting_attributes": [
+        40,
+        50,
+        40,
+        45,
+        30
+      ]
+    },
+    {
+      "creation_points": 5,
+      "family": "Vampire",
+      "health_base": 40,
+      "id": 2028,
+      "mana_base": 0,
+      "maximum_attributes": [
+        120,
+        120,
+        120,
+        120,
+        65
+      ],
+      "name": "Vampire, Male",
+      "sex": "male",
+      "stamina_base": 70,
+      "starting_attributes": [
+        45,
+        50,
+        45,
+        50,
+        30
+      ]
+    },
+    {
+      "creation_points": 5,
+      "family": "Vampire",
+      "health_base": 40,
+      "id": 2029,
+      "mana_base": 0,
+      "maximum_attributes": [
+        120,
+        120,
+        120,
+        120,
+        65
+      ],
+      "name": "Vampire, Female",
+      "sex": "female",
+      "stamina_base": 70,
+      "starting_attributes": [
+        45,
+        50,
+        45,
+        50,
+        30
+      ]
+    }
+  ],
+  "runes": [
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [
+        "Bard",
+        "Confessor",
+        "Fury",
+        "Prelate",
+        "Priest"
+      ],
+      "allowed_races": [
+        "Aelfborn",
+        "Elf",
+        "Dwarf",
+        "Human",
+        "Shade",
+        "Saetor"
+      ],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        15,
+        0
+      ],
+      "category": "discipline",
+      "cost": 0,
+      "description": "Animators create living statues called golems to do their  bidding.  They apply their art to dead flesh, stone, and  even iron.",
+      "id": 3001,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Animator",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "disc",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        15,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [
+        "Assassin",
+        "Bard",
+        "Huntress",
+        "Nightstalker",
+        "Ninja",
+        "Ranger",
+        "Thief",
+        "Warrior"
+      ],
+      "allowed_races": [
+        "Aelfborn",
+        "Aracoix",
+        "Centaur",
+        "Dwarf",
+        "Elf",
+        "Half-Giant",
+        "Human",
+        "Irekei",
+        "Nephilim",
+        "Shade",
+        "Vampire"
+      ],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "discipline",
+      "cost": 0,
+      "description": "Honing their skills to uncanny levels, Archers are able to  make their arrows fly faster and strike harder, infusing  supernatural effects into missile fire.",
+      "id": 3002,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Archer",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "disc",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [
+        "Fighter",
+        "Rogue"
+      ],
+      "allowed_promotions": [
+        "Barbarian",
+        "Huntress",
+        "Ranger",
+        "Warrior"
+      ],
+      "allowed_races": [
+        "Aelfborn",
+        "Half-Giant",
+        "Human",
+        "Minotaur",
+        "Shade"
+      ],
+      "cap_grants": [
+        0,
+        0,
+        10,
+        0,
+        0
+      ],
+      "category": "discipline",
+      "cost": 0,
+      "description": "For centuries people have trembled at the legends of the  Berserks, Invorri warriors who drive themselves into fell  frenzies of bloodlust and destruction. Now the legends  have come true.",
+      "id": 3003,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Berserker",
+      "powers": [
+        "Strength of the Stag"
+      ],
+      "skill_grants": [],
+      "source_kind": "disc",
+      "stat_grants": [
+        0,
+        0,
+        10,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [
+        "Rogue"
+      ],
+      "allowed_promotions": [
+        "Bard",
+        "Huntress",
+        "Nightstalker",
+        "Ranger",
+        "Scout"
+      ],
+      "allowed_races": [
+        "Aelfborn",
+        "Aracoix",
+        "Elf",
+        "Human",
+        "Irekei",
+        "Shade",
+        "Vampire",
+        "Nephilim"
+      ],
+      "cap_grants": [
+        0,
+        5,
+        0,
+        0,
+        0
+      ],
+      "category": "discipline",
+      "cost": 0,
+      "description": "Black Masks specialize in infiltration then striking and  escaping unscathed.  They pride themselves on killing with  daggers and short blades only.",
+      "id": 3004,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Black Mask",
+      "powers": [
+        "Buchinine",
+        "Magusbane",
+        "Passwall",
+        "Pellegorn"
+      ],
+      "skill_grants": [],
+      "source_kind": "disc",
+      "stat_grants": [
+        0,
+        5,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [
+        "Bard",
+        "Crusader",
+        "Nightstalker",
+        "Ninja",
+        "Ranger",
+        "Scout",
+        "Sentinel",
+        "Templar",
+        "Thief",
+        "Warlock",
+        "Warrior"
+      ],
+      "allowed_races": [
+        "Aelfborn",
+        "Human",
+        "Shade",
+        "Saetor"
+      ],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "discipline",
+      "cost": 0,
+      "description": "The finest Human swordsmen, Blade Masters learn to strike  with uncanny speed and can become whirlwinds of steel.",
+      "id": 3005,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Blade Master",
+      "powers": [],
+      "skill_grants": [
+        {
+          "amount": 10,
+          "name": "Sword"
+        }
+      ],
+      "source_kind": "disc",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [
+        "Assassin",
+        "Bard",
+        "Channeler",
+        "Crusader",
+        "Doomsayer",
+        "Druid",
+        "Fury",
+        "Huntress",
+        "Necromancer",
+        "Ninja",
+        "Prelate",
+        "Priest",
+        "Ranger",
+        "Scout",
+        "Sentinel",
+        "Thief",
+        "Warrior",
+        "Wizard"
+      ],
+      "allowed_races": [
+        "Elf"
+      ],
+      "cap_grants": [
+        0,
+        0,
+        10,
+        0,
+        0
+      ],
+      "category": "discipline",
+      "cost": 0,
+      "description": "Millennia of trial and practice have produced the Elven  Blade Weavers, specialists in swordplay who may well be the  finest swordsmen in the world.",
+      "id": 3006,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Blade Weaver",
+      "powers": [],
+      "skill_grants": [
+        {
+          "amount": 10,
+          "name": "Sword"
+        }
+      ],
+      "source_kind": "disc",
+      "stat_grants": [
+        0,
+        0,
+        10,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [
+        "Fighter",
+        "Healer",
+        "Rogue",
+        "Mage"
+      ],
+      "allowed_promotions": [
+        "Assassin",
+        "Barbarian",
+        "Bard",
+        "Channeler",
+        "Confessor",
+        "Crusader",
+        "Doomsayer",
+        "Druid",
+        "Fury",
+        "Huntress",
+        "Necromancer",
+        "Nightstalker",
+        "Ninja",
+        "Prelate",
+        "Ranger",
+        "Scout",
+        "Sentinel",
+        "Templar",
+        "Thief",
+        "Warlock",
+        "Warrior",
+        "Wizard"
+      ],
+      "allowed_races": [
+        "Aelfborn",
+        "Aracoix",
+        "Centaur",
+        "Dwarf",
+        "Elf",
+        "Half-Giant",
+        "Human",
+        "Irekei",
+        "Minotaur",
+        "Shade",
+        "Nephilim",
+        "Vampire"
+      ],
+      "cap_grants": [
+        0,
+        0,
+        5,
+        0,
+        0
+      ],
+      "category": "discipline",
+      "cost": 0,
+      "description": "A new breed of hunter has emerged: Bounty Hunters, callous  mercenaries who stalk criminals for money, ferreting out  wrongdoers in the guise of vengeance.",
+      "id": 3007,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Bounty Hunter",
+      "powers": [
+        "Track"
+      ],
+      "skill_grants": [],
+      "source_kind": "disc",
+      "stat_grants": [
+        0,
+        0,
+        5,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [
+        "Barbarian",
+        "Bard",
+        "Channeler",
+        "Confessor",
+        "Crusader",
+        "Doomsayer",
+        "Huntress",
+        "Prelate",
+        "Priest",
+        "Ranger",
+        "Sentinel",
+        "Templar",
+        "Warlock",
+        "Warrior",
+        "Wizard"
+      ],
+      "allowed_races": [
+        "Aelfborn",
+        "Aracoix",
+        "Centaur",
+        "Dwarf",
+        "Elf",
+        "Half-Giant",
+        "Human",
+        "Irekei",
+        "Nephilim",
+        "Shade",
+        "Vampire"
+      ],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        5,
+        0
+      ],
+      "category": "discipline",
+      "cost": 0,
+      "description": "Masters of strategy and tactics who duel with armies, not  swords, their skills and intuition determine the destiny  of Nations.",
+      "id": 3008,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Commander",
+      "powers": [
+        "Command Siege Engine",
+        "Rally Troops"
+      ],
+      "skill_grants": [],
+      "source_kind": "disc",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        5,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [
+        "Fighter"
+      ],
+      "allowed_promotions": [
+        "Templar",
+        "Warrior"
+      ],
+      "allowed_races": [
+        "Aelfborn",
+        "Aracoix",
+        "Centaur",
+        "Half-Giant",
+        "Human",
+        "Minotaur",
+        "Nephilim",
+        "Shade",
+        "Vampire"
+      ],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "discipline",
+      "cost": 0,
+      "description": "Dark Knights believe brute force is the only true power,  and thus their greed and ambition keep the world locked in  endless cycles of war and suffering.",
+      "id": 3009,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Dark Knight",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "disc",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "discipline",
+      "cost": 0,
+      "description": "Lightly armored and quick-bladed, most Duelists live like  vagabonds, hiring their blades, pursuing vendettas, or  testing their skills against others.",
+      "id": 3010,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Duelist",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "disc",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [
+        "Healer",
+        "Fighter"
+      ],
+      "allowed_promotions": [
+        "Crusader",
+        "Prelate",
+        "Priest",
+        "Sentinel",
+        "Warrior"
+      ],
+      "allowed_races": [
+        "Dwarf"
+      ],
+      "cap_grants": [
+        0,
+        0,
+        5,
+        0,
+        0
+      ],
+      "category": "discipline",
+      "cost": 0,
+      "description": "Before Time's beginning, Thurin taught the Dwarves the deepest secrets of stone and steel. The Forge Masters of the Dwarves learned the most from the Shaper: their skills can sharpen blades to an uncanny edge, and toughen Iron into Adamant.",
+      "id": 3011,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Forge Master",
+      "powers": [
+        "Lore of the Forge"
+      ],
+      "skill_grants": [],
+      "source_kind": "disc",
+      "stat_grants": [
+        0,
+        0,
+        5,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [
+        "Healer",
+        "Fighter"
+      ],
+      "allowed_promotions": [
+        "Crusader",
+        "Prelate",
+        "Priest",
+        "Sentinel",
+        "Warrior"
+      ],
+      "allowed_races": [
+        "Dwarf"
+      ],
+      "cap_grants": [
+        0,
+        0,
+        5,
+        0,
+        0
+      ],
+      "category": "discipline",
+      "cost": 0,
+      "description": "Dwarven masters of hammer and axe, Giant Killers specialize  in techniques suited to ridding the world of  giants.",
+      "id": 3012,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Giant Killer",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "disc",
+      "stat_grants": [
+        0,
+        0,
+        5,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [
+        "Fighter",
+        "Rogue"
+      ],
+      "allowed_promotions": [
+        "Barbarian",
+        "Huntress",
+        "Ranger",
+        "Scout",
+        "Thief",
+        "Warrior"
+      ],
+      "allowed_races": [
+        "Aelfborn",
+        "Aracoix",
+        "Centaur",
+        "Dwarf",
+        "Elf",
+        "Half-Giant",
+        "Human",
+        "Irekei",
+        "Minotaur",
+        "Nephilim",
+        "Shade"
+      ],
+      "cap_grants": [
+        0,
+        0,
+        5,
+        0,
+        0
+      ],
+      "category": "discipline",
+      "cost": 0,
+      "description": "Heroes of the arena, Gladiators draw upon inner reserves of  strength to augment their abilities and heal minor  wounds.",
+      "id": 3013,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Gladiator",
+      "powers": [
+        "Treat Wounds"
+      ],
+      "skill_grants": [],
+      "source_kind": "disc",
+      "stat_grants": [
+        0,
+        0,
+        5,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [
+        "Fighter",
+        "Healer",
+        "Rogue",
+        "Mage"
+      ],
+      "allowed_promotions": [
+        "Assassin",
+        "Barbarian",
+        "Bard",
+        "Channeler",
+        "Confessor",
+        "Crusader",
+        "Doomsayer",
+        "Druid",
+        "Fury",
+        "Huntress",
+        "Necromancer",
+        "Nightstalker",
+        "Ninja",
+        "Prelate",
+        "Ranger",
+        "Scout",
+        "Sentinel",
+        "Templar",
+        "Thief",
+        "Warlock",
+        "Warrior",
+        "Wizard"
+      ],
+      "allowed_races": [
+        "Aelfborn",
+        "Aracoix",
+        "Centaur",
+        "Elf",
+        "Half-Giant",
+        "Human",
+        "Irekei",
+        "Minotaur",
+        "Nephilim",
+        "Shade"
+      ],
+      "cap_grants": [
+        0,
+        0,
+        5,
+        0,
+        0
+      ],
+      "category": "discipline",
+      "cost": 0,
+      "description": "These who love the chase and are worthy join the ranks of  the Huntsmen, pledging themselves to the Long Hunt in  return for Kenaryn's boons.",
+      "id": 3014,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Huntsman",
+      "powers": [
+        "Track"
+      ],
+      "skill_grants": [],
+      "source_kind": "disc",
+      "stat_grants": [
+        0,
+        0,
+        5,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [
+        "Bard",
+        "Crusader",
+        "Ranger",
+        "Sentinel",
+        "Warrior"
+      ],
+      "allowed_races": [
+        "Aelfborn",
+        "Centaur",
+        "Half-Giant",
+        "Human",
+        "Saetor"
+      ],
+      "cap_grants": [
+        0,
+        0,
+        10,
+        0,
+        0
+      ],
+      "category": "discipline",
+      "cost": 0,
+      "description": "Masters of arms and battle, Knights are renowned for their  might on the battlefield and their personal honor.",
+      "id": 3015,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Knight",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "disc",
+      "stat_grants": [
+        0,
+        0,
+        10,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [
+        "Assassin",
+        "Bard",
+        "Channeler",
+        "Doomsayer",
+        "Druid",
+        "Nightstalker",
+        "Ninja",
+        "Ranger",
+        "Scout",
+        "Thief"
+      ],
+      "allowed_races": [
+        "Aelfborn",
+        "Centaur",
+        "Dwarf",
+        "Elf",
+        "Human",
+        "Irekei",
+        "Nephilim",
+        "Shade",
+        "Vampire"
+      ],
+      "cap_grants": [
+        0,
+        0,
+        5,
+        0,
+        0
+      ],
+      "category": "discipline",
+      "cost": 0,
+      "description": "Expert hunters and killers of rats and other vermin, Rat  Catchers know how to seek out and kill vermin of all kinds.",
+      "id": 3016,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Rat Catcher",
+      "powers": [
+        "Infection"
+      ],
+      "skill_grants": [],
+      "source_kind": "disc",
+      "stat_grants": [
+        0,
+        0,
+        5,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [
+        "Barbarian",
+        "Bard",
+        "Crusader",
+        "Druid",
+        "Fury",
+        "Ranger",
+        "Scout",
+        "Sentinel"
+      ],
+      "allowed_races": [
+        "Aelfborn",
+        "Aracoix",
+        "Centaur",
+        "Dwarf",
+        "Elf",
+        "Half-Giant",
+        "Human",
+        "Irekei",
+        "Shade"
+      ],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        5,
+        0
+      ],
+      "category": "discipline",
+      "cost": 0,
+      "description": "Rune Casters learn the shapes of the ancient runes and the  forgotten chants that give them power, carving runes  into magical talismans.",
+      "id": 3017,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Rune Caster",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "disc",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        5,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [
+        "Healer",
+        "Mage",
+        "Fighter",
+        "Rogue"
+      ],
+      "allowed_promotions": [
+        "Assassin",
+        "Bard",
+        "Channeler",
+        "Confessor",
+        "Doomsayer",
+        "Druid",
+        "Fury",
+        "Necromancer",
+        "Prelate",
+        "Warlock",
+        "Wizard",
+        "Ninja"
+      ],
+      "allowed_races": [
+        "Aelfborn",
+        "Centaur",
+        "Dwarf",
+        "Elf",
+        "Human",
+        "Irekei",
+        "Shade"
+      ],
+      "cap_grants": [
+        0,
+        0,
+        10,
+        0,
+        0
+      ],
+      "category": "discipline",
+      "cost": 0,
+      "description": "While trying to fashion runestones, ancient Magi discovered arcane symbols that store magic energies if drawn and treated properly. Enchanters are masters of these Power Sigils, signs that can turn mundane objects into items of power.",
+      "id": 3018,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Enchanter",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "disc",
+      "stat_grants": [
+        0,
+        0,
+        10,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [
+        "Barbarian",
+        "Warrior"
+      ],
+      "allowed_races": [
+        "Aelfborn",
+        "Aracoix",
+        "Centaur",
+        "Half-Giant",
+        "Human"
+      ],
+      "cap_grants": [
+        0,
+        0,
+        10,
+        0,
+        0
+      ],
+      "category": "discipline",
+      "cost": 0,
+      "description": "Mightiest of the Barbarians, Storm Lords bring the winds  down from the heavens, and call bolts of lightning to smite  their enemies.",
+      "id": 3019,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Storm Lord",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "disc",
+      "stat_grants": [
+        0,
+        0,
+        10,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [
+        "Barbarian",
+        "Doomsayer",
+        "Druid",
+        "Fury",
+        "Priest",
+        "Thief",
+        "Warlock",
+        "Warrior"
+      ],
+      "allowed_races": [
+        "Aelfborn",
+        "Aracoix",
+        "Elf",
+        "Human",
+        "Irekei",
+        "Nephilim",
+        "Shade",
+        "Centaur"
+      ],
+      "cap_grants": [
+        0,
+        0,
+        10,
+        0,
+        0
+      ],
+      "category": "discipline",
+      "cost": 0,
+      "description": "Learning the true names of animals or beasts, Summoners  create and call those animals into being, controlling them  with chants to bind them to their will.",
+      "id": 3020,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Summoner",
+      "powers": [
+        "Call to the Beasts"
+      ],
+      "skill_grants": [],
+      "source_kind": "disc",
+      "stat_grants": [
+        0,
+        0,
+        10,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [
+        "Assassin",
+        "Barbarian",
+        "Bard",
+        "Channeler",
+        "Confessor",
+        "Crusader",
+        "Doomsayer",
+        "Druid",
+        "Fury",
+        "Huntress",
+        "Necromancer",
+        "Nightstalker",
+        "Ninja",
+        "Prelate",
+        "Priest",
+        "Ranger",
+        "Scout",
+        "Sentinel",
+        "Templar",
+        "Thief",
+        "Warlock",
+        "Warrior",
+        "Wizard"
+      ],
+      "allowed_races": [
+        "Aelfborn",
+        "Aracoix",
+        "Centaur",
+        "Dwarf",
+        "Elf",
+        "Half-Giant",
+        "Human",
+        "Irekei",
+        "Minotaur",
+        "Nephilim",
+        "Shade",
+        "Vampire"
+      ],
+      "cap_grants": [
+        0,
+        0,
+        10,
+        0,
+        0
+      ],
+      "category": "discipline",
+      "cost": 0,
+      "description": "The Travelers can open and unleash the ancient, enigmatic  runegates, allowing travel between the fragments of Aerynth  or to entirely new worlds.",
+      "id": 3021,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Traveler",
+      "powers": [
+        "Open Air Gate",
+        "Open Earth Gate",
+        "Open Fire Gate",
+        "Open Spirit Gate",
+        "Open Water Gate",
+        "Recall Group to Runegate",
+        "Recall to Runegate",
+        "Send to Runegate"
+      ],
+      "skill_grants": [],
+      "source_kind": "disc",
+      "stat_grants": [
+        0,
+        0,
+        10,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [
+        "Assassin",
+        "Barbarian",
+        "Bard",
+        "Confessor",
+        "Crusader",
+        "Druid",
+        "Fury",
+        "Huntress",
+        "Ninja",
+        "Prelate",
+        "Priest",
+        "Ranger",
+        "Scout",
+        "Sentinel",
+        "Templar",
+        "Thief",
+        "Warrior",
+        "Wizard"
+      ],
+      "allowed_races": [
+        "Aelfborn",
+        "Aracoix",
+        "Centaur",
+        "Dwarf",
+        "Elf",
+        "Half-Giant",
+        "Human",
+        "Irekei",
+        "Shade"
+      ],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        5,
+        0
+      ],
+      "category": "discipline",
+      "cost": 0,
+      "description": "Undead Hunters use ancient secrets and techniques to seek  out and track undead creatures, and bless their weapons  with the power to kill even the dead.",
+      "id": 3022,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Undead Hunter",
+      "powers": [
+        "Cure Death's Touch",
+        "Hunt the Dead"
+      ],
+      "skill_grants": [],
+      "source_kind": "disc",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        5,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [
+        "Barbarian",
+        "Druid",
+        "Ranger",
+        "Warrior"
+      ],
+      "allowed_races": [
+        "Half-Giant",
+        "Human",
+        "Saetor"
+      ],
+      "cap_grants": [
+        0,
+        0,
+        5,
+        0,
+        0
+      ],
+      "category": "discipline",
+      "cost": 0,
+      "description": "Mighty shapechangers who put their human form aside and hunt  the forests in a bear's shape, Werebears use their powers  to protect the natural wilderness.",
+      "id": 3023,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Werebear",
+      "powers": [
+        "Bear-Lord's Might",
+        "G'harron's Claws",
+        "Overbearing Strike"
+      ],
+      "skill_grants": [
+        {
+          "amount": 200,
+          "name": "Way of the Bear"
+        }
+      ],
+      "source_kind": "disc",
+      "stat_grants": [
+        0,
+        0,
+        5,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [
+        "Assassin",
+        "Ninja",
+        "Ranger",
+        "Scout",
+        "Thief"
+      ],
+      "allowed_races": [
+        "Human",
+        "Shade",
+        "Saetor"
+      ],
+      "cap_grants": [
+        0,
+        10,
+        0,
+        0,
+        0
+      ],
+      "category": "discipline",
+      "cost": 0,
+      "description": "These grim and greedy scavengers can unleash the rodent  within them, becoming giant rats or terrifying fusions of  Human and rat.",
+      "id": 3024,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Wererat",
+      "powers": [
+        "Gnaw",
+        "Plague Jaws",
+        "Rat Shape",
+        "Rat-Lord's Guile",
+        "Skree'ekt Shape",
+        "Skree'ekt's Teeth",
+        "Teeth of the Swarm"
+      ],
+      "skill_grants": [
+        {
+          "amount": 200,
+          "name": "Way of the Rat"
+        }
+      ],
+      "source_kind": "disc",
+      "stat_grants": [
+        0,
+        10,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [
+        "Bard",
+        "Druid",
+        "Ranger",
+        "Warrior"
+      ],
+      "allowed_races": [
+        "Aelfborn",
+        "Human",
+        "Saetor"
+      ],
+      "cap_grants": [
+        0,
+        0,
+        5,
+        0,
+        0
+      ],
+      "category": "discipline",
+      "cost": 0,
+      "description": "The most monstrous of shape changers, the Werewolves have  appointed themselves the instruments of Nature's vengeance.",
+      "id": 3025,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Werewolf",
+      "powers": [
+        "Dread Howl",
+        "Might of the Wolfpack",
+        "Rend the Throat",
+        "Vargr's Fangs",
+        "Wolf-Lord's Cunning"
+      ],
+      "skill_grants": [
+        {
+          "amount": 200,
+          "name": "Way of the Wolf"
+        }
+      ],
+      "source_kind": "disc",
+      "stat_grants": [
+        0,
+        0,
+        5,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [
+        "Assassin",
+        "Barbarian",
+        "Bard",
+        "Crusader",
+        "Huntress",
+        "Necromancer",
+        "Ninja",
+        "Priest",
+        "Ranger",
+        "Sentinel",
+        "Templar",
+        "Thief",
+        "Warrior",
+        "Wizard"
+      ],
+      "allowed_races": [
+        "Aelfborn",
+        "Aracoix",
+        "Centaur",
+        "Dwarf",
+        "Elf",
+        "Half-Giant",
+        "Human",
+        "Nephilim",
+        "Vampire",
+        "Shade"
+      ],
+      "cap_grants": [
+        0,
+        0,
+        5,
+        0,
+        0
+      ],
+      "category": "discipline",
+      "cost": 0,
+      "description": "Wyrmslayers use an arsenal of tricks and techniques to give  them an edge against the mightiest of monsters, the  offspring of the Dragon and its lesser kin.",
+      "id": 3026,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Wyrmslayer",
+      "powers": [
+        "Drakesbreath"
+      ],
+      "skill_grants": [
+        {
+          "amount": 10,
+          "name": "Spear"
+        }
+      ],
+      "source_kind": "disc",
+      "stat_grants": [
+        0,
+        0,
+        5,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [
+        "Mage"
+      ],
+      "allowed_promotions": [
+        "Assassin",
+        "Bard",
+        "Channeler",
+        "Fury",
+        "Ninja",
+        "Wizard"
+      ],
+      "allowed_races": [
+        "Irekei"
+      ],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        5,
+        0
+      ],
+      "category": "discipline",
+      "cost": 0,
+      "description": "Irekei who hear the voice of the Dragon become Khanarch'ealarl,  or Blood Prophets, embracing dragon magic, to heal  and provide for their tribes.",
+      "id": 3028,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Blood Prophet",
+      "powers": [
+        "Sooth the Flames"
+      ],
+      "skill_grants": [
+        {
+          "amount": 35,
+          "name": "Flame Calling"
+        }
+      ],
+      "source_kind": "disc",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        5,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [
+        "Assassin",
+        "Bard",
+        "Channeler",
+        "Fury",
+        "Huntress",
+        "Nightstalker",
+        "Ninja",
+        "Priest",
+        "Ranger",
+        "Scout",
+        "Thief",
+        "Warrior",
+        "Wizard"
+      ],
+      "allowed_races": [
+        "Irekei"
+      ],
+      "cap_grants": [
+        0,
+        0,
+        5,
+        0,
+        0
+      ],
+      "category": "discipline",
+      "cost": 0,
+      "description": "The strangest, deadliest of the Irekei, Sun Dancers cast off  their weapons and fuse their flesh and spirit, becoming  like the Dragon itself.",
+      "id": 3029,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Sun Dancer",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "disc",
+      "stat_grants": [
+        0,
+        0,
+        5,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [
+        "Mage"
+      ],
+      "allowed_promotions": [
+        "Bard",
+        "Channeler",
+        "Fury",
+        "Warlock",
+        "Wizard",
+        "Doomsayer",
+        "Necromancer"
+      ],
+      "allowed_races": [
+        "Aelfborn",
+        "Elf",
+        "Human",
+        "Irekei",
+        "Shade",
+        "Nephilim"
+      ],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        20,
+        0
+      ],
+      "category": "discipline",
+      "cost": 0,
+      "description": "Masters of Maelarchor, the art of Conjuration, Conjurers can send their wills out into the spaces Beyond, contacting the dread presences of Chaos. They are able to summon Demons, and know Binding Incantations to command them.",
+      "id": 3030,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Conjurer",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "disc",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        20,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [
+        "Healer"
+      ],
+      "allowed_promotions": [
+        "Channeler",
+        "Confessor",
+        "Crusader",
+        "Druid",
+        "Prelate",
+        "Priest"
+      ],
+      "allowed_races": [
+        "Aelfborn",
+        "Aracoix",
+        "Centaur",
+        "Dwarf",
+        "Elf",
+        "Human"
+      ],
+      "cap_grants": [
+        0,
+        0,
+        10,
+        0,
+        0
+      ],
+      "category": "discipline",
+      "cost": 0,
+      "description": "There have always been a precious few who hear the Call of Chaos in their dreams, dark souls who endure the touch of Chaos and are drawn into the service of the Dark Lords, offering up their very souls in return for power.",
+      "id": 3031,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Darksworn",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "disc",
+      "stat_grants": [
+        0,
+        0,
+        10,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [
+        "Fighter"
+      ],
+      "allowed_promotions": [
+        "Barbarian",
+        "Huntress",
+        "Ranger",
+        "Warrior"
+      ],
+      "allowed_races": [
+        "Aelfborn",
+        "Human",
+        "Saetor"
+      ],
+      "cap_grants": [
+        25,
+        0,
+        5,
+        0,
+        0
+      ],
+      "category": "discipline",
+      "cost": 0,
+      "description": "Fierce indeed are the warrior-women of the Frozen North,  the Valkyr, the spear-maidens of Lashava who are as fierce  and fell in battle as the fury of Winter.",
+      "id": 3032,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Valkyr",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "disc",
+      "stat_grants": [
+        0,
+        0,
+        5,
+        -5,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [
+        "Healer",
+        "Fighter"
+      ],
+      "allowed_promotions": [
+        "Barbarian",
+        "Doomsayer",
+        "Warrior"
+      ],
+      "allowed_races": [
+        "Minotaur"
+      ],
+      "cap_grants": [
+        0,
+        0,
+        5,
+        0,
+        0
+      ],
+      "category": "discipline",
+      "cost": 0,
+      "description": "Mightiest of the free Minotaurs, these champions of Morloch  are the brutal lords of their clans, enforcing their will  with blood and brutality.",
+      "id": 3033,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Blood Horn",
+      "powers": [
+        "Blood Horns"
+      ],
+      "skill_grants": [],
+      "source_kind": "disc",
+      "stat_grants": [
+        0,
+        0,
+        5,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [
+        "Mage"
+      ],
+      "allowed_promotions": [
+        "Assassin",
+        "Channeler",
+        "Necromancer",
+        "Ninja",
+        "Warlock",
+        "Wizard"
+      ],
+      "allowed_races": [
+        "Shade"
+      ],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        5,
+        0
+      ],
+      "category": "discipline",
+      "cost": 0,
+      "description": "Most dreaded of the Brotherhood of the Shroud's agents are  the Shroudborne, pale killers with the power to infuse all  living flesh with the chill of the Black.",
+      "id": 3034,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Shroudborne",
+      "powers": [
+        "The Ebon Binding"
+      ],
+      "skill_grants": [
+        {
+          "amount": 35,
+          "name": "Orthanatos"
+        }
+      ],
+      "source_kind": "disc",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        5,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [
+        "Mage",
+        "Healer"
+      ],
+      "allowed_promotions": [
+        "Assassin",
+        "Bard",
+        "Channeler",
+        "Doomsayer",
+        "Fury",
+        "Necromancer",
+        "Wizard",
+        "Confessor",
+        "Crusader",
+        "Prelate",
+        "Templar",
+        "Priest"
+      ],
+      "allowed_races": [
+        "Elf"
+      ],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        5,
+        0
+      ],
+      "category": "discipline",
+      "cost": 0,
+      "description": "The Elves were first initiated into the secrets of Magic by  Saedron herself. Greatest of the Elf Wizards are the Archmagi,  whose mental discipline grants them powers undreamed of by  lesser minds.",
+      "id": 3035,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Archmage",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "disc",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        5,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [
+        "Fighter",
+        "Healer"
+      ],
+      "allowed_promotions": [
+        "Barbarian",
+        "Doomsayer",
+        "Warrior"
+      ],
+      "allowed_races": [
+        "Minotaur"
+      ],
+      "cap_grants": [
+        0,
+        0,
+        10,
+        0,
+        0
+      ],
+      "category": "discipline",
+      "cost": 0,
+      "description": "Minotaurs were bred to serve the Deathless Empire, bound to  their masters by chains of sorcery. The mightiest serve as Thralls,  shock troops who lend their strength and frenzy to their masters.",
+      "id": 3036,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Thrall",
+      "powers": [
+        "Thog-Maalra",
+        "Thrall's Battery",
+        "Thrall's Onslaught"
+      ],
+      "skill_grants": [],
+      "source_kind": "disc",
+      "stat_grants": [
+        0,
+        0,
+        10,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [
+        "Fighter",
+        "Rogue"
+      ],
+      "allowed_promotions": [
+        "Assassin",
+        "Bard",
+        "Crusader",
+        "Huntress",
+        "Nightstalker",
+        "Ninja",
+        "Ranger",
+        "Scout",
+        "Templar",
+        "Thief",
+        "Warlock",
+        "Warrior"
+      ],
+      "allowed_races": [
+        "Aelfborn",
+        "Aracoix",
+        "Centaur",
+        "Dwarf",
+        "Elf",
+        "Half-Giant",
+        "Human",
+        "Irekei",
+        "Minotaur",
+        "Nephilim",
+        "Shade",
+        "Vampire"
+      ],
+      "cap_grants": [
+        0,
+        0,
+        10,
+        0,
+        0
+      ],
+      "category": "discipline",
+      "cost": 0,
+      "description": "Masters of siege warfare, Artillerists use the ancient  crafts and sciences of the Dwarves to push siege engines  far beyond their normal capabilities.",
+      "id": 3037,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Artillerist",
+      "powers": [
+        "Command Siege Engine"
+      ],
+      "skill_grants": [],
+      "source_kind": "disc",
+      "stat_grants": [
+        0,
+        0,
+        10,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [
+        "Fighter",
+        "Healer",
+        "Rogue"
+      ],
+      "allowed_promotions": [
+        "Assassin",
+        "Huntress",
+        "Priest",
+        "Ranger",
+        "Warlock",
+        "Ninja"
+      ],
+      "allowed_races": [
+        "Aracoix"
+      ],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        30,
+        0
+      ],
+      "category": "discipline",
+      "cost": 0,
+      "description": "The mysterious mentalists of the Aracoix Empire, Savants  hone their minds into deadly weapons, and use their Will  to aid their fellow Aracoix.",
+      "id": 3038,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Savant",
+      "powers": [
+        "Litany of Serenity"
+      ],
+      "skill_grants": [],
+      "source_kind": "disc",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        30,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [
+        "Barbarian",
+        "Scout",
+        "Thief",
+        "Warlock",
+        "Warrior",
+        "Bard",
+        "Assassin",
+        "Channeler",
+        "Fury",
+        "Huntress",
+        "Nightstalker",
+        "Ninja",
+        "Priest",
+        "Ranger",
+        "Wizard"
+      ],
+      "allowed_races": [
+        "Aracoix"
+      ],
+      "cap_grants": [
+        0,
+        0,
+        5,
+        0,
+        0
+      ],
+      "category": "discipline",
+      "cost": 0,
+      "description": "Elite warriors of the Aracoix Legions, Sky Dancers use  techniques that enable them to fly without tiring, and  are masters of aerial battle.",
+      "id": 3039,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Sky Dancer",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "disc",
+      "stat_grants": [
+        0,
+        0,
+        5,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [
+        "Aelfborn",
+        "Aracoix",
+        "Centaur",
+        "Dwarf",
+        "Elf",
+        "Half-Giant",
+        "Human",
+        "Irekei",
+        "Minotaur",
+        "Nephilim",
+        "Shade",
+        "Vampire"
+      ],
+      "cap_grants": [
+        0,
+        0,
+        10,
+        0,
+        0
+      ],
+      "category": "discipline",
+      "cost": 0,
+      "description": "Explorers who have learned all the secrets of earth and  stone, Prospectors know how to manage mines, coaxing riches  from the deeps.",
+      "id": 3040,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Prospector",
+      "powers": [
+        "Claim Mine",
+        "Prospecting Stance"
+      ],
+      "skill_grants": [],
+      "source_kind": "disc",
+      "stat_grants": [
+        0,
+        0,
+        10,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [
+        "Mage",
+        "Rogue"
+      ],
+      "allowed_promotions": [
+        "Assassin",
+        "Necromancer",
+        "Ninja",
+        "Scout",
+        "Thief",
+        "Warlock",
+        "Wizard"
+      ],
+      "allowed_races": [
+        "Vampire"
+      ],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        5,
+        0
+      ],
+      "category": "discipline",
+      "cost": 0,
+      "description": "Baelgor was the second soul to embrace the Void and be reborn  as dark undead. An Elvish Priest who renounced every living God,  Baelgorr became the first Vampire Zealot. A mighty bloodline  still follows his path, serving as the ministers of death.",
+      "id": 3041,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Belgosch",
+      "powers": [
+        "Summon",
+        "Unnatural Fortitude"
+      ],
+      "skill_grants": [
+        {
+          "amount": 15,
+          "name": "Bloodcraft"
+        }
+      ],
+      "source_kind": "disc",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        5,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [
+        "Fighter"
+      ],
+      "allowed_promotions": [
+        "Warlock",
+        "Warrior"
+      ],
+      "allowed_races": [
+        "Vampire"
+      ],
+      "cap_grants": [
+        0,
+        0,
+        10,
+        0,
+        0
+      ],
+      "category": "discipline",
+      "cost": 0,
+      "description": "Mightiest of the undead hosts in battle, the Drannok Vampires  look back to Drangor, a Human warlord whose bloodlust drew the  Void's power to him, and claimed his soul. Now an entire clan  follows the bloody path of the first Vampire Lord.",
+      "id": 3042,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Drannok",
+      "powers": [],
+      "skill_grants": [
+        {
+          "amount": 15,
+          "name": "Bloodcraft"
+        }
+      ],
+      "source_kind": "disc",
+      "stat_grants": [
+        0,
+        0,
+        10,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [
+        "Mage"
+      ],
+      "allowed_promotions": [
+        "Assassin",
+        "Necromancer",
+        "Warlock",
+        "Wizard"
+      ],
+      "allowed_races": [
+        "Vampire"
+      ],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        5,
+        0
+      ],
+      "category": "discipline",
+      "cost": 0,
+      "description": "Ghorgor was an Elvish magus, one of the thirteen who devised  Necromancy. His arts consumed him, and he was reborn as the  first Vampire. A mighty clan of Vampires still practices the  secrets of Bloodcraft the first Vampire Fiend devised.",
+      "id": 3043,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Gorgoi",
+      "powers": [
+        "Nightwings"
+      ],
+      "skill_grants": [
+        {
+          "amount": 15,
+          "name": "Bloodcraft"
+        }
+      ],
+      "source_kind": "disc",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        5,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [
+        "Rogue"
+      ],
+      "allowed_promotions": [
+        "Assassin",
+        "Ninja",
+        "Scout",
+        "Thief"
+      ],
+      "allowed_races": [
+        "Vampire"
+      ],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "discipline",
+      "cost": 0,
+      "description": "Also called Vampire Beasts, these feral horrors follow the  path of Staeglin, an Aelfborn rogue driven to murder and  cannibalism by the fire in his mixed blood. Thirdborn of all  Vampires, he serves as the master of a horrifying clan.",
+      "id": 3044,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Strigoi",
+      "powers": [
+        "A Taste for Dead Flesh",
+        "Passwall"
+      ],
+      "skill_grants": [
+        {
+          "amount": 15,
+          "name": "Bloodcraft"
+        }
+      ],
+      "source_kind": "disc",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [
+        "Fighter"
+      ],
+      "allowed_promotions": [
+        "Barbarian",
+        "Crusader",
+        "Huntress",
+        "Ranger",
+        "Sentinel",
+        "Templar",
+        "Warlock",
+        "Warrior"
+      ],
+      "allowed_races": [
+        "Aelfborn",
+        "Aracoix",
+        "Centaur",
+        "Dwarf",
+        "Elf",
+        "Half-Giant",
+        "Human",
+        "Irekei",
+        "Minotaur",
+        "Nephilim",
+        "Shade",
+        "Vampire"
+      ],
+      "cap_grants": [
+        0,
+        0,
+        10,
+        0,
+        0
+      ],
+      "category": "discipline",
+      "cost": 0,
+      "description": "Anything that can be built can be brought down. Few know this better than Sappers, who use Dwarvish secrets of undermining and alchemy to weaken structures, tunnel under walls, or create deadly Blasting Power.",
+      "id": 3045,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Sapper",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "disc",
+      "stat_grants": [
+        0,
+        0,
+        10,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [
+        "Rogue"
+      ],
+      "allowed_promotions": [
+        "Assassin",
+        "Barbarian",
+        "Bard",
+        "Huntress",
+        "Nightstalker",
+        "Ninja",
+        "Ranger",
+        "Scout",
+        "Thief"
+      ],
+      "allowed_races": [
+        "Aelfborn",
+        "Aracoix",
+        "Elf",
+        "Human",
+        "Irekei",
+        "Nephilim",
+        "Shade",
+        "Vampire"
+      ],
+      "cap_grants": [
+        0,
+        20,
+        0,
+        0,
+        0
+      ],
+      "category": "discipline",
+      "cost": 0,
+      "description": "Saboteurs can disable all the devices used in warfare, from spires to trebuchets. Their skills can halt an attack or leave a city wide open, and their mastery of stealth can carry them into or out of enemy holds unseen.",
+      "id": 3046,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Saboteur",
+      "powers": [
+        "With Catlike Tread"
+      ],
+      "skill_grants": [],
+      "source_kind": "disc",
+      "stat_grants": [
+        0,
+        20,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [
+        "Mage"
+      ],
+      "allowed_promotions": [
+        "Assassin",
+        "Bard",
+        "Channeler",
+        "Doomsayer",
+        "Fury",
+        "Necromancer",
+        "Warlock",
+        "Wizard"
+      ],
+      "allowed_races": [
+        "Aelfborn",
+        "Elf",
+        "Human",
+        "Irekei",
+        "Nephilim",
+        "Shade",
+        "Vampire"
+      ],
+      "cap_grants": [
+        0,
+        0,
+        10,
+        0,
+        0
+      ],
+      "category": "discipline",
+      "cost": 0,
+      "description": "The magical arts have always held a central place in  warfare, but Battle Magi hone their arts to new extremes. These powerful casters unleash spells that can hamper or destroy walls and buildings, or curse entire armies.",
+      "id": 3047,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Battle Magus",
+      "powers": [
+        "Skirmish Counterspell"
+      ],
+      "skill_grants": [],
+      "source_kind": "disc",
+      "stat_grants": [
+        0,
+        0,
+        10,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [
+        "Healer"
+      ],
+      "allowed_promotions": [
+        "Channeler",
+        "Confessor",
+        "Crusader",
+        "Doomsayer",
+        "Druid",
+        "Prelate",
+        "Priest"
+      ],
+      "allowed_races": [
+        "Aelfborn",
+        "Centaur",
+        "Dwarf",
+        "Elf",
+        "Human",
+        "Irekei",
+        "Minotaur",
+        "Nephilim",
+        "Aracoix"
+      ],
+      "cap_grants": [
+        0,
+        0,
+        10,
+        0,
+        0
+      ],
+      "category": "discipline",
+      "cost": 0,
+      "description": "Some holy folk have enough faith to serve as the healers and defenders of entire cities. Sanctifiers can repair and fortify structures with powerful blessings, and drive the chill of death away from those in their care.",
+      "id": 3048,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Sanctifier",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "disc",
+      "stat_grants": [
+        0,
+        0,
+        10,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [
+        "Healer"
+      ],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        10,
+        0,
+        0
+      ],
+      "category": "discipline",
+      "cost": 0,
+      "description": "The purest Dwarf High-Priests carry in their souls the echo  of Thurin's hammerstroke which woke the Dwarves at the  beginning of the World.  Clanwardens channel the echo into  their voices, giving songs and shouts that can thwart all  Dwarf enemies.",
+      "id": 3049,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Clanwarden",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "disc",
+      "stat_grants": [
+        0,
+        0,
+        10,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        3,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "stat_tier",
+      "cost": 2,
+      "description": "You have greater potential for mighty strength than others  of your people. You must work hard and practice to achieve  your glory, however.",
+      "id": 250000,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Increased Strength",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        1,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        5,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "stat_tier",
+      "cost": 3,
+      "description": "One fragment of the great saga the All-Father crafted  before time's beginning, this stone glyph is a splinter  of some mighty hero's destiny -- bind it to yourself to  assume some of their power!",
+      "id": 250001,
+      "minimum_level": 0,
+      "minimum_stats": [
+        85,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Enhanced Strength",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        2,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        10,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "stat_tier",
+      "cost": 4,
+      "description": "One fragment of the great saga the All-Father crafted  before time's beginning, this stone glyph is a splinter  of some mighty hero's destiny -- bind it to yourself to  assume some of their power!",
+      "id": 250002,
+      "minimum_level": 0,
+      "minimum_stats": [
+        90,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Exceptional Strength",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        3,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        15,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "stat_tier",
+      "cost": 5,
+      "description": "One fragment of the great saga the All-Father crafted  before time's beginning, this stone glyph is a splinter  of some mighty hero's destiny -- bind it to yourself to  assume some of their power!",
+      "id": 250003,
+      "minimum_level": 0,
+      "minimum_stats": [
+        95,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Amazing Strength",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        4,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        20,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "stat_tier",
+      "cost": 8,
+      "description": "One fragment of the great saga the All-Father crafted  before time's beginning, this stone glyph is a splinter  of some mighty hero's destiny -- bind it to yourself to  assume some of their power!",
+      "id": 250004,
+      "minimum_level": 0,
+      "minimum_stats": [
+        100,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Incredible Strength",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        5,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        25,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "stat_tier",
+      "cost": 9,
+      "description": "One fragment of the great saga the All-Father crafted  before time's beginning, this stone glyph is a splinter  of some mighty hero's destiny -- bind it to yourself to  assume some of their power!",
+      "id": 250005,
+      "minimum_level": 0,
+      "minimum_stats": [
+        105,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Great Strength",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        6,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        30,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "stat_tier",
+      "cost": 11,
+      "description": "One fragment of the great saga the All-Father crafted  before time's beginning, this stone glyph is a splinter  of some mighty hero's destiny -- bind it to yourself to  assume some of their power!",
+      "id": 250006,
+      "minimum_level": 0,
+      "minimum_stats": [
+        110,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Heroic Strength",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        7,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        35,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "stat_tier",
+      "cost": 12,
+      "description": "One fragment of the great saga the All-Father crafted  before time's beginning, this stone glyph is a splinter  of some mighty hero's destiny -- bind it to yourself to  assume some of their power!",
+      "id": 250007,
+      "minimum_level": 0,
+      "minimum_stats": [
+        115,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Legendary Strength",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        8,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        40,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "stat_tier",
+      "cost": 15,
+      "description": "One fragment of the great saga the All-Father crafted  before time's beginning, this stone glyph is a splinter  of some mighty hero's destiny -- bind it to yourself to  assume some of their power!",
+      "id": 250008,
+      "minimum_level": 0,
+      "minimum_stats": [
+        120,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Strength of the Gods",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        10,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        3,
+        0,
+        0,
+        0
+      ],
+      "category": "stat_tier",
+      "cost": 2,
+      "description": "Your potential for quick movement and great dexterity is notable,  and with practice, you will move with the speed of a serpent.",
+      "id": 250009,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Increased Dexterity",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        1,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        5,
+        0,
+        0,
+        0
+      ],
+      "category": "stat_tier",
+      "cost": 3,
+      "description": "One fragment of the great saga the All-Father crafted  before time's beginning, this stone glyph is a splinter  of some mighty hero's destiny -- bind it to yourself to  assume some of their power!",
+      "id": 250010,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        85,
+        0,
+        0,
+        0
+      ],
+      "name": "Enhanced Dexterity",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        2,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        10,
+        0,
+        0,
+        0
+      ],
+      "category": "stat_tier",
+      "cost": 4,
+      "description": "One fragment of the great saga the All-Father crafted  before time's beginning, this stone glyph is a splinter  of some mighty hero's destiny -- bind it to yourself to  assume some of their power!",
+      "id": 250011,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        90,
+        0,
+        0,
+        0
+      ],
+      "name": "Exceptional Dexterity",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        3,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        15,
+        0,
+        0,
+        0
+      ],
+      "category": "stat_tier",
+      "cost": 5,
+      "description": "One fragment of the great saga the All-Father crafted  before time's beginning, this stone glyph is a splinter  of some mighty hero's destiny -- bind it to yourself to  assume some of their power!",
+      "id": 250012,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        95,
+        0,
+        0,
+        0
+      ],
+      "name": "Amazing Dexterity",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        4,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        20,
+        0,
+        0,
+        0
+      ],
+      "category": "stat_tier",
+      "cost": 8,
+      "description": "One fragment of the great saga the All-Father crafted  before time's beginning, this stone glyph is a splinter  of some mighty hero's destiny -- bind it to yourself to  assume some of their power!",
+      "id": 250013,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        100,
+        0,
+        0,
+        0
+      ],
+      "name": "Incredible Dexterity",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        5,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        25,
+        0,
+        0,
+        0
+      ],
+      "category": "stat_tier",
+      "cost": 9,
+      "description": "One fragment of the great saga the All-Father crafted  before time's beginning, this stone glyph is a splinter  of some mighty hero's destiny -- bind it to yourself to  assume some of their power!",
+      "id": 250014,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        105,
+        0,
+        0,
+        0
+      ],
+      "name": "Great Dexterity",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        6,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        30,
+        0,
+        0,
+        0
+      ],
+      "category": "stat_tier",
+      "cost": 11,
+      "description": "One fragment of the great saga the All-Father crafted  before time's beginning, this stone glyph is a splinter  of some mighty hero's destiny -- bind it to yourself to  assume some of their power!",
+      "id": 250015,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        110,
+        0,
+        0,
+        0
+      ],
+      "name": "Heroic Dexterity",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        7,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        35,
+        0,
+        0,
+        0
+      ],
+      "category": "stat_tier",
+      "cost": 12,
+      "description": "One fragment of the great saga the All-Father crafted  before time's beginning, this stone glyph is a splinter  of some mighty hero's destiny -- bind it to yourself to  assume some of their power!",
+      "id": 250016,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        115,
+        0,
+        0,
+        0
+      ],
+      "name": "Legendary Dexterity",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        8,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        40,
+        0,
+        0,
+        0
+      ],
+      "category": "stat_tier",
+      "cost": 15,
+      "description": "One fragment of the great saga the All-Father crafted  before time's beginning, this stone glyph is a splinter  of some mighty hero's destiny -- bind it to yourself to  assume some of their power!",
+      "id": 250017,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        120,
+        0,
+        0,
+        0
+      ],
+      "name": "Dexterity of the Gods",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        10,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        3,
+        0,
+        0
+      ],
+      "category": "stat_tier",
+      "cost": 2,
+      "description": "You're tough, and have the potential to be tougher than  leather. It will take a lot of practice and effort to  get there, though.",
+      "id": 250018,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Increased Constitution",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        1,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        5,
+        0,
+        0
+      ],
+      "category": "stat_tier",
+      "cost": 3,
+      "description": "One fragment of the great saga the All-Father crafted  before time's beginning, this stone glyph is a splinter  of some mighty hero's destiny -- bind it to yourself to  assume some of their power!",
+      "id": 250019,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        85,
+        0,
+        0
+      ],
+      "name": "Enhanced Constitution",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        2,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        10,
+        0,
+        0
+      ],
+      "category": "stat_tier",
+      "cost": 4,
+      "description": "One fragment of the great saga the All-Father crafted  before time's beginning, this stone glyph is a splinter  of some mighty hero's destiny -- bind it to yourself to  assume some of their power!",
+      "id": 250020,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        90,
+        0,
+        0
+      ],
+      "name": "Exceptional Constitution",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        3,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        15,
+        0,
+        0
+      ],
+      "category": "stat_tier",
+      "cost": 5,
+      "description": "One fragment of the great saga the All-Father crafted  before time's beginning, this stone glyph is a splinter  of some mighty hero's destiny -- bind it to yourself to  assume some of their power!",
+      "id": 250021,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        95,
+        0,
+        0
+      ],
+      "name": "Amazing Constitution",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        4,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        20,
+        0,
+        0
+      ],
+      "category": "stat_tier",
+      "cost": 8,
+      "description": "One fragment of the great saga the All-Father crafted  before time's beginning, this stone glyph is a splinter  of some mighty hero's destiny -- bind it to yourself to  assume some of their power!",
+      "id": 250022,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        100,
+        0,
+        0
+      ],
+      "name": "Incredible Constitution",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        5,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        25,
+        0,
+        0
+      ],
+      "category": "stat_tier",
+      "cost": 9,
+      "description": "One fragment of the great saga the All-Father crafted  before time's beginning, this stone glyph is a splinter  of some mighty hero's destiny -- bind it to yourself to  assume some of their power!",
+      "id": 250023,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        105,
+        0,
+        0
+      ],
+      "name": "Great Constitution",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        6,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        30,
+        0,
+        0
+      ],
+      "category": "stat_tier",
+      "cost": 11,
+      "description": "One fragment of the great saga the All-Father crafted  before time's beginning, this stone glyph is a splinter  of some mighty hero's destiny -- bind it to yourself to  assume some of their power!",
+      "id": 250024,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        110,
+        0,
+        0
+      ],
+      "name": "Heroic Constitution",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        7,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        35,
+        0,
+        0
+      ],
+      "category": "stat_tier",
+      "cost": 12,
+      "description": "One fragment of the great saga the All-Father crafted  before time's beginning, this stone glyph is a splinter  of some mighty hero's destiny -- bind it to yourself to  assume some of their power!",
+      "id": 250025,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        115,
+        0,
+        0
+      ],
+      "name": "Legendary Constitution",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        8,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        40,
+        0,
+        0
+      ],
+      "category": "stat_tier",
+      "cost": 15,
+      "description": "One fragment of the great saga the All-Father crafted  before time's beginning, this stone glyph is a splinter  of some mighty hero's destiny -- bind it to yourself to  assume some of their power!",
+      "id": 250026,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        120,
+        0,
+        0
+      ],
+      "name": "Constitution of the Gods",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        10,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        3,
+        0
+      ],
+      "category": "stat_tier",
+      "cost": 2,
+      "description": "Your mind is like a razor, but it can be even sharper. You  have magnificent intellectual potential, if you study  and practice to achieve it.",
+      "id": 250027,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Increased Intelligence",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        1,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        5,
+        0
+      ],
+      "category": "stat_tier",
+      "cost": 3,
+      "description": "One fragment of the great saga the All-Father crafted  before time's beginning, this stone glyph is a splinter  of some mighty hero's destiny -- bind it to yourself to  assume some of their power!",
+      "id": 250028,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        85,
+        0
+      ],
+      "name": "Enhanced Intelligence",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        2,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        10,
+        0
+      ],
+      "category": "stat_tier",
+      "cost": 4,
+      "description": "One fragment of the great saga the All-Father crafted  before time's beginning, this stone glyph is a splinter  of some mighty hero's destiny -- bind it to yourself to  assume some of their power!",
+      "id": 250029,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        90,
+        0
+      ],
+      "name": "Exceptional Intelligence",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        3,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        15,
+        0
+      ],
+      "category": "stat_tier",
+      "cost": 5,
+      "description": "One fragment of the great saga the All-Father crafted  before time's beginning, this stone glyph is a splinter  of some mighty hero's destiny -- bind it to yourself to  assume some of their power!",
+      "id": 250030,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        95,
+        0
+      ],
+      "name": "Amazing Intelligence",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        4,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        20,
+        0
+      ],
+      "category": "stat_tier",
+      "cost": 8,
+      "description": "One fragment of the great saga the All-Father crafted  before time's beginning, this stone glyph is a splinter  of some mighty hero's destiny -- bind it to yourself to  assume some of their power!",
+      "id": 250031,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        100,
+        0
+      ],
+      "name": "Incredible Intelligence",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        5,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        25,
+        0
+      ],
+      "category": "stat_tier",
+      "cost": 9,
+      "description": "One fragment of the great saga the All-Father crafted  before time's beginning, this stone glyph is a splinter  of some mighty hero's destiny -- bind it to yourself to  assume some of their power!",
+      "id": 250032,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        105,
+        0
+      ],
+      "name": "Great Intelligence",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        6,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        30,
+        0
+      ],
+      "category": "stat_tier",
+      "cost": 11,
+      "description": "One fragment of the great saga the All-Father crafted  before time's beginning, this stone glyph is a splinter  of some mighty hero's destiny -- bind it to yourself to  assume some of their power!",
+      "id": 250033,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        110,
+        0
+      ],
+      "name": "Heroic Intelligence",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        7,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        35,
+        0
+      ],
+      "category": "stat_tier",
+      "cost": 12,
+      "description": "One fragment of the great saga the All-Father crafted  before time's beginning, this stone glyph is a splinter  of some mighty hero's destiny -- bind it to yourself to  assume some of their power!",
+      "id": 250034,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        115,
+        0
+      ],
+      "name": "Legendary Intelligence",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        8,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        40,
+        0
+      ],
+      "category": "stat_tier",
+      "cost": 15,
+      "description": "One fragment of the great saga the All-Father crafted  before time's beginning, this stone glyph is a splinter  of some mighty hero's destiny -- bind it to yourself to  assume some of their power!",
+      "id": 250035,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        120,
+        0
+      ],
+      "name": "Intelligence of the Gods",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        10,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        3
+      ],
+      "category": "stat_tier",
+      "cost": 2,
+      "description": "Your will is greater than most around you.  If you work  hard at focusing at your inner strength you can achieve  the highest peak of spirituality.",
+      "id": 250036,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Increased Spirit",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        5
+      ],
+      "category": "stat_tier",
+      "cost": 3,
+      "description": "One fragment of the great saga the All-Father crafted  before time's beginning, this stone glyph is a splinter  of some mighty hero's destiny -- bind it to yourself to  assume some of their power!",
+      "id": 250037,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        85
+      ],
+      "name": "Enhanced Spirit",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        2
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        10
+      ],
+      "category": "stat_tier",
+      "cost": 4,
+      "description": "One fragment of the great saga the All-Father crafted  before time's beginning, this stone glyph is a splinter  of some mighty hero's destiny -- bind it to yourself to  assume some of their power!",
+      "id": 250038,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        90
+      ],
+      "name": "Exceptional Spirit",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        3
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        15
+      ],
+      "category": "stat_tier",
+      "cost": 5,
+      "description": "One fragment of the great saga the All-Father crafted  before time's beginning, this stone glyph is a splinter  of some mighty hero's destiny -- bind it to yourself to  assume some of their power!",
+      "id": 250039,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        95
+      ],
+      "name": "Amazing Spirit",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        4
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        20
+      ],
+      "category": "stat_tier",
+      "cost": 8,
+      "description": "One fragment of the great saga the All-Father crafted  before time's beginning, this stone glyph is a splinter  of some mighty hero's destiny -- bind it to yourself to  assume some of their power!",
+      "id": 250040,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        100
+      ],
+      "name": "Incredible Spirit",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        5
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        25
+      ],
+      "category": "stat_tier",
+      "cost": 9,
+      "description": "One fragment of the great saga the All-Father crafted  before time's beginning, this stone glyph is a splinter  of some mighty hero's destiny -- bind it to yourself to  assume some of their power!",
+      "id": 250041,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        105
+      ],
+      "name": "Great Spirit",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        6
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        30
+      ],
+      "category": "stat_tier",
+      "cost": 11,
+      "description": "One fragment of the great saga the All-Father crafted  before time's beginning, this stone glyph is a splinter  of some mighty hero's destiny -- bind it to yourself to  assume some of their power!",
+      "id": 250042,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        110
+      ],
+      "name": "Heroic Spirit",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        7
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        35
+      ],
+      "category": "stat_tier",
+      "cost": 12,
+      "description": "One fragment of the great saga the All-Father crafted  before time's beginning, this stone glyph is a splinter  of some mighty hero's destiny -- bind it to yourself to  assume some of their power!",
+      "id": 250043,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        115
+      ],
+      "name": "Legendary Spirit",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        8
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        40
+      ],
+      "category": "stat_tier",
+      "cost": 15,
+      "description": "One fragment of the great saga the All-Father crafted  before time's beginning, this stone glyph is a splinter  of some mighty hero's destiny -- bind it to yourself to  assume some of their power!",
+      "id": 250044,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        120
+      ],
+      "name": "Spirit of the Gods",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        10
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        5,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 6,
+      "description": "You're slight of frame, and excel in tasks that involve  coordination and deftness. Due to your build, you may  not be as strong as others, but you're certainly  more coordinated and agile.",
+      "id": 250045,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        40,
+        0,
+        0,
+        0
+      ],
+      "name": "Agile",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        5,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 12,
+      "description": "I'm not left-handed either! You can use either hand with  equal facility, whether writing, switching hands mid-combat,  or using two weapons at once to overcome a foe.",
+      "id": 250046,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        50,
+        0,
+        0,
+        0
+      ],
+      "name": "Ambidexterity",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        10,
+        -5,
+        0,
+        -5,
+        0
+      ],
+      "category": "starting",
+      "cost": 8,
+      "description": "An apprenticeship at the forge hammering and working metal  with a master blacksmith made you stronger than most,  though a bit slower of hand and wit.",
+      "id": 250047,
+      "minimum_level": 0,
+      "minimum_stats": [
+        40,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Blacksmith's Apprentice",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        10,
+        -5,
+        0,
+        -5,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 4,
+      "description": "You carry the favor of one or more of the Gods: through  their blessings, your flesh can better endure divine  wrath and holy power.",
+      "id": 250048,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Blessed",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 4,
+      "description": "You've got a dash of the desert-dwelling Irekei blood in  your veins, burning hot within you.  Because of this, you've  inherited a little of their famed resistance to heat and fire.",
+      "id": 250049,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Blood of the Desert",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 8,
+      "description": "The khar'ika, the sacred blood fire of the Dragon, burns in  your veins. Kindled by the flames of the sun, it shall  ward your flesh from lesser flames forevermore!",
+      "id": 250050,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Blood of the Dragon",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 4,
+      "description": "The blood of the Northmen runs through your veins, making  you resilient against frost and cold.",
+      "id": 250051,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Blood of the North",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 4,
+      "description": "Born to a family of humble peasants, you spent your youth  defending your home with peasant's weapons. Staves may  not be flashy, but a length of hickory can still split   skulls!",
+      "id": 250052,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Born in the Country",
+      "powers": [],
+      "skill_grants": [
+        {
+          "amount": 5,
+          "name": "Staff"
+        }
+      ],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 4,
+      "description": "Life may be filled with troubles, but you've learned that a  good crossbow can keep trouble at bay. A natural marksman,  you're at your best when using a good crossbow.",
+      "id": 250053,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Bowyer Born",
+      "powers": [],
+      "skill_grants": [
+        {
+          "amount": 5,
+          "name": "Crossbow"
+        }
+      ],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 4,
+      "description": "'You talking to me?' is your motto.  A scrapper from birth,  you have been quick to throw punches, and as a result,  you're better than most at the art of unarmed fighting  and brawling.",
+      "id": 250054,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Brawler",
+      "powers": [],
+      "skill_grants": [
+        {
+          "amount": 10,
+          "name": "Unarmed Combat"
+        }
+      ],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        10,
+        0
+      ],
+      "category": "starting",
+      "cost": 12,
+      "description": "Adept at the utilization of reason, you possess far more  intellect than any of the slack-witted cretins around you. Remind them of this often, but use small words so they'll  understand.",
+      "id": 250055,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        50,
+        0
+      ],
+      "name": "Brilliant Mind",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        10,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 4,
+      "description": "Perhaps you were a blacksmith in a previous life. Swinging a hammer comes naturally to you, and you learned long ago  there is little in life that isn't fixed by a short, sharp shock.",
+      "id": 250056,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Bruiser",
+      "powers": [],
+      "skill_grants": [
+        {
+          "amount": 5,
+          "name": "Hammer"
+        }
+      ],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 4,
+      "description": "The mark of the Fey Folk is upon you: enchantment flows in  your very blood, giving you some resistance to harmful  spells.",
+      "id": 250057,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Changeling",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        5,
+        0
+      ],
+      "category": "starting",
+      "cost": 6,
+      "description": "Clever and intuitive, you're a quick learner, able to deduce things rapidly with frequent success. Study and practice have always come easily, letting you master new skills quickly.",
+      "id": 250058,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        40,
+        0
+      ],
+      "name": "Clever",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        5,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 8,
+      "description": "You first heard the voices in your dreams, murmuring  arcane verses. Some think they drove you mad, but you  revel in the mystic secrets they imparted to you.",
+      "id": 250059,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Dark Whispers",
+      "powers": [],
+      "skill_grants": [
+        {
+          "amount": 5,
+          "name": "Warding"
+        },
+        {
+          "amount": 5,
+          "name": "Sorcery"
+        }
+      ],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 8,
+      "description": "As a child you were touched by a powerful divine being.  Your faith has shone like a beacon ever since, and the  Healer's ways come naturally to you.",
+      "id": 250060,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Divine Touch",
+      "powers": [],
+      "skill_grants": [
+        {
+          "amount": 5,
+          "name": "Benediction"
+        },
+        {
+          "amount": 5,
+          "name": "Restoration"
+        }
+      ],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 4,
+      "description": "Because you have such keen eyes you were trained by a master archer. Your skill and accuracy with a bow attest to his skills.",
+      "id": 250061,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Eyes of the Eagle",
+      "powers": [],
+      "skill_grants": [
+        {
+          "amount": 5,
+          "name": "Bow"
+        }
+      ],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        10
+      ],
+      "category": "starting",
+      "cost": 12,
+      "description": "You're clearly in touch with the supernatural powers and  beings who inhabit the higher worlds.  Thus, your capacity  for magic is greater than normal.",
+      "id": 250062,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        50
+      ],
+      "name": "Faith of Ages",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        10
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 10,
+      "description": "You're quick on your feet, and have a physical gift that  makes you a gifted sprinter, able to match a hare  in a footrace.",
+      "id": 250063,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        50,
+        0,
+        0,
+        0
+      ],
+      "name": "Fleet of Foot",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        15,
+        -10,
+        10,
+        -10,
+        0
+      ],
+      "category": "starting",
+      "cost": 14,
+      "description": "Though you don't have the height to show for it, you have  the blood of giants in your veins, making you stronger  than most, though your will is not as strong as it could be.",
+      "id": 250064,
+      "minimum_level": 0,
+      "minimum_stats": [
+        50,
+        0,
+        40,
+        0,
+        0
+      ],
+      "name": "Giant's Blood",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        10,
+        -5,
+        5,
+        -5,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        10,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 12,
+      "description": "They've always said you're healthy as an ox, though you'd say that you're even healthier. You certainly feel like you could eat a whole ox!",
+      "id": 250065,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        50,
+        0,
+        0
+      ],
+      "name": "Healthy as an Ox",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        10,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        5,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 6,
+      "description": "You're tough and resilient, and able to shrug off or ignore  injury that might keep lesser folk in their sickbeds.",
+      "id": 250066,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        40,
+        0,
+        0
+      ],
+      "name": "Hearty",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        5,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        10,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 12,
+      "description": "In you the heroes of ancient song have taken shape again:  you're a veritable mountain of muscle, a paragon of might.",
+      "id": 250067,
+      "minimum_level": 0,
+      "minimum_stats": [
+        50,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Hero's Strength",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        10,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 4,
+      "description": "Since the birth of the world Kenaryn the Hunter has chased beasts through the wild. You've always followed in the Hunter God's footsteps, taking the spear as your favored  weapon.",
+      "id": 250068,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Hunter",
+      "powers": [],
+      "skill_grants": [
+        {
+          "amount": 5,
+          "name": "Spear"
+        }
+      ],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 4,
+      "description": "Your mind is strong, and you have some small ability  to resist injury to your psyche.",
+      "id": 250069,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Iron Will",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 8,
+      "description": "You've never been fleet of foot, but when the thrill of  battle takes hold you become unstoppable, shrugging off  blows and ignoring pain.",
+      "id": 250070,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Juggernaut",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 4,
+      "description": "'Where'd you get that?' you often hear when you drop  into a knife-fighter stance and a razor-edged dagger slides  from your sleeve.  You're adept at using short blades, fast  and sharp.",
+      "id": 250071,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Knife-Fighter",
+      "powers": [],
+      "skill_grants": [
+        {
+          "amount": 5,
+          "name": "Dagger"
+        }
+      ],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 4,
+      "description": "You spent a term serving an errant knight, lugging his  armor and weapons around, jumping at every order. You  learned a lot about armor, how to don it and wear it in  battle.",
+      "id": 250072,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Knight's Squire",
+      "powers": [],
+      "skill_grants": [
+        {
+          "amount": 5,
+          "name": "Wear Armor, Medium"
+        }
+      ],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        10,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 12,
+      "description": "You're blessed with better hand-eye coordination than most,  keen of eye and quick of hand. Maybe quicksilver runs in  your veins.",
+      "id": 250073,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        50,
+        0,
+        0,
+        0
+      ],
+      "name": "Lightning Reflexes",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        10,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 8,
+      "description": "If some Grobold archers fire four arrows at you and four friends,  you'll be the one who doesn't get hit.",
+      "id": 250074,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Lucky",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 4,
+      "description": "No stranger to the battlefield, you spent some time roaming with a band of freebooters. They trained you well in the use of polearms, and you favor them to this day.",
+      "id": 250075,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Mercenary",
+      "powers": [],
+      "skill_grants": [
+        {
+          "amount": 5,
+          "name": "Pole Arm"
+        }
+      ],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        5,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 6,
+      "description": "Maybe you're not there yet, but in your sinews and muscles  lies an untapped strength, Herculean in potential.",
+      "id": 250076,
+      "minimum_level": 0,
+      "minimum_stats": [
+        40,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Mighty",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        5,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 4,
+      "description": "You spent a long term conscripted into the local militia,  and have basic training with light armor as a result.",
+      "id": 250077,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Military Training",
+      "powers": [],
+      "skill_grants": [
+        {
+          "amount": 5,
+          "name": "Wear Armor, Light"
+        }
+      ],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 8,
+      "description": "Everyone, it is said, has a talent: yours is for slaying.  Truly fell-handed, you have a knack for putting point or  edge exactly where you wish.",
+      "id": 250078,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Precise",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        -5,
+        0,
+        0,
+        -5,
+        10
+      ],
+      "category": "starting",
+      "cost": 8,
+      "description": "A youth spent as the servant of a priest left you with  greater spirit and more capacity to use supernatural Mana,  but a little less nimble than you might have been.",
+      "id": 250079,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        40
+      ],
+      "name": "Priest's Acolyte",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        -5,
+        0,
+        0,
+        -5,
+        10
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 10,
+      "description": "They said your devotion to this weapon was foolish, but  you were adamant. After long and painful training, now  you can wield what others of your class and rank cannot.",
+      "id": 250080,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Proficient with Axes",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 10,
+      "description": "They said your devotion to this weapon was foolish, but  you were adamant. After long and painful training, now  you can wield what others of your class and rank cannot.",
+      "id": 250081,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Proficient with Bows",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 10,
+      "description": "They said your devotion to this weapon was foolish, but  you were adamant. After long and painful training, now  you can wield what others of your class and rank cannot.",
+      "id": 250082,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Proficient with Crossbows",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 10,
+      "description": "They said your devotion to this weapon was foolish, but  you were adamant. After long and painful training, now  you can wield what others of your class and rank cannot.",
+      "id": 250083,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Proficient with Daggers",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 10,
+      "description": "They said your devotion to this weapon was foolish, but  you were adamant. After long and painful training, now  you can wield what others of your class and rank cannot.",
+      "id": 250084,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Proficient with Hammers",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 10,
+      "description": "They said your devotion to this weapon was foolish, but  you were adamant. After long and painful training, now  you can wield what others of your class and rank cannot.",
+      "id": 250085,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Proficient with Pole Arms",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 10,
+      "description": "They said your devotion to this weapon was foolish, but  you were adamant. After long and painful training, now  you can wield what others of your class and rank cannot.",
+      "id": 250086,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Proficient with Spears",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 10,
+      "description": "They said your devotion to this weapon was foolish, but  you were adamant. After long and painful training, now  you can wield what others of your class and rank cannot.",
+      "id": 250087,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Proficient with Swords",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 4,
+      "description": "You spent your childhood in among a band of rugged Invorri  barbarians. They taught you many things, but their love of axes stayed with you longest.",
+      "id": 250088,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Raised by Barbarians",
+      "powers": [],
+      "skill_grants": [
+        {
+          "amount": 5,
+          "name": "Axe"
+        }
+      ],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 4,
+      "description": "The mighty horselords of the plains fostered you in your  early years, teaching you Law, Honor, and the way of  the spear.",
+      "id": 250089,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Raised by Centaurs",
+      "powers": [],
+      "skill_grants": [
+        {
+          "amount": 5,
+          "name": "Spear"
+        }
+      ],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 4,
+      "description": "Some might dismiss it as fairy-tale, but you spent your  youth under the earth, raised by hardy Dwarves. Years of  work in mine and forge left you with a knack for hammers.",
+      "id": 250090,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Raised by Dwarves",
+      "powers": [],
+      "skill_grants": [
+        {
+          "amount": 5,
+          "name": "Hammer"
+        }
+      ],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 4,
+      "description": "Through some twist of fate you were raised in an Elven city. Living among them taught you their cruel ways, their wit,  and their mastery of swords.",
+      "id": 250091,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Raised by Elves",
+      "powers": [],
+      "skill_grants": [
+        {
+          "amount": 5,
+          "name": "Sword"
+        }
+      ],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 4,
+      "description": "Deception, theft, and larceny were the curriculum in the  secret halls of the Thieves' Guild. You quickly learned  that a good dagger is the only thing you can truly trust.",
+      "id": 250092,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Raised by Thieves' Guild",
+      "powers": [],
+      "skill_grants": [
+        {
+          "amount": 5,
+          "name": "Dagger"
+        }
+      ],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 4,
+      "description": "Whether Elves or Gwendannen, woodfolk have always hunted  with bows. The time you spent in the forests has made  archery second nature to you.",
+      "id": 250093,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Raised in the Woods",
+      "powers": [],
+      "skill_grants": [
+        {
+          "amount": 5,
+          "name": "Bow"
+        }
+      ],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 4,
+      "description": "You've swung your sword for any who'd pay you. Maybe you  believed in what you did, or it was just for love of gold.  Now, you're better with a blade for it, and that's what matters.",
+      "id": 250094,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Sellsword",
+      "powers": [],
+      "skill_grants": [
+        {
+          "amount": 5,
+          "name": "Sword"
+        }
+      ],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 4,
+      "description": "You've always had an affinity for crossbows, taking to them as easily as any Dwarf. Keen eyes, steady hands, and shallow breath ensure you rarely miss.",
+      "id": 250095,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Sharpshooter",
+      "powers": [],
+      "skill_grants": [
+        {
+          "amount": 5,
+          "name": "Crossbow"
+        }
+      ],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 10,
+      "description": "Youth spent working in a tradesman's shop made you skilled  in sweeping, stocking shelves, and dusting - fairly worthless  skills, though you can haggle excellently.",
+      "id": 250096,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        50,
+        0
+      ],
+      "name": "Shopkeeper's Apprentice",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 4,
+      "description": "You have less fear of the adder's bite or the scorpion's  sting than most: some virtue in your blood is proof  against poison.",
+      "id": 250097,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Snake Handler",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 4,
+      "description": "The Horwathi slavers used to throw you in a pit with wild  dogs to fight for meat. Now that you're free, you've  found you can still kill with your bare hands if need be.",
+      "id": 250098,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Sold to the Pits",
+      "powers": [],
+      "skill_grants": [
+        {
+          "amount": 10,
+          "name": "Unarmed Combat"
+        }
+      ],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 4,
+      "description": "From the time you could carry one, you've shown an uncanny  aptitude for polearms. Your knack with halberd and pike  will doubtless serve you well in this age of war.",
+      "id": 250099,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Soldier Born",
+      "powers": [],
+      "skill_grants": [
+        {
+          "amount": 5,
+          "name": "Pole Arm"
+        }
+      ],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 4,
+      "description": "A mighty storm raged during your birth, and you first opened your eyes to the flash of lightning. Ever since, skyfire  has been loath to bite you.",
+      "id": 250100,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Stormborn",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 10,
+      "description": "Somewhere in the chaotic web of thoughts constantly burning  in your brain, is a link to the divine, allowing you to  draw more Mana to fuel your crazed spells and powers.",
+      "id": 250101,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        50
+      ],
+      "name": "Taint of Madness",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 4,
+      "description": "You hated the ancient Blademaster at the time, and fled his  training after the first lesson. You did learn that  lesson well, however: a sword is as vital to defense  as it is to attack.",
+      "id": 250102,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Taught by Blademaster",
+      "powers": [],
+      "skill_grants": [
+        {
+          "amount": 5,
+          "name": "Parry"
+        }
+      ],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        -5,
+        10,
+        -5,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 8,
+      "description": "The old cutpurse taught you to quicken your hands and  sharpen your reflexes. His training certainly made you  nimbler, but you still bear the scars of his harshest  lessons.",
+      "id": 250103,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        40,
+        0,
+        0,
+        0
+      ],
+      "name": "Taught by Master Thief",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        -5,
+        10,
+        -5,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 10,
+      "description": "With lungs like a bellows, you rarely get tired, and are  able to run and exert yourself far longer than average folk can.",
+      "id": 250104,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        50,
+        0,
+        0
+      ],
+      "name": "Tireless",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 10,
+      "description": "Not only are you tough as nails, you could probably eat a bucket of them  for breakfast.  You're able to withstand more injury than others.",
+      "id": 250105,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        50,
+        0,
+        0
+      ],
+      "name": "Tough as Nails",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 12,
+      "description": "With skin like tanned leather, you're fairly resistant to injury.",
+      "id": 250106,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Tough Hide",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 4,
+      "description": "'There's more to any victory than striking true,' the  Warrior taught you long ago. 'Even the best swing is  useless if met with a shield.' You took his lesson  to heart.",
+      "id": 250107,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Trained by Master-of-Arms",
+      "powers": [],
+      "skill_grants": [
+        {
+          "amount": 5,
+          "name": "Block"
+        }
+      ],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 4,
+      "description": "You spent your youth traveling with a troupe of acrobats.  Though you no longer tumble for gold, the movements you  learned can help keep you out of harm's way in combat.",
+      "id": 250108,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Traveling Performer",
+      "powers": [],
+      "skill_grants": [
+        {
+          "amount": 5,
+          "name": "Dodge"
+        }
+      ],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        5
+      ],
+      "category": "starting",
+      "cost": 6,
+      "description": "Unlike those who use reason or intellect, you rely on intuition,  omens, and signs from the spirit world to guide you.  Their voices are loud, and clear, and the signs are there  for all to see.",
+      "id": 250109,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        40
+      ],
+      "name": "True Faith",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        5
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 4,
+      "description": "The horizon has always called you, and you've spent most of your life wandering, with a stout stick in your hand. In your hands, a walking stick can be a formidable weapon.",
+      "id": 250110,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Wanderer",
+      "powers": [],
+      "skill_grants": [
+        {
+          "amount": 5,
+          "name": "Staff"
+        }
+      ],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        -5,
+        10,
+        0,
+        -5
+      ],
+      "category": "starting",
+      "cost": 8,
+      "description": "You may never know why you were spared, when that tyrant  put your entire village to the sword. Long years of  hard service to the Warlord toughened you, but now  you've escaped!",
+      "id": 250111,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        40,
+        0,
+        0
+      ],
+      "name": "Warlord's Page",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        -5,
+        10,
+        0,
+        -5
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 6,
+      "description": "Since childhood you have seen things nobody else can see.  Though masterful stealth or powerful magic can still evade your gaze, your keen eyes see much that goes unseen.",
+      "id": 250112,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Witch Sight",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        -5,
+        10,
+        -5
+      ],
+      "category": "starting",
+      "cost": 8,
+      "description": "The Magi of the Conclave came for you in childhood, and you  spent thirteen years in strict tutelage. Your intellect  has been carefully honed, and you are ready to test it.",
+      "id": 250113,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        40,
+        0
+      ],
+      "name": "Wizard's Apprentice",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        -5,
+        10,
+        -5
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 4,
+      "description": "Born in the timberlands, you've been chopping wood for as long as you could walk. The forests are perilous, but luckily an axe is as good for felling foes as it is felling trees.",
+      "id": 250114,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Woodsman",
+      "powers": [],
+      "skill_grants": [
+        {
+          "amount": 5,
+          "name": "Axe"
+        }
+      ],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [
+        "Crusader"
+      ],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 5,
+      "description": "One fragment of the great saga the All-Father crafted  before time's beginning, this stone glyph is a splinter  of some mighty hero's destiny -- bind it to yourself to  assume some of their power!",
+      "id": 250115,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Master of Axes",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 5,
+      "description": "As a child, there was always something strange about you, as  you could see things that weren't there. The Witch Sight  is still with you, so you see things hidden from normal sight.",
+      "id": 250116,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Witch Sight",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 12,
+      "description": "The forces of magic and the supernatural are normal to you,  due to a wizardly apprenticeship.  You're smarter and more  adept at using Mana now, and ready to make your mark on  the world.",
+      "id": 250117,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Wizard's Apprentice",
+      "powers": [],
+      "skill_grants": [
+        {
+          "amount": 10,
+          "name": "Warding"
+        },
+        {
+          "amount": 10,
+          "name": "Sorcery"
+        }
+      ],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [
+        "Barbarian",
+        "Bard",
+        "Druid",
+        "Fury",
+        "Ranger",
+        "Templar",
+        "Warlock",
+        "Wizard"
+      ],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 5,
+      "description": "One fragment of the great saga the All-Father crafted  before time's beginning, this stone glyph is a splinter  of some mighty hero's destiny -- bind it to yourself to  assume some of their power!",
+      "id": 250118,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Master of Daggers",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [
+        "Barbarian",
+        "Confessor",
+        "Druid",
+        "Prelate",
+        "Priest",
+        "Templar"
+      ],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 5,
+      "description": "One fragment of the great saga the All-Father crafted  before time's beginning, this stone glyph is a splinter  of some mighty hero's destiny -- bind it to yourself to  assume some of their power!",
+      "id": 250119,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Master of Hammers",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [
+        "Barbarian"
+      ],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 5,
+      "description": "One fragment of the great saga the All-Father crafted  before time's beginning, this stone glyph is a splinter  of some mighty hero's destiny -- bind it to yourself to  assume some of their power!",
+      "id": 250120,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Master of Pole Arms",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [
+        "Crusader",
+        "Fury"
+      ],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 5,
+      "description": "One fragment of the great saga the All-Father crafted  before time's beginning, this stone glyph is a splinter  of some mighty hero's destiny -- bind it to yourself to  assume some of their power!",
+      "id": 250121,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Master of Spears",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [
+        "Assassin",
+        "Barbarian",
+        "Ninja",
+        "Scout",
+        "Thief"
+      ],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 5,
+      "description": "One fragment of the great saga the All-Father crafted  before time's beginning, this stone glyph is a splinter  of some mighty hero's destiny -- bind it to yourself to  assume some of their power!",
+      "id": 250122,
+      "minimum_level": 20,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Master of Swords",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 10,
+      "description": null,
+      "id": 250123,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Proficient with Axes",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 10,
+      "description": null,
+      "id": 250124,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Proficient with Hammers",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 10,
+      "description": null,
+      "id": 250125,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Proficient with Daggers",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        10,
+        0,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 10,
+      "description": "The blood of the Invorri, Torvald's folk, flows strongly  in your veins, bringing with it the strength and toughness  of your Northmen ancestors.",
+      "id": 252132,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Born of the Invorri",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        5,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        10,
+        0,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 10,
+      "description": "The blood of the Taripontor flows in your veins. The  sailors and master-smiths of Tariponto have ever been  renowned for their guile and skill, and you share their  agility.",
+      "id": 252130,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Born of the Taripontor",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        5,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        10,
+        0,
+        0
+      ],
+      "category": "starting",
+      "cost": 10,
+      "description": "The blood of the Gwendannen flows true in your veins.  Like the Hill-men of old you are doughty and tough, as  sturdy as stones and tough as deep tree roots.",
+      "id": 252131,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Born of the Gwendannen",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        5,
+        0,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        10,
+        0
+      ],
+      "category": "starting",
+      "cost": 10,
+      "description": "The blood of the Sage-kings of Irydnu flows in your veins.  Dark-skinned lords of distant lands, the Irydnu are renowned  for their intellects and mastery of the magical arts.",
+      "id": 252133,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Born of the Irydnu",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        5,
+        0
+      ]
+    },
+    {
+      "allowed_base_classes": [],
+      "allowed_promotions": [],
+      "allowed_races": [],
+      "cap_grants": [
+        0,
+        0,
+        0,
+        0,
+        10
+      ],
+      "category": "starting",
+      "cost": 10,
+      "description": "The blood of ancient Ethyria runs in your veins. Blessed  above all other Human kindred by the All-Father, you have  inherited their renowned piety and resolve.",
+      "id": 252129,
+      "minimum_level": 0,
+      "minimum_stats": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "name": "Born of the Ethyri",
+      "powers": [],
+      "skill_grants": [],
+      "source_kind": "stat",
+      "stat_grants": [
+        0,
+        0,
+        0,
+        0,
+        5
+      ]
+    }
+  ],
+  "schema_version": 1,
+  "source": {
+    "declaration_sha256": "311cc3e496e5362dba268fb56b2f11aecf00a2298d16746e4b0c6d90fcf9c5c0",
+    "evidence_status": "wonderbane_calculator_derived",
+    "review_profile_id": "wonderbane.calculator-review.2026-08-28.v1",
+    "review_status": "accepted",
+    "snapshot_sha256": "1064826fc349d2b25cf295a3f4ca36a15675da642a577893767535d2c37d6395",
+    "url": "https://wonderbane.com/"
+  },
+  "unresolved_references": [
+    "rune:3001:race:Saetor",
+    "rune:3005:race:Saetor",
+    "rune:3015:race:Saetor",
+    "rune:3023:race:Saetor",
+    "rune:3024:race:Saetor",
+    "rune:3025:race:Saetor",
+    "rune:3032:race:Saetor"
+  ]
+}

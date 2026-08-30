@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "families": [
+    {
+      "family_id": "wonderbane-native-layout-ef43784b",
+      "canonical_executable_sha256": "ef43784ba6ffa0de6c0c16c76569f864393ad1530e7149395bb560e5cca30f13",
+      "compatible_executable_sha256s": [
+        "2b186aef864ea1ce16d8ec959c450f1f2e301d1ba25d9daa3b14ab6c65d68c3d",
+        "e358237c458ddfe2fc7a86e478f165a8fd067655ab1a8ada5731f790c6995d96"
+      ],
+      "validation": {
+        "profile_field_comparison": {
+          "baseline_executable_sha256": "ef43784ba6ffa0de6c0c16c76569f864393ad1530e7149395bb560e5cca30f13",
+          "compared_executable_sha256": "2b186aef864ea1ce16d8ec959c450f1f2e301d1ba25d9daa3b14ab6c65d68c3d",
+          "profile_count": 15,
+          "all_calibrated_fields_equal": true
+        },
+        "patch_binary_comparison": {
+          "baseline_executable_sha256": "2b186aef864ea1ce16d8ec959c450f1f2e301d1ba25d9daa3b14ab6c65d68c3d",
+          "patched_executable_sha256": "e358237c458ddfe2fc7a86e478f165a8fd067655ab1a8ada5731f790c6995d96",
+          "length": 21143613,
+          "pe_header_layout_equal": true,
+          "section_layouts_equal": true,
+          "unchanged_sections": [
+            ".data",
+            ".idata",
+            ".rdata",
+            ".reloc",
+            ".rsrc"
+          ],
+          "changed_section": ".text",
+          "changed_byte_count": 816,
+          "changed_range_count": 37,
+          "changed_rva_start": 9400971,
+          "changed_rva_end_exclusive": 9402325,
+          "calibrated_rva_references_in_changed_range": 0
+        }
+      }
+    }
+  ]
+}

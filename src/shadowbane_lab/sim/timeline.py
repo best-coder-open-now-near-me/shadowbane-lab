@@ -1,0 +1,209 @@
+"""Immutable exchange, schedule, and environment snapshot records."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from enum import StrEnum
+
+from shadowbane_lab.protocol import (
+    ActionBinding,
+    AffordanceSetMessage,
+    DecisionMessage,
+    ObservationMessage,
+)
+from shadowbane_lab.sim.actions import EffectPrimitive, WeaponAttackSpec
+from shadowbane_lab.sim.clock import ClockSnapshot
+from shadowbane_lab.sim.lifecycle import (
+    ActionExecutionSnapshot,
+    ContinuationPolicy,
+)
+from shadowbane_lab.sim.random_source import RandomSnapshot
+from shadowbane_lab.sim.state import EntitySnapshot
+
+
+class ScheduledKind(StrEnum):
+    PHASE_RELEASE = "phase_release"
+    PHASE_TRANSITION = "phase_transition"
+    RESOLUTION = "resolution"
+    WEAPON_ATTACK = "weapon_attack"
+    COMPLETION = "completion"
+    EFFECT_PULSE = "effect_pulse"
+    EFFECT_EXPIRY = "effect_expiry"
+
+
+@dataclass(frozen=True, slots=True)
+class ScheduledItem:
+    due_time_ms: int
+    order: int
+    kind: ScheduledKind
+    actor_id: str
+    correlation_id: str
+    action_key: str
+    binding: ActionBinding | None = None
+    phase_duration_ms: int = 0
+    effects: tuple[EffectPrimitive, ...] = ()
+    weapon_attack: WeaponAttackSpec | None = None
+    trigger_key: str | None = None
+    effect_entity_id: str | None = None
+    effect_storage_key: str | None = None
+    expected_effect_key: str | None = None
+    expected_effect_instance_id: str | None = None
+    periodic_key: str | None = None
+    pulse_index: int = 0
+    interruptible: bool = False
+    cancel_on_damage: bool = False
+    cancel_on_stun: bool = False
+    actor_life_id: str | None = None
+    target_life_id: str | None = None
+    phase_index: int | None = None
+    cancel_token: str | None = None
+    continuation_policy: ContinuationPolicy = ContinuationPolicy.WORLD_BOUND
+    semantic_priority: int = 0
+
+    def __post_init__(self) -> None:
+        if (
+            isinstance(self.due_time_ms, bool)
+            or not isinstance(self.due_time_ms, int)
+            or self.due_time_ms < 0
+        ):
+            raise ValueError("due_time_ms must be a non-negative integer")
+        if isinstance(self.order, bool) or not isinstance(self.order, int) or self.order < 0:
+            raise ValueError("order must be a non-negative integer")
+        if not isinstance(self.kind, ScheduledKind):
+            raise ValueError("kind must be a ScheduledKind")
+        for value, name in (
+            (self.actor_id, "actor_id"),
+            (self.correlation_id, "correlation_id"),
+            (self.action_key, "action_key"),
+        ):
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"{name} must be a non-empty string")
+        if (
+            isinstance(self.phase_duration_ms, bool)
+            or not isinstance(self.phase_duration_ms, int)
+            or self.phase_duration_ms < 0
+        ):
+            raise ValueError("phase_duration_ms must be a non-negative integer")
+        if self.kind in {ScheduledKind.RESOLUTION, ScheduledKind.EFFECT_PULSE}:
+            if self.binding is None or not self.effects or self.weapon_attack is not None:
+                raise ValueError("resolutions and effect pulses require a binding and effects")
+        elif self.kind is ScheduledKind.WEAPON_ATTACK:
+            if self.binding is None or self.weapon_attack is None or self.effects:
+                raise ValueError("weapon attacks require a binding and weapon spec only")
+        elif self.binding is not None or self.effects or self.weapon_attack is not None:
+            raise ValueError(
+                "only resolutions, effect pulses, and weapon attacks may carry bindings"
+            )
+        if self.trigger_key is not None:
+            if self.kind is not ScheduledKind.RESOLUTION:
+                raise ValueError("trigger_key is valid only for effect resolutions")
+            if not isinstance(self.trigger_key, str) or not self.trigger_key.strip():
+                raise ValueError("trigger_key must be a non-empty string")
+        for value, name in (
+            (self.interruptible, "interruptible"),
+            (self.cancel_on_damage, "cancel_on_damage"),
+            (self.cancel_on_stun, "cancel_on_stun"),
+        ):
+            if not isinstance(value, bool):
+                raise ValueError(f"{name} must be a boolean")
+        for value, name in (
+            (self.actor_life_id, "actor_life_id"),
+            (self.target_life_id, "target_life_id"),
+            (self.cancel_token, "cancel_token"),
+        ):
+            if value is not None and (not isinstance(value, str) or not value.strip()):
+                raise ValueError(f"{name} must be a non-empty string or null")
+        if self.phase_index is not None and (
+            isinstance(self.phase_index, bool)
+            or not isinstance(self.phase_index, int)
+            or self.phase_index < 0
+        ):
+            raise ValueError("phase_index must be a non-negative integer or null")
+        if not isinstance(self.continuation_policy, ContinuationPolicy):
+            raise ValueError("continuation_policy must be a ContinuationPolicy")
+        if isinstance(self.semantic_priority, bool) or not isinstance(self.semantic_priority, int):
+            raise ValueError("semantic_priority must be an integer")
+        if (
+            self.kind in {ScheduledKind.PHASE_RELEASE, ScheduledKind.PHASE_TRANSITION}
+            and self.phase_index is None
+        ):
+            raise ValueError("phase lifecycle work requires phase_index")
+        if self.kind in {ScheduledKind.EFFECT_EXPIRY, ScheduledKind.EFFECT_PULSE} and (
+            self.interruptible or self.cancel_on_damage or self.cancel_on_stun
+        ):
+            raise ValueError("effect schedule items cannot carry interruption flags")
+        if self.kind in {ScheduledKind.EFFECT_EXPIRY, ScheduledKind.EFFECT_PULSE}:
+            for value, name in (
+                (self.effect_entity_id, "effect_entity_id"),
+                (self.effect_storage_key, "effect_storage_key"),
+                (self.expected_effect_key, "expected_effect_key"),
+                (self.expected_effect_instance_id, "expected_effect_instance_id"),
+            ):
+                if not isinstance(value, str) or not value.strip():
+                    raise ValueError(f"effect schedule requires {name}")
+        elif any(
+            value is not None
+            for value in (
+                self.effect_entity_id,
+                self.effect_storage_key,
+                self.expected_effect_key,
+                self.expected_effect_instance_id,
+            )
+        ):
+            raise ValueError("only effect schedule items may carry effect identifiers")
+        if self.kind is ScheduledKind.EFFECT_PULSE:
+            if not isinstance(self.periodic_key, str) or not self.periodic_key.strip():
+                raise ValueError("effect pulse requires periodic_key")
+            if (
+                isinstance(self.pulse_index, bool)
+                or not isinstance(self.pulse_index, int)
+                or self.pulse_index < 1
+            ):
+                raise ValueError("effect pulse requires a positive pulse_index")
+        elif self.periodic_key is not None or self.pulse_index != 0:
+            raise ValueError("only effect pulses may carry periodic pulse fields")
+
+
+@dataclass(frozen=True, slots=True)
+class EnvironmentSnapshot:
+    clock: ClockSnapshot
+    random: RandomSnapshot
+    entities: tuple[EntitySnapshot, ...]
+    scheduled: tuple[ScheduledItem, ...]
+    next_schedule_order: int
+    next_event_number: int
+    executions: tuple[ActionExecutionSnapshot, ...] = ()
+    cancelled_tokens: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class AgentExchange:
+    observation: ObservationMessage
+    affordances: AffordanceSetMessage
+
+    def decision(
+        self,
+        affordance_id: str,
+        correlation_id: str,
+        message_id: str | None = None,
+    ) -> DecisionMessage:
+        selected = next(
+            (
+                affordance
+                for affordance in self.affordances.affordances
+                if affordance.affordance_id == affordance_id
+            ),
+            None,
+        )
+        if selected is None:
+            raise KeyError(f"unknown affordance id: {affordance_id}")
+        return DecisionMessage(
+            message_id=message_id or f"message:{correlation_id}",
+            correlation_id=correlation_id,
+            observation_id=self.observation.observation_id,
+            agent_id=self.observation.agent_id,
+            tick=self.observation.tick,
+            affordance_id=selected.affordance_id,
+            action_key=selected.action_key,
+            binding=selected.binding,
+        )

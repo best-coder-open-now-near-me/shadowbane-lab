@@ -1,0 +1,20 @@
+{
+  "schema_version": 2,
+  "profile_id": "wonderbane-ef43784b-native-target-identity",
+  "executable_name": "sb.exe",
+  "executable_sha256": "ef43784ba6ffa0de6c0c16c76569f864393ad1530e7149395bb560e5cca30f13",
+  "pointer_size": 4,
+  "selected_pointer_rva": 23735716,
+  "arc_character_vtable_rva": 18093660,
+  "sparse_data_offset": 52,
+  "merchant_data_descriptor_rva": 20394552,
+  "shopkeeper_descriptor_rva": 20394664,
+  "banker_descriptor_rva": 20394136,
+  "trainer_descriptor_rva": 20394112,
+  "minion_descriptor_rva": 20394160,
+  "descriptor_key_offset": 4,
+  "sparse_value_pointer_offset": 4,
+  "maximum_sparse_table_bits": 16,
+  "minimum_user_address": 65536,
+  "maximum_user_address": 2147418111
+}

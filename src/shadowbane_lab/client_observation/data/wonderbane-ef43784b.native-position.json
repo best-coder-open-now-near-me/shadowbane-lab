@@ -1,0 +1,22 @@
+{
+  "schema_version": 2,
+  "profile_id": "wonderbane-ef43784b-player-position",
+  "executable_name": "sb.exe",
+  "executable_sha256": "ef43784ba6ffa0de6c0c16c76569f864393ad1530e7149395bb560e5cca30f13",
+  "pointer_size": 4,
+  "player_pointer_rva": 23735704,
+  "vtable_minimum_rva": 18092032,
+  "vtable_maximum_rva": 19664896,
+  "position_getter_slot_offset": 88,
+  "position_getter_rva": 41936,
+  "position_component_offset": 1200,
+  "component_value_offset": 0,
+  "position_value_offset": 32,
+  "minimum_user_address": 65536,
+  "maximum_user_address": 2147418111,
+  "minimum_world_coordinate": 0,
+  "maximum_world_coordinate": 200000,
+  "minimum_altitude": -2000,
+  "maximum_altitude": 20000,
+  "maximum_sample_drift": 100
+}

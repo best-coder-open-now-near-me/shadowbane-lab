@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.coverage
+.pytest_cache/
+.ruff_cache/
+.venv/
+build/
+dist/
+
+# Local captures and generated training output
+artifacts/
+runs/
+captures/
+
+# Machine-specific client calibration/layouts (templates remain tracked)
+configs/*.local.json

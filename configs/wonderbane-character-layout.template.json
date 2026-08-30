@@ -1,0 +1,373 @@
+{
+  "schema_version": 1,
+  "layout_id": "wonderbane.character.template.v1",
+  "target": {
+    "executable_names": [
+      "Shadowbane.exe"
+    ],
+    "pointer_size": 4,
+    "expected_sha256": "0bc19747ebc5f5f821eea7b0a5e4cecdf685ddf6d7fed84e24bac1f18b66e555",
+    "live_capture_enabled": false
+  },
+  "roots": {
+    "character": {
+      "base": "module:Shadowbane.exe",
+      "steps": [
+        {
+          "offset": "0x00000000",
+          "dereference": true
+        }
+      ]
+    }
+  },
+  "values": [
+    {
+      "path": "identity.name",
+      "type": "cstring",
+      "address": {
+        "base": "root:character",
+        "steps": [
+          {
+            "offset": "0x0000"
+          }
+        ]
+      },
+      "encoding": "cp1252",
+      "max_length": 64,
+      "required": false
+    },
+    {
+      "path": "identity.level",
+      "type": "u32",
+      "address": {
+        "base": "root:character",
+        "steps": [
+          {
+            "offset": "0x0000"
+          }
+        ]
+      },
+      "required": false
+    },
+    {
+      "path": "identity.race_id",
+      "type": "u32",
+      "address": {
+        "base": "root:character",
+        "steps": [
+          {
+            "offset": "0x0000"
+          }
+        ]
+      },
+      "required": false
+    },
+    {
+      "path": "identity.base_class_id",
+      "type": "u32",
+      "address": {
+        "base": "root:character",
+        "steps": [
+          {
+            "offset": "0x0000"
+          }
+        ]
+      },
+      "required": false
+    },
+    {
+      "path": "identity.promotion_id",
+      "type": "u32",
+      "address": {
+        "base": "root:character",
+        "steps": [
+          {
+            "offset": "0x0000"
+          }
+        ]
+      },
+      "required": false
+    },
+    {
+      "path": "attributes.strength",
+      "type": "u32",
+      "address": {
+        "base": "root:character",
+        "steps": [
+          {
+            "offset": "0x0000"
+          }
+        ]
+      },
+      "required": false
+    },
+    {
+      "path": "attributes.dexterity",
+      "type": "u32",
+      "address": {
+        "base": "root:character",
+        "steps": [
+          {
+            "offset": "0x0000"
+          }
+        ]
+      },
+      "required": false
+    },
+    {
+      "path": "attributes.constitution",
+      "type": "u32",
+      "address": {
+        "base": "root:character",
+        "steps": [
+          {
+            "offset": "0x0000"
+          }
+        ]
+      },
+      "required": false
+    },
+    {
+      "path": "attributes.intelligence",
+      "type": "u32",
+      "address": {
+        "base": "root:character",
+        "steps": [
+          {
+            "offset": "0x0000"
+          }
+        ]
+      },
+      "required": false
+    },
+    {
+      "path": "attributes.spirit",
+      "type": "u32",
+      "address": {
+        "base": "root:character",
+        "steps": [
+          {
+            "offset": "0x0000"
+          }
+        ]
+      },
+      "required": false
+    },
+    {
+      "path": "resources.health.current",
+      "type": "f32",
+      "address": {
+        "base": "root:character",
+        "steps": [
+          {
+            "offset": "0x0000"
+          }
+        ]
+      },
+      "required": false
+    },
+    {
+      "path": "resources.health.maximum",
+      "type": "f32",
+      "address": {
+        "base": "root:character",
+        "steps": [
+          {
+            "offset": "0x0000"
+          }
+        ]
+      },
+      "required": false
+    },
+    {
+      "path": "resources.mana.current",
+      "type": "f32",
+      "address": {
+        "base": "root:character",
+        "steps": [
+          {
+            "offset": "0x0000"
+          }
+        ]
+      },
+      "required": false
+    },
+    {
+      "path": "resources.mana.maximum",
+      "type": "f32",
+      "address": {
+        "base": "root:character",
+        "steps": [
+          {
+            "offset": "0x0000"
+          }
+        ]
+      },
+      "required": false
+    },
+    {
+      "path": "resources.stamina.current",
+      "type": "f32",
+      "address": {
+        "base": "root:character",
+        "steps": [
+          {
+            "offset": "0x0000"
+          }
+        ]
+      },
+      "required": false
+    },
+    {
+      "path": "resources.stamina.maximum",
+      "type": "f32",
+      "address": {
+        "base": "root:character",
+        "steps": [
+          {
+            "offset": "0x0000"
+          }
+        ]
+      },
+      "required": false
+    },
+    {
+      "path": "combat.attack_rating",
+      "type": "f32",
+      "address": {
+        "base": "root:character",
+        "steps": [
+          {
+            "offset": "0x0000"
+          }
+        ]
+      },
+      "required": false
+    },
+    {
+      "path": "combat.defense",
+      "type": "f32",
+      "address": {
+        "base": "root:character",
+        "steps": [
+          {
+            "offset": "0x0000"
+          }
+        ]
+      },
+      "required": false
+    },
+    {
+      "path": "combat.move_speed",
+      "type": "f32",
+      "address": {
+        "base": "root:character",
+        "steps": [
+          {
+            "offset": "0x0000"
+          }
+        ]
+      },
+      "required": false
+    }
+  ],
+  "records": [],
+  "collections": [
+    {
+      "path": "equipment",
+      "address": {
+        "base": "root:character",
+        "steps": [
+          {
+            "offset": "0x0000",
+            "dereference": true
+          }
+        ]
+      },
+      "count": 20,
+      "stride": 4,
+      "element_pointer": true,
+      "skip_null": true,
+      "labels": [
+        "slot_00",
+        "slot_01",
+        "slot_02",
+        "slot_03",
+        "slot_04",
+        "slot_05",
+        "slot_06",
+        "slot_07",
+        "slot_08",
+        "slot_09",
+        "slot_10",
+        "slot_11",
+        "slot_12",
+        "slot_13",
+        "slot_14",
+        "slot_15",
+        "slot_16",
+        "slot_17",
+        "slot_18",
+        "slot_19"
+      ],
+      "values": [
+        {
+          "path": "instance_id",
+          "type": "u32",
+          "offset": "0x0000",
+          "required": false
+        },
+        {
+          "path": "template_id",
+          "type": "u32",
+          "offset": "0x0000",
+          "required": false
+        },
+        {
+          "path": "name",
+          "type": "cstring",
+          "steps": [
+            {
+              "offset": "0x0000",
+              "dereference": true
+            }
+          ],
+          "encoding": "cp1252",
+          "max_length": 128,
+          "required": false
+        },
+        {
+          "path": "durability.current",
+          "type": "u32",
+          "offset": "0x0000",
+          "required": false
+        },
+        {
+          "path": "durability.maximum",
+          "type": "u32",
+          "offset": "0x0000",
+          "required": false
+        },
+        {
+          "path": "prefix_id",
+          "type": "u32",
+          "offset": "0x0000",
+          "required": false
+        },
+        {
+          "path": "suffix_id",
+          "type": "u32",
+          "offset": "0x0000",
+          "required": false
+        }
+      ],
+      "required": false
+    }
+  ],
+  "notes": [
+    "This file is intentionally live-locked and every offset is a placeholder.",
+    "The bundled hash is the previously audited WonderBane Shadowbane.exe; inspect the running client and update it if the patcher changed the binary.",
+    "Replace generic equipment labels only after the slot order is verified from the client.",
+    "Add fixed records or collections for skills, powers, resistances, enchantments, inventory, and active effects as their layouts are recovered."
+  ]
+}

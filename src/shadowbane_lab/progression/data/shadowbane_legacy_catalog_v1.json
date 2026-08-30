@@ -1,0 +1,650 @@
+{
+  "schema_version": 1,
+  "catalog_id": "shadowbane.legacy-build-catalog.v1",
+  "target_variant": "wonderbane",
+  "variant_status": "legacy_baseline",
+  "retrieved_on": "2026-08-28",
+  "sources": [
+    {
+      "source_id": "morloch-main-36832",
+      "kind": "wiki",
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Main_Page&oldid=36832",
+      "revision": "36832"
+    },
+    {
+      "source_id": "morloch-race-aelfborn-36397",
+      "kind": "wiki",
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Aelfborn&oldid=36397",
+      "revision": "36397"
+    },
+    {
+      "source_id": "morloch-race-aracoix-36255",
+      "kind": "wiki",
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Aracoix&oldid=36255",
+      "revision": "36255"
+    },
+    {
+      "source_id": "morloch-race-centaur-34993",
+      "kind": "wiki",
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Centaur&oldid=34993",
+      "revision": "34993"
+    },
+    {
+      "source_id": "morloch-race-dwarf-35851",
+      "kind": "wiki",
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Dwarf&oldid=35851",
+      "revision": "35851"
+    },
+    {
+      "source_id": "morloch-race-elf-36199",
+      "kind": "wiki",
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Elf&oldid=36199",
+      "revision": "36199"
+    },
+    {
+      "source_id": "morloch-race-half-giant-36398",
+      "kind": "wiki",
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Half_Giant&oldid=36398",
+      "revision": "36398"
+    },
+    {
+      "source_id": "morloch-race-human-35084",
+      "kind": "wiki",
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Human&oldid=35084",
+      "revision": "35084"
+    },
+    {
+      "source_id": "morloch-race-irekei-35083",
+      "kind": "wiki",
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Irekei&oldid=35083",
+      "revision": "35083"
+    },
+    {
+      "source_id": "morloch-race-minotaur-35001",
+      "kind": "wiki",
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Minotaur&oldid=35001",
+      "revision": "35001"
+    },
+    {
+      "source_id": "morloch-race-nephilim-36399",
+      "kind": "wiki",
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Nephilim&oldid=36399",
+      "revision": "36399"
+    },
+    {
+      "source_id": "morloch-race-shade-36400",
+      "kind": "wiki",
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Shade&oldid=36400",
+      "revision": "36400"
+    },
+    {
+      "source_id": "morloch-race-vampire-36401",
+      "kind": "wiki",
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Vampire&oldid=36401",
+      "revision": "36401"
+    },
+    {
+      "source_id": "morloch-profession-assassin-35849",
+      "kind": "wiki",
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Assassin&oldid=35849",
+      "revision": "35849"
+    },
+    {
+      "source_id": "morloch-profession-barbarian-35958",
+      "kind": "wiki",
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Barbarian&oldid=35958",
+      "revision": "35958"
+    },
+    {
+      "source_id": "morloch-profession-bard-34965",
+      "kind": "wiki",
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Bard&oldid=34965",
+      "revision": "34965"
+    },
+    {
+      "source_id": "morloch-profession-channeler-35945",
+      "kind": "wiki",
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Channeler&oldid=35945",
+      "revision": "35945"
+    },
+    {
+      "source_id": "morloch-profession-confessor-34967",
+      "kind": "wiki",
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Confessor&oldid=34967",
+      "revision": "34967"
+    },
+    {
+      "source_id": "morloch-profession-crusader-35088",
+      "kind": "wiki",
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Crusader&oldid=35088",
+      "revision": "35088"
+    },
+    {
+      "source_id": "morloch-profession-doomsayer-35085",
+      "kind": "wiki",
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Doomsayer&oldid=35085",
+      "revision": "35085"
+    },
+    {
+      "source_id": "morloch-profession-druid-35377",
+      "kind": "wiki",
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Druid&oldid=35377",
+      "revision": "35377"
+    },
+    {
+      "source_id": "morloch-profession-fury-34960",
+      "kind": "wiki",
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Fury&oldid=34960",
+      "revision": "34960"
+    },
+    {
+      "source_id": "morloch-profession-huntress-34962",
+      "kind": "wiki",
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Huntress&oldid=34962",
+      "revision": "34962"
+    },
+    {
+      "source_id": "morloch-profession-necromancer-35380",
+      "kind": "wiki",
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Necromancer&oldid=35380",
+      "revision": "35380"
+    },
+    {
+      "source_id": "morloch-profession-nightstalker-35375",
+      "kind": "wiki",
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Nightstalker&oldid=35375",
+      "revision": "35375"
+    },
+    {
+      "source_id": "morloch-profession-prelate-35373",
+      "kind": "wiki",
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Prelate&oldid=35373",
+      "revision": "35373"
+    },
+    {
+      "source_id": "morloch-profession-priest-35376",
+      "kind": "wiki",
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Priest&oldid=35376",
+      "revision": "35376"
+    },
+    {
+      "source_id": "morloch-profession-ranger-36523",
+      "kind": "wiki",
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Ranger&oldid=36523",
+      "revision": "36523"
+    },
+    {
+      "source_id": "morloch-profession-scout-34936",
+      "kind": "wiki",
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Scout&oldid=34936",
+      "revision": "34936"
+    },
+    {
+      "source_id": "morloch-profession-sentinel-34945",
+      "kind": "wiki",
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Sentinel&oldid=34945",
+      "revision": "34945"
+    },
+    {
+      "source_id": "morloch-profession-templar-34941",
+      "kind": "wiki",
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Templar&oldid=34941",
+      "revision": "34941"
+    },
+    {
+      "source_id": "morloch-profession-thief-35957",
+      "kind": "wiki",
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Thief&oldid=35957",
+      "revision": "35957"
+    },
+    {
+      "source_id": "morloch-profession-warlock-34943",
+      "kind": "wiki",
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Warlock&oldid=34943",
+      "revision": "34943"
+    },
+    {
+      "source_id": "morloch-profession-warrior-35031",
+      "kind": "wiki",
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Warrior&oldid=35031",
+      "revision": "35031"
+    },
+    {
+      "source_id": "morloch-profession-wizard-35243",
+      "kind": "wiki",
+      "uri": "https://morloch.shadowbaneemulator.com/index.php?title=Wizard&oldid=35243",
+      "revision": "35243"
+    }
+  ],
+  "coverage": [
+    {
+      "domain": "core_identity",
+      "status": "complete",
+      "note": "All legacy races, base classes, professions, sex restrictions, and legal promotion edges are cataloged."
+    },
+    {
+      "domain": "wonderbane_variant",
+      "status": "unresolved",
+      "note": "Every legacy identity record still requires validation against the current WonderBane server or client data."
+    },
+    {
+      "domain": "race_passives",
+      "status": "partial",
+      "note": "Racial discipline access is cataloged; resistances, movement, regeneration, granted skills, granted powers, and equipment restrictions are not yet compiled."
+    },
+    {
+      "domain": "resource_formulas",
+      "status": "unresolved",
+      "note": "Race, base-class, and profession health, mana, stamina, and regeneration inputs are not yet cataloged globally."
+    },
+    {
+      "domain": "discipline_legality",
+      "status": "partial",
+      "note": "The legacy discipline vocabulary and explicit racial access are cataloged; full race, base-class, profession, sex, stat, and level prerequisites remain unresolved."
+    },
+    {
+      "domain": "profession_powers",
+      "status": "partial",
+      "note": "Only the separate Assassin and Warlock vertical-slice powers are executable."
+    },
+    {
+      "domain": "equipment",
+      "status": "unresolved",
+      "note": "Weapons, armor, jewelry, enchantments, requirements, and derived combat values are not cataloged."
+    },
+    {
+      "domain": "combat_formulas",
+      "status": "unresolved",
+      "note": "Attack rating, defense, hit chance, resistance, mitigation, regeneration, interruption, and authoritative stochastic rules remain unresolved."
+    }
+  ],
+  "base_classes": [
+    {"key": "fighter", "name": "Fighter", "source_id": "morloch-main-36832"},
+    {"key": "healer", "name": "Healer", "source_id": "morloch-main-36832"},
+    {"key": "mage", "name": "Mage", "source_id": "morloch-main-36832"},
+    {"key": "rogue", "name": "Rogue", "source_id": "morloch-main-36832"}
+  ],
+  "races": [
+    {
+      "key": "aelfborn",
+      "name": "Aelfborn",
+      "creation_cost": 5,
+      "starting_attributes": [40, 50, 40, 45, 35],
+      "maximum_attributes": [95, 120, 95, 105, 85],
+      "allowed_base_class_keys": ["fighter", "healer", "mage", "rogue"],
+      "racial_discipline_keys": [],
+      "allowed_sexes": ["female", "male"],
+      "source_id": "morloch-race-aelfborn-36397"
+    },
+    {
+      "key": "aracoix",
+      "name": "Aracoix",
+      "creation_cost": 15,
+      "starting_attributes": [50, 55, 45, 35, 30],
+      "maximum_attributes": [115, 120, 105, 85, 85],
+      "allowed_base_class_keys": ["fighter", "healer", "rogue"],
+      "racial_discipline_keys": ["savant", "skydancer"],
+      "allowed_sexes": ["female", "male"],
+      "source_id": "morloch-race-aracoix-36255"
+    },
+    {
+      "key": "centaur",
+      "name": "Centaur",
+      "creation_cost": 10,
+      "starting_attributes": [45, 35, 55, 35, 50],
+      "maximum_attributes": [110, 85, 125, 85, 105],
+      "allowed_base_class_keys": ["fighter", "healer"],
+      "racial_discipline_keys": [],
+      "allowed_sexes": ["female", "male"],
+      "source_id": "morloch-race-centaur-34993"
+    },
+    {
+      "key": "dwarf",
+      "name": "Dwarf",
+      "creation_cost": 15,
+      "starting_attributes": [45, 35, 60, 30, 40],
+      "maximum_attributes": [110, 80, 140, 70, 100],
+      "allowed_base_class_keys": ["fighter", "healer"],
+      "racial_discipline_keys": ["clanwarden", "forge_master", "giant_killer"],
+      "allowed_sexes": ["male"],
+      "source_id": "morloch-race-dwarf-35851"
+    },
+    {
+      "key": "elf",
+      "name": "Elf",
+      "creation_cost": 15,
+      "starting_attributes": [35, 60, 35, 50, 40],
+      "maximum_attributes": [70, 140, 70, 120, 100],
+      "allowed_base_class_keys": ["fighter", "healer", "mage", "rogue"],
+      "racial_discipline_keys": ["archmage", "blade_weaver"],
+      "allowed_sexes": ["female", "male"],
+      "source_id": "morloch-race-elf-36199"
+    },
+    {
+      "key": "half_giant",
+      "name": "Half Giant",
+      "creation_cost": 10,
+      "starting_attributes": [60, 40, 60, 30, 30],
+      "maximum_attributes": [150, 65, 140, 85, 60],
+      "allowed_base_class_keys": ["fighter"],
+      "racial_discipline_keys": [],
+      "allowed_sexes": ["female", "male"],
+      "source_id": "morloch-race-half-giant-36398"
+    },
+    {
+      "key": "human",
+      "name": "Human",
+      "creation_cost": 0,
+      "starting_attributes": [40, 40, 40, 40, 40],
+      "maximum_attributes": [100, 100, 100, 100, 100],
+      "allowed_base_class_keys": ["fighter", "healer", "mage", "rogue"],
+      "racial_discipline_keys": [],
+      "allowed_sexes": ["female", "male"],
+      "source_id": "morloch-race-human-35084"
+    },
+    {
+      "key": "irekei",
+      "name": "Irekei",
+      "creation_cost": 15,
+      "starting_attributes": [40, 55, 40, 45, 30],
+      "maximum_attributes": [85, 130, 90, 110, 85],
+      "allowed_base_class_keys": ["fighter", "healer", "mage", "rogue"],
+      "racial_discipline_keys": ["blood_prophet", "sun_dancer"],
+      "allowed_sexes": ["female", "male"],
+      "source_id": "morloch-race-irekei-35083"
+    },
+    {
+      "key": "minotaur",
+      "name": "Minotaur",
+      "creation_cost": 15,
+      "starting_attributes": [75, 25, 70, 25, 25],
+      "maximum_attributes": [170, 70, 140, 65, 65],
+      "allowed_base_class_keys": ["fighter", "healer"],
+      "racial_discipline_keys": ["blood_horn", "thrall"],
+      "allowed_sexes": ["male"],
+      "source_id": "morloch-race-minotaur-35001"
+    },
+    {
+      "key": "nephilim",
+      "name": "Nephilim",
+      "creation_cost": 15,
+      "starting_attributes": [55, 15, 40, 65, 30],
+      "maximum_attributes": [140, 60, 90, 130, 80],
+      "allowed_base_class_keys": ["fighter", "healer", "mage", "rogue"],
+      "racial_discipline_keys": [],
+      "allowed_sexes": ["female", "male"],
+      "source_id": "morloch-race-nephilim-36399"
+    },
+    {
+      "key": "shade",
+      "name": "Shade",
+      "creation_cost": 10,
+      "starting_attributes": [40, 50, 40, 45, 30],
+      "maximum_attributes": [90, 115, 95, 110, 90],
+      "allowed_base_class_keys": ["fighter", "mage", "rogue"],
+      "racial_discipline_keys": ["shroudborne"],
+      "allowed_sexes": ["female", "male"],
+      "source_id": "morloch-race-shade-36400"
+    },
+    {
+      "key": "vampire",
+      "name": "Vampire",
+      "creation_cost": 25,
+      "starting_attributes": [45, 50, 45, 50, 30],
+      "maximum_attributes": [120, 120, 120, 120, 65],
+      "allowed_base_class_keys": ["fighter", "mage", "rogue"],
+      "racial_discipline_keys": ["belgosch", "drannok", "gorgoi", "strigoi"],
+      "allowed_sexes": ["female", "male"],
+      "source_id": "morloch-race-vampire-36401"
+    }
+  ],
+  "professions": [
+    {
+      "key": "assassin",
+      "name": "Assassin",
+      "promotion_level": 10,
+      "allowed_base_class_keys": ["mage", "rogue"],
+      "allowed_race_keys": ["aelfborn", "aracoix", "elf", "human", "irekei", "nephilim", "shade", "vampire"],
+      "allowed_sexes": ["female", "male"],
+      "source_id": "morloch-profession-assassin-35849"
+    },
+    {
+      "key": "barbarian",
+      "name": "Barbarian",
+      "promotion_level": 10,
+      "allowed_base_class_keys": ["fighter", "rogue"],
+      "allowed_race_keys": ["aelfborn", "aracoix", "centaur", "half_giant", "human", "minotaur", "nephilim"],
+      "allowed_sexes": ["female", "male"],
+      "source_id": "morloch-profession-barbarian-35958"
+    },
+    {
+      "key": "bard",
+      "name": "Bard",
+      "promotion_level": 10,
+      "allowed_base_class_keys": ["mage", "rogue"],
+      "allowed_race_keys": ["aelfborn", "aracoix", "elf", "human", "irekei", "nephilim"],
+      "allowed_sexes": ["female", "male"],
+      "source_id": "morloch-profession-bard-34965"
+    },
+    {
+      "key": "channeler",
+      "name": "Channeler",
+      "promotion_level": 10,
+      "allowed_base_class_keys": ["healer", "mage"],
+      "allowed_race_keys": ["aelfborn", "elf", "human", "irekei", "nephilim", "shade"],
+      "allowed_sexes": ["female", "male"],
+      "source_id": "morloch-profession-channeler-35945"
+    },
+    {
+      "key": "confessor",
+      "name": "Confessor",
+      "promotion_level": 10,
+      "allowed_base_class_keys": ["healer"],
+      "allowed_race_keys": ["human"],
+      "allowed_sexes": ["female", "male"],
+      "source_id": "morloch-profession-confessor-34967"
+    },
+    {
+      "key": "crusader",
+      "name": "Crusader",
+      "promotion_level": 10,
+      "allowed_base_class_keys": ["fighter", "healer"],
+      "allowed_race_keys": ["aelfborn", "centaur", "dwarf", "elf", "half_giant", "human"],
+      "allowed_sexes": ["female", "male"],
+      "source_id": "morloch-profession-crusader-35088"
+    },
+    {
+      "key": "doomsayer",
+      "name": "Doomsayer",
+      "promotion_level": 10,
+      "allowed_base_class_keys": ["healer", "mage"],
+      "allowed_race_keys": ["aelfborn", "elf", "human", "minotaur", "nephilim"],
+      "allowed_sexes": ["female", "male"],
+      "source_id": "morloch-profession-doomsayer-35085"
+    },
+    {
+      "key": "druid",
+      "name": "Druid",
+      "promotion_level": 10,
+      "allowed_base_class_keys": ["healer"],
+      "allowed_race_keys": ["aelfborn", "centaur", "elf", "human"],
+      "allowed_sexes": ["female", "male"],
+      "source_id": "morloch-profession-druid-35377"
+    },
+    {
+      "key": "fury",
+      "name": "Fury",
+      "promotion_level": 10,
+      "allowed_base_class_keys": ["mage"],
+      "allowed_race_keys": ["aelfborn", "elf", "human", "irekei", "nephilim"],
+      "allowed_sexes": ["female"],
+      "source_id": "morloch-profession-fury-34960"
+    },
+    {
+      "key": "huntress",
+      "name": "Huntress",
+      "promotion_level": 10,
+      "allowed_base_class_keys": ["fighter", "rogue"],
+      "allowed_race_keys": ["aelfborn", "aracoix", "centaur", "elf", "half_giant", "human", "irekei"],
+      "allowed_sexes": ["female"],
+      "source_id": "morloch-profession-huntress-34962"
+    },
+    {
+      "key": "necromancer",
+      "name": "Necromancer",
+      "promotion_level": 10,
+      "allowed_base_class_keys": ["mage"],
+      "allowed_race_keys": ["aelfborn", "elf", "human", "shade", "vampire"],
+      "allowed_sexes": ["female", "male"],
+      "source_id": "morloch-profession-necromancer-35380"
+    },
+    {
+      "key": "nightstalker",
+      "name": "Nightstalker",
+      "promotion_level": 10,
+      "allowed_base_class_keys": ["rogue"],
+      "allowed_race_keys": ["aelfborn", "human", "irekei"],
+      "allowed_sexes": ["female", "male"],
+      "source_id": "morloch-profession-nightstalker-35375"
+    },
+    {
+      "key": "prelate",
+      "name": "Prelate",
+      "promotion_level": 10,
+      "allowed_base_class_keys": ["healer"],
+      "allowed_race_keys": ["aelfborn", "centaur", "dwarf", "elf", "human"],
+      "allowed_sexes": ["female", "male"],
+      "source_id": "morloch-profession-prelate-35373"
+    },
+    {
+      "key": "priest",
+      "name": "Priest",
+      "promotion_level": 10,
+      "allowed_base_class_keys": ["healer"],
+      "allowed_race_keys": ["aelfborn", "aracoix", "centaur", "dwarf", "elf", "human", "irekei"],
+      "allowed_sexes": ["female", "male"],
+      "source_id": "morloch-profession-priest-35376"
+    },
+    {
+      "key": "ranger",
+      "name": "Ranger",
+      "promotion_level": 10,
+      "allowed_base_class_keys": ["fighter", "rogue"],
+      "allowed_race_keys": ["aelfborn", "aracoix", "centaur", "elf", "half_giant", "human", "irekei", "shade"],
+      "allowed_sexes": ["female", "male"],
+      "source_id": "morloch-profession-ranger-36523"
+    },
+    {
+      "key": "scout",
+      "name": "Scout",
+      "promotion_level": 10,
+      "allowed_base_class_keys": ["rogue"],
+      "allowed_race_keys": ["aelfborn", "aracoix", "elf", "human", "irekei", "nephilim", "shade", "vampire"],
+      "allowed_sexes": ["female", "male"],
+      "source_id": "morloch-profession-scout-34936"
+    },
+    {
+      "key": "sentinel",
+      "name": "Sentinel",
+      "promotion_level": 10,
+      "allowed_base_class_keys": ["fighter"],
+      "allowed_race_keys": ["aelfborn", "centaur", "dwarf", "elf", "half_giant", "human"],
+      "allowed_sexes": ["female", "male"],
+      "source_id": "morloch-profession-sentinel-34945"
+    },
+    {
+      "key": "templar",
+      "name": "Templar",
+      "promotion_level": 10,
+      "allowed_base_class_keys": ["fighter"],
+      "allowed_race_keys": ["half_giant", "human"],
+      "allowed_sexes": ["female", "male"],
+      "source_id": "morloch-profession-templar-34941"
+    },
+    {
+      "key": "thief",
+      "name": "Thief",
+      "promotion_level": 10,
+      "allowed_base_class_keys": ["rogue"],
+      "allowed_race_keys": ["aelfborn", "aracoix", "elf", "human", "irekei", "nephilim", "shade", "vampire"],
+      "allowed_sexes": ["female", "male"],
+      "source_id": "morloch-profession-thief-35957"
+    },
+    {
+      "key": "warlock",
+      "name": "Warlock",
+      "promotion_level": 10,
+      "allowed_base_class_keys": ["fighter", "mage"],
+      "allowed_race_keys": ["aelfborn", "aracoix", "human", "nephilim", "shade", "vampire"],
+      "allowed_sexes": ["male"],
+      "source_id": "morloch-profession-warlock-34943"
+    },
+    {
+      "key": "warrior",
+      "name": "Warrior",
+      "promotion_level": 10,
+      "allowed_base_class_keys": ["fighter"],
+      "allowed_race_keys": ["aelfborn", "aracoix", "centaur", "dwarf", "elf", "half_giant", "human", "irekei", "minotaur", "nephilim", "shade", "vampire"],
+      "allowed_sexes": ["female", "male"],
+      "source_id": "morloch-profession-warrior-35031"
+    },
+    {
+      "key": "wizard",
+      "name": "Wizard",
+      "promotion_level": 10,
+      "allowed_base_class_keys": ["mage"],
+      "allowed_race_keys": ["aelfborn", "elf", "human", "irekei", "nephilim", "shade", "vampire"],
+      "allowed_sexes": ["female", "male"],
+      "source_id": "morloch-profession-wizard-35243"
+    }
+  ],
+  "disciplines": [
+    {"key": "animator", "name": "Animator", "racial_access_keys": [], "source_id": "morloch-main-36832"},
+    {"key": "archer", "name": "Archer", "racial_access_keys": [], "source_id": "morloch-main-36832"},
+    {"key": "archmage", "name": "Archmage", "racial_access_keys": ["elf"], "source_id": "morloch-race-elf-36199"},
+    {"key": "artillerist", "name": "Artillerist", "racial_access_keys": [], "source_id": "morloch-main-36832"},
+    {"key": "battle_magus", "name": "Battle Magus", "racial_access_keys": [], "source_id": "morloch-main-36832"},
+    {"key": "belgosch", "name": "Belgosch", "racial_access_keys": ["vampire"], "source_id": "morloch-race-vampire-36401"},
+    {"key": "berserker", "name": "Berserker", "racial_access_keys": [], "source_id": "morloch-main-36832"},
+    {"key": "black_mask", "name": "Black Mask", "racial_access_keys": [], "source_id": "morloch-main-36832"},
+    {"key": "blade_master", "name": "Blade Master", "racial_access_keys": [], "source_id": "morloch-main-36832"},
+    {"key": "blade_weaver", "name": "Blade Weaver", "racial_access_keys": ["elf"], "source_id": "morloch-race-elf-36199"},
+    {"key": "blood_horn", "name": "Blood Horn", "racial_access_keys": ["minotaur"], "source_id": "morloch-race-minotaur-35001"},
+    {"key": "blood_prophet", "name": "Blood Prophet", "racial_access_keys": ["irekei"], "source_id": "morloch-race-irekei-35083"},
+    {"key": "bounty_hunter", "name": "Bounty Hunter", "racial_access_keys": [], "source_id": "morloch-main-36832"},
+    {"key": "clanwarden", "name": "Clanwarden", "racial_access_keys": ["dwarf"], "source_id": "morloch-race-dwarf-35851"},
+    {"key": "commander", "name": "Commander", "racial_access_keys": [], "source_id": "morloch-main-36832"},
+    {"key": "conjurer", "name": "Conjurer", "racial_access_keys": [], "source_id": "morloch-main-36832"},
+    {"key": "dark_knight", "name": "Dark Knight", "racial_access_keys": [], "source_id": "morloch-main-36832"},
+    {"key": "darksworn", "name": "Darksworn", "racial_access_keys": [], "source_id": "morloch-main-36832"},
+    {"key": "drannok", "name": "Drannok", "racial_access_keys": ["vampire"], "source_id": "morloch-race-vampire-36401"},
+    {"key": "enchanter", "name": "Enchanter", "racial_access_keys": [], "source_id": "morloch-profession-assassin-35849"},
+    {"key": "forge_master", "name": "Forge Master", "racial_access_keys": ["dwarf"], "source_id": "morloch-race-dwarf-35851"},
+    {"key": "giant_killer", "name": "Giant Killer", "racial_access_keys": ["dwarf"], "source_id": "morloch-race-dwarf-35851"},
+    {"key": "gladiator", "name": "Gladiator", "racial_access_keys": [], "source_id": "morloch-main-36832"},
+    {"key": "gorgoi", "name": "Gorgoi", "racial_access_keys": ["vampire"], "source_id": "morloch-race-vampire-36401"},
+    {"key": "huntsman", "name": "Huntsman", "racial_access_keys": [], "source_id": "morloch-main-36832"},
+    {"key": "knight", "name": "Knight", "racial_access_keys": [], "source_id": "morloch-main-36832"},
+    {"key": "prospector", "name": "Prospector", "racial_access_keys": [], "source_id": "morloch-main-36832"},
+    {"key": "rat_catcher", "name": "Rat Catcher", "racial_access_keys": [], "source_id": "morloch-main-36832"},
+    {"key": "rune_caster", "name": "Rune Caster", "racial_access_keys": [], "source_id": "morloch-main-36832"},
+    {"key": "saboteur", "name": "Saboteur", "racial_access_keys": [], "source_id": "morloch-main-36832"},
+    {"key": "sanctifier", "name": "Sanctifier", "racial_access_keys": [], "source_id": "morloch-main-36832"},
+    {"key": "sapper", "name": "Sapper", "racial_access_keys": [], "source_id": "morloch-main-36832"},
+    {"key": "savant", "name": "Savant", "racial_access_keys": ["aracoix"], "source_id": "morloch-race-aracoix-36255"},
+    {"key": "shroudborne", "name": "Shroudborne", "racial_access_keys": ["shade"], "source_id": "morloch-race-shade-36400"},
+    {"key": "skydancer", "name": "Skydancer", "racial_access_keys": ["aracoix"], "source_id": "morloch-race-aracoix-36255"},
+    {"key": "storm_lord", "name": "Storm Lord", "racial_access_keys": [], "source_id": "morloch-main-36832"},
+    {"key": "strigoi", "name": "Strigoi", "racial_access_keys": ["vampire"], "source_id": "morloch-race-vampire-36401"},
+    {"key": "summoner", "name": "Summoner", "racial_access_keys": [], "source_id": "morloch-main-36832"},
+    {"key": "sun_dancer", "name": "Sun Dancer", "racial_access_keys": ["irekei"], "source_id": "morloch-race-irekei-35083"},
+    {"key": "thrall", "name": "Thrall", "racial_access_keys": ["minotaur"], "source_id": "morloch-race-minotaur-35001"},
+    {"key": "traveler", "name": "Traveler", "racial_access_keys": [], "source_id": "morloch-main-36832"},
+    {"key": "undead_hunter", "name": "Undead Hunter", "racial_access_keys": [], "source_id": "morloch-main-36832"},
+    {"key": "valkyr", "name": "Valkyr", "racial_access_keys": [], "source_id": "morloch-main-36832"},
+    {"key": "werebear", "name": "Werebear", "racial_access_keys": [], "source_id": "morloch-main-36832"},
+    {"key": "wererat", "name": "Wererat", "racial_access_keys": [], "source_id": "morloch-main-36832"},
+    {"key": "werewolf", "name": "Werewolf", "racial_access_keys": [], "source_id": "morloch-main-36832"},
+    {"key": "wyrmslayer", "name": "Wyrmslayer", "racial_access_keys": [], "source_id": "morloch-main-36832"}
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "profile_id": "wonderbane-travel-1920x955-minimap-live-locked",
+  "live_input_enabled": false,
+  "target": {
+    "executable_names": [
+      "sb.exe"
+    ],
+    "title_pattern": "^Shadowbane$",
+    "reference_width": 1920,
+    "reference_height": 955,
+    "dpi_scale": 1.0,
+    "size_tolerance_px": 0,
+    "dpi_tolerance": 0.01
+  },
+  "actions": [],
+  "movement": {
+    "action_key": "shadowbane.travel.minimap",
+    "center": {
+      "x": 0.9442417926003127,
+      "y": 0.11215932914046122
+    },
+    "horizontal_radius": 0.04273058884835852,
+    "vertical_radius": 0.0859538784067086,
+    "button": "right"
+  },
+  "camera": {
+    "anchor": {
+      "x": 0.5,
+      "y": 0.5
+    },
+    "maximum_horizontal_delta": 0.2,
+    "maximum_vertical_delta": 0.15,
+    "duration_ms": 1000,
+    "button": "left"
+  }
+}

@@ -1,0 +1,191 @@
+[CmdletBinding()]
+param(
+    [string] $RepositoryShare = "\\VBOXSVR\codexrepo",
+    [string] $DiagnosticsShare = "\\VBOXSVR\codexdiag",
+    [string] $PythonPath = "$env:USERPROFILE\shadowbane-lab\.venv\Scripts\python.exe",
+    [string] $ManagerManifest = "$env:LOCALAPPDATA\ShadowbaneLab\client-manager.json",
+    [ValidateRange(1, 300)]
+    [int] $ShareWaitSeconds = 90,
+    [switch] $SkipListener,
+    [switch] $NoBrowser
+)
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = "Stop"
+
+$stateRoot = Split-Path -Parent $ManagerManifest
+$logRoot = Join-Path $stateRoot "logs"
+New-Item -ItemType Directory -Path $logRoot -Force | Out-Null
+$bootstrapLog = Join-Path $logRoot "control-center-bootstrap.log"
+
+function Write-BootstrapLog {
+    param([string] $Message)
+    $record = "{0:o} {1}" -f (Get-Date), $Message
+    Add-Content -LiteralPath $bootstrapLog -Value $record -Encoding utf8
+    Write-Output $Message
+}
+
+function Wait-RequiredPath {
+    param(
+        [string] $Path,
+        [string] $Description,
+        [datetime] $Deadline
+    )
+    while (-not (Test-Path -LiteralPath $Path)) {
+        if ((Get-Date) -ge $Deadline) {
+            throw "$Description did not become available before the startup deadline: $Path"
+        }
+        Start-Sleep -Milliseconds 500
+    }
+}
+
+try {
+    $deadline = (Get-Date).AddSeconds($ShareWaitSeconds)
+    Wait-RequiredPath $RepositoryShare "Repository share" $deadline
+    Wait-RequiredPath $DiagnosticsShare "Diagnostics share" $deadline
+    Wait-RequiredPath $PythonPath "Shadowbane Lab Python" $deadline
+    Wait-RequiredPath $ManagerManifest "Manager manifest" $deadline
+
+    $managerSource = Join-Path $RepositoryShare "src"
+    $listenerScript = Join-Path $RepositoryShare "scripts\start-wonderbane-go-listener.ps1"
+    Wait-RequiredPath $managerSource "Manager source tree" $deadline
+    if (-not $SkipListener) {
+        Wait-RequiredPath $listenerScript "Listener launcher" $deadline
+    }
+    $env:PYTHONPATH = $managerSource
+    $managerPidPath = Join-Path $stateRoot "manager.pid"
+
+    if (-not $SkipListener) {
+        try {
+            # Invoke the reviewed launcher in-process. Capturing a nested native
+            # powershell.exe pipeline can keep its output pipe alive through the
+            # long-running listener process tree and block manager startup forever.
+            $listenerStatus = @(& $listenerScript 2>&1)
+            Write-BootstrapLog ($listenerStatus -join " ")
+        }
+        catch {
+            Write-BootstrapLog "WARNING: $($_.Exception.Message)"
+        }
+    }
+
+    $expectedManifest = [regex]::Escape($ManagerManifest)
+    $existingManagers = @(
+        Get-CimInstance Win32_Process -Filter "Name = 'python.exe'" |
+            Where-Object {
+                $_.CommandLine -match (
+                    "shadowbane_lab\.cli\s+manager\s+app\s+" +
+                    $expectedManifest
+                )
+            }
+    )
+    $trackedManager = $null
+    if (Test-Path -LiteralPath $managerPidPath -PathType Leaf) {
+        $trackedText = (Get-Content -LiteralPath $managerPidPath -Raw).Trim()
+        $trackedId = 0
+        if ([int]::TryParse($trackedText, [ref]$trackedId) -and $trackedId -gt 0) {
+            $trackedManager = $existingManagers |
+                Where-Object { $_.ProcessId -eq $trackedId } |
+                Select-Object -First 1
+        }
+        if ($null -eq $trackedManager) {
+            Remove-Item -LiteralPath $managerPidPath -Force
+            Write-BootstrapLog "Removed a stale manager PID file."
+        }
+    }
+    if ($null -ne $trackedManager) {
+        Write-BootstrapLog (
+            "WonderBane control center is already running (PID " +
+            $trackedManager.ProcessId + ")."
+        )
+        exit 0
+    }
+    if ($existingManagers.Count -gt 0) {
+        throw (
+            "Found an untracked WonderBane manager process (PID(s) " +
+            (($existingManagers.ProcessId | Sort-Object) -join ", ") +
+            "); refusing to start a competing dashboard."
+        )
+    }
+
+    $preflight = @(
+        & $PythonPath `
+            -m shadowbane_lab.cli `
+            manager preflight `
+            $ManagerManifest `
+            --json 2>&1
+    )
+    $preflightExitCode = $LASTEXITCODE
+    $preflightPath = Join-Path $DiagnosticsShare "manager-preflight-latest.json"
+    Set-Content -LiteralPath $preflightPath -Value ($preflight -join "`n") -Encoding utf8
+    if ($preflightExitCode -ne 0) {
+        throw "Manager preflight failed: $($preflight -join ' ')"
+    }
+
+    $managerArguments = @(
+        "-u",
+        "-m",
+        "shadowbane_lab.cli",
+        "manager",
+        "app",
+        $ManagerManifest,
+        "--live",
+        "--pid-file",
+        $managerPidPath
+    )
+    if ($NoBrowser) {
+        $managerArguments += "--no-browser"
+    }
+    $managerStdout = Join-Path $logRoot "manager.stdout.log"
+    $managerStderr = Join-Path $logRoot "manager.stderr.log"
+    $managerProcess = Start-Process `
+        -FilePath $PythonPath `
+        -ArgumentList $managerArguments `
+        -WorkingDirectory $RepositoryShare `
+        -WindowStyle Hidden `
+        -RedirectStandardOutput $managerStdout `
+        -RedirectStandardError $managerStderr `
+        -PassThru
+
+    $startupDeadline = (Get-Date).AddSeconds(10)
+    $runtimeManagerId = 0
+    while ((Get-Date) -lt $startupDeadline) {
+        $managerProcess.Refresh()
+        if ($managerProcess.HasExited) {
+            $detail = if (Test-Path -LiteralPath $managerStderr) {
+                (Get-Content -LiteralPath $managerStderr -Raw).Trim()
+            }
+            else {
+                "manager exited without an error log"
+            }
+            throw "WonderBane control center failed to start: $detail"
+        }
+        if (Test-Path -LiteralPath $managerPidPath -PathType Leaf) {
+            $runtimeText = (Get-Content -LiteralPath $managerPidPath -Raw).Trim()
+            if ([int]::TryParse($runtimeText, [ref]$runtimeManagerId) -and (
+                $runtimeManagerId -gt 0
+            )) {
+                $runtimeProcess = Get-CimInstance `
+                    Win32_Process `
+                    -Filter "ProcessId = $runtimeManagerId" `
+                    -ErrorAction SilentlyContinue
+                if (
+                    $null -ne $runtimeProcess -and
+                    $runtimeProcess.Name -eq "python.exe" -and
+                    $runtimeProcess.CommandLine -match "shadowbane_lab\.cli\s+manager\s+app" -and
+                    $runtimeProcess.CommandLine -match $expectedManifest
+                ) {
+                    Write-BootstrapLog (
+                        "WonderBane control center started (runtime PID $runtimeManagerId)."
+                    )
+                    exit 0
+                }
+            }
+        }
+        Start-Sleep -Milliseconds 100
+    }
+    throw "WonderBane control center did not publish a valid runtime PID within ten seconds."
+}
+catch {
+    Write-BootstrapLog "ERROR: $($_.Exception.Message)"
+    throw
+}
