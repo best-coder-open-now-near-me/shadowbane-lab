@@ -25,11 +25,7 @@ def _identifier(value: str, field_name: str) -> None:
 
 
 def _native_integer(value: int, field_name: str) -> None:
-    if (
-        isinstance(value, bool)
-        or not isinstance(value, int)
-        or not 0 <= value <= 0xFFFFFFFF
-    ):
+    if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 0xFFFFFFFF:
         raise ValueError(f"{field_name} must be an unsigned 32-bit integer")
 
 
@@ -66,13 +62,9 @@ class NativeObjectKey:
         unknown = set(raw) - expected
         missing = expected - set(raw)
         if unknown:
-            raise ValueError(
-                "native object key has unknown fields: " + ", ".join(sorted(unknown))
-            )
+            raise ValueError("native object key has unknown fields: " + ", ".join(sorted(unknown)))
         if missing:
-            raise ValueError(
-                "native object key is missing fields: " + ", ".join(sorted(missing))
-            )
+            raise ValueError("native object key is missing fields: " + ", ".join(sorted(missing)))
         return cls(
             object_type=raw["object_type"],
             object_uuid=raw["object_uuid"],
@@ -127,22 +119,14 @@ class NativeEntityIdentityMap:
         if not isinstance(object_key, NativeObjectKey):
             raise ValueError("object_key must be a NativeObjectKey")
         return next(
-            (
-                binding.entity_id
-                for binding in self.bindings
-                if binding.object_key == object_key
-            ),
+            (binding.entity_id for binding in self.bindings if binding.object_key == object_key),
             None,
         )
 
     def object_key_for(self, entity_id: str) -> NativeObjectKey | None:
         _identifier(entity_id, "entity_id")
         return next(
-            (
-                binding.object_key
-                for binding in self.bindings
-                if binding.entity_id == entity_id
-            ),
+            (binding.object_key for binding in self.bindings if binding.entity_id == entity_id),
             None,
         )
 
@@ -205,12 +189,9 @@ class NativeGroupPopulationJoin:
         if any(not isinstance(value, NativeGroupPopulationMatch) for value in self.matches):
             raise ValueError("matches must contain NativeGroupPopulationMatch values")
         if any(
-            not isinstance(value, NativeGroupMemberObservation)
-            for value in self.unresolved_members
+            not isinstance(value, NativeGroupMemberObservation) for value in self.unresolved_members
         ):
-            raise ValueError(
-                "unresolved_members must contain NativeGroupMemberObservation values"
-            )
+            raise ValueError("unresolved_members must contain NativeGroupMemberObservation values")
         if any(
             not isinstance(value, NativeKeyedCharacterObservation)
             for value in self.unmatched_characters
@@ -236,12 +217,9 @@ class NativePartyAffiliationProjection:
         if not isinstance(self.snapshot, AffiliationSnapshot):
             raise ValueError("snapshot must be an AffiliationSnapshot")
         if any(
-            not isinstance(value, NativeGroupMemberObservation)
-            for value in self.unresolved_members
+            not isinstance(value, NativeGroupMemberObservation) for value in self.unresolved_members
         ):
-            raise ValueError(
-                "unresolved_members must contain NativeGroupMemberObservation values"
-            )
+            raise ValueError("unresolved_members must contain NativeGroupMemberObservation values")
 
 
 def native_group_member_key(
@@ -263,9 +241,7 @@ def join_native_group_population(
     if not isinstance(group, NativeGroupObservation):
         raise ValueError("group must be a NativeGroupObservation")
     if any(not isinstance(value, NativeKeyedCharacterObservation) for value in characters):
-        raise ValueError(
-            "characters must contain NativeKeyedCharacterObservation values"
-        )
+        raise ValueError("characters must contain NativeKeyedCharacterObservation values")
     character_keys = tuple(character.object_key for character in characters)
     if len(character_keys) != len(set(character_keys)):
         raise ValueError("keyed character object keys must be unique")
@@ -283,11 +259,7 @@ def join_native_group_population(
         matched_keys.add(object_key)
     unmatched = tuple(
         sorted(
-            (
-                character
-                for character in characters
-                if character.object_key not in matched_keys
-            ),
+            (character for character in characters if character.object_key not in matched_keys),
             key=lambda value: (
                 value.object_key.object_type,
                 value.object_key.object_uuid,

@@ -71,9 +71,7 @@ class NativeObjectKeyTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             NativeObjectKey(-1, 42)
         with self.assertRaises(ValueError):
-            NativeObjectKey.from_dict(
-                {"object_type": 3, "object_uuid": 42, "extra": True}
-            )
+            NativeObjectKey.from_dict({"object_type": 3, "object_uuid": 42, "extra": True})
 
 
 class NativeEntityIdentityMapTests(unittest.TestCase):

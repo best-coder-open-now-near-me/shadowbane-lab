@@ -61,9 +61,7 @@ def affiliation_snapshot_from_dict(raw: Mapping[str, object]) -> AffiliationSnap
     if not isinstance(raw, Mapping):
         raise AffiliationSnapshotFormatError("affiliation snapshot must be an object")
     if any(not isinstance(key, str) for key in raw):
-        raise AffiliationSnapshotFormatError(
-            "affiliation snapshot field names must be strings"
-        )
+        raise AffiliationSnapshotFormatError("affiliation snapshot field names must be strings")
     payload = dict(raw)
     _exact_fields(
         payload,
@@ -77,9 +75,7 @@ def affiliation_snapshot_from_dict(raw: Mapping[str, object]) -> AffiliationSnap
         "affiliation snapshot",
     )
     if payload["schema_version"] != AFFILIATION_SNAPSHOT_SCHEMA_VERSION:
-        raise AffiliationSnapshotFormatError(
-            "affiliation snapshot must use schema_version 1"
-        )
+        raise AffiliationSnapshotFormatError("affiliation snapshot must use schema_version 1")
     revision = _non_negative_integer(payload["revision"], "revision")
     memberships_raw = _array(payload["memberships"], "memberships")
     ownership_raw = _array(payload["ownership_edges"], "ownership_edges")
@@ -88,16 +84,13 @@ def affiliation_snapshot_from_dict(raw: Mapping[str, object]) -> AffiliationSnap
         return AffiliationSnapshot(
             revision=revision,
             memberships=tuple(
-                _parse_membership(value, index)
-                for index, value in enumerate(memberships_raw)
+                _parse_membership(value, index) for index, value in enumerate(memberships_raw)
             ),
             ownership_edges=tuple(
-                _parse_ownership(value, index)
-                for index, value in enumerate(ownership_raw)
+                _parse_ownership(value, index) for index, value in enumerate(ownership_raw)
             ),
             relation_overrides=tuple(
-                _parse_override(value, index)
-                for index, value in enumerate(overrides_raw)
+                _parse_override(value, index) for index, value in enumerate(overrides_raw)
             ),
         )
     except AffiliationSnapshotFormatError:
@@ -132,9 +125,7 @@ def load_affiliation_snapshot_text(text: str) -> AffiliationSnapshot:
     except AffiliationSnapshotFormatError:
         raise
     except json.JSONDecodeError as exc:
-        raise AffiliationSnapshotFormatError(
-            "affiliation snapshot is not valid JSON"
-        ) from exc
+        raise AffiliationSnapshotFormatError("affiliation snapshot is not valid JSON") from exc
     if not isinstance(raw, Mapping):
         raise AffiliationSnapshotFormatError("affiliation snapshot must be an object")
     return affiliation_snapshot_from_dict(raw)
@@ -206,9 +197,7 @@ def _subject_payload(subject: RelationSubject) -> dict[str, object]:
     return {
         "entity_id": subject.entity_id,
         "group_key": (
-            _group_key_payload(subject.group_key)
-            if subject.group_key is not None
-            else None
+            _group_key_payload(subject.group_key) if subject.group_key is not None else None
         ),
     }
 
@@ -252,9 +241,7 @@ def _parse_override(raw: object, index: int) -> RelationOverride:
     try:
         relation = Relation(relation_raw)
     except ValueError as exc:
-        raise AffiliationSnapshotFormatError(
-            f"{path}.relation is unknown: {relation_raw}"
-        ) from exc
+        raise AffiliationSnapshotFormatError(f"{path}.relation is unknown: {relation_raw}") from exc
     symmetric = value["symmetric"]
     if not isinstance(symmetric, bool):
         raise AffiliationSnapshotFormatError(f"{path}.symmetric must be boolean")
@@ -274,9 +261,7 @@ def _parse_subject(raw: object, path: str) -> RelationSubject:
     if entity_id is not None:
         entity_id = _string(entity_id, f"{path}.entity_id")
     parsed_group = (
-        _parse_group_key(group_key, f"{path}.group_key")
-        if group_key is not None
-        else None
+        _parse_group_key(group_key, f"{path}.group_key") if group_key is not None else None
     )
     return RelationSubject(entity_id=entity_id, group_key=parsed_group)
 
@@ -288,9 +273,7 @@ def _parse_group_key(raw: object, path: str) -> GroupKey:
     try:
         kind = GroupKind(kind_raw)
     except ValueError as exc:
-        raise AffiliationSnapshotFormatError(
-            f"{path}.kind is unknown: {kind_raw}"
-        ) from exc
+        raise AffiliationSnapshotFormatError(f"{path}.kind is unknown: {kind_raw}") from exc
     return GroupKey(
         kind=kind,
         group_id=_string(value["group_id"], f"{path}.group_id"),
@@ -353,7 +336,5 @@ def _string(raw: object, path: str) -> str:
 
 def _non_negative_integer(raw: object, path: str) -> int:
     if isinstance(raw, bool) or not isinstance(raw, int) or raw < 0:
-        raise AffiliationSnapshotFormatError(
-            f"{path} must be a non-negative integer"
-        )
+        raise AffiliationSnapshotFormatError(f"{path} must be a non-negative integer")
     return raw
