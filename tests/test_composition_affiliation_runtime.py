@@ -85,11 +85,7 @@ def _scenario(
             else None
         ),
         affiliation_revision=(
-            revision
-            if revision is not None
-            else snapshot.revision
-            if snapshot is not None
-            else 0
+            revision if revision is not None else snapshot.revision if snapshot is not None else 0
         ),
     )
 
