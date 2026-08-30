@@ -21,7 +21,42 @@ jobs:
         with:
           python-version: "3.11"
       - name: Apply outcome integration
-        run: python .github/scripts/apply_effect_outcomes.py
+        run: |
+          rm -f .github/effect-outcomes-test-diagnostics.txt
+          python .github/scripts/apply_effect_outcomes.py
+          python - <<'PY'
+          from pathlib import Path
+
+
+          def indent_between(path: str, start: str, end: str) -> None:
+              target = Path(path)
+              text = target.read_text(encoding="utf-8")
+              start_index = text.index(start)
+              end_index = text.index(end, start_index)
+              block = text[start_index:end_index]
+              if block.startswith("    "):
+                  raise RuntimeError(f"{path}: generated block was already indented")
+              block = "".join(
+                  f"    {line}" if line.strip() else line
+                  for line in block.splitlines(keepends=True)
+              )
+              target.write_text(
+                  text[:start_index] + block + text[end_index:],
+                  encoding="utf-8",
+              )
+
+
+          indent_between(
+              "src/shadowbane_lab/sim/effects.py",
+              "def _resolve_direct(\n",
+              "    def expire_effect(\n",
+          )
+          indent_between(
+              "src/shadowbane_lab/sim/effects.py",
+              "def _apply_effect(\n",
+              "    def _remove_effect(\n",
+          )
+          PY
       - name: Install test dependencies
         run: python -m pip install -e ".[test]"
       - name: Format generated implementation
