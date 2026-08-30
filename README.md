@@ -49,6 +49,7 @@ without relying on producer-specific IDs. The input adapter compiles the same se
 decisions into calibrated plans and keeps live PyAutoGUI input locked behind window guards,
 an emergency stop, and explicit profile confirmation. See [the architecture](docs/architecture.md),
 [client-input runbook](docs/client-input-harness.md),
+[persistent client extension](docs/client-extension.md),
 [local multi-client manager](docs/client-manager.md),
 [read-only character snapshot runbook](docs/character-snapshot.md),
 [camp-scoped PvE runbook](docs/pve-automation.md),
