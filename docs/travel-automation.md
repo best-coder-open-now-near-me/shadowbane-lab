@@ -51,16 +51,22 @@ event. For example:
 /go Black Drake Swamp
 ```
 
-The open world map is also a native destination input: right-click a point on the map to
-start the same closed-loop `/go` route. Left-clicks retain their normal client behavior.
-The listener reads `ArcWorldMapHud`'s live rectangle, hidden state, world dimensions, zoom,
-and pan and applies the client's inverse projection; it does not assume a fixed resolution or
-full-world zoom. After accepting the destination it closes the map through the current
+The open world map is also a native destination input: left-click a zone emblem or any
+other valid point on the map to start the same closed-loop `/go` route; right-click remains
+supported. The listener reads `ArcWorldMapHud`'s live rectangle, hidden state, world dimensions,
+zoom, and pan and applies the client's inverse projection; it does not assume a fixed resolution
+or full-world zoom. The current native observation exposes the map projection rather than
+individual emblem hitboxes, so acceptance is based on the projected world point rather than the
+emblem artwork itself. After accepting the destination it closes the map through the current
 `BEGINHOTKEYS` WorldMap binding before steering begins, so an extra physical exit click does
-not immediately cancel the new route. A right-click is ignored unless the guarded Shadowbane
-window owns focus, the world map is open, the pixel lies inside its HUD, and the projected LT/LG
-remains inside the active world's bounds. Accepted events use `native_world_map` as their destination source.
-Inspect that read-only projection without clicking with:
+not immediately cancel the new route. A physical left- or right-click is claimed only when the
+guarded Shadowbane window owns focus, the world map is open, a fresh native sample belongs to
+that exact window, the pixel lies inside its HUD, and the projected LT/LG remains inside the
+active world's bounds. The matching button-up event is claimed as well so WonderBane never
+receives a dangling half-click. Map chrome, stale or unknown map state, other windows,
+middle/X buttons, and points outside the projected world continue through unchanged. Accepted
+events use `native_world_map` as their destination source. Inspect that read-only projection
+without clicking with:
 
 ```powershell
 python -m shadowbane_lab.cli client observe-native-world-map --json
@@ -122,7 +128,7 @@ physical foreground left, right, or extra-button press does the same, while midd
 rotation remains available and the listener ignores mouse input injected by its own guarded
 actuators. This lets manual movement input take ownership immediately without sacrificing camera
 control.
-An accepted world-map right-click first revokes the old operation, then starts its replacement
+An accepted world-map selection first revokes the old operation, then starts its replacement
 route from the resolved native coordinate.
 Ordinary chat and all other slash-command prefixes are discarded.
 
