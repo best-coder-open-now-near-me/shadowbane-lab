@@ -158,6 +158,9 @@ inherits the package verifier's exact frozen-directory binding, inventory, hash,
 The v1 x86 DLL exports `WonderBaneExtensionInitialize` and
 `WonderBaneExtensionGetStatus`. Initialization is idempotent and publishes one process-lifetime
 heartbeat atomically beneath `%LOCALAPPDATA%\ShadowbaneLab\client-extension`. On the exact reviewed
+client, initialization also pins the extension module for the remaining process lifetime before
+starting its hook thread. A process-lifetime hook must not outlive its DLL code; the native probe
+releases the caller's load reference and verifies that the pinned module remains resident.
 WonderBane build, it also observes a uniquely identified open world map and exposes a bounded
 process-lifetime event channel. A fresh, exclusive consumer lease is required before the hook will
 suppress a qualifying click and publish its projected LT/LG destination. Ordinary injected input,

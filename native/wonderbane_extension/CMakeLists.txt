@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(wonderbane_extension VERSION 1.1.0 LANGUAGES CXX RC)
+project(wonderbane_extension VERSION 1.2.0 LANGUAGES CXX RC)
 
 include(CTest)
 

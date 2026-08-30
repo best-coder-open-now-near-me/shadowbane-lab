@@ -17,7 +17,7 @@ constexpr std::size_t kPathCapacity = WONDERBANE_EXTENSION_HEARTBEAT_PATH_CAPACI
 constexpr std::size_t kJsonCapacity = 768;
 constexpr LONG kMaximumInitializationPolls = 500;
 constexpr DWORD kInitializationPollMilliseconds = 10;
-constexpr char kExtensionVersion[] = "1.1.0";
+constexpr char kExtensionVersion[] = "1.2.0";
 
 volatile LONG g_state = static_cast<LONG>(WonderBaneExtensionState::uninitialized);
 volatile LONG g_initialization_result = ERROR_SUCCESS;
@@ -121,6 +121,27 @@ DWORD ReadProcessIdentity(
         return ERROR_INVALID_DATA;
     }
     return ERROR_SUCCESS;
+}
+
+DWORD PinExtensionModule() noexcept {
+    if (g_extension_module == nullptr) {
+        return ERROR_INVALID_HANDLE;
+    }
+    HMODULE pinned_module = nullptr;
+    const DWORD flags = (
+        GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS
+        | GET_MODULE_HANDLE_EX_FLAG_PIN
+    );
+    if (GetModuleHandleExW(
+            flags,
+            reinterpret_cast<LPCWSTR>(g_extension_module),
+            &pinned_module
+        ) == FALSE) {
+        return GetLastError();
+    }
+    return pinned_module == g_extension_module
+        ? ERROR_SUCCESS
+        : ERROR_INVALID_HANDLE;
 }
 
 DWORD WriteHeartbeat(
@@ -277,6 +298,9 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
                     )
                     : 0U
             );
+        }
+        if (result == ERROR_SUCCESS) {
+            result = PinExtensionModule();
         }
         if (result == ERROR_SUCCESS && world_map_supported) {
             result = wonderbane::extension::StartWorldMapCapture(

@@ -164,5 +164,17 @@ int wmain(const int argument_count, wchar_t** arguments) {
     if (FreeLibrary(module) == FALSE) {
         return Fail(L"FreeLibrary", GetLastError());
     }
+    HMODULE resident_module = nullptr;
+    if (GetModuleHandleExW(
+            GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS
+                | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+            reinterpret_cast<LPCWSTR>(module),
+            &resident_module
+        ) == FALSE) {
+        return Fail(L"pinned module residency", GetLastError());
+    }
+    if (resident_module != module) {
+        return Fail(L"pinned module identity", ERROR_INVALID_HANDLE);
+    }
     return 0;
 }
