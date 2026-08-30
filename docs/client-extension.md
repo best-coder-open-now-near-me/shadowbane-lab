@@ -124,6 +124,24 @@ bytes with bounded x86 instruction boundaries, PE header slack, and only executa
 a section's declared virtual size. Keep the evidence private because it contains a short byte
 window from the executable. A real manifest is authored only after manual review of that output.
 
+The reviewed WonderBane 1.0.5 profile pins source SHA-256
+`e358237c458ddfe2fc7a86e478f165a8fd067655ab1a8ada5731f790c6995d96`. Its author refuses every
+other executable, rechecks the exact entry prefix, section layouts, import directories, KERNEL32
+thunks, zero padding, and extension export, then independently rebuilds the complete patch plan.
+The generated loader is position independent. It extends the existing KERNEL32 lookup and address
+tables with `GetProcAddress`, loads `wonderbane-extension.dll`, calls
+`WonderBaneExtensionInitialize`, restores the entry state, replays the five displaced bytes, and
+continues at the original entry path. Author a create-new private manifest with:
+
+```powershell
+python -m shadowbane_lab.client_extension author-bootstrap `
+  <frozen-client>\sb.exe <versioned-extension.dll> <new-private-manifest.json> --pretty
+```
+
+The patch remains seven bounded writes: the entry jump, the loader stub, two import terminators,
+one hint/name record, and the `.text`/`.idata` virtual-size fields. No import table is relocated and
+the executable length does not change.
+
 The v1 x86 DLL exports `WonderBaneExtensionInitialize` and
 `WonderBaneExtensionGetStatus`. Initialization is idempotent and publishes one process-lifetime
 heartbeat atomically beneath `%LOCALAPPDATA%\ShadowbaneLab\client-extension`; it does not read or

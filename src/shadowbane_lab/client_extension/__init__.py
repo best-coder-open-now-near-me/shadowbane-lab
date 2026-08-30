@@ -7,6 +7,15 @@ from .baseline import (
     ClientBaselineError,
     freeze_client_baseline,
 )
+from .bootstrap_author import (
+    WONDERBANE_1_0_5_PROFILE,
+    BootstrapAuthoringError,
+    BootstrapAuthoringResult,
+    ReviewedBootstrapProfile,
+    ReviewedSection,
+    author_reviewed_bootstrap_file,
+    author_reviewed_bootstrap_manifest,
+)
 from .bootstrap_inspection import (
     BOOTSTRAP_INSPECTION_SCHEMA_VERSION,
     BootstrapInspectionError,
@@ -68,6 +77,8 @@ __all__ = [
     "ROLLBACK_RECEIPT_SCHEMA_VERSION",
     "BaselineFile",
     "BootstrapInspectionError",
+    "BootstrapAuthoringError",
+    "BootstrapAuthoringResult",
     "ClientBaseline",
     "ClientBaselineError",
     "ClientPatchPackageError",
@@ -87,10 +98,14 @@ __all__ = [
     "PatchSiteStatus",
     "PatchWrite",
     "RollbackReceipt",
+    "ReviewedBootstrapProfile",
+    "ReviewedSection",
     "SourceExecutable",
     "VerifiedClientBaseline",
     "align_patch_sites",
     "apply_patch_plan",
+    "author_reviewed_bootstrap_file",
+    "author_reviewed_bootstrap_manifest",
     "build_patch_plan",
     "discard_patched_client_copy",
     "freeze_client_baseline",
@@ -102,4 +117,5 @@ __all__ = [
     "prepare_patched_client_copy",
     "verify_frozen_client_baseline",
     "verify_patched_client_copy",
+    "WONDERBANE_1_0_5_PROFILE",
 ]

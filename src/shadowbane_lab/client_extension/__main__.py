@@ -12,6 +12,10 @@ from shadowbane_lab.client_extension.baseline import (
     ClientBaselineError,
     freeze_client_baseline,
 )
+from shadowbane_lab.client_extension.bootstrap_author import (
+    BootstrapAuthoringError,
+    author_reviewed_bootstrap_file,
+)
 from shadowbane_lab.client_extension.bootstrap_inspection import (
     BootstrapInspectionError,
     inspect_bootstrap_file,
@@ -93,6 +97,15 @@ def _parser() -> argparse.ArgumentParser:
     inspect_bootstrap.add_argument("executable", type=Path)
     inspect_bootstrap.add_argument("--output", type=Path)
     inspect_bootstrap.add_argument("--pretty", action="store_true")
+    author_bootstrap = commands.add_parser(
+        "author-bootstrap",
+        help="author the exact reviewed WonderBane loader manifest",
+    )
+    author_bootstrap.add_argument("source_executable", type=Path)
+    author_bootstrap.add_argument("extension_artifact", type=Path)
+    author_bootstrap.add_argument("output_manifest", type=Path)
+    author_bootstrap.add_argument("--extension-version", default="1.0.0")
+    author_bootstrap.add_argument("--pretty", action="store_true")
     return parser
 
 
@@ -135,12 +148,20 @@ def main(argv: Sequence[str] | None = None) -> int:
                 arguments.executable,
                 output_path=arguments.output,
             )
+        elif arguments.command == "author-bootstrap":
+            payload = author_reviewed_bootstrap_file(
+                arguments.source_executable,
+                arguments.extension_artifact,
+                arguments.output_manifest,
+                extension_version=arguments.extension_version,
+            ).as_dict()
         else:
             raise AssertionError(f"unhandled command: {arguments.command}")
     except (
         ClientBaselineError,
         ClientPatchPackageError,
         BootstrapInspectionError,
+        BootstrapAuthoringError,
         ExtensionHeartbeatError,
         PatchManifestError,
         PatchResolutionError,
