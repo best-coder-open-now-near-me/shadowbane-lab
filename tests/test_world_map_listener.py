@@ -83,6 +83,7 @@ class WorldMapPointerCaptureTests(unittest.TestCase):
         prepared, suppress = self.listener._prepare_pointer_interaction(
             physical,
             foreground_window_handle=self.window_handle,
+            foreground_client_origin=(self.client_left, self.client_top),
             now=self.observed_at + 0.05,
         )
 
@@ -107,6 +108,7 @@ class WorldMapPointerCaptureTests(unittest.TestCase):
         prepared, suppress = self.listener._prepare_pointer_interaction(
             physical,
             foreground_window_handle=self.window_handle,
+            foreground_client_origin=(self.client_left, self.client_top),
             now=self.observed_at + 0.05,
         )
 
@@ -114,11 +116,7 @@ class WorldMapPointerCaptureTests(unittest.TestCase):
         self.assertIsInstance(prepared, WorldMapPointerInteraction)
         assert isinstance(prepared, WorldMapPointerInteraction)
         self.assertEqual("left", prepared.physical_button)
-        self.assertEqual(
-            "right",
-            prepared.button,
-            "the existing command queue routes map destinations through right-click",
-        )
+        self.assertEqual("left", prepared.button)
         self.assertEqual(1, self.listener.diagnostics["world_map_captured_left_clicks"])
 
     def test_left_click_outside_projected_map_passes_through(self) -> None:
@@ -127,6 +125,7 @@ class WorldMapPointerCaptureTests(unittest.TestCase):
         prepared, suppress = self.listener._prepare_pointer_interaction(
             physical,
             foreground_window_handle=self.window_handle,
+            foreground_client_origin=(self.client_left, self.client_top),
             now=self.observed_at + 0.05,
         )
 
@@ -139,6 +138,7 @@ class WorldMapPointerCaptureTests(unittest.TestCase):
         prepared, suppress = self.listener._prepare_pointer_interaction(
             physical,
             foreground_window_handle=self.window_handle,
+            foreground_client_origin=(self.client_left, self.client_top),
             now=self.observed_at + self.listener._WORLD_MAP_MAX_AGE_SECONDS + 0.01,
         )
 
@@ -151,6 +151,20 @@ class WorldMapPointerCaptureTests(unittest.TestCase):
         prepared, suppress = self.listener._prepare_pointer_interaction(
             physical,
             foreground_window_handle=self.window_handle + 1,
+            foreground_client_origin=(self.client_left, self.client_top),
+            now=self.observed_at + 0.05,
+        )
+
+        self.assertFalse(suppress)
+        self.assertIs(physical, prepared)
+
+    def test_moved_client_since_sample_passes_through(self) -> None:
+        physical = self._physical("left")
+
+        prepared, suppress = self.listener._prepare_pointer_interaction(
+            physical,
+            foreground_window_handle=self.window_handle,
+            foreground_client_origin=(self.client_left + 1, self.client_top),
             now=self.observed_at + 0.05,
         )
 
@@ -163,6 +177,7 @@ class WorldMapPointerCaptureTests(unittest.TestCase):
         prepared, suppress = self.listener._prepare_pointer_interaction(
             physical,
             foreground_window_handle=self.window_handle,
+            foreground_client_origin=(self.client_left, self.client_top),
             now=self.observed_at + 0.05,
         )
 
@@ -170,13 +185,80 @@ class WorldMapPointerCaptureTests(unittest.TestCase):
         self.assertIs(physical, prepared)
 
     def test_matching_left_button_up_is_consumed_once(self) -> None:
-        self.listener._arm_button_up_suppression("left")
+        self.listener._arm_button_up_suppression(
+            "left",
+            process_id=self.process_id,
+            window_handle=self.window_handle,
+            now=100.0,
+        )
 
-        self.assertTrue(self.listener._consume_button_up_suppression("left"))
-        self.assertFalse(self.listener._consume_button_up_suppression("left"))
+        self.assertTrue(
+            self.listener._consume_button_up_suppression(
+                "left",
+                foreground_process_id=self.process_id,
+                foreground_window_handle=self.window_handle,
+                now=100.1,
+            )
+        )
+        self.assertFalse(
+            self.listener._consume_button_up_suppression(
+                "left",
+                foreground_process_id=self.process_id,
+                foreground_window_handle=self.window_handle,
+                now=100.2,
+            )
+        )
         self.assertEqual(1, self.listener.diagnostics["suppressed_left_button_ups"])
 
-    def test_captured_left_click_preserves_pointer_callback_contract(self) -> None:
+    def test_button_up_suppression_expires_and_is_cleared(self) -> None:
+        self.listener._arm_button_up_suppression(
+            "right",
+            process_id=self.process_id,
+            window_handle=self.window_handle,
+            now=100.0,
+        )
+
+        consumed = self.listener._consume_button_up_suppression(
+            "right",
+            foreground_process_id=self.process_id,
+            foreground_window_handle=self.window_handle,
+            now=100.0 + self.listener._PENDING_CLICK_TTL_SECONDS + 0.01,
+        )
+
+        self.assertFalse(consumed)
+        self.assertIsNone(self.listener.diagnostics["pending_world_map_click_button"])
+
+    def test_button_up_from_different_client_is_not_suppressed(self) -> None:
+        self.listener._arm_button_up_suppression(
+            "left",
+            process_id=self.process_id,
+            window_handle=self.window_handle,
+            now=100.0,
+        )
+
+        consumed = self.listener._consume_button_up_suppression(
+            "left",
+            foreground_process_id=self.process_id + 1,
+            foreground_window_handle=self.window_handle + 1,
+            now=100.1,
+        )
+
+        self.assertFalse(consumed)
+        self.assertIsNone(self.listener.diagnostics["pending_world_map_click_button"])
+
+    def test_shutdown_clears_pending_button_up_suppression(self) -> None:
+        self.listener._arm_button_up_suppression(
+            "left",
+            process_id=self.process_id,
+            window_handle=self.window_handle,
+            now=100.0,
+        )
+
+        self.listener.close()
+
+        self.assertIsNone(self.listener.diagnostics["pending_world_map_click_button"])
+
+    def test_captured_click_defers_cancellation_to_identity_aware_consumer(self) -> None:
         delivered: list[PhysicalPointerInteraction] = []
         cancelled: list[str] = []
         listener = WindowsGoChatCommandListener(
@@ -193,6 +275,7 @@ class WorldMapPointerCaptureTests(unittest.TestCase):
         prepared, suppress = listener._prepare_pointer_interaction(
             physical,
             foreground_window_handle=self.window_handle,
+            foreground_client_origin=(self.client_left, self.client_top),
             now=self.observed_at + 0.05,
         )
 
@@ -200,8 +283,8 @@ class WorldMapPointerCaptureTests(unittest.TestCase):
 
         self.assertTrue(suppress)
         self.assertEqual([prepared], delivered)
-        self.assertEqual("right", delivered[0].button)
-        self.assertEqual(["cancelled"], cancelled)
+        self.assertEqual("left", delivered[0].button)
+        self.assertEqual([], cancelled)
 
 
 if __name__ == "__main__":

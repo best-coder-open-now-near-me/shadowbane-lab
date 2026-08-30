@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+from dataclasses import replace
 
 from shadowbane_lab.client_input import WindowBounds
 from shadowbane_lab.manager import parse_manager_manifest
@@ -126,6 +127,61 @@ class ForegroundWorkerOperationIngressTests(unittest.TestCase):
         self.assertIsNone(dispatch.acknowledgement)
         self.assertFalse(dispatch.duplicate)
         self.assertEqual((dispatch.operation,), tuple(item.operation for item in snapshots))
+
+    def test_exact_captured_client_dispatch_survives_focus_transition(self) -> None:
+        manifest = _manifest()
+        captured_client = replace(_client(), is_foreground=False)
+        other_client = replace(
+            _client(),
+            instance_id="instance-202",
+            process_id=GAME_PROCESS_ID + 1,
+            process_started_at_100ns=133_700_000_000_000_702,
+            window_handle=82,
+            is_foreground=True,
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            ledger = WorkerOperationLedger(manifest, directory)
+            ingress = ForegroundWorkerOperationIngress(
+                manifest,
+                _Registry((captured_client, other_client)),
+                _Permits(_permit()),
+                ledger,
+                clock=lambda: 100.0,
+                acknowledgement_timeout_seconds=0.01,
+            )
+
+            dispatch = ingress.dispatch(
+                WorkerOperationKind.TRAVEL,
+                "world-map left-click",
+                destination=WorkerTravelDestination(70_175.0, 47_876.0, 8.0),
+                expected_process_id=GAME_PROCESS_ID,
+                expected_window_handle=captured_client.window_handle,
+                require_foreground=False,
+            )
+
+        self.assertEqual(captured_client.instance_id, dispatch.operation.instance_id)
+
+    def test_exact_captured_client_rejects_reused_process_on_wrong_window(self) -> None:
+        manifest = _manifest()
+        captured_client = replace(_client(), is_foreground=False)
+        with tempfile.TemporaryDirectory() as directory:
+            ingress = ForegroundWorkerOperationIngress(
+                manifest,
+                _Registry((captured_client,)),
+                _Permits(_permit()),
+                WorkerOperationLedger(manifest, directory),
+                clock=lambda: 100.0,
+                acknowledgement_timeout_seconds=0.01,
+            )
+
+            with self.assertRaisesRegex(WorkerOperationIngressError, "captured process"):
+                ingress.dispatch(
+                    WorkerOperationKind.TRAVEL,
+                    "world-map left-click",
+                    expected_process_id=GAME_PROCESS_ID,
+                    expected_window_handle=captured_client.window_handle + 1,
+                    require_foreground=False,
+                )
 
     def test_dispatch_rejects_mismatched_guard_and_expired_permit(self) -> None:
         manifest = _manifest()

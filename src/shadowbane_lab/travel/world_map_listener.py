@@ -34,9 +34,9 @@ class WorldMapPointerInteraction(PhysicalPointerInteraction):
     native ``ArcWorldMapHud`` projection. The original desktop coordinates and actual
     physical button remain available for diagnostics.
 
-    ``button`` is always ``"right"`` because the existing travel queue uses that value
-    as its map-destination routing discriminator. ``physical_button`` records whether
-    the player actually selected the map with the left or right mouse button.
+    ``button`` and ``physical_button`` both retain the player's actual gesture. The
+    explicit interaction type, rather than a synthetic right-click value, is the
+    travel queue's routing discriminator.
     """
 
     physical_button: str
@@ -50,10 +50,10 @@ class WorldMapPointerInteraction(PhysicalPointerInteraction):
 
     def __post_init__(self) -> None:
         PhysicalPointerInteraction.__post_init__(self)
-        if self.button != "right":
-            raise ValueError("captured world-map selections must use right-button routing")
         if self.physical_button not in {"left", "right"}:
             raise ValueError("physical_button must be left or right")
+        if self.button != self.physical_button:
+            raise ValueError("button must retain the physical world-map button")
         for value, field_name in (
             (self.desktop_screen_x, "desktop_screen_x"),
             (self.desktop_screen_y, "desktop_screen_y"),
@@ -103,6 +103,28 @@ class _WorldMapCaptureSnapshot:
                 raise ValueError(f"{field_name} must be a positive integer")
 
 
+@dataclass(frozen=True, slots=True)
+class _PendingWorldMapClick:
+    """One bounded button-up suppression tied to an exact client click."""
+
+    button: str
+    process_id: int
+    window_handle: int
+    expires_at: float
+
+    def __post_init__(self) -> None:
+        if self.button not in {"left", "right"}:
+            raise ValueError("button must be left or right")
+        for value, field_name in (
+            (self.process_id, "process_id"),
+            (self.window_handle, "window_handle"),
+        ):
+            if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+                raise ValueError(f"{field_name} must be a positive integer")
+        if not isfinite(self.expires_at) or self.expires_at < 0:
+            raise ValueError("expires_at must be finite and non-negative")
+
+
 class WindowsGoChatCommandListener(_BaseWindowsGoChatCommandListener):
     """Responsive chat listener with fail-open, map-only selection capture.
 
@@ -125,6 +147,7 @@ class WindowsGoChatCommandListener(_BaseWindowsGoChatCommandListener):
     _WM_RBUTTONUP = 0x0205
     _WORLD_MAP_POLL_SECONDS = 0.05
     _WORLD_MAP_MAX_AGE_SECONDS = 0.25
+    _PENDING_CLICK_TTL_SECONDS = 2.0
 
     def __init__(
         self,
@@ -149,8 +172,7 @@ class WindowsGoChatCommandListener(_BaseWindowsGoChatCommandListener):
         self._world_map_thread: threading.Thread | None = None
         self._world_map_ready = threading.Event()
         self._world_map_capture: _WorldMapCaptureSnapshot | None = None
-        self._suppress_left_button_up = False
-        self._suppress_right_button_up = False
+        self._pending_world_map_click: _PendingWorldMapClick | None = None
         self._world_map_observations = 0
         self._world_map_read_errors = 0
         self._world_map_capture_attempts = 0
@@ -183,6 +205,21 @@ class WindowsGoChatCommandListener(_BaseWindowsGoChatCommandListener):
                 "world_map_capture_misses": self._world_map_capture_misses,
                 "suppressed_left_button_ups": self._suppressed_left_button_ups,
                 "suppressed_right_button_ups": self._suppressed_right_button_ups,
+                "pending_world_map_click_button": (
+                    None
+                    if self._pending_world_map_click is None
+                    else self._pending_world_map_click.button
+                ),
+                "pending_world_map_click_process_id": (
+                    None
+                    if self._pending_world_map_click is None
+                    else self._pending_world_map_click.process_id
+                ),
+                "pending_world_map_click_window_handle": (
+                    None
+                    if self._pending_world_map_click is None
+                    else self._pending_world_map_click.window_handle
+                ),
                 "last_world_map_error": self._last_world_map_error,
             }
         )
@@ -209,8 +246,22 @@ class WindowsGoChatCommandListener(_BaseWindowsGoChatCommandListener):
         if self._world_map_thread is not None:
             self._world_map_thread.join(timeout=2.0)
         self._world_map_capture = None
-        self._suppress_left_button_up = False
-        self._suppress_right_button_up = False
+        self._pending_world_map_click = None
+
+    def _handle_pointer_interaction(
+        self,
+        interaction: PhysicalPointerInteraction | None = None,
+    ) -> None:
+        if not isinstance(interaction, WorldMapPointerInteraction):
+            super()._handle_pointer_interaction(interaction)
+            return
+        # The generic interaction callback has no client identity. Deferring route
+        # revocation to the typed queue consumer prevents a click captured from client
+        # A from stopping client B after a focus transition.
+        self._assembler.reset()
+        if self._on_pointer is not None:
+            self._submitted_pointers += 1
+            self._on_pointer(interaction)
 
     def _listen(self) -> None:
         """Install responsive hooks and selectively consume captured map selections."""
@@ -263,11 +314,41 @@ class WindowsGoChatCommandListener(_BaseWindowsGoChatCommandListener):
         user32.GetAsyncKeyState.argtypes = (ctypes.c_int,)
         user32.GetAsyncKeyState.restype = wintypes.SHORT
         user32.GetForegroundWindow.restype = wintypes.HWND
+        user32.GetWindowThreadProcessId.argtypes = (
+            wintypes.HWND,
+            ctypes.POINTER(wintypes.DWORD),
+        )
+        user32.GetWindowThreadProcessId.restype = wintypes.DWORD
+        user32.ClientToScreen.argtypes = (
+            wintypes.HWND,
+            ctypes.POINTER(wintypes.POINT),
+        )
+        user32.ClientToScreen.restype = wintypes.BOOL
         kernel32.GetCurrentThreadId.restype = wintypes.DWORD
         kernel32.GetModuleHandleW.restype = wintypes.HMODULE
 
         keyboard_hook: int | None = None
         mouse_hook: int | None = None
+
+        def foreground_identity() -> tuple[int, int]:
+            window_handle = int(user32.GetForegroundWindow() or 0)
+            if window_handle <= 0:
+                return 0, 0
+            process_id = wintypes.DWORD()
+            if not user32.GetWindowThreadProcessId(
+                window_handle,
+                ctypes.byref(process_id),
+            ):
+                return window_handle, 0
+            return window_handle, int(process_id.value)
+
+        def client_origin(window_handle: int) -> tuple[int, int] | None:
+            if window_handle <= 0:
+                return None
+            point = wintypes.POINT(0, 0)
+            if not user32.ClientToScreen(window_handle, ctypes.byref(point)):
+                return None
+            return int(point.x), int(point.y)
 
         @callback_type
         def keyboard_callback(code: int, message: int, event_pointer: int) -> int:
@@ -306,10 +387,14 @@ class WindowsGoChatCommandListener(_BaseWindowsGoChatCommandListener):
                     event_pointer,
                     ctypes.POINTER(MouseEvent),
                 ).contents
-                if not event.flags & self._LLMHF_INJECTED and self._consume_button_up_suppression(
-                    button_up
-                ):
-                    return 1
+                if not event.flags & self._LLMHF_INJECTED:
+                    window_handle, process_id = foreground_identity()
+                    if self._consume_button_up_suppression(
+                        button_up,
+                        foreground_window_handle=window_handle,
+                        foreground_process_id=process_id,
+                    ):
+                        return 1
 
             if code >= 0 and message in (
                 self._WM_LBUTTONDOWN,
@@ -339,9 +424,11 @@ class WindowsGoChatCommandListener(_BaseWindowsGoChatCommandListener):
                     if physical_button in {"left", "right"}:
                         self._clear_button_up_suppression(physical_button)
                         try:
+                            window_handle, _process_id = foreground_identity()
                             interaction, suppress = self._prepare_pointer_interaction(
                                 interaction,
-                                foreground_window_handle=int(user32.GetForegroundWindow() or 0),
+                                foreground_window_handle=window_handle,
+                                foreground_client_origin=client_origin(window_handle),
                             )
                         except Exception:
                             # Hook callbacks must always fail open. Diagnostics and the
@@ -349,7 +436,12 @@ class WindowsGoChatCommandListener(_BaseWindowsGoChatCommandListener):
                             suppress = False
                     self._pending_input.put(interaction)
                     if suppress:
-                        self._arm_button_up_suppression(physical_button)
+                        assert isinstance(interaction, WorldMapPointerInteraction)
+                        self._arm_button_up_suppression(
+                            physical_button,
+                            process_id=interaction.process_id,
+                            window_handle=interaction.window_handle,
+                        )
                         return 1
             return int(
                 user32.CallNextHookEx(
@@ -449,44 +541,67 @@ class WindowsGoChatCommandListener(_BaseWindowsGoChatCommandListener):
             if reader is not None:
                 reader.close()
 
-    def _arm_button_up_suppression(self, button: str) -> None:
-        if button == "left":
-            self._suppress_left_button_up = True
-            return
-        if button == "right":
-            self._suppress_right_button_up = True
-            return
-        raise ValueError("only left and right button-up events can be suppressed")
+    def _arm_button_up_suppression(
+        self,
+        button: str,
+        *,
+        process_id: int,
+        window_handle: int,
+        now: float | None = None,
+    ) -> None:
+        if now is None:
+            now = time.monotonic()
+        if not isfinite(now) or now < 0:
+            raise ValueError("now must be finite and non-negative")
+        self._pending_world_map_click = _PendingWorldMapClick(
+            button=button,
+            process_id=process_id,
+            window_handle=window_handle,
+            expires_at=now + self._PENDING_CLICK_TTL_SECONDS,
+        )
 
     def _clear_button_up_suppression(self, button: str) -> None:
-        if button == "left":
-            self._suppress_left_button_up = False
-            return
-        if button == "right":
-            self._suppress_right_button_up = False
-            return
-        raise ValueError("only left and right button-up events can be suppressed")
+        if button not in {"left", "right"}:
+            raise ValueError("only left and right button-up events can be suppressed")
+        self._pending_world_map_click = None
 
-    def _consume_button_up_suppression(self, button: str) -> bool:
+    def _consume_button_up_suppression(
+        self,
+        button: str,
+        *,
+        foreground_window_handle: int,
+        foreground_process_id: int,
+        now: float | None = None,
+    ) -> bool:
+        if button not in {"left", "right"}:
+            raise ValueError("only left and right button-up events can be suppressed")
+        if now is None:
+            now = time.monotonic()
+        if not isfinite(now) or now < 0:
+            raise ValueError("now must be finite and non-negative")
+        pending = self._pending_world_map_click
+        if pending is None:
+            return False
+        self._pending_world_map_click = None
+        if (
+            button != pending.button
+            or now > pending.expires_at
+            or foreground_window_handle != pending.window_handle
+            or foreground_process_id != pending.process_id
+        ):
+            return False
         if button == "left":
-            if not self._suppress_left_button_up:
-                return False
-            self._suppress_left_button_up = False
             self._suppressed_left_button_ups += 1
-            return True
-        if button == "right":
-            if not self._suppress_right_button_up:
-                return False
-            self._suppress_right_button_up = False
+        else:
             self._suppressed_right_button_ups += 1
-            return True
-        raise ValueError("only left and right button-up events can be suppressed")
+        return True
 
     def _prepare_pointer_interaction(
         self,
         interaction: PhysicalPointerInteraction,
         *,
         foreground_window_handle: int,
+        foreground_client_origin: tuple[int, int] | None,
         now: float | None = None,
     ) -> tuple[PhysicalPointerInteraction, bool]:
         """Normalize and claim one valid map selection without touching native state."""
@@ -510,6 +625,7 @@ class WindowsGoChatCommandListener(_BaseWindowsGoChatCommandListener):
             capture is None
             or foreground_window_handle <= 0
             or foreground_window_handle != capture.window_handle
+            or foreground_client_origin != (capture.client_left, capture.client_top)
             or now < capture.observed_at
             or now - capture.observed_at > self._WORLD_MAP_MAX_AGE_SECONDS
         ):
@@ -533,7 +649,7 @@ class WindowsGoChatCommandListener(_BaseWindowsGoChatCommandListener):
             WorldMapPointerInteraction(
                 screen_x=client_x,
                 screen_y=client_y,
-                button="right",
+                button=interaction.button,
                 physical_button=interaction.button,
                 desktop_screen_x=interaction.screen_x,
                 desktop_screen_y=interaction.screen_y,

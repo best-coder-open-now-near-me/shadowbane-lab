@@ -22,10 +22,10 @@ from shadowbane_lab.client_observation import NativePlayerPositionObservation
 from shadowbane_lab.manager import WorkerOperationKind, WorkerOperationState
 from shadowbane_lab.pve import PvEIntent, PvEPhase
 from shadowbane_lab.travel import (
-    PhysicalPointerInteraction,
     SparseNavigationMap,
     TravelDestination,
     TravelPhase,
+    WorldMapPointerInteraction,
     ZoneSearchResult,
 )
 from tests.test_client_input_executor import _valid_snapshot
@@ -788,7 +788,7 @@ class ClientCliTests(unittest.TestCase):
         self.assertEqual("Esh", events[1]["results"][0]["canonical_name"])
         self.assertEqual(70_536, events[1]["results"][0]["destination"]["lt"])
 
-    def test_world_map_right_click_starts_native_coordinate_travel(self) -> None:
+    def test_captured_world_map_click_uses_immutable_coordinate_and_identity(self) -> None:
         template = Path(__file__).parents[1] / "configs" / "wonderbane-travel.template.json"
         profile = replace(load_calibration(template), live_input_enabled=True)
         snapshot = WindowSnapshot(
@@ -804,6 +804,7 @@ class ClientCliTests(unittest.TestCase):
             is_foreground=True,
             is_visible=True,
             process_id=4320,
+            window_handle=0x1234,
         )
         service_stop = EventEmergencyStop()
         captured: dict[str, object] = {}
@@ -813,7 +814,21 @@ class ClientCliTests(unittest.TestCase):
                 self.on_pointer = on_pointer
 
             def __enter__(self):
-                self.on_pointer(PhysicalPointerInteraction(900, 420, "right"))
+                self.on_pointer(
+                    WorldMapPointerInteraction(
+                        screen_x=900,
+                        screen_y=420,
+                        button="left",
+                        physical_button="left",
+                        desktop_screen_x=1_040,
+                        desktop_screen_y=510,
+                        process_id=4320,
+                        window_handle=0x1234,
+                        lt=70_175.0,
+                        lg=47_876.0,
+                        snapshot_token="ab" * 12,
+                    )
+                )
                 return self
 
             def __exit__(self, *_args) -> None:
@@ -826,17 +841,6 @@ class ClientCliTests(unittest.TestCase):
             def __exit__(self, *_args) -> None:
                 return None
 
-        class FakeWorldMapReader:
-            process_id = 4320
-
-            def resolve_screen_point(self, screen_x, screen_y):
-                self.point = (screen_x, screen_y)
-                return SimpleNamespace(lt=70_175.0, lg=47_876.0)
-
-            def close(self) -> None:
-                captured["reader_closed"] = True
-
-        reader = FakeWorldMapReader()
         input_backend = RecordingInputBackend()
 
         def run_travel(**kwargs) -> int:
@@ -869,7 +873,7 @@ class ClientCliTests(unittest.TestCase):
             ),
             patch(
                 "shadowbane_lab.cli.open_windows_native_world_map_reader",
-                return_value=reader,
+                side_effect=AssertionError("captured map points must not be reprojected"),
             ),
             patch(
                 "shadowbane_lab.cli.load_arcane_hotkeys",
@@ -918,15 +922,275 @@ class ClientCliTests(unittest.TestCase):
         events = [json.loads(line) for line in output.getvalue().splitlines()]
         accepted = next(event for event in events if event["event"] == "accepted")
         self.assertEqual(0, result)
-        self.assertEqual((900, 420), reader.point)
         self.assertEqual(70_175.0, captured["lt"])
         self.assertEqual(47_876.0, captured["lg"])
         self.assertEqual(4320, captured["client_process_id"])
-        self.assertEqual("native_world_map", accepted["destination_source"])
+        self.assertEqual("captured_world_map", accepted["destination_source"])
+        self.assertEqual("left", accepted["pointer"]["physical_button"])
+        self.assertEqual("ab" * 12, accepted["pointer"]["snapshot_token"])
+        self.assertEqual(4320, accepted["pointer"]["captured_process_id"])
+        self.assertEqual(0x1234, accepted["pointer"]["captured_window_handle"])
         self.assertEqual("m", input_backend.invocations[0].key)
-        self.assertTrue(captured["reader_closed"])
         self.assertIsInstance(captured["navigation_map"], SparseNavigationMap)
         self.assertTrue(learned_state_saved)
+
+    def test_captured_world_map_click_rejects_local_focus_transition(self) -> None:
+        template = Path(__file__).parents[1] / "configs" / "wonderbane-travel.template.json"
+        profile = replace(load_calibration(template), live_input_enabled=True)
+        service_stop = EventEmergencyStop()
+        captured_process_id = 4320
+        captured_window_handle = 0x1234
+        replacement = WindowSnapshot(
+            executable_name=profile.target.executable_names[0],
+            title="Shadowbane",
+            client_bounds=WindowBounds(
+                left=0,
+                top=0,
+                width=profile.target.reference_width,
+                height=profile.target.reference_height,
+            ),
+            dpi_scale=profile.target.dpi_scale,
+            is_foreground=True,
+            is_visible=True,
+            process_id=captured_process_id + 1,
+            window_handle=captured_window_handle + 1,
+        )
+
+        class OnePointerListener:
+            def __init__(self, _guard, *, on_command, on_interaction, on_pointer) -> None:
+                self.on_pointer = on_pointer
+
+            def __enter__(self):
+                self.on_pointer(
+                    WorldMapPointerInteraction(
+                        screen_x=900,
+                        screen_y=420,
+                        button="right",
+                        physical_button="right",
+                        desktop_screen_x=900,
+                        desktop_screen_y=420,
+                        process_id=captured_process_id,
+                        window_handle=captured_window_handle,
+                        lt=70_175.0,
+                        lg=47_876.0,
+                        snapshot_token="cd" * 12,
+                    )
+                )
+                return self
+
+            def __exit__(self, *_args) -> None:
+                return None
+
+        class FocusChangedInspector:
+            def inspect(self):
+                service_stop.trip()
+                return replacement
+
+        class RecordingZoneOverlay:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args) -> None:
+                return None
+
+        emergency_stop = MagicMock()
+        emergency_stop.__enter__.return_value = service_stop
+        output = io.StringIO()
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch("shadowbane_lab.cli.load_calibration", return_value=profile),
+            patch(
+                "shadowbane_lab.cli.WindowsForegroundWindowInspector",
+                return_value=FocusChangedInspector(),
+            ),
+            patch(
+                "shadowbane_lab.cli.WindowsHotkeyEmergencyStop",
+                return_value=emergency_stop,
+            ),
+            patch("shadowbane_lab.cli.WindowsGoChatCommandListener", OnePointerListener),
+            patch("shadowbane_lab.cli.WindowsZoneSearchOverlay", RecordingZoneOverlay),
+            patch(
+                "shadowbane_lab.cli.load_bundled_native_world_map_profile",
+                return_value=SimpleNamespace(),
+            ),
+            patch("shadowbane_lab.cli._run_travel") as run_travel,
+            patch(
+                "shadowbane_lab.cli.PyAutoGuiBackend",
+                return_value=RecordingInputBackend(),
+            ),
+            redirect_stdout(output),
+        ):
+            result = _listen_for_go_commands(
+                destination_state_path=Path(directory) / "travel.json",
+                client_profile_path=template,
+                native_position_profile_path=None,
+                native_vitals_profile_path=None,
+                native_runegate_profile_path=None,
+                world_def_path=None,
+                named_destination_overrides_path=None,
+                pve_client_profile_path=None,
+                pve_hotbar_config_path=None,
+                pve_evidence_directory=None,
+                navigation_cache_directory=None,
+                pve_max_kills=3,
+                pve_max_seconds=300,
+                pve_max_encounter_seconds=120,
+                pve_recovery_timeout_seconds=30,
+                pve_poll_ms=100,
+                max_seconds=300,
+                wait_for_client_seconds=0,
+                poll_ms=200,
+                click_interval_ms=4_000,
+                live=True,
+                as_json=True,
+            )
+
+        events = [json.loads(line) for line in output.getvalue().splitlines()]
+        rejection = next(event for event in events if event["event"] == "rejected")
+        self.assertEqual(0, result)
+        self.assertIn("no longer the guarded target", rejection["reason"])
+        self.assertEqual(captured_process_id, rejection["pointer"]["captured_process_id"])
+        run_travel.assert_not_called()
+
+    def test_captured_world_map_click_routes_to_exact_worker_after_focus_transition(
+        self,
+    ) -> None:
+        template = Path(__file__).parents[1] / "configs" / "wonderbane-travel.template.json"
+        profile = replace(load_calibration(template), live_input_enabled=True)
+        service_stop = EventEmergencyStop()
+        captured: dict[str, object] = {}
+        dispatches: list[dict[str, object]] = []
+        captured_process_id = 4320
+        captured_window_handle = 0x1234
+
+        class OnePointerListener:
+            def __init__(self, _guard, *, on_command, on_interaction, on_pointer) -> None:
+                self.on_pointer = on_pointer
+
+            def __enter__(self):
+                self.on_pointer(
+                    WorldMapPointerInteraction(
+                        screen_x=900,
+                        screen_y=420,
+                        button="left",
+                        physical_button="left",
+                        desktop_screen_x=1_040,
+                        desktop_screen_y=510,
+                        process_id=captured_process_id,
+                        window_handle=captured_window_handle,
+                        lt=70_175.0,
+                        lg=47_876.0,
+                        snapshot_token="ef" * 12,
+                    )
+                )
+                return self
+
+            def __exit__(self, *_args) -> None:
+                return None
+
+        class ExactIngress:
+            def dispatch(self, kind, command, **kwargs):
+                dispatches.append({"kind": kind, "command": command, **kwargs})
+                captured.update(kind=kind, command=command, **kwargs)
+                service_stop.trip()
+                return SimpleNamespace(
+                    operation=SimpleNamespace(
+                        operation_id="operation-0123456789abcdef0123456789abcdef",
+                        client_id="client-01",
+                    ),
+                    acknowledgement=SimpleNamespace(
+                        state=WorkerOperationState.ACCEPTED,
+                        detail="accepted by captured worker",
+                    ),
+                )
+
+        class RecordingZoneOverlay:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args) -> None:
+                return None
+
+        emergency_stop = MagicMock()
+        emergency_stop.__enter__.return_value = service_stop
+        output = io.StringIO()
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch("shadowbane_lab.cli.load_calibration", return_value=profile),
+            patch(
+                "shadowbane_lab.cli.WindowsForegroundWindowInspector",
+                return_value=StaticWindowInspector(None),
+            ),
+            patch(
+                "shadowbane_lab.cli.WindowsHotkeyEmergencyStop",
+                return_value=emergency_stop,
+            ),
+            patch("shadowbane_lab.cli.WindowsGoChatCommandListener", OnePointerListener),
+            patch("shadowbane_lab.cli.WindowsZoneSearchOverlay", RecordingZoneOverlay),
+            patch(
+                "shadowbane_lab.cli.load_bundled_native_world_map_profile",
+                return_value=SimpleNamespace(),
+            ),
+            patch("shadowbane_lab.cli.load_manager_manifest", return_value=MagicMock()),
+            patch(
+                "shadowbane_lab.cli.WindowsVisibleWindowInspector",
+                return_value=StaticVisibleWindowInspector(()),
+            ),
+            patch("shadowbane_lab.cli.ManifestClientRegistryProvider"),
+            patch("shadowbane_lab.cli.WorkerHeartbeatLedger"),
+            patch("shadowbane_lab.cli.WorkerOperationLedger"),
+            patch(
+                "shadowbane_lab.cli.ForegroundWorkerOperationIngress",
+                return_value=ExactIngress(),
+            ),
+            patch(
+                "shadowbane_lab.cli.PyAutoGuiBackend",
+                return_value=RecordingInputBackend(),
+            ),
+            redirect_stdout(output),
+        ):
+            result = _listen_for_go_commands(
+                destination_state_path=Path(directory) / "travel.json",
+                client_profile_path=template,
+                native_position_profile_path=None,
+                native_vitals_profile_path=None,
+                native_runegate_profile_path=None,
+                world_def_path=None,
+                named_destination_overrides_path=None,
+                pve_client_profile_path=None,
+                pve_hotbar_config_path=None,
+                pve_evidence_directory=None,
+                navigation_cache_directory=None,
+                pve_max_kills=3,
+                pve_max_seconds=300,
+                pve_max_encounter_seconds=120,
+                pve_recovery_timeout_seconds=30,
+                pve_poll_ms=100,
+                max_seconds=300,
+                wait_for_client_seconds=0,
+                poll_ms=200,
+                click_interval_ms=4_000,
+                manager_manifest_path=Path(directory) / "manager.json",
+                worker_state_directory=Path(directory) / "workers",
+                live=True,
+                as_json=True,
+            )
+
+        events = [json.loads(line) for line in output.getvalue().splitlines()]
+        accepted = next(event for event in events if event["event"] == "accepted")
+        self.assertEqual(0, result)
+        self.assertEqual(2, len(dispatches))
+        self.assertEqual(WorkerOperationKind.STOP, dispatches[0]["kind"])
+        self.assertEqual(captured_process_id, dispatches[0]["expected_process_id"])
+        self.assertEqual(captured_window_handle, dispatches[0]["expected_window_handle"])
+        self.assertFalse(dispatches[0]["require_foreground"])
+        self.assertEqual(WorkerOperationKind.TRAVEL, captured["kind"])
+        self.assertEqual(captured_process_id, captured["expected_process_id"])
+        self.assertEqual(captured_window_handle, captured["expected_window_handle"])
+        self.assertFalse(captured["require_foreground"])
+        self.assertEqual(70_175.0, captured["destination"].lt)
+        self.assertEqual("captured_world_map", accepted["destination_source"])
+        self.assertEqual("ef" * 12, accepted["pointer"]["snapshot_token"])
 
     def test_travel_binds_native_readers_to_the_guarded_client_process(self) -> None:
         template = Path(__file__).parents[1] / "configs" / "wonderbane-travel.template.json"

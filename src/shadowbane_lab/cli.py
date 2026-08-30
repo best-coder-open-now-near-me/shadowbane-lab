@@ -216,6 +216,7 @@ from shadowbane_lab.travel import (
     WindowsGoChatCommandListener,
     WindowsZoneSearchOverlay,
     WorldDestinationCatalog,
+    WorldMapPointerInteraction,
     ZoneSearchResult,
     load_active_zone_terrain_navigation,
     load_learned_navigation_map,
@@ -4102,7 +4103,9 @@ def _listen_for_go_commands(
     ) as exc:
         return _error(f"chat control failed: {exc}", as_json=as_json)
 
-    commands: queue.Queue[str | PhysicalPointerInteraction] = queue.Queue()
+    commands: queue.Queue[str | PhysicalPointerInteraction | WorldMapPointerInteraction] = (
+        queue.Queue()
+    )
     active_lock = threading.Lock()
     active_operation_stop: EventEmergencyStop | None = None
 
@@ -4118,7 +4121,7 @@ def _listen_for_go_commands(
         commands.put(command)
 
     def submit_pointer(interaction: PhysicalPointerInteraction) -> None:
-        if interaction.button == "right":
+        if isinstance(interaction, WorldMapPointerInteraction) or interaction.button == "right":
             commands.put(interaction)
 
     def dispatch_to_exact_worker(
@@ -4130,6 +4133,10 @@ def _listen_for_go_commands(
         resolved_name: str | None = None,
         candidate_count: int | None = None,
         destination_source: str | None = None,
+        window_handle: int | None = None,
+        require_foreground: bool = True,
+        pointer_diagnostics: dict[str, object] | None = None,
+        emit_success: bool = True,
     ) -> bool:
         if worker_ingress is None:
             raise RuntimeError("exact-worker ingress is not configured")
@@ -4139,6 +4146,8 @@ def _listen_for_go_commands(
                 command,
                 destination=destination,
                 expected_process_id=process_id,
+                expected_window_handle=window_handle,
+                require_foreground=require_foreground,
             )
         except (OSError, RuntimeError, ValueError) as exc:
             _print_go_listener_event(
@@ -4146,6 +4155,7 @@ def _listen_for_go_commands(
                 as_json=as_json,
                 command=command,
                 reason=str(exc),
+                pointer_diagnostics=pointer_diagnostics,
             )
             return False
         acknowledgement = dispatch.acknowledgement
@@ -4165,26 +4175,29 @@ def _listen_for_go_commands(
                 operation_id=dispatch.operation.operation_id,
                 client_id=dispatch.operation.client_id,
                 operation_state=acknowledgement.state.value,
+                pointer_diagnostics=pointer_diagnostics,
             )
             return False
-        _print_go_listener_event(
-            "accepted" if acknowledgement is not None else "submitted",
-            as_json=as_json,
-            command=command,
-            reason=(
-                None
-                if acknowledgement is not None
-                else "exact worker acknowledgement timed out; operation remains visible"
-            ),
-            resolved_name=resolved_name,
-            lt=None if destination is None else destination.lt,
-            lg=None if destination is None else destination.lg,
-            candidate_count=candidate_count,
-            destination_source=destination_source,
-            operation_id=dispatch.operation.operation_id,
-            client_id=dispatch.operation.client_id,
-            operation_state=(None if acknowledgement is None else acknowledgement.state.value),
-        )
+        if emit_success:
+            _print_go_listener_event(
+                "accepted" if acknowledgement is not None else "submitted",
+                as_json=as_json,
+                command=command,
+                reason=(
+                    None
+                    if acknowledgement is not None
+                    else "exact worker acknowledgement timed out; operation remains visible"
+                ),
+                resolved_name=resolved_name,
+                lt=None if destination is None else destination.lt,
+                lg=None if destination is None else destination.lg,
+                candidate_count=candidate_count,
+                destination_source=destination_source,
+                operation_id=dispatch.operation.operation_id,
+                client_id=dispatch.operation.client_id,
+                operation_state=(None if acknowledgement is None else acknowledgement.state.value),
+                pointer_diagnostics=pointer_diagnostics,
+            )
         return True
 
     world_map_reader = None
@@ -4214,6 +4227,38 @@ def _listen_for_go_commands(
                 backend=PyAutoGuiBackend(),
                 stop_signal=service_stop,
             )
+
+            def close_world_map_for_pointer(
+                pointer: PhysicalPointerInteraction,
+            ) -> str | None:
+                if world_map_close_plan is None:
+                    return None
+                executor = world_map_executor
+                if isinstance(pointer, WorldMapPointerInteraction):
+                    exact_guard = ForegroundWindowGuard(
+                        client_profile,
+                        WindowsForegroundWindowInspector(),
+                        expected_process_id=pointer.process_id,
+                        expected_window_handle=pointer.window_handle,
+                    )
+                    executor = GuardedInputExecutor(
+                        guard=exact_guard,
+                        backend=PyAutoGuiBackend(),
+                        stop_signal=service_stop,
+                    )
+                try:
+                    executor.execute(world_map_close_plan)
+                except InputExecutionError as exc:
+                    if worker_ingress is not None and isinstance(
+                        pointer, WorldMapPointerInteraction
+                    ):
+                        # Focus can legitimately move after capture. Never close the map
+                        # on the replacement foreground client; the exact worker still
+                        # receives the immutable destination and owns execution safety.
+                        return None
+                    return str(exc)
+                return None
+
             stop_sequence = 0
             _print_go_listener_event("listening", as_json=as_json)
             next_listener_heartbeat = time.monotonic() + 30.0
@@ -4238,7 +4283,20 @@ def _listen_for_go_commands(
 
                 pointer_destination = None
                 destination_source = None
-                if isinstance(interaction, PhysicalPointerInteraction):
+                pointer_diagnostics = None
+                if isinstance(interaction, WorldMapPointerInteraction):
+                    command = (
+                        f"world-map {interaction.physical_button}-click "
+                        f"({interaction.desktop_screen_x}, {interaction.desktop_screen_y})"
+                    )
+                    normalized = None
+                    pointer_diagnostics = {
+                        "physical_button": interaction.physical_button,
+                        "snapshot_token": interaction.snapshot_token,
+                        "captured_process_id": interaction.process_id,
+                        "captured_window_handle": interaction.window_handle,
+                    }
+                elif isinstance(interaction, PhysicalPointerInteraction):
                     command = (
                         f"world-map right-click ({interaction.screen_x}, {interaction.screen_y})"
                     )
@@ -4247,6 +4305,19 @@ def _listen_for_go_commands(
                     command = interaction
                     normalized = command.strip().casefold()
                 named_resolution = None
+                if isinstance(interaction, WorldMapPointerInteraction):
+                    if worker_ingress is None:
+                        cancel_active_operation()
+                    elif not dispatch_to_exact_worker(
+                        WorkerOperationKind.STOP,
+                        "/stop",
+                        process_id=interaction.process_id,
+                        window_handle=interaction.window_handle,
+                        require_foreground=False,
+                        pointer_diagnostics=pointer_diagnostics,
+                        emit_success=False,
+                    ):
+                        continue
                 if normalized == "/stop" and worker_ingress is None:
                     stop_sequence += 1
                     result = stop_adapter.dispatch_movement_stop(
@@ -4258,16 +4329,31 @@ def _listen_for_go_commands(
                         as_json=as_json,
                     )
                     continue
-                try:
-                    command_process_id = _require_window_process_id(guard.require_target())
-                except WindowGuardError as exc:
-                    _print_go_listener_event(
-                        "rejected",
-                        as_json=as_json,
-                        command=command,
-                        reason=str(exc),
-                    )
-                    continue
+                if (
+                    isinstance(interaction, WorldMapPointerInteraction)
+                    and worker_ingress is not None
+                ):
+                    command_process_id = interaction.process_id
+                else:
+                    try:
+                        guarded_target = guard.require_target()
+                        command_process_id = _require_window_process_id(guarded_target)
+                        if isinstance(interaction, WorldMapPointerInteraction) and (
+                            command_process_id != interaction.process_id
+                            or guarded_target.window_handle != interaction.window_handle
+                        ):
+                            raise WindowGuardError(
+                                "captured world-map client is no longer the guarded target"
+                            )
+                    except WindowGuardError as exc:
+                        _print_go_listener_event(
+                            "rejected",
+                            as_json=as_json,
+                            command=command,
+                            reason=str(exc),
+                            pointer_diagnostics=pointer_diagnostics,
+                        )
+                        continue
                 if normalized == "/stop":
                     dispatch_to_exact_worker(
                         WorkerOperationKind.STOP,
@@ -4275,7 +4361,10 @@ def _listen_for_go_commands(
                         process_id=command_process_id,
                     )
                     continue
-                if isinstance(interaction, PhysicalPointerInteraction):
+                if isinstance(interaction, WorldMapPointerInteraction):
+                    pointer_destination = TravelDestination(interaction.lt, interaction.lg)
+                    destination_source = "captured_world_map"
+                elif isinstance(interaction, PhysicalPointerInteraction):
                     try:
                         if (
                             world_map_reader is None
@@ -4497,14 +4586,15 @@ def _listen_for_go_commands(
                         )
                         continue
                     if pointer_destination is not None and world_map_close_plan is not None:
-                        try:
-                            world_map_executor.execute(world_map_close_plan)
-                        except InputExecutionError as exc:
+                        assert isinstance(interaction, PhysicalPointerInteraction)
+                        close_error = close_world_map_for_pointer(interaction)
+                        if close_error is not None:
                             _print_go_listener_event(
                                 "rejected",
                                 as_json=as_json,
                                 command=command,
-                                reason=f"could not close world map: {exc}",
+                                reason=f"could not close world map: {close_error}",
+                                pointer_diagnostics=pointer_diagnostics,
                             )
                             continue
                     worker_destination = WorkerTravelDestination(
@@ -4528,6 +4618,13 @@ def _listen_for_go_commands(
                             if named_resolution is None
                             else named_resolution.source
                         ),
+                        window_handle=(
+                            interaction.window_handle
+                            if isinstance(interaction, WorldMapPointerInteraction)
+                            else None
+                        ),
+                        require_foreground=not isinstance(interaction, WorldMapPointerInteraction),
+                        pointer_diagnostics=pointer_diagnostics,
                     )
                     continue
 
@@ -4536,14 +4633,15 @@ def _listen_for_go_commands(
                     active_operation_stop = route_stop
                 try:
                     if pointer_destination is not None and world_map_close_plan is not None:
-                        try:
-                            world_map_executor.execute(world_map_close_plan)
-                        except InputExecutionError as exc:
+                        assert isinstance(interaction, PhysicalPointerInteraction)
+                        close_error = close_world_map_for_pointer(interaction)
+                        if close_error is not None:
                             _print_go_listener_event(
                                 "rejected",
                                 as_json=as_json,
                                 command=command,
-                                reason=f"could not close world map: {exc}",
+                                reason=f"could not close world map: {close_error}",
+                                pointer_diagnostics=pointer_diagnostics,
                             )
                             continue
                     _print_go_listener_event(
@@ -4563,6 +4661,7 @@ def _listen_for_go_commands(
                             if named_resolution is None
                             else named_resolution.source
                         ),
+                        pointer_diagnostics=pointer_diagnostics,
                     )
                     _run_travel(
                         lt=lt,
@@ -4628,6 +4727,7 @@ def _print_go_listener_event(
     client_id: str | None = None,
     operation_state: str | None = None,
     hook_diagnostics: dict[str, int | str | None] | None = None,
+    pointer_diagnostics: dict[str, object] | None = None,
 ) -> None:
     if as_json:
         payload = {"ok": event != "rejected", "event": event}
@@ -4651,6 +4751,8 @@ def _print_go_listener_event(
             payload["operation_state"] = operation_state
         if hook_diagnostics is not None:
             payload["hook_diagnostics"] = hook_diagnostics
+        if pointer_diagnostics is not None:
+            payload["pointer"] = pointer_diagnostics
         print(json.dumps(payload, sort_keys=True), flush=True)
         return
     if event == "listening":

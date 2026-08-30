@@ -1,4 +1,4 @@
-"""Foreground-client ingress for immutable exact-worker operations."""
+"""Foreground or captured-client ingress for immutable exact-worker operations."""
 
 from __future__ import annotations
 
@@ -45,7 +45,7 @@ class WorkerOperationDispatch:
 
 
 class ForegroundWorkerOperationIngress:
-    """Resolve the foreground game lifetime to its current exact worker permit."""
+    """Resolve a guarded foreground or exact captured lifetime to its worker permit."""
 
     def __init__(
         self,
@@ -85,9 +85,29 @@ class ForegroundWorkerOperationIngress:
         *,
         destination: WorkerTravelDestination | None = None,
         expected_process_id: int | None = None,
+        expected_window_handle: int | None = None,
+        require_foreground: bool = True,
     ) -> WorkerOperationDispatch:
+        if not isinstance(require_foreground, bool):
+            raise ValueError("require_foreground must be a boolean")
+        for value, field_name in (
+            (expected_process_id, "expected_process_id"),
+            (expected_window_handle, "expected_window_handle"),
+        ):
+            if value is not None and (
+                isinstance(value, bool) or not isinstance(value, int) or value <= 0
+            ):
+                raise ValueError(f"{field_name} must be a positive integer or None")
+        if not require_foreground and (
+            expected_process_id is None or expected_window_handle is None
+        ):
+            raise ValueError("non-foreground dispatch requires exact process and window identities")
         now = self._clock()
-        client = self._foreground_client(expected_process_id=expected_process_id)
+        client = self._resolve_client(
+            expected_process_id=expected_process_id,
+            expected_window_handle=expected_window_handle,
+            require_foreground=require_foreground,
+        )
         permit = self._exact_permit(client, now=now)
         operation = new_worker_operation(
             permit,
@@ -109,10 +129,12 @@ class ForegroundWorkerOperationIngress:
             duplicate=submission.duplicate,
         )
 
-    def _foreground_client(
+    def _resolve_client(
         self,
         *,
         expected_process_id: int | None,
+        expected_window_handle: int | None,
+        require_foreground: bool,
     ) -> ClientInstanceSnapshot:
         snapshot = self._registry.inspect()
         if not isinstance(snapshot, ClientRegistrySnapshot):
@@ -123,15 +145,19 @@ class ForegroundWorkerOperationIngress:
             client
             for client in snapshot.clients
             if client.is_visible
-            and client.is_foreground
+            and (client.is_foreground or not require_foreground)
             and (expected_process_id is None or client.process_id == expected_process_id)
+            and (expected_window_handle is None or client.window_handle == expected_window_handle)
         )
         if len(matches) != 1:
-            detail = (
-                "foreground managed client is not uniquely identifiable"
-                if expected_process_id is None
-                else "foreground managed client does not match the guarded process"
-            )
+            if require_foreground:
+                detail = (
+                    "foreground managed client is not uniquely identifiable"
+                    if expected_process_id is None
+                    else "foreground managed client does not match the guarded process"
+                )
+            else:
+                detail = "managed client does not match the captured process and window"
             raise WorkerOperationIngressError(detail)
         return matches[0]
 
