@@ -172,10 +172,7 @@ class ClientAlignmentComparisonTests(unittest.TestCase):
 
     def test_duplicate_profile_fields_fail_closed(self) -> None:
         digest = hashlib.sha256(build_pe()).hexdigest()
-        profile = (
-            '{"profile_id":"one","profile_id":"two",'
-            f'"executable_sha256":"{digest}"}}'
-        )
+        profile = f'{{"profile_id":"one","profile_id":"two","executable_sha256":"{digest}"}}'
 
         with tempfile.TemporaryDirectory() as directory_name:
             directory = Path(directory_name)
