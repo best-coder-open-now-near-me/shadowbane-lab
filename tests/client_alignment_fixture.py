@@ -114,6 +114,4 @@ def write_profile(directory: Path, executable_sha256: str, *, anchor_rva: int) -
             }
         ],
     }
-    (directory / "fixture.native-layout.json").write_text(
-        json.dumps(payload), encoding="utf-8"
-    )
+    (directory / "fixture.native-layout.json").write_text(json.dumps(payload), encoding="utf-8")
