@@ -306,9 +306,8 @@ class WindowsGoChatCommandListener(_BaseWindowsGoChatCommandListener):
                     event_pointer,
                     ctypes.POINTER(MouseEvent),
                 ).contents
-                if (
-                    not event.flags & self._LLMHF_INJECTED
-                    and self._consume_button_up_suppression(button_up)
+                if not event.flags & self._LLMHF_INJECTED and self._consume_button_up_suppression(
+                    button_up
                 ):
                     return 1
 
