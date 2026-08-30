@@ -3,6 +3,8 @@ param(
     [string] $EvidenceDirectory = "\\VBOXSVR\codexdiag\client-extension-evidence\wonderbane-20260830T141558722Z",
     [string] $DestinationDirectory = "\\VBOXSVR\codexdiag\client-extension-working\wonderbane-1.0.5-world-map-click-v1",
     [string] $ExtensionArtifact = "\\VBOXSVR\codexrepo\build\wonderbane-client-extension-final\Release\wonderbane-extension.dll",
+    [string] $ManifestPath = "",
+    [string] $ExtensionVersion = "1.2.0",
     [string] $PythonExecutable = "$env:USERPROFILE\shadowbane-lab\.venv\Scripts\python.exe",
     [switch] $DryRunOnly
 )
@@ -13,7 +15,10 @@ Set-StrictMode -Version Latest
 $repositorySource = Join-Path (Split-Path -Parent $PSScriptRoot) "src"
 $baselineDirectory = Join-Path $EvidenceDirectory "client-baseline"
 $sourceExecutable = Join-Path $baselineDirectory "sb.exe"
-$manifestPath = Join-Path $EvidenceDirectory "wonderbane-1.0.5-world-map-click-v1.manifest.json"
+$packageId = Split-Path -Leaf $DestinationDirectory
+if (-not $ManifestPath) {
+    $ManifestPath = Join-Path $EvidenceDirectory "$packageId.manifest.json"
+}
 
 $requiredFiles = @(
     @{ Path = $PythonExecutable; Description = "guest Python environment" },
@@ -41,12 +46,13 @@ else {
     "$repositorySource$([IO.Path]::PathSeparator)$inheritedPythonPath"
 }
 
-if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
+if (-not (Test-Path -LiteralPath $ManifestPath -PathType Leaf)) {
     & $PythonExecutable -m shadowbane_lab.client_extension `
         author-bootstrap `
         $sourceExecutable `
         $ExtensionArtifact `
-        $manifestPath `
+        $ManifestPath `
+        --extension-version $ExtensionVersion `
         --pretty
     if ($LASTEXITCODE -ne 0) {
         throw "Bootstrap manifest authoring failed with exit code $LASTEXITCODE"
@@ -57,7 +63,7 @@ if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
     prepare-copy `
     $baselineDirectory `
     $DestinationDirectory `
-    $manifestPath `
+    $ManifestPath `
     $ExtensionArtifact `
     --dry-run `
     --pretty
@@ -65,7 +71,7 @@ if ($LASTEXITCODE -ne 0) {
     throw "Disposable client dry run failed with exit code $LASTEXITCODE"
 }
 if ($DryRunOnly) {
-    $receiptPath = Join-Path $EvidenceDirectory "wonderbane-1.0.5-world-map-click-v1.dry-run.json"
+    $receiptPath = Join-Path $EvidenceDirectory "$packageId.dry-run.json"
     if (Test-Path -LiteralPath $receiptPath) {
         throw "Dry-run receipt already exists: $receiptPath"
     }
@@ -73,7 +79,7 @@ if ($DryRunOnly) {
         schema_version = 1
         status = "passed"
         completed_at_utc = [DateTime]::UtcNow.ToString("o")
-        manifest = [IO.Path]::GetFileName($manifestPath)
+        manifest = [IO.Path]::GetFileName($ManifestPath)
         destination = $DestinationDirectory
     } | ConvertTo-Json
     $encoding = [Text.UTF8Encoding]::new($false)
@@ -86,7 +92,7 @@ if ($DryRunOnly) {
     prepare-copy `
     $baselineDirectory `
     $DestinationDirectory `
-    $manifestPath `
+    $ManifestPath `
     $ExtensionArtifact `
     --pretty
 if ($LASTEXITCODE -ne 0) {

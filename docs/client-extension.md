@@ -154,6 +154,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
 
 Omit `-DryRunOnly` only after the dry run passes. The wrapper refuses an existing destination and
 inherits the package verifier's exact frozen-directory binding, inventory, hash, and reread checks.
+For an extension upgrade, pass a new versioned `-DestinationDirectory`, a new `-ManifestPath`, and
+the artifact's explicit `-ExtensionVersion`; existing immutable client copies are never rewritten.
 
 The v1 x86 DLL exports `WonderBaneExtensionInitialize` and
 `WonderBaneExtensionGetStatus`. Initialization is idempotent and publishes one process-lifetime
