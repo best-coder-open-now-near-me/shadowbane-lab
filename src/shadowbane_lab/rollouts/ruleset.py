@@ -1,4 +1,4 @@
-"""Strict assembly of the Assassin-versus-Warlock rollout ruleset."""
+"""Strict assembly of the source-pinned WonderBane guide-duel ruleset."""
 
 from __future__ import annotations
 
@@ -14,14 +14,15 @@ _EXTENSION_RESOURCES = (
     "data/assassin_warlock_progression_v1.json",
     "data/assassin_shadow_mantle_v1.json",
     "data/wonderbane_sundancer_deflock_v1.json",
+    "data/wonderbane_elf_druid_v1.json",
 )
 _PROMOTED_BASE_ACTIONS = frozenset({"shadowbane.assassin.shadow_mantle"})
 
 
-def load_assassin_warlock_duel_ruleset(
+def load_wonderbane_guide_duel_ruleset(
     *, rank_overrides: Mapping[str, int] | None = None
 ) -> CompiledRuleset:
-    """Compile the base slice plus the reviewed Assassin/Warlock duel extensions."""
+    """Compile the base slice plus every reviewed guide-duel extension."""
 
     base = _load_json(_BASE_RESOURCE)
     merged = dict(base)
@@ -34,9 +35,9 @@ def load_assassin_warlock_duel_ruleset(
     for resource_name in _EXTENSION_RESOURCES:
         extension = _load_json(resource_name)
         if _integer(extension, "schema_version") != 1:
-            raise RulesetLoadError("unsupported Assassin/Warlock extension version")
+            raise RulesetLoadError("unsupported guide-duel extension version")
         if _string(extension, "base_ruleset_id") != current_ruleset_id:
-            raise RulesetLoadError("Assassin/Warlock extension targets another base ruleset")
+            raise RulesetLoadError("guide-duel extension targets another base ruleset")
 
         additional_sources = tuple(
             cast(dict[str, Any], item)
@@ -59,12 +60,12 @@ def load_assassin_warlock_duel_ruleset(
         additional_actions = _object_array(extension, "additional_actions")
         additional_keys = tuple(_string(item, "action_key") for item in additional_actions)
         if len(additional_keys) != len(set(additional_keys)):
-            raise RulesetLoadError("Assassin/Warlock extension action keys must be unique")
+            raise RulesetLoadError("guide-duel extension action keys must be unique")
         overlap = known_keys & set(additional_keys)
         unexpected_overlap = overlap - _PROMOTED_BASE_ACTIONS
         if unexpected_overlap:
             raise RulesetLoadError(
-                f"Assassin/Warlock extension duplicates existing actions: "
+                f"guide-duel extension duplicates existing actions: "
                 f"{', '.join(sorted(unexpected_overlap))}"
             )
         merged_actions.extend(
@@ -77,6 +78,14 @@ def load_assassin_warlock_duel_ruleset(
     merged["sources"] = merged_sources
     merged["actions"] = merged_actions
     return load_ruleset_text(json.dumps(merged), rank_overrides=rank_overrides)
+
+
+def load_assassin_warlock_duel_ruleset(
+    *, rank_overrides: Mapping[str, int] | None = None
+) -> CompiledRuleset:
+    """Compatibility alias for the now three-build guide-duel ruleset."""
+
+    return load_wonderbane_guide_duel_ruleset(rank_overrides=rank_overrides)
 
 
 def progression_milestones() -> tuple[int, ...]:

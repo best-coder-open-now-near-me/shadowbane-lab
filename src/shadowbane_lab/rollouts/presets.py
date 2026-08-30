@@ -88,6 +88,7 @@ class CombatantPreset:
     unresolved: tuple[str, ...]
     combat_sheet: CombatSheet
     initial_effects: tuple[InitialEffectConfig, ...] = ()
+    initial_cooldowns: tuple[tuple[str, int], ...] = ()
     initial_stance: CombatStance = CombatStance.NORMAL
     health: float = 500.0
     mana: float = 300.0
@@ -138,6 +139,9 @@ class CombatantPreset:
             raise ValueError("combat sheet and preset levels must match")
         if any(not isinstance(effect, InitialEffectConfig) for effect in self.initial_effects):
             raise ValueError("initial_effects must contain InitialEffectConfig values")
+        _unique_pairs(self.initial_cooldowns, "initial_cooldowns")
+        if any(remaining_ms < 1 for _, remaining_ms in self.initial_cooldowns):
+            raise ValueError("initial cooldown durations must be positive")
         if not isinstance(self.initial_stance, CombatStance):
             raise ValueError("initial_stance must be a CombatStance")
 
@@ -173,6 +177,7 @@ class CombatantPreset:
             move_speed=self.move_speed,
             tags=combined_tags,
             initial_effects=self.initial_effects,
+            initial_cooldowns=self.initial_cooldowns,
             initial_stance=self.initial_stance,
         )
 
@@ -183,6 +188,7 @@ class CombatantPreset:
             sheet=self.combat_sheet,
             build=self.build,
             initial_effects=self.initial_effects,
+            initial_cooldowns=self.initial_cooldowns,
             initial_stance=self.initial_stance,
         )
 
@@ -203,6 +209,24 @@ class WonderBaneMatchupCell:
         }
 
 
+@dataclass(frozen=True, slots=True)
+class WonderBaneDruidMatchupCell:
+    """One source-pinned Druid matchup cell against an existing guide build."""
+
+    opponent: str
+    starting_distance: float
+    assassin_starts_stealthed: bool | None
+    batch: VerifiedDuelBatchResult
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "opponent": self.opponent,
+            "starting_distance": self.starting_distance,
+            "assassin_starts_stealthed": self.assassin_starts_stealthed,
+            "batch": self.batch.as_dict(),
+        }
+
+
 BLIND = "shadowbane.assassin.blind"
 SHADOW_OF_BLINDNESS = "shadowbane.assassin.shadow_of_blindness"
 SILENCE = "shadowbane.assassin.silence"
@@ -217,6 +241,15 @@ SURPASS_LIMITS = "shadowbane.warlock.surpass_limits"
 NEEDS_OF_THE_ONE = "shadowbane.warlock.needs_of_the_one"
 PSYCHIC_SHIELD = "shadowbane.warlock.psychic_shield"
 STEAL_BREATH = "shadowbane.assassin.steal_breath"
+GRASP_OF_THORNS = "shadowbane.druid.grasp_of_thorns"
+HEDGE_OF_THORNS = "shadowbane.druid.hedge_of_thorns"
+BLIGHT = "shadowbane.druid.blight"
+CALL_LIGHTNING = "shadowbane.druid.call_lightning"
+REGROWTH = "shadowbane.druid.regrowth"
+OAKEN_FLESH = "shadowbane.druid.oaken_flesh"
+BLESSED_MENDING = "shadowbane.healer.blessed_mending"
+PRAYER_OF_MENDING = "shadowbane.healer.prayer_of_mending"
+BRAIALLAS_AID = "shadowbane.healer.braiallas_aid"
 
 
 def _resistance_vector() -> tuple[tuple[str, float], ...]:
@@ -300,6 +333,43 @@ def _fighter_warlock_stances() -> tuple[StanceProfile, ...]:
             modifiers=StanceModifiers(
                 attack_percent=0.295,
                 weapon_delay_percent=0.21,
+            ),
+        ),
+    )
+
+
+def _healer_druid_stances() -> tuple[StanceProfile, ...]:
+    source = {
+        "profile_key": "healer_druid",
+        "source_id": "morloch-stances-healer-druid",
+        "source_revision": "retrieved-2026-08-29",
+    }
+    return (
+        StanceProfile(
+            **source,
+            stance=CombatStance.DEFENSIVE,
+            rank=20,
+            modifiers=StanceModifiers(
+                defense_percent=0.17,
+                damage_dealt_percent=-0.23,
+            ),
+        ),
+        StanceProfile(
+            **source,
+            stance=CombatStance.OFFENSIVE,
+            rank=25,
+            modifiers=StanceModifiers(
+                defense_percent=-0.19,
+                damage_dealt_percent=0.38,
+            ),
+        ),
+        StanceProfile(
+            **source,
+            stance=CombatStance.PRECISE,
+            rank=35,
+            modifiers=StanceModifiers(
+                attack_percent=0.23,
+                damage_dealt_percent=-0.185,
             ),
         ),
     )
@@ -525,6 +595,96 @@ def _deflock_initial_effects() -> tuple[InitialEffectConfig, ...]:
     )
 
 
+def _druid_sheet() -> CombatSheet:
+    return CombatSheet(
+        sheet_id="wonderbane-elf-healer-druid-guide-v1",
+        profession="druid",
+        level=75,
+        source_id="wonderbane-elf-druid-template+calculator+morloch-v1",
+        source_revision="2026-08-29-guide-reconstruction-v1",
+        formula_revision=MAGICBANE_COMBAT_FORMULA_REVISION,
+        compatibility=CompatibilityStatus.SOURCE_REVISION_ACCEPTED,
+        strength=40,
+        dexterity=50,
+        constitution=140,
+        intelligence=185,
+        spirit=86,
+        maximum_health=2371.0,
+        maximum_mana=964.0,
+        maximum_stamina=251.0,
+        move_speed=30.0,
+        equipment_defense=0.0,
+        skill_values=(
+            ("nature_lore", 130.0),
+            ("restoration", 90.0),
+            ("sword", 60.0),
+        ),
+        power_focus_values=(
+            (GRASP_OF_THORNS, 130.0),
+            (HEDGE_OF_THORNS, 130.0),
+            (BLIGHT, 130.0),
+            (CALL_LIGHTNING, 130.0),
+            (REGROWTH, 90.0),
+            (BLESSED_MENDING, 90.0),
+            (PRAYER_OF_MENDING, 90.0),
+        ),
+        resistances=_resistance_vector(),
+        passive_defenses=(("block", 24.5), ("dodge", 0.0), ("parry", 0.0)),
+        modifiers=SheetModifiers(),
+        stance_profiles=_healer_druid_stances(),
+        weapon=WeaponProfile(
+            weapon_key="cleaver-and-shield-source-baseline",
+            damage_type=DamageType.SLASH,
+            skill_key="sword",
+            mastery_key="sword",
+            base_minimum=4.0,
+            base_maximum=15.0,
+            speed_tenths=32.1,
+            range_units=6.0,
+            strength_based=True,
+        ),
+        tags=(
+            "base.healer",
+            "behavior.kite",
+            "build.elf_healer_druid",
+            "discipline.blade_weaver",
+            "discipline.sanctifier",
+            "equipment.robe",
+            "equipment.shield",
+            "race.elf",
+            "trait.tough_as_nails",
+        ),
+    )
+
+
+def _druid_initial_effects() -> tuple[InitialEffectConfig, ...]:
+    return (
+        InitialEffectConfig(
+            "blessing_of_the_grove",
+            duration_ms=10_800_000,
+            tags=("buff", "attribute.buff"),
+            trains=40,
+        ),
+        InitialEffectConfig(
+            "oaken_flesh",
+            duration_ms=300_000,
+            stacking_key="DamageAbsorber",
+            tags=("buff", "effect", "damage_absorber"),
+            modifiers=(
+                ResistanceAdjustment(DamageType.CRUSH, 75.0),
+                ResistanceAdjustment(DamageType.PIERCE, 75.0),
+                ResistanceAdjustment(DamageType.COLD, 75.0),
+                DamageBreakpoint(
+                    "physical",
+                    1000.0,
+                    (DamageType.CRUSH, DamageType.PIERCE, DamageType.SLASH),
+                ),
+            ),
+            trains=40,
+        ),
+    )
+
+
 def wonderbane_sundancer_proc_assassin() -> CombatantPreset:
     """Return the full archived high-INT Irekei Sun Dancer proc-Assassin guide."""
 
@@ -730,6 +890,96 @@ def wonderbane_deflock() -> CombatantPreset:
     )
 
 
+def wonderbane_elf_healer_druid() -> CombatantPreset:
+    """Return Nobuo's archived Elf Healer Druid as a sourced duel preset."""
+
+    return CombatantPreset(
+        preset_id="wonderbane.elf-healer-druid.bladeweaver-sanctifier.v1",
+        display_name="Elf Healer Druid — Blade Weaver/Sanctifier kite build",
+        profession="druid",
+        level=75,
+        attribute_targets=(
+            ("strength", 40),
+            ("dexterity", 50),
+            ("constitution", 120),
+            ("intelligence", 160),
+            ("spirit", 61),
+        ),
+        disciplines=("blade_weaver", "sanctifier"),
+        skill_ranks=(
+            ("nature_lore", 130),
+            ("restoration", 90),
+            ("block", 95),
+            ("sword", 60),
+            ("benediction", 69),
+        ),
+        intended_power_ranks=(
+            (GRASP_OF_THORNS, 40),
+            (HEDGE_OF_THORNS, 40),
+            (BLIGHT, 40),
+            (CALL_LIGHTNING, 40),
+            (REGROWTH, 40),
+            (BLESSED_MENDING, 20),
+            (PRAYER_OF_MENDING, 40),
+            (BRAIALLAS_AID, 40),
+            (OAKEN_FLESH, 40),
+            ("shadowbane.druid.blessing_of_the_grove", 40),
+        ),
+        executable_power_keys=(
+            GRASP_OF_THORNS,
+            HEDGE_OF_THORNS,
+            BLIGHT,
+            CALL_LIGHTNING,
+            REGROWTH,
+            BLESSED_MENDING,
+            PRAYER_OF_MENDING,
+            BRAIALLAS_AID,
+            OAKEN_FLESH,
+        ),
+        gear=(
+            "one-handed Cleaver-class sword source baseline",
+            "shield with the guide's 95 Block training (+3 shield convention)",
+            "robe armor with no invented defense or resistance contribution",
+        ),
+        pre_fight_buffs=(
+            "Healer Druid defensive stance",
+            "Blessing of the Grove (+25 Intelligence and Spirit)",
+            "Oaken Flesh",
+            "Tough as Nails passive (+200 maximum health)",
+        ),
+        tags=(
+            "profile.wonderbane",
+            "race.elf",
+            "base.healer",
+            "behavior.kite",
+            "discipline.blade_weaver",
+            "discipline.sanctifier",
+            "equipment.robe",
+            "equipment.shield",
+            "trait.tough_as_nails",
+        ),
+        unresolved=(
+            "The archived guide specifies training and attributes but not exact equipment; "
+            "the sheet therefore assigns no invented armor defense or item resistances.",
+            "The 130 Nature Lore scenario resolves the guide's '90+, all extras' wording "
+            "using the current universal-Druid training target pending a live sheet.",
+            "Oaken Flesh follows the current Druid page's cold-resistance row while its "
+            "1000-point physical breakpoint covers crush, pierce, and slash; current "
+            "WonderBane power data must resolve the source-era conflict.",
+            "Health, mana, and stamina are calculator-derived from the guide target, two "
+            "+10 Constitution discipline grants, Blessing of the Grove, and Tough as Nails.",
+        ),
+        combat_sheet=_druid_sheet(),
+        initial_effects=_druid_initial_effects(),
+        initial_cooldowns=((OAKEN_FLESH, 300_200),),
+        initial_stance=CombatStance.DEFENSIVE,
+        health=2371.0,
+        mana=964.0,
+        stamina=251.0,
+        move_speed=30.0,
+    )
+
+
 def wonderbane_sundancer_vs_deflock(
     *,
     starting_distance: float = 15.0,
@@ -754,6 +1004,61 @@ def wonderbane_sundancer_vs_deflock(
     return VerifiedDuelConfig(
         left=assassin_config,
         right=warlock.verified_combatant("warlock", "warlock"),
+        compile_policy=CombatCompilePolicy(
+            accepted_compatibility=(CompatibilityStatus.SOURCE_REVISION_ACCEPTED,),
+            allow_ruleset_overrides=True,
+        ),
+        starting_distance=starting_distance,
+        max_ticks=max_ticks,
+        seed=seed,
+    )
+
+
+def wonderbane_sundancer_vs_druid(
+    *,
+    starting_distance: float = 15.0,
+    max_ticks: int = 1_200,
+    seed: int = 1,
+    assassin_starts_stealthed: bool = False,
+) -> VerifiedDuelConfig:
+    """Build the complete-sheet Sun Dancer versus Elf Druid matchup."""
+
+    assassin_config = wonderbane_sundancer_proc_assassin().verified_combatant(
+        "assassin", "assassin"
+    )
+    if not assassin_starts_stealthed:
+        assassin_config = replace(
+            assassin_config,
+            initial_effects=tuple(
+                effect
+                for effect in assassin_config.initial_effects
+                if effect.effect_key != "catlike_tread"
+            ),
+        )
+    return VerifiedDuelConfig(
+        left=assassin_config,
+        right=wonderbane_elf_healer_druid().verified_combatant("druid", "druid"),
+        compile_policy=CombatCompilePolicy(
+            accepted_compatibility=(CompatibilityStatus.SOURCE_REVISION_ACCEPTED,),
+            allow_ruleset_overrides=True,
+        ),
+        starting_distance=starting_distance,
+        max_ticks=max_ticks,
+        seed=seed,
+    )
+
+
+def wonderbane_deflock_vs_druid(
+    *,
+    starting_distance: float = 15.0,
+    max_ticks: int = 1_200,
+    seed: int = 1,
+) -> VerifiedDuelConfig:
+    """Build the complete-sheet Deflock versus Elf Druid matchup."""
+
+    return VerifiedDuelConfig(
+        left=wonderbane_deflock().verified_combatant("warlock", "warlock"),
+        right=wonderbane_elf_healer_druid().verified_combatant("druid", "druid"),
         compile_policy=CombatCompilePolicy(
             accepted_compatibility=(CompatibilityStatus.SOURCE_REVISION_ACCEPTED,),
             allow_ruleset_overrides=True,
@@ -810,4 +1115,70 @@ def wonderbane_sundancer_deflock_matrix(
                     ),
                 )
             )
+    return tuple(cells)
+
+
+def wonderbane_druid_matchup_matrix(
+    *,
+    starting_distances: tuple[float, ...] = (6.0, 15.0, 40.0, 100.0),
+    assassin_stealth_openers: tuple[bool, ...] = (False, True),
+    episodes: int = 100,
+    max_ticks: int = 2_400,
+    seed_start: int = 1,
+) -> tuple[WonderBaneDruidMatchupCell, ...]:
+    """Run the Druid against both guide builds across range and Assassin visibility."""
+
+    if not starting_distances:
+        raise ValueError("starting_distances must not be empty")
+    if any(
+        isinstance(distance, bool) or not isinstance(distance, (int, float)) or distance <= 0
+        for distance in starting_distances
+    ):
+        raise ValueError("starting_distances must contain positive numbers")
+    if len(starting_distances) != len(set(starting_distances)):
+        raise ValueError("starting_distances must not contain duplicates")
+    if not assassin_stealth_openers:
+        raise ValueError("assassin_stealth_openers must not be empty")
+    if any(not isinstance(value, bool) for value in assassin_stealth_openers):
+        raise ValueError("assassin_stealth_openers must contain booleans")
+    if len(assassin_stealth_openers) != len(set(assassin_stealth_openers)):
+        raise ValueError("assassin_stealth_openers must not contain duplicates")
+
+    cells: list[WonderBaneDruidMatchupCell] = []
+    for starts_stealthed in assassin_stealth_openers:
+        for distance in starting_distances:
+            cells.append(
+                WonderBaneDruidMatchupCell(
+                    opponent="assassin",
+                    starting_distance=float(distance),
+                    assassin_starts_stealthed=starts_stealthed,
+                    batch=run_verified_duel_batch(
+                        wonderbane_sundancer_vs_druid(
+                            starting_distance=float(distance),
+                            max_ticks=max_ticks,
+                            seed=seed_start,
+                            assassin_starts_stealthed=starts_stealthed,
+                        ),
+                        episodes=episodes,
+                        seed_start=seed_start,
+                    ),
+                )
+            )
+    for distance in starting_distances:
+        cells.append(
+            WonderBaneDruidMatchupCell(
+                opponent="warlock",
+                starting_distance=float(distance),
+                assassin_starts_stealthed=None,
+                batch=run_verified_duel_batch(
+                    wonderbane_deflock_vs_druid(
+                        starting_distance=float(distance),
+                        max_ticks=max_ticks,
+                        seed=seed_start,
+                    ),
+                    episodes=episodes,
+                    seed_start=seed_start,
+                ),
+            )
+        )
     return tuple(cells)

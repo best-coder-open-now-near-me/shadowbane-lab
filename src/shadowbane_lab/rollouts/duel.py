@@ -34,7 +34,7 @@ from shadowbane_lab.protocol import (
     Relation,
     Vector2,
 )
-from shadowbane_lab.rollouts.ruleset import load_assassin_warlock_duel_ruleset
+from shadowbane_lab.rollouts.ruleset import load_wonderbane_guide_duel_ruleset
 from shadowbane_lab.rulesets import CharacterBuild, CompiledRuleset
 from shadowbane_lab.sim import (
     OPEN_RANGE_ACTION_KEY,
@@ -97,6 +97,17 @@ _POWER_MAXIMUMS = {
 def _positive_number(value: float, field_name: str) -> None:
     if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
         raise ValueError(f"{field_name} must be a positive number")
+
+
+def _validate_initial_cooldowns(values: tuple[tuple[str, int], ...]) -> None:
+    keys = tuple(action_key for action_key, _ in values)
+    if len(keys) != len(set(keys)):
+        raise ValueError("initial_cooldowns must not contain duplicate action keys")
+    for action_key, remaining_ms in values:
+        if not isinstance(action_key, str) or not action_key.strip():
+            raise ValueError("initial cooldown action keys must be non-empty strings")
+        if isinstance(remaining_ms, bool) or not isinstance(remaining_ms, int) or remaining_ms < 1:
+            raise ValueError("initial cooldown durations must be positive integers")
 
 
 @dataclass(frozen=True, slots=True)
@@ -178,6 +189,7 @@ class CombatantConfig:
     extra_scalars: tuple[tuple[str, float], ...] = ()
     initial_trigger_keys: tuple[str, ...] = ()
     initial_effects: tuple[InitialEffectConfig, ...] = ()
+    initial_cooldowns: tuple[tuple[str, int], ...] = ()
     initial_stance: CombatStance = CombatStance.NORMAL
     action_keys_override: tuple[str, ...] | None = None
 
@@ -222,6 +234,7 @@ class CombatantConfig:
         )
         if len(storage_keys) != len(set(storage_keys)):
             raise ValueError("initial_effects must not share storage keys")
+        _validate_initial_cooldowns(self.initial_cooldowns)
         if not isinstance(self.initial_stance, CombatStance):
             raise ValueError("initial_stance must be a CombatStance")
         if self.action_keys_override is not None:
@@ -394,6 +407,7 @@ class VerifiedCombatantConfig:
     sheet: CombatSheet
     build: CharacterBuild
     initial_effects: tuple[InitialEffectConfig, ...] = ()
+    initial_cooldowns: tuple[tuple[str, int], ...] = ()
     initial_stance: CombatStance = CombatStance.NORMAL
 
     def __post_init__(self) -> None:
@@ -411,6 +425,7 @@ class VerifiedCombatantConfig:
         )
         if len(storage_keys) != len(set(storage_keys)):
             raise ValueError("initial_effects must not share storage keys")
+        _validate_initial_cooldowns(self.initial_cooldowns)
         if not isinstance(self.initial_stance, CombatStance):
             raise ValueError("initial_stance must be a CombatStance")
 
@@ -625,9 +640,7 @@ class UtilityDuelPolicy:
             if "immunity.resource.health" in actor_tags:
                 return float("-inf")
             applied_healing_effects = tuple(
-                tag.removeprefix("applies.")
-                for tag in tags
-                if tag.startswith("applies.")
+                tag.removeprefix("applies.") for tag in tags if tag.startswith("applies.")
             )
             if any(effect_key in actor_tags for effect_key in applied_healing_effects):
                 return float("-inf")
@@ -703,9 +716,7 @@ class UtilityDuelPolicy:
             if "debuff" not in actor_tags:
                 return float("-inf")
             cleanse_tags = tuple(
-                tag.removeprefix("cleanse.")
-                for tag in tags
-                if tag.startswith("cleanse.")
+                tag.removeprefix("cleanse.") for tag in tags if tag.startswith("cleanse.")
             )
             if cleanse_tags and not any(tag in actor_tags for tag in cleanse_tags):
                 return float("-inf")
@@ -799,9 +810,7 @@ class UtilityDuelPolicy:
             minimum = features.get(RANGE_MINIMUM_FEATURE)
             if distance is None or minimum is None or distance >= minimum:
                 return float("-inf")
-            controlled_target = bool(
-                {"snare", "control.stun"} & set(selected_target_tags)
-            )
+            controlled_target = bool({"snare", "control.stun"} & set(selected_target_tags))
             return 1_000.0 if controlled_target else 25.0
         return -10.0
 
@@ -942,7 +951,7 @@ def run_duel(config: DuelConfig, *, ruleset: CompiledRuleset | None = None) -> D
 
     rank_overrides = _merge_rank_overrides(config.left.build, config.right.build)
     if ruleset is None:
-        ruleset = load_assassin_warlock_duel_ruleset(rank_overrides=rank_overrides)
+        ruleset = load_wonderbane_guide_duel_ruleset(rank_overrides=rank_overrides)
     else:
         for action_key, rank in rank_overrides.items():
             record = ruleset.record(action_key)
@@ -1102,7 +1111,7 @@ def run_verified_duel_batch(
 
 def _prepare_verified_duel(config: VerifiedDuelConfig) -> _PreparedVerifiedDuel:
     rank_overrides = _merge_rank_overrides(config.left.build, config.right.build)
-    ruleset = load_assassin_warlock_duel_ruleset(rank_overrides=rank_overrides)
+    ruleset = load_wonderbane_guide_duel_ruleset(rank_overrides=rank_overrides)
     left = compile_combatant(
         config.left.sheet,
         config.left.build,
@@ -1141,9 +1150,7 @@ def _run_prepared_verified_duel(
     right = prepared.right
     close = close_range_action(RangeBand(maximum=_MELEE_RANGE))
     open_range = open_range_action(RangeBand(minimum=30.0, maximum=120.0))
-    catalog = ActionCatalog(
-        (*left.catalog.actions, *right.catalog.actions, close, open_range)
-    )
+    catalog = ActionCatalog((*left.catalog.actions, *right.catalog.actions, close, open_range))
     left_entity = left.entity(config.left.entity_id, config.left.team_id, Vector2(0.0, 0.0))
     right_entity = right.entity(
         config.right.entity_id,
@@ -1155,10 +1162,22 @@ def _run_prepared_verified_duel(
         config.left.initial_effects,
         config.left.initial_stance,
     )
+    left_entity.cooldowns.update(
+        {
+            left.action_key(action_key): remaining_ms
+            for action_key, remaining_ms in config.left.initial_cooldowns
+        }
+    )
     _apply_initial_state(
         right_entity,
         config.right.initial_effects,
         config.right.initial_stance,
+    )
+    right_entity.cooldowns.update(
+        {
+            right.action_key(action_key): remaining_ms
+            for action_key, remaining_ms in config.right.initial_cooldowns
+        }
     )
     left_entity.action_keys = (*left_entity.action_keys, _CLOSE_RANGE)
     right_entity.action_keys = (*right_entity.action_keys, _CLOSE_RANGE)
@@ -1483,6 +1502,7 @@ def _entity(config: CombatantConfig, position: Vector2, ruleset: CompiledRuleset
         stance=config.initial_stance,
     )
     _apply_initial_state(entity, config.initial_effects, config.initial_stance)
+    entity.cooldowns.update(dict(config.initial_cooldowns))
     return entity
 
 
