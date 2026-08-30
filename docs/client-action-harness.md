@@ -63,10 +63,20 @@ world_map.destination_click
 
 ## Run the watched live action
 
-Use a disposable patched client in the WonderBane VM. Open the world map before starting the
-command, then return focus to the still-open map during the guarded wait. Choose a point that is
+Use a fresh disposable patched client in the WonderBane VM. With every `sb.exe` process closed,
+first validate the current host-built artifact without publishing a client:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
+  \\VBOXSVR\codexrepo\scripts\prepare-wonderbane-client-extension-copy.ps1 -DryRunOnly
+```
+
+After that passes, repeat the command without `-DryRunOnly`. Launch `sb.exe` only from the new
+`wonderbane-1.0.5-world-map-click-v1` disposable directory. Open the world map before starting the
+action, then return focus to the still-open map during the guarded wait. Choose a point that is
 safe for the eventual route consumer; fractions address the current map rectangle from zero to
-one.
+one. Run the command from the updated feature-branch checkout inside the VM so its `.venv` and
+editable package are guest-local:
 
 ```powershell
 $env:PYTHONPATH = "src"

@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [string] $EvidenceDirectory = "\\VBOXSVR\codexdiag\client-extension-evidence\wonderbane-20260830T141558722Z",
-    [string] $DestinationDirectory = "\\VBOXSVR\codexdiag\client-extension-working\wonderbane-1.0.5-extension-v1",
+    [string] $DestinationDirectory = "\\VBOXSVR\codexdiag\client-extension-working\wonderbane-1.0.5-world-map-click-v1",
     [string] $ExtensionArtifact = "\\VBOXSVR\codexrepo\build\wonderbane-client-extension-final\Release\wonderbane-extension.dll",
     [string] $PythonExecutable = "$env:USERPROFILE\shadowbane-lab\.venv\Scripts\python.exe",
     [switch] $DryRunOnly
@@ -12,7 +12,7 @@ Set-StrictMode -Version Latest
 
 $baselineDirectory = Join-Path $EvidenceDirectory "client-baseline"
 $sourceExecutable = Join-Path $baselineDirectory "sb.exe"
-$manifestPath = Join-Path $EvidenceDirectory "wonderbane-1.0.5-extension-v1.manifest.json"
+$manifestPath = Join-Path $EvidenceDirectory "wonderbane-1.0.5-world-map-click-v1.manifest.json"
 
 $requiredFiles = @(
     @{ Path = $PythonExecutable; Description = "guest Python environment" },
@@ -53,7 +53,7 @@ if ($LASTEXITCODE -ne 0) {
     throw "Disposable client dry run failed with exit code $LASTEXITCODE"
 }
 if ($DryRunOnly) {
-    $receiptPath = Join-Path $EvidenceDirectory "wonderbane-1.0.5-extension-v1.dry-run.json"
+    $receiptPath = Join-Path $EvidenceDirectory "wonderbane-1.0.5-world-map-click-v1.dry-run.json"
     if (Test-Path -LiteralPath $receiptPath) {
         throw "Dry-run receipt already exists: $receiptPath"
     }
