@@ -1,6 +1,6 @@
 """Compatibility API over the canonical affiliation snapshot interchange.
 
-``affiliation_io`` owns the serialized representation.  This module preserves the
+``affiliation_io`` owns the serialized representation. This module preserves the
 newer byte-oriented helper names without maintaining a second schema or parser.
 """
 
@@ -11,11 +11,13 @@ from collections.abc import Mapping
 from .affiliation_io import (
     AFFILIATION_SNAPSHOT_SCHEMA_VERSION,
     AffiliationSnapshotFormatError,
-    affiliation_snapshot_digest as _affiliation_snapshot_digest,
     affiliation_snapshot_from_dict,
     affiliation_snapshot_to_dict,
     dump_affiliation_snapshot,
     load_affiliation_snapshot_text,
+)
+from .affiliation_io import (
+    affiliation_snapshot_digest as _affiliation_snapshot_digest,
 )
 from .affiliations import AffiliationSnapshot
 
