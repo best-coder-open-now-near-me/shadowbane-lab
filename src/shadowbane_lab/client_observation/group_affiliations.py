@@ -1,20 +1,14 @@
-"""Adapter from native party rosters to simulator affiliation memberships."""
+"""Strict party-affiliation projection over the canonical native identity adapter."""
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from typing import TypeVar
 
 from shadowbane_lab.sim.affiliations import GroupKey, GroupKind, GroupMembership
 
-from .native_identity import (
-    NativeEntityIdentityMap,
-    NativeIdentityJoin,
-    NativeObjectRecord,
-    join_native_records,
-    native_object_key_from_record,
-)
+from .native_group import NativeGroupMemberObservation, NativeGroupObservation
+from .native_identity import project_native_group_to_party
+from .native_object import NativeEntityIdentityMap
 
 
 class NativeGroupAffiliationError(ValueError):
@@ -23,11 +17,12 @@ class NativeGroupAffiliationError(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class NativeGroupAffiliationProjection:
-    """Projected memberships and the complete identity-join audit trail."""
+    """Party memberships plus explicit unresolved native roster records."""
 
     group_key: GroupKey
+    revision: int
     memberships: tuple[GroupMembership, ...]
-    identity_join: NativeIdentityJoin
+    unresolved_members: tuple[NativeGroupMemberObservation, ...]
 
     def __post_init__(self) -> None:
         if not isinstance(self.group_key, GroupKey):
@@ -36,6 +31,12 @@ class NativeGroupAffiliationProjection:
             raise NativeGroupAffiliationError(
                 "native group roster projections require a PARTY group key"
             )
+        if isinstance(self.revision, bool) or not isinstance(self.revision, int):
+            raise NativeGroupAffiliationError("revision must be an integer")
+        if self.revision < 0:
+            raise NativeGroupAffiliationError("revision must be non-negative")
+        if not isinstance(self.memberships, tuple):
+            raise NativeGroupAffiliationError("memberships must be a tuple")
         if any(not isinstance(item, GroupMembership) for item in self.memberships):
             raise NativeGroupAffiliationError(
                 "memberships must contain GroupMembership values"
@@ -44,36 +45,40 @@ class NativeGroupAffiliationProjection:
             raise NativeGroupAffiliationError(
                 "projected memberships must use the projection group key"
             )
-        if not isinstance(self.identity_join, NativeIdentityJoin):
+        if not isinstance(self.unresolved_members, tuple):
+            raise NativeGroupAffiliationError("unresolved_members must be a tuple")
+        if any(
+            not isinstance(item, NativeGroupMemberObservation)
+            for item in self.unresolved_members
+        ):
             raise NativeGroupAffiliationError(
-                "identity_join must be a NativeIdentityJoin"
-            )
-        if len(self.memberships) != len(self.identity_join.resolved_entity_ids):
-            raise NativeGroupAffiliationError(
-                "membership count must match resolved native identities"
+                "unresolved_members must contain NativeGroupMemberObservation values"
             )
 
     @property
     def complete(self) -> bool:
-        return not self.identity_join.rejection_counts
+        return not self.unresolved_members
 
-
-_RecordT = TypeVar("_RecordT", bound=NativeObjectRecord)
+    @property
+    def rejection_counts(self) -> tuple[tuple[str, int], ...]:
+        if self.complete:
+            return ()
+        return (("native_identity_unbound", len(self.unresolved_members)),)
 
 
 def project_native_party_memberships(
     group_key: GroupKey,
-    records: Iterable[_RecordT],
+    group: NativeGroupObservation,
     identity_map: NativeEntityIdentityMap,
     *,
-    role_getter: Callable[[_RecordT], str | None] | None = None,
+    revision: int = 1,
     require_complete: bool = True,
 ) -> NativeGroupAffiliationProjection:
-    """Project a party roster using only object type/UUID identity.
+    """Project a verified native party roster through exact object identity only.
 
-    ``group_key`` must come from verified protocol/client data or explicit scenario
-    configuration. This adapter never derives durable party identity from names,
-    roster ordering, pointers, health percentages, or positions.
+    The caller supplies the durable party key.  No identity is inferred from names,
+    pointers, health, position, or roster order.  Strict mode rejects any unbound
+    member; observation mode returns resolved memberships and explicit diagnostics.
     """
 
     if not isinstance(group_key, GroupKey):
@@ -82,49 +87,39 @@ def project_native_party_memberships(
         raise NativeGroupAffiliationError(
             "native group roster projections require a PARTY group key"
         )
+    if not isinstance(group, NativeGroupObservation):
+        raise NativeGroupAffiliationError("group must be a NativeGroupObservation")
+    if not isinstance(identity_map, NativeEntityIdentityMap):
+        raise NativeGroupAffiliationError(
+            "identity_map must be a NativeEntityIdentityMap"
+        )
     if not isinstance(require_complete, bool):
         raise NativeGroupAffiliationError("require_complete must be boolean")
-    if role_getter is not None and not callable(role_getter):
-        raise NativeGroupAffiliationError("role_getter must be callable or null")
 
-    materialized = tuple(records)
-    identity_join = join_native_records(
-        materialized,
+    projected = project_native_group_to_party(
+        group,
         identity_map,
-        key_getter=native_object_key_from_record,
+        party_group_id=group_key.group_id,
+        revision=revision,
     )
-    if require_complete and identity_join.rejection_counts:
+    result = NativeGroupAffiliationProjection(
+        group_key=group_key,
+        revision=projected.snapshot.revision,
+        memberships=projected.snapshot.memberships,
+        unresolved_members=projected.unresolved_members,
+    )
+    if require_complete and not result.complete:
         reasons = ", ".join(
-            f"{reason}={count}" for reason, count in identity_join.rejection_counts
+            f"{reason}={count}" for reason, count in result.rejection_counts
         )
         raise NativeGroupAffiliationError(
             f"native party roster identity join is incomplete: {reasons}"
         )
+    return result
 
-    memberships: list[GroupMembership] = []
-    for decision in identity_join.decisions:
-        if not decision.accepted:
-            continue
-        assert decision.entity_id is not None
-        role = None
-        if role_getter is not None:
-            role = role_getter(materialized[decision.record_index])
-            if role is not None and (
-                not isinstance(role, str) or not role.strip()
-            ):
-                raise NativeGroupAffiliationError(
-                    "role_getter must return a non-empty string or null"
-                )
-        memberships.append(
-            GroupMembership(
-                entity_id=decision.entity_id,
-                group_key=group_key,
-                role=role,
-            )
-        )
 
-    return NativeGroupAffiliationProjection(
-        group_key=group_key,
-        memberships=tuple(memberships),
-        identity_join=identity_join,
-    )
+__all__ = (
+    "NativeGroupAffiliationError",
+    "NativeGroupAffiliationProjection",
+    "project_native_party_memberships",
+)
