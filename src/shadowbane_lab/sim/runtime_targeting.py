@@ -256,7 +256,10 @@ class RuntimeTargetingContext:
                 actor,
                 entity,
                 selector,
-                alive=(entity.alive and (eligible_alive is None or entity.entity_id in eligible_alive)),
+                alive=(
+                    entity.alive
+                    and (eligible_alive is None or entity.entity_id in eligible_alive)
+                ),
             )
             for entity in entities
         )
