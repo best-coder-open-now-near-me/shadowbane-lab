@@ -142,6 +142,18 @@ The patch remains seven bounded writes: the entry jump, the loader stub, two imp
 one hint/name record, and the `.text`/`.idata` virtual-size fields. No import table is relocated and
 the executable length does not change.
 
+The reviewed VM evidence and artifact can be dry-run or published through one wrapper. It first
+authors the create-new manifest when absent, always runs the complete no-write package validation,
+and only then atomically publishes a new destination unless `-DryRunOnly` is supplied:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
+  \\VBOXSVR\codexrepo\scripts\prepare-wonderbane-client-extension-copy.ps1 -DryRunOnly
+```
+
+Omit `-DryRunOnly` only after the dry run passes. The wrapper refuses an existing destination and
+inherits the package verifier's exact frozen-directory binding, inventory, hash, and reread checks.
+
 The v1 x86 DLL exports `WonderBaneExtensionInitialize` and
 `WonderBaneExtensionGetStatus`. Initialization is idempotent and publishes one process-lifetime
 heartbeat atomically beneath `%LOCALAPPDATA%\ShadowbaneLab\client-extension`; it does not read or
