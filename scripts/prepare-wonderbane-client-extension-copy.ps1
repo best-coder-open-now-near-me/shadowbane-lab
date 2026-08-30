@@ -10,6 +10,7 @@ param(
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
+$repositorySource = Join-Path (Split-Path -Parent $PSScriptRoot) "src"
 $baselineDirectory = Join-Path $EvidenceDirectory "client-baseline"
 $sourceExecutable = Join-Path $baselineDirectory "sb.exe"
 $manifestPath = Join-Path $EvidenceDirectory "wonderbane-1.0.5-world-map-click-v1.manifest.json"
@@ -25,8 +26,19 @@ foreach ($required in $requiredFiles) {
         throw "$($required.Description) was not found: $($required.Path)"
     }
 }
+if (-not (Test-Path -LiteralPath $repositorySource -PathType Container)) {
+    throw "Repository Python source directory was not found: $repositorySource"
+}
 if (Test-Path -LiteralPath $DestinationDirectory) {
     throw "Disposable destination already exists: $DestinationDirectory"
+}
+
+$inheritedPythonPath = $env:PYTHONPATH
+$env:PYTHONPATH = if ([string]::IsNullOrWhiteSpace($inheritedPythonPath)) {
+    $repositorySource
+}
+else {
+    "$repositorySource$([IO.Path]::PathSeparator)$inheritedPythonPath"
 }
 
 if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
