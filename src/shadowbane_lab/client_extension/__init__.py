@@ -7,6 +7,12 @@ from .baseline import (
     ClientBaselineError,
     freeze_client_baseline,
 )
+from .bootstrap_inspection import (
+    BOOTSTRAP_INSPECTION_SCHEMA_VERSION,
+    BootstrapInspectionError,
+    inspect_bootstrap_candidate,
+    inspect_bootstrap_file,
+)
 from .heartbeat import (
     EXTENSION_ABI_VERSION,
     EXTENSION_HEARTBEAT_SCHEMA_VERSION,
@@ -52,12 +58,14 @@ from .resolver import (
 
 __all__ = [
     "CLIENT_BASELINE_SCHEMA_VERSION",
+    "BOOTSTRAP_INSPECTION_SCHEMA_VERSION",
     "EXTENSION_ABI_VERSION",
     "EXTENSION_HEARTBEAT_SCHEMA_VERSION",
     "PATCH_MANIFEST_SCHEMA_VERSION",
     "PATCH_PACKAGE_SCHEMA_VERSION",
     "ROLLBACK_RECEIPT_SCHEMA_VERSION",
     "BaselineFile",
+    "BootstrapInspectionError",
     "ClientBaseline",
     "ClientBaselineError",
     "ClientPatchPackageError",
@@ -84,6 +92,8 @@ __all__ = [
     "build_patch_plan",
     "discard_patched_client_copy",
     "freeze_client_baseline",
+    "inspect_bootstrap_candidate",
+    "inspect_bootstrap_file",
     "load_patch_manifest",
     "load_extension_heartbeat",
     "parse_extension_heartbeat",

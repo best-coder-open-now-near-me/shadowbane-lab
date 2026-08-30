@@ -25,6 +25,9 @@ client = [
     "PyAutoGUI>=0.9.54",
     "Pillow>=11.0",
 ]
+client-extension = [
+    "capstone>=5.0.6,<6",
+]
 test = [
     "jsonschema>=4.23",
     "ruff>=0.12",

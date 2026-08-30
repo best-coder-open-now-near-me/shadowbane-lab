@@ -107,6 +107,20 @@ entry path, and candidate patch bytes must be inspected before a real manifest i
 Synthetic PE fixtures exercise the patch engine first; no fixture result authorizes a real client
 patch.
 
+With every `sb.exe` process closed, the first real-client evidence pass is one VM command:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
+  \\VBOXSVR\codexrepo\scripts\collect-wonderbane-client-extension-evidence.ps1
+```
+
+It freezes a fresh complete baseline and writes `bootstrap-inspection.json` beside it beneath a new
+timestamped `\\VBOXSVR\codexdiag\client-extension-evidence` directory. Inspection is read-only and
+labels itself `evidence_only_no_patch_authority`. It records exact imports and IAT RVAs, 128 entry
+bytes with bounded x86 instruction boundaries, PE header slack, and only executable padding beyond
+a section's declared virtual size. Keep the evidence private because it contains a short byte
+window from the executable. A real manifest is authored only after manual review of that output.
+
 The v1 x86 DLL exports `WonderBaneExtensionInitialize` and
 `WonderBaneExtensionGetStatus`. Initialization is idempotent and publishes one process-lifetime
 heartbeat atomically beneath `%LOCALAPPDATA%\ShadowbaneLab\client-extension`; it does not read or

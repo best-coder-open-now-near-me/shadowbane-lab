@@ -12,6 +12,10 @@ from shadowbane_lab.client_extension.baseline import (
     ClientBaselineError,
     freeze_client_baseline,
 )
+from shadowbane_lab.client_extension.bootstrap_inspection import (
+    BootstrapInspectionError,
+    inspect_bootstrap_file,
+)
 from shadowbane_lab.client_extension.heartbeat import (
     ExtensionHeartbeatError,
     load_extension_heartbeat,
@@ -82,6 +86,13 @@ def _parser() -> argparse.ArgumentParser:
     )
     heartbeat.add_argument("heartbeat", type=Path)
     heartbeat.add_argument("--pretty", action="store_true")
+    inspect_bootstrap = commands.add_parser(
+        "inspect-bootstrap",
+        help="collect read-only client-specific loader evidence",
+    )
+    inspect_bootstrap.add_argument("executable", type=Path)
+    inspect_bootstrap.add_argument("--output", type=Path)
+    inspect_bootstrap.add_argument("--pretty", action="store_true")
     return parser
 
 
@@ -119,11 +130,17 @@ def main(argv: Sequence[str] | None = None) -> int:
             ).as_dict()
         elif arguments.command == "verify-heartbeat":
             payload = load_extension_heartbeat(arguments.heartbeat).as_dict()
+        elif arguments.command == "inspect-bootstrap":
+            payload = inspect_bootstrap_file(
+                arguments.executable,
+                output_path=arguments.output,
+            )
         else:
             raise AssertionError(f"unhandled command: {arguments.command}")
     except (
         ClientBaselineError,
         ClientPatchPackageError,
+        BootstrapInspectionError,
         ExtensionHeartbeatError,
         PatchManifestError,
         PatchResolutionError,
