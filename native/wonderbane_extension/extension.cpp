@@ -1,4 +1,5 @@
 #include "extension_api.h"
+#include "event_channel.h"
 
 #include <KnownFolders.h>
 #include <ShlObj.h>
@@ -15,6 +16,7 @@ constexpr std::size_t kPathCapacity = WONDERBANE_EXTENSION_HEARTBEAT_PATH_CAPACI
 constexpr std::size_t kJsonCapacity = 768;
 constexpr LONG kMaximumInitializationPolls = 500;
 constexpr DWORD kInitializationPollMilliseconds = 10;
+constexpr char kExtensionVersion[] = "1.1.0";
 
 volatile LONG g_state = static_cast<LONG>(WonderBaneExtensionState::uninitialized);
 volatile LONG g_initialization_result = ERROR_SUCCESS;
@@ -92,7 +94,36 @@ DWORD WriteAll(const HANDLE file, const char* data, const DWORD length) noexcept
     return ERROR_SUCCESS;
 }
 
-DWORD WriteHeartbeat() noexcept {
+DWORD ReadProcessIdentity(
+    wonderbane::extension::ProcessIdentity* const identity
+) noexcept {
+    if (identity == nullptr) {
+        return ERROR_INVALID_PARAMETER;
+    }
+    FILETIME creation_time{};
+    FILETIME exit_time{};
+    FILETIME kernel_time{};
+    FILETIME user_time{};
+    if (GetProcessTimes(
+            GetCurrentProcess(),
+            &creation_time,
+            &exit_time,
+            &kernel_time,
+            &user_time
+        ) == FALSE) {
+        return GetLastError();
+    }
+    identity->process_id = GetCurrentProcessId();
+    identity->creation_filetime_utc = FileTimeValue(creation_time);
+    if (identity->process_id == 0U || identity->creation_filetime_utc == 0U) {
+        return ERROR_INVALID_DATA;
+    }
+    return ERROR_SUCCESS;
+}
+
+DWORD WriteHeartbeat(
+    const wonderbane::extension::ProcessIdentity& identity
+) noexcept {
     PWSTR local_app_data = nullptr;
     const HRESULT known_folder_result = SHGetKnownFolderPath(
         FOLDERID_LocalAppData,
@@ -137,23 +168,8 @@ DWORD WriteHeartbeat() noexcept {
         return result;
     }
 
-    FILETIME creation_time{};
-    FILETIME exit_time{};
-    FILETIME kernel_time{};
-    FILETIME user_time{};
-    if (GetProcessTimes(
-            GetCurrentProcess(),
-            &creation_time,
-            &exit_time,
-            &kernel_time,
-            &user_time
-        ) == FALSE) {
-        return GetLastError();
-    }
     FILETIME initialized_time{};
     GetSystemTimeAsFileTime(&initialized_time);
-    const DWORD process_id = GetCurrentProcessId();
-    const std::uint64_t creation_value = FileTimeValue(creation_time);
     const std::uint64_t initialized_value = FileTimeValue(initialized_time);
 
     HRESULT format_result = StringCchPrintfW(
@@ -161,8 +177,8 @@ DWORD WriteHeartbeat() noexcept {
         kPathCapacity,
         L"%s\\heartbeat-%lu-%llu.json",
         extension_directory,
-        static_cast<unsigned long>(process_id),
-        static_cast<unsigned long long>(creation_value)
+        static_cast<unsigned long>(identity.process_id),
+        static_cast<unsigned long long>(identity.creation_filetime_utc)
     );
     if (FAILED(format_result)) {
         return HResultToWin32(format_result);
@@ -172,7 +188,7 @@ DWORD WriteHeartbeat() noexcept {
         kPathCapacity,
         L"%s\\.heartbeat-%lu-%lu-%llu.tmp",
         extension_directory,
-        static_cast<unsigned long>(process_id),
+        static_cast<unsigned long>(identity.process_id),
         static_cast<unsigned long>(GetCurrentThreadId()),
         static_cast<unsigned long long>(GetTickCount64())
     );
@@ -185,11 +201,12 @@ DWORD WriteHeartbeat() noexcept {
         json,
         kJsonCapacity,
         "{\"schema_version\":1,\"abi_version\":1,"
-        "\"extension_version\":\"1.0.0\",\"process_id\":%lu,"
+        "\"extension_version\":\"%s\",\"process_id\":%lu,"
         "\"process_creation_filetime_utc\":%llu,"
         "\"initialized_at_filetime_utc\":%llu,\"status\":\"initialized\"}\n",
-        static_cast<unsigned long>(process_id),
-        static_cast<unsigned long long>(creation_value),
+        kExtensionVersion,
+        static_cast<unsigned long>(identity.process_id),
+        static_cast<unsigned long long>(identity.creation_filetime_utc),
         static_cast<unsigned long long>(initialized_value)
     );
     if (FAILED(format_result)) {
@@ -242,7 +259,17 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
         static_cast<LONG>(WonderBaneExtensionState::uninitialized)
     );
     if (previous == static_cast<LONG>(WonderBaneExtensionState::uninitialized)) {
-        const DWORD result = WriteHeartbeat();
+        wonderbane::extension::ProcessIdentity identity{};
+        DWORD result = ReadProcessIdentity(&identity);
+        if (result == ERROR_SUCCESS) {
+            result = wonderbane::extension::InitializeEventChannel(identity);
+        }
+        if (result == ERROR_SUCCESS) {
+            result = WriteHeartbeat(identity);
+        }
+        if (result != ERROR_SUCCESS) {
+            wonderbane::extension::ShutdownEventChannel();
+        }
         InterlockedExchange(&g_initialization_result, static_cast<LONG>(result));
         InterlockedExchange(
             &g_state,
