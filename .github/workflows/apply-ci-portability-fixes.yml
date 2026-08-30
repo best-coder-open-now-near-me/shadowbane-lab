@@ -5,6 +5,7 @@ on:
     branches:
       - codex/fix-simulator-foundation-ci
     paths:
+      - ".github/ci-portability-fix.py"
       - ".github/workflows/apply-ci-portability-fixes.yml"
 
 permissions:
