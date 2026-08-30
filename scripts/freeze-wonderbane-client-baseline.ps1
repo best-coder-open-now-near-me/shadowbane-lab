@@ -28,9 +28,26 @@ if (Test-Path -LiteralPath $FrozenDirectory) {
     throw "Frozen baseline destination already exists: $FrozenDirectory"
 }
 
-$revision = (& git -C $RepositoryShare rev-parse HEAD).Trim()
-if ($LASTEXITCODE -ne 0 -or -not $revision) {
+$gitRepositoryPath = $RepositoryShare.Replace("\", "/").TrimEnd("/")
+$gitSafeDirectory = "$gitRepositoryPath/"
+if ($gitRepositoryPath.StartsWith("//")) {
+    # Git for Windows recommends its runtime-prefix form for UNC safe directories.
+    # Keep the exception command-scoped; do not mutate the VM user's global config.
+    $gitSafeDirectory = "%(prefix)/$gitRepositoryPath/"
+}
+$revisionOutput = @(
+    & git `
+        -c "safe.directory=$gitSafeDirectory" `
+        -C $RepositoryShare `
+        rev-parse HEAD
+)
+$gitExitCode = $LASTEXITCODE
+if ($gitExitCode -ne 0 -or $revisionOutput.Count -ne 1) {
     throw "Could not resolve the repository revision from $RepositoryShare"
+}
+$revision = $revisionOutput[0].Trim()
+if (-not $revision) {
+    throw "Repository revision lookup returned an empty value from $RepositoryShare"
 }
 $env:PYTHONPATH = Join-Path $RepositoryShare "src"
 & $PythonPath `
