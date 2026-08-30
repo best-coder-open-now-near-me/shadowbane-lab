@@ -100,9 +100,7 @@ class RuntimeTargetingProfile:
                 if not isinstance(key, str) or not key.strip():
                     raise ValueError(f"{field_name} action keys must be non-empty strings")
                 if not isinstance(constraints, AffiliationTargetConstraints):
-                    raise ValueError(
-                        f"{field_name} values must be AffiliationTargetConstraints"
-                    )
+                    raise ValueError(f"{field_name} values must be AffiliationTargetConstraints")
 
     def constraints_for_action(self, action_key: str) -> AffiliationTargetConstraints:
         return dict(self.action_constraints).get(action_key, AffiliationTargetConstraints())
@@ -180,8 +178,7 @@ class RuntimeTargetingContext:
         unknown = set(self._snapshot.entity_ids) - entity_ids
         if unknown:
             raise SimulationConfigurationError(
-                "affiliation snapshot references unknown entities: "
-                + ", ".join(sorted(unknown))
+                "affiliation snapshot references unknown entities: " + ", ".join(sorted(unknown))
             )
 
     def coarse_relation(self, left_entity_id: str, right_entity_id: str) -> Relation:
@@ -259,10 +256,7 @@ class RuntimeTargetingContext:
                 actor,
                 entity,
                 selector,
-                alive=(
-                    entity.alive
-                    and (eligible_alive is None or entity.entity_id in eligible_alive)
-                ),
+                alive=(entity.alive and (eligible_alive is None or entity.entity_id in eligible_alive)),
             )
             for entity in entities
         )
@@ -299,9 +293,7 @@ class RuntimeTargetingContext:
         if result is None:
             return False
         if not isinstance(result, bool):
-            raise SimulationConfigurationError(
-                "line_of_sight_provider must return boolean or null"
-            )
+            raise SimulationConfigurationError("line_of_sight_provider must return boolean or null")
         return result
 
     @staticmethod
