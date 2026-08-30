@@ -25,9 +25,7 @@ class ClientAlignmentPeTests(unittest.TestCase):
         self.assertEqual(0x400000, image.image_base)
         self.assertEqual([".text", ".data"], [section.name for section in image.sections])
         self.assertEqual(hashlib.sha256(payload).hexdigest(), image.sha256)
-        self.assertEqual(
-            hashlib.sha256(payload[0x200:0x400]).hexdigest(), image.sections[0].sha256
-        )
+        self.assertEqual(hashlib.sha256(payload[0x200:0x400]).hexdigest(), image.sections[0].sha256)
 
     def test_non_pe_input_is_rejected(self) -> None:
         with self.assertRaises(PeInspectionError):
