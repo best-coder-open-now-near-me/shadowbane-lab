@@ -7,6 +7,7 @@ from shadowbane_lab.client_action import (
     WorldMapDestinationClickAction,
 )
 from shadowbane_lab.client_extension import (
+    EXTENSION_EVENT_CHANNEL_FLAG_TAGGED_TEST_INPUT,
     EXTENSION_EVENT_CHANNEL_FLAG_WORLD_MAP_DESTINATION,
     ExtensionEventChannelHeader,
     ExtensionEventChannelSnapshot,
@@ -51,11 +52,17 @@ class ActionEventSource:
         *,
         mismatch_pixel: bool = False,
         dropped_after_input: bool = False,
+        capability_flags: int = (
+            EXTENSION_EVENT_CHANNEL_FLAG_WORLD_MAP_DESTINATION
+            | EXTENSION_EVENT_CHANNEL_FLAG_TAGGED_TEST_INPUT
+        ),
     ) -> None:
         self.backend = backend
         self.observation = observation
         self.mismatch_pixel = mismatch_pixel
         self.dropped_after_input = dropped_after_input
+        self.capability_flags = capability_flags
+        self.acknowledged_sequences: list[int] = []
 
     def snapshot(self) -> ExtensionEventChannelSnapshot:
         if not self.backend.invocations:
@@ -86,8 +93,11 @@ class ActionEventSource:
             (event,),
         )
 
-    @staticmethod
+    def acknowledge(self, event: ExtensionWorldMapDestinationEvent) -> None:
+        self.acknowledged_sequences.append(event.sequence)
+
     def _header(
+        self,
         *,
         write_sequence: int = 0,
         dropped_event_count: int = 0,
@@ -99,7 +109,7 @@ class ActionEventSource:
             read_sequence=0,
             dropped_event_count=dropped_event_count,
             producer_error=0,
-            capability_flags=EXTENSION_EVENT_CHANNEL_FLAG_WORLD_MAP_DESTINATION,
+            capability_flags=self.capability_flags,
         )
 
 
@@ -142,6 +152,10 @@ def _action(
     observation: NativeWorldMapObservation | None = None,
     mismatch_pixel: bool = False,
     dropped_after_input: bool = False,
+    capability_flags: int = (
+        EXTENSION_EVENT_CHANNEL_FLAG_WORLD_MAP_DESTINATION
+        | EXTENSION_EVENT_CHANNEL_FLAG_TAGGED_TEST_INPUT
+    ),
 ):
     profile = load_calibration("configs/wonderbane-travel.template.json")
     backend = RecordingInputBackend()
@@ -158,6 +172,7 @@ def _action(
         active_map,
         mismatch_pixel=mismatch_pixel,
         dropped_after_input=dropped_after_input,
+        capability_flags=capability_flags,
     )
     executor = GuardedInputExecutor(
         guard=guard,
@@ -165,23 +180,25 @@ def _action(
         stop_signal=EventEmergencyStop(),
         minimum_input_interval_ms=0,
     )
+    action = WorldMapDestinationClickAction(
+        window_guard=guard,
+        world_map=FakeWorldMap(active_map),
+        events=events,
+        executor=executor,
+        map_x_fraction=0.5,
+        map_y_fraction=0.5,
+        action_id="world-map-test-1",
+    )
     return (
-        WorldMapDestinationClickAction(
-            window_guard=guard,
-            world_map=FakeWorldMap(active_map),
-            events=events,
-            executor=executor,
-            map_x_fraction=0.5,
-            map_y_fraction=0.5,
-            action_id="world-map-test-1",
-        ),
+        action,
         backend,
+        events,
     )
 
 
 class WorldMapDestinationClickActionTests(unittest.TestCase):
     def test_dispatches_one_right_click_and_verifies_exact_native_event(self) -> None:
-        action, backend = _action()
+        action, backend, events = _action()
 
         result = ClientActionRunner().run(action)
 
@@ -195,9 +212,10 @@ class WorldMapDestinationClickActionTests(unittest.TestCase):
         effect = result.boundaries[-3].evidence
         self.assertEqual(1, effect["event_sequence"])
         self.assertAlmostEqual(80_000.0, effect["lt"], delta=250.0)  # type: ignore[arg-type]
+        self.assertEqual([1], events.acknowledged_sequences)
 
     def test_closed_world_map_fails_before_input(self) -> None:
-        action, backend = _action(observation=_map(is_open=False))
+        action, backend, _ = _action(observation=_map(is_open=False))
 
         result = ClientActionRunner().run(action)
 
@@ -206,17 +224,30 @@ class WorldMapDestinationClickActionTests(unittest.TestCase):
         self.assertEqual((), backend.invocations)
         self.assertIn("world map is not open", result.boundaries[-1].detail)
 
+    def test_missing_tagged_input_capability_fails_before_input(self) -> None:
+        action, backend, _ = _action(
+            capability_flags=EXTENSION_EVENT_CHANNEL_FLAG_WORLD_MAP_DESTINATION
+        )
+
+        result = ClientActionRunner().run(action)
+
+        self.assertFalse(result.succeeded)
+        self.assertEqual("precondition_failed", result.terminal_reason)
+        self.assertEqual((), backend.invocations)
+        self.assertIn("tagged world-map test input", result.boundaries[-1].detail)
+
     def test_mismatched_event_pixel_fails_the_effect_boundary(self) -> None:
-        action, _ = _action(mismatch_pixel=True)
+        action, _, events = _action(mismatch_pixel=True)
 
         result = ClientActionRunner().run(action)
 
         self.assertFalse(result.succeeded)
         self.assertEqual("effect_observation_failed", result.terminal_reason)
         self.assertIn("desktop pixel", result.boundaries[-1].detail)
+        self.assertEqual([], events.acknowledged_sequences)
 
     def test_channel_loss_fails_instead_of_accepting_the_event(self) -> None:
-        action, _ = _action(dropped_after_input=True)
+        action, _, _ = _action(dropped_after_input=True)
 
         result = ClientActionRunner().run(action)
 
@@ -224,7 +255,7 @@ class WorldMapDestinationClickActionTests(unittest.TestCase):
         self.assertIn("event loss", result.boundaries[-1].detail)
 
     def test_projection_change_between_precondition_and_dispatch_fails_closed(self) -> None:
-        action, backend = _action()
+        action, backend, _ = _action()
         original_prepare = action.prepare
 
         def prepare_then_change_map():

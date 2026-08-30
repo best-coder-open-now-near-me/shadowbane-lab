@@ -1,4 +1,5 @@
 #include "event_channel.h"
+#include "world_map_capture.h"
 
 #include <Windows.h>
 
@@ -23,6 +24,22 @@ int Fail(const wchar_t* operation, const DWORD error) noexcept {
 }  // namespace
 
 int wmain() {
+    static_assert(
+        wonderbane::extension::kWorldMapActionTestInputTag == 0x53424C54U
+    );
+    static_assert(wonderbane::extension::IsAcceptedWorldMapPointerInput(0U, 0U));
+    static_assert(!wonderbane::extension::IsAcceptedWorldMapPointerInput(
+        LLMHF_INJECTED,
+        0U
+    ));
+    static_assert(wonderbane::extension::IsWorldMapActionTestInput(
+        LLMHF_INJECTED,
+        wonderbane::extension::kWorldMapActionTestInputTag
+    ));
+    static_assert(!wonderbane::extension::IsAcceptedWorldMapPointerInput(
+        LLMHF_INJECTED | LLMHF_LOWER_IL_INJECTED,
+        wonderbane::extension::kWorldMapActionTestInputTag
+    ));
     FILETIME creation_time{};
     FILETIME exit_time{};
     FILETIME kernel_time{};
@@ -78,6 +95,14 @@ int wmain() {
         CloseHandle(mapping);
         return Fail(L"MapViewOfFile", result);
     }
+    InterlockedExchange(
+        &storage->header.consumer_process_id,
+        static_cast<LONG>(GetCurrentProcessId())
+    );
+    InterlockedExchange64(
+        &storage->header.consumer_heartbeat_tick,
+        static_cast<LONG64>(GetTickCount64())
+    );
 
     FILETIME captured{};
     GetSystemTimeAsFileTime(&captured);

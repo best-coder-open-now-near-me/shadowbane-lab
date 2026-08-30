@@ -36,13 +36,19 @@ Before input, the action requires all of the following to agree:
 - the build-guarded world-map reader belongs to that process;
 - the map is open and the requested fractional point resolves inside the projected world;
 - the extension event channel belongs to the same process lifetime;
-- the channel exposes the world-map capability with no producer error.
+- the channel exposes both the world-map and tagged-test-input capabilities with no producer
+  error; and
+- this test process exclusively owns and renews the channel's bounded consumer lease.
 
 The action snapshots the map projection and extension sequence, rechecks both immediately before
-dispatch, and sends one right click through the existing guarded PyAutoGUI executor. It succeeds
+dispatch, moves the pointer through the guarded PyAutoGUI executor, and emits one right-button
+transition pair through Windows `SendInput` with the extension's dedicated acceptance-test tag.
+Ordinary injected input and lower-integrity tagged input remain ignored by the extension. It succeeds
 only if sequence `baseline + 1` contains exactly one event with the expected process lifetime,
 window, desktop/client pixel, button, and projected LT/LG. A changed projection, additional event,
 dropped event, producer error, mismatched value, or timeout fails the action.
+The exact verified event is acknowledged only after every field matches; a mismatched or skipped
+event remains pending and prevents the harness from claiming a clean pass.
 
 This boundary deliberately does **not** claim that a route was accepted or that the player moved.
 Those are later actions with separate oracles:
@@ -76,7 +82,9 @@ $env:PYTHONPATH = "src"
 ```
 
 The evidence destination must not already exist. Move the pointer to a PyAutoGUI fail-safe corner
-or press `Ctrl+Shift+F12` to stop input. A successful result includes each lifecycle boundary and
+or press `Ctrl+Shift+F12` to stop input. If Windows accepts only part of the tagged transition pair,
+the sender immediately attempts a button-up cleanup and fails the action. A successful result
+includes each lifecycle boundary and
 the exact emitted destination event. A failure remains useful evidence and names the boundary that
 did not complete.
 

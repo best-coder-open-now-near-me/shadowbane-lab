@@ -13,6 +13,8 @@ constexpr std::uint32_t kEventChannelHeaderSize = 80U;
 constexpr std::uint32_t kEventChannelSlotSize = 80U;
 constexpr std::uint32_t kEventChannelCapacity = 64U;
 constexpr std::uint32_t kWorldMapDestinationCapability = 1U << 0U;
+constexpr std::uint32_t kTaggedTestInputCapability = 1U << 1U;
+constexpr ULONG_PTR kWorldMapActionTestInputTag = 0x53424C54U;
 constexpr std::uint32_t kWorldMapDestinationKind = 1U;
 constexpr std::uint32_t kLeftPointerButton = 1U;
 constexpr std::uint32_t kRightPointerButton = 2U;
@@ -39,7 +41,8 @@ struct EventChannelHeader {
     volatile LONG64 read_sequence;
     volatile LONG64 dropped_event_count;
     volatile LONG producer_error;
-    std::uint8_t reserved[12];
+    volatile LONG consumer_process_id;
+    volatile LONG64 consumer_heartbeat_tick;
 };
 
 struct WorldMapDestinationSlot {
@@ -99,6 +102,9 @@ DWORD InitializeEventChannel(
     std::uint32_t capability_flags
 ) noexcept;
 void ShutdownEventChannel() noexcept;
-bool TryPublishWorldMapDestination(const WorldMapDestination& event) noexcept;
+bool TryPublishWorldMapDestination(
+    const WorldMapDestination& event,
+    bool require_active_consumer = true
+) noexcept;
 
 }  // namespace wonderbane::extension

@@ -22,6 +22,13 @@ from .bootstrap_inspection import (
     inspect_bootstrap_candidate,
     inspect_bootstrap_file,
 )
+from .event_consumer import (
+    ExtensionEventConsumer,
+    ExtensionEventConsumerError,
+    ExtensionEventTransport,
+    WindowsExtensionEventTransport,
+    open_windows_extension_event_consumer,
+)
 from .event_reader import (
     ExtensionEventChannelReader,
     ExtensionEventChannelReadError,
@@ -31,6 +38,7 @@ from .event_reader import (
 )
 from .events import (
     EXTENSION_EVENT_CHANNEL_CAPACITY,
+    EXTENSION_EVENT_CHANNEL_FLAG_TAGGED_TEST_INPUT,
     EXTENSION_EVENT_CHANNEL_FLAG_WORLD_MAP_DESTINATION,
     EXTENSION_EVENT_CHANNEL_HEADER_SIZE,
     EXTENSION_EVENT_CHANNEL_MAGIC,
@@ -101,6 +109,7 @@ from .runtime_status import (
 
 __all__ = [
     "EXTENSION_EVENT_CHANNEL_CAPACITY",
+    "EXTENSION_EVENT_CHANNEL_FLAG_TAGGED_TEST_INPUT",
     "EXTENSION_EVENT_CHANNEL_FLAG_WORLD_MAP_DESTINATION",
     "EXTENSION_EVENT_CHANNEL_HEADER_SIZE",
     "EXTENSION_EVENT_CHANNEL_MAGIC",
@@ -128,8 +137,11 @@ __all__ = [
     "ExtensionEventChannelReadError",
     "ExtensionEventChannelReader",
     "ExtensionEventChannelSnapshot",
+    "ExtensionEventConsumer",
+    "ExtensionEventConsumerError",
     "ExtensionEventError",
     "ExtensionEventKind",
+    "ExtensionEventTransport",
     "ExtensionHeartbeat",
     "ExtensionHeartbeatError",
     "ExtensionHeartbeatStatusProvider",
@@ -138,6 +150,7 @@ __all__ = [
     "ExtensionRuntimeSnapshot",
     "ExtensionRuntimeState",
     "ExtensionWorldMapDestinationEvent",
+    "WindowsExtensionEventTransport",
     "MaskedSignature",
     "PatchAlignmentReport",
     "PatchManifest",
@@ -168,9 +181,10 @@ __all__ = [
     "freeze_client_baseline",
     "inspect_bootstrap_candidate",
     "inspect_bootstrap_file",
-    "load_patch_manifest",
     "load_extension_heartbeat",
+    "load_patch_manifest",
     "open_windows_extension_event_channel_reader",
+    "open_windows_extension_event_consumer",
     "parse_extension_heartbeat",
     "parse_extension_event_channel",
     "prepare_patched_client_copy",

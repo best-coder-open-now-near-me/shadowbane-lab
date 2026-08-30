@@ -8,9 +8,11 @@ from typing import Protocol, runtime_checkable
 from uuid import uuid4
 
 from shadowbane_lab.client_extension import (
+    EXTENSION_EVENT_CHANNEL_FLAG_TAGGED_TEST_INPUT,
     EXTENSION_EVENT_CHANNEL_FLAG_WORLD_MAP_DESTINATION,
     ExtensionEventChannelSnapshot,
     ExtensionPointerButton,
+    ExtensionWorldMapDestinationEvent,
 )
 from shadowbane_lab.client_input import (
     AbsolutePoint,
@@ -45,7 +47,7 @@ class WorldMapObservationSource(Protocol):
 
 
 @runtime_checkable
-class ExtensionEventSnapshotSource(Protocol):
+class ExtensionEventConsumerSource(Protocol):
     @property
     def process_id(self) -> int: ...
 
@@ -53,6 +55,8 @@ class ExtensionEventSnapshotSource(Protocol):
     def process_creation_filetime_utc(self) -> int: ...
 
     def snapshot(self) -> ExtensionEventChannelSnapshot: ...
+
+    def acknowledge(self, event: ExtensionWorldMapDestinationEvent) -> None: ...
 
 
 @runtime_checkable
@@ -85,7 +89,7 @@ class WorldMapDestinationClickAction:
         *,
         window_guard: ForegroundWindowGuard,
         world_map: WorldMapObservationSource,
-        events: ExtensionEventSnapshotSource,
+        events: ExtensionEventConsumerSource,
         executor: InputPlanExecutor,
         map_x_fraction: float,
         map_y_fraction: float,
@@ -98,8 +102,8 @@ class WorldMapDestinationClickAction:
             raise ValueError("window_guard must be ForegroundWindowGuard")
         if not isinstance(world_map, WorldMapObservationSource):
             raise ValueError("world_map must implement WorldMapObservationSource")
-        if not isinstance(events, ExtensionEventSnapshotSource):
-            raise ValueError("events must implement ExtensionEventSnapshotSource")
+        if not isinstance(events, ExtensionEventConsumerSource):
+            raise ValueError("events must implement ExtensionEventConsumerSource")
         if not isinstance(executor, InputPlanExecutor):
             raise ValueError("executor must implement InputPlanExecutor")
         for value, field_name in (
@@ -323,6 +327,7 @@ class WorldMapDestinationClickAction:
             raise WorldMapDestinationClickError(
                 "extension destination event mismatched: " + ", ".join(mismatches)
             )
+        self._events.acknowledge(event)
         return ClientActionEffectObservation(
             True,
             ClientActionCheckpoint(
@@ -358,6 +363,13 @@ class WorldMapDestinationClickAction:
             raise WorldMapDestinationClickError(
                 "extension does not expose world-map destinations"
             )
+        if not (
+            channel.header.capability_flags
+            & EXTENSION_EVENT_CHANNEL_FLAG_TAGGED_TEST_INPUT
+        ):
+            raise WorldMapDestinationClickError(
+                "extension does not accept tagged world-map test input"
+            )
         if channel.header.producer_error != 0:
             raise WorldMapDestinationClickError(
                 f"extension event producer error {channel.header.producer_error}"
@@ -366,7 +378,7 @@ class WorldMapDestinationClickAction:
 
 __all__ = [
     "WORLD_MAP_DESTINATION_CLICK_ACTION_KEY",
-    "ExtensionEventSnapshotSource",
+    "ExtensionEventConsumerSource",
     "InputPlanExecutor",
     "WorldMapDestinationClickAction",
     "WorldMapDestinationClickError",

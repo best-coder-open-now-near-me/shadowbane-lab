@@ -117,6 +117,17 @@ class ExtensionEventContractTests(unittest.TestCase):
                 expected_process_creation_filetime_utc=1000,
             )
 
+    def test_rejects_incomplete_consumer_lease(self) -> None:
+        payload = self._channel(process_id=42, creation=1000)
+        struct.pack_into("<I", payload, 68, 1234)
+
+        with self.assertRaisesRegex(ExtensionEventError, "consumer lease is incomplete"):
+            parse_extension_event_channel(
+                payload,
+                expected_process_id=42,
+                expected_process_creation_filetime_utc=1000,
+            )
+
     def test_names_are_derived_only_from_exact_process_identity(self) -> None:
         self.assertEqual(
             "Local\\ShadowbaneLab.Extension.Events.42.1000",
@@ -137,7 +148,7 @@ class ExtensionEventContractTests(unittest.TestCase):
     ) -> bytearray:
         payload = bytearray(EXTENSION_EVENT_CHANNEL_SIZE)
         struct.pack_into(
-            "<8s6I4QI12x",
+            "<8s6I4QIIQ",
             payload,
             0,
             EXTENSION_EVENT_CHANNEL_MAGIC,
@@ -150,6 +161,8 @@ class ExtensionEventContractTests(unittest.TestCase):
             creation,
             write_sequence,
             read_sequence,
+            0,
+            0,
             0,
             0,
         )

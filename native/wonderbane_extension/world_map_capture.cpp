@@ -64,7 +64,6 @@ constexpr ULONGLONG kPendingButtonUpMilliseconds = 2000U;
 constexpr UINT_PTR kObservationTimerId = 1U;
 constexpr UINT kObservationTimerMilliseconds = 50U;
 constexpr DWORD kCaptureStartupTimeoutMilliseconds = 5000U;
-constexpr DWORD kInjectedMouseFlags = LLMHF_INJECTED | LLMHF_LOWER_IL_INJECTED;
 
 struct WorldMapSnapshot {
     bool valid;
@@ -606,7 +605,7 @@ LRESULT CALLBACK MouseHook(
         return CallNextHookEx(g_mouse_hook, code, message, event_pointer);
     }
     const auto& mouse = *reinterpret_cast<const MSLLHOOKSTRUCT*>(event_pointer);
-    if ((mouse.flags & kInjectedMouseFlags) != 0U) {
+    if (!IsAcceptedWorldMapPointerInput(mouse.flags, mouse.dwExtraInfo)) {
         return CallNextHookEx(g_mouse_hook, code, message, event_pointer);
     }
     std::uint32_t button = 0U;

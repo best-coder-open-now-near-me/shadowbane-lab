@@ -33,7 +33,7 @@ from shadowbane_lab.client_action import (
 )
 from shadowbane_lab.client_extension import (
     ExtensionHeartbeatStatusProvider,
-    open_windows_extension_event_channel_reader,
+    open_windows_extension_event_consumer,
 )
 from shadowbane_lab.client_input import (
     ActionInputMapping,
@@ -62,6 +62,7 @@ from shadowbane_lab.client_input import (
     WindowsHotkeyEmergencyStop,
     WindowSnapshot,
     WindowsVisibleWindowInspector,
+    WorldMapTestInputBackend,
     load_arcane_hotbar,
     load_arcane_hotkeys,
     load_calibration,
@@ -2784,22 +2785,22 @@ def _test_world_map_click(
                 world_map_profile,
                 process_id=window.process_id,
             ) as world_map_reader,
-            WindowsHotkeyEmergencyStop() as emergency_stop,
-        ):
-            event_reader = open_windows_extension_event_channel_reader(
+            open_windows_extension_event_consumer(
                 window.process_id,
                 window.process_started_at_100ns,
-            )
+            ) as event_consumer,
+            WindowsHotkeyEmergencyStop() as emergency_stop,
+        ):
             executor = GuardedInputExecutor(
                 guard=guard,
-                backend=PyAutoGuiBackend(),
+                backend=WorldMapTestInputBackend(),
                 stop_signal=emergency_stop,
             )
             result = ClientActionRunner().run(
                 WorldMapDestinationClickAction(
                     window_guard=guard,
                     world_map=world_map_reader,
-                    events=event_reader,
+                    events=event_consumer,
                     executor=executor,
                     map_x_fraction=map_x_fraction,
                     map_y_fraction=map_y_fraction,

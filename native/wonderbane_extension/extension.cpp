@@ -271,7 +271,10 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
             result = wonderbane::extension::InitializeEventChannel(
                 identity,
                 world_map_supported
-                    ? wonderbane::extension::kWorldMapDestinationCapability
+                    ? (
+                        wonderbane::extension::kWorldMapDestinationCapability
+                        | wonderbane::extension::kTaggedTestInputCapability
+                    )
                     : 0U
             );
         }

@@ -12,6 +12,7 @@ namespace {
 HANDLE g_mapping = nullptr;
 HANDLE g_signal = nullptr;
 EventChannelStorage* g_storage = nullptr;
+constexpr ULONGLONG kMaximumConsumerAgeMilliseconds = 1000U;
 
 DWORD HResultToWin32(const HRESULT result) noexcept {
     if (HRESULT_FACILITY(result) == FACILITY_WIN32) {
@@ -47,6 +48,29 @@ bool EventIsValid(const WorldMapDestination& event) noexcept {
         && event.lt <= static_cast<double>(std::numeric_limits<std::uint32_t>::max())
         && event.lg <= static_cast<double>(std::numeric_limits<std::uint32_t>::max())
     );
+}
+
+bool ConsumerLeaseIsActive() noexcept {
+    if (g_storage == nullptr) {
+        return false;
+    }
+    const LONG consumer_process_id = InterlockedCompareExchange(
+        &g_storage->header.consumer_process_id,
+        0,
+        0
+    );
+    const LONG64 heartbeat_tick = InterlockedCompareExchange64(
+        &g_storage->header.consumer_heartbeat_tick,
+        0,
+        0
+    );
+    if (consumer_process_id <= 0 || heartbeat_tick <= 0) {
+        return false;
+    }
+    const ULONGLONG now = GetTickCount64();
+    return now >= static_cast<ULONGLONG>(heartbeat_tick)
+        && now - static_cast<ULONGLONG>(heartbeat_tick)
+            <= kMaximumConsumerAgeMilliseconds;
 }
 
 }  // namespace
@@ -91,7 +115,10 @@ DWORD InitializeEventChannel(
         || g_mapping != nullptr
         || g_signal != nullptr
         || g_storage != nullptr
-        || (capability_flags & ~kWorldMapDestinationCapability) != 0U
+        || (
+            capability_flags
+            & ~(kWorldMapDestinationCapability | kTaggedTestInputCapability)
+        ) != 0U
     ) {
         return ERROR_INVALID_STATE;
     }
@@ -181,12 +208,18 @@ void ShutdownEventChannel() noexcept {
     }
 }
 
-bool TryPublishWorldMapDestination(const WorldMapDestination& event) noexcept {
+bool TryPublishWorldMapDestination(
+    const WorldMapDestination& event,
+    const bool require_active_consumer
+) noexcept {
     if (g_storage == nullptr || g_signal == nullptr) {
         return false;
     }
     if (!EventIsValid(event)) {
         RecordProducerError(ERROR_INVALID_DATA);
+        return false;
+    }
+    if (require_active_consumer && !ConsumerLeaseIsActive()) {
         return false;
     }
     const LONG64 write_sequence = InterlockedCompareExchange64(

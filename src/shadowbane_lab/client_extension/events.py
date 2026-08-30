@@ -17,8 +17,9 @@ EXTENSION_EVENT_CHANNEL_SIZE = (
     + EXTENSION_EVENT_CHANNEL_SLOT_SIZE * EXTENSION_EVENT_CHANNEL_CAPACITY
 )
 EXTENSION_EVENT_CHANNEL_FLAG_WORLD_MAP_DESTINATION = 1 << 0
+EXTENSION_EVENT_CHANNEL_FLAG_TAGGED_TEST_INPUT = 1 << 1
 
-_HEADER = struct.Struct("<8s6I4QI12x")
+_HEADER = struct.Struct("<8s6I4QIIQ")
 _SLOT = struct.Struct("<QIIQQddQiiii8x")
 _MAX_WORLD_COORDINATE = float(0xFFFFFFFF)
 
@@ -52,6 +53,8 @@ class ExtensionEventChannelHeader:
     dropped_event_count: int
     producer_error: int
     capability_flags: int
+    consumer_process_id: int = 0
+    consumer_heartbeat_tick: int = 0
     schema_version: int = EXTENSION_EVENT_CHANNEL_SCHEMA_VERSION
     header_size: int = EXTENSION_EVENT_CHANNEL_HEADER_SIZE
     slot_size: int = EXTENSION_EVENT_CHANNEL_SLOT_SIZE
@@ -78,6 +81,12 @@ class ExtensionEventChannelHeader:
             (self.dropped_event_count, "dropped_event_count", 0xFFFFFFFFFFFFFFFF),
             (self.producer_error, "producer_error", 0xFFFFFFFF),
             (self.capability_flags, "capability_flags", 0xFFFFFFFF),
+            (self.consumer_process_id, "consumer_process_id", 0xFFFFFFFF),
+            (
+                self.consumer_heartbeat_tick,
+                "consumer_heartbeat_tick",
+                0xFFFFFFFFFFFFFFFF,
+            ),
         ):
             _bounded_nonnegative(value, field_name, maximum)
         if self.write_sequence < self.read_sequence:
@@ -86,9 +95,12 @@ class ExtensionEventChannelHeader:
             raise ExtensionEventError("extension event channel exceeds its bounded capacity")
         unknown_flags = self.capability_flags & ~(
             EXTENSION_EVENT_CHANNEL_FLAG_WORLD_MAP_DESTINATION
+            | EXTENSION_EVENT_CHANNEL_FLAG_TAGGED_TEST_INPUT
         )
         if unknown_flags:
             raise ExtensionEventError("extension event channel has unknown capabilities")
+        if (self.consumer_process_id == 0) != (self.consumer_heartbeat_tick == 0):
+            raise ExtensionEventError("extension event consumer lease is incomplete")
 
     @property
     def pending_count(self) -> int:
@@ -253,6 +265,8 @@ def parse_extension_event_channel(
         read_sequence,
         dropped_event_count,
         producer_error,
+        consumer_process_id,
+        consumer_heartbeat_tick,
     ) = _HEADER.unpack_from(source)
     if magic != EXTENSION_EVENT_CHANNEL_MAGIC:
         raise ExtensionEventError("extension event channel magic is invalid")
@@ -268,6 +282,8 @@ def parse_extension_event_channel(
         read_sequence=read_sequence,
         dropped_event_count=dropped_event_count,
         producer_error=producer_error,
+        consumer_process_id=consumer_process_id,
+        consumer_heartbeat_tick=consumer_heartbeat_tick,
     )
     if header.process_id != expected_process_id:
         raise ExtensionEventError("extension event channel belongs to another process")
@@ -348,6 +364,7 @@ def _bounded_nonnegative(value: object, field_name: str, maximum: int) -> None:
 __all__ = [
     "EXTENSION_EVENT_CHANNEL_CAPACITY",
     "EXTENSION_EVENT_CHANNEL_FLAG_WORLD_MAP_DESTINATION",
+    "EXTENSION_EVENT_CHANNEL_FLAG_TAGGED_TEST_INPUT",
     "EXTENSION_EVENT_CHANNEL_HEADER_SIZE",
     "EXTENSION_EVENT_CHANNEL_MAGIC",
     "EXTENSION_EVENT_CHANNEL_SCHEMA_VERSION",

@@ -19,7 +19,7 @@ from .model import (
 from .runner import BoundedClientAction, ClientActionRunner
 from .world_map import (
     WORLD_MAP_DESTINATION_CLICK_ACTION_KEY,
-    ExtensionEventSnapshotSource,
+    ExtensionEventConsumerSource,
     InputPlanExecutor,
     WorldMapDestinationClickAction,
     WorldMapDestinationClickError,
@@ -39,7 +39,7 @@ __all__ = [
     "ClientActionRunner",
     "ClientActionSpec",
     "ClientActionVerification",
-    "ExtensionEventSnapshotSource",
+    "ExtensionEventConsumerSource",
     "InputPlanExecutor",
     "WORLD_MAP_DESTINATION_CLICK_ACTION_KEY",
     "WorldMapDestinationClickAction",
