@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from dataclasses import replace
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from unittest.mock import patch
 
 from shadowbane_lab.cli import main
@@ -39,20 +39,35 @@ def _snapshot(
     )
 
 
+def _windows_game_directory(game_directory: Path) -> PureWindowsPath:
+    return PureWindowsPath(r"C:\Tests") / game_directory.name
+
+
+def _ready_manager_path_status(path: Path, *, kind: str) -> dict[str, object]:
+    return {
+        "path": str(path),
+        "expected_kind": kind,
+        "exists": True,
+        "correct_kind": True,
+        "ready": True,
+    }
+
+
 def _manifest_client(
     game_directory: Path,
     *,
     client_id: str = "client-01",
     left: int = 0,
 ) -> dict[str, object]:
+    windows_game_directory = _windows_game_directory(game_directory)
     return {
         "client_id": client_id,
         "launch": {
-            "executable": str(game_directory / "launcher.exe"),
+            "executable": str(windows_game_directory / "launcher.exe"),
             "arguments": ["-windowed"],
-            "working_directory": str(game_directory),
+            "working_directory": str(windows_game_directory),
         },
-        "expected_process_directory": str(game_directory),
+        "expected_process_directory": str(windows_game_directory),
         "expected_executable_names": ["sb.exe"],
         "window_tile": {"left": left, "top": 0, "width": 800, "height": 600},
     }
@@ -167,9 +182,7 @@ class ManagerCliTests(unittest.TestCase):
             ),
             redirect_stdout(output),
         ):
-            result = main(
-                ("manager", "inspect", "--node-id", "gaming-pc-east", "--json")
-            )
+            result = main(("manager", "inspect", "--node-id", "gaming-pc-east", "--json"))
 
         payload = json.loads(output.getvalue())
         self.assertEqual(0, result)
@@ -254,9 +267,7 @@ class ManagerCliTests(unittest.TestCase):
             ),
             redirect_stdout(output),
         ):
-            result = main(
-                ("manager", "inspect", "--node-id", "gaming-pc-east", "--json")
-            )
+            result = main(("manager", "inspect", "--node-id", "gaming-pc-east", "--json"))
 
         payload = json.loads(output.getvalue())
         self.assertEqual(0, result)
@@ -283,7 +294,7 @@ class ManagerCliTests(unittest.TestCase):
             inspector = StaticVisibleWindowInspector(
                 (
                     _snapshot(
-                        executable_path=str(game_directory / "sb.exe"),
+                        executable_path=str(_windows_game_directory(game_directory) / "sb.exe"),
                     ),
                 )
             )
@@ -291,6 +302,10 @@ class ManagerCliTests(unittest.TestCase):
                 patch(
                     "shadowbane_lab.cli.WindowsVisibleWindowInspector",
                     return_value=inspector,
+                ),
+                patch(
+                    "shadowbane_lab.cli._manager_path_status",
+                    side_effect=_ready_manager_path_status,
                 ),
                 redirect_stdout(output),
             ):
@@ -302,10 +317,9 @@ class ManagerCliTests(unittest.TestCase):
         self.assertTrue(payload["ready"])
         self.assertEqual("attachable", payload["clients"][0]["binding_status"])
         self.assertTrue(payload["clients"][0]["environment_ready"])
-        self.assertEqual([101], [
-            item["process_id"]
-            for item in payload["clients"][0]["matching_instances"]
-        ])
+        self.assertEqual(
+            [101], [item["process_id"] for item in payload["clients"][0]["matching_instances"]]
+        )
         self.assertEqual(1, inspector.inspection_count)
 
     def test_preflight_groups_identical_filters_and_requires_exact_selection(self) -> None:
@@ -333,12 +347,20 @@ class ManagerCliTests(unittest.TestCase):
                 encoding="utf-8",
             )
             inspector = StaticVisibleWindowInspector(
-                (_snapshot(executable_path=str(game_directory / "sb.exe")),)
+                (
+                    _snapshot(
+                        executable_path=str(_windows_game_directory(game_directory) / "sb.exe")
+                    ),
+                )
             )
             with (
                 patch(
                     "shadowbane_lab.cli.WindowsVisibleWindowInspector",
                     return_value=inspector,
+                ),
+                patch(
+                    "shadowbane_lab.cli._manager_path_status",
+                    side_effect=_ready_manager_path_status,
                 ),
                 redirect_stdout(output),
             ):
@@ -468,6 +490,10 @@ class ManagerCliTests(unittest.TestCase):
                     return_value=StaticVisibleWindowInspector(()),
                 ),
                 patch(
+                    "shadowbane_lab.cli._manager_path_status",
+                    side_effect=_ready_manager_path_status,
+                ),
+                patch(
                     "shadowbane_lab.cli.Win32WindowApi",
                     return_value=FakeNativeWindowApi(),
                 ),
@@ -500,10 +526,7 @@ class ManagerCliTests(unittest.TestCase):
                 )
             permit_payload = json.loads(
                 (
-                    worker_state_directory
-                    / "gaming-pc-east"
-                    / "client-01"
-                    / "dispatch.permit"
+                    worker_state_directory / "gaming-pc-east" / "client-01" / "dispatch.permit"
                 ).read_text(encoding="utf-8")
             )
             self.assertFalse(manager_pid_path.exists())
@@ -528,9 +551,7 @@ class ManagerCliTests(unittest.TestCase):
             ),
             redirect_stdout(output),
         ):
-            result = main(
-                ("manager", "inspect", "--node-id", "gaming-pc-east", "--json")
-            )
+            result = main(("manager", "inspect", "--node-id", "gaming-pc-east", "--json"))
 
         payload = json.loads(output.getvalue())
         self.assertEqual(2, result)

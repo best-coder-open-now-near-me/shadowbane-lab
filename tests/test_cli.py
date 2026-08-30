@@ -35,9 +35,7 @@ class ClientCliTests(unittest.TestCase):
     def test_character_layout_template_validates_and_remains_live_locked(self) -> None:
         output = io.StringIO()
         template = (
-            Path(__file__).parents[1]
-            / "configs"
-            / "wonderbane-character-layout.template.json"
+            Path(__file__).parents[1] / "configs" / "wonderbane-character-layout.template.json"
         )
 
         with redirect_stdout(output):
@@ -304,9 +302,7 @@ class ClientCliTests(unittest.TestCase):
         service_stop = EventEmergencyStop()
 
         class StopImmediatelyListener:
-            def __init__(
-                self, _guard, *, on_command, on_interaction, on_pointer
-            ) -> None:
+            def __init__(self, _guard, *, on_command, on_interaction, on_pointer) -> None:
                 pass
 
             def __enter__(self):
@@ -328,6 +324,14 @@ class ClientCliTests(unittest.TestCase):
         with (
             tempfile.TemporaryDirectory() as directory,
             patch("shadowbane_lab.cli.load_calibration", return_value=profile),
+            patch(
+                "shadowbane_lab.cli.WindowsForegroundWindowInspector",
+                return_value=StaticWindowInspector(_valid_snapshot()),
+            ),
+            patch(
+                "shadowbane_lab.cli.PyAutoGuiBackend",
+                return_value=RecordingInputBackend(),
+            ),
             patch(
                 "shadowbane_lab.cli.WindowsHotkeyEmergencyStop",
                 return_value=emergency_stop,
@@ -376,9 +380,7 @@ class ClientCliTests(unittest.TestCase):
             is_alive = False
             failure_detail = "hook thread exited"
 
-            def __init__(
-                self, _guard, *, on_command, on_interaction, on_pointer
-            ) -> None:
+            def __init__(self, _guard, *, on_command, on_interaction, on_pointer) -> None:
                 pass
 
             def __enter__(self):
@@ -400,6 +402,14 @@ class ClientCliTests(unittest.TestCase):
         with (
             tempfile.TemporaryDirectory() as directory,
             patch("shadowbane_lab.cli.load_calibration", return_value=profile),
+            patch(
+                "shadowbane_lab.cli.WindowsForegroundWindowInspector",
+                return_value=StaticWindowInspector(_valid_snapshot()),
+            ),
+            patch(
+                "shadowbane_lab.cli.PyAutoGuiBackend",
+                return_value=RecordingInputBackend(),
+            ),
             patch(
                 "shadowbane_lab.cli.WindowsHotkeyEmergencyStop",
                 return_value=emergency_stop,
@@ -459,9 +469,7 @@ class ClientCliTests(unittest.TestCase):
         captured: dict[str, object] = {}
 
         class OneCommandListener:
-            def __init__(
-                self, _guard, *, on_command, on_interaction, on_pointer
-            ) -> None:
+            def __init__(self, _guard, *, on_command, on_interaction, on_pointer) -> None:
                 self.on_command = on_command
                 self.on_interaction = on_interaction
 
@@ -568,9 +576,7 @@ class ClientCliTests(unittest.TestCase):
         captured: dict[str, object] = {}
 
         class OneCommandListener:
-            def __init__(
-                self, _guard, *, on_command, on_interaction, on_pointer
-            ) -> None:
+            def __init__(self, _guard, *, on_command, on_interaction, on_pointer) -> None:
                 self.on_command = on_command
 
             def __enter__(self):
@@ -611,6 +617,14 @@ class ClientCliTests(unittest.TestCase):
             ),
             patch("shadowbane_lab.cli.WindowsGoChatCommandListener", OneCommandListener),
             patch("shadowbane_lab.cli.load_manager_manifest", return_value=MagicMock()),
+            patch(
+                "shadowbane_lab.cli.WindowsVisibleWindowInspector",
+                return_value=StaticVisibleWindowInspector(()),
+            ),
+            patch(
+                "shadowbane_lab.cli.PyAutoGuiBackend",
+                return_value=RecordingInputBackend(),
+            ),
             patch("shadowbane_lab.cli.ManifestClientRegistryProvider"),
             patch("shadowbane_lab.cli.WorkerHeartbeatLedger"),
             patch("shadowbane_lab.cli.WorkerOperationLedger"),
@@ -688,9 +702,7 @@ class ClientCliTests(unittest.TestCase):
         presented: dict[str, object] = {}
 
         class OneCommandListener:
-            def __init__(
-                self, _guard, *, on_command, on_interaction, on_pointer
-            ) -> None:
+            def __init__(self, _guard, *, on_command, on_interaction, on_pointer) -> None:
                 self.on_command = on_command
 
             def __enter__(self):
@@ -797,9 +809,7 @@ class ClientCliTests(unittest.TestCase):
         captured: dict[str, object] = {}
 
         class OnePointerListener:
-            def __init__(
-                self, _guard, *, on_command, on_interaction, on_pointer
-            ) -> None:
+            def __init__(self, _guard, *, on_command, on_interaction, on_pointer) -> None:
                 self.on_pointer = on_pointer
 
             def __enter__(self):
@@ -864,9 +874,7 @@ class ClientCliTests(unittest.TestCase):
             patch(
                 "shadowbane_lab.cli.load_arcane_hotkeys",
                 return_value=SimpleNamespace(
-                    bindings_for_argument=lambda _argument: (
-                        SimpleNamespace(input_keys=("m",)),
-                    )
+                    bindings_for_argument=lambda _argument: (SimpleNamespace(input_keys=("m",)),)
                 ),
             ),
             patch("shadowbane_lab.cli._run_travel", side_effect=run_travel),
@@ -1235,15 +1243,9 @@ class ClientCliTests(unittest.TestCase):
                 ),
                 patch.multiple(
                     "shadowbane_lab.cli",
-                    load_bundled_native_health_profile=MagicMock(
-                        return_value=native_profiles[0]
-                    ),
-                    load_bundled_native_vitals_profile=MagicMock(
-                        return_value=native_profiles[1]
-                    ),
-                    load_bundled_native_position_profile=MagicMock(
-                        return_value=native_profiles[2]
-                    ),
+                    load_bundled_native_health_profile=MagicMock(return_value=native_profiles[0]),
+                    load_bundled_native_vitals_profile=MagicMock(return_value=native_profiles[1]),
+                    load_bundled_native_position_profile=MagicMock(return_value=native_profiles[2]),
                     load_bundled_native_target_position_profile=MagicMock(
                         return_value=native_profiles[3]
                     ),
@@ -1259,9 +1261,7 @@ class ClientCliTests(unittest.TestCase):
                     load_bundled_native_character_population_profile=MagicMock(
                         return_value=native_profiles[7]
                     ),
-                    load_bundled_native_zone_profile=MagicMock(
-                        return_value=native_profiles[8]
-                    ),
+                    load_bundled_native_zone_profile=MagicMock(return_value=native_profiles[8]),
                 ),
                 patch.multiple(
                     "shadowbane_lab.cli",
