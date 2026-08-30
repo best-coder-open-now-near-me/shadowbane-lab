@@ -22,6 +22,13 @@ from .bootstrap_inspection import (
     inspect_bootstrap_candidate,
     inspect_bootstrap_file,
 )
+from .event_reader import (
+    ExtensionEventChannelReader,
+    ExtensionEventChannelReadError,
+    SharedMemorySnapshotReader,
+    WindowsSharedMemorySnapshotReader,
+    open_windows_extension_event_channel_reader,
+)
 from .events import (
     EXTENSION_EVENT_CHANNEL_CAPACITY,
     EXTENSION_EVENT_CHANNEL_FLAG_WORLD_MAP_DESTINATION,
@@ -118,6 +125,8 @@ __all__ = [
     "ClientPatchPackageError",
     "ExtensionArtifact",
     "ExtensionEventChannelHeader",
+    "ExtensionEventChannelReadError",
+    "ExtensionEventChannelReader",
     "ExtensionEventChannelSnapshot",
     "ExtensionEventError",
     "ExtensionEventKind",
@@ -145,7 +154,9 @@ __all__ = [
     "ReviewedBootstrapProfile",
     "ReviewedSection",
     "SourceExecutable",
+    "SharedMemorySnapshotReader",
     "VerifiedClientBaseline",
+    "WindowsSharedMemorySnapshotReader",
     "align_patch_sites",
     "apply_patch_plan",
     "author_reviewed_bootstrap_file",
@@ -159,6 +170,7 @@ __all__ = [
     "inspect_bootstrap_file",
     "load_patch_manifest",
     "load_extension_heartbeat",
+    "open_windows_extension_event_channel_reader",
     "parse_extension_heartbeat",
     "parse_extension_event_channel",
     "prepare_patched_client_copy",
