@@ -9,7 +9,6 @@ from pathlib import Path
 import cv2
 import numpy as np
 from PIL import Image
-
 from texture_common import (
     alpha_from_source,
     load_rgba,
