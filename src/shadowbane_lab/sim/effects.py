@@ -44,6 +44,7 @@ from shadowbane_lab.sim.actions import (
     ModifyTag,
     MoveEntity,
     MovementMode,
+    OutcomeConditional,
     PeriodicPulse,
     RemoveEffect,
     ResistanceAdjustment,
@@ -62,6 +63,7 @@ from shadowbane_lab.sim.actions import (
 )
 from shadowbane_lab.sim.errors import SimulationConfigurationError
 from shadowbane_lab.sim.lifecycle import ContinuationPolicy
+from shadowbane_lab.sim.outcomes import EffectOutcome, EffectOutcomeKind
 from shadowbane_lab.sim.random_source import DeterministicRandom
 from shadowbane_lab.sim.state import ActiveEffectState, EntityState
 from shadowbane_lab.sim.timeline import ScheduledItem, ScheduledKind
@@ -130,6 +132,9 @@ class EffectExecutor:
                     eligible_alive,
                     events,
                 )
+                continue
+            if isinstance(effect, OutcomeConditional):
+                self._resolve_outcome_conditional(item, effect, due_time, eligible_alive, events)
                 continue
             self._resolve_direct(item, effect, due_time, eligible_alive, events)
 
@@ -377,6 +382,10 @@ class EffectExecutor:
                         eligible_alive,
                         events,
                     )
+                elif isinstance(nested, OutcomeConditional):
+                    self._resolve_outcome_conditional(
+                        target_item, nested, due_time, eligible_alive, events
+                    )
                 else:
                     self._resolve_direct(
                         target_item,
@@ -514,6 +523,10 @@ class EffectExecutor:
             )
             if isinstance(resolved_nested, ChanceGate):
                 self._resolve_chance(item, resolved_nested, due_time, eligible_alive, events)
+            elif isinstance(resolved_nested, OutcomeConditional):
+                self._resolve_outcome_conditional(
+                    item, resolved_nested, due_time, eligible_alive, events
+                )
             else:
                 self._resolve_direct(item, resolved_nested, due_time, eligible_alive, events)
         for modifier in modifiers:
@@ -601,7 +614,12 @@ class EffectExecutor:
         )
         if triggered:
             for nested in effect.effects:
-                self._resolve_direct(item, nested, due_time, eligible_alive, events)
+                if isinstance(nested, OutcomeConditional):
+                    self._resolve_outcome_conditional(
+                        item, nested, due_time, eligible_alive, events
+                    )
+                else:
+                    self._resolve_direct(item, nested, due_time, eligible_alive, events)
 
     def _resolve_direct(
         self,
@@ -610,56 +628,212 @@ class EffectExecutor:
         due_time: int,
         eligible_alive: frozenset[str],
         events: list[Event],
-    ) -> None:
+    ) -> EffectOutcome:
         if item.binding is None:
             raise SimulationConfigurationError("resolution is missing its action binding")
         subject = self._subject_entity(effect, item.binding)
+        primitive_kind = type(effect).__name__
         if subject is not None and subject.entity_id not in eligible_alive:
-            return
-        if isinstance(effect, DealDamage):
-            self._deal_damage(item, effect, subject, due_time, events)
-        elif isinstance(effect, RestoreResource):
-            self._restore_resource(item, effect, subject, due_time, events)
-        elif isinstance(effect, TransferResource):
-            source = self._entity_for_ref(effect.from_subject, item.binding)
-            destination = self._entity_for_ref(effect.to_subject, item.binding)
-            if (
-                source is None
-                or destination is None
-                or source.entity_id not in eligible_alive
-                or destination.entity_id not in eligible_alive
-            ):
-                return
-            self._transfer_resource(item, effect, due_time, events)
-        elif isinstance(effect, ModifyScalar):
-            self._modify_scalar(item, effect, subject, due_time, events)
-        elif isinstance(effect, ModifyTag):
-            self._modify_tag(item, effect, subject, due_time, events)
-        elif isinstance(effect, ApplyEffect):
-            self._apply_effect(item, effect, subject, due_time, events)
-        elif isinstance(effect, RemoveEffect):
-            self._remove_effect(item, effect, subject, due_time, events)
-        elif isinstance(effect, MoveEntity):
-            self._move_entity(item, effect, subject, due_time, events)
-        elif isinstance(effect, TransferItem):
-            source = self._entity_for_ref(effect.from_subject, item.binding)
-            destination = self._entity_for_ref(effect.to_subject, item.binding)
-            if (
-                source is None
-                or destination is None
-                or source.entity_id not in eligible_alive
-                or destination.entity_id not in eligible_alive
-            ):
-                return
-            self._transfer_item(item, effect, due_time, events)
-        elif isinstance(effect, ModifyObjective):
-            self._modify_objective(item, effect, subject, due_time, events)
-        elif isinstance(effect, ChangeStance):
-            self._change_stance(item, effect, subject, due_time, events)
-        else:  # pragma: no cover - ChanceGate rejects types outside the closed union.
-            raise SimulationConfigurationError(
-                f"unsupported direct effect primitive: {type(effect).__name__}"
+            return EffectOutcome(
+                EffectOutcomeKind.NO_CHANGE,
+                primitive_kind,
+                subject_entity_id=subject.entity_id,
+                tags=("reason.subject_not_alive",),
             )
+        if isinstance(effect, DealDamage):
+            before = subject.scalars.get("health", 0.0) if subject is not None else 0.0
+            self._deal_damage(item, effect, subject, due_time, events)
+            after = subject.scalars.get("health", 0.0) if subject is not None else before
+            effective = max(0.0, before - after)
+            return EffectOutcome(
+                EffectOutcomeKind.APPLIED if effective > 0.0 else EffectOutcomeKind.RESISTED,
+                primitive_kind,
+                subject_entity_id=subject.entity_id if subject is not None else None,
+                magnitude=effective,
+            )
+        if isinstance(effect, RestoreResource):
+            before = subject.scalars.get(effect.resource_key, 0.0) if subject is not None else 0.0
+            self._restore_resource(item, effect, subject, due_time, events)
+            after = subject.scalars.get(effect.resource_key, 0.0) if subject is not None else before
+            effective = max(0.0, after - before)
+            return EffectOutcome(
+                EffectOutcomeKind.APPLIED if effective > 0.0 else EffectOutcomeKind.NO_CHANGE,
+                primitive_kind,
+                subject_entity_id=subject.entity_id if subject is not None else None,
+                magnitude=effective,
+            )
+        if isinstance(effect, TransferResource):
+            source = self._entity_for_ref(effect.from_subject, item.binding)
+            destination = self._entity_for_ref(effect.to_subject, item.binding)
+            if (
+                source is None
+                or destination is None
+                or source.entity_id not in eligible_alive
+                or destination.entity_id not in eligible_alive
+            ):
+                return EffectOutcome(
+                    EffectOutcomeKind.NO_CHANGE,
+                    primitive_kind,
+                    tags=("reason.transfer_endpoint_not_alive",),
+                )
+            before = (
+                source.scalars.get(effect.resource_key, 0.0),
+                destination.scalars.get(effect.resource_key, 0.0),
+            )
+            self._transfer_resource(item, effect, due_time, events)
+            after = (
+                source.scalars.get(effect.resource_key, 0.0),
+                destination.scalars.get(effect.resource_key, 0.0),
+            )
+            return EffectOutcome(
+                EffectOutcomeKind.APPLIED if after != before else EffectOutcomeKind.NO_CHANGE,
+                primitive_kind,
+                subject_entity_id=destination.entity_id,
+                magnitude=max(0.0, before[0] - after[0]),
+            )
+        if isinstance(effect, ModifyScalar):
+            before = subject.scalars.get(effect.scalar_key, 0.0) if subject is not None else 0.0
+            self._modify_scalar(item, effect, subject, due_time, events)
+            after = subject.scalars.get(effect.scalar_key, 0.0) if subject is not None else before
+            return EffectOutcome(
+                EffectOutcomeKind.APPLIED if after != before else EffectOutcomeKind.NO_CHANGE,
+                primitive_kind,
+                subject_entity_id=subject.entity_id if subject is not None else None,
+                effect_key=effect.scalar_key,
+                magnitude=after - before,
+            )
+        if isinstance(effect, ModifyTag):
+            before = effect.tag in subject.tags if subject is not None else False
+            self._modify_tag(item, effect, subject, due_time, events)
+            after = effect.tag in subject.tags if subject is not None else before
+            return EffectOutcome(
+                EffectOutcomeKind.APPLIED if after != before else EffectOutcomeKind.NO_CHANGE,
+                primitive_kind,
+                subject_entity_id=subject.entity_id if subject is not None else None,
+                effect_key=effect.tag,
+            )
+        if isinstance(effect, ApplyEffect):
+            return self._apply_effect(item, effect, subject, due_time, events)
+        if isinstance(effect, RemoveEffect):
+            before = len(subject.effects) if subject is not None else 0
+            self._remove_effect(item, effect, subject, due_time, events)
+            after = len(subject.effects) if subject is not None else before
+            return EffectOutcome(
+                EffectOutcomeKind.APPLIED if after < before else EffectOutcomeKind.NO_CHANGE,
+                primitive_kind,
+                subject_entity_id=subject.entity_id if subject is not None else None,
+                effect_key=effect.effect_key or effect.matching_tag,
+                magnitude=float(before - after),
+            )
+        if isinstance(effect, MoveEntity):
+            before = subject.position if subject is not None else None
+            self._move_entity(item, effect, subject, due_time, events)
+            after = subject.position if subject is not None else before
+            moved = (
+                hypot(after.x - before.x, after.y - before.y)
+                if before is not None and after is not None
+                else 0.0
+            )
+            return EffectOutcome(
+                EffectOutcomeKind.APPLIED if moved > 0.0 else EffectOutcomeKind.NO_CHANGE,
+                primitive_kind,
+                subject_entity_id=subject.entity_id if subject is not None else None,
+                magnitude=moved,
+            )
+        if isinstance(effect, TransferItem):
+            source = self._entity_for_ref(effect.from_subject, item.binding)
+            destination = self._entity_for_ref(effect.to_subject, item.binding)
+            if (
+                source is None
+                or destination is None
+                or source.entity_id not in eligible_alive
+                or destination.entity_id not in eligible_alive
+            ):
+                return EffectOutcome(
+                    EffectOutcomeKind.NO_CHANGE,
+                    primitive_kind,
+                    tags=("reason.transfer_endpoint_not_alive",),
+                )
+            item_id = effect.item_id or item.binding.item_id
+            before = (
+                source.inventory.get(item_id, 0.0) if item_id is not None else 0.0,
+                destination.inventory.get(item_id, 0.0) if item_id is not None else 0.0,
+            )
+            self._transfer_item(item, effect, due_time, events)
+            after = (
+                source.inventory.get(item_id, 0.0) if item_id is not None else before[0],
+                destination.inventory.get(item_id, 0.0) if item_id is not None else before[1],
+            )
+            return EffectOutcome(
+                EffectOutcomeKind.APPLIED if after != before else EffectOutcomeKind.NO_CHANGE,
+                primitive_kind,
+                subject_entity_id=destination.entity_id,
+                effect_key=item_id,
+                magnitude=max(0.0, before[0] - after[0]),
+            )
+        if isinstance(effect, ModifyObjective):
+            before = subject.scalars.get("objective_progress", 0.0) if subject is not None else 0.0
+            self._modify_objective(item, effect, subject, due_time, events)
+            after = (
+                subject.scalars.get("objective_progress", 0.0) if subject is not None else before
+            )
+            return EffectOutcome(
+                EffectOutcomeKind.APPLIED if after != before else EffectOutcomeKind.NO_CHANGE,
+                primitive_kind,
+                subject_entity_id=subject.entity_id if subject is not None else None,
+                effect_key="objective_progress",
+                magnitude=after - before,
+            )
+        if isinstance(effect, ChangeStance):
+            before = subject.stance if subject is not None else None
+            self._change_stance(item, effect, subject, due_time, events)
+            after = subject.stance if subject is not None else before
+            return EffectOutcome(
+                EffectOutcomeKind.APPLIED if after != before else EffectOutcomeKind.NO_CHANGE,
+                primitive_kind,
+                subject_entity_id=subject.entity_id if subject is not None else None,
+                effect_key=effect.stance.value,
+            )
+        raise SimulationConfigurationError(
+            f"unsupported direct effect primitive: {type(effect).__name__}"
+        )
+
+    def _resolve_outcome_conditional(
+        self,
+        item: ScheduledItem,
+        conditional: OutcomeConditional,
+        due_time: int,
+        eligible_alive: frozenset[str],
+        events: list[Event],
+    ) -> EffectOutcome:
+        outcome = self._resolve_direct(
+            item,
+            conditional.condition,
+            due_time,
+            eligible_alive,
+            events,
+        )
+        matched = outcome.kind in conditional.outcomes
+        events.append(
+            self._event(
+                "effect_outcome_resolved",
+                due_time,
+                correlation_id=item.correlation_id,
+                source_entity_id=item.actor_id,
+                target_entity_id=outcome.subject_entity_id,
+                action_key=item.action_key,
+                scalars=(NamedScalar("outcome_magnitude", outcome.magnitude),),
+                tags=(
+                    f"conditional.{conditional.conditional_key}",
+                    f"outcome.{outcome.kind.value}",
+                    "branch.effects" if matched else "branch.else_effects",
+                ),
+            )
+        )
+        branch = conditional.effects if matched else conditional.else_effects
+        for effect in branch:
+            self._resolve_direct(item, effect, due_time, eligible_alive, events)
+        return outcome
 
     def expire_effect(
         self,
@@ -1442,10 +1616,14 @@ class EffectExecutor:
         subject: EntityState | None,
         due_time: int,
         events: list[Event],
-    ) -> None:
+    ) -> EffectOutcome:
         if subject is None:
             raise SimulationConfigurationError("effect application requires an entity subject")
-        if "control.stun" in effect.tags and "immunity.stun" in subject.effective_tags:
+        immunity_tags = set(effect.immunity_tags)
+        if "control.stun" in effect.tags:
+            immunity_tags.add("immunity.stun")
+        matching_immunity = tuple(sorted(immunity_tags & set(subject.effective_tags)))
+        if matching_immunity:
             events.append(
                 self._event(
                     EventKind.EFFECT_BLOCKED,
@@ -1454,12 +1632,23 @@ class EffectExecutor:
                     source_entity_id=item.actor_id,
                     target_entity_id=subject.entity_id,
                     action_key=item.action_key,
-                    tags=(f"effect.{effect.effect_key}", "reason.immune"),
+                    tags=(
+                        f"effect.{effect.effect_key}",
+                        "reason.immune",
+                        *matching_immunity,
+                    ),
                 )
             )
-            return
+            return EffectOutcome(
+                EffectOutcomeKind.BLOCKED_IMMUNITY,
+                type(effect).__name__,
+                subject_entity_id=subject.entity_id,
+                effect_key=effect.effect_key,
+                tags=matching_immunity,
+            )
         storage_key = effect.stacking_key or effect.effect_key
         existing = subject.effects.get(storage_key)
+        refreshed = existing is not None and existing.effect_key == effect.effect_key
         if existing is not None:
             if not should_overwrite_effect(
                 incoming_order=effect.stack_order,
@@ -1467,7 +1656,7 @@ class EffectExecutor:
                 incoming_trains=effect.trains,
                 existing_trains=existing.trains,
                 priority=effect.stack_priority,
-                same_power=effect.effect_key == existing.effect_key,
+                same_power=refreshed,
             ):
                 events.append(
                     self._event(
@@ -1483,12 +1672,27 @@ class EffectExecutor:
                             NamedScalar("incoming_trains", float(effect.trains)),
                             NamedScalar("existing_trains", float(existing.trains)),
                         ),
-                        tags=(f"effect.{effect.effect_key}", "reason.stack_priority"),
+                        tags=(
+                            f"effect.{effect.effect_key}",
+                            "reason.stack_priority",
+                        ),
                     )
                 )
-                return
+                return EffectOutcome(
+                    EffectOutcomeKind.BLOCKED_STACK,
+                    type(effect).__name__,
+                    subject_entity_id=subject.entity_id,
+                    effect_key=effect.effect_key,
+                    tags=(f"incumbent.{existing.effect_key}",),
+                )
             events.append(
-                self._effect_removed_event(subject, existing, due_time, item, "reason.replaced")
+                self._effect_removed_event(
+                    subject,
+                    existing,
+                    due_time,
+                    item,
+                    "reason.replaced",
+                )
             )
         application_order = self._take_schedule_order()
         instance_id = f"effect-instance:{application_order:012d}"
@@ -1526,7 +1730,10 @@ class EffectExecutor:
                     NamedScalar("stack_order", float(effect.stack_order)),
                     NamedScalar("trains", float(effect.trains)),
                 ),
-                tags=(f"effect.{effect.effect_key}",),
+                tags=(
+                    f"effect.{effect.effect_key}",
+                    "outcome.refreshed" if refreshed else "outcome.applied",
+                ),
             )
         )
         if item.binding is None:
@@ -1571,6 +1778,14 @@ class EffectExecutor:
         )
         if "control.stun" in effect.tags:
             self._interrupt_actor(subject.entity_id, "stun", due_time, events)
+        return EffectOutcome(
+            EffectOutcomeKind.REFRESHED if refreshed else EffectOutcomeKind.APPLIED,
+            type(effect).__name__,
+            subject_entity_id=subject.entity_id,
+            effect_key=effect.effect_key,
+            magnitude=float(effect.duration_ms),
+            tags=effect.tags,
+        )
 
     def _remove_effect(
         self,

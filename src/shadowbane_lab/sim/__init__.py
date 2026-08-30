@@ -26,6 +26,7 @@ from shadowbane_lab.sim.actions import (
     ModifyTag,
     MoveEntity,
     MovementMode,
+    OutcomeConditional,
     PeriodicPulse,
     PhaseKind,
     RemoveEffect,
@@ -58,6 +59,7 @@ from shadowbane_lab.sim.lifecycle import (
     ContinuationPolicy,
     PayloadReleaseStatus,
 )
+from shadowbane_lab.sim.outcomes import EffectOutcome, EffectOutcomeKind
 from shadowbane_lab.sim.random_source import (
     DeterministicRandom,
     RandomSnapshot,
@@ -115,6 +117,8 @@ __all__ = [
     "EffectPrimitive",
     "DirectEffectPrimitive",
     "EntitySnapshot",
+    "EffectOutcome",
+    "EffectOutcomeKind",
     "EntityState",
     "EnvironmentSnapshot",
     "ModifyObjective",
@@ -122,6 +126,7 @@ __all__ = [
     "ModifyTag",
     "MoveEntity",
     "MovementMode",
+    "OutcomeConditional",
     "PhaseKind",
     "PayloadReleaseStatus",
     "PeriodicPulse",

@@ -13,6 +13,7 @@ from shadowbane_lab.combat import (
     StackPriority,
 )
 from shadowbane_lab.protocol import NamedScalar, Relation, TargetKind
+from shadowbane_lab.sim.outcomes import EffectOutcomeKind
 
 
 def _identifier(value: str, field_name: str) -> None:
@@ -538,6 +539,7 @@ class ApplyEffect:
     stack_order: int = 0
     trains: int = 0
     stack_priority: StackPriority = StackPriority.ALWAYS
+    immunity_tags: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if not isinstance(self.subject, SubjectRef):
@@ -550,6 +552,7 @@ class ApplyEffect:
         if self.stacking_key is not None:
             _identifier(self.stacking_key, "stacking_key")
         _unique_strings(self.tags, "tags")
+        _unique_strings(self.immunity_tags, "immunity_tags")
         if any(not isinstance(modifier, _EFFECT_MODIFIER_TYPES) for modifier in self.modifiers):
             raise ValueError("modifiers must contain typed effect modifiers")
         modifier_keys = tuple(tag for modifier in self.modifiers for tag in modifier.semantic_tags)
@@ -683,12 +686,47 @@ _DIRECT_EFFECT_TYPES = (
 
 
 @dataclass(frozen=True, slots=True)
+class OutcomeConditional:
+    """Resolve follow-up primitives according to one direct effect's outcome.
+
+    Branches are deliberately non-recursive. This is enough to encode
+    dependencies such as "ground and grant immunity only when stun applies"
+    without introducing arbitrary scripts into the closed action algebra.
+    """
+
+    conditional_key: str
+    condition: DirectEffectPrimitive
+    outcomes: tuple[EffectOutcomeKind, ...]
+    effects: tuple[DirectEffectPrimitive, ...]
+    else_effects: tuple[DirectEffectPrimitive, ...] = ()
+
+    def __post_init__(self) -> None:
+        _identifier(self.conditional_key, "conditional_key")
+        if not isinstance(self.condition, _DIRECT_EFFECT_TYPES):
+            raise ValueError("condition must be a direct effect primitive")
+        if not self.outcomes:
+            raise ValueError("outcomes must not be empty")
+        if len(self.outcomes) != len(set(self.outcomes)):
+            raise ValueError("outcomes must not contain duplicates")
+        if any(not isinstance(outcome, EffectOutcomeKind) for outcome in self.outcomes):
+            raise ValueError("outcomes must contain EffectOutcomeKind values")
+        if not self.effects and not self.else_effects:
+            raise ValueError("at least one conditional branch must contain effects")
+        for branch, field_name in (
+            (self.effects, "effects"),
+            (self.else_effects, "else_effects"),
+        ):
+            if any(not isinstance(effect, _DIRECT_EFFECT_TYPES) for effect in branch):
+                raise ValueError(f"{field_name} may contain only direct effect primitives")
+
+
+@dataclass(frozen=True, slots=True)
 class ChanceGate:
     """Resolve one seeded probability and apply a bounded direct-effect bundle on success."""
 
     chance_key: str
     probability: float
-    effects: tuple[DirectEffectPrimitive, ...]
+    effects: tuple[DirectEffectPrimitive | OutcomeConditional, ...]
 
     def __post_init__(self) -> None:
         _identifier(self.chance_key, "chance_key")
@@ -697,8 +735,13 @@ class ChanceGate:
             raise ValueError("probability must be in (0, 1]")
         if not self.effects:
             raise ValueError("chance gate requires at least one direct effect")
-        if any(not isinstance(effect, _DIRECT_EFFECT_TYPES) for effect in self.effects):
-            raise ValueError("chance gate effects must contain direct effect primitives")
+        if any(
+            not isinstance(effect, (*_DIRECT_EFFECT_TYPES, OutcomeConditional))
+            for effect in self.effects
+        ):
+            raise ValueError(
+                "chance gate effects must contain direct effects or conditional primitives"
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -709,7 +752,7 @@ class AttackGate:
     kind: AttackKind
     attack_rating_key: str
     defense_rating_key: str
-    effects: tuple[DirectEffectPrimitive | ChanceGate, ...]
+    effects: tuple[DirectEffectPrimitive | OutcomeConditional | ChanceGate, ...]
     passive_defense_keys: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
@@ -721,9 +764,15 @@ class AttackGate:
         if not self.effects:
             raise ValueError("attack gate requires at least one direct effect")
         if any(
-            not isinstance(effect, (*_DIRECT_EFFECT_TYPES, ChanceGate)) for effect in self.effects
+            not isinstance(
+                effect,
+                (*_DIRECT_EFFECT_TYPES, OutcomeConditional, ChanceGate),
+            )
+            for effect in self.effects
         ):
-            raise ValueError("attack gate effects must contain direct effects or chance gates")
+            raise ValueError(
+                "attack gate effects must contain direct, conditional, or chance primitives"
+            )
         _unique_strings(self.passive_defense_keys, "passive_defense_keys")
 
 
@@ -734,7 +783,7 @@ class AreaEffect:
     origin: AreaOrigin
     radius: float
     allowed_relations: tuple[Relation, ...]
-    effects: tuple[DirectEffectPrimitive | ChanceGate | AttackGate, ...]
+    effects: tuple[DirectEffectPrimitive | OutcomeConditional | ChanceGate | AttackGate, ...]
     maximum_targets: int | None = None
 
     def __post_init__(self) -> None:
@@ -752,10 +801,13 @@ class AreaEffect:
         if not self.effects:
             raise ValueError("area effects require at least one nested effect")
         if any(
-            not isinstance(effect, (*_DIRECT_EFFECT_TYPES, ChanceGate, AttackGate))
+            not isinstance(
+                effect,
+                (*_DIRECT_EFFECT_TYPES, OutcomeConditional, ChanceGate, AttackGate),
+            )
             for effect in self.effects
         ):
-            raise ValueError("area effects must contain direct effects or gates")
+            raise ValueError("area effects must contain direct, conditional, or gate primitives")
         if self.maximum_targets is not None and (
             isinstance(self.maximum_targets, bool)
             or not isinstance(self.maximum_targets, int)
@@ -764,9 +816,15 @@ class AreaEffect:
             raise ValueError("maximum_targets must be a positive integer or null")
 
 
-EffectPrimitive = DirectEffectPrimitive | ChanceGate | AttackGate | AreaEffect
+EffectPrimitive = DirectEffectPrimitive | OutcomeConditional | ChanceGate | AttackGate | AreaEffect
 
-_EFFECT_TYPES = (*_DIRECT_EFFECT_TYPES, ChanceGate, AttackGate, AreaEffect)
+_EFFECT_TYPES = (
+    *_DIRECT_EFFECT_TYPES,
+    OutcomeConditional,
+    ChanceGate,
+    AttackGate,
+    AreaEffect,
+)
 
 
 @dataclass(frozen=True, slots=True)
