@@ -67,10 +67,13 @@ from shadowbane_lab.sim.random_source import (
 )
 from shadowbane_lab.sim.range_intent import (
     CLOSE_RANGE_ACTION_KEY,
+    OPEN_RANGE_ACTION_KEY,
     RANGE_MAXIMUM_FEATURE,
+    RANGE_MINIMUM_FEATURE,
     RangeBand,
     RangeRelation,
     close_range_action,
+    open_range_action,
 )
 from shadowbane_lab.sim.state import (
     ActiveEffectSnapshot,
@@ -113,6 +116,7 @@ __all__ = [
     "ActiveEffectState",
     "ClockSnapshot",
     "CLOSE_RANGE_ACTION_KEY",
+    "OPEN_RANGE_ACTION_KEY",
     "DealDamage",
     "DeliveryKind",
     "DeliverySpec",
@@ -135,6 +139,7 @@ __all__ = [
     "PeriodicPulse",
     "RandomSnapshot",
     "RANGE_MAXIMUM_FEATURE",
+    "RANGE_MINIMUM_FEATURE",
     "RangeBand",
     "RangeRelation",
     "ReferenceEnvironment",
@@ -162,4 +167,5 @@ __all__ = [
     "WeightedAmount",
     "WeaponAttackSpec",
     "close_range_action",
+    "open_range_action",
 ]

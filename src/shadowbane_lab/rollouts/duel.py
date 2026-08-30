@@ -37,7 +37,9 @@ from shadowbane_lab.protocol import (
 from shadowbane_lab.rollouts.ruleset import load_assassin_warlock_duel_ruleset
 from shadowbane_lab.rulesets import CharacterBuild, CompiledRuleset
 from shadowbane_lab.sim import (
+    OPEN_RANGE_ACTION_KEY,
     RANGE_MAXIMUM_FEATURE,
+    RANGE_MINIMUM_FEATURE,
     ActionCatalog,
     ActiveEffectState,
     AgentExchange,
@@ -48,6 +50,7 @@ from shadowbane_lab.sim import (
     ReferenceEnvironment,
     ScheduledKind,
     close_range_action,
+    open_range_action,
 )
 from shadowbane_lab.sim.actions import EffectModifier, PeriodicPulse
 
@@ -68,6 +71,7 @@ MOVE = "shadowbane.move"
 BASIC_ATTACK = "shadowbane.basic_attack"
 _DIRECTIONAL_MOVE = "shadowbane.move"
 _CLOSE_RANGE = "sim.range.close"
+_OPEN_RANGE = OPEN_RANGE_ACTION_KEY
 _MELEE_RANGE = 3.0
 _DEFAULT_LEVELS = (10, 15, 18, 19, 22, 26, 28, 42, 75)
 _DEFAULT_POWER_RANKS = (0, 10, 20, 40)
@@ -620,6 +624,13 @@ class UtilityDuelPolicy:
         if "healing" in tags:
             if "immunity.resource.health" in actor_tags:
                 return float("-inf")
+            applied_healing_effects = tuple(
+                tag.removeprefix("applies.")
+                for tag in tags
+                if tag.startswith("applies.")
+            )
+            if any(effect_key in actor_tags for effect_key in applied_healing_effects):
+                return float("-inf")
             health_fraction = health / self._maximum_health
             if health_fraction > self._heal_threshold:
                 return -100.0
@@ -690,6 +701,13 @@ class UtilityDuelPolicy:
             return 25.0 + denial_ms / 2_000.0
         if "cleanse" in tags:
             if "debuff" not in actor_tags:
+                return float("-inf")
+            cleanse_tags = tuple(
+                tag.removeprefix("cleanse.")
+                for tag in tags
+                if tag.startswith("cleanse.")
+            )
+            if cleanse_tags and not any(tag in actor_tags for tag in cleanse_tags):
                 return float("-inf")
             if "immunity.resource.health" in actor_tags:
                 return 600.0 - cast_time_ms / 1_000.0
@@ -774,6 +792,17 @@ class UtilityDuelPolicy:
             if distance is None or maximum is None or distance <= maximum:
                 return float("-inf")
             return 1.0
+        if "range.open" in tags:
+            if "behavior.kite" not in actor_tags:
+                return float("-inf")
+            distance = features.get("distance")
+            minimum = features.get(RANGE_MINIMUM_FEATURE)
+            if distance is None or minimum is None or distance >= minimum:
+                return float("-inf")
+            controlled_target = bool(
+                {"snare", "control.stun"} & set(selected_target_tags)
+            )
+            return 1_000.0 if controlled_target else 25.0
         return -10.0
 
     @staticmethod
@@ -920,12 +949,19 @@ def run_duel(config: DuelConfig, *, ruleset: CompiledRuleset | None = None) -> D
             if record.rank != rank:
                 raise ValueError(f"{action_key} was compiled at rank {record.rank}, not {rank}")
     catalog = ActionCatalog(
-        (*ruleset.catalog.actions, close_range_action(RangeBand(maximum=_MELEE_RANGE)))
+        (
+            *ruleset.catalog.actions,
+            close_range_action(RangeBand(maximum=_MELEE_RANGE)),
+            open_range_action(RangeBand(minimum=30.0, maximum=120.0)),
+        )
     )
     entities = (
         _entity(config.left, Vector2(0.0, 0.0), ruleset),
         _entity(config.right, Vector2(config.starting_distance, 0.0), ruleset),
     )
+    for entity in entities:
+        if "behavior.kite" in entity.tags:
+            entity.action_keys = (*entity.action_keys, _OPEN_RANGE)
     environment = ReferenceEnvironment(
         catalog,
         entities,
@@ -1104,7 +1140,10 @@ def _run_prepared_verified_duel(
     left = prepared.left
     right = prepared.right
     close = close_range_action(RangeBand(maximum=_MELEE_RANGE))
-    catalog = ActionCatalog((*left.catalog.actions, *right.catalog.actions, close))
+    open_range = open_range_action(RangeBand(minimum=30.0, maximum=120.0))
+    catalog = ActionCatalog(
+        (*left.catalog.actions, *right.catalog.actions, close, open_range)
+    )
     left_entity = left.entity(config.left.entity_id, config.left.team_id, Vector2(0.0, 0.0))
     right_entity = right.entity(
         config.right.entity_id,
@@ -1123,6 +1162,10 @@ def _run_prepared_verified_duel(
     )
     left_entity.action_keys = (*left_entity.action_keys, _CLOSE_RANGE)
     right_entity.action_keys = (*right_entity.action_keys, _CLOSE_RANGE)
+    if "behavior.kite" in left_entity.tags:
+        left_entity.action_keys = (*left_entity.action_keys, _OPEN_RANGE)
+    if "behavior.kite" in right_entity.tags:
+        right_entity.action_keys = (*right_entity.action_keys, _OPEN_RANGE)
     environment = ReferenceEnvironment(
         catalog,
         (left_entity, right_entity),
