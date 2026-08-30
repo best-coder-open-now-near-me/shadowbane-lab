@@ -61,6 +61,7 @@ class ScalarOperation(StrEnum):
 
 class MovementMode(StrEnum):
     WALK = "walk"
+    WALK_AWAY = "walk_away"
     TELEPORT = "teleport"
     PUSH = "push"
     PULL = "pull"
