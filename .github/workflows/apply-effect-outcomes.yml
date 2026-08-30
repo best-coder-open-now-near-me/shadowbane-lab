@@ -70,6 +70,14 @@ jobs:
           if text.count(old) != 1:
               raise RuntimeError("generated movement outcome measurement was not found")
           path.write_text(text.replace(old, new), encoding="utf-8")
+
+          path = Path("src/shadowbane_lab/sim/actions.py")
+          text = path.read_text(encoding="utf-8")
+          old = "chance gate effects must contain direct or conditional primitives"
+          new = "chance gate effects must contain direct effects or conditional primitives"
+          if text.count(old) != 1:
+              raise RuntimeError("chance-gate validation message was not found")
+          path.write_text(text.replace(old, new), encoding="utf-8")
           PY
       - name: Install test dependencies
         run: python -m pip install -e ".[test]"
