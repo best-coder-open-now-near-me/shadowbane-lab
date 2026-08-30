@@ -4568,24 +4568,16 @@ def _listen_for_go_commands(
                         ),
                         expected_window_handle=client.window_handle,
                     )
-                    with open_windows_native_world_map_reader(
-                        world_map_profile,
-                        process_id=client.process_id,
-                    ) as exact_world_map_reader:
-                        if not exact_world_map_reader.observe().is_open:
-                            return
-                        GuardedInputExecutor(
-                            guard=exact_guard,
-                            backend=PyAutoGuiBackend(),
-                            stop_signal=service_stop,
-                        ).execute(close_plan)
-                        close_deadline = time.monotonic() + 1.0
-                        while exact_world_map_reader.observe().is_open:
-                            if time.monotonic() >= close_deadline:
-                                raise RuntimeError(
-                                    "world map remained open after its exact hotkey was dispatched"
-                                )
-                            time.sleep(0.025)
+                    # The in-process extension publishes only after resolving an open
+                    # map and consumes both physical button messages. The event is
+                    # therefore the exact map-open proof; rescanning here can see
+                    # equivalent HUD instances created later in the client lifetime.
+                    GuardedInputExecutor(
+                        guard=exact_guard,
+                        backend=PyAutoGuiBackend(),
+                        stop_signal=service_stop,
+                    ).execute(close_plan)
+                    time.sleep(0.1)
 
                 extension_router = ExactExtensionEventRouter(
                     manager_manifest,
