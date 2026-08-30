@@ -70,10 +70,7 @@ class AffiliatedAffordanceBuilder(AffordanceBuilder):
         self._targeting_context = targeting
 
     def _bindings(self, actor: EntityState, action: ActionSpec) -> tuple[ActionBinding, ...]:
-        if (
-            action.targeting.kind is TargetKind.POSITION
-            and action.targeting.requires_line_of_sight
-        ):
+        if action.targeting.kind is TargetKind.POSITION and action.targeting.requires_line_of_sight:
             # Point LOS has no calibrated provider yet. Do not silently accept it.
             return ()
         return super()._bindings(actor, action)
