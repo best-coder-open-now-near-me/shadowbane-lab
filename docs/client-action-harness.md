@@ -78,6 +78,10 @@ safe for the eventual route consumer; fractions address the current map rectangl
 one. Run the command from the updated feature-branch checkout inside the VM so its `.venv` and
 editable package are guest-local:
 
+Stop the WonderBane control center and any extension-event listener for this isolated acceptance
+run. The CLI must be the event channel's only consumer; an existing consumer makes the action fail
+before input rather than stealing its lease.
+
 ```powershell
 $env:PYTHONPATH = "src"
 .\.venv\Scripts\python.exe -m shadowbane_lab.cli client test-world-map-click `
