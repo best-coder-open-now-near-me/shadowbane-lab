@@ -22,19 +22,55 @@ jobs:
           python-version: "3.11"
       - name: Apply outcome integration
         run: python .github/scripts/apply_effect_outcomes.py
-      - name: Remove temporary applicator
-        run: rm .github/scripts/apply_effect_outcomes.py .github/workflows/apply-effect-outcomes.yml
       - name: Install test dependencies
         run: python -m pip install -e ".[test]"
-      - name: Format and validate
+      - name: Format generated implementation
         run: |
           ruff check --fix src tests
           ruff format src tests
-          python -m unittest discover -s tests -v
+      - name: Run tests and capture focused failures
+        id: tests
+        shell: bash
+        run: |
+          set +e
+          python -m unittest discover -s tests -v 2>&1 | tee /tmp/effect-outcomes-tests.log
+          status=${PIPESTATUS[0]}
+          set -e
+          if [ "$status" -ne 0 ]; then
+            python - <<'PY'
+          from pathlib import Path
+
+          text = Path('/tmp/effect-outcomes-tests.log').read_text(encoding='utf-8')
+          blocks = text.split('=' * 70 + '\n')
+          failures = [
+              block.rstrip()
+              for block in blocks
+              if block.startswith(('FAIL:', 'ERROR:'))
+          ]
+          tail = '\n'.join(text.splitlines()[-12:])
+          report = '# Effect-outcome validation failures\n\n'
+          report += ('\n\n' + '=' * 70 + '\n\n').join(failures)
+          report += '\n\n# Summary\n\n' + tail + '\n'
+          Path('.github/effect-outcomes-test-diagnostics.txt').write_text(
+              report,
+              encoding='utf-8',
+          )
+          PY
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add .github/effect-outcomes-test-diagnostics.txt
+            git commit -m "chore: capture effect outcome test failures"
+            git push
+            exit "$status"
+          fi
+      - name: Validate lint and formatting
+        run: |
           ruff check src tests
           ruff format --check src tests
-      - name: Commit effect outcomes
+      - name: Remove temporary machinery and commit effect outcomes
         run: |
+          rm -f .github/effect-outcomes-test-diagnostics.txt
+          rm .github/scripts/apply_effect_outcomes.py .github/workflows/apply-effect-outcomes.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
