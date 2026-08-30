@@ -46,16 +46,30 @@ jobs:
               )
 
 
+          effects_path = "src/shadowbane_lab/sim/effects.py"
           indent_between(
-              "src/shadowbane_lab/sim/effects.py",
+              effects_path,
               "def _resolve_direct(\n",
               "    def expire_effect(\n",
           )
           indent_between(
-              "src/shadowbane_lab/sim/effects.py",
+              effects_path,
               "def _apply_effect(\n",
               "    def _remove_effect(\n",
           )
+          path = Path(effects_path)
+          text = path.read_text(encoding="utf-8")
+          old = (
+              "moved = before.distance_to(after) "
+              "if before is not None and after is not None else 0.0"
+          )
+          new = (
+              "moved = (hypot(after.x - before.x, after.y - before.y) "
+              "if before is not None and after is not None else 0.0)"
+          )
+          if text.count(old) != 1:
+              raise RuntimeError("generated movement outcome measurement was not found")
+          path.write_text(text.replace(old, new), encoding="utf-8")
           PY
       - name: Install test dependencies
         run: python -m pip install -e ".[test]"
