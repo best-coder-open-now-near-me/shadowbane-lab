@@ -83,26 +83,16 @@ jobs:
 
           lifecycle_test = Path("tests/test_lifecycle_core.py")
           text = lifecycle_test.read_text(encoding="utf-8")
-          old = '''    position: Vector2 = Vector2(0.0, 0.0),
-              health: float = 100.0,
-          ) -> EntityState:
-          '''
-          new = '''    position: Vector2 | None = None,
-              health: float = 100.0,
-          ) -> EntityState:
-          '''
-          if old not in text:
-              raise RuntimeError("lifecycle actor helper signature was not found")
-          text = text.replace(old, new)
-          old = '''        position=position,
-              scalars={"health": health, "mana": 100.0, "move_speed": 10.0},
-          '''
-          new = '''        position=position if position is not None else Vector2(0.0, 0.0),
-              scalars={"health": health, "mana": 100.0, "move_speed": 10.0},
-          '''
-          if old not in text:
-              raise RuntimeError("lifecycle actor helper position assignment was not found")
-          lifecycle_test.write_text(text.replace(old, new), encoding="utf-8")
+          old = "    position: Vector2 = Vector2(0.0, 0.0),\n"
+          new = "    position: Vector2 | None = None,\n"
+          if text.count(old) != 1:
+              raise RuntimeError("lifecycle actor helper signature was not found exactly once")
+          text = text.replace(old, new, 1)
+          old = "        position=position,\n"
+          new = "        position=position if position is not None else Vector2(0.0, 0.0),\n"
+          if text.count(old) != 1:
+              raise RuntimeError("lifecycle actor helper position assignment was not found exactly once")
+          lifecycle_test.write_text(text.replace(old, new, 1), encoding="utf-8")
           PY
       - name: Remove temporary applicator
         run: rm .github/scripts/apply_lifecycle_core.py .github/workflows/apply-lifecycle-core.yml
