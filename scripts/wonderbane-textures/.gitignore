@@ -1,0 +1,6 @@
+__pycache__/
+*.py[cod]
+*.report.json
+*_preview.png
+*_flared*.png
+sculpted/
