@@ -7,6 +7,11 @@ from .aggregate_registry import (
 )
 from .application import ManagerDashboardApplication
 from .dashboard import DashboardError, DashboardServer
+from .extension_router import (
+    ExactExtensionEventRouter,
+    ExtensionEventRouterError,
+    ExtensionEventRouterPoll,
+)
 from .live_configuration import (
     LiveConfiguredManagerApplication,
     replace_manager_manifest,
@@ -175,6 +180,9 @@ __all__ = [
     "ExactClientWorkerBinding",
     "ExactClientWorkerError",
     "ExactClientWorkerRuntime",
+    "ExactExtensionEventRouter",
+    "ExtensionEventRouterError",
+    "ExtensionEventRouterPoll",
     "GuardedWindowControl",
     "LaunchProvenance",
     "LaunchTimeoutError",
