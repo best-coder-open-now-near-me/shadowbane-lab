@@ -1,26 +1,43 @@
 from __future__ import annotations
 
 import unittest
-from dataclasses import dataclass
 
 from shadowbane_lab.client_observation.group_affiliations import (
     NativeGroupAffiliationError,
     project_native_party_memberships,
 )
-from shadowbane_lab.client_observation.native_identity import (
+from shadowbane_lab.client_observation.native_group import (
+    NativeGroupMemberObservation,
+    NativeGroupObservation,
+)
+from shadowbane_lab.client_observation.native_object import (
+    NativeEntityBinding,
     NativeEntityIdentityMap,
-    NativeIdentityBinding,
     NativeObjectKey,
 )
 from shadowbane_lab.sim.affiliations import GroupKey, GroupKind
 
 
-@dataclass(frozen=True)
-class _RosterMember:
-    object_type: int
-    object_uuid: int
-    first_name: str
-    leader: bool
+def _member(
+    name: str,
+    object_uuid: int,
+    *,
+    leader: bool = False,
+) -> NativeGroupMemberObservation:
+    return NativeGroupMemberObservation(
+        first_name=name,
+        last_name="",
+        object_type=7,
+        object_uuid=object_uuid,
+        health_percent=100,
+        stamina_percent=100,
+        mana_percent=100,
+        lt=10.0,
+        lg=20.0,
+        altitude=2.0,
+        role_code=0x16 if leader else 0x15,
+        follow_enabled=False,
+    )
 
 
 class NativeGroupAffiliationProjectionTests(unittest.TestCase):
@@ -28,25 +45,30 @@ class NativeGroupAffiliationProjectionTests(unittest.TestCase):
         self.party = GroupKey(GroupKind.PARTY, "runtime:42")
         self.identity_map = NativeEntityIdentityMap(
             (
-                NativeIdentityBinding(NativeObjectKey(7, 100), "leader"),
-                NativeIdentityBinding(NativeObjectKey(7, 101), "member"),
+                NativeEntityBinding(NativeObjectKey(7, 100), "leader"),
+                NativeEntityBinding(NativeObjectKey(7, 101), "member"),
             )
         )
 
     def test_projects_party_memberships_by_native_identity_and_role(self) -> None:
-        records = (
-            _RosterMember(7, 100, "same-name", True),
-            _RosterMember(7, 101, "same-name", False),
+        group = NativeGroupObservation(
+            split_gold_enabled=False,
+            local_follow_enabled=False,
+            members=(
+                _member("same-name", 100, leader=True),
+                _member("same-name", 101),
+            ),
         )
 
         projection = project_native_party_memberships(
             self.party,
-            records,
+            group,
             self.identity_map,
-            role_getter=lambda item: "leader" if item.leader else "member",
+            revision=9,
         )
 
         self.assertTrue(projection.complete)
+        self.assertEqual(9, projection.revision)
         self.assertEqual(
             ("leader", "member"),
             tuple(item.entity_id for item in projection.memberships),
@@ -58,11 +80,16 @@ class NativeGroupAffiliationProjectionTests(unittest.TestCase):
         self.assertTrue(
             all(item.group_key == self.party for item in projection.memberships)
         )
+        self.assertEqual((), projection.rejection_counts)
 
     def test_incomplete_join_fails_closed_by_default(self) -> None:
-        records = (
-            _RosterMember(7, 100, "leader", True),
-            _RosterMember(7, 999, "unknown", False),
+        group = NativeGroupObservation(
+            split_gold_enabled=False,
+            local_follow_enabled=False,
+            members=(
+                _member("leader", 100, leader=True),
+                _member("unknown", 999),
+            ),
         )
 
         with self.assertRaisesRegex(
@@ -70,19 +97,24 @@ class NativeGroupAffiliationProjectionTests(unittest.TestCase):
         ):
             project_native_party_memberships(
                 self.party,
-                records,
+                group,
                 self.identity_map,
             )
 
     def test_observation_mode_retains_partial_projection_and_diagnostics(self) -> None:
-        records = (
-            _RosterMember(7, 100, "leader", True),
-            _RosterMember(7, 999, "unknown", False),
+        unresolved = _member("unknown", 999)
+        group = NativeGroupObservation(
+            split_gold_enabled=False,
+            local_follow_enabled=False,
+            members=(
+                _member("leader", 100, leader=True),
+                unresolved,
+            ),
         )
 
         projection = project_native_party_memberships(
             self.party,
-            records,
+            group,
             self.identity_map,
             require_complete=False,
         )
@@ -91,25 +123,25 @@ class NativeGroupAffiliationProjectionTests(unittest.TestCase):
         self.assertEqual(
             ("leader",), tuple(item.entity_id for item in projection.memberships)
         )
+        self.assertEqual((unresolved,), projection.unresolved_members)
         self.assertEqual(
             (("native_identity_unbound", 1),),
-            projection.identity_join.rejection_counts,
+            projection.rejection_counts,
         )
 
-    def test_requires_verified_party_key_and_valid_role_values(self) -> None:
-        records = (_RosterMember(7, 100, "leader", True),)
+    def test_requires_verified_party_key_and_native_group(self) -> None:
+        group = NativeGroupObservation(False, False, (_member("leader", 100),))
         with self.assertRaises(NativeGroupAffiliationError):
             project_native_party_memberships(
                 GroupKey(GroupKind.GUILD, "not-a-party"),
-                records,
+                group,
                 self.identity_map,
             )
         with self.assertRaises(NativeGroupAffiliationError):
             project_native_party_memberships(
                 self.party,
-                records,
+                object(),  # type: ignore[arg-type]
                 self.identity_map,
-                role_getter=lambda _item: "",
             )
 
 
