@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 
 from client_alignment_fixture import build_pe, write_profile
+
 from shadowbane_lab.client_alignment.compare import compare_client_builds
 from shadowbane_lab.client_alignment.profiles import (
     ProfileInventoryError,
