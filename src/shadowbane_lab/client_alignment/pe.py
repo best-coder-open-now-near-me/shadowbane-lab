@@ -91,9 +91,7 @@ def inspect_pe_bytes(data: bytes, *, path: str = "<memory>") -> PeImage:
         raise PeInspectionError(f"unsupported optional-header magic: 0x{magic:04x}")
 
     (entry_point_rva,) = _unpack_from("<I", data, optional_offset + 16, "entry point")
-    (section_alignment,) = _unpack_from(
-        "<I", data, optional_offset + 32, "section alignment"
-    )
+    (section_alignment,) = _unpack_from("<I", data, optional_offset + 32, "section alignment")
     (file_alignment,) = _unpack_from("<I", data, optional_offset + 36, "file alignment")
     (size_of_image,) = _unpack_from("<I", data, optional_offset + 56, "image size")
     (size_of_headers,) = _unpack_from("<I", data, optional_offset + 60, "header size")
