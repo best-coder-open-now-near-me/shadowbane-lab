@@ -308,40 +308,57 @@
                 "damage_type": "cold"
               },
               {
-                "op": "remove_effect",
-                "subject": "target",
-                "effect_key": null,
-                "matching_tag": "movement.flight"
-              },
-              {
-                "op": "apply_effect",
-                "subject": "target",
-                "effect_key": "stunned",
-                "duration_ms": {
-                  "interpolation": "linear",
-                  "rank_min": 0,
-                  "rank_max": 40,
-                  "value_min": 1000,
-                  "value_max": 3000
+                "op": "outcome_conditional",
+                "conditional_key": "shadow_bolt_stun_followups",
+                "condition": {
+                  "op": "apply_effect",
+                  "subject": "target",
+                  "effect_key": "stunned",
+                  "duration_ms": {
+                    "interpolation": "linear",
+                    "rank_min": 0,
+                    "rank_max": 40,
+                    "value_min": 1000,
+                    "value_max": 3000
+                  },
+                  "magnitude": 1,
+                  "stacking_key": "Stun",
+                  "tags": [
+                    "control.stun"
+                  ],
+                  "immunity_tags": [
+                    "immunity.stun"
+                  ]
                 },
-                "magnitude": 1,
-                "stacking_key": "Stun",
-                "tags": ["control.stun"]
-              },
-              {
-                "op": "apply_effect",
-                "subject": "target",
-                "effect_key": "stun_immunity",
-                "duration_ms": {
-                  "interpolation": "linear",
-                  "rank_min": 0,
-                  "rank_max": 40,
-                  "value_min": 3000,
-                  "value_max": 9000
-                },
-                "magnitude": 1,
-                "stacking_key": "NoStun",
-                "tags": ["immunity.stun"]
+                "outcomes": [
+                  "applied"
+                ],
+                "effects": [
+                  {
+                    "op": "remove_effect",
+                    "subject": "target",
+                    "effect_key": null,
+                    "matching_tag": "movement.flight"
+                  },
+                  {
+                    "op": "apply_effect",
+                    "subject": "target",
+                    "effect_key": "stun_immunity",
+                    "duration_ms": {
+                      "interpolation": "linear",
+                      "rank_min": 0,
+                      "rank_max": 40,
+                      "value_min": 3000,
+                      "value_max": 9000
+                    },
+                    "magnitude": 1,
+                    "stacking_key": "NoStun",
+                    "tags": [
+                      "immunity.stun"
+                    ]
+                  }
+                ],
+                "else_effects": []
               }
             ],
             "delivery": {"kind": "immediate", "projectile_speed_units_per_second": null},
@@ -459,40 +476,57 @@
             "duration_ms": 1000,
             "effects": [
               {
-                "op": "remove_effect",
-                "subject": "target",
-                "effect_key": null,
-                "matching_tag": "movement.flight"
-              },
-              {
-                "op": "apply_effect",
-                "subject": "target",
-                "effect_key": "stunned",
-                "duration_ms": {
-                  "interpolation": "linear",
-                  "rank_min": 0,
-                  "rank_max": 40,
-                  "value_min": 3000,
-                  "value_max": 9000
+                "op": "outcome_conditional",
+                "conditional_key": "shadow_touch_stun_followups",
+                "condition": {
+                  "op": "apply_effect",
+                  "subject": "target",
+                  "effect_key": "stunned",
+                  "duration_ms": {
+                    "interpolation": "linear",
+                    "rank_min": 0,
+                    "rank_max": 40,
+                    "value_min": 3000,
+                    "value_max": 9000
+                  },
+                  "magnitude": 1,
+                  "stacking_key": "Stun",
+                  "tags": [
+                    "control.stun"
+                  ],
+                  "immunity_tags": [
+                    "immunity.stun"
+                  ]
                 },
-                "magnitude": 1,
-                "stacking_key": "Stun",
-                "tags": ["control.stun"]
-              },
-              {
-                "op": "apply_effect",
-                "subject": "target",
-                "effect_key": "stun_immunity",
-                "duration_ms": {
-                  "interpolation": "linear",
-                  "rank_min": 0,
-                  "rank_max": 40,
-                  "value_min": 9000,
-                  "value_max": 27000
-                },
-                "magnitude": 1,
-                "stacking_key": "NoStun",
-                "tags": ["immunity.stun"]
+                "outcomes": [
+                  "applied"
+                ],
+                "effects": [
+                  {
+                    "op": "remove_effect",
+                    "subject": "target",
+                    "effect_key": null,
+                    "matching_tag": "movement.flight"
+                  },
+                  {
+                    "op": "apply_effect",
+                    "subject": "target",
+                    "effect_key": "stun_immunity",
+                    "duration_ms": {
+                      "interpolation": "linear",
+                      "rank_min": 0,
+                      "rank_max": 40,
+                      "value_min": 9000,
+                      "value_max": 27000
+                    },
+                    "magnitude": 1,
+                    "stacking_key": "NoStun",
+                    "tags": [
+                      "immunity.stun"
+                    ]
+                  }
+                ],
+                "else_effects": []
               }
             ],
             "delivery": {"kind": "immediate", "projectile_speed_units_per_second": null},
@@ -618,40 +652,57 @@
                 "damage_type": "mental"
               },
               {
-                "op": "remove_effect",
-                "subject": "target",
-                "effect_key": null,
-                "matching_tag": "movement.flight"
-              },
-              {
-                "op": "apply_effect",
-                "subject": "target",
-                "effect_key": "stunned",
-                "duration_ms": {
-                  "interpolation": "linear",
-                  "rank_min": 0,
-                  "rank_max": 40,
-                  "value_min": 1000,
-                  "value_max": 3000
+                "op": "outcome_conditional",
+                "conditional_key": "mind_strike_stun_followups",
+                "condition": {
+                  "op": "apply_effect",
+                  "subject": "target",
+                  "effect_key": "stunned",
+                  "duration_ms": {
+                    "interpolation": "linear",
+                    "rank_min": 0,
+                    "rank_max": 40,
+                    "value_min": 1000,
+                    "value_max": 3000
+                  },
+                  "magnitude": 1,
+                  "stacking_key": "Stun",
+                  "tags": [
+                    "control.stun"
+                  ],
+                  "immunity_tags": [
+                    "immunity.stun"
+                  ]
                 },
-                "magnitude": 1,
-                "stacking_key": "Stun",
-                "tags": ["control.stun"]
-              },
-              {
-                "op": "apply_effect",
-                "subject": "target",
-                "effect_key": "stun_immunity",
-                "duration_ms": {
-                  "interpolation": "linear",
-                  "rank_min": 0,
-                  "rank_max": 40,
-                  "value_min": 3000,
-                  "value_max": 9000
-                },
-                "magnitude": 1,
-                "stacking_key": "NoStun",
-                "tags": ["immunity.stun"]
+                "outcomes": [
+                  "applied"
+                ],
+                "effects": [
+                  {
+                    "op": "remove_effect",
+                    "subject": "target",
+                    "effect_key": null,
+                    "matching_tag": "movement.flight"
+                  },
+                  {
+                    "op": "apply_effect",
+                    "subject": "target",
+                    "effect_key": "stun_immunity",
+                    "duration_ms": {
+                      "interpolation": "linear",
+                      "rank_min": 0,
+                      "rank_max": 40,
+                      "value_min": 3000,
+                      "value_max": 9000
+                    },
+                    "magnitude": 1,
+                    "stacking_key": "NoStun",
+                    "tags": [
+                      "immunity.stun"
+                    ]
+                  }
+                ],
+                "else_effects": []
               }
             ],
             "delivery": {"kind": "immediate", "projectile_speed_units_per_second": null},

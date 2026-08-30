@@ -42,6 +42,8 @@ from shadowbane_lab.sim import (
     AreaEffect,
     AttackKind,
     CombatStance,
+    EffectOutcomeKind,
+    OutcomeConditional,
     RemoveEffect,
     ScalarMultiplier,
     TransferResource,
@@ -138,9 +140,10 @@ class WonderBanePresetTests(unittest.TestCase):
         needs = ruleset.record(NEEDS_OF_THE_ONE).action
         snare = ruleset.record(MIND_SNARE).action
         dispel = ruleset.record(BREAK_ENCHANTMENT).action
+        psychic_shout = ruleset.record(PSYCHIC_SHOUT).action
 
         assert silence is not None and needs is not None and snare is not None
-        assert dispel is not None
+        assert dispel is not None and psychic_shout is not None
         silenced = next(
             effect for effect in silence.phases[0].effects if isinstance(effect, ApplyEffect)
         )
@@ -169,6 +172,20 @@ class WonderBanePresetTests(unittest.TestCase):
             effect for effect in dispel.phases[0].effects if isinstance(effect, RemoveEffect)
         )
         self.assertEqual(1, removal.maximum_count)
+
+        shout_area = next(
+            effect for effect in psychic_shout.phases[0].effects if isinstance(effect, AreaEffect)
+        )
+        conditional = next(
+            effect for effect in shout_area.effects if isinstance(effect, OutcomeConditional)
+        )
+        self.assertEqual((EffectOutcomeKind.APPLIED,), conditional.outcomes)
+        self.assertIsInstance(conditional.condition, ApplyEffect)
+        stun = conditional.condition
+        assert isinstance(stun, ApplyEffect)
+        self.assertEqual("psychic_shout_stun", stun.effect_key)
+        self.assertEqual(("immunity.stun",), stun.immunity_tags)
+        self.assertTrue(any(isinstance(effect, RemoveEffect) for effect in conditional.effects))
 
     def test_hidden_opener_arms_backstab_and_sets_up_the_warlock_debuff_stack(self) -> None:
         result = run_verified_duel(

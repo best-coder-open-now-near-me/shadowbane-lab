@@ -38,11 +38,13 @@ from shadowbane_lab.sim import (
     DealDamage,
     DeliveryKind,
     DeliverySpec,
+    EffectOutcomeKind,
     ModifyObjective,
     ModifyScalar,
     ModifyTag,
     MoveEntity,
     MovementMode,
+    OutcomeConditional,
     PeriodicPulse,
     PhaseKind,
     RemoveEffect,
@@ -338,6 +340,22 @@ def _parse_phase(data: Mapping[str, Any], rank: int) -> ActionPhase:
 
 def _parse_effect(data: Mapping[str, Any], rank: int) -> EffectPrimitive:
     operation = _string(data, "op")
+    if operation == "outcome_conditional":
+        condition = _parse_effect(_object(data, "condition"), rank)
+        effects = tuple(_parse_effect(item, rank) for item in _objects(data, "effects"))
+        else_effects = tuple(
+            _parse_effect(item, rank) for item in _optional_objects(data, "else_effects")
+        )
+        try:
+            return OutcomeConditional(
+                conditional_key=_string(data, "conditional_key"),
+                condition=condition,
+                outcomes=tuple(EffectOutcomeKind(value) for value in _strings(data, "outcomes")),
+                effects=effects,
+                else_effects=else_effects,
+            )
+        except ValueError as exc:
+            raise RulesetLoadError(str(exc)) from exc
     if operation == "area_effect":
         nested = tuple(_parse_effect(item, rank) for item in _objects(data, "effects"))
         if any(isinstance(effect, AreaEffect) for effect in nested):
@@ -432,6 +450,9 @@ def _parse_effect(data: Mapping[str, Any], rank: int) -> EffectPrimitive:
             magnitude=_resolved_number(data.get("magnitude", 1.0), rank),
             stacking_key=_nullable_string(data, "stacking_key"),
             tags=tuple(_strings(data, "tags")),
+            immunity_tags=(
+                tuple(_strings(data, "immunity_tags")) if "immunity_tags" in data else ()
+            ),
             modifiers=tuple(
                 _parse_effect_modifier(item, rank) for item in _optional_objects(data, "modifiers")
             ),

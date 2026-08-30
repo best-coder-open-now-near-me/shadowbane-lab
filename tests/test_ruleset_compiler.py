@@ -19,7 +19,10 @@ from shadowbane_lab.sim.actions import (
     ChanceGate,
     DamageBreakpoint,
     DealDamage,
+    EffectOutcomeKind,
+    OutcomeConditional,
     PeriodicPulse,
+    RemoveEffect,
     ResistanceAdjustment,
     RestoreResource,
     ScalarMultiplier,
@@ -67,11 +70,12 @@ class RulesetCompilerTests(unittest.TestCase):
         shadow_touch = next(
             action for action in source["actions"] if action["action_key"] == SHADOW_TOUCH
         )
-        applied = next(
+        conditional_data = next(
             effect
             for effect in shadow_touch["spec"]["phases"][0]["effects"]
-            if effect["op"] == "apply_effect"
+            if effect["op"] == "outcome_conditional"
         )
+        applied = conditional_data["condition"]
         applied["modifiers"] = [
             {
                 "op": "periodic_pulse",
@@ -92,7 +96,12 @@ class RulesetCompilerTests(unittest.TestCase):
         action = load_ruleset_text(json.dumps(source)).record(SHADOW_TOUCH).action
 
         assert action is not None
-        effect = next(item for item in action.phases[0].effects if isinstance(item, ApplyEffect))
+        conditional = next(
+            item for item in action.phases[0].effects if isinstance(item, OutcomeConditional)
+        )
+        effect = conditional.condition
+        self.assertIsInstance(effect, ApplyEffect)
+        assert isinstance(effect, ApplyEffect)
         self.assertIsInstance(effect.modifiers[0], PeriodicPulse)
         pulse = effect.modifiers[0]
         assert isinstance(pulse, PeriodicPulse)
@@ -104,11 +113,12 @@ class RulesetCompilerTests(unittest.TestCase):
         shadow_touch = next(
             action for action in source["actions"] if action["action_key"] == SHADOW_TOUCH
         )
-        applied = next(
+        conditional_data = next(
             effect
             for effect in shadow_touch["spec"]["phases"][0]["effects"]
-            if effect["op"] == "apply_effect"
+            if effect["op"] == "outcome_conditional"
         )
+        applied = conditional_data["condition"]
         applied["modifiers"] = [
             {
                 "op": "resistance_adjustment",
@@ -131,7 +141,12 @@ class RulesetCompilerTests(unittest.TestCase):
         action = load_ruleset_text(json.dumps(source)).record(SHADOW_TOUCH).action
 
         assert action is not None
-        effect = next(item for item in action.phases[0].effects if isinstance(item, ApplyEffect))
+        conditional = next(
+            item for item in action.phases[0].effects if isinstance(item, OutcomeConditional)
+        )
+        effect = conditional.condition
+        self.assertIsInstance(effect, ApplyEffect)
+        assert isinstance(effect, ApplyEffect)
         self.assertEqual(
             ResistanceAdjustment("crush", 75.0),
             effect.modifiers[0],
@@ -245,12 +260,24 @@ class RulesetCompilerTests(unittest.TestCase):
         damage = next(
             effect for effect in action.phases[0].effects if isinstance(effect, DealDamage)
         )
-        effects = tuple(
-            effect for effect in action.phases[0].effects if isinstance(effect, ApplyEffect)
+        conditional = next(
+            effect for effect in action.phases[0].effects if isinstance(effect, OutcomeConditional)
         )
         self.assertEqual(UniformAmount(24.0, 33.0), damage.amount)
         self.assertEqual(28.5, damage.amount.expected)
-        self.assertEqual((3_000, 9_000), tuple(effect.duration_ms for effect in effects))
+        self.assertEqual((EffectOutcomeKind.APPLIED,), conditional.outcomes)
+        self.assertIsInstance(conditional.condition, ApplyEffect)
+        stun = conditional.condition
+        assert isinstance(stun, ApplyEffect)
+        grounding = next(
+            effect for effect in conditional.effects if isinstance(effect, RemoveEffect)
+        )
+        immunity = next(effect for effect in conditional.effects if isinstance(effect, ApplyEffect))
+        self.assertEqual(("stunned", 3_000), (stun.effect_key, stun.duration_ms))
+        self.assertEqual(("immunity.stun",), stun.immunity_tags)
+        self.assertEqual("movement.flight", grounding.matching_tag)
+        self.assertEqual(("stun_immunity", 9_000), (immunity.effect_key, immunity.duration_ms))
+        self.assertEqual((), conditional.else_effects)
 
     def test_psychic_healing_uses_cast_plus_recycle_readiness(self) -> None:
         record = load_shadowbane_vertical_slice().record(PSYCHIC_HEALING)
@@ -284,6 +311,25 @@ class RulesetCompilerTests(unittest.TestCase):
         self.assertEqual(UniformAmount(33.0, 52.0), damage.amount)
         self.assertEqual(3_600, mind_strike.cooldown_ms)
         self.assertEqual(9_000, shadow_touch.features[0].value)
+        for action, expected in (
+            (mind_strike, (3_000, 9_000)),
+            (shadow_touch, (9_000, 27_000)),
+        ):
+            conditional = next(
+                effect
+                for effect in action.phases[0].effects
+                if isinstance(effect, OutcomeConditional)
+            )
+            self.assertEqual((EffectOutcomeKind.APPLIED,), conditional.outcomes)
+            self.assertIsInstance(conditional.condition, ApplyEffect)
+            stun = conditional.condition
+            assert isinstance(stun, ApplyEffect)
+            immunity = next(
+                effect for effect in conditional.effects if isinstance(effect, ApplyEffect)
+            )
+            self.assertEqual(expected, (stun.duration_ms, immunity.duration_ms))
+            self.assertEqual(("immunity.stun",), stun.immunity_tags)
+            self.assertTrue(any(isinstance(effect, RemoveEffect) for effect in conditional.effects))
 
     def test_steal_breath_compiles_direct_periodic_and_snare_primitives(self) -> None:
         record = load_shadowbane_vertical_slice().record(STEAL_BREATH)
@@ -550,22 +596,85 @@ class RulesetCompilerTests(unittest.TestCase):
         environment = ReferenceEnvironment(ruleset.catalog, (caster, target), seed=11)
         decision = matching_decision(environment, "assassin", SHADOW_BOLT, target_id="target")
 
-        result = environment.step((decision,))
+        batches = [environment.step((decision,))]
         for _ in range(9):
-            result = environment.step()
+            batches.append(environment.step())
+        events = tuple(event for batch in batches for event in batch.events)
 
         caster_after = environment.entity("assassin")
         target_after = environment.entity("target")
-        damage_event = next(event for event in result.events if event.kind == "damage_applied")
+        damage_event = next(event for event in events if event.kind == "damage_applied")
         rolled_damage = next(
             item.value for item in damage_event.scalars if item.name == "requested"
         )
+        conditional = next(event for event in events if event.kind == "effect_outcome_resolved")
         self.assertAlmostEqual(60.2, caster_after.scalars["mana"])
         self.assertGreaterEqual(rolled_damage, 24.0)
         self.assertLess(rolled_damage, 33.0)
         self.assertAlmostEqual(100.0 - rolled_damage, target_after.scalars["health"])
         self.assertNotIn("Flight", target_after.effects)
         self.assertEqual({"Stun", "NoStun"}, set(target_after.effects))
+        self.assertIn("outcome.applied", conditional.tags)
+        self.assertIn("branch.effects", conditional.tags)
+
+    def test_compiled_shadow_bolt_blocked_stun_preserves_existing_state(self) -> None:
+        ruleset = load_shadowbane_vertical_slice()
+        caster = EntityState(
+            entity_id="assassin",
+            life_id="assassin:1",
+            kind=EntityKind.ACTOR,
+            team_id="red",
+            position=Vector2(0.0, 0.0),
+            scalars={"health": 100.0, "mana": 100.0},
+            maximums={"health": 100.0, "mana": 100.0},
+            action_keys=(SHADOW_BOLT,),
+        )
+        target = EntityState(
+            entity_id="target",
+            life_id="target:1",
+            kind=EntityKind.ACTOR,
+            team_id="blue",
+            position=Vector2(10.0, 0.0),
+            scalars={"health": 100.0, "mana": 100.0},
+            maximums={"health": 100.0, "mana": 100.0},
+            effects={
+                "Flight": ActiveEffectState(
+                    effect_key="levitation",
+                    source_entity_id="target",
+                    magnitude=1.0,
+                    expires_at_ms=300_000,
+                    stacking_key="Flight",
+                    tags={"movement.flight"},
+                ),
+                "NoStun": ActiveEffectState(
+                    effect_key="existing_stun_immunity",
+                    source_entity_id="target",
+                    magnitude=1.0,
+                    expires_at_ms=300_000,
+                    stacking_key="NoStun",
+                    tags={"immunity.stun"},
+                ),
+            },
+        )
+        environment = ReferenceEnvironment(ruleset.catalog, (caster, target), seed=11)
+        decision = matching_decision(environment, "assassin", SHADOW_BOLT, target_id="target")
+
+        batches = [environment.step((decision,))]
+        for _ in range(9):
+            batches.append(environment.step())
+        events = tuple(event for batch in batches for event in batch.events)
+
+        target_after = environment.entity("target")
+        conditional = next(event for event in events if event.kind == "effect_outcome_resolved")
+        self.assertEqual({"Flight", "NoStun"}, set(target_after.effects))
+        self.assertNotIn("Stun", target_after.effects)
+        self.assertIn("outcome.blocked_immunity", conditional.tags)
+        self.assertIn("branch.else_effects", conditional.tags)
+        self.assertTrue(
+            any(
+                event.kind == "effect_blocked" and "reason.immune" in event.tags for event in events
+            )
+        )
 
 
 if __name__ == "__main__":
