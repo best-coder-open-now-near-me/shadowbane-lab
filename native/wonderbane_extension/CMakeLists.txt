@@ -19,6 +19,8 @@ add_library(
   extension.cpp
   extension.def
   extension.rc
+  world_map_capture.cpp
+  world_map_projection.cpp
 )
 
 target_compile_features(wonderbane_extension PRIVATE cxx_std_20)
@@ -56,7 +58,7 @@ target_link_options(
   /OPT:ICF
   /Brepro
 )
-target_link_libraries(wonderbane_extension PRIVATE shell32 ole32 uuid)
+target_link_libraries(wonderbane_extension PRIVATE shell32 ole32 user32 uuid)
 
 set_property(TARGET wonderbane_extension PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded")
 set_target_properties(
@@ -67,6 +69,54 @@ set_target_properties(
 )
 
 if(BUILD_TESTING)
+  add_executable(
+    wonderbane_extension_world_map_projection_test
+    world_map_projection.cpp
+    world_map_projection_test.cpp
+  )
+  target_compile_features(
+    wonderbane_extension_world_map_projection_test
+    PRIVATE
+    cxx_std_20
+  )
+  target_compile_definitions(
+    wonderbane_extension_world_map_projection_test
+    PRIVATE
+    UNICODE
+    _UNICODE
+    WIN32_LEAN_AND_MEAN
+    NOMINMAX
+    STRICT
+  )
+  target_compile_options(
+    wonderbane_extension_world_map_projection_test
+    PRIVATE
+    /W4
+    /WX
+    /permissive-
+    /sdl
+    /GS
+    /guard:cf
+    /Zc:__cplusplus
+    /utf-8
+  )
+  target_link_options(
+    wonderbane_extension_world_map_projection_test
+    PRIVATE
+    /DYNAMICBASE
+    /NXCOMPAT
+    /guard:cf
+    /INCREMENTAL:NO
+  )
+  set_property(
+    TARGET wonderbane_extension_world_map_projection_test
+    PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded"
+  )
+  add_test(
+    NAME wonderbane_extension_world_map_projection
+    COMMAND wonderbane_extension_world_map_projection_test
+  )
+
   add_executable(
     wonderbane_extension_event_channel_test
     event_channel.cpp

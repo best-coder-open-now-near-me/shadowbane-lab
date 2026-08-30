@@ -83,8 +83,7 @@ DWORD VerifyEventChannel() noexcept {
         && storage->header.process_id == identity.process_id
         && storage->header.process_creation_filetime_utc
             == identity.creation_filetime_utc
-        && storage->header.capability_flags
-            == wonderbane::extension::kWorldMapDestinationCapability
+        && storage->header.capability_flags == 0U
     );
     UnmapViewOfFile(storage);
     CloseHandle(mapping);

@@ -81,13 +81,17 @@ DWORD FormatEventSignalName(
     return SUCCEEDED(result) ? ERROR_SUCCESS : HResultToWin32(result);
 }
 
-DWORD InitializeEventChannel(const ProcessIdentity& identity) noexcept {
+DWORD InitializeEventChannel(
+    const ProcessIdentity& identity,
+    const std::uint32_t capability_flags
+) noexcept {
     if (
         identity.process_id == 0U
         || identity.creation_filetime_utc == 0U
         || g_mapping != nullptr
         || g_signal != nullptr
         || g_storage != nullptr
+        || (capability_flags & ~kWorldMapDestinationCapability) != 0U
     ) {
         return ERROR_INVALID_STATE;
     }
@@ -156,7 +160,7 @@ DWORD InitializeEventChannel(const ProcessIdentity& identity) noexcept {
     g_storage->header.slot_size = kEventChannelSlotSize;
     g_storage->header.capacity = kEventChannelCapacity;
     g_storage->header.process_id = identity.process_id;
-    g_storage->header.capability_flags = kWorldMapDestinationCapability;
+    g_storage->header.capability_flags = capability_flags;
     g_storage->header.process_creation_filetime_utc = identity.creation_filetime_utc;
     MemoryBarrier();
     return ERROR_SUCCESS;

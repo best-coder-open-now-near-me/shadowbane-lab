@@ -94,7 +94,10 @@ DWORD FormatEventSignalName(
     wchar_t* destination,
     std::size_t destination_capacity
 ) noexcept;
-DWORD InitializeEventChannel(const ProcessIdentity& identity) noexcept;
+DWORD InitializeEventChannel(
+    const ProcessIdentity& identity,
+    std::uint32_t capability_flags
+) noexcept;
 void ShutdownEventChannel() noexcept;
 bool TryPublishWorldMapDestination(const WorldMapDestination& event) noexcept;
 

@@ -40,7 +40,10 @@ int wmain() {
         GetCurrentProcessId(),
         FileTimeValue(creation_time),
     };
-    DWORD result = wonderbane::extension::InitializeEventChannel(identity);
+    DWORD result = wonderbane::extension::InitializeEventChannel(
+        identity,
+        wonderbane::extension::kWorldMapDestinationCapability
+    );
     if (result != ERROR_SUCCESS) {
         return Fail(L"InitializeEventChannel", result);
     }

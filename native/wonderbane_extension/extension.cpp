@@ -1,5 +1,6 @@
 #include "extension_api.h"
 #include "event_channel.h"
+#include "world_map_capture.h"
 
 #include <KnownFolders.h>
 #include <ShlObj.h>
@@ -21,6 +22,7 @@ constexpr char kExtensionVersion[] = "1.1.0";
 volatile LONG g_state = static_cast<LONG>(WonderBaneExtensionState::uninitialized);
 volatile LONG g_initialization_result = ERROR_SUCCESS;
 wchar_t g_heartbeat_path[kPathCapacity]{};
+HMODULE g_extension_module = nullptr;
 
 DWORD HResultToWin32(const HRESULT result) noexcept {
     if (HRESULT_FACILITY(result) == FACILITY_WIN32) {
@@ -261,13 +263,29 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
     if (previous == static_cast<LONG>(WonderBaneExtensionState::uninitialized)) {
         wonderbane::extension::ProcessIdentity identity{};
         DWORD result = ReadProcessIdentity(&identity);
+        const bool world_map_supported = (
+            result == ERROR_SUCCESS
+            && wonderbane::extension::IsReviewedWorldMapClient()
+        );
         if (result == ERROR_SUCCESS) {
-            result = wonderbane::extension::InitializeEventChannel(identity);
+            result = wonderbane::extension::InitializeEventChannel(
+                identity,
+                world_map_supported
+                    ? wonderbane::extension::kWorldMapDestinationCapability
+                    : 0U
+            );
+        }
+        if (result == ERROR_SUCCESS && world_map_supported) {
+            result = wonderbane::extension::StartWorldMapCapture(
+                g_extension_module,
+                identity
+            );
         }
         if (result == ERROR_SUCCESS) {
             result = WriteHeartbeat(identity);
         }
         if (result != ERROR_SUCCESS) {
+            wonderbane::extension::StopWorldMapCapture();
             wonderbane::extension::ShutdownEventChannel();
         }
         InterlockedExchange(&g_initialization_result, static_cast<LONG>(result));
@@ -327,6 +345,14 @@ extern "C" DWORD WINAPI WonderBaneExtensionGetStatus(
     return ERROR_SUCCESS;
 }
 
-BOOL APIENTRY DllMain(HMODULE, DWORD, LPVOID) noexcept {
+BOOL APIENTRY DllMain(
+    const HMODULE module,
+    const DWORD reason,
+    LPVOID
+) noexcept {
+    if (reason == DLL_PROCESS_ATTACH) {
+        g_extension_module = module;
+        DisableThreadLibraryCalls(module);
+    }
     return TRUE;
 }
