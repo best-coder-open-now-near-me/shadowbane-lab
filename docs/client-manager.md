@@ -134,10 +134,16 @@ tiles, and the original JSON is retained beside the manifest as a timestamped ba
 the VM installer preserves the existing manifest unless `-ClientCount` is explicitly supplied.
 
 When an immutable reviewed client build replaces the launch directory, retarget every existing
-slot atomically instead of editing JSON or copying binaries over the installed client:
+slot atomically instead of editing JSON or copying binaries over the installed client. With every
+game client closed, verify the published package immediately before retargeting it:
 
 ```powershell
 $env:PYTHONPATH = "\\VBOXSVR\codexrepo\src"
+& "$env:USERPROFILE\shadowbane-lab\.venv\Scripts\python.exe" `
+  -m shadowbane_lab.client_extension verify-copy `
+  "\\VBOXSVR\codexdiag\client-extension-working\wonderbane-1.0.5-world-map-click-v1" `
+  --pretty
+
 & "$env:USERPROFILE\shadowbane-lab\.venv\Scripts\python.exe" `
   -m shadowbane_lab.cli manager configure-build `
   "$env:LOCALAPPDATA\ShadowbaneLab\client-manager.json" `

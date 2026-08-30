@@ -6,6 +6,8 @@ param(
     [string] $ExtensionArtifact = "\\VBOXSVR\codexrepo\build\wonderbane-client-extension-final\Release\wonderbane-extension.dll",
     [string] $ManifestPath = "",
     [string] $ExtensionVersion = "1.2.0",
+    [string] $TexturePatchManifest = "",
+    [string] $TextureArtifactDirectory = "",
     [string] $PythonExecutable = "$env:USERPROFILE\shadowbane-lab\.venv\Scripts\python.exe",
     [switch] $DryRunOnly
 )
@@ -25,6 +27,9 @@ $packageId = Split-Path -Leaf $DestinationDirectory
 if (-not $ManifestPath) {
     $ManifestPath = Join-Path $EvidenceDirectory "$packageId.manifest.json"
 }
+if ([string]::IsNullOrWhiteSpace($TexturePatchManifest) -xor [string]::IsNullOrWhiteSpace($TextureArtifactDirectory)) {
+    throw "TexturePatchManifest and TextureArtifactDirectory must be supplied together."
+}
 
 $requiredFiles = @(
     @{ Path = $PythonExecutable; Description = "guest Python environment" },
@@ -36,6 +41,12 @@ foreach ($required in $requiredFiles) {
     if (-not (Test-Path -LiteralPath $required.Path -PathType Leaf)) {
         throw "$($required.Description) was not found: $($required.Path)"
     }
+}
+if ($TexturePatchManifest -and -not (Test-Path -LiteralPath $TexturePatchManifest -PathType Leaf)) {
+    throw "Reviewed texture-patch manifest was not found: $TexturePatchManifest"
+}
+if ($TextureArtifactDirectory -and -not (Test-Path -LiteralPath $TextureArtifactDirectory -PathType Container)) {
+    throw "Texture artifact directory was not found: $TextureArtifactDirectory"
 }
 if (-not (Test-Path -LiteralPath $repositorySource -PathType Container)) {
     throw "Repository Python source directory was not found: $repositorySource"
@@ -50,6 +61,13 @@ $env:PYTHONPATH = if ([string]::IsNullOrWhiteSpace($inheritedPythonPath)) {
 }
 else {
     "$repositorySource$([IO.Path]::PathSeparator)$inheritedPythonPath"
+}
+$textureArguments = @()
+if ($TexturePatchManifest) {
+    $textureArguments = @(
+        "--texture-patch-manifest", $TexturePatchManifest,
+        "--texture-artifact-directory", $TextureArtifactDirectory
+    )
 }
 
 if (-not (Test-Path -LiteralPath $ManifestPath -PathType Leaf)) {
@@ -71,6 +89,7 @@ if (-not (Test-Path -LiteralPath $ManifestPath -PathType Leaf)) {
     $DestinationDirectory `
     $ManifestPath `
     $ExtensionArtifact `
+    @textureArguments `
     --dry-run `
     --pretty
 if ($LASTEXITCODE -ne 0) {
@@ -100,6 +119,7 @@ if ($DryRunOnly) {
     $DestinationDirectory `
     $ManifestPath `
     $ExtensionArtifact `
+    @textureArguments `
     --pretty
 if ($LASTEXITCODE -ne 0) {
     throw "Disposable client publication failed with exit code $LASTEXITCODE"
