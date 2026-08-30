@@ -65,12 +65,20 @@ from .resolver import (
     apply_patch_plan,
     build_patch_plan,
 )
+from .runtime_status import (
+    EXTENSION_RUNTIME_STATUS_SCHEMA_VERSION,
+    ExtensionHeartbeatStatusProvider,
+    ExtensionRuntimeSnapshot,
+    ExtensionRuntimeState,
+    unconfigured_extension_status,
+)
 
 __all__ = [
     "CLIENT_BASELINE_SCHEMA_VERSION",
     "BOOTSTRAP_INSPECTION_SCHEMA_VERSION",
     "EXTENSION_ABI_VERSION",
     "EXTENSION_HEARTBEAT_SCHEMA_VERSION",
+    "EXTENSION_RUNTIME_STATUS_SCHEMA_VERSION",
     "PATCH_MANIFEST_SCHEMA_VERSION",
     "PATCH_PACKAGE_SCHEMA_VERSION",
     "PE_HEADERS_SECTION",
@@ -85,6 +93,9 @@ __all__ = [
     "ExtensionArtifact",
     "ExtensionHeartbeat",
     "ExtensionHeartbeatError",
+    "ExtensionHeartbeatStatusProvider",
+    "ExtensionRuntimeSnapshot",
+    "ExtensionRuntimeState",
     "MaskedSignature",
     "PatchAlignmentReport",
     "PatchManifest",
@@ -115,6 +126,7 @@ __all__ = [
     "load_extension_heartbeat",
     "parse_extension_heartbeat",
     "prepare_patched_client_copy",
+    "unconfigured_extension_status",
     "verify_frozen_client_baseline",
     "verify_patched_client_copy",
     "WONDERBANE_1_0_5_PROFILE",

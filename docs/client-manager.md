@@ -145,6 +145,12 @@ header/body deadlines, suppresses request logging, and sends restrictive CSP, fr
 content-type, and referrer headers. It is intentionally not a cross-PC control plane. Run one app
 on each PC.
 
+The same `/api/v1/status` response includes an `extension` record for every slot. It resolves only
+the heartbeat whose PID and process-creation FILETIME match the current exact client binding;
+heartbeats from earlier launches are ignored. `initialized` is the only ready state. Missing,
+malformed, mismatched, unbound, and unconfigured states remain explicit and do not become native
+capability authority.
+
 The dashboard shows open instances, exact bindings, and worker health. It refreshes health every
 two seconds while visible, adopts safely identified clients that were already open, and archives
 their internal bindings after exact process exit is verified.

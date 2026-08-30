@@ -7,6 +7,12 @@ import threading
 from math import isfinite
 from typing import Protocol
 
+from shadowbane_lab.client_extension.runtime_status import (
+    ExtensionRuntimeSnapshot,
+    ExtensionRuntimeState,
+    unconfigured_extension_status,
+)
+
 from .dashboard import DashboardError
 from .manifest import ManagedClientConfig, ManagerManifest
 from .model import (
@@ -100,6 +106,16 @@ class WorkerOperationStatusProvider(Protocol):
     def inspect_slot(self, client_id: str) -> tuple[WorkerOperationSnapshot, ...]: ...
 
 
+class ExtensionStatusProvider(Protocol):
+    """Read the extension state for one exact game-process lifetime."""
+
+    def inspect(
+        self,
+        process_id: int | None,
+        process_creation_filetime_utc: int | None,
+    ) -> ExtensionRuntimeSnapshot: ...
+
+
 def _require_positive_finite(value: float, field_name: str) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError(f"{field_name} must be numeric")
@@ -175,6 +191,7 @@ class ManagerDashboardApplication:
         *,
         worker_controller: WorkerLifecycleControl | None = None,
         operation_status: WorkerOperationStatusProvider | None = None,
+        extension_status: ExtensionStatusProvider | None = None,
         launch_timeout_seconds: float = 30.0,
         poll_seconds: float = 0.5,
     ) -> None:
@@ -212,12 +229,17 @@ class ManagerDashboardApplication:
             getattr(operation_status, "inspect_slot", None)
         ):
             raise ValueError("operation_status must provide inspect_slot()")
+        if extension_status is not None and not callable(
+            getattr(extension_status, "inspect", None)
+        ):
+            raise ValueError("extension_status must provide inspect()")
         self._manifest = manifest
         self._session = session
         self._registry = registry
         self._worker_supervisor = worker_supervisor
         self._worker_controller = worker_controller
         self._operation_status = operation_status
+        self._extension_status = extension_status
         self._launch_timeout_seconds = _require_positive_finite(
             launch_timeout_seconds,
             "launch_timeout_seconds",
@@ -345,6 +367,7 @@ class ManagerDashboardApplication:
             slots: list[dict[str, object]] = []
             healthy_worker_count = 0
             dispatch_ready_count = 0
+            extension_ready_count = 0
             for slot in session.slots:
                 config = self._configs.get(slot.client_id)
                 if config is None:
@@ -374,6 +397,10 @@ class ManagerDashboardApplication:
                 payload["lifecycle_dispatch_enabled"] = lifecycle_dispatch_enabled
                 payload["dispatch_enabled"] = worker.dispatch_allowed
                 payload["worker"] = worker.to_dict()
+                extension = self._extension_summary(binding)
+                if extension.state is ExtensionRuntimeState.INITIALIZED:
+                    extension_ready_count += 1
+                payload["extension"] = extension.to_dict()
                 payload["operation"] = self._operation_summary(
                     slot.client_id,
                     instance_id=None if binding is None else binding.instance_id,
@@ -400,8 +427,23 @@ class ManagerDashboardApplication:
                 "bound_count": len(current_bound_ids),
                 "healthy_worker_count": healthy_worker_count,
                 "dispatch_ready_count": dispatch_ready_count,
+                "extension_ready_count": extension_ready_count,
                 "slots": slots,
             }
+
+    def _extension_summary(
+        self,
+        binding: ClientInstanceSnapshot | None,
+    ) -> ExtensionRuntimeSnapshot:
+        if self._extension_status is None:
+            return unconfigured_extension_status()
+        result = self._extension_status.inspect(
+            None if binding is None else binding.process_id,
+            None if binding is None else binding.process_started_at_100ns,
+        )
+        if not isinstance(result, ExtensionRuntimeSnapshot):
+            raise RuntimeError("extension status provider returned an invalid snapshot")
+        return result
 
     def _operation_summary(
         self,

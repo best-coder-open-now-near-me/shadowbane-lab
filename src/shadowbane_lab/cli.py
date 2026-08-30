@@ -25,6 +25,7 @@ from shadowbane_lab.character_capture import (
     capture_character,
     load_character_layout,
 )
+from shadowbane_lab.client_extension import ExtensionHeartbeatStatusProvider
 from shadowbane_lab.client_input import (
     ActionInputMapping,
     AnyStopSignal,
@@ -1594,6 +1595,14 @@ def _run_manager_app(
         else:
             heartbeat_root = worker_state_directory
             manager_state_root = heartbeat_root.parent
+        local_app_data = os.environ.get("LOCALAPPDATA")
+        extension_status = (
+            None
+            if not local_app_data
+            else ExtensionHeartbeatStatusProvider(
+                Path(local_app_data) / "ShadowbaneLab" / "client-extension"
+            )
+        )
 
         def build_application(
             application_manifest: ManagerManifest,
@@ -1636,6 +1645,7 @@ def _run_manager_app(
                     application_manifest,
                     heartbeat_root,
                 ),
+                extension_status=extension_status,
                 launch_timeout_seconds=launch_timeout_seconds,
                 poll_seconds=poll_ms / 1_000.0,
             )
