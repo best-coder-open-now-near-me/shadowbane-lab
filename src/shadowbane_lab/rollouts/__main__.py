@@ -30,8 +30,11 @@ from shadowbane_lab.rollouts import (
     run_smart_camp_batch,
     run_verified_duel,
     run_verified_duel_batch,
+    wonderbane_deflock_vs_druid,
+    wonderbane_druid_matchup_matrix,
     wonderbane_sundancer_deflock_matrix,
     wonderbane_sundancer_vs_deflock,
+    wonderbane_sundancer_vs_druid,
 )
 
 
@@ -63,6 +66,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "duels",
             "verified-duel",
             "wonderbane-guide-duel",
+            "wonderbane-druid-duels",
             "frost-walker",
             "pure-frost-walker",
             "irekei-proc",
@@ -91,11 +95,100 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--accept-source-revision", action="store_true")
     parser.add_argument("--accept-ruleset-overrides", action="store_true")
     parser.add_argument("--assassin-stealthed", action="store_true")
+    parser.add_argument(
+        "--druid-opponent",
+        choices=("assassin", "warlock"),
+        default="assassin",
+    )
     arguments = parser.parse_args(argv)
     if arguments.pve_calibration is not None and arguments.scenario != "smart-camp":
         parser.error("--pve-calibration is supported only by --scenario smart-camp")
-    if arguments.matrix and arguments.scenario not in ("duels", "wonderbane-guide-duel"):
+    if arguments.matrix and arguments.scenario not in (
+        "duels",
+        "wonderbane-guide-duel",
+        "wonderbane-druid-duels",
+    ):
         parser.error("--matrix is supported only by duel scenarios")
+    if arguments.scenario == "wonderbane-druid-duels":
+        if arguments.left_profile is not None or arguments.right_profile is not None:
+            parser.error("wonderbane-druid-duels uses its bundled guide profiles")
+        if arguments.matrix:
+            cells = wonderbane_druid_matchup_matrix(
+                starting_distances=arguments.distances,
+                assassin_stealth_openers=(False, True),
+                episodes=arguments.episodes,
+                max_ticks=arguments.max_ticks,
+                seed_start=arguments.seed,
+            )
+            if arguments.json:
+                print(
+                    json.dumps(
+                        [cell.as_dict() for cell in cells],
+                        indent=2,
+                        sort_keys=True,
+                    )
+                )
+            else:
+                print("opponent  range  hidden  episodes  opponent-wins  D-wins  draws")
+                for cell in cells:
+                    wins = {item.entity_id: item.wins for item in cell.batch.combatants}
+                    hidden = (
+                        "n/a"
+                        if cell.assassin_starts_stealthed is None
+                        else str(cell.assassin_starts_stealthed)
+                    )
+                    print(
+                        f"{cell.opponent:<8}  {cell.starting_distance:>5.1f}  "
+                        f"{hidden:>6}  {cell.batch.episodes:>8}  "
+                        f"{wins[cell.opponent]:>13}  {wins['druid']:>6}  "
+                        f"{cell.batch.draws:>5}"
+                    )
+            return 0
+        if arguments.druid_opponent == "assassin":
+            config = wonderbane_sundancer_vs_druid(
+                starting_distance=arguments.distance,
+                max_ticks=arguments.max_ticks,
+                seed=arguments.seed,
+                assassin_starts_stealthed=arguments.assassin_stealthed,
+            )
+        else:
+            config = wonderbane_deflock_vs_druid(
+                starting_distance=arguments.distance,
+                max_ticks=arguments.max_ticks,
+                seed=arguments.seed,
+            )
+        result = (
+            run_verified_duel(config)
+            if arguments.episodes == 1
+            else run_verified_duel_batch(
+                config,
+                episodes=arguments.episodes,
+                seed_start=arguments.seed,
+            )
+        )
+        if arguments.json:
+            print(json.dumps(result.as_dict(), indent=2, sort_keys=True))
+        elif arguments.episodes == 1:
+            duel = result.duel
+            print(
+                f"WonderBane Druid duel: opponent={arguments.druid_opponent}; "
+                f"winner={duel.winner_entity_id or 'draw'}; "
+                f"reason={duel.reason.value}; ticks={duel.ticks}"
+            )
+            for combatant in duel.combatants:
+                print(
+                    f"{combatant.entity_id}: health={combatant.final_health:.1f}; "
+                    f"mana={combatant.final_mana:.1f}; damage={combatant.damage_dealt:.1f}"
+                )
+        else:
+            wins = {item.entity_id: item.wins for item in result.combatants}
+            print(
+                f"WonderBane Druid batch: episodes={result.episodes}; "
+                f"{arguments.druid_opponent}_wins={wins[arguments.druid_opponent]}; "
+                f"druid_wins={wins['druid']}; draws={result.draws}; "
+                f"mean_ticks={result.mean_ticks:.1f}"
+            )
+        return 0
     if arguments.scenario == "wonderbane-guide-duel":
         if arguments.left_profile is not None or arguments.right_profile is not None:
             parser.error("wonderbane-guide-duel uses its bundled guide profiles")
@@ -239,10 +332,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                 config,
                 load_pve_combat_calibration(arguments.pve_calibration),
             )
-        result = run_smart_camp(config) if arguments.episodes == 1 else run_smart_camp_batch(
-            config,
-            episodes=arguments.episodes,
-            seed_start=arguments.seed,
+        result = (
+            run_smart_camp(config)
+            if arguments.episodes == 1
+            else run_smart_camp_batch(
+                config,
+                episodes=arguments.episodes,
+                seed_start=arguments.seed,
+            )
         )
         if arguments.json:
             payload = (

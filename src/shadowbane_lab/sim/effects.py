@@ -1677,6 +1677,8 @@ class EffectExecutor:
                     subject.position.x - target.position.x,
                     subject.position.y - target.position.y,
                 )
+                if direction.x == 0.0 and direction.y == 0.0:
+                    direction = Vector2(1.0, 0.0)
             else:
                 direction = Vector2(
                     target.position.x - subject.position.x,

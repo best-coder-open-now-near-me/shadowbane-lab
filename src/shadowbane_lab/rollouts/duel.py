@@ -34,7 +34,7 @@ from shadowbane_lab.protocol import (
     Relation,
     Vector2,
 )
-from shadowbane_lab.rollouts.ruleset import load_assassin_warlock_duel_ruleset
+from shadowbane_lab.rollouts.ruleset import load_wonderbane_guide_duel_ruleset
 from shadowbane_lab.rulesets import CharacterBuild, CompiledRuleset
 from shadowbane_lab.sim import (
     OPEN_RANGE_ACTION_KEY,
@@ -99,6 +99,17 @@ def _positive_number(value: float, field_name: str) -> None:
         raise ValueError(f"{field_name} must be a positive number")
 
 
+def _validate_initial_cooldowns(values: tuple[tuple[str, int], ...]) -> None:
+    keys = tuple(action_key for action_key, _ in values)
+    if len(keys) != len(set(keys)):
+        raise ValueError("initial_cooldowns must not contain duplicate action keys")
+    for action_key, remaining_ms in values:
+        if not isinstance(action_key, str) or not action_key.strip():
+            raise ValueError("initial cooldown action keys must be non-empty strings")
+        if isinstance(remaining_ms, bool) or not isinstance(remaining_ms, int) or remaining_ms < 1:
+            raise ValueError("initial cooldown durations must be positive integers")
+
+
 @dataclass(frozen=True, slots=True)
 class InitialEffectConfig:
     """Immutable combat-start effect state with simulator-native modifiers."""
@@ -122,9 +133,7 @@ class InitialEffectConfig:
             or self.duration_ms < 1
         ):
             raise ValueError("duration_ms must be a positive integer or null")
-        if isinstance(self.magnitude, bool) or not isinstance(
-            self.magnitude, (int, float)
-        ):
+        if isinstance(self.magnitude, bool) or not isinstance(self.magnitude, (int, float)):
             raise ValueError("magnitude must be a number")
         if self.stacking_key is not None and (
             not isinstance(self.stacking_key, str) or not self.stacking_key.strip()
@@ -161,8 +170,7 @@ class InitialEffectConfig:
             stack_priority=self.stack_priority,
         )
         if self.duration_ms is not None and any(
-            isinstance(modifier, PeriodicPulse)
-            and modifier.duration_ms > self.duration_ms
+            isinstance(modifier, PeriodicPulse) and modifier.duration_ms > self.duration_ms
             for modifier in self.modifiers
         ):
             raise ValueError("periodic pulses must complete within the initial effect duration")
@@ -181,6 +189,7 @@ class CombatantConfig:
     extra_scalars: tuple[tuple[str, float], ...] = ()
     initial_trigger_keys: tuple[str, ...] = ()
     initial_effects: tuple[InitialEffectConfig, ...] = ()
+    initial_cooldowns: tuple[tuple[str, int], ...] = ()
     initial_stance: CombatStance = CombatStance.NORMAL
     action_keys_override: tuple[str, ...] | None = None
 
@@ -225,6 +234,7 @@ class CombatantConfig:
         )
         if len(storage_keys) != len(set(storage_keys)):
             raise ValueError("initial_effects must not share storage keys")
+        _validate_initial_cooldowns(self.initial_cooldowns)
         if not isinstance(self.initial_stance, CombatStance):
             raise ValueError("initial_stance must be a CombatStance")
         if self.action_keys_override is not None:
@@ -352,12 +362,8 @@ class DuelResult:
                     "weapon_misses": item.weapon_misses,
                     "passive_defenses": item.passive_defenses,
                     "damage_absorbed": item.damage_absorbed,
-                    "actions": {
-                        action.action_key: action.count for action in item.actions
-                    },
-                    "triggers": {
-                        trigger.trigger_key: trigger.count for trigger in item.triggers
-                    },
+                    "actions": {action.action_key: action.count for action in item.actions},
+                    "triggers": {trigger.trigger_key: trigger.count for trigger in item.triggers},
                 }
                 for item in self.combatants
             ],
@@ -401,6 +407,7 @@ class VerifiedCombatantConfig:
     sheet: CombatSheet
     build: CharacterBuild
     initial_effects: tuple[InitialEffectConfig, ...] = ()
+    initial_cooldowns: tuple[tuple[str, int], ...] = ()
     initial_stance: CombatStance = CombatStance.NORMAL
 
     def __post_init__(self) -> None:
@@ -418,6 +425,7 @@ class VerifiedCombatantConfig:
         )
         if len(storage_keys) != len(set(storage_keys)):
             raise ValueError("initial_effects must not share storage keys")
+        _validate_initial_cooldowns(self.initial_cooldowns)
         if not isinstance(self.initial_stance, CombatStance):
             raise ValueError("initial_stance must be a CombatStance")
 
@@ -568,9 +576,7 @@ class UtilityDuelPolicy:
             _positive_number(maximum, f"maximum {resource_key}")
             self._maximum_resources[resource_key] = float(maximum)
 
-    def decide(
-        self, exchange: AgentExchange, correlation_id: str
-    ) -> DecisionMessage | None:
+    def decide(self, exchange: AgentExchange, correlation_id: str) -> DecisionMessage | None:
         affordances = exchange.affordances.affordances
         if not affordances:
             return None
@@ -634,9 +640,7 @@ class UtilityDuelPolicy:
             if "immunity.resource.health" in actor_tags:
                 return float("-inf")
             applied_healing_effects = tuple(
-                tag.removeprefix("applies.")
-                for tag in tags
-                if tag.startswith("applies.")
+                tag.removeprefix("applies.") for tag in tags if tag.startswith("applies.")
             )
             if any(effect_key in actor_tags for effect_key in applied_healing_effects):
                 return float("-inf")
@@ -668,12 +672,8 @@ class UtilityDuelPolicy:
 
         if "armed_trigger" in tags:
             trigger_damage = features.get("expected_trigger_damage", 0.0)
-            trigger_control_ms = features.get(
-                "expected_trigger_control_duration_ms", 0.0
-            )
-            followup_ms = max(
-                1.0, features.get("expected_followup_commitment_ms", 1_000.0)
-            )
+            trigger_control_ms = features.get("expected_trigger_control_duration_ms", 0.0)
+            followup_ms = max(1.0, features.get("expected_followup_commitment_ms", 1_000.0))
             score = (
                 8.0
                 + trigger_damage * 1_000.0 / (cast_time_ms + followup_ms)
@@ -716,9 +716,7 @@ class UtilityDuelPolicy:
             if "debuff" not in actor_tags:
                 return float("-inf")
             cleanse_tags = tuple(
-                tag.removeprefix("cleanse.")
-                for tag in tags
-                if tag.startswith("cleanse.")
+                tag.removeprefix("cleanse.") for tag in tags if tag.startswith("cleanse.")
             )
             if cleanse_tags and not any(tag in actor_tags for tag in cleanse_tags):
                 return float("-inf")
@@ -734,9 +732,7 @@ class UtilityDuelPolicy:
             return 10.0 + features.get("expected_stamina_restoration", 0.0)
         if "resource_drain" in tags:
             resource_tags = tuple(
-                tag.removeprefix("resource.")
-                for tag in tags
-                if tag.startswith("resource.")
+                tag.removeprefix("resource.") for tag in tags if tag.startswith("resource.")
             )
             if len(resource_tags) != 1:
                 return float("-inf")
@@ -760,9 +756,7 @@ class UtilityDuelPolicy:
             return (expected_credit + denial_value) * 1_000.0 / cast_time_ms
         if "snare" in tags and target_id is not None:
             target = next(
-                entity
-                for entity in exchange.observation.entities
-                if entity.entity_id == target_id
+                entity for entity in exchange.observation.entities if entity.entity_id == target_id
             )
             distance = features.get("distance", _distance(actor.position, target.position))
             target_is_moving = hypot(target.velocity.x, target.velocity.y) > 0.01
@@ -816,9 +810,7 @@ class UtilityDuelPolicy:
             minimum = features.get(RANGE_MINIMUM_FEATURE)
             if distance is None or minimum is None or distance >= minimum:
                 return float("-inf")
-            controlled_target = bool(
-                {"snare", "control.stun"} & set(selected_target_tags)
-            )
+            controlled_target = bool({"snare", "control.stun"} & set(selected_target_tags))
             return 1_000.0 if controlled_target else 25.0
         return -10.0
 
@@ -834,9 +826,7 @@ class UtilityDuelPolicy:
         if target_id is None:
             return None
         target = next(
-            entity
-            for entity in exchange.observation.entities
-            if entity.entity_id == target_id
+            entity for entity in exchange.observation.entities if entity.entity_id == target_id
         )
         damage_type = next(
             (
@@ -864,9 +854,7 @@ class UtilityDuelPolicy:
         for candidate in exchange.affordances.affordances:
             if damage_type not in candidate.tags:
                 continue
-            candidate_features = {
-                feature.name: feature.value for feature in candidate.features
-            }
+            candidate_features = {feature.name: feature.value for feature in candidate.features}
             expected_damage = candidate_features.get("expected_damage", 0.0)
             if expected_damage <= 0.0:
                 continue
@@ -924,11 +912,7 @@ class UtilityDuelPolicy:
             current_throughput = max(0.01, current_hit)
             projected_throughput = projected_hit * damage_factor / delay_factor
             gain_ratio = projected_throughput / current_throughput
-            if (
-                health_fraction <= 0.55
-                or projected_hit < 0.45
-                or gain_ratio <= 1.15
-            ):
+            if health_fraction <= 0.55 or projected_hit < 0.45 or gain_ratio <= 1.15:
                 return float("-inf")
             return 45.0 + min(50.0, (gain_ratio - 1.0) * 25.0)
 
@@ -943,15 +927,11 @@ class UtilityDuelPolicy:
         attack_factor: float,
     ) -> float:
         enemies = tuple(
-            entity
-            for entity in exchange.observation.entities
-            if entity.relation is Relation.ENEMY
+            entity for entity in exchange.observation.entities if entity.relation is Relation.ENEMY
         )
         if not enemies:
             return 0.0
-        attacks = tuple(
-            scalar for scalar in actor.scalars if scalar.name.startswith("attack.")
-        )
+        attacks = tuple(scalar for scalar in actor.scalars if scalar.name.startswith("attack."))
         chances = []
         for enemy in enemies:
             defense = _scalar(enemy.scalars, "defense")
@@ -966,14 +946,12 @@ class UtilityDuelPolicy:
         return max(chances, default=0.0)
 
 
-def run_duel(
-    config: DuelConfig, *, ruleset: CompiledRuleset | None = None
-) -> DuelResult:
+def run_duel(config: DuelConfig, *, ruleset: CompiledRuleset | None = None) -> DuelResult:
     """Run one deterministic duel until one team remains or the tick budget expires."""
 
     rank_overrides = _merge_rank_overrides(config.left.build, config.right.build)
     if ruleset is None:
-        ruleset = load_assassin_warlock_duel_ruleset(rank_overrides=rank_overrides)
+        ruleset = load_wonderbane_guide_duel_ruleset(rank_overrides=rank_overrides)
     else:
         for action_key, rank in rank_overrides.items():
             record = ruleset.record(action_key)
@@ -1020,9 +998,7 @@ def run_duel(
             )
             if decision is not None:
                 decisions.append(decision)
-        batch = environment.step(
-            tuple(decisions), truncated=step_number == config.max_ticks - 1
-        )
+        batch = environment.step(tuple(decisions), truncated=step_number == config.max_ticks - 1)
         events.extend(batch.events)
         cancelled_scheduled_items += _cancel_dead_actor_schedule(environment)
         if batch.world_terminated:
@@ -1032,9 +1008,7 @@ def run_duel(
     states = {item.entity_id: environment.entity(item.entity_id) for item in combatants}
     living = tuple(entity_id for entity_id, state in states.items() if state.alive)
     winner = living[0] if len(living) == 1 else None
-    results = tuple(
-        _combatant_result(item, states[item.entity_id], events) for item in combatants
-    )
+    results = tuple(_combatant_result(item, states[item.entity_id], events) for item in combatants)
     final_distance = _distance(
         states[config.left.entity_id].position,
         states[config.right.entity_id].position,
@@ -1120,9 +1094,7 @@ def run_verified_duel_batch(
             winner_counts[entity_id],
             episodes,
         )
-        for index, entity_id in enumerate(
-            (config.left.entity_id, config.right.entity_id)
-        )
+        for index, entity_id in enumerate((config.left.entity_id, config.right.entity_id))
     )
     return VerifiedDuelBatchResult(
         episodes=episodes,
@@ -1139,7 +1111,7 @@ def run_verified_duel_batch(
 
 def _prepare_verified_duel(config: VerifiedDuelConfig) -> _PreparedVerifiedDuel:
     rank_overrides = _merge_rank_overrides(config.left.build, config.right.build)
-    ruleset = load_assassin_warlock_duel_ruleset(rank_overrides=rank_overrides)
+    ruleset = load_wonderbane_guide_duel_ruleset(rank_overrides=rank_overrides)
     left = compile_combatant(
         config.left.sheet,
         config.left.build,
@@ -1178,9 +1150,7 @@ def _run_prepared_verified_duel(
     right = prepared.right
     close = close_range_action(RangeBand(maximum=_MELEE_RANGE))
     open_range = open_range_action(RangeBand(minimum=30.0, maximum=120.0))
-    catalog = ActionCatalog(
-        (*left.catalog.actions, *right.catalog.actions, close, open_range)
-    )
+    catalog = ActionCatalog((*left.catalog.actions, *right.catalog.actions, close, open_range))
     left_entity = left.entity(config.left.entity_id, config.left.team_id, Vector2(0.0, 0.0))
     right_entity = right.entity(
         config.right.entity_id,
@@ -1192,10 +1162,22 @@ def _run_prepared_verified_duel(
         config.left.initial_effects,
         config.left.initial_stance,
     )
+    left_entity.cooldowns.update(
+        {
+            left.action_key(action_key): remaining_ms
+            for action_key, remaining_ms in config.left.initial_cooldowns
+        }
+    )
     _apply_initial_state(
         right_entity,
         config.right.initial_effects,
         config.right.initial_stance,
+    )
+    right_entity.cooldowns.update(
+        {
+            right.action_key(action_key): remaining_ms
+            for action_key, remaining_ms in config.right.initial_cooldowns
+        }
     )
     left_entity.action_keys = (*left_entity.action_keys, _CLOSE_RANGE)
     right_entity.action_keys = (*right_entity.action_keys, _CLOSE_RANGE)
@@ -1399,13 +1381,10 @@ def progression_duel_matrix(
                         ),
                         draws=sum(result.winner_entity_id is None for result in results),
                         time_limits=sum(
-                            result.reason is TerminationReason.TIME_LIMIT
-                            for result in results
+                            result.reason is TerminationReason.TIME_LIMIT for result in results
                         ),
                         mean_ticks=fmean(result.ticks for result in results),
-                        unique_trace_count=len(
-                            {result.trace_digest for result in results}
-                        ),
+                        unique_trace_count=len({result.trace_digest for result in results}),
                         sample=results[0],
                     )
                 )
@@ -1432,8 +1411,7 @@ def progression_build(profession: str, level: int, rank: int) -> CharacterBuild:
         level=level,
         skill_ranks=skills,
         power_ranks=tuple(
-            (action_key, min(rank, maximum_rank))
-            for action_key, maximum_rank in power_limits
+            (action_key, min(rank, maximum_rank)) for action_key, maximum_rank in power_limits
         ),
     )
 
@@ -1476,9 +1454,7 @@ def _entity(config: CombatantConfig, position: Vector2, ruleset: CompiledRuleset
                 + ", ".join(sorted(unknown))
             )
         action_keys = tuple(sorted(config.action_keys_override))
-    action_keys = tuple(
-        _CLOSE_RANGE if key == _DIRECTIONAL_MOVE else key for key in action_keys
-    )
+    action_keys = tuple(_CLOSE_RANGE if key == _DIRECTIONAL_MOVE else key for key in action_keys)
     for action_key in action_keys:
         if action_key == _CLOSE_RANGE:
             tags.add("capability.range.close")
@@ -1526,6 +1502,7 @@ def _entity(config: CombatantConfig, position: Vector2, ruleset: CompiledRuleset
         stance=config.initial_stance,
     )
     _apply_initial_state(entity, config.initial_effects, config.initial_stance)
+    entity.cooldowns.update(dict(config.initial_cooldowns))
     return entity
 
 
@@ -1610,8 +1587,7 @@ def _combatant_result(
         ):
             passive_defenses += 1
         elif (
-            event.kind == EventKind.ABSORBER_CONSUMED
-            and event.target_entity_id == config.entity_id
+            event.kind == EventKind.ABSORBER_CONSUMED and event.target_entity_id == config.entity_id
         ):
             damage_absorbed += scalars.get("absorbed", 0.0)
         elif event.kind == EventKind.TRIGGER_FIRED and event.source_entity_id == config.entity_id:

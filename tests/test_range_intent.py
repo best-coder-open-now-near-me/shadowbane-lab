@@ -72,9 +72,7 @@ class RangeIntentTests(unittest.TestCase):
         )
         self.assertTrue(all(item.binding.direction is None for item in close_affordances))
         diagonal = next(
-            item
-            for item in close_affordances
-            if item.binding.target_entity_id == "diagonal"
+            item for item in close_affordances if item.binding.target_entity_id == "diagonal"
         )
         environment.step((exchange.decision(diagonal.affordance_id, "close:1"),))
 
@@ -117,6 +115,45 @@ class RangeIntentTests(unittest.TestCase):
         environment.step((exchange.decision(retreat.affordance_id, "open:1"),))
 
         self.assertEqual(Vector2(7.2, 9.6), environment.entity("player").position)
+
+    def test_open_intent_uses_a_deterministic_axis_when_entities_overlap(self) -> None:
+        action = open_range_action(RangeBand(minimum=5.0, maximum=30.0))
+        environment = ReferenceEnvironment(
+            ActionCatalog((action,)),
+            (
+                EntityState(
+                    entity_id="player",
+                    life_id="player:1",
+                    kind=EntityKind.ACTOR,
+                    team_id="player",
+                    position=Vector2(0.0, 0.0),
+                    scalars={"health": 100.0, "move_speed": 10.0},
+                    maximums={"health": 100.0},
+                    action_keys=(action.action_key,),
+                ),
+                EntityState(
+                    entity_id="enemy",
+                    life_id="enemy:1",
+                    kind=EntityKind.ACTOR,
+                    team_id="enemy",
+                    position=Vector2(0.0, 0.0),
+                    scalars={"health": 100.0},
+                    maximums={"health": 100.0},
+                ),
+            ),
+            seed=1,
+        )
+
+        retreat = next(
+            item
+            for item in environment.exchange("player").affordances.affordances
+            if item.action_key == action.action_key
+        )
+        environment.step(
+            (environment.exchange("player").decision(retreat.affordance_id, "open:2"),)
+        )
+
+        self.assertEqual(Vector2(2.0, 0.0), environment.entity("player").position)
 
 
 if __name__ == "__main__":
