@@ -60,6 +60,21 @@ candidate is still rejected by the patch planner unless its complete SHA-256 is 
 reviewed source hash. The planner also rejects overlapping writes, changed precondition bytes, and
 any in-memory result whose SHA-256 differs from the manifest's predicted output.
 
+The package command first supports a no-write dry run:
+
+```powershell
+python -m shadowbane_lab.client_extension prepare-copy `
+  <frozen-client> <new-working-copy> <reviewed-manifest.json> <versioned-extension.dll> `
+  --dry-run --pretty
+```
+
+Without `--dry-run`, it builds beneath a temporary sibling and atomically publishes a new working
+directory only after rereading the baseline, patched executable, extension, and full output
+inventory. `verify-copy <new-working-copy>` repeats that check. The explicit
+`discard-copy <new-working-copy> <receipt.json>` command refuses a changed copy, verifies the
+frozen baseline again, deletes only the marker-bound disposable directory, and publishes a
+rollback receipt outside it.
+
 ## Loader boundary
 
 The extension DLL's `DllMain` remains minimal. Initialization and heartbeat work happen through
