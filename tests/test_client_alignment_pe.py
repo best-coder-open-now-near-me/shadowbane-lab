@@ -9,6 +9,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 from client_alignment_fixture import build_pe
+
 from shadowbane_lab.client_alignment.__main__ import main
 from shadowbane_lab.client_alignment.pe import PeInspectionError, inspect_pe_bytes
 
