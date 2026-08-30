@@ -32,9 +32,9 @@ jobs:
           old = '''            raise CompositionError("participant slots do not match scenario slots (" + "; ".join(details) + ")")
           '''
           new = '''            detail = "; ".join(details)
-              raise CompositionError(
-                  f"participant slots do not match scenario slots ({detail})"
-              )
+                      raise CompositionError(
+                          f"participant slots do not match scenario slots ({detail})"
+                      )
           '''
           if text.count(old) != 1:
               raise RuntimeError("participant-slot validation line was not found exactly once")
