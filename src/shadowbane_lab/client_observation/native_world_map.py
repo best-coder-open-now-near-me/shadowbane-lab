@@ -390,15 +390,27 @@ class NativeWorldMapReader:
         )
         if len(unique) == 1:
             return unique[0][0]
-        active = tuple(address for address, observation in unique if observation.is_open)
-        if len(active) == 1:
-            return active[0]
+        areas = {
+            address: observation.content_width * observation.content_height
+            for address, observation in unique
+        }
+        maximum_area = max(areas.values(), default=0)
+        largest = tuple(address for address, area in areas.items() if area == maximum_area)
+        if len(largest) == 1:
+            return largest[0]
+        active_largest = tuple(
+            address
+            for address, observation in unique
+            if address in largest and observation.is_open
+        )
+        if len(active_largest) == 1:
+            return active_largest[0]
         if len(unique) != 1:
             detail = "" if not rejected else f"; samples: {'; '.join(rejected)}"
             raise NativeWorldMapReadError(
                 "native world-map owner resolution was ambiguous: "
                 f"found {len(unique)} validated objects from {len(hits)} vtable matches"
-                f" ({len(active)} active)"
+                f" ({len(largest)} largest, {len(active_largest)} active-largest)"
                 f"{detail}"
             )
         raise AssertionError("unreachable world-map owner resolution state")
