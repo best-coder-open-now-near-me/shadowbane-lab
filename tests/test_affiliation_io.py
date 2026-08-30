@@ -153,6 +153,13 @@ class AffiliationSnapshotSerializationTests(unittest.TestCase):
         with self.assertRaises(AffiliationSnapshotFormatError):
             affiliation_snapshot_from_dict(missing)
 
+        for invalid_schema_version in (True, 1.0):
+            malformed = dict(payload)
+            malformed["schema_version"] = invalid_schema_version
+            with self.subTest(schema_version=invalid_schema_version):
+                with self.assertRaises(AffiliationSnapshotFormatError):
+                    affiliation_snapshot_from_dict(malformed)
+
         with self.assertRaises(AffiliationSnapshotFormatError):
             load_affiliation_snapshot_text(
                 '{"schema_version":1,"schema_version":1,'

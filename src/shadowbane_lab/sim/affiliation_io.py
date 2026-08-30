@@ -74,7 +74,8 @@ def affiliation_snapshot_from_dict(raw: Mapping[str, object]) -> AffiliationSnap
         },
         "affiliation snapshot",
     )
-    if payload["schema_version"] != AFFILIATION_SNAPSHOT_SCHEMA_VERSION:
+    schema_version = _non_negative_integer(payload["schema_version"], "schema_version")
+    if schema_version != AFFILIATION_SNAPSHOT_SCHEMA_VERSION:
         raise AffiliationSnapshotFormatError("affiliation snapshot must use schema_version 1")
     revision = _non_negative_integer(payload["revision"], "revision")
     memberships_raw = _array(payload["memberships"], "memberships")
