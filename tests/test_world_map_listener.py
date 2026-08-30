@@ -67,15 +67,18 @@ class WorldMapPointerCaptureTests(unittest.TestCase):
             window_handle=self.window_handle,
         )
 
+    def _physical(self, button: str, *, client_x: int = 900, client_y: int = 420):
+        return PhysicalPointerInteraction(
+            self.client_left + client_x,
+            self.client_top + client_y,
+            button,
+        )
+
     def test_fresh_projected_right_click_is_normalized_and_claimed(self) -> None:
         client_x = 900
         client_y = 420
         expected = self.observation.resolve_screen_point(client_x, client_y)
-        physical = PhysicalPointerInteraction(
-            self.client_left + client_x,
-            self.client_top + client_y,
-            "right",
-        )
+        physical = self._physical("right", client_x=client_x, client_y=client_y)
 
         prepared, suppress = self.listener._prepare_pointer_interaction(
             physical,
@@ -86,6 +89,8 @@ class WorldMapPointerCaptureTests(unittest.TestCase):
         self.assertTrue(suppress)
         self.assertIsInstance(prepared, WorldMapPointerInteraction)
         assert isinstance(prepared, WorldMapPointerInteraction)
+        self.assertEqual("right", prepared.button)
+        self.assertEqual("right", prepared.physical_button)
         self.assertEqual((client_x, client_y), (prepared.screen_x, prepared.screen_y))
         self.assertEqual(
             (physical.screen_x, physical.screen_y),
@@ -96,12 +101,28 @@ class WorldMapPointerCaptureTests(unittest.TestCase):
         self.assertEqual(self.window_handle, prepared.window_handle)
         self.assertEqual(self.process_id, prepared.process_id)
 
-    def test_click_outside_projected_map_passes_through(self) -> None:
-        physical = PhysicalPointerInteraction(
-            self.client_left + 100,
-            self.client_top + 100,
-            "right",
+    def test_left_click_on_projected_world_is_claimed_for_emblem_selection(self) -> None:
+        physical = self._physical("left")
+
+        prepared, suppress = self.listener._prepare_pointer_interaction(
+            physical,
+            foreground_window_handle=self.window_handle,
+            now=self.observed_at + 0.05,
         )
+
+        self.assertTrue(suppress)
+        self.assertIsInstance(prepared, WorldMapPointerInteraction)
+        assert isinstance(prepared, WorldMapPointerInteraction)
+        self.assertEqual("left", prepared.physical_button)
+        self.assertEqual(
+            "right",
+            prepared.button,
+            "the existing command queue routes map destinations through right-click",
+        )
+        self.assertEqual(1, self.listener.diagnostics["world_map_captured_left_clicks"])
+
+    def test_left_click_outside_projected_map_passes_through(self) -> None:
+        physical = self._physical("left", client_x=100, client_y=100)
 
         prepared, suppress = self.listener._prepare_pointer_interaction(
             physical,
@@ -113,11 +134,7 @@ class WorldMapPointerCaptureTests(unittest.TestCase):
         self.assertIs(physical, prepared)
 
     def test_stale_map_sample_passes_through(self) -> None:
-        physical = PhysicalPointerInteraction(
-            self.client_left + 900,
-            self.client_top + 420,
-            "right",
-        )
+        physical = self._physical("left")
 
         prepared, suppress = self.listener._prepare_pointer_interaction(
             physical,
@@ -129,11 +146,7 @@ class WorldMapPointerCaptureTests(unittest.TestCase):
         self.assertIs(physical, prepared)
 
     def test_different_foreground_window_passes_through(self) -> None:
-        physical = PhysicalPointerInteraction(
-            self.client_left + 900,
-            self.client_top + 420,
-            "right",
-        )
+        physical = self._physical("left")
 
         prepared, suppress = self.listener._prepare_pointer_interaction(
             physical,
@@ -144,12 +157,8 @@ class WorldMapPointerCaptureTests(unittest.TestCase):
         self.assertFalse(suppress)
         self.assertIs(physical, prepared)
 
-    def test_left_click_on_map_passes_through_for_native_emblem_behavior(self) -> None:
-        physical = PhysicalPointerInteraction(
-            self.client_left + 900,
-            self.client_top + 420,
-            "left",
-        )
+    def test_middle_click_on_map_passes_through(self) -> None:
+        physical = self._physical("middle")
 
         prepared, suppress = self.listener._prepare_pointer_interaction(
             physical,
@@ -160,7 +169,14 @@ class WorldMapPointerCaptureTests(unittest.TestCase):
         self.assertFalse(suppress)
         self.assertIs(physical, prepared)
 
-    def test_captured_click_preserves_existing_pointer_callback_contract(self) -> None:
+    def test_matching_left_button_up_is_consumed_once(self) -> None:
+        self.listener._arm_button_up_suppression("left")
+
+        self.assertTrue(self.listener._consume_button_up_suppression("left"))
+        self.assertFalse(self.listener._consume_button_up_suppression("left"))
+        self.assertEqual(1, self.listener.diagnostics["suppressed_left_button_ups"])
+
+    def test_captured_left_click_preserves_pointer_callback_contract(self) -> None:
         delivered: list[PhysicalPointerInteraction] = []
         cancelled: list[str] = []
         listener = WindowsGoChatCommandListener(
@@ -173,11 +189,7 @@ class WorldMapPointerCaptureTests(unittest.TestCase):
             on_pointer=delivered.append,
         )
         listener._world_map_capture = self.listener._world_map_capture
-        physical = PhysicalPointerInteraction(
-            self.client_left + 900,
-            self.client_top + 420,
-            "right",
-        )
+        physical = self._physical("left")
         prepared, suppress = listener._prepare_pointer_interaction(
             physical,
             foreground_window_handle=self.window_handle,
@@ -187,8 +199,9 @@ class WorldMapPointerCaptureTests(unittest.TestCase):
         listener._handle_pointer_interaction(prepared)
 
         self.assertTrue(suppress)
-        self.assertEqual(["cancelled"], cancelled)
         self.assertEqual([prepared], delivered)
+        self.assertEqual("right", delivered[0].button)
+        self.assertEqual(["cancelled"], cancelled)
 
 
 if __name__ == "__main__":
