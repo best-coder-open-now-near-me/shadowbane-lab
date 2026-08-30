@@ -23,7 +23,8 @@ def load_rgba(path: Path) -> tuple[np.ndarray, np.ndarray | None, str]:
         mode = image.mode
         rgba = np.asarray(image.convert("RGBA"), dtype=np.uint8)
     alpha = rgba[:, :, 3]
-    return rgba[:, :, :3].copy(), (None if np.all(alpha == 255) else alpha.copy()), mode
+    source_alpha = None if np.all(alpha == 255) else alpha.copy()
+    return rgba[:, :, :3].copy(), source_alpha, mode
 
 
 def resize(array: np.ndarray, size: tuple[int, int], *, nearest: bool = False) -> np.ndarray:
@@ -42,9 +43,11 @@ def resize(array: np.ndarray, size: tuple[int, int], *, nearest: bool = False) -
 
 def low_frequency_noise(height: int, width: int, seed: int, cells: int = 8) -> np.ndarray:
     rng = np.random.default_rng(seed)
-    small = rng.normal(0.0, 1.0, (max(3, cells), max(3, cells))).astype(np.float32)
+    shape = (max(3, cells), max(3, cells))
+    small = rng.normal(0.0, 1.0, shape).astype(np.float32)
     noise = cv2.resize(small, (width, height), interpolation=cv2.INTER_CUBIC)
-    noise = cv2.GaussianBlur(noise, (0, 0), sigmaX=max(1.0, min(width, height) / 45.0))
+    sigma = max(1.0, min(width, height) / 45.0)
+    noise = cv2.GaussianBlur(noise, (0, 0), sigmaX=sigma)
     noise -= float(noise.mean())
     std = float(noise.std())
     if std > 1e-6:
@@ -52,7 +55,12 @@ def low_frequency_noise(height: int, width: int, seed: int, cells: int = 8) -> n
     return np.clip(noise, -2.0, 2.0) / 2.0
 
 
-def quantize_lab(rgb: np.ndarray, mask: np.ndarray, colors: int, seed: int = 1337) -> np.ndarray:
+def quantize_lab(
+    rgb: np.ndarray,
+    mask: np.ndarray,
+    colors: int,
+    seed: int = 1337,
+) -> np.ndarray:
     if colors <= 0 or not np.any(mask > 0):
         return rgb.copy()
     lab = cv2.cvtColor(rgb, cv2.COLOR_RGB2LAB)
@@ -64,13 +72,25 @@ def quantize_lab(rgb: np.ndarray, mask: np.ndarray, colors: int, seed: int = 133
         result = rgb.copy()
         result[foreground] = np.mean(rgb[foreground], axis=0).astype(np.uint8)
         return result
+
     rng = np.random.default_rng(seed)
     sample = pixels
     if len(sample) > 50000:
         sample = sample[rng.choice(len(sample), 50000, replace=False)]
-    criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_MAX_ITER, 35, 0.35)
+    criteria = (
+        cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_MAX_ITER,
+        35,
+        0.35,
+    )
     cv2.setRNGSeed(seed)
-    _, _, centers = cv2.kmeans(sample, k, None, criteria, 4, cv2.KMEANS_PP_CENTERS)
+    _, _, centers = cv2.kmeans(
+        sample,
+        k,
+        None,
+        criteria,
+        4,
+        cv2.KMEANS_PP_CENTERS,
+    )
     assigned = np.empty_like(pixels)
     for start in range(0, len(pixels), 20000):
         block = pixels[start : start + 20000]
@@ -99,7 +119,9 @@ def infer_border_key(rgb: np.ndarray, mode: str) -> tuple[int, int, int] | None:
     if mode == "border":
         return key
     distance = np.linalg.norm(border.astype(np.float32) - median[None, :], axis=1)
-    return key if max(key) <= 22 and float(np.mean(distance < 10.0)) >= 0.72 else None
+    key_is_dark = max(key) <= 22
+    border_is_consistent = float(np.mean(distance < 10.0)) >= 0.72
+    return key if key_is_dark and border_is_consistent else None
 
 
 def alpha_from_source(
@@ -112,17 +134,25 @@ def alpha_from_source(
     key = infer_border_key(rgb, key_mode)
     if key is None:
         return np.ones(rgb.shape[:2], dtype=np.float32), None
-    distance = np.linalg.norm(rgb.astype(np.float32) - np.asarray(key, dtype=np.float32), axis=2)
+    distance = np.linalg.norm(
+        rgb.astype(np.float32) - np.asarray(key, dtype=np.float32),
+        axis=2,
+    )
     return np.clip((distance - 4.0) / 24.0, 0.0, 1.0), key
 
 
-def load_safety_mask(path: Path | None, size: tuple[int, int], invert: bool = False) -> np.ndarray:
+def load_safety_mask(
+    path: Path | None,
+    size: tuple[int, int],
+    invert: bool = False,
+) -> np.ndarray:
     if path is None:
         return np.full((size[1], size[0]), 255, dtype=np.uint8)
     with Image.open(path) as image:
         mask_image = image.convert("L")
     if mask_image.size != size:
-        raise ValueError(f"mask dimensions {mask_image.size} do not match texture dimensions {size}")
+        message = f"mask dimensions {mask_image.size} do not match texture dimensions {size}"
+        raise ValueError(message)
     mask = np.asarray(mask_image, dtype=np.uint8)
     return 255 - mask if invert else mask
 
