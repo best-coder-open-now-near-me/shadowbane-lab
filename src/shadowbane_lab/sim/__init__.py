@@ -50,6 +50,7 @@ from shadowbane_lab.sim.actions import (
     WeightedAmount,
 )
 from shadowbane_lab.sim.clock import ClockSnapshot, SimulationClock
+from shadowbane_lab.sim.damage import DamageResolution, DamageTransaction
 from shadowbane_lab.sim.environment import ReferenceEnvironment
 from shadowbane_lab.sim.errors import SimulationConfigurationError
 from shadowbane_lab.sim.lifecycle import (
@@ -104,6 +105,8 @@ __all__ = [
     "CombatStance",
     "ContinuationPolicy",
     "DamageBreakpoint",
+    "DamageResolution",
+    "DamageTransaction",
     "DamageType",
     "ResistanceType",
     "ActiveEffectSnapshot",

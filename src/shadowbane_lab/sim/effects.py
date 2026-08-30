@@ -61,6 +61,7 @@ from shadowbane_lab.sim.actions import (
     UniformIntegerAmount,
     WeightedAmount,
 )
+from shadowbane_lab.sim.damage import DamageResolution, DamageTransaction
 from shadowbane_lab.sim.errors import SimulationConfigurationError
 from shadowbane_lab.sim.lifecycle import ContinuationPolicy
 from shadowbane_lab.sim.outcomes import EffectOutcome, EffectOutcomeKind
@@ -641,15 +642,16 @@ class EffectExecutor:
                 tags=("reason.subject_not_alive",),
             )
         if isinstance(effect, DealDamage):
-            before = subject.scalars.get("health", 0.0) if subject is not None else 0.0
-            self._deal_damage(item, effect, subject, due_time, events)
-            after = subject.scalars.get("health", 0.0) if subject is not None else before
-            effective = max(0.0, before - after)
+            resolution = self._deal_damage(item, effect, subject, due_time, events)
             return EffectOutcome(
-                EffectOutcomeKind.APPLIED if effective > 0.0 else EffectOutcomeKind.RESISTED,
+                (
+                    EffectOutcomeKind.APPLIED
+                    if resolution.effective > 0.0
+                    else EffectOutcomeKind.RESISTED
+                ),
                 primitive_kind,
                 subject_entity_id=subject.entity_id if subject is not None else None,
-                magnitude=effective,
+                magnitude=resolution.effective,
             )
         if isinstance(effect, RestoreResource):
             before = subject.scalars.get(effect.resource_key, 0.0) if subject is not None else 0.0
@@ -965,18 +967,55 @@ class EffectExecutor:
             raise SimulationConfigurationError("resistance cap is below resistance floor")
         resistance = max(resistance_floor, min(resistance_cap, raw_resistance))
         after_resistance = max(0.0, amount * (1.0 - resistance))
-        after_absorbers, absorbed = self._consume_weapon_absorbers(
+        try:
+            breakpoint_damage_type = DamageType(damage_type)
+        except ValueError:
+            breakpoint_damage_type = None
+        if breakpoint_damage_type is DamageType.UNKNOWN:
+            breakpoint_damage_type = None
+        resolution = self._commit_damage(
             item,
             subject,
-            damage_type,
-            after_resistance,
+            DamageTransaction(
+                damage_type=damage_type,
+                requested=amount,
+                post_resistance=after_resistance,
+                resistance_percent=resistance * 100.0,
+                breakpoint_damage_type=breakpoint_damage_type,
+                breakpoint_amount=(after_resistance if breakpoint_damage_type is not None else 0.0),
+                tags=extra_tags,
+            ),
+            due_time,
+            events,
+        )
+        return resolution.effective
+
+    def _commit_damage(
+        self,
+        item: ScheduledItem,
+        subject: EntityState,
+        transaction: DamageTransaction,
+        due_time: int,
+        events: list[Event],
+    ) -> DamageResolution:
+        remaining, absorbed = self._consume_damage_absorbers(
+            item,
+            subject,
+            transaction.damage_type,
+            transaction.post_resistance,
             due_time,
             events,
         )
         before = subject.scalars.get("health", 0.0)
-        after = max(0.0, before - after_absorbers)
+        after = max(0.0, before - remaining)
         subject.scalars["health"] = after
-        event_tags = [f"damage.{damage_type}", *extra_tags]
+        resolution = DamageResolution(
+            transaction=transaction,
+            absorbed=absorbed,
+            health_before=before,
+            health_after=after,
+        )
+        event_tags = [f"damage.{transaction.damage_type}", *transaction.tags]
         if item.trigger_key is not None:
             event_tags.append(f"trigger.{item.trigger_key}")
         events.append(
@@ -988,21 +1027,34 @@ class EffectExecutor:
                 target_entity_id=subject.entity_id,
                 action_key=item.action_key,
                 scalars=(
-                    NamedScalar("requested", amount),
-                    NamedScalar("resistance", resistance),
-                    NamedScalar("resisted", amount - after_resistance),
-                    NamedScalar("absorbed", absorbed),
-                    NamedScalar("effective", before - after),
+                    NamedScalar("requested", transaction.requested),
+                    NamedScalar("mitigated", transaction.post_resistance),
+                    NamedScalar("post_resistance", transaction.post_resistance),
+                    NamedScalar("resistance", transaction.resistance_fraction),
+                    NamedScalar("resistance_percent", transaction.resistance_percent),
+                    NamedScalar("armor_piercing", transaction.armor_piercing),
+                    NamedScalar("resisted", transaction.resisted),
+                    NamedScalar("absorbed", resolution.absorbed),
+                    NamedScalar("effective", resolution.effective),
                 ),
                 tags=tuple(dict.fromkeys(event_tags)),
             )
         )
-        if before - after > 0.0:
+        if transaction.breakpoint_damage_type is not None and transaction.breakpoint_amount > 0.0:
+            self._accumulate_damage_breakpoints(
+                item,
+                subject,
+                transaction.breakpoint_damage_type,
+                transaction.breakpoint_amount,
+                due_time,
+                events,
+            )
+        if resolution.effective > 0.0:
             self._drop_travel_stance(item, subject, due_time, events, reason="damage")
             self._interrupt_actor(subject.entity_id, "damage", due_time, events)
-        return before - after
+        return resolution
 
-    def _consume_weapon_absorbers(
+    def _consume_damage_absorbers(
         self,
         item: ScheduledItem,
         subject: EntityState,
@@ -1186,7 +1238,7 @@ class EffectExecutor:
         subject: EntityState | None,
         due_time: int,
         events: list[Event],
-    ) -> None:
+    ) -> DamageResolution:
         if subject is None:
             raise SimulationConfigurationError("damage requires an entity subject")
         amount = self._resolve_amount(effect.amount)
@@ -1237,48 +1289,22 @@ class EffectExecutor:
                 mitigated = 0.0
             if "state.sitting" in subject.effective_tags:
                 mitigated *= 2.5
-        before = subject.scalars.get("health", 0.0)
-        after = max(0.0, before - mitigated)
-        subject.scalars["health"] = after
-        events.append(
-            self._event(
-                EventKind.DAMAGE_APPLIED,
-                due_time,
-                correlation_id=item.correlation_id,
-                source_entity_id=item.actor_id,
-                target_entity_id=subject.entity_id,
-                action_key=item.action_key,
-                scalars=(
-                    NamedScalar("requested", amount),
-                    NamedScalar("mitigated", mitigated),
-                    NamedScalar("resistance_percent", resistance),
-                    NamedScalar("armor_piercing", armor_piercing),
-                    NamedScalar("effective", before - after),
-                ),
-                tags=(
-                    f"damage.{effect.damage_type.value}",
-                    *((f"damage_source.{effect.source_key}",) if effect.source_key else ()),
-                ),
-            )
+        return self._commit_damage(
+            item,
+            subject,
+            DamageTransaction(
+                damage_type=effect.damage_type.value,
+                requested=amount,
+                post_resistance=mitigated,
+                resistance_percent=resistance,
+                armor_piercing=armor_piercing,
+                breakpoint_damage_type=effect.damage_type,
+                breakpoint_amount=mitigated,
+                tags=(*((f"damage_source.{effect.source_key}",) if effect.source_key else ()),),
+            ),
+            due_time,
+            events,
         )
-        if mitigated > 0.0:
-            self._accumulate_damage_breakpoints(
-                item,
-                subject,
-                effect.damage_type,
-                mitigated,
-                due_time,
-                events,
-            )
-        if before - after > 0.0:
-            self._drop_travel_stance(
-                item,
-                subject,
-                due_time,
-                events,
-                reason="damage",
-            )
-            self._interrupt_actor(subject.entity_id, "damage", due_time, events)
 
     def _accumulate_damage_breakpoints(
         self,
