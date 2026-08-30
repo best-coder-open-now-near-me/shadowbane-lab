@@ -53,6 +53,7 @@ from shadowbane_lab.sim.actions import (
     SubjectRef,
     TagOperation,
     TransferItem,
+    TransferResource,
     TriangularAmount,
     TriggerMoment,
     UniformAmount,
@@ -615,6 +616,8 @@ class EffectExecutor:
             self._deal_damage(item, effect, subject, due_time, events)
         elif isinstance(effect, RestoreResource):
             self._restore_resource(item, effect, subject, due_time, events)
+        elif isinstance(effect, TransferResource):
+            self._transfer_resource(item, effect, due_time, events)
         elif isinstance(effect, ModifyScalar):
             self._modify_scalar(item, effect, subject, due_time, events)
         elif isinstance(effect, ModifyTag):
@@ -1218,6 +1221,7 @@ class EffectExecutor:
             and active.trains >= effect.power_trains
             for active in subject.effects.values()
         )
+
         if effect.uses_resistance:
             actor = self._entity(item.actor_id)
             if effect.resistance_type is None:
@@ -1260,6 +1264,57 @@ class EffectExecutor:
                     f"resource.{effect.resource_key}",
                     *(('outcome.blocked_by_resource_immunity',) if restoration_blocked else ()),
                 ),
+            )
+        )
+
+    def _transfer_resource(
+        self,
+        item: ScheduledItem,
+        effect: TransferResource,
+        due_time: int,
+        events: list[Event],
+    ) -> None:
+        if item.binding is None:
+            raise SimulationConfigurationError("resource transfer is missing its action binding")
+        source = self._entity_for_ref(effect.from_subject, item.binding)
+        destination = self._entity_for_ref(effect.to_subject, item.binding)
+        if source is None or destination is None:
+            raise SimulationConfigurationError("resource transfer requires entity subjects")
+
+        requested = self._resolve_amount(effect.amount)
+        source_before = max(0.0, source.scalars.get(effect.resource_key, 0.0))
+        drained = min(requested, source_before)
+        source_after = source_before - drained
+        source.scalars[effect.resource_key] = source_after
+
+        destination_before = max(0.0, destination.scalars.get(effect.resource_key, 0.0))
+        credited_requested = drained * effect.efficiency
+        destination_after = destination_before + credited_requested
+        maximum = destination.maximums.get(effect.resource_key)
+        if maximum is not None:
+            destination_after = min(destination_after, maximum)
+        destination.scalars[effect.resource_key] = destination_after
+        credited = destination_after - destination_before
+
+        events.append(
+            self._event(
+                EventKind.RESOURCE_TRANSFERRED,
+                due_time,
+                correlation_id=item.correlation_id,
+                source_entity_id=item.actor_id,
+                target_entity_id=source.entity_id,
+                action_key=item.action_key,
+                scalars=(
+                    NamedScalar("requested", requested),
+                    NamedScalar("drained", drained),
+                    NamedScalar("efficiency", effect.efficiency),
+                    NamedScalar("credited", credited),
+                    NamedScalar("source_before", source_before),
+                    NamedScalar("source_after", source_after),
+                    NamedScalar("destination_before", destination_before),
+                    NamedScalar("destination_after", destination_after),
+                ),
+                tags=(f"resource.{effect.resource_key}", "operation.transfer"),
             )
         )
 
@@ -1435,7 +1490,8 @@ class EffectExecutor:
             events.append(
                 self._effect_removed_event(subject, existing, due_time, item, "reason.replaced")
             )
-        instance_id = f"effect-instance:{self._take_schedule_order():012d}"
+        application_order = self._take_schedule_order()
+        instance_id = f"effect-instance:{application_order:012d}"
         active = ActiveEffectState(
             effect_key=effect.effect_key,
             source_entity_id=item.actor_id,
@@ -1450,6 +1506,7 @@ class EffectExecutor:
                 for modifier in effect.modifiers
                 if isinstance(modifier, DamageBreakpoint)
             },
+            application_order=application_order,
             stack_order=effect.stack_order,
             trains=effect.trains,
             stack_priority=effect.stack_priority,
@@ -1523,13 +1580,25 @@ class EffectExecutor:
     ) -> None:
         if subject is None:
             raise SimulationConfigurationError("effect removal requires an entity subject")
-        storage_keys = tuple(
-            storage_key
+        matching = [
+            (storage_key, active)
             for storage_key, active in subject.effects.items()
             if (effect.effect_key is not None and active.effect_key == effect.effect_key)
             or (effect.matching_tag is not None and effect.matching_tag in active.tags)
-        )
-        for storage_key in sorted(storage_keys):
+        ]
+        if effect.maximum_count is None:
+            storage_keys = sorted(storage_key for storage_key, _ in matching)
+        else:
+            # Shadowbane dispels peel the newest matching effects first; this is what
+            # makes later cover debuffs protect an earlier high-value mantle.
+            matching.sort(
+                key=lambda item: (item[1].application_order, item[0]),
+                reverse=True,
+            )
+            storage_keys = [
+                storage_key for storage_key, _ in matching[: effect.maximum_count]
+            ]
+        for storage_key in storage_keys:
             active = subject.effects.pop(storage_key)
             events.append(
                 self._effect_removed_event(subject, active, due_time, item, "reason.removed")

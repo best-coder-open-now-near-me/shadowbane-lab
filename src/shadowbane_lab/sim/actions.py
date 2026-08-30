@@ -344,6 +344,32 @@ class RestoreResource:
 
 
 @dataclass(frozen=True, slots=True)
+class TransferResource:
+    """Atomically drain one entity resource and credit another at bounded efficiency."""
+
+    from_subject: SubjectRef
+    to_subject: SubjectRef
+    resource_key: str
+    amount: AmountSpec
+    efficiency: float = 1.0
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.from_subject, SubjectRef):
+            raise ValueError("from_subject must be a SubjectRef")
+        if not isinstance(self.to_subject, SubjectRef):
+            raise ValueError("to_subject must be a SubjectRef")
+        if self.from_subject is self.to_subject:
+            raise ValueError("resource transfer subjects must differ")
+        if SubjectRef.OBJECTIVE in {self.from_subject, self.to_subject}:
+            raise ValueError("resource transfers require entity subjects")
+        _identifier(self.resource_key, "resource_key")
+        _positive_amount(self.amount, "transfer amount")
+        _finite(self.efficiency, "transfer efficiency")
+        if not 0.0 < self.efficiency <= 1.0:
+            raise ValueError("transfer efficiency must be in (0, 1]")
+
+
+@dataclass(frozen=True, slots=True)
 class ModifyTag:
     subject: SubjectRef
     tag: str
@@ -357,8 +383,16 @@ class ModifyTag:
             raise ValueError("operation must be a TagOperation")
 
 
-PeriodicDirectEffectPrimitive = ModifyScalar | DealDamage | RestoreResource | ModifyTag
-_PERIODIC_DIRECT_EFFECT_TYPES = (ModifyScalar, DealDamage, RestoreResource, ModifyTag)
+PeriodicDirectEffectPrimitive = (
+    ModifyScalar | DealDamage | RestoreResource | TransferResource | ModifyTag
+)
+_PERIODIC_DIRECT_EFFECT_TYPES = (
+    ModifyScalar,
+    DealDamage,
+    RestoreResource,
+    TransferResource,
+    ModifyTag,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -554,6 +588,7 @@ class RemoveEffect:
     subject: SubjectRef
     effect_key: str | None = None
     matching_tag: str | None = None
+    maximum_count: int | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.subject, SubjectRef):
@@ -564,6 +599,12 @@ class RemoveEffect:
             _identifier(self.effect_key, "effect_key")
         if self.matching_tag is not None:
             _identifier(self.matching_tag, "matching_tag")
+        if self.maximum_count is not None and (
+            isinstance(self.maximum_count, bool)
+            or not isinstance(self.maximum_count, int)
+            or self.maximum_count < 1
+        ):
+            raise ValueError("maximum_count must be a positive integer or null")
 
 
 @dataclass(frozen=True, slots=True)
@@ -634,6 +675,7 @@ DirectEffectPrimitive = (
     ModifyScalar
     | DealDamage
     | RestoreResource
+    | TransferResource
     | ModifyTag
     | ApplyEffect
     | RemoveEffect
@@ -647,6 +689,7 @@ _DIRECT_EFFECT_TYPES = (
     ModifyScalar,
     DealDamage,
     RestoreResource,
+    TransferResource,
     ModifyTag,
     ApplyEffect,
     RemoveEffect,

@@ -536,7 +536,7 @@
       "unresolved": [
         "Server power token and IDString require the deployment power-data export.",
         "The published 0.02-second cast requires emulator timing verification.",
-        "The reference simulator records the snare but does not yet multiply movement speed by its magnitude."
+        "Exact deployment movement-rate rounding remains unverified."
       ],
       "spec": {
         "hit_roll": null,
@@ -595,6 +595,19 @@
                   "control.snare",
                   "movement.slow",
                   "debuff"
+                ],
+                "modifiers": [
+                  {
+                    "op": "scalar_multiplier",
+                    "scalar_key": "move_speed",
+                    "factor": {
+                      "interpolation": "linear",
+                      "rank_min": 0,
+                      "rank_max": 40,
+                      "value_min": 0.89,
+                      "value_max": 0.4
+                    }
+                  }
                 ]
               }
             ],
@@ -635,7 +648,8 @@
           "combat",
           "control",
           "snare",
-          "anti_flight"
+          "anti_flight",
+          "applies.snared"
         ]
       },
       "progression": {

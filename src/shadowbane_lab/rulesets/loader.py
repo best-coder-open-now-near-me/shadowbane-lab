@@ -56,6 +56,7 @@ from shadowbane_lab.sim import (
     TagOperation,
     TargetingSpec,
     TransferItem,
+    TransferResource,
     TriangularAmount,
     TriggerConsumption,
     TriggerMoment,
@@ -428,6 +429,14 @@ def _parse_effect(data: Mapping[str, Any], rank: int) -> EffectPrimitive:
                 else ResistanceType(_string(data, "resistance_type"))
             ),
         )
+    if operation == "transfer_resource":
+        return TransferResource(
+            from_subject=SubjectRef(_string(data, "from_subject")),
+            to_subject=SubjectRef(_string(data, "to_subject")),
+            resource_key=_string(data, "resource_key"),
+            amount=_resolved_amount(_required(data, "amount"), rank),
+            efficiency=_resolved_number(data.get("efficiency", 1.0), rank),
+        )
     if operation == "modify_scalar":
         return ModifyScalar(
             subject=SubjectRef(_string(data, "subject")),
@@ -464,6 +473,11 @@ def _parse_effect(data: Mapping[str, Any], rank: int) -> EffectPrimitive:
             subject=SubjectRef(_string(data, "subject")),
             effect_key=_nullable_string(data, "effect_key"),
             matching_tag=_nullable_string(data, "matching_tag"),
+            maximum_count=(
+                None
+                if "maximum_count" not in data
+                else _nullable_integer(data, "maximum_count")
+            ),
         )
     if operation == "move_entity":
         return MoveEntity(

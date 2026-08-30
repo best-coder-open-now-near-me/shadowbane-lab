@@ -43,6 +43,7 @@ class ActiveEffectSnapshot:
     tags: tuple[str, ...]
     modifiers: tuple[EffectModifier, ...]
     modifier_values: tuple[tuple[str, float], ...]
+    application_order: int
     stack_order: int
     trains: int
     stack_priority: StackPriority
@@ -59,6 +60,7 @@ class ActiveEffectState:
     tags: set[str] = field(default_factory=set)
     modifiers: tuple[EffectModifier, ...] = ()
     modifier_values: dict[str, float] = field(default_factory=dict)
+    application_order: int = 0
     stack_order: int = 0
     trains: int = 0
     stack_priority: StackPriority = StackPriority.ALWAYS
@@ -110,6 +112,7 @@ class ActiveEffectState:
         if any(value < 0 for value in self.modifier_values.values()):
             raise ValueError("modifier_values must not be negative")
         for value, field_name in (
+            (self.application_order, "application_order"),
             (self.stack_order, "stack_order"),
             (self.trains, "trains"),
         ):
@@ -129,6 +132,7 @@ class ActiveEffectState:
             tags=tuple(sorted(self.tags)),
             modifiers=self.modifiers,
             modifier_values=tuple(sorted(self.modifier_values.items())),
+            application_order=self.application_order,
             stack_order=self.stack_order,
             trains=self.trains,
             stack_priority=self.stack_priority,
@@ -146,6 +150,7 @@ class ActiveEffectState:
             tags=set(snapshot.tags),
             modifiers=snapshot.modifiers,
             modifier_values=dict(snapshot.modifier_values),
+            application_order=snapshot.application_order,
             stack_order=snapshot.stack_order,
             trains=snapshot.trains,
             stack_priority=snapshot.stack_priority,

@@ -34,6 +34,7 @@ from shadowbane_lab.sim.timeline import AgentExchange
 from shadowbane_lab.sim.timing import effective_action_cooldown_ms
 
 _ACTION_BLOCKING_TAGS = frozenset({"control.stun"})
+_ACTION_TAG_BLOCK_PREFIX = "control.block.action_tag."
 
 
 class AffordanceBuilder:
@@ -215,7 +216,12 @@ class AffordanceBuilder:
             return False
         if set(action.forbidden_actor_tags) & tags:
             return False
-        if "control.silence" in tags and "power" in action.tags:
+        blocked_action_tags = {
+            tag.removeprefix(_ACTION_TAG_BLOCK_PREFIX)
+            for tag in tags
+            if tag.startswith(_ACTION_TAG_BLOCK_PREFIX)
+        }
+        if blocked_action_tags & set(action.tags):
             return False
         return all(
             actor.scalars.get(cost.resource_key, 0.0) >= cost.amount for cost in action.costs
@@ -253,6 +259,7 @@ class AffordanceBuilder:
     ) -> tuple[NamedScalar, ...]:
         values = {feature.name: feature.value for feature in action.features}
         effective_cooldown = effective_action_cooldown_ms(actor, action)
+        values["cast_time_ms"] = float(sum(phase.duration_ms for phase in action.phases))
         values["cooldown_ms"] = float(effective_cooldown)
         if "weapon" in action.tags:
             values["commitment_ms"] = float(

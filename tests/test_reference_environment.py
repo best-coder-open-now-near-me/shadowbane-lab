@@ -17,11 +17,13 @@ from shadowbane_lab.sim import (
     MovementMode,
     PhaseKind,
     ReferenceEnvironment,
+    RemoveEffect,
     ResourceCost,
     ScalarMultiplier,
     SubjectRef,
     TargetingSpec,
     TransferItem,
+    TransferResource,
     UniformAmount,
     WeightedAmount,
 )
@@ -117,7 +119,7 @@ class ReferenceEnvironmentTests(unittest.TestCase):
         )
         self.assertEqual(1, len(detected.affordances.affordances))
 
-    def test_silence_blocks_power_affordances_but_not_weapon_attacks(self) -> None:
+    def test_action_tag_control_blocks_only_matching_affordances(self) -> None:
         targeting = TargetingSpec(
             kind=TargetKind.ENTITY,
             allowed_relations=(Relation.ENEMY,),
@@ -135,21 +137,27 @@ class ReferenceEnvironmentTests(unittest.TestCase):
             phases=(ActionPhase(kind=PhaseKind.ACTIVE, duration_ms=0),),
             tags=("attack", "power"),
         )
+        chant = ActionSpec(
+            action_key="chant",
+            targeting=targeting,
+            phases=(ActionPhase(kind=PhaseKind.ACTIVE, duration_ms=0),),
+            tags=("attack", "power", "chant"),
+        )
         silenced = actor(
             "silenced",
             "red",
             Vector2(0.0, 0.0),
-            ("weapon", "power"),
+            ("weapon", "power", "chant"),
         )
         silenced.effects["Silence"] = ActiveEffectState(
             effect_key="silenced",
             source_entity_id="target",
             magnitude=1.0,
             expires_at_ms=30_000,
-            tags=("control.silence",),
+            tags=("control.block.action_tag.chant",),
         )
         environment = ReferenceEnvironment(
-            ActionCatalog((weapon, power)),
+            ActionCatalog((weapon, power, chant)),
             (
                 silenced,
                 actor("target", "blue", Vector2(1.0, 0.0), ()),
@@ -161,7 +169,136 @@ class ReferenceEnvironmentTests(unittest.TestCase):
             item.action_key for item in environment.exchange("silenced").affordances.affordances
         }
 
-        self.assertEqual({"weapon"}, actions)
+        self.assertEqual({"power", "weapon"}, actions)
+
+    def test_resource_transfer_is_limited_by_source_and_destination_resources(self) -> None:
+        drain = ActionSpec(
+            action_key="drain",
+            targeting=TargetingSpec(
+                kind=TargetKind.ENTITY,
+                allowed_relations=(Relation.ENEMY,),
+                maximum_range=3.0,
+            ),
+            phases=(
+                ActionPhase(
+                    kind=PhaseKind.ACTIVE,
+                    duration_ms=0,
+                    effects=(
+                        TransferResource(
+                            SubjectRef.TARGET,
+                            SubjectRef.ACTOR,
+                            "mana",
+                            5.0,
+                            efficiency=0.5,
+                        ),
+                    ),
+                ),
+            ),
+        )
+        caster = actor("caster", "red", Vector2(0.0, 0.0), ("drain",), mana=2.0)
+        caster.maximums["mana"] = 10.0
+        target = actor("target", "blue", Vector2(1.0, 0.0), (), mana=3.0)
+        environment = ReferenceEnvironment(ActionCatalog((drain,)), (caster, target), seed=2)
+
+        first = environment.step(
+            (
+                action_for(
+                    environment,
+                    "caster",
+                    "drain",
+                    target_id="target",
+                    correlation_id="first-drain",
+                ),
+            )
+        )
+        second = environment.step(
+            (
+                action_for(
+                    environment,
+                    "caster",
+                    "drain",
+                    target_id="target",
+                    correlation_id="second-drain",
+                ),
+            )
+        )
+
+        self.assertEqual(0.0, environment.entity("target").scalars["mana"])
+        self.assertEqual(3.5, environment.entity("caster").scalars["mana"])
+        first_transfer = next(
+            event for event in first.events if event.kind == EventKind.RESOURCE_TRANSFERRED
+        )
+        second_transfer = next(
+            event for event in second.events if event.kind == EventKind.RESOURCE_TRANSFERRED
+        )
+        self.assertEqual(
+            {"drained": 3.0, "credited": 1.5},
+            {
+                scalar.name: scalar.value
+                for scalar in first_transfer.scalars
+                if scalar.name in {"drained", "credited"}
+            },
+        )
+        self.assertEqual(
+            {"drained": 0.0, "credited": 0.0},
+            {
+                scalar.name: scalar.value
+                for scalar in second_transfer.scalars
+                if scalar.name in {"drained", "credited"}
+            },
+        )
+
+    def test_bounded_dispel_removes_only_the_newest_matching_effect(self) -> None:
+        dispel = ActionSpec(
+            action_key="dispel",
+            targeting=TargetingSpec(kind=TargetKind.SELF),
+            phases=(
+                ActionPhase(
+                    kind=PhaseKind.ACTIVE,
+                    duration_ms=0,
+                    effects=(
+                        RemoveEffect(
+                            SubjectRef.ACTOR,
+                            matching_tag="debuff",
+                            maximum_count=1,
+                        ),
+                    ),
+                ),
+            ),
+        )
+        caster = actor("caster", "red", Vector2(0.0, 0.0), ("dispel",))
+        caster.effects["old"] = ActiveEffectState(
+            effect_key="old",
+            source_entity_id="enemy",
+            instance_id="initial-effect-instance:caster:000000000001",
+            magnitude=1.0,
+            expires_at_ms=30_000,
+            tags=("debuff",),
+            application_order=1,
+        )
+        caster.effects["new"] = ActiveEffectState(
+            effect_key="new",
+            source_entity_id="enemy",
+            instance_id="effect-instance:000000000002",
+            magnitude=1.0,
+            expires_at_ms=30_000,
+            tags=("debuff",),
+            application_order=2,
+        )
+        environment = ReferenceEnvironment(ActionCatalog((dispel,)), (caster,), seed=3)
+
+        environment.step(
+            (
+                action_for(
+                    environment,
+                    "caster",
+                    "dispel",
+                    correlation_id="bounded-dispel",
+                ),
+            )
+        )
+
+        self.assertEqual({"old"}, set(environment.entity("caster").effects))
 
     def test_chance_gate_emits_seeded_outcome_and_applies_damage_only_on_success(self) -> None:
         proc_attack = ActionSpec(

@@ -29,6 +29,7 @@ from shadowbane_lab.sim import (
     SubjectRef,
     TargetingSpec,
     TransferItem,
+    TransferResource,
     UniformAmount,
     UniformIntegerAmount,
     WeightedAmount,
@@ -171,6 +172,30 @@ def representative_actions() -> tuple[ActionSpec, ...]:
 
 
 class ActionAlgebraTests(unittest.TestCase):
+    def test_resource_transfer_requires_distinct_subjects_and_bounded_efficiency(
+        self,
+    ) -> None:
+        transfer = TransferResource(
+            SubjectRef.TARGET,
+            SubjectRef.ACTOR,
+            "mana",
+            UniformAmount(10.0, 20.0),
+            efficiency=0.4,
+        )
+
+        self.assertEqual("mana", transfer.resource_key)
+        self.assertEqual(0.4, transfer.efficiency)
+        with self.assertRaisesRegex(ValueError, "subjects must differ"):
+            TransferResource(SubjectRef.ACTOR, SubjectRef.ACTOR, "mana", 10.0)
+        with self.assertRaisesRegex(ValueError, "efficiency"):
+            TransferResource(
+                SubjectRef.TARGET,
+                SubjectRef.ACTOR,
+                "mana",
+                10.0,
+                efficiency=1.1,
+            )
+
     def test_damage_and_resistance_channels_are_closed_vocabularies(self) -> None:
         damage = DealDamage(SubjectRef.TARGET, 12.0, "cold")
         healing = RestoreResource(

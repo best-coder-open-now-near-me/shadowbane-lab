@@ -109,18 +109,21 @@
       "status": "compiled_with_override",
       "concrete": {"server_power_token": null, "server_id_string": null, "client_binding_key": "shadowbane.assassin.silence"},
       "provenance": [{"fields": ["rank", "progression", "spec"], "source_id": "morloch-assassin-36339", "locator": "Silence rank 0-40 table"}],
-      "unresolved": ["Chant removal is represented by power-action suppression; exact chant categories remain unverified."],
+      "unresolved": ["Exact deployment chant categories and UI chat suppression remain unverified."],
       "spec": {
         "targeting": {"kind": "entity", "allowed_relations": ["enemy"], "minimum_range": 0, "maximum_range": 100, "requires_line_of_sight": true},
         "costs": [{"resource_key": "mana", "amount": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 44, "value_max": 84}}],
         "phases": [{
           "kind": "active", "duration_ms": 5000,
-          "effects": [{"op": "apply_effect", "subject": "target", "effect_key": "silenced", "duration_ms": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 60000, "value_max": 120000}, "magnitude": 1, "stacking_key": "Silence", "tags": ["control.silence", "debuff"]}],
+          "effects": [
+            {"op": "remove_effect", "subject": "target", "effect_key": null, "matching_tag": "chant"},
+            {"op": "apply_effect", "subject": "target", "effect_key": "silenced", "duration_ms": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 60000, "value_max": 120000}, "magnitude": 1, "stacking_key": "Silence", "tags": ["effect", "control.block.action_tag.chant"]}
+          ],
           "delivery": {"kind": "immediate", "projectile_speed_units_per_second": null}, "interruptible": true, "movement_allowed": false
         }],
         "cooldown_ms": 15000, "required_actor_tags": [], "forbidden_actor_tags": [],
-        "features": [{"name": "control_duration_ms", "value": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 60000, "value_max": 120000}}],
-        "tags": ["combat", "control", "silence", "debuff", "applies.silenced"], "hit_roll": null
+        "features": [{"name": "action_denial_duration_ms", "value": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 60000, "value_max": 120000}}],
+        "tags": ["combat", "action_denial", "chant_denial", "denies.action_tag.chant", "applies.silenced"], "hit_roll": null
       },
       "progression": {"professions": ["assassin"], "granted_level": 10, "maximum_rank": 40, "fixed_rank": null, "skill_requirements": [], "power_requirements": []}
     },
@@ -243,7 +246,7 @@
       "spec": {
         "targeting": {"kind": "self", "allowed_relations": [], "minimum_range": 0, "maximum_range": null, "requires_line_of_sight": false},
         "costs": [{"resource_key": "mana", "amount": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 20, "value_max": 60}}],
-        "phases": [{"kind": "active", "duration_ms": 2000, "effects": [{"op": "remove_effect", "subject": "actor", "effect_key": null, "matching_tag": "debuff"}], "delivery": {"kind": "immediate", "projectile_speed_units_per_second": null}, "interruptible": true, "movement_allowed": false}],
+        "phases": [{"kind": "active", "duration_ms": 2000, "effects": [{"op": "remove_effect", "subject": "actor", "effect_key": null, "matching_tag": "debuff", "maximum_count": 1}], "delivery": {"kind": "immediate", "projectile_speed_units_per_second": null}, "interruptible": true, "movement_allowed": false}],
         "cooldown_ms": 2000, "required_actor_tags": [], "forbidden_actor_tags": [], "features": [],
         "tags": ["combat", "cleanse"], "hit_roll": null
       },
@@ -334,14 +337,17 @@
         "phases": [{
           "kind": "active", "duration_ms": 2500,
           "effects": [{"op": "area_effect", "origin": "actor", "radius": 32, "allowed_relations": ["enemy"], "maximum_targets": 7, "effects": [
-            {"op": "modify_scalar", "subject": "target", "scalar_key": "mana", "operation": "add", "amount": -17.15},
-            {"op": "restore_resource", "subject": "actor", "resource_key": "mana", "amount": 17.15}
+            {"op": "transfer_resource", "from_subject": "target", "to_subject": "actor", "resource_key": "mana", "amount": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 17, "value_max": 23}, "efficiency": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 0.4, "value_max": 1.0}}
           ]}],
           "delivery": {"kind": "immediate", "projectile_speed_units_per_second": null}, "interruptible": true, "movement_allowed": false
         }],
         "cooldown_ms": 14500, "required_actor_tags": [], "forbidden_actor_tags": [],
-        "features": [{"name": "expected_mana_drain", "value": 17.15}],
-        "tags": ["combat", "resource_drain", "area"], "hit_roll": null
+        "features": [
+          {"name": "expected_mana_drain", "value": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 17, "value_max": 23}},
+          {"name": "transfer_efficiency", "value": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 0.4, "value_max": 1.0}},
+          {"name": "area_radius", "value": 32}
+        ],
+        "tags": ["combat", "resource_drain", "resource.mana", "area"], "hit_roll": "power"
       },
       "progression": {"professions": ["warlock"], "granted_level": 10, "maximum_rank": 40, "fixed_rank": null, "skill_requirements": [], "power_requirements": []}
     }

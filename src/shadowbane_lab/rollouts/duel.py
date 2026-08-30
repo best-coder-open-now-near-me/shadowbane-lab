@@ -15,6 +15,7 @@ from shadowbane_lab.combat import (
     StackPriority,
     melee_hit_chance_percent,
     power_hit_chance_percent,
+    resisted_amount,
 )
 from shadowbane_lab.combat.compiler import (
     MAGICBANE_COMBAT_FORMULA_REVISION,
@@ -544,12 +545,24 @@ class _PreparedVerifiedDuel:
 class UtilityDuelPolicy:
     """Small deterministic baseline over generic affordance tags and features."""
 
-    def __init__(self, maximum_health: float, *, heal_threshold: float = 0.65) -> None:
+    def __init__(
+        self,
+        maximum_health: float,
+        *,
+        heal_threshold: float = 0.65,
+        maximum_resources: dict[str, float] | None = None,
+    ) -> None:
         _positive_number(maximum_health, "maximum_health")
         if not 0.0 < heal_threshold < 1.0:
             raise ValueError("heal_threshold must be between zero and one")
         self._maximum_health = maximum_health
         self._heal_threshold = heal_threshold
+        self._maximum_resources = {"health": maximum_health}
+        for resource_key, maximum in (maximum_resources or {}).items():
+            if not isinstance(resource_key, str) or not resource_key.strip():
+                raise ValueError("resource keys must be non-empty strings")
+            _positive_number(maximum, f"maximum {resource_key}")
+            self._maximum_resources[resource_key] = float(maximum)
 
     def decide(
         self, exchange: AgentExchange, correlation_id: str
@@ -590,6 +603,7 @@ class UtilityDuelPolicy:
         features = {feature.name: feature.value for feature in affordance.features}
         tags = frozenset(affordance.tags)
         commitment_ms = max(1.0, features.get("commitment_ms", 1.0))
+        cast_time_ms = max(1.0, features.get("cast_time_ms", commitment_ms))
         actor = next(
             entity for entity in exchange.observation.entities if entity.relation is Relation.SELF
         )
@@ -649,11 +663,14 @@ class UtilityDuelPolicy:
             followup_ms = max(
                 1.0, features.get("expected_followup_commitment_ms", 1_000.0)
             )
-            return (
+            score = (
                 8.0
-                + trigger_damage * 1_000.0 / (commitment_ms + followup_ms)
+                + trigger_damage * 1_000.0 / (cast_time_ms + followup_ms)
                 + trigger_control_ms / 300.0
             )
+            if "stealth_required" in tags and "visibility.invisible" in actor_tags:
+                score += 1_000.0
+            return score
 
         expected_damage = features.get("expected_damage", 0.0)
         expected_damage += features.get("trigger_expected_damage", 0.0)
@@ -669,25 +686,94 @@ class UtilityDuelPolicy:
             effect_key in selected_target_tags for effect_key in applied_effects
         ):
             return float("-inf")
+        denied_action_tags = tuple(
+            tag.removeprefix("denies.action_tag.")
+            for tag in tags
+            if tag.startswith("denies.action_tag.")
+        )
+        if "action_denial" in tags:
+            target_supports_denied_action = any(
+                denied_tag in selected_target_tags
+                or f"capability.action_tag.{denied_tag}" in selected_target_tags
+                for denied_tag in denied_action_tags
+            )
+            if not target_supports_denied_action:
+                return float("-inf")
+            denial_ms = features.get("action_denial_duration_ms", 0.0)
+            return 25.0 + denial_ms / 2_000.0
         if "cleanse" in tags:
-            return 35.0 if "debuff" in actor_tags else float("-inf")
+            if "debuff" not in actor_tags:
+                return float("-inf")
+            if "immunity.resource.health" in actor_tags:
+                return 600.0 - cast_time_ms / 1_000.0
+            if "blind" in actor_tags:
+                return 350.0 - cast_time_ms / 1_000.0
+            return 80.0 - cast_time_ms / 1_000.0
         if "resource_conversion" in tags:
             stamina = _scalar(actor.scalars, "stamina")
             if stamina > features.get("stamina_threshold", 50.0):
                 return float("-inf")
             return 10.0 + features.get("expected_stamina_restoration", 0.0)
+        if "resource_drain" in tags:
+            resource_tags = tuple(
+                tag.removeprefix("resource.")
+                for tag in tags
+                if tag.startswith("resource.")
+            )
+            if len(resource_tags) != 1:
+                return float("-inf")
+            resource_key = resource_tags[0]
+            maximum = self._maximum_resources.get(resource_key)
+            current = _scalar(actor.scalars, resource_key)
+            missing = 0.0 if maximum is None else max(0.0, maximum - current)
+            radius = features.get("area_radius", float("inf"))
+            available = sum(
+                max(0.0, _scalar(enemy.scalars, resource_key))
+                for enemy in exchange.observation.entities
+                if enemy.relation is Relation.ENEMY
+                and _distance(actor.position, enemy.position) <= radius
+            )
+            expected_drain = min(available, features.get("expected_mana_drain", 0.0))
+            if expected_drain <= 0.0:
+                return float("-inf")
+            efficiency = features.get("transfer_efficiency", 1.0)
+            expected_credit = min(missing, expected_drain * efficiency)
+            denial_value = expected_drain * 0.25
+            return (expected_credit + denial_value) * 1_000.0 / cast_time_ms
+        if "snare" in tags and target_id is not None:
+            target = next(
+                entity
+                for entity in exchange.observation.entities
+                if entity.entity_id == target_id
+            )
+            distance = features.get("distance", _distance(actor.position, target.position))
+            target_is_moving = hypot(target.velocity.x, target.velocity.y) > 0.01
+            target_is_flying = "movement.flight" in selected_target_tags
+            if distance <= _MELEE_RANGE and not target_is_moving and not target_is_flying:
+                return float("-inf")
         debuff_value = (
             features.get("attack_penalty_fraction", 0.0) * 30.0
             + features.get("defense_penalty_fraction", 0.0) * 25.0
             + features.get("resistance_penalty", 0.0) / 4.0
             + features.get("attribute_penalty", 0.0) / 8.0
         )
+        if "debuff" in tags and features.get("resistance_penalty", 0.0) > 0.0:
+            resistance_score = self._score_resistance_debuff(
+                tags,
+                features,
+                actor,
+                target_id,
+                exchange,
+                cast_time_ms,
+            )
+            if resistance_score is not None:
+                return resistance_score
         if "debuff" in tags and debuff_value > 0.0:
             setup_window_ms = min(
                 features.get("effect_duration_ms", 0.0),
                 20_000.0,
             )
-            return 12.0 + debuff_value * setup_window_ms / commitment_ms
+            return 12.0 + debuff_value * setup_window_ms / cast_time_ms
         if target_id is not None and "immunity.stun" in target_tags.get(target_id, ()):
             control_ms = 0.0
         if healing_denial_ms > 0.0:
@@ -706,6 +792,73 @@ class UtilityDuelPolicy:
                 return float("-inf")
             return 1.0
         return -10.0
+
+    @staticmethod
+    def _score_resistance_debuff(
+        tags: frozenset[str],
+        features: dict[str, float],
+        actor: EntityObservation,
+        target_id: str | None,
+        exchange: AgentExchange,
+        cast_time_ms: float,
+    ) -> float | None:
+        if target_id is None:
+            return None
+        target = next(
+            entity
+            for entity in exchange.observation.entities
+            if entity.entity_id == target_id
+        )
+        damage_type = next(
+            (
+                candidate
+                for candidate in (
+                    "bleeding",
+                    "cold",
+                    "crush",
+                    "fire",
+                    "holy",
+                    "lightning",
+                    "mental",
+                    "pierce",
+                    "poison",
+                    "slash",
+                    "unholy",
+                )
+                if candidate in tags
+            ),
+            None,
+        )
+        if damage_type is None:
+            return None
+        damage_rates = []
+        for candidate in exchange.affordances.affordances:
+            if damage_type not in candidate.tags:
+                continue
+            candidate_features = {
+                feature.name: feature.value for feature in candidate.features
+            }
+            expected_damage = candidate_features.get("expected_damage", 0.0)
+            if expected_damage <= 0.0:
+                continue
+            damage_rates.append(
+                candidate_features.get("expected_hit_chance", 1.0)
+                * expected_damage
+                * 1_000.0
+                / max(1.0, candidate_features.get("commitment_ms", 1.0))
+            )
+        raw_dps = max(damage_rates, default=0.0)
+        if raw_dps <= 0.0:
+            return None
+        resistance = _scalar(target.scalars, f"resist.{damage_type}")
+        armor_piercing = _scalar(actor.scalars, "armor_piercing")
+        penalty = features["resistance_penalty"]
+        current_factor = resisted_amount(1.0, resistance, armor_piercing)
+        debuffed_factor = resisted_amount(1.0, resistance - penalty, armor_piercing)
+        marginal_dps = raw_dps * max(0.0, debuffed_factor - current_factor)
+        effect_window_ms = features.get("effect_duration_ms", 0.0)
+        projected_gain = marginal_dps * effect_window_ms / 1_000.0
+        return 20.0 + projected_gain * 1_000.0 / cast_time_ms
 
     def _score_stance(
         self,
@@ -812,7 +965,11 @@ def run_duel(
     )
     combatants = (config.left, config.right)
     policies = {
-        item.entity_id: UtilityDuelPolicy(item.health) for item in combatants
+        item.entity_id: UtilityDuelPolicy(
+            item.health,
+            maximum_resources={"mana": item.mana, "stamina": item.stamina},
+        )
+        for item in combatants
     }
     events: list[Event] = []
     reason = TerminationReason.TIME_LIMIT
@@ -1011,8 +1168,20 @@ def _run_prepared_verified_duel(
     )
     combatants = (config.left, config.right)
     policies = {
-        config.left.entity_id: UtilityDuelPolicy(config.left.sheet.maximum_health),
-        config.right.entity_id: UtilityDuelPolicy(config.right.sheet.maximum_health),
+        config.left.entity_id: UtilityDuelPolicy(
+            config.left.sheet.maximum_health,
+            maximum_resources={
+                "mana": config.left.sheet.maximum_mana,
+                "stamina": config.left.sheet.maximum_stamina,
+            },
+        ),
+        config.right.entity_id: UtilityDuelPolicy(
+            config.right.sheet.maximum_health,
+            maximum_resources={
+                "mana": config.right.sheet.maximum_mana,
+                "stamina": config.right.sheet.maximum_stamina,
+            },
+        ),
     }
     events: list[Event] = []
     reason = TerminationReason.TIME_LIMIT
@@ -1341,6 +1510,7 @@ def _apply_initial_state(
                 for modifier in effect.modifiers
                 if isinstance(modifier, DamageBreakpoint)
             },
+            application_order=index,
             stack_order=effect.stack_order,
             trains=effect.trains,
             stack_priority=effect.stack_priority,

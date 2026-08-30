@@ -36,7 +36,16 @@ from shadowbane_lab.rollouts.presets import (
     STEAL_BREATH,
     SURPASS_LIMITS,
 )
-from shadowbane_lab.sim import CombatStance
+from shadowbane_lab.rollouts.ruleset import load_assassin_warlock_duel_ruleset
+from shadowbane_lab.sim import (
+    ApplyEffect,
+    AreaEffect,
+    AttackKind,
+    CombatStance,
+    RemoveEffect,
+    ScalarMultiplier,
+    TransferResource,
+)
 
 
 class WonderBanePresetTests(unittest.TestCase):
@@ -122,6 +131,96 @@ class WonderBanePresetTests(unittest.TestCase):
         self.assertEqual(30.0, preset.combat_sheet.move_speed)
         self.assertEqual(0.0, preset.combat_sheet.modifiers.positive_dcv_percent)
         self.assertTrue(preset.unresolved)
+
+    def test_guide_action_semantics_preserve_chant_denial_transfer_and_snare_state(self) -> None:
+        ruleset = load_assassin_warlock_duel_ruleset()
+        silence = ruleset.record(SILENCE).action
+        needs = ruleset.record(NEEDS_OF_THE_ONE).action
+        snare = ruleset.record(MIND_SNARE).action
+        dispel = ruleset.record(BREAK_ENCHANTMENT).action
+
+        assert silence is not None and needs is not None and snare is not None
+        assert dispel is not None
+        silenced = next(
+            effect
+            for effect in silence.phases[0].effects
+            if isinstance(effect, ApplyEffect)
+        )
+        self.assertIn("control.block.action_tag.chant", silenced.tags)
+        self.assertNotIn("control.silence", silenced.tags)
+        self.assertIn("denies.action_tag.chant", silence.tags)
+
+        area = next(effect for effect in needs.phases[0].effects if isinstance(effect, AreaEffect))
+        transfer = next(
+            effect for effect in area.effects if isinstance(effect, TransferResource)
+        )
+        self.assertIs(AttackKind.POWER, needs.hit_roll)
+        self.assertAlmostEqual(17.15, transfer.amount)
+        self.assertAlmostEqual(0.415, transfer.efficiency)
+
+        snare_effect = next(
+            effect
+            for effect in snare.phases[0].effects
+            if isinstance(effect, ApplyEffect)
+        )
+        slow = next(
+            modifier
+            for modifier in snare_effect.modifiers
+            if isinstance(modifier, ScalarMultiplier)
+        )
+        self.assertIn("applies.snared", snare.tags)
+        self.assertAlmostEqual(0.4, slow.factor)
+
+        removal = next(
+            effect
+            for effect in dispel.phases[0].effects
+            if isinstance(effect, RemoveEffect)
+        )
+        self.assertEqual(1, removal.maximum_count)
+
+    def test_hidden_opener_arms_backstab_and_sets_up_the_warlock_debuff_stack(self) -> None:
+        result = run_verified_duel(
+            wonderbane_sundancer_vs_deflock(
+                starting_distance=15.0,
+                max_ticks=8,
+                seed=1,
+                assassin_starts_stealthed=True,
+            )
+        ).duel
+        assassin, warlock = result.combatants
+        assassin_actions = {
+            item.action_key.split("@")[0]: item.count for item in assassin.actions
+        }
+        warlock_actions = {
+            item.action_key.split("@")[0]: item.count for item in warlock.actions
+        }
+
+        self.assertEqual(1, assassin_actions[BACKSTAB])
+        self.assertEqual(1, warlock_actions[DULL_THE_MIND])
+        self.assertEqual(1, warlock_actions[DULL_THE_BODY])
+        self.assertEqual(1, warlock_actions[SHATTER_WILL])
+
+    def test_duel_policy_does_not_hard_silence_or_spam_empty_drain_and_melee_snare(self) -> None:
+        result = run_verified_duel(
+            wonderbane_sundancer_vs_deflock(
+                starting_distance=15.0,
+                max_ticks=2_400,
+                seed=1,
+                assassin_starts_stealthed=True,
+            )
+        ).duel
+        assassin, warlock = result.combatants
+        assassin_actions = {
+            item.action_key.split("@")[0]: item.count for item in assassin.actions
+        }
+        warlock_actions = {
+            item.action_key.split("@")[0]: item.count for item in warlock.actions
+        }
+
+        self.assertNotIn(SILENCE, assassin_actions)
+        self.assertEqual(1, warlock_actions[SHATTER_WILL])
+        self.assertNotIn(MIND_SNARE, warlock_actions)
+        self.assertLessEqual(warlock_actions.get(NEEDS_OF_THE_ONE, 0), 2)
 
     def test_complete_matchup_uses_triggers_and_complete_sheet_attack_metrics(self) -> None:
         config = wonderbane_sundancer_vs_deflock(

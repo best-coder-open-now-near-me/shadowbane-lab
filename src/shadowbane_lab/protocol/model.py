@@ -71,6 +71,7 @@ class EventKind(StrEnum):
     PASSIVE_DEFENSE_RESOLVED = "passive_defense_resolved"
     CHANCE_RESOLVED = "chance_resolved"
     RESOURCE_RESTORED = "resource_restored"
+    RESOURCE_TRANSFERRED = "resource_transferred"
     TRIGGER_CHECKED = "trigger_checked"
     TRIGGER_FIRED = "trigger_fired"
     EFFECT_ADDED = "effect_added"

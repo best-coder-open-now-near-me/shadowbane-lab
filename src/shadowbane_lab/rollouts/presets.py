@@ -445,6 +445,7 @@ def _deflock_sheet() -> CombatSheet:
             (MIND_STRIKE, 120.0),
             (PSYCHIC_HEALING, 120.0),
             (PSYCHIC_SHOUT, 120.0),
+            (NEEDS_OF_THE_ONE, 120.0),
         ),
         resistances=_resistance_vector(),
         passive_defenses=(("block", 24.5), ("dodge", 0.0), ("parry", 0.0)),
