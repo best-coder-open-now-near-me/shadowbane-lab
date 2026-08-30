@@ -70,6 +70,9 @@ SHA-256. It separately pins the x86 extension artifact and the predicted patched
 Each canonically ordered patch site records its PE section, reviewed RVA, exact original and
 replacement bytes, and a bounded masked signature. Signatures must wildcard any bytes the patch
 changes, so an already-patched output can be verified without trusting its file hash alone.
+The reserved `headers` region identifies reviewed bytes inside `SizeOfHeaders`; it lets the same
+resolver safely verify section-header changes without pretending those bytes belong to a mapped
+section.
 
 Site alignment is evidence, not write authority. It reports exact, uniquely relocated, missing,
 ambiguous, missing-section, and architecture-mismatch results for a candidate PE. A compatible

@@ -15,6 +15,7 @@ from shadowbane_lab.client_extension.manifest import (
     load_patch_manifest_text,
 )
 from shadowbane_lab.client_extension.resolver import (
+    PE_HEADERS_SECTION,
     PatchResolutionError,
     PatchSiteStatus,
     align_patch_sites,
@@ -202,6 +203,53 @@ class PatchResolverTests(unittest.TestCase):
         self.assertEqual(hashlib.sha256(patched).hexdigest(), manifest.patched_executable_sha256)
         self.assertTrue(second_plan.already_patched)
         self.assertEqual(second_plan.writes, ())
+
+    def test_exact_plan_can_patch_reviewed_pe_header_bytes(self) -> None:
+        source = _source()
+        header_offset = 0x98
+        expected = source[header_offset : header_offset + 4]
+        replacement = bytes((value ^ 0xFF) for value in expected)
+        patched = bytearray(source)
+        patched[header_offset : header_offset + 4] = replacement
+        context = source[header_offset - 4 : header_offset + 8]
+        manifest = PatchManifest(
+            patch_id="fixture.header-v1",
+            source=SourceExecutable(
+                file_name="sb.exe",
+                sha256=hashlib.sha256(source).hexdigest(),
+                length=len(source),
+                machine=0x14C,
+                pointer_size=4,
+            ),
+            patched_executable_sha256=hashlib.sha256(patched).hexdigest(),
+            extension=ExtensionArtifact(
+                file_name="wonderbane-extension.dll",
+                sha256="e" * 64,
+                version="1.0.0",
+                machine=0x14C,
+                bootstrap_export="WonderBaneExtensionInitialize",
+            ),
+            sites=(
+                PatchSite(
+                    site_id="header-field",
+                    section=PE_HEADERS_SECTION,
+                    reviewed_rva=header_offset,
+                    expected_original=expected,
+                    replacement=replacement,
+                    signature=MaskedSignature(
+                        value=context[:4] + bytes(4) + context[8:],
+                        mask=bytes([0xFF] * 4 + [0] * 4 + [0xFF] * 4),
+                    ),
+                    signature_site_offset=4,
+                    search_radius=0,
+                ),
+            ),
+        )
+
+        plan = build_patch_plan(source, manifest)
+
+        self.assertEqual(header_offset, plan.writes[0].file_offset)
+        self.assertEqual(bytes(patched), apply_patch_plan(source, plan.writes))
 
     def test_incorrect_predicted_output_hash_rejects_plan(self) -> None:
         source = _source()

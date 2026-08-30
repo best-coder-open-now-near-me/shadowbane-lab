@@ -11,6 +11,8 @@ from shadowbane_lab.client_alignment.model import PeImage, PeSection
 from shadowbane_lab.client_alignment.pe import PeInspectionError, inspect_pe_bytes
 from shadowbane_lab.client_extension.manifest import PatchManifest, PatchSite
 
+PE_HEADERS_SECTION = "headers"
+
 
 class PatchResolutionError(ValueError):
     """Raised when a reviewed patch cannot be resolved without ambiguity."""
@@ -363,6 +365,17 @@ def _require_architecture(image: PeImage, manifest: PatchManifest) -> None:
 
 
 def _named_section(image: PeImage, name: str) -> PeSection | None:
+    if name == PE_HEADERS_SECTION:
+        return PeSection(
+            index=-1,
+            name=PE_HEADERS_SECTION,
+            virtual_address=0,
+            virtual_size=image.size_of_headers,
+            raw_offset=0,
+            raw_size=image.size_of_headers,
+            characteristics=0,
+            sha256=image.sha256,
+        )
     matches = tuple(section for section in image.sections if section.name == name)
     if len(matches) > 1:
         raise PatchResolutionError(f"PE contains duplicate section name: {name}")
@@ -395,6 +408,7 @@ def _reject_overlapping_writes(writes: tuple[PatchWrite, ...]) -> None:
 
 
 __all__ = [
+    "PE_HEADERS_SECTION",
     "PatchAlignmentReport",
     "PatchPlan",
     "PatchResolutionError",

@@ -45,6 +45,7 @@ from .package import (
     verify_patched_client_copy,
 )
 from .resolver import (
+    PE_HEADERS_SECTION,
     PatchAlignmentReport,
     PatchPlan,
     PatchResolutionError,
@@ -63,6 +64,7 @@ __all__ = [
     "EXTENSION_HEARTBEAT_SCHEMA_VERSION",
     "PATCH_MANIFEST_SCHEMA_VERSION",
     "PATCH_PACKAGE_SCHEMA_VERSION",
+    "PE_HEADERS_SECTION",
     "ROLLBACK_RECEIPT_SCHEMA_VERSION",
     "BaselineFile",
     "BootstrapInspectionError",
