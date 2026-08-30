@@ -49,13 +49,16 @@ def _add_output_options(parser: argparse.ArgumentParser) -> None:
 
 
 def _encode(payload: dict[str, Any], *, pretty: bool) -> str:
-    return json.dumps(
-        payload,
-        sort_keys=True,
-        indent=2 if pretty else None,
-        separators=None if pretty else (",", ":"),
-        allow_nan=False,
-    ) + "\n"
+    return (
+        json.dumps(
+            payload,
+            sort_keys=True,
+            indent=2 if pretty else None,
+            separators=None if pretty else (",", ":"),
+            allow_nan=False,
+        )
+        + "\n"
+    )
 
 
 def _write(text: str, output: Path | None) -> None:
