@@ -77,9 +77,7 @@ class NativeGroupAffiliationProjectionTests(unittest.TestCase):
             ("leader", "member"),
             tuple(item.role for item in projection.memberships),
         )
-        self.assertTrue(
-            all(item.group_key == self.party for item in projection.memberships)
-        )
+        self.assertTrue(all(item.group_key == self.party for item in projection.memberships))
         self.assertEqual((), projection.rejection_counts)
 
     def test_incomplete_join_fails_closed_by_default(self) -> None:
@@ -92,9 +90,7 @@ class NativeGroupAffiliationProjectionTests(unittest.TestCase):
             ),
         )
 
-        with self.assertRaisesRegex(
-            NativeGroupAffiliationError, "native_identity_unbound=1"
-        ):
+        with self.assertRaisesRegex(NativeGroupAffiliationError, "native_identity_unbound=1"):
             project_native_party_memberships(
                 self.party,
                 group,
@@ -120,9 +116,7 @@ class NativeGroupAffiliationProjectionTests(unittest.TestCase):
         )
 
         self.assertFalse(projection.complete)
-        self.assertEqual(
-            ("leader",), tuple(item.entity_id for item in projection.memberships)
-        )
+        self.assertEqual(("leader",), tuple(item.entity_id for item in projection.memberships))
         self.assertEqual((unresolved,), projection.unresolved_members)
         self.assertEqual(
             (("native_identity_unbound", 1),),
