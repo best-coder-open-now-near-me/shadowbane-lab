@@ -160,3 +160,18 @@ heartbeat atomically beneath `%LOCALAPPDATA%\ShadowbaneLab\client-extension`; it
 write game state. The status ABI reports the same heartbeat path, ABI/version, process ID,
 initialization state, and Win32 result. `verify-heartbeat <heartbeat.json>` strictly checks the
 schema and binds the file name to the PID plus process-creation FILETIME.
+
+## Strong flat-shading diagnostic
+
+The graphics-only extension adds a deliberately conspicuous renderer-seam test for the exact
+reviewed client. It contains no map, movement, combat, manager, or automation hooks.
+During initialization it resolves `OPENGL32.dll!glShadeModel` from the executable's bounded PE
+import table, verifies that the IAT slot still contains the loaded OpenGL implementation, and
+atomically replaces that one slot for the process lifetime. The replacement forces every shade
+model request to `GL_FLAT`. Unknown executables, missing or ambiguous imports, changed IAT state,
+and protection failures reject initialization instead of guessing.
+
+This is a diagnostic, not the final restrained cel treatment: it should make lit 3D triangles look
+obviously faceted, but it does not add silhouette outlines or quantized multi-band lighting. Its
+purpose is to prove that the fixed-function OpenGL state seam affects the live character renderer;
+the subsequent production pass can then own banding and outlines at the verified draw boundary.

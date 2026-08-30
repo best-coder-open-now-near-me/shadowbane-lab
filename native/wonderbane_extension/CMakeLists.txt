@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(wonderbane_extension VERSION 1.0.0 LANGUAGES CXX RC)
+project(wonderbane_extension VERSION 1.3.0 LANGUAGES CXX RC)
 
 include(CTest)
 
@@ -15,6 +15,7 @@ endif()
 add_library(
   wonderbane_extension
   SHARED
+  cel_shading.cpp
   extension.cpp
   extension.def
   extension.rc
@@ -66,6 +67,54 @@ set_target_properties(
 )
 
 if(BUILD_TESTING)
+  add_executable(
+    wonderbane_extension_cel_shading_test
+    cel_shading.cpp
+    cel_shading_test.cpp
+  )
+  target_compile_features(
+    wonderbane_extension_cel_shading_test
+    PRIVATE
+    cxx_std_20
+  )
+  target_compile_definitions(
+    wonderbane_extension_cel_shading_test
+    PRIVATE
+    UNICODE
+    _UNICODE
+    WIN32_LEAN_AND_MEAN
+    NOMINMAX
+    STRICT
+  )
+  target_compile_options(
+    wonderbane_extension_cel_shading_test
+    PRIVATE
+    /W4
+    /WX
+    /permissive-
+    /sdl
+    /GS
+    /guard:cf
+    /Zc:__cplusplus
+    /utf-8
+  )
+  target_link_options(
+    wonderbane_extension_cel_shading_test
+    PRIVATE
+    /DYNAMICBASE
+    /NXCOMPAT
+    /guard:cf
+    /INCREMENTAL:NO
+  )
+  set_property(
+    TARGET wonderbane_extension_cel_shading_test
+    PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded"
+  )
+  add_test(
+    NAME wonderbane_extension_cel_shading
+    COMMAND wonderbane_extension_cel_shading_test
+  )
+
   add_executable(wonderbane_extension_probe probe.cpp)
   target_compile_features(wonderbane_extension_probe PRIVATE cxx_std_20)
   target_compile_definitions(

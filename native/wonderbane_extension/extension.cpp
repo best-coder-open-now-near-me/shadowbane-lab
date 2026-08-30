@@ -1,3 +1,4 @@
+#include "cel_shading.h"
 #include "extension_api.h"
 
 #include <KnownFolders.h>
@@ -15,6 +16,7 @@ constexpr std::size_t kPathCapacity = WONDERBANE_EXTENSION_HEARTBEAT_PATH_CAPACI
 constexpr std::size_t kJsonCapacity = 768;
 constexpr LONG kMaximumInitializationPolls = 500;
 constexpr DWORD kInitializationPollMilliseconds = 10;
+constexpr char kExtensionVersion[] = "1.3.0";
 
 volatile LONG g_state = static_cast<LONG>(WonderBaneExtensionState::uninitialized);
 volatile LONG g_initialization_result = ERROR_SUCCESS;
@@ -185,9 +187,10 @@ DWORD WriteHeartbeat() noexcept {
         json,
         kJsonCapacity,
         "{\"schema_version\":1,\"abi_version\":1,"
-        "\"extension_version\":\"1.0.0\",\"process_id\":%lu,"
+        "\"extension_version\":\"%s\",\"process_id\":%lu,"
         "\"process_creation_filetime_utc\":%llu,"
         "\"initialized_at_filetime_utc\":%llu,\"status\":\"initialized\"}\n",
+        kExtensionVersion,
         static_cast<unsigned long>(process_id),
         static_cast<unsigned long long>(creation_value),
         static_cast<unsigned long long>(initialized_value)
@@ -242,7 +245,13 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
         static_cast<LONG>(WonderBaneExtensionState::uninitialized)
     );
     if (previous == static_cast<LONG>(WonderBaneExtensionState::uninitialized)) {
-        const DWORD result = WriteHeartbeat();
+        DWORD result = wonderbane::extension::StartStrongCelShading();
+        if (result == ERROR_SUCCESS) {
+            result = WriteHeartbeat();
+        }
+        if (result != ERROR_SUCCESS) {
+            wonderbane::extension::StopStrongCelShading();
+        }
         InterlockedExchange(&g_initialization_result, static_cast<LONG>(result));
         InterlockedExchange(
             &g_state,
