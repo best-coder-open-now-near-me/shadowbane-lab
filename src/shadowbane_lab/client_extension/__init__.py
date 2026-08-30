@@ -1,4 +1,4 @@
-"""Safe, offline preparation for the persistent WonderBane client extension."""
+"""Safe preparation and typed runtime boundaries for the WonderBane extension."""
 
 from .baseline import (
     CLIENT_BASELINE_SCHEMA_VERSION,
@@ -21,6 +21,25 @@ from .bootstrap_inspection import (
     BootstrapInspectionError,
     inspect_bootstrap_candidate,
     inspect_bootstrap_file,
+)
+from .events import (
+    EXTENSION_EVENT_CHANNEL_CAPACITY,
+    EXTENSION_EVENT_CHANNEL_FLAG_WORLD_MAP_DESTINATION,
+    EXTENSION_EVENT_CHANNEL_HEADER_SIZE,
+    EXTENSION_EVENT_CHANNEL_MAGIC,
+    EXTENSION_EVENT_CHANNEL_SCHEMA_VERSION,
+    EXTENSION_EVENT_CHANNEL_SIZE,
+    EXTENSION_EVENT_CHANNEL_SLOT_SIZE,
+    ExtensionEventChannelHeader,
+    ExtensionEventChannelSnapshot,
+    ExtensionEventError,
+    ExtensionEventKind,
+    ExtensionPointerButton,
+    ExtensionPointerButtonCode,
+    ExtensionWorldMapDestinationEvent,
+    extension_event_mapping_name,
+    extension_event_signal_name,
+    parse_extension_event_channel,
 )
 from .heartbeat import (
     EXTENSION_ABI_VERSION,
@@ -74,6 +93,13 @@ from .runtime_status import (
 )
 
 __all__ = [
+    "EXTENSION_EVENT_CHANNEL_CAPACITY",
+    "EXTENSION_EVENT_CHANNEL_FLAG_WORLD_MAP_DESTINATION",
+    "EXTENSION_EVENT_CHANNEL_HEADER_SIZE",
+    "EXTENSION_EVENT_CHANNEL_MAGIC",
+    "EXTENSION_EVENT_CHANNEL_SCHEMA_VERSION",
+    "EXTENSION_EVENT_CHANNEL_SIZE",
+    "EXTENSION_EVENT_CHANNEL_SLOT_SIZE",
     "CLIENT_BASELINE_SCHEMA_VERSION",
     "BOOTSTRAP_INSPECTION_SCHEMA_VERSION",
     "EXTENSION_ABI_VERSION",
@@ -91,11 +117,18 @@ __all__ = [
     "ClientBaselineError",
     "ClientPatchPackageError",
     "ExtensionArtifact",
+    "ExtensionEventChannelHeader",
+    "ExtensionEventChannelSnapshot",
+    "ExtensionEventError",
+    "ExtensionEventKind",
     "ExtensionHeartbeat",
     "ExtensionHeartbeatError",
     "ExtensionHeartbeatStatusProvider",
+    "ExtensionPointerButton",
+    "ExtensionPointerButtonCode",
     "ExtensionRuntimeSnapshot",
     "ExtensionRuntimeState",
+    "ExtensionWorldMapDestinationEvent",
     "MaskedSignature",
     "PatchAlignmentReport",
     "PatchManifest",
@@ -119,12 +152,15 @@ __all__ = [
     "author_reviewed_bootstrap_manifest",
     "build_patch_plan",
     "discard_patched_client_copy",
+    "extension_event_mapping_name",
+    "extension_event_signal_name",
     "freeze_client_baseline",
     "inspect_bootstrap_candidate",
     "inspect_bootstrap_file",
     "load_patch_manifest",
     "load_extension_heartbeat",
     "parse_extension_heartbeat",
+    "parse_extension_event_channel",
     "prepare_patched_client_copy",
     "unconfigured_extension_status",
     "verify_frozen_client_baseline",
