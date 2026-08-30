@@ -22,13 +22,32 @@ jobs:
           python-version: "3.11"
       - name: Apply lifecycle refactor
         run: python .github/scripts/apply_lifecycle_core.py
-      - name: Repair generated guard
+      - name: Repair generated structure
         run: |
           python - <<'PY'
           from pathlib import Path
 
-          path = Path("src/shadowbane_lab/sim/timeline.py")
-          text = path.read_text(encoding="utf-8")
+
+          def indent_between(path: str, start: str, end: str) -> None:
+              target = Path(path)
+              text = target.read_text(encoding="utf-8")
+              start_index = text.index(start)
+              end_index = text.index(end, start_index)
+              segment = text[start_index:end_index]
+              if segment.startswith("    "):
+                  raise RuntimeError(f"{path}: generated segment was already indented")
+              segment = "".join(
+                  f"    {line}" if line.strip() else line
+                  for line in segment.splitlines(keepends=True)
+              )
+              target.write_text(
+                  text[:start_index] + segment + text[end_index:],
+                  encoding="utf-8",
+              )
+
+
+          timeline = Path("src/shadowbane_lab/sim/timeline.py")
+          text = timeline.read_text(encoding="utf-8")
           old = '''        if self.kind in {ScheduledKind.PHASE_RELEASE, ScheduledKind.PHASE_TRANSITION}
                   and self.phase_index is None:
           '''
@@ -39,7 +58,28 @@ jobs:
           '''
           if old not in text:
               raise RuntimeError("generated phase guard was not found")
-          path.write_text(text.replace(old, new), encoding="utf-8")
+          timeline.write_text(text.replace(old, new), encoding="utf-8")
+
+          indent_between(
+              "src/shadowbane_lab/sim/environment.py",
+              "def _start_action(\n",
+              "    def _consume_action_start_triggers(\n",
+          )
+          indent_between(
+              "src/shadowbane_lab/sim/environment.py",
+              "def _process_due(\n",
+              "    def _delivery_delay(\n",
+          )
+          indent_between(
+              "src/shadowbane_lab/sim/environment.py",
+              "def _interrupt_actor(\n",
+              "    def _schedule(self, item: ScheduledItem) -> None:\n",
+          )
+          indent_between(
+              "tests/test_reference_environment.py",
+              "def test_same_timestamp_actions_use_cancellation_aware_microsteps(self) -> None:\n",
+              "    def test_projectile_uses_virtual_travel_time",
+          )
           PY
       - name: Remove temporary applicator
         run: rm .github/scripts/apply_lifecycle_core.py .github/workflows/apply-lifecycle-core.yml
