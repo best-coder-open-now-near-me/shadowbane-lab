@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """Offline safety checks for the WonderBane texture tools."""
+
 from __future__ import annotations
 
 import hashlib
 import json
+import struct
 import subprocess
 import sys
 import tempfile
+import zlib
 from pathlib import Path
 
 import numpy as np
@@ -15,6 +18,7 @@ from PIL import Image, ImageDraw
 ROOT = Path(__file__).resolve().parent
 FLARE = ROOT / "wonderbane_texture_flare.py"
 SCULPTOR = ROOT / "wonderbane_texture_sculptor.py"
+CACHE_TOOL = ROOT / "wonderbane_texture_cache.py"
 
 
 def run(*arguments: object) -> None:
@@ -62,6 +66,32 @@ def make_inputs(root: Path) -> tuple[Path, Path, Path, Path]:
     return bark_path, foliage_path, rgba_path, mask_path
 
 
+def make_texture_payload(image: Image.Image) -> bytes:
+    converted = image.convert("RGB")
+    header = struct.pack("<III", converted.width, converted.height, 3) + bytes(14)
+    pixels = converted.transpose(Image.Transpose.FLIP_TOP_BOTTOM).tobytes()
+    return header + pixels
+
+
+def make_cache(path: Path, resources: list[tuple[int, int, bytes]]) -> None:
+    data_offset = 16 + len(resources) * 20
+    records = []
+    payloads = []
+    cursor = data_offset
+    for group_id, resource_id, payload in resources:
+        stored = zlib.compress(payload)
+        records.append(
+            struct.pack("<IIIII", group_id, resource_id, cursor, len(payload), len(stored))
+        )
+        payloads.append(stored)
+        cursor += len(stored)
+    path.write_bytes(
+        struct.pack("<IIII", len(resources), data_offset, cursor, 0xFFFFFFFF)
+        + b"".join(records)
+        + b"".join(payloads)
+    )
+
+
 def assert_image(path: Path, mode: str, size: tuple[int, int]) -> np.ndarray:
     with Image.open(path) as image:
         assert image.mode == mode, (path, image.mode, mode)
@@ -107,9 +137,7 @@ def main() -> int:
             original_bark[:, 32:],
             flared_bark[:, 32:],
         ), "mask changed protected pixels"
-        assert digest(bark_out) == digest(bark_out_repeat), (
-            "flare output is not deterministic"
-        )
+        assert digest(bark_out) == digest(bark_out_repeat), "flare output is not deterministic"
         report = json.loads(bark_report.read_text(encoding="utf-8"))
         assert report["dimensions_preserved"] and report["uv_layout_preserved"]
 
@@ -127,9 +155,7 @@ def main() -> int:
         )
         source_rgba = assert_image(rgba, "RGBA", (64, 64))
         result_rgba = assert_image(rgba_out, "RGBA", (64, 64))
-        assert np.array_equal(source_rgba[:, :, 3], result_rgba[:, :, 3]), (
-            "source alpha changed"
-        )
+        assert np.array_equal(source_rgba[:, :, 3], result_rgba[:, :, 3]), "source alpha changed"
 
         keyed_out = root / "keyed_flared.png"
         run(
@@ -146,9 +172,7 @@ def main() -> int:
         source_keyed = assert_image(foliage, "RGB", (64, 64))
         result_keyed = assert_image(keyed_out, "RGB", (64, 64))
         background = np.all(source_keyed == 0, axis=2)
-        assert np.all(result_keyed[background] == 0), (
-            "pure-black key background changed"
-        )
+        assert np.all(result_keyed[background] == 0), "pure-black key background changed"
 
         bark_dir = root / "sculpt_bark"
         run(
@@ -201,6 +225,43 @@ def main() -> int:
             "L",
             (64, 64),
         )
+
+        cache = root / "Textures.cache"
+        original_texture = Image.new("RGB", (16, 16), (30, 42, 55))
+        untouched_texture = Image.new("RGB", (8, 8), (9, 10, 11))
+        make_cache(
+            cache,
+            [
+                (0, 101, make_texture_payload(original_texture)),
+                (0, 202, make_texture_payload(untouched_texture)),
+            ],
+        )
+        original_cache_digest = digest(cache)
+        replacement = root / "replacement.png"
+        Image.new("RGBA", (16, 16), (170, 95, 42, 127)).save(replacement)
+        backup = root / "texture-swap.wbt-backup.zip"
+        assignment = f"101={replacement}"
+        run(CACHE_TOOL, "plan", cache, assignment)
+        run(
+            CACHE_TOOL,
+            "install",
+            cache,
+            assignment,
+            "--backup",
+            backup,
+            "--confirm-client-closed",
+        )
+        assert backup.is_file(), "cache install did not create a backup"
+        assert digest(cache) != original_cache_digest, "cache install changed no bytes"
+        run(
+            CACHE_TOOL,
+            "restore",
+            backup,
+            "--cache",
+            cache,
+            "--confirm-client-closed",
+        )
+        assert digest(cache) == original_cache_digest, "cache restore was not byte-exact"
 
     print("WonderBane texture tool self-test passed.")
     return 0
