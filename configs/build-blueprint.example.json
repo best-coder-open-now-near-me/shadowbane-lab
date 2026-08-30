@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "blueprint_id": "example-frankenstein-build",
+  "display_name": "Example Frankenstein Build",
+  "requested_package_ids": [
+    "example.race.fast-body",
+    "example.promotion.shadow",
+    "example.discipline.next-swing",
+    "example.consumable.attribute-buff"
+  ],
+  "base_body": {
+    "health": 500,
+    "mana": 300,
+    "stamina": 200,
+    "move_speed": 15
+  },
+  "direct_grants": {
+    "action_keys": [
+      "action.sprint"
+    ],
+    "tags": [],
+    "persistent_trigger_keys": []
+  },
+  "scalars": {
+    "attack_rating": 900,
+    "defense": 850
+  },
+  "attributes": {
+    "strength": 35,
+    "dexterity": 102,
+    "constitution": 85,
+    "intelligence": 165,
+    "spirit": 10
+  },
+  "training": {
+    "skill.light_armor": 161,
+    "power.backstab": 40,
+    "power.shadow_touch": 40
+  },
+  "metadata": {
+    "evidence_status": "example_only"
+  },
+  "notes": [
+    "This demonstrates the format and is not a WonderBane legality or balance claim."
+  ]
+}
