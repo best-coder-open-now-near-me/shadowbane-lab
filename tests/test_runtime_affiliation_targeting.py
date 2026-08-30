@@ -116,9 +116,7 @@ def _party_wave() -> ActionSpec:
                         origin=AreaOrigin.ACTOR,
                         radius=20.0,
                         allowed_relations=(Relation.SELF, Relation.ALLY),
-                        effects=(
-                            RestoreResource(SubjectRef.TARGET, "health", 2.0),
-                        ),
+                        effects=(RestoreResource(SubjectRef.TARGET, "health", 2.0),),
                     ),
                 ),
             ),
