@@ -18,12 +18,14 @@ class NativeBuildCompatibilityTests(unittest.TestCase):
     def test_reviewed_wonderbane_patch_builds_share_native_layout(self) -> None:
         canonical = "ef43784ba6ffa0de6c0c16c76569f864393ad1530e7149395bb560e5cca30f13"
         pre_patch = "2b186aef864ea1ce16d8ec959c450f1f2e301d1ba25d9daa3b14ab6c65d68c3d"
-        patched = "e358237c458ddfe2fc7a86e478f165a8fd067655ab1a8ada5731f790c6995d96"
+        text_fixed = "e358237c458ddfe2fc7a86e478f165a8fd067655ab1a8ada5731f790c6995d96"
+        bootstrapped = "b392d2a5265bbe674f74fe1f80a096992148dedeb33069cf63181dc22ca419cf"
 
         self.assertTrue(native_layout_is_compatible(canonical, pre_patch))
-        self.assertTrue(native_layout_is_compatible(pre_patch, patched))
-        self.assertTrue(native_layout_is_compatible(patched, canonical))
-        self.assertEqual(canonical, canonical_native_layout_sha256(patched))
+        self.assertTrue(native_layout_is_compatible(pre_patch, text_fixed))
+        self.assertTrue(native_layout_is_compatible(text_fixed, bootstrapped))
+        self.assertTrue(native_layout_is_compatible(bootstrapped, canonical))
+        self.assertEqual(canonical, canonical_native_layout_sha256(bootstrapped))
 
     def test_unreviewed_build_is_its_own_canonical_layout(self) -> None:
         digest = "ab" * 32
