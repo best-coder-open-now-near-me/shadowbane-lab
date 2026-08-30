@@ -8,7 +8,6 @@ from shadowbane_lab.travel.chat import (
     GoChatCommandAssembler,
     GoChatCommandUpdate,
     PhysicalPointerInteraction,
-    WindowsGoChatCommandListener,
 )
 from shadowbane_lab.travel.controller import TravelController
 from shadowbane_lab.travel.model import (
@@ -75,6 +74,10 @@ from shadowbane_lab.travel.terrain import (
     load_active_zone_terrain_navigation,
     seed_height_raster_navigation,
 )
+from shadowbane_lab.travel.world_map_listener import (
+    WindowsGoChatCommandListener,
+    WorldMapPointerInteraction,
+)
 from shadowbane_lab.travel.zone_overlay import (
     WindowsZoneSearchOverlay,
     format_zone_search_overlay,
@@ -122,6 +125,7 @@ __all__ = [
     "WindowsZoneSearchOverlay",
     "WorldDestinationCatalog",
     "WorldDestinationEntry",
+    "WorldMapPointerInteraction",
     "ZoneSearchResult",
     "WeightedAStarConfig",
     "WeightedAStarPlanner",
