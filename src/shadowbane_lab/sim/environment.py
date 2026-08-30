@@ -6,7 +6,6 @@ from math import ceil, hypot
 
 from shadowbane_lab.protocol import (
     ActionBinding,
-    ActionBinding,
     DecisionMessage,
     EntityKind,
     Event,
@@ -40,6 +39,7 @@ from shadowbane_lab.sim.timeline import (
     ScheduledItem,
     ScheduledKind,
 )
+from shadowbane_lab.sim.timing import effective_action_cooldown_ms
 
 _DEFAULT_DIRECTIONS = (
     Vector2(-1.0, -1.0),
@@ -214,7 +214,9 @@ class ReferenceEnvironment:
                     scalars=(NamedScalar(cost.resource_key, cost.amount),),
                 )
             )
-        actor.cooldowns[action.action_key] = self.now_ms + action.cooldown_ms
+        actor.cooldowns[action.action_key] = self.now_ms + effective_action_cooldown_ms(
+            actor, action
+        )
         total_phase_ms = sum(phase.duration_ms for phase in action.phases)
         actor.busy_until_ms = max(actor.busy_until_ms, self.now_ms + total_phase_ms)
         events.append(

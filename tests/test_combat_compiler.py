@@ -5,6 +5,8 @@ from shadowbane_lab.combat import (
     CombatSheet,
     CompatibilityStatus,
     SheetModifiers,
+    StanceModifiers,
+    StanceProfile,
     WeaponProcProfile,
     WeaponProfile,
     spell_amount_bounds,
@@ -16,7 +18,7 @@ from shadowbane_lab.combat.compiler import (
     CombatReadinessError,
     compile_combatant,
 )
-from shadowbane_lab.protocol import Relation, TargetKind
+from shadowbane_lab.protocol import Relation, TargetKind, Vector2
 from shadowbane_lab.rulesets import CharacterBuild, load_shadowbane_vertical_slice
 from shadowbane_lab.sim import (
     ActionPhase,
@@ -25,6 +27,7 @@ from shadowbane_lab.sim import (
     AreaOrigin,
     AttackGate,
     ChanceGate,
+    CombatStance,
     DealDamage,
     PhaseKind,
     ResourceImmunity,
@@ -96,6 +99,56 @@ def _build() -> CharacterBuild:
 
 
 class CombatCompilerTests(unittest.TestCase):
+    def test_source_stance_profiles_compile_as_actions_and_dynamic_scalar_channels(
+        self,
+    ) -> None:
+        sheet = replace(
+            _sheet(),
+            stance_profiles=(
+                StanceProfile(
+                    profile_key="rogue_assassin",
+                    stance=CombatStance.PRECISE,
+                    rank=25,
+                    source_id="stance-fixture",
+                    source_revision="1",
+                    modifiers=StanceModifiers(
+                        attack_percent=0.36,
+                        damage_dealt_percent=-0.19,
+                    ),
+                ),
+            ),
+        )
+        policy = CombatCompilePolicy(
+            accepted_compatibility=(CompatibilityStatus.SOURCE_REVISION_ACCEPTED,),
+            allow_ruleset_overrides=True,
+        )
+
+        compiled = compile_combatant(
+            sheet,
+            _build(),
+            load_shadowbane_vertical_slice(),
+            policy=policy,
+        )
+        entity = compiled.entity("assassin", "red", Vector2(0.0, 0.0))
+        normal_attack = entity.effective_scalar("attack.main_hand")
+        entity.stance = CombatStance.PRECISE
+
+        self.assertAlmostEqual(
+            normal_attack * 1.36,
+            entity.effective_scalar("attack.main_hand"),
+        )
+        self.assertAlmostEqual(0.81, entity.effective_scalar("outgoing.damage.factor"))
+        precise = compiled.catalog.get(
+            compiled.action_key("shadowbane.stance.precise")
+        )
+        normal = compiled.catalog.get(
+            compiled.action_key("shadowbane.stance.normal")
+        )
+        self.assertEqual(20_000, precise.cooldown_ms)
+        self.assertIn("stance.change.precise", precise.tags)
+        self.assertIn("stance.precise", precise.forbidden_actor_tags)
+        self.assertIn("stance.change.normal", normal.tags)
+
     def test_no_hit_roll_debuff_needs_no_focus_and_compiles_without_attack_gate(self) -> None:
         build = replace(
             _build(),

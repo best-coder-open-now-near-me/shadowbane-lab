@@ -18,12 +18,15 @@ from shadowbane_lab.combat.model import (
     CombatSheet,
     CompatibilityStatus,
     SheetModifiers,
+    StanceModifiers,
+    StanceProfile,
     WeaponDamageInputs,
     WeaponProcProfile,
     WeaponProfile,
 )
 from shadowbane_lab.combat.types import (
     RESISTED_DAMAGE_TYPES,
+    CombatStance,
     DamageType,
     ResistanceType,
 )
@@ -31,10 +34,13 @@ from shadowbane_lab.combat.types import (
 __all__ = [
     "StackPriority",
     "CombatSheet",
+    "CombatStance",
     "DamageType",
     "ResistanceType",
     "CompatibilityStatus",
     "SheetModifiers",
+    "StanceModifiers",
+    "StanceProfile",
     "WeaponDamageInputs",
     "WeaponProcProfile",
     "WeaponProfile",

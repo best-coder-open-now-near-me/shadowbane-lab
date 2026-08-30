@@ -31,6 +31,7 @@ from shadowbane_lab.sim.actions import (
 from shadowbane_lab.sim.errors import SimulationConfigurationError
 from shadowbane_lab.sim.state import EntityState
 from shadowbane_lab.sim.timeline import AgentExchange
+from shadowbane_lab.sim.timing import effective_action_cooldown_ms
 
 _ACTION_BLOCKING_TAGS = frozenset({"control.stun"})
 
@@ -250,17 +251,40 @@ class AffordanceBuilder:
         action: ActionSpec,
         binding: ActionBinding,
     ) -> tuple[NamedScalar, ...]:
-        values = {
-            "commitment_ms": float(sum(phase.duration_ms for phase in action.phases)),
-            "cooldown_ms": float(action.cooldown_ms),
-        }
+        values = {feature.name: feature.value for feature in action.features}
+        effective_cooldown = effective_action_cooldown_ms(actor, action)
+        values["cooldown_ms"] = float(effective_cooldown)
+        if "weapon" in action.tags:
+            values["commitment_ms"] = float(
+                max(effective_cooldown, sum(phase.duration_ms for phase in action.phases))
+            )
+        else:
+            values.setdefault(
+                "commitment_ms",
+                float(sum(phase.duration_ms for phase in action.phases)),
+            )
         for cost in action.costs:
             values[f"cost.{cost.resource_key}"] = cost.amount
         if binding.target_entity_id is not None:
             target = self._entities[binding.target_entity_id]
             values["distance"] = self._distance(actor.position, target.position)
-        for feature in action.features:
-            values[feature.name] = feature.value
+        stance_factor_scalars = {
+            "attack": next(
+                (key for key in sorted(actor.scalars) if key.startswith("attack.")),
+                None,
+            ),
+            "defense": "defense",
+            "damage": "outgoing.damage.factor",
+            "weapon_delay": "action.weapon.delay.factor",
+            "movement": "move_speed",
+            "stamina_recovery": "stamina.recovery.factor",
+        }
+        for channel, scalar_key in stance_factor_scalars.items():
+            target_factor = values.get(f"stance.{channel}.factor")
+            if target_factor is None or scalar_key is None:
+                continue
+            current_factor = actor.stance_factor(scalar_key)
+            values[f"stance.{channel}.relative_factor"] = target_factor / current_factor
         active_triggers = tuple(
             trigger
             for active in actor.effects.values()

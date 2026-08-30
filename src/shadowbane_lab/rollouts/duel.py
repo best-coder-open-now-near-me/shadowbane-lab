@@ -10,7 +10,12 @@ from hashlib import sha256
 from math import hypot
 from statistics import fmean
 
-from shadowbane_lab.combat import CombatSheet, StackPriority
+from shadowbane_lab.combat import (
+    CombatSheet,
+    StackPriority,
+    melee_hit_chance_percent,
+    power_hit_chance_percent,
+)
 from shadowbane_lab.combat.compiler import (
     MAGICBANE_COMBAT_FORMULA_REVISION,
     CombatCompilePolicy,
@@ -21,6 +26,7 @@ from shadowbane_lab.protocol import (
     Affordance,
     DecisionMessage,
     EntityKind,
+    EntityObservation,
     Event,
     EventKind,
     NamedScalar,
@@ -588,6 +594,15 @@ class UtilityDuelPolicy:
             entity for entity in exchange.observation.entities if entity.relation is Relation.SELF
         )
 
+        if "stance" in tags:
+            return self._score_stance(
+                features,
+                tags,
+                health,
+                actor,
+                exchange,
+            )
+
         if "damage_absorber" in tags:
             if any(tag.startswith("breakpoint.damage.") for tag in actor_tags):
                 return float("-inf")
@@ -691,6 +706,82 @@ class UtilityDuelPolicy:
                 return float("-inf")
             return 1.0
         return -10.0
+
+    def _score_stance(
+        self,
+        features: dict[str, float],
+        tags: frozenset[str],
+        health: float,
+        actor: EntityObservation,
+        exchange: AgentExchange,
+    ) -> float:
+        health_fraction = health / self._maximum_health
+        current_hit = self._best_projected_hit_chance(actor, exchange, 1.0)
+        attack_factor = features.get("stance.attack.relative_factor", 1.0)
+        projected_hit = self._best_projected_hit_chance(
+            actor,
+            exchange,
+            attack_factor,
+        )
+
+        if "stance.change.defensive" in tags:
+            if health_fraction >= 0.55:
+                return -25.0
+            defense_gain = features.get("stance.defense.relative_factor", 1.0) - 1.0
+            return 90.0 + (1.0 - health_fraction) * 50.0 + defense_gain * 20.0
+
+        if "stance.change.precise" in tags:
+            hit_gain = projected_hit - current_hit
+            if current_hit > 0.25 or hit_gain < 0.05:
+                return -25.0
+            return 65.0 + hit_gain * 100.0
+
+        if "stance.change.offensive" in tags:
+            damage_factor = features.get("stance.damage.relative_factor", 1.0)
+            delay_factor = features.get("stance.weapon_delay.relative_factor", 1.0)
+            current_throughput = max(0.01, current_hit)
+            projected_throughput = projected_hit * damage_factor / delay_factor
+            gain_ratio = projected_throughput / current_throughput
+            if (
+                health_fraction <= 0.55
+                or projected_hit < 0.45
+                or gain_ratio <= 1.15
+            ):
+                return -25.0
+            return 45.0 + min(50.0, (gain_ratio - 1.0) * 25.0)
+
+        if "stance.change.normal" in tags:
+            return -30.0
+        return float("-inf")
+
+    @staticmethod
+    def _best_projected_hit_chance(
+        actor: EntityObservation,
+        exchange: AgentExchange,
+        attack_factor: float,
+    ) -> float:
+        enemies = tuple(
+            entity
+            for entity in exchange.observation.entities
+            if entity.relation is Relation.ENEMY
+        )
+        if not enemies:
+            return 0.0
+        attacks = tuple(
+            scalar for scalar in actor.scalars if scalar.name.startswith("attack.")
+        )
+        chances = []
+        for enemy in enemies:
+            defense = _scalar(enemy.scalars, "defense")
+            for attack in attacks:
+                rating = max(0.0, attack.value * attack_factor)
+                chance = (
+                    power_hit_chance_percent(rating, defense)
+                    if attack.name.startswith("attack.power.")
+                    else melee_hit_chance_percent(rating, defense)
+                )
+                chances.append(chance / 100.0)
+        return max(chances, default=0.0)
 
 
 def run_duel(

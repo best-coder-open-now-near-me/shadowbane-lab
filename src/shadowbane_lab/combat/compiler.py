@@ -15,6 +15,7 @@ from shadowbane_lab.combat.formulas import (
 from shadowbane_lab.combat.model import (
     CombatSheet,
     CompatibilityStatus,
+    StanceProfile,
     WeaponDamageInputs,
     WeaponProfile,
 )
@@ -34,6 +35,8 @@ from shadowbane_lab.sim import (
     AttackGate,
     AttackKind,
     ChanceGate,
+    ChangeStance,
+    CombatStance,
     DealDamage,
     DirectEffectPrimitive,
     EffectPrimitive,
@@ -67,9 +70,7 @@ class CombatReadinessError(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class CombatCompilePolicy:
-    accepted_compatibility: tuple[CompatibilityStatus, ...] = (
-        CompatibilityStatus.LIVE_VERIFIED,
-    )
+    accepted_compatibility: tuple[CompatibilityStatus, ...] = (CompatibilityStatus.LIVE_VERIFIED,)
     allow_ruleset_overrides: bool = False
 
     def __post_init__(self) -> None:
@@ -78,8 +79,7 @@ class CombatCompilePolicy:
         if len(self.accepted_compatibility) != len(set(self.accepted_compatibility)):
             raise ValueError("accepted_compatibility must not contain duplicates")
         if any(
-            not isinstance(status, CompatibilityStatus)
-            for status in self.accepted_compatibility
+            not isinstance(status, CompatibilityStatus) for status in self.accepted_compatibility
         ):
             raise ValueError("accepted_compatibility must contain CompatibilityStatus values")
         if not isinstance(self.allow_ruleset_overrides, bool):
@@ -95,6 +95,7 @@ class CompiledCombatant:
     canonical_action_keys: tuple[tuple[str, str], ...]
     scalars: tuple[tuple[str, float], ...]
     maximums: tuple[tuple[str, float], ...]
+    stance_multipliers: tuple[tuple[CombatStance, tuple[tuple[str, float], ...]], ...]
     tags: tuple[str, ...]
 
     def entity(self, entity_id: str, team_id: str, position: Vector2) -> EntityState:
@@ -108,6 +109,9 @@ class CompiledCombatant:
             maximums=dict(self.maximums),
             tags=set(self.tags),
             action_keys=self.action_keys,
+            stance_multipliers={
+                stance: dict(multipliers) for stance, multipliers in self.stance_multipliers
+            },
         )
 
     def action_key(self, canonical_action_key: str) -> str:
@@ -153,6 +157,15 @@ def compile_combatant(
         actions.append(off_hand)
         mappings.append((_OFF_HAND_ATTACK, off_hand.action_key))
 
+    stance_actions = _compile_stance_actions(sheet)
+    actions.extend(stance_actions)
+    mappings.extend(
+        (f"shadowbane.stance.{profile.stance.value}", action.action_key)
+        for profile, action in zip(sheet.stance_profiles, stance_actions[1:], strict=True)
+    )
+    if stance_actions:
+        mappings.append(("shadowbane.stance.normal", stance_actions[0].action_key))
+
     selected = ruleset.action_keys_for(build)
     for canonical_key in selected:
         if canonical_key in {_BASIC_ATTACK, _MOVEMENT}:
@@ -177,6 +190,7 @@ def compile_combatant(
             ("mana", float(sheet.maximum_mana)),
             ("stamina", float(sheet.maximum_stamina)),
         ),
+        stance_multipliers=_compile_stance_multipliers(sheet, scalars),
         tags=_compile_tags(sheet),
     )
 
@@ -260,6 +274,9 @@ def _compile_scalars(sheet: CombatSheet) -> dict[str, float]:
         "outgoing.power.healing.factor": 1.0,
         "outgoing.proc.damage.factor": 1.0,
         "outgoing.weapon.damage.factor": 1.0,
+        "outgoing.damage.factor": 1.0,
+        "action.weapon.delay.factor": 1.0,
+        "stamina.recovery.factor": 1.0,
         "defense": float(
             defense_rating(
                 sheet.dexterity,
@@ -271,9 +288,7 @@ def _compile_scalars(sheet: CombatSheet) -> dict[str, float]:
         ),
     }
     result.update({f"resist.{key}": float(value) for key, value in sheet.resistances})
-    result.update(
-        {f"passive.{key}": float(value) for key, value in sheet.passive_defenses}
-    )
+    result.update({f"passive.{key}": float(value) for key, value in sheet.passive_defenses})
     if sheet.protection_type is not None:
         result["protection.trains"] = float(sheet.protection_trains)
     for weapon_slot, weapon in (
@@ -304,6 +319,90 @@ def _compile_scalars(sheet: CombatSheet) -> dict[str, float]:
     if any(not isfinite(value) for value in result.values()):
         raise CombatReadinessError(("compiled scalar is not finite",))
     return result
+
+
+def _compile_stance_multipliers(
+    sheet: CombatSheet,
+    scalars: dict[str, float],
+) -> tuple[tuple[CombatStance, tuple[tuple[str, float], ...]], ...]:
+    attack_keys = tuple(sorted(key for key in scalars if key.startswith("attack.")))
+    compiled = []
+    for profile in sheet.stance_profiles:
+        modifiers = profile.modifiers
+        values = {key: 1.0 + modifiers.attack_percent for key in attack_keys}
+        values.update(
+            {
+                "defense": 1.0 + modifiers.defense_percent,
+                "outgoing.damage.factor": 1.0 + modifiers.damage_dealt_percent,
+                "action.weapon.delay.factor": 1.0 + modifiers.weapon_delay_percent,
+                "move_speed": 1.0 + modifiers.movement_percent,
+                "stamina.recovery.factor": 1.0 + modifiers.stamina_recovery_percent,
+            }
+        )
+        compiled.append((profile.stance, tuple(sorted(values.items()))))
+    return tuple(compiled)
+
+
+def _compile_stance_actions(sheet: CombatSheet) -> tuple[ActionSpec, ...]:
+    if not sheet.stance_profiles:
+        return ()
+    profile_key = sheet.stance_profiles[0].profile_key
+    by_stance = {profile.stance: profile for profile in sheet.stance_profiles}
+    ordered_stances = (
+        CombatStance.NORMAL,
+        *(profile.stance for profile in sheet.stance_profiles),
+    )
+    return tuple(
+        _compile_stance_action(sheet, profile_key, stance, by_stance.get(stance))
+        for stance in ordered_stances
+    )
+
+
+def _compile_stance_action(
+    sheet: CombatSheet,
+    profile_key: str,
+    stance: CombatStance,
+    profile: StanceProfile | None,
+) -> ActionSpec:
+    modifiers = profile.modifiers if profile is not None else None
+    factors = {
+        "attack": 1.0 if modifiers is None else 1.0 + modifiers.attack_percent,
+        "defense": 1.0 if modifiers is None else 1.0 + modifiers.defense_percent,
+        "damage": 1.0 if modifiers is None else 1.0 + modifiers.damage_dealt_percent,
+        "weapon_delay": (
+            1.0 if modifiers is None else 1.0 + modifiers.weapon_delay_percent
+        ),
+        "movement": 1.0 if modifiers is None else 1.0 + modifiers.movement_percent,
+        "stamina_recovery": (
+            1.0
+            if modifiers is None
+            else 1.0 + modifiers.stamina_recovery_percent
+        ),
+    }
+    canonical_key = f"shadowbane.stance.{stance.value}"
+    return ActionSpec(
+        action_key=_compiled_action_key(sheet.sheet_id, canonical_key),
+        targeting=TargetingSpec(kind=TargetKind.SELF),
+        phases=(
+            ActionPhase(
+                kind=PhaseKind.ACTIVE,
+                duration_ms=0,
+                effects=(ChangeStance(SubjectRef.ACTOR, stance),),
+            ),
+        ),
+        cooldown_ms=20_000,
+        forbidden_actor_tags=(f"stance.{stance.value}",),
+        features=tuple(
+            NamedScalar(f"stance.{channel}.factor", factor)
+            for channel, factor in sorted(factors.items())
+        ),
+        tags=(
+            "combat",
+            "stance",
+            f"stance.change.{stance.value}",
+            f"stance.profile.{profile_key}",
+        ),
+    )
 
 
 def _compile_tags(sheet: CombatSheet) -> tuple[str, ...]:

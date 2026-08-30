@@ -9,6 +9,8 @@ from shadowbane_lab.combat import (
     CompatibilityStatus,
     DamageType,
     SheetModifiers,
+    StanceModifiers,
+    StanceProfile,
     WeaponProcProfile,
     WeaponProfile,
 )
@@ -221,6 +223,88 @@ def _resistance_vector() -> tuple[tuple[str, float], ...]:
     return tuple((key, 0.0) for key in sorted(REQUIRED_RESISTANCE_TYPES))
 
 
+def _rogue_assassin_stances() -> tuple[StanceProfile, ...]:
+    source = {
+        "profile_key": "rogue_assassin",
+        "source_id": "morloch-stances-rogue-assassin",
+        "source_revision": "retrieved-2026-08-29",
+    }
+    return (
+        StanceProfile(
+            **source,
+            stance=CombatStance.DEFENSIVE,
+            rank=20,
+            modifiers=StanceModifiers(
+                attack_percent=-0.11,
+                defense_percent=0.17,
+                damage_dealt_percent=-0.07,
+                stamina_recovery_percent=0.24,
+            ),
+        ),
+        StanceProfile(
+            **source,
+            stance=CombatStance.OFFENSIVE,
+            rank=35,
+            modifiers=StanceModifiers(
+                attack_percent=0.0925,
+                defense_percent=-0.23,
+                weapon_delay_percent=-0.23,
+            ),
+        ),
+        StanceProfile(
+            **source,
+            stance=CombatStance.PRECISE,
+            rank=25,
+            modifiers=StanceModifiers(
+                attack_percent=0.36,
+                damage_dealt_percent=-0.19,
+            ),
+        ),
+    )
+
+
+def _fighter_warlock_stances() -> tuple[StanceProfile, ...]:
+    source = {
+        "profile_key": "fighter_warlock",
+        "source_id": "morloch-stances-fighter-warlock",
+        "source_revision": "retrieved-2026-08-29",
+    }
+    return (
+        StanceProfile(
+            **source,
+            stance=CombatStance.DEFENSIVE,
+            rank=30,
+            modifiers=StanceModifiers(
+                attack_percent=-0.13,
+                defense_percent=0.21,
+                weapon_delay_percent=0.085,
+                movement_percent=-0.085,
+                stamina_recovery_percent=0.42,
+            ),
+        ),
+        StanceProfile(
+            **source,
+            stance=CombatStance.OFFENSIVE,
+            rank=20,
+            modifiers=StanceModifiers(
+                defense_percent=-0.34,
+                damage_dealt_percent=0.34,
+                weapon_delay_percent=-0.17,
+                stamina_recovery_percent=-0.14,
+            ),
+        ),
+        StanceProfile(
+            **source,
+            stance=CombatStance.PRECISE,
+            rank=30,
+            modifiers=StanceModifiers(
+                attack_percent=0.295,
+                weapon_delay_percent=0.21,
+            ),
+        ),
+    )
+
+
 def _assassin_sheet() -> CombatSheet:
     proc = WeaponProcProfile(
         proc_key="tier-three-mental",
@@ -240,7 +324,6 @@ def _assassin_sheet() -> CombatSheet:
         range_units=6.0,
         strength_based=False,
         dual_wielding=True,
-        character_damage_percent=-0.07,
         procs=(proc,),
     )
     return CombatSheet(
@@ -271,9 +354,8 @@ def _assassin_sheet() -> CombatSheet:
         passive_defenses=(("block", 0.0), ("dodge", 25.25), ("parry", 5.0)),
         modifiers=SheetModifiers(
             flat_dcv=150.0,
-            positive_dcv_percent=0.17,
-            negative_ocv_percent=-0.11,
         ),
+        stance_profiles=_rogue_assassin_stances(),
         weapon=main_hand,
         off_hand_weapon=replace(
             main_hand,
@@ -356,7 +438,7 @@ def _deflock_sheet() -> CombatSheet:
         maximum_health=2658.0,
         maximum_mana=496.0,
         maximum_stamina=324.0,
-        move_speed=27.45,
+        move_speed=30.0,
         equipment_defense=1311.686,
         skill_values=(("sword", 100.0), ("warlockry", 120.0)),
         power_focus_values=(
@@ -368,9 +450,8 @@ def _deflock_sheet() -> CombatSheet:
         passive_defenses=(("block", 24.5), ("dodge", 0.0), ("parry", 0.0)),
         modifiers=SheetModifiers(
             flat_dcv=150.0,
-            positive_dcv_percent=0.21,
-            negative_ocv_percent=-0.13,
         ),
+        stance_profiles=_fighter_warlock_stances(),
         weapon=WeaponProfile(
             weapon_key="legendary-psi-blade-of-the-mentalist",
             damage_type=DamageType.SLASH,
@@ -382,7 +463,6 @@ def _deflock_sheet() -> CombatSheet:
             range_units=6.0,
             strength_based=True,
             weapon_speed_percent=-0.15,
-            attack_delay_percent=0.085,
             procs=(
                 WeaponProcProfile(
                     proc_key="mentalist",
@@ -645,7 +725,7 @@ def wonderbane_deflock() -> CombatantPreset:
         health=2658.0,
         mana=496.0,
         stamina=324.0,
-        move_speed=27.45,
+        move_speed=30.0,
     )
 
 

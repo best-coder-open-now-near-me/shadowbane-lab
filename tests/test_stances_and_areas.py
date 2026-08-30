@@ -2,7 +2,15 @@ import json
 import unittest
 from importlib.resources import files
 
-from shadowbane_lab.protocol import EntityKind, EventKind, Relation, TargetKind, Vector2
+from shadowbane_lab.protocol import (
+    EntityKind,
+    EventKind,
+    NamedScalar,
+    Relation,
+    TargetKind,
+    Vector2,
+)
+from shadowbane_lab.rollouts.duel import UtilityDuelPolicy
 from shadowbane_lab.rulesets import load_ruleset_text
 from shadowbane_lab.sim import (
     ActionCatalog,
@@ -52,9 +60,7 @@ def _decision(
 ):
     exchange = environment.exchange(actor_id)
     matches = tuple(
-        item
-        for item in exchange.affordances.affordances
-        if item.action_key == action_key
+        item for item in exchange.affordances.affordances if item.action_key == action_key
     )
     if len(matches) != 1:
         raise AssertionError(f"expected one {action_key} affordance, found {len(matches)}")
@@ -62,6 +68,151 @@ def _decision(
 
 
 class StanceRuntimeTests(unittest.TestCase):
+    def test_stance_multipliers_drive_damage_weapon_timing_and_snapshots(self) -> None:
+        strike = ActionSpec(
+            action_key="weapon-strike",
+            targeting=TargetingSpec(
+                kind=TargetKind.ENTITY,
+                allowed_relations=(Relation.ENEMY,),
+                maximum_range=3.0,
+            ),
+            phases=(
+                ActionPhase(
+                    kind=PhaseKind.ACTIVE,
+                    duration_ms=0,
+                    effects=(DealDamage(SubjectRef.TARGET, 10.0, "crush"),),
+                ),
+            ),
+            cooldown_ms=1_000,
+            tags=("attack", "weapon"),
+        )
+        attacker = _actor(
+            "attacker",
+            "red",
+            Vector2(0.0, 0.0),
+            ("weapon-strike",),
+        )
+        attacker.scalars.update(
+            {
+                "outgoing.damage.factor": 1.0,
+                "action.weapon.delay.factor": 1.0,
+            }
+        )
+        attacker.stance_multipliers = {
+            CombatStance.OFFENSIVE: {
+                "outgoing.damage.factor": 1.34,
+                "action.weapon.delay.factor": 0.77,
+            }
+        }
+        attacker.stance = CombatStance.OFFENSIVE
+        target = _actor("target", "blue", Vector2(1.0, 0.0))
+        environment = ReferenceEnvironment(
+            ActionCatalog((strike,)),
+            (attacker, target),
+            seed=4,
+        )
+
+        exchange = environment.exchange("attacker")
+        affordance = exchange.affordances.affordances[0]
+        features = {feature.name: feature.value for feature in affordance.features}
+        snapshot = environment.snapshot()
+        environment.step((exchange.decision(affordance.affordance_id, "offensive-strike"),))
+
+        self.assertEqual(770.0, features["cooldown_ms"])
+        self.assertEqual(770.0, features["commitment_ms"])
+        self.assertEqual(770, environment.entity("attacker").cooldowns["weapon-strike"])
+        self.assertAlmostEqual(86.6, environment.entity("target").scalars["health"])
+        environment.restore(snapshot)
+        restored = environment.entity("attacker")
+        self.assertIs(CombatStance.OFFENSIVE, restored.stance)
+        self.assertEqual(0.77, restored.stance_factor("action.weapon.delay.factor"))
+
+    def test_utility_policy_chooses_precise_when_it_breaks_a_hit_floor(self) -> None:
+        precise = ActionSpec(
+            action_key="stance.precise",
+            targeting=TargetingSpec(kind=TargetKind.SELF),
+            phases=(
+                ActionPhase(
+                    kind=PhaseKind.ACTIVE,
+                    duration_ms=0,
+                    effects=(ChangeStance(SubjectRef.ACTOR, CombatStance.PRECISE),),
+                ),
+            ),
+            cooldown_ms=20_000,
+            forbidden_actor_tags=("stance.precise",),
+            features=(
+                NamedScalar("stance.attack.factor", 2.0),
+                NamedScalar("stance.damage.factor", 1.0),
+                NamedScalar("stance.defense.factor", 1.0),
+                NamedScalar("stance.movement.factor", 1.0),
+                NamedScalar("stance.stamina_recovery.factor", 1.0),
+                NamedScalar("stance.weapon_delay.factor", 1.0),
+            ),
+            tags=("combat", "stance", "stance.change.precise"),
+        )
+        strike = ActionSpec(
+            action_key="strike",
+            targeting=TargetingSpec(
+                kind=TargetKind.ENTITY,
+                allowed_relations=(Relation.ENEMY,),
+                maximum_range=3.0,
+            ),
+            phases=(
+                ActionPhase(
+                    kind=PhaseKind.ACTIVE,
+                    duration_ms=0,
+                    effects=(
+                        AttackGate(
+                            attack_key="main_hand",
+                            kind=AttackKind.BASIC,
+                            attack_rating_key="attack.main_hand",
+                            defense_rating_key="defense",
+                            effects=(DealDamage(SubjectRef.TARGET, 10.0, "crush"),),
+                        ),
+                    ),
+                ),
+            ),
+            cooldown_ms=1_000,
+            features=(NamedScalar("expected_damage", 10.0),),
+            tags=("combat", "attack", "weapon"),
+        )
+        actor = _actor(
+            "actor",
+            "red",
+            Vector2(0.0, 0.0),
+            ("stance.precise", "strike"),
+        )
+        actor.scalars.update(
+            {
+                "attack.main_hand": 300.0,
+                "defense": 300.0,
+                "outgoing.damage.factor": 1.0,
+                "action.weapon.delay.factor": 1.0,
+                "move_speed": 30.0,
+                "stamina.recovery.factor": 1.0,
+            }
+        )
+        actor.stance_multipliers = {CombatStance.PRECISE: {"attack.main_hand": 2.0}}
+        target = _actor("target", "blue", Vector2(1.0, 0.0))
+        target.scalars["defense"] = 500.0
+        environment = ReferenceEnvironment(
+            ActionCatalog((precise, strike)),
+            (actor, target),
+            seed=5,
+        )
+
+        exchange = environment.exchange("actor")
+        decision = UtilityDuelPolicy(100.0).decide(exchange, "choose-stance")
+
+        self.assertIsNotNone(decision)
+        assert decision is not None
+        selected = next(
+            affordance
+            for affordance in exchange.affordances.affordances
+            if affordance.affordance_id == decision.affordance_id
+        )
+        self.assertEqual("stance.precise", selected.action_key)
+
     def test_stances_are_mutually_exclusive_snapshot_state_and_travel_drops_on_damage(
         self,
     ) -> None:

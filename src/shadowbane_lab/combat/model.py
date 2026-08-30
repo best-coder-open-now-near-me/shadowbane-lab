@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from math import isfinite
 
-from shadowbane_lab.combat.types import DamageType, ResistanceType
+from shadowbane_lab.combat.types import CombatStance, DamageType, ResistanceType
 
 
 def _finite(value: float, field_name: str) -> None:
@@ -71,6 +71,64 @@ class SheetModifiers:
             "armor_piercing",
         ):
             _finite(getattr(self, field_name), field_name)
+
+
+@dataclass(frozen=True, slots=True)
+class StanceModifiers:
+    """Independent percentage channels published for one trained stance rank."""
+
+    attack_percent: float = 0.0
+    defense_percent: float = 0.0
+    damage_dealt_percent: float = 0.0
+    weapon_delay_percent: float = 0.0
+    movement_percent: float = 0.0
+    stamina_recovery_percent: float = 0.0
+
+    def __post_init__(self) -> None:
+        for field_name in (
+            "attack_percent",
+            "defense_percent",
+            "damage_dealt_percent",
+            "weapon_delay_percent",
+            "movement_percent",
+            "stamina_recovery_percent",
+        ):
+            value = getattr(self, field_name)
+            _finite(value, field_name)
+            if value <= -1.0:
+                raise ValueError(f"{field_name} must leave a positive multiplier")
+
+
+@dataclass(frozen=True, slots=True)
+class StanceProfile:
+    """Source-pinned modifiers for one base/promotion stance power."""
+
+    profile_key: str
+    stance: CombatStance
+    rank: int
+    source_id: str
+    source_revision: str
+    modifiers: StanceModifiers = StanceModifiers()
+
+    def __post_init__(self) -> None:
+        for value, field_name in (
+            (self.profile_key, "profile_key"),
+            (self.source_id, "source_id"),
+            (self.source_revision, "source_revision"),
+        ):
+            _identifier(value, field_name)
+        if not isinstance(self.stance, CombatStance):
+            try:
+                object.__setattr__(self, "stance", CombatStance(self.stance))
+            except (TypeError, ValueError) as exc:
+                raise ValueError("stance must be a CombatStance") from exc
+        if self.stance in {CombatStance.NORMAL, CombatStance.TRAVEL}:
+            raise ValueError("trained stance profiles must be offensive, defensive, or precise")
+        _non_negative_integer(self.rank, "rank")
+        if self.rank == 0:
+            raise ValueError("stance rank must be positive")
+        if not isinstance(self.modifiers, StanceModifiers):
+            raise ValueError("modifiers must be StanceModifiers")
 
 
 @dataclass(frozen=True, slots=True)
@@ -206,6 +264,7 @@ class CombatSheet:
     resistances: tuple[tuple[str, float], ...]
     passive_defenses: tuple[tuple[str, float], ...]
     modifiers: SheetModifiers = SheetModifiers()
+    stance_profiles: tuple[StanceProfile, ...] = ()
     weapon: WeaponProfile | None = None
     off_hand_weapon: WeaponProfile | None = None
     protection_type: DamageType | None = None
@@ -260,6 +319,14 @@ class CombatSheet:
             raise ValueError("passive defense chances must not exceed 75")
         if not isinstance(self.modifiers, SheetModifiers):
             raise ValueError("modifiers must be a SheetModifiers")
+        if any(not isinstance(profile, StanceProfile) for profile in self.stance_profiles):
+            raise ValueError("stance_profiles must contain StanceProfile values")
+        stance_keys = tuple(profile.stance for profile in self.stance_profiles)
+        if len(stance_keys) != len(set(stance_keys)):
+            raise ValueError("stance_profiles must not repeat a stance")
+        profile_keys = {profile.profile_key for profile in self.stance_profiles}
+        if len(profile_keys) > 1:
+            raise ValueError("stance_profiles must share one profile_key")
         if self.weapon is not None and not isinstance(self.weapon, WeaponProfile):
             raise ValueError("weapon must be a WeaponProfile or null")
         if self.off_hand_weapon is not None and not isinstance(
@@ -292,6 +359,11 @@ class CombatSheet:
         object.__setattr__(self, "resistances", tuple(sorted(normalized_resistances)))
         for field_name in ("skill_values", "power_focus_values", "passive_defenses"):
             object.__setattr__(self, field_name, tuple(sorted(getattr(self, field_name))))
+        object.__setattr__(
+            self,
+            "stance_profiles",
+            tuple(sorted(self.stance_profiles, key=lambda profile: profile.stance.value)),
+        )
         object.__setattr__(self, "tags", tuple(sorted(self.tags)))
 
     def skill_value(self, skill_key: str) -> float:

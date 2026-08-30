@@ -36,6 +36,7 @@ from shadowbane_lab.rollouts.presets import (
     STEAL_BREATH,
     SURPASS_LIMITS,
 )
+from shadowbane_lab.sim import CombatStance
 
 
 class WonderBanePresetTests(unittest.TestCase):
@@ -73,6 +74,12 @@ class WonderBanePresetTests(unittest.TestCase):
         self.assertIn("equipment.melee_weapon", preset.combat_sheet.tags)
         self.assertIn("power.stalk", preset.combat_sheet.tags)
         self.assertIn("poison_blade_proc", {item.effect_key for item in preset.initial_effects})
+        stances = {profile.stance: profile for profile in preset.combat_sheet.stance_profiles}
+        self.assertEqual(0.36, stances[CombatStance.PRECISE].modifiers.attack_percent)
+        self.assertEqual(-0.23, stances[CombatStance.OFFENSIVE].modifiers.weapon_delay_percent)
+        self.assertEqual(0.0, preset.combat_sheet.modifiers.negative_ocv_percent)
+        assert preset.combat_sheet.weapon is not None
+        self.assertEqual(0.0, preset.combat_sheet.weapon.character_damage_percent)
         self.assertTrue(preset.unresolved)
 
     def test_deflock_preset_compiles_the_full_archived_combat_loadout(self) -> None:
@@ -108,6 +115,12 @@ class WonderBanePresetTests(unittest.TestCase):
         )
         self.assertNotIn("discipline.commander", preset.tags)
         self.assertIn("psychic_shield", {item.effect_key for item in preset.initial_effects})
+        stances = {profile.stance: profile for profile in preset.combat_sheet.stance_profiles}
+        self.assertEqual(0.295, stances[CombatStance.PRECISE].modifiers.attack_percent)
+        self.assertEqual(0.34, stances[CombatStance.OFFENSIVE].modifiers.damage_dealt_percent)
+        self.assertEqual(-0.085, stances[CombatStance.DEFENSIVE].modifiers.movement_percent)
+        self.assertEqual(30.0, preset.combat_sheet.move_speed)
+        self.assertEqual(0.0, preset.combat_sheet.modifiers.positive_dcv_percent)
         self.assertTrue(preset.unresolved)
 
     def test_complete_matchup_uses_triggers_and_complete_sheet_attack_metrics(self) -> None:
@@ -124,6 +137,7 @@ class WonderBanePresetTests(unittest.TestCase):
         actions = {item.action_key.split("@")[0] for item in assassin.actions}
         triggers = {item.trigger_key for item in assassin.triggers}
         self.assertIn(BACKSTAB, actions)
+        self.assertTrue(any(action.startswith("shadowbane.stance.") for action in actions))
         self.assertIn("backstab_armed", triggers)
         self.assertGreater(assassin.attacks_attempted, 0)
         self.assertGreater(warlock.attacks_attempted, 0)

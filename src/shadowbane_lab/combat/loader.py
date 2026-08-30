@@ -12,10 +12,12 @@ from shadowbane_lab.combat.model import (
     CombatSheet,
     CompatibilityStatus,
     SheetModifiers,
+    StanceModifiers,
+    StanceProfile,
     WeaponProcProfile,
     WeaponProfile,
 )
-from shadowbane_lab.combat.types import DamageType
+from shadowbane_lab.combat.types import CombatStance, DamageType
 from shadowbane_lab.rulesets import CharacterBuild
 
 COMBAT_PROFILE_SCHEMA_VERSION = 1
@@ -42,9 +44,7 @@ def combat_profile_dict(
     off_hand_weapon = None
     if sheet.off_hand_weapon is not None:
         off_hand_weapon = asdict(sheet.off_hand_weapon)
-        off_hand_weapon["procs"] = [
-            asdict(proc) for proc in sheet.off_hand_weapon.procs
-        ]
+        off_hand_weapon["procs"] = [asdict(proc) for proc in sheet.off_hand_weapon.procs]
     return {
         "schema_version": COMBAT_PROFILE_SCHEMA_VERSION,
         "sheet": {
@@ -76,6 +76,17 @@ def combat_profile_dict(
             "resistances": dict(sheet.resistances),
             "passive_defenses": dict(sheet.passive_defenses),
             "modifiers": asdict(sheet.modifiers),
+            "stance_profiles": [
+                {
+                    "profile_key": profile.profile_key,
+                    "stance": profile.stance.value,
+                    "rank": profile.rank,
+                    "source_id": profile.source_id,
+                    "source_revision": profile.source_revision,
+                    "modifiers": asdict(profile.modifiers),
+                }
+                for profile in sheet.stance_profiles
+            ],
             "weapon": weapon,
             "off_hand_weapon": off_hand_weapon,
             "protection": {
@@ -90,9 +101,7 @@ def combat_profile_dict(
             "skill_ranks": dict(build.skill_ranks),
             "power_ranks": dict(build.power_ranks),
             "enabled_power_keys": (
-                None
-                if build.enabled_power_keys is None
-                else list(build.enabled_power_keys)
+                None if build.enabled_power_keys is None else list(build.enabled_power_keys)
             ),
         },
     }
@@ -148,7 +157,12 @@ def _sheet(data: Mapping[str, Any]) -> CombatSheet:
         "protection",
         "tags",
     }
-    _exact_keys(data, expected, "sheet", optional={"off_hand_weapon"})
+    _exact_keys(
+        data,
+        expected,
+        "sheet",
+        optional={"off_hand_weapon", "stance_profiles"},
+    )
     source = _object(data, "source")
     _exact_keys(
         source,
@@ -188,6 +202,10 @@ def _sheet(data: Mapping[str, Any]) -> CombatSheet:
         resistances=_number_pairs(_object(data, "resistances")),
         passive_defenses=_number_pairs(_object(data, "passive_defenses")),
         modifiers=_modifiers(_object(data, "modifiers")),
+        stance_profiles=tuple(
+            _stance_profile(item)
+            for item in _optional_objects(data, "stance_profiles")
+        ),
         weapon=_nullable_weapon(data.get("weapon")),
         off_hand_weapon=_nullable_weapon(data.get("off_hand_weapon")),
         protection_type=(
@@ -212,6 +230,41 @@ def _modifiers(data: Mapping[str, Any]) -> SheetModifiers:
     }
     _exact_keys(data, fields, "modifiers")
     return SheetModifiers(**{field: _number(data, field) for field in fields})
+
+
+def _stance_profile(data: Mapping[str, Any]) -> StanceProfile:
+    _exact_keys(
+        data,
+        {
+            "profile_key",
+            "stance",
+            "rank",
+            "source_id",
+            "source_revision",
+            "modifiers",
+        },
+        "stance profile",
+    )
+    modifier_data = _object(data, "modifiers")
+    modifier_fields = {
+        "attack_percent",
+        "defense_percent",
+        "damage_dealt_percent",
+        "weapon_delay_percent",
+        "movement_percent",
+        "stamina_recovery_percent",
+    }
+    _exact_keys(modifier_data, modifier_fields, "stance modifiers")
+    return StanceProfile(
+        profile_key=_string(data, "profile_key"),
+        stance=CombatStance(_string(data, "stance")),
+        rank=_integer(data, "rank"),
+        source_id=_string(data, "source_id"),
+        source_revision=_string(data, "source_revision"),
+        modifiers=StanceModifiers(
+            **{field: _number(modifier_data, field) for field in modifier_fields}
+        ),
+    )
 
 
 def _nullable_weapon(value: Any) -> WeaponProfile | None:
@@ -349,6 +402,12 @@ def _sequence(data: Mapping[str, Any], key: str) -> Sequence[Any]:
 
 def _objects(data: Mapping[str, Any], key: str) -> tuple[Mapping[str, Any], ...]:
     return tuple(_mapping(item, f"{key} item") for item in _sequence(data, key))
+
+
+def _optional_objects(
+    data: Mapping[str, Any], key: str
+) -> tuple[Mapping[str, Any], ...]:
+    return () if key not in data else _objects(data, key)
 
 
 def _string(data: Mapping[str, Any], key: str) -> str:

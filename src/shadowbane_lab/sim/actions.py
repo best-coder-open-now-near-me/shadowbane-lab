@@ -6,7 +6,12 @@ from dataclasses import dataclass
 from enum import StrEnum
 from math import isfinite
 
-from shadowbane_lab.combat import DamageType, ResistanceType, StackPriority
+from shadowbane_lab.combat import (
+    CombatStance,
+    DamageType,
+    ResistanceType,
+    StackPriority,
+)
 from shadowbane_lab.protocol import NamedScalar, Relation, TargetKind
 
 
@@ -69,14 +74,6 @@ class TagOperation(StrEnum):
 class AttackKind(StrEnum):
     BASIC = "basic"
     POWER = "power"
-
-
-class CombatStance(StrEnum):
-    NORMAL = "normal"
-    OFFENSIVE = "offensive"
-    DEFENSIVE = "defensive"
-    PRECISE = "precise"
-    TRAVEL = "travel"
 
 
 class AreaOrigin(StrEnum):

@@ -6,7 +6,12 @@ from io import StringIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from shadowbane_lab.combat import CompatibilityStatus
+from shadowbane_lab.combat import (
+    CombatStance,
+    CompatibilityStatus,
+    StanceModifiers,
+    StanceProfile,
+)
 from shadowbane_lab.combat.compiler import (
     CombatCompilePolicy,
     CombatReadinessError,
@@ -85,6 +90,33 @@ class CombatProfileLoaderTests(unittest.TestCase):
             _sheet(),
             weapon=main_hand,
             off_hand_weapon=replace(main_hand, weapon_key="off-hand"),
+        )
+
+        loaded_sheet, loaded_build = load_combat_profile_text(
+            encode_combat_profile(sheet, _build())
+        )
+
+        self.assertEqual(sheet, loaded_sheet)
+        self.assertEqual(_build(), loaded_build)
+
+    def test_source_pinned_stance_profiles_round_trip_through_strict_boundary(self) -> None:
+        sheet = replace(
+            _sheet(),
+            stance_profiles=(
+                StanceProfile(
+                    profile_key="rogue_assassin",
+                    stance=CombatStance.DEFENSIVE,
+                    rank=20,
+                    source_id="morloch-stances",
+                    source_revision="fixture-1",
+                    modifiers=StanceModifiers(
+                        attack_percent=-0.11,
+                        defense_percent=0.17,
+                        damage_dealt_percent=-0.07,
+                        stamina_recovery_percent=0.24,
+                    ),
+                ),
+            ),
         )
 
         loaded_sheet, loaded_build = load_combat_profile_text(

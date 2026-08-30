@@ -168,6 +168,7 @@ class EntitySnapshot:
     effects: tuple[ActiveEffectSnapshot, ...]
     cooldowns: tuple[tuple[str, int], ...]
     busy_until_ms: int
+    stance_multipliers: tuple[tuple[CombatStance, tuple[tuple[str, float], ...]], ...]
     stance: CombatStance
     alive: bool
 
@@ -188,6 +189,7 @@ class EntityState:
     effects: dict[str, ActiveEffectState] = field(default_factory=dict)
     cooldowns: dict[str, int] = field(default_factory=dict)
     busy_until_ms: int = 0
+    stance_multipliers: dict[CombatStance, dict[str, float]] = field(default_factory=dict)
     stance: CombatStance = CombatStance.NORMAL
     alive: bool = True
 
@@ -236,6 +238,26 @@ class EntityState:
             or self.busy_until_ms < 0
         ):
             raise ValueError("busy_until_ms must be a non-negative integer")
+        normalized_stance_multipliers: dict[CombatStance, dict[str, float]] = {}
+        for stance, multipliers in self.stance_multipliers.items():
+            if not isinstance(stance, CombatStance):
+                try:
+                    stance = CombatStance(stance)
+                except (TypeError, ValueError) as exc:
+                    raise ValueError("stance_multipliers keys must be CombatStance values") from exc
+            if stance in {CombatStance.NORMAL, CombatStance.TRAVEL}:
+                raise ValueError("stance_multipliers may only define trained combat stances")
+            parsed = _finite_mapping(multipliers, "stance multiplier")
+            if any(factor <= 0.0 for factor in parsed.values()):
+                raise ValueError("stance multiplier factors must be positive")
+            missing_scalars = set(parsed) - set(self.scalars)
+            if missing_scalars:
+                raise ValueError(
+                    "stance multipliers reference missing scalars: "
+                    + ", ".join(sorted(missing_scalars))
+                )
+            normalized_stance_multipliers[stance] = parsed
+        self.stance_multipliers = normalized_stance_multipliers
         if not isinstance(self.stance, CombatStance):
             raise ValueError("stance must be a CombatStance")
         if not isinstance(self.alive, bool):
@@ -262,7 +284,7 @@ class EntityState:
         _identifier(scalar_key, "scalar_key")
         if scalar_key not in self.scalars:
             raise KeyError(scalar_key)
-        factor = 1.0
+        factor = self.stance_factor(scalar_key)
         for storage_key in sorted(self.effects):
             effect = self.effects[storage_key]
             for modifier in effect.modifiers:
@@ -272,6 +294,19 @@ class EntityState:
                 ):
                     factor *= modifier.factor
         return float(self.scalars[scalar_key]) * factor
+
+    def stance_factor(
+        self,
+        scalar_key: str,
+        stance: CombatStance | None = None,
+    ) -> float:
+        """Return the selected stance's multiplier for one scalar channel."""
+
+        _identifier(scalar_key, "scalar_key")
+        selected = self.stance if stance is None else stance
+        if not isinstance(selected, CombatStance):
+            raise ValueError("stance must be a CombatStance")
+        return float(self.stance_multipliers.get(selected, {}).get(scalar_key, 1.0))
 
     def snapshot(self) -> EntitySnapshot:
         return EntitySnapshot(
@@ -289,6 +324,15 @@ class EntityState:
             effects=tuple(self.effects[key].snapshot() for key in sorted(self.effects)),
             cooldowns=tuple(sorted(self.cooldowns.items())),
             busy_until_ms=self.busy_until_ms,
+            stance_multipliers=tuple(
+                (
+                    stance,
+                    tuple(sorted((key, float(value)) for key, value in multipliers.items())),
+                )
+                for stance, multipliers in sorted(
+                    self.stance_multipliers.items(), key=lambda item: item[0].value
+                )
+            ),
             stance=self.stance,
             alive=self.alive,
         )
@@ -314,6 +358,10 @@ class EntityState:
             effects=effects,
             cooldowns=dict(snapshot.cooldowns),
             busy_until_ms=snapshot.busy_until_ms,
+            stance_multipliers={
+                stance: dict(multipliers)
+                for stance, multipliers in snapshot.stance_multipliers
+            },
             stance=snapshot.stance,
             alive=snapshot.alive,
         )

@@ -746,6 +746,7 @@ class EffectExecutor:
         extra_tags: tuple[str, ...] = (),
     ) -> float:
         actor = self._entity(item.actor_id)
+        amount *= self._scalar_or_default(actor, "outgoing.damage.factor", 1.0)
         amount *= self._scalar_or_default(
             actor,
             "outgoing.weapon.damage.factor",
@@ -993,6 +994,7 @@ class EffectExecutor:
             raise SimulationConfigurationError("damage requires an entity subject")
         amount = self._resolve_amount(effect.amount)
         actor = self._entity(item.actor_id)
+        amount *= self._scalar_or_default(actor, "outgoing.damage.factor", 1.0)
         factor_key = (
             "outgoing.proc.damage.factor"
             if effect.source_key is not None and effect.source_key.startswith("proc.")

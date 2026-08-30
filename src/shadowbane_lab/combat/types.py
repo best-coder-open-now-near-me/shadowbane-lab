@@ -5,6 +5,16 @@ from __future__ import annotations
 from enum import StrEnum
 
 
+class CombatStance(StrEnum):
+    """Mutually exclusive character posture used by combat and travel actions."""
+
+    NORMAL = "normal"
+    OFFENSIVE = "offensive"
+    DEFENSIVE = "defensive"
+    PRECISE = "precise"
+    TRAVEL = "travel"
+
+
 class DamageType(StrEnum):
     """Resistance channel used by one damage application.
 
