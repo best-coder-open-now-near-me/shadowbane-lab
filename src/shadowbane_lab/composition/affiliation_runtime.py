@@ -102,9 +102,7 @@ def materialize_scenario_affiliations(
             "scenario affiliation_snapshot_digest is required with an id"
         )
     if component is None:
-        raise AffiliationMaterializationError(
-            "scenario affiliation component payload is missing"
-        )
+        raise AffiliationMaterializationError("scenario affiliation component payload is missing")
     if component.snapshot_id != scenario.affiliation_snapshot_id:
         raise AffiliationMaterializationError(
             "affiliation component id does not match the scenario declaration"
@@ -113,15 +111,11 @@ def materialize_scenario_affiliations(
     try:
         text = component.payload.decode("utf-8")
     except UnicodeDecodeError as exc:
-        raise AffiliationMaterializationError(
-            "affiliation component must be valid UTF-8"
-        ) from exc
+        raise AffiliationMaterializationError("affiliation component must be valid UTF-8") from exc
     try:
         source = load_affiliation_snapshot_text(text)
     except AffiliationSnapshotFormatError as exc:
-        raise AffiliationMaterializationError(
-            f"affiliation component is invalid: {exc}"
-        ) from exc
+        raise AffiliationMaterializationError(f"affiliation component is invalid: {exc}") from exc
 
     digest = affiliation_snapshot_digest(source)
     if digest != scenario.affiliation_snapshot_digest:
@@ -197,9 +191,7 @@ def _remap_subject(
     runtime_entity_by_affiliation_id: dict[str, str],
 ) -> RelationSubject:
     if subject.entity_id is not None:
-        return RelationSubject.for_entity(
-            runtime_entity_by_affiliation_id[subject.entity_id]
-        )
+        return RelationSubject.for_entity(runtime_entity_by_affiliation_id[subject.entity_id])
     assert subject.group_key is not None
     return RelationSubject.for_group(subject.group_key)
 
