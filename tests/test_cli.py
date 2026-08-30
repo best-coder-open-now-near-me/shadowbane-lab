@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 from shadowbane_lab.cli import (
     _ExactWorkerEngineExecutor,
     _listen_for_go_commands,
+    _load_world_map_close_plan,
     _print_go_listener_event,
     _run_pve,
     _run_travel,
@@ -39,6 +40,24 @@ from tests.test_client_input_executor import _valid_snapshot
 
 
 class ClientCliTests(unittest.TestCase):
+    def test_world_map_close_plan_discovers_matching_character_configs(self) -> None:
+        config = (
+            'BEGINHOTKEYS\nKEY= "M" FALSE FALSE FALSE 48 0 0 "WorldMap"\n'
+            "ENDHOTKEYS\n"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name in (
+                "SCREEN_GAME_first_Wonderbane.cfg",
+                "SCREEN_GAME_second_Wonderbane.cfg",
+            ):
+                (root / name).write_text(config, encoding="utf-8")
+
+            plan = _load_world_map_close_plan(None, config_directory=root)
+
+        self.assertEqual("client.world-map.close", plan.action_key)
+        self.assertEqual("m", plan.commands[-1].key)
+
     def test_worker_cancel_acknowledges_without_touching_client_input(self) -> None:
         executor = object.__new__(_ExactWorkerEngineExecutor)
         executor._binding = SimpleNamespace(instance_id="instance-101")
@@ -1125,6 +1144,8 @@ class ClientCliTests(unittest.TestCase):
         )
         astar_controller = SimpleNamespace(
             replan_count=2,
+            direct_fallback_count=1,
+            route_mode="astar_horizon",
             navigation_token="zone-token:3",
         )
         completed_run = SimpleNamespace(
@@ -1210,8 +1231,10 @@ class ClientCliTests(unittest.TestCase):
         self.assertEqual(
             {
                 "enabled": True,
+                "direct_fallbacks": 1,
                 "navigation_token": "zone-token:3",
                 "replans": 2,
+                "route_mode": "astar_horizon",
                 "terrain_refreshes": 3,
                 "zone_name": "Tainted Swamp",
             },

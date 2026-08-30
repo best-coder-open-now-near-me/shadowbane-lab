@@ -115,6 +115,9 @@ class ExactExtensionEventRouter:
         consumer_factory: Callable[[int, int], ExtensionEventConsumerSource] = (
             open_windows_extension_event_consumer
         ),
+        event_preparer: (
+            Callable[[ClientInstanceSnapshot, ExtensionWorldMapDestinationEvent], None] | None
+        ) = None,
         clock: Callable[[], float] = time.time,
     ) -> None:
         if not isinstance(manifest, ManagerManifest):
@@ -128,10 +131,13 @@ class ExactExtensionEventRouter:
             raise ValueError("ingress must provide dispatch() and cancel_if_inflight()")
         if not callable(consumer_factory) or not callable(clock):
             raise ValueError("consumer_factory and clock must be callable")
+        if event_preparer is not None and not callable(event_preparer):
+            raise ValueError("event_preparer must be callable or None")
         self._manifest = manifest
         self._registry = registry
         self._ingress = ingress
         self._consumer_factory = consumer_factory
+        self._event_preparer = event_preparer
         self._clock = clock
         self._consumers: dict[tuple[int, int], ExtensionEventConsumerSource] = {}
         self._closed = False
@@ -184,7 +190,9 @@ class ExactExtensionEventRouter:
             for event in events:
                 outcome = self._route_event(client, event)
                 if outcome == "retry":
-                    issues.append(f"{client.instance_id}: worker dispatch unavailable")
+                    issues.append(
+                        f"{client.instance_id}: event preparation or worker dispatch unavailable"
+                    )
                     break
                 try:
                     consumer.acknowledge(event)
@@ -247,6 +255,8 @@ class ExactExtensionEventRouter:
             "require_foreground": False,
         }
         try:
+            if self._event_preparer is not None:
+                self._event_preparer(client, event)
             self._ingress.cancel_if_inflight(
                 f"extension-map-cancel:{event.sequence}",
                 operation_id=_operation_id(event, "cancel"),

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from math import hypot, sqrt
 from typing import Protocol, runtime_checkable
 
 from shadowbane_lab.client_observation import NativePlayerPositionObservation
@@ -72,11 +73,22 @@ class AStarTravelController:
         self._decision_id = 0
         self._click_count = 0
         self._replan_count = 0
+        self._direct_fallback_count = 0
+        self._route_mode: str | None = None
+        self._travel_reaches_destination = False
         self._terminal: TravelDecision | None = None
 
     @property
     def replan_count(self) -> int:
         return self._replan_count
+
+    @property
+    def direct_fallback_count(self) -> int:
+        return self._direct_fallback_count
+
+    @property
+    def route_mode(self) -> str | None:
+        return self._route_mode
 
     @property
     def navigation_token(self) -> str | None:
@@ -106,12 +118,26 @@ class AStarTravelController:
         ):
             self._navigation = navigation
             try:
-                self._travel = self._plan(observation, reason="terrain_refresh")
+                (
+                    self._travel,
+                    self._travel_reaches_destination,
+                    self._route_mode,
+                ) = self._plan(
+                    observation,
+                    reason="terrain_refresh",
+                    allow_direct_fallback=True,
+                )
             except AStarRouteNotFound as exc:
                 return self._stop(self._route_failure(exc), observation)
 
         assert self._travel is not None
         decision = self._travel.step(observation)
+        if decision.phase is TravelPhase.COMPLETE and not self._travel_reaches_destination:
+            self._travel = self._direct_plan(reason="horizon_complete")
+            self._travel_reaches_destination = True
+            self._route_mode = "direct_fallback"
+            self._direct_fallback_count += 1
+            decision = self._travel.step(observation)
         if (
             decision.maneuver is not None
             and decision.maneuver is not TravelManeuver.DIRECT
@@ -124,11 +150,17 @@ class AStarTravelController:
                 active_waypoint,
             )
             try:
-                replacement = self._plan(observation, reason="learned_obstacle")
+                replacement, reaches_destination, route_mode = self._plan(
+                    observation,
+                    reason="learned_obstacle",
+                    allow_direct_fallback=False,
+                )
             except AStarRouteNotFound:
                 pass
             else:
                 self._travel = replacement
+                self._travel_reaches_destination = reaches_destination
+                self._route_mode = route_mode
                 self._replan_count += 1
                 decision = self._travel.step(observation)
         return self._translate(decision)
@@ -149,20 +181,95 @@ class AStarTravelController:
         observation: TravelObservation,
         *,
         reason: str,
-    ) -> TravelController:
+        allow_direct_fallback: bool,
+    ) -> tuple[TravelController, bool, str]:
         assert self._navigation is not None
-        route = self._planner.plan(
-            self._navigation.navigation_map,
-            start_lt=observation.position.lt,
-            start_lg=observation.position.lg,
-            destination=self._destination,
+        planning_destination = self._planning_destination(observation)
+        reaches_destination = planning_destination == self._destination
+        try:
+            route = self._planner.plan(
+                self._navigation.navigation_map,
+                start_lt=observation.position.lt,
+                start_lg=observation.position.lg,
+                destination=planning_destination,
+            )
+        except AStarRouteNotFound:
+            if reaches_destination or not allow_direct_fallback:
+                raise
+            self._direct_fallback_count += 1
+            return self._direct_plan(reason=reason), True, "direct_fallback"
+        return (
+            TravelController(
+                TravelPlan(
+                    plan_id=(
+                        f"{self._plan_id}:{reason}:{self._replan_count}:"
+                        f"{self._navigation.token}"
+                    ),
+                    destinations=route.destinations,
+                ),
+                self._config,
+            ),
+            reaches_destination,
+            "astar_final" if reaches_destination else "astar_horizon",
         )
+
+    def _direct_plan(self, *, reason: str) -> TravelController:
+        assert self._navigation is not None
         return TravelController(
             TravelPlan(
-                plan_id=(f"{self._plan_id}:{reason}:{self._replan_count}:{self._navigation.token}"),
-                destinations=route.destinations,
+                plan_id=(
+                    f"{self._plan_id}:{reason}:{self._replan_count}:"
+                    f"{self._navigation.token}:direct"
+                ),
+                destinations=(self._destination,),
             ),
             self._config,
+        )
+
+    def _planning_destination(self, observation: TravelObservation) -> TravelDestination:
+        """Project a far goal just beyond the next terrain refresh boundary."""
+
+        assert self._navigation is not None
+        window = self._navigation.planning_window
+        if window is None or window.contains(self._destination):
+            return self._destination
+        delta_lt = self._destination.lt - observation.position.lt
+        delta_lg = self._destination.lg - observation.position.lg
+        distance = hypot(delta_lt, delta_lg)
+        if distance == 0:
+            return self._destination
+        direction_lt = delta_lt / distance
+        direction_lg = delta_lg / distance
+        offset_lt = observation.position.lt - window.center_lt
+        offset_lg = observation.position.lg - window.center_lg
+        target_radius = window.refresh_distance + (
+            window.radius - window.refresh_distance
+        ) * 0.5
+        projection = offset_lt * direction_lt + offset_lg * direction_lg
+        discriminant = (
+            projection * projection
+            + target_radius * target_radius
+            - offset_lt * offset_lt
+            - offset_lg * offset_lg
+        )
+        local_radius = max(
+            5.0,
+            self._navigation.navigation_map.cell_size
+            * self._planner.config.waypoint_radius_fraction,
+        )
+        if discriminant <= 0:
+            horizon_distance = max(
+                local_radius * 2,
+                self._navigation.navigation_map.cell_size * 2,
+            )
+        else:
+            horizon_distance = max(local_radius * 2, -projection + sqrt(discriminant))
+        if horizon_distance >= distance:
+            return self._destination
+        return TravelDestination(
+            observation.position.lt + direction_lt * horizon_distance,
+            observation.position.lg + direction_lg * horizon_distance,
+            arrival_radius=local_radius,
         )
 
     def _stop(

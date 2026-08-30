@@ -124,11 +124,13 @@ class ExtensionEventRouterTests(unittest.TestCase):
     def test_routes_focus_independent_event_as_cancel_then_exact_travel(self) -> None:
         consumer = Consumer(_event())
         ingress = Ingress()
+        prepared = []
         router = ExactExtensionEventRouter(
             _manifest(),
             Registry(_client()),
             ingress,
             consumer_factory=lambda *_: consumer,
+            event_preparer=lambda client, event: prepared.append((client, event)),
             clock=lambda: NOW,
         )
 
@@ -137,6 +139,7 @@ class ExtensionEventRouterTests(unittest.TestCase):
         self.assertEqual(1, result.dispatched_events)
         self.assertEqual((PROCESS_ID,), result.dispatched_process_ids)
         self.assertEqual([consumer.events[0]], consumer.acknowledged)
+        self.assertEqual([(_client(), consumer.events[0])], prepared)
         self.assertEqual(
             [WorkerOperationKind.CANCEL, WorkerOperationKind.TRAVEL],
             [call[0] for call in ingress.calls],
@@ -181,6 +184,29 @@ class ExtensionEventRouterTests(unittest.TestCase):
         result = router.poll_once()
 
         self.assertEqual((), tuple(consumer.acknowledged))
+        self.assertEqual(1, result.pending_events)
+        self.assertTrue(result.issues)
+
+    def test_transient_event_preparation_failure_leaves_event_unacknowledged(self) -> None:
+        consumer = Consumer(_event())
+        ingress = Ingress()
+
+        def fail_preparation(_client, _event) -> None:
+            raise RuntimeError("world map did not close")
+
+        router = ExactExtensionEventRouter(
+            _manifest(),
+            Registry(replace(_client(), is_foreground=True)),
+            ingress,
+            consumer_factory=lambda *_: consumer,
+            event_preparer=fail_preparation,
+            clock=lambda: NOW,
+        )
+
+        result = router.poll_once()
+
+        self.assertEqual((), tuple(consumer.acknowledged))
+        self.assertEqual([], ingress.calls)
         self.assertEqual(1, result.pending_events)
         self.assertTrue(result.issues)
 

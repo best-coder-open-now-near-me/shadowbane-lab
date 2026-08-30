@@ -140,17 +140,62 @@ class AStarRouteNotFound(RuntimeError):
 
 
 @dataclass(frozen=True, slots=True)
+class NavigationPlanningWindow:
+    """Bounded terrain coverage around one active navigation refresh origin."""
+
+    center_lt: float
+    center_lg: float
+    radius: float
+    refresh_distance: float
+
+    def __post_init__(self) -> None:
+        for value, field_name in (
+            (self.center_lt, "center_lt"),
+            (self.center_lg, "center_lg"),
+            (self.radius, "radius"),
+            (self.refresh_distance, "refresh_distance"),
+        ):
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not isfinite(value)
+            ):
+                raise ValueError(f"{field_name} must be finite")
+        if self.radius <= 0:
+            raise ValueError("radius must be positive")
+        if not 0 < self.refresh_distance < self.radius:
+            raise ValueError("refresh_distance must be in (0, radius)")
+
+    def contains(self, destination: TravelDestination) -> bool:
+        if not isinstance(destination, TravelDestination):
+            raise ValueError("destination must be a TravelDestination")
+        return (
+            hypot(
+                destination.lt - self.center_lt,
+                destination.lg - self.center_lg,
+            )
+            <= self.radius
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class NavigationMapSnapshot:
     """One revision of the sparse global navigation map available to a route."""
 
     token: str
     navigation_map: SparseNavigationMap
+    planning_window: NavigationPlanningWindow | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.token, str) or not self.token.strip():
             raise ValueError("navigation snapshot token must be non-empty")
         if not isinstance(self.navigation_map, SparseNavigationMap):
             raise ValueError("navigation snapshot requires a SparseNavigationMap")
+        if self.planning_window is not None and not isinstance(
+            self.planning_window,
+            NavigationPlanningWindow,
+        ):
+            raise ValueError("planning_window must be a NavigationPlanningWindow or None")
 
 
 class SparseNavigationMap:
