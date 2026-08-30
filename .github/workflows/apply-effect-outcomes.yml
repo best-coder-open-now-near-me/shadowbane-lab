@@ -20,25 +20,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Align applicator with current action imports
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          path = Path(".github/scripts/apply_effect_outcomes.py")
-          text = path.read_text(encoding="utf-8")
-          old = '''    "from shadowbane_lab.protocol import Relation, TargetKind, Vector2\\n",
-              "from shadowbane_lab.protocol import Relation, TargetKind, Vector2\\n"
-              "from shadowbane_lab.sim.outcomes import EffectOutcomeKind\\n",
-          '''
-          new = '''    "from shadowbane_lab.protocol import NamedScalar, Relation, TargetKind\\n",
-              "from shadowbane_lab.protocol import NamedScalar, Relation, TargetKind\\n"
-              "from shadowbane_lab.sim.outcomes import EffectOutcomeKind\\n",
-          '''
-          if text.count(old) != 1:
-              raise RuntimeError("effect outcome import patch was not found exactly once")
-          path.write_text(text.replace(old, new), encoding="utf-8")
-          PY
       - name: Apply outcome integration
         run: python .github/scripts/apply_effect_outcomes.py
       - name: Remove temporary applicator
