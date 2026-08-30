@@ -193,6 +193,13 @@ class AffiliationSnapshot:
             raise ValueError("revision must be an integer")
         if self.revision < 0:
             raise ValueError("revision must be non-negative")
+        for value, field_name in (
+            (self.memberships, "memberships"),
+            (self.ownership_edges, "ownership_edges"),
+            (self.relation_overrides, "relation_overrides"),
+        ):
+            if not isinstance(value, tuple):
+                raise ValueError(f"{field_name} must be a tuple")
         if any(not isinstance(item, GroupMembership) for item in self.memberships):
             raise ValueError("memberships must contain GroupMembership values")
         if any(not isinstance(item, OwnershipEdge) for item in self.ownership_edges):
@@ -410,13 +417,15 @@ class RelationResolver:
         _identifier(right_entity_id, "right_entity_id")
         left_memberships = self._memberships.get(left_entity_id, frozenset())
         right_memberships = self._memberships.get(right_entity_id, frozenset())
-        override = _select_override(
-            self._snapshot.relation_overrides,
-            left_entity_id,
-            right_entity_id,
-            left_memberships,
-            right_memberships,
-        )
+        override = None
+        if left_entity_id != right_entity_id:
+            override = _select_override(
+                self._snapshot.relation_overrides,
+                left_entity_id,
+                right_entity_id,
+                left_memberships,
+                right_memberships,
+            )
         left_ancestors = self._ancestor_chain(left_entity_id)
         right_ancestors = self._ancestor_chain(right_entity_id)
         same_owner = (

@@ -75,6 +75,10 @@ class NativeObjectKeyTests(unittest.TestCase):
 
 
 class NativeEntityIdentityMapTests(unittest.TestCase):
+    def test_map_requires_an_immutable_binding_tuple(self) -> None:
+        with self.assertRaisesRegex(ValueError, "bindings must be a tuple"):
+            NativeEntityIdentityMap(bindings=[])
+
     def test_map_is_one_to_one_and_never_uses_pointer_tokens_as_entity_ids(self) -> None:
         first = NativeObjectKey(3, 101)
         second = NativeObjectKey(3, 102)

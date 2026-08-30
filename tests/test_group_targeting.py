@@ -258,6 +258,18 @@ class DeterministicResolutionTests(unittest.TestCase):
 
 
 class TargetSelectorValidationTests(unittest.TestCase):
+    def test_tuple_collections_are_required_for_immutable_target_contracts(self) -> None:
+        with self.assertRaisesRegex(ValueError, "entity_kinds must be a tuple"):
+            TargetSelectorSpec(entity_kinds=[EntityKind.ACTOR])
+        with self.assertRaisesRegex(ValueError, "allowed_relations must be a tuple"):
+            TargetSelectorSpec(allowed_relations=[Relation.ALLY])
+        with self.assertRaisesRegex(ValueError, "candidates must be a tuple"):
+            TargetResolver(RelationResolver(AffiliationSnapshot())).resolve(
+                _candidate("actor", 0.0),
+                [],
+                TargetSelectorSpec(),
+            )
+
     def test_contradictory_affiliation_requirements_are_rejected(self) -> None:
         with self.assertRaisesRegex(ValueError, "same_party"):
             TargetSelectorSpec(require_same_party=True, forbid_same_party=True)

@@ -79,6 +79,8 @@ class NativeEntityIdentityMap:
     bindings: tuple[NativeEntityBinding, ...] = ()
 
     def __post_init__(self) -> None:
+        if not isinstance(self.bindings, tuple):
+            raise ValueError("bindings must be a tuple")
         if any(not isinstance(binding, NativeEntityBinding) for binding in self.bindings):
             raise ValueError("bindings must contain NativeEntityBinding values")
         object_keys = tuple(binding.object_key for binding in self.bindings)

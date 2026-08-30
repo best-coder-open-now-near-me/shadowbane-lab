@@ -73,12 +73,16 @@ class TargetSelectorSpec:
     order: TargetOrder = TargetOrder.ENTITY_ID
 
     def __post_init__(self) -> None:
+        if not isinstance(self.entity_kinds, tuple):
+            raise ValueError("entity_kinds must be a tuple")
         if len(self.entity_kinds) != len(set(self.entity_kinds)):
             raise ValueError("entity_kinds must not contain duplicates")
         if any(not isinstance(kind, EntityKind) for kind in self.entity_kinds):
             raise ValueError("entity_kinds must contain EntityKind values")
         if not isinstance(self.alive_requirement, AliveRequirement):
             raise ValueError("alive_requirement must be an AliveRequirement")
+        if not isinstance(self.allowed_relations, tuple):
+            raise ValueError("allowed_relations must be a tuple")
         if len(self.allowed_relations) != len(set(self.allowed_relations)):
             raise ValueError("allowed_relations must not contain duplicates")
         if any(not isinstance(relation, Relation) for relation in self.allowed_relations):
@@ -188,6 +192,8 @@ class TargetDecision:
         _finite(self.distance, "distance")
         if self.distance < 0:
             raise ValueError("distance must not be negative")
+        if not isinstance(self.exclusion_reasons, tuple):
+            raise ValueError("exclusion_reasons must be a tuple")
         if len(self.exclusion_reasons) != len(set(self.exclusion_reasons)):
             raise ValueError("exclusion_reasons must not contain duplicates")
         for reason in self.exclusion_reasons:
@@ -216,6 +222,8 @@ class TargetResolution:
             or self.affiliation_revision < 0
         ):
             raise ValueError("affiliation_revision must be a non-negative integer")
+        if not isinstance(self.decisions, tuple):
+            raise ValueError("decisions must be a tuple")
         if any(not isinstance(decision, TargetDecision) for decision in self.decisions):
             raise ValueError("decisions must contain TargetDecision values")
         entity_ids = tuple(decision.entity_id for decision in self.decisions)
@@ -259,6 +267,8 @@ class TargetResolver:
     ) -> TargetResolution:
         if not isinstance(actor, TargetCandidate):
             raise ValueError("actor must be a TargetCandidate")
+        if not isinstance(candidates, tuple):
+            raise ValueError("candidates must be a tuple")
         if any(not isinstance(candidate, TargetCandidate) for candidate in candidates):
             raise ValueError("candidates must contain TargetCandidate values")
         if not isinstance(selector, TargetSelectorSpec):

@@ -100,6 +100,28 @@ class AffiliationFactsTests(unittest.TestCase):
             ),
         )
 
+    def test_self_relation_ignores_overrides_matching_through_membership(self) -> None:
+        party = GroupKey(GroupKind.PARTY, "party:one")
+        snapshot = AffiliationSnapshot(
+            memberships=(GroupMembership("member", party),),
+            relation_overrides=(
+                RelationOverride(
+                    RelationSubject.for_entity("member"),
+                    RelationSubject.for_group(party),
+                    Relation.NEUTRAL,
+                ),
+            ),
+        )
+        resolver = RelationResolver(snapshot)
+
+        facts = resolver.facts_between("member", "member")
+
+        self.assertTrue(facts.same_entity)
+        self.assertFalse(facts.explicit_neutrality)
+        self.assertIsNone(facts.override_relation)
+        self.assertIsNone(facts.override_precedence)
+        self.assertEqual(Relation.SELF, resolver.coarse_relation("member", "member"))
+
 
 class RelationOverrideTests(unittest.TestCase):
     def test_more_specific_overrides_take_precedence(self) -> None:
@@ -183,6 +205,14 @@ class RelationOverrideTests(unittest.TestCase):
 
 
 class AffiliationValidationTests(unittest.TestCase):
+    def test_snapshot_requires_immutable_tuple_collections(self) -> None:
+        with self.assertRaisesRegex(ValueError, "memberships must be a tuple"):
+            AffiliationSnapshot(memberships=[])
+        with self.assertRaisesRegex(ValueError, "ownership_edges must be a tuple"):
+            AffiliationSnapshot(ownership_edges=[])
+        with self.assertRaisesRegex(ValueError, "relation_overrides must be a tuple"):
+            AffiliationSnapshot(relation_overrides=[])
+
     def test_one_entity_cannot_join_two_groups_of_same_kind(self) -> None:
         with self.assertRaisesRegex(AffiliationConfigurationError, "same kind"):
             AffiliationSnapshot(
