@@ -241,9 +241,11 @@ class RuntimeAffiliationTargetingTests(unittest.TestCase):
         )
 
         self.assertEqual((), unavailable.exchange("attacker").affordances.affordances)
+        resolution = unavailable.resolve_targets("attacker", "los-attack")
+        decisions = {decision.entity_id: decision for decision in resolution.decisions}
         self.assertEqual(
             ("line_of_sight_blocked",),
-            unavailable.resolve_targets("attacker", "los-attack").decisions[0].exclusion_reasons,
+            decisions["target"].exclusion_reasons,
         )
         self.assertEqual(1, len(available.exchange("attacker").affordances.affordances))
 
