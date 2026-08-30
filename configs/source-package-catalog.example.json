@@ -1,0 +1,208 @@
+{
+  "schema_version": 1,
+  "catalog_id": "example-partial-build-catalog",
+  "slot_limits": {
+    "race": 1,
+    "base_class": 1,
+    "promotion": 1,
+    "discipline": 4,
+    "main_hand": 1,
+    "off_hand": 1,
+    "consumable": 2
+  },
+  "packages": [
+    {
+      "package_id": "example.race.fast-body",
+      "display_name": "Example Fast Body",
+      "kind": "race",
+      "selection_slot": "race",
+      "grants": {
+        "action_keys": [],
+        "tags": [
+          "body.humanoid"
+        ],
+        "persistent_trigger_keys": [],
+        "training_access_keys": [],
+        "body_delta": {
+          "health": -20,
+          "mana": 20,
+          "stamina": 0,
+          "move_speed": 1
+        },
+        "scalars": {},
+        "attributes": {
+          "dexterity": 5
+        }
+      },
+      "requires": [],
+      "conflicts": [],
+      "metadata": {
+        "evidence_status": "example_only"
+      }
+    },
+    {
+      "package_id": "example.base.agile",
+      "display_name": "Example Agile Base",
+      "kind": "base_class",
+      "selection_slot": "base_class",
+      "grants": {
+        "action_keys": [
+          "attack.basic"
+        ],
+        "tags": [
+          "capability.light_armor"
+        ],
+        "persistent_trigger_keys": [],
+        "training_access_keys": [
+          "skill.light_armor"
+        ],
+        "body_delta": {
+          "health": 0,
+          "mana": 0,
+          "stamina": 20,
+          "move_speed": 0
+        },
+        "scalars": {},
+        "attributes": {}
+      },
+      "requires": [],
+      "conflicts": [],
+      "metadata": {
+        "evidence_status": "example_only"
+      }
+    },
+    {
+      "package_id": "example.promotion.shadow",
+      "display_name": "Example Shadow Promotion",
+      "kind": "promotion",
+      "selection_slot": "promotion",
+      "grants": {
+        "action_keys": [
+          "power.shadow_touch"
+        ],
+        "tags": [
+          "capability.shadow"
+        ],
+        "persistent_trigger_keys": [],
+        "training_access_keys": [
+          "power.shadow_touch"
+        ],
+        "body_delta": {
+          "health": 0,
+          "mana": 40,
+          "stamina": 0,
+          "move_speed": 0
+        },
+        "scalars": {},
+        "attributes": {}
+      },
+      "requires": [
+        "example.base.agile"
+      ],
+      "conflicts": [],
+      "metadata": {
+        "evidence_status": "example_only"
+      }
+    },
+    {
+      "package_id": "example.discipline.next-swing",
+      "display_name": "Example Next-Swing Discipline",
+      "kind": "discipline",
+      "selection_slot": "discipline",
+      "grants": {
+        "action_keys": [
+          "power.backstab"
+        ],
+        "tags": [
+          "capability.next_weapon_action"
+        ],
+        "persistent_trigger_keys": [],
+        "training_access_keys": [
+          "power.backstab"
+        ],
+        "body_delta": {
+          "health": 0,
+          "mana": 0,
+          "stamina": 0,
+          "move_speed": 0
+        },
+        "scalars": {},
+        "attributes": {}
+      },
+      "requires": [
+        "example.base.agile",
+        "example.weapon.fast-main-hand"
+      ],
+      "conflicts": [],
+      "metadata": {
+        "evidence_status": "example_only"
+      }
+    },
+    {
+      "package_id": "example.weapon.fast-main-hand",
+      "display_name": "Example Fast Main-Hand Weapon",
+      "kind": "equipment",
+      "selection_slot": "main_hand",
+      "grants": {
+        "action_keys": [],
+        "tags": [
+          "equipment.melee",
+          "equipment.main_hand"
+        ],
+        "persistent_trigger_keys": [
+          "trigger.example_weapon_proc"
+        ],
+        "training_access_keys": [],
+        "body_delta": {
+          "health": 0,
+          "mana": 0,
+          "stamina": 0,
+          "move_speed": 0
+        },
+        "scalars": {
+          "weapon.main_hand.damage_min": 20,
+          "weapon.main_hand.damage_max": 32,
+          "weapon.main_hand.delay_ms": 1200
+        },
+        "attributes": {}
+      },
+      "requires": [],
+      "conflicts": [],
+      "metadata": {
+        "evidence_status": "example_only"
+      }
+    },
+    {
+      "package_id": "example.consumable.attribute-buff",
+      "display_name": "Example Attribute Buff Consumable",
+      "kind": "consumable",
+      "selection_slot": "consumable",
+      "grants": {
+        "action_keys": [],
+        "tags": [
+          "consumable.precombat_attribute_buff"
+        ],
+        "persistent_trigger_keys": [],
+        "training_access_keys": [],
+        "body_delta": {
+          "health": 0,
+          "mana": 0,
+          "stamina": 0,
+          "move_speed": 0
+        },
+        "scalars": {
+          "defense": 145
+        },
+        "attributes": {
+          "dexterity": 55,
+          "intelligence": 55
+        }
+      },
+      "requires": [],
+      "conflicts": [],
+      "metadata": {
+        "evidence_status": "example_only"
+      }
+    }
+  ]
+}
