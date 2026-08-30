@@ -85,9 +85,7 @@ class AffiliationCodecCompatibilityTests(unittest.TestCase):
         second = _snapshot(reverse=True)
 
         self.assertEqual(encode_affiliation_snapshot(first), encode_affiliation_snapshot(second))
-        self.assertEqual(
-            affiliation_snapshot_digest(first), affiliation_snapshot_digest(second)
-        )
+        self.assertEqual(affiliation_snapshot_digest(first), affiliation_snapshot_digest(second))
 
     def test_digest_changes_with_revision_and_payload(self) -> None:
         original = _snapshot()
@@ -101,9 +99,7 @@ class AffiliationCodecCompatibilityTests(unittest.TestCase):
         )
         self.assertNotEqual(
             affiliation_snapshot_digest(original),
-            affiliation_snapshot_digest(
-                affiliation_snapshot_from_data(changed_role)
-            ),
+            affiliation_snapshot_digest(affiliation_snapshot_from_data(changed_role)),
         )
 
     def test_unknown_missing_and_duplicate_fields_fail_closed(self) -> None:
