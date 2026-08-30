@@ -239,10 +239,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                 config,
                 load_pve_combat_calibration(arguments.pve_calibration),
             )
-        result = run_smart_camp(config) if arguments.episodes == 1 else run_smart_camp_batch(
-            config,
-            episodes=arguments.episodes,
-            seed_start=arguments.seed,
+        result = (
+            run_smart_camp(config)
+            if arguments.episodes == 1
+            else run_smart_camp_batch(
+                config,
+                episodes=arguments.episodes,
+                seed_start=arguments.seed,
+            )
         )
         if arguments.json:
             payload = (

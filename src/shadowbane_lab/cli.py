@@ -276,9 +276,7 @@ def _parser() -> argparse.ArgumentParser:
         "character",
         help="discover and capture read-only WonderBane character state",
     )
-    character_commands = character.add_subparsers(
-        dest="character_command", required=True
-    )
+    character_commands = character.add_subparsers(dest="character_command", required=True)
 
     validate_layout = character_commands.add_parser(
         "validate-layout",
@@ -365,18 +363,14 @@ def _parser() -> argparse.ArgumentParser:
         help="read native target-cycle bindings from ArcanePref.cfg without changing them",
     )
     inspect_hotkeys.add_argument("preferences", type=Path)
-    inspect_hotkeys.add_argument(
-        "--json", action="store_true", help="emit machine-readable JSON"
-    )
+    inspect_hotkeys.add_argument("--json", action="store_true", help="emit machine-readable JSON")
 
     inspect_hotbar = client_commands.add_parser(
         "inspect-hotbar",
         help="read F1-F12 power assignments from a character SCREEN_GAME config",
     )
     inspect_hotbar.add_argument("character_config", type=Path)
-    inspect_hotbar.add_argument(
-        "--json", action="store_true", help="emit machine-readable JSON"
-    )
+    inspect_hotbar.add_argument("--json", action="store_true", help="emit machine-readable JSON")
 
     inspect_world_data = client_commands.add_parser(
         "inspect-world-data",
@@ -452,10 +446,7 @@ def _parser() -> argparse.ArgumentParser:
     observe_native_target_position.add_argument(
         "--profile",
         type=Path,
-        help=(
-            "native target-position profile; defaults to the verified bundled "
-            "WonderBane build"
-        ),
+        help=("native target-position profile; defaults to the verified bundled WonderBane build"),
     )
     observe_native_target_position.add_argument(
         "--json", action="store_true", help="emit machine-readable JSON"
@@ -468,10 +459,7 @@ def _parser() -> argparse.ArgumentParser:
     observe_native_target_identity.add_argument(
         "--profile",
         type=Path,
-        help=(
-            "native target-identity profile; defaults to the verified bundled "
-            "WonderBane build"
-        ),
+        help=("native target-identity profile; defaults to the verified bundled WonderBane build"),
     )
     observe_native_target_identity.add_argument(
         "--json", action="store_true", help="emit machine-readable JSON"
@@ -485,8 +473,7 @@ def _parser() -> argparse.ArgumentParser:
         "--profile",
         type=Path,
         help=(
-            "native character-population profile; defaults to the verified bundled "
-            "WonderBane build"
+            "native character-population profile; defaults to the verified bundled WonderBane build"
         ),
     )
     observe_native_population.add_argument(
@@ -746,9 +733,7 @@ def _parser() -> argparse.ArgumentParser:
         help="versioned PvE evidence artifacts produced by client run-pve",
     )
     calibrate_pve.add_argument("--output", type=Path, required=True)
-    calibrate_pve.add_argument(
-        "--json", action="store_true", help="emit the compiled calibration"
-    )
+    calibrate_pve.add_argument("--json", action="store_true", help="emit the compiled calibration")
 
     go = client_commands.add_parser(
         "go",
@@ -955,9 +940,7 @@ def _parser() -> argparse.ArgumentParser:
     manager_app.add_argument(
         "--worker-state-directory",
         type=Path,
-        help=(
-            "local worker heartbeat root; defaults beneath LOCALAPPDATA\\ShadowbaneLab\\workers"
-        ),
+        help=("local worker heartbeat root; defaults beneath LOCALAPPDATA\\ShadowbaneLab\\workers"),
     )
     manager_app.add_argument(
         "--pid-file",
@@ -1020,13 +1003,7 @@ def _parser() -> argparse.ArgumentParser:
     manager_worker.add_argument(
         "--navigation-cache-directory",
         type=Path,
-        default=(
-            Path.home()
-            / "Downloads"
-            / "WonderbaneClient"
-            / "Wonderbane"
-            / "cache"
-        ),
+        default=(Path.home() / "Downloads" / "WonderbaneClient" / "Wonderbane" / "cache"),
     )
     manager_worker.add_argument(
         "--learned-navigation-state",
@@ -1035,12 +1012,8 @@ def _parser() -> argparse.ArgumentParser:
     )
     manager_worker.add_argument("--pve-max-kills", type=int, default=3)
     manager_worker.add_argument("--pve-max-seconds", type=float, default=300.0)
-    manager_worker.add_argument(
-        "--pve-max-encounter-seconds", type=float, default=120.0
-    )
-    manager_worker.add_argument(
-        "--pve-recovery-timeout-seconds", type=float, default=30.0
-    )
+    manager_worker.add_argument("--pve-max-encounter-seconds", type=float, default=120.0)
+    manager_worker.add_argument("--pve-recovery-timeout-seconds", type=float, default=30.0)
     manager_worker.add_argument("--pve-poll-ms", type=int, default=100)
     manager_worker.add_argument("--pve-camp-radius", type=float, default=120.0)
     manager_worker.add_argument("--pve-retained-trace-steps", type=int, default=2_000)
@@ -1193,9 +1166,7 @@ def _scan_character_text(
         ) as memory:
             matches = memory.scan_text(
                 text,
-                encodings=(
-                    tuple(encodings) if encodings else ("cp1252", "utf-8", "utf-16le")
-                ),
+                encodings=(tuple(encodings) if encodings else ("cp1252", "utf-8", "utf-16le")),
                 max_matches=max_matches,
                 max_scan_bytes=max_scan_mib * 1024 * 1024,
                 context_bytes=context_bytes,
@@ -1421,8 +1392,7 @@ def _preflight_manager(manifest_path: Path, *, as_json: bool) -> int:
                 kind="directory",
             )
             environment_ready = all(
-                item["ready"]
-                for item in (launch_executable, working_directory, process_directory)
+                item["ready"] for item in (launch_executable, working_directory, process_directory)
             )
             if snapshot.rejected:
                 binding_status = "unsafe_identity"
@@ -1448,12 +1418,8 @@ def _preflight_manager(manifest_path: Path, *, as_json: bool) -> int:
                     "window_tile": (
                         None if config.window_tile is None else config.window_tile.to_dict()
                     ),
-                    "matching_instances": [
-                        client.to_dict() for client in snapshot.clients
-                    ],
-                    "rejected_windows": [
-                        window.to_dict() for window in snapshot.rejected
-                    ],
+                    "matching_instances": [client.to_dict() for client in snapshot.clients],
+                    "rejected_windows": [window.to_dict() for window in snapshot.rejected],
                 }
             )
     except (OSError, RuntimeError, ValueError) as exc:
@@ -1535,9 +1501,7 @@ def _write_manager_pid_file(path: Path) -> None:
     parent = pid_path.parent
     if not parent.exists() or parent.is_symlink() or not parent.is_dir():
         raise RuntimeError(f"manager PID directory is not a regular directory: {parent}")
-    temporary = pid_path.with_name(
-        f".{pid_path.name}.{os.getpid()}.{time.time_ns()}.tmp"
-    )
+    temporary = pid_path.with_name(f".{pid_path.name}.{os.getpid()}.{time.time_ns()}.tmp")
     try:
         with temporary.open("xb") as destination:
             destination.write(f"{os.getpid()}\n".encode("ascii"))
@@ -1878,9 +1842,7 @@ class _ExactWorkerEngineExecutor:
         self._travel_max_seconds = travel_max_seconds
         self._travel_poll_ms = travel_poll_ms
         self._travel_click_interval_ms = travel_click_interval_ms
-        self._navigation_map = load_learned_navigation_map(
-            learned_navigation_state_path
-        )
+        self._navigation_map = load_learned_navigation_map(learned_navigation_state_path)
 
     def execute(
         self,
@@ -1933,11 +1895,7 @@ class _ExactWorkerEngineExecutor:
             correlation_id=f"worker:{self._binding.client_id}:stop"
         )
         return WorkerOperationExecution(
-            (
-                WorkerOperationState.SUCCEEDED
-                if result.accepted
-                else WorkerOperationState.FAILED
-            ),
+            (WorkerOperationState.SUCCEEDED if result.accepted else WorkerOperationState.FAILED),
             result.reason,
         )
 
@@ -1984,13 +1942,9 @@ class _ExactWorkerEngineExecutor:
         if hotbar_path is None:
             candidates = tuple(
                 sorted(
-                    (
-                        Path.home()
-                        / "Downloads"
-                        / "WonderbaneClient"
-                        / "Wonderbane"
-                        / "Config"
-                    ).glob("SCREEN_GAME_*_Wonderbane.cfg")
+                    (Path.home() / "Downloads" / "WonderbaneClient" / "Wonderbane" / "Config").glob(
+                        "SCREEN_GAME_*_Wonderbane.cfg"
+                    )
                 )
             )
             if len(candidates) == 1:
@@ -2185,9 +2139,7 @@ def _inspect_arcane_hotkeys(path: Path, *, as_json: bool) -> int:
         for action in actions:
             chords = ["+".join(item["input_keys"]) for item in action["bindings"]]
             rendered = ", ".join(chords) if chords else "unbound"
-            print(
-                f"{action['display_name']} [{action['native_action_code']}]: {rendered}"
-            )
+            print(f"{action['display_name']} [{action['native_action_code']}]: {rendered}")
     return 0
 
 
@@ -2267,10 +2219,7 @@ def _inspect_world_data(
                         "sample_width": first_tile.width,
                         "sample_height": first_tile.height,
                         "map_shapes": sorted(
-                            {
-                                f"{item.width_tiles}x{item.height_tiles}"
-                                for item in maps
-                            }
+                            {f"{item.width_tiles}x{item.height_tiles}" for item in maps}
                         ),
                     }
         if not archives:
@@ -2644,8 +2593,7 @@ def _observe_native_runegates(profile_path: Path | None, *, as_json: bool) -> in
         for runegate in observation.runegates:
             label = runegate.zone_name or f"object {runegate.object_uuid}"
             print(
-                f"{label}: LT {runegate.lt:.2f}, LG {runegate.lg:.2f}, "
-                f"ALT {runegate.altitude:.2f}"
+                f"{label}: LT {runegate.lt:.2f}, LG {runegate.lg:.2f}, ALT {runegate.altitude:.2f}"
             )
     return 0
 
@@ -2898,9 +2846,7 @@ def _observe_native_zone(
             if terrain is None:
                 continue
             maps = terrain["maps"]
-            map_names = ", ".join(
-                f"{entry['group_id']}:{entry['map_id']}" for entry in maps
-            )
+            map_names = ", ".join(f"{entry['group_id']}:{entry['map_id']}" for entry in maps)
             print(f"Terrain depth {item['depth']}: {map_names or 'none'}")
     return 0
 
@@ -3226,10 +3172,7 @@ def _run_pve(
         return _error("continuous must be a boolean", as_json=as_json)
     if not 20.0 <= camp_radius <= 1_000.0:
         return _error("camp-radius must be in [20, 1000]", as_json=as_json)
-    if (
-        isinstance(retained_trace_steps, bool)
-        or not 100 <= retained_trace_steps <= 100_000
-    ):
+    if isinstance(retained_trace_steps, bool) or not 100 <= retained_trace_steps <= 100_000:
         return _error(
             "retained-trace-steps must be in [100, 100000]",
             as_json=as_json,
@@ -3263,9 +3206,7 @@ def _run_pve(
         return _error("poll-ms must be in [50, 1000]", as_json=as_json)
     if policy not in ("basic", "proc-assassin"):
         return _error("policy must be basic or proc-assassin", as_json=as_json)
-    resolved_combat_source = combat_source or (
-        "log" if combat_log_path is not None else "hud"
-    )
+    resolved_combat_source = combat_source or ("log" if combat_log_path is not None else "hud")
     if resolved_combat_source not in ("state", "hud", "log"):
         return _error("combat-source must be state, hud, or log", as_json=as_json)
     if resolved_combat_source == "log":
@@ -3367,16 +3308,12 @@ def _run_pve(
             else load_bundled_native_target_identity_profile()
         )
         character_population_profile = (
-            load_native_character_population_profile(
-                native_character_population_profile_path
-            )
+            load_native_character_population_profile(native_character_population_profile_path)
             if native_character_population_profile_path is not None
             else load_bundled_native_character_population_profile()
         )
         zone_profile = (
-            None
-            if navigation_cache_directory is None
-            else load_bundled_native_zone_profile()
+            None if navigation_cache_directory is None else load_bundled_native_zone_profile()
         )
         if navigation_cache_directory is not None and not navigation_cache_directory.is_dir():
             raise ValueError(
@@ -3503,9 +3440,7 @@ def _run_pve(
                         "sampled_cells": terrain_seed.sampled_cells,
                         "blocked_cells": len(terrain_seed.blocked_cells),
                         "water_cells": len(terrain_seed.water_cells),
-                        "object_density_cells": len(
-                            terrain_seed.object_density_cells
-                        ),
+                        "object_density_cells": len(terrain_seed.object_density_cells),
                         "object_density_layers": [
                             {
                                 "layer_index": layer.layer_index,
@@ -3513,9 +3448,7 @@ def _run_pve(
                                 "terrain_map_id": layer.terrain_map_id,
                                 "object_count": layer.object_count,
                                 "population_capacity": layer.population_capacity,
-                                "maximum_horizontal_radius": (
-                                    layer.maximum_horizontal_radius
-                                ),
+                                "maximum_horizontal_radius": (layer.maximum_horizontal_radius),
                             }
                             for layer in terrain_seed.object_density_layers
                         ],
@@ -3599,13 +3532,9 @@ def _run_pve(
                 movement_dispatcher=ClientTravelDecisionDispatcher(adapter),
                 stop_signal=active_stop_signal,
                 poll_interval_ms=poll_ms,
-                maximum_retained_trace_steps=(
-                    retained_trace_steps if continuous else None
-                ),
+                maximum_retained_trace_steps=(retained_trace_steps if continuous else None),
                 trace_sink=(
-                    None
-                    if journal is None
-                    else lambda step: journal.append_step(step.as_dict())
+                    None if journal is None else lambda step: journal.append_step(step.as_dict())
                 ),
             ).run()
             if journal is not None:
@@ -3837,9 +3766,7 @@ def _run_travel(
         if position_profile.executable_sha256 != vitals_profile.executable_sha256:
             raise ValueError("native position and player-vitals profiles target different builds")
         zone_profile = (
-            None
-            if navigation_cache_directory is None
-            else load_bundled_native_zone_profile()
+            None if navigation_cache_directory is None else load_bundled_native_zone_profile()
         )
         if navigation_cache_directory is not None and not navigation_cache_directory.is_dir():
             raise ValueError(
@@ -3916,9 +3843,7 @@ def _run_travel(
                         "native position and current-zone readers resolved different processes"
                     )
                 terrain_source_arguments = (
-                    {}
-                    if navigation_map is None
-                    else {"navigation_map": navigation_map}
+                    {} if navigation_map is None else {"navigation_map": navigation_map}
                 )
                 terrain_source = ActiveZoneTerrainNavigationSource(
                     navigation_cache_directory,
@@ -4006,12 +3931,8 @@ def _run_travel(
             "navigation_token": (
                 None if astar_controller is None else astar_controller.navigation_token
             ),
-            "terrain_refreshes": (
-                0 if terrain_source is None else terrain_source.refresh_count
-            ),
-            "zone_name": (
-                None if terrain_source is None else terrain_source.last_zone_name
-            ),
+            "terrain_refreshes": (0 if terrain_source is None else terrain_source.refresh_count),
+            "zone_name": (None if terrain_source is None else terrain_source.last_zone_name),
         },
     }
     if as_json:
@@ -4131,9 +4052,7 @@ def _listen_for_go_commands(
         )
         world_map_close_plan = None
         if hotkey_config_path is not None:
-            world_map_bindings = load_arcane_hotkeys(
-                hotkey_config_path
-            ).bindings_for_argument(
+            world_map_bindings = load_arcane_hotkeys(hotkey_config_path).bindings_for_argument(
                 "WorldMap"
             )
             if len(world_map_bindings) != 1:
@@ -4164,9 +4083,7 @@ def _listen_for_go_commands(
         if pve_continuous and pve_evidence_directory is None:
             raise ValueError("continuous /pve requires a PvE evidence directory")
         if learned_navigation_state_path is not None and navigation_cache_directory is None:
-            raise ValueError(
-                "learned navigation state requires --navigation-cache-directory"
-            )
+            raise ValueError("learned navigation state requires --navigation-cache-directory")
         shared_navigation_map = (
             None
             if navigation_cache_directory is None
@@ -4243,8 +4160,7 @@ def _listen_for_go_commands(
                 as_json=as_json,
                 command=command,
                 reason=(
-                    acknowledgement.detail
-                    or f"exact worker reported {acknowledgement.state.value}"
+                    acknowledgement.detail or f"exact worker reported {acknowledgement.state.value}"
                 ),
                 operation_id=dispatch.operation.operation_id,
                 client_id=dispatch.operation.client_id,
@@ -4267,9 +4183,7 @@ def _listen_for_go_commands(
             destination_source=destination_source,
             operation_id=dispatch.operation.operation_id,
             client_id=dispatch.operation.client_id,
-            operation_state=(
-                None if acknowledgement is None else acknowledgement.state.value
-            ),
+            operation_state=(None if acknowledgement is None else acknowledgement.state.value),
         )
         return True
 
@@ -4308,11 +4222,7 @@ def _listen_for_go_commands(
                     failure_detail = getattr(listener, "failure_detail", None)
                     raise RuntimeError(
                         "Windows input hook stopped unexpectedly"
-                        + (
-                            ""
-                            if not failure_detail
-                            else f": {failure_detail}"
-                        )
+                        + ("" if not failure_detail else f": {failure_detail}")
                     )
                 if time.monotonic() >= next_listener_heartbeat:
                     _print_go_listener_event(
@@ -4330,8 +4240,7 @@ def _listen_for_go_commands(
                 destination_source = None
                 if isinstance(interaction, PhysicalPointerInteraction):
                     command = (
-                        "world-map right-click "
-                        f"({interaction.screen_x}, {interaction.screen_y})"
+                        f"world-map right-click ({interaction.screen_x}, {interaction.screen_y})"
                     )
                     normalized = None
                 else:
@@ -4350,9 +4259,7 @@ def _listen_for_go_commands(
                     )
                     continue
                 try:
-                    command_process_id = _require_window_process_id(
-                        guard.require_target()
-                    )
+                    command_process_id = _require_window_process_id(guard.require_target())
                 except WindowGuardError as exc:
                     _print_go_listener_event(
                         "rejected",
@@ -4533,13 +4440,9 @@ def _listen_for_go_commands(
                         try:
                             query = parse_named_go_command(command)
                             if named_catalog is None:
-                                raise ValueError(
-                                    "named /go destinations require --world-def"
-                                )
+                                raise ValueError("named /go destinations require --world-def")
                             position_profile = (
-                                load_native_position_profile(
-                                    native_position_profile_path
-                                )
+                                load_native_position_profile(native_position_profile_path)
                                 if native_position_profile_path is not None
                                 else load_bundled_native_position_profile()
                             )
@@ -4615,14 +4518,10 @@ def _listen_for_go_commands(
                         process_id=command_process_id,
                         destination=worker_destination,
                         resolved_name=(
-                            None
-                            if named_resolution is None
-                            else named_resolution.matched_name
+                            None if named_resolution is None else named_resolution.matched_name
                         ),
                         candidate_count=(
-                            None
-                            if named_resolution is None
-                            else named_resolution.candidate_count
+                            None if named_resolution is None else named_resolution.candidate_count
                         ),
                         destination_source=(
                             destination_source
@@ -4652,16 +4551,12 @@ def _listen_for_go_commands(
                         as_json=as_json,
                         command=command,
                         resolved_name=(
-                            None
-                            if named_resolution is None
-                            else named_resolution.matched_name
+                            None if named_resolution is None else named_resolution.matched_name
                         ),
                         lt=lt,
                         lg=lg,
                         candidate_count=(
-                            None
-                            if named_resolution is None
-                            else named_resolution.candidate_count
+                            None if named_resolution is None else named_resolution.candidate_count
                         ),
                         destination_source=(
                             destination_source
@@ -4768,11 +4663,7 @@ def _print_go_listener_event(
     elif event == "heartbeat":
         print("Shadowbane command listener is healthy.", flush=True)
     elif event in {"accepted", "submitted"}:
-        detail = (
-            ""
-            if resolved_name is None
-            else f" -> {resolved_name} at LT {lt:g}, LG {lg:g}"
-        )
+        detail = "" if resolved_name is None else f" -> {resolved_name} at LT {lt:g}, LG {lg:g}"
         verb = "Accepted" if event == "accepted" else "Submitted"
         worker_detail = "" if client_id is None else f" [{client_id}]"
         print(
@@ -4965,9 +4856,7 @@ def _parse_retrieved_at(value: str | None) -> datetime | None:
     try:
         parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError as exc:
-        raise WonderbaneCalculatorImportError(
-            "retrieved-at must be an ISO-8601 timestamp"
-        ) from exc
+        raise WonderbaneCalculatorImportError("retrieved-at must be an ISO-8601 timestamp") from exc
     if parsed.tzinfo is None:
         raise WonderbaneCalculatorImportError("retrieved-at must include a UTC offset")
     return parsed.astimezone(UTC)
@@ -5136,20 +5025,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         and arguments.client_command == "observe-native-target-identity"
     ):
         return _observe_native_target_identity(arguments.profile, as_json=arguments.json)
-    if (
-        arguments.command == "client"
-        and arguments.client_command == "observe-native-population"
-    ):
+    if arguments.command == "client" and arguments.client_command == "observe-native-population":
         return _observe_native_population(arguments.profile, as_json=arguments.json)
-    if (
-        arguments.command == "client"
-        and arguments.client_command == "observe-native-runegates"
-    ):
+    if arguments.command == "client" and arguments.client_command == "observe-native-runegates":
         return _observe_native_runegates(arguments.profile, as_json=arguments.json)
-    if (
-        arguments.command == "client"
-        and arguments.client_command == "observe-native-world-map"
-    ):
+    if arguments.command == "client" and arguments.client_command == "observe-native-world-map":
         return _observe_native_world_map(arguments.profile, as_json=arguments.json)
     if arguments.command == "client" and arguments.client_command == "observe-native-player":
         return _observe_native_player(arguments.profile, as_json=arguments.json)
@@ -5167,10 +5047,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _observe_native_progression(arguments.profile, as_json=arguments.json)
     if arguments.command == "client" and arguments.client_command == "observe-native-training":
         return _observe_native_training(arguments.profile, as_json=arguments.json)
-    if (
-        arguments.command == "client"
-        and arguments.client_command == "trace-native-vendor-dialog"
-    ):
+    if arguments.command == "client" and arguments.client_command == "trace-native-vendor-dialog":
         return _trace_native_vendor_dialog(
             arguments.profile,
             process_id=arguments.process_id,

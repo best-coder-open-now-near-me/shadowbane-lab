@@ -26,11 +26,7 @@ _IDENTIFIER_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
 _GLOBAL_ACTIONS = frozenset({"add-client", "start-all", "refresh", "tile-all"})
 _CLIENT_ACTIONS_WITHOUT_INSTANCE = frozenset({"start"})
 _CLIENT_ACTIONS_WITH_INSTANCE = frozenset({"attach", "tile", "pause", "resume", "detach", "close"})
-_ALL_ACTIONS = (
-    _GLOBAL_ACTIONS
-    | _CLIENT_ACTIONS_WITHOUT_INSTANCE
-    | _CLIENT_ACTIONS_WITH_INSTANCE
-)
+_ALL_ACTIONS = _GLOBAL_ACTIONS | _CLIENT_ACTIONS_WITHOUT_INSTANCE | _CLIENT_ACTIONS_WITH_INSTANCE
 
 
 class DashboardError(RuntimeError):
@@ -68,6 +64,7 @@ class DashboardService(Protocol):
         client_id: str | None = None,
         instance_id: str | None = None,
     ) -> dict[str, object]: ...
+
 
 @dataclass(frozen=True, slots=True)
 class _DashboardContext:

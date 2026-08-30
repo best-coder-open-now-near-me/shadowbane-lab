@@ -135,12 +135,8 @@ class CombatCompilerTests(unittest.TestCase):
 
         self.assertEqual(1277.0, entity.effective_scalar("attack.main_hand"))
         self.assertAlmostEqual(0.81, entity.effective_scalar("outgoing.damage.factor"))
-        precise = compiled.catalog.get(
-            compiled.action_key("shadowbane.stance.precise")
-        )
-        normal = compiled.catalog.get(
-            compiled.action_key("shadowbane.stance.normal")
-        )
+        precise = compiled.catalog.get(compiled.action_key("shadowbane.stance.precise"))
+        normal = compiled.catalog.get(compiled.action_key("shadowbane.stance.normal"))
         self.assertEqual(20_000, precise.cooldown_ms)
         self.assertIn("stance.change.precise", precise.tags)
         self.assertIn("stance.precise", precise.forbidden_actor_tags)
@@ -186,8 +182,7 @@ class CombatCompilerTests(unittest.TestCase):
         )
         self.assertTrue(
             any(
-                "requires ruleset-override acceptance" in issue
-                for issue in raised.exception.issues
+                "requires ruleset-override acceptance" in issue for issue in raised.exception.issues
             )
         )
 
@@ -265,9 +260,7 @@ class CombatCompilerTests(unittest.TestCase):
         )
 
         main = compiled.catalog.get(compiled.action_key("shadowbane.basic_attack"))
-        off = compiled.catalog.get(
-            compiled.action_key("shadowbane.basic_attack.off_hand")
-        )
+        off = compiled.catalog.get(compiled.action_key("shadowbane.basic_attack.off_hand"))
         self.assertEqual(2_000, main.cooldown_ms)
         self.assertEqual(2_100, off.cooldown_ms)
         self.assertIn("weapon.main_hand", main.tags)
@@ -277,9 +270,7 @@ class CombatCompilerTests(unittest.TestCase):
     def test_missing_complete_resistance_vector_fails_before_simulation(self) -> None:
         sheet = replace(
             _sheet(),
-            resistances=tuple(
-                item for item in _sheet().resistances if item[0] != "mental"
-            ),
+            resistances=tuple(item for item in _sheet().resistances if item[0] != "mental"),
         )
         policy = CombatCompilePolicy(
             accepted_compatibility=(CompatibilityStatus.SOURCE_REVISION_ACCEPTED,),
@@ -328,8 +319,7 @@ class CombatCompilerTests(unittest.TestCase):
         ruleset = replace(
             ruleset,
             records=tuple(
-                area_record if item.action_key == SHADOW_BOLT else item
-                for item in ruleset.records
+                area_record if item.action_key == SHADOW_BOLT else item for item in ruleset.records
             ),
         )
         policy = CombatCompilePolicy(

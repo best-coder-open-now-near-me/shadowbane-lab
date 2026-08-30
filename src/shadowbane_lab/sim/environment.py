@@ -268,9 +268,7 @@ class ReferenceEnvironment:
         weapon_scheduled = False
         for phase_index, phase in enumerate(action.phases):
             phase_end_ms += phase.duration_ms
-            due_time_ms = phase_end_ms + self._delivery_delay(
-                actor, decision.binding, phase
-            )
+            due_time_ms = phase_end_ms + self._delivery_delay(actor, decision.binding, phase)
             if action.weapon_attack is not None and action.weapon_attack.phase_index == phase_index:
                 self._schedule(
                     ScheduledItem(

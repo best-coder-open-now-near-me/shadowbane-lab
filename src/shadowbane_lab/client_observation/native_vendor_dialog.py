@@ -540,12 +540,8 @@ class NativeVendorDialogTracer:
                 "language_text",
                 warnings,
             ),
-            "source_cache_id": _cache_id(
-                raw, profile.source_cache_id_offset
-            ),
-            "vendor_cache_id": _cache_id(
-                raw, profile.vendor_cache_id_offset
-            ),
+            "source_cache_id": _cache_id(raw, profile.source_cache_id_offset),
+            "vendor_cache_id": _cache_id(raw, profile.vendor_cache_id_offset),
         }
         for name, offset in (
             ("type_2_text_a", 0x90),
@@ -1025,9 +1021,7 @@ class WindowsVendorDialogDebugBackend:
                 self._api.kernel32.DebugActiveProcessStop(self.pid)
             finally:
                 self._attached = False
-            raise NativeVendorDialogCaptureError(
-                _windows_error("DebugSetProcessKillOnExit failed")
-            )
+            raise NativeVendorDialogCaptureError(_windows_error("DebugSetProcessKillOnExit failed"))
 
     def wait_for_hit(self, timeout_ms: int) -> NativeVendorDialogDebugHit | None:
         if not self._attached:
@@ -1169,8 +1163,7 @@ class WindowsVendorDialogDebugBackend:
                 (
                     candidate
                     for candidate in triggered
-                    if int(context.Eip)
-                    == self._breakpoints[self._roles_by_slot[candidate]]
+                    if int(context.Eip) == self._breakpoints[self._roles_by_slot[candidate]]
                 ),
                 triggered[0],
             )

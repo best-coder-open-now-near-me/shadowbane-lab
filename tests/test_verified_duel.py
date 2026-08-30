@@ -76,9 +76,7 @@ class CombatProfileLoaderTests(unittest.TestCase):
     def test_complete_profile_round_trips_through_strict_json_boundary(self) -> None:
         sheet, build = _sheet(), _build()
 
-        loaded_sheet, loaded_build = load_combat_profile_text(
-            encode_combat_profile(sheet, build)
-        )
+        loaded_sheet, loaded_build = load_combat_profile_text(encode_combat_profile(sheet, build))
 
         self.assertEqual(sheet, loaded_sheet)
         self.assertEqual(build, loaded_build)
@@ -144,9 +142,7 @@ class CombatProfileLoaderTests(unittest.TestCase):
 class VerifiedDuelTests(unittest.TestCase):
     def test_bundled_level_75_source_scenario_profiles_compile_and_run(self) -> None:
         assassin_sheet, assassin_build = load_combat_profile_text(
-            Path("configs/combat/irekei-proc-assassin-75.source.json").read_text(
-                encoding="utf-8"
-            )
+            Path("configs/combat/irekei-proc-assassin-75.source.json").read_text(encoding="utf-8")
         )
         warlock_sheet, warlock_build = load_combat_profile_text(
             Path("configs/combat/nephilim-resist-warlock-75.source.json").read_text(
@@ -158,12 +154,8 @@ class VerifiedDuelTests(unittest.TestCase):
             allow_ruleset_overrides=True,
         )
         config = VerifiedDuelConfig(
-            left=VerifiedCombatantConfig(
-                "assassin", "assassin", assassin_sheet, assassin_build
-            ),
-            right=VerifiedCombatantConfig(
-                "warlock", "warlock", warlock_sheet, warlock_build
-            ),
+            left=VerifiedCombatantConfig("assassin", "assassin", assassin_sheet, assassin_build),
+            right=VerifiedCombatantConfig("warlock", "warlock", warlock_sheet, warlock_build),
             compile_policy=policy,
             max_ticks=1_000,
             seed=3,
@@ -182,9 +174,7 @@ class VerifiedDuelTests(unittest.TestCase):
             sum(item.total_rejected_actions for item in result.combatants),
         )
         actions = {
-            action.action_key
-            for combatant in single.combatants
-            for action in combatant.actions
+            action.action_key for combatant in single.combatants for action in combatant.actions
         }
         self.assertIn(
             "shadowbane.assassin.steal_breath@irekei-proc-assassin-75-source-v1",
@@ -199,12 +189,8 @@ class VerifiedDuelTests(unittest.TestCase):
         assassin_sheet, assassin_build = _sheet(), _build()
         warlock_sheet, warlock_build = _warlock_profile()
         config = VerifiedDuelConfig(
-            left=VerifiedCombatantConfig(
-                "assassin", "assassin", assassin_sheet, assassin_build
-            ),
-            right=VerifiedCombatantConfig(
-                "warlock", "warlock", warlock_sheet, warlock_build
-            ),
+            left=VerifiedCombatantConfig("assassin", "assassin", assassin_sheet, assassin_build),
+            right=VerifiedCombatantConfig("warlock", "warlock", warlock_sheet, warlock_build),
             compile_policy=CombatCompilePolicy(
                 accepted_compatibility=(CompatibilityStatus.SOURCE_REVISION_ACCEPTED,),
                 allow_ruleset_overrides=True,
@@ -227,12 +213,8 @@ class VerifiedDuelTests(unittest.TestCase):
         assassin_sheet, assassin_build = _sheet(), _build()
         warlock_sheet, warlock_build = _warlock_profile()
         config = VerifiedDuelConfig(
-            left=VerifiedCombatantConfig(
-                "assassin", "assassin", assassin_sheet, assassin_build
-            ),
-            right=VerifiedCombatantConfig(
-                "warlock", "warlock", warlock_sheet, warlock_build
-            ),
+            left=VerifiedCombatantConfig("assassin", "assassin", assassin_sheet, assassin_build),
+            right=VerifiedCombatantConfig("warlock", "warlock", warlock_sheet, warlock_build),
             compile_policy=CombatCompilePolicy(
                 accepted_compatibility=(CompatibilityStatus.SOURCE_REVISION_ACCEPTED,),
                 allow_ruleset_overrides=True,
@@ -300,9 +282,7 @@ class VerifiedDuelTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "distinct sheet ids"):
             VerifiedDuelConfig(
                 left=VerifiedCombatantConfig("assassin", "a", _sheet(), _build()),
-                right=VerifiedCombatantConfig(
-                    "warlock", "b", warlock_sheet, warlock_build
-                ),
+                right=VerifiedCombatantConfig("warlock", "b", warlock_sheet, warlock_build),
             )
 
 

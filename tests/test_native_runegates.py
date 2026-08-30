@@ -181,25 +181,28 @@ class NativeRunegateRegistryProfileTests(unittest.TestCase):
 
         self.assertEqual(0x1389028, profile.registry_pointer_rva)
         self.assertEqual(0xA4, profile.registry_tree_offset)
-        self.assertEqual((4, 8, 12), (
-            profile.node_parent_offset,
-            profile.node_left_offset,
-            profile.node_right_offset,
-        ))
-        self.assertEqual((0x10, 0x18, 0x30, 0x38), (
-            profile.object_type_offset,
-            profile.zone_name_offset,
-            profile.latitude_offset,
-            profile.longitude_offset,
-        ))
+        self.assertEqual(
+            (4, 8, 12),
+            (
+                profile.node_parent_offset,
+                profile.node_left_offset,
+                profile.node_right_offset,
+            ),
+        )
+        self.assertEqual(
+            (0x10, 0x18, 0x30, 0x38),
+            (
+                profile.object_type_offset,
+                profile.zone_name_offset,
+                profile.latitude_offset,
+                profile.longitude_offset,
+            ),
+        )
         self.assertEqual(-1.0, profile.longitude_multiplier)
 
     def test_profile_loader_rejects_unknown_fields(self) -> None:
         bundled = load_bundled_native_runegate_registry_profile()
-        raw = {
-            field: getattr(bundled, field)
-            for field in bundled.__dataclass_fields__
-        }
+        raw = {field: getattr(bundled, field) for field in bundled.__dataclass_fields__}
         raw["unknown"] = True
 
         with self.assertRaisesRegex(ValueError, "unknown fields"):

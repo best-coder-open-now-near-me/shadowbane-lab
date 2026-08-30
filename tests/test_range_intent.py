@@ -71,9 +71,7 @@ class RangeIntentTests(unittest.TestCase):
         )
         self.assertTrue(all(item.binding.direction is None for item in close_affordances))
         diagonal = next(
-            item
-            for item in close_affordances
-            if item.binding.target_entity_id == "diagonal"
+            item for item in close_affordances if item.binding.target_entity_id == "diagonal"
         )
         environment.step((exchange.decision(diagonal.affordance_id, "close:1"),))
 

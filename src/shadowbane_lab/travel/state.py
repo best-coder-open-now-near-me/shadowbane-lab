@@ -32,9 +32,7 @@ def resolve_travel_destination(
     if lt is None:
         previous = load_travel_destination(state_path)
         destination = (
-            previous
-            if radius is None
-            else TravelDestination(previous.lt, previous.lg, radius)
+            previous if radius is None else TravelDestination(previous.lt, previous.lg, radius)
         )
         if destination != previous:
             save_travel_destination(state_path, destination)
@@ -57,9 +55,7 @@ def load_travel_destination(state_path: Path) -> TravelDestination:
             "bare go has no remembered destination; use go LT LG first"
         ) from exc
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-        raise TravelDestinationStateError(
-            f"could not read remembered destination: {exc}"
-        ) from exc
+        raise TravelDestinationStateError(f"could not read remembered destination: {exc}") from exc
     if not isinstance(payload, dict) or payload.get("schema_version") != _SCHEMA_VERSION:
         raise TravelDestinationStateError("remembered destination has an unsupported schema")
     try:
@@ -68,9 +64,7 @@ def load_travel_destination(state_path: Path) -> TravelDestination:
         radius = _json_number(payload, "arrival_radius")
         return TravelDestination(lt, lg, radius)
     except ValueError as exc:
-        raise TravelDestinationStateError(
-            f"remembered destination is invalid: {exc}"
-        ) from exc
+        raise TravelDestinationStateError(f"remembered destination is invalid: {exc}") from exc
 
 
 def save_travel_destination(
@@ -96,9 +90,7 @@ def save_travel_destination(
         )
         temporary_path.replace(state_path)
     except OSError as exc:
-        raise TravelDestinationStateError(
-            f"could not save remembered destination: {exc}"
-        ) from exc
+        raise TravelDestinationStateError(f"could not save remembered destination: {exc}") from exc
     finally:
         try:
             temporary_path.unlink(missing_ok=True)

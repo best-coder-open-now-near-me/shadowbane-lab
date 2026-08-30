@@ -534,8 +534,7 @@ class TravelControllerTests(unittest.TestCase):
 
         decisions = [controller.step(_observation(0, 1000, 1000))]
         decisions.extend(
-            controller.step(_observation(now_ms, 1000, 1000))
-            for now_ms in range(1000, 6_000, 1000)
+            controller.step(_observation(now_ms, 1000, 1000)) for now_ms in range(1000, 6_000, 1000)
         )
 
         self.assertEqual(TravelManeuver.ESCAPE_BACK_LEFT, decisions[1].maneuver)
@@ -757,9 +756,7 @@ class TravelRunnerTests(unittest.TestCase):
                 parse_go_command("go 1100 1000 25"),
                 TravelControllerConfig(click_interval_ms=200, minimum_progress=25),
             ),
-            position_reader=SequencePositionReader(
-                [_position(1000, 1000), _position(1100, 1000)]
-            ),
+            position_reader=SequencePositionReader([_position(1000, 1000), _position(1100, 1000)]),
             player_vitals_reader=ConstantVitalsReader(),
             dispatcher=dispatcher,
             stop_signal=EventEmergencyStop(),

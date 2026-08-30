@@ -39,9 +39,7 @@ class ObservedSampleSummary:
             raise ValueError("observed sample count must be positive")
         values = (self.minimum, self.maximum, self.mean, self.median)
         if any(
-            isinstance(value, bool)
-            or not isinstance(value, (int, float))
-            or not isfinite(value)
+            isinstance(value, bool) or not isinstance(value, (int, float)) or not isfinite(value)
             for value in values
         ):
             raise ValueError("observed sample statistics must be finite numbers")
@@ -85,9 +83,7 @@ class ObservedSampleSummary:
         parsed_histogram: list[tuple[float, int]] = []
         for item in histogram:
             entry = _mapping(item, "sample histogram entry")
-            parsed_histogram.append(
-                (_number(entry, "value"), _integer(entry, "count", minimum=1))
-            )
+            parsed_histogram.append((_number(entry, "value"), _integer(entry, "count", minimum=1)))
         try:
             return cls(
                 count=_integer(data, "count", minimum=1),
@@ -107,10 +103,7 @@ class ObservedSampleSummary:
             "maximum": self.maximum,
             "mean": self.mean,
             "median": self.median,
-            "histogram": [
-                {"value": value, "count": count}
-                for value, count in self.histogram
-            ],
+            "histogram": [{"value": value, "count": count} for value, count in self.histogram],
         }
 
 
@@ -211,20 +204,14 @@ class PvECombatCalibration:
                 "mana": _summary_dict(self.starting_player_mana),
                 "stamina": _summary_dict(self.starting_player_stamina),
             },
-            "engagement_planar_distance": _summary_dict(
-                self.engagement_planar_distance
-            ),
+            "engagement_planar_distance": _summary_dict(self.engagement_planar_distance),
             "shadow_touch_mana_delta": _summary_dict(self.shadow_touch_mana_delta),
             "native_health_changes": {
-                "target_decrease": _summary_dict(
-                    self.native_target_health_decrease
-                ),
+                "target_decrease": _summary_dict(self.native_target_health_decrease),
                 "target_decrease_interval_ms": _summary_dict(
                     self.native_target_health_decrease_interval_ms
                 ),
-                "player_decrease": _summary_dict(
-                    self.native_player_health_decrease
-                ),
+                "player_decrease": _summary_dict(self.native_player_health_decrease),
                 "player_decrease_interval_ms": _summary_dict(
                     self.native_player_health_decrease_interval_ms
                 ),
@@ -333,9 +320,7 @@ def compile_pve_combat_calibration(
                     previous_player_health is not None
                     and previous_player_health - current_player_health > 0.0001
                 ):
-                    native_player_decreases.append(
-                        previous_player_health - current_player_health
-                    )
+                    native_player_decreases.append(previous_player_health - current_player_health)
                     player_decrease_times.append(at_ms)
                 previous_player_health = current_player_health
             events = step.get("combat_events")
@@ -420,19 +405,13 @@ def compile_pve_combat_calibration(
         starting_player_health=ObservedSampleSummary.from_samples(starting_health),
         starting_player_mana=ObservedSampleSummary.from_samples(starting_mana),
         starting_player_stamina=ObservedSampleSummary.from_samples(starting_stamina),
-        engagement_planar_distance=ObservedSampleSummary.from_samples(
-            engagement_distances
-        ),
+        engagement_planar_distance=ObservedSampleSummary.from_samples(engagement_distances),
         shadow_touch_mana_delta=ObservedSampleSummary.from_samples(shadow_touch_deltas),
-        native_target_health_decrease=ObservedSampleSummary.from_samples(
-            native_target_decreases
-        ),
+        native_target_health_decrease=ObservedSampleSummary.from_samples(native_target_decreases),
         native_target_health_decrease_interval_ms=ObservedSampleSummary.from_samples(
             native_target_decrease_intervals
         ),
-        native_player_health_decrease=ObservedSampleSummary.from_samples(
-            native_player_decreases
-        ),
+        native_player_health_decrease=ObservedSampleSummary.from_samples(native_player_decreases),
         native_player_health_decrease_interval_ms=ObservedSampleSummary.from_samples(
             native_player_decrease_intervals
         ),
@@ -458,9 +437,7 @@ def compile_pve_combat_calibration_files(
 ) -> PvECombatCalibration:
     if not paths:
         raise PvECombatCalibrationError("at least one PvE evidence path is required")
-    return compile_pve_combat_calibration(
-        tuple(load_pve_trace_evidence(path) for path in paths)
-    )
+    return compile_pve_combat_calibration(tuple(load_pve_trace_evidence(path) for path in paths))
 
 
 def save_pve_combat_calibration(
@@ -474,15 +451,12 @@ def save_pve_combat_calibration(
     try:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         temporary_path.write_text(
-            json.dumps(calibration.as_dict(), allow_nan=False, indent=2, sort_keys=True)
-            + "\n",
+            json.dumps(calibration.as_dict(), allow_nan=False, indent=2, sort_keys=True) + "\n",
             encoding="utf-8",
         )
         temporary_path.replace(output_path)
     except (OSError, TypeError, ValueError) as exc:
-        raise PvECombatCalibrationError(
-            f"could not save PvE combat calibration: {exc}"
-        ) from exc
+        raise PvECombatCalibrationError(f"could not save PvE combat calibration: {exc}") from exc
     finally:
         try:
             temporary_path.unlink(missing_ok=True)
@@ -494,9 +468,7 @@ def load_pve_combat_calibration(path: str | Path) -> PvECombatCalibration:
     try:
         raw = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-        raise PvECombatCalibrationError(
-            f"could not read PvE combat calibration: {exc}"
-        ) from exc
+        raise PvECombatCalibrationError(f"could not read PvE combat calibration: {exc}") from exc
     data = _mapping(raw, "PvE combat calibration")
     if data.get("schema_version") != PVE_COMBAT_CALIBRATION_SCHEMA_VERSION:
         raise PvECombatCalibrationError("unsupported PvE combat calibration schema")
@@ -521,22 +493,14 @@ def load_pve_combat_calibration(path: str | Path) -> PvECombatCalibration:
             target_maximum_health=_optional_summary(data.get("target_maximum_health")),
             player_damage=_optional_summary(player_attacks.get("damage")),
             target_damage=_optional_summary(target_attacks.get("damage")),
-            player_attack_interval_ms=_optional_summary(
-                player_attacks.get("interval_ms")
-            ),
-            target_attack_interval_ms=_optional_summary(
-                target_attacks.get("interval_ms")
-            ),
+            player_attack_interval_ms=_optional_summary(player_attacks.get("interval_ms")),
+            target_attack_interval_ms=_optional_summary(target_attacks.get("interval_ms")),
             experience_reward=_optional_summary(data.get("experience_reward")),
             starting_player_health=_optional_summary(starting_player.get("health")),
             starting_player_mana=_optional_summary(starting_player.get("mana")),
             starting_player_stamina=_optional_summary(starting_player.get("stamina")),
-            engagement_planar_distance=_optional_summary(
-                data.get("engagement_planar_distance")
-            ),
-            shadow_touch_mana_delta=_optional_summary(
-                data.get("shadow_touch_mana_delta")
-            ),
+            engagement_planar_distance=_optional_summary(data.get("engagement_planar_distance")),
+            shadow_touch_mana_delta=_optional_summary(data.get("shadow_touch_mana_delta")),
             native_target_health_decrease=_optional_summary(
                 native_health_changes.get("target_decrease")
             ),

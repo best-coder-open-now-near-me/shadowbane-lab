@@ -56,9 +56,7 @@ class ForegroundWorkerOperationIngress:
         *,
         clock: Callable[[], float] = time.time,
         operation_ttl_seconds: float = DEFAULT_WORKER_OPERATION_TTL_SECONDS,
-        acknowledgement_timeout_seconds: float = (
-            DEFAULT_WORKER_OPERATION_ACK_TIMEOUT_SECONDS
-        ),
+        acknowledgement_timeout_seconds: float = (DEFAULT_WORKER_OPERATION_ACK_TIMEOUT_SECONDS),
     ) -> None:
         if not isinstance(manifest, ManagerManifest):
             raise ValueError("manifest must be ManagerManifest")
@@ -78,9 +76,7 @@ class ForegroundWorkerOperationIngress:
         self._operations = operations
         self._clock = clock
         self._operation_ttl_seconds = float(operation_ttl_seconds)
-        self._acknowledgement_timeout_seconds = float(
-            acknowledgement_timeout_seconds
-        )
+        self._acknowledgement_timeout_seconds = float(acknowledgement_timeout_seconds)
 
     def dispatch(
         self,
@@ -128,10 +124,7 @@ class ForegroundWorkerOperationIngress:
             for client in snapshot.clients
             if client.is_visible
             and client.is_foreground
-            and (
-                expected_process_id is None
-                or client.process_id == expected_process_id
-            )
+            and (expected_process_id is None or client.process_id == expected_process_id)
         )
         if len(matches) != 1:
             detail = (

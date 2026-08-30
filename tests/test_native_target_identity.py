@@ -67,12 +67,10 @@ class FakeProcessMemory:
         }
         self.role_values: dict[str, int] = {}
         self.role_nodes = {
-            role: 0x12600000 + index * 0x100
-            for index, role in enumerate(self.descriptor_keys)
+            role: 0x12600000 + index * 0x100 for index, role in enumerate(self.descriptor_keys)
         }
         self.role_value_pointers = {
-            role: 0x12700000 + index * 0x100
-            for index, role in enumerate(self.descriptor_keys)
+            role: 0x12700000 + index * 0x100 for index, role in enumerate(self.descriptor_keys)
         }
 
     def read(self, address: int, size: int) -> bytes:
@@ -95,8 +93,7 @@ class FakeProcessMemory:
             return struct.pack("<II", bucket_pointer, self.table_bits)
         if address == self.buckets:
             entries = [
-                (self.descriptor_keys[role], self.role_nodes[role])
-                for role in self.role_values
+                (self.descriptor_keys[role], self.role_nodes[role]) for role in self.role_values
             ]
             entries.extend([(0, 0)] * ((1 << self.table_bits) - len(entries)))
             raw = b"".join(struct.pack("<II", *entry) for entry in entries)

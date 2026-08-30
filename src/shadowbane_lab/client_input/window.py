@@ -170,10 +170,7 @@ class ForegroundWindowGuard:
         if self._expected_process_started_at_100ns is not None:
             if snapshot.process_started_at_100ns is None:
                 raise WindowGuardError("foreground process creation time is unavailable")
-            if (
-                snapshot.process_started_at_100ns
-                != self._expected_process_started_at_100ns
-            ):
+            if snapshot.process_started_at_100ns != self._expected_process_started_at_100ns:
                 raise WindowGuardError("foreground window belongs to a replaced client process")
         if self._expected_window_handle is not None:
             if snapshot.window_handle is None:

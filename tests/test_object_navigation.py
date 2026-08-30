@@ -112,9 +112,7 @@ def _write_cache(path: Path, resources: list[tuple[int, int, bytes]]) -> None:
 
 class ObjectNavigationTests(unittest.TestCase):
     def test_decodes_object_render_and_mesh_navigation_prefixes(self) -> None:
-        obj = parse_object_navigation_metadata(
-            _object_payload("Tree", 20, scale=(2.0, 1.0, 2.0))
-        )
+        obj = parse_object_navigation_metadata(_object_payload("Tree", 20, scale=(2.0, 1.0, 2.0)))
         render = parse_render_navigation_metadata(
             _render_payload(mesh_ids=(30,), child_ids=(21,), collides=True, texture=True)
         )

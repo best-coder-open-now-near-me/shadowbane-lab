@@ -329,9 +329,7 @@ class CombatSheet:
             raise ValueError("stance_profiles must share one profile_key")
         if self.weapon is not None and not isinstance(self.weapon, WeaponProfile):
             raise ValueError("weapon must be a WeaponProfile or null")
-        if self.off_hand_weapon is not None and not isinstance(
-            self.off_hand_weapon, WeaponProfile
-        ):
+        if self.off_hand_weapon is not None and not isinstance(self.off_hand_weapon, WeaponProfile):
             raise ValueError("off_hand_weapon must be a WeaponProfile or null")
         if self.off_hand_weapon is not None and self.weapon is None:
             raise ValueError("off_hand_weapon requires a main-hand weapon")
@@ -342,9 +340,7 @@ class CombatSheet:
         if self.protection_type is not None:
             if not isinstance(self.protection_type, DamageType):
                 try:
-                    object.__setattr__(
-                        self, "protection_type", DamageType(self.protection_type)
-                    )
+                    object.__setattr__(self, "protection_type", DamageType(self.protection_type))
                 except (TypeError, ValueError) as exc:
                     raise ValueError("protection_type must be a DamageType") from exc
             if self.protection_type is DamageType.UNKNOWN:

@@ -21,12 +21,8 @@ class ArcaneClientPower(StrEnum):
 
 
 _HOTBAR_SLOT_COUNT = 12
-_HBI_PATTERN = re.compile(
-    r"^BEGINHBI\s+(?P<slot_index>\d+)\s+(?P<item_type>\S+)$"
-)
-_PROPERTY_PATTERN = re.compile(
-    r"^(?P<name>[A-Z][A-Z0-9_]*)=\s*(?P<value>.*)$"
-)
+_HBI_PATTERN = re.compile(r"^BEGINHBI\s+(?P<slot_index>\d+)\s+(?P<item_type>\S+)$")
+_PROPERTY_PATTERN = re.compile(r"^(?P<name>[A-Z][A-Z0-9_]*)=\s*(?P<value>.*)$")
 _CURRENT_SET_PATTERN = re.compile(r"^CURRENTSET=\s*(?P<set_index>\d+)$")
 
 
@@ -144,9 +140,7 @@ def load_arcane_hotbar_text(text: str) -> ArcaneHotbarTable:
         if not inside_hotbar:
             if stripped == "BEGINHOTBAR":
                 if found:
-                    raise ArcaneHotbarLoadError(
-                        "SCREEN_GAME must contain exactly one hotbar table"
-                    )
+                    raise ArcaneHotbarLoadError("SCREEN_GAME must contain exactly one hotbar table")
                 found = True
                 inside_hotbar = True
             continue
@@ -173,9 +167,7 @@ def load_arcane_hotbar_text(text: str) -> ArcaneHotbarTable:
                 continue
             match = _PROPERTY_PATTERN.fullmatch(stripped)
             if match is None:
-                raise ArcaneHotbarLoadError(
-                    f"malformed hotbar slot property at line {line_number}"
-                )
+                raise ArcaneHotbarLoadError(f"malformed hotbar slot property at line {line_number}")
             slot_properties.append(
                 (match.group("name"), _decode_property(match.group("value"), line_number))
             )
@@ -193,9 +185,7 @@ def load_arcane_hotbar_text(text: str) -> ArcaneHotbarTable:
                 continue
             match = _HBI_PATTERN.fullmatch(stripped)
             if match is None:
-                raise ArcaneHotbarLoadError(
-                    f"malformed hotbar slot header at line {line_number}"
-                )
+                raise ArcaneHotbarLoadError(f"malformed hotbar slot header at line {line_number}")
             slot_index = int(match.group("slot_index"))
             slot_item_type = match.group("item_type")
             slot_properties = []
@@ -231,7 +221,5 @@ def _decode_property(raw_value: str, line_number: int) -> str:
     if not raw_value.startswith('"'):
         return raw_value
     if len(raw_value) < 2 or not raw_value.endswith('"'):
-        raise ArcaneHotbarLoadError(
-            f"unterminated quoted hotbar property at line {line_number}"
-        )
+        raise ArcaneHotbarLoadError(f"unterminated quoted hotbar property at line {line_number}")
     return raw_value[1:-1]

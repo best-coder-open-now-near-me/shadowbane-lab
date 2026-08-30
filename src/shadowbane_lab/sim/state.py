@@ -279,9 +279,7 @@ class EntityState:
             for modifier in effect.modifiers
             for tag in modifier.semantic_tags
         }
-        return frozenset(
-            self.tags | effect_tags | modifier_tags | {f"stance.{self.stance.value}"}
-        )
+        return frozenset(self.tags | effect_tags | modifier_tags | {f"stance.{self.stance.value}"})
 
     def effective_scalar(self, scalar_key: str) -> float:
         """Return a base scalar after all active typed multipliers."""
@@ -293,10 +291,7 @@ class EntityState:
         for storage_key in sorted(self.effects):
             effect = self.effects[storage_key]
             for modifier in effect.modifiers:
-                if (
-                    isinstance(modifier, ScalarMultiplier)
-                    and modifier.scalar_key == scalar_key
-                ):
+                if isinstance(modifier, ScalarMultiplier) and modifier.scalar_key == scalar_key:
                     factor *= modifier.factor
         return float(self.scalars[scalar_key]) * factor
 
@@ -364,8 +359,7 @@ class EntityState:
             cooldowns=dict(snapshot.cooldowns),
             busy_until_ms=snapshot.busy_until_ms,
             stance_multipliers={
-                stance: dict(multipliers)
-                for stance, multipliers in snapshot.stance_multipliers
+                stance: dict(multipliers) for stance, multipliers in snapshot.stance_multipliers
             },
             stance=snapshot.stance,
             alive=snapshot.alive,

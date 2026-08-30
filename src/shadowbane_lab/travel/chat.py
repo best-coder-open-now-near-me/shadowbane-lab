@@ -66,9 +66,8 @@ class GoChatCommandAssembler:
 
         if self._candidate is not None:
             candidate = self._candidate + character
-            if (
-                len(candidate) > self._maximum_length
-                or not self._could_be_control_command(candidate)
+            if len(candidate) > self._maximum_length or not self._could_be_control_command(
+                candidate
             ):
                 self._candidate = None
             else:
@@ -394,9 +393,7 @@ class WindowsGoChatCommandListener:
                     self._pending_input.put(
                         _PhysicalKeyboardInteraction(
                             int(event.vk_code),
-                            bool(
-                                user32.GetAsyncKeyState(self._VK_SHIFT) & 0x8000
-                            ),
+                            bool(user32.GetAsyncKeyState(self._VK_SHIFT) & 0x8000),
                         )
                     )
             return int(

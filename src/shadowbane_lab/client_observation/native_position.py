@@ -72,9 +72,7 @@ class NativePlayerPositionProfile:
             if not isinstance(value, str) or not value.strip():
                 raise ValueError(f"{field_name} must be a non-empty string")
         digest = self.executable_sha256.lower()
-        if len(digest) != 64 or any(
-            character not in "0123456789abcdef" for character in digest
-        ):
+        if len(digest) != 64 or any(character not in "0123456789abcdef" for character in digest):
             raise ValueError("executable_sha256 must be a 64-character hexadecimal digest")
         if self.pointer_size != 4:
             raise ValueError("only the verified 32-bit Shadowbane client is supported")
@@ -317,8 +315,7 @@ class NativePlayerPositionReader:
         profile = self._profile
         return (
             self._read_pointer(self._pointer_slot, "local player") == snapshot.player
-            and self._read_pointer(snapshot.player, "local-player vtable")
-            == snapshot.vtable
+            and self._read_pointer(snapshot.player, "local-player vtable") == snapshot.vtable
             and self._read_pointer(
                 snapshot.vtable + profile.position_getter_slot_offset,
                 "local-player position getter",
@@ -404,8 +401,7 @@ class NativePlayerPositionReader:
         maximum = self._process.base_address + profile.vtable_maximum_rva
         if (
             pointer < minimum
-            or pointer + profile.position_getter_slot_offset + profile.pointer_size
-            > maximum
+            or pointer + profile.position_getter_slot_offset + profile.pointer_size > maximum
             or pointer % profile.pointer_size != 0
         ):
             raise NativePlayerPositionReadError(
@@ -434,9 +430,7 @@ def open_windows_native_player_position_reader(
 
 
 def load_bundled_native_position_profile() -> NativePlayerPositionProfile:
-    resource = files("shadowbane_lab.client_observation").joinpath(
-        "data", _BUNDLED_PROFILE_NAME
-    )
+    resource = files("shadowbane_lab.client_observation").joinpath("data", _BUNDLED_PROFILE_NAME)
     return load_native_position_profile_text(resource.read_text(encoding="utf-8"))
 
 
@@ -448,9 +442,7 @@ def load_native_position_profile_text(text: str) -> NativePlayerPositionProfile:
     try:
         raw = json.loads(text)
     except json.JSONDecodeError as exc:
-        raise NativePositionProfileLoadError(
-            "native position profile is not valid JSON"
-        ) from exc
+        raise NativePositionProfileLoadError("native position profile is not valid JSON") from exc
     try:
         data = _mapping(raw, "native position profile")
         expected = set(NativePlayerPositionProfile.__dataclass_fields__)
@@ -461,9 +453,7 @@ def load_native_position_profile_text(text: str) -> NativePlayerPositionProfile:
                 f"missing required fields: {', '.join(sorted(missing))}"
             )
         if unknown:
-            raise NativePositionProfileLoadError(
-                f"unknown fields: {', '.join(sorted(unknown))}"
-            )
+            raise NativePositionProfileLoadError(f"unknown fields: {', '.join(sorted(unknown))}")
         values = {
             key: (
                 _string(data, key)

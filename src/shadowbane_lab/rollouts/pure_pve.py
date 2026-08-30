@@ -149,8 +149,7 @@ def run_pure_pve_encounter(
         matches = tuple(
             item
             for item in exchange.affordances.affordances
-            if item.action_key == _BASIC_ATTACK
-            and item.binding.target_entity_id == _MOB_ID
+            if item.action_key == _BASIC_ATTACK and item.binding.target_entity_id == _MOB_ID
         )
         decisions = ()
         if len(matches) == 1:
@@ -216,9 +215,7 @@ def run_pure_pve_batch(
         or not isinstance(episodes, int)
         or not 1 <= episodes <= _MAX_BATCH_EPISODES
     ):
-        raise ValueError(
-            f"episodes must be an integer between 1 and {_MAX_BATCH_EPISODES}"
-        )
+        raise ValueError(f"episodes must be an integer between 1 and {_MAX_BATCH_EPISODES}")
     if isinstance(seed_start, bool) or not isinstance(seed_start, int) or seed_start < 0:
         raise ValueError("seed_start must be a non-negative integer")
     if not isinstance(retain_episode_results, bool):

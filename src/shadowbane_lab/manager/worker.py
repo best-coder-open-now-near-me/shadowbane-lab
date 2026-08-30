@@ -388,10 +388,7 @@ def parse_worker_heartbeat(value: object) -> WorkerHeartbeat:
     payload = _require_exact_fields(value)
     schema_version = payload["schema_version"]
     if schema_version != WORKER_HEARTBEAT_SCHEMA_VERSION:
-        _fail(
-            "schema_version must be "
-            f"{WORKER_HEARTBEAT_SCHEMA_VERSION}, got {schema_version!r}"
-        )
+        _fail(f"schema_version must be {WORKER_HEARTBEAT_SCHEMA_VERSION}, got {schema_version!r}")
     runtime_value = payload["runtime_state"]
     if not isinstance(runtime_value, str):
         _fail("runtime_state must be a string")
@@ -626,9 +623,7 @@ def loads_worker_stop_request(source: str) -> WorkerStopRequest:
     except WorkerHeartbeatFormatError:
         raise
     except (json.JSONDecodeError, RecursionError) as exc:
-        raise WorkerHeartbeatFormatError(
-            f"worker stop request is not valid JSON: {exc}"
-        ) from exc
+        raise WorkerHeartbeatFormatError(f"worker stop request is not valid JSON: {exc}") from exc
     return parse_worker_stop_request(decoded)
 
 
@@ -870,9 +865,7 @@ class WorkerHeartbeatLedger:
                 raise WorkerHeartbeatFormatError("worker stop request must be a regular file")
             source = target.read_bytes()
         except OSError as exc:
-            raise WorkerHeartbeatLedgerError(
-                f"could not read worker stop request: {exc}"
-            ) from exc
+            raise WorkerHeartbeatLedgerError(f"could not read worker stop request: {exc}") from exc
         if len(source) > self._max_record_bytes:
             raise WorkerHeartbeatFormatError("worker stop request exceeds size limit")
         try:
@@ -1088,8 +1081,7 @@ class WorkerSupervisor:
                 )
 
             assessments = tuple(
-                self._assess(record, instance_id=instance_id, now=now)
-                for record in ledger.records
+                self._assess(record, instance_id=instance_id, now=now) for record in ledger.records
             )
             active = tuple(item for item in assessments if item.active)
             if len(active) > 1:
@@ -1364,10 +1356,7 @@ class WorkerDispatchGate:
             and permit.instance_id == self._instance_id
             and permit.worker_id == self._worker_id
             and permit.process_id == self._process.process_id
-            and (
-                permit.process_started_at_100ns
-                == self._process.process_started_at_100ns
-            )
+            and (permit.process_started_at_100ns == self._process.process_started_at_100ns)
             and permit.health_state is WorkerHealthState.HEALTHY
         )
 

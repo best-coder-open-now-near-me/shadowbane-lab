@@ -179,12 +179,15 @@ class ZoneTerrainCorrelationTests(unittest.TestCase):
         self.assertEqual((0, 524), (result.template_group_id, result.template_id))
         self.assertEqual(4, result.tile_reference_count)
         self.assertEqual(1, len(result.maps))
-        self.assertEqual((12, 9, 2, 2), (
-            result.maps[0].group_id,
-            result.maps[0].map_id,
-            result.maps[0].width_tiles,
-            result.maps[0].height_tiles,
-        ))
+        self.assertEqual(
+            (12, 9, 2, 2),
+            (
+                result.maps[0].group_id,
+                result.maps[0].map_id,
+                result.maps[0].width_tiles,
+                result.maps[0].height_tiles,
+            ),
+        )
         self.assertTrue(result.maps[0].is_height_map)
         self.assertEqual(result.maps[0], result.height_map)
 

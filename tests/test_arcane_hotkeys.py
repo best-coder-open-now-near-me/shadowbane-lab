@@ -121,9 +121,7 @@ ENDHOTKEYS
                 result = main(("client", "inspect-hotkeys", str(path), "--json"))
 
         payload = json.loads(output.getvalue())
-        actions = {
-            item["semantic_action"]: item for item in payload["target_actions"]
-        }
+        actions = {item["semantic_action"]: item for item in payload["target_actions"]}
         self.assertEqual(0, result)
         self.assertEqual(
             [";"],

@@ -311,11 +311,7 @@ class NativeTargetHealthReader:
             # Corpses and non-combat selections retain a native selection object but
             # expose no health pool.  They are acquisition-empty, not corrupt targets.
             return NativeTargetHealthObservation(target_present=False)
-        if (
-            not isfinite(current_health)
-            or not isfinite(maximum_health)
-            or maximum_health <= 0
-        ):
+        if not isfinite(current_health) or not isfinite(maximum_health) or maximum_health <= 0:
             raise NativeTargetHealthReadError(
                 "selected-target health is structurally invalid "
                 f"(current={current_health!r}, maximum={maximum_health!r})"
@@ -440,11 +436,7 @@ class WindowsReadOnlyProcessMemory:
         executable_path: Path,
         base_address: int,
     ) -> None:
-        access = (
-            _PROCESS_VM_READ
-            | _PROCESS_QUERY_INFORMATION
-            | _PROCESS_QUERY_LIMITED_INFORMATION
-        )
+        access = _PROCESS_VM_READ | _PROCESS_QUERY_INFORMATION | _PROCESS_QUERY_LIMITED_INFORMATION
         handle = api.kernel32.OpenProcess(access, False, pid)
         if not handle:
             raise NativeTargetHealthReadError(_windows_error("OpenProcess failed"))
@@ -477,11 +469,7 @@ class WindowsReadOnlyProcessMemory:
         executable_name: str,
         process_id: int,
     ) -> WindowsReadOnlyProcessMemory:
-        if (
-            isinstance(process_id, bool)
-            or not isinstance(process_id, int)
-            or process_id <= 0
-        ):
+        if isinstance(process_id, bool) or not isinstance(process_id, int) or process_id <= 0:
             raise NativeTargetHealthReadError("process_id must be a positive integer")
         return cls._open_process(_WindowsApi(), process_id, executable_name)
 
@@ -677,9 +665,7 @@ class WindowsReadOnlyProcessMemory:
             or maximum_offset < 0
             or maximum_offset > 0x10000
         ):
-            raise NativeTargetHealthReadError(
-                "pointer scan maximum_offset must be in [0, 65536]"
-            )
+            raise NativeTargetHealthReadError("pointer scan maximum_offset must be in [0, 65536]")
         if (
             isinstance(maximum_results_per_target, bool)
             or not isinstance(maximum_results_per_target, int)
@@ -796,9 +782,7 @@ def open_windows_native_target_health_reader(
 
 
 def load_bundled_native_health_profile() -> NativeTargetHealthProfile:
-    resource = files("shadowbane_lab.client_observation").joinpath(
-        "data", _BUNDLED_PROFILE_NAME
-    )
+    resource = files("shadowbane_lab.client_observation").joinpath("data", _BUNDLED_PROFILE_NAME)
     return load_native_health_profile_text(resource.read_text(encoding="utf-8"))
 
 
@@ -837,9 +821,7 @@ def load_native_health_profile_text(text: str) -> NativeTargetHealthProfile:
                 f"missing required fields: {', '.join(sorted(missing))}"
             )
         if unknown:
-            raise NativeHealthProfileLoadError(
-                f"unknown fields: {', '.join(sorted(unknown))}"
-            )
+            raise NativeHealthProfileLoadError(f"unknown fields: {', '.join(sorted(unknown))}")
         if schema_version == _LEGACY_NATIVE_HEALTH_PROFILE_SCHEMA_VERSION:
             legacy_cap = _number(data, "maximum_plausible_health")
             if not isfinite(legacy_cap) or legacy_cap <= 0:
@@ -882,9 +864,7 @@ def _matching_process_ids(api: _WindowsApi, executable_name: str) -> tuple[int, 
             if not api.kernel32.Process32NextW(snapshot, ctypes.byref(entry)):
                 error = ctypes.get_last_error()
                 if error != _ERROR_NO_MORE_FILES:
-                    raise NativeTargetHealthReadError(
-                        _windows_error("process enumeration failed")
-                    )
+                    raise NativeTargetHealthReadError(_windows_error("process enumeration failed"))
                 break
         return tuple(matches)
     finally:

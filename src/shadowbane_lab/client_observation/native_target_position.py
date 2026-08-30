@@ -73,9 +73,7 @@ class NativeTargetPositionProfile:
             if not isinstance(value, str) or not value.strip():
                 raise ValueError(f"{field_name} must be a non-empty string")
         digest = self.executable_sha256.lower()
-        if len(digest) != 64 or any(
-            character not in "0123456789abcdef" for character in digest
-        ):
+        if len(digest) != 64 or any(character not in "0123456789abcdef" for character in digest):
             raise ValueError("executable_sha256 must be a 64-character hexadecimal digest")
         if self.pointer_size != 4:
             raise ValueError("only the verified 32-bit Shadowbane client is supported")
@@ -325,8 +323,7 @@ class NativeTargetPositionReader:
         profile = self._profile
         return (
             self._read_pointer(self._pointer_slot, "selected target") == snapshot.selected
-            and self._read_pointer(snapshot.selected, "selected-target vtable")
-            == snapshot.vtable
+            and self._read_pointer(snapshot.selected, "selected-target vtable") == snapshot.vtable
             and self._read_pointer(
                 snapshot.vtable + profile.position_getter_slot_offset,
                 "selected-target position getter",
@@ -419,8 +416,7 @@ class NativeTargetPositionReader:
         maximum = self._process.base_address + profile.vtable_maximum_rva
         if (
             pointer < minimum
-            or pointer + profile.position_getter_slot_offset + profile.pointer_size
-            > maximum
+            or pointer + profile.position_getter_slot_offset + profile.pointer_size > maximum
             or pointer % profile.pointer_size != 0
         ):
             raise NativeTargetPositionReadError(
@@ -455,9 +451,7 @@ def open_windows_native_target_position_reader(
 
 
 def load_bundled_native_target_position_profile() -> NativeTargetPositionProfile:
-    resource = files("shadowbane_lab.client_observation").joinpath(
-        "data", _BUNDLED_PROFILE_NAME
-    )
+    resource = files("shadowbane_lab.client_observation").joinpath("data", _BUNDLED_PROFILE_NAME)
     return load_native_target_position_profile_text(resource.read_text(encoding="utf-8"))
 
 

@@ -45,16 +45,13 @@ def load_assassin_warlock_duel_ruleset(
         )
         if len(additional_sources) != len(extension.get("additional_sources", [])):
             raise RulesetLoadError("additional_sources must contain objects")
-        additional_source_ids = tuple(
-            _string(item, "source_id") for item in additional_sources
-        )
+        additional_source_ids = tuple(_string(item, "source_id") for item in additional_sources)
         if len(additional_source_ids) != len(set(additional_source_ids)):
             raise RulesetLoadError("extension source ids must be unique")
         source_overlap = known_source_ids & set(additional_source_ids)
         if source_overlap:
             raise RulesetLoadError(
-                "extension duplicates existing sources: "
-                + ", ".join(sorted(source_overlap))
+                "extension duplicates existing sources: " + ", ".join(sorted(source_overlap))
             )
         merged_sources.extend(additional_sources)
         known_source_ids.update(additional_source_ids)
@@ -71,9 +68,7 @@ def load_assassin_warlock_duel_ruleset(
                 f"{', '.join(sorted(unexpected_overlap))}"
             )
         merged_actions.extend(
-            item
-            for item in additional_actions
-            if _string(item, "action_key") not in overlap
+            item for item in additional_actions if _string(item, "action_key") not in overlap
         )
         known_keys.update(additional_keys)
         current_ruleset_id = _string(extension, "extension_id")

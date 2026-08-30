@@ -214,9 +214,7 @@ class NativeTargetHealthReaderTests(unittest.TestCase):
             FakeProcessMemory(
                 {
                     slot: [_pointer(target), _pointer(target)],
-                    target + profile.current_health_offset: [
-                        _health(4_500_000.0, 5_000_000.0)
-                    ],
+                    target + profile.current_health_offset: [_health(4_500_000.0, 5_000_000.0)],
                 }
             ),
         )

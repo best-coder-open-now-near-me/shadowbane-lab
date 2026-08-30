@@ -54,9 +54,7 @@ class TargetHealthBarDetector:
                 if threshold.matches(red, green, blue):
                     qualifying_pixels += 1
                     red_pixel_count += 1
-            filled.append(
-                qualifying_pixels >= calibration.minimum_red_pixels_per_column
-            )
+            filled.append(qualifying_pixels >= calibration.minimum_red_pixels_per_column)
 
         leading_filled_columns = 0
         for is_filled in filled:
@@ -70,12 +68,8 @@ class TargetHealthBarDetector:
                 "target health fill is not a calibrated left-anchored bar"
             )
 
-        target_present = (
-            leading_filled_columns >= calibration.minimum_present_columns
-        )
-        health_fraction = (
-            leading_filled_columns / region.width if target_present else None
-        )
+        target_present = leading_filled_columns >= calibration.minimum_present_columns
+        health_fraction = leading_filled_columns / region.width if target_present else None
         return TargetStatusObservation(
             target_present=target_present,
             health_fraction=health_fraction,

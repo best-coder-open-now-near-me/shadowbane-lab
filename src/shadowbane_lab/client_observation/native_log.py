@@ -9,9 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import BinaryIO
 
-_TIMESTAMPED_LINE = re.compile(
-    r"^\((?P<timestamp>\d{1,2}:\d{2}:\d{2})\) (?P<message>.*)$"
-)
+_TIMESTAMPED_LINE = re.compile(r"^\((?P<timestamp>\d{1,2}:\d{2}:\d{2})\) (?P<message>.*)$")
 _TIMESTAMP = re.compile(r"^\d{1,2}:\d{2}:\d{2}$")
 
 
@@ -135,9 +133,7 @@ class NativeCombatLogReader:
                 self._pending_message_lines = [match.group("message")]
                 continue
             if self._pending_timestamp is None:
-                raise NativeCombatLogFormatError(
-                    f"unrecognized native combat log line: {line!r}"
-                )
+                raise NativeCombatLogFormatError(f"unrecognized native combat log line: {line!r}")
             self._pending_message_lines.append(line)
 
         if finalize:

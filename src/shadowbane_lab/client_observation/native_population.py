@@ -560,9 +560,7 @@ def open_windows_native_character_population_reader(
 
 
 def load_bundled_native_character_population_profile() -> NativeCharacterPopulationProfile:
-    resource = files("shadowbane_lab.client_observation").joinpath(
-        "data", _BUNDLED_PROFILE_NAME
-    )
+    resource = files("shadowbane_lab.client_observation").joinpath("data", _BUNDLED_PROFILE_NAME)
     return load_native_character_population_profile_text(resource.read_text(encoding="utf-8"))
 
 

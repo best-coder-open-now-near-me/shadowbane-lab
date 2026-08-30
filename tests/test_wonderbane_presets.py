@@ -142,26 +142,20 @@ class WonderBanePresetTests(unittest.TestCase):
         assert silence is not None and needs is not None and snare is not None
         assert dispel is not None
         silenced = next(
-            effect
-            for effect in silence.phases[0].effects
-            if isinstance(effect, ApplyEffect)
+            effect for effect in silence.phases[0].effects if isinstance(effect, ApplyEffect)
         )
         self.assertIn("control.block.action_tag.chant", silenced.tags)
         self.assertNotIn("control.silence", silenced.tags)
         self.assertIn("denies.action_tag.chant", silence.tags)
 
         area = next(effect for effect in needs.phases[0].effects if isinstance(effect, AreaEffect))
-        transfer = next(
-            effect for effect in area.effects if isinstance(effect, TransferResource)
-        )
+        transfer = next(effect for effect in area.effects if isinstance(effect, TransferResource))
         self.assertIs(AttackKind.POWER, needs.hit_roll)
         self.assertAlmostEqual(17.15, transfer.amount)
         self.assertAlmostEqual(0.415, transfer.efficiency)
 
         snare_effect = next(
-            effect
-            for effect in snare.phases[0].effects
-            if isinstance(effect, ApplyEffect)
+            effect for effect in snare.phases[0].effects if isinstance(effect, ApplyEffect)
         )
         slow = next(
             modifier
@@ -172,9 +166,7 @@ class WonderBanePresetTests(unittest.TestCase):
         self.assertAlmostEqual(0.4, slow.factor)
 
         removal = next(
-            effect
-            for effect in dispel.phases[0].effects
-            if isinstance(effect, RemoveEffect)
+            effect for effect in dispel.phases[0].effects if isinstance(effect, RemoveEffect)
         )
         self.assertEqual(1, removal.maximum_count)
 
@@ -188,12 +180,8 @@ class WonderBanePresetTests(unittest.TestCase):
             )
         ).duel
         assassin, warlock = result.combatants
-        assassin_actions = {
-            item.action_key.split("@")[0]: item.count for item in assassin.actions
-        }
-        warlock_actions = {
-            item.action_key.split("@")[0]: item.count for item in warlock.actions
-        }
+        assassin_actions = {item.action_key.split("@")[0]: item.count for item in assassin.actions}
+        warlock_actions = {item.action_key.split("@")[0]: item.count for item in warlock.actions}
 
         self.assertEqual(1, assassin_actions[BACKSTAB])
         self.assertEqual(1, warlock_actions[DULL_THE_MIND])
@@ -210,12 +198,8 @@ class WonderBanePresetTests(unittest.TestCase):
             )
         ).duel
         assassin, warlock = result.combatants
-        assassin_actions = {
-            item.action_key.split("@")[0]: item.count for item in assassin.actions
-        }
-        warlock_actions = {
-            item.action_key.split("@")[0]: item.count for item in warlock.actions
-        }
+        assassin_actions = {item.action_key.split("@")[0]: item.count for item in assassin.actions}
+        warlock_actions = {item.action_key.split("@")[0]: item.count for item in warlock.actions}
 
         self.assertNotIn(SILENCE, assassin_actions)
         self.assertEqual(1, warlock_actions[SHATTER_WILL])

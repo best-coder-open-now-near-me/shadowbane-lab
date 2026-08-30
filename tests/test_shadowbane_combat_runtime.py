@@ -240,9 +240,7 @@ class ShadowbaneCombatRuntimeTests(unittest.TestCase):
         def attack_decision(correlation_id: str):
             exchange = environment.exchange("attacker")
             affordance = next(
-                item
-                for item in exchange.affordances.affordances
-                if item.action_key == "attack"
+                item for item in exchange.affordances.affordances if item.action_key == "attack"
             )
             return exchange.decision(affordance.affordance_id, correlation_id)
 
@@ -253,32 +251,20 @@ class ShadowbaneCombatRuntimeTests(unittest.TestCase):
 
         active = environment.entity("caster").effects["physical-shield"]
         self.assertEqual(20.0, active.modifier_values["damage_breakpoint.physical"])
-        damage = next(
-            event for event in first.events if event.kind == EventKind.DAMAGE_APPLIED
-        )
+        damage = next(event for event in first.events if event.kind == EventKind.DAMAGE_APPLIED)
         self.assertEqual(
             50.0,
-            next(
-                scalar.value
-                for scalar in damage.scalars
-                if scalar.name == "resistance_percent"
-            ),
+            next(scalar.value for scalar in damage.scalars if scalar.name == "resistance_percent"),
         )
 
         expected = environment.step((attack_decision("third"),))
         expected_state = environment.snapshot()
         self.assertNotIn("physical-shield", environment.entity("caster").effects)
-        removed = next(
-            event for event in expected.events if event.kind == EventKind.EFFECT_REMOVED
-        )
+        removed = next(event for event in expected.events if event.kind == EventKind.EFFECT_REMOVED)
         self.assertIn("reason.damage_breakpoint", removed.tags)
         self.assertEqual(
             30.0,
-            next(
-                scalar.value
-                for scalar in removed.scalars
-                if scalar.name == "accumulated_damage"
-            ),
+            next(scalar.value for scalar in removed.scalars if scalar.name == "accumulated_damage"),
         )
 
         environment.restore(snapshot)
@@ -340,11 +326,7 @@ class ShadowbaneCombatRuntimeTests(unittest.TestCase):
         self.assertEqual(45.0, snapshot.entities[1].scalars[0][1])
         self.assertEqual(
             [200],
-            [
-                event.sim_time_ms
-                for event in first.events
-                if event.kind == EventKind.EFFECT_PULSED
-            ],
+            [event.sim_time_ms for event in first.events if event.kind == EventKind.EFFECT_PULSED],
         )
         self.assertNotIn("poisoned", environment.entity("target").effects)
 
@@ -490,8 +472,7 @@ class ShadowbaneCombatRuntimeTests(unittest.TestCase):
             affordance = next(
                 item
                 for item in exchange.affordances.affordances
-                if item.action_key == action_key
-                and item.binding.target_entity_id == target_id
+                if item.action_key == action_key and item.binding.target_entity_id == target_id
             )
             return exchange.decision(affordance.affordance_id, action_key)
 
@@ -504,9 +485,7 @@ class ShadowbaneCombatRuntimeTests(unittest.TestCase):
 
         self.assertEqual(100.0, environment.entity("target").scalars["health"])
         blocked_event = next(
-            event
-            for event in blocked.events
-            if event.kind == EventKind.RESOURCE_RESTORED
+            event for event in blocked.events if event.kind == EventKind.RESOURCE_RESTORED
         )
         self.assertIn("outcome.blocked_by_resource_immunity", blocked_event.tags)
 
@@ -626,9 +605,7 @@ class ShadowbaneCombatRuntimeTests(unittest.TestCase):
         )
         passive = passive_environment.step((_decision(passive_environment, "passive"),))
         passive_event = next(
-            event
-            for event in passive.events
-            if event.kind == EventKind.PASSIVE_DEFENSE_RESOLVED
+            event for event in passive.events if event.kind == EventKind.PASSIVE_DEFENSE_RESOLVED
         )
         self.assertIn("outcome.triggered", passive_event.tags)
         self.assertFalse(any(event.kind == EventKind.DAMAGE_APPLIED for event in passive.events))
@@ -747,9 +724,7 @@ class ShadowbaneCombatRuntimeTests(unittest.TestCase):
                 result = environment.step((caster_decision, attacker_decision))
 
                 interrupted = next(
-                    event
-                    for event in result.events
-                    if event.kind == EventKind.ACTION_INTERRUPTED
+                    event for event in result.events if event.kind == EventKind.ACTION_INTERRUPTED
                 )
                 self.assertEqual(f"channel-{trigger}", interrupted.correlation_id)
                 self.assertIn(f"reason.{trigger}", interrupted.tags)

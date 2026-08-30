@@ -894,13 +894,9 @@ class PvEControllerTests(unittest.TestCase):
         self.assertEqual("player_death_observed", stopped.terminal_reason)
 
     def test_low_native_player_health_stops_before_input(self) -> None:
-        controller = PvEController(
-            PvEControllerConfig(minimum_player_health_fraction=0.5)
-        )
+        controller = PvEController(PvEControllerConfig(minimum_player_health_fraction=0.5))
 
-        stopped = controller.step(
-            _observation(0, _absent(), player=_player(50.0, 100.0))
-        )
+        stopped = controller.step(_observation(0, _absent(), player=_player(50.0, 100.0)))
 
         self.assertEqual("player_health_safety_threshold", stopped.terminal_reason)
         self.assertIsNone(stopped.intent)
@@ -1216,9 +1212,7 @@ class PvEControllerTests(unittest.TestCase):
         self.assertTrue(busy.reposition_requested)
 
     def test_two_kill_limit_reacquires_after_post_kill_delay(self) -> None:
-        controller = PvEController(
-            PvEControllerConfig(maximum_kills=2, post_kill_delay_ms=100)
-        )
+        controller = PvEController(PvEControllerConfig(maximum_kills=2, post_kill_delay_ms=100))
         controller.step(_observation(0, _absent()))
         controller.step(_observation(10, _target("mob-1")))
         post_kill = controller.step(
@@ -1341,9 +1335,7 @@ class PvEControllerTests(unittest.TestCase):
         player = _player(current_mana=100.0, maximum_mana=100.0)
 
         waiting = controller.step(_observation(0, _target("auto-mob"), player=player))
-        still_waiting = controller.step(
-            _observation(100, _target("auto-mob"), player=player)
-        )
+        still_waiting = controller.step(_observation(100, _target("auto-mob"), player=player))
         confirmed = controller.step(
             _observation(
                 200,
@@ -1370,9 +1362,7 @@ class PvEControllerTests(unittest.TestCase):
         player = _player(current_mana=100.0, maximum_mana=100.0)
 
         waiting = controller.step(_observation(0, _target("stale-mob"), player=player))
-        still_waiting = controller.step(
-            _observation(999, _target("stale-mob"), player=player)
-        )
+        still_waiting = controller.step(_observation(999, _target("stale-mob"), player=player))
         cycle = controller.step(_observation(1_000, _target("stale-mob"), player=player))
         opener = controller.step(_observation(1_100, _target("new-mob"), player=player))
 
@@ -1543,9 +1533,7 @@ class PvEControllerTests(unittest.TestCase):
         cooling_down = controller.step(
             _observation(1_000, _target("mob"), target_action=second_action)
         )
-        ready = controller.step(
-            _observation(2_100, _target("mob"), target_action=second_action)
-        )
+        ready = controller.step(_observation(2_100, _target("mob"), target_action=second_action))
 
         self.assertEqual(PvEIntent.CAST_SHADOW_TOUCH, first.intent)
         self.assertIsNone(cooling_down.intent)
@@ -1575,9 +1563,7 @@ class PvEControllerTests(unittest.TestCase):
             )
         )
 
-        replacement_opener = controller.step(
-            _observation(300, _target("mob-2"), player=player)
-        )
+        replacement_opener = controller.step(_observation(300, _target("mob-2"), player=player))
 
         self.assertEqual(PvEPhase.POST_KILL, post_kill.phase)
         self.assertEqual(PvEPhase.OPENING, replacement_opener.phase)
@@ -1600,9 +1586,7 @@ class PvEControllerTests(unittest.TestCase):
         self.assertEqual("selected_target_changed_during_opener", stopped.terminal_reason)
 
     def test_required_intents_include_configured_opener_and_stall_fallback(self) -> None:
-        controller = PvEController(
-            PvEControllerConfig(opening_intent=PvEIntent.CAST_SHADOW_TOUCH)
-        )
+        controller = PvEController(PvEControllerConfig(opening_intent=PvEIntent.CAST_SHADOW_TOUCH))
 
         self.assertEqual(
             frozenset(

@@ -128,9 +128,7 @@ def parse_render_navigation_metadata(payload: bytes) -> RenderNavigationMetadata
     if has_location:
         location = reader.tuple3("location")
         child_count = reader.count("children")
-        child_keys = tuple(
-            reader.resource_key(f"child {index}") for index in range(child_count)
-        )
+        child_keys = tuple(reader.resource_key(f"child {index}") for index in range(child_count))
 
     if reader.boolean("texture-set flag"):
         texture_count = reader.count("texture sets")
@@ -194,9 +192,7 @@ class ObjectNavigationResolver:
         if not isinstance(object_key, ZoneResourceKey):
             raise ValueError("object_key must be ZoneResourceKey")
         object_entry = _require_entry(self._object_entries, object_key, "CObject")
-        metadata = parse_object_navigation_metadata(
-            self._objects.read_resource(object_entry)
-        )
+        metadata = parse_object_navigation_metadata(self._objects.read_resource(object_entry))
         if metadata.render_key == ZoneResourceKey(0, 0):
             return ObjectCollisionProfile(object_key, metadata.name, (), None)
 
@@ -219,13 +215,10 @@ class ObjectNavigationResolver:
             active.add(render_key)
             try:
                 render = self._read_render(render_key)
-                scale = tuple(
-                    parent_scale[index] * render.scale[index] for index in range(3)
-                )
+                scale = tuple(parent_scale[index] * render.scale[index] for index in range(3))
                 local_location = render.location or (0.0, 0.0, 0.0)
                 location = tuple(
-                    parent_location[index]
-                    + parent_scale[index] * local_location[index]
+                    parent_location[index] + parent_scale[index] * local_location[index]
                     for index in range(3)
                 )
                 if render.collides:
@@ -241,9 +234,7 @@ class ObjectNavigationResolver:
                         )
                         colliding_meshes.append(mesh_key)
                         maximum_radius = (
-                            radius
-                            if maximum_radius is None
-                            else max(maximum_radius, radius)
+                            radius if maximum_radius is None else max(maximum_radius, radius)
                         )
                 for child_key in render.child_keys:
                     visit(child_key, scale, location)
@@ -349,9 +340,7 @@ class _NavigationReader:
     def f32(self, field_name: str) -> float:
         value = struct.unpack("<f", self._take(4, field_name))[0]
         if not isfinite(value):
-            raise ObjectNavigationFormatError(
-                f"{self._resource_name} {field_name} is not finite"
-            )
+            raise ObjectNavigationFormatError(f"{self._resource_name} {field_name} is not finite")
         return value
 
     def boolean(self, field_name: str) -> bool:
@@ -373,9 +362,7 @@ class _NavigationReader:
     def tuple3(self, field_name: str) -> tuple[float, float, float]:
         values = struct.unpack("<3f", self._take(12, field_name))
         if not all(isfinite(value) for value in values):
-            raise ObjectNavigationFormatError(
-                f"{self._resource_name} {field_name} is not finite"
-            )
+            raise ObjectNavigationFormatError(f"{self._resource_name} {field_name} is not finite")
         return values
 
     def resource_key(self, field_name: str) -> ZoneResourceKey:

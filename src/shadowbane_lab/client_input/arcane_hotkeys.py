@@ -154,9 +154,7 @@ class ArcaneHotkeyTable:
         if not isinstance(argument, str) or not argument.strip():
             raise ValueError("argument must be a non-empty string")
         normalized = argument.casefold()
-        return tuple(
-            item for item in self.bindings if item.argument.casefold() == normalized
-        )
+        return tuple(item for item in self.bindings if item.argument.casefold() == normalized)
 
 
 def load_arcane_hotkeys(path: str | Path) -> ArcaneHotkeyTable:

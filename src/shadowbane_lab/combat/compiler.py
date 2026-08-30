@@ -443,14 +443,10 @@ def _compile_stance_action(
         "attack": 1.0 if modifiers is None else 1.0 + modifiers.attack_percent,
         "defense": 1.0 if modifiers is None else 1.0 + modifiers.defense_percent,
         "damage": 1.0 if modifiers is None else 1.0 + modifiers.damage_dealt_percent,
-        "weapon_delay": (
-            1.0 if modifiers is None else 1.0 + modifiers.weapon_delay_percent
-        ),
+        "weapon_delay": (1.0 if modifiers is None else 1.0 + modifiers.weapon_delay_percent),
         "movement": 1.0 if modifiers is None else 1.0 + modifiers.movement_percent,
         "stamina_recovery": (
-            1.0
-            if modifiers is None
-            else 1.0 + modifiers.stamina_recovery_percent
+            1.0 if modifiers is None else 1.0 + modifiers.stamina_recovery_percent
         ),
     }
     canonical_key = f"shadowbane.stance.{stance.value}"
@@ -554,8 +550,7 @@ def _compile_basic_attack(
     delay_tenths *= 1.0 + weapon.attack_delay_percent
     cooldown_ms = max(10, int(delay_tenths)) * 100
     expected_damage = (minimum + maximum) / 2.0 + sum(
-        proc.probability * (proc.minimum + proc.maximum) / 2.0
-        for proc in weapon.procs
+        proc.probability * (proc.minimum + proc.maximum) / 2.0 for proc in weapon.procs
     )
     action_key = _compiled_action_key(sheet.sheet_id, canonical_action_key)
     return ActionSpec(
@@ -618,9 +613,7 @@ def _compile_power_action(sheet: CombatSheet, action: ActionSpec, rank: int) -> 
         action,
         action_key=compiled_key,
         phases=phases,
-        features=tuple(
-            NamedScalar(name, value) for name, value in sorted(feature_values.items())
-        ),
+        features=tuple(NamedScalar(name, value) for name, value in sorted(feature_values.items())),
         tags=tuple(dict.fromkeys((*action.tags, "power"))),
     )
 
@@ -818,8 +811,7 @@ def _hostile_action(action: ActionSpec) -> bool:
     ):
         return True
     return any(
-        isinstance(effect, AreaEffect)
-        and Relation.ENEMY in effect.allowed_relations
+        isinstance(effect, AreaEffect) and Relation.ENEMY in effect.allowed_relations
         for phase in action.phases
         for effect in phase.effects
     )
@@ -832,11 +824,7 @@ def _action_requires_attack_gate(action: ActionSpec) -> bool:
 def _action_needs_focus(action: ActionSpec) -> bool:
     if _action_requires_attack_gate(action):
         return True
-    return any(
-        _effect_needs_focus(effect)
-        for phase in action.phases
-        for effect in phase.effects
-    )
+    return any(_effect_needs_focus(effect) for phase in action.phases for effect in phase.effects)
 
 
 def _effect_needs_focus(effect: EffectPrimitive) -> bool:
@@ -878,16 +866,11 @@ def _expected_nested_amount(
             _expected_nested_amount(nested, effect_type) for nested in effect.effects
         )
     if isinstance(effect, (AttackGate, AreaEffect)):
-        return sum(
-            _expected_nested_amount(nested, effect_type) for nested in effect.effects
-        )
+        return sum(_expected_nested_amount(nested, effect_type) for nested in effect.effects)
     if isinstance(effect, ApplyEffect):
         return sum(
             modifier.tick_count
-            * sum(
-                _expected_nested_amount(nested, effect_type)
-                for nested in modifier.effects
-            )
+            * sum(_expected_nested_amount(nested, effect_type) for nested in modifier.effects)
             for modifier in effect.modifiers
             if isinstance(modifier, PeriodicPulse)
         )

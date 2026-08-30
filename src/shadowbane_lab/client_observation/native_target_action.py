@@ -378,8 +378,7 @@ class NativeTargetActionReader:
                 continue
             if (
                 self._read_pointer(self._player_pointer_slot, "local player") != player
-                or self._read_pointer(self._selected_pointer_slot, "selected target")
-                != selected
+                or self._read_pointer(self._selected_pointer_slot, "selected target") != selected
             ):
                 continue
             return self._player_observation(second)

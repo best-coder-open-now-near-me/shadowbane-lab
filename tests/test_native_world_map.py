@@ -137,12 +137,8 @@ class FakeScanningProcess:
         needles: tuple[bytes, ...],
         **_: object,
     ) -> Mapping[bytes, tuple[int, ...]]:
-        expected = struct.pack(
-            "<I", self.base_address + self.profile.object_vtable_rva
-        )
-        return {
-            needle: self.object_addresses if needle == expected else () for needle in needles
-        }
+        expected = struct.pack("<I", self.base_address + self.profile.object_vtable_rva)
+        return {needle: self.object_addresses if needle == expected else () for needle in needles}
 
     def find_pointer_values_near(self, *_: object, **__: object):
         return {}

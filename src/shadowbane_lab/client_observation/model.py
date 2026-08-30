@@ -161,9 +161,7 @@ class TargetStatusObservation:
             raise ValueError("leading filled columns cannot exceed total filled columns")
         if self.total_filled_columns > self.total_columns:
             raise ValueError("filled columns cannot exceed total columns")
-        if self.stray_filled_columns != (
-            self.total_filled_columns - self.leading_filled_columns
-        ):
+        if self.stray_filled_columns != (self.total_filled_columns - self.leading_filled_columns):
             raise ValueError("stray filled columns are inconsistent")
         if self.target_present:
             if self.health_fraction is None:

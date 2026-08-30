@@ -68,8 +68,7 @@ class PvECampLease:
             object.__setattr__(
                 self,
                 "return_trigger_radius",
-                self.return_radius
-                + min(18.0, (self.radius - self.return_radius) / 2.0),
+                self.return_radius + min(18.0, (self.radius - self.return_radius) / 2.0),
             )
         assert self.return_trigger_radius is not None
         for value, field_name in (
@@ -209,9 +208,7 @@ class PvEControllerConfig:
         if self.stalled_progress_ms > self.engagement_timeout_ms:
             raise ValueError("stalled progress timeout cannot exceed engagement timeout")
         if self.missing_attack_animation_timeout_ms > self.quiet_melee_timeout_ms:
-            raise ValueError(
-                "missing attack-animation timeout cannot exceed quiet melee timeout"
-            )
+            raise ValueError("missing attack-animation timeout cannot exceed quiet melee timeout")
         if self.selection_loss_grace_ms > self.engagement_timeout_ms:
             raise ValueError("selection loss grace cannot exceed engagement timeout")
         if self.post_kill_delay_ms > self.recovery_timeout_ms:
@@ -233,12 +230,9 @@ class PvEControllerConfig:
                 raise ValueError(f"{field_name} must be in [0, 1]")
         if (
             self.minimum_recovery_health_fraction != 0
-            and self.minimum_recovery_health_fraction
-            < self.minimum_player_health_fraction
+            and self.minimum_recovery_health_fraction < self.minimum_player_health_fraction
         ):
-            raise ValueError(
-                "minimum recovery health cannot be below the player safety threshold"
-            )
+            raise ValueError("minimum recovery health cannot be below the player safety threshold")
         for value, field_name in (
             (self.accept_automatic_targets, "accept_automatic_targets"),
             (self.automatic_attack_expected, "automatic_attack_expected"),
@@ -275,21 +269,16 @@ class PvEControllerConfig:
             raise ValueError("camp_return_trigger_radius must be positive when present")
         if self.continuous and self.camp_radius is None:
             raise ValueError("continuous PvE requires a camp_radius")
-        if (
-            self.camp_radius is not None
-            and self.camp_return_radius >= self.camp_radius
-        ):
+        if self.camp_radius is not None and self.camp_return_radius >= self.camp_radius:
             raise ValueError("camp_return_radius must be below camp_radius")
         if self.camp_return_trigger_radius is not None and (
             self.camp_return_trigger_radius <= self.camp_return_radius
             or (
-                self.camp_radius is not None
-                and self.camp_return_trigger_radius >= self.camp_radius
+                self.camp_radius is not None and self.camp_return_trigger_radius >= self.camp_radius
             )
         ):
             raise ValueError(
-                "camp_return_trigger_radius must be above camp_return_radius and below "
-                "camp_radius"
+                "camp_return_trigger_radius must be above camp_return_radius and below camp_radius"
             )
         if self.opening_intent is not None and not isinstance(self.opening_intent, PvEIntent):
             raise ValueError("opening_intent must be PvEIntent when present")
@@ -308,9 +297,7 @@ class PvEControllerConfig:
             raise ValueError("opening_mana_cost must be a non-negative number")
         if self.opening_intent is None and self.opening_mana_cost != 0:
             raise ValueError("opening_mana_cost requires an opening_intent")
-        if self.interrupt_intent is not None and not isinstance(
-            self.interrupt_intent, PvEIntent
-        ):
+        if self.interrupt_intent is not None and not isinstance(self.interrupt_intent, PvEIntent):
             raise ValueError("interrupt_intent must be PvEIntent when present")
         if self.interrupt_intent in (
             PvEIntent.ACQUIRE_NEXT_MOB,
@@ -585,14 +572,10 @@ class PvERunTraceStep:
         ):
             raise ValueError("approach_input_accepted must be a boolean when present")
         if self.approach_input_accepted is not None and (
-            self.approach_decision is None
-            or self.approach_decision.minimap_direction is None
+            self.approach_decision is None or self.approach_decision.minimap_direction is None
         ):
             raise ValueError("approach input outcome requires a movement decision")
-        if (
-            self.approach_input_reason is not None
-            and self.approach_input_accepted is not False
-        ):
+        if self.approach_input_reason is not None and self.approach_input_accepted is not False:
             raise ValueError("approach_input_reason is valid only for rejected input")
         if self.movement_stop_accepted is not None and not isinstance(
             self.movement_stop_accepted, bool
@@ -657,9 +640,7 @@ class PvERunTraceStep:
                     "anchor_lg": self.decision.camp.anchor_lg,
                     "radius": self.decision.camp.radius,
                     "return_radius": self.decision.camp.return_radius,
-                    "return_trigger_radius": (
-                        self.decision.camp.return_trigger_radius
-                    ),
+                    "return_trigger_radius": (self.decision.camp.return_trigger_radius),
                     "target_inside": self.decision.target_inside_camp,
                     "return_requested": self.decision.return_to_camp,
                 }
@@ -691,18 +672,14 @@ class PvERunTraceStep:
                         "action_pending": self.target_action.action_pending,
                         "impact_frame": self.target_action.impact_frame,
                         "action_sequence": self.target_action.action_sequence,
-                        "interrupt_opportunity": (
-                            self.target_action.interrupt_opportunity
-                        ),
+                        "interrupt_opportunity": (self.target_action.interrupt_opportunity),
                     }
                 ),
                 "identity": (
                     None
                     if self.target_identity is None
                     else {
-                        "classification_available": (
-                            self.target_identity.classification_available
-                        ),
+                        "classification_available": (self.target_identity.classification_available),
                         "classification_error": self.target_identity.classification_error,
                         "merchant": self.target_identity.merchant,
                         "shopkeeper": self.target_identity.shopkeeper,
@@ -749,9 +726,7 @@ class PvERunTraceStep:
                     "character_count": self.population_character_count,
                     "attack_eligible_count": self.population_attack_eligible_count,
                     "selected_target_token": self.population_selected_target_token,
-                    "player_action_target_token": (
-                        self.population_player_action_target_token
-                    ),
+                    "player_action_target_token": (self.population_player_action_target_token),
                     "scan_generation": self.population_scan_generation,
                 }
             ),
@@ -780,8 +755,7 @@ class PvERunTraceStep:
                     ),
                     "maneuver": (
                         None
-                        if self.approach_decision is None
-                        or self.approach_decision.maneuver is None
+                        if self.approach_decision is None or self.approach_decision.maneuver is None
                         else self.approach_decision.maneuver.value
                     ),
                     "direction": (

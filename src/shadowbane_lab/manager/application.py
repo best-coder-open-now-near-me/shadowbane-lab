@@ -207,9 +207,7 @@ class ManagerDashboardApplication:
             not callable(getattr(worker_controller, method, None))
             for method in ("ensure_started", "request_stop")
         ):
-            raise ValueError(
-                "worker_controller must provide ensure_started() and request_stop()"
-            )
+            raise ValueError("worker_controller must provide ensure_started() and request_stop()")
         if operation_status is not None and not callable(
             getattr(operation_status, "inspect_slot", None)
         ):
@@ -276,9 +274,7 @@ class ManagerDashboardApplication:
             owned_instance_ids = {
                 slot.instance_id for slot in current.slots if slot.instance_id is not None
             }
-            free_client_ids = [
-                slot.client_id for slot in current.slots if slot.instance_id is None
-            ]
+            free_client_ids = [slot.client_id for slot in current.slots if slot.instance_id is None]
             adopted: list[str] = []
             for client in registry.clients:
                 if client.instance_id in owned_instance_ids:
@@ -447,9 +443,7 @@ class ManagerDashboardApplication:
         return {
             "queued_count": len(queued),
             "active": None if active is None else active.to_dict(),
-            "latest_result": (
-                None if latest_result is None else latest_result.to_dict()
-            ),
+            "latest_result": (None if latest_result is None else latest_result.to_dict()),
         }
 
     def execute(

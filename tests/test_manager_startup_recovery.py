@@ -133,9 +133,7 @@ class ManagerStartupRecoveryTests(unittest.TestCase):
             _Ledger(
                 {
                     "client-01": (_heartbeat("client-01", first.instance_id, worker_number=1),),
-                    "client-02": (
-                        _heartbeat("client-02", second.instance_id, worker_number=2),
-                    ),
+                    "client-02": (_heartbeat("client-02", second.instance_id, worker_number=2),),
                 }
             ),
             session,
@@ -164,9 +162,7 @@ class ManagerStartupRecoveryTests(unittest.TestCase):
                         _heartbeat("client-01", first.instance_id, worker_number=1),
                         _heartbeat("client-01", second.instance_id, worker_number=2),
                     ),
-                    "client-02": (
-                        _heartbeat("client-02", first.instance_id, worker_number=3),
-                    ),
+                    "client-02": (_heartbeat("client-02", first.instance_id, worker_number=3),),
                 }
             ),
             session,

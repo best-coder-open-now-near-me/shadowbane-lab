@@ -495,9 +495,7 @@ def parse_worker_operation(value: object) -> WorkerOperation:
         client_id=_identifier(payload["client_id"], "client_id"),
         instance_id=_identifier(payload["instance_id"], "instance_id"),
         worker_id=_pattern(payload["worker_id"], "worker_id", _WORKER_ID),
-        worker_process_id=_positive_integer(
-            payload["worker_process_id"], "worker_process_id"
-        ),
+        worker_process_id=_positive_integer(payload["worker_process_id"], "worker_process_id"),
         worker_process_started_at_100ns=_positive_integer(
             payload["worker_process_started_at_100ns"],
             "worker_process_started_at_100ns",
@@ -517,10 +515,7 @@ def parse_worker_operation(value: object) -> WorkerOperation:
 def parse_worker_operation_receipt(value: object) -> WorkerOperationReceipt:
     payload = _exact_mapping(value, _RECEIPT_FIELDS, "worker operation receipt")
     if payload["schema_version"] != WORKER_OPERATION_RECEIPT_SCHEMA_VERSION:
-        _fail(
-            "receipt schema_version must be "
-            f"{WORKER_OPERATION_RECEIPT_SCHEMA_VERSION}"
-        )
+        _fail(f"receipt schema_version must be {WORKER_OPERATION_RECEIPT_SCHEMA_VERSION}")
     try:
         kind = WorkerOperationKind(payload["kind"])
         state = WorkerOperationState(payload["state"])
@@ -531,9 +526,7 @@ def parse_worker_operation_receipt(value: object) -> WorkerOperationReceipt:
         client_id=_identifier(payload["client_id"], "client_id"),
         instance_id=_identifier(payload["instance_id"], "instance_id"),
         worker_id=_pattern(payload["worker_id"], "worker_id", _WORKER_ID),
-        worker_process_id=_positive_integer(
-            payload["worker_process_id"], "worker_process_id"
-        ),
+        worker_process_id=_positive_integer(payload["worker_process_id"], "worker_process_id"),
         worker_process_started_at_100ns=_positive_integer(
             payload["worker_process_started_at_100ns"],
             "worker_process_started_at_100ns",
@@ -564,9 +557,7 @@ def _loads(source: str, parser: Callable[[object], object], description: str) ->
         return result
 
     def reject_constant(value: str) -> NoReturn:
-        raise WorkerOperationFormatError(
-            f"{description} JSON contains non-finite number {value}"
-        )
+        raise WorkerOperationFormatError(f"{description} JSON contains non-finite number {value}")
 
     try:
         decoded = json.loads(

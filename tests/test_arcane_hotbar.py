@@ -71,9 +71,7 @@ class ArcaneHotbarTests(unittest.TestCase):
             load_arcane_hotbar_text("BEGINHOTBAR\nCURRENTSET= 0")
 
     def test_rejects_missing_slot_in_set(self) -> None:
-        malformed = _CAPTURED_HOTBAR.replace(
-            "BEGINHBI 11 EMPTY\nENDHBI\nENDSET", "ENDSET", 1
-        )
+        malformed = _CAPTURED_HOTBAR.replace("BEGINHBI 11 EMPTY\nENDHBI\nENDSET", "ENDSET", 1)
 
         with self.assertRaisesRegex(ArcaneHotbarLoadError, "slots 0 through 11"):
             load_arcane_hotbar_text(malformed)

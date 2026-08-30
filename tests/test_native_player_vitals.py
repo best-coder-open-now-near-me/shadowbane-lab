@@ -135,9 +135,7 @@ class NativePlayerVitalsReaderTests(unittest.TestCase):
                 {
                     slot: [_pointer(player)] * 6,
                     player + profile.current_health_offset: [struct.pack("<ff", 10, 10)] * 3,
-                    player + profile.maximum_mana_offset: [
-                        struct.pack("<ffff", 10, 11, 20, 20)
-                    ]
+                    player + profile.maximum_mana_offset: [struct.pack("<ffff", 10, 11, 20, 20)]
                     * 3,
                 }
             ),

@@ -154,9 +154,7 @@ class _Reader:
 
     def take(self, size: int, label: str) -> bytes:
         if size < 0 or self.remaining < size:
-            raise VendorWireFormatError(
-                f"{label} is truncated at byte offset {self.offset}"
-            )
+            raise VendorWireFormatError(f"{label} is truncated at byte offset {self.offset}")
         start = self.offset
         self.offset += size
         return self._payload[start : start + size]
@@ -213,9 +211,7 @@ def parse_vendor_dialog_wire(payload: bytes) -> VendorDialogWireMessage:
             )
         return VendorDialogRequest(header, trailing, digest)
     if header.message_type != 3:
-        raise VendorWireFormatError(
-            f"unsupported VENDORDIALOG message type {header.message_type}"
-        )
+        raise VendorWireFormatError(f"unsupported VENDORDIALOG message type {header.message_type}")
     return _parse_menu(reader, header, digest)
 
 
@@ -262,9 +258,7 @@ def _parse_menu(
     heading = reader.string("menu heading")
     entry_count = reader.u32("menu entry count")
     if entry_count > _MAX_MENU_ENTRIES:
-        raise VendorWireFormatError(
-            f"menu entry count {entry_count} exceeds {_MAX_MENU_ENTRIES}"
-        )
+        raise VendorWireFormatError(f"menu entry count {entry_count} exceeds {_MAX_MENU_ENTRIES}")
     options = tuple(_parse_option(reader, index) for index in range(entry_count))
     trailing_values = tuple(reader.u32(f"menu trailer {index}") for index in range(4))
     if reader.remaining:
@@ -297,8 +291,7 @@ def _parse_option(reader: _Reader, index: int) -> VendorMenuOption:
     enabled = reader.u32(f"menu option {index} enabled")
     label = reader.string(f"menu option {index} label")
     trailing_values = tuple(
-        reader.u32(f"menu option {index} trailing value {value_index}")
-        for value_index in range(4)
+        reader.u32(f"menu option {index} trailing value {value_index}") for value_index in range(4)
     )
     semantic_action = _semantic_action(action_type)
     option_id = None if semantic_action is VendorMenuAction.CLOSE_DIALOG else trailing_values[0]

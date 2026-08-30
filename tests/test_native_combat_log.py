@@ -95,10 +95,7 @@ class NativeCombatLogCliTests(unittest.TestCase):
         output = io.StringIO()
         with tempfile.TemporaryDirectory() as temporary_directory:
             path = Path(temporary_directory) / "combat.log.txt"
-            path.write_bytes(
-                b"(4:52:46) first\r\n\r\n"
-                b"(4:52:48) second\r\n\r\n"
-            )
+            path.write_bytes(b"(4:52:46) first\r\n\r\n(4:52:48) second\r\n\r\n")
             with redirect_stdout(output):
                 result = main(
                     (

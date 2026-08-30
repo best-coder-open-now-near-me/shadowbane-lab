@@ -124,8 +124,7 @@ class PvETraceJournal:
         self._validate_record(record)
         try:
             self._stream.write(
-                json.dumps(record, allow_nan=False, sort_keys=True, separators=(",", ":"))
-                + "\n"
+                json.dumps(record, allow_nan=False, sort_keys=True, separators=(",", ":")) + "\n"
             )
             self._stream.flush()
             if sync:
@@ -156,9 +155,7 @@ def save_pve_trace_evidence(
 ) -> None:
     evidence_path = Path(path)
     validated = validate_pve_trace_evidence(payload)
-    temporary_path = evidence_path.with_name(
-        f".{evidence_path.name}.{os.getpid()}.tmp"
-    )
+    temporary_path = evidence_path.with_name(f".{evidence_path.name}.{os.getpid()}.tmp")
     try:
         evidence_path.parent.mkdir(parents=True, exist_ok=True)
         temporary_path.write_text(
@@ -188,9 +185,7 @@ def validate_pve_trace_evidence(payload: object) -> dict[str, object]:
     for field_name in ("kills", "steps"):
         value = payload.get(field_name)
         if isinstance(value, bool) or not isinstance(value, int) or value < 0:
-            raise PvETraceEvidenceError(
-                f"PvE evidence {field_name} must be a non-negative integer"
-            )
+            raise PvETraceEvidenceError(f"PvE evidence {field_name} must be a non-negative integer")
     total_steps = payload.get("total_steps", payload["steps"])
     if (
         isinstance(total_steps, bool)
@@ -204,18 +199,12 @@ def validate_pve_trace_evidence(payload: object) -> dict[str, object]:
     if not isinstance(trace_truncated, bool):
         raise PvETraceEvidenceError("PvE evidence trace_truncated must be a boolean")
     if trace_truncated != (total_steps > payload["steps"]):
-        raise PvETraceEvidenceError(
-            "PvE evidence trace_truncated does not match total_steps"
-        )
+        raise PvETraceEvidenceError("PvE evidence trace_truncated does not match total_steps")
     run_mode = payload.get("run_mode")
     if run_mode is not None and run_mode not in ("bounded", "continuous"):
-        raise PvETraceEvidenceError(
-            "PvE evidence run_mode must be bounded or continuous"
-        )
+        raise PvETraceEvidenceError("PvE evidence run_mode must be bounded or continuous")
     journal_path = payload.get("journal_path")
-    if journal_path is not None and (
-        not isinstance(journal_path, str) or not journal_path.strip()
-    ):
+    if journal_path is not None and (not isinstance(journal_path, str) or not journal_path.strip()):
         raise PvETraceEvidenceError(
             "PvE evidence journal_path must be a non-empty string when present"
         )
@@ -230,9 +219,7 @@ def validate_pve_trace_evidence(payload: object) -> dict[str, object]:
                 or not isinstance(value, (int, float))
                 or not isfinite(value)
             ):
-                raise PvETraceEvidenceError(
-                    f"PvE evidence camp_lease.{field_name} must be finite"
-                )
+                raise PvETraceEvidenceError(f"PvE evidence camp_lease.{field_name} must be finite")
         for field_name in ("radius", "return_radius", "return_trigger_radius"):
             _positive_number(camp_lease, field_name, prefix="camp_lease")
         if camp_lease["return_radius"] >= camp_lease["radius"]:
@@ -240,9 +227,7 @@ def validate_pve_trace_evidence(payload: object) -> dict[str, object]:
                 "PvE evidence camp_lease.return_radius must be below radius"
             )
         if not (
-            camp_lease["return_radius"]
-            < camp_lease["return_trigger_radius"]
-            < camp_lease["radius"]
+            camp_lease["return_radius"] < camp_lease["return_trigger_radius"] < camp_lease["radius"]
         ):
             raise PvETraceEvidenceError(
                 "PvE evidence camp_lease.return_trigger_radius must be above "
@@ -253,9 +238,7 @@ def validate_pve_trace_evidence(payload: object) -> dict[str, object]:
         raise PvETraceEvidenceError("PvE evidence native_observation must be an object")
     process_id = native.get("process_id")
     if isinstance(process_id, bool) or not isinstance(process_id, int) or process_id <= 0:
-        raise PvETraceEvidenceError(
-            "PvE evidence native_observation.process_id must be positive"
-        )
+        raise PvETraceEvidenceError("PvE evidence native_observation.process_id must be positive")
     _required_string(native, "executable_sha256")
     farm_limits = payload.get("farm_limits")
     if farm_limits is not None:
@@ -267,9 +250,7 @@ def validate_pve_trace_evidence(payload: object) -> dict[str, object]:
             or not isinstance(maximum_kills, int)
             or maximum_kills <= 0
         ):
-            raise PvETraceEvidenceError(
-                "PvE evidence farm_limits.maximum_kills must be positive"
-            )
+            raise PvETraceEvidenceError("PvE evidence farm_limits.maximum_kills must be positive")
         for field_name in (
             "maximum_session_seconds",
             "maximum_encounter_seconds",
@@ -301,9 +282,7 @@ def validate_pve_trace_evidence(payload: object) -> dict[str, object]:
             raise PvETraceEvidenceError(f"PvE evidence trace[{index}] must be an object")
         at_ms = step.get("at_ms")
         if isinstance(at_ms, bool) or not isinstance(at_ms, int) or at_ms < 0:
-            raise PvETraceEvidenceError(
-                f"PvE evidence trace[{index}].at_ms must be non-negative"
-            )
+            raise PvETraceEvidenceError(f"PvE evidence trace[{index}].at_ms must be non-negative")
         if not isinstance(step.get("combat_events"), list):
             raise PvETraceEvidenceError(
                 f"PvE evidence trace[{index}].combat_events must be an array"
@@ -318,9 +297,7 @@ def validate_pve_trace_evidence(payload: object) -> dict[str, object]:
 def _required_string(payload: Mapping[str, object], field_name: str) -> str:
     value = payload.get(field_name)
     if not isinstance(value, str) or not value.strip():
-        raise PvETraceEvidenceError(
-            f"PvE evidence {field_name} must be a non-empty string"
-        )
+        raise PvETraceEvidenceError(f"PvE evidence {field_name} must be a non-empty string")
     return value
 
 
@@ -337,7 +314,5 @@ def _positive_number(
         or not isfinite(value)
         or value <= 0
     ):
-        raise PvETraceEvidenceError(
-            f"PvE evidence {prefix}.{field_name} must be a positive number"
-        )
+        raise PvETraceEvidenceError(f"PvE evidence {prefix}.{field_name} must be a positive number")
     return float(value)

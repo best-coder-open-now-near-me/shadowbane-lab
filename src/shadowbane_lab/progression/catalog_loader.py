@@ -51,16 +51,10 @@ def load_game_catalog_text(text: str) -> GameCatalog:
             retrieved_on=_string(data, "retrieved_on"),
             sources=tuple(_source(item) for item in _mappings(data, "sources")),
             coverage=tuple(_coverage(item) for item in _mappings(data, "coverage")),
-            base_classes=tuple(
-                _base_class(item) for item in _mappings(data, "base_classes")
-            ),
+            base_classes=tuple(_base_class(item) for item in _mappings(data, "base_classes")),
             races=tuple(_race(item) for item in _mappings(data, "races")),
-            professions=tuple(
-                _profession(item) for item in _mappings(data, "professions")
-            ),
-            disciplines=tuple(
-                _discipline(item) for item in _mappings(data, "disciplines")
-            ),
+            professions=tuple(_profession(item) for item in _mappings(data, "professions")),
+            disciplines=tuple(_discipline(item) for item in _mappings(data, "disciplines")),
         )
     except GameCatalogLoadError:
         raise
@@ -102,9 +96,7 @@ def _race(data: dict[str, Any]) -> RaceProfile:
         maximum_attributes=_stats(data, "maximum_attributes"),
         allowed_base_class_keys=tuple(_strings(data, "allowed_base_class_keys")),
         racial_discipline_keys=tuple(_strings(data, "racial_discipline_keys")),
-        allowed_sexes=tuple(
-            CharacterSex(value) for value in _strings(data, "allowed_sexes")
-        ),
+        allowed_sexes=tuple(CharacterSex(value) for value in _strings(data, "allowed_sexes")),
         source_id=_string(data, "source_id"),
     )
 
@@ -116,9 +108,7 @@ def _profession(data: dict[str, Any]) -> ProfessionProfile:
         promotion_level=_integer(data, "promotion_level"),
         allowed_base_class_keys=tuple(_strings(data, "allowed_base_class_keys")),
         allowed_race_keys=tuple(_strings(data, "allowed_race_keys")),
-        allowed_sexes=tuple(
-            CharacterSex(value) for value in _strings(data, "allowed_sexes")
-        ),
+        allowed_sexes=tuple(CharacterSex(value) for value in _strings(data, "allowed_sexes")),
         source_id=_string(data, "source_id"),
     )
 

@@ -58,10 +58,7 @@ class WonderbaneCalculatorImportTests(unittest.TestCase):
         self.assertEqual(179, len(catalog.runes))
         self.assertEqual(
             48,
-            sum(
-                rune.category is CalculatorRuneCategory.DISCIPLINE
-                for rune in catalog.runes
-            ),
+            sum(rune.category is CalculatorRuneCategory.DISCIPLINE for rune in catalog.runes),
         )
         self.assertEqual("Ninja", catalog.promotion(2527).name)
 

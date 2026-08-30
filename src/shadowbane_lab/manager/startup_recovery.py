@@ -74,9 +74,7 @@ def recover_manager_bindings(
             )
             continue
         current_instance_ids = {
-            record.instance_id
-            for record in slot.records
-            if record.instance_id in clients_by_id
+            record.instance_id for record in slot.records if record.instance_id in clients_by_id
         }
         claim_counts.update(current_instance_ids)
         if len(current_instance_ids) == 1:

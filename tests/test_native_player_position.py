@@ -97,9 +97,7 @@ def _fixture(
         {
             addresses["slot"]: [_pointer(addresses["player"])],
             addresses["player"]: [_pointer(addresses["vtable"])],
-            addresses["vtable"] + profile.position_getter_slot_offset: [
-                _pointer(resolved_getter)
-            ],
+            addresses["vtable"] + profile.position_getter_slot_offset: [_pointer(resolved_getter)],
             addresses["player"] + profile.position_component_offset: [
                 _pointer(addresses["component"])
             ],
@@ -205,10 +203,7 @@ class NativePlayerPositionProfileTests(unittest.TestCase):
 
     def test_profile_loader_rejects_unknown_fields(self) -> None:
         bundled = load_bundled_native_position_profile()
-        raw = {
-            field: getattr(bundled, field)
-            for field in bundled.__dataclass_fields__
-        }
+        raw = {field: getattr(bundled, field) for field in bundled.__dataclass_fields__}
         raw["unknown"] = True
 
         with self.assertRaisesRegex(ValueError, "unknown fields"):

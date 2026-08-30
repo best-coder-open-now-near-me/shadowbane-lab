@@ -132,18 +132,24 @@ class PvECombatCalibrationTests(unittest.TestCase):
         calibration = compile_pve_combat_calibration((_evidence(),))
 
         self.assertEqual(1, calibration.confirmed_kills)
-        self.assertEqual((2, 0, 1, 1), (
-            calibration.player_hits,
-            calibration.player_misses,
-            calibration.target_hits,
-            calibration.target_misses,
-        ))
+        self.assertEqual(
+            (2, 0, 1, 1),
+            (
+                calibration.player_hits,
+                calibration.player_misses,
+                calibration.target_hits,
+                calibration.target_misses,
+            ),
+        )
         self.assertEqual(1.0, calibration.player_hit_rate)
         self.assertEqual(0.5, calibration.target_hit_rate)
-        self.assertEqual((10.0, 12.0), (
-            calibration.player_damage.minimum,
-            calibration.player_damage.maximum,
-        ))
+        self.assertEqual(
+            (10.0, 12.0),
+            (
+                calibration.player_damage.minimum,
+                calibration.player_damage.maximum,
+            ),
+        )
         self.assertEqual(1_000.0, calibration.player_attack_interval_ms.median)
         self.assertEqual(6.0, calibration.target_damage.median)
         self.assertEqual(1_000.0, calibration.target_attack_interval_ms.median)
@@ -154,10 +160,13 @@ class PvECombatCalibrationTests(unittest.TestCase):
         self.assertEqual(100.0, calibration.starting_player_stamina.median)
         self.assertEqual(5.0, calibration.engagement_planar_distance.median)
         self.assertEqual(55.0, calibration.shadow_touch_mana_delta.median)
-        self.assertEqual((10.0, 12.0), (
-            calibration.native_target_health_decrease.minimum,
-            calibration.native_target_health_decrease.maximum,
-        ))
+        self.assertEqual(
+            (10.0, 12.0),
+            (
+                calibration.native_target_health_decrease.minimum,
+                calibration.native_target_health_decrease.maximum,
+            ),
+        )
         self.assertEqual(
             1_000.0,
             calibration.native_target_health_decrease_interval_ms.median,

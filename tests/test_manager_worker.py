@@ -417,9 +417,9 @@ class ManagerWorkerTests(unittest.TestCase):
         latched = publisher.publish(WorkerRuntimeState.RUNNING, dispatch_ready=True)
         final = publisher.close(detail="worker shutdown complete")
 
-        self.assertEqual((1, 2, 3, 4), tuple(
-            item.sequence for item in (first, tripped, latched, final)
-        ))
+        self.assertEqual(
+            (1, 2, 3, 4), tuple(item.sequence for item in (first, tripped, latched, final))
+        )
         self.assertLess(first.observed_at, tripped.observed_at)
         self.assertTrue(tripped.emergency_stop)
         self.assertTrue(latched.emergency_stop)

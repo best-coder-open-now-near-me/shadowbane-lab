@@ -97,9 +97,7 @@ class NativeMessageHudProfile:
                 raise ValueError(f"{field_name} must be a positive integer")
         if self.minimum_markers_per_buffer < 2:
             raise ValueError("minimum_markers_per_buffer must be at least two")
-        if not self.channel_colors or len(set(self.channel_colors)) != len(
-            self.channel_colors
-        ):
+        if not self.channel_colors or len(set(self.channel_colors)) != len(self.channel_colors):
             raise ValueError("channel_colors must contain unique values")
         if any(re.fullmatch(r"\d{9}", color) is None for color in self.channel_colors):
             raise ValueError("channel_colors must use nine decimal digits")
@@ -458,9 +456,7 @@ def open_windows_native_message_hud_reader(
 
 
 def load_bundled_native_message_hud_profile() -> NativeMessageHudProfile:
-    resource = files("shadowbane_lab.client_observation").joinpath(
-        "data", _BUNDLED_PROFILE_NAME
-    )
+    resource = files("shadowbane_lab.client_observation").joinpath("data", _BUNDLED_PROFILE_NAME)
     return load_native_message_hud_profile_text(resource.read_text(encoding="utf-8"))
 
 
@@ -502,13 +498,9 @@ def load_native_message_hud_profile_text(text: str) -> NativeMessageHudProfile:
                 f"missing required fields: {', '.join(sorted(missing))}"
             )
         if unknown:
-            raise NativeMessageHudProfileLoadError(
-                f"unknown fields: {', '.join(sorted(unknown))}"
-            )
+            raise NativeMessageHudProfileLoadError(f"unknown fields: {', '.join(sorted(unknown))}")
         if _integer(data, "schema_version") != NATIVE_MESSAGE_HUD_PROFILE_SCHEMA_VERSION:
-            raise NativeMessageHudProfileLoadError(
-                "unsupported native message-HUD profile version"
-            )
+            raise NativeMessageHudProfileLoadError("unsupported native message-HUD profile version")
         colors = data["channel_colors"]
         if not isinstance(colors, list) or any(not isinstance(item, str) for item in colors):
             raise NativeMessageHudProfileLoadError("channel_colors must be a string array")

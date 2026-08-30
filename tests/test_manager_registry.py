@@ -189,31 +189,56 @@ class ClientWindowRegistryTests(unittest.TestCase):
             process_started_at_100ns=original.process_started_at_100ns + 1,
         )
 
-        original_id = ClientWindowRegistry(
-            StaticVisibleWindowInspector((original,)),
-            node_id="gaming-pc-east",
-            executable_names=("sb.exe",),
-        ).inspect().clients[0].instance_id
-        renamed_id = ClientWindowRegistry(
-            StaticVisibleWindowInspector((moved_and_renamed,)),
-            node_id="gaming-pc-east",
-            executable_names=("sb.exe",),
-        ).inspect().clients[0].instance_id
-        recreated_window_id = ClientWindowRegistry(
-            StaticVisibleWindowInspector((recreated_window,)),
-            node_id="gaming-pc-east",
-            executable_names=("sb.exe",),
-        ).inspect().clients[0].instance_id
-        reused_id = ClientWindowRegistry(
-            StaticVisibleWindowInspector((reused_pid,)),
-            node_id="gaming-pc-east",
-            executable_names=("sb.exe",),
-        ).inspect().clients[0].instance_id
-        other_node_id = ClientWindowRegistry(
-            StaticVisibleWindowInspector((original,)),
-            node_id="gaming-pc-west",
-            executable_names=("sb.exe",),
-        ).inspect().clients[0].instance_id
+        original_id = (
+            ClientWindowRegistry(
+                StaticVisibleWindowInspector((original,)),
+                node_id="gaming-pc-east",
+                executable_names=("sb.exe",),
+            )
+            .inspect()
+            .clients[0]
+            .instance_id
+        )
+        renamed_id = (
+            ClientWindowRegistry(
+                StaticVisibleWindowInspector((moved_and_renamed,)),
+                node_id="gaming-pc-east",
+                executable_names=("sb.exe",),
+            )
+            .inspect()
+            .clients[0]
+            .instance_id
+        )
+        recreated_window_id = (
+            ClientWindowRegistry(
+                StaticVisibleWindowInspector((recreated_window,)),
+                node_id="gaming-pc-east",
+                executable_names=("sb.exe",),
+            )
+            .inspect()
+            .clients[0]
+            .instance_id
+        )
+        reused_id = (
+            ClientWindowRegistry(
+                StaticVisibleWindowInspector((reused_pid,)),
+                node_id="gaming-pc-east",
+                executable_names=("sb.exe",),
+            )
+            .inspect()
+            .clients[0]
+            .instance_id
+        )
+        other_node_id = (
+            ClientWindowRegistry(
+                StaticVisibleWindowInspector((original,)),
+                node_id="gaming-pc-west",
+                executable_names=("sb.exe",),
+            )
+            .inspect()
+            .clients[0]
+            .instance_id
+        )
 
         self.assertEqual(original_id, renamed_id)
         self.assertNotEqual(original_id, recreated_window_id)

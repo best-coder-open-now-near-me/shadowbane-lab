@@ -338,8 +338,7 @@ class EffectExecutor:
             for entity in self._entities.values()
             if entity.entity_id in eligible_alive
             and self._relation(actor, entity) in effect.allowed_relations
-            and hypot(entity.position.x - center.x, entity.position.y - center.y)
-            <= effect.radius
+            and hypot(entity.position.x - center.x, entity.position.y - center.y) <= effect.radius
         ]
         candidates.sort(
             key=lambda entity: (
@@ -505,13 +504,9 @@ class EffectExecutor:
                 else nested
             )
             if isinstance(resolved_nested, ChanceGate):
-                self._resolve_chance(
-                    item, resolved_nested, due_time, eligible_alive, events
-                )
+                self._resolve_chance(item, resolved_nested, due_time, eligible_alive, events)
             else:
-                self._resolve_direct(
-                    item, resolved_nested, due_time, eligible_alive, events
-                )
+                self._resolve_direct(item, resolved_nested, due_time, eligible_alive, events)
         for modifier in modifiers:
             if modifier.bonus_damage_maximum <= 0.0:
                 continue
@@ -928,9 +923,7 @@ class EffectExecutor:
                             correlation_id=item.correlation_id,
                             source_entity_id=actor.entity_id,
                             target_entity_id=(
-                                item.binding.target_entity_id
-                                if item.binding is not None
-                                else None
+                                item.binding.target_entity_id if item.binding is not None else None
                             ),
                             action_key=item.action_key,
                             tags=tuple(
@@ -1022,9 +1015,7 @@ class EffectExecutor:
                 and modifier.damage_type is effect.damage_type
             )
             armor_piercing = self._required_scalar(actor, "armor_piercing")
-            protection_applies = (
-                f"protection.{effect.damage_type.value}" in subject.effective_tags
-            )
+            protection_applies = f"protection.{effect.damage_type.value}" in subject.effective_tags
             protection_trains = 0
             if protection_applies:
                 raw_trains = self._required_scalar(subject, "protection.trains")
@@ -1104,8 +1095,7 @@ class EffectExecutor:
             matching = tuple(
                 modifier
                 for modifier in active.modifiers
-                if isinstance(modifier, DamageBreakpoint)
-                and damage_type in modifier.damage_types
+                if isinstance(modifier, DamageBreakpoint) and damage_type in modifier.damage_types
             )
             should_remove = False
             removal_scalars: tuple[NamedScalar, ...] = ()
@@ -1226,9 +1216,7 @@ class EffectExecutor:
             actor = self._entity(item.actor_id)
             if effect.resistance_type is None:
                 raise SimulationConfigurationError("resisted restoration requires a type")
-            resistance = self._required_scalar(
-                subject, f"resist.{effect.resistance_type.value}"
-            )
+            resistance = self._required_scalar(subject, f"resist.{effect.resistance_type.value}")
             armor_piercing = self._required_scalar(actor, "armor_piercing")
             resistance = effective_resistance(
                 resistance,
@@ -1262,7 +1250,7 @@ class EffectExecutor:
                 ),
                 tags=(
                     f"resource.{effect.resource_key}",
-                    *(('outcome.blocked_by_resource_immunity',) if restoration_blocked else ()),
+                    *(("outcome.blocked_by_resource_immunity",) if restoration_blocked else ()),
                 ),
             )
         )
@@ -1320,13 +1308,7 @@ class EffectExecutor:
 
     def _resolve_amount(
         self,
-        amount: (
-            float
-            | UniformAmount
-            | TriangularAmount
-            | UniformIntegerAmount
-            | WeightedAmount
-        ),
+        amount: (float | UniformAmount | TriangularAmount | UniformIntegerAmount | WeightedAmount),
     ) -> float:
         if isinstance(amount, UniformAmount):
             return self._random.uniform(amount.minimum, amount.maximum)
@@ -1339,8 +1321,7 @@ class EffectExecutor:
             )
         if isinstance(amount, UniformIntegerAmount):
             return float(
-                amount.minimum
-                + self._random.randbelow(amount.maximum - amount.minimum + 1)
+                amount.minimum + self._random.randbelow(amount.maximum - amount.minimum + 1)
             )
         if isinstance(amount, WeightedAmount):
             selected = self._random.randbelow(amount.total_weight)
@@ -1349,20 +1330,12 @@ class EffectExecutor:
                 cumulative += weight
                 if selected < cumulative:
                     return value
-            raise SimulationConfigurationError(
-                "weighted amount selection did not reach an outcome"
-            )
+            raise SimulationConfigurationError("weighted amount selection did not reach an outcome")
         return amount
 
     @staticmethod
     def _scaled_amount(
-        amount: (
-            float
-            | UniformAmount
-            | TriangularAmount
-            | UniformIntegerAmount
-            | WeightedAmount
-        ),
+        amount: (float | UniformAmount | TriangularAmount | UniformIntegerAmount | WeightedAmount),
         factor: float,
     ) -> float | UniformAmount | TriangularAmount | WeightedAmount:
         if isinstance(amount, UniformAmount):
@@ -1595,9 +1568,7 @@ class EffectExecutor:
                 key=lambda item: (item[1].application_order, item[0]),
                 reverse=True,
             )
-            storage_keys = [
-                storage_key for storage_key, _ in matching[: effect.maximum_count]
-            ]
+            storage_keys = [storage_key for storage_key, _ in matching[: effect.maximum_count]]
         for storage_key in storage_keys:
             active = subject.effects.pop(storage_key)
             events.append(

@@ -193,12 +193,8 @@ class ExactClientWorkerRuntime:
         if not callable(sleeper):
             raise ValueError("sleeper must be callable")
         if (operation_ledger is None) != (operation_executor is None):
-            raise ValueError(
-                "operation_ledger and operation_executor must be configured together"
-            )
-        if operation_ledger is not None and not isinstance(
-            operation_ledger, WorkerOperationLedger
-        ):
+            raise ValueError("operation_ledger and operation_executor must be configured together")
+        if operation_ledger is not None and not isinstance(operation_ledger, WorkerOperationLedger):
             raise ValueError("operation_ledger must be WorkerOperationLedger")
         if operation_executor is not None and not callable(
             getattr(operation_executor, "execute", None)

@@ -81,9 +81,7 @@ class NativeRunegateRegistryProfile:
             if not isinstance(value, str) or not value.strip():
                 raise ValueError(f"{field_name} must be a non-empty string")
         digest = self.executable_sha256.lower()
-        if len(digest) != 64 or any(
-            character not in "0123456789abcdef" for character in digest
-        ):
+        if len(digest) != 64 or any(character not in "0123456789abcdef" for character in digest):
             raise ValueError("executable_sha256 must be a 64-character hexadecimal digest")
         if self.pointer_size != 4:
             raise ValueError("only the verified 32-bit Shadowbane client is supported")
@@ -159,10 +157,7 @@ class NativeRunegateRegistryProfile:
             raise ValueError("maximum_zone_name_chars must remain bounded")
         if self.maximum_runegates > 1024:
             raise ValueError("maximum_runegates must remain bounded")
-        if (
-            not isfinite(self.maximum_absolute_coordinate)
-            or self.maximum_absolute_coordinate <= 0
-        ):
+        if not isfinite(self.maximum_absolute_coordinate) or self.maximum_absolute_coordinate <= 0:
             raise ValueError("maximum_absolute_coordinate must be finite and positive")
         if self.schema_version != NATIVE_RUNEGATE_PROFILE_SCHEMA_VERSION:
             raise ValueError("unsupported native runegate profile version")
@@ -337,9 +332,7 @@ class NativeRunegateRegistryReader:
         node = first
         while node != head:
             if node == 0 or node in visited:
-                raise NativeRunegateRegistryReadError(
-                    "runegate tree contains a null link or cycle"
-                )
+                raise NativeRunegateRegistryReadError("runegate tree contains a null link or cycle")
             if len(records) >= profile.maximum_runegates:
                 raise NativeRunegateRegistryReadError(
                     "runegate tree exceeds the calibrated size bound"
@@ -367,29 +360,21 @@ class NativeRunegateRegistryReader:
 
     def _decode_runegate(self, node: int, block: bytes) -> NativeRunegateObservation:
         profile = self._profile
-        object_type, object_uuid = struct.unpack_from(
-            "<II", block, profile.object_type_offset
-        )
+        object_type, object_uuid = struct.unpack_from("<II", block, profile.object_type_offset)
         if object_type == 0 or object_uuid == 0:
-            raise NativeRunegateRegistryReadError(
-                "runegate object identity contains zero"
-            )
+            raise NativeRunegateRegistryReadError("runegate object identity contains zero")
         zone_name = self._read_string(
             node + profile.zone_name_offset,
             "runegate zone name",
         )
-        native_lt, altitude, native_lg = struct.unpack_from(
-            "<fff", block, profile.latitude_offset
-        )
+        native_lt, altitude, native_lg = struct.unpack_from("<fff", block, profile.latitude_offset)
         lt = float(native_lt)
         lg = float(native_lg) * profile.longitude_multiplier
         if any(
             not isfinite(value) or abs(value) > profile.maximum_absolute_coordinate
             for value in (lt, lg, altitude)
         ):
-            raise NativeRunegateRegistryReadError(
-                "runegate position is outside calibrated bounds"
-            )
+            raise NativeRunegateRegistryReadError("runegate position is outside calibrated bounds")
         return NativeRunegateObservation(
             object_type=object_type,
             object_uuid=object_uuid,
@@ -408,9 +393,7 @@ class NativeRunegateRegistryReader:
             descended: set[int] = set()
             while True:
                 if candidate in descended:
-                    raise NativeRunegateRegistryReadError(
-                        "runegate tree contains a child cycle"
-                    )
+                    raise NativeRunegateRegistryReadError("runegate tree contains a child cycle")
                 descended.add(candidate)
                 left = self._read_pointer(
                     candidate + profile.node_left_offset,
@@ -426,9 +409,7 @@ class NativeRunegateRegistryReader:
         candidate = node
         while parent != head:
             if parent == 0 or parent in climbed:
-                raise NativeRunegateRegistryReadError(
-                    "runegate tree contains a parent cycle"
-                )
+                raise NativeRunegateRegistryReadError("runegate tree contains a parent cycle")
             climbed.add(parent)
             self._require_node_pointer(parent, "runegate parent")
             parent_right = self._read_pointer(
@@ -453,23 +434,15 @@ class NativeRunegateRegistryReader:
         capacity = struct.unpack_from("<I", first_header, profile.string_capacity_offset)[0]
         if (begin, end, capacity) == (0, 0, 0):
             if self._read_exact(address, header_size, f"{label} header") != first_header:
-                raise NativeRunegateRegistryReadError(
-                    f"{label} header changed during the read"
-                )
+                raise NativeRunegateRegistryReadError(f"{label} header changed during the read")
             return ""
         if begin == 0 or end < begin or capacity < end + 2:
-            raise NativeRunegateRegistryReadError(
-                f"{label} Core::String pointers are invalid"
-            )
+            raise NativeRunegateRegistryReadError(f"{label} Core::String pointers are invalid")
         byte_length = end - begin
         if byte_length % 2 != 0:
-            raise NativeRunegateRegistryReadError(
-                f"{label} byte length is not UTF-16 aligned"
-            )
+            raise NativeRunegateRegistryReadError(f"{label} byte length is not UTF-16 aligned")
         if byte_length > profile.maximum_zone_name_chars * 2:
-            raise NativeRunegateRegistryReadError(
-                f"{label} exceeds the calibrated length bound"
-            )
+            raise NativeRunegateRegistryReadError(f"{label} exceeds the calibrated length bound")
         if (
             begin < profile.minimum_user_address
             or capacity > profile.maximum_user_address
@@ -480,23 +453,15 @@ class NativeRunegateRegistryReader:
             )
         raw = self._read_exact(begin, byte_length + 2, f"{label} buffer")
         if raw[-2:] != b"\x00\x00":
-            raise NativeRunegateRegistryReadError(
-                f"{label} buffer is not null terminated"
-            )
+            raise NativeRunegateRegistryReadError(f"{label} buffer is not null terminated")
         if self._read_exact(address, header_size, f"{label} header") != first_header:
-            raise NativeRunegateRegistryReadError(
-                f"{label} header changed during the read"
-            )
+            raise NativeRunegateRegistryReadError(f"{label} header changed during the read")
         try:
             value = raw[:-2].decode("utf-16-le")
         except UnicodeDecodeError as exc:
-            raise NativeRunegateRegistryReadError(
-                f"{label} is not valid UTF-16LE"
-            ) from exc
+            raise NativeRunegateRegistryReadError(f"{label} is not valid UTF-16LE") from exc
         if "\x00" in value or any(ord(character) < 0x20 for character in value):
-            raise NativeRunegateRegistryReadError(
-                f"{label} contains invalid control characters"
-            )
+            raise NativeRunegateRegistryReadError(f"{label} contains invalid control characters")
         return value
 
     def _read_pointer(self, address: int, label: str) -> int:
@@ -580,9 +545,7 @@ def open_windows_native_runegate_registry_reader(
 
 
 def load_bundled_native_runegate_registry_profile() -> NativeRunegateRegistryProfile:
-    resource = files("shadowbane_lab.client_observation").joinpath(
-        "data", _BUNDLED_PROFILE_NAME
-    )
+    resource = files("shadowbane_lab.client_observation").joinpath("data", _BUNDLED_PROFILE_NAME)
     return load_native_runegate_registry_profile_text(resource.read_text(encoding="utf-8"))
 
 
@@ -602,9 +565,7 @@ def load_native_runegate_registry_profile_text(
             "native runegate profile is not valid JSON"
         ) from exc
     if not isinstance(raw, Mapping):
-        raise NativeRunegateRegistryProfileLoadError(
-            "native runegate profile must be an object"
-        )
+        raise NativeRunegateRegistryProfileLoadError("native runegate profile must be an object")
     expected = set(NativeRunegateRegistryProfile.__dataclass_fields__)
     unknown = set(raw) - expected
     missing = expected - set(raw)

@@ -77,17 +77,13 @@ def load_shadowbane_vertical_slice(
     *, rank_overrides: Mapping[str, int] | None = None
 ) -> CompiledRuleset:
     resource = files("shadowbane_lab.rulesets").joinpath("data/shadowbane_vertical_slice_v1.json")
-    return load_ruleset_text(
-        resource.read_text(encoding="utf-8"), rank_overrides=rank_overrides
-    )
+    return load_ruleset_text(resource.read_text(encoding="utf-8"), rank_overrides=rank_overrides)
 
 
 def load_ruleset(
     path: str | Path, *, rank_overrides: Mapping[str, int] | None = None
 ) -> CompiledRuleset:
-    return load_ruleset_text(
-        Path(path).read_text(encoding="utf-8"), rank_overrides=rank_overrides
-    )
+    return load_ruleset_text(Path(path).read_text(encoding="utf-8"), rank_overrides=rank_overrides)
 
 
 def load_ruleset_text(
@@ -199,9 +195,7 @@ def _parse_progression(data: Mapping[str, Any]) -> PowerProgression | None:
     )
 
 
-def _parse_requirements(
-    data: Mapping[str, Any], key: str
-) -> tuple[TrainingRequirement, ...]:
+def _parse_requirements(data: Mapping[str, Any], key: str) -> tuple[TrainingRequirement, ...]:
     return tuple(
         TrainingRequirement(
             training_key=_string(item, "training_key"),
@@ -273,53 +267,33 @@ def _parse_weapon_attack(data: Mapping[str, Any], rank: int) -> WeaponAttackSpec
         defense_scalar=_string(attack, "defense_scalar"),
         minimum_damage_scalar=_nullable_string(attack, "minimum_damage_scalar"),
         maximum_damage_scalar=_nullable_string(attack, "maximum_damage_scalar"),
-        default_attack_rating=_resolved_number(
-            _required(attack, "default_attack_rating"), rank
-        ),
+        default_attack_rating=_resolved_number(_required(attack, "default_attack_rating"), rank),
         default_defense=_resolved_number(_required(attack, "default_defense"), rank),
-        minimum_hit_chance=_resolved_number(
-            _required(attack, "minimum_hit_chance"), rank
-        ),
-        maximum_hit_chance=_resolved_number(
-            _required(attack, "maximum_hit_chance"), rank
-        ),
+        minimum_hit_chance=_resolved_number(_required(attack, "minimum_hit_chance"), rank),
+        maximum_hit_chance=_resolved_number(_required(attack, "maximum_hit_chance"), rank),
         passive_defense_keys=tuple(_strings(attack, "passive_defense_keys")),
         phase_index=_resolved_integer(attack.get("phase_index", 0), rank),
     )
 
 
-def _parse_attack_modifier(
-    data: Mapping[str, Any], rank: int
-) -> AttackModifierSpec | None:
+def _parse_attack_modifier(data: Mapping[str, Any], rank: int) -> AttackModifierSpec | None:
     raw = data.get("attack_modifier")
     if raw is None:
         return None
     modifier = _mapping(raw, "attack_modifier")
     return AttackModifierSpec(
-        attack_rating_bonus=_resolved_number(
-            modifier.get("attack_rating_bonus", 0.0), rank
-        ),
-        damage_multiplier=_resolved_number(
-            modifier.get("damage_multiplier", 1.0), rank
-        ),
-        bonus_damage_minimum=_resolved_number(
-            modifier.get("bonus_damage_minimum", 0.0), rank
-        ),
-        bonus_damage_maximum=_resolved_number(
-            modifier.get("bonus_damage_maximum", 0.0), rank
-        ),
+        attack_rating_bonus=_resolved_number(modifier.get("attack_rating_bonus", 0.0), rank),
+        damage_multiplier=_resolved_number(modifier.get("damage_multiplier", 1.0), rank),
+        bonus_damage_minimum=_resolved_number(modifier.get("bonus_damage_minimum", 0.0), rank),
+        bonus_damage_maximum=_resolved_number(modifier.get("bonus_damage_maximum", 0.0), rank),
         bypass_defense=_boolean_default(modifier, "bypass_defense", False),
-        bypass_passive_defense=_boolean_default(
-            modifier, "bypass_passive_defense", False
-        ),
+        bypass_passive_defense=_boolean_default(modifier, "bypass_passive_defense", False),
         damage_type_override=_nullable_string(modifier, "damage_type_override"),
         tags=tuple(_strings(modifier, "tags")),
     )
 
 
-def _parse_action_trigger(
-    data: Mapping[str, Any], rank: int
-) -> ActionTriggerSpec | None:
+def _parse_action_trigger(data: Mapping[str, Any], rank: int) -> ActionTriggerSpec | None:
     raw = data.get("armed_trigger")
     if raw is None:
         return None
@@ -459,8 +433,7 @@ def _parse_effect(data: Mapping[str, Any], rank: int) -> EffectPrimitive:
             stacking_key=_nullable_string(data, "stacking_key"),
             tags=tuple(_strings(data, "tags")),
             modifiers=tuple(
-                _parse_effect_modifier(item, rank)
-                for item in _optional_objects(data, "modifiers")
+                _parse_effect_modifier(item, rank) for item in _optional_objects(data, "modifiers")
             ),
             stack_order=_resolved_integer(data.get("stack_order", 0), rank),
             trains=_resolved_integer(data.get("trains", 0), rank),
@@ -474,9 +447,7 @@ def _parse_effect(data: Mapping[str, Any], rank: int) -> EffectPrimitive:
             effect_key=_nullable_string(data, "effect_key"),
             matching_tag=_nullable_string(data, "matching_tag"),
             maximum_count=(
-                None
-                if "maximum_count" not in data
-                else _nullable_integer(data, "maximum_count")
+                None if "maximum_count" not in data else _nullable_integer(data, "maximum_count")
             ),
         )
     if operation == "move_entity":
@@ -507,13 +478,7 @@ def _parse_effect(data: Mapping[str, Any], rank: int) -> EffectPrimitive:
 
 def _parse_effect_modifier(
     data: Mapping[str, Any], rank: int
-) -> (
-    ResourceImmunity
-    | PeriodicPulse
-    | ResistanceAdjustment
-    | ScalarMultiplier
-    | DamageBreakpoint
-):
+) -> ResourceImmunity | PeriodicPulse | ResistanceAdjustment | ScalarMultiplier | DamageBreakpoint:
     operation = _string(data, "op")
     if operation == "resource_immunity":
         return ResourceImmunity(resource_key=_string(data, "resource_key"))
@@ -523,9 +488,7 @@ def _parse_effect_modifier(
                 periodic_key=_string(data, "periodic_key"),
                 interval_ms=_resolved_integer(_required(data, "interval_ms"), rank),
                 tick_count=_resolved_integer(_required(data, "tick_count"), rank),
-                effects=tuple(
-                    _parse_effect(item, rank) for item in _objects(data, "effects")
-                ),
+                effects=tuple(_parse_effect(item, rank) for item in _objects(data, "effects")),
             )
         except ValueError as exc:
             raise RulesetLoadError(str(exc)) from exc
@@ -543,9 +506,7 @@ def _parse_effect_modifier(
         return DamageBreakpoint(
             breakpoint_key=_string(data, "breakpoint_key"),
             threshold=_resolved_number(_required(data, "threshold"), rank),
-            damage_types=tuple(
-                DamageType(value) for value in _strings(data, "damage_types")
-            ),
+            damage_types=tuple(DamageType(value) for value in _strings(data, "damage_types")),
         )
     raise RulesetLoadError(f"unsupported effect modifier operation: {operation}")
 
@@ -636,9 +597,7 @@ def _objects(data: Mapping[str, Any], key: str) -> tuple[Mapping[str, Any], ...]
     return tuple(_mapping(item, f"{key} item") for item in _sequence(data, key))
 
 
-def _optional_objects(
-    data: Mapping[str, Any], key: str
-) -> tuple[Mapping[str, Any], ...]:
+def _optional_objects(data: Mapping[str, Any], key: str) -> tuple[Mapping[str, Any], ...]:
     if key not in data:
         return ()
     return _objects(data, key)

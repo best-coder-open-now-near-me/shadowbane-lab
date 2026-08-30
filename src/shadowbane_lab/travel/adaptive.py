@@ -159,10 +159,7 @@ class AStarTravelController:
         )
         return TravelController(
             TravelPlan(
-                plan_id=(
-                    f"{self._plan_id}:{reason}:{self._replan_count}:"
-                    f"{self._navigation.token}"
-                ),
+                plan_id=(f"{self._plan_id}:{reason}:{self._replan_count}:{self._navigation.token}"),
                 destinations=route.destinations,
             ),
             self._config,
@@ -178,9 +175,7 @@ class AStarTravelController:
             return self._translate(internal)
         now_ms = 0 if observation is None else observation.now_ms
         distance = (
-            0.0
-            if observation is None
-            else self._destination.distance_from(observation.position)
+            0.0 if observation is None else self._destination.distance_from(observation.position)
         )
         self._terminal = TravelDecision(
             decision_id=self._next_decision_id(),

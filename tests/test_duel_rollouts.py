@@ -92,9 +92,7 @@ class DuelRolloutTests(unittest.TestCase):
         self.assertGreater(warlock_18.get(PSYCHIC_SHIELD, 0), 0)
 
     def test_rank_brackets_change_compiled_power_usage_or_outcome(self) -> None:
-        results = matched_progression_duels(
-            levels=(26,), power_ranks=(0, 40), max_ticks=1_000
-        )
+        results = matched_progression_duels(levels=(26,), power_ranks=(0, 40), max_ticks=1_000)
 
         low = results[0][2]
         high = results[1][2]

@@ -70,9 +70,7 @@ class NativeTargetIdentityProfile:
             if not isinstance(value, str) or not value.strip():
                 raise ValueError(f"{field_name} must be a non-empty string")
         digest = self.executable_sha256.lower()
-        if len(digest) != 64 or any(
-            character not in "0123456789abcdef" for character in digest
-        ):
+        if len(digest) != 64 or any(character not in "0123456789abcdef" for character in digest):
             raise ValueError("executable_sha256 must be a 64-character hexadecimal digest")
         if self.pointer_size != 4:
             raise ValueError("only the verified 32-bit Shadowbane client is supported")
@@ -481,10 +479,7 @@ class NativeTargetIdentityReader:
 
     def _require_user_range(self, pointer: int, size: int, label: str) -> None:
         profile = self._profile
-        if (
-            pointer < profile.minimum_user_address
-            or pointer + size > profile.maximum_user_address
-        ):
+        if pointer < profile.minimum_user_address or pointer + size > profile.maximum_user_address:
             raise NativeTargetIdentityReadError(
                 f"{label} is outside the calibrated 32-bit user range"
             )
@@ -522,9 +517,7 @@ def open_windows_native_target_identity_reader(
 
 
 def load_bundled_native_target_identity_profile() -> NativeTargetIdentityProfile:
-    resource = files("shadowbane_lab.client_observation").joinpath(
-        "data", _BUNDLED_PROFILE_NAME
-    )
+    resource = files("shadowbane_lab.client_observation").joinpath("data", _BUNDLED_PROFILE_NAME)
     return load_native_target_identity_profile_text(resource.read_text(encoding="utf-8"))
 
 

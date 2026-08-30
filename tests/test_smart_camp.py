@@ -72,11 +72,14 @@ class SmartCampRolloutTests(unittest.TestCase):
         self.assertTrue(all(mob.attack_damage_minimum == 6 for mob in config.mobs))
         self.assertTrue(all(mob.attack_damage_maximum == 9 for mob in config.mobs))
         self.assertTrue(all(mob.attack_interval_ms == 1_800 for mob in config.mobs))
-        self.assertEqual((900.0, 180.0, 300.0), (
-            config.player_health,
-            config.player_mana,
-            config.player_stamina,
-        ))
+        self.assertEqual(
+            (900.0, 180.0, 300.0),
+            (
+                config.player_health,
+                config.player_mana,
+                config.player_stamina,
+            ),
+        )
         self.assertEqual(1_200, config.player_attack_interval_ms)
         self.assertIsNotNone(config.observed_unattributed_damage)
         assert config.observed_unattributed_damage is not None
@@ -141,9 +144,7 @@ class SmartCampRolloutTests(unittest.TestCase):
         self.assertEqual(0, result.rejected_actions)
         self.assertEqual((), result.episode_results)
         self.assertGreater(result.physical_damage, 0.0)
-        fist_attacks = dict(result.action_counts)[
-            "shadowbane.assassin.dual_fist_successful_hit"
-        ]
+        fist_attacks = dict(result.action_counts)["shadowbane.assassin.dual_fist_successful_hit"]
         self.assertEqual(
             [fist_attacks, fist_attacks],
             [item.checks for item in result.proc_outcomes],

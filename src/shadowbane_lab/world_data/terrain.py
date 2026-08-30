@@ -138,10 +138,7 @@ def read_terrain_alpha_map(
     ]
     tile_width = parsed[0][1].width
     tile_height = parsed[0][1].height
-    if any(
-        tile.width != tile_width or tile.height != tile_height
-        for _, tile in parsed
-    ):
+    if any(tile.width != tile_width or tile.height != tile_height for _, tile in parsed):
         raise TerrainAlphaFormatError(
             f"terrain map {terrain_map.group_id}:{terrain_map.map_id} has mixed tile sizes"
         )

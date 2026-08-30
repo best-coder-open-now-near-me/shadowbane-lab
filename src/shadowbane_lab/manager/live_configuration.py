@@ -71,11 +71,7 @@ def replace_manager_manifest(
     if not isinstance(replacement, ManagerManifest):
         raise ValueError("replacement must be ManagerManifest")
     manifest_path = Path(path).resolve(strict=False)
-    if (
-        not manifest_path.exists()
-        or manifest_path.is_symlink()
-        or not manifest_path.is_file()
-    ):
+    if not manifest_path.exists() or manifest_path.is_symlink() or not manifest_path.is_file():
         raise ManagerManifestError(
             f"manager manifest must be an existing regular file: {manifest_path}"
         )
@@ -92,8 +88,7 @@ def replace_manager_manifest(
         f"{manifest_path.stem}.before-slots-{time.time_ns()}{manifest_path.suffix}"
     )
     payload = (
-        json.dumps(replacement.to_dict(), indent=2, ensure_ascii=True, allow_nan=False)
-        + "\n"
+        json.dumps(replacement.to_dict(), indent=2, ensure_ascii=True, allow_nan=False) + "\n"
     ).encode("utf-8")
     try:
         with temporary_path.open("xb") as destination:
@@ -322,6 +317,7 @@ class LiveConfiguredManagerApplication:
     def revoke_all_workers(self, *, reason: str) -> None:
         with self._lock:
             self._application.revoke_all_workers(reason=reason)
+
 
 __all__ = [
     "LiveConfiguredManagerApplication",

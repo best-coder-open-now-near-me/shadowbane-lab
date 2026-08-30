@@ -38,9 +38,7 @@ class NativeCombatEventParserTests(unittest.TestCase):
         self.assertEqual("the Frost Walker", event.target_name)
 
     def test_parses_observed_experience_record(self) -> None:
-        event = self.parser.parse(
-            _entry("[Combat] Info: You have received 744 Experience Points!")
-        )
+        event = self.parser.parse(_entry("[Combat] Info: You have received 744 Experience Points!"))
 
         self.assertEqual(NativeCombatEventKind.EXPERIENCE_GAINED, event.kind)
         self.assertEqual(744.0, event.amount)

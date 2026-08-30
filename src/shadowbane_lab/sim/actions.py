@@ -188,10 +188,7 @@ class WeightedAmount:
 
     @property
     def expected(self) -> float:
-        return (
-            sum(value * weight for value, weight in self.outcomes)
-            / self.total_weight
-        )
+        return sum(value * weight for value, weight in self.outcomes) / self.total_weight
 
 
 AmountSpec = float | UniformAmount | TriangularAmount | UniformIntegerAmount | WeightedAmount
@@ -336,9 +333,7 @@ class RestoreResource:
                         ResistanceType(self.resistance_type),
                     )
                 except (TypeError, ValueError) as exc:
-                    raise ValueError(
-                        "resistance_type must be a ResistanceType"
-                    ) from exc
+                    raise ValueError("resistance_type must be a ResistanceType") from exc
         elif self.resistance_type is not None:
             raise ValueError("resistance_type requires uses_resistance")
 
@@ -414,10 +409,7 @@ class PeriodicPulse:
             raise ValueError("periodic tick count must be positive")
         if not self.effects:
             raise ValueError("periodic pulse requires at least one direct effect")
-        if any(
-            not isinstance(effect, _PERIODIC_DIRECT_EFFECT_TYPES)
-            for effect in self.effects
-        ):
+        if any(not isinstance(effect, _PERIODIC_DIRECT_EFFECT_TYPES) for effect in self.effects):
             raise ValueError("periodic pulse effects must be nonrecursive direct effects")
 
     @property
@@ -523,11 +515,7 @@ class DamageBreakpoint:
 
 
 EffectModifier = (
-    ResourceImmunity
-    | PeriodicPulse
-    | ResistanceAdjustment
-    | ScalarMultiplier
-    | DamageBreakpoint
+    ResourceImmunity | PeriodicPulse | ResistanceAdjustment | ScalarMultiplier | DamageBreakpoint
 )
 _EFFECT_MODIFIER_TYPES = (
     ResourceImmunity,
@@ -562,18 +550,12 @@ class ApplyEffect:
         if self.stacking_key is not None:
             _identifier(self.stacking_key, "stacking_key")
         _unique_strings(self.tags, "tags")
-        if any(
-            not isinstance(modifier, _EFFECT_MODIFIER_TYPES)
-            for modifier in self.modifiers
-        ):
+        if any(not isinstance(modifier, _EFFECT_MODIFIER_TYPES) for modifier in self.modifiers):
             raise ValueError("modifiers must contain typed effect modifiers")
-        modifier_keys = tuple(
-            tag for modifier in self.modifiers for tag in modifier.semantic_tags
-        )
+        modifier_keys = tuple(tag for modifier in self.modifiers for tag in modifier.semantic_tags)
         _unique_strings(modifier_keys, "effect modifier keys")
         if any(
-            isinstance(modifier, PeriodicPulse)
-            and modifier.duration_ms > self.duration_ms
+            isinstance(modifier, PeriodicPulse) and modifier.duration_ms > self.duration_ms
             for modifier in self.modifiers
         ):
             raise ValueError("periodic pulses must complete within the effect duration")
@@ -739,8 +721,7 @@ class AttackGate:
         if not self.effects:
             raise ValueError("attack gate requires at least one direct effect")
         if any(
-            not isinstance(effect, (*_DIRECT_EFFECT_TYPES, ChanceGate))
-            for effect in self.effects
+            not isinstance(effect, (*_DIRECT_EFFECT_TYPES, ChanceGate)) for effect in self.effects
         ):
             raise ValueError("attack gate effects must contain direct effects or chance gates")
         _unique_strings(self.passive_defense_keys, "passive_defense_keys")

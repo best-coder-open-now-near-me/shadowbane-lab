@@ -67,9 +67,7 @@ class NativePlayerVitalsProfile:
             if not isinstance(value, str) or not value.strip():
                 raise ValueError(f"{field_name} must be a non-empty string")
         digest = self.executable_sha256.lower()
-        if len(digest) != 64 or any(
-            character not in "0123456789abcdef" for character in digest
-        ):
+        if len(digest) != 64 or any(character not in "0123456789abcdef" for character in digest):
             raise ValueError("executable_sha256 must be a 64-character hexadecimal digest")
         if self.pointer_size != 4:
             raise ValueError("only the verified 32-bit Shadowbane client is supported")
@@ -283,9 +281,7 @@ class NativePlayerVitalsReader:
                 "player vitals remained invalid during every stable-read attempt: "
                 f"{last_validation_error}"
             ) from last_validation_error
-        raise NativePlayerVitalsReadError(
-            "player pointer changed during every stable-read attempt"
-        )
+        raise NativePlayerVitalsReadError("player pointer changed during every stable-read attempt")
 
     def close(self) -> None:
         if not self._closed:
@@ -363,9 +359,7 @@ class NativePlayerVitalsReader:
                 )
             tolerance = max(0.001, maximum * 0.00001)
             if current > maximum + tolerance:
-                raise NativePlayerVitalsReadError(
-                    f"player current {name} exceeds maximum"
-                )
+                raise NativePlayerVitalsReadError(f"player current {name} exceeds maximum")
             validated.extend((min(current, maximum), maximum))
         return NativePlayerVitalsObservation(*validated)
 
@@ -391,9 +385,7 @@ def open_windows_native_player_vitals_reader(
 
 
 def load_bundled_native_vitals_profile() -> NativePlayerVitalsProfile:
-    resource = files("shadowbane_lab.client_observation").joinpath(
-        "data", _BUNDLED_PROFILE_NAME
-    )
+    resource = files("shadowbane_lab.client_observation").joinpath("data", _BUNDLED_PROFILE_NAME)
     return load_native_vitals_profile_text(resource.read_text(encoding="utf-8"))
 
 
@@ -432,9 +424,7 @@ def load_native_vitals_profile_text(text: str) -> NativePlayerVitalsProfile:
                 f"missing required fields: {', '.join(sorted(missing))}"
             )
         if unknown:
-            raise NativeVitalsProfileLoadError(
-                f"unknown fields: {', '.join(sorted(unknown))}"
-            )
+            raise NativeVitalsProfileLoadError(f"unknown fields: {', '.join(sorted(unknown))}")
         return NativePlayerVitalsProfile(
             profile_id=_string(data, "profile_id"),
             executable_name=_string(data, "executable_name"),

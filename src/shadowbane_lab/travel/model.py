@@ -247,9 +247,7 @@ class TravelDecision:
             raise ValueError("distance_remaining must not be negative")
         if not isinstance(self.phase, TravelPhase):
             raise ValueError("phase must be TravelPhase")
-        if self.minimap_direction is not None and not isinstance(
-            self.minimap_direction, Vector2
-        ):
+        if self.minimap_direction is not None and not isinstance(self.minimap_direction, Vector2):
             raise ValueError("minimap_direction must be Vector2 when present")
         if self.maneuver is not None and not isinstance(self.maneuver, TravelManeuver):
             raise ValueError("maneuver must be TravelManeuver when present")
@@ -311,9 +309,7 @@ class TravelRunResult:
         _non_negative_integer(self.clicks, "clicks")
         if any(not isinstance(step, TravelRunTraceStep) for step in self.trace):
             raise ValueError("trace must contain TravelRunTraceStep values")
-        if self.stop_input_accepted is not None and not isinstance(
-            self.stop_input_accepted, bool
-        ):
+        if self.stop_input_accepted is not None and not isinstance(self.stop_input_accepted, bool):
             raise ValueError("stop_input_accepted must be boolean when present")
         if self.stop_input_reason is not None and self.stop_input_accepted is not False:
             raise ValueError("stop_input_reason is valid only for rejected stop input")

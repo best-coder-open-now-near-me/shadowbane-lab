@@ -44,9 +44,7 @@ class RolloutGuardTests(unittest.TestCase):
                         ActionPhase(
                             PhaseKind.ACTIVE,
                             400,
-                            effects=(
-                                DealDamage(SubjectRef.TARGET, 50.0, DamageType.CRUSH),
-                            ),
+                            effects=(DealDamage(SubjectRef.TARGET, 50.0, DamageType.CRUSH),),
                         ),
                     ),
                     cooldown_ms=400,
@@ -62,9 +60,7 @@ class RolloutGuardTests(unittest.TestCase):
                         ActionPhase(
                             PhaseKind.ACTIVE,
                             0,
-                            effects=(
-                                DealDamage(SubjectRef.TARGET, 10.0, DamageType.CRUSH),
-                            ),
+                            effects=(DealDamage(SubjectRef.TARGET, 10.0, DamageType.CRUSH),),
                         ),
                     ),
                 ),

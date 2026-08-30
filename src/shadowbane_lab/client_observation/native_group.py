@@ -87,9 +87,7 @@ class NativeGroupProfile:
             if not isinstance(value, str) or not value.strip():
                 raise ValueError(f"{field_name} must be a non-empty string")
         digest = self.executable_sha256.lower()
-        if len(digest) != 64 or any(
-            character not in "0123456789abcdef" for character in digest
-        ):
+        if len(digest) != 64 or any(character not in "0123456789abcdef" for character in digest):
             raise ValueError("executable_sha256 must be a 64-character hexadecimal digest")
         if self.pointer_size != 4:
             raise ValueError("only the verified 32-bit Shadowbane client is supported")
@@ -168,10 +166,7 @@ class NativeGroupProfile:
             raise ValueError("maximum_member_name_chars must remain bounded")
         if self.maximum_members > 10:
             raise ValueError("maximum_members cannot exceed Shadowbane's group size")
-        if (
-            not isfinite(self.maximum_absolute_coordinate)
-            or self.maximum_absolute_coordinate <= 0
-        ):
+        if not isfinite(self.maximum_absolute_coordinate) or self.maximum_absolute_coordinate <= 0:
             raise ValueError("maximum_absolute_coordinate must be finite and positive")
         if self.schema_version != NATIVE_GROUP_PROFILE_SCHEMA_VERSION:
             raise ValueError("unsupported native group profile version")
@@ -327,8 +322,7 @@ class NativeGroupReader:
                 last_error = exc
         if last_error is not None:
             raise NativeGroupReadError(
-                "group roster remained unreadable during every stable-read attempt: "
-                f"{last_error}"
+                f"group roster remained unreadable during every stable-read attempt: {last_error}"
             ) from last_error
         raise NativeGroupReadError("group roster changed during every stable-read attempt")
 
@@ -437,10 +431,7 @@ class NativeGroupReader:
         profile = self._profile
         if self._read_pointer(self._pointer_slot, "ArcWindowGame") != window:
             return False
-        if (
-            self._read_pointer(window + profile.group_manager_offset, "ArcGroupManager")
-            != manager
-        ):
+        if self._read_pointer(window + profile.group_manager_offset, "ArcGroupManager") != manager:
             return False
         if (
             self._read_pointer(manager + profile.member_list_offset, "group-list sentinel")
@@ -600,13 +591,9 @@ class NativeGroupReader:
             try:
                 chunk = self._process.read(address + offset, chunk_size)
             except Exception as exc:
-                raise NativeGroupReadError(
-                    f"could not read {label}: {type(exc).__name__}"
-                ) from exc
+                raise NativeGroupReadError(f"could not read {label}: {type(exc).__name__}") from exc
             if len(chunk) != chunk_size:
-                raise NativeGroupReadError(
-                    f"native process backend returned a partial {label}"
-                )
+                raise NativeGroupReadError(f"native process backend returned a partial {label}")
             chunks.append(chunk)
             offset += chunk_size
         return b"".join(chunks)
@@ -633,9 +620,7 @@ def open_windows_native_group_reader(profile: NativeGroupProfile) -> NativeGroup
 
 
 def load_bundled_native_group_profile() -> NativeGroupProfile:
-    resource = files("shadowbane_lab.client_observation").joinpath(
-        "data", _BUNDLED_PROFILE_NAME
-    )
+    resource = files("shadowbane_lab.client_observation").joinpath("data", _BUNDLED_PROFILE_NAME)
     return load_native_group_profile_text(resource.read_text(encoding="utf-8"))
 
 
@@ -658,9 +643,7 @@ def load_native_group_profile_text(text: str) -> NativeGroupProfile:
                 f"missing required fields: {', '.join(sorted(missing))}"
             )
         if unknown:
-            raise NativeGroupProfileLoadError(
-                f"unknown fields: {', '.join(sorted(unknown))}"
-            )
+            raise NativeGroupProfileLoadError(f"unknown fields: {', '.join(sorted(unknown))}")
         values = {
             key: (
                 _string(data, key)

@@ -162,9 +162,7 @@ class StanceRuntimeTests(unittest.TestCase):
                 ),
             ),
             forbidden_actor_tags=("stance.normal",),
-            features=tuple(
-                NamedScalar(feature.name, 1.0) for feature in precise.features
-            ),
+            features=tuple(NamedScalar(feature.name, 1.0) for feature in precise.features),
             tags=("combat", "stance", "stance.change.normal"),
         )
         offensive = replace(
@@ -298,8 +296,7 @@ class StanceRuntimeTests(unittest.TestCase):
         hurt_actor.scalars = dict(actor.scalars)
         hurt_actor.scalars["health"] = 50.0
         hurt_actor.stance_multipliers = {
-            stance: dict(multipliers)
-            for stance, multipliers in actor.stance_multipliers.items()
+            stance: dict(multipliers) for stance, multipliers in actor.stance_multipliers.items()
         }
         hurt_actor.stance = CombatStance.PRECISE
         hurt_target = _actor("hurt-target", "blue", Vector2(1.0, 0.0))
@@ -373,9 +370,7 @@ class StanceRuntimeTests(unittest.TestCase):
         self.assertIs(CombatStance.TRAVEL, environment.entity("traveler").stance)
         self.assertIn("stance.travel", environment.entity("traveler").effective_tags)
         self.assertNotIn("stance.normal", environment.entity("traveler").effective_tags)
-        self.assertTrue(
-            any(event.kind == EventKind.STANCE_CHANGED for event in entered.events)
-        )
+        self.assertTrue(any(event.kind == EventKind.STANCE_CHANGED for event in entered.events))
 
         damaged = environment.step(
             (_decision(environment, "attacker", "strike", correlation_id="damage"),)
@@ -385,9 +380,7 @@ class StanceRuntimeTests(unittest.TestCase):
         self.assertIs(CombatStance.NORMAL, traveler.stance)
         self.assertIn("stance.normal", traveler.effective_tags)
         self.assertNotIn("stance.travel", traveler.effective_tags)
-        dropped = next(
-            event for event in damaged.events if event.kind == EventKind.STANCE_CHANGED
-        )
+        dropped = next(event for event in damaged.events if event.kind == EventKind.STANCE_CHANGED)
         self.assertIn("reason.damage", dropped.tags)
 
         environment.restore(snapshot)
@@ -444,9 +437,7 @@ class StanceRuntimeTests(unittest.TestCase):
 
         self.assertIs(CombatStance.NORMAL, environment.entity("traveler").stance)
         self.assertIn("marked", environment.entity("traveler").effective_tags)
-        dropped = next(
-            event for event in result.events if event.kind == EventKind.STANCE_CHANGED
-        )
+        dropped = next(event for event in result.events if event.kind == EventKind.STANCE_CHANGED)
         self.assertIn("reason.hit", dropped.tags)
 
 
@@ -464,9 +455,7 @@ class AreaRuntimeTests(unittest.TestCase):
                             origin=AreaOrigin.ACTOR,
                             radius=3.0,
                             allowed_relations=(Relation.ENEMY,),
-                            effects=(
-                                DealDamage(SubjectRef.TARGET, 10.0, "mental"),
-                            ),
+                            effects=(DealDamage(SubjectRef.TARGET, 10.0, "mental"),),
                         ),
                     ),
                 ),

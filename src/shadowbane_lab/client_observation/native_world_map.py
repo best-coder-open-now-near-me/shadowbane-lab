@@ -87,9 +87,7 @@ class NativeWorldMapProfile:
             if not isinstance(value, str) or not value.strip():
                 raise ValueError(f"{field_name} must be a non-empty string")
         digest = self.executable_sha256.casefold()
-        if len(digest) != 64 or any(
-            character not in "0123456789abcdef" for character in digest
-        ):
+        if len(digest) != 64 or any(character not in "0123456789abcdef" for character in digest):
             raise ValueError("executable_sha256 must be a 64-character hexadecimal digest")
         if self.pointer_size != 4:
             raise ValueError("only the verified 32-bit Shadowbane client is supported")
@@ -211,8 +209,7 @@ class NativeWorldMapObservation:
         if not isfinite(self.zoom) or self.zoom <= 0:
             raise ValueError("world-map zoom must be finite and positive")
         if any(
-            not isfinite(value) or value <= 0
-            for value in (self.world_length, self.world_width)
+            not isfinite(value) or value <= 0 for value in (self.world_length, self.world_width)
         ):
             raise ValueError("world-map dimensions must be finite and positive")
         if not isinstance(self.snapshot_token, str) or not self.snapshot_token:
@@ -399,10 +396,7 @@ class NativeWorldMapReader:
     def _read_snapshot(self, address: int) -> bytes:
         profile = self._profile
         size = profile.vertical_pan_offset + 4
-        if (
-            address < profile.minimum_user_address
-            or address + size > profile.maximum_user_address
-        ):
+        if address < profile.minimum_user_address or address + size > profile.maximum_user_address:
             raise NativeWorldMapReadError(
                 "world-map object lies outside the calibrated 32-bit user range"
             )
@@ -425,9 +419,7 @@ class NativeWorldMapReader:
             raise NativeWorldMapReadError("world-map object vtable changed")
         if control_vtable != self._process.base_address + profile.control_vtable_rva:
             raise NativeWorldMapReadError("world-map control vtable is unsupported")
-        left, top, right, bottom = struct.unpack_from(
-            "<iiii", payload, profile.rectangle_offset
-        )
+        left, top, right, bottom = struct.unpack_from("<iiii", payload, profile.rectangle_offset)
         width = right - left
         height = bottom - top
         if not (
@@ -454,18 +446,14 @@ class NativeWorldMapReader:
         zoom = struct.unpack_from("<f", payload, profile.zoom_offset)[0]
         if not isfinite(zoom) or not profile.minimum_zoom <= zoom <= profile.maximum_zoom:
             raise NativeWorldMapReadError("world-map zoom is outside calibrated bounds")
-        texture_pointer = struct.unpack_from(
-            "<I", payload, profile.map_texture_pointer_offset
-        )[0]
+        texture_pointer = struct.unpack_from("<I", payload, profile.map_texture_pointer_offset)[0]
         if texture_pointer and (
             texture_pointer < profile.minimum_user_address
             or texture_pointer > profile.maximum_user_address
             or texture_pointer % profile.pointer_size
         ):
             raise NativeWorldMapReadError("world-map texture pointer is invalid")
-        horizontal_pan = struct.unpack_from(
-            "<i", payload, profile.horizontal_pan_offset
-        )[0]
+        horizontal_pan = struct.unpack_from("<i", payload, profile.horizontal_pan_offset)[0]
         vertical_pan = struct.unpack_from("<i", payload, profile.vertical_pan_offset)[0]
         maximum_pan = profile.maximum_map_pixels * int(profile.maximum_zoom) * 4
         if abs(horizontal_pan) > maximum_pan or abs(vertical_pan) > maximum_pan:
@@ -523,9 +511,7 @@ class NativeWorldMapReader:
             ) from exc
         if first != second:
             raise NativeWorldMapReadError("world dimensions changed during the read")
-        length_tiles = struct.unpack_from(
-            "<i", first, profile.world_length_tiles_offset
-        )[0]
+        length_tiles = struct.unpack_from("<i", first, profile.world_length_tiles_offset)[0]
         width_tiles = struct.unpack_from("<i", first, profile.world_width_tiles_offset)[0]
         if not (
             0 < length_tiles <= profile.maximum_world_tiles
@@ -560,9 +546,7 @@ def open_windows_native_world_map_reader(
 
 
 def load_bundled_native_world_map_profile() -> NativeWorldMapProfile:
-    resource = files("shadowbane_lab.client_observation").joinpath(
-        "data", _BUNDLED_PROFILE_NAME
-    )
+    resource = files("shadowbane_lab.client_observation").joinpath("data", _BUNDLED_PROFILE_NAME)
     return load_native_world_map_profile_text(resource.read_text(encoding="utf-8"))
 
 
@@ -574,9 +558,7 @@ def load_native_world_map_profile_text(text: str) -> NativeWorldMapProfile:
     try:
         raw = json.loads(text)
     except json.JSONDecodeError as exc:
-        raise NativeWorldMapProfileLoadError(
-            "native world-map profile is not valid JSON"
-        ) from exc
+        raise NativeWorldMapProfileLoadError("native world-map profile is not valid JSON") from exc
     if not isinstance(raw, Mapping):
         raise NativeWorldMapProfileLoadError("native world-map profile must be an object")
     expected = set(NativeWorldMapProfile.__dataclass_fields__)

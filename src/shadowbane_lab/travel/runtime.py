@@ -134,9 +134,7 @@ class TravelRunner:
             or not isinstance(maximum_consecutive_observation_failures, int)
             or maximum_consecutive_observation_failures <= 0
         ):
-            raise ValueError(
-                "maximum_consecutive_observation_failures must be a positive integer"
-            )
+            raise ValueError("maximum_consecutive_observation_failures must be a positive integer")
         self._controller = controller
         self._position_reader = position_reader
         self._player_vitals_reader = player_vitals_reader

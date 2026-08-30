@@ -210,9 +210,7 @@ class NativeMessageHudReaderTests(unittest.TestCase):
         process = FakeScanningProcess(_initial_text())
         reader = NativeMessageHudReader(_profile(), process, start_at_end=True)
         reader.read_new_entries()
-        process.text = "".join(
-            _record(_COMBAT, f"replacement {index}") for index in range(3)
-        )
+        process.text = "".join(_record(_COMBAT, f"replacement {index}") for index in range(3))
 
         with self.assertRaisesRegex(NativeMessageHudReadError, "overlap"):
             reader.read_new_entries()

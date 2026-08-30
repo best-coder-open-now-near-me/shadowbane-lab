@@ -34,9 +34,7 @@ def load_observation_calibration_text(text: str) -> ClientObservationProfile:
     try:
         data = _mapping(raw, "observation calibration profile")
         if _integer(data, "schema_version") != CLIENT_OBSERVATION_PROFILE_SCHEMA_VERSION:
-            raise ObservationCalibrationLoadError(
-                "unsupported client observation profile version"
-            )
+            raise ObservationCalibrationLoadError("unsupported client observation profile version")
         health = _object(data, "target_health_bar")
         region = _object(health, "region")
         threshold = _object(health, "red_threshold")
@@ -55,9 +53,7 @@ def load_observation_calibration_text(text: str) -> ClientObservationProfile:
                     red_to_green_ratio=_number(threshold, "red_to_green_ratio"),
                     red_to_blue_ratio=_number(threshold, "red_to_blue_ratio"),
                 ),
-                minimum_red_pixels_per_column=_integer(
-                    health, "minimum_red_pixels_per_column"
-                ),
+                minimum_red_pixels_per_column=_integer(health, "minimum_red_pixels_per_column"),
                 minimum_present_columns=_integer(health, "minimum_present_columns"),
                 maximum_stray_columns=_integer(health, "maximum_stray_columns"),
             ),
@@ -66,9 +62,7 @@ def load_observation_calibration_text(text: str) -> ClientObservationProfile:
         raise
     except (KeyError, TypeError, ValueError) as exc:
         if isinstance(exc, KeyError):
-            raise ObservationCalibrationLoadError(
-                f"missing required field: {exc.args[0]}"
-            ) from exc
+            raise ObservationCalibrationLoadError(f"missing required field: {exc.args[0]}") from exc
         raise ObservationCalibrationLoadError(str(exc)) from exc
 
 

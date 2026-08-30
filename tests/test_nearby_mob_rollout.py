@@ -28,9 +28,7 @@ class NearbyMobRolloutTests(unittest.TestCase):
         self.assertEqual(0, result.rejected_actions)
         self.assertEqual(10.0, sum(result.effective_damage))
         self.assertTrue(all(item in (4.0, 5.0) for item in result.attack_rolls))
-        intents = tuple(
-            item.intent for item in result.controller_trace if item.intent is not None
-        )
+        intents = tuple(item.intent for item in result.controller_trace if item.intent is not None)
         self.assertEqual(
             (PvEIntent.ACQUIRE_NEXT_MOB, PvEIntent.ATTACK_SELECTED_TARGET),
             intents,

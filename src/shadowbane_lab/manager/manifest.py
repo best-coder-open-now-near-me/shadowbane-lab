@@ -331,9 +331,7 @@ class ClientLaunchConfig:
         if not isinstance(self.environment, tuple):
             raise ManagerManifestError("launch.environment must be an immutable tuple")
         if any(not isinstance(item, tuple) or len(item) != 2 for item in self.environment):
-            raise ManagerManifestError(
-                "launch.environment must contain immutable name/value pairs"
-            )
+            raise ManagerManifestError("launch.environment must contain immutable name/value pairs")
         if any(not isinstance(item[0], str) for item in self.environment):
             raise ManagerManifestError("launch.environment variable names must be strings")
         environment_names = [item[0] for item in self.environment]
@@ -558,9 +556,7 @@ def expand_manager_slots(
             "slot configuration cannot shrink a manifest; remove slots only through reviewed JSON"
         )
     if display_width > _MAX_DISPLAY_DIMENSION or display_height > _MAX_DISPLAY_DIMENSION:
-        raise ManagerManifestError(
-            f"display dimensions must not exceed {_MAX_DISPLAY_DIMENSION}"
-        )
+        raise ManagerManifestError(f"display dimensions must not exceed {_MAX_DISPLAY_DIMENSION}")
 
     columns = ceil(sqrt(total_count))
     rows = ceil(total_count / columns)

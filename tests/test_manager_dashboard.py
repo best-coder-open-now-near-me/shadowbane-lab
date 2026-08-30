@@ -52,6 +52,7 @@ class _RecordingService:
             raise self.execute_error
         return {"ok": True, "action": action}
 
+
 class DashboardServerTests(unittest.TestCase):
     def setUp(self) -> None:
         self.service = _RecordingService()

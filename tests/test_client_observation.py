@@ -108,9 +108,7 @@ class TargetHealthBarDetectorTests(unittest.TestCase):
         self.assertEqual(0, observation.stray_filled_columns)
 
     def test_sparse_red_noise_does_not_form_filled_columns(self) -> None:
-        observation = self.detector.observe(
-            _frame(red_columns=(0, 1, 2, 3), red_rows=1)
-        )
+        observation = self.detector.observe(_frame(red_columns=(0, 1, 2, 3), red_rows=1))
 
         self.assertFalse(observation.target_present)
         self.assertEqual(0, observation.total_filled_columns)
@@ -168,9 +166,7 @@ class ClientTargetObserverTests(unittest.TestCase):
 class ObservationCalibrationTests(unittest.TestCase):
     def test_bundled_wonderbane_profile_contains_measured_strip(self) -> None:
         profile = load_observation_calibration(
-            Path(__file__).parents[1]
-            / "configs"
-            / "wonderbane-1920x955.observation.json"
+            Path(__file__).parents[1] / "configs" / "wonderbane-1920x955.observation.json"
         )
 
         self.assertEqual("wonderbane-vm-1920x955", profile.client_profile_id)

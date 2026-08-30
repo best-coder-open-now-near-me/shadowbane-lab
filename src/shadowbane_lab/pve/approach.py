@@ -66,9 +66,7 @@ class PvEApproachConfig:
             or self.reposition_arrival_radius <= 0
             or self.reposition_arrival_radius >= self.arrival_radius
         ):
-            raise ValueError(
-                "reposition_arrival_radius must be positive and below arrival_radius"
-            )
+            raise ValueError("reposition_arrival_radius must be positive and below arrival_radius")
         if (
             isinstance(self.native_progress_grace_ms, bool)
             or not isinstance(self.native_progress_grace_ms, int)
@@ -123,9 +121,7 @@ class PvEApproachController:
         if config is not None and not isinstance(config, PvEApproachConfig):
             raise ValueError("config must be PvEApproachConfig")
         self._config = config or PvEApproachConfig()
-        if navigation_map is not None and not isinstance(
-            navigation_map, SparseNavigationMap
-        ):
+        if navigation_map is not None and not isinstance(navigation_map, SparseNavigationMap):
             raise ValueError("navigation_map must be SparseNavigationMap")
         if planner is not None and not isinstance(planner, WeightedAStarPlanner):
             raise ValueError("planner must be WeightedAStarPlanner")
@@ -187,10 +183,7 @@ class PvEApproachController:
                 return self.cancel("selected_target_changed")
             self._begin_target(target_token, distance, observation.now_ms)
 
-        if (
-            reposition_requested
-            and distance > self._config.reposition_arrival_radius
-        ):
+        if reposition_requested and distance > self._config.reposition_arrival_radius:
             self._begin_target(
                 target_token,
                 distance,
@@ -227,9 +220,13 @@ class PvEApproachController:
         if distance <= self._best_distance - self._config.native_minimum_progress:
             self._best_distance = distance
             self._last_native_progress_at = observation.now_ms
-        if self._travel is None and not self._forced_reposition and (
-            observation.now_ms - self._last_native_progress_at
-            < self._config.native_progress_grace_ms
+        if (
+            self._travel is None
+            and not self._forced_reposition
+            and (
+                observation.now_ms - self._last_native_progress_at
+                < self._config.native_progress_grace_ms
+            )
         ):
             return PvEApproachUpdate(PvEApproachStatus.IDLE)
         return self._advance_travel(observation, destination)
@@ -295,9 +292,7 @@ class PvEApproachController:
                         now_ms=observation.now_ms,
                         phase=TravelPhase.STOPPED,
                         waypoint_index=0,
-                        distance_remaining=destination.distance_from(
-                            observation.player_position
-                        ),
+                        distance_remaining=destination.distance_from(observation.player_position),
                         click_count=0,
                         terminal_reason=f"astar_route_not_found{detail}",
                     ),

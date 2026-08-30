@@ -52,9 +52,7 @@ class TerrainNavigationTests(unittest.TestCase):
         self.assertEqual(16, seed.sampled_cells)
         self.assertTrue(seed.blocked_cells)
         self.assertEqual(seed.blocked_cells, navigation.blocked)
-        self.assertTrue(
-            any(cell.x in (-1, 0) for cell in seed.blocked_cells)
-        )
+        self.assertTrue(any(cell.x in (-1, 0) for cell in seed.blocked_cells))
 
     def test_gentle_height_changes_become_costs_without_blocking(self) -> None:
         rows = [bytes((0, 10, 20, 30, 40)) for _ in range(5)]
@@ -167,9 +165,7 @@ class TerrainNavigationTests(unittest.TestCase):
         self.assertEqual(1, len(seed.object_density_layers))
         self.assertEqual(20, seed.object_density_layers[0].population_capacity)
         density_costs = dict(seed.costs)
-        self.assertTrue(
-            all(density_costs[cell] == 8.0 for cell in seed.object_density_cells)
-        )
+        self.assertTrue(all(density_costs[cell] == 8.0 for cell in seed.object_density_cells))
 
     def test_nonzero_local_center_projects_around_absolute_world_center(self) -> None:
         geometry = NativeZoneGeometry(

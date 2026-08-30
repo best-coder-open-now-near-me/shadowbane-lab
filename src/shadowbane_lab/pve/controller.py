@@ -121,10 +121,7 @@ class PvEController:
             PvEIntent.ACQUIRE_NEXT_MOB,
             PvEIntent.ATTACK_SELECTED_TARGET,
         }
-        if (
-            self._config.nearest_target_sample_count > 1
-            and not self._config.use_native_population
-        ):
+        if self._config.nearest_target_sample_count > 1 and not self._config.use_native_population:
             intents.add(PvEIntent.ACQUIRE_PREVIOUS_MOB)
         if self._config.opening_intent is not None:
             intents.add(self._config.opening_intent)
@@ -178,10 +175,7 @@ class PvEController:
                     observation,
                     PvEKillConfirmation.NATIVE_COMBAT_EVENT,
                 )
-            if (
-                observation.target.target_present
-                and observation.target.current_health == 0.0
-            ):
+            if observation.target.target_present and observation.target.current_health == 0.0:
                 return self._record_kill(
                     observation,
                     PvEKillConfirmation.NATIVE_HEALTH_ZERO,
@@ -190,8 +184,7 @@ class PvEController:
         if self._phase is PvEPhase.INITIALIZING:
             if (
                 not self._config.use_native_population
-                and
-                self._config.accept_automatic_targets
+                and self._config.accept_automatic_targets
                 and observation.target.target_present
                 and observation.target.current_health != 0.0
                 and self._target_attack_eligible(observation)
@@ -259,8 +252,7 @@ class PvEController:
                 self._require_different_target = False
                 return self._begin_engagement(observation)
             if not self._require_different_target and (
-                self._config.accept_automatic_targets
-                and self._automatic_target_confirmed(events)
+                self._config.accept_automatic_targets and self._automatic_target_confirmed(events)
             ):
                 return self._begin_engagement(observation, attack_already_active=True)
         if self._phase_elapsed(now) >= self._config.acquisition_timeout_ms:
@@ -274,19 +266,15 @@ class PvEController:
                 self._empty_target_cycles += 1
                 if (
                     self._config.continuous
-                    and self._empty_target_cycles
-                    >= self._config.nearest_target_sample_count
+                    and self._empty_target_cycles >= self._config.nearest_target_sample_count
                 ):
                     return self._begin_camp_idle(observation)
                 return self._cycle_target_sample(now)
             return self._emit(now)
         if target.target_present and self._config.accept_automatic_targets:
-            if (
-                self._phase_elapsed(now) >= self._config.stale_selection_cycle_delay_ms
-                and (
-                    self._last_acquire_at is None
-                    or now - self._last_acquire_at >= self._config.acquisition_retry_ms
-                )
+            if self._phase_elapsed(now) >= self._config.stale_selection_cycle_delay_ms and (
+                self._last_acquire_at is None
+                or now - self._last_acquire_at >= self._config.acquisition_retry_ms
             ):
                 return self._emit(now, PvEIntent.ACQUIRE_NEXT_MOB)
             return self._emit(now)
@@ -378,16 +366,12 @@ class PvEController:
             else:
                 self._observed_target_tokens.add(token)
                 self._target_candidates[token] = distance
-                if (
-                    len(self._observed_target_tokens)
-                    >= self._config.nearest_target_sample_count
-                ):
+                if len(self._observed_target_tokens) >= self._config.nearest_target_sample_count:
                     self._target_sampling_complete = True
             self._last_sampled_target_token = token
         elif (
             self._target_sample_cycle_at is not None
-            and now - self._target_sample_cycle_at
-            >= self._config.target_sample_interval_ms
+            and now - self._target_sample_cycle_at >= self._config.target_sample_interval_ms
         ):
             self._target_sampling_complete = True
 
@@ -418,16 +402,12 @@ class PvEController:
                 self._target_sampling_complete = True
             else:
                 self._observed_target_tokens.add(token)
-                if (
-                    len(self._observed_target_tokens)
-                    >= self._config.nearest_target_sample_count
-                ):
+                if len(self._observed_target_tokens) >= self._config.nearest_target_sample_count:
                     self._target_sampling_complete = True
             self._last_sampled_target_token = token
         elif (
             self._target_sample_cycle_at is not None
-            and now - self._target_sample_cycle_at
-            >= self._config.target_sample_interval_ms
+            and now - self._target_sample_cycle_at >= self._config.target_sample_interval_ms
         ):
             self._target_sampling_complete = True
         if self._phase_elapsed(now) >= self._config.acquisition_timeout_ms:
@@ -454,9 +434,7 @@ class PvEController:
         reverse: bool = False,
     ) -> PvEControllerDecision:
         self._target_sample_cycle_at = now_ms
-        intent = (
-            PvEIntent.ACQUIRE_PREVIOUS_MOB if reverse else PvEIntent.ACQUIRE_NEXT_MOB
-        )
+        intent = PvEIntent.ACQUIRE_PREVIOUS_MOB if reverse else PvEIntent.ACQUIRE_NEXT_MOB
         return self._emit(now_ms, intent)
 
     def _target_sample_ready(self, now_ms: int) -> bool:
@@ -492,14 +470,11 @@ class PvEController:
         assert target.current_health is not None
         approach_arrived = False
         distance = observation.target_planar_distance
-        inside_melee = bool(
-            distance is not None and distance <= self._config.melee_approach_radius
-        )
+        inside_melee = bool(distance is not None and distance <= self._config.melee_approach_radius)
         if distance is not None:
             if (
                 self._best_approach_distance is None
-                or distance
-                <= self._best_approach_distance - self._config.minimum_approach_progress
+                or distance <= self._best_approach_distance - self._config.minimum_approach_progress
             ):
                 self._best_approach_distance = distance
                 self._last_progress_at = now
@@ -550,10 +525,7 @@ class PvEController:
             )
         ):
             quiet_timeout = self._config.quiet_melee_timeout_ms
-            if (
-                player_action is not None
-                and not self._player_attack_animation_observed
-            ):
+            if player_action is not None and not self._player_attack_animation_observed:
                 quiet_timeout = self._config.missing_attack_animation_timeout_ms
             if now - self._last_attack_at >= quiet_timeout:
                 return self._abandon_stalled_target(observation)
@@ -570,10 +542,8 @@ class PvEController:
                 self._last_reposition_at is None
                 or self._last_incoming_hit_at > self._last_reposition_at
             )
-            and now - self._last_attack_at
-            >= self._config.incoming_reposition_grace_ms
-            and now - self._last_incoming_hit_at
-            <= self._config.incoming_reposition_window_ms
+            and now - self._last_attack_at >= self._config.incoming_reposition_grace_ms
+            and now - self._last_incoming_hit_at <= self._config.incoming_reposition_window_ms
             and self._combat_repositions < self._config.maximum_combat_repositions
         ):
             self._combat_repositions += 1
@@ -603,17 +573,13 @@ class PvEController:
         if elapsed < self._config.post_kill_delay_ms:
             return self._emit(now)
         if not self._resources_recovered(observation):
-            if (
-                not self._config.continuous
-                and elapsed >= self._config.recovery_timeout_ms
-            ):
+            if not self._config.continuous and elapsed >= self._config.recovery_timeout_ms:
                 return self.stop("post_kill_recovery_timeout", now_ms=now)
             return self._emit(now)
         previous_target_token = self._engaged_target_token
         if (
             not self._config.use_native_population
-            and
-            self._config.accept_automatic_targets
+            and self._config.accept_automatic_targets
             and observation.target.target_present
             and observation.target.current_health != 0.0
             and observation.target.target_token != previous_target_token
@@ -657,14 +623,10 @@ class PvEController:
         self._last_reposition_at = None
         self._combat_repositions = 0
         self._engagement_player_action_sequence = (
-            None
-            if observation.player_action is None
-            else observation.player_action.action_sequence
+            None if observation.player_action is None else observation.player_action.action_sequence
         )
         self._engagement_player_motion_sequence = (
-            None
-            if observation.player_action is None
-            else observation.player_action.motion_sequence
+            None if observation.player_action is None else observation.player_action.motion_sequence
         )
         self._player_attack_animation_observed = False
         self._last_acquire_at = None
@@ -688,9 +650,7 @@ class PvEController:
             self._enter(PvEPhase.OPENING, now)
             return self._emit(now, opener)
         self._enter(PvEPhase.ENGAGED, now)
-        if attack_already_active and (
-            self._outside_melee or self._best_approach_distance is None
-        ):
+        if attack_already_active and (self._outside_melee or self._best_approach_distance is None):
             return self._emit(now)
         return self._emit(now, PvEIntent.ATTACK_SELECTED_TARGET)
 
@@ -831,9 +791,8 @@ class PvEController:
         self,
         events: tuple[NativeCombatEvent, ...],
     ) -> bool:
-        return (
-            not self._config.automatic_target_requires_combat_event
-            or any(event.kind is NativeCombatEventKind.PLAYER_HIT_TARGET for event in events)
+        return not self._config.automatic_target_requires_combat_event or any(
+            event.kind is NativeCombatEventKind.PLAYER_HIT_TARGET for event in events
         )
 
     def _target_attack_eligible(self, observation: PvEObservation) -> bool:
@@ -891,9 +850,7 @@ class PvEController:
                 return self._abandon_stalled_target(observation)
             return self._recover_invalid_engagement(observation)
         if self._phase is PvEPhase.CAMP_IDLE:
-            self._camp_return_retry_at = (
-                observation.now_ms + self._config.camp_return_retry_ms
-            )
+            self._camp_return_retry_at = observation.now_ms + self._config.camp_return_retry_ms
             return self._emit(observation.now_ms)
         return self.stop(f"approach_{reason}", now_ms=observation.now_ms)
 
@@ -1051,9 +1008,7 @@ class PvEController:
             terminal_reason=terminal_reason,
             kill_confirmation=kill_confirmation,
             acquisition_target_token=(
-                self._population_desired_target_token
-                if self._phase is PvEPhase.SEEKING
-                else None
+                self._population_desired_target_token if self._phase is PvEPhase.SEEKING else None
             ),
         )
         self._decision_id += 1

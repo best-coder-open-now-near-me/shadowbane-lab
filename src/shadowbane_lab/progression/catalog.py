@@ -307,9 +307,7 @@ class GameCatalog:
                 f"{race.name} cannot select base class {build.base_class_key}"
             )
         if build.race_key not in profession.allowed_race_keys:
-            raise IllegalCoreBuildError(
-                f"{race.name} cannot promote to {profession.name}"
-            )
+            raise IllegalCoreBuildError(f"{race.name} cannot promote to {profession.name}")
         if build.base_class_key not in profession.allowed_base_class_keys:
             raise IllegalCoreBuildError(
                 f"{profession.name} cannot promote from {build.base_class_key}"
@@ -317,9 +315,7 @@ class GameCatalog:
         if build.sex not in race.allowed_sexes:
             raise IllegalCoreBuildError(f"{race.name} does not allow sex {build.sex.value}")
         if build.sex not in profession.allowed_sexes:
-            raise IllegalCoreBuildError(
-                f"{profession.name} does not allow sex {build.sex.value}"
-            )
+            raise IllegalCoreBuildError(f"{profession.name} does not allow sex {build.sex.value}")
         return build
 
     def legal_core_builds(self) -> tuple[CoreBuildIdentity, ...]:
@@ -356,8 +352,7 @@ class GameCatalog:
     @staticmethod
     def _unique_keys(records: tuple[object, ...], kind: str) -> set[str]:
         keys = tuple(
-            record.key if hasattr(record, "key") else record.source_id
-            for record in records
+            record.key if hasattr(record, "key") else record.source_id for record in records
         )
         _unique_identifiers(keys, f"{kind} key")
         return set(keys)

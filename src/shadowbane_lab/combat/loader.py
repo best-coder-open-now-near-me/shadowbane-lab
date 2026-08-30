@@ -110,11 +110,14 @@ def combat_profile_dict(
 def encode_combat_profile(sheet: CombatSheet, build: CharacterBuild) -> str:
     """Return deterministic human-readable JSON suitable for versioning or capture export."""
 
-    return json.dumps(
-        combat_profile_dict(sheet, build),
-        indent=2,
-        sort_keys=True,
-    ) + "\n"
+    return (
+        json.dumps(
+            combat_profile_dict(sheet, build),
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
+    )
 
 
 def load_combat_profile(path: str | Path) -> tuple[CombatSheet, CharacterBuild]:
@@ -203,8 +206,7 @@ def _sheet(data: Mapping[str, Any]) -> CombatSheet:
         passive_defenses=_number_pairs(_object(data, "passive_defenses")),
         modifiers=_modifiers(_object(data, "modifiers")),
         stance_profiles=tuple(
-            _stance_profile(item)
-            for item in _optional_objects(data, "stance_profiles")
+            _stance_profile(item) for item in _optional_objects(data, "stance_profiles")
         ),
         weapon=_nullable_weapon(data.get("weapon")),
         off_hand_weapon=_nullable_weapon(data.get("off_hand_weapon")),
@@ -404,9 +406,7 @@ def _objects(data: Mapping[str, Any], key: str) -> tuple[Mapping[str, Any], ...]
     return tuple(_mapping(item, f"{key} item") for item in _sequence(data, key))
 
 
-def _optional_objects(
-    data: Mapping[str, Any], key: str
-) -> tuple[Mapping[str, Any], ...]:
+def _optional_objects(data: Mapping[str, Any], key: str) -> tuple[Mapping[str, Any], ...]:
     return () if key not in data else _objects(data, key)
 
 

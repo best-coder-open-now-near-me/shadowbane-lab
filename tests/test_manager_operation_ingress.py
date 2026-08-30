@@ -139,9 +139,7 @@ class ForegroundWorkerOperationIngressTests(unittest.TestCase):
                 clock=lambda: 100.0,
                 acknowledgement_timeout_seconds=0.01,
             )
-            with self.assertRaisesRegex(
-                WorkerOperationIngressError, "guarded process"
-            ):
+            with self.assertRaisesRegex(WorkerOperationIngressError, "guarded process"):
                 mismatched.dispatch(
                     WorkerOperationKind.STOP,
                     "/stop",
@@ -156,9 +154,7 @@ class ForegroundWorkerOperationIngressTests(unittest.TestCase):
                 clock=lambda: 100.0,
                 acknowledgement_timeout_seconds=0.01,
             )
-            with self.assertRaisesRegex(
-                WorkerOperationIngressError, "not currently valid"
-            ):
+            with self.assertRaisesRegex(WorkerOperationIngressError, "not currently valid"):
                 expired.dispatch(
                     WorkerOperationKind.PVE,
                     "/pve",

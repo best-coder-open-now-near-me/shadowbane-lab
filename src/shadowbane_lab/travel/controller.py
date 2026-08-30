@@ -130,8 +130,7 @@ class TravelController:
             distance = destination.distance_from(observation.position)
 
         if self._escape_release_distance is not None and (
-            self._escape_release_distance - distance
-            >= self._config.escape_budget_reset_progress
+            self._escape_release_distance - distance >= self._config.escape_budget_reset_progress
         ):
             self._escape_sequence_count = 0
             self._escape_release_distance = None
@@ -278,14 +277,11 @@ class TravelController:
     ) -> TravelDecision:
         self._observe_escape_motion(observation)
         if self._escape_step > 0 and (
-            self._escape_phase_origin_distance - distance
-            >= self._config.escape_reacquire_progress
+            self._escape_phase_origin_distance - distance >= self._config.escape_reacquire_progress
         ):
             return self._reacquire_direct(observation, distance=distance)
 
-        if self._escape_no_motion_clicks >= (
-            self._config.maximum_escape_phase_no_motion_clicks
-        ):
+        if self._escape_no_motion_clicks >= (self._config.maximum_escape_phase_no_motion_clicks):
             if self._escape_phase is _EscapePhase.BACKUP:
                 self._transition_escape_phase(
                     _EscapePhase.SWEEP,
@@ -293,10 +289,7 @@ class TravelController:
                     distance=distance,
                 )
             elif self._escape_phase is _EscapePhase.SWEEP:
-                if (
-                    self._escape_side_switches
-                    < self._config.maximum_escape_side_switches
-                ):
+                if self._escape_side_switches < self._config.maximum_escape_side_switches:
                     self._escape_side_switches += 1
                     self._escape_side_sign *= -1
                     self._reset_escape_phase_feedback(observation, distance=distance)
@@ -394,9 +387,8 @@ class TravelController:
 
     def _escape_phase_clicks(self) -> int:
         widening = (
-            (self._escape_sequence_count - 1)
-            * self._config.escape_widening_clicks_per_sequence
-        )
+            self._escape_sequence_count - 1
+        ) * self._config.escape_widening_clicks_per_sequence
         if self._escape_phase is _EscapePhase.BACKUP:
             return self._config.escape_backup_clicks
         if self._escape_phase is _EscapePhase.SWEEP:
@@ -405,8 +397,7 @@ class TravelController:
 
     def _escape_sweep_clearance(self) -> float:
         return self._config.escape_sweep_clearance + (
-            (self._escape_sequence_count - 1)
-            * self._config.escape_widening_clearance_per_sequence
+            (self._escape_sequence_count - 1) * self._config.escape_widening_clearance_per_sequence
         )
 
     def _observe_escape_motion(self, observation: TravelObservation) -> None:

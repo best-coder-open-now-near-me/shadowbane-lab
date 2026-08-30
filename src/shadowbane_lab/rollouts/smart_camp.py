@@ -131,9 +131,7 @@ class SmartCampConfig:
             self.observed_unattributed_damage,
             WeightedAmount,
         ):
-            raise ValueError(
-                "observed_unattributed_damage must be a WeightedAmount or null"
-            )
+            raise ValueError("observed_unattributed_damage must be a WeightedAmount or null")
         if not isinstance(self.weapon_key, str) or not self.weapon_key.strip():
             raise ValueError("weapon_key must be a non-empty string")
         if not self.proc_effect_keys or len(self.proc_effect_keys) != len(
@@ -347,9 +345,7 @@ class SmartCampPolicy:
             self._target_entity_id = None
             return PolicyDecision(None, None)
         actor = next(
-            item
-            for item in exchange.observation.entities
-            if item.relation is Relation.SELF
+            item for item in exchange.observation.entities if item.relation is Relation.SELF
         )
         enemy_ids = {item.entity_id for item in enemies}
         target_changed = self._target_entity_id not in enemy_ids
@@ -371,27 +367,15 @@ class SmartCampPolicy:
             if item.binding.target_entity_id == self._target_entity_id
         )
         control = next(
-            (
-                item
-                for item in target_affordances
-                if item.action_key == self._control_action_key
-            ),
+            (item for item in target_affordances if item.action_key == self._control_action_key),
             None,
         )
         weapon = next(
-            (
-                item
-                for item in target_affordances
-                if item.action_key == self._weapon_action_key
-            ),
+            (item for item in target_affordances if item.action_key == self._weapon_action_key),
             None,
         )
         movement = next(
-            (
-                item
-                for item in target_affordances
-                if item.action_key == _CLOSE_RANGE
-            ),
+            (item for item in target_affordances if item.action_key == _CLOSE_RANGE),
             None,
         )
         selected_affordance = None
@@ -489,12 +473,7 @@ def apply_pve_combat_calibration(
     if observed_damage is not None:
         minimum = observed_damage.minimum
         maximum = observed_damage.maximum
-        if (
-            minimum >= 1
-            and minimum.is_integer()
-            and maximum.is_integer()
-            and maximum > minimum
-        ):
+        if minimum >= 1 and minimum.is_integer() and maximum.is_integer() and maximum > minimum:
             calibrated_damage = (int(minimum), int(maximum))
     calibrated_interval = None
     if observed_interval is not None:
@@ -506,8 +485,7 @@ def apply_pve_combat_calibration(
     if observed_output_interval is not None:
         player_attack_interval = max(
             _TICK_DURATION_MS,
-            round(observed_output_interval.median / _TICK_DURATION_MS)
-            * _TICK_DURATION_MS,
+            round(observed_output_interval.median / _TICK_DURATION_MS) * _TICK_DURATION_MS,
         )
     observed_unattributed_damage = config.observed_unattributed_damage
     residual_method: str | None = None
@@ -535,19 +513,13 @@ def apply_pve_combat_calibration(
             health=(mob.health if observed_health is None else observed_health.median),
             distance=(mob.distance if observed_distance is None else observed_distance.median),
             attack_damage_minimum=(
-                mob.attack_damage_minimum
-                if calibrated_damage is None
-                else calibrated_damage[0]
+                mob.attack_damage_minimum if calibrated_damage is None else calibrated_damage[0]
             ),
             attack_damage_maximum=(
-                mob.attack_damage_maximum
-                if calibrated_damage is None
-                else calibrated_damage[1]
+                mob.attack_damage_maximum if calibrated_damage is None else calibrated_damage[1]
             ),
             attack_interval_ms=(
-                mob.attack_interval_ms
-                if calibrated_interval is None
-                else calibrated_interval
+                mob.attack_interval_ms if calibrated_interval is None else calibrated_interval
             ),
         )
         for mob in config.mobs
@@ -561,13 +533,15 @@ def apply_pve_combat_calibration(
             and item.startswith("Both speed-20 fists are aggregated")
         )
     )
-    assumptions.extend((
-        "Every generic simulated camp mob reuses the calibration's aggregate median target "
-        "health, engagement distance, and incoming-attack cadence when observed; fields "
-        "without sufficient samples retain their declared baseline defaults.",
-        "Live event cadence is quantized to the simulator's 200 ms tick, and aggregate "
-        "target observations are not treated as named-archetype-specific stats.",
-    ))
+    assumptions.extend(
+        (
+            "Every generic simulated camp mob reuses the calibration's aggregate median target "
+            "health, engagement distance, and incoming-attack cadence when observed; fields "
+            "without sufficient samples retain their declared baseline defaults.",
+            "Live event cadence is quantized to the simulator's 200 ms tick, and aggregate "
+            "target observations are not treated as named-archetype-specific stats.",
+        )
+    )
     if observed_output_interval is not None:
         assumptions.append(
             "The median native target-health decrease interval sets the successful-hit "
@@ -635,9 +609,7 @@ def run_smart_camp_batch(
         or not isinstance(episodes, int)
         or not 1 <= episodes <= _MAX_BATCH_EPISODES
     ):
-        raise ValueError(
-            f"episodes must be an integer between 1 and {_MAX_BATCH_EPISODES}"
-        )
+        raise ValueError(f"episodes must be an integer between 1 and {_MAX_BATCH_EPISODES}")
     first_seed = config.seed if seed_start is None else seed_start
     if isinstance(first_seed, bool) or not isinstance(first_seed, int) or first_seed < 0:
         raise ValueError("seed_start must be a non-negative integer")
@@ -854,9 +826,7 @@ def _mechanistic_weapon_effects(
 ) -> tuple[tuple[DealDamage | ChanceGate, ...], float]:
     progression = load_wonderbane_irekei_proc_profile()
     weapon = progression.weapon(config.weapon_key)
-    proc_effects = tuple(
-        progression.proc_effect(key) for key in config.proc_effect_keys
-    )
+    proc_effects = tuple(progression.proc_effect(key) for key in config.proc_effect_keys)
     weapon_effects: list[DealDamage | ChanceGate] = [
         DealDamage(
             SubjectRef.TARGET,
@@ -973,9 +943,8 @@ def _result(
         if event.kind == EventKind.ACTION_STARTED and event.source_entity_id == _PLAYER_ID:
             if event.action_key is not None:
                 action_counts[event.action_key] = action_counts.get(event.action_key, 0) + 1
-            if (
-                event.target_entity_id is not None
-                and (not target_sequence or target_sequence[-1] != event.target_entity_id)
+            if event.target_entity_id is not None and (
+                not target_sequence or target_sequence[-1] != event.target_entity_id
             ):
                 target_sequence.append(event.target_entity_id)
         elif event.kind == EventKind.CHANCE_RESOLVED:

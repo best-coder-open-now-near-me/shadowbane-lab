@@ -322,8 +322,7 @@ def run_nearby_mob_simulation(
             matches = tuple(
                 item
                 for item in exchange.affordances.affordances
-                if item.action_key == _BASIC_ATTACK
-                and item.binding.target_entity_id == _MOB_ID
+                if item.action_key == _BASIC_ATTACK and item.binding.target_entity_id == _MOB_ID
             )
             if len(matches) == 1:
                 sim_decisions = (
@@ -337,9 +336,7 @@ def run_nearby_mob_simulation(
             truncated=step_number == config.max_ticks - 1,
         )
         simulation_events.extend(batch.events)
-        rejected_actions += sum(
-            event.kind == EventKind.ACTION_REJECTED for event in batch.events
-        )
+        rejected_actions += sum(event.kind == EventKind.ACTION_REJECTED for event in batch.events)
         pending_combat, combat_sequence, new_experience = _combat_observations(
             batch.events,
             config,
@@ -352,9 +349,7 @@ def run_nearby_mob_simulation(
             selected = False
             auto_attack = False
     else:
-        controller_trace.append(
-            controller.stop("simulation_tick_limit", now_ms=environment.now_ms)
-        )
+        controller_trace.append(controller.stop("simulation_tick_limit", now_ms=environment.now_ms))
 
     terminal = controller_trace[-1]
     if terminal.terminal_reason is None:
@@ -380,9 +375,7 @@ def run_nearby_mob_simulation(
     )
 
 
-def _target_observation(
-    mob: EntityState, selected: bool
-) -> NativeTargetHealthObservation:
+def _target_observation(mob: EntityState, selected: bool) -> NativeTargetHealthObservation:
     if not selected or not mob.alive:
         return NativeTargetHealthObservation(target_present=False)
     return NativeTargetHealthObservation(
@@ -431,9 +424,7 @@ def _combat_observations(
                     sequence=sequence,
                     timestamp=f"{event.sim_time_ms}ms",
                     kind=NativeCombatEventKind.PLAYER_HIT_TARGET,
-                    message=(
-                        f"You hit {config.mob_name} for {effective:g} points of damage!"
-                    ),
+                    message=(f"You hit {config.mob_name} for {effective:g} points of damage!"),
                     target_name=config.mob_name,
                     amount=effective,
                 )

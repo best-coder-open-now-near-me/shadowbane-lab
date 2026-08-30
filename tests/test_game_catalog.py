@@ -131,9 +131,7 @@ class GameCatalogTests(unittest.TestCase):
 
     def test_inconsistent_racial_discipline_edge_fails_closed(self) -> None:
         source = bundled_source()
-        sun_dancer = next(
-            item for item in source["disciplines"] if item["key"] == "sun_dancer"
-        )
+        sun_dancer = next(item for item in source["disciplines"] if item["key"] == "sun_dancer")
         sun_dancer["racial_access_keys"] = []
 
         with self.assertRaisesRegex(GameCatalogLoadError, "racial access declarations"):

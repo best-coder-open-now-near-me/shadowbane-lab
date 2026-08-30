@@ -147,32 +147,20 @@ class WorldDestinationCatalog:
 
         if not isinstance(observation, NativeRunegateRegistryObservation):
             raise ValueError("observation must be NativeRunegateRegistryObservation")
-        retained = tuple(
-            entry
-            for entry in self._entries
-            if not _is_runegate_entry(entry)
-        )
+        retained = tuple(entry for entry in self._entries if not _is_runegate_entry(entry))
         confirmed = tuple(
             entry
             for entry in self._entries
-            if _is_runegate_entry(entry)
-            and entry.source == "wonderbane_server_confirmed"
+            if _is_runegate_entry(entry) and entry.source == "wonderbane_server_confirmed"
         )
-        confirmed_names = {
-            _normalize_name(name)
-            for entry in confirmed
-            for name in entry.names
-        }
+        confirmed_names = {_normalize_name(name) for entry in confirmed for name in entry.names}
         confirmed_coordinates = {
-            (round(entry.destination.lt, 3), round(entry.destination.lg, 3))
-            for entry in confirmed
+            (round(entry.destination.lt, 3), round(entry.destination.lg, 3)) for entry in confirmed
         }
         authoritative = tuple(
             entry
             for entry in runegate_destination_entries(observation)
-            if not confirmed_names.intersection(
-                _normalize_name(name) for name in entry.names
-            )
+            if not confirmed_names.intersection(_normalize_name(name) for name in entry.names)
             and (
                 round(entry.destination.lt, 3),
                 round(entry.destination.lg, 3),
@@ -313,13 +301,9 @@ def load_world_destination_overrides(
     if not isinstance(payload, dict):
         raise NamedTravelDestinationError("named-destination overrides must be an object")
     if payload.get("schema_version") != 1:
-        raise NamedTravelDestinationError(
-            "named-destination overrides require schema_version 1"
-        )
+        raise NamedTravelDestinationError("named-destination overrides require schema_version 1")
     if payload.get("world_name") != world.name:
-        raise NamedTravelDestinationError(
-            "named-destination overrides target a different world"
-        )
+        raise NamedTravelDestinationError("named-destination overrides target a different world")
     raw_destinations = payload.get("destinations")
     if not isinstance(raw_destinations, list):
         raise NamedTravelDestinationError(
@@ -483,21 +467,14 @@ def _fuzzy_name_score(query: str, candidate: str) -> float:
     query_tokens = query.split()
     sequence_score = SequenceMatcher(None, query, candidate).ratio()
     token_score = max(
-        (
-            SequenceMatcher(None, query, token).ratio()
-            for token in candidate_tokens
-        ),
+        (SequenceMatcher(None, query, token).ratio() for token in candidate_tokens),
         default=0.0,
     )
     prefix_token_matches = sum(
         any(candidate_token.startswith(query_token) for candidate_token in candidate_tokens)
         for query_token in query_tokens
     )
-    prefix_score = (
-        0.0
-        if not query_tokens
-        else 0.9 * prefix_token_matches / len(query_tokens)
-    )
+    prefix_score = 0.0 if not query_tokens else 0.9 * prefix_token_matches / len(query_tokens)
     return min(1.0, max(sequence_score, token_score * 0.92, prefix_score))
 
 
@@ -507,10 +484,6 @@ def _clean_coordinate(value: float) -> float:
 
 
 def _override_coordinate(value: object, *, label: str, axis: str) -> float:
-    if (
-        isinstance(value, bool)
-        or not isinstance(value, (int, float))
-        or not isfinite(float(value))
-    ):
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not isfinite(float(value)):
         raise NamedTravelDestinationError(f"{label} {axis} must be a finite number")
     return float(value)

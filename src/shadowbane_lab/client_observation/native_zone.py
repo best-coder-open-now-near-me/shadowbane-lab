@@ -79,9 +79,7 @@ class NativeCurrentZoneProfile:
             if not isinstance(value, str) or not value.strip():
                 raise ValueError(f"{field_name} must be a non-empty string")
         digest = self.executable_sha256.lower()
-        if len(digest) != 64 or any(
-            character not in "0123456789abcdef" for character in digest
-        ):
+        if len(digest) != 64 or any(character not in "0123456789abcdef" for character in digest):
             raise ValueError("executable_sha256 must be a 64-character hexadecimal digest")
         if self.pointer_size != 4:
             raise ValueError("only the verified 32-bit Shadowbane client is supported")
@@ -375,12 +373,9 @@ class NativeCurrentZoneReader:
                 last_error = exc
         if last_error is not None:
             raise NativeCurrentZoneReadError(
-                "current zone remained unreadable during every stable-read attempt: "
-                f"{last_error}"
+                f"current zone remained unreadable during every stable-read attempt: {last_error}"
             ) from last_error
-        raise NativeCurrentZoneReadError(
-            "current zone changed during every stable-read attempt"
-        )
+        raise NativeCurrentZoneReadError("current zone changed during every stable-read attempt")
 
     def close(self) -> None:
         if not self._closed:
@@ -617,9 +612,7 @@ def open_windows_native_current_zone_reader(
 
 
 def load_bundled_native_zone_profile() -> NativeCurrentZoneProfile:
-    resource = files("shadowbane_lab.client_observation").joinpath(
-        "data", _BUNDLED_PROFILE_NAME
-    )
+    resource = files("shadowbane_lab.client_observation").joinpath("data", _BUNDLED_PROFILE_NAME)
     return load_native_zone_profile_text(resource.read_text(encoding="utf-8"))
 
 
@@ -668,9 +661,7 @@ def load_native_zone_profile_text(text: str) -> NativeCurrentZoneProfile:
                 f"missing required fields: {', '.join(sorted(missing))}"
             )
         if unknown:
-            raise NativeZoneProfileLoadError(
-                f"unknown fields: {', '.join(sorted(unknown))}"
-            )
+            raise NativeZoneProfileLoadError(f"unknown fields: {', '.join(sorted(unknown))}")
         return NativeCurrentZoneProfile(
             profile_id=_string(data, "profile_id"),
             executable_name=_string(data, "executable_name"),
@@ -686,9 +677,7 @@ def load_native_zone_profile_text(text: str) -> NativeCurrentZoneProfile:
             object_uuid_offset=_integer(data, "object_uuid_offset"),
             geometry_bounds_offset=_integer(data, "geometry_bounds_offset"),
             geometry_rotation_offset=_integer(data, "geometry_rotation_offset"),
-            geometry_absolute_center_offset=_integer(
-                data, "geometry_absolute_center_offset"
-            ),
+            geometry_absolute_center_offset=_integer(data, "geometry_absolute_center_offset"),
             geometry_local_center_offset=_integer(data, "geometry_local_center_offset"),
             geometry_radius_offset=_integer(data, "geometry_radius_offset"),
             string_begin_offset=_integer(data, "string_begin_offset"),

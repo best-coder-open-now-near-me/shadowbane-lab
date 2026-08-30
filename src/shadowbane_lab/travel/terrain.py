@@ -83,9 +83,7 @@ class TerrainNavigationConfig:
             or not isfinite(self.maximum_object_density_cost)
             or self.maximum_object_density_cost < 1
         ):
-            raise ValueError(
-                "maximum_object_density_cost must be finite and at least one"
-            )
+            raise ValueError("maximum_object_density_cost must be finite and at least one")
         if (
             isinstance(self.seed_radius, bool)
             or not isinstance(self.seed_radius, (int, float))
@@ -205,18 +203,11 @@ class ActiveZoneTerrainNavigationSource:
         self._cache_directory = Path(cache_directory)
         self._zone_reader = zone_reader
         self._config = config or TerrainNavigationConfig()
-        if navigation_map is not None and not isinstance(
-            navigation_map, SparseNavigationMap
-        ):
+        if navigation_map is not None and not isinstance(navigation_map, SparseNavigationMap):
             raise ValueError("navigation_map must be SparseNavigationMap")
-        if (
-            navigation_map is not None
-            and navigation_map.cell_size != self._config.cell_size
-        ):
+        if navigation_map is not None and navigation_map.cell_size != self._config.cell_size:
             raise ValueError("navigation_map and terrain config cell sizes must match")
-        self._refresh_distance = (
-            self._config.seed_radius * float(refresh_distance_fraction)
-        )
+        self._refresh_distance = self._config.seed_radius * float(refresh_distance_fraction)
         self._navigation_map = navigation_map or SparseNavigationMap(
             cell_size=self._config.cell_size
         )
@@ -305,10 +296,7 @@ def load_active_zone_terrain_navigation(
         CacheArchive(cache_root / "CZone.cache") as zones,
         CacheArchive(cache_root / "TerrainAlpha.cache") as terrain,
     ):
-        indexed = {
-            (item.group_id, item.map_id): item
-            for item in index_terrain_alpha_maps(terrain)
-        }
+        indexed = {(item.group_id, item.map_id): item for item in index_terrain_alpha_maps(terrain)}
         for identity in observation.chain:
             if not identity.cache_resolvable:
                 continue
@@ -325,9 +313,7 @@ def load_active_zone_terrain_navigation(
                 terrain,
                 indexed[(height_map.group_id, height_map.map_id)],
             )
-            metadata = parse_zone_navigation_metadata(
-                zones.read_resource(correlation.zone_entry)
-            )
+            metadata = parse_zone_navigation_metadata(zones.read_resource(correlation.zone_entry))
             object_density_layers = _load_object_density_layers(
                 cache_root,
                 terrain,
@@ -373,9 +359,7 @@ def _load_object_density_layers(
     ):
         resolver = ObjectNavigationResolver(objects, renders, meshes)
         for population in metadata.terrain_object_populations:
-            layer_index = population.population_layer_index(
-                metadata.terrain_generation
-            )
+            layer_index = population.population_layer_index(metadata.terrain_generation)
             if layer_index is None:
                 continue
             profile = resolver.resolve(population.object_key)
@@ -400,9 +384,7 @@ def _load_object_density_layers(
             ) from exc
         raster = read_terrain_alpha_map(
             terrain,
-            indexed_terrain[
-                (terrain_reference.group_id, terrain_reference.map_id)
-            ],
+            indexed_terrain[(terrain_reference.group_id, terrain_reference.map_id)],
         )
         layers.append(
             TerrainObjectDensityLayer(
@@ -452,9 +434,7 @@ def seed_height_raster_navigation(
         raise ValueError("terrain navigation window center requires both LT and LG")
     for value in (window_center_lt, window_center_lg):
         if value is not None and (
-            isinstance(value, bool)
-            or not isinstance(value, (int, float))
-            or not isfinite(value)
+            isinstance(value, bool) or not isinstance(value, (int, float)) or not isfinite(value)
         ):
             raise ValueError("terrain navigation window center must be finite")
     if water_sample_threshold is not None and (
@@ -463,13 +443,8 @@ def seed_height_raster_navigation(
         or not isfinite(water_sample_threshold)
     ):
         raise ValueError("water sample threshold must be finite")
-    if any(
-        not isinstance(layer, TerrainObjectDensityLayer)
-        for layer in object_density_layers
-    ):
-        raise ValueError(
-            "object_density_layers must contain TerrainObjectDensityLayer values"
-        )
+    if any(not isinstance(layer, TerrainObjectDensityLayer) for layer in object_density_layers):
+        raise ValueError("object_density_layers must contain TerrainObjectDensityLayer values")
     layer_indexes = tuple(layer.layer_index for layer in object_density_layers)
     if len(layer_indexes) != len(set(layer_indexes)):
         raise ValueError("object-density layer indexes must be unique")
@@ -535,9 +510,7 @@ def seed_height_raster_navigation(
                 if _inside(geometry, *local):
                     local_samples.append(local)
             sampled_cells += 1
-            samples = [
-                _sample_local(raster, geometry, *local) for local in local_samples
-            ]
+            samples = [_sample_local(raster, geometry, *local) for local in local_samples]
             center_sample = samples[0]
             sample_delta = max(samples) - min(samples)
             object_density_sample = max(
@@ -551,8 +524,7 @@ def seed_height_raster_navigation(
             if object_density_sample > 0:
                 object_density.add(cell)
             underwater = (
-                water_sample_threshold is not None
-                and center_sample < water_sample_threshold
+                water_sample_threshold is not None and center_sample < water_sample_threshold
             )
             if underwater:
                 water.add(cell)
@@ -576,10 +548,7 @@ def seed_height_raster_navigation(
             if object_density_sample > 0:
                 cost = max(
                     cost,
-                    1
-                    + object_density_sample
-                    / 255.0
-                    * (resolved.maximum_object_density_cost - 1),
+                    1 + object_density_sample / 255.0 * (resolved.maximum_object_density_cost - 1),
                 )
             if cost > 1:
                 navigation_map.set_cost(cell, cost)
@@ -702,8 +671,6 @@ def _rotate(
         u[0] * vector[1] - u[1] * vector[0],
     )
     return tuple(
-        2 * dot_uv * u[index]
-        + (w * w - dot_uu) * vector[index]
-        + 2 * w * cross[index]
+        2 * dot_uv * u[index] + (w * w - dot_uu) * vector[index] + 2 * w * cross[index]
         for index in range(3)
     )

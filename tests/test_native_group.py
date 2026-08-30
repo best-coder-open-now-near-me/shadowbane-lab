@@ -170,16 +170,22 @@ class NativeGroupReaderTests(unittest.TestCase):
         assert leader is not None
         self.assertEqual("Ashen Blade", leader.full_name)
         self.assertEqual((10, 73421), (leader.object_type, leader.object_uuid))
-        self.assertEqual((87, 62, 49), (
-            leader.health_percent,
-            leader.stamina_percent,
-            leader.mana_percent,
-        ))
-        self.assertEqual((106662.0, 52432.0, 148.0), (
-            leader.lt,
-            leader.lg,
-            leader.altitude,
-        ))
+        self.assertEqual(
+            (87, 62, 49),
+            (
+                leader.health_percent,
+                leader.stamina_percent,
+                leader.mana_percent,
+            ),
+        )
+        self.assertEqual(
+            (106662.0, 52432.0, 148.0),
+            (
+                leader.lt,
+                leader.lg,
+                leader.altitude,
+            ),
+        )
         self.assertTrue(leader.follow_enabled)
 
     def test_reads_empty_roster_without_inventing_a_leader(self) -> None:
@@ -215,28 +221,34 @@ class NativeGroupProfileTests(unittest.TestCase):
 
         self.assertEqual(0x16A7BFC, profile.window_pointer_rva)
         self.assertEqual(0x98, profile.group_manager_offset)
-        self.assertEqual((0x98, 0x99, 0x9C), (
-            profile.split_gold_offset,
-            profile.local_follow_offset,
-            profile.member_list_offset,
-        ))
-        self.assertEqual((0, 8), (
-            profile.list_node_next_offset,
-            profile.list_node_value_offset,
-        ))
-        self.assertEqual((0x5C, 0x68, 0x74, 0x78), (
-            profile.member_health_percent_offset,
-            profile.member_position_x_offset,
-            profile.member_role_offset,
-            profile.member_follow_offset,
-        ))
+        self.assertEqual(
+            (0x98, 0x99, 0x9C),
+            (
+                profile.split_gold_offset,
+                profile.local_follow_offset,
+                profile.member_list_offset,
+            ),
+        )
+        self.assertEqual(
+            (0, 8),
+            (
+                profile.list_node_next_offset,
+                profile.list_node_value_offset,
+            ),
+        )
+        self.assertEqual(
+            (0x5C, 0x68, 0x74, 0x78),
+            (
+                profile.member_health_percent_offset,
+                profile.member_position_x_offset,
+                profile.member_role_offset,
+                profile.member_follow_offset,
+            ),
+        )
 
     def test_profile_loader_rejects_unknown_fields(self) -> None:
         bundled = load_bundled_native_group_profile()
-        raw = {
-            field: getattr(bundled, field)
-            for field in bundled.__dataclass_fields__
-        }
+        raw = {field: getattr(bundled, field) for field in bundled.__dataclass_fields__}
         raw["unknown"] = True
 
         with self.assertRaisesRegex(ValueError, "unknown fields"):

@@ -65,9 +65,7 @@ class RulesetCompilerTests(unittest.TestCase):
     def test_periodic_modifier_compiles_from_bounded_ruleset_data(self) -> None:
         source = bundled_source()
         shadow_touch = next(
-            action
-            for action in source["actions"]
-            if action["action_key"] == SHADOW_TOUCH
+            action for action in source["actions"] if action["action_key"] == SHADOW_TOUCH
         )
         applied = next(
             effect
@@ -94,9 +92,7 @@ class RulesetCompilerTests(unittest.TestCase):
         action = load_ruleset_text(json.dumps(source)).record(SHADOW_TOUCH).action
 
         assert action is not None
-        effect = next(
-            item for item in action.phases[0].effects if isinstance(item, ApplyEffect)
-        )
+        effect = next(item for item in action.phases[0].effects if isinstance(item, ApplyEffect))
         self.assertIsInstance(effect.modifiers[0], PeriodicPulse)
         pulse = effect.modifiers[0]
         assert isinstance(pulse, PeriodicPulse)
@@ -106,9 +102,7 @@ class RulesetCompilerTests(unittest.TestCase):
     def test_damage_breakpoint_and_resistance_compile_from_ruleset_data(self) -> None:
         source = bundled_source()
         shadow_touch = next(
-            action
-            for action in source["actions"]
-            if action["action_key"] == SHADOW_TOUCH
+            action for action in source["actions"] if action["action_key"] == SHADOW_TOUCH
         )
         applied = next(
             effect
@@ -137,9 +131,7 @@ class RulesetCompilerTests(unittest.TestCase):
         action = load_ruleset_text(json.dumps(source)).record(SHADOW_TOUCH).action
 
         assert action is not None
-        effect = next(
-            item for item in action.phases[0].effects if isinstance(item, ApplyEffect)
-        )
+        effect = next(item for item in action.phases[0].effects if isinstance(item, ApplyEffect))
         self.assertEqual(
             ResistanceAdjustment("crush", 75.0),
             effect.modifiers[0],
@@ -336,14 +328,10 @@ class RulesetCompilerTests(unittest.TestCase):
             effect for effect in action.phases[0].effects if isinstance(effect, ApplyEffect)
         )
         resistances = tuple(
-            modifier
-            for modifier in carrier.modifiers
-            if isinstance(modifier, ResistanceAdjustment)
+            modifier for modifier in carrier.modifiers if isinstance(modifier, ResistanceAdjustment)
         )
         breakpoint = next(
-            modifier
-            for modifier in carrier.modifiers
-            if isinstance(modifier, DamageBreakpoint)
+            modifier for modifier in carrier.modifiers if isinstance(modifier, DamageBreakpoint)
         )
         self.assertEqual(
             (("crush", 75.0), ("pierce", 75.0), ("slash", 75.0)),
@@ -488,9 +476,7 @@ class RulesetCompilerTests(unittest.TestCase):
             }
         ]
 
-        action = load_ruleset_text(json.dumps(source)).record(
-            "shadowbane.basic_attack"
-        ).action
+        action = load_ruleset_text(json.dumps(source)).record("shadowbane.basic_attack").action
 
         self.assertIsNotNone(action)
         assert action is not None

@@ -53,9 +53,7 @@ def _equivalence_classes() -> dict[str, tuple[str, frozenset[str]]]:
     by_digest: dict[str, tuple[str, frozenset[str]]] = {}
     for index, family in enumerate(families):
         if not isinstance(family, dict):
-            raise NativeLayoutCompatibilityRegistryError(
-                f"families[{index}] must be an object"
-            )
+            raise NativeLayoutCompatibilityRegistryError(f"families[{index}] must be an object")
         required = {
             "family_id",
             "canonical_executable_sha256",
@@ -63,9 +61,7 @@ def _equivalence_classes() -> dict[str, tuple[str, frozenset[str]]]:
             "validation",
         }
         if set(family) != required:
-            raise NativeLayoutCompatibilityRegistryError(
-                f"families[{index}] has unexpected fields"
-            )
+            raise NativeLayoutCompatibilityRegistryError(f"families[{index}] has unexpected fields")
         family_id = family["family_id"]
         if not isinstance(family_id, str) or not family_id.strip():
             raise NativeLayoutCompatibilityRegistryError(

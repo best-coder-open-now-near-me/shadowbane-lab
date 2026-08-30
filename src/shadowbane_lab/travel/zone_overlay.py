@@ -27,8 +27,7 @@ def format_zone_search_overlay(
     for index, result in enumerate(results, start=1):
         destination = result.destination
         lines.append(
-            f"{index}. {result.canonical_name}  "
-            f"[LT {destination.lt:g}, LG {destination.lg:g}]"
+            f"{index}. {result.canonical_name}  [LT {destination.lt:g}, LG {destination.lg:g}]"
         )
         lines.append(f"   /go {result.canonical_name}")
     return "\n".join(lines)

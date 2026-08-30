@@ -97,9 +97,7 @@ def _fixture(
         {
             addresses["slot"]: [_pointer(addresses["selected"])],
             addresses["selected"]: [_pointer(addresses["vtable"])],
-            addresses["vtable"] + profile.position_getter_slot_offset: [
-                _pointer(resolved_getter)
-            ],
+            addresses["vtable"] + profile.position_getter_slot_offset: [_pointer(resolved_getter)],
             addresses["selected"] + profile.position_component_offset: [
                 _pointer(addresses["component"])
             ],
@@ -193,24 +191,27 @@ class NativeTargetPositionProfileTests(unittest.TestCase):
         profile = load_bundled_native_target_position_profile()
 
         self.assertEqual(0x16A2DA4, profile.selected_pointer_rva)
-        self.assertEqual((0x1141000, 0x12C1000), (
-            profile.vtable_minimum_rva,
-            profile.vtable_maximum_rva,
-        ))
+        self.assertEqual(
+            (0x1141000, 0x12C1000),
+            (
+                profile.vtable_minimum_rva,
+                profile.vtable_maximum_rva,
+            ),
+        )
         self.assertEqual(0x58, profile.position_getter_slot_offset)
         self.assertEqual(0xA3D0, profile.position_getter_rva)
-        self.assertEqual((0x4B0, 0, 0x20), (
-            profile.position_component_offset,
-            profile.component_value_offset,
-            profile.position_value_offset,
-        ))
+        self.assertEqual(
+            (0x4B0, 0, 0x20),
+            (
+                profile.position_component_offset,
+                profile.component_value_offset,
+                profile.position_value_offset,
+            ),
+        )
 
     def test_profile_loader_rejects_unknown_fields(self) -> None:
         bundled = load_bundled_native_target_position_profile()
-        raw = {
-            field: getattr(bundled, field)
-            for field in bundled.__dataclass_fields__
-        }
+        raw = {field: getattr(bundled, field) for field in bundled.__dataclass_fields__}
         raw["unknown"] = True
 
         with self.assertRaisesRegex(ValueError, "unknown fields"):

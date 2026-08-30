@@ -146,9 +146,7 @@ def _fixture(
         ],
         current_zone + profile.object_type_offset: [struct.pack("<II", 9, 80052)],
         current_zone + profile.geometry_bounds_offset: [geometry_first],
-        current_zone + profile.geometry_bounds_offset + len(geometry_first): [
-            geometry_second
-        ],
+        current_zone + profile.geometry_bounds_offset + len(geometry_first): [geometry_second],
         current_zone + profile.parent_zone_offset: [_pointer(0)],
         current_buffer: [current_raw],
     }
@@ -159,9 +157,7 @@ def _fixture(
         responses[parent_zone + min(profile.template_group_offset, profile.template_id_offset)] = [
             struct.pack("<II", parent_template[1], parent_template[0])
         ]
-        responses[parent_zone + profile.object_type_offset] = [
-            struct.pack("<II", 9, 70041)
-        ]
+        responses[parent_zone + profile.object_type_offset] = [struct.pack("<II", 9, 70041)]
         responses[parent_zone + profile.geometry_bounds_offset] = [geometry_first]
         responses[parent_zone + profile.geometry_bounds_offset + len(geometry_first)] = [
             geometry_second
@@ -180,18 +176,27 @@ class NativeCurrentZoneReaderTests(unittest.TestCase):
         self.assertEqual("Keep of the Gorgoi", observation.name)
         self.assertEqual(0, observation.name_source_depth)
         self.assertEqual(24, len(observation.zone_token))
-        self.assertEqual((0, 524), (
-            observation.current.template_group_id,
-            observation.current.template_id,
-        ))
-        self.assertEqual((9, 80052), (
-            observation.current.object_type,
-            observation.current.object_uuid,
-        ))
-        self.assertEqual((88_832.0, 45_056.0), (
-            observation.current.geometry.center_lt,
-            observation.current.geometry.center_lg,
-        ))
+        self.assertEqual(
+            (0, 524),
+            (
+                observation.current.template_group_id,
+                observation.current.template_id,
+            ),
+        )
+        self.assertEqual(
+            (9, 80052),
+            (
+                observation.current.object_type,
+                observation.current.object_uuid,
+            ),
+        )
+        self.assertEqual(
+            (88_832.0, 45_056.0),
+            (
+                observation.current.geometry.center_lt,
+                observation.current.geometry.center_lg,
+            ),
+        )
 
     def test_matches_client_parent_name_fallback(self) -> None:
         process, _ = _fixture("", parent_name="The Dalgoth Marches")
@@ -215,19 +220,14 @@ class NativeCurrentZoneReaderTests(unittest.TestCase):
         self.assertEqual("Oblivion Isle", observation.name)
         self.assertEqual(
             ((310, 0), (1, 0)),
-            tuple(
-                (zone.template_group_id, zone.template_id)
-                for zone in observation.chain
-            ),
+            tuple((zone.template_group_id, zone.template_id) for zone in observation.chain),
         )
         self.assertFalse(observation.current.cache_resolvable)
 
     def test_rejects_parent_cycle(self) -> None:
         profile = _profile()
         process, current_zone = _fixture("")
-        process.responses[current_zone + profile.parent_zone_offset] = [
-            _pointer(current_zone)
-        ]
+        process.responses[current_zone + profile.parent_zone_offset] = [_pointer(current_zone)]
 
         with self.assertRaisesRegex(NativeCurrentZoneReadError, "cycle"):
             NativeCurrentZoneReader(profile, process).observe()
@@ -258,33 +258,42 @@ class NativeCurrentZoneProfileTests(unittest.TestCase):
         self.assertEqual(0xD40, profile.current_zone_offset)
         self.assertEqual(0xEC, profile.parent_zone_offset)
         self.assertEqual(0x1BC, profile.zone_name_offset)
-        self.assertEqual((0x14, 0x10), (
-            profile.template_group_offset,
-            profile.template_id_offset,
-        ))
-        self.assertEqual((0x78, 0x7C), (
-            profile.object_type_offset,
-            profile.object_uuid_offset,
-        ))
-        self.assertEqual((0x8C, 0xA4, 0xB4, 0xBC, 0xF0), (
-            profile.geometry_bounds_offset,
-            profile.geometry_rotation_offset,
-            profile.geometry_absolute_center_offset,
-            profile.geometry_local_center_offset,
-            profile.geometry_radius_offset,
-        ))
-        self.assertEqual((4, 8, 12), (
-            profile.string_begin_offset,
-            profile.string_end_offset,
-            profile.string_capacity_offset,
-        ))
+        self.assertEqual(
+            (0x14, 0x10),
+            (
+                profile.template_group_offset,
+                profile.template_id_offset,
+            ),
+        )
+        self.assertEqual(
+            (0x78, 0x7C),
+            (
+                profile.object_type_offset,
+                profile.object_uuid_offset,
+            ),
+        )
+        self.assertEqual(
+            (0x8C, 0xA4, 0xB4, 0xBC, 0xF0),
+            (
+                profile.geometry_bounds_offset,
+                profile.geometry_rotation_offset,
+                profile.geometry_absolute_center_offset,
+                profile.geometry_local_center_offset,
+                profile.geometry_radius_offset,
+            ),
+        )
+        self.assertEqual(
+            (4, 8, 12),
+            (
+                profile.string_begin_offset,
+                profile.string_end_offset,
+                profile.string_capacity_offset,
+            ),
+        )
 
     def test_profile_loader_rejects_unknown_fields(self) -> None:
         bundled = load_bundled_native_zone_profile()
-        raw = {
-            field: getattr(bundled, field)
-            for field in bundled.__dataclass_fields__
-        }
+        raw = {field: getattr(bundled, field) for field in bundled.__dataclass_fields__}
         raw["unknown"] = True
 
         with self.assertRaisesRegex(ValueError, "unknown fields"):

@@ -56,9 +56,7 @@ _TARGET_HIT = re.compile(
     r"^(?P<target>.+?) hits YOU for (?P<amount>\d+(?:\.\d+)?) points? of damage!$"
 )
 _TARGET_MISS = re.compile(r"^(?P<target>.+?) misses YOU!$")
-_TARGET_KILLED = re.compile(
-    r"^(?:\[Combat\] Info: )?You have killed (?P<target>.+?)!$"
-)
+_TARGET_KILLED = re.compile(r"^(?:\[Combat\] Info: )?You have killed (?P<target>.+?)!$")
 _EXPERIENCE = re.compile(
     r"^\[Combat\] Info: You have received (?P<amount>\d+(?:\.\d+)?) Experience Points!$"
 )

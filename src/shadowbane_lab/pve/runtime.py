@@ -224,9 +224,7 @@ class PvERunner:
             or not isinstance(maximum_consecutive_observation_failures, int)
             or maximum_consecutive_observation_failures <= 0
         ):
-            raise ValueError(
-                "maximum_consecutive_observation_failures must be a positive integer"
-            )
+            raise ValueError("maximum_consecutive_observation_failures must be a positive integer")
         if maximum_retained_trace_steps is not None and (
             isinstance(maximum_retained_trace_steps, bool)
             or not isinstance(maximum_retained_trace_steps, int)
@@ -252,9 +250,7 @@ class PvERunner:
         self._movement_dispatcher = movement_dispatcher
         self._stop_signal = stop_signal
         self._poll_interval_seconds = poll_interval_ms / 1000.0
-        self._maximum_consecutive_observation_failures = (
-            maximum_consecutive_observation_failures
-        )
+        self._maximum_consecutive_observation_failures = maximum_consecutive_observation_failures
         self._maximum_retained_trace_steps = maximum_retained_trace_steps
         self._trace_sink = trace_sink
         self._clock = clock
@@ -289,9 +285,7 @@ class PvERunner:
             try:
                 target = self._health_reader.observe()
                 population = (
-                    None
-                    if self._population_reader is None
-                    else self._population_reader.observe()
+                    None if self._population_reader is None else self._population_reader.observe()
                 )
                 target_action = (
                     None
@@ -318,9 +312,7 @@ class PvERunner:
                                 error=f"{type(exc).__name__}:{message[:160]}",
                             )
                         else:
-                            target_identity = NativeTargetIdentityObservation(
-                                target_present=False
-                            )
+                            target_identity = NativeTargetIdentityObservation(target_present=False)
                 target_position = (
                     None
                     if self._target_position_reader is None
@@ -333,15 +325,11 @@ class PvERunner:
                 )
                 if not target.target_present:
                     if target_position is not None and target_position.target_present:
-                        target_position = NativeTargetPositionObservation(
-                            target_present=False
-                        )
+                        target_position = NativeTargetPositionObservation(target_present=False)
                     if target_action is not None and target_action.target_present:
                         target_action = NativeTargetActionObservation(target_present=False)
                     if target_identity is not None and target_identity.target_present:
-                        target_identity = NativeTargetIdentityObservation(
-                            target_present=False
-                        )
+                        target_identity = NativeTargetIdentityObservation(target_present=False)
                 player = self._player_vitals_reader.observe()
                 events = tuple(
                     self._parser.parse(entry)
@@ -439,9 +427,7 @@ class PvERunner:
                 assert self._movement_dispatcher is not None
                 if approach_decision.click_count > 0:
                     try:
-                        stop_result = self._movement_dispatcher.stop_movement(
-                            approach_decision
-                        )
+                        stop_result = self._movement_dispatcher.stop_movement(approach_decision)
                     except Exception as exc:
                         movement_stop_accepted = False
                         movement_stop_reason = f"input_failure:{type(exc).__name__}"
@@ -523,9 +509,7 @@ class PvERunner:
                         )
                     )
                     stop_reason = (
-                        "emergency_stop"
-                        if self._stop_signal.is_set()
-                        else "guarded_input_rejected"
+                        "emergency_stop" if self._stop_signal.is_set() else "guarded_input_rejected"
                     )
                     terminal = self._controller.stop(stop_reason, now_ms=now_ms)
                     record(self._trace(terminal, observation=observation))
@@ -558,9 +542,7 @@ class PvERunner:
             if cleanup_decision is not None and cleanup_decision.click_count > 0:
                 assert self._movement_dispatcher is not None
                 try:
-                    cleanup_result = self._movement_dispatcher.stop_movement(
-                        cleanup_decision
-                    )
+                    cleanup_result = self._movement_dispatcher.stop_movement(cleanup_decision)
                 except Exception as exc:
                     cleanup_accepted = False
                     cleanup_reason = f"input_failure:{type(exc).__name__}"
@@ -635,8 +617,7 @@ class PvERunner:
                 None
                 if observation is None or observation.population is None
                 else sum(
-                    character.attack_eligible
-                    for character in observation.population.characters
+                    character.attack_eligible for character in observation.population.characters
                 )
             ),
             population_selected_target_token=(
