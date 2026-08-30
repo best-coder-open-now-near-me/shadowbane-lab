@@ -24,6 +24,10 @@ replace_exact(
                 return_value=StaticWindowInspector(_valid_snapshot()),
             ),
             patch(
+                "shadowbane_lab.cli.PyAutoGuiBackend",
+                return_value=RecordingInputBackend(),
+            ),
+            patch(
                 "shadowbane_lab.cli.WindowsHotkeyEmergencyStop",
 ''',
     expected=2,
@@ -37,6 +41,10 @@ replace_exact(
             patch(
                 "shadowbane_lab.cli.WindowsVisibleWindowInspector",
                 return_value=StaticVisibleWindowInspector(()),
+            ),
+            patch(
+                "shadowbane_lab.cli.PyAutoGuiBackend",
+                return_value=RecordingInputBackend(),
             ),
             patch("shadowbane_lab.cli.ManifestClientRegistryProvider"),
 ''',
