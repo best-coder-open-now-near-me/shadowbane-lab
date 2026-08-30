@@ -46,6 +46,23 @@ then atomically publishes the frozen directory.
 Keep the baseline and executable private because they are local game artifacts. Do not commit
 either one.
 
+## Build and probe the x86 extension
+
+On the development host with Visual Studio 2022's Win32 C++ toolchain installed:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
+  .\scripts\build-wonderbane-client-extension.ps1 -RunProbe
+```
+
+The build is pinned to the Visual Studio 2022 generator and refuses non-x86 configuration. Release
+compilation treats warnings as errors and enables ASLR, NX, control-flow guard, reproducible linking,
+and static runtime linkage. The probe is itself x86: it loads the artifact by exact path with safe
+DLL search flags, resolves both public exports, calls initialization twice to prove idempotence,
+reads the v1 status structure, verifies the heartbeat is a regular file, and unloads the DLL. The
+probe intentionally leaves that small heartbeat under Local App Data as test evidence. Build output
+is ignored by Git; the reviewed artifact hash belongs in the real patch manifest.
+
 ## Patch manifest and alignment evidence
 
 Schema version 1 pins the source executable by file name, length, PE machine, pointer size, and
@@ -89,3 +106,10 @@ The bootstrap strategy is not guessed. The baseline executable's imports, sectio
 entry path, and candidate patch bytes must be inspected before a real manifest is reviewed.
 Synthetic PE fixtures exercise the patch engine first; no fixture result authorizes a real client
 patch.
+
+The v1 x86 DLL exports `WonderBaneExtensionInitialize` and
+`WonderBaneExtensionGetStatus`. Initialization is idempotent and publishes one process-lifetime
+heartbeat atomically beneath `%LOCALAPPDATA%\ShadowbaneLab\client-extension`; it does not read or
+write game state. The status ABI reports the same heartbeat path, ABI/version, process ID,
+initialization state, and Win32 result. `verify-heartbeat <heartbeat.json>` strictly checks the
+schema and binds the file name to the PID plus process-creation FILETIME.

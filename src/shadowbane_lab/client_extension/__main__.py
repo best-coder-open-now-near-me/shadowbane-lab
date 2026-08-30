@@ -12,6 +12,10 @@ from shadowbane_lab.client_extension.baseline import (
     ClientBaselineError,
     freeze_client_baseline,
 )
+from shadowbane_lab.client_extension.heartbeat import (
+    ExtensionHeartbeatError,
+    load_extension_heartbeat,
+)
 from shadowbane_lab.client_extension.manifest import PatchManifestError, load_patch_manifest
 from shadowbane_lab.client_extension.package import (
     ClientPatchPackageError,
@@ -72,6 +76,12 @@ def _parser() -> argparse.ArgumentParser:
     discard.add_argument("directory", type=Path)
     discard.add_argument("receipt", type=Path)
     discard.add_argument("--pretty", action="store_true")
+    heartbeat = commands.add_parser(
+        "verify-heartbeat",
+        help="strictly parse native no-op initialization evidence",
+    )
+    heartbeat.add_argument("heartbeat", type=Path)
+    heartbeat.add_argument("--pretty", action="store_true")
     return parser
 
 
@@ -107,11 +117,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                 arguments.directory,
                 arguments.receipt,
             ).as_dict()
+        elif arguments.command == "verify-heartbeat":
+            payload = load_extension_heartbeat(arguments.heartbeat).as_dict()
         else:
             raise AssertionError(f"unhandled command: {arguments.command}")
     except (
         ClientBaselineError,
         ClientPatchPackageError,
+        ExtensionHeartbeatError,
         PatchManifestError,
         PatchResolutionError,
         OSError,

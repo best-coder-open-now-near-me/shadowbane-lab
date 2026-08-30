@@ -7,6 +7,14 @@ from .baseline import (
     ClientBaselineError,
     freeze_client_baseline,
 )
+from .heartbeat import (
+    EXTENSION_ABI_VERSION,
+    EXTENSION_HEARTBEAT_SCHEMA_VERSION,
+    ExtensionHeartbeat,
+    ExtensionHeartbeatError,
+    load_extension_heartbeat,
+    parse_extension_heartbeat,
+)
 from .manifest import (
     PATCH_MANIFEST_SCHEMA_VERSION,
     ExtensionArtifact,
@@ -44,6 +52,8 @@ from .resolver import (
 
 __all__ = [
     "CLIENT_BASELINE_SCHEMA_VERSION",
+    "EXTENSION_ABI_VERSION",
+    "EXTENSION_HEARTBEAT_SCHEMA_VERSION",
     "PATCH_MANIFEST_SCHEMA_VERSION",
     "PATCH_PACKAGE_SCHEMA_VERSION",
     "ROLLBACK_RECEIPT_SCHEMA_VERSION",
@@ -52,6 +62,8 @@ __all__ = [
     "ClientBaselineError",
     "ClientPatchPackageError",
     "ExtensionArtifact",
+    "ExtensionHeartbeat",
+    "ExtensionHeartbeatError",
     "MaskedSignature",
     "PatchAlignmentReport",
     "PatchManifest",
@@ -73,6 +85,8 @@ __all__ = [
     "discard_patched_client_copy",
     "freeze_client_baseline",
     "load_patch_manifest",
+    "load_extension_heartbeat",
+    "parse_extension_heartbeat",
     "prepare_patched_client_copy",
     "verify_frozen_client_baseline",
     "verify_patched_client_copy",
