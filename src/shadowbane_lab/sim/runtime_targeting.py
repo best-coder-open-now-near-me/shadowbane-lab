@@ -257,8 +257,7 @@ class RuntimeTargetingContext:
                 entity,
                 selector,
                 alive=(
-                    entity.alive
-                    and (eligible_alive is None or entity.entity_id in eligible_alive)
+                    entity.alive and (eligible_alive is None or entity.entity_id in eligible_alive)
                 ),
             )
             for entity in entities
