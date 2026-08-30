@@ -184,6 +184,7 @@ from shadowbane_lab.manager import (
     load_manager_manifest,
     recover_manager_bindings,
     replace_manager_manifest,
+    retarget_manager_clients,
 )
 from shadowbane_lab.progression import (
     CalculatorReviewStatus,
@@ -980,6 +981,19 @@ def _parser() -> argparse.ArgumentParser:
         help="required because this atomically replaces the manifest after making a backup",
     )
     manager_slots.add_argument("--json", action="store_true")
+    manager_build = manager_commands.add_parser(
+        "configure-build",
+        help="atomically retarget all slots to one reviewed client directory",
+    )
+    manager_build.add_argument("manifest", type=Path)
+    manager_build.add_argument("game_directory")
+    manager_build.add_argument("--executable-name", default="sb.exe")
+    manager_build.add_argument(
+        "--apply",
+        action="store_true",
+        help="required because this atomically replaces the manifest after making a backup",
+    )
+    manager_build.add_argument("--json", action="store_true")
     manager_app = manager_commands.add_parser(
         "app",
         help="run the authenticated localhost lifecycle dashboard",
@@ -1551,6 +1565,56 @@ def _configure_manager_slots(
         print(f"Manifest: {manifest_path}")
         print(f"Backup: {backup_path}")
         print("Restart the WonderBane Control Center to load the new slot list.")
+    return 0
+
+
+def _configure_manager_build(
+    manifest_path: Path,
+    *,
+    game_directory: str,
+    executable_name: str,
+    apply: bool,
+    as_json: bool,
+) -> int:
+    if not apply:
+        return _error(
+            "build configuration replaces the manager manifest; pass --apply to confirm",
+            as_json=as_json,
+        )
+    try:
+        current = load_manager_manifest(manifest_path)
+        configured = retarget_manager_clients(
+            current,
+            game_directory,
+            executable_name=executable_name,
+        )
+        executable = Path(str(configured.clients[0].launch.executable))
+        if not executable.is_file():
+            raise ValueError(f"reviewed client executable was not found: {executable}")
+        backup_path = replace_manager_manifest(
+            manifest_path,
+            expected=current,
+            replacement=configured,
+        )
+    except (OSError, RuntimeError, ValueError) as exc:
+        return _error(f"manager build configuration failed: {exc}", as_json=as_json)
+
+    result = {
+        "ok": True,
+        "manifest": str(manifest_path),
+        "backup": str(backup_path),
+        "slot_count": len(configured.clients),
+        "game_directory": str(configured.clients[0].expected_process_directory),
+        "executable": str(configured.clients[0].launch.executable),
+        "restart_required": True,
+    }
+    if as_json:
+        print(json.dumps(result, sort_keys=True))
+    else:
+        print(f"Configured {result['slot_count']} manager slots for {result['executable']}.")
+        print(f"Manifest: {manifest_path}")
+        print(f"Backup: {backup_path}")
+        print("Restart the WonderBane Control Center to load the reviewed client build.")
     return 0
 
 
@@ -5154,6 +5218,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             count=arguments.count,
             display_width=arguments.display_width,
             display_height=arguments.display_height,
+            apply=arguments.apply,
+            as_json=arguments.json,
+        )
+    if arguments.command == "manager" and arguments.manager_command == "configure-build":
+        return _configure_manager_build(
+            arguments.manifest,
+            game_directory=arguments.game_directory,
+            executable_name=arguments.executable_name,
             apply=arguments.apply,
             as_json=arguments.json,
         )

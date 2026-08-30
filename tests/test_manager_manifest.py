@@ -15,6 +15,7 @@ from shadowbane_lab.manager.manifest import (
     load_manager_manifest,
     loads_manager_manifest,
     parse_manager_manifest,
+    retarget_manager_clients,
 )
 
 
@@ -41,6 +42,35 @@ def _payload(*clients: dict[str, object]) -> dict[str, object]:
 
 
 class ManagerManifestTests(unittest.TestCase):
+    def test_retargets_every_slot_without_changing_operational_ownership(self) -> None:
+        original = parse_manager_manifest(
+            _payload(_client("client-01"), _client("client-02", left=1280))
+        )
+
+        retargeted = retarget_manager_clients(
+            original,
+            PureWindowsPath(r"C:\Reviewed\WonderBane-1.0.5"),
+            executable_name="sb.exe",
+        )
+
+        self.assertEqual(original.node_id, retargeted.node_id)
+        self.assertEqual(
+            tuple(client.client_id for client in original.clients),
+            tuple(client.client_id for client in retargeted.clients),
+        )
+        self.assertEqual(
+            tuple(client.window_tile for client in original.clients),
+            tuple(client.window_tile for client in retargeted.clients),
+        )
+        for before, after in zip(original.clients, retargeted.clients, strict=True):
+            self.assertEqual(before.launch.arguments, after.launch.arguments)
+            self.assertEqual(before.launch.environment, after.launch.environment)
+            self.assertEqual(
+                PureWindowsPath(r"C:\Reviewed\WonderBane-1.0.5\sb.exe"),
+                after.launch.executable,
+            )
+            self.assertEqual(("sb.exe",), after.expected_executable_names)
+
     def test_expands_reviewed_slots_and_retiles_without_mutating_launch_config(self) -> None:
         original = parse_manager_manifest(_payload())
 

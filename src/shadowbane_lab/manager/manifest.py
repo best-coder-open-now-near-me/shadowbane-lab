@@ -599,6 +599,41 @@ def expand_manager_slots(
     return ManagerManifest(node_id=manifest.node_id, clients=tuple(tiled))
 
 
+def retarget_manager_clients(
+    manifest: ManagerManifest,
+    game_directory: str | PureWindowsPath,
+    *,
+    executable_name: str = "sb.exe",
+) -> ManagerManifest:
+    """Retarget every slot to one reviewed build without changing slot ownership."""
+
+    if not isinstance(manifest, ManagerManifest):
+        raise ValueError("manifest must be ManagerManifest")
+    directory = _parse_absolute_windows_path(
+        str(game_directory),
+        location="game_directory",
+    )
+    (validated_name,) = _parse_executable_names(
+        [executable_name],
+        location="executable_name",
+    )
+    executable = directory / validated_name
+    clients = tuple(
+        replace(
+            client,
+            launch=replace(
+                client.launch,
+                executable=executable,
+                working_directory=directory,
+            ),
+            expected_process_directory=directory,
+            expected_executable_names=(validated_name,),
+        )
+        for client in manifest.clients
+    )
+    return ManagerManifest(node_id=manifest.node_id, clients=clients)
+
+
 def parse_manager_manifest(payload: object) -> ManagerManifest:
     """Validate an already-decoded JSON-compatible manager manifest."""
 
@@ -672,4 +707,5 @@ __all__ = [
     "load_manager_manifest",
     "loads_manager_manifest",
     "parse_manager_manifest",
+    "retarget_manager_clients",
 ]

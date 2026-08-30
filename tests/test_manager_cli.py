@@ -74,6 +74,60 @@ def _manifest_client(
 
 
 class ManagerCliTests(unittest.TestCase):
+    def test_configure_build_is_explicit_atomic_and_preserves_slots(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path = root / "client-manager.json"
+            original = {
+                "schema_version": 1,
+                "node_id": "gaming-pc-east",
+                "clients": [
+                    _manifest_client(root / "old", client_id="client-01"),
+                    _manifest_client(root / "old", client_id="client-02", left=800),
+                ],
+            }
+            manifest_path.write_text(json.dumps(original), encoding="utf-8")
+            original_bytes = manifest_path.read_bytes()
+
+            with redirect_stderr(io.StringIO()):
+                refused = main(
+                    (
+                        "manager",
+                        "configure-build",
+                        str(manifest_path),
+                        r"C:\Reviewed\WonderBane-1.0.5",
+                    )
+                )
+            self.assertEqual(2, refused)
+            self.assertEqual(original_bytes, manifest_path.read_bytes())
+
+            output = io.StringIO()
+            with (
+                patch("shadowbane_lab.cli.Path.is_file", return_value=True),
+                redirect_stdout(output),
+            ):
+                configured = main(
+                    (
+                        "manager",
+                        "configure-build",
+                        str(manifest_path),
+                        r"C:\Reviewed\WonderBane-1.0.5",
+                        "--apply",
+                        "--json",
+                    )
+                )
+
+            payload = json.loads(output.getvalue())
+            manifest = load_manager_manifest(manifest_path)
+            self.assertEqual(0, configured)
+            self.assertEqual(2, payload["slot_count"])
+            self.assertEqual(
+                ("client-01", "client-02"),
+                tuple(client.client_id for client in manifest.clients),
+            )
+            self.assertTrue(Path(payload["backup"]).is_file())
+            self.assertEqual(original_bytes, Path(payload["backup"]).read_bytes())
+
     def test_configure_slots_is_explicit_atomic_and_preserves_a_backup(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

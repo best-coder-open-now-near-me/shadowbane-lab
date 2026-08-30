@@ -133,6 +133,22 @@ preserved, new slots clone the first reviewed launch configuration, all slots re
 tiles, and the original JSON is retained beside the manifest as a timestamped backup. Re-running
 the VM installer preserves the existing manifest unless `-ClientCount` is explicitly supplied.
 
+When an immutable reviewed client build replaces the launch directory, retarget every existing
+slot atomically instead of editing JSON or copying binaries over the installed client:
+
+```powershell
+$env:PYTHONPATH = "\\VBOXSVR\codexrepo\src"
+& "$env:USERPROFILE\shadowbane-lab\.venv\Scripts\python.exe" `
+  -m shadowbane_lab.cli manager configure-build `
+  "$env:LOCALAPPDATA\ShadowbaneLab\client-manager.json" `
+  "\\VBOXSVR\codexdiag\client-extension-working\wonderbane-1.0.5-world-map-click-v1" `
+  --apply --json
+```
+
+The command verifies `sb.exe` before replacing the manifest, preserves slot IDs, tiles, launch
+arguments, and reviewed renderer environment, and writes a timestamped backup. Restart the control
+center afterward so both the dashboard and node listener load the new immutable configuration.
+
 `--live` is mandatory because reviewed dashboard actions can launch, tile, or request a graceful
 close. Opening the app never starts a client automatically. The terminal prints a per-run URL
 and normally opens it in the default browser; use `--no-browser` to print it only. The control

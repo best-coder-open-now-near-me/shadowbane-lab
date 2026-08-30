@@ -28,6 +28,7 @@ from .manifest import (
     load_manager_manifest,
     loads_manager_manifest,
     parse_manager_manifest,
+    retarget_manager_clients,
 )
 from .model import (
     MANAGER_SNAPSHOT_SCHEMA_VERSION,
@@ -268,6 +269,7 @@ __all__ = [
     "loads_manager_manifest",
     "parse_manager_manifest",
     "replace_manager_manifest",
+    "retarget_manager_clients",
     "recover_manager_bindings",
     "selector_from_config",
     "window_rectangle_from_config",
