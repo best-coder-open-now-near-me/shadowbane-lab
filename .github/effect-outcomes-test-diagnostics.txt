@@ -1,0 +1,1840 @@
+# Effect-outcome validation failures
+
+ERROR: test_malformed_nested_protocol_message_fails_closed (test_differential_validation.DifferentialValidationTests.test_malformed_nested_protocol_message_fails_closed)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_differential_validation.py", line 237, in test_malformed_nested_protocol_message_fails_closed
+    data = json.loads(encode_trace(shadow_bolt_trace()))
+                                   ^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_differential_validation.py", line 72, in shadow_bolt_trace
+    recorder.step()
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/differential/recorder.py", line 43, in step
+    events = self._environment.step(decisions)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 187, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_missing_affordance_is_a_legality_difference (test_differential_validation.DifferentialValidationTests.test_missing_affordance_is_a_legality_difference)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_differential_validation.py", line 222, in test_missing_affordance_is_a_legality_difference
+    expected = shadow_bolt_trace()
+               ^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_differential_validation.py", line 72, in shadow_bolt_trace
+    recorder.step()
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/differential/recorder.py", line 43, in step
+    events = self._environment.step(decisions)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 187, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_numeric_tolerance_suppresses_only_its_category (test_differential_validation.DifferentialValidationTests.test_numeric_tolerance_suppresses_only_its_category)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_differential_validation.py", line 167, in test_numeric_tolerance_suppresses_only_its_category
+    expected = shadow_bolt_trace()
+               ^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_differential_validation.py", line 72, in shadow_bolt_trace
+    recorder.step()
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/differential/recorder.py", line 43, in step
+    events = self._environment.step(decisions)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 187, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_open_bundled_gap_does_not_hide_a_difference (test_differential_validation.DifferentialValidationTests.test_open_bundled_gap_does_not_hide_a_difference)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_differential_validation.py", line 210, in test_open_bundled_gap_does_not_hide_a_difference
+    expected = shadow_bolt_trace()
+               ^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_differential_validation.py", line 72, in shadow_bolt_trace
+    recorder.step()
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/differential/recorder.py", line 43, in step
+    events = self._environment.step(decisions)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 187, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_producer_specific_metadata_does_not_create_semantic_differences (test_differential_validation.DifferentialValidationTests.test_producer_specific_metadata_does_not_create_semantic_differences)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_differential_validation.py", line 120, in test_producer_specific_metadata_does_not_create_semantic_differences
+    expected = shadow_bolt_trace()
+               ^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_differential_validation.py", line 72, in shadow_bolt_trace
+    recorder.step()
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/differential/recorder.py", line 43, in step
+    events = self._environment.step(decisions)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 187, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_reference_trace_round_trips_through_canonical_json (test_differential_validation.DifferentialValidationTests.test_reference_trace_round_trips_through_canonical_json)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_differential_validation.py", line 112, in test_reference_trace_round_trips_through_canonical_json
+    trace = shadow_bolt_trace()
+            ^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_differential_validation.py", line 72, in shadow_bolt_trace
+    recorder.step()
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/differential/recorder.py", line 43, in step
+    events = self._environment.step(decisions)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 187, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_reviewed_gap_can_accept_a_scoped_bounded_difference (test_differential_validation.DifferentialValidationTests.test_reviewed_gap_can_accept_a_scoped_bounded_difference)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_differential_validation.py", line 184, in test_reviewed_gap_can_accept_a_scoped_bounded_difference
+    expected = shadow_bolt_trace()
+               ^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_differential_validation.py", line 72, in shadow_bolt_trace
+    recorder.step()
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/differential/recorder.py", line 43, in step
+    events = self._environment.step(decisions)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 187, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_state_damage_difference_is_classified_and_unexpected (test_differential_validation.DifferentialValidationTests.test_state_damage_difference_is_classified_and_unexpected)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_differential_validation.py", line 154, in test_state_damage_difference_is_classified_and_unexpected
+    expected = shadow_bolt_trace()
+               ^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_differential_validation.py", line 72, in shadow_bolt_trace
+    recorder.step()
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/differential/recorder.py", line 43, in step
+    events = self._environment.step(decisions)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 187, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_unordered_semantic_tags_do_not_create_differences (test_differential_validation.DifferentialValidationTests.test_unordered_semantic_tags_do_not_create_differences)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_differential_validation.py", line 137, in test_unordered_semantic_tags_do_not_create_differences
+    expected = shadow_bolt_trace()
+               ^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_differential_validation.py", line 72, in shadow_bolt_trace
+    recorder.step()
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/differential/recorder.py", line 43, in step
+    events = self._environment.step(decisions)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 187, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_cli_emits_machine_readable_results (test_duel_rollouts.DuelRolloutTests.test_cli_emits_machine_readable_results)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_duel_rollouts.py", line 169, in test_cli_emits_machine_readable_results
+    exit_code = main(("--levels", "10", "--ranks", "0", "--json"))
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/__main__.py", line 378, in main
+    results = matched_progression_duels(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/duel.py", line 1264, in matched_progression_duels
+    results.append((level, rank, run_duel(duel)))
+                                 ^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/duel.py", line 956, in run_duel
+    batch = environment.step(tuple(decisions), truncated=step_number == config.max_ticks - 1)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 187, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_duel_is_reproducible_and_reaches_a_terminal_outcome (test_duel_rollouts.DuelRolloutTests.test_duel_is_reproducible_and_reaches_a_terminal_outcome)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_duel_rollouts.py", line 57, in test_duel_is_reproducible_and_reaches_a_terminal_outcome
+    first = run_duel(config)
+            ^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/duel.py", line 956, in run_duel
+    batch = environment.step(tuple(decisions), truncated=step_number == config.max_ticks - 1)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 187, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_explicit_power_subset_excludes_unselected_power (test_duel_rollouts.DuelRolloutTests.test_explicit_power_subset_excludes_unselected_power)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_duel_rollouts.py", line 128, in test_explicit_power_subset_excludes_unselected_power
+    result = run_duel(config)
+             ^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/duel.py", line 956, in run_duel
+    batch = environment.step(tuple(decisions), truncated=step_number == config.max_ticks - 1)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 187, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_level_gates_change_action_usage (test_duel_rollouts.DuelRolloutTests.test_level_gates_change_action_usage)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_duel_rollouts.py", line 67, in test_level_gates_change_action_usage
+    results = matched_progression_duels(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/duel.py", line 1264, in matched_progression_duels
+    results.append((level, rank, run_duel(duel)))
+                                 ^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/duel.py", line 956, in run_duel
+    batch = environment.step(tuple(decisions), truncated=step_number == config.max_ticks - 1)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 187, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_matrix_aggregates_distances_and_seed_variation (test_duel_rollouts.DuelRolloutTests.test_matrix_aggregates_distances_and_seed_variation)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_duel_rollouts.py", line 179, in test_matrix_aggregates_distances_and_seed_variation
+    cells = progression_duel_matrix(
+            ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/duel.py", line 1296, in progression_duel_matrix
+    results = tuple(
+              ^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/duel.py", line 1297, in <genexpr>
+    run_duel(
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/duel.py", line 956, in run_duel
+    batch = environment.step(tuple(decisions), truncated=step_number == config.max_ticks - 1)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 187, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_matrix_cli_emits_aggregate_cells (test_duel_rollouts.DuelRolloutTests.test_matrix_cli_emits_aggregate_cells)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_duel_rollouts.py", line 199, in test_matrix_cli_emits_aggregate_cells
+    exit_code = main(
+                ^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/__main__.py", line 351, in main
+    cells = progression_duel_matrix(
+            ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/duel.py", line 1296, in progression_duel_matrix
+    results = tuple(
+              ^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/duel.py", line 1297, in <genexpr>
+    run_duel(
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/duel.py", line 956, in run_duel
+    batch = environment.step(tuple(decisions), truncated=step_number == config.max_ticks - 1)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 187, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_rank_brackets_change_compiled_power_usage_or_outcome (test_duel_rollouts.DuelRolloutTests.test_rank_brackets_change_compiled_power_usage_or_outcome)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_duel_rollouts.py", line 95, in test_rank_brackets_change_compiled_power_usage_or_outcome
+    results = matched_progression_duels(levels=(26,), power_ranks=(0, 40), max_ticks=1_000)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/duel.py", line 1264, in matched_progression_duels
+    results.append((level, rank, run_duel(duel)))
+                                 ^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/duel.py", line 956, in run_duel
+    batch = environment.step(tuple(decisions), truncated=step_number == config.max_ticks - 1)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 187, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_relational_movement_closes_range_without_rejections (test_duel_rollouts.DuelRolloutTests.test_relational_movement_closes_range_without_rejections)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_duel_rollouts.py", line 150, in test_relational_movement_closes_range_without_rejections
+    result = run_duel(
+             ^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/duel.py", line 956, in run_duel
+    batch = environment.step(tuple(decisions), truncated=step_number == config.max_ticks - 1)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 187, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_time_limit_is_reported_as_truncation_without_a_winner (test_duel_rollouts.DuelRolloutTests.test_time_limit_is_reported_as_truncation_without_a_winner)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_duel_rollouts.py", line 109, in test_time_limit_is_reported_as_truncation_without_a_winner
+    result = run_duel(config)
+             ^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/duel.py", line 956, in run_duel
+    batch = environment.step(tuple(decisions), truncated=step_number == config.max_ticks - 1)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 187, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_applied_condition_runs_followups (test_effect_outcomes.EffectOutcomeTests.test_applied_condition_runs_followups)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_effect_outcomes.py", line 113, in test_applied_condition_runs_followups
+    result = environment.step((choose(environment, action.action_key, "cast-1"),))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_blocked_condition_does_not_run_followups (test_effect_outcomes.EffectOutcomeTests.test_blocked_condition_does_not_run_followups)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_effect_outcomes.py", line 141, in test_blocked_condition_does_not_run_followups
+    result = environment.step((choose(environment, action.action_key, "cast-1"),))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_else_branch_is_explicit (test_effect_outcomes.EffectOutcomeTests.test_else_branch_is_explicit)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_effect_outcomes.py", line 251, in test_else_branch_is_explicit
+    environment.step((choose(environment, action.action_key, "cast"),))
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_generic_immunity_tags_block_non_stun_effects (test_effect_outcomes.EffectOutcomeTests.test_generic_immunity_tags_block_non_stun_effects)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_effect_outcomes.py", line 296, in test_generic_immunity_tags_block_non_stun_effects
+    environment.step((choose(environment, action.action_key, "cast"),))
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_refresh_outcome_can_select_its_own_branch (test_effect_outcomes.EffectOutcomeTests.test_refresh_outcome_can_select_its_own_branch)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_effect_outcomes.py", line 201, in test_refresh_outcome_can_select_its_own_branch
+    environment.step((choose(environment, initial.action_key, "initial"),))
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_death_cancels_source_bound_unreleased_work (test_lifecycle_core.LifecycleCoreTests.test_death_cancels_source_bound_unreleased_work)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_lifecycle_core.py", line 332, in test_death_cancels_source_bound_unreleased_work
+    death = environment.step(
+            ^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_execution_snapshot_tracks_current_phase_and_replays (test_lifecycle_core.LifecycleCoreTests.test_execution_snapshot_tracks_current_phase_and_replays)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_lifecycle_core.py", line 109, in test_execution_snapshot_tracks_current_phase_and_replays
+    expected = environment.step()
+               ^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 187, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_later_interruptible_phase_does_not_make_windup_interruptible (test_lifecycle_core.LifecycleCoreTests.test_later_interruptible_phase_does_not_make_windup_interruptible)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_lifecycle_core.py", line 147, in test_later_interruptible_phase_does_not_make_windup_interruptible
+    result = environment.step(
+             ^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_released_projectile_survives_source_death_without_completed_then_interrupted (test_lifecycle_core.LifecycleCoreTests.test_released_projectile_survives_source_death_without_completed_then_interrupted)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_lifecycle_core.py", line 278, in test_released_projectile_survives_source_death_without_completed_then_interrupted
+    first = environment.step(
+            ^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_same_timestamp_damage_cancels_unreleased_payload_still_in_queue (test_lifecycle_core.LifecycleCoreTests.test_same_timestamp_damage_cancels_unreleased_payload_still_in_queue)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_lifecycle_core.py", line 210, in test_same_timestamp_damage_cancels_unreleased_payload_still_in_queue
+    result = environment.step(
+             ^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 187, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_cli_emits_machine_readable_frost_walker_trace (test_nearby_mob_rollout.NearbyMobRolloutTests.test_cli_emits_machine_readable_frost_walker_trace)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_nearby_mob_rollout.py", line 66, in test_cli_emits_machine_readable_frost_walker_trace
+    exit_code = main(
+                ^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/__main__.py", line 331, in main
+    result = run_nearby_mob_simulation(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/nearby_mob.py", line 334, in run_nearby_mob_simulation
+    batch = environment.step(
+            ^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_frost_walker_profile_drives_production_controller_to_one_kill (test_nearby_mob_rollout.NearbyMobRolloutTests.test_frost_walker_profile_drives_production_controller_to_one_kill)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_nearby_mob_rollout.py", line 20, in test_frost_walker_profile_drives_production_controller_to_one_kill
+    result = run_nearby_mob_simulation(config)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/nearby_mob.py", line 334, in run_nearby_mob_simulation
+    batch = environment.step(
+            ^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_same_seed_replays_the_entire_controller_and_combat_trace (test_nearby_mob_rollout.NearbyMobRolloutTests.test_same_seed_replays_the_entire_controller_and_combat_trace)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_nearby_mob_rollout.py", line 41, in test_same_seed_replays_the_entire_controller_and_combat_trace
+    run_nearby_mob_simulation(config),
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/nearby_mob.py", line 334, in run_nearby_mob_simulation
+    batch = environment.step(
+            ^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_cross_source_primitive_bags_run_through_normal_harness (test_open_builds.OpenBuildTests.test_cross_source_primitive_bags_run_through_normal_harness)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_open_builds.py", line 58, in test_cross_source_primitive_bags_run_through_normal_harness
+    result = run_open_duel(
+             ^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/open_builds.py", line 283, in run_open_duel
+    duel = run_duel(
+           ^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/duel.py", line 956, in run_duel
+    batch = environment.step(tuple(decisions), truncated=step_number == config.max_ticks - 1)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 187, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_open_duel_reports_actual_trigger_use_not_just_ownership (test_open_builds.OpenBuildTests.test_open_duel_reports_actual_trigger_use_not_just_ownership)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_open_builds.py", line 88, in test_open_duel_reports_actual_trigger_use_not_just_ownership
+    result = run_open_duel(
+             ^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/open_builds.py", line 283, in run_open_duel
+    duel = run_duel(
+           ^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/duel.py", line 956, in run_duel
+    batch = environment.step(tuple(decisions), truncated=step_number == config.max_ticks - 1)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 187, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_round_robin_mirrors_each_pair (test_open_builds.OpenBuildTests.test_round_robin_mirrors_each_pair)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_open_builds.py", line 138, in test_round_robin_mirrors_each_pair
+    cells = round_robin_open_duels(
+            ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/open_builds.py", line 324, in round_robin_open_duels
+    run_open_duel(
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/open_builds.py", line 283, in run_open_duel
+    duel = run_duel(
+           ^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/duel.py", line 956, in run_duel
+    batch = environment.step(tuple(decisions), truncated=step_number == config.max_ticks - 1)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 187, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_example_inventory_generates_runnable_open_loadouts (test_packages.PackageAssemblyTests.test_example_inventory_generates_runnable_open_loadouts)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_packages.py", line 129, in test_example_inventory_generates_runnable_open_loadouts
+    cells = round_robin_open_duels(
+            ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/open_builds.py", line 324, in round_robin_open_duels
+    run_open_duel(
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/open_builds.py", line 283, in run_open_duel
+    duel = run_duel(
+           ^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/duel.py", line 956, in run_duel
+    batch = environment.step(tuple(decisions), truncated=step_number == config.max_ticks - 1)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 187, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_batch_can_retain_exact_seed_results_on_request (test_pure_pve_rollout.PurePvERolloutTests.test_batch_can_retain_exact_seed_results_on_request)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_pure_pve_rollout.py", line 57, in test_batch_can_retain_exact_seed_results_on_request
+    result = run_pure_pve_batch(
+             ^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/pure_pve.py", line 234, in run_pure_pve_batch
+    result = run_pure_pve_encounter(replace(config, seed=seed))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/pure_pve.py", line 162, in run_pure_pve_encounter
+    batch = environment.step(
+            ^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_batch_is_reproducible_and_distributions_account_for_every_episode (test_pure_pve_rollout.PurePvERolloutTests.test_batch_is_reproducible_and_distributions_account_for_every_episode)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_pure_pve_rollout.py", line 34, in test_batch_is_reproducible_and_distributions_account_for_every_episode
+    first = run_pure_pve_batch(config, episodes=1_000, seed_start=0)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/pure_pve.py", line 234, in run_pure_pve_batch
+    result = run_pure_pve_encounter(replace(config, seed=seed))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/pure_pve.py", line 162, in run_pure_pve_encounter
+    batch = environment.step(
+            ^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_cli_emits_compact_pure_batch_summary (test_pure_pve_rollout.PurePvERolloutTests.test_cli_emits_compact_pure_batch_summary)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_pure_pve_rollout.py", line 89, in test_cli_emits_compact_pure_batch_summary
+    exit_code = main(
+                ^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/__main__.py", line 306, in main
+    result = run_pure_pve_batch(
+             ^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/pure_pve.py", line 234, in run_pure_pve_batch
+    result = run_pure_pve_encounter(replace(config, seed=seed))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/pure_pve.py", line 162, in run_pure_pve_encounter
+    batch = environment.step(
+            ^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_direct_encounter_attacks_known_mob_without_controller_acquisition (test_pure_pve_rollout.PurePvERolloutTests.test_direct_encounter_attacks_known_mob_without_controller_acquisition)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_pure_pve_rollout.py", line 20, in test_direct_encounter_attacks_known_mob_without_controller_acquisition
+    result = run_pure_pve_encounter(config)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/pure_pve.py", line 162, in run_pure_pve_encounter
+    batch = environment.step(
+            ^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_tick_limit_is_a_simulation_outcome_without_live_safety_semantics (test_pure_pve_rollout.PurePvERolloutTests.test_tick_limit_is_a_simulation_outcome_without_live_safety_semantics)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_pure_pve_rollout.py", line 69, in test_tick_limit_is_a_simulation_outcome_without_live_safety_semantics
+    result = run_pure_pve_encounter(config)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/pure_pve.py", line 162, in run_pure_pve_encounter
+    batch = environment.step(
+            ^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_close_intent_binds_targets_instead_of_compass_directions (test_range_intent.RangeIntentTests.test_close_intent_binds_targets_instead_of_compass_directions)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_range_intent.py", line 76, in test_close_intent_binds_targets_instead_of_compass_directions
+    environment.step((exchange.decision(diagonal.affordance_id, "close:1"),))
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 187, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_bounded_dispel_removes_only_the_newest_matching_effect (test_reference_environment.ReferenceEnvironmentTests.test_bounded_dispel_removes_only_the_newest_matching_effect)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_reference_environment.py", line 290, in test_bounded_dispel_removes_only_the_newest_matching_effect
+    environment.step(
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_chance_gate_emits_seeded_outcome_and_applies_damage_only_on_success (test_reference_environment.ReferenceEnvironmentTests.test_chance_gate_emits_seeded_outcome_and_applies_damage_only_on_success)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_reference_environment.py", line 344, in test_chance_gate_emits_seeded_outcome_and_applies_damage_only_on_success
+    triggered_environment, triggered = run(0)
+                                       ^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_reference_environment.py", line 342, in run
+    return environment, environment.step((decision,))
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_cost_and_cooldown_change_future_affordances (test_reference_environment.ReferenceEnvironmentTests.test_cost_and_cooldown_change_future_affordances)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_reference_environment.py", line 737, in test_cost_and_cooldown_change_future_affordances
+    environment.step((decision,))
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_effect_expiry_is_scheduled_at_exact_virtual_time (test_reference_environment.ReferenceEnvironmentTests.test_effect_expiry_is_scheduled_at_exact_virtual_time)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_reference_environment.py", line 872, in test_effect_expiry_is_scheduled_at_exact_virtual_time
+    environment.step((decision,))
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_item_transfer_and_objective_progress_use_bound_entities (test_reference_environment.ReferenceEnvironmentTests.test_item_transfer_and_objective_progress_use_bound_entities)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_reference_environment.py", line 938, in test_item_transfer_and_objective_progress_use_bound_entities
+    environment.step((transfer_decision,))
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_movement_and_observation_use_active_scalar_multiplier (test_reference_environment.ReferenceEnvironmentTests.test_movement_and_observation_use_active_scalar_multiplier)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_reference_environment.py", line 809, in test_movement_and_observation_use_active_scalar_multiplier
+    environment.step((decision,))
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 187, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_movement_uses_bound_direction_and_phase_duration (test_reference_environment.ReferenceEnvironmentTests.test_movement_uses_bound_direction_and_phase_duration)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_reference_environment.py", line 769, in test_movement_uses_bound_direction_and_phase_duration
+    environment.step((decision,))
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 187, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_projectile_uses_virtual_travel_time (test_reference_environment.ReferenceEnvironmentTests.test_projectile_uses_virtual_travel_time)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_reference_environment.py", line 531, in test_projectile_uses_virtual_travel_time
+    environment.step((decision,))
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_push_moves_the_target_away_from_the_actor (test_reference_environment.ReferenceEnvironmentTests.test_push_moves_the_target_away_from_the_actor)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_reference_environment.py", line 842, in test_push_moves_the_target_away_from_the_actor
+    environment.step((decision,))
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_resource_transfer_is_limited_by_source_and_destination_resources (test_reference_environment.ReferenceEnvironmentTests.test_resource_transfer_is_limited_by_source_and_destination_resources)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_reference_environment.py", line 203, in test_resource_transfer_is_limited_by_source_and_destination_resources
+    first = environment.step(
+            ^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_same_timestamp_actions_use_cancellation_aware_microsteps (test_reference_environment.ReferenceEnvironmentTests.test_same_timestamp_actions_use_cancellation_aware_microsteps)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_reference_environment.py", line 488, in test_same_timestamp_actions_use_cancellation_aware_microsteps
+    result = environment.step((decision_b, decision_a))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_snapshot_replays_seeded_uniform_damage_exactly (test_reference_environment.ReferenceEnvironmentTests.test_snapshot_replays_seeded_uniform_damage_exactly)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_reference_environment.py", line 623, in test_snapshot_replays_seeded_uniform_damage_exactly
+    expected_events = environment.step((decision,))
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_snapshot_replays_seeded_weighted_damage_exactly (test_reference_environment.ReferenceEnvironmentTests.test_snapshot_replays_seeded_weighted_damage_exactly)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_reference_environment.py", line 676, in test_snapshot_replays_seeded_weighted_damage_exactly
+    expected_events = environment.step((decision,))
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_snapshot_restores_pending_timeline_for_exact_replay (test_reference_environment.ReferenceEnvironmentTests.test_snapshot_restores_pending_timeline_for_exact_replay)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_reference_environment.py", line 573, in test_snapshot_restores_pending_timeline_for_exact_replay
+    environment.step((decision,))
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_stun_blocks_affordances_until_effect_expiry (test_reference_environment.ReferenceEnvironmentTests.test_stun_blocks_affordances_until_effect_expiry)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_reference_environment.py", line 397, in test_stun_blocks_affordances_until_effect_expiry
+    environment.step((decision,))
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_stun_immunity_prevents_new_stun_effect (test_reference_environment.ReferenceEnvironmentTests.test_stun_immunity_prevents_new_stun_effect)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_reference_environment.py", line 446, in test_stun_immunity_prevents_new_stun_effect
+    events = environment.step((decision,)).events
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_dead_actor_future_resolution_is_cancelled (test_rollout_guards.RolloutGuardTests.test_dead_actor_future_resolution_is_cancelled)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_rollout_guards.py", line 100, in test_dead_actor_future_resolution_is_cancelled
+    environment.step(
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_compiled_shadow_bolt_runs_through_reference_environment (test_ruleset_compiler.RulesetCompilerTests.test_compiled_shadow_bolt_runs_through_reference_environment)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_ruleset_compiler.py", line 555, in test_compiled_shadow_bolt_runs_through_reference_environment
+    result = environment.step()
+             ^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 187, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_attack_gate_modifier_inherits_typed_base_damage_channel (test_shadowbane_combat_runtime.ShadowbaneCombatRuntimeTests.test_attack_gate_modifier_inherits_typed_base_damage_channel)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_shadowbane_combat_runtime.py", line 173, in test_attack_gate_modifier_inherits_typed_base_damage_channel
+    environment.step((_decision(environment),))
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_damage_breakpoint_counts_post_resistance_damage_and_breaks_only_above (test_shadowbane_combat_runtime.ShadowbaneCombatRuntimeTests.test_damage_breakpoint_counts_post_resistance_damage_and_breaks_only_above)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_shadowbane_combat_runtime.py", line 247, in test_damage_breakpoint_counts_post_resistance_damage_and_breaks_only_above
+    environment.step((_decision(environment, "shield"),))
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_effect_stack_priority_blocks_weaker_same_order_effect (test_shadowbane_combat_runtime.ShadowbaneCombatRuntimeTests.test_effect_stack_priority_blocks_weaker_same_order_effect)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_shadowbane_combat_runtime.py", line 656, in test_effect_stack_priority_blocks_weaker_same_order_effect
+    result = environment.step((_decision(environment, "debuff"),))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_explicit_damage_and_stun_flags_interrupt_pending_actions (test_shadowbane_combat_runtime.ShadowbaneCombatRuntimeTests.test_explicit_damage_and_stun_flags_interrupt_pending_actions) (trigger='damage')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_shadowbane_combat_runtime.py", line 724, in test_explicit_damage_and_stun_flags_interrupt_pending_actions
+    result = environment.step((caster_decision, attacker_decision))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_explicit_damage_and_stun_flags_interrupt_pending_actions (test_shadowbane_combat_runtime.ShadowbaneCombatRuntimeTests.test_explicit_damage_and_stun_flags_interrupt_pending_actions) (trigger='stun')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_shadowbane_combat_runtime.py", line 724, in test_explicit_damage_and_stun_flags_interrupt_pending_actions
+    result = environment.step((caster_decision, attacker_decision))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_miss_and_passive_defense_each_suppress_nested_damage (test_shadowbane_combat_runtime.ShadowbaneCombatRuntimeTests.test_miss_and_passive_defense_each_suppress_nested_damage)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_shadowbane_combat_runtime.py", line 598, in test_miss_and_passive_defense_each_suppress_nested_damage
+    miss = miss_environment.step((_decision(miss_environment, "miss"),))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_periodic_effect_ticks_on_virtual_time_and_snapshot_replays_exactly (test_shadowbane_combat_runtime.ShadowbaneCombatRuntimeTests.test_periodic_effect_ticks_on_virtual_time_and_snapshot_replays_exactly)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_shadowbane_combat_runtime.py", line 320, in test_periodic_effect_ticks_on_virtual_time_and_snapshot_replays_exactly
+    first = environment.step((_decision(environment, "dot"),))
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_power_hit_gate_applies_resistance_and_armor_piercing (test_shadowbane_combat_runtime.ShadowbaneCombatRuntimeTests.test_power_hit_gate_applies_resistance_and_armor_piercing)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_shadowbane_combat_runtime.py", line 569, in test_power_hit_gate_applies_resistance_and_armor_piercing
+    result = environment.step((_decision(environment),))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_ranked_resource_immunity_blocks_only_equal_or_weaker_restoration (test_shadowbane_combat_runtime.ShadowbaneCombatRuntimeTests.test_ranked_resource_immunity_blocks_only_equal_or_weaker_restoration)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_shadowbane_combat_runtime.py", line 479, in test_ranked_resource_immunity_blocks_only_equal_or_weaker_restoration
+    environment.step((decision("assassin", "mantle", "target"),))
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_replacing_periodic_effect_invalidates_old_scheduled_pulses (test_shadowbane_combat_runtime.ShadowbaneCombatRuntimeTests.test_replacing_periodic_effect_invalidates_old_scheduled_pulses)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_shadowbane_combat_runtime.py", line 395, in test_replacing_periodic_effect_invalidates_old_scheduled_pulses
+    environment.step((_decision(environment, "first"),))
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_triangular_amount_consumes_two_seeded_rolls (test_shadowbane_combat_runtime.ShadowbaneCombatRuntimeTests.test_triangular_amount_consumes_two_seeded_rolls)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_shadowbane_combat_runtime.py", line 534, in test_triangular_amount_consumes_two_seeded_rolls
+    result = environment.step((_decision(environment),))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_batch_aggregates_seeded_outcomes_without_retaining_episodes (test_smart_camp.SmartCampRolloutTests.test_batch_aggregates_seeded_outcomes_without_retaining_episodes)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_smart_camp.py", line 137, in test_batch_aggregates_seeded_outcomes_without_retaining_episodes
+    result = run_smart_camp_batch(config, episodes=25)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/smart_camp.py", line 635, in run_smart_camp_batch
+    result = _run_smart_camp(
+             ^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/smart_camp.py", line 723, in _run_smart_camp
+    batch = environment.step(
+            ^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_calibrated_engagement_closes_to_fist_range_after_one_control_opener (test_smart_camp.SmartCampRolloutTests.test_calibrated_engagement_closes_to_fist_range_after_one_control_opener)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_smart_camp.py", line 96, in test_calibrated_engagement_closes_to_fist_range_after_one_control_opener
+    result = run_smart_camp(config)
+             ^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/smart_camp.py", line 593, in run_smart_camp
+    return _run_smart_camp(config, _environment(config))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/smart_camp.py", line 723, in _run_smart_camp
+    batch = environment.step(
+            ^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 187, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_cli_applies_a_live_pve_calibration_to_smart_camp (test_smart_camp.SmartCampRolloutTests.test_cli_applies_a_live_pve_calibration_to_smart_camp)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_smart_camp.py", line 182, in test_cli_applies_a_live_pve_calibration_to_smart_camp
+    exit_code = main(
+                ^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/__main__.py", line 243, in main
+    run_smart_camp(config)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/smart_camp.py", line 593, in run_smart_camp
+    return _run_smart_camp(config, _environment(config))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/smart_camp.py", line 723, in _run_smart_camp
+    batch = environment.step(
+            ^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 187, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_cli_emits_compact_smart_camp_batch (test_smart_camp.SmartCampRolloutTests.test_cli_emits_compact_smart_camp_batch)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_smart_camp.py", line 156, in test_cli_emits_compact_smart_camp_batch
+    exit_code = main(
+                ^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/__main__.py", line 245, in main
+    else run_smart_camp_batch(
+         ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/smart_camp.py", line 635, in run_smart_camp_batch
+    result = _run_smart_camp(
+             ^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/smart_camp.py", line 723, in _run_smart_camp
+    batch = environment.step(
+            ^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_default_proc_assassin_retains_targets_and_clears_the_camp (test_smart_camp.SmartCampRolloutTests.test_default_proc_assassin_retains_targets_and_clears_the_camp)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_smart_camp.py", line 109, in test_default_proc_assassin_retains_targets_and_clears_the_camp
+    result = run_smart_camp(irekei_proc_assassin_smart_camp_config(seed=4))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/smart_camp.py", line 593, in run_smart_camp
+    return _run_smart_camp(config, _environment(config))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/smart_camp.py", line 723, in _run_smart_camp
+    batch = environment.step(
+            ^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_same_seed_replays_identically (test_smart_camp.SmartCampRolloutTests.test_same_seed_replays_identically)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_smart_camp.py", line 129, in test_same_seed_replays_identically
+    first = run_smart_camp(config)
+            ^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/smart_camp.py", line 593, in run_smart_camp
+    return _run_smart_camp(config, _environment(config))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/smart_camp.py", line 723, in _run_smart_camp
+    batch = environment.step(
+            ^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_short_tick_budget_reports_timeout_without_laundering_a_kill (test_smart_camp.SmartCampRolloutTests.test_short_tick_budget_reports_timeout_without_laundering_a_kill)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_smart_camp.py", line 204, in test_short_tick_budget_reports_timeout_without_laundering_a_kill
+    result = run_smart_camp(config)
+             ^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/smart_camp.py", line 593, in run_smart_camp
+    return _run_smart_camp(config, _environment(config))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/smart_camp.py", line 723, in _run_smart_camp
+    batch = environment.step(
+            ^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_timeout_only_batch_has_no_fabricated_clear_time (test_smart_camp.SmartCampRolloutTests.test_timeout_only_batch_has_no_fabricated_clear_time)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_smart_camp.py", line 212, in test_timeout_only_batch_has_no_fabricated_clear_time
+    result = run_smart_camp_batch(config, episodes=3)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/smart_camp.py", line 635, in run_smart_camp_batch
+    result = _run_smart_camp(
+             ^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/smart_camp.py", line 723, in _run_smart_camp
+    batch = environment.step(
+            ^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_actor_centered_area_hits_only_matching_relations_inside_radius (test_stances_and_areas.AreaRuntimeTests.test_actor_centered_area_hits_only_matching_relations_inside_radius)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_stances_and_areas.py", line 476, in test_actor_centered_area_hits_only_matching_relations_inside_radius
+    result = environment.step(
+             ^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_area_attack_gate_resolves_separately_for_each_victim (test_stances_and_areas.AreaRuntimeTests.test_area_attack_gate_resolves_separately_for_each_victim)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_stances_and_areas.py", line 538, in test_area_attack_gate_resolves_separately_for_each_victim
+    result = environment.step(
+             ^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_target_area_uses_bound_position_and_deterministic_target_cap (test_stances_and_areas.AreaRuntimeTests.test_target_area_uses_bound_position_and_deterministic_target_cap)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_stances_and_areas.py", line 585, in test_target_area_uses_bound_position_and_deterministic_target_cap
+    result = environment.step(
+             ^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_stance_multipliers_drive_damage_weapon_timing_and_snapshots (test_stances_and_areas.StanceRuntimeTests.test_stance_multipliers_drive_damage_weapon_timing_and_snapshots)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_stances_and_areas.py", line 120, in test_stance_multipliers_drive_damage_weapon_timing_and_snapshots
+    environment.step((exchange.decision(affordance.affordance_id, "offensive-strike"),))
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_stances_are_mutually_exclusive_snapshot_state_and_travel_drops_on_damage (test_stances_and_areas.StanceRuntimeTests.test_stances_are_mutually_exclusive_snapshot_state_and_travel_drops_on_damage)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_stances_and_areas.py", line 365, in test_stances_are_mutually_exclusive_snapshot_state_and_travel_drops_on_damage
+    entered = environment.step(
+              ^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_unavoided_power_hit_drops_travel_before_a_non_damage_effect (test_stances_and_areas.StanceRuntimeTests.test_unavoided_power_hit_drops_travel_before_a_non_damage_effect)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_stances_and_areas.py", line 434, in test_unavoided_power_hit_drops_travel_before_a_non_damage_effect
+    result = environment.step(
+             ^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_utility_policy_chooses_precise_when_it_breaks_a_hit_floor (test_stances_and_areas.StanceRuntimeTests.test_utility_policy_chooses_precise_when_it_breaks_a_hit_floor)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_stances_and_areas.py", line 280, in test_utility_policy_chooses_precise_when_it_breaks_a_hit_floor
+    environment.step((decision,))
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_batch_streams_contiguous_seeds_into_reproducible_aggregates (test_verified_duel.VerifiedDuelTests.test_batch_streams_contiguous_seeds_into_reproducible_aggregates)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_verified_duel.py", line 226, in test_batch_streams_contiguous_seeds_into_reproducible_aggregates
+    first = run_verified_duel_batch(config, episodes=12)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/duel.py", line 1025, in run_verified_duel_batch
+    outcome = _run_prepared_verified_duel(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/duel.py", line 1161, in _run_prepared_verified_duel
+    batch = environment.step(
+            ^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 187, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_bundled_level_75_source_scenario_profiles_compile_and_run (test_verified_duel.VerifiedDuelTests.test_bundled_level_75_source_scenario_profiles_compile_and_run)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_verified_duel.py", line 164, in test_bundled_level_75_source_scenario_profiles_compile_and_run
+    result = run_verified_duel_batch(config, episodes=3)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/duel.py", line 1025, in run_verified_duel_batch
+    outcome = _run_prepared_verified_duel(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/duel.py", line 1161, in _run_prepared_verified_duel
+    batch = environment.step(
+            ^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 187, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_complete_sheet_duel_is_reproducible_and_carries_acceptance_metadata (test_verified_duel.VerifiedDuelTests.test_complete_sheet_duel_is_reproducible_and_carries_acceptance_metadata)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_verified_duel.py", line 202, in test_complete_sheet_duel_is_reproducible_and_carries_acceptance_metadata
+    first = run_verified_duel(config)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/duel.py", line 990, in run_verified_duel
+    return _run_prepared_verified_duel(config, prepared, seed=config.seed)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/duel.py", line 1161, in _run_prepared_verified_duel
+    batch = environment.step(
+            ^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 187, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_verified_duel_cli_loads_profiles_and_emits_batch_json (test_verified_duel.VerifiedDuelTests.test_verified_duel_cli_loads_profiles_and_emits_batch_json)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_verified_duel.py", line 254, in test_verified_duel_cli_loads_profiles_and_emits_batch_json
+    exit_code = main(
+                ^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/__main__.py", line 199, in main
+    else run_verified_duel_batch(
+         ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/duel.py", line 1025, in run_verified_duel_batch
+    outcome = _run_prepared_verified_duel(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/duel.py", line 1161, in _run_prepared_verified_duel
+    batch = environment.step(
+            ^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 187, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_armed_modifier_bypasses_passive_defense_and_consumes_on_attempt (test_weapon_resolution.WeaponResolutionTests.test_armed_modifier_bypasses_passive_defense_and_consumes_on_attempt)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_weapon_resolution.py", line 267, in test_armed_modifier_bypasses_passive_defense_and_consumes_on_attempt
+    environment.step((decision(environment, "a", "setup", correlation_id="arm"),))
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_attack_modifier_applies_only_when_its_trigger_fires (test_weapon_resolution.WeaponResolutionTests.test_attack_modifier_applies_only_when_its_trigger_fires)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_weapon_resolution.py", line 399, in test_attack_modifier_applies_only_when_its_trigger_fires
+    batch = environment.step(
+            ^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_attack_roll_can_miss_without_applying_damage (test_weapon_resolution.WeaponResolutionTests.test_attack_roll_can_miss_without_applying_damage)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_weapon_resolution.py", line 181, in test_attack_roll_can_miss_without_applying_damage
+    batch = environment.step(
+            ^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_combat_start_effect_expires_on_the_normal_timeline (test_weapon_resolution.WeaponResolutionTests.test_combat_start_effect_expires_on_the_normal_timeline)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_weapon_resolution.py", line 165, in test_combat_start_effect_expires_on_the_normal_timeline
+    batch = environment.step()
+            ^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 187, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 567, in _process_due
+    self._effect_executor.expire_effect(item, due_time, events)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'expire_effect'
+
+======================================================================
+
+ERROR: test_consume_on_attempt_can_lose_a_hit_payload_on_miss (test_weapon_resolution.WeaponResolutionTests.test_consume_on_attempt_can_lose_a_hit_payload_on_miss)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_weapon_resolution.py", line 352, in test_consume_on_attempt_can_lose_a_hit_payload_on_miss
+    batch = environment.step(
+            ^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_passive_defense_blocks_a_normal_hit (test_weapon_resolution.WeaponResolutionTests.test_passive_defense_blocks_a_normal_hit)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_weapon_resolution.py", line 201, in test_passive_defense_blocks_a_normal_hit
+    batch = environment.step(
+            ^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_persistent_hit_proc_survives_multiple_attacks (test_weapon_resolution.WeaponResolutionTests.test_persistent_hit_proc_survives_multiple_attacks)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_weapon_resolution.py", line 453, in test_persistent_hit_proc_survives_multiple_attacks
+    environment.step(
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_resistance_then_absorber_reduce_damage (test_weapon_resolution.WeaponResolutionTests.test_resistance_then_absorber_reduce_damage)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_weapon_resolution.py", line 305, in test_resistance_then_absorber_reduce_damage
+    batch = environment.step(
+            ^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_weapon_roll_uses_active_scalar_modifiers (test_weapon_resolution.WeaponResolutionTests.test_weapon_roll_uses_active_scalar_modifiers)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_weapon_resolution.py", line 138, in test_weapon_roll_uses_active_scalar_modifiers
+    batch = environment.step(
+            ^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 185, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_complete_matchup_uses_triggers_and_complete_sheet_attack_metrics (test_wonderbane_presets.WonderBanePresetTests.test_complete_matchup_uses_triggers_and_complete_sheet_attack_metrics)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_wonderbane_presets.py", line 217, in test_complete_matchup_uses_triggers_and_complete_sheet_attack_metrics
+    result = run_verified_duel(config).duel
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/duel.py", line 990, in run_verified_duel
+    return _run_prepared_verified_duel(config, prepared, seed=config.seed)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/duel.py", line 1161, in _run_prepared_verified_duel
+    batch = environment.step(
+            ^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 187, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_duel_policy_does_not_hard_silence_or_spam_empty_drain_and_melee_snare (test_wonderbane_presets.WonderBanePresetTests.test_duel_policy_does_not_hard_silence_or_spam_empty_drain_and_melee_snare)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_wonderbane_presets.py", line 192, in test_duel_policy_does_not_hard_silence_or_spam_empty_drain_and_melee_snare
+    result = run_verified_duel(
+             ^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/duel.py", line 990, in run_verified_duel
+    return _run_prepared_verified_duel(config, prepared, seed=config.seed)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/duel.py", line 1161, in _run_prepared_verified_duel
+    batch = environment.step(
+            ^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 187, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_guide_duel_cli_emits_bundled_matrix_without_profile_files (test_wonderbane_presets.WonderBanePresetTests.test_guide_duel_cli_emits_bundled_matrix_without_profile_files)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_wonderbane_presets.py", line 258, in test_guide_duel_cli_emits_bundled_matrix_without_profile_files
+    exit_code = main(
+                ^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/__main__.py", line 103, in main
+    cells = wonderbane_sundancer_deflock_matrix(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/presets.py", line 806, in wonderbane_sundancer_deflock_matrix
+    batch=run_verified_duel_batch(
+          ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/duel.py", line 1025, in run_verified_duel_batch
+    outcome = _run_prepared_verified_duel(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/duel.py", line 1161, in _run_prepared_verified_duel
+    batch = environment.step(
+            ^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 187, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_hidden_opener_arms_backstab_and_sets_up_the_warlock_debuff_stack (test_wonderbane_presets.WonderBanePresetTests.test_hidden_opener_arms_backstab_and_sets_up_the_warlock_debuff_stack)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_wonderbane_presets.py", line 174, in test_hidden_opener_arms_backstab_and_sets_up_the_warlock_debuff_stack
+    result = run_verified_duel(
+             ^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/duel.py", line 990, in run_verified_duel
+    return _run_prepared_verified_duel(config, prepared, seed=config.seed)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/duel.py", line 1161, in _run_prepared_verified_duel
+    batch = environment.step(
+            ^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 187, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+ERROR: test_matrix_crosses_distance_and_opener_with_reproducible_batches (test_wonderbane_presets.WonderBanePresetTests.test_matrix_crosses_distance_and_opener_with_reproducible_batches)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_wonderbane_presets.py", line 235, in test_matrix_crosses_distance_and_opener_with_reproducible_batches
+    first = wonderbane_sundancer_deflock_matrix(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/presets.py", line 806, in wonderbane_sundancer_deflock_matrix
+    batch=run_verified_duel_batch(
+          ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/duel.py", line 1025, in run_verified_duel_batch
+    outcome = _run_prepared_verified_duel(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/rollouts/duel.py", line 1161, in _run_prepared_verified_duel
+    batch = environment.step(
+            ^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 187, in step
+    self._process_due(self.now_ms, events, life_terminated)
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/src/shadowbane_lab/sim/environment.py", line 570, in _process_due
+    self._effect_executor.resolve_deaths(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EffectExecutor' object has no attribute 'resolve_deaths'
+
+======================================================================
+
+FAIL: test_chance_gate_requires_a_bounded_direct_effect_bundle (test_action_algebra.ActionAlgebraTests.test_chance_gate_requires_a_bounded_direct_effect_bundle)
+----------------------------------------------------------------------
+ValueError: chance gate effects must contain direct or conditional primitives
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_action_algebra.py", line 389, in test_chance_gate_requires_a_bounded_direct_effect_bundle
+    with self.assertRaisesRegex(ValueError, "direct effect"):
+AssertionError: "direct effect" does not match "chance gate effects must contain direct or conditional primitives"
+
+----------------------------------------------------------------------
+Ran 828 tests in 4.267s
+
+FAILED (failures=1, errors=103, skipped=1)
+
+# Summary
+
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/runner/work/shadowbane-lab/shadowbane-lab/tests/test_action_algebra.py", line 389, in test_chance_gate_requires_a_bounded_direct_effect_bundle
+    with self.assertRaisesRegex(ValueError, "direct effect"):
+AssertionError: "direct effect" does not match "chance gate effects must contain direct or conditional primitives"
+
+----------------------------------------------------------------------
+Ran 828 tests in 4.267s
+
+FAILED (failures=1, errors=103, skipped=1)
