@@ -8,7 +8,13 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from shadowbane_lab.cli import _listen_for_go_commands, _run_pve, _run_travel, main
+from shadowbane_lab.cli import (
+    _listen_for_go_commands,
+    _print_go_listener_event,
+    _run_pve,
+    _run_travel,
+    main,
+)
 from shadowbane_lab.client_input import (
     EventEmergencyStop,
     RecordingInputBackend,
@@ -32,6 +38,29 @@ from tests.test_client_input_executor import _valid_snapshot
 
 
 class ClientCliTests(unittest.TestCase):
+    def test_go_listener_emits_extension_router_diagnostics_as_json(self) -> None:
+        output = io.StringIO()
+        diagnostics = {
+            "connected_clients": 0,
+            "dispatched_events": 0,
+            "rejected_events": 0,
+            "pending_events": 0,
+            "dispatched_process_ids": [],
+            "issues": ["client-01: channel unavailable (OSError)"],
+        }
+
+        with redirect_stdout(output):
+            _print_go_listener_event(
+                "extension_router",
+                as_json=True,
+                extension_router_diagnostics=diagnostics,
+            )
+
+        payload = json.loads(output.getvalue())
+        self.assertTrue(payload["ok"])
+        self.assertEqual("extension_router", payload["event"])
+        self.assertEqual(diagnostics, payload["extension_router_diagnostics"])
+
     def test_character_layout_template_validates_and_remains_live_locked(self) -> None:
         output = io.StringIO()
         template = (
@@ -612,6 +641,14 @@ class ClientCliTests(unittest.TestCase):
         emergency_stop = MagicMock()
         emergency_stop.__enter__.return_value = service_stop
         extension_router = MagicMock()
+        extension_router.poll_once.return_value = SimpleNamespace(
+            connected_clients=0,
+            dispatched_events=0,
+            rejected_events=0,
+            pending_events=0,
+            dispatched_process_ids=(),
+            issues=(),
+        )
         output = io.StringIO()
         with (
             tempfile.TemporaryDirectory() as directory,

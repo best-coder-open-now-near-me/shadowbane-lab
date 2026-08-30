@@ -4376,14 +4376,46 @@ def _listen_for_go_commands(
             commands.put((interaction, time.monotonic()))
 
     extension_dispatch_times: dict[int, float] = {}
+    extension_router_diagnostics: dict[str, object] | None = None
+    extension_router_stable_state: tuple[object, ...] | None = None
 
     def poll_extension_events() -> None:
+        nonlocal extension_router_diagnostics, extension_router_stable_state
         if extension_router is None:
             return
         result = extension_router.poll_once()
         observed_at = time.monotonic()
         for process_id in result.dispatched_process_ids:
             extension_dispatch_times[process_id] = observed_at
+        extension_router_diagnostics = {
+            "connected_clients": result.connected_clients,
+            "dispatched_events": result.dispatched_events,
+            "rejected_events": result.rejected_events,
+            "pending_events": result.pending_events,
+            "dispatched_process_ids": list(result.dispatched_process_ids),
+            "issues": list(result.issues),
+        }
+        stable_state = (
+            result.connected_clients,
+            result.pending_events,
+            result.issues,
+        )
+        state_change_is_notable = stable_state != extension_router_stable_state and (
+            result.connected_clients > 0
+            or result.pending_events > 0
+            or bool(result.issues)
+        )
+        if (
+            state_change_is_notable
+            or result.dispatched_events > 0
+            or result.rejected_events > 0
+        ):
+            _print_go_listener_event(
+                "extension_router",
+                as_json=as_json,
+                extension_router_diagnostics=extension_router_diagnostics,
+            )
+        extension_router_stable_state = stable_state
 
     def dispatch_to_exact_worker(
         kind: WorkerOperationKind,
@@ -4498,6 +4530,7 @@ def _listen_for_go_commands(
                         "heartbeat",
                         as_json=as_json,
                         hook_diagnostics=getattr(listener, "diagnostics", None),
+                        extension_router_diagnostics=extension_router_diagnostics,
                     )
                     next_listener_heartbeat = time.monotonic() + 30.0
                 try:
@@ -4923,6 +4956,7 @@ def _print_go_listener_event(
     client_id: str | None = None,
     operation_state: str | None = None,
     hook_diagnostics: dict[str, int | str | None] | None = None,
+    extension_router_diagnostics: dict[str, object] | None = None,
 ) -> None:
     if as_json:
         payload = {"ok": event != "rejected", "event": event}
@@ -4946,6 +4980,8 @@ def _print_go_listener_event(
             payload["operation_state"] = operation_state
         if hook_diagnostics is not None:
             payload["hook_diagnostics"] = hook_diagnostics
+        if extension_router_diagnostics is not None:
+            payload["extension_router_diagnostics"] = extension_router_diagnostics
         print(json.dumps(payload, sort_keys=True), flush=True)
         return
     if event == "listening":
@@ -4957,6 +4993,11 @@ def _print_go_listener_event(
         print("Stopped listening for Shadowbane commands.", flush=True)
     elif event == "heartbeat":
         print("Shadowbane command listener is healthy.", flush=True)
+    elif event == "extension_router":
+        print(
+            f"Shadowbane extension router: {extension_router_diagnostics}",
+            flush=True,
+        )
     elif event in {"accepted", "submitted"}:
         detail = "" if resolved_name is None else f" -> {resolved_name} at LT {lt:g}, LG {lg:g}"
         verb = "Accepted" if event == "accepted" else "Submitted"
