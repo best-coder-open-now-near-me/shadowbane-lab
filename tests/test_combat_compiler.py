@@ -130,13 +130,10 @@ class CombatCompilerTests(unittest.TestCase):
             policy=policy,
         )
         entity = compiled.entity("assassin", "red", Vector2(0.0, 0.0))
-        normal_attack = entity.effective_scalar("attack.main_hand")
+        self.assertEqual(939.0, entity.effective_scalar("attack.main_hand"))
         entity.stance = CombatStance.PRECISE
 
-        self.assertAlmostEqual(
-            normal_attack * 1.36,
-            entity.effective_scalar("attack.main_hand"),
-        )
+        self.assertEqual(1277.0, entity.effective_scalar("attack.main_hand"))
         self.assertAlmostEqual(0.81, entity.effective_scalar("outgoing.damage.factor"))
         precise = compiled.catalog.get(
             compiled.action_key("shadowbane.stance.precise")

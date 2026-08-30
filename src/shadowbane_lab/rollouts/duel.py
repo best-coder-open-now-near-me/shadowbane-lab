@@ -726,14 +726,14 @@ class UtilityDuelPolicy:
 
         if "stance.change.defensive" in tags:
             if health_fraction >= 0.55:
-                return -25.0
+                return float("-inf")
             defense_gain = features.get("stance.defense.relative_factor", 1.0) - 1.0
             return 90.0 + (1.0 - health_fraction) * 50.0 + defense_gain * 20.0
 
         if "stance.change.precise" in tags:
             hit_gain = projected_hit - current_hit
-            if current_hit > 0.25 or hit_gain < 0.05:
-                return -25.0
+            if health_fraction <= 0.55 or current_hit > 0.25 or hit_gain < 0.05:
+                return float("-inf")
             return 65.0 + hit_gain * 100.0
 
         if "stance.change.offensive" in tags:
@@ -747,11 +747,11 @@ class UtilityDuelPolicy:
                 or projected_hit < 0.45
                 or gain_ratio <= 1.15
             ):
-                return -25.0
+                return float("-inf")
             return 45.0 + min(50.0, (gain_ratio - 1.0) * 25.0)
 
         if "stance.change.normal" in tags:
-            return -30.0
+            return float("-inf")
         return float("-inf")
 
     @staticmethod

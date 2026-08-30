@@ -329,10 +329,30 @@ def _compile_stance_multipliers(
     compiled = []
     for profile in sheet.stance_profiles:
         modifiers = profile.modifiers
-        values = {key: 1.0 + modifiers.attack_percent for key in attack_keys}
+        values = {
+            key: _compiled_stance_attack_factor(
+                sheet,
+                key,
+                modifiers.attack_percent,
+                scalars[key],
+            )
+            for key in attack_keys
+        }
+        positive_dcv, negative_dcv = _percent_channels(
+            sheet.modifiers.positive_dcv_percent,
+            sheet.modifiers.negative_dcv_percent,
+            modifiers.defense_percent,
+        )
+        stance_defense = defense_rating(
+            sheet.dexterity,
+            sheet.equipment_defense,
+            flat_dcv=sheet.modifiers.flat_dcv,
+            positive_dcv_percent=positive_dcv,
+            negative_dcv_percent=negative_dcv,
+        )
         values.update(
             {
-                "defense": 1.0 + modifiers.defense_percent,
+                "defense": stance_defense / scalars["defense"],
                 "outgoing.damage.factor": 1.0 + modifiers.damage_dealt_percent,
                 "action.weapon.delay.factor": 1.0 + modifiers.weapon_delay_percent,
                 "move_speed": 1.0 + modifiers.movement_percent,
@@ -341,6 +361,60 @@ def _compile_stance_multipliers(
         )
         compiled.append((profile.stance, tuple(sorted(values.items()))))
     return tuple(compiled)
+
+
+def _compiled_stance_attack_factor(
+    sheet: CombatSheet,
+    scalar_key: str,
+    stance_percent: float,
+    base_rating: float,
+) -> float:
+    positive_ocv, negative_ocv = _percent_channels(
+        sheet.modifiers.positive_ocv_percent,
+        sheet.modifiers.negative_ocv_percent,
+        stance_percent,
+    )
+    if scalar_key.startswith("attack.power."):
+        action_key = scalar_key.removeprefix("attack.power.")
+        rating = power_attack_rating(
+            sheet.power_focus(action_key),
+            sheet.dexterity,
+            flat_ocv=sheet.modifiers.flat_ocv,
+            positive_ocv_percent=positive_ocv,
+            negative_ocv_percent=negative_ocv,
+        )
+    else:
+        weapon = (
+            sheet.weapon
+            if scalar_key == "attack.main_hand"
+            else sheet.off_hand_weapon
+            if scalar_key == "attack.off_hand"
+            else None
+        )
+        if weapon is None:
+            raise CombatReadinessError(
+                (f"stance profile cannot resolve attack scalar {scalar_key}",)
+            )
+        rating = weapon_attack_rating(
+            sheet.skill_value(weapon.skill_key),
+            sheet.skill_value(weapon.mastery_key),
+            sheet.strength,
+            sheet.dexterity,
+            flat_ocv=sheet.modifiers.flat_ocv,
+            positive_ocv_percent=positive_ocv,
+            negative_ocv_percent=negative_ocv,
+        )
+    return rating / base_rating
+
+
+def _percent_channels(
+    positive: float,
+    negative: float,
+    stance_percent: float,
+) -> tuple[float, float]:
+    if stance_percent >= 0.0:
+        return positive + stance_percent, negative
+    return positive, negative + stance_percent
 
 
 def _compile_stance_actions(sheet: CombatSheet) -> tuple[ActionSpec, ...]:

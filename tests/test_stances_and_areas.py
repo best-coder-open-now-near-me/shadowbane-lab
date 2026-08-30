@@ -1,5 +1,6 @@
 import json
 import unittest
+from dataclasses import replace
 from importlib.resources import files
 
 from shadowbane_lab.protocol import (
@@ -150,6 +151,62 @@ class StanceRuntimeTests(unittest.TestCase):
             ),
             tags=("combat", "stance", "stance.change.precise"),
         )
+        normal = replace(
+            precise,
+            action_key="stance.normal",
+            phases=(
+                ActionPhase(
+                    kind=PhaseKind.ACTIVE,
+                    duration_ms=0,
+                    effects=(ChangeStance(SubjectRef.ACTOR, CombatStance.NORMAL),),
+                ),
+            ),
+            forbidden_actor_tags=("stance.normal",),
+            features=tuple(
+                NamedScalar(feature.name, 1.0) for feature in precise.features
+            ),
+            tags=("combat", "stance", "stance.change.normal"),
+        )
+        offensive = replace(
+            precise,
+            action_key="stance.offensive",
+            phases=(
+                ActionPhase(
+                    kind=PhaseKind.ACTIVE,
+                    duration_ms=0,
+                    effects=(ChangeStance(SubjectRef.ACTOR, CombatStance.OFFENSIVE),),
+                ),
+            ),
+            forbidden_actor_tags=("stance.offensive",),
+            features=tuple(
+                NamedScalar(
+                    feature.name,
+                    0.5 if feature.name == "stance.attack.factor" else 1.0,
+                )
+                for feature in precise.features
+            ),
+            tags=("combat", "stance", "stance.change.offensive"),
+        )
+        defensive = replace(
+            offensive,
+            action_key="stance.defensive",
+            phases=(
+                ActionPhase(
+                    kind=PhaseKind.ACTIVE,
+                    duration_ms=0,
+                    effects=(ChangeStance(SubjectRef.ACTOR, CombatStance.DEFENSIVE),),
+                ),
+            ),
+            forbidden_actor_tags=("stance.defensive",),
+            features=tuple(
+                NamedScalar(
+                    feature.name,
+                    1.5 if feature.name == "stance.defense.factor" else feature.value,
+                )
+                for feature in offensive.features
+            ),
+            tags=("combat", "stance", "stance.change.defensive"),
+        )
         strike = ActionSpec(
             action_key="strike",
             targeting=TargetingSpec(
@@ -180,7 +237,13 @@ class StanceRuntimeTests(unittest.TestCase):
             "actor",
             "red",
             Vector2(0.0, 0.0),
-            ("stance.precise", "strike"),
+            (
+                "stance.defensive",
+                "stance.normal",
+                "stance.offensive",
+                "stance.precise",
+                "strike",
+            ),
         )
         actor.scalars.update(
             {
@@ -192,11 +255,14 @@ class StanceRuntimeTests(unittest.TestCase):
                 "stamina.recovery.factor": 1.0,
             }
         )
-        actor.stance_multipliers = {CombatStance.PRECISE: {"attack.main_hand": 2.0}}
+        actor.stance_multipliers = {
+            CombatStance.DEFENSIVE: {"attack.main_hand": 0.5},
+            CombatStance.PRECISE: {"attack.main_hand": 2.0},
+        }
         target = _actor("target", "blue", Vector2(1.0, 0.0))
         target.scalars["defense"] = 500.0
         environment = ReferenceEnvironment(
-            ActionCatalog((precise, strike)),
+            ActionCatalog((defensive, normal, offensive, precise, strike)),
             (actor, target),
             seed=5,
         )
@@ -212,6 +278,54 @@ class StanceRuntimeTests(unittest.TestCase):
             if affordance.affordance_id == decision.affordance_id
         )
         self.assertEqual("stance.precise", selected.action_key)
+
+        environment.step((decision,))
+        next_exchange = environment.exchange("actor")
+        next_decision = UtilityDuelPolicy(100.0).decide(
+            next_exchange,
+            "do-not-cycle",
+        )
+        self.assertIsNotNone(next_decision)
+        assert next_decision is not None
+        self.assertEqual("strike", next_decision.action_key)
+
+        hurt_actor = _actor(
+            "hurt-actor",
+            "red",
+            Vector2(0.0, 0.0),
+            actor.action_keys,
+        )
+        hurt_actor.scalars = dict(actor.scalars)
+        hurt_actor.scalars["health"] = 50.0
+        hurt_actor.stance_multipliers = {
+            stance: dict(multipliers)
+            for stance, multipliers in actor.stance_multipliers.items()
+        }
+        hurt_actor.stance = CombatStance.PRECISE
+        hurt_target = _actor("hurt-target", "blue", Vector2(1.0, 0.0))
+        hurt_target.scalars["defense"] = 500.0
+        hurt_environment = ReferenceEnvironment(
+            ActionCatalog((defensive, normal, offensive, precise, strike)),
+            (hurt_actor, hurt_target),
+            seed=6,
+        )
+        hurt_exchange = hurt_environment.exchange("hurt-actor")
+        hurt_decision = UtilityDuelPolicy(100.0).decide(
+            hurt_exchange,
+            "protect-when-hurt",
+        )
+        self.assertIsNotNone(hurt_decision)
+        assert hurt_decision is not None
+        self.assertEqual("stance.defensive", hurt_decision.action_key)
+        hurt_environment.step((hurt_decision,))
+        defensive_exchange = hurt_environment.exchange("hurt-actor")
+        defensive_decision = UtilityDuelPolicy(100.0).decide(
+            defensive_exchange,
+            "stay-defensive",
+        )
+        self.assertIsNotNone(defensive_decision)
+        assert defensive_decision is not None
+        self.assertEqual("strike", defensive_decision.action_key)
 
     def test_stances_are_mutually_exclusive_snapshot_state_and_travel_drops_on_damage(
         self,

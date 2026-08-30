@@ -73,7 +73,7 @@
       "category": "effect",
       "scenario_pattern": "stance.*",
       "path_pattern": "trace/steps/*/after/entities/*/tags/*",
-      "description": "The runtime represents normal, offensive, defensive, precise, and travel as one exclusive state and drops travel on an unavoided hit; current stance modifiers and immune-hit edge behavior require controlled WonderBane traces.",
+      "description": "The runtime represents normal, offensive, defensive, precise, and travel as one exclusive state, compiles source-pinned class/rank rating, damage, delay, movement, and recovery modifiers, exposes legal 20-second stance actions, and drops travel on an unavoided hit; current WonderBane modifier parity, stamina-recovery timing, and immune-hit edge behavior require controlled traces.",
       "action_key": null,
       "max_absolute_delta": null,
       "evidence_trace_ids": []
