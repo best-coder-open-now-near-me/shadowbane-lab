@@ -109,9 +109,7 @@ def _proposal(
         "changed_sections": list(changed_sections),
         "changed_byte_count": sum(item.changed_byte_count for item in ranges),
         "changed_range_count": len(ranges),
-        "changed_rva_start": (
-            min(item.rva_start for item in rva_ranges) if rva_ranges else None
-        ),
+        "changed_rva_start": (min(item.rva_start for item in rva_ranges) if rva_ranges else None),
         "changed_rva_end_exclusive": (
             max(item.rva_end_exclusive for item in rva_ranges) if rva_ranges else None
         ),
