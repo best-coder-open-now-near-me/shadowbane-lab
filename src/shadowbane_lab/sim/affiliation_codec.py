@@ -58,9 +58,7 @@ def decode_affiliation_snapshot(
         try:
             text = bytes(payload).decode("utf-8")
         except UnicodeDecodeError as exc:
-            raise AffiliationCodecError(
-                "affiliation snapshot JSON must be valid UTF-8"
-            ) from exc
+            raise AffiliationCodecError("affiliation snapshot JSON must be valid UTF-8") from exc
     else:
         raise TypeError("payload must be UTF-8 bytes or text")
     return load_affiliation_snapshot_text(text)
