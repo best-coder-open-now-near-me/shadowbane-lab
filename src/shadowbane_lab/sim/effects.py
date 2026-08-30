@@ -61,6 +61,7 @@ from shadowbane_lab.sim.actions import (
     WeightedAmount,
 )
 from shadowbane_lab.sim.errors import SimulationConfigurationError
+from shadowbane_lab.sim.lifecycle import ContinuationPolicy
 from shadowbane_lab.sim.random_source import DeterministicRandom
 from shadowbane_lab.sim.state import ActiveEffectState, EntityState
 from shadowbane_lab.sim.timeline import ScheduledItem, ScheduledKind
@@ -211,7 +212,7 @@ class EffectExecutor:
             return
 
         bypass_passive = any(modifier.bypass_passive_defense for modifier in modifiers)
-        if not bypass_passive:
+        if not bypass_passive and "control.stun" not in target.effective_tags:
             for defense_key in attack.passive_defense_keys:
                 chance = max(
                     0.0,
@@ -332,6 +333,8 @@ class EffectExecutor:
         if item.binding is None:
             raise SimulationConfigurationError("area resolution requires an action binding")
         actor = self._entity(item.actor_id)
+        if actor.entity_id not in eligible_alive:
+            return
         center = self._area_center(effect, item.binding)
         candidates = [
             entity
@@ -395,6 +398,8 @@ class EffectExecutor:
             raise SimulationConfigurationError("attack resolution requires an entity target")
         actor = self._entity(item.actor_id)
         target = self._entity(item.binding.target_entity_id)
+        if actor.entity_id not in eligible_alive or target.entity_id not in eligible_alive:
+            return
         action = self._catalog.get(item.action_key)
         action_tags = frozenset(action.tags)
         contexts = self._matching_trigger_contexts(actor, item.action_key, action_tags)
@@ -453,7 +458,11 @@ class EffectExecutor:
         if not hit:
             return
         bypass_passive = any(modifier.bypass_passive_defense for modifier in modifiers)
-        if "combat.ignore_passive_defense" not in actor.effective_tags and not bypass_passive:
+        if (
+            "combat.ignore_passive_defense" not in actor.effective_tags
+            and "control.stun" not in target.effective_tags
+            and not bypass_passive
+        ):
             for passive_key in effect.passive_defense_keys:
                 passive_chance = min(75.0, self._required_scalar(target, passive_key))
                 if passive_chance < 0.0:
@@ -612,6 +621,15 @@ class EffectExecutor:
         elif isinstance(effect, RestoreResource):
             self._restore_resource(item, effect, subject, due_time, events)
         elif isinstance(effect, TransferResource):
+            source = self._entity_for_ref(effect.from_subject, item.binding)
+            destination = self._entity_for_ref(effect.to_subject, item.binding)
+            if (
+                source is None
+                or destination is None
+                or source.entity_id not in eligible_alive
+                or destination.entity_id not in eligible_alive
+            ):
+                return
             self._transfer_resource(item, effect, due_time, events)
         elif isinstance(effect, ModifyScalar):
             self._modify_scalar(item, effect, subject, due_time, events)
@@ -624,6 +642,15 @@ class EffectExecutor:
         elif isinstance(effect, MoveEntity):
             self._move_entity(item, effect, subject, due_time, events)
         elif isinstance(effect, TransferItem):
+            source = self._entity_for_ref(effect.from_subject, item.binding)
+            destination = self._entity_for_ref(effect.to_subject, item.binding)
+            if (
+                source is None
+                or destination is None
+                or source.entity_id not in eligible_alive
+                or destination.entity_id not in eligible_alive
+            ):
+                return
             self._transfer_item(item, effect, due_time, events)
         elif isinstance(effect, ModifyObjective):
             self._modify_objective(item, effect, subject, due_time, events)
@@ -1524,6 +1551,7 @@ class EffectExecutor:
                         expected_effect_instance_id=instance_id,
                         periodic_key=modifier.periodic_key,
                         pulse_index=pulse_index,
+                        continuation_policy=ContinuationPolicy.EFFECT_INSTANCE_BOUND,
                     )
                 )
         self._schedule(
@@ -1538,6 +1566,7 @@ class EffectExecutor:
                 effect_storage_key=storage_key,
                 expected_effect_key=effect.effect_key,
                 expected_effect_instance_id=instance_id,
+                continuation_policy=ContinuationPolicy.EFFECT_INSTANCE_BOUND,
             )
         )
         if "control.stun" in effect.tags:

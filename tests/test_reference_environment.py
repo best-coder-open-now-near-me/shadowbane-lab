@@ -453,7 +453,7 @@ class ReferenceEnvironmentTests(unittest.TestCase):
             )
         )
 
-    def test_joint_actions_resolve_from_the_same_alive_set(self) -> None:
+    def test_same_timestamp_actions_use_cancellation_aware_microsteps(self) -> None:
         attack = ActionSpec(
             action_key="attack",
             targeting=TargetingSpec(
@@ -487,12 +487,12 @@ class ReferenceEnvironmentTests(unittest.TestCase):
 
         result = environment.step((decision_b, decision_a))
 
-        self.assertFalse(environment.entity("a").alive)
+        self.assertTrue(environment.entity("a").alive)
         self.assertFalse(environment.entity("b").alive)
-        self.assertEqual(("a:1", "b:1"), result.life_terminated)
+        self.assertEqual(("b:1",), result.life_terminated)
         self.assertTrue(result.world_terminated)
         self.assertEqual(
-            2,
+            1,
             sum(event.kind == EventKind.DAMAGE_APPLIED for event in result.events),
         )
 

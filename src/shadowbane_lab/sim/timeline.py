@@ -13,11 +13,17 @@ from shadowbane_lab.protocol import (
 )
 from shadowbane_lab.sim.actions import EffectPrimitive, WeaponAttackSpec
 from shadowbane_lab.sim.clock import ClockSnapshot
+from shadowbane_lab.sim.lifecycle import (
+    ActionExecutionSnapshot,
+    ContinuationPolicy,
+)
 from shadowbane_lab.sim.random_source import RandomSnapshot
 from shadowbane_lab.sim.state import EntitySnapshot
 
 
 class ScheduledKind(StrEnum):
+    PHASE_RELEASE = "phase_release"
+    PHASE_TRANSITION = "phase_transition"
     RESOLUTION = "resolution"
     WEAPON_ATTACK = "weapon_attack"
     COMPLETION = "completion"
@@ -47,6 +53,12 @@ class ScheduledItem:
     interruptible: bool = False
     cancel_on_damage: bool = False
     cancel_on_stun: bool = False
+    actor_life_id: str | None = None
+    target_life_id: str | None = None
+    phase_index: int | None = None
+    cancel_token: str | None = None
+    continuation_policy: ContinuationPolicy = ContinuationPolicy.WORLD_BOUND
+    semantic_priority: int = 0
 
     def __post_init__(self) -> None:
         if (
@@ -94,6 +106,28 @@ class ScheduledItem:
         ):
             if not isinstance(value, bool):
                 raise ValueError(f"{name} must be a boolean")
+        for value, name in (
+            (self.actor_life_id, "actor_life_id"),
+            (self.target_life_id, "target_life_id"),
+            (self.cancel_token, "cancel_token"),
+        ):
+            if value is not None and (not isinstance(value, str) or not value.strip()):
+                raise ValueError(f"{name} must be a non-empty string or null")
+        if self.phase_index is not None and (
+            isinstance(self.phase_index, bool)
+            or not isinstance(self.phase_index, int)
+            or self.phase_index < 0
+        ):
+            raise ValueError("phase_index must be a non-negative integer or null")
+        if not isinstance(self.continuation_policy, ContinuationPolicy):
+            raise ValueError("continuation_policy must be a ContinuationPolicy")
+        if isinstance(self.semantic_priority, bool) or not isinstance(self.semantic_priority, int):
+            raise ValueError("semantic_priority must be an integer")
+        if (
+            self.kind in {ScheduledKind.PHASE_RELEASE, ScheduledKind.PHASE_TRANSITION}
+            and self.phase_index is None
+        ):
+            raise ValueError("phase lifecycle work requires phase_index")
         if self.kind in {ScheduledKind.EFFECT_EXPIRY, ScheduledKind.EFFECT_PULSE} and (
             self.interruptible or self.cancel_on_damage or self.cancel_on_stun
         ):
@@ -138,6 +172,8 @@ class EnvironmentSnapshot:
     scheduled: tuple[ScheduledItem, ...]
     next_schedule_order: int
     next_event_number: int
+    executions: tuple[ActionExecutionSnapshot, ...] = ()
+    cancelled_tokens: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

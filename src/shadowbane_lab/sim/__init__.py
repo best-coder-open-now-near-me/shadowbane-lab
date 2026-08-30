@@ -51,6 +51,13 @@ from shadowbane_lab.sim.actions import (
 from shadowbane_lab.sim.clock import ClockSnapshot, SimulationClock
 from shadowbane_lab.sim.environment import ReferenceEnvironment
 from shadowbane_lab.sim.errors import SimulationConfigurationError
+from shadowbane_lab.sim.lifecycle import (
+    ActionExecutionSnapshot,
+    ActionExecutionState,
+    ActionExecutionStatus,
+    ContinuationPolicy,
+    PayloadReleaseStatus,
+)
 from shadowbane_lab.sim.random_source import (
     DeterministicRandom,
     RandomSnapshot,
@@ -77,6 +84,9 @@ from shadowbane_lab.sim.timeline import (
 
 __all__ = [
     "ActionCatalog",
+    "ActionExecutionSnapshot",
+    "ActionExecutionState",
+    "ActionExecutionStatus",
     "ActionPhase",
     "ActionSpec",
     "ActionTriggerSpec",
@@ -90,6 +100,7 @@ __all__ = [
     "ChanceGate",
     "ChangeStance",
     "CombatStance",
+    "ContinuationPolicy",
     "DamageBreakpoint",
     "DamageType",
     "ResistanceType",
@@ -112,6 +123,7 @@ __all__ = [
     "MoveEntity",
     "MovementMode",
     "PhaseKind",
+    "PayloadReleaseStatus",
     "PeriodicPulse",
     "RandomSnapshot",
     "RANGE_MAXIMUM_FEATURE",
