@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import threading
 import time
 from collections.abc import Callable
@@ -19,8 +18,10 @@ from shadowbane_lab.client_observation import (
 )
 from shadowbane_lab.travel.chat import (
     PhysicalPointerInteraction,
-    WindowsGoChatCommandListener as _BaseWindowsGoChatCommandListener,
     _PhysicalKeyboardInteraction,
+)
+from shadowbane_lab.travel.chat import (
+    WindowsGoChatCommandListener as _BaseWindowsGoChatCommandListener,
 )
 
 
