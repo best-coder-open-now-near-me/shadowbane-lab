@@ -71,7 +71,7 @@ one.
 ```powershell
 $env:PYTHONPATH = "src"
 .\.venv\Scripts\python.exe -m shadowbane_lab.cli client test-world-map-click `
-  --client-profile .\configs\wonderbane-travel.local.json `
+  --client-profile "\\VBOXSVR\codexdiag\wonderbane-travel.local.json" `
   --map-x-fraction 0.60 `
   --map-y-fraction 0.50 `
   --wait-for-client-seconds 15 `

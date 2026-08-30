@@ -1,9 +1,10 @@
 # Persistent WonderBane client extension
 
 The extension project is isolated from simulator behavior, live automation, and the failed
-world-map sidecar experiment. Its first milestone is deliberately inert: a reviewed client copy
-loads one versioned x86 DLL, invokes its exported initializer outside the Windows loader lock,
-and records a heartbeat without changing game behavior.
+world-map sidecar experiment. It began with a deliberately inert milestone: a reviewed client
+copy loads one versioned x86 DLL, invokes its exported initializer outside the Windows loader
+lock, and records a heartbeat. The current milestone adds a build-guarded world-map destination
+event boundary for the bounded watched test; it still does not claim route acceptance or movement.
 
 The implementation order is strict:
 
@@ -156,7 +157,19 @@ inherits the package verifier's exact frozen-directory binding, inventory, hash,
 
 The v1 x86 DLL exports `WonderBaneExtensionInitialize` and
 `WonderBaneExtensionGetStatus`. Initialization is idempotent and publishes one process-lifetime
-heartbeat atomically beneath `%LOCALAPPDATA%\ShadowbaneLab\client-extension`; it does not read or
-write game state. The status ABI reports the same heartbeat path, ABI/version, process ID,
-initialization state, and Win32 result. `verify-heartbeat <heartbeat.json>` strictly checks the
-schema and binds the file name to the PID plus process-creation FILETIME.
+heartbeat atomically beneath `%LOCALAPPDATA%\ShadowbaneLab\client-extension`. On the exact reviewed
+WonderBane build, it also observes a uniquely identified open world map and exposes a bounded
+process-lifetime event channel. A fresh, exclusive consumer lease is required before the hook will
+suppress a qualifying click and publish its projected LT/LG destination. Ordinary injected input,
+lower-integrity injected input, stale map snapshots, background windows, ambiguous map objects,
+and absent consumers pass through without publication or suppression. The watched acceptance path
+uses one dedicated tagged `SendInput` right-click; the tag is an admission marker, not proof of
+success. The harness still requires one exact native event and acknowledges it only after every
+identity, pixel, button, snapshot, and coordinate field matches.
+
+This milestone intentionally stops at destination capture. It suppresses the captured down/up pair
+instead of forwarding it to the original map handler, and no extension code yet accepts a route or
+moves the character. Those are separate action boundaries. The status ABI continues to report the
+heartbeat path, ABI/version, process ID, initialization state, and Win32 result.
+`verify-heartbeat <heartbeat.json>` strictly checks the schema and binds the file name to the PID
+plus process-creation FILETIME.
