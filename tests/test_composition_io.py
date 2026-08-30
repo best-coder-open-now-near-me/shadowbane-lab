@@ -12,7 +12,6 @@ from shadowbane_lab.composition import (
     resolve_build_blueprint,
 )
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -21,9 +20,7 @@ class CompositionIoTests(unittest.TestCase):
         catalog = load_source_package_catalog(
             ROOT / "configs" / "source-package-catalog.example.json"
         )
-        blueprint = load_build_blueprint(
-            ROOT / "configs" / "build-blueprint.example.json"
-        )
+        blueprint = load_build_blueprint(ROOT / "configs" / "build-blueprint.example.json")
 
         view = resolve_build_blueprint(
             catalog,
@@ -36,9 +33,7 @@ class CompositionIoTests(unittest.TestCase):
                     "power.shadow_touch",
                 }
             ),
-            available_persistent_trigger_keys=frozenset(
-                {"trigger.example_weapon_proc"}
-            ),
+            available_persistent_trigger_keys=frozenset({"trigger.example_weapon_proc"}),
         )
 
         self.assertEqual(
@@ -67,9 +62,7 @@ class CompositionIoTests(unittest.TestCase):
         self.assertEqual(dumped, dump_source_package_catalog(reloaded))
 
     def test_blueprint_round_trip_is_canonical(self) -> None:
-        blueprint = load_build_blueprint(
-            ROOT / "configs" / "build-blueprint.example.json"
-        )
+        blueprint = load_build_blueprint(ROOT / "configs" / "build-blueprint.example.json")
         dumped = dump_build_blueprint(blueprint)
         reloaded = load_build_blueprint_text(dumped)
 

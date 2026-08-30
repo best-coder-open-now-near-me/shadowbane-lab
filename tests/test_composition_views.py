@@ -128,12 +128,8 @@ class BuildResolverTests(unittest.TestCase):
         view = resolve_build_blueprint(
             sample_catalog(),
             sample_blueprint(),
-            available_action_keys=frozenset(
-                {"attack.basic", "power.backstab", "action.sprint"}
-            ),
-            available_persistent_trigger_keys=frozenset(
-                {"trigger.weapon_poison"}
-            ),
+            available_action_keys=frozenset({"attack.basic", "power.backstab", "action.sprint"}),
+            available_persistent_trigger_keys=frozenset({"trigger.weapon_poison"}),
         )
 
         self.assertEqual(
@@ -157,8 +153,7 @@ class BuildResolverTests(unittest.TestCase):
         backstab_source = next(
             source
             for source in view.grant_sources
-            if source.grant_kind == "action"
-            and source.grant_key == "power.backstab"
+            if source.grant_kind == "action" and source.grant_key == "power.backstab"
         )
         self.assertEqual(
             ("discipline.sun_dancer",),

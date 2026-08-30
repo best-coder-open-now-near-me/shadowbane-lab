@@ -38,11 +38,7 @@ def _unique_strings(values: tuple[str, ...], field_name: str) -> None:
 
 
 def _finite(value: float, field_name: str) -> None:
-    if (
-        isinstance(value, bool)
-        or not isinstance(value, (int, float))
-        or not isfinite(value)
-    ):
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not isfinite(value):
         raise CompositionError(f"{field_name} must be a finite number")
 
 
@@ -248,8 +244,7 @@ class SourcePackageCatalog:
                 )
             if package.selection_slot is not None and package.selection_slot not in slot_keys:
                 raise CompositionError(
-                    f"{package.package_id} uses undeclared selection slot "
-                    f"{package.selection_slot}"
+                    f"{package.package_id} uses undeclared selection slot {package.selection_slot}"
                 )
 
     @property
@@ -369,9 +364,7 @@ class ResolvedBuildView:
             _unique_strings(values, name)
         if set(self.executable_action_keys) & set(self.omitted_action_keys):
             raise CompositionError("an action cannot be both executable and omitted")
-        if set(self.executable_persistent_trigger_keys) & set(
-            self.omitted_persistent_trigger_keys
-        ):
+        if set(self.executable_persistent_trigger_keys) & set(self.omitted_persistent_trigger_keys):
             raise CompositionError("a trigger cannot be both executable and omitted")
         _validate_number_pairs(self.scalars, "scalars")
         _validate_number_pairs(self.attributes, "attributes")
@@ -386,9 +379,7 @@ class ResolvedBuildView:
             + len(self.executable_persistent_trigger_keys)
             + len(self.omitted_persistent_trigger_keys)
         )
-        executable = len(self.executable_action_keys) + len(
-            self.executable_persistent_trigger_keys
-        )
+        executable = len(self.executable_action_keys) + len(self.executable_persistent_trigger_keys)
         return 1.0 if requested == 0 else executable / requested
 
     def mechanical_payload(self) -> dict[str, object]:
@@ -396,9 +387,7 @@ class ResolvedBuildView:
             "body": self.body.as_dict(),
             "action_keys": sorted(self.executable_action_keys),
             "tags": sorted(self.tags),
-            "persistent_trigger_keys": sorted(
-                self.executable_persistent_trigger_keys
-            ),
+            "persistent_trigger_keys": sorted(self.executable_persistent_trigger_keys),
             "scalars": _number_mapping(self.scalars),
             "attributes": _number_mapping(self.attributes),
             "training": _number_mapping(self.training),
@@ -415,9 +404,7 @@ class ResolvedBuildView:
             "selected_package_ids": sorted(self.selected_package_ids),
             "auto_added_requirement_ids": sorted(self.auto_added_requirement_ids),
             "omitted_action_keys": sorted(self.omitted_action_keys),
-            "omitted_persistent_trigger_keys": sorted(
-                self.omitted_persistent_trigger_keys
-            ),
+            "omitted_persistent_trigger_keys": sorted(self.omitted_persistent_trigger_keys),
             "unresolved_training_keys": sorted(self.unresolved_training_keys),
             "mechanical_signature": self.mechanical_signature,
         }
@@ -438,12 +425,8 @@ class ResolvedBuildView:
             "executable_action_keys": list(self.executable_action_keys),
             "omitted_action_keys": list(self.omitted_action_keys),
             "tags": list(self.tags),
-            "executable_persistent_trigger_keys": list(
-                self.executable_persistent_trigger_keys
-            ),
-            "omitted_persistent_trigger_keys": list(
-                self.omitted_persistent_trigger_keys
-            ),
+            "executable_persistent_trigger_keys": list(self.executable_persistent_trigger_keys),
+            "omitted_persistent_trigger_keys": list(self.omitted_persistent_trigger_keys),
             "scalars": _number_mapping(self.scalars),
             "attributes": _number_mapping(self.attributes),
             "training": _number_mapping(self.training),
@@ -479,9 +462,7 @@ class ScenarioOverlay:
         _validate_number_pairs(self.resource_fractions, "resource_fractions")
         for key, value in self.resource_fractions:
             if value < 0.0 or value > 1.0:
-                raise CompositionError(
-                    f"resource_fractions.{key} must be between zero and one"
-                )
+                raise CompositionError(f"resource_fractions.{key} must be between zero and one")
         _validate_number_pairs(self.scalar_overrides, "scalar_overrides")
         for values, name in (
             (self.added_tags, "added_tags"),
@@ -696,7 +677,8 @@ class SimulationCaseView:
                 details.append("missing: " + ", ".join(sorted(missing)))
             if unknown:
                 details.append("unknown: " + ", ".join(sorted(unknown)))
-            raise CompositionError("participant slots do not match scenario slots (" + "; ".join(details) + ")")
+            detail = "; ".join(details)
+            raise CompositionError(f"participant slots do not match scenario slots ({detail})")
         _non_negative_integer(self.seed, "seed")
         _validate_string_pairs(self.metadata, "metadata")
 

@@ -12,7 +12,6 @@ from shadowbane_lab.composition.model import (
     CompositionError,
     GrantSource,
     ResolvedBuildView,
-    SourcePackage,
     SourcePackageCatalog,
 )
 
@@ -64,9 +63,7 @@ class BuildResolver:
                 return
             if package_id in resolving:
                 cycle = (*resolving[resolving.index(package_id) :], package_id)
-                raise BuildResolutionError(
-                    "package requirement cycle: " + " -> ".join(cycle)
-                )
+                raise BuildResolutionError("package requirement cycle: " + " -> ".join(cycle))
             resolving.append(package_id)
             for required_id in packages[package_id].requires:
                 include(required_id)
@@ -174,9 +171,7 @@ class BuildResolver:
             )
         )
         selected_ids = tuple(package.package_id for package in ordered_packages)
-        auto_added = tuple(
-            sorted(set(selected_ids) - set(blueprint.requested_package_ids))
-        )
+        auto_added = tuple(sorted(set(selected_ids) - set(blueprint.requested_package_ids)))
         notes = tuple(
             dict.fromkeys(
                 (

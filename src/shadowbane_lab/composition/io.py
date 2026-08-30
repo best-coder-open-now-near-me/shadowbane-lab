@@ -35,8 +35,7 @@ def load_source_package_catalog_text(text: str) -> SourcePackageCatalog:
     return SourcePackageCatalog(
         catalog_id=_required_string(raw, "catalog_id", "catalog"),
         packages=tuple(
-            _parse_source_package(value, index)
-            for index, value in enumerate(packages_raw)
+            _parse_source_package(value, index) for index, value in enumerate(packages_raw)
         ),
         slot_limits=tuple(sorted(_integer_mapping(raw, "slot_limits", "catalog").items())),
     )
@@ -113,9 +112,7 @@ def dump_build_blueprint(blueprint: BuildBlueprint) -> str:
             "direct_grants": {
                 "action_keys": list(blueprint.direct_action_keys),
                 "tags": list(blueprint.direct_tags),
-                "persistent_trigger_keys": list(
-                    blueprint.direct_persistent_trigger_keys
-                ),
+                "persistent_trigger_keys": list(blueprint.direct_persistent_trigger_keys),
             },
             "scalars": dict(blueprint.base_scalars),
             "attributes": dict(blueprint.attributes),

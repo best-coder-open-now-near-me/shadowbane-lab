@@ -30,14 +30,10 @@ def primitive_loadout_from_build_view(view: ResolvedBuildView) -> PrimitiveLoado
         notes.append("Omitted actions: " + ", ".join(view.omitted_action_keys))
     if view.omitted_persistent_trigger_keys:
         notes.append(
-            "Omitted persistent triggers: "
-            + ", ".join(view.omitted_persistent_trigger_keys)
+            "Omitted persistent triggers: " + ", ".join(view.omitted_persistent_trigger_keys)
         )
     if view.unresolved_training_keys:
-        notes.append(
-            "Training access unresolved: "
-            + ", ".join(view.unresolved_training_keys)
-        )
+        notes.append("Training access unresolved: " + ", ".join(view.unresolved_training_keys))
     return PrimitiveLoadout(
         loadout_id=view.build_id,
         display_name=view.display_name,
