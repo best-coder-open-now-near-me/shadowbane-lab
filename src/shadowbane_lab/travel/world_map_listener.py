@@ -281,10 +281,7 @@ class WindowsGoChatCommandListener(_BaseWindowsGoChatCommandListener):
                     event_pointer,
                     ctypes.POINTER(MouseEvent),
                 ).contents
-                if (
-                    not event.flags & self._LLMHF_INJECTED
-                    and self._suppress_right_button_up
-                ):
+                if not event.flags & self._LLMHF_INJECTED and self._suppress_right_button_up:
                     self._suppress_right_button_up = False
                     self._suppressed_right_button_ups += 1
                     return 1
@@ -317,9 +314,7 @@ class WindowsGoChatCommandListener(_BaseWindowsGoChatCommandListener):
                         try:
                             interaction, suppress = self._prepare_pointer_interaction(
                                 interaction,
-                                foreground_window_handle=int(
-                                    user32.GetForegroundWindow() or 0
-                                ),
+                                foreground_window_handle=int(user32.GetForegroundWindow() or 0),
                             )
                         except Exception:
                             # Hook callbacks must always fail open. Diagnostics and the
@@ -438,9 +433,8 @@ class WindowsGoChatCommandListener(_BaseWindowsGoChatCommandListener):
 
         if not isinstance(interaction, PhysicalPointerInteraction):
             raise ValueError("interaction must be PhysicalPointerInteraction")
-        if (
-            isinstance(foreground_window_handle, bool)
-            or not isinstance(foreground_window_handle, int)
+        if isinstance(foreground_window_handle, bool) or not isinstance(
+            foreground_window_handle, int
         ):
             raise ValueError("foreground_window_handle must be an integer")
         if now is None:
