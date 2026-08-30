@@ -67,13 +67,18 @@ def _snapshot(*, reverse: bool = False, revision: int = 7) -> AffiliationSnapsho
     )
 
 
-class AffiliationCodecTests(unittest.TestCase):
-    def test_round_trip_preserves_validated_snapshot(self) -> None:
+class AffiliationCodecCompatibilityTests(unittest.TestCase):
+    def test_round_trip_preserves_canonical_snapshot_semantics(self) -> None:
         snapshot = _snapshot()
         encoded = encode_affiliation_snapshot(snapshot)
+        decoded = decode_affiliation_snapshot(encoded)
 
-        self.assertEqual(snapshot, decode_affiliation_snapshot(encoded))
-        self.assertEqual(AFFILIATION_SNAPSHOT_SCHEMA, json.loads(encoded)["schema"])
+        self.assertEqual(
+            affiliation_snapshot_to_data(snapshot),
+            affiliation_snapshot_to_data(decoded),
+        )
+        self.assertEqual(1, json.loads(encoded)["schema_version"])
+        self.assertEqual("shadowbane-lab.affiliation-snapshot.v1", AFFILIATION_SNAPSHOT_SCHEMA)
 
     def test_semantically_unordered_inputs_encode_and_digest_identically(self) -> None:
         first = _snapshot()
@@ -114,9 +119,8 @@ class AffiliationCodecTests(unittest.TestCase):
 
         with self.assertRaises(AffiliationCodecError):
             decode_affiliation_snapshot(
-                '{"schema":"shadowbane-lab.affiliation-snapshot.v1",'
-                '"revision":1,"revision":2,"memberships":[],'
-                '"ownership_edges":[],"relation_overrides":[]}'
+                '{"schema_version":1,"revision":1,"revision":2,'
+                '"memberships":[],"ownership_edges":[],"relation_overrides":[]}'
             )
 
     def test_invalid_utf8_nonstandard_constants_and_unknown_schema_fail_closed(self) -> None:
@@ -124,13 +128,12 @@ class AffiliationCodecTests(unittest.TestCase):
             decode_affiliation_snapshot(b"\xff")
         with self.assertRaises(AffiliationCodecError):
             decode_affiliation_snapshot(
-                '{"schema":"shadowbane-lab.affiliation-snapshot.v1",'
-                '"revision":NaN,"memberships":[],"ownership_edges":[],'
-                '"relation_overrides":[]}'
+                '{"schema_version":1,"revision":NaN,"memberships":[],'
+                '"ownership_edges":[],"relation_overrides":[]}'
             )
 
         data = affiliation_snapshot_to_data(_snapshot())
-        data["schema"] = "shadowbane-lab.affiliation-snapshot.v2"
+        data["schema_version"] = 2
         with self.assertRaises(AffiliationCodecError):
             affiliation_snapshot_from_data(data)
 
