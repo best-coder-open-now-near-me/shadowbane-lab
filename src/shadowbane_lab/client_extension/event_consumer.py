@@ -11,10 +11,14 @@ from .events import (
     ExtensionEventChannelSnapshot,
     ExtensionEventError,
     ExtensionWorldMapDestinationEvent,
+    extension_event_consumer_mutex_name,
     extension_event_mapping_name,
     extension_event_signal_name,
     parse_extension_event_channel,
 )
+
+_LOCAL_CONSUMER_LEASE_LOCK = threading.Lock()
+_LOCAL_CONSUMER_LEASES: set[str] = set()
 
 
 class ExtensionEventConsumerError(RuntimeError):
@@ -192,6 +196,9 @@ class WindowsExtensionEventTransport:
     _FILE_MAP_READ = 0x0004
     _SYNCHRONIZE = 0x00100000
     _WAIT_FAILED = 0xFFFFFFFF
+    _WAIT_OBJECT_0 = 0
+    _WAIT_ABANDONED = 0x00000080
+    _WAIT_TIMEOUT = 0x00000102
     _CONSUMER_PROCESS_ID_OFFSET = 68
     _CONSUMER_HEARTBEAT_TICK_OFFSET = 72
     _READ_SEQUENCE_OFFSET = 48
@@ -228,23 +235,16 @@ class WindowsExtensionEventTransport:
             wintypes.LPCWSTR,
         )
         self._kernel32.OpenEventW.restype = wintypes.HANDLE
-        self._kernel32.InterlockedCompareExchange.argtypes = (
-            ctypes.POINTER(ctypes.c_long),
-            ctypes.c_long,
-            ctypes.c_long,
+        if ctypes.sizeof(ctypes.c_void_p) != 8:
+            raise RuntimeError("extension event consumers require 64-bit Python")
+        self._kernel32.CreateMutexW.argtypes = (
+            ctypes.c_void_p,
+            wintypes.BOOL,
+            wintypes.LPCWSTR,
         )
-        self._kernel32.InterlockedCompareExchange.restype = ctypes.c_long
-        self._kernel32.InterlockedCompareExchange64.argtypes = (
-            ctypes.POINTER(ctypes.c_longlong),
-            ctypes.c_longlong,
-            ctypes.c_longlong,
-        )
-        self._kernel32.InterlockedCompareExchange64.restype = ctypes.c_longlong
-        self._kernel32.InterlockedExchange64.argtypes = (
-            ctypes.POINTER(ctypes.c_longlong),
-            ctypes.c_longlong,
-        )
-        self._kernel32.InterlockedExchange64.restype = ctypes.c_longlong
+        self._kernel32.CreateMutexW.restype = wintypes.HANDLE
+        self._kernel32.ReleaseMutex.argtypes = (wintypes.HANDLE,)
+        self._kernel32.ReleaseMutex.restype = wintypes.BOOL
         self._kernel32.GetTickCount64.restype = ctypes.c_ulonglong
         self._kernel32.GetCurrentProcessId.restype = wintypes.DWORD
         self._kernel32.WaitForSingleObject.argtypes = (
@@ -266,6 +266,11 @@ class WindowsExtensionEventTransport:
             process_id,
             process_creation_filetime_utc,
         )
+        consumer_mutex_name = extension_event_consumer_mutex_name(
+            process_id,
+            process_creation_filetime_utc,
+        )
+        self._consumer_mutex_name = consumer_mutex_name
         self._mapping = self._kernel32.OpenFileMappingW(access, False, mapping_name)
         if not self._mapping:
             raise OSError(ctypes.get_last_error(), "OpenFileMappingW failed")
@@ -293,20 +298,47 @@ class WindowsExtensionEventTransport:
             self._view = None
             self._mapping = None
             raise OSError(error, "OpenEventW failed")
+        self._consumer_mutex = self._kernel32.CreateMutexW(
+            None,
+            False,
+            consumer_mutex_name,
+        )
+        if not self._consumer_mutex:
+            error = ctypes.get_last_error()
+            self._kernel32.CloseHandle(self._signal)
+            self._kernel32.UnmapViewOfFile(self._view)
+            self._kernel32.CloseHandle(self._mapping)
+            self._signal = None
+            self._view = None
+            self._mapping = None
+            raise OSError(error, "CreateMutexW failed")
         self._consumer_process_id = int(self._kernel32.GetCurrentProcessId())
+        self._mutex_owned = False
+        self._local_lease_owned = False
+        self._claim_thread_id: int | None = None
         self._claimed = False
         self._closed = False
 
     def claim(self) -> bool:
         self._require_open()
-        field = self._long_at(self._CONSUMER_PROCESS_ID_OFFSET)
-        previous = self._kernel32.InterlockedCompareExchange(
-            self._ctypes.byref(field),
-            self._consumer_process_id,
-            0,
-        )
-        if previous != 0:
+        with _LOCAL_CONSUMER_LEASE_LOCK:
+            if self._consumer_mutex_name in _LOCAL_CONSUMER_LEASES:
+                return False
+            _LOCAL_CONSUMER_LEASES.add(self._consumer_mutex_name)
+            self._local_lease_owned = True
+        result = self._kernel32.WaitForSingleObject(self._consumer_mutex, 0)
+        if result == self._WAIT_TIMEOUT:
+            self._release_local_lease()
             return False
+        if result == self._WAIT_FAILED:
+            self._release_local_lease()
+            raise OSError(self._ctypes.get_last_error(), "consumer mutex wait failed")
+        if result not in {self._WAIT_OBJECT_0, self._WAIT_ABANDONED}:
+            self._release_local_lease()
+            raise ExtensionEventConsumerError("consumer mutex returned an invalid wait state")
+        self._mutex_owned = True
+        self._claim_thread_id = threading.get_ident()
+        self._uint32_at(self._CONSUMER_PROCESS_ID_OFFSET).value = self._consumer_process_id
         self._claimed = True
         return self.renew()
 
@@ -314,19 +346,13 @@ class WindowsExtensionEventTransport:
         self._require_open()
         if not self._claimed:
             return False
-        process_field = self._long_at(self._CONSUMER_PROCESS_ID_OFFSET)
-        owner = self._kernel32.InterlockedCompareExchange(
-            self._ctypes.byref(process_field),
-            0,
-            0,
-        )
+        self._require_claim_thread()
+        owner = self._uint32_at(self._CONSUMER_PROCESS_ID_OFFSET).value
         if owner != self._consumer_process_id:
             self._claimed = False
             return False
-        heartbeat = self._longlong_at(self._CONSUMER_HEARTBEAT_TICK_OFFSET)
-        self._kernel32.InterlockedExchange64(
-            self._ctypes.byref(heartbeat),
-            int(self._kernel32.GetTickCount64()),
+        self._uint64_at(self._CONSUMER_HEARTBEAT_TICK_OFFSET).value = int(
+            self._kernel32.GetTickCount64()
         )
         return True
 
@@ -336,13 +362,12 @@ class WindowsExtensionEventTransport:
 
     def advance(self, expected_sequence: int, sequence: int) -> bool:
         self._require_open()
-        field = self._longlong_at(self._READ_SEQUENCE_OFFSET)
-        previous = self._kernel32.InterlockedCompareExchange64(
-            self._ctypes.byref(field),
-            sequence,
-            expected_sequence,
-        )
-        return previous == expected_sequence
+        self._require_claim_thread()
+        field = self._uint64_at(self._READ_SEQUENCE_OFFSET)
+        if field.value != expected_sequence:
+            return False
+        field.value = sequence
+        return True
 
     def wait(self, timeout_seconds: float) -> None:
         self._require_open()
@@ -354,16 +379,22 @@ class WindowsExtensionEventTransport:
     def close(self) -> None:
         if self._closed:
             return
+        release_error: OSError | None = None
         if self._claimed and self._view:
-            heartbeat = self._longlong_at(self._CONSUMER_HEARTBEAT_TICK_OFFSET)
-            self._kernel32.InterlockedExchange64(self._ctypes.byref(heartbeat), 0)
-            process_field = self._long_at(self._CONSUMER_PROCESS_ID_OFFSET)
-            self._kernel32.InterlockedCompareExchange(
-                self._ctypes.byref(process_field),
-                0,
-                self._consumer_process_id,
-            )
+            self._require_claim_thread()
+            if self._uint32_at(self._CONSUMER_PROCESS_ID_OFFSET).value == self._consumer_process_id:
+                self._uint64_at(self._CONSUMER_HEARTBEAT_TICK_OFFSET).value = 0
+                self._uint32_at(self._CONSUMER_PROCESS_ID_OFFSET).value = 0
             self._claimed = False
+        if self._mutex_owned:
+            if not self._kernel32.ReleaseMutex(self._consumer_mutex):
+                release_error = OSError(self._ctypes.get_last_error(), "ReleaseMutex failed")
+            self._mutex_owned = False
+            self._claim_thread_id = None
+        self._release_local_lease()
+        if self._consumer_mutex:
+            self._kernel32.CloseHandle(self._consumer_mutex)
+            self._consumer_mutex = None
         if self._signal:
             self._kernel32.CloseHandle(self._signal)
             self._signal = None
@@ -374,16 +405,31 @@ class WindowsExtensionEventTransport:
             self._kernel32.CloseHandle(self._mapping)
             self._mapping = None
         self._closed = True
+        if release_error is not None:
+            raise release_error
 
-    def _long_at(self, offset: int):
-        return self._ctypes.c_long.from_address(self._view + offset)
+    def _uint32_at(self, offset: int):
+        return self._ctypes.c_uint32.from_address(self._view + offset)
 
-    def _longlong_at(self, offset: int):
-        return self._ctypes.c_longlong.from_address(self._view + offset)
+    def _uint64_at(self, offset: int):
+        return self._ctypes.c_uint64.from_address(self._view + offset)
 
     def _require_open(self) -> None:
         if self._closed or not self._view:
             raise ExtensionEventConsumerError("extension event transport is closed")
+
+    def _require_claim_thread(self) -> None:
+        if self._claim_thread_id != threading.get_ident():
+            raise ExtensionEventConsumerError(
+                "extension event consumer lease must remain on its claiming thread"
+            )
+
+    def _release_local_lease(self) -> None:
+        if not self._local_lease_owned:
+            return
+        with _LOCAL_CONSUMER_LEASE_LOCK:
+            _LOCAL_CONSUMER_LEASES.discard(self._consumer_mutex_name)
+        self._local_lease_owned = False
 
 
 def open_windows_extension_event_consumer(

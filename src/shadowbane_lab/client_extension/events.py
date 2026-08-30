@@ -241,6 +241,19 @@ def extension_event_signal_name(
     return f"Local\\ShadowbaneLab.Extension.Signal.{process_id}.{process_creation_filetime_utc}"
 
 
+def extension_event_consumer_mutex_name(
+    process_id: int,
+    process_creation_filetime_utc: int,
+) -> str:
+    _bounded_positive(process_id, "process_id", 0xFFFFFFFF)
+    _bounded_positive(
+        process_creation_filetime_utc,
+        "process_creation_filetime_utc",
+        0xFFFFFFFFFFFFFFFF,
+    )
+    return f"Local\\ShadowbaneLab.Extension.Consumer.{process_id}.{process_creation_filetime_utc}"
+
+
 def parse_extension_event_channel(
     payload: bytes | bytearray | memoryview,
     *,
@@ -377,6 +390,7 @@ __all__ = [
     "ExtensionPointerButton",
     "ExtensionPointerButtonCode",
     "ExtensionWorldMapDestinationEvent",
+    "extension_event_consumer_mutex_name",
     "extension_event_mapping_name",
     "extension_event_signal_name",
     "parse_extension_event_channel",
