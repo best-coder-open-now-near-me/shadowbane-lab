@@ -107,6 +107,12 @@ class Ingress:
         self.fail = fail
         self.calls = []
 
+    def cancel_if_inflight(self, command, **kwargs):
+        self.calls.append((WorkerOperationKind.CANCEL, command, kwargs))
+        if self.fail:
+            raise RuntimeError("worker unavailable")
+        return object()
+
     def dispatch(self, kind, command, **kwargs):
         self.calls.append((kind, command, kwargs))
         if self.fail:
@@ -115,7 +121,7 @@ class Ingress:
 
 
 class ExtensionEventRouterTests(unittest.TestCase):
-    def test_routes_focus_independent_event_as_stop_then_exact_travel(self) -> None:
+    def test_routes_focus_independent_event_as_cancel_then_exact_travel(self) -> None:
         consumer = Consumer(_event())
         ingress = Ingress()
         router = ExactExtensionEventRouter(
@@ -132,7 +138,7 @@ class ExtensionEventRouterTests(unittest.TestCase):
         self.assertEqual((PROCESS_ID,), result.dispatched_process_ids)
         self.assertEqual([consumer.events[0]], consumer.acknowledged)
         self.assertEqual(
-            [WorkerOperationKind.STOP, WorkerOperationKind.TRAVEL],
+            [WorkerOperationKind.CANCEL, WorkerOperationKind.TRAVEL],
             [call[0] for call in ingress.calls],
         )
         travel = ingress.calls[1][2]

@@ -9,6 +9,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from shadowbane_lab.cli import (
+    _ExactWorkerEngineExecutor,
     _listen_for_go_commands,
     _print_go_listener_event,
     _run_pve,
@@ -38,6 +39,23 @@ from tests.test_client_input_executor import _valid_snapshot
 
 
 class ClientCliTests(unittest.TestCase):
+    def test_worker_cancel_acknowledges_without_touching_client_input(self) -> None:
+        executor = object.__new__(_ExactWorkerEngineExecutor)
+        executor._binding = SimpleNamespace(instance_id="instance-101")
+        stop_signal = MagicMock()
+
+        result = executor.execute(
+            SimpleNamespace(
+                instance_id="instance-101",
+                kind=WorkerOperationKind.CANCEL,
+            ),
+            stop_signal=stop_signal,
+        )
+
+        self.assertEqual(WorkerOperationState.SUCCEEDED, result.state)
+        self.assertIn("without client input", result.detail)
+        stop_signal.is_set.assert_not_called()
+
     def test_go_listener_emits_extension_router_diagnostics_as_json(self) -> None:
         output = io.StringIO()
         diagnostics = {
@@ -615,8 +633,10 @@ class ClientCliTests(unittest.TestCase):
                 pointer_claims_interaction,
             ) -> None:
                 self.on_command = on_command
+                self.on_interaction = on_interaction
 
             def __enter__(self):
+                self.on_interaction()
                 self.on_command("/pve")
                 return self
 
@@ -624,6 +644,10 @@ class ClientCliTests(unittest.TestCase):
                 return None
 
         class ExactIngress:
+            def cancel_if_inflight(self, command, **kwargs):
+                captured["cancellation"] = (command, kwargs)
+                return None
+
             def dispatch(self, kind, command, **kwargs):
                 captured.update(kind=kind, command=command, **kwargs)
                 service_stop.trip()
@@ -716,6 +740,9 @@ class ClientCliTests(unittest.TestCase):
         self.assertEqual(WorkerOperationKind.PVE, captured["kind"])
         self.assertEqual("/pve", captured["command"])
         self.assertEqual(4320, captured["expected_process_id"])
+        cancellation_command, cancellation_options = captured["cancellation"]
+        self.assertEqual("physical-client-interaction", cancellation_command)
+        self.assertEqual(4320, cancellation_options["expected_process_id"])
         extension_router.poll_once.assert_called()
         extension_router.close.assert_called_once_with()
         run_pve.assert_not_called()

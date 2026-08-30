@@ -1988,6 +1988,11 @@ class _ExactWorkerEngineExecutor:
                 WorkerOperationState.FAILED,
                 "operation does not own this exact game instance",
             )
+        if operation.kind is WorkerOperationKind.CANCEL:
+            return WorkerOperationExecution(
+                WorkerOperationState.SUCCEEDED,
+                "in-flight automation cancellation acknowledged without client input",
+            )
         if stop_signal.is_set():
             return WorkerOperationExecution(
                 WorkerOperationState.CANCELLED,
@@ -4356,13 +4361,19 @@ def _listen_for_go_commands(
     ) as exc:
         return _error(f"chat control failed: {exc}", as_json=as_json)
 
-    commands: queue.Queue[str | tuple[PhysicalPointerInteraction, float]] = queue.Queue()
+    cancel_worker_operation = object()
+    cancel_worker_operation_queued = threading.Event()
+    commands: queue.Queue[
+        str | tuple[PhysicalPointerInteraction, float] | object
+    ] = queue.Queue()
     active_lock = threading.Lock()
     active_operation_stop: EventEmergencyStop | None = None
 
     def cancel_active_operation() -> None:
         if worker_ingress is not None:
-            commands.put("/stop")
+            if not cancel_worker_operation_queued.is_set():
+                cancel_worker_operation_queued.set()
+                commands.put(cancel_worker_operation)
             return
         with active_lock:
             if active_operation_stop is not None:
@@ -4538,6 +4549,20 @@ def _listen_for_go_commands(
                 except queue.Empty:
                     continue
 
+                if interaction is cancel_worker_operation:
+                    try:
+                        assert worker_ingress is not None
+                        target = guard.require_target()
+                        worker_ingress.cancel_if_inflight(
+                            "physical-client-interaction",
+                            expected_process_id=_require_window_process_id(target),
+                        )
+                    except (OSError, RuntimeError, ValueError, WindowGuardError):
+                        pass
+                    finally:
+                        cancel_worker_operation_queued.clear()
+                    continue
+
                 pointer_destination = None
                 pointer_observed_at = None
                 destination_source = None
@@ -4596,12 +4621,6 @@ def _listen_for_go_commands(
                             >= pointer_observed_at
                         ):
                             continue
-                        if not dispatch_to_exact_worker(
-                            WorkerOperationKind.STOP,
-                            f"extension-fallback-stop:{command}",
-                            process_id=command_process_id,
-                        ):
-                            continue
                     try:
                         if (
                             world_map_reader is None
@@ -4627,6 +4646,20 @@ def _listen_for_go_commands(
                             reason=str(exc),
                         )
                         continue
+                    if extension_router is not None:
+                        try:
+                            worker_ingress.cancel_if_inflight(
+                                f"extension-fallback-cancel:{command}",
+                                expected_process_id=command_process_id,
+                            )
+                        except (OSError, RuntimeError, ValueError) as exc:
+                            _print_go_listener_event(
+                                "rejected",
+                                as_json=as_json,
+                                command=command,
+                                reason=str(exc),
+                            )
+                            continue
                 if normalized is not None and (
                     normalized == "/zone" or normalized.startswith("/zone ")
                 ):

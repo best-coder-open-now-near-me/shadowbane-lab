@@ -33,6 +33,16 @@ class ClientRegistryProvider(Protocol):
 
 
 class ExactWorkerIngress(Protocol):
+    def cancel_if_inflight(
+        self,
+        command: str,
+        *,
+        expected_process_id: int | None = None,
+        expected_window_handle: int | None = None,
+        require_foreground: bool = True,
+        operation_id: str | None = None,
+    ) -> object | None: ...
+
     def dispatch(
         self,
         kind: WorkerOperationKind,
@@ -111,10 +121,11 @@ class ExactExtensionEventRouter:
             raise ValueError("manifest must be ManagerManifest")
         if not callable(getattr(registry, "inspect", None)):
             raise ValueError("registry must provide inspect()")
-        if not isinstance(ingress, ForegroundWorkerOperationIngress) and not callable(
-            getattr(ingress, "dispatch", None)
+        if not isinstance(ingress, ForegroundWorkerOperationIngress) and (
+            not callable(getattr(ingress, "dispatch", None))
+            or not callable(getattr(ingress, "cancel_if_inflight", None))
         ):
-            raise ValueError("ingress must provide dispatch()")
+            raise ValueError("ingress must provide dispatch() and cancel_if_inflight()")
         if not callable(consumer_factory) or not callable(clock):
             raise ValueError("consumer_factory and clock must be callable")
         self._manifest = manifest
@@ -236,10 +247,9 @@ class ExactExtensionEventRouter:
             "require_foreground": False,
         }
         try:
-            self._ingress.dispatch(
-                WorkerOperationKind.STOP,
-                f"extension-map-stop:{event.sequence}",
-                operation_id=_operation_id(event, "stop"),
+            self._ingress.cancel_if_inflight(
+                f"extension-map-cancel:{event.sequence}",
+                operation_id=_operation_id(event, "cancel"),
                 **common,
             )
             self._ingress.dispatch(
