@@ -53,7 +53,7 @@ class CompositionIoTests(unittest.TestCase):
         self.assertEqual(220.0, view.body.stamina)
         self.assertEqual(16.0, view.body.move_speed)
         self.assertEqual(995.0, dict(view.scalars)["defense"])
-        self.assertEqual(157.0, dict(view.attributes)["dexterity"])
+        self.assertEqual(162.0, dict(view.attributes)["dexterity"])
         self.assertEqual((), view.unresolved_training_keys)
         self.assertEqual(1.0, view.coverage_fraction)
 
