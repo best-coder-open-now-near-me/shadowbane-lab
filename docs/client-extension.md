@@ -143,6 +143,15 @@ bootstrap profile and produces patched SHA-256
 `a9a59004b36f9331bb85f85e7853a02a5d5f07bda9acb9ea4a8affbf169a54b8`; unknown hashes still fail
 closed.
 
+When the official patcher replaces a packaged `sb.exe`, the old package marker and extension DLL
+remain on disk but are no longer loaded. With every client closed, retire those stale artifacts to
+a receipt-bearing, recoverable Local App Data quarantine before freezing the new vanilla baseline:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
+  \\VBOXSVR\codexrepo\scripts\retire-wonderbane-client-extension.ps1
+```
+
 ```powershell
 python -m shadowbane_lab.client_extension author-bootstrap `
   <frozen-client>\sb.exe <versioned-extension.dll> <new-private-manifest.json> --pretty
