@@ -139,6 +139,15 @@ tables with `GetProcAddress`, loads `wonderbane-extension.dll`, calls
 `WonderBaneExtensionInitialize`, restores the entry state, replays the five displaced bytes, and
 continues at the original entry path. Author a create-new private manifest with:
 
+The 2026-08-31 patch produced source SHA-256
+`55fbad5f0110cd99b4085af72d1e8fddb782ccdec1491478492c18158f5c61bc`. A preserved vanilla-to-
+vanilla comparison found identical PE headers and section layouts, 544 changed bytes across 29
+ranges in `.text` and `.data`, and no intersection with 47 calibrated anchors. All seven bootstrap
+sites independently resolved at their reviewed RVAs. It is therefore represented by its own exact
+bootstrap profile and produces patched SHA-256
+`a9a59004b36f9331bb85f85e7853a02a5d5f07bda9acb9ea4a8affbf169a54b8`; unknown hashes still fail
+closed.
+
 ```powershell
 python -m shadowbane_lab.client_extension author-bootstrap `
   <frozen-client>\sb.exe <versioned-extension.dll> <new-private-manifest.json> --pretty
