@@ -39,6 +39,18 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
 The wrapper sets `PYTHONPATH` to the `codexgfx` share and never starts the control center, listener,
 manager, map capture, movement, combat, or automation paths.
 
+After publication succeeds, launch that exact verified package for graphics testing with:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
+  \\VBOXSVR\codexgfx\scripts\launch-wonderbane-graphics-baseline.ps1
+```
+
+The launcher rechecks the publication receipt, executable and extension hashes, and complete package
+inventory before starting `sb.exe`. It supplies the reviewed software-rendering environment only to
+the child process and restores the calling PowerShell environment immediately afterward. It does not
+start the control center, listener, manager, movement, combat, or other automation components.
+
 Inside the WonderBane VM, with the official client closed, run:
 
 ```powershell
