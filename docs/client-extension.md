@@ -127,6 +127,12 @@ inventory. `verify-copy <new-working-copy>` repeats that check. The explicit
 frozen baseline again, deletes only the marker-bound disposable directory, and publishes a
 rollback receipt outside it.
 
+After a disposable client has run, `audit-copy` reports exact added, missing, and changed paths
+against its signed package inventory. `discard-runtime-drifted-copy` accepts only a caller-reviewed
+actual tree digest, rejects every added file and every non-runtime changed or missing path, archives
+the surviving runtime-written files with their hashes, records recognized runtime deletions in a
+schema-v2 receipt, reverifies the frozen baseline, and only then retires the disposable directory.
+
 ## Loader boundary
 
 The extension DLL's `DllMain` remains minimal. Initialization and heartbeat work happen through

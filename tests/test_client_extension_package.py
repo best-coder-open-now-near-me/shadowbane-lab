@@ -397,6 +397,31 @@ class ClientExtensionPackageTests(unittest.TestCase):
             )
             changed = destination / "Config" / "ArcanePref.cfg"
             changed.write_text("PREF=runtime\n", encoding="utf-8")
+            removed = destination / "Logs" / "debug.txt"
+            removed.parent.mkdir()
+            removed.write_text("baseline\n", encoding="utf-8")
+            evidence_path = destination / ".wonderbane-extension" / "package.json"
+            evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+            removed_record = {
+                "relative_path": "Logs/debug.txt",
+                "size": len(b"baseline\n"),
+                "sha256": hashlib.sha256(b"baseline\n").hexdigest(),
+            }
+            evidence["files"].append(removed_record)
+            evidence["files"].sort(key=lambda item: item["relative_path"].casefold())
+            tree = hashlib.sha256()
+            for item in evidence["files"]:
+                tree.update(item["relative_path"].encode("utf-8"))
+                tree.update(b"\0")
+                tree.update(str(item["size"]).encode("ascii"))
+                tree.update(b"\0")
+                tree.update(item["sha256"].encode("ascii"))
+                tree.update(b"\n")
+            evidence["working_tree_sha256"] = tree.hexdigest()
+            evidence["file_count"] = len(evidence["files"])
+            evidence["total_file_bytes"] = sum(item["size"] for item in evidence["files"])
+            evidence_path.write_text(json.dumps(evidence), encoding="utf-8")
+            removed.unlink()
             drift = audit_patched_client_copy(destination)
             receipt_path = root / "retired.json"
             archive = root / "runtime-files"
@@ -413,6 +438,7 @@ class ClientExtensionPackageTests(unittest.TestCase):
             self.assertTrue(receipt_path.is_file())
             self.assertEqual("PREF=runtime\n", (archive / "Config" / "ArcanePref.cfg").read_text())
             self.assertEqual(drift.actual_working_tree_sha256, receipt.actual_working_tree_sha256)
+            self.assertEqual(["Logs/debug.txt"], [item.relative_path for item in receipt.missing_files])
 
     def test_runtime_drifted_discard_rejects_unreviewed_or_stale_drift(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

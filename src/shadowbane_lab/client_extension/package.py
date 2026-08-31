@@ -28,7 +28,7 @@ from shadowbane_lab.client_extension.resolver import (
 PATCH_PACKAGE_SCHEMA_VERSION = 1
 PACKAGE_DRIFT_SCHEMA_VERSION = 1
 ROLLBACK_RECEIPT_SCHEMA_VERSION = 1
-RUNTIME_DRIFT_ROLLBACK_RECEIPT_SCHEMA_VERSION = 1
+RUNTIME_DRIFT_ROLLBACK_RECEIPT_SCHEMA_VERSION = 2
 _BASELINE_FILE_NAME = "client-baseline.json"
 _EVIDENCE_DIRECTORY_NAME = ".wonderbane-extension"
 _PACKAGE_FILE_NAME = "package.json"
@@ -219,6 +219,7 @@ class RuntimeDriftRollbackReceipt:
     baseline_tree_sha256: str
     archived_runtime_files_directory: str
     changed_files: tuple[BaselineFile, ...]
+    missing_files: tuple[BaselineFile, ...]
     receipt_path: str
     schema_version: int = RUNTIME_DRIFT_ROLLBACK_RECEIPT_SCHEMA_VERSION
 
@@ -234,6 +235,7 @@ class RuntimeDriftRollbackReceipt:
             "baseline_tree_sha256": self.baseline_tree_sha256,
             "archived_runtime_files_directory": self.archived_runtime_files_directory,
             "changed_files": [item.as_dict() for item in self.changed_files],
+            "missing_files": [item.as_dict() for item in self.missing_files],
             "receipt_path": self.receipt_path,
         }
 
@@ -615,13 +617,19 @@ def discard_runtime_drifted_client_copy(
         raise ClientPatchPackageError("patched client copy changed after its reviewed drift audit")
     if drift.matches:
         raise ClientPatchPackageError("patched client copy has no runtime drift; use verified discard")
-    if drift.added or drift.missing:
-        raise ClientPatchPackageError("runtime-drift retirement does not allow added or missing files")
-    unexpected = tuple(
+    if drift.added:
+        raise ClientPatchPackageError("runtime-drift retirement does not allow added files")
+    unexpected_changed = tuple(
         item.actual.relative_path
         for item in drift.changed
         if not _is_known_runtime_mutable_path(item.actual.relative_path)
     )
+    unexpected_missing = tuple(
+        item.relative_path
+        for item in drift.missing
+        if not _is_known_runtime_mutable_path(item.relative_path)
+    )
+    unexpected = unexpected_changed + unexpected_missing
     if unexpected:
         raise ClientPatchPackageError(
             "runtime-drift retirement found non-runtime changes: " + ", ".join(unexpected)
@@ -667,6 +675,7 @@ def discard_runtime_drifted_client_copy(
             baseline_tree_sha256=baseline.tree_sha256,
             archived_runtime_files_directory=str(archive),
             changed_files=changed_files,
+            missing_files=drift.missing,
             receipt_path=str(receipt),
         )
         temporary_receipt = _write_temporary_json(receipt.parent, result.as_dict())
