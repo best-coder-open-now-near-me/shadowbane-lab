@@ -32,7 +32,7 @@ private preservation archive and must not be committed.
 | Versioned native map API | `7e62365..0670de6` (`origin/codex/client-extension-map-api`) | Router diagnostics, bootstrapped native-layout registration, extension lifetime pinning, and versioned client upgrades | Event and action stack | Retained remotely; common parent of the current production lines |
 | Manager and travel reliability | `0670de6..015e099` (`codex/manager-permit-retry`) | Worker-record retry, responsive native hooks, cancellation separate from physical input, local terrain horizons, duplicate-map resolution, exact map closure, and safe reachable A* frontiers | Versioned native map API | All commits are present on `origin/codex/client-streaming-telemetry` |
 | Shared 55fb rendering foundation | `015e099..79dbeaf` | Exact 55fb alignment, stale-artifact retirement, timestamped baselines, adaptive A*, immutable texture overlays, renderer diagnostics, bounded production cel rendering, and Control Center reconnect | Manager and travel reliability | Shared ancestor of both retained rendering leaves |
-| Verified 55fb graphics publication | `origin/codex/graphics-baseline-55fb` at `fab678d`; replayed as `7f42cab` | Hash-derived content-build identity, reviewed loader-manifest authoring, a no-write package gate, local free-space enforcement, isolated graphics-only publication, post-copy verification, and immutable dry-run/publication receipts | Shared 55fb rendering foundation and client-copy package commands | The wrapper parses cleanly and all 21 focused client-extension tests pass locally (one intentional skip). The exact source branch is published; VM execution remains an explicit release validation step. |
+| Verified 55fb graphics publication | `origin/codex/graphics-baseline-55fb` at `1261cc8`; replayed as `7f42cab` and `abf495d` | Hash-derived content-build identity, reviewed loader-manifest authoring, a no-write package gate, exact-match dry-run receipt reuse, local free-space enforcement, isolated graphics-only publication, post-copy verification, and immutable publication receipts | Shared 55fb rendering foundation and client-copy package commands | The wrapper parses cleanly and all 21 focused client-extension tests pass locally (one intentional skip). The exact source branch is published; VM execution remains an explicit release validation step. |
 | Streaming and performance telemetry | `79dbeaf..5b3e1ec` (`origin/codex/client-streaming-telemetry`) | Bounded frame/cache/texture telemetry, binary parser contracts, performance profiles, verified renderer exclusions, removable renderer overrides, and reduced native hot-path overhead | Shared 55fb rendering foundation | Remote tip includes the two formerly local-only commits |
 | Refined cel outlines | `79dbeaf..d482d0f` (`origin/codex/patch-align-55fb`) | Local-scene filtering, perspective-scaled strokes, component bounds capture, centered hull expansion, and mutually exclusive hull/line fallback | Shared 55fb rendering foundation | Release x86 build and all four native tests passed at `d482d0f` |
 | Release evidence and isolated runtimes | `0670de6..a12ef15` (`origin/codex/wreck-texture-cache-swap`) | Reversible texture-cache swaps, immutable overlays, renderer diagnostics, isolated runtime provisioning, runtime consistency capture/promotion/gating, and verified official patch diffs | Versioned native map API | Retained remotely; three policy experiments in this range are reverted at the tip |
@@ -41,10 +41,10 @@ private preservation archive and must not be committed.
 
 The integrated production candidate is `codex/integrate-preserved-features`. Renderer reconciliation
 is checkpointed at `01523ff`, release/runtime reconciliation at `c5ad38f`, and the modular CLI replay
-at `5052d60`. The graphics-only publication replay is checkpointed at `7f42cab`. Its final
-production gate passed the x86 Release build and probe, all five native tests, Ruff, and all 1,060
-Python tests (one intentional skip); the additional publication wrapper passed its focused local
-gate but has not been executed inside the test VM.
+at `5052d60`. The graphics-only publication and resumability replays are checkpointed at `7f42cab`
+and `abf495d`. Its final production gate passed the x86 Release build and probe, all five native
+tests, Ruff, and all 1,060 Python tests (one intentional skip); the additional publication wrapper
+passed its focused local gate but has not been executed inside the test VM.
 
 ## Simulator feature capsules
 
@@ -112,6 +112,8 @@ After the final fetch and publication pass on 2026-08-31:
 - zero commits are reachable only from local branches;
 - both integration branches and the late-discovered 55fb graphics branch are published on
   `origin`;
+- four previously unreachable alternate implementation drafts are named and published under
+  `archive/` tags rather than exposed as active development branches;
 - the verified 92-ref bundle remains the lossless fallback, with SHA-256
   `806eaa9b91eca2eaf33f8f57a8ce204b949baef3508c74b80297c3d652402935`;
 - ten of eleven linked worktrees are clean; the only dirty linked checkout is the original main
