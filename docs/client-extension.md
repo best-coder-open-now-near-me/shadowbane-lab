@@ -272,7 +272,7 @@ extension lifetime, and scene draw ownership are all proven together.
 
 ## Restrained cel treatment
 
-Extension 1.4.3 removes the persistent wireframe state and keeps `GL_FLAT` as the conservative
+Extension 1.4.4 removes the persistent wireframe state and keeps `GL_FLAT` as the conservative
 fixed-function lighting treatment. It adds the reviewed client's unique `glCallList` import to the
 same transactional IAT plan, allowing replayable display-list geometry to receive a bounded
 silhouette pass. Perspective display lists and polygonal array draws render all polygon boundaries
@@ -288,6 +288,11 @@ The silhouette is further limited to depth-writing draws whose affine model-view
 4096 camera-space units. This excludes sky passes and world-origin terrain draws that otherwise
 turn the distant horizon into a fixed-width black stroke, while retaining locally transformed
 characters, props, and nearby structure pieces.
+
+Outline width is derived from camera-space depth, the live perspective projection, and viewport
+height, corresponding to a constant 0.5-unit world-space thickness. It is clamped to 1–4 raster
+pixels and omitted when its projected width falls below 0.75 pixel. Nearby models therefore receive
+the strongest stroke, while distant models taper naturally instead of appearing over-inked.
 
 Orthographic UI/map rendering, points, lines, and array draws outside the reviewed element-count
 bound remain single-pass. Immediate-mode geometry remains filled and flat-shaded because replaying

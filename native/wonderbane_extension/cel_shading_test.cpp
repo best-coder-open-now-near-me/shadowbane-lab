@@ -3,6 +3,7 @@
 #include <Windows.h>
 
 #include <array>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -208,6 +209,35 @@ int wmain() {
         )
     ) {
         return Fail(L"local model-view outline policy");
+    }
+    constexpr std::array<int, 4U> viewport{0, 0, 1200, 800};
+    std::array<float, 16U> near_model_view = local_model_view;
+    near_model_view[14] = -50.0F;
+    std::array<float, 16U> middle_model_view = local_model_view;
+    middle_model_view[14] = -100.0F;
+    std::array<float, 16U> far_model_view = local_model_view;
+    far_model_view[14] = -400.0F;
+    const float near_width = wonderbane::extension::PerspectiveOutlineLineWidth(
+        perspective.data(), perspective.size(),
+        near_model_view.data(), near_model_view.size(),
+        viewport.data(), viewport.size()
+    );
+    const float middle_width = wonderbane::extension::PerspectiveOutlineLineWidth(
+        perspective.data(), perspective.size(),
+        middle_model_view.data(), middle_model_view.size(),
+        viewport.data(), viewport.size()
+    );
+    const float far_width = wonderbane::extension::PerspectiveOutlineLineWidth(
+        perspective.data(), perspective.size(),
+        far_model_view.data(), far_model_view.size(),
+        viewport.data(), viewport.size()
+    );
+    if (
+        std::fabs(near_width - 4.0F) > 0.001F
+        || std::fabs(middle_width - 2.0F) > 0.001F
+        || far_width != 0.0F
+    ) {
+        return Fail(L"perspective outline width policy");
     }
     if (
         !wonderbane::extension::IsOutlinePrimitive(0x0004U, 36)

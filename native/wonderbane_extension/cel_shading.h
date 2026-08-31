@@ -16,6 +16,14 @@ std::uint32_t* FindImportAddressSlot(
 
 bool IsPerspectiveProjectionMatrix(const float* matrix, std::size_t count) noexcept;
 bool IsLocalOutlineModelViewMatrix(const float* matrix, std::size_t count) noexcept;
+float PerspectiveOutlineLineWidth(
+    const float* projection,
+    std::size_t projection_count,
+    const float* model_view,
+    std::size_t model_view_count,
+    const int* viewport,
+    std::size_t viewport_count
+) noexcept;
 bool IsOutlinePrimitive(unsigned int mode, int count) noexcept;
 
 DWORD StartStrongCelShading() noexcept;
