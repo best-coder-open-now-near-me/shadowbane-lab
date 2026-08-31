@@ -145,7 +145,8 @@ class LiveConfiguredManagerApplication:
             status["slots"] = active_slots
             status["open_count"] = len(active_slots)
             status["can_add_client"] = self._has_free_slot(all_slots) or (
-                len(self._manifest.clients) < MAX_MANAGER_CLIENT_SLOTS
+                all(client.window_tile is not None for client in self._manifest.clients)
+                and len(self._manifest.clients) < MAX_MANAGER_CLIENT_SLOTS
             )
             status["reconciliation"] = reconciliation
             return status
@@ -177,6 +178,12 @@ class LiveConfiguredManagerApplication:
         client_id = self._first_free_client_id(status)
         expanded = False
         if client_id is None:
+            if any(client.window_tile is None for client in self._manifest.clients):
+                raise DashboardError(
+                    "client-capacity-fixed",
+                    "Every isolated runtime slot is occupied. Provision another guest-local "
+                    "runtime before adding a client.",
+                )
             current_count = len(self._manifest.clients)
             if current_count >= MAX_MANAGER_CLIENT_SLOTS:
                 raise DashboardError(
@@ -205,7 +212,9 @@ class LiveConfiguredManagerApplication:
             if isinstance(slot, dict)
             for instance_id in self._observed_instance_ids(slot)
         }
-        if len(observed_instance_ids) > len(self._manifest.clients):
+        if len(observed_instance_ids) > len(self._manifest.clients) and all(
+            client.window_tile is not None for client in self._manifest.clients
+        ):
             self._expand_capacity(len(observed_instance_ids), status)
             reconciliation = self._application.reconcile_instances()
         return reconciliation

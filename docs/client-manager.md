@@ -117,9 +117,13 @@ retains the Mesa text fix, starts the command listener, and opens this dashboard
 an interactive terminal. See [VM setup](vm-setup.md#install-the-vm-control-center-at-logon).
 
 The dashboard presents running instances rather than exposing its internal slot capacity. Use
-**Add client** to launch another instance; the manager expands its hidden capacity transactionally
-when no free internal slot remains. The reviewed configurator remains available for an explicit
-offline capacity/layout change:
+**Add client** to launch another instance into a free slot. Legacy tiled manifests may expand
+their hidden capacity transactionally. An isolated-runtime manifest is deliberately fixed-capacity:
+when every slot is occupied, provision another complete guest-local runtime before adding a client.
+It never clones an occupied runtime directory.
+
+The legacy reviewed configurator remains available for an explicit offline capacity/layout change
+on tiled, single-runtime test manifests:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
@@ -130,30 +134,32 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
 
 This only expands; it never silently deletes slots. Existing launch/process configuration is
 preserved, new slots clone the first reviewed launch configuration, all slots receive unique grid
-tiles, and the original JSON is retained beside the manifest as a timestamped backup. Re-running
-the VM installer preserves the existing manifest unless `-ClientCount` is explicitly supplied.
+tiles, and the original JSON is retained beside the manifest as a timestamped backup. It refuses
+tile-less isolated-runtime manifests because cloning their first launch directory would recreate
+shared mutable `Config`, `Logs`, `DoubleFusion`, and cache state.
 
-When an immutable reviewed client build replaces the launch directory, retarget every existing
-slot atomically instead of editing JSON or copying binaries over the installed client. With every
-game client closed, verify the published package immediately before retargeting it:
+`configure-build` is now a single-slot operation. It refuses a multi-slot manifest because one
+client directory is not a safe multibox runtime. For multi-client operation, freeze the reviewed
+vanilla source and publish one verified copy per slot in a single deployment transaction:
 
 ```powershell
-$env:PYTHONPATH = "\\VBOXSVR\codexrepo\src"
-& "$env:USERPROFILE\shadowbane-lab\.venv\Scripts\python.exe" `
-  -m shadowbane_lab.client_extension verify-copy `
-  "\\VBOXSVR\codexdiag\client-extension-working\wonderbane-1.0.5-world-map-click-v1" `
-  --pretty
-
-& "$env:USERPROFILE\shadowbane-lab\.venv\Scripts\python.exe" `
-  -m shadowbane_lab.cli manager configure-build `
-  "$env:LOCALAPPDATA\ShadowbaneLab\client-manager.json" `
-  "\\VBOXSVR\codexdiag\client-extension-working\wonderbane-1.0.5-world-map-click-v1" `
-  --apply --json
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
+  \\VBOXSVR\codexrepo\scripts\install-wonderbane-isolated-runtimes.ps1 `
+  -ClientCount 2 `
+  -StartNow
 ```
 
-The command verifies `sb.exe` before replacing the manifest, preserves slot IDs, tiles, launch
-arguments, and reviewed renderer environment, and writes a timestamped backup. Restart the control
-center afterward so both the dashboard and node listener load the new immutable configuration.
+The installer pins both the official `sb.exe` and unmodified `Textures.cache`, rejects extension
+residue in the vanilla source, freezes the complete baseline under local app data, and publishes
+each slot beneath a versioned guest-local deployment. It rereads every package before atomically
+replacing the manager manifest and retains the original JSON as a timestamped backup. No game
+client, baseline, or runtime is executed from a VirtualBox shared folder.
+
+Every isolated slot launches with the calibrated `-windowed -resolution 1920x955` contract and no
+`window_tile`. Shadowbane retains its launch-time render surface when Win32 resizes its outer
+window, so grid tiling clips instead of scaling. Full-size windows therefore overlap and the
+manager focuses the selected exact instance; a smaller layout requires a separately observed and
+validated calibration rather than a guessed coordinate scale.
 
 `--live` is mandatory because reviewed dashboard actions can launch, tile, or request a graceful
 close. Opening the app never starts a client automatically. The terminal prints a per-run URL

@@ -3,6 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from shadowbane_lab.manager.dashboard import DashboardError
 from shadowbane_lab.manager.live_configuration import (
     LiveConfiguredManagerApplication,
     replace_manager_manifest,
@@ -189,6 +190,26 @@ class LiveConfiguredManagerApplicationTests(unittest.TestCase):
                 {"client-a", "client-b"},
                 {slot["instance_id"] for slot in status["slots"]},
             )
+
+    def test_tileless_isolated_runtime_manifest_has_fixed_capacity(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            manifest_path = Path(directory) / "manager.json"
+            payload = _manifest_payload()
+            del payload["clients"][0]["window_tile"]
+            manifest_path.write_text(json.dumps(payload), encoding="utf-8")
+            factory = _Factory("existing-client")
+            application = LiveConfiguredManagerApplication(
+                manifest_path,
+                load_manager_manifest(manifest_path),
+                factory,
+            )
+
+            status = application.status()
+
+            self.assertFalse(status["can_add_client"])
+            with self.assertRaisesRegex(DashboardError, "Provision another guest-local runtime"):
+                application.execute("add-client")
+            self.assertEqual(1, len(load_manager_manifest(manifest_path).clients))
 
     def test_delegates_normal_actions_to_current_immutable_application(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
