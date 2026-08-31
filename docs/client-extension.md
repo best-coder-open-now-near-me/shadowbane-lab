@@ -295,11 +295,12 @@ pixels and omitted when its projected width falls below 0.75 pixel. Nearby model
 the strongest stroke, while distant models taper naturally instead of appearing over-inked.
 
 The reviewed client's `glNewList`, `glEndList`, `glVertex3f`, and `glDeleteLists` imports now maintain
-a bounded local-space extent for each compiled display list. Tracked lists receive an additional
-front-face-culled dark hull expanded around the captured bounds center by the same 0.5-unit
+a bounded local-space extent for each compiled display list. Tracked lists use a front-face-culled
+dark hull expanded around the captured bounds center by the same 0.5-unit
 world-space thickness. This restores separation between independently compiled body, armor, and
 prop pieces without scaling around the often off-center model pivot. Lists without trustworthy
-bounds retain the line silhouette only, and deleted list IDs invalidate their captured bounds.
+bounds retain the line silhouette, and deleted list IDs invalidate their captured bounds. Each
+outlined draw remains two-pass: centered hull or line fallback, then the client's ordinary fill.
 
 The extension also tracks `glViewport` and `glMatrixMode` at the client's existing state-change
 calls. This removes synchronous integer state reads from every outlined draw while preserving the
