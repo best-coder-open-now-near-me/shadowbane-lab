@@ -4,6 +4,9 @@ Shadowbane Lab has several command surfaces because live client operation, offli
 simulation, and release gating have different safety boundaries. This map identifies the canonical
 owner of each workflow and distinguishes a real capability from a wrapper around one.
 
+Historical feature ownership, unmerged branch dependencies, preserved experiments, and integration
+rules are recorded in [`feature-lineage.md`](feature-lineage.md).
+
 ## Canonical command surfaces
 
 | Surface | Audience | Owns | Does not own |
