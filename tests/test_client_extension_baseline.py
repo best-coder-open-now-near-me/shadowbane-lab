@@ -9,7 +9,11 @@ from contextlib import redirect_stderr, redirect_stdout
 from datetime import UTC, datetime
 from pathlib import Path
 
-from shadowbane_lab.client_extension import ClientBaselineError, freeze_client_baseline
+from shadowbane_lab.client_extension import (
+    ClientBaselineError,
+    client_content_build_id,
+    freeze_client_baseline,
+)
 from shadowbane_lab.client_extension.__main__ import main
 from tests.client_alignment_fixture import build_pe
 
@@ -48,6 +52,16 @@ class ClientExtensionBaselineTests(unittest.TestCase):
             [item.relative_path for item in baseline.files],
         )
         self.assertEqual(executable, frozen_executable)
+        self.assertEqual(
+            (
+                f"wb-{baseline.executable.sha256[:8]}-"
+                f"{baseline.tree_sha256[:8]}"
+            ),
+            client_content_build_id(
+                executable_sha256=baseline.executable.sha256,
+                tree_sha256=baseline.tree_sha256,
+            ),
+        )
 
     def test_refuses_existing_nested_and_missing_executable_destinations(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -127,6 +141,33 @@ class ClientExtensionBaselineTests(unittest.TestCase):
         self.assertEqual(2, repeated)
         self.assertEqual("047147d", json.loads(output.getvalue())["repository_revision"])
         self.assertIn("already exists", error.getvalue())
+
+    def test_cli_identifies_verified_baseline_by_executable_and_tree_content(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "client"
+            source.mkdir()
+            (source / "sb.exe").write_bytes(build_pe())
+            (source / "Textures.cache").write_bytes(b"reviewed-cache")
+            frozen = root / "frozen"
+            baseline = freeze_client_baseline(
+                source,
+                frozen,
+                repository_revision="revision",
+            )
+            output = io.StringIO()
+            with redirect_stdout(output):
+                result = main(("identify-baseline", str(frozen), "--pretty"))
+
+        payload = json.loads(output.getvalue())
+        self.assertEqual(0, result)
+        self.assertEqual(
+            f"wb-{baseline.executable.sha256[:8]}-{baseline.tree_sha256[:8]}",
+            payload["content_build_id"],
+        )
+        self.assertEqual(baseline.executable.sha256, payload["executable_sha256"])
+        self.assertEqual(baseline.tree_sha256, payload["tree_sha256"])
+        self.assertEqual(2, payload["file_count"])
 
 
 if __name__ == "__main__":

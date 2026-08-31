@@ -25,6 +25,14 @@ class ClientBaselineError(RuntimeError):
     """Raised when a pristine client baseline cannot be captured safely."""
 
 
+def client_content_build_id(*, executable_sha256: str, tree_sha256: str) -> str:
+    """Return a compact identity derived only from verified client content."""
+
+    _validate_sha256(executable_sha256, "executable_sha256")
+    _validate_sha256(tree_sha256, "tree_sha256")
+    return f"wb-{executable_sha256[:8]}-{tree_sha256[:8]}"
+
+
 @dataclass(frozen=True, slots=True)
 class BaselineFile:
     """One regular client file copied and verified into the frozen baseline."""

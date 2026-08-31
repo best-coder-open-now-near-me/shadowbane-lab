@@ -10,6 +10,7 @@ from pathlib import Path
 
 from shadowbane_lab.client_extension.baseline import (
     ClientBaselineError,
+    client_content_build_id,
     freeze_client_baseline,
 )
 from shadowbane_lab.client_extension.bootstrap_author import (
@@ -29,6 +30,7 @@ from shadowbane_lab.client_extension.package import (
     ClientPatchPackageError,
     discard_patched_client_copy,
     prepare_patched_client_copy,
+    verify_frozen_client_baseline,
     verify_patched_client_copy,
 )
 from shadowbane_lab.client_extension.resolver import (
@@ -54,6 +56,12 @@ def _parser() -> argparse.ArgumentParser:
     freeze.add_argument("--executable", default="sb.exe")
     freeze.add_argument("--repository-revision", required=True)
     freeze.add_argument("--pretty", action="store_true")
+    identify = commands.add_parser(
+        "identify-baseline",
+        help="verify a frozen client and report its content-derived build identity",
+    )
+    identify.add_argument("frozen_directory", type=Path)
+    identify.add_argument("--pretty", action="store_true")
     align = commands.add_parser(
         "align",
         help="produce non-authorizing patch-site alignment evidence for one PE",
@@ -119,6 +127,20 @@ def main(argv: Sequence[str] | None = None) -> int:
                 executable_relative_path=arguments.executable,
                 repository_revision=arguments.repository_revision,
             ).as_dict()
+        elif arguments.command == "identify-baseline":
+            baseline = verify_frozen_client_baseline(arguments.frozen_directory)
+            payload = {
+                "schema_version": 1,
+                "content_build_id": client_content_build_id(
+                    executable_sha256=baseline.executable.sha256,
+                    tree_sha256=baseline.tree_sha256,
+                ),
+                "executable_relative_path": baseline.executable_relative_path,
+                "executable_sha256": baseline.executable.sha256,
+                "tree_sha256": baseline.tree_sha256,
+                "file_count": len(baseline.files),
+                "total_file_bytes": sum(item.size for item in baseline.files),
+            }
         elif arguments.command == "align":
             manifest = load_patch_manifest(arguments.manifest)
             payload = align_patch_sites(

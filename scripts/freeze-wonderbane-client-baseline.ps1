@@ -62,4 +62,17 @@ if ($LASTEXITCODE -ne 0) {
     throw "WonderBane baseline capture failed with exit code $LASTEXITCODE"
 }
 
+$baselineEvidence = Get-Content `
+    -LiteralPath (Join-Path $FrozenDirectory "client-baseline.json") `
+    -Raw | ConvertFrom-Json
+$executableSha256 = [string] $baselineEvidence.executable.sha256
+$treeSha256 = [string] $baselineEvidence.tree_sha256
+if ($executableSha256.Length -ne 64 -or $treeSha256.Length -ne 64) {
+    throw "Frozen baseline evidence did not contain complete SHA-256 identities"
+}
+$contentBuildId = "wb-{0}-{1}" -f `
+    $executableSha256.Substring(0, 8), `
+    $treeSha256.Substring(0, 8)
+
 Write-Output "Frozen WonderBane baseline: $FrozenDirectory"
+Write-Output "WonderBane content build: $contentBuildId"

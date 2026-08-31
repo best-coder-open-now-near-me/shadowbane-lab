@@ -21,6 +21,12 @@ bytes, missing sites, ambiguous signatures, output overwrites, or extension arti
 
 ## Freeze the client baseline
 
+The patcher's displayed version is not treated as a client build identifier. Every frozen client
+is tracked by its complete executable and canonical tree SHA-256 values. The wrapper reports a
+compact content build such as `wb-55fbad5f-4b602995`; the full hashes remain authoritative in
+`client-baseline.json`. To verify and display the ID again without trusting a folder name, run
+`python -m shadowbane_lab.client_extension identify-baseline <frozen-client> --pretty`.
+
 Inside the WonderBane VM, with the official client closed, run:
 
 ```powershell

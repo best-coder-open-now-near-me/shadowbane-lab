@@ -5,6 +5,7 @@ from .baseline import (
     BaselineFile,
     ClientBaseline,
     ClientBaselineError,
+    client_content_build_id,
     freeze_client_baseline,
 )
 from .bootstrap_author import (
@@ -118,6 +119,7 @@ __all__ = [
     "author_reviewed_bootstrap_file",
     "author_reviewed_bootstrap_manifest",
     "build_patch_plan",
+    "client_content_build_id",
     "discard_patched_client_copy",
     "freeze_client_baseline",
     "inspect_bootstrap_candidate",
