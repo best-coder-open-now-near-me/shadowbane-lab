@@ -30,9 +30,11 @@ constexpr unsigned int kGlCullFace = 0x0B44U;
 constexpr unsigned int kGlBlend = 0x0BE2U;
 constexpr unsigned int kGlAlphaTest = 0x0BC0U;
 constexpr unsigned int kGlFront = 0x0404U;
+constexpr unsigned int kGlBack = 0x0405U;
+constexpr unsigned int kGlLine = 0x1B01U;
 constexpr unsigned int kGlAllAttribBits = 0x000FFFFFU;
 constexpr int kMaximumOutlinedElementCount = 8192;
-constexpr float kOutlineScale = 1.018F;
+constexpr float kOutlineLineWidth = 2.0F;
 constexpr float kOutlineRed = 0.025F;
 constexpr float kOutlineGreen = 0.030F;
 constexpr float kOutlineBlue = 0.040F;
@@ -50,12 +52,11 @@ using GlDrawElements = void(APIENTRY*)(
 using GlGetFloatv = void(APIENTRY*)(unsigned int name, float* values);
 using GlPushAttrib = void(APIENTRY*)(unsigned int mask);
 using GlPopAttrib = void(APIENTRY*)();
-using GlPushMatrix = void(APIENTRY*)();
-using GlPopMatrix = void(APIENTRY*)();
-using GlScalef = void(APIENTRY*)(float x, float y, float z);
 using GlEnable = void(APIENTRY*)(unsigned int capability);
 using GlDisable = void(APIENTRY*)(unsigned int capability);
 using GlCullFace = void(APIENTRY*)(unsigned int mode);
+using GlPolygonMode = void(APIENTRY*)(unsigned int face, unsigned int mode);
+using GlLineWidth = void(APIENTRY*)(float width);
 using GlColor4f = void(APIENTRY*)(float red, float green, float blue, float alpha);
 using GlDepthMask = void(APIENTRY*)(unsigned char flag);
 
@@ -67,12 +68,11 @@ PVOID volatile g_original_draw_elements = nullptr;
 PVOID volatile g_get_floatv = nullptr;
 PVOID volatile g_push_attrib = nullptr;
 PVOID volatile g_pop_attrib = nullptr;
-PVOID volatile g_push_matrix = nullptr;
-PVOID volatile g_pop_matrix = nullptr;
-PVOID volatile g_scalef = nullptr;
 PVOID volatile g_enable = nullptr;
 PVOID volatile g_disable = nullptr;
 PVOID volatile g_cull_face = nullptr;
+PVOID volatile g_polygon_mode = nullptr;
+PVOID volatile g_line_width = nullptr;
 PVOID volatile g_color4f = nullptr;
 PVOID volatile g_depth_mask = nullptr;
 std::uint32_t* g_shade_model_slot = nullptr;
@@ -94,12 +94,11 @@ struct OutlineApi {
     GlGetFloatv get_floatv;
     GlPushAttrib push_attrib;
     GlPopAttrib pop_attrib;
-    GlPushMatrix push_matrix;
-    GlPopMatrix pop_matrix;
-    GlScalef scalef;
     GlEnable enable;
     GlDisable disable;
     GlCullFace cull_face;
+    GlPolygonMode polygon_mode;
+    GlLineWidth line_width;
     GlColor4f color4f;
     GlDepthMask depth_mask;
 };
@@ -112,24 +111,22 @@ bool LoadOutlineApi(OutlineApi* const api) noexcept {
         LoadFunction<GlGetFloatv>(&g_get_floatv),
         LoadFunction<GlPushAttrib>(&g_push_attrib),
         LoadFunction<GlPopAttrib>(&g_pop_attrib),
-        LoadFunction<GlPushMatrix>(&g_push_matrix),
-        LoadFunction<GlPopMatrix>(&g_pop_matrix),
-        LoadFunction<GlScalef>(&g_scalef),
         LoadFunction<GlEnable>(&g_enable),
         LoadFunction<GlDisable>(&g_disable),
         LoadFunction<GlCullFace>(&g_cull_face),
+        LoadFunction<GlPolygonMode>(&g_polygon_mode),
+        LoadFunction<GlLineWidth>(&g_line_width),
         LoadFunction<GlColor4f>(&g_color4f),
         LoadFunction<GlDepthMask>(&g_depth_mask),
     };
     return api->get_floatv != nullptr
         && api->push_attrib != nullptr
         && api->pop_attrib != nullptr
-        && api->push_matrix != nullptr
-        && api->pop_matrix != nullptr
-        && api->scalef != nullptr
         && api->enable != nullptr
         && api->disable != nullptr
         && api->cull_face != nullptr
+        && api->polygon_mode != nullptr
+        && api->line_width != nullptr
         && api->color4f != nullptr
         && api->depth_mask != nullptr;
 }
@@ -149,7 +146,6 @@ void DrawWithSilhouette(const Draw& draw) noexcept {
     }
 
     api.push_attrib(kGlAllAttribBits);
-    api.push_matrix();
     api.disable(kGlTexture2D);
     api.disable(kGlLighting);
     api.disable(kGlFog);
@@ -157,11 +153,11 @@ void DrawWithSilhouette(const Draw& draw) noexcept {
     api.disable(kGlAlphaTest);
     api.enable(kGlCullFace);
     api.cull_face(kGlFront);
+    api.polygon_mode(kGlBack, kGlLine);
+    api.line_width(kOutlineLineWidth);
     api.depth_mask(FALSE);
     api.color4f(kOutlineRed, kOutlineGreen, kOutlineBlue, 1.0F);
-    api.scalef(kOutlineScale, kOutlineScale, kOutlineScale);
     draw();
-    api.pop_matrix();
     api.pop_attrib();
 
     draw();
@@ -571,12 +567,11 @@ DWORD StartStrongCelShading() noexcept {
         || g_get_floatv != nullptr
         || g_push_attrib != nullptr
         || g_pop_attrib != nullptr
-        || g_push_matrix != nullptr
-        || g_pop_matrix != nullptr
-        || g_scalef != nullptr
         || g_enable != nullptr
         || g_disable != nullptr
         || g_cull_face != nullptr
+        || g_polygon_mode != nullptr
+        || g_line_width != nullptr
         || g_color4f != nullptr
         || g_depth_mask != nullptr
     ) {
@@ -674,16 +669,15 @@ DWORD StartStrongCelShading() noexcept {
         }
     }
 
-    std::array<HelperFunctionPlan, 11U> helpers{{
+    std::array<HelperFunctionPlan, 10U> helpers{{
         {"glGetFloatv", &g_get_floatv, nullptr},
         {"glPushAttrib", &g_push_attrib, nullptr},
         {"glPopAttrib", &g_pop_attrib, nullptr},
-        {"glPushMatrix", &g_push_matrix, nullptr},
-        {"glPopMatrix", &g_pop_matrix, nullptr},
-        {"glScalef", &g_scalef, nullptr},
         {"glEnable", &g_enable, nullptr},
         {"glDisable", &g_disable, nullptr},
         {"glCullFace", &g_cull_face, nullptr},
+        {"glPolygonMode", &g_polygon_mode, nullptr},
+        {"glLineWidth", &g_line_width, nullptr},
         {"glColor4f", &g_color4f, nullptr},
         {"glDepthMask", &g_depth_mask, nullptr},
     }};
@@ -760,12 +754,11 @@ void StopStrongCelShading() noexcept {
     if (restored) {
         InterlockedExchangePointer(&g_depth_mask, nullptr);
         InterlockedExchangePointer(&g_color4f, nullptr);
+        InterlockedExchangePointer(&g_line_width, nullptr);
+        InterlockedExchangePointer(&g_polygon_mode, nullptr);
         InterlockedExchangePointer(&g_cull_face, nullptr);
         InterlockedExchangePointer(&g_disable, nullptr);
         InterlockedExchangePointer(&g_enable, nullptr);
-        InterlockedExchangePointer(&g_scalef, nullptr);
-        InterlockedExchangePointer(&g_pop_matrix, nullptr);
-        InterlockedExchangePointer(&g_push_matrix, nullptr);
         InterlockedExchangePointer(&g_pop_attrib, nullptr);
         InterlockedExchangePointer(&g_push_attrib, nullptr);
         InterlockedExchangePointer(&g_get_floatv, nullptr);
