@@ -6,7 +6,7 @@ import hashlib
 import json
 import re
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime
 from pathlib import Path, PurePosixPath
 from typing import Any, Literal
 
@@ -20,6 +20,7 @@ from shadowbane_lab.client_extension.package import (
     VerifiedClientBaseline,
     verify_frozen_client_baseline,
 )
+from shadowbane_lab.integrity import canonical_json_sha256, canonical_timestamp
 from shadowbane_lab.world_data.cache import CacheArchive, CacheArchiveFormatError
 
 CLIENT_PATCH_DIFF_SCHEMA_VERSION = 1
@@ -681,21 +682,11 @@ def _file_sha256(path: Path) -> str:
 
 
 def _canonical_sha256(payload: dict[str, object]) -> str:
-    serialized = json.dumps(
-        payload,
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=True,
-        allow_nan=False,
-    ).encode("ascii")
-    return hashlib.sha256(serialized).hexdigest()
+    return canonical_json_sha256(payload)
 
 
 def _canonical_timestamp(value: datetime | None) -> str:
-    current = datetime.now(UTC) if value is None else value
-    if current.tzinfo is None:
-        raise ValueError("compared_at must include a timezone")
-    return current.astimezone(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    return canonical_timestamp(value)
 
 
 def _timestamp(value: str) -> None:

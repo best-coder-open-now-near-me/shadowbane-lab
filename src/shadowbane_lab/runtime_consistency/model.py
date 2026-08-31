@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 from dataclasses import dataclass
 from enum import StrEnum
 from math import isfinite
+
+from shadowbane_lab.integrity import canonical_json_sha256, validate_finite_json
+from shadowbane_lab.integrity import validate_sha256 as common_validate_sha256
 
 RUNTIME_SUITE_SCHEMA_VERSION = 1
 RUNTIME_RESULT_SCHEMA_VERSION = 1
@@ -50,32 +51,18 @@ def validate_identifier(value: object, field_name: str) -> str:
 
 
 def validate_sha256(value: object, field_name: str) -> str:
-    if (
-        not isinstance(value, str)
-        or len(value) != 64
-        or any(character not in "0123456789abcdef" for character in value)
-    ):
-        raise ValueError(f"{field_name} must be a lowercase SHA-256 digest")
-    return value
+    return common_validate_sha256(value, field_name)
 
 
 def validate_json(value: object, field_name: str = "value") -> None:
     try:
-        json.dumps(value, allow_nan=False, ensure_ascii=True, sort_keys=True)
-    except (TypeError, ValueError) as exc:
+        validate_finite_json(value)
+    except ValueError as exc:
         raise ValueError(f"{field_name} must be finite JSON: {exc}") from exc
 
 
 def canonical_sha256(value: object) -> str:
-    validate_json(value)
-    encoded = json.dumps(
-        value,
-        allow_nan=False,
-        ensure_ascii=True,
-        separators=(",", ":"),
-        sort_keys=True,
-    ).encode("ascii")
-    return hashlib.sha256(encoded).hexdigest()
+    return canonical_json_sha256(value)
 
 
 def _finite_non_negative(value: object, field_name: str) -> float:
