@@ -299,6 +299,13 @@ reading. Array geometry uses the identical open-boundary, non-manifold, and dihe
 as display lists, so broader character coverage does not lower the threshold or restore triangle
 wireframe. The array range is validated once per draw rather than once per vertex.
 
+Extension 1.4.9 makes contour treatment respect alpha-cutout geometry. When the source draw has alpha
+testing enabled, the exterior replay preserves the bound texture and alpha-test state so transparent
+texels reject the hidden support polygon instead of outlining its rectangular or triangular extent.
+Explicit geometry-only feature segments are omitted for those draws because they do not carry the
+texture coordinates required to follow the visible alpha boundary. Solid character, armor, building,
+and ship meshes retain the geometry-aware feature-edge pass.
+
 Orthographic UI/map rendering, points, lines, and array draws outside the reviewed element-count
 bound remain single-pass. Immediate-mode geometry remains filled and flat-shaded because replaying
 an arbitrary `glBegin`/`glEnd` stream would require intercepting every vertex and state mutation.

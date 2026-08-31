@@ -871,6 +871,7 @@ void DrawWithSilhouette(
     std::array<int, 4U> viewport{};
     int matrix_mode = 0;
     unsigned char depth_writes = FALSE;
+    unsigned char alpha_test_enabled = FALSE;
     if (!LoadOutlineApi(&api)) {
         draw();
         return;
@@ -885,6 +886,7 @@ void DrawWithSilhouette(
     };
     matrix_mode = static_cast<int>(g_current_matrix_mode);
     api.get_booleanv(kGlDepthWriteMask, &depth_writes);
+    api.get_booleanv(kGlAlphaTest, &alpha_test_enabled);
     const float outline_width = PerspectiveOutlineLineWidth(
         projection.data(),
         projection.size(),
@@ -914,11 +916,13 @@ void DrawWithSilhouette(
         );
 
     api.push_attrib(kGlAllAttribBits);
-    api.disable(kGlTexture2D);
     api.disable(kGlLighting);
     api.disable(kGlFog);
     api.disable(kGlBlend);
-    api.disable(kGlAlphaTest);
+    if (alpha_test_enabled == FALSE) {
+        api.disable(kGlTexture2D);
+        api.disable(kGlAlphaTest);
+    }
     api.disable(kGlLineSmooth);
     api.disable(kGlDither);
     api.enable(kGlColorLogicOp);
@@ -947,6 +951,9 @@ void DrawWithSilhouette(
     api.pop_attrib();
 
     draw();
+    if (alpha_test_enabled != FALSE) {
+        return;
+    }
     if (feature_list != UINT32_MAX) {
         DrawDisplayListFeatureEdges(feature_list, api, outline_width);
     } else if (!feature_edges.empty()) {
