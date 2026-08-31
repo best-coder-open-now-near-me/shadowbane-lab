@@ -15,6 +15,8 @@ namespace wonderbane::extension {
 namespace {
 
 constexpr unsigned int kGlFlat = 0x1D00U;
+constexpr unsigned int kGlSmooth = 0x1D01U;
+constexpr unsigned int kGlShadeModel = 0x0B54U;
 constexpr unsigned int kGlPoints = 0x0000U;
 constexpr unsigned int kGlLines = 0x0001U;
 constexpr unsigned int kGlLineLoop = 0x0002U;
@@ -101,6 +103,7 @@ using GlTexCoord2f = void(APIENTRY*)(float s, float t);
 using GlEnableClientState = void(APIENTRY*)(unsigned int array);
 using GlDisableClientState = void(APIENTRY*)(unsigned int array);
 using GlGetFloatv = void(APIENTRY*)(unsigned int name, float* values);
+using GlGetIntegerv = void(APIENTRY*)(unsigned int name, int* values);
 using GlGetBooleanv = void(APIENTRY*)(unsigned int name, unsigned char* values);
 using GlPushAttrib = void(APIENTRY*)(unsigned int mask);
 using GlPopAttrib = void(APIENTRY*)();
@@ -137,6 +140,7 @@ PVOID volatile g_original_enable_client_state = nullptr;
 PVOID volatile g_original_disable_client_state = nullptr;
 PVOID volatile g_get_floatv = nullptr;
 PVOID volatile g_get_booleanv = nullptr;
+PVOID volatile g_get_integerv = nullptr;
 PVOID volatile g_push_attrib = nullptr;
 PVOID volatile g_pop_attrib = nullptr;
 PVOID volatile g_push_matrix = nullptr;
@@ -823,6 +827,7 @@ void ClearDisplayListBounds() noexcept {
 struct OutlineApi {
     GlGetFloatv get_floatv;
     GlGetBooleanv get_booleanv;
+    GlGetIntegerv get_integerv;
     GlPushAttrib push_attrib;
     GlPopAttrib pop_attrib;
     GlPushMatrix push_matrix;
@@ -855,6 +860,7 @@ bool LoadOutlineApi(OutlineApi* const api) noexcept {
     *api = {
         LoadFunction<GlGetFloatv>(&g_get_floatv),
         LoadFunction<GlGetBooleanv>(&g_get_booleanv),
+        LoadFunction<GlGetIntegerv>(&g_get_integerv),
         LoadFunction<GlPushAttrib>(&g_push_attrib),
         LoadFunction<GlPopAttrib>(&g_pop_attrib),
         LoadFunction<GlPushMatrix>(&g_push_matrix),
@@ -879,6 +885,7 @@ bool LoadOutlineApi(OutlineApi* const api) noexcept {
         && api->pop_matrix != nullptr
         && api->translatef != nullptr
         && api->scalef != nullptr
+        && api->get_integerv != nullptr
         && api->enable != nullptr
         && api->disable != nullptr
         && api->cull_face != nullptr
@@ -971,6 +978,7 @@ void DrawWithSilhouette(
     std::array<float, 16U> model_view{};
     std::array<int, 4U> viewport{};
     int matrix_mode = 0;
+    int source_shade_model = static_cast<int>(kGlSmooth);
     unsigned char depth_writes = FALSE;
     unsigned char alpha_test_enabled = FALSE;
     if (!LoadOutlineApi(&api)) {
@@ -986,6 +994,7 @@ void DrawWithSilhouette(
         static_cast<int>(InterlockedCompareExchange(&g_viewport_height, 0, 0)),
     };
     matrix_mode = static_cast<int>(g_current_matrix_mode);
+    api.get_integerv(kGlShadeModel, &source_shade_model);
     api.get_booleanv(kGlDepthWriteMask, &depth_writes);
     api.get_booleanv(kGlAlphaTest, &alpha_test_enabled);
     const float outline_width = PerspectiveOutlineLineWidth(
@@ -1051,7 +1060,14 @@ void DrawWithSilhouette(
     }
     api.pop_attrib();
 
+    const auto shade_model = LoadFunction<GlShadeModel>(&g_original_shade_model);
+    if (shade_model != nullptr) {
+        shade_model(kGlFlat);
+    }
     draw();
+    if (shade_model != nullptr) {
+        shade_model(static_cast<unsigned int>(source_shade_model));
+    }
     if (feature_list != UINT32_MAX) {
         DrawDisplayListFeatureEdges(
             feature_list, api, outline_width, alpha_test_enabled != FALSE
@@ -1113,19 +1129,15 @@ bool EqualAsciiInsensitive(
     }
 }
 
-void APIENTRY StrongShadeModel(const unsigned int) noexcept {
+void APIENTRY StrongShadeModel(const unsigned int mode) noexcept {
     const auto original = LoadFunction<GlShadeModel>(&g_original_shade_model);
     if (original != nullptr) {
-        original(kGlFlat);
+        original(mode);
     }
 }
 
 void APIENTRY StrongBegin(const unsigned int mode) noexcept {
     CaptureDisplayListBegin(mode);
-    const auto shade_model = LoadFunction<GlShadeModel>(&g_original_shade_model);
-    if (shade_model != nullptr) {
-        shade_model(kGlFlat);
-    }
     const auto original = LoadFunction<GlBegin>(&g_original_begin);
     if (original != nullptr) {
         original(mode);
@@ -2012,11 +2024,12 @@ DWORD StartStrongCelShading() noexcept {
         }
     }
 
-    std::array<HelperFunctionPlan, 19U> helpers{{
+    std::array<HelperFunctionPlan, 20U> helpers{{
         {"glEnd", &g_end, nullptr},
         {"glTexCoord2f", &g_tex_coord_2f, nullptr},
         {"glGetFloatv", &g_get_floatv, nullptr},
         {"glGetBooleanv", &g_get_booleanv, nullptr},
+        {"glGetIntegerv", &g_get_integerv, nullptr},
         {"glPushAttrib", &g_push_attrib, nullptr},
         {"glPopAttrib", &g_pop_attrib, nullptr},
         {"glPushMatrix", &g_push_matrix, nullptr},
@@ -2208,6 +2221,7 @@ void StopStrongCelShading() noexcept {
         InterlockedExchangePointer(&g_pop_attrib, nullptr);
         InterlockedExchangePointer(&g_push_attrib, nullptr);
         InterlockedExchangePointer(&g_get_booleanv, nullptr);
+        InterlockedExchangePointer(&g_get_integerv, nullptr);
         InterlockedExchangePointer(&g_get_floatv, nullptr);
     }
 }

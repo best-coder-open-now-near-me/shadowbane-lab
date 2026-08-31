@@ -311,6 +311,12 @@ cutout silhouettes. The extension tracks the fixed-function texture-coordinate a
 vertex array, carries endpoint UVs into retained feature edges, and submits those UVs while preserving
 the source texture and alpha test. Edges without trustworthy UVs remain omitted on alpha-tested draws.
 
+Extension 1.4.11 scopes flat interpolation to contour-eligible draws. The extension forwards the
+client's requested shade model for ordinary rendering and immediate-mode scenery. Only a draw that has
+already passed the perspective, local-model, visible-width, and depth-write gates is temporarily filled
+with `GL_FLAT`, after which the exact source shade model is restored. Scenery that cannot receive the
+complete cel treatment retains its original lighting depth instead of becoming uniformly flat.
+
 Orthographic UI/map rendering, points, lines, and array draws outside the reviewed element-count
 bound remain single-pass. Immediate-mode geometry remains filled and flat-shaded because replaying
 an arbitrary `glBegin`/`glEnd` stream would require intercepting every vertex and state mutation.

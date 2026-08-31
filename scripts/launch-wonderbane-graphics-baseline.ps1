@@ -4,16 +4,16 @@ param(
     [string] $DiagnosticsShare = "\\VBOXSVR\codexdiag",
     [string] $PythonExecutable = "$env:USERPROFILE\shadowbane-lab\.venv\Scripts\python.exe",
     [string] $ContentBuildId = "wb-55fbad5f-4b602995",
-    [string] $ExtensionVersion = "1.4.10",
+    [string] $ExtensionVersion = "1.4.11",
     [string] $PackageDirectory = (
-        "S:\Wonderbane-graphics-wb-55fbad5f-4b602995-cel-1.4.10"
+        "S:\Wonderbane-graphics-wb-55fbad5f-4b602995-cel-1.4.11"
     )
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-$expectedExtensionSha256 = "6e07f142e3654a9788489d8bff8237cb69f80e666bb917c6cfcf125d61b3fef8"
+$expectedExtensionSha256 = "be6051cf8f54d354abf92bfe7806503c2ac8ff6ffac2b59a3fb44bea3bfe6b65"
 $expectedExecutableSha256 = "a9a59004b36f9331bb85f85e7853a02a5d5f07bda9acb9ea4a8affbf169a54b8"
 $evidenceDirectory = Join-Path `
     (Join-Path $DiagnosticsShare "graphics-packages") `
