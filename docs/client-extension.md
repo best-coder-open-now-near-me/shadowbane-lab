@@ -174,6 +174,9 @@ Omit `-DryRunOnly` only after the dry run passes. The wrapper refuses an existin
 inherits the package verifier's exact frozen-directory binding, inventory, hash, and reread checks.
 For an extension upgrade, pass a new versioned `-DestinationDirectory`, a new `-ManifestPath`, and
 the artifact's explicit `-ExtensionVersion`; existing immutable client copies are never rewritten.
+After an official patch, pass the newly captured vanilla directory through
+`-FrozenBaselineDirectory`; this keeps the prior evidence-directory layout compatible while letting
+the same wrapper package an independently timestamped baseline.
 
 The v1 x86 DLL exports `WonderBaneExtensionInitialize` and
 `WonderBaneExtensionGetStatus`. Initialization is idempotent and publishes one process-lifetime

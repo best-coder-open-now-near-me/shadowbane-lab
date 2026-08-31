@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
     [string] $EvidenceDirectory = "\\VBOXSVR\codexdiag\client-extension-evidence\wonderbane-20260830T141558722Z",
+    [string] $FrozenBaselineDirectory = "",
     [string] $DestinationDirectory = "\\VBOXSVR\codexdiag\client-extension-working\wonderbane-1.0.5-world-map-click-v1",
     [string] $ExtensionArtifact = "\\VBOXSVR\codexrepo\build\wonderbane-client-extension-final\Release\wonderbane-extension.dll",
     [string] $ManifestPath = "",
@@ -13,7 +14,12 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
 $repositorySource = Join-Path (Split-Path -Parent $PSScriptRoot) "src"
-$baselineDirectory = Join-Path $EvidenceDirectory "client-baseline"
+$baselineDirectory = if ([string]::IsNullOrWhiteSpace($FrozenBaselineDirectory)) {
+    Join-Path $EvidenceDirectory "client-baseline"
+}
+else {
+    $FrozenBaselineDirectory
+}
 $sourceExecutable = Join-Path $baselineDirectory "sb.exe"
 $packageId = Split-Path -Leaf $DestinationDirectory
 if (-not $ManifestPath) {
