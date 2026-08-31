@@ -3,6 +3,7 @@
 #include <Windows.h>
 
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -11,11 +12,34 @@ namespace wonderbane::extension {
 namespace {
 
 constexpr unsigned int kGlFlat = 0x1D00U;
-constexpr unsigned int kGlFrontAndBack = 0x0408U;
-constexpr unsigned int kGlLine = 0x1B01U;
+constexpr unsigned int kGlPoints = 0x0000U;
+constexpr unsigned int kGlLines = 0x0001U;
+constexpr unsigned int kGlLineLoop = 0x0002U;
+constexpr unsigned int kGlLineStrip = 0x0003U;
+constexpr unsigned int kGlTriangles = 0x0004U;
+constexpr unsigned int kGlTriangleStrip = 0x0005U;
+constexpr unsigned int kGlTriangleFan = 0x0006U;
+constexpr unsigned int kGlQuads = 0x0007U;
+constexpr unsigned int kGlQuadStrip = 0x0008U;
+constexpr unsigned int kGlPolygon = 0x0009U;
+constexpr unsigned int kGlProjectionMatrix = 0x0BA7U;
+constexpr unsigned int kGlTexture2D = 0x0DE1U;
+constexpr unsigned int kGlLighting = 0x0B50U;
+constexpr unsigned int kGlFog = 0x0B60U;
+constexpr unsigned int kGlCullFace = 0x0B44U;
+constexpr unsigned int kGlBlend = 0x0BE2U;
+constexpr unsigned int kGlAlphaTest = 0x0BC0U;
+constexpr unsigned int kGlFront = 0x0404U;
+constexpr unsigned int kGlAllAttribBits = 0x000FFFFFU;
+constexpr int kMaximumOutlinedElementCount = 8192;
+constexpr float kOutlineScale = 1.018F;
+constexpr float kOutlineRed = 0.025F;
+constexpr float kOutlineGreen = 0.030F;
+constexpr float kOutlineBlue = 0.040F;
 
 using GlShadeModel = void(APIENTRY*)(unsigned int mode);
 using GlBegin = void(APIENTRY*)(unsigned int mode);
+using GlCallList = void(APIENTRY*)(unsigned int list);
 using GlDrawArrays = void(APIENTRY*)(unsigned int mode, int first, int count);
 using GlDrawElements = void(APIENTRY*)(
     unsigned int mode,
@@ -23,15 +47,37 @@ using GlDrawElements = void(APIENTRY*)(
     unsigned int type,
     const void* indices
 );
-using GlPolygonMode = void(APIENTRY*)(unsigned int face, unsigned int mode);
+using GlGetFloatv = void(APIENTRY*)(unsigned int name, float* values);
+using GlPushAttrib = void(APIENTRY*)(unsigned int mask);
+using GlPopAttrib = void(APIENTRY*)();
+using GlPushMatrix = void(APIENTRY*)();
+using GlPopMatrix = void(APIENTRY*)();
+using GlScalef = void(APIENTRY*)(float x, float y, float z);
+using GlEnable = void(APIENTRY*)(unsigned int capability);
+using GlDisable = void(APIENTRY*)(unsigned int capability);
+using GlCullFace = void(APIENTRY*)(unsigned int mode);
+using GlColor4f = void(APIENTRY*)(float red, float green, float blue, float alpha);
+using GlDepthMask = void(APIENTRY*)(unsigned char flag);
 
 PVOID volatile g_original_shade_model = nullptr;
 PVOID volatile g_original_begin = nullptr;
+PVOID volatile g_original_call_list = nullptr;
 PVOID volatile g_original_draw_arrays = nullptr;
 PVOID volatile g_original_draw_elements = nullptr;
-PVOID volatile g_polygon_mode = nullptr;
+PVOID volatile g_get_floatv = nullptr;
+PVOID volatile g_push_attrib = nullptr;
+PVOID volatile g_pop_attrib = nullptr;
+PVOID volatile g_push_matrix = nullptr;
+PVOID volatile g_pop_matrix = nullptr;
+PVOID volatile g_scalef = nullptr;
+PVOID volatile g_enable = nullptr;
+PVOID volatile g_disable = nullptr;
+PVOID volatile g_cull_face = nullptr;
+PVOID volatile g_color4f = nullptr;
+PVOID volatile g_depth_mask = nullptr;
 std::uint32_t* g_shade_model_slot = nullptr;
 std::uint32_t* g_begin_slot = nullptr;
+std::uint32_t* g_call_list_slot = nullptr;
 std::uint32_t* g_draw_arrays_slot = nullptr;
 std::uint32_t* g_draw_elements_slot = nullptr;
 
@@ -44,11 +90,81 @@ Function LoadFunction(PVOID volatile* const storage) noexcept {
     ));
 }
 
-void ForceRendererDiagnostic() noexcept {
-    const auto polygon_mode = LoadFunction<GlPolygonMode>(&g_polygon_mode);
-    if (polygon_mode != nullptr) {
-        polygon_mode(kGlFrontAndBack, kGlLine);
+struct OutlineApi {
+    GlGetFloatv get_floatv;
+    GlPushAttrib push_attrib;
+    GlPopAttrib pop_attrib;
+    GlPushMatrix push_matrix;
+    GlPopMatrix pop_matrix;
+    GlScalef scalef;
+    GlEnable enable;
+    GlDisable disable;
+    GlCullFace cull_face;
+    GlColor4f color4f;
+    GlDepthMask depth_mask;
+};
+
+bool LoadOutlineApi(OutlineApi* const api) noexcept {
+    if (api == nullptr) {
+        return false;
     }
+    *api = {
+        LoadFunction<GlGetFloatv>(&g_get_floatv),
+        LoadFunction<GlPushAttrib>(&g_push_attrib),
+        LoadFunction<GlPopAttrib>(&g_pop_attrib),
+        LoadFunction<GlPushMatrix>(&g_push_matrix),
+        LoadFunction<GlPopMatrix>(&g_pop_matrix),
+        LoadFunction<GlScalef>(&g_scalef),
+        LoadFunction<GlEnable>(&g_enable),
+        LoadFunction<GlDisable>(&g_disable),
+        LoadFunction<GlCullFace>(&g_cull_face),
+        LoadFunction<GlColor4f>(&g_color4f),
+        LoadFunction<GlDepthMask>(&g_depth_mask),
+    };
+    return api->get_floatv != nullptr
+        && api->push_attrib != nullptr
+        && api->pop_attrib != nullptr
+        && api->push_matrix != nullptr
+        && api->pop_matrix != nullptr
+        && api->scalef != nullptr
+        && api->enable != nullptr
+        && api->disable != nullptr
+        && api->cull_face != nullptr
+        && api->color4f != nullptr
+        && api->depth_mask != nullptr;
+}
+
+template <typename Draw>
+void DrawWithSilhouette(const Draw& draw) noexcept {
+    OutlineApi api{};
+    std::array<float, 16U> projection{};
+    if (!LoadOutlineApi(&api)) {
+        draw();
+        return;
+    }
+    api.get_floatv(kGlProjectionMatrix, projection.data());
+    if (!IsPerspectiveProjectionMatrix(projection.data(), projection.size())) {
+        draw();
+        return;
+    }
+
+    api.push_attrib(kGlAllAttribBits);
+    api.push_matrix();
+    api.disable(kGlTexture2D);
+    api.disable(kGlLighting);
+    api.disable(kGlFog);
+    api.disable(kGlBlend);
+    api.disable(kGlAlphaTest);
+    api.enable(kGlCullFace);
+    api.cull_face(kGlFront);
+    api.depth_mask(FALSE);
+    api.color4f(kOutlineRed, kOutlineGreen, kOutlineBlue, 1.0F);
+    api.scalef(kOutlineScale, kOutlineScale, kOutlineScale);
+    draw();
+    api.pop_matrix();
+    api.pop_attrib();
+
+    draw();
 }
 
 template <typename Value>
@@ -109,10 +225,20 @@ void APIENTRY StrongShadeModel(const unsigned int) noexcept {
 }
 
 void APIENTRY StrongBegin(const unsigned int mode) noexcept {
-    ForceRendererDiagnostic();
+    const auto shade_model = LoadFunction<GlShadeModel>(&g_original_shade_model);
+    if (shade_model != nullptr) {
+        shade_model(kGlFlat);
+    }
     const auto original = LoadFunction<GlBegin>(&g_original_begin);
     if (original != nullptr) {
         original(mode);
+    }
+}
+
+void APIENTRY StrongCallList(const unsigned int list) noexcept {
+    const auto original = LoadFunction<GlCallList>(&g_original_call_list);
+    if (original != nullptr) {
+        DrawWithSilhouette([original, list]() noexcept { original(list); });
     }
 }
 
@@ -121,10 +247,16 @@ void APIENTRY StrongDrawArrays(
     const int first,
     const int count
 ) noexcept {
-    ForceRendererDiagnostic();
     const auto original = LoadFunction<GlDrawArrays>(&g_original_draw_arrays);
     if (original != nullptr) {
-        original(mode, first, count);
+        const auto draw = [original, mode, first, count]() noexcept {
+            original(mode, first, count);
+        };
+        if (IsOutlinePrimitive(mode, count)) {
+            DrawWithSilhouette(draw);
+        } else {
+            draw();
+        }
     }
 }
 
@@ -134,10 +266,16 @@ void APIENTRY StrongDrawElements(
     const unsigned int type,
     const void* const indices
 ) noexcept {
-    ForceRendererDiagnostic();
     const auto original = LoadFunction<GlDrawElements>(&g_original_draw_elements);
     if (original != nullptr) {
-        original(mode, count, type, indices);
+        const auto draw = [original, mode, count, type, indices]() noexcept {
+            original(mode, count, type, indices);
+        };
+        if (IsOutlinePrimitive(mode, count)) {
+            DrawWithSilhouette(draw);
+        } else {
+            draw();
+        }
     }
 }
 
@@ -197,6 +335,12 @@ struct ImportHookPlan {
     std::uint32_t** slot_storage;
 };
 
+struct HelperFunctionPlan {
+    const char* symbol_name;
+    PVOID volatile* storage;
+    PVOID resolved;
+};
+
 bool RestoreHook(
     std::uint32_t** const slot_storage,
     PVOID volatile* const original_storage,
@@ -229,6 +373,43 @@ bool RestoreHook(
 }
 
 }  // namespace
+
+bool IsPerspectiveProjectionMatrix(
+    const float* const matrix,
+    const std::size_t count
+) noexcept {
+    if (matrix == nullptr || count != 16U) {
+        return false;
+    }
+    for (std::size_t index = 0U; index < count; ++index) {
+        if (!std::isfinite(matrix[index])) {
+            return false;
+        }
+    }
+    return std::fabs(matrix[15]) < 0.001F
+        && std::fabs(matrix[11]) > 0.25F;
+}
+
+bool IsOutlinePrimitive(const unsigned int mode, const int count) noexcept {
+    if (count < 3 || count > kMaximumOutlinedElementCount) {
+        return false;
+    }
+    switch (mode) {
+        case kGlTriangles:
+        case kGlTriangleStrip:
+        case kGlTriangleFan:
+        case kGlQuads:
+        case kGlQuadStrip:
+        case kGlPolygon:
+            return true;
+        case kGlPoints:
+        case kGlLines:
+        case kGlLineLoop:
+        case kGlLineStrip:
+        default:
+            return false;
+    }
+}
 
 std::uint32_t* FindImportAddressSlot(
     std::uint8_t* const image,
@@ -379,13 +560,25 @@ DWORD StartStrongCelShading() noexcept {
     if (
         g_shade_model_slot != nullptr
         || g_begin_slot != nullptr
+        || g_call_list_slot != nullptr
         || g_draw_arrays_slot != nullptr
         || g_draw_elements_slot != nullptr
         || g_original_shade_model != nullptr
         || g_original_begin != nullptr
+        || g_original_call_list != nullptr
         || g_original_draw_arrays != nullptr
         || g_original_draw_elements != nullptr
-        || g_polygon_mode != nullptr
+        || g_get_floatv != nullptr
+        || g_push_attrib != nullptr
+        || g_pop_attrib != nullptr
+        || g_push_matrix != nullptr
+        || g_pop_matrix != nullptr
+        || g_scalef != nullptr
+        || g_enable != nullptr
+        || g_disable != nullptr
+        || g_cull_face != nullptr
+        || g_color4f != nullptr
+        || g_depth_mask != nullptr
     ) {
         return ERROR_ALREADY_INITIALIZED;
     }
@@ -407,7 +600,7 @@ DWORD StartStrongCelShading() noexcept {
     ) {
         return ERROR_BAD_EXE_FORMAT;
     }
-    std::array<ImportHookPlan, 4U> plans{{
+    std::array<ImportHookPlan, 5U> plans{{
         {
             "glShadeModel",
             reinterpret_cast<PVOID>(&StrongShadeModel),
@@ -423,6 +616,14 @@ DWORD StartStrongCelShading() noexcept {
             nullptr,
             &g_original_begin,
             &g_begin_slot,
+        },
+        {
+            "glCallList",
+            reinterpret_cast<PVOID>(&StrongCallList),
+            nullptr,
+            nullptr,
+            &g_original_call_list,
+            &g_call_list_slot,
         },
         {
             "glDrawArrays",
@@ -472,11 +673,29 @@ DWORD StartStrongCelShading() noexcept {
             }
         }
     }
-    PVOID const polygon_mode = reinterpret_cast<PVOID>(GetProcAddress(opengl, "glPolygonMode"));
-    if (polygon_mode == nullptr) {
-        return ERROR_PROC_NOT_FOUND;
+
+    std::array<HelperFunctionPlan, 11U> helpers{{
+        {"glGetFloatv", &g_get_floatv, nullptr},
+        {"glPushAttrib", &g_push_attrib, nullptr},
+        {"glPopAttrib", &g_pop_attrib, nullptr},
+        {"glPushMatrix", &g_push_matrix, nullptr},
+        {"glPopMatrix", &g_pop_matrix, nullptr},
+        {"glScalef", &g_scalef, nullptr},
+        {"glEnable", &g_enable, nullptr},
+        {"glDisable", &g_disable, nullptr},
+        {"glCullFace", &g_cull_face, nullptr},
+        {"glColor4f", &g_color4f, nullptr},
+        {"glDepthMask", &g_depth_mask, nullptr},
+    }};
+    for (HelperFunctionPlan& helper : helpers) {
+        helper.resolved = reinterpret_cast<PVOID>(GetProcAddress(opengl, helper.symbol_name));
+        if (helper.resolved == nullptr) {
+            return ERROR_PROC_NOT_FOUND;
+        }
     }
-    InterlockedExchangePointer(&g_polygon_mode, polygon_mode);
+    for (HelperFunctionPlan& helper : helpers) {
+        InterlockedExchangePointer(helper.storage, helper.resolved);
+    }
     for (ImportHookPlan& plan : plans) {
         InterlockedExchangePointer(plan.original_storage, plan.original);
         const DWORD result = ReplaceImportSlot(
@@ -518,6 +737,13 @@ void StopStrongCelShading() noexcept {
         restored = false;
     }
     if (!RestoreHook(
+            &g_call_list_slot,
+            &g_original_call_list,
+            reinterpret_cast<PVOID>(&StrongCallList)
+        )) {
+        restored = false;
+    }
+    if (!RestoreHook(
             &g_begin_slot,
             &g_original_begin,
             reinterpret_cast<PVOID>(&StrongBegin)
@@ -532,7 +758,17 @@ void StopStrongCelShading() noexcept {
         restored = false;
     }
     if (restored) {
-        InterlockedExchangePointer(&g_polygon_mode, nullptr);
+        InterlockedExchangePointer(&g_depth_mask, nullptr);
+        InterlockedExchangePointer(&g_color4f, nullptr);
+        InterlockedExchangePointer(&g_cull_face, nullptr);
+        InterlockedExchangePointer(&g_disable, nullptr);
+        InterlockedExchangePointer(&g_enable, nullptr);
+        InterlockedExchangePointer(&g_scalef, nullptr);
+        InterlockedExchangePointer(&g_pop_matrix, nullptr);
+        InterlockedExchangePointer(&g_push_matrix, nullptr);
+        InterlockedExchangePointer(&g_pop_attrib, nullptr);
+        InterlockedExchangePointer(&g_push_attrib, nullptr);
+        InterlockedExchangePointer(&g_get_floatv, nullptr);
     }
 }
 

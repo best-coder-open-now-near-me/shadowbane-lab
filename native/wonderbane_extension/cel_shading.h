@@ -14,6 +14,9 @@ std::uint32_t* FindImportAddressSlot(
     const char* symbol_name
 ) noexcept;
 
+bool IsPerspectiveProjectionMatrix(const float* matrix, std::size_t count) noexcept;
+bool IsOutlinePrimitive(unsigned int mode, int count) noexcept;
+
 DWORD StartStrongCelShading() noexcept;
 void StopStrongCelShading() noexcept;
 
