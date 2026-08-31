@@ -2,6 +2,7 @@
 
 #include <Windows.h>
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -10,11 +11,45 @@ namespace wonderbane::extension {
 namespace {
 
 constexpr unsigned int kGlFlat = 0x1D00U;
+constexpr unsigned int kGlFrontAndBack = 0x0408U;
+constexpr unsigned int kGlLine = 0x1B01U;
 
 using GlShadeModel = void(APIENTRY*)(unsigned int mode);
+using GlBegin = void(APIENTRY*)(unsigned int mode);
+using GlDrawArrays = void(APIENTRY*)(unsigned int mode, int first, int count);
+using GlDrawElements = void(APIENTRY*)(
+    unsigned int mode,
+    int count,
+    unsigned int type,
+    const void* indices
+);
+using GlPolygonMode = void(APIENTRY*)(unsigned int face, unsigned int mode);
 
 PVOID volatile g_original_shade_model = nullptr;
+PVOID volatile g_original_begin = nullptr;
+PVOID volatile g_original_draw_arrays = nullptr;
+PVOID volatile g_original_draw_elements = nullptr;
+PVOID volatile g_polygon_mode = nullptr;
 std::uint32_t* g_shade_model_slot = nullptr;
+std::uint32_t* g_begin_slot = nullptr;
+std::uint32_t* g_draw_arrays_slot = nullptr;
+std::uint32_t* g_draw_elements_slot = nullptr;
+
+template <typename Function>
+Function LoadFunction(PVOID volatile* const storage) noexcept {
+    return reinterpret_cast<Function>(InterlockedCompareExchangePointer(
+        storage,
+        nullptr,
+        nullptr
+    ));
+}
+
+void ForceRendererDiagnostic() noexcept {
+    const auto polygon_mode = LoadFunction<GlPolygonMode>(&g_polygon_mode);
+    if (polygon_mode != nullptr) {
+        polygon_mode(kGlFrontAndBack, kGlLine);
+    }
+}
 
 template <typename Value>
 Value* ImageValue(
@@ -67,19 +102,46 @@ bool EqualAsciiInsensitive(
 }
 
 void APIENTRY StrongShadeModel(const unsigned int) noexcept {
-    const auto original = reinterpret_cast<GlShadeModel>(
-        InterlockedCompareExchangePointer(
-            &g_original_shade_model,
-            nullptr,
-            nullptr
-        )
-    );
+    const auto original = LoadFunction<GlShadeModel>(&g_original_shade_model);
     if (original != nullptr) {
         original(kGlFlat);
     }
 }
 
-DWORD ReplaceShadeModelSlot(
+void APIENTRY StrongBegin(const unsigned int mode) noexcept {
+    ForceRendererDiagnostic();
+    const auto original = LoadFunction<GlBegin>(&g_original_begin);
+    if (original != nullptr) {
+        original(mode);
+    }
+}
+
+void APIENTRY StrongDrawArrays(
+    const unsigned int mode,
+    const int first,
+    const int count
+) noexcept {
+    ForceRendererDiagnostic();
+    const auto original = LoadFunction<GlDrawArrays>(&g_original_draw_arrays);
+    if (original != nullptr) {
+        original(mode, first, count);
+    }
+}
+
+void APIENTRY StrongDrawElements(
+    const unsigned int mode,
+    const int count,
+    const unsigned int type,
+    const void* const indices
+) noexcept {
+    ForceRendererDiagnostic();
+    const auto original = LoadFunction<GlDrawElements>(&g_original_draw_elements);
+    if (original != nullptr) {
+        original(mode, count, type, indices);
+    }
+}
+
+DWORD ReplaceImportSlot(
     std::uint32_t* const slot,
     const std::uint32_t expected,
     const std::uint32_t replacement
@@ -124,6 +186,46 @@ DWORD ReplaceShadeModelSlot(
         return restore_error;
     }
     return ERROR_SUCCESS;
+}
+
+struct ImportHookPlan {
+    const char* symbol_name;
+    PVOID replacement;
+    PVOID original;
+    std::uint32_t* slot;
+    PVOID volatile* original_storage;
+    std::uint32_t** slot_storage;
+};
+
+bool RestoreHook(
+    std::uint32_t** const slot_storage,
+    PVOID volatile* const original_storage,
+    PVOID const replacement
+) noexcept {
+    std::uint32_t* const slot = *slot_storage;
+    PVOID const original = LoadFunction<PVOID>(original_storage);
+    if (slot == nullptr && original == nullptr) {
+        return true;
+    }
+    if (slot == nullptr || original == nullptr) {
+        return false;
+    }
+    const std::uintptr_t original_address = reinterpret_cast<std::uintptr_t>(original);
+    const std::uintptr_t replacement_address = reinterpret_cast<std::uintptr_t>(replacement);
+    if (original_address > UINT32_MAX || replacement_address > UINT32_MAX) {
+        return false;
+    }
+    const DWORD result = ReplaceImportSlot(
+        slot,
+        static_cast<std::uint32_t>(replacement_address),
+        static_cast<std::uint32_t>(original_address)
+    );
+    if (result != ERROR_SUCCESS) {
+        return false;
+    }
+    *slot_storage = nullptr;
+    InterlockedExchangePointer(original_storage, nullptr);
+    return true;
 }
 
 }  // namespace
@@ -274,7 +376,17 @@ std::uint32_t* FindImportAddressSlot(
 
 DWORD StartStrongCelShading() noexcept {
     static_assert(sizeof(void*) == sizeof(std::uint32_t));
-    if (g_shade_model_slot != nullptr || g_original_shade_model != nullptr) {
+    if (
+        g_shade_model_slot != nullptr
+        || g_begin_slot != nullptr
+        || g_draw_arrays_slot != nullptr
+        || g_draw_elements_slot != nullptr
+        || g_original_shade_model != nullptr
+        || g_original_begin != nullptr
+        || g_original_draw_arrays != nullptr
+        || g_original_draw_elements != nullptr
+        || g_polygon_mode != nullptr
+    ) {
         return ERROR_ALREADY_INITIALIZED;
     }
     const HMODULE executable = GetModuleHandleW(nullptr);
@@ -295,67 +407,133 @@ DWORD StartStrongCelShading() noexcept {
     ) {
         return ERROR_BAD_EXE_FORMAT;
     }
-    auto* const slot = FindImportAddressSlot(
-        reinterpret_cast<std::uint8_t*>(executable),
-        nt->OptionalHeader.SizeOfImage,
-        "OPENGL32.dll",
-        "glShadeModel"
-    );
-    const FARPROC original = GetProcAddress(opengl, "glShadeModel");
-    if (slot == nullptr || original == nullptr) {
+    std::array<ImportHookPlan, 4U> plans{{
+        {
+            "glShadeModel",
+            reinterpret_cast<PVOID>(&StrongShadeModel),
+            nullptr,
+            nullptr,
+            &g_original_shade_model,
+            &g_shade_model_slot,
+        },
+        {
+            "glBegin",
+            reinterpret_cast<PVOID>(&StrongBegin),
+            nullptr,
+            nullptr,
+            &g_original_begin,
+            &g_begin_slot,
+        },
+        {
+            "glDrawArrays",
+            reinterpret_cast<PVOID>(&StrongDrawArrays),
+            nullptr,
+            nullptr,
+            &g_original_draw_arrays,
+            &g_draw_arrays_slot,
+        },
+        {
+            "glDrawElements",
+            reinterpret_cast<PVOID>(&StrongDrawElements),
+            nullptr,
+            nullptr,
+            &g_original_draw_elements,
+            &g_draw_elements_slot,
+        },
+    }};
+    auto* const image = reinterpret_cast<std::uint8_t*>(executable);
+    for (ImportHookPlan& plan : plans) {
+        plan.slot = FindImportAddressSlot(
+            image,
+            nt->OptionalHeader.SizeOfImage,
+            "OPENGL32.dll",
+            plan.symbol_name
+        );
+        plan.original = reinterpret_cast<PVOID>(GetProcAddress(opengl, plan.symbol_name));
+        if (plan.slot == nullptr || plan.original == nullptr) {
+            return ERROR_PROC_NOT_FOUND;
+        }
+        const std::uintptr_t original_address = reinterpret_cast<std::uintptr_t>(plan.original);
+        const std::uintptr_t replacement_address = reinterpret_cast<std::uintptr_t>(
+            plan.replacement
+        );
+        if (
+            original_address > UINT32_MAX
+            || replacement_address > UINT32_MAX
+            || *plan.slot != static_cast<std::uint32_t>(original_address)
+        ) {
+            return ERROR_INVALID_ADDRESS;
+        }
+    }
+    for (std::size_t left = 0U; left < plans.size(); ++left) {
+        for (std::size_t right = left + 1U; right < plans.size(); ++right) {
+            if (plans[left].slot == plans[right].slot) {
+                return ERROR_INVALID_DATA;
+            }
+        }
+    }
+    PVOID const polygon_mode = reinterpret_cast<PVOID>(GetProcAddress(opengl, "glPolygonMode"));
+    if (polygon_mode == nullptr) {
         return ERROR_PROC_NOT_FOUND;
     }
-    const std::uintptr_t original_address = reinterpret_cast<std::uintptr_t>(original);
-    const std::uintptr_t replacement_address = reinterpret_cast<std::uintptr_t>(
-        &StrongShadeModel
-    );
-    if (
-        original_address > UINT32_MAX
-        || replacement_address > UINT32_MAX
-        || *slot != static_cast<std::uint32_t>(original_address)
-    ) {
-        return ERROR_INVALID_ADDRESS;
+    InterlockedExchangePointer(&g_polygon_mode, polygon_mode);
+    for (ImportHookPlan& plan : plans) {
+        InterlockedExchangePointer(plan.original_storage, plan.original);
+        const DWORD result = ReplaceImportSlot(
+            plan.slot,
+            static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(plan.original)),
+            static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(plan.replacement))
+        );
+        if (result != ERROR_SUCCESS) {
+            const auto replacement_address = static_cast<std::uint32_t>(
+                reinterpret_cast<std::uintptr_t>(plan.replacement)
+            );
+            if (*plan.slot == replacement_address) {
+                *plan.slot_storage = plan.slot;
+            } else {
+                InterlockedExchangePointer(plan.original_storage, nullptr);
+            }
+            StopStrongCelShading();
+            return result;
+        }
+        *plan.slot_storage = plan.slot;
     }
-    InterlockedExchangePointer(
-        &g_original_shade_model,
-        reinterpret_cast<PVOID>(original_address)
-    );
-    const DWORD result = ReplaceShadeModelSlot(
-        slot,
-        static_cast<std::uint32_t>(original_address),
-        static_cast<std::uint32_t>(replacement_address)
-    );
-    if (result != ERROR_SUCCESS) {
-        InterlockedExchangePointer(&g_original_shade_model, nullptr);
-        return result;
-    }
-    g_shade_model_slot = slot;
     return ERROR_SUCCESS;
 }
 
 void StopStrongCelShading() noexcept {
-    if (g_shade_model_slot == nullptr) {
-        return;
+    bool restored = true;
+    if (!RestoreHook(
+            &g_draw_elements_slot,
+            &g_original_draw_elements,
+            reinterpret_cast<PVOID>(&StrongDrawElements)
+        )) {
+        restored = false;
     }
-    const std::uintptr_t original_address = reinterpret_cast<std::uintptr_t>(
-        InterlockedCompareExchangePointer(
+    if (!RestoreHook(
+            &g_draw_arrays_slot,
+            &g_original_draw_arrays,
+            reinterpret_cast<PVOID>(&StrongDrawArrays)
+        )) {
+        restored = false;
+    }
+    if (!RestoreHook(
+            &g_begin_slot,
+            &g_original_begin,
+            reinterpret_cast<PVOID>(&StrongBegin)
+        )) {
+        restored = false;
+    }
+    if (!RestoreHook(
+            &g_shade_model_slot,
             &g_original_shade_model,
-            nullptr,
-            nullptr
-        )
-    );
-    const std::uintptr_t replacement_address = reinterpret_cast<std::uintptr_t>(
-        &StrongShadeModel
-    );
-    if (original_address <= UINT32_MAX && replacement_address <= UINT32_MAX) {
-        ReplaceShadeModelSlot(
-            g_shade_model_slot,
-            static_cast<std::uint32_t>(replacement_address),
-            static_cast<std::uint32_t>(original_address)
-        );
+            reinterpret_cast<PVOID>(&StrongShadeModel)
+        )) {
+        restored = false;
     }
-    g_shade_model_slot = nullptr;
-    InterlockedExchangePointer(&g_original_shade_model, nullptr);
+    if (restored) {
+        InterlockedExchangePointer(&g_polygon_mode, nullptr);
+    }
 }
 
 }  // namespace wonderbane::extension
