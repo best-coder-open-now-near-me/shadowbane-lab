@@ -12,7 +12,7 @@ param(
         "\\VBOXSVR\codexgfx\build\wonderbane-graphics-baseline\Release\wonderbane-extension.dll"
     ),
     [string] $DestinationDirectory = (
-        "S:\Wonderbane-graphics-wb-55fbad5f-4b602995-cel-1.4.9"
+        "S:\Wonderbane-graphics-wb-55fbad5f-4b602995-cel-1.4.10"
     ),
     [switch] $DryRunOnly
 )

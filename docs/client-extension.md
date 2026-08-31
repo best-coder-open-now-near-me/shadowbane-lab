@@ -306,6 +306,11 @@ Explicit geometry-only feature segments are omitted for those draws because they
 texture coordinates required to follow the visible alpha boundary. Solid character, armor, building,
 and ship meshes retain the geometry-aware feature-edge pass.
 
+Extension 1.4.10 restores feature segmentation on alpha-tested vertex-array meshes without regressing
+cutout silhouettes. The extension tracks the fixed-function texture-coordinate array alongside the
+vertex array, carries endpoint UVs into retained feature edges, and submits those UVs while preserving
+the source texture and alpha test. Edges without trustworthy UVs remain omitted on alpha-tested draws.
+
 Orthographic UI/map rendering, points, lines, and array draws outside the reviewed element-count
 bound remain single-pass. Immediate-mode geometry remains filled and flat-shaded because replaying
 an arbitrary `glBegin`/`glEnd` stream would require intercepting every vertex and state mutation.

@@ -6,7 +6,7 @@ param(
     [string] $ContentBuildId = "wb-55fbad5f-4b602995",
     [string] $ExtensionVersion = "1.4.9",
     [string] $PackageDirectory = (
-        "S:\Wonderbane-graphics-wb-55fbad5f-4b602995-cel-1.4.9"
+        "S:\Wonderbane-graphics-wb-55fbad5f-4b602995-cel-1.4.10"
     )
 )
 

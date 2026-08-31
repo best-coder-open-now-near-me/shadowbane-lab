@@ -43,6 +43,7 @@ constexpr unsigned int kGlUnsignedByte = 0x1401U;
 constexpr unsigned int kGlUnsignedShort = 0x1403U;
 constexpr unsigned int kGlUnsignedInt = 0x1405U;
 constexpr unsigned int kGlVertexArray = 0x8074U;
+constexpr unsigned int kGlTextureCoordArray = 0x8078U;
 constexpr unsigned int kGlFront = 0x0404U;
 constexpr unsigned int kGlBack = 0x0405U;
 constexpr unsigned int kGlFrontAndBack = 0x0408U;
@@ -90,6 +91,13 @@ using GlVertexPointer = void(APIENTRY*)(
     int stride,
     const void* pointer
 );
+using GlTexCoordPointer = void(APIENTRY*)(
+    int size,
+    unsigned int type,
+    int stride,
+    const void* pointer
+);
+using GlTexCoord2f = void(APIENTRY*)(float s, float t);
 using GlEnableClientState = void(APIENTRY*)(unsigned int array);
 using GlDisableClientState = void(APIENTRY*)(unsigned int array);
 using GlGetFloatv = void(APIENTRY*)(unsigned int name, float* values);
@@ -123,6 +131,8 @@ PVOID volatile g_original_matrix_mode = nullptr;
 PVOID volatile g_original_draw_arrays = nullptr;
 PVOID volatile g_original_draw_elements = nullptr;
 PVOID volatile g_original_vertex_pointer = nullptr;
+PVOID volatile g_original_tex_coord_pointer = nullptr;
+PVOID volatile g_tex_coord_2f = nullptr;
 PVOID volatile g_original_enable_client_state = nullptr;
 PVOID volatile g_original_disable_client_state = nullptr;
 PVOID volatile g_get_floatv = nullptr;
@@ -154,6 +164,7 @@ std::uint32_t* g_matrix_mode_slot = nullptr;
 std::uint32_t* g_draw_arrays_slot = nullptr;
 std::uint32_t* g_draw_elements_slot = nullptr;
 std::uint32_t* g_vertex_pointer_slot = nullptr;
+std::uint32_t* g_tex_coord_pointer_slot = nullptr;
 std::uint32_t* g_enable_client_state_slot = nullptr;
 std::uint32_t* g_disable_client_state_slot = nullptr;
 volatile LONG g_viewport_x = 0;
@@ -171,12 +182,22 @@ struct VertexArrayState {
 };
 
 thread_local VertexArrayState g_vertex_array_state{};
+thread_local VertexArrayState g_tex_coord_array_state{};
+
+struct CapturedVertex {
+    std::array<float, 3U> position{};
+    std::array<float, 2U> tex_coord{};
+    bool has_tex_coord = false;
+};
 
 struct CapturedDisplayListBounds {
     OutlineBounds bounds{};
     struct FeatureEdge {
         std::array<float, 3U> first{};
         std::array<float, 3U> second{};
+        std::array<float, 2U> first_tex_coord{};
+        std::array<float, 2U> second_tex_coord{};
+        bool has_tex_coords = false;
     };
     std::vector<FeatureEdge> feature_edges{};
     bool valid = false;
@@ -195,7 +216,7 @@ struct ActiveDisplayListCapture {
     bool has_vertex = false;
     bool invalid = false;
     bool primitive_open = false;
-    std::vector<std::array<float, 3U>> vertices{};
+    std::vector<CapturedVertex> vertices{};
     std::vector<CapturedPrimitiveRange> primitives{};
 };
 
@@ -289,19 +310,27 @@ using CapturedEdgeMap = std::unordered_map<EdgeKey, EdgeFaces, EdgeKeyHash>;
 
 void AddFaceEdge(
     CapturedEdgeMap* const edges,
-    const std::array<float, 3U>& first,
-    const std::array<float, 3U>& second,
+    const CapturedVertex& first_vertex,
+    const CapturedVertex& second_vertex,
     const std::array<float, 3U>& normal
 ) {
+    const auto& first = first_vertex.position;
+    const auto& second = second_vertex.position;
     VertexKey first_key = MakeVertexKey(first);
     VertexKey second_key = MakeVertexKey(second);
     if (first_key == second_key) {
         return;
     }
-    CapturedDisplayListBounds::FeatureEdge edge{first, second};
+    CapturedDisplayListBounds::FeatureEdge edge{};
+    edge.first = first;
+    edge.second = second;
+    edge.first_tex_coord = first_vertex.tex_coord;
+    edge.second_tex_coord = second_vertex.tex_coord;
+    edge.has_tex_coords = first_vertex.has_tex_coord && second_vertex.has_tex_coord;
     if (second_key < first_key) {
         std::swap(first_key, second_key);
         std::swap(edge.first, edge.second);
+        std::swap(edge.first_tex_coord, edge.second_tex_coord);
     }
     EdgeFaces& faces = (*edges)[{first_key, second_key}];
     if (faces.face_count == 0U) {
@@ -322,7 +351,7 @@ void AddFaceEdge(
 
 void AddFace(
     CapturedEdgeMap* const edges,
-    const std::array<float, 3U>* const vertices,
+    const CapturedVertex* const vertices,
     const std::size_t count
 ) {
     if (edges == nullptr || vertices == nullptr || count < 3U) {
@@ -330,7 +359,11 @@ void AddFace(
     }
     std::array<float, 3U> normal{};
     for (std::size_t index = 2U; index < count; ++index) {
-        normal = FaceNormal(vertices[0], vertices[index - 1U], vertices[index]);
+        normal = FaceNormal(
+            vertices[0].position,
+            vertices[index - 1U].position,
+            vertices[index].position
+        );
         if (normal != std::array<float, 3U>{}) {
             break;
         }
@@ -360,7 +393,7 @@ std::vector<CapturedDisplayListBounds::FeatureEdge> BuildFeatureEdges(
             }
         } else if (primitive.mode == kGlTriangleStrip) {
             for (std::size_t index = 2U; index < count; ++index) {
-                const std::array<float, 3U> face[3U]{
+                const CapturedVertex face[3U]{
                     vertices[index % 2U == 0U ? index - 2U : index - 1U],
                     vertices[index % 2U == 0U ? index - 1U : index - 2U],
                     vertices[index]
@@ -369,7 +402,7 @@ std::vector<CapturedDisplayListBounds::FeatureEdge> BuildFeatureEdges(
             }
         } else if (primitive.mode == kGlTriangleFan) {
             for (std::size_t index = 2U; index < count; ++index) {
-                const std::array<float, 3U> face[3U]{
+                const CapturedVertex face[3U]{
                     vertices[0], vertices[index - 1U], vertices[index]
                 };
                 AddFace(&edges, face, 3U);
@@ -380,7 +413,7 @@ std::vector<CapturedDisplayListBounds::FeatureEdge> BuildFeatureEdges(
             }
         } else if (primitive.mode == kGlQuadStrip) {
             for (std::size_t index = 0U; index + 3U < count; index += 2U) {
-                const std::array<float, 3U> face[4U]{
+                const CapturedVertex face[4U]{
                     vertices[index], vertices[index + 1U],
                     vertices[index + 3U], vertices[index + 2U]
                 };
@@ -502,6 +535,7 @@ std::vector<CapturedDisplayListBounds::FeatureEdge> BuildArrayFeatureEdges(
 ) noexcept {
     std::vector<CapturedDisplayListBounds::FeatureEdge> empty{};
     const VertexArrayState state = g_vertex_array_state;
+    const VertexArrayState tex_coord_state = g_tex_coord_array_state;
     if (!state.enabled || state.pointer == nullptr || state.type != kGlFloat
         || state.size < 2 || state.size > 4 || state.stride < 0
         || count <= 0 || count > kMaximumOutlinedElementCount || first < 0) {
@@ -547,6 +581,31 @@ std::vector<CapturedDisplayListBounds::FeatureEdge> BuildArrayFeatureEdges(
     if (!IsReadableMemoryRange(state.pointer, required_vertex_bytes)) {
         return empty;
     }
+    const bool has_tex_coords = tex_coord_state.enabled
+        && tex_coord_state.pointer != nullptr
+        && tex_coord_state.type == kGlFloat
+        && tex_coord_state.size >= 2
+        && tex_coord_state.size <= 4
+        && tex_coord_state.stride >= 0;
+    std::size_t tex_coord_component_bytes = 0U;
+    std::size_t tex_coord_stride = 0U;
+    if (has_tex_coords) {
+        tex_coord_component_bytes = static_cast<std::size_t>(tex_coord_state.size)
+            * sizeof(float);
+        tex_coord_stride = tex_coord_state.stride == 0
+            ? tex_coord_component_bytes
+            : static_cast<std::size_t>(tex_coord_state.stride);
+        if (tex_coord_stride < tex_coord_component_bytes
+            || maximum_vertex_index
+                > (SIZE_MAX - tex_coord_component_bytes) / tex_coord_stride
+            || !IsReadableMemoryRange(
+                tex_coord_state.pointer,
+                maximum_vertex_index * tex_coord_stride + tex_coord_component_bytes
+            )) {
+            tex_coord_component_bytes = 0U;
+            tex_coord_stride = 0U;
+        }
+    }
     try {
         ActiveDisplayListCapture capture{};
         capture.vertices.reserve(requested);
@@ -582,7 +641,31 @@ std::vector<CapturedDisplayListBounds::FeatureEdge> BuildArrayFeatureEdges(
                 || !std::isfinite(vertex[2])) {
                 return empty;
             }
-            capture.vertices.push_back(vertex);
+            CapturedVertex captured{};
+            captured.position = vertex;
+            if (tex_coord_stride != 0U) {
+                const std::size_t tex_coord_offset = static_cast<std::size_t>(
+                    vertex_index
+                ) * tex_coord_stride;
+                const std::uintptr_t tex_coord_base = reinterpret_cast<std::uintptr_t>(
+                    tex_coord_state.pointer
+                );
+                if (tex_coord_offset > UINTPTR_MAX - tex_coord_base) {
+                    return empty;
+                }
+                const auto* tex_coord_components = reinterpret_cast<const float*>(
+                    tex_coord_base + tex_coord_offset
+                );
+                if (!std::isfinite(tex_coord_components[0])
+                    || !std::isfinite(tex_coord_components[1])) {
+                    return empty;
+                }
+                captured.tex_coord = {
+                    tex_coord_components[0], tex_coord_components[1]
+                };
+                captured.has_tex_coord = true;
+            }
+            capture.vertices.push_back(captured);
         }
         capture.primitives.push_back({mode, 0U, capture.vertices.size()});
         return BuildFeatureEdges(capture);
@@ -642,7 +725,9 @@ void CaptureDisplayListVertex(const float x, const float y, const float z) noexc
             return;
         }
         try {
-            g_active_display_list_capture.vertices.push_back({x, y, z});
+            CapturedVertex captured{};
+            captured.position = {x, y, z};
+            g_active_display_list_capture.vertices.push_back(captured);
         } catch (...) {
             g_active_display_list_capture.invalid = true;
             return;
@@ -808,22 +893,26 @@ bool LoadOutlineApi(OutlineApi* const api) noexcept {
 void DrawFeatureEdgeSegments(
     const std::vector<CapturedDisplayListBounds::FeatureEdge>& edges,
     const OutlineApi& api,
-    const float outline_width
+    const float outline_width,
+    const bool preserve_alpha_test
 ) noexcept {
     const float contour_width = InteriorContourLineWidth(outline_width);
     const auto begin = LoadFunction<GlBegin>(&g_original_begin);
     const auto vertex = LoadFunction<GlVertex3f>(&g_original_vertex_3f);
+    const auto tex_coord = LoadFunction<GlTexCoord2f>(&g_tex_coord_2f);
     const auto end = LoadFunction<GlEnd>(&g_end);
     if (contour_width <= 0.0F || begin == nullptr || vertex == nullptr
         || end == nullptr || edges.empty()) {
         return;
     }
     api.push_attrib(kGlAllAttribBits);
-    api.disable(kGlTexture2D);
+    if (!preserve_alpha_test) {
+        api.disable(kGlTexture2D);
+        api.disable(kGlAlphaTest);
+    }
     api.disable(kGlLighting);
     api.disable(kGlFog);
     api.disable(kGlBlend);
-    api.disable(kGlAlphaTest);
     api.disable(kGlLineSmooth);
     api.disable(kGlDither);
     api.enable(kGlColorLogicOp);
@@ -835,7 +924,16 @@ void DrawFeatureEdgeSegments(
     api.line_width(contour_width);
     begin(kGlLines);
     for (const CapturedDisplayListBounds::FeatureEdge& edge : edges) {
+        if (preserve_alpha_test && (!edge.has_tex_coords || tex_coord == nullptr)) {
+            continue;
+        }
+        if (preserve_alpha_test) {
+            tex_coord(edge.first_tex_coord[0], edge.first_tex_coord[1]);
+        }
         vertex(edge.first[0], edge.first[1], edge.first[2]);
+        if (preserve_alpha_test) {
+            tex_coord(edge.second_tex_coord[0], edge.second_tex_coord[1]);
+        }
         vertex(edge.second[0], edge.second[1], edge.second[2]);
     }
     end();
@@ -845,7 +943,8 @@ void DrawFeatureEdgeSegments(
 void DrawDisplayListFeatureEdges(
     const unsigned int list,
     const OutlineApi& api,
-    const float outline_width
+    const float outline_width,
+    const bool preserve_alpha_test
 ) noexcept {
     if (list >= g_display_list_bounds.size()) {
         return;
@@ -853,7 +952,9 @@ void DrawDisplayListFeatureEdges(
     AcquireSRWLockShared(&g_display_list_lock);
     const CapturedDisplayListBounds& captured = g_display_list_bounds[list];
     if (captured.valid) {
-        DrawFeatureEdgeSegments(captured.feature_edges, api, outline_width);
+        DrawFeatureEdgeSegments(
+            captured.feature_edges, api, outline_width, preserve_alpha_test
+        );
     }
     ReleaseSRWLockShared(&g_display_list_lock);
 }
@@ -951,13 +1052,14 @@ void DrawWithSilhouette(
     api.pop_attrib();
 
     draw();
-    if (alpha_test_enabled != FALSE) {
-        return;
-    }
     if (feature_list != UINT32_MAX) {
-        DrawDisplayListFeatureEdges(feature_list, api, outline_width);
+        DrawDisplayListFeatureEdges(
+            feature_list, api, outline_width, alpha_test_enabled != FALSE
+        );
     } else if (!feature_edges.empty()) {
-        DrawFeatureEdgeSegments(feature_edges, api, outline_width);
+        DrawFeatureEdgeSegments(
+            feature_edges, api, outline_width, alpha_test_enabled != FALSE
+        );
     }
 }
 
@@ -1393,6 +1495,24 @@ void APIENTRY StrongVertexPointer(
     }
 }
 
+void APIENTRY StrongTexCoordPointer(
+    const int size,
+    const unsigned int type,
+    const int stride,
+    const void* const pointer
+) noexcept {
+    const auto original = LoadFunction<GlTexCoordPointer>(
+        &g_original_tex_coord_pointer
+    );
+    if (original != nullptr) {
+        original(size, type, stride, pointer);
+        g_tex_coord_array_state.pointer = pointer;
+        g_tex_coord_array_state.size = size;
+        g_tex_coord_array_state.type = type;
+        g_tex_coord_array_state.stride = stride;
+    }
+}
+
 void APIENTRY StrongEnableClientState(const unsigned int array) noexcept {
     const auto original = LoadFunction<GlEnableClientState>(
         &g_original_enable_client_state
@@ -1401,6 +1521,8 @@ void APIENTRY StrongEnableClientState(const unsigned int array) noexcept {
         original(array);
         if (array == kGlVertexArray) {
             g_vertex_array_state.enabled = true;
+        } else if (array == kGlTextureCoordArray) {
+            g_tex_coord_array_state.enabled = true;
         }
     }
 }
@@ -1413,6 +1535,8 @@ void APIENTRY StrongDisableClientState(const unsigned int array) noexcept {
         original(array);
         if (array == kGlVertexArray) {
             g_vertex_array_state.enabled = false;
+        } else if (array == kGlTextureCoordArray) {
+            g_tex_coord_array_state.enabled = false;
         }
     }
 }
@@ -1679,6 +1803,7 @@ DWORD StartStrongCelShading() noexcept {
         || g_draw_arrays_slot != nullptr
         || g_draw_elements_slot != nullptr
         || g_vertex_pointer_slot != nullptr
+        || g_tex_coord_pointer_slot != nullptr
         || g_enable_client_state_slot != nullptr
         || g_disable_client_state_slot != nullptr
         || g_original_shade_model != nullptr
@@ -1694,6 +1819,7 @@ DWORD StartStrongCelShading() noexcept {
         || g_original_draw_arrays != nullptr
         || g_original_draw_elements != nullptr
         || g_original_vertex_pointer != nullptr
+        || g_original_tex_coord_pointer != nullptr
         || g_original_enable_client_state != nullptr
         || g_original_disable_client_state != nullptr
         || g_get_floatv != nullptr
@@ -1732,7 +1858,7 @@ DWORD StartStrongCelShading() noexcept {
     ) {
         return ERROR_BAD_EXE_FORMAT;
     }
-    std::array<ImportHookPlan, 14U> plans{{
+    std::array<ImportHookPlan, 15U> plans{{
         {
             "glShadeModel",
             reinterpret_cast<PVOID>(&StrongShadeModel),
@@ -1814,6 +1940,14 @@ DWORD StartStrongCelShading() noexcept {
             &g_vertex_pointer_slot,
         },
         {
+            "glTexCoordPointer",
+            reinterpret_cast<PVOID>(&StrongTexCoordPointer),
+            nullptr,
+            nullptr,
+            &g_original_tex_coord_pointer,
+            &g_tex_coord_pointer_slot,
+        },
+        {
             "glEnableClientState",
             reinterpret_cast<PVOID>(&StrongEnableClientState),
             nullptr,
@@ -1878,8 +2012,9 @@ DWORD StartStrongCelShading() noexcept {
         }
     }
 
-    std::array<HelperFunctionPlan, 18U> helpers{{
+    std::array<HelperFunctionPlan, 19U> helpers{{
         {"glEnd", &g_end, nullptr},
+        {"glTexCoord2f", &g_tex_coord_2f, nullptr},
         {"glGetFloatv", &g_get_floatv, nullptr},
         {"glGetBooleanv", &g_get_booleanv, nullptr},
         {"glPushAttrib", &g_push_attrib, nullptr},
@@ -1914,6 +2049,7 @@ DWORD StartStrongCelShading() noexcept {
     InterlockedExchange(&g_viewport_height, 0);
     g_current_matrix_mode = kGlModelView;
     g_vertex_array_state = {};
+    g_tex_coord_array_state = {};
     for (ImportHookPlan& plan : plans) {
         InterlockedExchangePointer(plan.original_storage, plan.original);
         const DWORD result = ReplaceImportSlot(
@@ -1965,6 +2101,13 @@ void StopStrongCelShading() noexcept {
             &g_enable_client_state_slot,
             &g_original_enable_client_state,
             reinterpret_cast<PVOID>(&StrongEnableClientState)
+        )) {
+        restored = false;
+    }
+    if (!RestoreHook(
+            &g_tex_coord_pointer_slot,
+            &g_original_tex_coord_pointer,
+            reinterpret_cast<PVOID>(&StrongTexCoordPointer)
         )) {
         restored = false;
     }
@@ -2046,7 +2189,9 @@ void StopStrongCelShading() noexcept {
         InterlockedExchange(&g_viewport_x, 0);
         g_current_matrix_mode = kGlModelView;
         g_vertex_array_state = {};
+        g_tex_coord_array_state = {};
         InterlockedExchangePointer(&g_end, nullptr);
+        InterlockedExchangePointer(&g_tex_coord_2f, nullptr);
         InterlockedExchangePointer(&g_polygon_offset, nullptr);
         InterlockedExchangePointer(&g_depth_func, nullptr);
         InterlockedExchangePointer(&g_depth_mask, nullptr);
