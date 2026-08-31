@@ -280,13 +280,44 @@ extension lifetime, and scene draw ownership are all proven together.
 
 ## Restrained cel treatment
 
-Extension 1.4.0 removes the persistent wireframe state and keeps `GL_FLAT` as the conservative
+Extension 1.6.0 retains the 1.4.5 renderer refinement that removes persistent wireframe state and
+keeps `GL_FLAT` as the conservative
 fixed-function lighting treatment. It adds the reviewed client's unique `glCallList` import to the
 same transactional IAT plan, allowing replayable display-list geometry to receive a bounded
-silhouette pass. Perspective display lists and polygonal array draws render an expanded,
-front-face-culled dark hull first, followed by the client's ordinary filled draw. The pass saves
-and restores all server attributes and the active matrix, writes no depth, and disables textures,
-lighting, fog, blending, and alpha testing only inside the outline draw.
+silhouette pass. Perspective display lists and polygonal array draws render all polygon boundaries
+as fixed-width lines first, followed by the client's ordinary filled draw. The fill covers interior
+edges while the exterior half of silhouette edges remains, including on open and one-sided meshes.
+The outline pass uses `GL_CLEAR` color logic so captured display-list colors cannot leak white or
+textured pixels into the border, and it disables line smoothing and dithering for stable coverage.
+This keeps outline width independent of object size and distance and avoids the directional bias
+caused by scaling meshes around off-center model pivots. The pass saves and restores all server
+attributes, writes no depth, and confines its state changes to the outline draw.
+
+The silhouette is further limited to depth-writing draws whose affine model-view origin is within
+4096 camera-space units. This excludes sky passes and world-origin terrain draws that otherwise
+turn the distant horizon into a fixed-width black stroke, while retaining locally transformed
+characters, props, and nearby structure pieces.
+
+Outline width is derived from camera-space depth, the live perspective projection, and viewport
+height, corresponding to a constant 0.5-unit world-space thickness. It is clamped to 1–4 raster
+pixels and omitted when its projected width falls below 0.75 pixel. Nearby models therefore receive
+the strongest stroke, while distant models taper naturally instead of appearing over-inked.
+
+The reviewed client's `glNewList`, `glEndList`, `glVertex3f`, and `glDeleteLists` imports now maintain
+a bounded local-space extent for each compiled display list. Tracked lists use a front-face-culled
+dark hull expanded around the captured bounds center by the same 0.5-unit
+world-space thickness. This restores separation between independently compiled body, armor, and
+prop pieces without scaling around the often off-center model pivot. Lists without trustworthy
+bounds retain the line silhouette, and deleted list IDs invalidate their captured bounds. Each
+outlined draw remains two-pass: centered hull or line fallback, then the client's ordinary fill.
+
+The extension also tracks `glViewport` and `glMatrixMode` at the client's existing state-change
+calls. This removes synchronous integer state reads from every outlined draw while preserving the
+distance rule and ensuring the centered hull runs only against the model-view stack.
+
+`GL_FLAT` remains interpolation control rather than true toon-light quantization. A separate
+lighting-state audit is required before introducing discrete diffuse bands; version 1.6.0 does not
+claim or synthesize lighting bands.
 
 Orthographic UI/map rendering, points, lines, and array draws outside the reviewed element-count
 bound remain single-pass. Immediate-mode geometry remains filled and flat-shaded because replaying

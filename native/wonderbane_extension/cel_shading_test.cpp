@@ -4,6 +4,7 @@
 #include <Windows.h>
 
 #include <array>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -17,26 +18,44 @@ constexpr std::uint32_t kImportRva = 0x200U;
 constexpr std::uint32_t kLibraryRva = 0x300U;
 constexpr std::uint32_t kNamesRva = 0x340U;
 constexpr std::uint32_t kAddressesRva = 0x380U;
-constexpr std::array<std::uint32_t, 5U> kImportNameRvas{
+constexpr std::array<std::uint32_t, 11U> kImportNameRvas{
     0x3C0U,
     0x3E0U,
     0x400U,
     0x420U,
     0x440U,
+    0x460U,
+    0x480U,
+    0x4A0U,
+    0x4C0U,
+    0x4E0U,
+    0x500U,
 };
-constexpr std::array<const char*, 5U> kImportNames{
+constexpr std::array<const char*, 11U> kImportNames{
     "glShadeModel",
     "glBegin",
     "glCallList",
+    "glNewList",
+    "glEndList",
+    "glVertex3f",
+    "glDeleteLists",
+    "glViewport",
+    "glMatrixMode",
     "glDrawArrays",
     "glDrawElements",
 };
-constexpr std::array<std::uint32_t, 5U> kImportAddresses{
+constexpr std::array<std::uint32_t, 11U> kImportAddresses{
     0x12345678U,
     0x23456789U,
     0x3456789AU,
     0x456789ABU,
     0x56789ABCU,
+    0x6789ABCDU,
+    0x789ABCDEU,
+    0x89ABCDEFU,
+    0x9ABCDEF0U,
+    0xABCDEF01U,
+    0xBCDEF012U,
 };
 
 int Fail(const wchar_t* const operation) noexcept {
@@ -123,8 +142,8 @@ int wmain() {
     auto* const addresses = reinterpret_cast<IMAGE_THUNK_DATA32*>(
         image.data() + kAddressesRva
     );
-    names[5].u1.AddressOfData = kImportNameRvas[0];
-    addresses[5].u1.Function = 0x6789ABCDU;
+    names[kImportNames.size()].u1.AddressOfData = kImportNameRvas[0];
+    addresses[kImportNames.size()].u1.Function = 0xCDEF0123U;
     if (wonderbane::extension::FindImportAddressSlot(
             image.data(),
             image.size(),
@@ -184,6 +203,103 @@ int wmain() {
         )) {
         return Fail(L"orthographic projection rejection");
     }
+    constexpr std::array<float, 16U> local_model_view{
+        1.0F, 0.0F, 0.0F, 0.0F,
+        0.0F, 1.0F, 0.0F, 0.0F,
+        0.0F, 0.0F, 1.0F, 0.0F,
+        128.0F, -64.0F, -512.0F, 1.0F,
+    };
+    std::array<float, 16U> distant_model_view = local_model_view;
+    distant_model_view[12] = 90000.0F;
+    std::array<float, 16U> non_affine_model_view = local_model_view;
+    non_affine_model_view[15] = 0.0F;
+    if (
+        !wonderbane::extension::IsLocalOutlineModelViewMatrix(
+            local_model_view.data(),
+            local_model_view.size()
+        )
+        || wonderbane::extension::IsLocalOutlineModelViewMatrix(
+            distant_model_view.data(),
+            distant_model_view.size()
+        )
+        || wonderbane::extension::IsLocalOutlineModelViewMatrix(
+            non_affine_model_view.data(),
+            non_affine_model_view.size()
+        )
+    ) {
+        return Fail(L"local model-view outline policy");
+    }
+    constexpr std::array<int, 4U> viewport{0, 0, 1200, 800};
+    std::array<float, 16U> near_model_view = local_model_view;
+    near_model_view[14] = -50.0F;
+    std::array<float, 16U> middle_model_view = local_model_view;
+    middle_model_view[14] = -100.0F;
+    std::array<float, 16U> far_model_view = local_model_view;
+    far_model_view[14] = -400.0F;
+    const float near_width = wonderbane::extension::PerspectiveOutlineLineWidth(
+        perspective.data(), perspective.size(),
+        near_model_view.data(), near_model_view.size(),
+        viewport.data(), viewport.size()
+    );
+    const float middle_width = wonderbane::extension::PerspectiveOutlineLineWidth(
+        perspective.data(), perspective.size(),
+        middle_model_view.data(), middle_model_view.size(),
+        viewport.data(), viewport.size()
+    );
+    const float far_width = wonderbane::extension::PerspectiveOutlineLineWidth(
+        perspective.data(), perspective.size(),
+        far_model_view.data(), far_model_view.size(),
+        viewport.data(), viewport.size()
+    );
+    if (
+        std::fabs(near_width - 4.0F) > 0.001F
+        || std::fabs(middle_width - 2.0F) > 0.001F
+        || far_width != 0.0F
+    ) {
+        return Fail(L"perspective outline width policy");
+    }
+    wonderbane::extension::OutlineBounds expanded{{90.0F, -5.0F, -2.0F}, {110.0F, 5.0F, 2.0F}};
+    if (
+        !wonderbane::extension::ExpandOutlineBounds(&expanded, 112.0F, 6.0F, 3.0F)
+        || expanded.maximum[0] != 112.0F
+        || expanded.maximum[1] != 6.0F
+        || expanded.maximum[2] != 3.0F
+    ) {
+        return Fail(L"display-list bounds expansion");
+    }
+    constexpr wonderbane::extension::OutlineBounds centered_bounds{
+        {90.0F, -5.0F, -2.0F},
+        {110.0F, 5.0F, 2.0F},
+    };
+    wonderbane::extension::OutlineHullTransform hull{};
+    const float expected_scale = 1.0F + 0.5F / std::sqrt(129.0F);
+    if (
+        !wonderbane::extension::CenteredOutlineHullTransform(
+            &centered_bounds,
+            0.5F,
+            &hull
+        )
+        || std::fabs(hull.center[0] - 100.0F) > 0.001F
+        || std::fabs(hull.center[1]) > 0.001F
+        || std::fabs(hull.center[2]) > 0.001F
+        || std::fabs(hull.scale - expected_scale) > 0.001F
+    ) {
+        return Fail(L"centered outline hull transform");
+    }
+    constexpr wonderbane::extension::OutlineBounds tiny_bounds{
+        {-0.1F, -0.1F, -0.1F},
+        {0.1F, 0.1F, 0.1F},
+    };
+    if (
+        !wonderbane::extension::CenteredOutlineHullTransform(
+            &tiny_bounds,
+            0.5F,
+            &hull
+        )
+        || std::fabs(hull.scale - 1.25F) > 0.001F
+    ) {
+        return Fail(L"bounded outline hull scale");
+    }
     if (
         !wonderbane::extension::IsOutlinePrimitive(0x0004U, 36)
         || wonderbane::extension::IsOutlinePrimitive(0x0001U, 36)
@@ -200,7 +316,7 @@ int wmain() {
         ) != 1U
         || wonderbane::extension::CelShadingHookCount(
             wonderbane::extension::CelShadingProfile::outlined
-        ) != 5U
+        ) != 11U
     ) {
         return Fail(L"cel profile hook counts");
     }
