@@ -4,6 +4,8 @@ param(
     [string] $DiagnosticsShare = "\\VBOXSVR\codexdiag",
     [string] $PythonPath = "$env:USERPROFILE\shadowbane-lab\.venv\Scripts\python.exe",
     [string] $ManagerManifest = "$env:LOCALAPPDATA\ShadowbaneLab\client-manager.json",
+    [ValidateRange(1024, 65535)]
+    [int] $ManagerPort = 52739,
     [ValidateRange(1, 300)]
     [int] $ShareWaitSeconds = 90,
     [switch] $SkipListener,
@@ -17,6 +19,7 @@ $stateRoot = Split-Path -Parent $ManagerManifest
 $logRoot = Join-Path $stateRoot "logs"
 New-Item -ItemType Directory -Path $logRoot -Force | Out-Null
 $bootstrapLog = Join-Path $logRoot "control-center-bootstrap.log"
+$dashboardTokenPath = Join-Path $stateRoot "dashboard.token"
 
 function Write-BootstrapLog {
     param([string] $Message)
@@ -37,6 +40,23 @@ function Wait-RequiredPath {
         }
         Start-Sleep -Milliseconds 500
     }
+}
+
+function Open-CurrentDashboard {
+    if ($NoBrowser) {
+        return
+    }
+    if (-not (Test-Path -LiteralPath $dashboardTokenPath -PathType Leaf)) {
+        Write-BootstrapLog "Dashboard token is not available yet; no browser was opened."
+        return
+    }
+    $token = (Get-Content -LiteralPath $dashboardTokenPath -Raw).Trim()
+    if ($token -notmatch '^[A-Za-z0-9_-]{43,}$') {
+        throw "Dashboard token file is malformed: $dashboardTokenPath"
+    }
+    $dashboardUrl = "http://127.0.0.1:$ManagerPort/#token=$token"
+    Start-Process -FilePath $dashboardUrl
+    Write-BootstrapLog "Opened the current WonderBane dashboard."
 }
 
 try {
@@ -97,6 +117,7 @@ try {
             "WonderBane control center is already running (PID " +
             $trackedManager.ProcessId + ")."
         )
+        Open-CurrentDashboard
         exit 0
     }
     if ($existingManagers.Count -gt 0) {
@@ -130,7 +151,11 @@ try {
         $ManagerManifest,
         "--live",
         "--pid-file",
-        $managerPidPath
+        $managerPidPath,
+        "--port",
+        "$ManagerPort",
+        "--authorization-token-file",
+        $dashboardTokenPath
     )
     if ($NoBrowser) {
         $managerArguments += "--no-browser"

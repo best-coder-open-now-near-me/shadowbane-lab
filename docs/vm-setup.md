@@ -118,6 +118,11 @@ starts the authenticated localhost dashboard. A listener configuration failure i
 hiding the lifecycle dashboard. The dashboard opens automatically but does not launch a game
 client until its Start control is used.
 
+The runner uses fixed loopback port `52739` plus a persistent random token beneath the same local
+state root. Existing dashboard tabs therefore reconnect after manager restarts instead of becoming
+dead controls on an abandoned ephemeral port. During the restart window, all action buttons are
+disabled and the page reports the unavailable manager explicitly.
+
 `-ClientCount` declares the total local slots (1 through 32) and assigns deterministic grid tiles
 within the default 1920x955 VM display. Override that layout with `-DisplayWidth` and
 `-DisplayHeight`. On later installer runs, an existing manifest is preserved unless

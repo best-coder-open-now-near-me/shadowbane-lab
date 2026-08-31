@@ -131,8 +131,13 @@
       const dispatchReadyElement = document.getElementById("dispatch-ready-count");
       const updatedElement = document.getElementById("updated-at");
       const addClientButton = document.getElementById("add-client");
+      const refreshButton = document.getElementById("refresh");
       const statusPollMilliseconds = 2000;
       let statusRequest = null;
+      let managerConnected = false;
+      let disconnectedOnce = false;
+      addClientButton.disabled = true;
+      refreshButton.disabled = true;
 
       const request = async (path, options = {}) => {
         const headers = new Headers(options.headers || {});
@@ -316,6 +321,9 @@
       };
 
       const render = (status) => {
+        const reconnected = disconnectedOnce && !managerConnected;
+        managerConnected = true;
+        app.classList.remove("stale");
         const slots = Array.isArray(status.slots) ? status.slots : [];
         nodeElement.textContent = text(status.node_id);
         openElement.textContent = text(
@@ -330,6 +338,7 @@
           ? new Date(status.updated_at).toLocaleTimeString()
           : new Date().toLocaleTimeString();
         addClientButton.disabled = status.can_add_client === false;
+        refreshButton.disabled = false;
         slotsElement.replaceChildren(...slots.map(renderSlot));
         if (!slots.length) {
           const empty = document.createElement("div");
@@ -337,7 +346,9 @@
           empty.textContent = "No Shadowbane clients are open.";
           slotsElement.append(empty);
         }
-        notice.textContent = "Manager status is current.";
+        notice.textContent = reconnected
+          ? "Reconnected to the current manager. Controls are live again."
+          : "Manager status is current.";
         notice.className = "notice";
       };
 
@@ -355,8 +366,16 @@
       };
 
       const reportStatusError = (error) => {
+        managerConnected = false;
+        disconnectedOnce = true;
+        app.classList.add("stale");
+        addClientButton.disabled = true;
+        refreshButton.disabled = true;
+        slotsElement.querySelectorAll("button").forEach((button) => {
+          button.disabled = true;
+        });
         notice.textContent = error instanceof TypeError
-          ? "The local manager is no longer reachable. Start WonderBane Control Center and use the newly opened dashboard."
+          ? "The local manager is restarting or unavailable. Controls are disabled; this dashboard will reconnect automatically."
           : error.message;
         notice.className = "notice error";
       };
@@ -379,17 +398,19 @@
           if (statusRequest) await statusRequest.catch(() => {});
           await loadStatus();
         } catch (error) {
-          notice.textContent = error instanceof TypeError
-            ? "The local manager is no longer reachable. Start WonderBane Control Center and use the newly opened dashboard."
-            : error.message;
-          notice.className = "notice error";
+          if (error instanceof TypeError || error?.status === 401) {
+            reportStatusError(error);
+          } else {
+            notice.textContent = error.message;
+            notice.className = "notice error";
+          }
         } finally {
           app.classList.remove("busy");
         }
       };
 
       addClientButton.addEventListener("click", () => execute({ action: "add-client" }));
-      document.getElementById("refresh").addEventListener("click", () => execute({ action: "refresh" }));
+      refreshButton.addEventListener("click", () => execute({ action: "refresh" }));
 
       document.addEventListener("visibilitychange", pollStatus);
       window.setInterval(pollStatus, statusPollMilliseconds);

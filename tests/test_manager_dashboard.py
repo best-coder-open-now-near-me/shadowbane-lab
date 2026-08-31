@@ -122,6 +122,33 @@ class DashboardServerTests(unittest.TestCase):
         self.assertEqual("", suggested.query)
         self.assertEqual([token], parse_qs(suggested.fragment)["token"])
 
+    def test_explicit_token_and_fixed_port_survive_a_manager_restart(self) -> None:
+        token = self.server.authorization_token
+        port = self.server.port
+        authorization = self._authorization
+        self.server.stop()
+        self.server = DashboardServer(
+            self.service,
+            port=port,
+            authorization_token=token,
+        ).start()
+
+        status, _, body = self._request(
+            "GET",
+            "/api/v1/status",
+            headers=authorization,
+        )
+
+        self.assertEqual(HTTPStatus.OK, status)
+        self.assertEqual("gaming-pc-east", json.loads(body)["node_id"])
+        self.assertEqual(token, self.server.authorization_token)
+
+    def test_explicit_token_rejects_weak_or_malformed_values(self) -> None:
+        for token in ("short", "!" * 64, "a" * 40):
+            with self.subTest(token=token[:12]):
+                with self.assertRaisesRegex(ValueError, "authorization_token"):
+                    DashboardServer(self.service, authorization_token=token)
+
     def test_public_html_has_strict_security_headers_and_no_embedded_token(self) -> None:
         status, headers, body = self._request("GET", "/")
         source = body.decode("utf-8")
@@ -507,6 +534,9 @@ class DashboardServerTests(unittest.TestCase):
         self.assertIn("window.setInterval(pollStatus, statusPollMilliseconds)", source)
         self.assertIn('document.addEventListener("visibilitychange", pollStatus)', source)
         self.assertIn("document.hidden", source)
+        self.assertIn("this dashboard will reconnect automatically", source.casefold())
+        self.assertIn('app.classList.add("stale")', source)
+        self.assertIn('app.classList.remove("stale")', source)
 
     def test_stop_is_idempotent_and_closed_server_cannot_restart(self) -> None:
         self.assertTrue(self.server.is_running)

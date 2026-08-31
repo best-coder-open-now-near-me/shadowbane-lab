@@ -497,9 +497,16 @@ class ManagerCliTests(unittest.TestCase):
         created_servers: list[object] = []
 
         class FakeDashboardServer:
-            def __init__(self, service: object, *, port: int) -> None:
+            def __init__(
+                self,
+                service: object,
+                *,
+                port: int,
+                authorization_token: str,
+            ) -> None:
                 self.service = service
                 self.port = port
+                self.authorization_token = authorization_token
                 self.suggested_url = "http://127.0.0.1:12345/#token=test"
                 self.is_running = True
                 self.exited = False
@@ -513,6 +520,7 @@ class ManagerCliTests(unittest.TestCase):
 
         output = io.StringIO()
         permit_payload: dict[str, object] | None = None
+        dashboard_token_payload: str | None = None
         with tempfile.TemporaryDirectory() as directory:
             game_directory = Path(directory) / "Wonderbane"
             game_directory.mkdir()
@@ -530,6 +538,7 @@ class ManagerCliTests(unittest.TestCase):
             )
             worker_state_directory = Path(directory) / "workers"
             manager_pid_path = Path(directory) / "manager.pid"
+            dashboard_token_path = Path(directory) / "dashboard.token"
 
             def interrupt_after_pid_claim(_seconds: float) -> None:
                 self.assertEqual(
@@ -583,11 +592,15 @@ class ManagerCliTests(unittest.TestCase):
                     worker_state_directory / "gaming-pc-east" / "client-01" / "dispatch.permit"
                 ).read_text(encoding="utf-8")
             )
+            dashboard_token_payload = dashboard_token_path.read_text(
+                encoding="ascii"
+            ).strip()
             self.assertFalse(manager_pid_path.exists())
 
         self.assertEqual(0, result)
         self.assertEqual(1, len(created_servers))
         server = created_servers[0]
+        self.assertEqual(dashboard_token_payload, server.authorization_token)
         self.assertTrue(server.exited)
         self.assertEqual("gaming-pc-east", server.service.status()["node_id"])
         self.assertIn("managed clients will remain open", output.getvalue())

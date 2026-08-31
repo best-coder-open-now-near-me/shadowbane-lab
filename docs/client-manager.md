@@ -156,10 +156,18 @@ arguments, and reviewed renderer environment, and writes a timestamped backup. R
 center afterward so both the dashboard and node listener load the new immutable configuration.
 
 `--live` is mandatory because reviewed dashboard actions can launch, tile, or request a graceful
-close. Opening the app never starts a client automatically. The terminal prints a per-run URL
-and normally opens it in the default browser; use `--no-browser` to print it only. The control
-token lives in the URL fragment, is removed from the visible address after page load, is kept
-only in page memory, and is required as a bearer token for every status or action request.
+close. Opening the app never starts a client automatically. The standard VM runner binds the
+dashboard to fixed loopback port `52739` and keeps one random 256-bit token in
+`%LOCALAPPDATA%\ShadowbaneLab\dashboard.token`. The token is inherited from the current user's
+local profile rather than exposed as a process argument. It enters the browser in the URL
+fragment, is removed from the visible address after page load, remains only in page memory there,
+and is required as a bearer token for every status or action request.
+
+The stable loopback origin and token let an already-open dashboard reconnect after a guarded
+manager restart. While the listener is absent, the page visibly disables every operation and
+continues read-only status polling; controls return only after the current manager answers. Running
+the standard control-center launcher while its exact manager is already alive opens another
+authenticated view of that same runtime. `--no-browser` suppresses browser launch.
 
 The server binds only to IPv4 loopback (`127.0.0.1`), does not enable CORS, rejects unreviewed
 routes and request shapes, caps action bodies, bounds concurrent request workers, enforces short
