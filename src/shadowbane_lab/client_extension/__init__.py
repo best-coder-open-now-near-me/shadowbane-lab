@@ -8,13 +8,16 @@ from .baseline import (
     freeze_client_baseline,
 )
 from .bootstrap_author import (
+    WONDERBANE_1_0_5_55FB_PROFILE,
     WONDERBANE_1_0_5_PROFILE,
+    WONDERBANE_REVIEWED_BOOTSTRAP_PROFILES,
     BootstrapAuthoringError,
     BootstrapAuthoringResult,
     ReviewedBootstrapProfile,
     ReviewedSection,
     author_reviewed_bootstrap_file,
     author_reviewed_bootstrap_manifest,
+    resolve_reviewed_bootstrap_profile,
 )
 from .bootstrap_inspection import (
     BOOTSTRAP_INSPECTION_SCHEMA_VERSION,
@@ -176,6 +179,7 @@ __all__ = [
     "apply_patch_plan",
     "author_reviewed_bootstrap_file",
     "author_reviewed_bootstrap_manifest",
+    "resolve_reviewed_bootstrap_profile",
     "build_patch_plan",
     "discard_patched_client_copy",
     "extension_event_mapping_name",
@@ -194,4 +198,6 @@ __all__ = [
     "verify_frozen_client_baseline",
     "verify_patched_client_copy",
     "WONDERBANE_1_0_5_PROFILE",
+    "WONDERBANE_1_0_5_55FB_PROFILE",
+    "WONDERBANE_REVIEWED_BOOTSTRAP_PROFILES",
 ]

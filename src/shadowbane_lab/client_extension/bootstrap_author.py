@@ -7,7 +7,7 @@ import json
 import os
 import struct
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -113,6 +113,36 @@ WONDERBANE_1_0_5_PROFILE = ReviewedBootstrapProfile(
     load_library_iat_rva=23_790_276,
 )
 
+WONDERBANE_1_0_5_55FB_PROFILE = replace(
+    WONDERBANE_1_0_5_PROFILE,
+    profile_id="wonderbane-1.0.5-55fbad5f",
+    source_sha256="55fbad5f0110cd99b4085af72d1e8fddb782ccdec1491478492c18158f5c61bc",
+)
+
+WONDERBANE_REVIEWED_BOOTSTRAP_PROFILES = (
+    WONDERBANE_1_0_5_PROFILE,
+    WONDERBANE_1_0_5_55FB_PROFILE,
+)
+_WONDERBANE_BOOTSTRAP_PROFILES_BY_SHA256 = {
+    profile.source_sha256: profile for profile in WONDERBANE_REVIEWED_BOOTSTRAP_PROFILES
+}
+
+
+def resolve_reviewed_bootstrap_profile(source_sha256: str) -> ReviewedBootstrapProfile:
+    """Resolve one manually reviewed bootstrap profile by exact executable digest."""
+
+    digest = source_sha256.casefold()
+    if len(digest) != 64 or any(character not in "0123456789abcdef" for character in digest):
+        raise BootstrapAuthoringError(
+            "source executable SHA-256 must be a 64-character hexadecimal digest"
+        )
+    try:
+        return _WONDERBANE_BOOTSTRAP_PROFILES_BY_SHA256[digest]
+    except KeyError as exc:
+        raise BootstrapAuthoringError(
+            f"source executable SHA-256 is not a reviewed bootstrap build: {digest}"
+        ) from exc
+
 
 @dataclass(frozen=True, slots=True)
 class BootstrapAuthoringResult:
@@ -165,10 +195,12 @@ def author_reviewed_bootstrap_manifest(
     source_file_name: str = "sb.exe",
     extension_file_name: str = _EXTENSION_FILE_NAME,
     extension_version: str = "1.0.0",
-    profile: ReviewedBootstrapProfile = WONDERBANE_1_0_5_PROFILE,
+    profile: ReviewedBootstrapProfile | None = None,
 ) -> BootstrapAuthoringResult:
     """Create a deterministic manifest only after every profile fact is reverified."""
 
+    if profile is None:
+        profile = resolve_reviewed_bootstrap_profile(hashlib.sha256(source).hexdigest())
     try:
         image = inspect_pe_bytes(source, path=source_file_name)
     except PeInspectionError as exc:
@@ -297,7 +329,7 @@ def author_reviewed_bootstrap_file(
     output_path: str | Path,
     *,
     extension_version: str = "1.0.0",
-    profile: ReviewedBootstrapProfile = WONDERBANE_1_0_5_PROFILE,
+    profile: ReviewedBootstrapProfile | None = None,
 ) -> BootstrapAuthoringResult:
     """Read reviewed inputs and atomically create a new manifest file."""
 
@@ -847,10 +879,13 @@ def _write_new_json(path: Path, payload: dict[str, Any]) -> None:
 
 __all__ = [
     "WONDERBANE_1_0_5_PROFILE",
+    "WONDERBANE_1_0_5_55FB_PROFILE",
+    "WONDERBANE_REVIEWED_BOOTSTRAP_PROFILES",
     "BootstrapAuthoringError",
     "BootstrapAuthoringResult",
     "ReviewedBootstrapProfile",
     "ReviewedSection",
     "author_reviewed_bootstrap_file",
     "author_reviewed_bootstrap_manifest",
+    "resolve_reviewed_bootstrap_profile",
 ]

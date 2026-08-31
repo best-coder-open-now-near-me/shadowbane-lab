@@ -8,11 +8,14 @@ import unittest
 from pathlib import Path
 
 from shadowbane_lab.client_extension.bootstrap_author import (
+    WONDERBANE_1_0_5_55FB_PROFILE,
+    WONDERBANE_1_0_5_PROFILE,
     BootstrapAuthoringError,
     ReviewedBootstrapProfile,
     ReviewedSection,
     author_reviewed_bootstrap_file,
     author_reviewed_bootstrap_manifest,
+    resolve_reviewed_bootstrap_profile,
 )
 from shadowbane_lab.client_extension.resolver import apply_patch_plan, build_patch_plan
 from tests.client_alignment_fixture import build_pe
@@ -108,6 +111,24 @@ def _profile(source: bytes) -> ReviewedBootstrapProfile:
 
 
 class BootstrapAuthorTests(unittest.TestCase):
+    def test_resolves_each_reviewed_wonderbane_source_by_exact_digest(self) -> None:
+        self.assertIs(
+            WONDERBANE_1_0_5_PROFILE,
+            resolve_reviewed_bootstrap_profile(WONDERBANE_1_0_5_PROFILE.source_sha256.upper()),
+        )
+        self.assertIs(
+            WONDERBANE_1_0_5_55FB_PROFILE,
+            resolve_reviewed_bootstrap_profile(WONDERBANE_1_0_5_55FB_PROFILE.source_sha256),
+        )
+        self.assertEqual(WONDERBANE_1_0_5_PROFILE.text, WONDERBANE_1_0_5_55FB_PROFILE.text)
+        self.assertEqual(WONDERBANE_1_0_5_PROFILE.idata, WONDERBANE_1_0_5_55FB_PROFILE.idata)
+
+    def test_rejects_unknown_or_malformed_default_profile_digest(self) -> None:
+        with self.assertRaisesRegex(BootstrapAuthoringError, "not a reviewed bootstrap build"):
+            resolve_reviewed_bootstrap_profile("ab" * 32)
+        with self.assertRaisesRegex(BootstrapAuthoringError, "64-character"):
+            resolve_reviewed_bootstrap_profile("not-a-digest")
+
     def test_authors_seven_exact_sites_and_independent_plan(self) -> None:
         source = _reviewed_source()
         result = author_reviewed_bootstrap_manifest(
