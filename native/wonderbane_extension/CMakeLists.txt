@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(wonderbane_extension VERSION 1.4.0 LANGUAGES CXX RC)
+project(wonderbane_extension VERSION 1.5.0 LANGUAGES CXX RC)
 
 include(CTest)
 
@@ -20,6 +20,8 @@ add_library(
   extension.cpp
   extension.def
   extension.rc
+  import_hook.cpp
+  performance_telemetry.cpp
   world_map_capture.cpp
   world_map_projection.cpp
 )
@@ -74,6 +76,7 @@ if(BUILD_TESTING)
     wonderbane_extension_cel_shading_test
     cel_shading.cpp
     cel_shading_test.cpp
+    import_hook.cpp
   )
   target_compile_features(
     wonderbane_extension_cel_shading_test
@@ -208,6 +211,56 @@ if(BUILD_TESTING)
   add_test(
     NAME wonderbane_extension_event_channel
     COMMAND wonderbane_extension_event_channel_test
+  )
+
+  add_executable(
+    wonderbane_extension_performance_telemetry_test
+    cel_shading.cpp
+    import_hook.cpp
+    performance_telemetry.cpp
+    performance_telemetry_test.cpp
+  )
+  target_compile_features(
+    wonderbane_extension_performance_telemetry_test
+    PRIVATE
+    cxx_std_20
+  )
+  target_compile_definitions(
+    wonderbane_extension_performance_telemetry_test
+    PRIVATE
+    UNICODE
+    _UNICODE
+    WIN32_LEAN_AND_MEAN
+    NOMINMAX
+    STRICT
+  )
+  target_compile_options(
+    wonderbane_extension_performance_telemetry_test
+    PRIVATE
+    /W4
+    /WX
+    /permissive-
+    /sdl
+    /GS
+    /guard:cf
+    /Zc:__cplusplus
+    /utf-8
+  )
+  target_link_options(
+    wonderbane_extension_performance_telemetry_test
+    PRIVATE
+    /DYNAMICBASE
+    /NXCOMPAT
+    /guard:cf
+    /INCREMENTAL:NO
+  )
+  set_property(
+    TARGET wonderbane_extension_performance_telemetry_test
+    PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded"
+  )
+  add_test(
+    NAME wonderbane_extension_performance_telemetry
+    COMMAND wonderbane_extension_performance_telemetry_test
   )
 
   add_executable(wonderbane_extension_probe event_channel.cpp probe.cpp)

@@ -31,6 +31,11 @@ from shadowbane_lab.client_extension.package import (
     prepare_patched_client_copy,
     verify_patched_client_copy,
 )
+from shadowbane_lab.client_extension.performance import PerformanceTelemetryError
+from shadowbane_lab.client_extension.performance_reader import (
+    PerformanceTelemetryReadError,
+    open_windows_performance_telemetry_reader,
+)
 from shadowbane_lab.client_extension.resolver import (
     PatchResolutionError,
     align_patch_sites,
@@ -115,6 +120,13 @@ def _parser() -> argparse.ArgumentParser:
     )
     heartbeat.add_argument("heartbeat", type=Path)
     heartbeat.add_argument("--pretty", action="store_true")
+    snapshot_performance = commands.add_parser(
+        "snapshot-performance",
+        help="export a coherent read-only frame/cache/texture telemetry snapshot",
+    )
+    snapshot_performance.add_argument("process_id", type=int)
+    snapshot_performance.add_argument("process_creation_filetime_utc", type=int)
+    snapshot_performance.add_argument("--pretty", action="store_true")
     inspect_bootstrap = commands.add_parser(
         "inspect-bootstrap",
         help="collect read-only client-specific loader evidence",
@@ -188,6 +200,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             ).as_dict()
         elif arguments.command == "verify-heartbeat":
             payload = load_extension_heartbeat(arguments.heartbeat).as_dict()
+        elif arguments.command == "snapshot-performance":
+            payload = open_windows_performance_telemetry_reader(
+                arguments.process_id,
+                arguments.process_creation_filetime_utc,
+            ).snapshot().as_dict()
         elif arguments.command == "inspect-bootstrap":
             payload = inspect_bootstrap_file(
                 arguments.executable,
@@ -242,6 +259,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         ExtensionHeartbeatError,
         PatchManifestError,
         PatchResolutionError,
+        PerformanceTelemetryError,
+        PerformanceTelemetryReadError,
         TexturePatchError,
         OSError,
         ValueError,

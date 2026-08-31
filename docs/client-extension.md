@@ -285,3 +285,28 @@ bound remain single-pass. Immediate-mode geometry remains filled and flat-shaded
 an arbitrary `glBegin`/`glEnd` stream would require intercepting every vertex and state mutation.
 Any missing or ambiguous required import or OpenGL helper still rejects initialization before the
 first IAT mutation; partial hook installation retains the existing rollback behavior.
+
+## Streaming telemetry
+
+Extension 1.5.0 adds a bounded, memory-only trace for the reviewed client. Twenty-one transactional
+IAT hooks cover `sb.exe` plus the cache-owning `Core.dll` and `DFEngine.dll` imports. They observe
+`SwapBuffers`, direct and stdio cache reads, file-position changes, and
+`glTexImage2D`/`glTexSubImage2D`. The producer writes no diagnostic files and records only slow
+frame gaps plus cache and texture activity in an 8,192-slot overwrite ring (about 768 KiB).
+Cache paths are reduced to a fixed archive kind; read offsets, completed byte counts, upload
+dimensions, estimated upload bytes, and high-resolution durations remain available for correlation.
+
+The last cache read on an upload thread is also carried into the next texture record for up to five
+seconds. That read-to-upload interval covers decompression, parsing, and upload preparation without
+claiming a decoder-specific measurement the executable does not expose. The mapping name includes
+both PID and process-creation FILETIME, so a stale PID cannot be read as a current client.
+
+Export one coherent read-only snapshot with:
+
+```powershell
+python -m shadowbane_lab.client_extension snapshot-performance `
+  <process-id> <process-creation-filetime-utc> --pretty
+```
+
+The reader retries concurrent partial commits, validates every retained sequence, and reports exact
+frame-present, cache-read, texture-upload, and read-to-upload maxima alongside the ordered records.

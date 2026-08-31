@@ -1,6 +1,7 @@
 #include "cel_shading.h"
 #include "extension_api.h"
 #include "event_channel.h"
+#include "performance_telemetry.h"
 #include "world_map_capture.h"
 
 #include <KnownFolders.h>
@@ -18,7 +19,7 @@ constexpr std::size_t kPathCapacity = WONDERBANE_EXTENSION_HEARTBEAT_PATH_CAPACI
 constexpr std::size_t kJsonCapacity = 768;
 constexpr LONG kMaximumInitializationPolls = 500;
 constexpr DWORD kInitializationPollMilliseconds = 10;
-constexpr char kExtensionVersion[] = "1.4.0";
+constexpr char kExtensionVersion[] = "1.5.0";
 
 volatile LONG g_state = static_cast<LONG>(WonderBaneExtensionState::uninitialized);
 volatile LONG g_initialization_result = ERROR_SUCCESS;
@@ -312,10 +313,14 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
         if (result == ERROR_SUCCESS && world_map_supported) {
             result = wonderbane::extension::StartStrongCelShading();
         }
+        if (result == ERROR_SUCCESS && world_map_supported) {
+            result = wonderbane::extension::StartPerformanceTelemetry(identity);
+        }
         if (result == ERROR_SUCCESS) {
             result = WriteHeartbeat(identity);
         }
         if (result != ERROR_SUCCESS) {
+            wonderbane::extension::StopPerformanceTelemetry();
             wonderbane::extension::StopStrongCelShading();
             wonderbane::extension::StopWorldMapCapture();
             wonderbane::extension::ShutdownEventChannel();
