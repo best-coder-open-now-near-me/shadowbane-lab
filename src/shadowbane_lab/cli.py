@@ -37,6 +37,7 @@ from shadowbane_lab.cli_commands import client_runtime as _client_runtime_comman
 from shadowbane_lab.cli_commands import client_travel as _client_travel_commands
 from shadowbane_lab.cli_commands import common as _common_commands
 from shadowbane_lab.cli_commands import evidence as _evidence_commands
+from shadowbane_lab.cli_commands import fingerprint as _fingerprint_commands
 from shadowbane_lab.cli_commands import manager as _manager_commands
 from shadowbane_lab.cli_commands import parser as _parser_commands
 from shadowbane_lab.cli_commands import progression as _progression_commands
@@ -471,6 +472,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     arguments = _parser().parse_args(argv)
     if arguments.command == "evidence":
         return _evidence_commands.handle(arguments)
+    if arguments.command == "fingerprint":
+        return _fingerprint_commands.handle(arguments)
     if arguments.command == "character" and arguments.character_command == "validate-layout":
         return _validate_character_layout(arguments.layout, as_json=arguments.json)
     if arguments.command == "character" and arguments.character_command == "inspect-process":

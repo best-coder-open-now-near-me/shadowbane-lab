@@ -110,6 +110,55 @@ def _parser() -> argparse.ArgumentParser:
     legacy.add_argument("--run-id")
     legacy.add_argument("--json", action="store_true")
 
+    fingerprint = commands.add_parser(
+        "fingerprint", help="capture, verify, and compare complete execution identity"
+    )
+    fingerprint_commands = fingerprint.add_subparsers(
+        dest="fingerprint_command", required=True
+    )
+    fingerprint_capture = fingerprint_commands.add_parser(
+        "capture", help="capture one complete fingerprint envelope"
+    )
+    fingerprint_capture.add_argument("output", type=Path)
+    fingerprint_capture.add_argument("--client-directory", type=Path)
+    fingerprint_capture.add_argument("--client-executable", type=Path)
+    fingerprint_capture.add_argument("--runtime-executable", type=Path)
+    fingerprint_capture.add_argument("--pid", type=int)
+    fingerprint_capture.add_argument("--service-profile")
+    fingerprint_capture.add_argument("--service-endpoint")
+    fingerprint_capture.add_argument("--environment-id")
+    fingerprint_capture.add_argument("--fixture", type=Path)
+    fingerprint_capture.add_argument("--ruleset-id")
+    fingerprint_capture.add_argument("--policy-id")
+    fingerprint_capture.add_argument("--scenario-id")
+    fingerprint_capture.add_argument("--experiment-id")
+    fingerprint_capture.add_argument("--repository", type=Path)
+    fingerprint_capture.add_argument(
+        "--source-artifact",
+        action="append",
+        help="section-bound evidence using SECTION=sha256:<digest>",
+    )
+    fingerprint_capture.add_argument(
+        "--identity-file",
+        action="append",
+        help="additional durable input using SECTION.LABEL=PATH",
+    )
+    fingerprint_capture.add_argument("--json", action="store_true")
+
+    fingerprint_verify = fingerprint_commands.add_parser(
+        "verify", help="strictly verify one fingerprint and its canonical IDs"
+    )
+    fingerprint_verify.add_argument("fingerprint", type=Path)
+    fingerprint_verify.add_argument("--json", action="store_true")
+
+    fingerprint_diff = fingerprint_commands.add_parser(
+        "diff", help="compare two complete fingerprint envelopes"
+    )
+    fingerprint_diff.add_argument("reference", type=Path)
+    fingerprint_diff.add_argument("candidate", type=Path)
+    fingerprint_diff.add_argument("--output", type=Path)
+    fingerprint_diff.add_argument("--json", action="store_true")
+
     client = commands.add_parser("client", help="inspect and validate client integration")
     client_commands = client.add_subparsers(dest="client_command", required=True)
 
