@@ -138,10 +138,6 @@ try {
     if ($preflightExitCode -ne 0) {
         throw "Manager preflight failed: $($preflight -join ' ')"
     }
-    $preflightPayload = $preflightText | ConvertFrom-Json
-    if (-not [bool]$preflightPayload.ok -or -not [bool]$preflightPayload.ready) {
-        throw "Manager preflight is not launch-ready: $preflightText"
-    }
 
     $managerArguments = @(
         "-u",
