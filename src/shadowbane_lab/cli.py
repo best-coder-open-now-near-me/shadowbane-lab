@@ -29,6 +29,7 @@ from shadowbane_lab.character_capture import (
     capture_character,
     load_character_layout,
 )
+from shadowbane_lab.cli_commands import cases as _case_commands
 from shadowbane_lab.cli_commands import character as _character_commands
 from shadowbane_lab.cli_commands import client_inspection as _client_inspection_commands
 from shadowbane_lab.cli_commands import client_listener as _client_listener_commands
@@ -474,6 +475,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _evidence_commands.handle(arguments)
     if arguments.command == "fingerprint":
         return _fingerprint_commands.handle(arguments)
+    if arguments.command == "case":
+        return _case_commands.handle_case(arguments)
+    if arguments.command == "experiment":
+        return _case_commands.handle_experiment(arguments)
     if arguments.command == "character" and arguments.character_command == "validate-layout":
         return _validate_character_layout(arguments.layout, as_json=arguments.json)
     if arguments.command == "character" and arguments.character_command == "inspect-process":

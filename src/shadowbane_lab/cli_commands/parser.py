@@ -36,6 +36,21 @@ def _add_scan_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--json", action="store_true", help="emit machine-readable JSON")
 
 
+def _add_experiment_run_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("case", type=Path)
+    parser.add_argument("experiment", type=Path)
+    parser.add_argument("fingerprint", type=Path)
+    parser.add_argument("store", type=Path)
+    parser.add_argument("manifest_directory", type=Path)
+    parser.add_argument("--execution-nonce", required=True)
+    parser.add_argument(
+        "--recorded",
+        type=Path,
+        help="finite recorded observations; omission is dry-run",
+    )
+    parser.add_argument("--json", action="store_true")
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="shadowbane-lab")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -158,6 +173,80 @@ def _parser() -> argparse.ArgumentParser:
     fingerprint_diff.add_argument("candidate", type=Path)
     fingerprint_diff.add_argument("--output", type=Path)
     fingerprint_diff.add_argument("--json", action="store_true")
+
+    case = commands.add_parser(
+        "case", help="create, run, verify, and review research cases"
+    )
+    case_commands = case.add_subparsers(dest="case_command", required=True)
+    case_create = case_commands.add_parser("create", help="create a draft research case")
+    case_create.add_argument("output", type=Path)
+    case_create.add_argument("--case-id", required=True)
+    case_create.add_argument("--title", required=True)
+    case_create.add_argument("--owner", required=True)
+    case_create.add_argument("--target-profile", required=True)
+    case_create.add_argument("--question", required=True)
+    case_create.add_argument("--domain", action="append", required=True)
+    case_create.add_argument(
+        "--hypothesis",
+        action="append",
+        required=True,
+        help="ID=STATEMENT; repeat for competing hypotheses",
+    )
+    case_create.add_argument("--experiment", action="append", default=[], help="ID@REVISION")
+    case_create.add_argument("--fingerprint-section", action="append", default=[])
+    case_create.add_argument("--capture-channel", action="append", default=[])
+    case_create.add_argument("--json", action="store_true")
+    case_validate = case_commands.add_parser(
+        "validate", help="strictly validate a research case"
+    )
+    case_validate.add_argument("case", type=Path)
+    case_validate.add_argument("--json", action="store_true")
+    case_run = case_commands.add_parser(
+        "run", help="run a case using dry-run or recorded evidence"
+    )
+    _add_experiment_run_arguments(case_run)
+    case_verify = case_commands.add_parser(
+        "verify", help="verify case references and artifacts"
+    )
+    case_verify.add_argument("case", type=Path)
+    case_verify.add_argument("--experiment", type=Path, action="append")
+    case_verify.add_argument("--manifest", type=Path, action="append")
+    case_verify.add_argument("--store", type=Path)
+    case_verify.add_argument("--json", action="store_true")
+    case_review = case_commands.add_parser(
+        "review", help="record a reviewed conclusion in a new revision"
+    )
+    case_review.add_argument("case", type=Path)
+    case_review.add_argument("output", type=Path)
+    case_review.add_argument("--reviewer", required=True)
+    case_review.add_argument("--conclusion", required=True)
+    case_review.add_argument("--limitation", action="append")
+    case_review.add_argument("--invalidation-condition", action="append", required=True)
+    case_review.add_argument("--close", action="store_true")
+    case_review.add_argument("--json", action="store_true")
+
+    experiment = commands.add_parser(
+        "experiment", help="validate, expand, and run bounded experiments"
+    )
+    experiment_commands = experiment.add_subparsers(
+        dest="experiment_command", required=True
+    )
+    experiment_validate = experiment_commands.add_parser(
+        "validate", help="strictly validate an experiment definition"
+    )
+    experiment_validate.add_argument("experiment", type=Path)
+    experiment_validate.add_argument("--json", action="store_true")
+    experiment_expand = experiment_commands.add_parser(
+        "expand", help="deterministically expand an experiment plan"
+    )
+    experiment_expand.add_argument("experiment", type=Path)
+    experiment_expand.add_argument("--execution-nonce", required=True)
+    experiment_expand.add_argument("--output", type=Path)
+    experiment_expand.add_argument("--json", action="store_true")
+    experiment_run = experiment_commands.add_parser(
+        "run", help="run a bounded experiment for a research case"
+    )
+    _add_experiment_run_arguments(experiment_run)
 
     client = commands.add_parser("client", help="inspect and validate client integration")
     client_commands = client.add_subparsers(dest="client_command", required=True)
