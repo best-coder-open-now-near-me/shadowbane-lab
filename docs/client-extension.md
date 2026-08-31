@@ -22,6 +22,24 @@ bytes, missing sites, ambiguous signatures, output overwrites, or extension arti
 
 ## Freeze the client baseline
 
+The patcher's displayed version is not treated as a client build identifier. Every frozen client
+is tracked by its complete executable and canonical tree SHA-256 values. The wrapper reports a
+compact content build such as `wb-55fbad5f-4b602995`; the full hashes remain authoritative in
+`client-baseline.json`. To verify and display the ID again without trusting a folder name, run
+`python -m shadowbane_lab.client_extension identify-baseline <frozen-client> --pretty`.
+
+For the isolated 55fb graphics line, one wrapper verifies the frozen content ID, authors only the
+reviewed loader manifest, runs the complete no-write package check, checks local free space, then
+publishes and rereads a versioned graphics-only client:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
+  \\VBOXSVR\codexgfx\scripts\publish-wonderbane-graphics-baseline.ps1
+```
+
+The wrapper sets `PYTHONPATH` to the `codexgfx` share and never starts the control center, listener,
+manager, map capture, movement, combat, or automation paths.
+
 Inside the WonderBane VM, with the official client closed, run:
 
 ```powershell
