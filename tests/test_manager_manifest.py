@@ -254,6 +254,7 @@ class ManagerManifestTests(unittest.TestCase):
             "MESA_GL_VERSION_OVERRIDE": None,
             "MESA_GLSL_VERSION_OVERRIDE": None,
             "WONDERBANE_CEL_PROFILE": "flat",
+            "WONDERBANE_PERFORMANCE_PROFILE": "frame",
         }
 
         manifest = parse_manager_manifest(_payload(client))
@@ -266,6 +267,7 @@ class ManagerManifestTests(unittest.TestCase):
                 ("MESA_GLSL_VERSION_OVERRIDE", None),
                 ("MESA_GL_VERSION_OVERRIDE", None),
                 ("WONDERBANE_CEL_PROFILE", "flat"),
+                ("WONDERBANE_PERFORMANCE_PROFILE", "frame"),
             ),
             manifest.clients[0].launch.environment,
         )
@@ -282,6 +284,7 @@ class ManagerManifestTests(unittest.TestCase):
             {"MESA_EXTENSION_MAX_YEAR": "2026"},
             {"MESA_GL_VERSION_OVERRIDE": "4.6"},
             {"WONDERBANE_CEL_PROFILE": "adaptive"},
+            {"WONDERBANE_PERFORMANCE_PROFILE": "verbose"},
         )
         for environment in rejected:
             client = _client()
@@ -314,6 +317,23 @@ class ManagerManifestTests(unittest.TestCase):
         self.assertEqual(
             client["launch"]["environment"],
             manifest.to_dict()["clients"][0]["launch"]["environment"],
+        )
+
+    def test_accepts_native_rendering_and_full_diagnostics(self) -> None:
+        client = _client()
+        client["launch"]["environment"] = {
+            "WONDERBANE_CEL_PROFILE": "native",
+            "WONDERBANE_PERFORMANCE_PROFILE": "full",
+        }
+
+        manifest = parse_manager_manifest(_payload(client))
+
+        self.assertEqual(
+            (
+                ("WONDERBANE_CEL_PROFILE", "native"),
+                ("WONDERBANE_PERFORMANCE_PROFILE", "full"),
+            ),
+            manifest.clients[0].launch.environment,
         )
 
     def test_rejects_unknown_launch_flags_aliases_and_positional_values(self) -> None:

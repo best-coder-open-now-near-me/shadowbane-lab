@@ -64,6 +64,7 @@ if (-not $manifestAlreadyExists) {
                         MESA_GL_VERSION_OVERRIDE = $null
                         MESA_GLSL_VERSION_OVERRIDE = $null
                         WONDERBANE_CEL_PROFILE = "flat"
+                        WONDERBANE_PERFORMANCE_PROFILE = "frame"
                     }
                 }
                 expected_process_directory = $GameDirectory

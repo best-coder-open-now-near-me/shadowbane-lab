@@ -2,6 +2,7 @@ import struct
 import unittest
 
 from shadowbane_lab.client_extension.performance import (
+    PERFORMANCE_FRAME_CAPABILITY,
     PERFORMANCE_STDIO_IO_FLAG,
     PERFORMANCE_SUCCESS_FLAG,
     PERFORMANCE_TELEMETRY_CAPACITY,
@@ -103,6 +104,17 @@ class PerformanceTelemetryContractTests(unittest.TestCase):
             performance_telemetry_mapping_name(42, 1000),
         )
 
+    def test_accepts_frame_only_profile_with_one_active_hook(self) -> None:
+        payload = self._mapping(capability_flags=PERFORMANCE_FRAME_CAPABILITY, active_hooks=1)
+
+        snapshot = parse_performance_telemetry(
+            payload,
+            expected_process_id=42,
+            expected_process_creation_filetime_utc=1000,
+        )
+
+        self.assertEqual("frame", snapshot.as_dict()["header"]["profile"])
+
     @staticmethod
     def _mapping(
         *,
@@ -110,6 +122,8 @@ class PerformanceTelemetryContractTests(unittest.TestCase):
         overwritten: int = 0,
         frame_count: int = 0,
         slow_frames: int = 0,
+        capability_flags: int = 0x7,
+        active_hooks: int = 21,
     ) -> bytearray:
         payload = bytearray(PERFORMANCE_TELEMETRY_SIZE)
         struct.pack_into(
@@ -122,7 +136,7 @@ class PerformanceTelemetryContractTests(unittest.TestCase):
             PERFORMANCE_TELEMETRY_SLOT_SIZE,
             PERFORMANCE_TELEMETRY_CAPACITY,
             42,
-            0x7,
+            capability_flags,
             1000,
             1_000_000,
             10_000,
@@ -135,7 +149,7 @@ class PerformanceTelemetryContractTests(unittest.TestCase):
             0,
             0,
             0,
-            21,
+            active_hooks,
         )
         return payload
 

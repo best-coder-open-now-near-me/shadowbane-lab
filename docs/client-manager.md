@@ -83,13 +83,15 @@ embedding either in this file.
 
 `launch.environment` is optional and intentionally narrower than a general process environment.
 It accepts only the reviewed Mesa variables used by the WonderBane invisible-text compatibility
-launcher plus the extension's bounded cel profile: software rendering through `llvmpipe`, the
-`2001` extension ceiling, explicit removal of the GL/GLSL version overrides, and either `flat` or
-`outlined` cel rendering. `GALLIUM_DRIVER` and `LIBGL_ALWAYS_SOFTWARE` also accept explicit
+launcher plus the extension's bounded profiles: software rendering through `llvmpipe`, the
+`2001` extension ceiling, explicit removal of the GL/GLSL version overrides, `native`, `flat`, or
+`outlined` cel rendering, and `off`, `frame`, or `full` performance telemetry.
+`GALLIUM_DRIVER` and `LIBGL_ALWAYS_SOFTWARE` also accept explicit
 `null` removal for a reviewed system-OpenGL package; this prevents inherited software-renderer
-overrides from defeating that package boundary. The VM installer selects `flat` so software
-rendering does not redraw eligible scene geometry for silhouettes. PATH changes, credentials,
-arbitrary renderer settings,
+overrides from defeating that package boundary. The VM installer selects `flat` and `frame`, so
+software rendering does not redraw eligible scene geometry for silhouettes and ordinary gameplay
+does not install the twenty cache/read/upload diagnostic hooks. `full` is reserved for bounded
+diagnostic launches. PATH changes, credentials, arbitrary renderer settings,
 and every other variable are rejected. The manager merges accepted settings into a fresh copy of
 its own environment immediately before the direct launch.
 

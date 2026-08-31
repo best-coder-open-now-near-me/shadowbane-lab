@@ -104,6 +104,7 @@ struct HookPlan {
     std::uint32_t* slot;
     PVOID volatile* original_storage;
     std::uint32_t** slot_storage;
+    std::uint32_t capability;
 };
 
 HANDLE g_mapping = nullptr;
@@ -965,34 +966,37 @@ void ClearOriginalFunctions() noexcept {
 
 std::array<HookPlan, kPerformanceHookCount> HookPlans() noexcept {
     return {{
-        {nullptr, "GDI32.dll", L"GDI32.dll", "SwapBuffers", reinterpret_cast<PVOID>(&TelemetrySwapBuffers), nullptr, nullptr, &g_original_swap_buffers, &g_hook_slots[0]},
-        {nullptr, "KERNEL32.dll", L"KERNEL32.dll", "CreateFileA", reinterpret_cast<PVOID>(&TelemetryCreateFileA), nullptr, nullptr, &g_original_create_file_a, &g_hook_slots[1]},
-        {nullptr, "KERNEL32.dll", L"KERNEL32.dll", "ReadFile", reinterpret_cast<PVOID>(&TelemetryReadFile), nullptr, nullptr, &g_original_read_file, &g_hook_slots[2]},
-        {nullptr, "KERNEL32.dll", L"KERNEL32.dll", "SetFilePointer", reinterpret_cast<PVOID>(&TelemetrySetFilePointer), nullptr, nullptr, &g_original_set_file_pointer, &g_hook_slots[3]},
-        {nullptr, "KERNEL32.dll", L"KERNEL32.dll", "CloseHandle", reinterpret_cast<PVOID>(&TelemetryCloseHandle), nullptr, nullptr, &g_original_close_handle, &g_hook_slots[4]},
-        {nullptr, "MSVCRT.dll", L"MSVCRT.dll", "fopen", reinterpret_cast<PVOID>(&TelemetryFopen), nullptr, nullptr, &g_original_fopen, &g_hook_slots[5]},
-        {nullptr, "MSVCRT.dll", L"MSVCRT.dll", "_wfopen", reinterpret_cast<PVOID>(&TelemetryWfopen), nullptr, nullptr, &g_original_wfopen, &g_hook_slots[6]},
-        {nullptr, "MSVCRT.dll", L"MSVCRT.dll", "fread", reinterpret_cast<PVOID>(&TelemetryFread), nullptr, nullptr, &g_original_fread, &g_hook_slots[7]},
-        {nullptr, "MSVCRT.dll", L"MSVCRT.dll", "fseek", reinterpret_cast<PVOID>(&TelemetryFseek), nullptr, nullptr, &g_original_fseek, &g_hook_slots[8]},
-        {nullptr, "MSVCRT.dll", L"MSVCRT.dll", "fclose", reinterpret_cast<PVOID>(&TelemetryFclose), nullptr, nullptr, &g_original_fclose, &g_hook_slots[9]},
-        {nullptr, "OPENGL32.dll", L"OPENGL32.dll", "glTexImage2D", reinterpret_cast<PVOID>(&TelemetryTexImage2D), nullptr, nullptr, &g_original_tex_image_2d, &g_hook_slots[10]},
-        {nullptr, "OPENGL32.dll", L"OPENGL32.dll", "glTexSubImage2D", reinterpret_cast<PVOID>(&TelemetryTexSubImage2D), nullptr, nullptr, &g_original_tex_sub_image_2d, &g_hook_slots[11]},
-        {L"Core.dll", "KERNEL32.dll", L"KERNEL32.dll", "CloseHandle", reinterpret_cast<PVOID>(&TelemetryCloseHandle), nullptr, nullptr, &g_original_close_handle, &g_hook_slots[12]},
-        {L"Core.dll", "MSVCRT.dll", L"MSVCRT.dll", "fopen", reinterpret_cast<PVOID>(&TelemetryFopen), nullptr, nullptr, &g_original_fopen, &g_hook_slots[13]},
-        {L"Core.dll", "MSVCRT.dll", L"MSVCRT.dll", "fread", reinterpret_cast<PVOID>(&TelemetryFread), nullptr, nullptr, &g_original_fread, &g_hook_slots[14]},
-        {L"Core.dll", "MSVCRT.dll", L"MSVCRT.dll", "fseek", reinterpret_cast<PVOID>(&TelemetryFseek), nullptr, nullptr, &g_original_fseek, &g_hook_slots[15]},
-        {L"Core.dll", "MSVCRT.dll", L"MSVCRT.dll", "fclose", reinterpret_cast<PVOID>(&TelemetryFclose), nullptr, nullptr, &g_original_fclose, &g_hook_slots[16]},
-        {L"DFEngine.dll", "KERNEL32.dll", L"KERNEL32.dll", "CreateFileA", reinterpret_cast<PVOID>(&TelemetryCreateFileA), nullptr, nullptr, &g_original_create_file_a, &g_hook_slots[17]},
-        {L"DFEngine.dll", "KERNEL32.dll", L"KERNEL32.dll", "ReadFile", reinterpret_cast<PVOID>(&TelemetryReadFile), nullptr, nullptr, &g_original_read_file, &g_hook_slots[18]},
-        {L"DFEngine.dll", "KERNEL32.dll", L"KERNEL32.dll", "SetFilePointer", reinterpret_cast<PVOID>(&TelemetrySetFilePointer), nullptr, nullptr, &g_original_set_file_pointer, &g_hook_slots[19]},
-        {L"DFEngine.dll", "KERNEL32.dll", L"KERNEL32.dll", "CloseHandle", reinterpret_cast<PVOID>(&TelemetryCloseHandle), nullptr, nullptr, &g_original_close_handle, &g_hook_slots[20]},
+        {nullptr, "GDI32.dll", L"GDI32.dll", "SwapBuffers", reinterpret_cast<PVOID>(&TelemetrySwapBuffers), nullptr, nullptr, &g_original_swap_buffers, &g_hook_slots[0], kPerformanceFrameCapability},
+        {nullptr, "KERNEL32.dll", L"KERNEL32.dll", "CreateFileA", reinterpret_cast<PVOID>(&TelemetryCreateFileA), nullptr, nullptr, &g_original_create_file_a, &g_hook_slots[1], kPerformanceCacheReadCapability},
+        {nullptr, "KERNEL32.dll", L"KERNEL32.dll", "ReadFile", reinterpret_cast<PVOID>(&TelemetryReadFile), nullptr, nullptr, &g_original_read_file, &g_hook_slots[2], kPerformanceCacheReadCapability},
+        {nullptr, "KERNEL32.dll", L"KERNEL32.dll", "SetFilePointer", reinterpret_cast<PVOID>(&TelemetrySetFilePointer), nullptr, nullptr, &g_original_set_file_pointer, &g_hook_slots[3], kPerformanceCacheReadCapability},
+        {nullptr, "KERNEL32.dll", L"KERNEL32.dll", "CloseHandle", reinterpret_cast<PVOID>(&TelemetryCloseHandle), nullptr, nullptr, &g_original_close_handle, &g_hook_slots[4], kPerformanceCacheReadCapability},
+        {nullptr, "MSVCRT.dll", L"MSVCRT.dll", "fopen", reinterpret_cast<PVOID>(&TelemetryFopen), nullptr, nullptr, &g_original_fopen, &g_hook_slots[5], kPerformanceCacheReadCapability},
+        {nullptr, "MSVCRT.dll", L"MSVCRT.dll", "_wfopen", reinterpret_cast<PVOID>(&TelemetryWfopen), nullptr, nullptr, &g_original_wfopen, &g_hook_slots[6], kPerformanceCacheReadCapability},
+        {nullptr, "MSVCRT.dll", L"MSVCRT.dll", "fread", reinterpret_cast<PVOID>(&TelemetryFread), nullptr, nullptr, &g_original_fread, &g_hook_slots[7], kPerformanceCacheReadCapability},
+        {nullptr, "MSVCRT.dll", L"MSVCRT.dll", "fseek", reinterpret_cast<PVOID>(&TelemetryFseek), nullptr, nullptr, &g_original_fseek, &g_hook_slots[8], kPerformanceCacheReadCapability},
+        {nullptr, "MSVCRT.dll", L"MSVCRT.dll", "fclose", reinterpret_cast<PVOID>(&TelemetryFclose), nullptr, nullptr, &g_original_fclose, &g_hook_slots[9], kPerformanceCacheReadCapability},
+        {nullptr, "OPENGL32.dll", L"OPENGL32.dll", "glTexImage2D", reinterpret_cast<PVOID>(&TelemetryTexImage2D), nullptr, nullptr, &g_original_tex_image_2d, &g_hook_slots[10], kPerformanceTextureUploadCapability},
+        {nullptr, "OPENGL32.dll", L"OPENGL32.dll", "glTexSubImage2D", reinterpret_cast<PVOID>(&TelemetryTexSubImage2D), nullptr, nullptr, &g_original_tex_sub_image_2d, &g_hook_slots[11], kPerformanceTextureUploadCapability},
+        {L"Core.dll", "KERNEL32.dll", L"KERNEL32.dll", "CloseHandle", reinterpret_cast<PVOID>(&TelemetryCloseHandle), nullptr, nullptr, &g_original_close_handle, &g_hook_slots[12], kPerformanceCacheReadCapability},
+        {L"Core.dll", "MSVCRT.dll", L"MSVCRT.dll", "fopen", reinterpret_cast<PVOID>(&TelemetryFopen), nullptr, nullptr, &g_original_fopen, &g_hook_slots[13], kPerformanceCacheReadCapability},
+        {L"Core.dll", "MSVCRT.dll", L"MSVCRT.dll", "fread", reinterpret_cast<PVOID>(&TelemetryFread), nullptr, nullptr, &g_original_fread, &g_hook_slots[14], kPerformanceCacheReadCapability},
+        {L"Core.dll", "MSVCRT.dll", L"MSVCRT.dll", "fseek", reinterpret_cast<PVOID>(&TelemetryFseek), nullptr, nullptr, &g_original_fseek, &g_hook_slots[15], kPerformanceCacheReadCapability},
+        {L"Core.dll", "MSVCRT.dll", L"MSVCRT.dll", "fclose", reinterpret_cast<PVOID>(&TelemetryFclose), nullptr, nullptr, &g_original_fclose, &g_hook_slots[16], kPerformanceCacheReadCapability},
+        {L"DFEngine.dll", "KERNEL32.dll", L"KERNEL32.dll", "CreateFileA", reinterpret_cast<PVOID>(&TelemetryCreateFileA), nullptr, nullptr, &g_original_create_file_a, &g_hook_slots[17], kPerformanceCacheReadCapability},
+        {L"DFEngine.dll", "KERNEL32.dll", L"KERNEL32.dll", "ReadFile", reinterpret_cast<PVOID>(&TelemetryReadFile), nullptr, nullptr, &g_original_read_file, &g_hook_slots[18], kPerformanceCacheReadCapability},
+        {L"DFEngine.dll", "KERNEL32.dll", L"KERNEL32.dll", "SetFilePointer", reinterpret_cast<PVOID>(&TelemetrySetFilePointer), nullptr, nullptr, &g_original_set_file_pointer, &g_hook_slots[19], kPerformanceCacheReadCapability},
+        {L"DFEngine.dll", "KERNEL32.dll", L"KERNEL32.dll", "CloseHandle", reinterpret_cast<PVOID>(&TelemetryCloseHandle), nullptr, nullptr, &g_original_close_handle, &g_hook_slots[20], kPerformanceCacheReadCapability},
     }};
 }
 
-DWORD InstallHooks() noexcept {
+DWORD InstallHooks(const std::uint32_t capability_flags) noexcept {
     static_assert(sizeof(void*) == sizeof(std::uint32_t));
     auto plans = HookPlans();
     for (HookPlan& plan : plans) {
+        if ((plan.capability & capability_flags) == 0U) {
+            continue;
+        }
         const HMODULE image_module = GetModuleHandleW(plan.image_module_name);
         const HMODULE api_module = GetModuleHandleW(plan.api_module_name);
         if (image_module == nullptr || api_module == nullptr) {
@@ -1031,14 +1035,25 @@ DWORD InstallHooks() noexcept {
         }
     }
     for (std::size_t left = 0U; left < plans.size(); ++left) {
+        if ((plans[left].capability & capability_flags) == 0U) {
+            continue;
+        }
         for (std::size_t right = left + 1U; right < plans.size(); ++right) {
-            if (plans[left].slot == plans[right].slot) {
+            if (
+                (plans[right].capability & capability_flags) != 0U
+                && plans[left].slot == plans[right].slot
+            ) {
                 return ERROR_INVALID_DATA;
             }
         }
     }
+    std::array<std::size_t, kPerformanceHookCount> installed_indices{};
     std::size_t installed = 0U;
-    for (HookPlan& plan : plans) {
+    for (std::size_t plan_index = 0U; plan_index < plans.size(); ++plan_index) {
+        HookPlan& plan = plans[plan_index];
+        if ((plan.capability & capability_flags) == 0U) {
+            continue;
+        }
         InterlockedExchangePointer(plan.original_storage, plan.original);
         const DWORD result = ReplaceImportAddressSlot(
             plan.slot,
@@ -1048,7 +1063,8 @@ DWORD InstallHooks() noexcept {
         if (result != ERROR_SUCCESS) {
             bool restored = true;
             for (std::size_t index = installed; index > 0U; --index) {
-                if (RestoreHook(plans[index - 1U])) {
+                HookPlan& installed_plan = plans[installed_indices[index - 1U]];
+                if (RestoreHook(installed_plan)) {
                     InterlockedDecrement(&g_storage->header.active_hook_count);
                 } else {
                     restored = false;
@@ -1060,7 +1076,7 @@ DWORD InstallHooks() noexcept {
             return result;
         }
         *plan.slot_storage = plan.slot;
-        ++installed;
+        installed_indices[installed++] = plan_index;
         InterlockedIncrement(&g_storage->header.active_hook_count);
     }
     return ERROR_SUCCESS;
@@ -1096,6 +1112,32 @@ std::uint64_t EstimateTextureUploadBytes(
     return EstimateTextureBytes(width, height, format, type);
 }
 
+DWORD SelectPerformanceTelemetryProfile(
+    const wchar_t* const configured_value,
+    PerformanceTelemetryProfile* const profile
+) noexcept {
+    if (profile == nullptr) {
+        return ERROR_INVALID_PARAMETER;
+    }
+    if (
+        configured_value == nullptr
+        || configured_value[0] == L'\0'
+        || lstrcmpW(configured_value, L"frame") == 0
+    ) {
+        *profile = PerformanceTelemetryProfile::frame;
+        return ERROR_SUCCESS;
+    }
+    if (lstrcmpW(configured_value, L"off") == 0) {
+        *profile = PerformanceTelemetryProfile::disabled;
+        return ERROR_SUCCESS;
+    }
+    if (lstrcmpW(configured_value, L"full") == 0) {
+        *profile = PerformanceTelemetryProfile::full;
+        return ERROR_SUCCESS;
+    }
+    return ERROR_INVALID_DATA;
+}
+
 DWORD FormatPerformanceTelemetryMappingName(
     const ProcessIdentity& identity,
     wchar_t* const destination,
@@ -1116,10 +1158,17 @@ DWORD FormatPerformanceTelemetryMappingName(
         : ERROR_GEN_FAILURE;
 }
 
-DWORD StartPerformanceTelemetry(const ProcessIdentity& identity) noexcept {
+DWORD StartPerformanceTelemetry(
+    const ProcessIdentity& identity,
+    const PerformanceTelemetryProfile profile
+) noexcept {
     if (
         identity.process_id == 0U
         || identity.creation_filetime_utc == 0U
+        || (
+            profile != PerformanceTelemetryProfile::frame
+            && profile != PerformanceTelemetryProfile::full
+        )
         || g_mapping != nullptr
         || g_storage != nullptr
     ) {
@@ -1185,12 +1234,15 @@ DWORD StartPerformanceTelemetry(const ProcessIdentity& identity) noexcept {
     g_storage->header.slot_size = kPerformanceTelemetrySlotSize;
     g_storage->header.capacity = kPerformanceTelemetryCapacity;
     g_storage->header.process_id = identity.process_id;
-    g_storage->header.capability_flags = 0x7U;
+    const std::uint32_t capability_flags = profile == PerformanceTelemetryProfile::full
+        ? kPerformanceFullCapability
+        : kPerformanceFrameCapability;
+    g_storage->header.capability_flags = capability_flags;
     g_storage->header.process_creation_filetime_utc = identity.creation_filetime_utc;
     g_storage->header.qpc_frequency = static_cast<std::uint64_t>(frequency.QuadPart);
     g_storage->header.started_qpc = static_cast<std::uint64_t>(started.QuadPart);
     MemoryBarrier();
-    result = InstallHooks();
+    result = InstallHooks(capability_flags);
     if (result != ERROR_SUCCESS) {
         StopPerformanceTelemetry();
     }

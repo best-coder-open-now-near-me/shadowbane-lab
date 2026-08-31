@@ -191,10 +191,25 @@ int wmain() {
     ) {
         return Fail(L"bounded outline primitive policy");
     }
+    if (
+        wonderbane::extension::CelShadingHookCount(
+            wonderbane::extension::CelShadingProfile::native
+        ) != 0U
+        || wonderbane::extension::CelShadingHookCount(
+            wonderbane::extension::CelShadingProfile::flat
+        ) != 1U
+        || wonderbane::extension::CelShadingHookCount(
+            wonderbane::extension::CelShadingProfile::outlined
+        ) != 5U
+    ) {
+        return Fail(L"cel profile hook counts");
+    }
     wonderbane::extension::CelShadingProfile profile{};
     if (
         wonderbane::extension::SelectCelShadingProfile(nullptr, &profile) != ERROR_SUCCESS
-        || profile != wonderbane::extension::CelShadingProfile::flat
+        || profile != wonderbane::extension::CelShadingProfile::native
+        || wonderbane::extension::SelectCelShadingProfile(L"native", &profile) != ERROR_SUCCESS
+        || profile != wonderbane::extension::CelShadingProfile::native
         || wonderbane::extension::SelectCelShadingProfile(L"flat", &profile) != ERROR_SUCCESS
         || profile != wonderbane::extension::CelShadingProfile::flat
         || wonderbane::extension::SelectCelShadingProfile(L"outlined", &profile)

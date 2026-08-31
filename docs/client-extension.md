@@ -296,11 +296,12 @@ first IAT mutation; partial hook installation retains the existing rollback beha
 
 ## Streaming telemetry
 
-Extension 1.5.0 adds a bounded, memory-only trace for the reviewed client. Twenty-one transactional
-IAT hooks cover `sb.exe` plus the cache-owning `Core.dll` and `DFEngine.dll` imports. They observe
-`SwapBuffers`, direct and stdio cache reads, file-position changes, and
-`glTexImage2D`/`glTexSubImage2D`. The producer writes no diagnostic files and records only slow
-frame gaps plus cache and texture activity in an 8,192-slot overwrite ring (about 768 KiB).
+Extension 1.5.0 adds a bounded, memory-only trace for the reviewed client. Its full diagnostic
+profile uses twenty-one transactional IAT hooks across `sb.exe` plus the cache-owning `Core.dll`
+and `DFEngine.dll` imports. They observe `SwapBuffers`, direct and stdio cache reads, file-position
+changes, and `glTexImage2D`/`glTexSubImage2D`. The producer writes no diagnostic files and records
+only slow frame gaps plus cache and texture activity in an 8,192-slot overwrite ring (about
+768 KiB).
 Cache paths are reduced to a fixed archive kind; read offsets, completed byte counts, upload
 dimensions, estimated upload bytes, and high-resolution durations remain available for correlation.
 
@@ -312,8 +313,15 @@ both PID and process-creation FILETIME, so a stale PID cannot be read as a curre
 Extension 1.5.1 adds a bounded cel-rendering profile for the measured software-renderer bottleneck.
 `WONDERBANE_CEL_PROFILE=flat` keeps the conservative flat-shading hooks but does not install the
 three hooks that redraw perspective geometry for silhouettes. `outlined` retains the 1.4 behavior.
-An absent value defaults to `flat`; every other value rejects extension initialization. This keeps
-the VM's invisible-text compatibility renderer while removing its duplicate geometry pass.
+
+Extension 1.6.0 removes diagnostic work from ordinary gameplay. An absent cel value or explicit
+`native` installs no cel hooks. Explicit `flat` now intercepts only `glShadeModel`; it no longer
+adds a redundant driver state call to every `glBegin`. `outlined` remains the explicit full cel
+profile. `WONDERBANE_PERFORMANCE_PROFILE=frame` is the default and installs only the single
+`SwapBuffers` hook needed for slow-frame cadence. `off` disables the mapping entirely, while
+`full` explicitly enables the twenty cache/read/upload hooks in addition to frame cadence. Every
+other value rejects initialization. The telemetry header records the selected capability set so a
+frame-only capture cannot be mistaken for a full streaming trace.
 
 Export one coherent read-only snapshot with:
 
@@ -322,5 +330,6 @@ python -m shadowbane_lab.client_extension snapshot-performance `
   <process-id> <process-creation-filetime-utc> --pretty
 ```
 
-The reader retries concurrent partial commits, validates every retained sequence, and reports exact
-frame-present, cache-read, texture-upload, and read-to-upload maxima alongside the ordered records.
+The reader retries concurrent partial commits, validates every retained sequence, and reports the
+profile plus the exact measurements that profile provides. Cache, texture, and read-to-upload
+analysis requires an explicitly launched `full` diagnostic client.

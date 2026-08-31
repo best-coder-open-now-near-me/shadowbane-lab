@@ -18,6 +18,14 @@ constexpr std::uint32_t kPerformanceFrameGapKind = 1U;
 constexpr std::uint32_t kPerformanceCacheReadKind = 2U;
 constexpr std::uint32_t kPerformanceTextureImageKind = 3U;
 constexpr std::uint32_t kPerformanceTextureSubImageKind = 4U;
+constexpr std::uint32_t kPerformanceFrameCapability = 1U << 0U;
+constexpr std::uint32_t kPerformanceCacheReadCapability = 1U << 1U;
+constexpr std::uint32_t kPerformanceTextureUploadCapability = 1U << 2U;
+constexpr std::uint32_t kPerformanceFullCapability = (
+    kPerformanceFrameCapability
+    | kPerformanceCacheReadCapability
+    | kPerformanceTextureUploadCapability
+);
 constexpr std::uint32_t kPerformanceSuccessFlag = 1U << 0U;
 constexpr std::uint32_t kPerformanceWin32IoFlag = 1U << 1U;
 constexpr std::uint32_t kPerformanceStdioIoFlag = 1U << 2U;
@@ -37,6 +45,12 @@ enum class CacheArchiveKind : std::uint32_t {
     terrain_alpha = 6U,
     tile = 7U,
     other = 255U,
+};
+
+enum class PerformanceTelemetryProfile : std::uint32_t {
+    disabled = 0U,
+    frame = 1U,
+    full = 2U,
 };
 
 #pragma pack(push, 1)
@@ -105,7 +119,14 @@ std::uint64_t EstimateTextureUploadBytes(
     unsigned int format,
     unsigned int type
 ) noexcept;
-DWORD StartPerformanceTelemetry(const ProcessIdentity& identity) noexcept;
+DWORD SelectPerformanceTelemetryProfile(
+    const wchar_t* configured_value,
+    PerformanceTelemetryProfile* profile
+) noexcept;
+DWORD StartPerformanceTelemetry(
+    const ProcessIdentity& identity,
+    PerformanceTelemetryProfile profile
+) noexcept;
 void StopPerformanceTelemetry() noexcept;
 
 }  // namespace wonderbane::extension

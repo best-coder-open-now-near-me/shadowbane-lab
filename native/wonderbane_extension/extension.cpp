@@ -19,9 +19,11 @@ constexpr std::size_t kPathCapacity = WONDERBANE_EXTENSION_HEARTBEAT_PATH_CAPACI
 constexpr std::size_t kJsonCapacity = 768;
 constexpr LONG kMaximumInitializationPolls = 500;
 constexpr DWORD kInitializationPollMilliseconds = 10;
-constexpr char kExtensionVersion[] = "1.5.1";
+constexpr char kExtensionVersion[] = "1.6.0";
 constexpr wchar_t kCelProfileEnvironment[] = L"WONDERBANE_CEL_PROFILE";
+constexpr wchar_t kPerformanceProfileEnvironment[] = L"WONDERBANE_PERFORMANCE_PROFILE";
 constexpr std::size_t kCelProfileCapacity = 16U;
+constexpr std::size_t kPerformanceProfileCapacity = 16U;
 
 volatile LONG g_state = static_cast<LONG>(WonderBaneExtensionState::uninitialized);
 volatile LONG g_initialization_result = ERROR_SUCCESS;
@@ -176,6 +178,34 @@ DWORD ReadCelShadingProfile(
     return wonderbane::extension::SelectCelShadingProfile(value, profile);
 }
 
+DWORD ReadPerformanceTelemetryProfile(
+    wonderbane::extension::PerformanceTelemetryProfile* const profile
+) noexcept {
+    if (profile == nullptr) {
+        return ERROR_INVALID_PARAMETER;
+    }
+    wchar_t value[kPerformanceProfileCapacity]{};
+    SetLastError(ERROR_SUCCESS);
+    const DWORD length = GetEnvironmentVariableW(
+        kPerformanceProfileEnvironment,
+        value,
+        static_cast<DWORD>(kPerformanceProfileCapacity)
+    );
+    if (length == 0U) {
+        const DWORD error = GetLastError();
+        if (error == ERROR_ENVVAR_NOT_FOUND) {
+            return wonderbane::extension::SelectPerformanceTelemetryProfile(nullptr, profile);
+        }
+        if (error != ERROR_SUCCESS) {
+            return error;
+        }
+    }
+    if (length >= kPerformanceProfileCapacity) {
+        return ERROR_INSUFFICIENT_BUFFER;
+    }
+    return wonderbane::extension::SelectPerformanceTelemetryProfile(value, profile);
+}
+
 DWORD WriteHeartbeat(
     const wonderbane::extension::ProcessIdentity& identity
 ) noexcept {
@@ -316,6 +346,7 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
     if (previous == static_cast<LONG>(WonderBaneExtensionState::uninitialized)) {
         wonderbane::extension::ProcessIdentity identity{};
         wonderbane::extension::CelShadingProfile cel_profile{};
+        wonderbane::extension::PerformanceTelemetryProfile performance_profile{};
         DWORD result = ReadProcessIdentity(&identity);
         const bool world_map_supported = (
             result == ERROR_SUCCESS
@@ -344,11 +375,26 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
         if (result == ERROR_SUCCESS && world_map_supported) {
             result = ReadCelShadingProfile(&cel_profile);
         }
-        if (result == ERROR_SUCCESS && world_map_supported) {
+        if (
+            result == ERROR_SUCCESS
+            && world_map_supported
+            && cel_profile != wonderbane::extension::CelShadingProfile::native
+        ) {
             result = wonderbane::extension::StartStrongCelShading(cel_profile);
         }
         if (result == ERROR_SUCCESS && world_map_supported) {
-            result = wonderbane::extension::StartPerformanceTelemetry(identity);
+            result = ReadPerformanceTelemetryProfile(&performance_profile);
+        }
+        if (
+            result == ERROR_SUCCESS
+            && world_map_supported
+            && performance_profile
+                != wonderbane::extension::PerformanceTelemetryProfile::disabled
+        ) {
+            result = wonderbane::extension::StartPerformanceTelemetry(
+                identity,
+                performance_profile
+            );
         }
         if (result == ERROR_SUCCESS) {
             result = WriteHeartbeat(identity);

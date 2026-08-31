@@ -16,6 +16,15 @@ PERFORMANCE_TELEMETRY_SIZE = (
     + PERFORMANCE_TELEMETRY_SLOT_SIZE * PERFORMANCE_TELEMETRY_CAPACITY
 )
 PERFORMANCE_TELEMETRY_HOOK_COUNT = 21
+PERFORMANCE_FRAME_HOOK_COUNT = 1
+PERFORMANCE_FRAME_CAPABILITY = 1 << 0
+PERFORMANCE_CACHE_READ_CAPABILITY = 1 << 1
+PERFORMANCE_TEXTURE_UPLOAD_CAPABILITY = 1 << 2
+PERFORMANCE_FULL_CAPABILITY = (
+    PERFORMANCE_FRAME_CAPABILITY
+    | PERFORMANCE_CACHE_READ_CAPABILITY
+    | PERFORMANCE_TEXTURE_UPLOAD_CAPABILITY
+)
 PERFORMANCE_SUCCESS_FLAG = 1 << 0
 PERFORMANCE_WIN32_IO_FLAG = 1 << 1
 PERFORMANCE_STDIO_IO_FLAG = 1 << 2
@@ -84,6 +93,7 @@ _ARCHIVE_KIND = {
 @dataclass(frozen=True, slots=True)
 class PerformanceTelemetryHeader:
     process_id: int
+    capability_flags: int
     process_creation_filetime_utc: int
     qpc_frequency: int
     started_qpc: int
@@ -101,6 +111,7 @@ class PerformanceTelemetryHeader:
     def __post_init__(self) -> None:
         for value, name, allow_zero in (
             (self.process_id, "process_id", False),
+            (self.capability_flags, "capability_flags", False),
             (self.process_creation_filetime_utc, "process_creation_filetime_utc", False),
             (self.qpc_frequency, "qpc_frequency", False),
             (self.started_qpc, "started_qpc", False),
@@ -123,15 +134,31 @@ class PerformanceTelemetryHeader:
             raise PerformanceTelemetryError("overwritten record count is inconsistent")
         if self.slow_frame_count > self.frame_count:
             raise PerformanceTelemetryError("slow frame count exceeds total frame count")
-        if self.active_hook_count > PERFORMANCE_TELEMETRY_HOOK_COUNT:
+        if self.capability_flags not in {
+            PERFORMANCE_FRAME_CAPABILITY,
+            PERFORMANCE_FULL_CAPABILITY,
+        }:
+            raise PerformanceTelemetryError("capability flags do not identify a reviewed profile")
+        maximum_hooks = (
+            PERFORMANCE_TELEMETRY_HOOK_COUNT
+            if self.capability_flags == PERFORMANCE_FULL_CAPABILITY
+            else PERFORMANCE_FRAME_HOOK_COUNT
+        )
+        if self.active_hook_count > maximum_hooks:
             raise PerformanceTelemetryError("active hook count exceeds the reviewed hook set")
 
     def ticks_to_milliseconds(self, ticks: int) -> float:
         return ticks * 1000.0 / self.qpc_frequency
 
-    def as_dict(self) -> dict[str, int]:
+    def as_dict(self) -> dict[str, int | str]:
         return {
             "process_id": self.process_id,
+            "capability_flags": self.capability_flags,
+            "profile": (
+                "full"
+                if self.capability_flags == PERFORMANCE_FULL_CAPABILITY
+                else "frame"
+            ),
             "process_creation_filetime_utc": self.process_creation_filetime_utc,
             "qpc_frequency": self.qpc_frequency,
             "started_qpc": self.started_qpc,
@@ -322,11 +349,13 @@ def parse_performance_telemetry(
         or header_size != PERFORMANCE_TELEMETRY_HEADER_SIZE
         or slot_size != PERFORMANCE_TELEMETRY_SLOT_SIZE
         or capacity != PERFORMANCE_TELEMETRY_CAPACITY
-        or capability_flags != 0x7
+        or capability_flags
+            not in {PERFORMANCE_FRAME_CAPABILITY, PERFORMANCE_FULL_CAPABILITY}
     ):
         raise PerformanceTelemetryError("performance telemetry layout is unsupported")
     header = PerformanceTelemetryHeader(
         process_id=process_id,
+        capability_flags=capability_flags,
         process_creation_filetime_utc=creation,
         qpc_frequency=qpc_frequency,
         started_qpc=started_qpc,
@@ -419,6 +448,10 @@ def _bounded_positive(value: object, field_name: str, maximum: int) -> None:
 
 __all__ = [
     "CacheArchive",
+    "PERFORMANCE_CACHE_READ_CAPABILITY",
+    "PERFORMANCE_FRAME_CAPABILITY",
+    "PERFORMANCE_FRAME_HOOK_COUNT",
+    "PERFORMANCE_FULL_CAPABILITY",
     "PERFORMANCE_PIXELS_PRESENT_FLAG",
     "PERFORMANCE_STDIO_IO_FLAG",
     "PERFORMANCE_SUCCESS_FLAG",
@@ -429,6 +462,7 @@ __all__ = [
     "PERFORMANCE_TELEMETRY_SCHEMA_VERSION",
     "PERFORMANCE_TELEMETRY_SIZE",
     "PERFORMANCE_TELEMETRY_SLOT_SIZE",
+    "PERFORMANCE_TEXTURE_UPLOAD_CAPABILITY",
     "PERFORMANCE_WIN32_IO_FLAG",
     "PerformanceRecord",
     "PerformanceRecordKind",

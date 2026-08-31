@@ -412,6 +412,19 @@ bool IsOutlinePrimitive(const unsigned int mode, const int count) noexcept {
     }
 }
 
+std::size_t CelShadingHookCount(const CelShadingProfile profile) noexcept {
+    switch (profile) {
+        case CelShadingProfile::native:
+            return 0U;
+        case CelShadingProfile::flat:
+            return 1U;
+        case CelShadingProfile::outlined:
+            return 5U;
+        default:
+            return 0U;
+    }
+}
+
 DWORD SelectCelShadingProfile(
     const wchar_t* const configured_value,
     CelShadingProfile* const profile
@@ -420,7 +433,11 @@ DWORD SelectCelShadingProfile(
         return ERROR_INVALID_PARAMETER;
     }
     if (configured_value == nullptr || configured_value[0] == L'\0') {
-        *profile = CelShadingProfile::flat;
+        *profile = CelShadingProfile::native;
+        return ERROR_SUCCESS;
+    }
+    if (lstrcmpW(configured_value, L"native") == 0) {
+        *profile = CelShadingProfile::native;
         return ERROR_SUCCESS;
     }
     if (lstrcmpW(configured_value, L"flat") == 0) {
@@ -668,9 +685,10 @@ DWORD StartStrongCelShading(const CelShadingProfile profile) noexcept {
             &g_draw_elements_slot,
         },
     }};
-    const std::size_t plan_count = profile == CelShadingProfile::outlined
-        ? plans.size()
-        : 2U;
+    // Flat shading only needs to reject later glShadeModel requests. Hooking glBegin as well
+    // issued a redundant driver state call for every immediate-mode primitive and became a
+    // measurable hot-path regression under llvmpipe.
+    const std::size_t plan_count = CelShadingHookCount(profile);
     auto* const image = reinterpret_cast<std::uint8_t*>(executable);
     for (std::size_t index = 0U; index < plan_count; ++index) {
         ImportHookPlan& plan = plans[index];

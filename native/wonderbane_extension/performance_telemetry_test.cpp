@@ -20,7 +20,9 @@ int main() {
     using wonderbane::extension::ClassifyCacheArchivePath;
     using wonderbane::extension::EstimateTextureUploadBytes;
     using wonderbane::extension::FormatPerformanceTelemetryMappingName;
+    using wonderbane::extension::PerformanceTelemetryProfile;
     using wonderbane::extension::ProcessIdentity;
+    using wonderbane::extension::SelectPerformanceTelemetryProfile;
 
     wchar_t mapping_name[160]{};
     if (
@@ -54,6 +56,21 @@ int main() {
         || EstimateTextureUploadBytes(-1, 512, 0x1908U, 0x1401U) != 0U
     ) {
         return Fail("texture upload byte estimates are incorrect");
+    }
+    PerformanceTelemetryProfile profile{};
+    if (
+        SelectPerformanceTelemetryProfile(nullptr, &profile) != ERROR_SUCCESS
+        || profile != PerformanceTelemetryProfile::frame
+        || SelectPerformanceTelemetryProfile(L"frame", &profile) != ERROR_SUCCESS
+        || profile != PerformanceTelemetryProfile::frame
+        || SelectPerformanceTelemetryProfile(L"off", &profile) != ERROR_SUCCESS
+        || profile != PerformanceTelemetryProfile::disabled
+        || SelectPerformanceTelemetryProfile(L"full", &profile) != ERROR_SUCCESS
+        || profile != PerformanceTelemetryProfile::full
+        || SelectPerformanceTelemetryProfile(L"FULL", &profile) != ERROR_INVALID_DATA
+        || SelectPerformanceTelemetryProfile(L"frame", nullptr) != ERROR_INVALID_PARAMETER
+    ) {
+        return Fail("performance profile policy is incorrect");
     }
     return 0;
 }

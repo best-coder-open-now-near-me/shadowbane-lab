@@ -8,12 +8,14 @@
 namespace wonderbane::extension {
 
 enum class CelShadingProfile : std::uint32_t {
-    flat = 0U,
-    outlined = 1U,
+    native = 0U,
+    flat = 1U,
+    outlined = 2U,
 };
 
 bool IsPerspectiveProjectionMatrix(const float* matrix, std::size_t count) noexcept;
 bool IsOutlinePrimitive(unsigned int mode, int count) noexcept;
+std::size_t CelShadingHookCount(CelShadingProfile profile) noexcept;
 DWORD SelectCelShadingProfile(
     const wchar_t* configured_value,
     CelShadingProfile* profile
