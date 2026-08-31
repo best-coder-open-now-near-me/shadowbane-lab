@@ -17,9 +17,6 @@ $stateRoot = Split-Path -Parent $ManagerManifest
 $logRoot = Join-Path $stateRoot "logs"
 New-Item -ItemType Directory -Path $logRoot -Force | Out-Null
 $bootstrapLog = Join-Path $logRoot "control-center-bootstrap.log"
-$listenerDisabledMarker = Join-Path $stateRoot "go-listener.disabled"
-$listenerDisabledByPolicy = Test-Path -LiteralPath $listenerDisabledMarker -PathType Leaf
-$startListener = (-not $SkipListener) -and (-not $listenerDisabledByPolicy)
 
 function Write-BootstrapLog {
     param([string] $Message)
@@ -52,14 +49,8 @@ try {
     $managerSource = Join-Path $RepositoryShare "src"
     $listenerScript = Join-Path $RepositoryShare "scripts\start-wonderbane-go-listener.ps1"
     Wait-RequiredPath $managerSource "Manager source tree" $deadline
-    if ($startListener) {
+    if (-not $SkipListener) {
         Wait-RequiredPath $listenerScript "Listener launcher" $deadline
-    }
-    elseif ($listenerDisabledByPolicy) {
-        Write-BootstrapLog (
-            "Shadowbane chat listener is disabled by the local policy marker: " +
-            $listenerDisabledMarker
-        )
     }
     $env:PYTHONPATH = $managerSource
     $managerPidPath = Join-Path $stateRoot "manager.pid"
@@ -69,7 +60,7 @@ try {
     $runLogRoot = Join-Path (Join-Path $logRoot "runs") $runId
     New-Item -ItemType Directory -Path $runLogRoot -Force | Out-Null
 
-    if ($startListener) {
+    if (-not $SkipListener) {
         try {
             # Invoke the reviewed launcher in-process. Capturing a nested native
             # powershell.exe pipeline can keep its output pipe alive through the
