@@ -35,6 +35,11 @@ from shadowbane_lab.client_extension.package import (
     prepare_patched_client_copy,
     verify_patched_client_copy,
 )
+from shadowbane_lab.client_extension.patch_diff import (
+    ClientPatchDiffError,
+    compare_frozen_client_baselines,
+    write_client_patch_diff,
+)
 from shadowbane_lab.client_extension.performance import PerformanceTelemetryError
 from shadowbane_lab.client_extension.performance_reader import (
     PerformanceTelemetryReadError,
@@ -86,6 +91,17 @@ def _parser() -> argparse.ArgumentParser:
     freeze.add_argument("--executable", default="sb.exe")
     freeze.add_argument("--repository-revision", required=True)
     freeze.add_argument("--pretty", action="store_true")
+    diff = commands.add_parser(
+        "diff-baselines",
+        help="compare two verified official-client baselines without copying payload bytes",
+    )
+    diff.add_argument("source_directory", type=Path)
+    diff.add_argument("target_directory", type=Path)
+    diff.add_argument("--patch-id", required=True)
+    diff.add_argument("--output", type=Path)
+    diff.add_argument("--profile-directory", type=Path)
+    diff.add_argument("--no-cache-analysis", action="store_true")
+    diff.add_argument("--pretty", action="store_true")
     align = commands.add_parser(
         "align",
         help="produce non-authorizing patch-site alignment evidence for one PE",
@@ -174,6 +190,21 @@ def main(argv: Sequence[str] | None = None) -> int:
                 executable_relative_path=arguments.executable,
                 repository_revision=arguments.repository_revision,
             ).as_dict()
+        elif arguments.command == "diff-baselines":
+            report = compare_frozen_client_baselines(
+                arguments.source_directory,
+                arguments.target_directory,
+                patch_id=arguments.patch_id,
+                analyze_caches=not arguments.no_cache_analysis,
+                profile_directory=arguments.profile_directory,
+            )
+            if arguments.output is not None:
+                write_client_patch_diff(
+                    arguments.output,
+                    report,
+                    pretty=arguments.pretty,
+                )
+            payload = report.as_dict()
         elif arguments.command == "align":
             manifest = load_patch_manifest(arguments.manifest)
             payload = align_patch_sites(
@@ -265,6 +296,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     except (
         ClientBaselineError,
         BaselineExclusionError,
+        ClientPatchDiffError,
         ClientPatchPackageError,
         BootstrapInspectionError,
         BootstrapAuthoringError,

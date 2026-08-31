@@ -15,6 +15,7 @@ from shadowbane_lab.manager.manifest import (
     load_manager_manifest,
     loads_manager_manifest,
     parse_manager_manifest,
+    retarget_manager_client_directories,
     retarget_manager_clients,
 )
 
@@ -42,6 +43,55 @@ def _payload(*clients: dict[str, object]) -> dict[str, object]:
 
 
 class ManagerManifestTests(unittest.TestCase):
+    def test_retargets_every_slot_to_a_unique_full_size_runtime(self) -> None:
+        original = parse_manager_manifest(
+            _payload(_client("client-01"), _client("client-02", left=1280))
+        )
+
+        retargeted = retarget_manager_client_directories(
+            original,
+            {
+                "client-01": PureWindowsPath(r"C:\Runtimes\deployment-01\client-01"),
+                "client-02": PureWindowsPath(r"C:\Runtimes\deployment-01\client-02"),
+            },
+            resolution_width=1920,
+            resolution_height=955,
+        )
+
+        self.assertEqual((None, None), tuple(client.window_tile for client in retargeted.clients))
+        self.assertEqual(
+            (
+                PureWindowsPath(r"C:\Runtimes\deployment-01\client-01"),
+                PureWindowsPath(r"C:\Runtimes\deployment-01\client-02"),
+            ),
+            tuple(client.launch.working_directory for client in retargeted.clients),
+        )
+        self.assertTrue(
+            all(
+                client.launch.arguments == ("-windowed", "-resolution", "1920x955")
+                for client in retargeted.clients
+            )
+        )
+
+    def test_isolated_runtime_retarget_rejects_missing_or_shared_directories(self) -> None:
+        original = parse_manager_manifest(
+            _payload(_client("client-01"), _client("client-02", left=1280))
+        )
+
+        with self.assertRaisesRegex(ManagerManifestError, "cover every manager slot"):
+            retarget_manager_client_directories(
+                original,
+                {"client-01": PureWindowsPath(r"C:\Runtimes\client-01")},
+            )
+        with self.assertRaisesRegex(ManagerManifestError, "must be unique"):
+            retarget_manager_client_directories(
+                original,
+                {
+                    "client-01": PureWindowsPath(r"C:\Runtimes\shared"),
+                    "client-02": PureWindowsPath(r"C:\Runtimes\SHARED"),
+                },
+            )
+
     def test_retargets_every_slot_without_changing_operational_ownership(self) -> None:
         original = parse_manager_manifest(
             _payload(_client("client-01"), _client("client-02", left=1280))

@@ -74,6 +74,11 @@ try {
     }
     $env:PYTHONPATH = $managerSource
     $managerPidPath = Join-Path $stateRoot "manager.pid"
+    $runId = "{0}-pid{1}" -f (
+        (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssfffZ")
+    ), $PID
+    $runLogRoot = Join-Path (Join-Path $logRoot "runs") $runId
+    New-Item -ItemType Directory -Path $runLogRoot -Force | Out-Null
 
     if (-not $SkipListener) {
         try {
@@ -137,6 +142,10 @@ try {
     )
     $preflightExitCode = $LASTEXITCODE
     $preflightPath = Join-Path $DiagnosticsShare "manager-preflight-latest.json"
+    $preflightRunPath = Join-Path $runLogRoot "manager-preflight.json"
+    $preflightText = $preflight -join "`n"
+    $utf8WithoutBom = [Text.UTF8Encoding]::new($false)
+    [IO.File]::WriteAllText($preflightRunPath, "$preflightText`n", $utf8WithoutBom)
     Set-Content -LiteralPath $preflightPath -Value ($preflight -join "`n") -Encoding utf8
     if ($preflightExitCode -ne 0) {
         throw "Manager preflight failed: $($preflight -join ' ')"
@@ -160,8 +169,8 @@ try {
     if ($NoBrowser) {
         $managerArguments += "--no-browser"
     }
-    $managerStdout = Join-Path $logRoot "manager.stdout.log"
-    $managerStderr = Join-Path $logRoot "manager.stderr.log"
+    $managerStdout = Join-Path $runLogRoot "manager.stdout.log"
+    $managerStderr = Join-Path $runLogRoot "manager.stderr.log"
     $managerProcess = Start-Process `
         -FilePath $PythonPath `
         -ArgumentList $managerArguments `
@@ -199,6 +208,20 @@ try {
                     $runtimeProcess.CommandLine -match "shadowbane_lab\.cli\s+manager\s+app" -and
                     $runtimeProcess.CommandLine -match $expectedManifest
                 ) {
+                    $latestRun = [ordered]@{
+                        schema_version = 1
+                        started_at_utc = [DateTime]::UtcNow.ToString("o")
+                        process_id = $runtimeManagerId
+                        run_directory = $runLogRoot
+                        preflight = $preflightRunPath
+                        standard_output = $managerStdout
+                        standard_error = $managerStderr
+                    } | ConvertTo-Json
+                    [IO.File]::WriteAllText(
+                        (Join-Path $logRoot "manager-latest.json"),
+                        "$latestRun`n",
+                        $utf8WithoutBom
+                    )
                     Write-BootstrapLog (
                         "WonderBane control center started (runtime PID $runtimeManagerId)."
                     )

@@ -1,0 +1,73 @@
+"""Produced-build runtime consistency capture, baselining, and release gates."""
+
+from .codec import (
+    load_baseline,
+    load_capture,
+    load_report,
+    load_scenario_result,
+    load_suite,
+    save_artifact,
+)
+from .compare import compare_runtime_capture, distribution, promote_runtime_baseline
+from .deployment import (
+    ProducedDeployment,
+    ProducedRuntimeSlot,
+    inspect_produced_deployment,
+)
+from .model import (
+    Anomaly,
+    ComparisonReport,
+    CounterPolicy,
+    DeploymentIdentity,
+    DeploymentSlotIdentity,
+    Distribution,
+    GateStatus,
+    MetricDirection,
+    MetricPolicy,
+    RuntimeBaseline,
+    RuntimeCapture,
+    RuntimeConsistencyError,
+    RuntimeObservation,
+    RuntimeScenario,
+    RuntimeSuite,
+    ScenarioBaseline,
+    ScenarioResult,
+    Severity,
+    SlotScope,
+)
+from .runner import run_runtime_suite
+
+__all__ = [
+    "Anomaly",
+    "ComparisonReport",
+    "CounterPolicy",
+    "DeploymentIdentity",
+    "DeploymentSlotIdentity",
+    "Distribution",
+    "GateStatus",
+    "MetricDirection",
+    "MetricPolicy",
+    "ProducedDeployment",
+    "ProducedRuntimeSlot",
+    "RuntimeBaseline",
+    "RuntimeCapture",
+    "RuntimeConsistencyError",
+    "RuntimeObservation",
+    "RuntimeScenario",
+    "RuntimeSuite",
+    "ScenarioBaseline",
+    "ScenarioResult",
+    "Severity",
+    "SlotScope",
+    "compare_runtime_capture",
+    "distribution",
+    "inspect_produced_deployment",
+    "load_baseline",
+    "load_capture",
+    "load_report",
+    "load_scenario_result",
+    "load_suite",
+    "promote_runtime_baseline",
+    "run_runtime_suite",
+    "save_artifact",
+]

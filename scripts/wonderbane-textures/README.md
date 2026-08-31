@@ -2,7 +2,7 @@
 
 Deterministic, offline helpers for conservative Shadowbane/WonderBane texture experiments.
 They operate on extracted image files only. They **do not** open, modify, repack, or deploy
-Shadowbane `.cache` archives.
+Shadowbane `.cache` archives unless the separate, explicitly confirmed cache installer is used.
 
 ## Tools
 
@@ -59,6 +59,37 @@ Foliage output includes:
 - `*_black_key.png` — pure-black color key;
 - `*_mask.png` — hard monochrome mask.
 
+### `wonderbane_texture_cache.py`
+
+Safely installs same-dimension PNG replacements into selected `Textures.cache` resources.
+It preserves each resource's original 26-byte texture header and pixel depth, validates the
+complete archive layout, and writes a compact rollback archive containing the exact original
+directory records and compressed resource bytes. The client must be closed for install or restore.
+
+Always inspect the plan first:
+
+```powershell
+py wonderbane_texture_cache.py plan C:\WonderBane\cache\Textures.cache `
+  460131=wreck_460131.png 460132=wreck_460132.png
+```
+
+Install after closing the client:
+
+```powershell
+py wonderbane_texture_cache.py install C:\WonderBane\cache\Textures.cache `
+  460131=wreck_460131.png 460132=wreck_460132.png `
+  --backup C:\WonderBane\cache\wreck-textures.wbt-backup.zip `
+  --confirm-client-closed
+```
+
+Restore the exact original resource bytes and archive size:
+
+```powershell
+py wonderbane_texture_cache.py restore `
+  C:\WonderBane\cache\wreck-textures.wbt-backup.zip `
+  --confirm-client-closed
+```
+
 ## Windows setup
 
 Run `install_dependencies.bat` once. The included drag-and-drop launchers cover the safest
@@ -83,5 +114,5 @@ alpha preservation, black-key preservation, and sculptor output modes/sizes.
 ## First live-test rule
 
 Before processing an extracted game texture, record its resource ID, dimensions, image mode,
-transparency behavior, and SHA-256. Keep the original asset and rebuilt cache available for
-immediate rollback. Change one resource only in a staging client.
+transparency behavior, and SHA-256. Keep the generated `.wbt-backup.zip` available for immediate
+rollback. Change only the intended resources in a staging client.

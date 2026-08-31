@@ -99,38 +99,54 @@ live enablement.
 ## Install the VM control center at logon
 
 VirtualBox must expose the persistent `codexrepo` and `codexdiag` machine folders before this
-step. For example, install a VM-local bootstrap with four slots and start it immediately with:
+step. Close every game client, then install two isolated guest-local runtimes and start the control
+center with:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
-  \\VBOXSVR\codexrepo\scripts\install-wonderbane-vm-control-center.ps1 `
-  -ClientCount 4 `
+  \\VBOXSVR\codexrepo\scripts\install-wonderbane-isolated-runtimes.ps1 `
+  -ClientCount 2 `
   -StartNow
 ```
 
-The installer writes the operational manager manifest and runner beneath
+The installer accepts only the reviewed official `sb.exe` hash and the reviewed unmodified
+`Textures.cache` hash. It rejects an extension DLL or package marker in the source directory,
+stops only identity-checked manager/listener processes, checks local disk capacity, and freezes the
+vanilla client beneath `%LOCALAPPDATA%\ShadowbaneLab\client-baselines`. It then applies the pinned
+extension package independently to:
+
+```text
+%LOCALAPPDATA%\ShadowbaneLab\client-runtimes\vanilla-<UTC timestamp>\
+├── client-01\
+└── client-02\
+```
+
+Each directory has its own `Config`, `Logs`, `DoubleFusion`, and cache tree. After all slot copies
+verify, one compare-and-swap manifest update points each slot at its unique directory. A failure
+before that update removes only the new unpublished deployment and leaves the current manager
+manifest byte-for-byte unchanged. The immutable source baseline is never launched. The deployment
+also retains hash-pinned local bootstrap inputs; the dashboard uses them to publish one new isolated
+runtime whenever **Add client** exhausts the currently provisioned slots.
+
+The same script writes the operational manager manifest and runner beneath
 `%LOCALAPPDATA%\ShadowbaneLab`, creates a desktop shortcut, and creates a current-user Startup
 shortcut. The small share-waiting bootstrap is deliberately local so Windows can load it before
 the VirtualBox shares are ready. It waits up to 90 seconds and then invokes the current runner
 from `codexrepo`, so fetched runner changes take effect on the next logon without reinstalling.
-The runner starts the guarded in-game command listener, preflights the manager manifest, and
-starts the authenticated localhost dashboard. A listener configuration failure is logged without
-hiding the lifecycle dashboard. The dashboard opens automatically but does not launch a game
-client until its Start control is used.
 
 The runner uses fixed loopback port `52739` plus a persistent random token beneath the same local
 state root. Existing dashboard tabs therefore reconnect after manager restarts instead of becoming
 dead controls on an abandoned ephemeral port. During the restart window, all action buttons are
 disabled and the page reports the unavailable manager explicitly.
 
-`-ClientCount` declares the total local slots (1 through 32) and assigns deterministic grid tiles
-within the default 1920x955 VM display. Override that layout with `-DisplayWidth` and
-`-DisplayHeight`. On later installer runs, an existing manifest is preserved unless
-`-ClientCount` is explicitly supplied, so routine bootstrap repair no longer resets the slot list.
-The manager must be restarted after changing the count because its topology is immutable for one
-dashboard process lifetime.
+Every isolated slot launches a full 1920x955 client and has no resize tile. The windows overlap
+because Shadowbane clips its render surface when its outer window is resized; the existing
+1920x955 automation calibration therefore remains exact. A second smaller layout needs its own
+observed profile. **Add client** grows this layout one verified runtime at a time without cloning a
+live directory. Rerun the isolated-runtime installer with a new `-ClientCount` only when replacing
+the complete deployment or changing its baseline, patch inputs, or calibrated resolution.
 
-To expand an existing installation and perform a guarded manager restart in one command:
+The older tiled-slot wrapper remains only for non-isolated test manifests:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
@@ -139,9 +155,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
   -Restart
 ```
 
-The wrapper verifies the manager PID and full command identity before stopping it; it never stops a
-different Python process. Existing game clients remain open and appear as explicit attachable
-candidates after restart.
+It refuses an isolated tile-less manifest. The low-level `configure-build` command also refuses
+multiple slots, preventing all slots from being retargeted to one mutable directory.
 
 The dashboard also owns strict per-slot workers beneath
 `%LOCALAPPDATA%\ShadowbaneLab\workers`. Start, attach, and resume ensure one worker exists for the
@@ -160,4 +175,8 @@ must run behind its gate rather than creating another process-ownership mechanis
 The manager launches `sb.exe` directly with the reviewed Mesa text-rendering environment. The
 listener starts even when several character hotbar files exist; exact hotbar validation is deferred
 until `/pve` is requested. Bootstrap and manager logs stay under
-`%LOCALAPPDATA%\ShadowbaneLab\logs`; listener evidence stays in `codexdiag`.
+`%LOCALAPPDATA%\ShadowbaneLab\logs`. Every manager startup gets an immutable timestamped run
+directory plus `manager-latest.json`; every listener start gets its own `go-listener-runs`
+directory plus `go-listener-latest.json`. The convenience latest preflight may be overwritten,
+but the per-run preflight/stdout/stderr evidence is retained. Listener behavior evidence stays in
+`codexdiag`.

@@ -97,8 +97,13 @@ if ($existing.Count -gt 0) {
     Write-Output "Stopped existing Shadowbane listener PIDs $ids before restart."
 }
 
-$standardOutput = Join-Path $LogDirectory "go-listener.stdout.jsonl"
-$standardError = Join-Path $LogDirectory "go-listener.stderr.log"
+$runId = "{0}-pid{1}" -f (
+    (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssfffZ")
+), $PID
+$runLogDirectory = Join-Path (Join-Path $LogDirectory "go-listener-runs") $runId
+New-Item -ItemType Directory -Path $runLogDirectory -Force | Out-Null
+$standardOutput = Join-Path $runLogDirectory "go-listener.stdout.jsonl"
+$standardError = Join-Path $runLogDirectory "go-listener.stderr.log"
 $env:PYTHONPATH = Join-Path $RepositoryRoot "src"
 $arguments = @(
     "-u",
@@ -164,4 +169,18 @@ if ($process.HasExited) {
 Set-Content -LiteralPath (Join-Path $LogDirectory "go-listener.pid") `
     -Value $process.Id `
     -Encoding ascii
+$latestRun = [ordered]@{
+    schema_version = 1
+    started_at_utc = [DateTime]::UtcNow.ToString("o")
+    process_id = $process.Id
+    run_directory = $runLogDirectory
+    standard_output = $standardOutput
+    standard_error = $standardError
+} | ConvertTo-Json
+$utf8WithoutBom = [Text.UTF8Encoding]::new($false)
+[IO.File]::WriteAllText(
+    (Join-Path $LogDirectory "go-listener-latest.json"),
+    "$latestRun`n",
+    $utf8WithoutBom
+)
 Write-Output "Shadowbane chat listener started (PID $($process.Id))."

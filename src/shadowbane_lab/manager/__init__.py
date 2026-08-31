@@ -14,6 +14,8 @@ from .extension_router import (
 )
 from .live_configuration import (
     LiveConfiguredManagerApplication,
+    ManagerCapacityProvisioner,
+    PreparedManagerCapacity,
     replace_manager_manifest,
 )
 from .manifest import (
@@ -28,6 +30,7 @@ from .manifest import (
     load_manager_manifest,
     loads_manager_manifest,
     parse_manager_manifest,
+    retarget_manager_client_directories,
     retarget_manager_clients,
 )
 from .model import (
@@ -70,6 +73,15 @@ from .registry import (
     ClientWindowRegistry,
     DuplicateClientIdentityError,
     derive_client_instance_id,
+)
+from .runtime_deployment import (
+    RUNTIME_DEPLOYMENT_SCHEMA_VERSION,
+    IsolatedRuntimeCapacityProvisioner,
+    PreparedIsolatedRuntimeSlot,
+    RuntimeDeploymentError,
+    RuntimeDeploymentResult,
+    RuntimeDeploymentSlot,
+    provision_isolated_client_runtimes,
 )
 from .session import (
     MANAGER_SESSION_SCHEMA_VERSION,
@@ -192,6 +204,7 @@ __all__ = [
     "ManagedClientConfig",
     "ManagedClientSnapshot",
     "ManagedClientState",
+    "ManagerCapacityProvisioner",
     "ManagerDashboardApplication",
     "ManagerManifest",
     "ManagerManifestError",
@@ -269,7 +282,16 @@ __all__ = [
     "loads_manager_manifest",
     "parse_manager_manifest",
     "replace_manager_manifest",
+    "retarget_manager_client_directories",
     "retarget_manager_clients",
+    "RUNTIME_DEPLOYMENT_SCHEMA_VERSION",
+    "IsolatedRuntimeCapacityProvisioner",
+    "PreparedIsolatedRuntimeSlot",
+    "PreparedManagerCapacity",
+    "RuntimeDeploymentError",
+    "RuntimeDeploymentResult",
+    "RuntimeDeploymentSlot",
+    "provision_isolated_client_runtimes",
     "recover_manager_bindings",
     "selector_from_config",
     "window_rectangle_from_config",

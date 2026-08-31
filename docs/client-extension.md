@@ -47,6 +47,37 @@ then atomically publishes the frozen directory.
 Keep the baseline and executable private because they are local game artifacts. Do not commit
 either one.
 
+## Compare official client patches
+
+Treat every official update as a transition between two independently frozen baselines. Capture
+the installed client before applying the developer update, apply the update only to the official
+installation, then freeze that new installation into a different destination. Compare the two
+immutable copies with:
+
+```powershell
+python -m shadowbane_lab.client_extension diff-baselines `
+  <frozen-before> <frozen-after> `
+  --patch-id wonderbane-1.0.5-to-1.0.6 `
+  --output <private-evidence>\wonderbane-1.0.5-to-1.0.6.diff.json `
+  --pretty
+```
+
+The comparison verifies both complete trees against their `client-baseline.json` evidence before
+reporting anything. Its schema-version-1 report contains:
+
+- source and target tree, executable, and baseline-evidence hashes;
+- added, removed, modified, unchanged, and unambiguous exact-content rename counts;
+- old and new file sizes and hashes, without embedding client payload bytes;
+- decompressed resource hashes for every changed Shadowbane `.cache` archive, distinguishing
+  logical resource changes from storage-only repacking; and
+- the existing PE section/range and calibrated-anchor alignment report when `sb.exe` changed.
+
+Cache parsing is fail-closed by default. If a future official build introduces a different cache
+format, rerun with `--no-cache-analysis` to retain verified file- and PE-level evidence while the
+new archive format is reviewed. Report outputs use create-new semantics and include a canonical
+`report_sha256`; keep them private because file names and installation paths may still reveal local
+client details.
+
 ## Build and probe the x86 extension
 
 On the development host with Visual Studio 2022's Win32 C++ toolchain installed:
@@ -185,6 +216,49 @@ the artifact's explicit `-ExtensionVersion`; existing immutable client copies ar
 After an official patch, pass the newly captured vanilla directory through
 `-FrozenBaselineDirectory`; this keeps the prior evidence-directory layout compatible while letting
 the same wrapper package an independently timestamped baseline.
+
+## Package-time texture overlays
+
+Texture replacements use the same immutable publication boundary. They are never written into the
+official client, frozen baseline, or a previously published working copy. First author a
+create-new manifest against the exact `Textures.cache` in the frozen baseline:
+
+```powershell
+python -m shadowbane_lab.client_extension author-texture-patch `
+  <frozen-client>\cache\Textures.cache <new-texture-manifest.json> `
+  460131=<texture-artifacts>\0_460131.png `
+  460132=<texture-artifacts>\0_460132.png `
+  --patch-id wonderbane-1.0.5.wreck-textures-v1 --pretty
+```
+
+Each record pins the full source-cache hash, source and result resource hashes, PNG hash,
+dimensions, and channel depth. `prepare-copy` validates every pin during its no-write phase. During
+publication it applies the planned writes only to the temporary client copy, rereads each resource,
+writes `.wonderbane-extension/texture-patches.json`, and includes that evidence and the resulting
+cache in the final package inventory before atomic publication.
+
+Pass the reviewed overlay through either API surface:
+
+```powershell
+python -m shadowbane_lab.client_extension prepare-copy `
+  <frozen-client> <new-working-copy> <reviewed-bootstrap-manifest.json> `
+  <versioned-extension.dll> `
+  --texture-patch-manifest <new-texture-manifest.json> `
+  --texture-artifact-directory <texture-artifacts> `
+  --dry-run --pretty
+
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
+  \\VBOXSVR\codexrepo\scripts\prepare-wonderbane-client-extension-copy.ps1 `
+  -DestinationDirectory <new-working-copy> `
+  -TexturePatchManifest <new-texture-manifest.json> `
+  -TextureArtifactDirectory <texture-artifacts> `
+  -DryRunOnly
+```
+
+Omit the dry-run flag only after validation passes. Before pointing the client manager at the new
+directory, run `verify-copy <new-working-copy>` with all game clients closed. Texture artifacts are
+package inputs, not dashboard action payloads; runtime actions continue to own only client and
+worker lifecycle.
 
 ## Package-time texture overlays
 
