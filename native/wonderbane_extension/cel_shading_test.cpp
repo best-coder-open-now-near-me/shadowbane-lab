@@ -183,6 +183,32 @@ int wmain() {
         )) {
         return Fail(L"orthographic projection rejection");
     }
+    constexpr std::array<float, 16U> local_model_view{
+        1.0F, 0.0F, 0.0F, 0.0F,
+        0.0F, 1.0F, 0.0F, 0.0F,
+        0.0F, 0.0F, 1.0F, 0.0F,
+        128.0F, -64.0F, -512.0F, 1.0F,
+    };
+    std::array<float, 16U> distant_model_view = local_model_view;
+    distant_model_view[12] = 90000.0F;
+    std::array<float, 16U> non_affine_model_view = local_model_view;
+    non_affine_model_view[15] = 0.0F;
+    if (
+        !wonderbane::extension::IsLocalOutlineModelViewMatrix(
+            local_model_view.data(),
+            local_model_view.size()
+        )
+        || wonderbane::extension::IsLocalOutlineModelViewMatrix(
+            distant_model_view.data(),
+            distant_model_view.size()
+        )
+        || wonderbane::extension::IsLocalOutlineModelViewMatrix(
+            non_affine_model_view.data(),
+            non_affine_model_view.size()
+        )
+    ) {
+        return Fail(L"local model-view outline policy");
+    }
     if (
         !wonderbane::extension::IsOutlinePrimitive(0x0004U, 36)
         || wonderbane::extension::IsOutlinePrimitive(0x0001U, 36)
