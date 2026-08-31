@@ -16,23 +16,26 @@ constexpr std::uint32_t kImportRva = 0x200U;
 constexpr std::uint32_t kLibraryRva = 0x300U;
 constexpr std::uint32_t kNamesRva = 0x340U;
 constexpr std::uint32_t kAddressesRva = 0x380U;
-constexpr std::array<std::uint32_t, 4U> kImportNameRvas{
+constexpr std::array<std::uint32_t, 5U> kImportNameRvas{
     0x3C0U,
     0x3E0U,
     0x400U,
     0x420U,
+    0x440U,
 };
-constexpr std::array<const char*, 4U> kImportNames{
+constexpr std::array<const char*, 5U> kImportNames{
     "glShadeModel",
     "glBegin",
+    "glCallList",
     "glDrawArrays",
     "glDrawElements",
 };
-constexpr std::array<std::uint32_t, 4U> kImportAddresses{
+constexpr std::array<std::uint32_t, 5U> kImportAddresses{
     0x12345678U,
     0x23456789U,
     0x3456789AU,
     0x456789ABU,
+    0x56789ABCU,
 };
 
 int Fail(const wchar_t* const operation) noexcept {
@@ -119,8 +122,8 @@ int wmain() {
     auto* const addresses = reinterpret_cast<IMAGE_THUNK_DATA32*>(
         image.data() + kAddressesRva
     );
-    names[4].u1.AddressOfData = kImportNameRvas[0];
-    addresses[4].u1.Function = 0x56789ABCU;
+    names[5].u1.AddressOfData = kImportNameRvas[0];
+    addresses[5].u1.Function = 0x6789ABCDU;
     if (wonderbane::extension::FindImportAddressSlot(
             image.data(),
             image.size(),
@@ -154,6 +157,38 @@ int wmain() {
             "glShadeModel"
         ) != nullptr) {
         return Fail(L"out-of-range thunk rejection");
+    }
+
+    constexpr std::array<float, 16U> perspective{
+        1.0F, 0.0F, 0.0F, 0.0F,
+        0.0F, 1.0F, 0.0F, 0.0F,
+        0.0F, 0.0F, -1.0F, -1.0F,
+        0.0F, 0.0F, -0.2F, 0.0F,
+    };
+    constexpr std::array<float, 16U> orthographic{
+        1.0F, 0.0F, 0.0F, 0.0F,
+        0.0F, 1.0F, 0.0F, 0.0F,
+        0.0F, 0.0F, -1.0F, 0.0F,
+        0.0F, 0.0F, 0.0F, 1.0F,
+    };
+    if (!wonderbane::extension::IsPerspectiveProjectionMatrix(
+            perspective.data(),
+            perspective.size()
+        )) {
+        return Fail(L"perspective projection acceptance");
+    }
+    if (wonderbane::extension::IsPerspectiveProjectionMatrix(
+            orthographic.data(),
+            orthographic.size()
+        )) {
+        return Fail(L"orthographic projection rejection");
+    }
+    if (
+        !wonderbane::extension::IsOutlinePrimitive(0x0004U, 36)
+        || wonderbane::extension::IsOutlinePrimitive(0x0001U, 36)
+        || wonderbane::extension::IsOutlinePrimitive(0x0004U, 8193)
+    ) {
+        return Fail(L"bounded outline primitive policy");
     }
     return 0;
 }

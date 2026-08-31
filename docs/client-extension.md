@@ -264,3 +264,24 @@ state, and protection failures reject initialization instead of guessing.
 This is deliberately an unmistakable diagnostic, not the final restrained cel treatment. Its
 purpose is to prove which fixed-function draw boundaries own the live renderer. Once confirmed,
 the production pass can replace wireframe with bounded lighting bands and silhouette handling.
+
+Live validation on the reviewed 55fb client produced an unmistakable full-scene wireframe while
+the manager independently reported extension 1.3.1 initialized, the exact client attached, and its
+worker dispatch-ready. That closes the renderer-boundary diagnostic: the executable import path,
+extension lifetime, and scene draw ownership are all proven together.
+
+## Restrained cel treatment
+
+Extension 1.4.0 removes the persistent wireframe state and keeps `GL_FLAT` as the conservative
+fixed-function lighting treatment. It adds the reviewed client's unique `glCallList` import to the
+same transactional IAT plan, allowing replayable display-list geometry to receive a bounded
+silhouette pass. Perspective display lists and polygonal array draws render an expanded,
+front-face-culled dark hull first, followed by the client's ordinary filled draw. The pass saves
+and restores all server attributes and the active matrix, writes no depth, and disables textures,
+lighting, fog, blending, and alpha testing only inside the outline draw.
+
+Orthographic UI/map rendering, points, lines, and array draws outside the reviewed element-count
+bound remain single-pass. Immediate-mode geometry remains filled and flat-shaded because replaying
+an arbitrary `glBegin`/`glEnd` stream would require intercepting every vertex and state mutation.
+Any missing or ambiguous required import or OpenGL helper still rejects initialization before the
+first IAT mutation; partial hook installation retains the existing rollback behavior.
