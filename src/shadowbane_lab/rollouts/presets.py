@@ -252,8 +252,15 @@ PRAYER_OF_MENDING = "shadowbane.healer.prayer_of_mending"
 BRAIALLAS_AID = "shadowbane.healer.braiallas_aid"
 
 
-def _resistance_vector() -> tuple[tuple[str, float], ...]:
-    return tuple((key, 0.0) for key in sorted(REQUIRED_RESISTANCE_TYPES))
+def _resistance_vector(
+    overrides: tuple[tuple[str, float], ...] = (),
+) -> tuple[tuple[str, float], ...]:
+    values = {key: 0.0 for key in REQUIRED_RESISTANCE_TYPES}
+    unknown = {key for key, _ in overrides} - values.keys()
+    if unknown:
+        raise ValueError("unknown resistance overrides: " + ", ".join(sorted(unknown)))
+    values.update(overrides)
+    return tuple(sorted(values.items()))
 
 
 def _rogue_assassin_stances() -> tuple[StanceProfile, ...]:
@@ -376,6 +383,30 @@ def _healer_druid_stances() -> tuple[StanceProfile, ...]:
 
 
 def _assassin_sheet() -> CombatSheet:
+    # Piretro's published targets are naked values. The explicit SDR jewelry loadout adds
+    # +3 STR, +18 DEX, +19 CON, +3 INT, and +3 SPI before Greater Concoction adds +55
+    # to every attribute. The resulting attribute delta raises Dexterity-based weapon and
+    # armor skills by 16 points and Shadowmastery by 14.5 under the published base-skill
+    # approximation. Keeping the compiled values here prevents the runtime from silently
+    # inferring gear or dynamic attribute effects.
+    strength = 35 + 3 + 55
+    dexterity = 102 + 18 + 55
+    constitution = 85 + 19 + 55
+    intelligence = 165 + 3 + 55
+    spirit = 10 + 3 + 55
+    unarmed_combat = 161.0 + 16.0
+    unarmed_mastery = 70.0 + 16.0
+    light_armor = 161.0 + 16.0
+    shadowmastery = 97.0 + 14.5
+
+    # Six 100%-quality Hard Leather pieces contribute 106 base defense. Saedrium adds
+    # +5 Defense Rating per piece, yielding 136 total armor defense. The accepted current
+    # formula path scales that total by (1 + 0.03 * Light Armor), then adds half of each
+    # equipped weapon skill to the equipment channel.
+    hard_leather_defense = 106.0 + 6 * 5.0
+    equipment_defense = hard_leather_defense * (1.0 + 0.03 * light_armor)
+    equipment_defense += (unarmed_combat + unarmed_mastery) / 2.0
+
     proc = WeaponProcProfile(
         proc_key="tier-three-mental",
         probability=0.05,
@@ -394,36 +425,48 @@ def _assassin_sheet() -> CombatSheet:
         range_units=6.0,
         strength_based=False,
         dual_wielding=True,
+        attack_delay_percent=-0.36,
         procs=(proc,),
     )
     return CombatSheet(
-        sheet_id="wonderbane-sundancer-proc-assassin-guide-v1",
+        sheet_id="wonderbane-sundancer-proc-assassin-sdr-concoction-v2",
         profession="assassin",
         level=75,
-        source_id="wonderbane-sundancer-template+calculator+morloch-v1",
-        source_revision="2026-08-29-guide-reconstruction-v1",
+        source_id="wonderbane-sundancer-template+calculator+morloch-sdr-alchemy-v2",
+        source_revision="2026-08-29-sdr-concoction-reconstruction-v2",
         formula_revision=MAGICBANE_COMBAT_FORMULA_REVISION,
         compatibility=CompatibilityStatus.SOURCE_REVISION_ACCEPTED,
-        strength=35,
-        dexterity=102,
-        constitution=85,
-        intelligence=165,
-        spirit=10,
-        maximum_health=1856.0,
-        maximum_mana=349.0,
-        maximum_stamina=390.0,
+        strength=strength,
+        dexterity=dexterity,
+        constitution=constitution,
+        intelligence=intelligence,
+        spirit=spirit,
+        maximum_health=2770.0,
+        maximum_mana=671.0,
+        maximum_stamina=585.0,
         move_speed=31.5,
-        equipment_defense=689.42,
-        skill_values=(("unarmed_combat", 161.0), ("unarmed_mastery", 70.0)),
-        power_focus_values=(
-            (SHADOW_BOLT, 97.0),
-            (SHADOW_TOUCH, 97.0),
-            (STEAL_BREATH, 97.0),
+        equipment_defense=equipment_defense,
+        skill_values=(
+            ("unarmed_combat", unarmed_combat),
+            ("unarmed_mastery", unarmed_mastery),
         ),
-        resistances=_resistance_vector(),
-        passive_defenses=(("block", 0.0), ("dodge", 25.25), ("parry", 5.0)),
+        power_focus_values=(
+            (SHADOW_BOLT, shadowmastery),
+            (SHADOW_TOUCH, shadowmastery),
+            (STEAL_BREATH, shadowmastery),
+        ),
+        resistances=_resistance_vector(
+            (
+                (DamageType.CRUSH.value, 20.0),
+                (DamageType.PIERCE.value, 20.0),
+                (DamageType.SLASH.value, 20.0),
+                (DamageType.FIRE.value, 15.0),
+                (DamageType.COLD.value, -15.0),
+            )
+        ),
+        passive_defenses=(("block", 0.0), ("dodge", 29.25), ("parry", 5.0)),
         modifiers=SheetModifiers(
-            flat_dcv=150.0,
+            flat_dcv=150.2 + 145.0,
         ),
         stance_profiles=_rogue_assassin_stances(),
         weapon=main_hand,
@@ -440,6 +483,8 @@ def _assassin_sheet() -> CombatSheet:
             "discipline.sun_dancer",
             "discipline.undead_hunter",
             "equipment.dual_wield",
+            "equipment.sdr_jewelry",
+            "equipment.sdr_saedrium_hard_leather",
             "equipment.melee_weapon",
             "power.stalk",
             "race.irekei",
@@ -449,6 +494,18 @@ def _assassin_sheet() -> CombatSheet:
 
 def _assassin_initial_effects() -> tuple[InitialEffectConfig, ...]:
     return (
+        InitialEffectConfig(
+            "greater_concoction",
+            duration_ms=3_600_000,
+            tags=(
+                "buff",
+                "attribute.buff",
+                "defense.buff",
+                "attack_speed.buff",
+                "mana_recovery.buff",
+            ),
+            trains=35,
+        ),
         InitialEffectConfig(
             "cloak_of_shadows",
             tags=("buff", "defense.buff"),
@@ -746,10 +803,15 @@ def wonderbane_sundancer_proc_assassin() -> CombatantPreset:
         ),
         gear=(
             "dual fast Khan'Xhir/Rha'Khanakar-class proc weapons",
-            "Sea Dog's Rest-quality light armor baseline",
-            "constitution/dexterity jewelry baseline",
+            "six-piece Sea Dog's Rest Saedrium Hard Leather set "
+            "(+30 Defense Rating, +125 Health, +5% movement)",
+            "two Sea Dog's Rest Amethyst Twin Rings of Life "
+            "(+10 Dexterity, +16 Constitution, +30% stamina recovery)",
+            "Sea Dog's Rest Amethyst Kenaryn's Symbol of the Mighty "
+            "(+8 Dexterity, +3 to every other attribute, +15% stamina recovery)",
         ),
         pre_fight_buffs=(
+            "Greater Concoction",
             "Rogue Assassin defensive stance",
             "Cloak of Shadows",
             "Poison Blade",
@@ -766,21 +828,23 @@ def wonderbane_sundancer_proc_assassin() -> CombatantPreset:
             "equipment.dual_wield",
             "equipment.khanxhir",
             "gear.sdr_light_armor",
+            "buff.greater_concoction",
         ),
         unresolved=(
             "Exact crafted weapon affixes are unspecified by the archived guide; both hands "
             "use the sourced tier-three mental proc scenario.",
-            "SDR hard-leather defense and health are formula-derived rather than "
-            "live-sheet verified.",
-            "Greater Concoction is omitted until its current WonderBane values and "
-            "stacking are verified.",
+            "Greater Concoction's +135% mana recovery and the SDR jewelry's +45% stamina "
+            "recovery are retained as sourced pre-fight state, but ambient recovery awaits "
+            "a live base-rate observation.",
+            "The reconstructed 1,912 defensive-stance defense agrees with the reported live "
+            "1,900+ band; exact client per-item and skill rounding remains to be captured.",
         ),
         combat_sheet=_assassin_sheet(),
         initial_effects=_assassin_initial_effects(),
         initial_stance=CombatStance.DEFENSIVE,
-        health=1856.0,
-        mana=349.0,
-        stamina=390.0,
+        health=2770.0,
+        mana=671.0,
+        stamina=585.0,
         move_speed=31.5,
     )
 
