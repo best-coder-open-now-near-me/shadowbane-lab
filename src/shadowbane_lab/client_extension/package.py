@@ -26,6 +26,7 @@ from shadowbane_lab.client_extension.resolver import (
 )
 
 PATCH_PACKAGE_SCHEMA_VERSION = 1
+PACKAGE_DRIFT_SCHEMA_VERSION = 1
 ROLLBACK_RECEIPT_SCHEMA_VERSION = 1
 _BASELINE_FILE_NAME = "client-baseline.json"
 _EVIDENCE_DIRECTORY_NAME = ".wonderbane-extension"
@@ -134,6 +135,49 @@ class PatchPackageResult:
             "destination_published": self.destination_published,
             "plan": self.plan.as_dict(),
             "evidence": None if self.evidence is None else self.evidence.as_dict(),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class PackageFileChange:
+    """One packaged path whose content or canonical spelling changed."""
+
+    expected: BaselineFile
+    actual: BaselineFile
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "expected": self.expected.as_dict(),
+            "actual": self.actual.as_dict(),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class PatchPackageDrift:
+    """Read-only comparison of a disposable copy with its package evidence."""
+
+    directory: str
+    expected_working_tree_sha256: str
+    actual_working_tree_sha256: str
+    added: tuple[BaselineFile, ...]
+    missing: tuple[BaselineFile, ...]
+    changed: tuple[PackageFileChange, ...]
+    schema_version: int = PACKAGE_DRIFT_SCHEMA_VERSION
+
+    @property
+    def matches(self) -> bool:
+        return not self.added and not self.missing and not self.changed
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "schema_version": self.schema_version,
+            "directory": self.directory,
+            "matches": self.matches,
+            "expected_working_tree_sha256": self.expected_working_tree_sha256,
+            "actual_working_tree_sha256": self.actual_working_tree_sha256,
+            "added": [item.as_dict() for item in self.added],
+            "missing": [item.as_dict() for item in self.missing],
+            "changed": [item.as_dict() for item in self.changed],
         }
 
 
@@ -419,6 +463,50 @@ def verify_patched_client_copy(directory: str | Path) -> PatchPackageEvidence:
     if extension.sha256 != evidence.extension_sha256:
         raise ClientPatchPackageError("packaged extension hash does not match its evidence")
     return evidence
+
+
+def audit_patched_client_copy(directory: str | Path) -> PatchPackageDrift:
+    """Report exact package drift without modifying the disposable copy."""
+
+    root = Path(directory).resolve()
+    if not root.is_dir() or _is_reparse_point(root):
+        raise ClientPatchPackageError(f"patched client copy is not a regular directory: {root}")
+    evidence = _load_package_evidence(root / _EVIDENCE_DIRECTORY_NAME / _PACKAGE_FILE_NAME)
+    if Path(evidence.destination_directory).resolve() != root:
+        raise ClientPatchPackageError("package evidence is bound to a different destination")
+    actual = _inventory(
+        root,
+        excluded=frozenset(
+            {
+                f"{_EVIDENCE_DIRECTORY_NAME}/{_PACKAGE_FILE_NAME}".casefold(),
+            }
+        ),
+        max_files=_DEFAULT_MAX_FILES,
+        max_total_bytes=_DEFAULT_MAX_TOTAL_BYTES,
+    )
+    expected_by_path = {item.relative_path.casefold(): item for item in evidence.files}
+    actual_by_path = {item.relative_path.casefold(): item for item in actual}
+    added = tuple(
+        actual_by_path[key]
+        for key in sorted(actual_by_path.keys() - expected_by_path.keys())
+    )
+    missing = tuple(
+        expected_by_path[key]
+        for key in sorted(expected_by_path.keys() - actual_by_path.keys())
+    )
+    changed = tuple(
+        PackageFileChange(expected_by_path[key], actual_by_path[key])
+        for key in sorted(expected_by_path.keys() & actual_by_path.keys())
+        if expected_by_path[key] != actual_by_path[key]
+    )
+    return PatchPackageDrift(
+        directory=str(root),
+        expected_working_tree_sha256=evidence.working_tree_sha256,
+        actual_working_tree_sha256=_tree_sha256(actual),
+        added=added,
+        missing=missing,
+        changed=changed,
+    )
 
 
 def discard_patched_client_copy(

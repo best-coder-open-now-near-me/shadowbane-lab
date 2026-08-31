@@ -28,6 +28,7 @@ from shadowbane_lab.client_extension.heartbeat import (
 from shadowbane_lab.client_extension.manifest import PatchManifestError, load_patch_manifest
 from shadowbane_lab.client_extension.package import (
     ClientPatchPackageError,
+    audit_patched_client_copy,
     discard_patched_client_copy,
     prepare_patched_client_copy,
     verify_frozen_client_baseline,
@@ -85,6 +86,12 @@ def _parser() -> argparse.ArgumentParser:
     )
     verify.add_argument("directory", type=Path)
     verify.add_argument("--pretty", action="store_true")
+    audit = commands.add_parser(
+        "audit-copy",
+        help="report exact drift from a disposable copy's package evidence",
+    )
+    audit.add_argument("directory", type=Path)
+    audit.add_argument("--pretty", action="store_true")
     discard = commands.add_parser(
         "discard-copy",
         help="discard an exactly verified disposable copy and write a rollback receipt",
@@ -158,6 +165,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             ).as_dict()
         elif arguments.command == "verify-copy":
             payload = verify_patched_client_copy(arguments.directory).as_dict()
+        elif arguments.command == "audit-copy":
+            payload = audit_patched_client_copy(arguments.directory).as_dict()
         elif arguments.command == "discard-copy":
             payload = discard_patched_client_copy(
                 arguments.directory,

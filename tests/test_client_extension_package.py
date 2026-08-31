@@ -22,6 +22,7 @@ from shadowbane_lab.client_extension.manifest import (
 )
 from shadowbane_lab.client_extension.package import (
     ClientPatchPackageError,
+    audit_patched_client_copy,
     discard_patched_client_copy,
     prepare_patched_client_copy,
     verify_frozen_client_baseline,
@@ -316,6 +317,66 @@ class ClientExtensionPackageTests(unittest.TestCase):
             self.assertEqual(receipt.patch_id, receipt_payload["patch_id"])
             self.assertEqual("2026-08-30T12:30:00.000Z", receipt.discarded_at_utc)
             self.assertFalse(any(root.glob(".working.discard-*")))
+
+    def test_audit_reports_added_missing_and_changed_files(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = _source_executable()
+            extension = _extension_dll()
+            _, frozen = _freeze(root, source)
+            extension_path = root / "wonderbane-extension.dll"
+            extension_path.write_bytes(extension)
+            destination = root / "working"
+            prepare_patched_client_copy(
+                frozen,
+                destination,
+                _manifest(source, extension),
+                extension_path,
+            )
+
+            self.assertTrue(audit_patched_client_copy(destination).matches)
+            (destination / "Config" / "ArcaneIP.cfg").write_text("changed", encoding="utf-8")
+            (destination / "wonderbane-extension.dll").unlink()
+            (destination / "runtime.log").write_text("generated", encoding="utf-8")
+
+            drift = audit_patched_client_copy(destination)
+            self.assertFalse(drift.matches)
+            self.assertEqual(["runtime.log"], [item.relative_path for item in drift.added])
+            self.assertEqual(
+                ["wonderbane-extension.dll"],
+                [item.relative_path for item in drift.missing],
+            )
+            self.assertEqual(
+                ["Config/ArcaneIP.cfg"],
+                [item.expected.relative_path for item in drift.changed],
+            )
+
+    def test_audit_copy_cli_emits_read_only_drift_report(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = _source_executable()
+            extension = _extension_dll()
+            _, frozen = _freeze(root, source)
+            extension_path = root / "wonderbane-extension.dll"
+            extension_path.write_bytes(extension)
+            destination = root / "working"
+            prepare_patched_client_copy(
+                frozen,
+                destination,
+                _manifest(source, extension),
+                extension_path,
+            )
+            (destination / "runtime.log").write_text("generated", encoding="utf-8")
+            output = io.StringIO()
+
+            with redirect_stdout(output):
+                result = main(["audit-copy", str(destination)])
+
+            payload = json.loads(output.getvalue())
+            self.assertEqual(0, result)
+            self.assertFalse(payload["matches"])
+            self.assertEqual("runtime.log", payload["added"][0]["relative_path"])
+            self.assertTrue(destination.exists())
 
     def test_tampered_copy_cannot_be_discarded_through_verified_rollback(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
