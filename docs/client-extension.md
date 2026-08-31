@@ -50,6 +50,8 @@ The launcher rechecks the publication receipt, executable and extension hashes, 
 inventory before starting `sb.exe`. It supplies the reviewed software-rendering environment only to
 the child process and restores the calling PowerShell environment immediately afterward. It does not
 start the control center, listener, manager, movement, combat, or other automation components.
+The llvmpipe worker pool is capped at three threads so rendering cannot consume every testing-VM
+vCPU and starve Windows, Guest Additions, or the VirtualBox display path.
 
 Inside the WonderBane VM, with the official client closed, run:
 

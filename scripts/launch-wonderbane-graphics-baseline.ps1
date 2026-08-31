@@ -79,6 +79,7 @@ if ($LASTEXITCODE -ne 0) {
 $graphicsEnvironment = [ordered]@{
     LIBGL_ALWAYS_SOFTWARE = "true"
     GALLIUM_DRIVER = "llvmpipe"
+    LP_NUM_THREADS = "3"
     MESA_EXTENSION_MAX_YEAR = "2001"
     MESA_GL_VERSION_OVERRIDE = $null
     MESA_GLSL_VERSION_OVERRIDE = $null
