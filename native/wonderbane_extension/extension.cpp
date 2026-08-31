@@ -17,6 +17,7 @@ constexpr std::size_t kJsonCapacity = 768;
 constexpr LONG kMaximumInitializationPolls = 500;
 constexpr DWORD kInitializationPollMilliseconds = 10;
 constexpr char kExtensionVersion[] = "1.4.5";
+constexpr wchar_t kClientExecutableName[] = L"sb.exe";
 
 volatile LONG g_state = static_cast<LONG>(WonderBaneExtensionState::uninitialized);
 volatile LONG g_initialization_result = ERROR_SUCCESS;
@@ -91,6 +92,38 @@ DWORD WriteAll(const HANDLE file, const char* data, const DWORD length) noexcept
         }
         total_written += written;
     }
+    return ERROR_SUCCESS;
+}
+
+DWORD IsClientExecutable(bool* const is_client) noexcept {
+    if (is_client == nullptr) {
+        return ERROR_INVALID_PARAMETER;
+    }
+    wchar_t executable_path[kPathCapacity]{};
+    const DWORD length = GetModuleFileNameW(
+        nullptr,
+        executable_path,
+        static_cast<DWORD>(kPathCapacity)
+    );
+    if (length == 0U) {
+        return GetLastError();
+    }
+    if (length >= kPathCapacity) {
+        return ERROR_INSUFFICIENT_BUFFER;
+    }
+    const wchar_t* file_name = executable_path;
+    for (const wchar_t* cursor = executable_path; *cursor != L'\0'; ++cursor) {
+        if (*cursor == L'\\' || *cursor == L'/') {
+            file_name = cursor + 1;
+        }
+    }
+    *is_client = CompareStringOrdinal(
+        file_name,
+        -1,
+        kClientExecutableName,
+        -1,
+        TRUE
+    ) == CSTR_EQUAL;
     return ERROR_SUCCESS;
 }
 
@@ -245,11 +278,17 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
         static_cast<LONG>(WonderBaneExtensionState::uninitialized)
     );
     if (previous == static_cast<LONG>(WonderBaneExtensionState::uninitialized)) {
-        DWORD result = wonderbane::extension::StartStrongCelShading();
+        bool is_client = false;
+        DWORD result = IsClientExecutable(&is_client);
+        bool renderer_started = false;
+        if (result == ERROR_SUCCESS && is_client) {
+            result = wonderbane::extension::StartStrongCelShading();
+            renderer_started = result == ERROR_SUCCESS;
+        }
         if (result == ERROR_SUCCESS) {
             result = WriteHeartbeat();
         }
-        if (result != ERROR_SUCCESS) {
+        if (result != ERROR_SUCCESS && renderer_started) {
             wonderbane::extension::StopStrongCelShading();
         }
         InterlockedExchange(&g_initialization_result, static_cast<LONG>(result));

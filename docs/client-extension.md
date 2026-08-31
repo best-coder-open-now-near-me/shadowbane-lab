@@ -168,6 +168,10 @@ forcing every request to `GL_FLAT`. Live validation proved the extension initial
 but that state change was not visually distinguishable in the low-poly client. This graphics-only
 runtime contains no map, movement, combat, manager, or automation hooks.
 
+The native console probe is deliberately not named `sb.exe`, so it exercises only the exported
+ABI and atomic heartbeat writer. Any process named `sb.exe` takes the renderer path and must pass
+the complete OpenGL import preflight before the extension reports initialized.
+
 Extension 1.3.1 therefore strengthens the same fail-closed diagnostic. Initialization resolves and
 preflights the executable's unique `glShadeModel`, `glBegin`, `glDrawArrays`, and `glDrawElements`
 IAT slots before changing any of them. It also resolves `glPolygonMode` from the loaded OpenGL
