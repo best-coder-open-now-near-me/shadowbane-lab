@@ -7,7 +7,7 @@ param(
         "\\VBOXSVR\codexdiag\client-baselines\wonderbane-20260831T023921516Z"
     ),
     [string] $ExpectedContentBuildId = "wb-55fbad5f-4b602995",
-    [string] $ExtensionVersion = "1.4.9",
+    [string] $ExtensionVersion = "1.4.10",
     [string] $ExtensionArtifact = (
         "\\VBOXSVR\codexgfx\build\wonderbane-graphics-baseline\Release\wonderbane-extension.dll"
     ),
