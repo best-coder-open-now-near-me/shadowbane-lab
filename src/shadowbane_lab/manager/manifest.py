@@ -22,7 +22,6 @@ MAX_MANAGER_CLIENT_SLOTS = 32
 _ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
 _INVALID_WINDOWS_COMPONENT_PATTERN = re.compile(r'[<>:"|?*]|[\x00-\x1f]')
 _DISPLAY_RESOLUTION_PATTERN = re.compile(r"([1-9][0-9]{0,4})x([1-9][0-9]{0,4})\Z")
-_SHA256_PATTERN = re.compile(r"[0-9A-Fa-f]{64}\Z")
 _MAX_DISPLAY_DIMENSION = 16_384
 _SIGNED_WIN32_MIN = -(2**31)
 _SIGNED_WIN32_MAX = (2**31) - 1
@@ -163,48 +162,6 @@ def _parse_arguments(value: object, *, location: str) -> tuple[str, ...]:
         arguments.extend((argument, option_value))
         index += 2
     return tuple(arguments)
-
-
-def _parse_required_file_sha256(
-    value: object,
-    *,
-    location: str,
-) -> tuple[tuple[str, str], ...]:
-    if not isinstance(value, Mapping) or not value:
-        _fail(f"{location} must be a non-empty object of relative file paths to SHA-256 values")
-
-    parsed: list[tuple[str, str]] = []
-    seen_paths: set[str] = set()
-    for raw_path, raw_digest in value.items():
-        item_location = f"{location}[{raw_path!r}]"
-        if not isinstance(raw_path, str) or not raw_path or raw_path != raw_path.strip():
-            _fail(f"{location} keys must be canonical relative Windows file paths")
-        if "\0" in raw_path or "\r" in raw_path or "\n" in raw_path:
-            _fail(f"{item_location} must not contain control characters")
-        path = PureWindowsPath(raw_path)
-        if path.is_absolute() or path.drive or path.root or ".." in path.parts:
-            _fail(f"{item_location} must be a relative file path without parent traversal")
-        if not path.name or path.name in {".", ".."}:
-            _fail(f"{item_location} must identify a file")
-        canonical_path = str(path)
-        if canonical_path != raw_path:
-            _fail(f"{item_location} must use canonical Windows path separators")
-        for part in path.parts:
-            if _INVALID_WINDOWS_COMPONENT_PATTERN.search(part):
-                _fail(f"{item_location} contains characters that are invalid in Windows paths")
-            if part.rstrip(" .") != part:
-                _fail(f"{item_location} contains a path component ending in a space or dot")
-        path_key = canonical_path.casefold()
-        if path_key in seen_paths:
-            _fail(f"{location} file paths must be unique ignoring case")
-        seen_paths.add(path_key)
-
-        if not isinstance(raw_digest, str) or not _SHA256_PATTERN.fullmatch(raw_digest):
-            _fail(f"{item_location} must contain exactly 64 hexadecimal SHA-256 digits")
-        parsed.append((canonical_path, raw_digest.lower()))
-
-    parsed.sort(key=lambda item: item[0].casefold())
-    return tuple(parsed)
 
 
 def _parse_environment(
@@ -349,7 +306,6 @@ class ClientLaunchConfig:
     arguments: tuple[str, ...]
     working_directory: PureWindowsPath
     environment: tuple[tuple[str, str | None], ...] = ()
-    required_file_sha256: tuple[tuple[str, str], ...] = ()
 
     def __post_init__(self) -> None:
         if not isinstance(self.executable, PureWindowsPath) or not self.executable.is_absolute():
@@ -389,27 +345,6 @@ class ClientLaunchConfig:
             raise ManagerManifestError(
                 "launch.environment must contain unique, sorted immutable pairs"
             )
-        if not isinstance(self.required_file_sha256, tuple):
-            raise ManagerManifestError("launch.required_file_sha256 must be an immutable tuple")
-        if any(
-            not isinstance(item, tuple) or len(item) != 2
-            for item in self.required_file_sha256
-        ):
-            raise ManagerManifestError(
-                "launch.required_file_sha256 must contain immutable path/hash pairs"
-            )
-        parsed_required_files = (
-            _parse_required_file_sha256(
-                dict(self.required_file_sha256),
-                location="launch.required_file_sha256",
-            )
-            if self.required_file_sha256
-            else ()
-        )
-        if parsed_required_files != self.required_file_sha256:
-            raise ManagerManifestError(
-                "launch.required_file_sha256 must contain unique, sorted immutable pairs"
-            )
 
     @property
     def command(self) -> tuple[str, ...]:
@@ -425,8 +360,6 @@ class ClientLaunchConfig:
         }
         if self.environment:
             payload["environment"] = dict(self.environment)
-        if self.required_file_sha256:
-            payload["required_file_sha256"] = dict(self.required_file_sha256)
         return payload
 
 
@@ -531,7 +464,7 @@ def _parse_launch(value: object, *, location: str) -> ClientLaunchConfig:
         value,
         location=location,
         required=frozenset({"executable", "arguments", "working_directory"}),
-        optional=frozenset({"environment", "required_file_sha256"}),
+        optional=frozenset({"environment"}),
     )
     return ClientLaunchConfig(
         executable=_parse_absolute_windows_path(
@@ -547,14 +480,6 @@ def _parse_launch(value: object, *, location: str) -> ClientLaunchConfig:
         environment=(
             _parse_environment(payload["environment"], location=f"{location}.environment")
             if "environment" in payload
-            else ()
-        ),
-        required_file_sha256=(
-            _parse_required_file_sha256(
-                payload["required_file_sha256"],
-                location=f"{location}.required_file_sha256",
-            )
-            if "required_file_sha256" in payload
             else ()
         ),
     )

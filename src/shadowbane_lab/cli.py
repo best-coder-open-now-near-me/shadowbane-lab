@@ -183,7 +183,6 @@ from shadowbane_lab.manager import (
     WorkerSupervisor,
     WorkerTravelDestination,
     expand_manager_slots,
-    inspect_launch_integrity,
     load_manager_manifest,
     provision_isolated_client_runtimes,
     recover_manager_bindings,
@@ -1495,8 +1494,6 @@ def _preflight_manager(manifest_path: Path, *, as_json: bool) -> int:
             environment_ready = all(
                 item["ready"] for item in (launch_executable, working_directory, process_directory)
             )
-            integrity = inspect_launch_integrity(config)
-            environment_ready = environment_ready and all(item.ready for item in integrity)
             if snapshot.rejected:
                 binding_status = "unsafe_identity"
             elif not snapshot.clients:
@@ -1516,7 +1513,6 @@ def _preflight_manager(manifest_path: Path, *, as_json: bool) -> int:
                         "launch_executable": launch_executable,
                         "working_directory": working_directory,
                         "expected_process_directory": process_directory,
-                        "required_file_integrity": [item.to_dict() for item in integrity],
                     },
                     "expected_executable_names": list(config.expected_executable_names),
                     "window_tile": (
