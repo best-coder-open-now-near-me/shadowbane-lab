@@ -34,6 +34,7 @@ float PerspectiveOutlineLineWidth(
     const int* viewport,
     std::size_t viewport_count
 ) noexcept;
+float InteriorContourLineWidth(float outline_width) noexcept;
 bool ExpandOutlineBounds(OutlineBounds* bounds, float x, float y, float z) noexcept;
 bool CenteredOutlineHullTransform(
     const OutlineBounds* bounds,

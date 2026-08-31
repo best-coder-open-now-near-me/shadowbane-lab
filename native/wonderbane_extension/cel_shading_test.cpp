@@ -257,6 +257,14 @@ int wmain() {
     ) {
         return Fail(L"perspective outline width policy");
     }
+    if (
+        std::fabs(wonderbane::extension::InteriorContourLineWidth(4.0F) - 1.25F) > 0.001F
+        || std::fabs(wonderbane::extension::InteriorContourLineWidth(2.0F) - 1.0F) > 0.001F
+        || wonderbane::extension::InteriorContourLineWidth(1.0F) != 0.0F
+        || wonderbane::extension::InteriorContourLineWidth(NAN) != 0.0F
+    ) {
+        return Fail(L"bounded interior contour width policy");
+    }
     wonderbane::extension::OutlineBounds expanded{{90.0F, -5.0F, -2.0F}, {110.0F, 5.0F, 2.0F}};
     if (
         !wonderbane::extension::ExpandOutlineBounds(&expanded, 112.0F, 6.0F, 3.0F)

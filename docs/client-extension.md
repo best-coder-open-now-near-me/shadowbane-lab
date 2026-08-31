@@ -269,6 +269,14 @@ distance rule and ensuring the centered hull runs only against the model-view st
 lighting-state audit is required before introducing discrete diffuse bands; version 1.4.5 does not
 claim or synthesize lighting bands.
 
+Extension 1.4.6 adds a bounded interior-contour pass after the ordinary fill. Eligible local model
+draws replay once in front-face-only line mode, with a small polygon depth bias and no depth writes.
+The 1–1.25 pixel accent follows polygon and component transitions without changing the approved
+world-scaled exterior hull. It is omitted once the projected exterior width falls below 1.5 pixels,
+preventing distant characters and props from becoming dense wireframes. Texture, lighting, fog,
+blending, smoothing, dithering, and alpha-test state remain isolated by the existing attribute guard;
+black coverage still uses `GL_CLEAR`, and the client's fill, depth, and state are preserved.
+
 Orthographic UI/map rendering, points, lines, and array draws outside the reviewed element-count
 bound remain single-pass. Immediate-mode geometry remains filled and flat-shaded because replaying
 an arbitrary `glBegin`/`glEnd` stream would require intercepting every vertex and state mutation.

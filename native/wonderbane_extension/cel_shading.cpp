@@ -34,12 +34,16 @@ constexpr unsigned int kGlAlphaTest = 0x0BC0U;
 constexpr unsigned int kGlLineSmooth = 0x0B20U;
 constexpr unsigned int kGlDither = 0x0BD0U;
 constexpr unsigned int kGlColorLogicOp = 0x0BF2U;
+constexpr unsigned int kGlDepthTest = 0x0B71U;
+constexpr unsigned int kGlPolygonOffsetLine = 0x2A02U;
 constexpr unsigned int kGlFront = 0x0404U;
+constexpr unsigned int kGlBack = 0x0405U;
 constexpr unsigned int kGlFrontAndBack = 0x0408U;
 constexpr unsigned int kGlModelView = 0x1700U;
 constexpr unsigned int kGlFill = 0x1B02U;
 constexpr unsigned int kGlLine = 0x1B01U;
 constexpr unsigned int kGlClear = 0x1500U;
+constexpr unsigned int kGlLequal = 0x0203U;
 constexpr unsigned int kGlAllAttribBits = 0x000FFFFFU;
 constexpr int kMaximumOutlinedElementCount = 8192;
 constexpr double kMaximumOutlineOriginDistance = 4096.0;
@@ -47,6 +51,9 @@ constexpr double kOutlineWorldThickness = 0.5;
 constexpr double kMinimumVisibleOutlinePixels = 0.75;
 constexpr float kMinimumRasterOutlinePixels = 1.0F;
 constexpr float kMaximumRasterOutlinePixels = 4.0F;
+constexpr float kMinimumInteriorContourOutlinePixels = 1.5F;
+constexpr float kMinimumInteriorContourPixels = 1.0F;
+constexpr float kMaximumInteriorContourPixels = 1.25F;
 constexpr float kMaximumOutlineHullScale = 1.25F;
 constexpr std::size_t kCapturedDisplayListCapacity = 65536U;
 
@@ -81,6 +88,8 @@ using GlPolygonMode = void(APIENTRY*)(unsigned int face, unsigned int mode);
 using GlLineWidth = void(APIENTRY*)(float width);
 using GlLogicOp = void(APIENTRY*)(unsigned int operation);
 using GlDepthMask = void(APIENTRY*)(unsigned char flag);
+using GlDepthFunc = void(APIENTRY*)(unsigned int function);
+using GlPolygonOffset = void(APIENTRY*)(float factor, float units);
 
 PVOID volatile g_original_shade_model = nullptr;
 PVOID volatile g_original_begin = nullptr;
@@ -108,6 +117,8 @@ PVOID volatile g_polygon_mode = nullptr;
 PVOID volatile g_line_width = nullptr;
 PVOID volatile g_logic_op = nullptr;
 PVOID volatile g_depth_mask = nullptr;
+PVOID volatile g_depth_func = nullptr;
+PVOID volatile g_polygon_offset = nullptr;
 std::uint32_t* g_shade_model_slot = nullptr;
 std::uint32_t* g_begin_slot = nullptr;
 std::uint32_t* g_call_list_slot = nullptr;
@@ -269,6 +280,8 @@ struct OutlineApi {
     GlLineWidth line_width;
     GlLogicOp logic_op;
     GlDepthMask depth_mask;
+    GlDepthFunc depth_func;
+    GlPolygonOffset polygon_offset;
 };
 
 bool LoadOutlineApi(OutlineApi* const api) noexcept {
@@ -291,6 +304,8 @@ bool LoadOutlineApi(OutlineApi* const api) noexcept {
         LoadFunction<GlLineWidth>(&g_line_width),
         LoadFunction<GlLogicOp>(&g_logic_op),
         LoadFunction<GlDepthMask>(&g_depth_mask),
+        LoadFunction<GlDepthFunc>(&g_depth_func),
+        LoadFunction<GlPolygonOffset>(&g_polygon_offset),
     };
     return api->get_floatv != nullptr
         && api->get_booleanv != nullptr
@@ -306,7 +321,42 @@ bool LoadOutlineApi(OutlineApi* const api) noexcept {
         && api->polygon_mode != nullptr
         && api->line_width != nullptr
         && api->logic_op != nullptr
-        && api->depth_mask != nullptr;
+        && api->depth_mask != nullptr
+        && api->depth_func != nullptr
+        && api->polygon_offset != nullptr;
+}
+
+template <typename Draw>
+void DrawInteriorContours(
+    const Draw& draw,
+    const OutlineApi& api,
+    const float outline_width
+) noexcept {
+    const float contour_width = InteriorContourLineWidth(outline_width);
+    if (contour_width <= 0.0F) {
+        return;
+    }
+    api.push_attrib(kGlAllAttribBits);
+    api.disable(kGlTexture2D);
+    api.disable(kGlLighting);
+    api.disable(kGlFog);
+    api.disable(kGlBlend);
+    api.disable(kGlAlphaTest);
+    api.disable(kGlLineSmooth);
+    api.disable(kGlDither);
+    api.enable(kGlColorLogicOp);
+    api.logic_op(kGlClear);
+    api.enable(kGlDepthTest);
+    api.depth_func(kGlLequal);
+    api.depth_mask(FALSE);
+    api.enable(kGlCullFace);
+    api.cull_face(kGlBack);
+    api.enable(kGlPolygonOffsetLine);
+    api.polygon_offset(-1.0F, -1.0F);
+    api.polygon_mode(kGlFrontAndBack, kGlLine);
+    api.line_width(contour_width);
+    draw();
+    api.pop_attrib();
 }
 
 template <typename Draw>
@@ -386,6 +436,7 @@ void DrawWithSilhouette(
     api.pop_attrib();
 
     draw();
+    DrawInteriorContours(draw, api, outline_width);
 }
 
 template <typename Value>
@@ -759,6 +810,23 @@ float PerspectiveOutlineLineWidth(
         return kMaximumRasterOutlinePixels;
     }
     return static_cast<float>(pixels);
+}
+
+float InteriorContourLineWidth(const float outline_width) noexcept {
+    if (
+        !std::isfinite(outline_width)
+        || outline_width < kMinimumInteriorContourOutlinePixels
+    ) {
+        return 0.0F;
+    }
+    const float requested = outline_width * 0.35F;
+    if (requested <= kMinimumInteriorContourPixels) {
+        return kMinimumInteriorContourPixels;
+    }
+    if (requested >= kMaximumInteriorContourPixels) {
+        return kMaximumInteriorContourPixels;
+    }
+    return requested;
 }
 
 bool ExpandOutlineBounds(
@@ -1191,7 +1259,7 @@ DWORD StartStrongCelShading() noexcept {
         }
     }
 
-    std::array<HelperFunctionPlan, 15U> helpers{{
+    std::array<HelperFunctionPlan, 17U> helpers{{
         {"glGetFloatv", &g_get_floatv, nullptr},
         {"glGetBooleanv", &g_get_booleanv, nullptr},
         {"glPushAttrib", &g_push_attrib, nullptr},
@@ -1207,6 +1275,8 @@ DWORD StartStrongCelShading() noexcept {
         {"glLineWidth", &g_line_width, nullptr},
         {"glLogicOp", &g_logic_op, nullptr},
         {"glDepthMask", &g_depth_mask, nullptr},
+        {"glDepthFunc", &g_depth_func, nullptr},
+        {"glPolygonOffset", &g_polygon_offset, nullptr},
     }};
     for (HelperFunctionPlan& helper : helpers) {
         helper.resolved = reinterpret_cast<PVOID>(GetProcAddress(opengl, helper.symbol_name));
@@ -1333,6 +1403,8 @@ void StopStrongCelShading() noexcept {
         InterlockedExchange(&g_viewport_y, 0);
         InterlockedExchange(&g_viewport_x, 0);
         g_current_matrix_mode = kGlModelView;
+        InterlockedExchangePointer(&g_polygon_offset, nullptr);
+        InterlockedExchangePointer(&g_depth_func, nullptr);
         InterlockedExchangePointer(&g_depth_mask, nullptr);
         InterlockedExchangePointer(&g_logic_op, nullptr);
         InterlockedExchangePointer(&g_line_width, nullptr);
