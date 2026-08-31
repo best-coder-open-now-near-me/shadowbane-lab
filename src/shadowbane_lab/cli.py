@@ -162,6 +162,7 @@ from shadowbane_lab.manager import (
     ExactExtensionEventRouter,
     ForegroundWorkerOperationIngress,
     GuardedWindowControl,
+    IsolatedRuntimeCapacityProvisioner,
     LiveConfiguredManagerApplication,
     ManagedWorkerController,
     ManagerDashboardApplication,
@@ -1882,6 +1883,7 @@ def _run_manager_app(
             manifest_path,
             manifest,
             build_application,
+            capacity_provisioner=IsolatedRuntimeCapacityProvisioner(manifest_path),
         )
         application.status()
         server = DashboardServer(application, port=port)

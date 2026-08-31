@@ -14,6 +14,8 @@ from .extension_router import (
 )
 from .live_configuration import (
     LiveConfiguredManagerApplication,
+    ManagerCapacityProvisioner,
+    PreparedManagerCapacity,
     replace_manager_manifest,
 )
 from .manifest import (
@@ -74,6 +76,8 @@ from .registry import (
 )
 from .runtime_deployment import (
     RUNTIME_DEPLOYMENT_SCHEMA_VERSION,
+    IsolatedRuntimeCapacityProvisioner,
+    PreparedIsolatedRuntimeSlot,
     RuntimeDeploymentError,
     RuntimeDeploymentResult,
     RuntimeDeploymentSlot,
@@ -200,6 +204,7 @@ __all__ = [
     "ManagedClientConfig",
     "ManagedClientSnapshot",
     "ManagedClientState",
+    "ManagerCapacityProvisioner",
     "ManagerDashboardApplication",
     "ManagerManifest",
     "ManagerManifestError",
@@ -280,6 +285,9 @@ __all__ = [
     "retarget_manager_client_directories",
     "retarget_manager_clients",
     "RUNTIME_DEPLOYMENT_SCHEMA_VERSION",
+    "IsolatedRuntimeCapacityProvisioner",
+    "PreparedIsolatedRuntimeSlot",
+    "PreparedManagerCapacity",
     "RuntimeDeploymentError",
     "RuntimeDeploymentResult",
     "RuntimeDeploymentSlot",

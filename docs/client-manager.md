@@ -116,11 +116,12 @@ For the standard WonderBane VM, the supported logon installer generates the loca
 retains the Mesa text fix, starts the command listener, and opens this dashboard without requiring
 an interactive terminal. See [VM setup](vm-setup.md#install-the-vm-control-center-at-logon).
 
-The dashboard presents running instances rather than exposing its internal slot capacity. Use
-**Add client** to launch another instance into a free slot. Legacy tiled manifests may expand
-their hidden capacity transactionally. An isolated-runtime manifest is deliberately fixed-capacity:
-when every slot is occupied, provision another complete guest-local runtime before adding a client.
-It never clones an occupied runtime directory.
+The dashboard presents running instances and the number of provisioned runtimes. Use **Add client**
+to launch another instance into a free slot. When every isolated slot is occupied, the same action
+publishes one fresh guest-local runtime from the verified frozen baseline and pinned deployment
+inputs, preserves every live binding, atomically expands the manager manifest, and then launches the
+new slot. It never clones an occupied runtime directory. A failure before the manifest commit removes
+only the unpublished runtime; a launch failure after commit leaves the clean slot available to retry.
 
 The legacy reviewed configurator remains available for an explicit offline capacity/layout change
 on tiled, single-runtime test manifests:
@@ -153,7 +154,9 @@ The installer pins both the official `sb.exe` and unmodified `Textures.cache`, r
 residue in the vanilla source, freezes the complete baseline under local app data, and publishes
 each slot beneath a versioned guest-local deployment. It rereads every package before atomically
 replacing the manager manifest and retains the original JSON as a timestamped backup. No game
-client, baseline, or runtime is executed from a VirtualBox shared folder.
+client, baseline, or runtime is executed from a VirtualBox shared folder. Each deployment retains a
+hash-pinned local copy of its bootstrap manifest and extension artifact so later **Add client**
+actions do not depend on a mutable share or a running client tree.
 
 Every isolated slot launches with the calibrated `-windowed -resolution 1920x955` contract and no
 `window_tile`. Shadowbane retains its launch-time render surface when Win32 resizes its outer

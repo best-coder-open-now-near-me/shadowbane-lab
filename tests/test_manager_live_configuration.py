@@ -1,6 +1,7 @@
 import json
 import tempfile
 import unittest
+from copy import deepcopy
 from pathlib import Path
 
 from shadowbane_lab.manager.dashboard import DashboardError
@@ -8,7 +9,7 @@ from shadowbane_lab.manager.live_configuration import (
     LiveConfiguredManagerApplication,
     replace_manager_manifest,
 )
-from shadowbane_lab.manager.manifest import load_manager_manifest
+from shadowbane_lab.manager.manifest import load_manager_manifest, parse_manager_manifest
 
 
 def _manifest_payload(*, node_id: str = "gaming-pc-east") -> dict[str, object]:
@@ -126,6 +127,39 @@ class _Factory:
         return application
 
 
+class _PreparedCapacity:
+    def __init__(self, manifest, client_id: str) -> None:
+        self.manifest = manifest
+        self.client_id = client_id
+        self.discarded = False
+
+    def discard(self) -> None:
+        self.discarded = True
+
+
+class _CapacityProvisioner:
+    def __init__(self) -> None:
+        self.prepared: _PreparedCapacity | None = None
+
+    def prepare(self, manifest):
+        payload = manifest.to_dict()
+        client = deepcopy(payload["clients"][0])
+        client["client_id"] = "client-02"
+        client["launch"]["executable"] = r"C:\Games\Shadowbane-02\sb.exe"
+        client["launch"]["working_directory"] = r"C:\Games\Shadowbane-02"
+        client["expected_process_directory"] = r"C:\Games\Shadowbane-02"
+        payload["clients"].append(client)
+        self.prepared = _PreparedCapacity(parse_manager_manifest(payload), "client-02")
+        return self.prepared
+
+
+class _InvalidCapacityProvisioner(_CapacityProvisioner):
+    def prepare(self, manifest):
+        prepared = super().prepare(manifest)
+        prepared.client_id = "wrong-client"
+        return prepared
+
+
 class LiveConfiguredManagerApplicationTests(unittest.TestCase):
     def _application(self, directory: str, factory: _Factory):
         manifest_path = Path(directory) / "manager.json"
@@ -191,7 +225,7 @@ class LiveConfiguredManagerApplicationTests(unittest.TestCase):
                 {slot["instance_id"] for slot in status["slots"]},
             )
 
-    def test_tileless_isolated_runtime_manifest_has_fixed_capacity(self) -> None:
+    def test_tileless_manifest_without_provisioner_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             manifest_path = Path(directory) / "manager.json"
             payload = _manifest_payload()
@@ -207,8 +241,57 @@ class LiveConfiguredManagerApplicationTests(unittest.TestCase):
             status = application.status()
 
             self.assertFalse(status["can_add_client"])
-            with self.assertRaisesRegex(DashboardError, "Provision another guest-local runtime"):
+            with self.assertRaisesRegex(DashboardError, "no live runtime provisioner"):
                 application.execute("add-client")
+            self.assertEqual(1, len(load_manager_manifest(manifest_path).clients))
+
+    def test_add_client_provisions_isolated_capacity_and_preserves_binding(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            manifest_path = Path(directory) / "manager.json"
+            payload = _manifest_payload()
+            del payload["clients"][0]["window_tile"]
+            manifest_path.write_text(json.dumps(payload), encoding="utf-8")
+            factory = _Factory("existing-client")
+            provisioner = _CapacityProvisioner()
+            application = LiveConfiguredManagerApplication(
+                manifest_path,
+                load_manager_manifest(manifest_path),
+                factory,
+                capacity_provisioner=provisioner,
+            )
+
+            self.assertTrue(application.status()["can_add_client"])
+            result = application.execute("add-client")
+            status = application.status()
+
+            self.assertTrue(result["capacity_expanded"])
+            self.assertTrue(result["runtime_provisioned"])
+            self.assertEqual("client-02", result["client_id"])
+            self.assertEqual(2, status["open_count"])
+            self.assertEqual(2, len(load_manager_manifest(manifest_path).clients))
+            self.assertEqual("existing-client", factory.applications[1].bindings["client-01"])
+            self.assertIsNotNone(provisioner.prepared)
+            self.assertFalse(provisioner.prepared.discarded)
+
+    def test_failed_isolated_capacity_migration_discards_prepared_runtime(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            manifest_path = Path(directory) / "manager.json"
+            payload = _manifest_payload()
+            del payload["clients"][0]["window_tile"]
+            manifest_path.write_text(json.dumps(payload), encoding="utf-8")
+            provisioner = _InvalidCapacityProvisioner()
+            application = LiveConfiguredManagerApplication(
+                manifest_path,
+                load_manager_manifest(manifest_path),
+                _Factory("existing-client"),
+                capacity_provisioner=provisioner,
+            )
+
+            with self.assertRaisesRegex(DashboardError, "could not be committed"):
+                application.execute("add-client")
+
+            self.assertIsNotNone(provisioner.prepared)
+            self.assertTrue(provisioner.prepared.discarded)
             self.assertEqual(1, len(load_manager_manifest(manifest_path).clients))
 
     def test_delegates_normal_actions_to_current_immutable_application(self) -> None:

@@ -124,7 +124,9 @@ extension package independently to:
 Each directory has its own `Config`, `Logs`, `DoubleFusion`, and cache tree. After all slot copies
 verify, one compare-and-swap manifest update points each slot at its unique directory. A failure
 before that update removes only the new unpublished deployment and leaves the current manager
-manifest byte-for-byte unchanged. The immutable source baseline is never launched.
+manifest byte-for-byte unchanged. The immutable source baseline is never launched. The deployment
+also retains hash-pinned local bootstrap inputs; the dashboard uses them to publish one new isolated
+runtime whenever **Add client** exhausts the currently provisioned slots.
 
 The same script writes the operational manager manifest and runner beneath
 `%LOCALAPPDATA%\ShadowbaneLab`, creates a desktop shortcut, and creates a current-user Startup
@@ -135,8 +137,9 @@ from `codexrepo`, so fetched runner changes take effect on the next logon withou
 Every isolated slot launches a full 1920x955 client and has no resize tile. The windows overlap
 because Shadowbane clips its render surface when its outer window is resized; the existing
 1920x955 automation calibration therefore remains exact. A second smaller layout needs its own
-observed profile. To change the isolated slot count, rerun the isolated-runtime installer with a
-new `-ClientCount`; this creates a complete new deployment rather than cloning a live directory.
+observed profile. **Add client** grows this layout one verified runtime at a time without cloning a
+live directory. Rerun the isolated-runtime installer with a new `-ClientCount` only when replacing
+the complete deployment or changing its baseline, patch inputs, or calibrated resolution.
 
 The older tiled-slot wrapper remains only for non-isolated test manifests:
 

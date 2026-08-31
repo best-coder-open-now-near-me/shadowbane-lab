@@ -1,3 +1,4 @@
+import hashlib
 import json
 import tempfile
 import unittest
@@ -14,6 +15,8 @@ from shadowbane_lab.client_extension.manifest import (
 )
 from shadowbane_lab.manager import load_manager_manifest
 from shadowbane_lab.manager.runtime_deployment import (
+    RUNTIME_DEPLOYMENT_SCHEMA_VERSION,
+    IsolatedRuntimeCapacityProvisioner,
     RuntimeDeploymentError,
     provision_isolated_client_runtimes,
 )
@@ -43,7 +46,7 @@ def _manager_payload() -> dict[str, object]:
     return {"schema_version": 1, "node_id": "wonderbane-vm", "clients": clients}
 
 
-def _patch_manifest() -> PatchManifest:
+def _patch_manifest(*, extension_sha256: str = "3" * 64) -> PatchManifest:
     return PatchManifest(
         patch_id="fixture.bootstrap-v1",
         source=SourceExecutable(
@@ -56,7 +59,7 @@ def _patch_manifest() -> PatchManifest:
         patched_executable_sha256="2" * 64,
         extension=ExtensionArtifact(
             file_name="wonderbane-extension.dll",
-            sha256="3" * 64,
+            sha256=extension_sha256,
             version="1.3.0",
             machine=0x14C,
             bootstrap_export="WonderBaneExtensionInitialize",
@@ -85,7 +88,9 @@ class ManagerRuntimeDeploymentTests(unittest.TestCase):
             frozen = root / "frozen"
             frozen.mkdir()
             extension = root / "wonderbane-extension.dll"
-            extension.write_bytes(b"extension")
+            extension_bytes = b"extension"
+            extension.write_bytes(extension_bytes)
+            extension_sha256 = hashlib.sha256(extension_bytes).hexdigest()
             deployment = root / "vanilla-20260831"
             baseline = SimpleNamespace(
                 directory=str(frozen),
@@ -101,7 +106,8 @@ class ManagerRuntimeDeploymentTests(unittest.TestCase):
                     destination_directory=str(destination.resolve()),
                     working_tree_sha256="5" * 64,
                     result_executable_sha256="2" * 64,
-                    extension_sha256="3" * 64,
+                    extension_sha256=extension_sha256,
+                    repository_revision="abc123",
                 )
                 return SimpleNamespace(destination_published=True, evidence=evidence)
 
@@ -119,7 +125,7 @@ class ManagerRuntimeDeploymentTests(unittest.TestCase):
                     manifest_path,
                     frozen,
                     deployment,
-                    _patch_manifest(),
+                    _patch_manifest(extension_sha256=extension_sha256),
                     extension,
                     deployment_id="vanilla-20260831",
                     slot_count=2,
@@ -145,6 +151,13 @@ class ManagerRuntimeDeploymentTests(unittest.TestCase):
             evidence = json.loads(Path(result.evidence_path).read_text(encoding="utf-8"))
             self.assertEqual(2, evidence["slot_count"])
             self.assertEqual("4" * 64, evidence["baseline_tree_sha256"])
+            self.assertEqual(RUNTIME_DEPLOYMENT_SCHEMA_VERSION, evidence["schema_version"])
+            self.assertTrue(
+                (deployment / evidence["inputs"]["patch_manifest"]).is_file()
+            )
+            self.assertTrue(
+                (deployment / evidence["inputs"]["extension_artifact"]).is_file()
+            )
 
     def test_failed_second_copy_removes_new_deployment_and_preserves_manifest(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -155,7 +168,9 @@ class ManagerRuntimeDeploymentTests(unittest.TestCase):
             frozen = root / "frozen"
             frozen.mkdir()
             extension = root / "wonderbane-extension.dll"
-            extension.write_bytes(b"extension")
+            extension_bytes = b"extension"
+            extension.write_bytes(extension_bytes)
+            extension_sha256 = hashlib.sha256(extension_bytes).hexdigest()
             deployment = root / "vanilla-failed"
             baseline = SimpleNamespace(
                 directory=str(frozen),
@@ -176,7 +191,8 @@ class ManagerRuntimeDeploymentTests(unittest.TestCase):
                     destination_directory=str(destination.resolve()),
                     working_tree_sha256="5" * 64,
                     result_executable_sha256="2" * 64,
-                    extension_sha256="3" * 64,
+                    extension_sha256=extension_sha256,
+                    repository_revision="abc123",
                 )
                 return SimpleNamespace(destination_published=True, evidence=evidence)
 
@@ -195,7 +211,7 @@ class ManagerRuntimeDeploymentTests(unittest.TestCase):
                         manifest_path,
                         frozen,
                         deployment,
-                        _patch_manifest(),
+                        _patch_manifest(extension_sha256=extension_sha256),
                         extension,
                         deployment_id="vanilla-failed",
                         slot_count=2,
@@ -203,6 +219,144 @@ class ManagerRuntimeDeploymentTests(unittest.TestCase):
 
             self.assertFalse(deployment.exists())
             self.assertEqual(original, manifest_path.read_bytes())
+
+    def test_prepares_one_fresh_live_slot_without_committing_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path = root / "client-manager.json"
+            manifest_path.write_text(json.dumps(_manager_payload()), encoding="utf-8")
+            frozen = root / "frozen"
+            frozen.mkdir()
+            extension_bytes = b"extension"
+            extension = root / "wonderbane-extension.dll"
+            extension.write_bytes(extension_bytes)
+            extension_sha256 = hashlib.sha256(extension_bytes).hexdigest()
+            deployment = root / "client-runtimes" / "vanilla-20260831"
+            baseline = SimpleNamespace(
+                directory=str(frozen.resolve()),
+                tree_sha256="4" * 64,
+                repository_revision="abc123",
+            )
+
+            def prepare(_baseline, destination, _manifest, _extension, **_kwargs):
+                destination = Path(destination)
+                destination.mkdir()
+                (destination / "sb.exe").write_bytes(b"patched")
+                evidence = SimpleNamespace(
+                    destination_directory=str(destination.resolve()),
+                    working_tree_sha256="5" * 64,
+                    result_executable_sha256="2" * 64,
+                    extension_sha256=extension_sha256,
+                    repository_revision="abc123",
+                )
+                return SimpleNamespace(destination_published=True, evidence=evidence)
+
+            with (
+                patch(
+                    "shadowbane_lab.manager.runtime_deployment.verify_frozen_client_baseline",
+                    return_value=baseline,
+                ),
+                patch(
+                    "shadowbane_lab.manager.runtime_deployment.prepare_patched_client_copy",
+                    side_effect=prepare,
+                ),
+            ):
+                provision_isolated_client_runtimes(
+                    manifest_path,
+                    frozen,
+                    deployment,
+                    _patch_manifest(extension_sha256=extension_sha256),
+                    extension,
+                    deployment_id="vanilla-20260831",
+                    slot_count=1,
+                )
+                before = load_manager_manifest(manifest_path)
+                prepared = IsolatedRuntimeCapacityProvisioner(manifest_path).prepare(before)
+
+            self.assertEqual("client-02", prepared.client_id)
+            self.assertEqual(2, len(prepared.manifest.clients))
+            self.assertEqual(before, load_manager_manifest(manifest_path))
+            self.assertTrue(prepared.deployment_directory.is_dir())
+            self.assertNotEqual(
+                prepared.manifest.clients[0].launch.working_directory,
+                prepared.manifest.clients[1].launch.working_directory,
+            )
+
+            prepared.discard()
+            self.assertFalse(prepared.deployment_directory.exists())
+
+    def test_prepares_from_legacy_deployment_inputs(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path = root / "client-manager.json"
+            manifest_path.write_text(json.dumps(_manager_payload()), encoding="utf-8")
+            frozen = root / "frozen"
+            frozen.mkdir()
+            extension_bytes = b"extension"
+            extension = root / "wonderbane-extension.dll"
+            extension.write_bytes(extension_bytes)
+            extension_sha256 = hashlib.sha256(extension_bytes).hexdigest()
+            patch_manifest = _patch_manifest(extension_sha256=extension_sha256)
+            deployment_id = "vanilla-legacy"
+            deployment = root / "client-runtimes" / deployment_id
+            baseline = SimpleNamespace(
+                directory=str(frozen.resolve()),
+                tree_sha256="4" * 64,
+                repository_revision="abc123",
+            )
+
+            def prepare(_baseline, destination, _manifest, _extension, **_kwargs):
+                destination = Path(destination)
+                destination.mkdir()
+                (destination / "sb.exe").write_bytes(b"patched")
+                (destination / "wonderbane-extension.dll").write_bytes(extension_bytes)
+                evidence = SimpleNamespace(
+                    destination_directory=str(destination.resolve()),
+                    working_tree_sha256="5" * 64,
+                    result_executable_sha256="2" * 64,
+                    extension_sha256=extension_sha256,
+                    repository_revision="abc123",
+                )
+                return SimpleNamespace(destination_published=True, evidence=evidence)
+
+            with (
+                patch(
+                    "shadowbane_lab.manager.runtime_deployment.verify_frozen_client_baseline",
+                    return_value=baseline,
+                ),
+                patch(
+                    "shadowbane_lab.manager.runtime_deployment.prepare_patched_client_copy",
+                    side_effect=prepare,
+                ),
+            ):
+                provision_isolated_client_runtimes(
+                    manifest_path,
+                    frozen,
+                    deployment,
+                    patch_manifest,
+                    extension,
+                    deployment_id=deployment_id,
+                    slot_count=1,
+                )
+                evidence_path = deployment / "runtime-deployment.json"
+                evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+                evidence["schema_version"] = 1
+                evidence.pop("inputs")
+                evidence.pop("patch_manifest_sha256")
+                evidence_path.write_text(json.dumps(evidence), encoding="utf-8")
+                legacy_inputs = root / "deployment-inputs" / deployment_id
+                legacy_inputs.mkdir(parents=True)
+                (legacy_inputs / f"{deployment_id}.bootstrap-manifest.json").write_text(
+                    json.dumps(patch_manifest.as_dict()),
+                    encoding="utf-8",
+                )
+
+                before = load_manager_manifest(manifest_path)
+                prepared = IsolatedRuntimeCapacityProvisioner(manifest_path).prepare(before)
+
+            self.assertEqual("client-02", prepared.client_id)
+            self.assertEqual(2, len(prepared.manifest.clients))
+            prepared.discard()
 
 
 if __name__ == "__main__":
