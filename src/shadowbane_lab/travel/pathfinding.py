@@ -386,7 +386,14 @@ class WeightedAStarPlanner:
         start_lg: float,
         destination: TravelDestination,
     ) -> AStarRoute:
-        """Route toward the closest safely reachable cell without crossing a barrier."""
+        """Route to a safely reachable planning-window edge without crossing a barrier.
+
+        The closest cell to a blocked goal is commonly the near face of the
+        obstacle.  Stopping there leaves the next bounded plan with the same
+        disconnected grid.  Prefer a reachable edge cell instead so the next
+        local window can slide laterally and reveal a route around large
+        structures.  Search and expansion limits remain unchanged.
+        """
 
         if not isinstance(navigation_map, SparseNavigationMap):
             raise ValueError("navigation_map must be SparseNavigationMap")
@@ -442,6 +449,8 @@ class WeightedAStarPlanner:
         expanded = 0
         closest = start
         closest_heuristic = self._heuristic(start, goal)
+        boundary_frontier: NavigationCell | None = None
+        boundary_key: tuple[float, float, int, int] | None = None
         while frontier:
             _, _, current = heapq.heappop(frontier)
             expanded += 1
@@ -455,12 +464,23 @@ class WeightedAStarPlanner:
             ):
                 closest = current
                 closest_heuristic = current_heuristic
+            if current != start and self._is_boundary_cell(grid, current):
+                candidate_key = (
+                    current_heuristic,
+                    cost_so_far[current],
+                    current.x,
+                    current.y,
+                )
+                if boundary_key is None or candidate_key < boundary_key:
+                    boundary_frontier = current
+                    boundary_key = candidate_key
             if expanded > self._config.maximum_expansions:
-                if allow_partial and closest != start:
+                partial = boundary_frontier or (closest if closest != start else None)
+                if allow_partial and partial is not None:
                     return (
-                        self._reconstruct(came_from, start, closest),
+                        self._reconstruct(came_from, start, partial),
                         expanded,
-                        cost_so_far[closest],
+                        cost_so_far[partial],
                     )
                 raise AStarRouteNotFound("A* expansion budget exhausted")
             if current == goal:
@@ -476,13 +496,21 @@ class WeightedAStarPlanner:
                     neighbor, goal
                 )
                 heapq.heappush(frontier, (priority, order, neighbor))
-        if allow_partial and closest != start:
+        partial = boundary_frontier or (closest if closest != start else None)
+        if allow_partial and partial is not None:
             return (
-                self._reconstruct(came_from, start, closest),
+                self._reconstruct(came_from, start, partial),
                 expanded,
-                cost_so_far[closest],
+                cost_so_far[partial],
             )
         raise AStarRouteNotFound("A* found no route inside the planning window")
+
+    @staticmethod
+    def _is_boundary_cell(grid: NavigationCostGrid, cell: NavigationCell) -> bool:
+        return (
+            cell.x in {grid.minimum.x, grid.maximum.x}
+            or cell.y in {grid.minimum.y, grid.maximum.y}
+        )
 
     @staticmethod
     def _reconstruct(
