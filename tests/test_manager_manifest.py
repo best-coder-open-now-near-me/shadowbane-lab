@@ -293,6 +293,29 @@ class ManagerManifestTests(unittest.TestCase):
                 ):
                     parse_manager_manifest(_payload(client))
 
+    def test_accepts_explicit_removal_of_software_renderer_overrides(self) -> None:
+        client = _client()
+        client["launch"]["environment"] = {
+            "GALLIUM_DRIVER": None,
+            "LIBGL_ALWAYS_SOFTWARE": None,
+            "WONDERBANE_CEL_PROFILE": "flat",
+        }
+
+        manifest = parse_manager_manifest(_payload(client))
+
+        self.assertEqual(
+            (
+                ("GALLIUM_DRIVER", None),
+                ("LIBGL_ALWAYS_SOFTWARE", None),
+                ("WONDERBANE_CEL_PROFILE", "flat"),
+            ),
+            manifest.clients[0].launch.environment,
+        )
+        self.assertEqual(
+            client["launch"]["environment"],
+            manifest.to_dict()["clients"][0]["launch"]["environment"],
+        )
+
     def test_rejects_unknown_launch_flags_aliases_and_positional_values(self) -> None:
         rejected = (
             ["--fullscreen"],

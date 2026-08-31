@@ -32,8 +32,8 @@ _LAUNCH_FLAG_OPTIONS = {
 }
 _LAUNCH_VALUE_OPTIONS = {"-resolution": "resolution"}
 _LAUNCH_ENVIRONMENT_VALUES: dict[str, frozenset[str | None]] = {
-    "GALLIUM_DRIVER": frozenset({"llvmpipe"}),
-    "LIBGL_ALWAYS_SOFTWARE": frozenset({"true"}),
+    "GALLIUM_DRIVER": frozenset({None, "llvmpipe"}),
+    "LIBGL_ALWAYS_SOFTWARE": frozenset({None, "true"}),
     "MESA_EXTENSION_MAX_YEAR": frozenset({"2001"}),
     "MESA_GLSL_VERSION_OVERRIDE": frozenset({None}),
     "MESA_GL_VERSION_OVERRIDE": frozenset({None}),
