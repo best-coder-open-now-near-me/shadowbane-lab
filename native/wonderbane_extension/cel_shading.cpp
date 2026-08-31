@@ -363,7 +363,10 @@ void DrawWithSilhouette(
     api.enable(kGlColorLogicOp);
     api.logic_op(kGlClear);
     api.depth_mask(FALSE);
-    if (hull != nullptr && matrix_mode == static_cast<int>(kGlModelView)) {
+    const bool use_centered_hull = (
+        hull != nullptr && matrix_mode == static_cast<int>(kGlModelView)
+    );
+    if (use_centered_hull) {
         api.enable(kGlCullFace);
         api.cull_face(kGlFront);
         api.polygon_mode(kGlFrontAndBack, kGlFill);
@@ -374,10 +377,12 @@ void DrawWithSilhouette(
         draw();
         api.pop_matrix();
     }
-    api.disable(kGlCullFace);
-    api.polygon_mode(kGlFrontAndBack, kGlLine);
-    api.line_width(outline_width);
-    draw();
+    else {
+        api.disable(kGlCullFace);
+        api.polygon_mode(kGlFrontAndBack, kGlLine);
+        api.line_width(outline_width);
+        draw();
+    }
     api.pop_attrib();
 
     draw();
