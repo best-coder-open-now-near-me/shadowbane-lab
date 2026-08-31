@@ -61,6 +61,8 @@ an emergency stop, and explicit profile confirmation. See [the architecture](doc
 [simulation rollout guide](docs/simulation-rollouts.md),
 [differential-validation contract](docs/differential-validation.md),
 [produced-build runtime consistency gate](docs/runtime-consistency.md),
+[evidence-spine architecture](docs/evidence-spine.md),
+[evidence-spine delivery plan](docs/evidence-spine-delivery-plan.md),
 [tool ownership map](docs/tooling-map.md), and
 [development plan](docs/plan.md).
 

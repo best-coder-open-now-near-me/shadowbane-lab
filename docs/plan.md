@@ -103,6 +103,39 @@ meaningfully distinct, reproducible behavior.
 **Gate:** policies generalize across scenario and build permutations, and live deployment
 cannot bypass authoritative validation.
 
+## Evidence-spine delivery program
+
+Further live-mechanics and forensic work should use the evidence spine rather than create new
+standalone artifact families. The durable delivery sequence is:
+
+1. Extract shared strict-JSON, digest, timestamp, path, tree-inventory, and create-only primitives
+   without changing existing public artifacts.
+2. Add content-addressed artifact storage, sealed evidence manifests, verification receipts, and a
+   rebuildable query index.
+3. Compose client, runtime, service, environment, character, and lab-execution identity into one
+   mandatory fingerprint envelope.
+4. Add versioned research-case and experiment contracts with bounded steps, capture requirements,
+   safety policy, repetition design, and explicit hypotheses.
+5. Align native, extension, semantic-decision, input-audit, simulator, process, screen, log, and
+   authorized network-summary records through monotonic clocks, producer sequence, correlation,
+   and synchronization markers.
+6. Seal three end-to-end case families: runtime health, vendor-dialog observation, and one combat
+   breakpoint differential.
+7. Generate coverage, next-evidence, stale-build, and change-impact reports from the corpus,
+   layouts, cases, simulator bindings, tests, and gap ledger.
+8. Add semantic binary alignment, asset dependency graphs, protocol reconstruction, and passive
+   runtime discovery only after those producers can use the common evidence contracts.
+
+The complete architecture, schemas to introduce, module boundaries, migrations, validation
+matrix, commit cadence, and per-slice gates are defined in
+[the evidence-spine specification](evidence-spine.md) and
+[delivery plan](evidence-spine-delivery-plan.md). ADR 0004 makes canonical JSON manifests the
+durable truth, content-addressed objects the raw evidence store, and SQLite a disposable index.
+
+**Gate:** each named mechanic can be traced from exact fingerprints and immutable raw artifacts to
+a discriminating experiment, normalized trace, profile-specific claim, simulator binding,
+differential result, regression test, and declared invalidation rule.
+
 ## Current world-navigation investigation
 
 - Read and validate the client cache directory without copying gameplay textures into the

@@ -14,6 +14,12 @@ owner of each workflow and distinguishes a real capability from a wrapper around
 | `python -m shadowbane_lab.client_extension` | offline client-maintenance work | immutable client snapshots, official-build diffs, extension manifests/packages, rollback, and heartbeat evidence | live automation or game policy |
 | `python -m shadowbane_lab.client_alignment` | low-level client forensics | one-PE inspection and two-PE byte/section/anchor comparison | whole-client release comparison |
 
+The planned evidence-spine workflows remain command groups under `shadowbane-lab`; they do not add
+another executable. `fingerprint`, `case`, `experiment`, `evidence`, `coverage`, and `impact`
+orchestrate the canonical owners above and record immutable relationships between their artifacts.
+They do not absorb domain decoding or release authority. See
+[the evidence-spine architecture](evidence-spine.md).
+
 `client_extension diff-baselines` deliberately reuses `client_alignment compare` internally when
 the executable changed. The former is the whole-release evidence workflow; the latter remains the
 focused forensic primitive. Do not introduce a separate patch-diff executable or PowerShell wrapper
@@ -53,6 +59,12 @@ these priorities:
    policy. A wrapper that merely renames a Python command should not be added.
 5. Standardize operator documentation on the installed `shadowbane-lab` command. Reserve
    `python -m ...` spellings for maintenance modules without console entry points.
+6. Establish the shared integrity package, content-addressed evidence manifests, complete
+   fingerprint envelope, and research-case runner before adding deeper binary, asset, network, or
+   memory-discovery commands.
+7. Require every new producer to emit or ingest the common artifact and capture contracts. Do not
+   create free-floating report formats, manually named capture conventions, or a second mutable
+   evidence database.
 
 This is a compatibility-preserving backlog. Renaming or deleting existing commands before their
 scripts, shortcuts, and runbooks migrate would exchange visible clutter for hidden breakage.
