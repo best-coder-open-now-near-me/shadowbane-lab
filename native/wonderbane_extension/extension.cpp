@@ -16,7 +16,7 @@ constexpr std::size_t kPathCapacity = WONDERBANE_EXTENSION_HEARTBEAT_PATH_CAPACI
 constexpr std::size_t kJsonCapacity = 768;
 constexpr LONG kMaximumInitializationPolls = 500;
 constexpr DWORD kInitializationPollMilliseconds = 10;
-constexpr char kExtensionVersion[] = "1.4.2";
+constexpr char kExtensionVersion[] = "1.4.3";
 
 volatile LONG g_state = static_cast<LONG>(WonderBaneExtensionState::uninitialized);
 volatile LONG g_initialization_result = ERROR_SUCCESS;

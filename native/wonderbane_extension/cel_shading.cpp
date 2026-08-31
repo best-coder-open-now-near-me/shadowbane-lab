@@ -22,7 +22,9 @@ constexpr unsigned int kGlTriangleFan = 0x0006U;
 constexpr unsigned int kGlQuads = 0x0007U;
 constexpr unsigned int kGlQuadStrip = 0x0008U;
 constexpr unsigned int kGlPolygon = 0x0009U;
+constexpr unsigned int kGlModelViewMatrix = 0x0BA6U;
 constexpr unsigned int kGlProjectionMatrix = 0x0BA7U;
+constexpr unsigned int kGlDepthWriteMask = 0x0B72U;
 constexpr unsigned int kGlTexture2D = 0x0DE1U;
 constexpr unsigned int kGlLighting = 0x0B50U;
 constexpr unsigned int kGlFog = 0x0B60U;
@@ -37,6 +39,7 @@ constexpr unsigned int kGlLine = 0x1B01U;
 constexpr unsigned int kGlClear = 0x1500U;
 constexpr unsigned int kGlAllAttribBits = 0x000FFFFFU;
 constexpr int kMaximumOutlinedElementCount = 8192;
+constexpr double kMaximumOutlineOriginDistance = 4096.0;
 constexpr float kOutlineLineWidth = 3.0F;
 
 using GlShadeModel = void(APIENTRY*)(unsigned int mode);
@@ -50,6 +53,7 @@ using GlDrawElements = void(APIENTRY*)(
     const void* indices
 );
 using GlGetFloatv = void(APIENTRY*)(unsigned int name, float* values);
+using GlGetBooleanv = void(APIENTRY*)(unsigned int name, unsigned char* values);
 using GlPushAttrib = void(APIENTRY*)(unsigned int mask);
 using GlPopAttrib = void(APIENTRY*)();
 using GlEnable = void(APIENTRY*)(unsigned int capability);
@@ -65,6 +69,7 @@ PVOID volatile g_original_call_list = nullptr;
 PVOID volatile g_original_draw_arrays = nullptr;
 PVOID volatile g_original_draw_elements = nullptr;
 PVOID volatile g_get_floatv = nullptr;
+PVOID volatile g_get_booleanv = nullptr;
 PVOID volatile g_push_attrib = nullptr;
 PVOID volatile g_pop_attrib = nullptr;
 PVOID volatile g_enable = nullptr;
@@ -90,6 +95,7 @@ Function LoadFunction(PVOID volatile* const storage) noexcept {
 
 struct OutlineApi {
     GlGetFloatv get_floatv;
+    GlGetBooleanv get_booleanv;
     GlPushAttrib push_attrib;
     GlPopAttrib pop_attrib;
     GlEnable enable;
@@ -106,6 +112,7 @@ bool LoadOutlineApi(OutlineApi* const api) noexcept {
     }
     *api = {
         LoadFunction<GlGetFloatv>(&g_get_floatv),
+        LoadFunction<GlGetBooleanv>(&g_get_booleanv),
         LoadFunction<GlPushAttrib>(&g_push_attrib),
         LoadFunction<GlPopAttrib>(&g_pop_attrib),
         LoadFunction<GlEnable>(&g_enable),
@@ -116,6 +123,7 @@ bool LoadOutlineApi(OutlineApi* const api) noexcept {
         LoadFunction<GlDepthMask>(&g_depth_mask),
     };
     return api->get_floatv != nullptr
+        && api->get_booleanv != nullptr
         && api->push_attrib != nullptr
         && api->pop_attrib != nullptr
         && api->enable != nullptr
@@ -130,12 +138,20 @@ template <typename Draw>
 void DrawWithSilhouette(const Draw& draw) noexcept {
     OutlineApi api{};
     std::array<float, 16U> projection{};
+    std::array<float, 16U> model_view{};
+    unsigned char depth_writes = FALSE;
     if (!LoadOutlineApi(&api)) {
         draw();
         return;
     }
     api.get_floatv(kGlProjectionMatrix, projection.data());
-    if (!IsPerspectiveProjectionMatrix(projection.data(), projection.size())) {
+    api.get_floatv(kGlModelViewMatrix, model_view.data());
+    api.get_booleanv(kGlDepthWriteMask, &depth_writes);
+    if (
+        !IsPerspectiveProjectionMatrix(projection.data(), projection.size())
+        || !IsLocalOutlineModelViewMatrix(model_view.data(), model_view.size())
+        || depth_writes == FALSE
+    ) {
         draw();
         return;
     }
@@ -383,6 +399,35 @@ bool IsPerspectiveProjectionMatrix(
         && std::fabs(matrix[11]) > 0.25F;
 }
 
+bool IsLocalOutlineModelViewMatrix(
+    const float* const matrix,
+    const std::size_t count
+) noexcept {
+    if (matrix == nullptr || count != 16U) {
+        return false;
+    }
+    for (std::size_t index = 0U; index < count; ++index) {
+        if (!std::isfinite(matrix[index])) {
+            return false;
+        }
+    }
+    if (
+        std::fabs(matrix[3]) > 0.001F
+        || std::fabs(matrix[7]) > 0.001F
+        || std::fabs(matrix[11]) > 0.001F
+        || std::fabs(matrix[15] - 1.0F) > 0.001F
+    ) {
+        return false;
+    }
+    const double x = matrix[12];
+    const double y = matrix[13];
+    const double z = matrix[14];
+    const double maximum_squared = (
+        kMaximumOutlineOriginDistance * kMaximumOutlineOriginDistance
+    );
+    return x * x + y * y + z * z <= maximum_squared;
+}
+
 bool IsOutlinePrimitive(const unsigned int mode, const int count) noexcept {
     if (count < 3 || count > kMaximumOutlinedElementCount) {
         return false;
@@ -562,6 +607,7 @@ DWORD StartStrongCelShading() noexcept {
         || g_original_draw_arrays != nullptr
         || g_original_draw_elements != nullptr
         || g_get_floatv != nullptr
+        || g_get_booleanv != nullptr
         || g_push_attrib != nullptr
         || g_pop_attrib != nullptr
         || g_enable != nullptr
@@ -665,8 +711,9 @@ DWORD StartStrongCelShading() noexcept {
         }
     }
 
-    std::array<HelperFunctionPlan, 9U> helpers{{
+    std::array<HelperFunctionPlan, 10U> helpers{{
         {"glGetFloatv", &g_get_floatv, nullptr},
+        {"glGetBooleanv", &g_get_booleanv, nullptr},
         {"glPushAttrib", &g_push_attrib, nullptr},
         {"glPopAttrib", &g_pop_attrib, nullptr},
         {"glEnable", &g_enable, nullptr},
@@ -755,6 +802,7 @@ void StopStrongCelShading() noexcept {
         InterlockedExchangePointer(&g_enable, nullptr);
         InterlockedExchangePointer(&g_pop_attrib, nullptr);
         InterlockedExchangePointer(&g_push_attrib, nullptr);
+        InterlockedExchangePointer(&g_get_booleanv, nullptr);
         InterlockedExchangePointer(&g_get_floatv, nullptr);
     }
 }
