@@ -134,6 +134,38 @@ if ($DryRunOnly) {
     return
 }
 
+$runningGame = Get-Process -Name "sb" -ErrorAction SilentlyContinue
+if ($null -ne $runningGame) {
+    throw "Close every running sb.exe before replacing the managed graphics package"
+}
+$destinationRoot = Split-Path -Parent $DestinationDirectory
+if (-not $destinationRoot -or -not (Test-Path -LiteralPath $destinationRoot -PathType Container)) {
+    throw "Graphics package destination must have an existing local parent directory"
+}
+$resolvedDestinationRoot = (Resolve-Path -LiteralPath $destinationRoot).Path.TrimEnd("\")
+$currentPackagePattern = "^Wonderbane-graphics-{0}-cel-[0-9]+\.[0-9]+\.[0-9]+$" -f `
+    [regex]::Escape($contentBuildId)
+$legacyPackagePattern = `
+    "^Wonderbane-55fb-extension-[0-9]+\.[0-9]+\.[0-9]+-(cel|flat|hardware)-v[0-9]+$"
+$obsoletePackages = Get-ChildItem -LiteralPath $resolvedDestinationRoot -Directory | Where-Object {
+    $_.Name -match $currentPackagePattern -or $_.Name -match $legacyPackagePattern
+}
+foreach ($obsoletePackage in $obsoletePackages) {
+    if ($obsoletePackage.FullName -eq $DestinationDirectory) {
+        throw "Refusing to replace an existing destination package in place"
+    }
+    if (($obsoletePackage.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        throw "Refusing to remove a reparse-point graphics package: $($obsoletePackage.FullName)"
+    }
+    $resolvedPackage = (Resolve-Path -LiteralPath $obsoletePackage.FullName).Path
+    $resolvedParent = (Split-Path -Parent $resolvedPackage).TrimEnd("\")
+    if ($resolvedParent -cne $resolvedDestinationRoot) {
+        throw "Refusing to remove a graphics package outside $resolvedDestinationRoot"
+    }
+    Remove-Item -LiteralPath $resolvedPackage -Recurse -Force
+    Write-Output "Removed obsolete graphics package: $resolvedPackage"
+}
+
 $destinationDrive = Split-Path -Qualifier $DestinationDirectory
 if (-not $destinationDrive) {
     throw "Graphics package destination must be on an explicit local drive"
