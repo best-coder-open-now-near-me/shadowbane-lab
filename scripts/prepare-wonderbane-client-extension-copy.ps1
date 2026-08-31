@@ -8,6 +8,7 @@ param(
     [string] $ExtensionVersion = "1.2.0",
     [string] $TexturePatchManifest = "",
     [string] $TextureArtifactDirectory = "",
+    [string] $BaselineExclusionManifest = "",
     [string] $PythonExecutable = "$env:USERPROFILE\shadowbane-lab\.venv\Scripts\python.exe",
     [switch] $DryRunOnly
 )
@@ -48,6 +49,9 @@ if ($TexturePatchManifest -and -not (Test-Path -LiteralPath $TexturePatchManifes
 if ($TextureArtifactDirectory -and -not (Test-Path -LiteralPath $TextureArtifactDirectory -PathType Container)) {
     throw "Texture artifact directory was not found: $TextureArtifactDirectory"
 }
+if ($BaselineExclusionManifest -and -not (Test-Path -LiteralPath $BaselineExclusionManifest -PathType Leaf)) {
+    throw "Reviewed baseline-exclusion manifest was not found: $BaselineExclusionManifest"
+}
 if (-not (Test-Path -LiteralPath $repositorySource -PathType Container)) {
     throw "Repository Python source directory was not found: $repositorySource"
 }
@@ -67,6 +71,12 @@ if ($TexturePatchManifest) {
     $textureArguments = @(
         "--texture-patch-manifest", $TexturePatchManifest,
         "--texture-artifact-directory", $TextureArtifactDirectory
+    )
+}
+$baselineExclusionArguments = @()
+if ($BaselineExclusionManifest) {
+    $baselineExclusionArguments = @(
+        "--baseline-exclusion-manifest", $BaselineExclusionManifest
     )
 }
 
@@ -90,6 +100,7 @@ if (-not (Test-Path -LiteralPath $ManifestPath -PathType Leaf)) {
     $ManifestPath `
     $ExtensionArtifact `
     @textureArguments `
+    @baselineExclusionArguments `
     --dry-run `
     --pretty
 if ($LASTEXITCODE -ne 0) {
@@ -120,6 +131,7 @@ if ($DryRunOnly) {
     $ManifestPath `
     $ExtensionArtifact `
     @textureArguments `
+    @baselineExclusionArguments `
     --pretty
 if ($LASTEXITCODE -ne 0) {
     throw "Disposable client publication failed with exit code $LASTEXITCODE"

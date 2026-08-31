@@ -96,6 +96,14 @@ inventory. `verify-copy <new-working-copy>` repeats that check. The explicit
 frozen baseline again, deletes only the marker-bound disposable directory, and publishes a
 rollback receipt outside it.
 
+For a renderer or compatibility comparison that requires a baseline file to be absent, pass a
+strict baseline-exclusion manifest with `--baseline-exclusion-manifest` (or
+`-BaselineExclusionManifest` through the PowerShell wrapper). Each entry pins the canonical
+relative path, size, and SHA-256 from the frozen baseline. The package builder rejects missing or
+changed pins and refuses to exclude `sb.exe`; it copies only the reviewed selection, embeds the
+canonical receipt at `.wonderbane-extension/baseline-exclusions.json`, and covers that receipt and
+the resulting absence in the final working-tree inventory. The frozen baseline is never changed.
+
 ## Loader boundary
 
 The extension DLL's `DllMain` remains minimal. Initialization and heartbeat work happen through

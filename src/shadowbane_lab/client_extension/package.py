@@ -17,6 +17,7 @@ from typing import Any
 from shadowbane_lab.client_alignment.model import PeImage
 from shadowbane_lab.client_alignment.pe import PeInspectionError, inspect_pe_bytes
 from shadowbane_lab.client_extension.baseline import BaselineFile
+from shadowbane_lab.client_extension.baseline_exclusion import BaselineExclusionManifest
 from shadowbane_lab.client_extension.manifest import PatchManifest
 from shadowbane_lab.client_extension.resolver import (
     PatchPlan,
@@ -39,6 +40,7 @@ _BASELINE_FILE_NAME = "client-baseline.json"
 _EVIDENCE_DIRECTORY_NAME = ".wonderbane-extension"
 _PACKAGE_FILE_NAME = "package.json"
 _TEXTURE_PATCH_FILE_NAME = "texture-patches.json"
+_BASELINE_EXCLUSION_FILE_NAME = "baseline-exclusions.json"
 _DEFAULT_MAX_FILES = 100_000
 _DEFAULT_MAX_TOTAL_BYTES = 16 * 1024 * 1024 * 1024
 _MAX_EVIDENCE_BYTES = 16 * 1024 * 1024
@@ -136,6 +138,7 @@ class PatchPackageResult:
     destination_published: bool
     plan: PatchPlan
     texture_plan: TexturePatchPlan | None
+    baseline_exclusions: tuple[BaselineFile, ...]
     evidence: PatchPackageEvidence | None
 
     def as_dict(self) -> dict[str, Any]:
@@ -144,6 +147,7 @@ class PatchPackageResult:
             "destination_published": self.destination_published,
             "plan": self.plan.as_dict(),
             "texture_plan": (None if self.texture_plan is None else self.texture_plan.as_dict()),
+            "baseline_exclusions": [item.as_dict() for item in self.baseline_exclusions],
             "evidence": None if self.evidence is None else self.evidence.as_dict(),
         }
 
@@ -259,6 +263,7 @@ def prepare_patched_client_copy(
     *,
     texture_patch_manifest: TexturePatchManifest | None = None,
     texture_artifact_directory: str | Path | None = None,
+    baseline_exclusion_manifest: BaselineExclusionManifest | None = None,
     dry_run: bool = False,
     created_at: datetime | None = None,
 ) -> PatchPackageResult:
@@ -273,6 +278,14 @@ def prepare_patched_client_copy(
     if _is_within(destination, baseline_root) or _is_within(baseline_root, destination):
         raise ClientPatchPackageError("baseline and destination must not contain each other")
     baseline = verify_frozen_client_baseline(baseline_root)
+    excluded_files = _resolve_baseline_exclusions(
+        baseline,
+        baseline_exclusion_manifest,
+    )
+    excluded_paths = frozenset(item.relative_path.casefold() for item in excluded_files)
+    copied_baseline_files = tuple(
+        item for item in baseline.files if item.relative_path.casefold() not in excluded_paths
+    )
     if PurePosixPath(baseline.executable_relative_path).name.casefold() != (
         manifest.source.file_name.casefold()
     ):
@@ -304,6 +317,10 @@ def prepare_patched_client_copy(
                 "texture_patch_manifest requires texture_artifact_directory"
             )
         texture_cache = baseline_root / Path(texture_patch_manifest.cache_relative_path)
+        if texture_patch_manifest.cache_relative_path.casefold() in excluded_paths:
+            raise ClientPatchPackageError(
+                "texture patch cache cannot also be excluded from the disposable copy"
+            )
         try:
             texture_plan = build_texture_patch_plan(
                 texture_cache,
@@ -337,6 +354,7 @@ def prepare_patched_client_copy(
             destination_published=False,
             plan=plan,
             texture_plan=texture_plan,
+            baseline_exclusions=excluded_files,
             evidence=None,
         )
 
@@ -347,14 +365,16 @@ def prepare_patched_client_copy(
     published = False
     completed = False
     try:
-        _copy_baseline_inventory(baseline_root, temporary, baseline.files)
+        _copy_baseline_inventory(baseline_root, temporary, copied_baseline_files)
         copied = _inventory(
             temporary,
             max_files=_DEFAULT_MAX_FILES,
             max_total_bytes=_DEFAULT_MAX_TOTAL_BYTES,
         )
-        if copied != baseline.files:
-            raise ClientPatchPackageError("copied client tree differs from the frozen baseline")
+        if copied != copied_baseline_files:
+            raise ClientPatchPackageError(
+                "copied client tree differs from the reviewed baseline selection"
+            )
 
         patched_data = apply_patch_plan(executable_data, plan.writes)
         temporary_executable = temporary / Path(baseline.executable_relative_path)
@@ -365,6 +385,12 @@ def prepare_patched_client_copy(
             stream.write(extension_data)
 
         evidence_directory = temporary / _EVIDENCE_DIRECTORY_NAME
+        if baseline_exclusion_manifest is not None:
+            evidence_directory.mkdir()
+            _write_new_json(
+                evidence_directory / _BASELINE_EXCLUSION_FILE_NAME,
+                baseline_exclusion_manifest.as_dict(),
+            )
         if texture_plan is not None and texture_patch_manifest is not None:
             temporary_cache = temporary / Path(texture_plan.cache_relative_path)
             apply_texture_patch_plan(temporary_cache, texture_plan)
@@ -373,7 +399,7 @@ def prepare_patched_client_copy(
                 texture_plan,
                 temporary_cache,
             )
-            evidence_directory.mkdir()
+            evidence_directory.mkdir(exist_ok=True)
             _write_new_json(
                 evidence_directory / _TEXTURE_PATCH_FILE_NAME,
                 texture_evidence.as_dict(),
@@ -416,6 +442,7 @@ def prepare_patched_client_copy(
             destination_published=True,
             plan=plan,
             texture_plan=texture_plan,
+            baseline_exclusions=excluded_files,
             evidence=evidence,
         )
     except ClientPatchPackageError as exc:
@@ -535,6 +562,34 @@ def _verified_extension(path: Path, manifest: PatchManifest) -> bytes:
     if not image.characteristics & _IMAGE_FILE_DLL:
         raise ClientPatchPackageError("extension artifact is not marked as a PE DLL")
     return data
+
+
+def _resolve_baseline_exclusions(
+    baseline: VerifiedClientBaseline,
+    manifest: BaselineExclusionManifest | None,
+) -> tuple[BaselineFile, ...]:
+    if manifest is None:
+        return ()
+    if not isinstance(manifest, BaselineExclusionManifest):
+        raise ClientPatchPackageError(
+            "baseline_exclusion_manifest must be a validated BaselineExclusionManifest"
+        )
+    executable_path = baseline.executable_relative_path.casefold()
+    baseline_by_path = {item.relative_path.casefold(): item for item in baseline.files}
+    for excluded in manifest.files:
+        key = excluded.relative_path.casefold()
+        if key == executable_path:
+            raise ClientPatchPackageError("the client executable cannot be excluded")
+        actual = baseline_by_path.get(key)
+        if actual is None:
+            raise ClientPatchPackageError(
+                f"excluded file is absent from the frozen baseline: {excluded.relative_path}"
+            )
+        if actual != excluded:
+            raise ClientPatchPackageError(
+                f"excluded file differs from the frozen baseline: {excluded.relative_path}"
+            )
+    return manifest.files
 
 
 def _load_package_evidence(path: Path) -> PatchPackageEvidence:

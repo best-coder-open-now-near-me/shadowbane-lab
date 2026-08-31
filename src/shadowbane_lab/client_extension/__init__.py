@@ -7,6 +7,13 @@ from .baseline import (
     ClientBaselineError,
     freeze_client_baseline,
 )
+from .baseline_exclusion import (
+    BASELINE_EXCLUSION_SCHEMA_VERSION,
+    BaselineExclusionError,
+    BaselineExclusionManifest,
+    load_baseline_exclusion_manifest,
+    parse_baseline_exclusion_manifest,
+)
 from .bootstrap_author import (
     WONDERBANE_1_0_5_55FB_PROFILE,
     WONDERBANE_1_0_5_PROFILE,
@@ -108,8 +115,8 @@ from .performance import (
     performance_telemetry_mapping_name,
 )
 from .performance_reader import (
-    PerformanceTelemetryReadError,
     PerformanceTelemetryReader,
+    PerformanceTelemetryReadError,
     open_windows_performance_telemetry_reader,
 )
 from .resolver import (
@@ -159,6 +166,7 @@ __all__ = [
     "EXTENSION_EVENT_CHANNEL_SIZE",
     "EXTENSION_EVENT_CHANNEL_SLOT_SIZE",
     "CLIENT_BASELINE_SCHEMA_VERSION",
+    "BASELINE_EXCLUSION_SCHEMA_VERSION",
     "BOOTSTRAP_INSPECTION_SCHEMA_VERSION",
     "EXTENSION_ABI_VERSION",
     "EXTENSION_HEARTBEAT_SCHEMA_VERSION",
@@ -176,6 +184,8 @@ __all__ = [
     "PE_HEADERS_SECTION",
     "ROLLBACK_RECEIPT_SCHEMA_VERSION",
     "BaselineFile",
+    "BaselineExclusionError",
+    "BaselineExclusionManifest",
     "BootstrapInspectionError",
     "BootstrapAuthoringError",
     "BootstrapAuthoringResult",
@@ -250,12 +260,14 @@ __all__ = [
     "inspect_bootstrap_candidate",
     "inspect_bootstrap_file",
     "load_extension_heartbeat",
+    "load_baseline_exclusion_manifest",
     "load_patch_manifest",
     "load_texture_patch_manifest",
     "open_windows_extension_event_channel_reader",
     "open_windows_extension_event_consumer",
     "open_windows_performance_telemetry_reader",
     "parse_performance_telemetry",
+    "parse_baseline_exclusion_manifest",
     "performance_telemetry_mapping_name",
     "parse_extension_heartbeat",
     "parse_extension_event_channel",

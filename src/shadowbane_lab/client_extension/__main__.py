@@ -12,6 +12,10 @@ from shadowbane_lab.client_extension.baseline import (
     ClientBaselineError,
     freeze_client_baseline,
 )
+from shadowbane_lab.client_extension.baseline_exclusion import (
+    BaselineExclusionError,
+    load_baseline_exclusion_manifest,
+)
 from shadowbane_lab.client_extension.bootstrap_author import (
     BootstrapAuthoringError,
     author_reviewed_bootstrap_file,
@@ -99,6 +103,7 @@ def _parser() -> argparse.ArgumentParser:
     prepare.add_argument("extension_artifact", type=Path)
     prepare.add_argument("--texture-patch-manifest", type=Path)
     prepare.add_argument("--texture-artifact-directory", type=Path)
+    prepare.add_argument("--baseline-exclusion-manifest", type=Path)
     prepare.add_argument("--dry-run", action="store_true")
     prepare.add_argument("--pretty", action="store_true")
     verify = commands.add_parser(
@@ -182,6 +187,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 if arguments.texture_patch_manifest is None
                 else load_texture_patch_manifest(arguments.texture_patch_manifest)
             )
+            baseline_exclusion_manifest = (
+                None
+                if arguments.baseline_exclusion_manifest is None
+                else load_baseline_exclusion_manifest(arguments.baseline_exclusion_manifest)
+            )
             payload = prepare_patched_client_copy(
                 arguments.frozen_directory,
                 arguments.destination_directory,
@@ -189,6 +199,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 arguments.extension_artifact,
                 texture_patch_manifest=texture_manifest,
                 texture_artifact_directory=arguments.texture_artifact_directory,
+                baseline_exclusion_manifest=baseline_exclusion_manifest,
                 dry_run=arguments.dry_run,
             ).as_dict()
         elif arguments.command == "verify-copy":
@@ -253,6 +264,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             raise AssertionError(f"unhandled command: {arguments.command}")
     except (
         ClientBaselineError,
+        BaselineExclusionError,
         ClientPatchPackageError,
         BootstrapInspectionError,
         BootstrapAuthoringError,

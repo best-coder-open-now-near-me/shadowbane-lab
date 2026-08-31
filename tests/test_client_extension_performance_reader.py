@@ -1,8 +1,8 @@
 import unittest
 
 from shadowbane_lab.client_extension.performance_reader import (
-    PerformanceTelemetryReadError,
     PerformanceTelemetryReader,
+    PerformanceTelemetryReadError,
 )
 from tests.test_client_extension_performance import PerformanceTelemetryContractTests
 
