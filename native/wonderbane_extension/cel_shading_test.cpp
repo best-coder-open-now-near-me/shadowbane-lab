@@ -2,6 +2,7 @@
 
 #include <Windows.h>
 
+#include <array>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -15,11 +16,46 @@ constexpr std::uint32_t kImportRva = 0x200U;
 constexpr std::uint32_t kLibraryRva = 0x300U;
 constexpr std::uint32_t kNamesRva = 0x340U;
 constexpr std::uint32_t kAddressesRva = 0x380U;
-constexpr std::uint32_t kImportNameRva = 0x3C0U;
+constexpr std::array<std::uint32_t, 4U> kImportNameRvas{
+    0x3C0U,
+    0x3E0U,
+    0x400U,
+    0x420U,
+};
+constexpr std::array<const char*, 4U> kImportNames{
+    "glShadeModel",
+    "glBegin",
+    "glDrawArrays",
+    "glDrawElements",
+};
+constexpr std::array<std::uint32_t, 4U> kImportAddresses{
+    0x12345678U,
+    0x23456789U,
+    0x3456789AU,
+    0x456789ABU,
+};
 
 int Fail(const wchar_t* const operation) noexcept {
     ::fwprintf(stderr, L"%s failed\n", operation);
     return 1;
+}
+
+void WriteImport(
+    std::vector<std::uint8_t>& image,
+    const std::size_t index,
+    const std::uint32_t name_rva,
+    const char* const name,
+    const std::uint32_t address
+) {
+    auto* const names = reinterpret_cast<IMAGE_THUNK_DATA32*>(image.data() + kNamesRva);
+    auto* const addresses = reinterpret_cast<IMAGE_THUNK_DATA32*>(
+        image.data() + kAddressesRva
+    );
+    names[index].u1.AddressOfData = name_rva;
+    addresses[index].u1.Function = address;
+    auto* const import_name = reinterpret_cast<IMAGE_IMPORT_BY_NAME*>(image.data() + name_rva);
+    import_name->Hint = static_cast<WORD>(index);
+    std::memcpy(import_name->Name, name, std::strlen(name) + 1U);
 }
 
 std::vector<std::uint8_t> Fixture() {
@@ -44,17 +80,15 @@ std::vector<std::uint8_t> Fixture() {
     imports[0].OriginalFirstThunk = kNamesRva;
     imports[0].FirstThunk = kAddressesRva;
     std::memcpy(image.data() + kLibraryRva, "OPENGL32.dll", 13U);
-    auto* const names = reinterpret_cast<IMAGE_THUNK_DATA32*>(image.data() + kNamesRva);
-    names[0].u1.AddressOfData = kImportNameRva;
-    auto* const addresses = reinterpret_cast<IMAGE_THUNK_DATA32*>(
-        image.data() + kAddressesRva
-    );
-    addresses[0].u1.Function = 0x12345678U;
-    auto* const import_name = reinterpret_cast<IMAGE_IMPORT_BY_NAME*>(
-        image.data() + kImportNameRva
-    );
-    import_name->Hint = 7U;
-    std::memcpy(import_name->Name, "glShadeModel", 13U);
+    for (std::size_t index = 0U; index < kImportNames.size(); ++index) {
+        WriteImport(
+            image,
+            index,
+            kImportNameRvas[index],
+            kImportNames[index],
+            kImportAddresses[index]
+        );
+    }
     return image;
 }
 
@@ -62,23 +96,40 @@ std::vector<std::uint8_t> Fixture() {
 
 int wmain() {
     std::vector<std::uint8_t> image = Fixture();
-    std::uint32_t* const slot = wonderbane::extension::FindImportAddressSlot(
-        image.data(),
-        image.size(),
-        "opengl32.DLL",
-        "glShadeModel"
-    );
-    if (slot == nullptr || *slot != 0x12345678U) {
-        return Fail(L"exact import resolution");
+    for (std::size_t index = 0U; index < kImportNames.size(); ++index) {
+        std::uint32_t* const slot = wonderbane::extension::FindImportAddressSlot(
+            image.data(),
+            image.size(),
+            "opengl32.DLL",
+            kImportNames[index]
+        );
+        if (slot == nullptr || *slot != kImportAddresses[index]) {
+            return Fail(L"exact import resolution");
+        }
     }
     if (wonderbane::extension::FindImportAddressSlot(
             image.data(),
             image.size(),
             "OPENGL32.dll",
-            "glDrawElements"
+            "glColor4f"
         ) != nullptr) {
         return Fail(L"missing symbol rejection");
     }
+    auto* const names = reinterpret_cast<IMAGE_THUNK_DATA32*>(image.data() + kNamesRva);
+    auto* const addresses = reinterpret_cast<IMAGE_THUNK_DATA32*>(
+        image.data() + kAddressesRva
+    );
+    names[4].u1.AddressOfData = kImportNameRvas[0];
+    addresses[4].u1.Function = 0x56789ABCU;
+    if (wonderbane::extension::FindImportAddressSlot(
+            image.data(),
+            image.size(),
+            "OPENGL32.dll",
+            "glShadeModel"
+        ) != nullptr) {
+        return Fail(L"duplicate symbol rejection");
+    }
+    image = Fixture();
     auto* const nt = reinterpret_cast<IMAGE_NT_HEADERS32*>(image.data() + kNtRva);
     nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].Size = (
         sizeof(IMAGE_IMPORT_DESCRIPTOR)

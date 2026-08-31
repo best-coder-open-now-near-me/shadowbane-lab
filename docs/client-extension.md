@@ -161,17 +161,22 @@ write game state. The status ABI reports the same heartbeat path, ABI/version, p
 initialization state, and Win32 result. `verify-heartbeat <heartbeat.json>` strictly checks the
 schema and binds the file name to the PID plus process-creation FILETIME.
 
-## Strong flat-shading diagnostic
+## Renderer-boundary diagnostic
 
-The graphics-only extension adds a deliberately conspicuous renderer-seam test for the exact
-reviewed client. It contains no map, movement, combat, manager, or automation hooks.
-During initialization it resolves `OPENGL32.dll!glShadeModel` from the executable's bounded PE
-import table, verifies that the IAT slot still contains the loaded OpenGL implementation, and
-atomically replaces that one slot for the process lifetime. The replacement forces every shade
-model request to `GL_FLAT`. Unknown executables, missing or ambiguous imports, changed IAT state,
-and protection failures reject initialization instead of guessing.
+Extension 1.3.0 first tested the exact reviewed client's `OPENGL32.dll!glShadeModel` import by
+forcing every request to `GL_FLAT`. Live validation proved the extension initialized successfully,
+but that state change was not visually distinguishable in the low-poly client. This graphics-only
+runtime contains no map, movement, combat, manager, or automation hooks.
 
-This is a diagnostic, not the final restrained cel treatment: it should make lit 3D triangles look
-obviously faceted, but it does not add silhouette outlines or quantized multi-band lighting. Its
-purpose is to prove that the fixed-function OpenGL state seam affects the live character renderer;
-the subsequent production pass can then own banding and outlines at the verified draw boundary.
+Extension 1.3.1 therefore strengthens the same fail-closed diagnostic. Initialization resolves and
+preflights the executable's unique `glShadeModel`, `glBegin`, `glDrawArrays`, and `glDrawElements`
+IAT slots before changing any of them. It also resolves `glPolygonMode` from the loaded OpenGL
+implementation. The four IAT replacements are installed transactionally; partial failure rolls
+back installed slots while retaining safe original targets if an external race prevents rollback.
+Every immediate-mode or array draw forces `GL_FRONT_AND_BACK` to `GL_LINE`, while shade-model
+requests still force `GL_FLAT`. Unknown executables, missing or ambiguous imports, changed IAT
+state, and protection failures reject initialization instead of guessing.
+
+This is deliberately an unmistakable diagnostic, not the final restrained cel treatment. Its
+purpose is to prove which fixed-function draw boundaries own the live renderer. Once confirmed,
+the production pass can replace wireframe with bounded lighting bands and silhouette handling.
