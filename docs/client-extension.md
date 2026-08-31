@@ -290,6 +290,15 @@ lists rather than creating an unbounded renderer cost. The retained segments dra
 fill at the same depth, without polygon offset or depth writes, so they cannot protrude from the
 surface like the 1.4.6 diagnostic. The approved world-scaled exterior silhouette remains unchanged.
 
+Extension 1.4.8 extends the same feature-edge policy to character and prop geometry submitted through
+the client's fixed-function vertex-array path. Transactional hooks track `glVertexPointer`,
+`glEnableClientState`, and `glDisableClientState`; eligible `glDrawArrays` and `glDrawElements` calls
+then reconstruct only their bounded float vertex stream and supported byte, short, or integer index
+stream. Memory ranges, arithmetic, primitive counts, and retained-edge counts are validated before
+reading. Array geometry uses the identical open-boundary, non-manifold, and dihedral-crease selector
+as display lists, so broader character coverage does not lower the threshold or restore triangle
+wireframe. The array range is validated once per draw rather than once per vertex.
+
 Orthographic UI/map rendering, points, lines, and array draws outside the reviewed element-count
 bound remain single-pass. Immediate-mode geometry remains filled and flat-shaded because replaying
 an arbitrary `glBegin`/`glEnd` stream would require intercepting every vertex and state mutation.

@@ -17,7 +17,7 @@ constexpr std::uint32_t kImportRva = 0x200U;
 constexpr std::uint32_t kLibraryRva = 0x300U;
 constexpr std::uint32_t kNamesRva = 0x340U;
 constexpr std::uint32_t kAddressesRva = 0x380U;
-constexpr std::array<std::uint32_t, 11U> kImportNameRvas{
+constexpr std::array<std::uint32_t, 14U> kImportNameRvas{
     0x3C0U,
     0x3E0U,
     0x400U,
@@ -29,8 +29,11 @@ constexpr std::array<std::uint32_t, 11U> kImportNameRvas{
     0x4C0U,
     0x4E0U,
     0x500U,
+    0x520U,
+    0x540U,
+    0x560U,
 };
-constexpr std::array<const char*, 11U> kImportNames{
+constexpr std::array<const char*, 14U> kImportNames{
     "glShadeModel",
     "glBegin",
     "glCallList",
@@ -42,8 +45,11 @@ constexpr std::array<const char*, 11U> kImportNames{
     "glMatrixMode",
     "glDrawArrays",
     "glDrawElements",
+    "glVertexPointer",
+    "glEnableClientState",
+    "glDisableClientState",
 };
-constexpr std::array<std::uint32_t, 11U> kImportAddresses{
+constexpr std::array<std::uint32_t, 14U> kImportAddresses{
     0x12345678U,
     0x23456789U,
     0x3456789AU,
@@ -55,6 +61,9 @@ constexpr std::array<std::uint32_t, 11U> kImportAddresses{
     0x9ABCDEF0U,
     0xABCDEF01U,
     0xBCDEF012U,
+    0xCDEF0123U,
+    0xDEF01234U,
+    0xEF012345U,
 };
 
 int Fail(const wchar_t* const operation) noexcept {

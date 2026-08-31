@@ -38,6 +38,11 @@ constexpr unsigned int kGlLineSmooth = 0x0B20U;
 constexpr unsigned int kGlDither = 0x0BD0U;
 constexpr unsigned int kGlColorLogicOp = 0x0BF2U;
 constexpr unsigned int kGlDepthTest = 0x0B71U;
+constexpr unsigned int kGlFloat = 0x1406U;
+constexpr unsigned int kGlUnsignedByte = 0x1401U;
+constexpr unsigned int kGlUnsignedShort = 0x1403U;
+constexpr unsigned int kGlUnsignedInt = 0x1405U;
+constexpr unsigned int kGlVertexArray = 0x8074U;
 constexpr unsigned int kGlFront = 0x0404U;
 constexpr unsigned int kGlBack = 0x0405U;
 constexpr unsigned int kGlFrontAndBack = 0x0408U;
@@ -79,6 +84,14 @@ using GlDrawElements = void(APIENTRY*)(
     unsigned int type,
     const void* indices
 );
+using GlVertexPointer = void(APIENTRY*)(
+    int size,
+    unsigned int type,
+    int stride,
+    const void* pointer
+);
+using GlEnableClientState = void(APIENTRY*)(unsigned int array);
+using GlDisableClientState = void(APIENTRY*)(unsigned int array);
 using GlGetFloatv = void(APIENTRY*)(unsigned int name, float* values);
 using GlGetBooleanv = void(APIENTRY*)(unsigned int name, unsigned char* values);
 using GlPushAttrib = void(APIENTRY*)(unsigned int mask);
@@ -109,6 +122,9 @@ PVOID volatile g_original_viewport = nullptr;
 PVOID volatile g_original_matrix_mode = nullptr;
 PVOID volatile g_original_draw_arrays = nullptr;
 PVOID volatile g_original_draw_elements = nullptr;
+PVOID volatile g_original_vertex_pointer = nullptr;
+PVOID volatile g_original_enable_client_state = nullptr;
+PVOID volatile g_original_disable_client_state = nullptr;
 PVOID volatile g_get_floatv = nullptr;
 PVOID volatile g_get_booleanv = nullptr;
 PVOID volatile g_push_attrib = nullptr;
@@ -137,11 +153,24 @@ std::uint32_t* g_viewport_slot = nullptr;
 std::uint32_t* g_matrix_mode_slot = nullptr;
 std::uint32_t* g_draw_arrays_slot = nullptr;
 std::uint32_t* g_draw_elements_slot = nullptr;
+std::uint32_t* g_vertex_pointer_slot = nullptr;
+std::uint32_t* g_enable_client_state_slot = nullptr;
+std::uint32_t* g_disable_client_state_slot = nullptr;
 volatile LONG g_viewport_x = 0;
 volatile LONG g_viewport_y = 0;
 volatile LONG g_viewport_width = 0;
 volatile LONG g_viewport_height = 0;
 thread_local unsigned int g_current_matrix_mode = kGlModelView;
+
+struct VertexArrayState {
+    const void* pointer = nullptr;
+    int size = 0;
+    unsigned int type = 0U;
+    int stride = 0;
+    bool enabled = false;
+};
+
+thread_local VertexArrayState g_vertex_array_state{};
 
 struct CapturedDisplayListBounds {
     OutlineBounds bounds{};
@@ -376,6 +405,192 @@ std::vector<CapturedDisplayListBounds::FeatureEdge> BuildFeatureEdges(
     return result;
 }
 
+bool IsReadableMemoryRange(const void* const pointer, const std::size_t size) noexcept {
+    if (pointer == nullptr || size == 0U) {
+        return false;
+    }
+    const std::uintptr_t first = reinterpret_cast<std::uintptr_t>(pointer);
+    if (size - 1U > UINTPTR_MAX - first) {
+        return false;
+    }
+    const std::uintptr_t last = first + size - 1U;
+    std::uintptr_t cursor = first;
+    while (cursor <= last) {
+        MEMORY_BASIC_INFORMATION information{};
+        if (VirtualQuery(
+                reinterpret_cast<const void*>(cursor),
+                &information,
+                sizeof(information)
+            ) != sizeof(information)
+            || information.State != MEM_COMMIT
+            || (information.Protect & (PAGE_GUARD | PAGE_NOACCESS)) != 0U) {
+            return false;
+        }
+        const DWORD readable = information.Protect & 0xFFU;
+        if (readable != PAGE_READONLY
+            && readable != PAGE_READWRITE
+            && readable != PAGE_WRITECOPY
+            && readable != PAGE_EXECUTE_READ
+            && readable != PAGE_EXECUTE_READWRITE
+            && readable != PAGE_EXECUTE_WRITECOPY) {
+            return false;
+        }
+        const std::uintptr_t base = reinterpret_cast<std::uintptr_t>(
+            information.BaseAddress
+        );
+        if (information.RegionSize > UINTPTR_MAX - base) {
+            return false;
+        }
+        const std::uintptr_t next = base + information.RegionSize;
+        if (next == 0U || next <= cursor) {
+            return false;
+        }
+        if (next > last) {
+            return true;
+        }
+        cursor = next;
+    }
+    return true;
+}
+
+bool ReadElementIndex(
+    const void* const indices,
+    const unsigned int type,
+    const std::size_t position,
+    std::uint32_t* const value
+) noexcept {
+    if (indices == nullptr || value == nullptr) {
+        return false;
+    }
+    if (type == kGlUnsignedByte) {
+        const auto* typed = static_cast<const std::uint8_t*>(indices);
+        *value = typed[position];
+        return true;
+    }
+    if (type == kGlUnsignedShort) {
+        const auto* typed = static_cast<const std::uint16_t*>(indices);
+        *value = typed[position];
+        return true;
+    }
+    if (type == kGlUnsignedInt) {
+        const auto* typed = static_cast<const std::uint32_t*>(indices);
+        *value = typed[position];
+        return true;
+    }
+    return false;
+}
+
+std::size_t ElementIndexSize(const unsigned int type) noexcept {
+    if (type == kGlUnsignedByte) {
+        return sizeof(std::uint8_t);
+    }
+    if (type == kGlUnsignedShort) {
+        return sizeof(std::uint16_t);
+    }
+    if (type == kGlUnsignedInt) {
+        return sizeof(std::uint32_t);
+    }
+    return 0U;
+}
+
+std::vector<CapturedDisplayListBounds::FeatureEdge> BuildArrayFeatureEdges(
+    const unsigned int mode,
+    const int first,
+    const int count,
+    const unsigned int index_type,
+    const void* const indices
+) noexcept {
+    std::vector<CapturedDisplayListBounds::FeatureEdge> empty{};
+    const VertexArrayState state = g_vertex_array_state;
+    if (!state.enabled || state.pointer == nullptr || state.type != kGlFloat
+        || state.size < 2 || state.size > 4 || state.stride < 0
+        || count <= 0 || count > kMaximumOutlinedElementCount || first < 0) {
+        return empty;
+    }
+    const std::size_t component_bytes = static_cast<std::size_t>(state.size)
+        * sizeof(float);
+    const std::size_t stride = state.stride == 0
+        ? component_bytes : static_cast<std::size_t>(state.stride);
+    if (stride < component_bytes) {
+        return empty;
+    }
+    const std::size_t requested = static_cast<std::size_t>(count);
+    const bool indexed = indices != nullptr;
+    const std::size_t index_size = indexed ? ElementIndexSize(index_type) : 0U;
+    if (indexed && (index_size == 0U || requested > SIZE_MAX / index_size
+        || !IsReadableMemoryRange(indices, requested * index_size))) {
+        return empty;
+    }
+    std::size_t maximum_vertex_index = 0U;
+    if (indexed) {
+        for (std::size_t position = 0U; position < requested; ++position) {
+            std::uint32_t vertex_index = 0U;
+            if (!ReadElementIndex(indices, index_type, position, &vertex_index)) {
+                return empty;
+            }
+            if (vertex_index > maximum_vertex_index) {
+                maximum_vertex_index = vertex_index;
+            }
+        }
+    } else {
+        const std::size_t sequential_first = static_cast<std::size_t>(first);
+        if (requested - 1U > SIZE_MAX - sequential_first) {
+            return empty;
+        }
+        maximum_vertex_index = sequential_first + requested - 1U;
+    }
+    if (maximum_vertex_index > (SIZE_MAX - component_bytes) / stride) {
+        return empty;
+    }
+    const std::size_t required_vertex_bytes = maximum_vertex_index * stride
+        + component_bytes;
+    if (!IsReadableMemoryRange(state.pointer, required_vertex_bytes)) {
+        return empty;
+    }
+    try {
+        ActiveDisplayListCapture capture{};
+        capture.vertices.reserve(requested);
+        for (std::size_t position = 0U; position < requested; ++position) {
+            std::uint32_t vertex_index = 0U;
+            if (indexed) {
+                if (!ReadElementIndex(indices, index_type, position, &vertex_index)) {
+                    return empty;
+                }
+            } else {
+                const std::size_t sequential = static_cast<std::size_t>(first) + position;
+                if (sequential > UINT32_MAX) {
+                    return empty;
+                }
+                vertex_index = static_cast<std::uint32_t>(sequential);
+            }
+            if (vertex_index > (SIZE_MAX - component_bytes) / stride) {
+                return empty;
+            }
+            const std::size_t offset = static_cast<std::size_t>(vertex_index) * stride;
+            const std::uintptr_t base = reinterpret_cast<std::uintptr_t>(state.pointer);
+            if (offset > UINTPTR_MAX - base) {
+                return empty;
+            }
+            const auto* vertex_pointer = reinterpret_cast<const std::uint8_t*>(
+                base + offset
+            );
+            const auto* components = reinterpret_cast<const float*>(vertex_pointer);
+            const std::array<float, 3U> vertex{
+                components[0], components[1], state.size >= 3 ? components[2] : 0.0F
+            };
+            if (!std::isfinite(vertex[0]) || !std::isfinite(vertex[1])
+                || !std::isfinite(vertex[2])) {
+                return empty;
+            }
+            capture.vertices.push_back(vertex);
+        }
+        capture.primitives.push_back({mode, 0U, capture.vertices.size()});
+        return BuildFeatureEdges(capture);
+    } catch (...) {
+        return empty;
+    }
+}
+
 void CloseCapturedPrimitive() noexcept {
     if (!g_active_display_list_capture.primitive_open) {
         return;
@@ -540,6 +755,14 @@ struct OutlineApi {
     GlPolygonOffset polygon_offset;
 };
 
+struct ArrayFeatureRequest {
+    unsigned int mode = 0U;
+    int first = 0;
+    int count = 0;
+    unsigned int index_type = 0U;
+    const void* indices = nullptr;
+};
+
 bool LoadOutlineApi(OutlineApi* const api) noexcept {
     if (api == nullptr) {
         return false;
@@ -582,8 +805,8 @@ bool LoadOutlineApi(OutlineApi* const api) noexcept {
         && api->polygon_offset != nullptr;
 }
 
-void DrawFeatureEdges(
-    const unsigned int list,
+void DrawFeatureEdgeSegments(
+    const std::vector<CapturedDisplayListBounds::FeatureEdge>& edges,
     const OutlineApi& api,
     const float outline_width
 ) noexcept {
@@ -592,13 +815,7 @@ void DrawFeatureEdges(
     const auto vertex = LoadFunction<GlVertex3f>(&g_original_vertex_3f);
     const auto end = LoadFunction<GlEnd>(&g_end);
     if (contour_width <= 0.0F || begin == nullptr || vertex == nullptr
-        || end == nullptr || list >= g_display_list_bounds.size()) {
-        return;
-    }
-    AcquireSRWLockShared(&g_display_list_lock);
-    const CapturedDisplayListBounds& captured = g_display_list_bounds[list];
-    if (!captured.valid || captured.feature_edges.empty()) {
-        ReleaseSRWLockShared(&g_display_list_lock);
+        || end == nullptr || edges.empty()) {
         return;
     }
     api.push_attrib(kGlAllAttribBits);
@@ -617,12 +834,27 @@ void DrawFeatureEdges(
     api.disable(kGlCullFace);
     api.line_width(contour_width);
     begin(kGlLines);
-    for (const CapturedDisplayListBounds::FeatureEdge& edge : captured.feature_edges) {
+    for (const CapturedDisplayListBounds::FeatureEdge& edge : edges) {
         vertex(edge.first[0], edge.first[1], edge.first[2]);
         vertex(edge.second[0], edge.second[1], edge.second[2]);
     }
     end();
     api.pop_attrib();
+}
+
+void DrawDisplayListFeatureEdges(
+    const unsigned int list,
+    const OutlineApi& api,
+    const float outline_width
+) noexcept {
+    if (list >= g_display_list_bounds.size()) {
+        return;
+    }
+    AcquireSRWLockShared(&g_display_list_lock);
+    const CapturedDisplayListBounds& captured = g_display_list_bounds[list];
+    if (captured.valid) {
+        DrawFeatureEdgeSegments(captured.feature_edges, api, outline_width);
+    }
     ReleaseSRWLockShared(&g_display_list_lock);
 }
 
@@ -630,7 +862,8 @@ template <typename Draw>
 void DrawWithSilhouette(
     const Draw& draw,
     const OutlineHullTransform* const hull = nullptr,
-    const unsigned int feature_list = UINT32_MAX
+    const unsigned int feature_list = UINT32_MAX,
+    const ArrayFeatureRequest* const array_features = nullptr
 ) noexcept {
     OutlineApi api{};
     std::array<float, 16U> projection{};
@@ -670,6 +903,16 @@ void DrawWithSilhouette(
         return;
     }
 
+    const auto feature_edges = array_features == nullptr
+        ? std::vector<CapturedDisplayListBounds::FeatureEdge>{}
+        : BuildArrayFeatureEdges(
+            array_features->mode,
+            array_features->first,
+            array_features->count,
+            array_features->index_type,
+            array_features->indices
+        );
+
     api.push_attrib(kGlAllAttribBits);
     api.disable(kGlTexture2D);
     api.disable(kGlLighting);
@@ -705,7 +948,9 @@ void DrawWithSilhouette(
 
     draw();
     if (feature_list != UINT32_MAX) {
-        DrawFeatureEdges(feature_list, api, outline_width);
+        DrawDisplayListFeatureEdges(feature_list, api, outline_width);
+    } else if (!feature_edges.empty()) {
+        DrawFeatureEdgeSegments(feature_edges, api, outline_width);
     }
 }
 
@@ -868,7 +1113,8 @@ void APIENTRY StrongDrawArrays(
         if (IsCompilingDisplayListOnCurrentThread()) {
             draw();
         } else if (IsOutlinePrimitive(mode, count)) {
-            DrawWithSilhouette(draw);
+            const ArrayFeatureRequest request{mode, first, count, 0U, nullptr};
+            DrawWithSilhouette(draw, nullptr, UINT32_MAX, &request);
         } else {
             draw();
         }
@@ -889,7 +1135,8 @@ void APIENTRY StrongDrawElements(
         if (IsCompilingDisplayListOnCurrentThread()) {
             draw();
         } else if (IsOutlinePrimitive(mode, count)) {
-            DrawWithSilhouette(draw);
+            const ArrayFeatureRequest request{mode, 0, count, type, indices};
+            DrawWithSilhouette(draw, nullptr, UINT32_MAX, &request);
         } else {
             draw();
         }
@@ -1120,6 +1367,46 @@ std::size_t TriangleFeatureEdgeCount(
         return BuildFeatureEdges(capture).size();
     } catch (...) {
         return 0U;
+    }
+}
+
+void APIENTRY StrongVertexPointer(
+    const int size,
+    const unsigned int type,
+    const int stride,
+    const void* const pointer
+) noexcept {
+    const auto original = LoadFunction<GlVertexPointer>(&g_original_vertex_pointer);
+    if (original != nullptr) {
+        original(size, type, stride, pointer);
+        g_vertex_array_state.pointer = pointer;
+        g_vertex_array_state.size = size;
+        g_vertex_array_state.type = type;
+        g_vertex_array_state.stride = stride;
+    }
+}
+
+void APIENTRY StrongEnableClientState(const unsigned int array) noexcept {
+    const auto original = LoadFunction<GlEnableClientState>(
+        &g_original_enable_client_state
+    );
+    if (original != nullptr) {
+        original(array);
+        if (array == kGlVertexArray) {
+            g_vertex_array_state.enabled = true;
+        }
+    }
+}
+
+void APIENTRY StrongDisableClientState(const unsigned int array) noexcept {
+    const auto original = LoadFunction<GlDisableClientState>(
+        &g_original_disable_client_state
+    );
+    if (original != nullptr) {
+        original(array);
+        if (array == kGlVertexArray) {
+            g_vertex_array_state.enabled = false;
+        }
     }
 }
 
@@ -1384,6 +1671,9 @@ DWORD StartStrongCelShading() noexcept {
         || g_matrix_mode_slot != nullptr
         || g_draw_arrays_slot != nullptr
         || g_draw_elements_slot != nullptr
+        || g_vertex_pointer_slot != nullptr
+        || g_enable_client_state_slot != nullptr
+        || g_disable_client_state_slot != nullptr
         || g_original_shade_model != nullptr
         || g_original_begin != nullptr
         || g_end != nullptr
@@ -1396,6 +1686,9 @@ DWORD StartStrongCelShading() noexcept {
         || g_original_matrix_mode != nullptr
         || g_original_draw_arrays != nullptr
         || g_original_draw_elements != nullptr
+        || g_original_vertex_pointer != nullptr
+        || g_original_enable_client_state != nullptr
+        || g_original_disable_client_state != nullptr
         || g_get_floatv != nullptr
         || g_get_booleanv != nullptr
         || g_push_attrib != nullptr
@@ -1432,7 +1725,7 @@ DWORD StartStrongCelShading() noexcept {
     ) {
         return ERROR_BAD_EXE_FORMAT;
     }
-    std::array<ImportHookPlan, 11U> plans{{
+    std::array<ImportHookPlan, 14U> plans{{
         {
             "glShadeModel",
             reinterpret_cast<PVOID>(&StrongShadeModel),
@@ -1504,6 +1797,30 @@ DWORD StartStrongCelShading() noexcept {
             nullptr,
             &g_original_matrix_mode,
             &g_matrix_mode_slot,
+        },
+        {
+            "glVertexPointer",
+            reinterpret_cast<PVOID>(&StrongVertexPointer),
+            nullptr,
+            nullptr,
+            &g_original_vertex_pointer,
+            &g_vertex_pointer_slot,
+        },
+        {
+            "glEnableClientState",
+            reinterpret_cast<PVOID>(&StrongEnableClientState),
+            nullptr,
+            nullptr,
+            &g_original_enable_client_state,
+            &g_enable_client_state_slot,
+        },
+        {
+            "glDisableClientState",
+            reinterpret_cast<PVOID>(&StrongDisableClientState),
+            nullptr,
+            nullptr,
+            &g_original_disable_client_state,
+            &g_disable_client_state_slot,
         },
         {
             "glDrawArrays",
@@ -1589,6 +1906,7 @@ DWORD StartStrongCelShading() noexcept {
     InterlockedExchange(&g_viewport_width, 0);
     InterlockedExchange(&g_viewport_height, 0);
     g_current_matrix_mode = kGlModelView;
+    g_vertex_array_state = {};
     for (ImportHookPlan& plan : plans) {
         InterlockedExchangePointer(plan.original_storage, plan.original);
         const DWORD result = ReplaceImportSlot(
@@ -1626,6 +1944,27 @@ void StopStrongCelShading() noexcept {
             &g_draw_arrays_slot,
             &g_original_draw_arrays,
             reinterpret_cast<PVOID>(&StrongDrawArrays)
+        )) {
+        restored = false;
+    }
+    if (!RestoreHook(
+            &g_disable_client_state_slot,
+            &g_original_disable_client_state,
+            reinterpret_cast<PVOID>(&StrongDisableClientState)
+        )) {
+        restored = false;
+    }
+    if (!RestoreHook(
+            &g_enable_client_state_slot,
+            &g_original_enable_client_state,
+            reinterpret_cast<PVOID>(&StrongEnableClientState)
+        )) {
+        restored = false;
+    }
+    if (!RestoreHook(
+            &g_vertex_pointer_slot,
+            &g_original_vertex_pointer,
+            reinterpret_cast<PVOID>(&StrongVertexPointer)
         )) {
         restored = false;
     }
@@ -1699,6 +2038,7 @@ void StopStrongCelShading() noexcept {
         InterlockedExchange(&g_viewport_y, 0);
         InterlockedExchange(&g_viewport_x, 0);
         g_current_matrix_mode = kGlModelView;
+        g_vertex_array_state = {};
         InterlockedExchangePointer(&g_end, nullptr);
         InterlockedExchangePointer(&g_polygon_offset, nullptr);
         InterlockedExchangePointer(&g_depth_func, nullptr);
