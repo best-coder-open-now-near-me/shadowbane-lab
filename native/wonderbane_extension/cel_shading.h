@@ -7,6 +7,16 @@
 
 namespace wonderbane::extension {
 
+struct OutlineBounds {
+    float minimum[3];
+    float maximum[3];
+};
+
+struct OutlineHullTransform {
+    float center[3];
+    float scale;
+};
+
 std::uint32_t* FindImportAddressSlot(
     std::uint8_t* image,
     std::size_t image_size,
@@ -23,6 +33,12 @@ float PerspectiveOutlineLineWidth(
     std::size_t model_view_count,
     const int* viewport,
     std::size_t viewport_count
+) noexcept;
+bool ExpandOutlineBounds(OutlineBounds* bounds, float x, float y, float z) noexcept;
+bool CenteredOutlineHullTransform(
+    const OutlineBounds* bounds,
+    float world_thickness,
+    OutlineHullTransform* transform
 ) noexcept;
 bool IsOutlinePrimitive(unsigned int mode, int count) noexcept;
 
