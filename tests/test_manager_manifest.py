@@ -116,6 +116,10 @@ class ManagerManifestTests(unittest.TestCase):
             self.assertEqual(before.launch.arguments, after.launch.arguments)
             self.assertEqual(before.launch.environment, after.launch.environment)
             self.assertEqual(
+                before.launch.required_file_sha256,
+                after.launch.required_file_sha256,
+            )
+            self.assertEqual(
                 PureWindowsPath(r"C:\Reviewed\WonderBane-1.0.5\sb.exe"),
                 after.launch.executable,
             )
@@ -449,6 +453,43 @@ class ManagerManifestTests(unittest.TestCase):
             with self.subTest(names=names):
                 with self.assertRaisesRegex(ManagerManifestError, "expected_executable_names"):
                     parse_manager_manifest(_payload(client))
+
+    def test_required_file_hashes_are_canonical_relative_paths_and_sha256_values(self) -> None:
+        client = _client()
+        client["launch"]["required_file_sha256"] = {  # type: ignore[index]
+            "cache\\Textures.cache": "B" * 64,
+            "sb.exe": "a" * 64,
+        }
+        manifest = parse_manager_manifest(_payload(client))
+
+        self.assertEqual(
+            (
+                ("cache\\Textures.cache", "b" * 64),
+                ("sb.exe", "a" * 64),
+            ),
+            manifest.clients[0].launch.required_file_sha256,
+        )
+        self.assertEqual(
+            {
+                "cache\\Textures.cache": "b" * 64,
+                "sb.exe": "a" * 64,
+            },
+            manifest.to_dict()["clients"][0]["launch"]["required_file_sha256"],  # type: ignore[index]
+        )
+
+        for path, digest in (
+            (r"C:\absolute\sb.exe", "a" * 64),
+            (r"..\sb.exe", "a" * 64),
+            ("cache/Textures.cache", "a" * 64),
+            ("sb.exe", "not-a-hash"),
+        ):
+            invalid_client = _client()
+            invalid_client["launch"]["required_file_sha256"] = {  # type: ignore[index]
+                path: digest
+            }
+            with self.subTest(path=path, digest=digest):
+                with self.assertRaisesRegex(ManagerManifestError, "required_file_sha256"):
+                    parse_manager_manifest(_payload(invalid_client))
 
     def test_rejects_duplicate_client_ids_and_tile_assignments(self) -> None:
         with self.assertRaisesRegex(ManagerManifestError, "client_id values"):

@@ -7,6 +7,7 @@ request delegated to an injected controller.
 
 from __future__ import annotations
 
+import hashlib
 import ntpath
 import os
 import subprocess
@@ -43,6 +44,10 @@ class AmbiguousClientError(SupervisorError):
 
 class UnsafeClientIdentityError(SupervisorError):
     """Raised when matching windows include incomplete attach identities."""
+
+
+class LaunchIntegrityError(SupervisorError):
+    """Raised when a launch or attach target no longer matches its reviewed files."""
 
 
 class DuplicateManagedClientError(SupervisorError):
@@ -148,6 +153,7 @@ class ReviewedLaunchCommand:
     argv: tuple[str, ...]
     working_directory: str | None = None
     environment: tuple[tuple[str, str | None], ...] = ()
+    required_file_sha256: tuple[tuple[str, str], ...] = ()
 
     def __post_init__(self) -> None:
         if not isinstance(self.argv, tuple) or not self.argv:
@@ -192,6 +198,67 @@ class ReviewedLaunchCommand:
             names.append(item[0])
         if names != sorted(names) or len(names) != len(set(names)):
             raise ValueError("environment names must be unique and sorted")
+        if not isinstance(self.required_file_sha256, tuple):
+            raise ValueError("required_file_sha256 must be an immutable tuple")
+        normalized_paths: list[str] = []
+        for item in self.required_file_sha256:
+            if (
+                not isinstance(item, tuple)
+                or len(item) != 2
+                or not isinstance(item[0], str)
+                or not ntpath.isabs(item[0])
+                or not isinstance(item[1], str)
+                or len(item[1]) != 64
+                or any(character not in "0123456789abcdef" for character in item[1])
+            ):
+                raise ValueError(
+                    "required_file_sha256 must contain absolute Windows paths and "
+                    "lowercase SHA-256 values"
+                )
+            normalized_paths.append(ntpath.normcase(ntpath.normpath(item[0])))
+        if normalized_paths != sorted(normalized_paths) or len(normalized_paths) != len(
+            set(normalized_paths)
+        ):
+            raise ValueError("required_file_sha256 paths must be unique and sorted")
+
+
+@dataclass(frozen=True, slots=True)
+class LaunchFileIntegritySnapshot:
+    path: str
+    expected_sha256: str
+    actual_sha256: str | None
+    ready: bool
+    detail: str | None = None
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "path": self.path,
+            "expected_sha256": self.expected_sha256,
+            "actual_sha256": self.actual_sha256,
+            "ready": self.ready,
+            "detail": self.detail,
+        }
+
+
+def inspect_launch_integrity(config: ManagedClientConfig) -> tuple[LaunchFileIntegritySnapshot, ...]:
+    """Hash every manifest-pinned file without changing the target runtime."""
+
+    if not isinstance(config, ManagedClientConfig):
+        raise ValueError("config must be ManagedClientConfig")
+    required_files = tuple(
+        (
+            str(config.launch.working_directory / relative_path),
+            expected_sha256,
+        )
+        for relative_path, expected_sha256 in config.launch.required_file_sha256
+    )
+    return _inspect_required_file_integrity(required_files)
+
+
+def require_launch_integrity(config: ManagedClientConfig) -> None:
+    """Fail closed unless all content-pinned files match their reviewed hashes."""
+
+    _require_integrity_snapshots(inspect_launch_integrity(config))
 
 
 def selector_from_config(
@@ -218,6 +285,13 @@ def launch_command_from_config(config: ManagedClientConfig) -> ReviewedLaunchCom
         argv=config.launch.command,
         working_directory=str(config.launch.working_directory),
         environment=config.launch.environment,
+        required_file_sha256=tuple(
+            (
+                str(config.launch.working_directory / relative_path),
+                expected_sha256,
+            )
+            for relative_path, expected_sha256 in config.launch.required_file_sha256
+        ),
     )
 
 
@@ -546,6 +620,9 @@ class SubprocessLauncher:
         if not isinstance(command, ReviewedLaunchCommand):
             raise ValueError("command must be ReviewedLaunchCommand")
         self._reap_finished_children()
+        _require_integrity_snapshots(
+            _inspect_required_file_integrity(command.required_file_sha256)
+        )
         launch_environment = None
         if command.environment:
             launch_environment = os.environ.copy()
@@ -577,6 +654,53 @@ class SubprocessLauncher:
             for process_id, process in self._children.items()
             if process.poll() is None
         }
+
+
+def _inspect_required_file_integrity(
+    required_files: tuple[tuple[str, str], ...],
+) -> tuple[LaunchFileIntegritySnapshot, ...]:
+    snapshots: list[LaunchFileIntegritySnapshot] = []
+    for path, expected_sha256 in required_files:
+        try:
+            digest = hashlib.sha256()
+            with open(path, "rb") as stream:
+                while chunk := stream.read(1024 * 1024):
+                    digest.update(chunk)
+            actual_sha256 = digest.hexdigest()
+            snapshots.append(
+                LaunchFileIntegritySnapshot(
+                    path=path,
+                    expected_sha256=expected_sha256,
+                    actual_sha256=actual_sha256,
+                    ready=actual_sha256 == expected_sha256,
+                    detail=(None if actual_sha256 == expected_sha256 else "SHA-256 mismatch"),
+                )
+            )
+        except OSError as exc:
+            snapshots.append(
+                LaunchFileIntegritySnapshot(
+                    path=path,
+                    expected_sha256=expected_sha256,
+                    actual_sha256=None,
+                    ready=False,
+                    detail=str(exc),
+                )
+            )
+    return tuple(snapshots)
+
+
+def _require_integrity_snapshots(
+    snapshots: tuple[LaunchFileIntegritySnapshot, ...],
+) -> None:
+    failures = tuple(snapshot for snapshot in snapshots if not snapshot.ready)
+    if not failures:
+        return
+    detail = "; ".join(
+        f"{snapshot.path}: {snapshot.detail or 'integrity check failed'} "
+        f"(expected {snapshot.expected_sha256}, actual {snapshot.actual_sha256 or 'unavailable'})"
+        for snapshot in failures
+    )
+    raise LaunchIntegrityError(f"reviewed client integrity check failed: {detail}")
 
 
 class SystemMonotonicClock:

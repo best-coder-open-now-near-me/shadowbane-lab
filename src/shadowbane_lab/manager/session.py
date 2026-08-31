@@ -22,6 +22,7 @@ from .supervisor import (
     ManagedClientState,
     ReviewedLaunchCommand,
     launch_command_from_config,
+    require_launch_integrity,
     selector_from_config,
     window_rectangle_from_config,
 )
@@ -436,6 +437,7 @@ class ManagerSession:
                 )
                 raise SessionSlotBoundError(slot.failure_detail)
             try:
+                require_launch_integrity(slot.config)
                 managed = self._supervisor.attach(
                     selector_from_config(self.node_id, slot.config),
                     instance_id=instance_id,

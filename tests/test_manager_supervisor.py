@@ -1,4 +1,7 @@
+import hashlib
+import tempfile
 import unittest
+from pathlib import Path, PureWindowsPath
 from unittest.mock import MagicMock, patch
 
 from shadowbane_lab.client_input import WindowBounds
@@ -15,6 +18,7 @@ from shadowbane_lab.manager.supervisor import (
     ClientLifecycleSupervisor,
     DuplicateManagedClientError,
     InvalidLifecycleTransitionError,
+    LaunchIntegrityError,
     LaunchProvenance,
     LaunchReceipt,
     LaunchTimeoutError,
@@ -286,6 +290,50 @@ class SupervisorValueTests(unittest.TestCase):
             shell=False,
         )
 
+    def test_subprocess_launcher_refuses_changed_required_file(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            executable = Path(directory) / "sb.exe"
+            executable.write_bytes(b"changed")
+            executable_path = str(PureWindowsPath(executable))
+            command = ReviewedLaunchCommand(
+                (executable_path,),
+                working_directory=str(PureWindowsPath(directory)),
+                required_file_sha256=((executable_path, "0" * 64),),
+            )
+            with (
+                patch("shadowbane_lab.manager.supervisor.subprocess.Popen") as popen,
+                self.assertRaisesRegex(LaunchIntegrityError, "SHA-256 mismatch"),
+            ):
+                SubprocessLauncher(FakeProcessInspector()).launch(command)
+            popen.assert_not_called()
+
+    def test_subprocess_launcher_accepts_matching_required_file(self) -> None:
+        process = MagicMock(pid=2468)
+        process.poll.return_value = None
+        inspector = FakeProcessInspector()
+        inspector.results[2468] = ProcessLifetimeSnapshot(
+            process_id=2468,
+            process_started_at_100ns=2468000,
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            executable = Path(directory) / "sb.exe"
+            payload = b"reviewed-client"
+            executable.write_bytes(payload)
+            executable_path = str(PureWindowsPath(executable))
+            command = ReviewedLaunchCommand(
+                (executable_path,),
+                working_directory=str(PureWindowsPath(directory)),
+                required_file_sha256=(
+                    (executable_path, hashlib.sha256(payload).hexdigest()),
+                ),
+            )
+            with patch(
+                "shadowbane_lab.manager.supervisor.subprocess.Popen",
+                return_value=process,
+            ) as popen:
+                SubprocessLauncher(inspector).launch(command)
+            popen.assert_called_once()
+
     def test_subprocess_launcher_applies_only_reviewed_environment_changes(self) -> None:
         process = MagicMock(pid=2468)
         process.poll.return_value = None
@@ -339,6 +387,10 @@ class SupervisorValueTests(unittest.TestCase):
                                 "GALLIUM_DRIVER": "llvmpipe",
                                 "MESA_EXTENSION_MAX_YEAR": "2001",
                             },
+                            "required_file_sha256": {
+                                "cache\\Textures.cache": "b" * 64,
+                                "launcher.exe": "a" * 64,
+                            },
                         },
                         "expected_process_directory": PROCESS_DIRECTORY,
                         "expected_executable_names": ["sb.exe", "Shadowbane.exe"],
@@ -369,6 +421,13 @@ class SupervisorValueTests(unittest.TestCase):
                 ("MESA_EXTENSION_MAX_YEAR", "2001"),
             ),
             command.environment,
+        )
+        self.assertEqual(
+            (
+                (rf"{PROCESS_DIRECTORY}\cache\Textures.cache", "b" * 64),
+                (rf"{PROCESS_DIRECTORY}\launcher.exe", "a" * 64),
+            ),
+            command.required_file_sha256,
         )
         self.assertEqual(
             WindowRectangle(left=-960, top=0, width=960, height=540),
