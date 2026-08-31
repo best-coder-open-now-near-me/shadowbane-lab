@@ -47,6 +47,37 @@ then atomically publishes the frozen directory.
 Keep the baseline and executable private because they are local game artifacts. Do not commit
 either one.
 
+## Compare official client patches
+
+Treat every official update as a transition between two independently frozen baselines. Capture
+the installed client before applying the developer update, apply the update only to the official
+installation, then freeze that new installation into a different destination. Compare the two
+immutable copies with:
+
+```powershell
+python -m shadowbane_lab.client_extension diff-baselines `
+  <frozen-before> <frozen-after> `
+  --patch-id wonderbane-1.0.5-to-1.0.6 `
+  --output <private-evidence>\wonderbane-1.0.5-to-1.0.6.diff.json `
+  --pretty
+```
+
+The comparison verifies both complete trees against their `client-baseline.json` evidence before
+reporting anything. Its schema-version-1 report contains:
+
+- source and target tree, executable, and baseline-evidence hashes;
+- added, removed, modified, unchanged, and unambiguous exact-content rename counts;
+- old and new file sizes and hashes, without embedding client payload bytes;
+- decompressed resource hashes for every changed Shadowbane `.cache` archive, distinguishing
+  logical resource changes from storage-only repacking; and
+- the existing PE section/range and calibrated-anchor alignment report when `sb.exe` changed.
+
+Cache parsing is fail-closed by default. If a future official build introduces a different cache
+format, rerun with `--no-cache-analysis` to retain verified file- and PE-level evidence while the
+new archive format is reviewed. Report outputs use create-new semantics and include a canonical
+`report_sha256`; keep them private because file names and installation paths may still reveal local
+client details.
+
 ## Build and probe the x86 extension
 
 On the development host with Visual Studio 2022's Win32 C++ toolchain installed:
