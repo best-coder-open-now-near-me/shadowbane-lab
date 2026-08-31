@@ -29,15 +29,15 @@ constexpr unsigned int kGlFog = 0x0B60U;
 constexpr unsigned int kGlCullFace = 0x0B44U;
 constexpr unsigned int kGlBlend = 0x0BE2U;
 constexpr unsigned int kGlAlphaTest = 0x0BC0U;
-constexpr unsigned int kGlFront = 0x0404U;
-constexpr unsigned int kGlBack = 0x0405U;
+constexpr unsigned int kGlLineSmooth = 0x0B20U;
+constexpr unsigned int kGlDither = 0x0BD0U;
+constexpr unsigned int kGlColorLogicOp = 0x0BF2U;
+constexpr unsigned int kGlFrontAndBack = 0x0408U;
 constexpr unsigned int kGlLine = 0x1B01U;
+constexpr unsigned int kGlClear = 0x1500U;
 constexpr unsigned int kGlAllAttribBits = 0x000FFFFFU;
 constexpr int kMaximumOutlinedElementCount = 8192;
-constexpr float kOutlineLineWidth = 2.0F;
-constexpr float kOutlineRed = 0.025F;
-constexpr float kOutlineGreen = 0.030F;
-constexpr float kOutlineBlue = 0.040F;
+constexpr float kOutlineLineWidth = 3.0F;
 
 using GlShadeModel = void(APIENTRY*)(unsigned int mode);
 using GlBegin = void(APIENTRY*)(unsigned int mode);
@@ -54,10 +54,9 @@ using GlPushAttrib = void(APIENTRY*)(unsigned int mask);
 using GlPopAttrib = void(APIENTRY*)();
 using GlEnable = void(APIENTRY*)(unsigned int capability);
 using GlDisable = void(APIENTRY*)(unsigned int capability);
-using GlCullFace = void(APIENTRY*)(unsigned int mode);
 using GlPolygonMode = void(APIENTRY*)(unsigned int face, unsigned int mode);
 using GlLineWidth = void(APIENTRY*)(float width);
-using GlColor4f = void(APIENTRY*)(float red, float green, float blue, float alpha);
+using GlLogicOp = void(APIENTRY*)(unsigned int operation);
 using GlDepthMask = void(APIENTRY*)(unsigned char flag);
 
 PVOID volatile g_original_shade_model = nullptr;
@@ -70,10 +69,9 @@ PVOID volatile g_push_attrib = nullptr;
 PVOID volatile g_pop_attrib = nullptr;
 PVOID volatile g_enable = nullptr;
 PVOID volatile g_disable = nullptr;
-PVOID volatile g_cull_face = nullptr;
 PVOID volatile g_polygon_mode = nullptr;
 PVOID volatile g_line_width = nullptr;
-PVOID volatile g_color4f = nullptr;
+PVOID volatile g_logic_op = nullptr;
 PVOID volatile g_depth_mask = nullptr;
 std::uint32_t* g_shade_model_slot = nullptr;
 std::uint32_t* g_begin_slot = nullptr;
@@ -96,10 +94,9 @@ struct OutlineApi {
     GlPopAttrib pop_attrib;
     GlEnable enable;
     GlDisable disable;
-    GlCullFace cull_face;
     GlPolygonMode polygon_mode;
     GlLineWidth line_width;
-    GlColor4f color4f;
+    GlLogicOp logic_op;
     GlDepthMask depth_mask;
 };
 
@@ -113,10 +110,9 @@ bool LoadOutlineApi(OutlineApi* const api) noexcept {
         LoadFunction<GlPopAttrib>(&g_pop_attrib),
         LoadFunction<GlEnable>(&g_enable),
         LoadFunction<GlDisable>(&g_disable),
-        LoadFunction<GlCullFace>(&g_cull_face),
         LoadFunction<GlPolygonMode>(&g_polygon_mode),
         LoadFunction<GlLineWidth>(&g_line_width),
-        LoadFunction<GlColor4f>(&g_color4f),
+        LoadFunction<GlLogicOp>(&g_logic_op),
         LoadFunction<GlDepthMask>(&g_depth_mask),
     };
     return api->get_floatv != nullptr
@@ -124,10 +120,9 @@ bool LoadOutlineApi(OutlineApi* const api) noexcept {
         && api->pop_attrib != nullptr
         && api->enable != nullptr
         && api->disable != nullptr
-        && api->cull_face != nullptr
         && api->polygon_mode != nullptr
         && api->line_width != nullptr
-        && api->color4f != nullptr
+        && api->logic_op != nullptr
         && api->depth_mask != nullptr;
 }
 
@@ -151,12 +146,14 @@ void DrawWithSilhouette(const Draw& draw) noexcept {
     api.disable(kGlFog);
     api.disable(kGlBlend);
     api.disable(kGlAlphaTest);
-    api.enable(kGlCullFace);
-    api.cull_face(kGlFront);
-    api.polygon_mode(kGlBack, kGlLine);
+    api.disable(kGlCullFace);
+    api.disable(kGlLineSmooth);
+    api.disable(kGlDither);
+    api.enable(kGlColorLogicOp);
+    api.logic_op(kGlClear);
+    api.polygon_mode(kGlFrontAndBack, kGlLine);
     api.line_width(kOutlineLineWidth);
     api.depth_mask(FALSE);
-    api.color4f(kOutlineRed, kOutlineGreen, kOutlineBlue, 1.0F);
     draw();
     api.pop_attrib();
 
@@ -569,10 +566,9 @@ DWORD StartStrongCelShading() noexcept {
         || g_pop_attrib != nullptr
         || g_enable != nullptr
         || g_disable != nullptr
-        || g_cull_face != nullptr
         || g_polygon_mode != nullptr
         || g_line_width != nullptr
-        || g_color4f != nullptr
+        || g_logic_op != nullptr
         || g_depth_mask != nullptr
     ) {
         return ERROR_ALREADY_INITIALIZED;
@@ -669,16 +665,15 @@ DWORD StartStrongCelShading() noexcept {
         }
     }
 
-    std::array<HelperFunctionPlan, 10U> helpers{{
+    std::array<HelperFunctionPlan, 9U> helpers{{
         {"glGetFloatv", &g_get_floatv, nullptr},
         {"glPushAttrib", &g_push_attrib, nullptr},
         {"glPopAttrib", &g_pop_attrib, nullptr},
         {"glEnable", &g_enable, nullptr},
         {"glDisable", &g_disable, nullptr},
-        {"glCullFace", &g_cull_face, nullptr},
         {"glPolygonMode", &g_polygon_mode, nullptr},
         {"glLineWidth", &g_line_width, nullptr},
-        {"glColor4f", &g_color4f, nullptr},
+        {"glLogicOp", &g_logic_op, nullptr},
         {"glDepthMask", &g_depth_mask, nullptr},
     }};
     for (HelperFunctionPlan& helper : helpers) {
@@ -753,10 +748,9 @@ void StopStrongCelShading() noexcept {
     }
     if (restored) {
         InterlockedExchangePointer(&g_depth_mask, nullptr);
-        InterlockedExchangePointer(&g_color4f, nullptr);
+        InterlockedExchangePointer(&g_logic_op, nullptr);
         InterlockedExchangePointer(&g_line_width, nullptr);
         InterlockedExchangePointer(&g_polygon_mode, nullptr);
-        InterlockedExchangePointer(&g_cull_face, nullptr);
         InterlockedExchangePointer(&g_disable, nullptr);
         InterlockedExchangePointer(&g_enable, nullptr);
         InterlockedExchangePointer(&g_pop_attrib, nullptr);
