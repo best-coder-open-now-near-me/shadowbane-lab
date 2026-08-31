@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://shadowbane-lab.invalid/schemas/migration-receipt-v1.schema.json",
+  "title": "Shadowbane Lab migration receipt v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "receipt_id", "imported_at_utc", "importer_id", "importer_version", "source_labels", "source_artifact_ids", "manifest_id"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "receipt_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "imported_at_utc": {"type": "string"},
+    "importer_id": {"type": "string", "minLength": 1},
+    "importer_version": {"type": "string", "minLength": 1},
+    "source_labels": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "source_artifact_ids": {"type": "array", "items": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}, "uniqueItems": true},
+    "manifest_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+  }
+}

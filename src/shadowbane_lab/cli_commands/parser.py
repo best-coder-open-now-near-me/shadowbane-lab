@@ -5,6 +5,8 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from shadowbane_lab.evidence import ArtifactKind
+
 
 def _integer_argument(value: str) -> int:
     try:
@@ -37,6 +39,77 @@ def _add_scan_arguments(parser: argparse.ArgumentParser) -> None:
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="shadowbane-lab")
     commands = parser.add_subparsers(dest="command", required=True)
+
+    evidence = commands.add_parser(
+        "evidence", help="manage immutable content-addressed research evidence"
+    )
+    evidence_commands = evidence.add_subparsers(dest="evidence_command", required=True)
+    evidence_init = evidence_commands.add_parser("init", help="initialize an empty evidence store")
+    evidence_init.add_argument("store", type=Path)
+    evidence_init.add_argument("--store-id")
+    evidence_init.add_argument("--json", action="store_true")
+
+    artifact_kinds = tuple(item.value for item in ArtifactKind)
+    evidence_ingest = evidence_commands.add_parser(
+        "ingest", help="ingest files and seal a create-only evidence manifest"
+    )
+    evidence_ingest.add_argument("store", type=Path)
+    evidence_ingest.add_argument("output", type=Path)
+    evidence_ingest.add_argument("files", type=Path, nargs="+")
+    evidence_ingest.add_argument("--kind", choices=artifact_kinds, required=True)
+    evidence_ingest.add_argument("--media-type", required=True)
+    evidence_ingest.add_argument("--producer-id", default="shadowbane-lab.manual-ingest")
+    evidence_ingest.add_argument("--producer-version", default="0.1.0")
+    evidence_ingest.add_argument("--case-id")
+    evidence_ingest.add_argument("--run-id")
+    evidence_ingest.add_argument("--json", action="store_true")
+
+    evidence_verify = evidence_commands.add_parser(
+        "verify", help="verify every object referenced by an evidence manifest"
+    )
+    evidence_verify.add_argument("store", type=Path)
+    evidence_verify.add_argument("manifest", type=Path)
+    evidence_verify.add_argument("--output", type=Path)
+    evidence_verify.add_argument("--json", action="store_true")
+
+    evidence_bundle = evidence_commands.add_parser(
+        "bundle", help="create a portable verified evidence bundle"
+    )
+    evidence_bundle.add_argument("store", type=Path)
+    evidence_bundle.add_argument("manifest", type=Path)
+    evidence_bundle.add_argument("output", type=Path)
+    evidence_bundle.add_argument("--json", action="store_true")
+
+    evidence_index = evidence_commands.add_parser(
+        "rebuild-index", help="rebuild a disposable SQLite index from canonical manifests"
+    )
+    evidence_index.add_argument("manifest_directory", type=Path)
+    evidence_index.add_argument("index", type=Path)
+    evidence_index.add_argument("--json", action="store_true")
+
+    evidence_query = evidence_commands.add_parser("query", help="query a rebuilt evidence index")
+    evidence_query.add_argument("index", type=Path)
+    evidence_query.add_argument("--kind", choices=artifact_kinds)
+    evidence_query.add_argument("--case-id")
+    evidence_query.add_argument("--run-id")
+    evidence_query.add_argument("--limit", type=int, default=100)
+    evidence_query.add_argument("--json", action="store_true")
+
+    legacy = evidence_commands.add_parser(
+        "import-legacy", help="non-destructively import existing evidence files"
+    )
+    legacy.add_argument("store", type=Path)
+    legacy.add_argument("manifest_output", type=Path)
+    legacy.add_argument("receipt_output", type=Path)
+    legacy.add_argument("files", type=Path, nargs="+")
+    legacy.add_argument("--kind", choices=artifact_kinds, required=True)
+    legacy.add_argument("--media-type", required=True)
+    legacy.add_argument("--importer-id", default="shadowbane-lab.legacy-import")
+    legacy.add_argument("--importer-version", default="0.1.0")
+    legacy.add_argument("--case-id")
+    legacy.add_argument("--run-id")
+    legacy.add_argument("--json", action="store_true")
+
     client = commands.add_parser("client", help="inspect and validate client integration")
     client_commands = client.add_subparsers(dest="client_command", required=True)
 
