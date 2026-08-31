@@ -33,6 +33,7 @@ from shadowbane_lab.client_action import (
 )
 from shadowbane_lab.client_extension import (
     ExtensionHeartbeatStatusProvider,
+    load_patch_manifest,
     open_windows_extension_event_consumer,
 )
 from shadowbane_lab.client_input import (
@@ -182,6 +183,7 @@ from shadowbane_lab.manager import (
     WorkerTravelDestination,
     expand_manager_slots,
     load_manager_manifest,
+    provision_isolated_client_runtimes,
     recover_manager_bindings,
     replace_manager_manifest,
     retarget_manager_clients,
@@ -994,6 +996,29 @@ def _parser() -> argparse.ArgumentParser:
         help="required because this atomically replaces the manifest after making a backup",
     )
     manager_build.add_argument("--json", action="store_true")
+    manager_runtimes = manager_commands.add_parser(
+        "provision-runtimes",
+        help="publish one verified guest-local client runtime per manager slot",
+    )
+    manager_runtimes.add_argument("manifest", type=Path)
+    manager_runtimes.add_argument("frozen_directory", type=Path)
+    manager_runtimes.add_argument("deployment_directory", type=Path)
+    manager_runtimes.add_argument("patch_manifest", type=Path)
+    manager_runtimes.add_argument("extension_artifact", type=Path)
+    manager_runtimes.add_argument("--deployment-id", required=True)
+    manager_runtimes.add_argument("--slot-count", type=int)
+    manager_runtimes.add_argument("--executable-name", default="sb.exe")
+    manager_runtimes.add_argument("--resolution-width", type=int, default=1920)
+    manager_runtimes.add_argument("--resolution-height", type=int, default=955)
+    manager_runtimes.add_argument(
+        "--apply",
+        action="store_true",
+        help=(
+            "required because this creates verified runtime trees and atomically "
+            "replaces the manager manifest"
+        ),
+    )
+    manager_runtimes.add_argument("--json", action="store_true")
     manager_app = manager_commands.add_parser(
         "app",
         help="run the authenticated localhost lifecycle dashboard",
@@ -1536,6 +1561,11 @@ def _configure_manager_slots(
         )
     try:
         current = load_manager_manifest(manifest_path)
+        if any(client.window_tile is None for client in current.clients):
+            raise ValueError(
+                "tileless isolated runtime slots have fixed capacity; use manager "
+                "provision-runtimes to change their count"
+            )
         configured = expand_manager_slots(
             current,
             count,
@@ -1583,6 +1613,11 @@ def _configure_manager_build(
         )
     try:
         current = load_manager_manifest(manifest_path)
+        if len(current.clients) != 1:
+            raise ValueError(
+                "configure-build cannot point multiple slots at one mutable client tree; "
+                "use manager provision-runtimes"
+            )
         configured = retarget_manager_clients(
             current,
             game_directory,
@@ -1615,6 +1650,58 @@ def _configure_manager_build(
         print(f"Manifest: {manifest_path}")
         print(f"Backup: {backup_path}")
         print("Restart the WonderBane Control Center to load the reviewed client build.")
+    return 0
+
+
+def _provision_manager_runtimes(
+    manifest_path: Path,
+    *,
+    frozen_directory: Path,
+    deployment_directory: Path,
+    patch_manifest_path: Path,
+    extension_artifact: Path,
+    deployment_id: str,
+    slot_count: int | None,
+    executable_name: str,
+    resolution_width: int,
+    resolution_height: int,
+    apply: bool,
+    as_json: bool,
+) -> int:
+    if not apply:
+        return _error(
+            "runtime provisioning creates client trees and replaces the manager manifest; "
+            "pass --apply to confirm",
+            as_json=as_json,
+        )
+    try:
+        patch_manifest = load_patch_manifest(patch_manifest_path)
+        result = provision_isolated_client_runtimes(
+            manifest_path,
+            frozen_directory,
+            deployment_directory,
+            patch_manifest,
+            extension_artifact,
+            deployment_id=deployment_id,
+            slot_count=slot_count,
+            executable_name=executable_name,
+            resolution_width=resolution_width,
+            resolution_height=resolution_height,
+        )
+    except (OSError, RuntimeError, ValueError) as exc:
+        return _error(f"manager runtime provisioning failed: {exc}", as_json=as_json)
+
+    payload = result.as_dict()
+    payload["ok"] = True
+    payload["restart_required"] = True
+    if as_json:
+        print(json.dumps(payload, sort_keys=True))
+    else:
+        print(f"Provisioned {len(result.slots)} isolated WonderBane runtimes.")
+        print(f"Deployment: {result.deployment_directory}")
+        print(f"Manifest: {result.manager_manifest_path}")
+        print(f"Backup: {result.manager_backup_path}")
+        print("Restart the WonderBane Control Center to load the isolated runtimes.")
     return 0
 
 
@@ -5267,6 +5354,21 @@ def main(argv: Sequence[str] | None = None) -> int:
             arguments.manifest,
             game_directory=arguments.game_directory,
             executable_name=arguments.executable_name,
+            apply=arguments.apply,
+            as_json=arguments.json,
+        )
+    if arguments.command == "manager" and arguments.manager_command == "provision-runtimes":
+        return _provision_manager_runtimes(
+            arguments.manifest,
+            frozen_directory=arguments.frozen_directory,
+            deployment_directory=arguments.deployment_directory,
+            patch_manifest_path=arguments.patch_manifest,
+            extension_artifact=arguments.extension_artifact,
+            deployment_id=arguments.deployment_id,
+            slot_count=arguments.slot_count,
+            executable_name=arguments.executable_name,
+            resolution_width=arguments.resolution_width,
+            resolution_height=arguments.resolution_height,
             apply=arguments.apply,
             as_json=arguments.json,
         )
