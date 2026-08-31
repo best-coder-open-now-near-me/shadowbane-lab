@@ -13,6 +13,8 @@ private preservation archive and must not be committed.
 
 - **Production candidate**: coherent, tested behavior intended for the consolidated product, but
   not yet merged into `main`.
+- **Integrated production candidate**: reconciled on `codex/integrate-preserved-features` with its
+  production validation recorded below, but not yet merged into `main`.
 - **Preserved experiment**: useful code or evidence whose assumptions still require review before
   production integration.
 - **Superseded history**: behavior represented patch-equivalently or as an ancestor of another
@@ -33,8 +35,13 @@ private preservation archive and must not be committed.
 | Streaming and performance telemetry | `79dbeaf..5b3e1ec` (`origin/codex/client-streaming-telemetry`) | Bounded frame/cache/texture telemetry, binary parser contracts, performance profiles, verified renderer exclusions, removable renderer overrides, and reduced native hot-path overhead | Shared 55fb rendering foundation | Remote tip includes the two formerly local-only commits |
 | Refined cel outlines | `79dbeaf..d482d0f` (`origin/codex/patch-align-55fb`) | Local-scene filtering, perspective-scaled strokes, component bounds capture, centered hull expansion, and mutually exclusive hull/line fallback | Shared 55fb rendering foundation | Release x86 build and all four native tests passed at `d482d0f` |
 | Release evidence and isolated runtimes | `0670de6..a12ef15` (`origin/codex/wreck-texture-cache-swap`) | Reversible texture-cache swaps, immutable overlays, renderer diagnostics, isolated runtime provisioning, runtime consistency capture/promotion/gating, and verified official patch diffs | Versioned native map API | Retained remotely; three policy experiments in this range are reverted at the tip |
-| Exact world-map dispatch | `047147d..e6d5c85` (`origin/codex/world-map-exact-dispatch`) | Selective pointer capture, map-aware interaction routing, immutable captured coordinates and process identity, left-click selection capture, and exact worker dispatch after focus changes | `origin/main`; overlaps the event/action stack at integration points | Retained remotely; its first nine patches supersede `origin/fix/world-map-click-capture` patch-equivalently |
-| CLI modularization | `a12ef15..c997a45` (`origin/codex/modularize-cli`) | Compatibility-preserving `shadowbane_lab.cli` facade with parser, client, manager, character, and progression implementations in focused modules | Release-evidence line | Ruff clean and 1,026 tests passed at `c997a45` |
+| Exact world-map dispatch | `047147d..e6d5c85` (`origin/codex/world-map-exact-dispatch`) | Selective pointer capture, map-aware interaction routing, immutable captured coordinates and process identity, left-click selection capture, and exact worker dispatch after focus changes | `origin/main`; overlaps the event/action stack at integration points | Retained remotely as the historical pointer-hook capsule. Its durable identity, map-close, cancel, and exact-worker semantics are superseded in production by the native event channel plus `ExactExtensionEventRouter`; replaying the old hook would create a second capture owner. |
+| CLI modularization | `a12ef15..c997a45` (`origin/codex/modularize-cli`) | Compatibility-preserving `shadowbane_lab.cli` facade with parser, client, manager, character, and progression implementations in focused modules | Release-evidence line | Replayed as `5052d60`; newer token, cancellation, pathfinding, and native-event behavior was relocated into its owning modules. Ruff and all 1,060 Python tests pass on the integrated result. |
+
+The integrated production candidate is `codex/integrate-preserved-features`. Renderer reconciliation
+is checkpointed at `01523ff`, release/runtime reconciliation at `c5ad38f`, and the modular CLI replay
+at `5052d60`. Its final production gate passed the x86 Release build and probe, all five native
+tests, Ruff, and all 1,060 Python tests (one intentional skip).
 
 ## Simulator feature capsules
 
@@ -73,9 +80,10 @@ Production consolidation must preserve the dependency order and avoid replaying 
 4. Apply the shared 55fb rendering foundation once.
 5. Combine streaming/performance telemetry with refined cel outlines. Resolve their shared native
    rendering files semantically; do not select one leaf wholesale over the other.
-6. Apply only the additional exact-dispatch commit and any non-equivalent integration changes from
-   `codex/world-map-exact-dispatch`. Do not replay the nine patch-equivalent commits from
-   `fix/world-map-click-capture`.
+6. Reconcile `codex/world-map-exact-dispatch` by behavior, not patch identity. The integrated native
+   event channel and exact router already own every durable production invariant from that capsule,
+   so no old pointer-hook commit is replayed and the remote branch remains the preserved design and
+   test record.
 7. Reapply CLI modularization last, relocating newly integrated command behavior into its owning
    command module rather than restoring a monolithic `cli.py`.
 8. Run native Win32 tests, Ruff, the complete Python suite, and the existing package/runtime
