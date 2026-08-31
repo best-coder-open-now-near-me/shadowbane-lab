@@ -83,8 +83,10 @@ embedding either in this file.
 
 `launch.environment` is optional and intentionally narrower than a general process environment.
 It accepts only the reviewed Mesa variables used by the WonderBane invisible-text compatibility
-launcher: software rendering through `llvmpipe`, the `2001` extension ceiling, and explicit
-removal of the GL/GLSL version overrides. PATH changes, credentials, arbitrary renderer settings,
+launcher plus the extension's bounded cel profile: software rendering through `llvmpipe`, the
+`2001` extension ceiling, explicit removal of the GL/GLSL version overrides, and either `flat` or
+`outlined` cel rendering. The VM installer selects `flat` so software rendering does not redraw
+eligible scene geometry for silhouettes. PATH changes, credentials, arbitrary renderer settings,
 and every other variable are rejected. The manager merges accepted settings into a fresh copy of
 its own environment immediately before the direct launch.
 

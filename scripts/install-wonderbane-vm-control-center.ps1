@@ -63,6 +63,7 @@ if (-not $manifestAlreadyExists) {
                         MESA_EXTENSION_MAX_YEAR = "2001"
                         MESA_GL_VERSION_OVERRIDE = $null
                         MESA_GLSL_VERSION_OVERRIDE = $null
+                        WONDERBANE_CEL_PROFILE = "flat"
                     }
                 }
                 expected_process_directory = $GameDirectory

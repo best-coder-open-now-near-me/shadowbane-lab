@@ -301,6 +301,12 @@ seconds. That read-to-upload interval covers decompression, parsing, and upload 
 claiming a decoder-specific measurement the executable does not expose. The mapping name includes
 both PID and process-creation FILETIME, so a stale PID cannot be read as a current client.
 
+Extension 1.5.1 adds a bounded cel-rendering profile for the measured software-renderer bottleneck.
+`WONDERBANE_CEL_PROFILE=flat` keeps the conservative flat-shading hooks but does not install the
+three hooks that redraw perspective geometry for silhouettes. `outlined` retains the 1.4 behavior.
+An absent value defaults to `flat`; every other value rejects extension initialization. This keeps
+the VM's invisible-text compatibility renderer while removing its duplicate geometry pass.
+
 Export one coherent read-only snapshot with:
 
 ```powershell

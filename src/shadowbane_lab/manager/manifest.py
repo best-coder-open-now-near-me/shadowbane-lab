@@ -37,6 +37,7 @@ _LAUNCH_ENVIRONMENT_VALUES: dict[str, frozenset[str | None]] = {
     "MESA_EXTENSION_MAX_YEAR": frozenset({"2001"}),
     "MESA_GLSL_VERSION_OVERRIDE": frozenset({None}),
     "MESA_GL_VERSION_OVERRIDE": frozenset({None}),
+    "WONDERBANE_CEL_PROFILE": frozenset({"flat", "outlined"}),
 }
 _LAUNCH_GRAMMAR = (
     "-windowed or --windowed, --client, and -resolution WIDTHxHEIGHT "

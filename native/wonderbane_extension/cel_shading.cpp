@@ -412,6 +412,28 @@ bool IsOutlinePrimitive(const unsigned int mode, const int count) noexcept {
     }
 }
 
+DWORD SelectCelShadingProfile(
+    const wchar_t* const configured_value,
+    CelShadingProfile* const profile
+) noexcept {
+    if (profile == nullptr) {
+        return ERROR_INVALID_PARAMETER;
+    }
+    if (configured_value == nullptr || configured_value[0] == L'\0') {
+        *profile = CelShadingProfile::flat;
+        return ERROR_SUCCESS;
+    }
+    if (lstrcmpW(configured_value, L"flat") == 0) {
+        *profile = CelShadingProfile::flat;
+        return ERROR_SUCCESS;
+    }
+    if (lstrcmpW(configured_value, L"outlined") == 0) {
+        *profile = CelShadingProfile::outlined;
+        return ERROR_SUCCESS;
+    }
+    return ERROR_INVALID_DATA;
+}
+
 std::uint32_t* FindImportAddressSlot(
     std::uint8_t* const image,
     const std::size_t image_size,
@@ -556,8 +578,11 @@ std::uint32_t* FindImportAddressSlot(
     return terminated ? found : nullptr;
 }
 
-DWORD StartStrongCelShading() noexcept {
+DWORD StartStrongCelShading(const CelShadingProfile profile) noexcept {
     static_assert(sizeof(void*) == sizeof(std::uint32_t));
+    if (profile != CelShadingProfile::flat && profile != CelShadingProfile::outlined) {
+        return ERROR_INVALID_PARAMETER;
+    }
     if (
         g_shade_model_slot != nullptr
         || g_begin_slot != nullptr
@@ -643,8 +668,12 @@ DWORD StartStrongCelShading() noexcept {
             &g_draw_elements_slot,
         },
     }};
+    const std::size_t plan_count = profile == CelShadingProfile::outlined
+        ? plans.size()
+        : 2U;
     auto* const image = reinterpret_cast<std::uint8_t*>(executable);
-    for (ImportHookPlan& plan : plans) {
+    for (std::size_t index = 0U; index < plan_count; ++index) {
+        ImportHookPlan& plan = plans[index];
         plan.slot = FindImportAddressSlot(
             image,
             nt->OptionalHeader.SizeOfImage,
@@ -667,8 +696,8 @@ DWORD StartStrongCelShading() noexcept {
             return ERROR_INVALID_ADDRESS;
         }
     }
-    for (std::size_t left = 0U; left < plans.size(); ++left) {
-        for (std::size_t right = left + 1U; right < plans.size(); ++right) {
+    for (std::size_t left = 0U; left < plan_count; ++left) {
+        for (std::size_t right = left + 1U; right < plan_count; ++right) {
             if (plans[left].slot == plans[right].slot) {
                 return ERROR_INVALID_DATA;
             }
@@ -688,16 +717,19 @@ DWORD StartStrongCelShading() noexcept {
         {"glColor4f", &g_color4f, nullptr},
         {"glDepthMask", &g_depth_mask, nullptr},
     }};
-    for (HelperFunctionPlan& helper : helpers) {
-        helper.resolved = reinterpret_cast<PVOID>(GetProcAddress(opengl, helper.symbol_name));
-        if (helper.resolved == nullptr) {
-            return ERROR_PROC_NOT_FOUND;
+    if (profile == CelShadingProfile::outlined) {
+        for (HelperFunctionPlan& helper : helpers) {
+            helper.resolved = reinterpret_cast<PVOID>(GetProcAddress(opengl, helper.symbol_name));
+            if (helper.resolved == nullptr) {
+                return ERROR_PROC_NOT_FOUND;
+            }
+        }
+        for (HelperFunctionPlan& helper : helpers) {
+            InterlockedExchangePointer(helper.storage, helper.resolved);
         }
     }
-    for (HelperFunctionPlan& helper : helpers) {
-        InterlockedExchangePointer(helper.storage, helper.resolved);
-    }
-    for (ImportHookPlan& plan : plans) {
+    for (std::size_t index = 0U; index < plan_count; ++index) {
+        ImportHookPlan& plan = plans[index];
         InterlockedExchangePointer(plan.original_storage, plan.original);
         const DWORD result = ReplaceImportSlot(
             plan.slot,

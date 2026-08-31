@@ -253,6 +253,7 @@ class ManagerManifestTests(unittest.TestCase):
             "MESA_EXTENSION_MAX_YEAR": "2001",
             "MESA_GL_VERSION_OVERRIDE": None,
             "MESA_GLSL_VERSION_OVERRIDE": None,
+            "WONDERBANE_CEL_PROFILE": "flat",
         }
 
         manifest = parse_manager_manifest(_payload(client))
@@ -264,6 +265,7 @@ class ManagerManifestTests(unittest.TestCase):
                 ("MESA_EXTENSION_MAX_YEAR", "2001"),
                 ("MESA_GLSL_VERSION_OVERRIDE", None),
                 ("MESA_GL_VERSION_OVERRIDE", None),
+                ("WONDERBANE_CEL_PROFILE", "flat"),
             ),
             manifest.clients[0].launch.environment,
         )
@@ -279,6 +281,7 @@ class ManagerManifestTests(unittest.TestCase):
             {"LIBGL_ALWAYS_SOFTWARE": True},
             {"MESA_EXTENSION_MAX_YEAR": "2026"},
             {"MESA_GL_VERSION_OVERRIDE": "4.6"},
+            {"WONDERBANE_CEL_PROFILE": "adaptive"},
         )
         for environment in rejected:
             client = _client()
