@@ -28,6 +28,7 @@ from shadowbane_lab.client_extension.resolver import (
 PATCH_PACKAGE_SCHEMA_VERSION = 1
 PACKAGE_DRIFT_SCHEMA_VERSION = 1
 ROLLBACK_RECEIPT_SCHEMA_VERSION = 1
+RUNTIME_DRIFT_ROLLBACK_RECEIPT_SCHEMA_VERSION = 1
 _BASELINE_FILE_NAME = "client-baseline.json"
 _EVIDENCE_DIRECTORY_NAME = ".wonderbane-extension"
 _PACKAGE_FILE_NAME = "package.json"
@@ -201,6 +202,38 @@ class RollbackReceipt:
             "working_tree_sha256": self.working_tree_sha256,
             "baseline_directory": self.baseline_directory,
             "baseline_tree_sha256": self.baseline_tree_sha256,
+            "receipt_path": self.receipt_path,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class RuntimeDriftRollbackReceipt:
+    """Evidence for retirement after archiving recognized runtime-written files."""
+
+    discarded_at_utc: str
+    discarded_directory: str
+    patch_id: str
+    expected_working_tree_sha256: str
+    actual_working_tree_sha256: str
+    baseline_directory: str
+    baseline_tree_sha256: str
+    archived_runtime_files_directory: str
+    changed_files: tuple[BaselineFile, ...]
+    receipt_path: str
+    schema_version: int = RUNTIME_DRIFT_ROLLBACK_RECEIPT_SCHEMA_VERSION
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "schema_version": self.schema_version,
+            "discarded_at_utc": self.discarded_at_utc,
+            "discarded_directory": self.discarded_directory,
+            "patch_id": self.patch_id,
+            "expected_working_tree_sha256": self.expected_working_tree_sha256,
+            "actual_working_tree_sha256": self.actual_working_tree_sha256,
+            "baseline_directory": self.baseline_directory,
+            "baseline_tree_sha256": self.baseline_tree_sha256,
+            "archived_runtime_files_directory": self.archived_runtime_files_directory,
+            "changed_files": [item.as_dict() for item in self.changed_files],
             "receipt_path": self.receipt_path,
         }
 
@@ -552,6 +585,128 @@ def discard_patched_client_copy(
         temporary_receipt.unlink(missing_ok=True)
     verify_frozen_client_baseline(baseline.directory)
     return result
+
+
+def discard_runtime_drifted_client_copy(
+    directory: str | Path,
+    receipt_path: str | Path,
+    archive_directory: str | Path,
+    *,
+    actual_working_tree_sha256: str,
+    discarded_at: datetime | None = None,
+) -> RuntimeDriftRollbackReceipt:
+    """Archive recognized runtime drift, then discard an otherwise intact copy."""
+
+    _sha256(actual_working_tree_sha256, "actual working tree sha256")
+    root = Path(directory).resolve()
+    receipt = Path(receipt_path).resolve()
+    archive = Path(archive_directory).resolve()
+    if receipt.exists():
+        raise ClientPatchPackageError(f"rollback receipt already exists: {receipt}")
+    if archive.exists():
+        raise ClientPatchPackageError(f"runtime-drift archive already exists: {archive}")
+    if _is_within(receipt, root) or _is_within(archive, root):
+        raise ClientPatchPackageError(
+            "rollback receipt and runtime-drift archive must be outside the discarded directory"
+        )
+
+    drift = audit_patched_client_copy(root)
+    if drift.actual_working_tree_sha256 != actual_working_tree_sha256:
+        raise ClientPatchPackageError("patched client copy changed after its reviewed drift audit")
+    if drift.matches:
+        raise ClientPatchPackageError("patched client copy has no runtime drift; use verified discard")
+    if drift.added or drift.missing:
+        raise ClientPatchPackageError("runtime-drift retirement does not allow added or missing files")
+    unexpected = tuple(
+        item.actual.relative_path
+        for item in drift.changed
+        if not _is_known_runtime_mutable_path(item.actual.relative_path)
+    )
+    if unexpected:
+        raise ClientPatchPackageError(
+            "runtime-drift retirement found non-runtime changes: " + ", ".join(unexpected)
+        )
+
+    evidence = _load_package_evidence(root / _EVIDENCE_DIRECTORY_NAME / _PACKAGE_FILE_NAME)
+    baseline = verify_frozen_client_baseline(evidence.baseline_directory)
+    if baseline.tree_sha256 != evidence.baseline_tree_sha256:
+        raise ClientPatchPackageError("frozen baseline digest changed before rollback")
+    changed_files = tuple(item.actual for item in drift.changed)
+
+    receipt.parent.mkdir(parents=True, exist_ok=True)
+    archive.parent.mkdir(parents=True, exist_ok=True)
+    temporary_archive = Path(
+        tempfile.mkdtemp(prefix=f".{archive.name}.tmp-", dir=archive.parent)
+    )
+    temporary_receipt: Path | None = None
+    quarantine = root.parent / f".{root.name}.discard-{uuid.uuid4().hex}"
+    archive_published = False
+    try:
+        for record in changed_files:
+            relative = Path(*PurePosixPath(record.relative_path).parts)
+            destination = temporary_archive / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(root / relative, destination)
+        archived = _inventory(
+            temporary_archive,
+            max_files=_DEFAULT_MAX_FILES,
+            max_total_bytes=_DEFAULT_MAX_TOTAL_BYTES,
+        )
+        if archived != changed_files:
+            raise ClientPatchPackageError("runtime-drift archive failed its hash verification")
+        os.replace(temporary_archive, archive)
+        archive_published = True
+
+        result = RuntimeDriftRollbackReceipt(
+            discarded_at_utc=_canonical_timestamp(discarded_at),
+            discarded_directory=str(root),
+            patch_id=evidence.patch_id,
+            expected_working_tree_sha256=evidence.working_tree_sha256,
+            actual_working_tree_sha256=drift.actual_working_tree_sha256,
+            baseline_directory=baseline.directory,
+            baseline_tree_sha256=baseline.tree_sha256,
+            archived_runtime_files_directory=str(archive),
+            changed_files=changed_files,
+            receipt_path=str(receipt),
+        )
+        temporary_receipt = _write_temporary_json(receipt.parent, result.as_dict())
+        os.replace(root, quarantine)
+        shutil.rmtree(quarantine)
+        os.replace(temporary_receipt, receipt)
+        temporary_receipt = None
+    except OSError as exc:
+        raise ClientPatchPackageError(
+            f"could not discard runtime-drifted copy; inspect quarantine {quarantine}: {exc}"
+        ) from exc
+    finally:
+        if temporary_archive.exists():
+            shutil.rmtree(temporary_archive, ignore_errors=True)
+        if temporary_receipt is not None:
+            temporary_receipt.unlink(missing_ok=True)
+        if archive_published and root.exists() and archive.exists():
+            shutil.rmtree(archive, ignore_errors=True)
+    verify_frozen_client_baseline(baseline.directory)
+    return result
+
+
+def _is_known_runtime_mutable_path(relative_path: str) -> bool:
+    normalized = relative_path.casefold()
+    exact = {
+        "config/arcanepref.cfg",
+        "doublefusion/cache/cache.dat",
+        "doublefusion/dftm.dat",
+        "doublefusion/dfts.dat",
+        "doublefusion/engine.log",
+        "doublefusion/user.var",
+        "logs/debug.txt",
+    }
+    if normalized in exact:
+        return True
+    return (
+        normalized.startswith("config/screen_game_")
+        and normalized.endswith("_wonderbane.cfg")
+        and normalized.count("/") == 1
+    )
 
 
 def _verified_extension(path: Path, manifest: PatchManifest) -> bytes:

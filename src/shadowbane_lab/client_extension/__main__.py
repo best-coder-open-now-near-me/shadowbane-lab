@@ -30,6 +30,7 @@ from shadowbane_lab.client_extension.package import (
     ClientPatchPackageError,
     audit_patched_client_copy,
     discard_patched_client_copy,
+    discard_runtime_drifted_client_copy,
     prepare_patched_client_copy,
     verify_frozen_client_baseline,
     verify_patched_client_copy,
@@ -99,6 +100,15 @@ def _parser() -> argparse.ArgumentParser:
     discard.add_argument("directory", type=Path)
     discard.add_argument("receipt", type=Path)
     discard.add_argument("--pretty", action="store_true")
+    discard_runtime_drift = commands.add_parser(
+        "discard-runtime-drifted-copy",
+        help="archive recognized runtime-written files, then discard the verified copy",
+    )
+    discard_runtime_drift.add_argument("directory", type=Path)
+    discard_runtime_drift.add_argument("receipt", type=Path)
+    discard_runtime_drift.add_argument("archive_directory", type=Path)
+    discard_runtime_drift.add_argument("--actual-working-tree-sha256", required=True)
+    discard_runtime_drift.add_argument("--pretty", action="store_true")
     heartbeat = commands.add_parser(
         "verify-heartbeat",
         help="strictly parse native no-op initialization evidence",
@@ -171,6 +181,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             payload = discard_patched_client_copy(
                 arguments.directory,
                 arguments.receipt,
+            ).as_dict()
+        elif arguments.command == "discard-runtime-drifted-copy":
+            payload = discard_runtime_drifted_client_copy(
+                arguments.directory,
+                arguments.receipt,
+                arguments.archive_directory,
+                actual_working_tree_sha256=arguments.actual_working_tree_sha256,
             ).as_dict()
         elif arguments.command == "verify-heartbeat":
             payload = load_extension_heartbeat(arguments.heartbeat).as_dict()

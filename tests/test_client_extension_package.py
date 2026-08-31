@@ -24,6 +24,7 @@ from shadowbane_lab.client_extension.package import (
     ClientPatchPackageError,
     audit_patched_client_copy,
     discard_patched_client_copy,
+    discard_runtime_drifted_client_copy,
     prepare_patched_client_copy,
     verify_frozen_client_baseline,
     verify_patched_client_copy,
@@ -107,6 +108,7 @@ def _freeze(root: Path, executable: bytes) -> tuple[Path, Path]:
     (source / "sb.exe").write_bytes(executable)
     (source / "Config").mkdir()
     (source / "Config" / "ArcaneIP.cfg").write_text("SERVER=fixture\n", encoding="utf-8")
+    (source / "Config" / "ArcanePref.cfg").write_text("PREF=fixture\n", encoding="utf-8")
     frozen = root / "frozen"
     freeze_client_baseline(
         source,
@@ -377,6 +379,76 @@ class ClientExtensionPackageTests(unittest.TestCase):
             self.assertFalse(payload["matches"])
             self.assertEqual("runtime.log", payload["added"][0]["relative_path"])
             self.assertTrue(destination.exists())
+
+    def test_runtime_drifted_discard_archives_allowed_changes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = _source_executable()
+            extension = _extension_dll()
+            _, frozen = _freeze(root, source)
+            extension_path = root / "wonderbane-extension.dll"
+            extension_path.write_bytes(extension)
+            destination = root / "working"
+            prepare_patched_client_copy(
+                frozen,
+                destination,
+                _manifest(source, extension),
+                extension_path,
+            )
+            changed = destination / "Config" / "ArcanePref.cfg"
+            changed.write_text("PREF=runtime\n", encoding="utf-8")
+            drift = audit_patched_client_copy(destination)
+            receipt_path = root / "retired.json"
+            archive = root / "runtime-files"
+
+            receipt = discard_runtime_drifted_client_copy(
+                destination,
+                receipt_path,
+                archive,
+                actual_working_tree_sha256=drift.actual_working_tree_sha256,
+                discarded_at=_CREATED_AT,
+            )
+
+            self.assertFalse(destination.exists())
+            self.assertTrue(receipt_path.is_file())
+            self.assertEqual("PREF=runtime\n", (archive / "Config" / "ArcanePref.cfg").read_text())
+            self.assertEqual(drift.actual_working_tree_sha256, receipt.actual_working_tree_sha256)
+
+    def test_runtime_drifted_discard_rejects_unreviewed_or_stale_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = _source_executable()
+            extension = _extension_dll()
+            _, frozen = _freeze(root, source)
+            extension_path = root / "wonderbane-extension.dll"
+            extension_path.write_bytes(extension)
+            destination = root / "working"
+            prepare_patched_client_copy(
+                frozen,
+                destination,
+                _manifest(source, extension),
+                extension_path,
+            )
+            (destination / "Config" / "ArcaneIP.cfg").write_text("changed", encoding="utf-8")
+            drift = audit_patched_client_copy(destination)
+
+            with self.assertRaisesRegex(ClientPatchPackageError, "non-runtime changes"):
+                discard_runtime_drifted_client_copy(
+                    destination,
+                    root / "retired.json",
+                    root / "runtime-files",
+                    actual_working_tree_sha256=drift.actual_working_tree_sha256,
+                )
+            with self.assertRaisesRegex(ClientPatchPackageError, "changed after"):
+                discard_runtime_drifted_client_copy(
+                    destination,
+                    root / "retired.json",
+                    root / "runtime-files",
+                    actual_working_tree_sha256="0" * 64,
+                )
+
+            self.assertTrue(destination.exists())
+            self.assertFalse((root / "runtime-files").exists())
 
     def test_tampered_copy_cannot_be_discarded_through_verified_rollback(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
