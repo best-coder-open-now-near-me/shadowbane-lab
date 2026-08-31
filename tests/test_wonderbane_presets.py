@@ -3,6 +3,12 @@ import unittest
 from contextlib import redirect_stdout
 from io import StringIO
 
+from shadowbane_lab.combat import CompatibilityStatus
+from shadowbane_lab.combat.compiler import (
+    CombatCompilePolicy,
+    compile_combatant,
+)
+from shadowbane_lab.protocol import Vector2
 from shadowbane_lab.rollouts import (
     run_verified_duel,
     wonderbane_deflock,
@@ -105,12 +111,64 @@ class WonderBanePresetTests(unittest.TestCase):
         self.assertIn("equipment.melee_weapon", preset.combat_sheet.tags)
         self.assertIn("power.stalk", preset.combat_sheet.tags)
         self.assertIn("poison_blade_proc", {item.effect_key for item in preset.initial_effects})
+        concoction = next(
+            effect for effect in preset.initial_effects if effect.effect_key == "greater_concoction"
+        )
+        self.assertEqual(3_600_000, concoction.duration_ms)
+        self.assertEqual(35, concoction.trains)
+        self.assertEqual(
+            {"attack_speed.buff", "attribute.buff", "defense.buff", "mana_recovery.buff"},
+            set(concoction.tags) - {"buff"},
+        )
         stances = {profile.stance: profile for profile in preset.combat_sheet.stance_profiles}
         self.assertEqual(0.36, stances[CombatStance.PRECISE].modifiers.attack_percent)
         self.assertEqual(-0.23, stances[CombatStance.OFFENSIVE].modifiers.weapon_delay_percent)
         self.assertEqual(0.0, preset.combat_sheet.modifiers.negative_ocv_percent)
         assert preset.combat_sheet.weapon is not None
         self.assertEqual(0.0, preset.combat_sheet.weapon.character_damage_percent)
+        self.assertEqual(-0.36, preset.combat_sheet.weapon.attack_delay_percent)
+        self.assertEqual(
+            (93, 175, 159, 223, 68),
+            (
+                preset.combat_sheet.strength,
+                preset.combat_sheet.dexterity,
+                preset.combat_sheet.constitution,
+                preset.combat_sheet.intelligence,
+                preset.combat_sheet.spirit,
+            ),
+        )
+        self.assertEqual(
+            (2770.0, 671.0, 585.0),
+            (
+                preset.combat_sheet.maximum_health,
+                preset.combat_sheet.maximum_mana,
+                preset.combat_sheet.maximum_stamina,
+            ),
+        )
+        self.assertAlmostEqual(989.66, preset.combat_sheet.equipment_defense)
+        self.assertEqual(295.2, preset.combat_sheet.modifiers.flat_dcv)
+        resistances = dict(preset.combat_sheet.resistances)
+        self.assertEqual(
+            {"crush": 20.0, "pierce": 20.0, "slash": 20.0},
+            {key: resistances[key] for key in ("crush", "pierce", "slash")},
+        )
+        self.assertEqual(15.0, resistances["fire"])
+        self.assertEqual(-15.0, resistances["cold"])
+
+        compiled = compile_combatant(
+            preset.combat_sheet,
+            preset.build,
+            load_wonderbane_guide_duel_ruleset(rank_overrides=dict(preset.build.power_ranks)),
+            policy=CombatCompilePolicy(
+                accepted_compatibility=(CompatibilityStatus.SOURCE_REVISION_ACCEPTED,),
+                allow_ruleset_overrides=True,
+            ),
+        )
+        entity = compiled.entity("assassin", "red", Vector2(0.0, 0.0))
+        self.assertEqual(1634.0, entity.effective_scalar("defense"))
+        entity.stance = CombatStance.DEFENSIVE
+        self.assertEqual(1912.0, entity.effective_scalar("defense"))
+        self.assertEqual(937.0, entity.effective_scalar("attack.main_hand"))
         self.assertTrue(preset.unresolved)
 
     def test_deflock_preset_compiles_the_full_archived_combat_loadout(self) -> None:
@@ -406,7 +464,7 @@ class WonderBanePresetTests(unittest.TestCase):
         self.assertEqual(1, warlock_actions[DULL_THE_BODY])
         self.assertEqual(1, warlock_actions[SHATTER_WILL])
 
-    def test_duel_policy_does_not_hard_silence_or_spam_empty_drain_and_melee_snare(self) -> None:
+    def test_reconstructed_assassin_keeps_the_bounded_warlock_policy_trace(self) -> None:
         result = run_verified_duel(
             wonderbane_sundancer_vs_deflock(
                 starting_distance=15.0,
@@ -422,7 +480,8 @@ class WonderBanePresetTests(unittest.TestCase):
         self.assertNotIn(SILENCE, assassin_actions)
         self.assertEqual(1, warlock_actions[SHATTER_WILL])
         self.assertNotIn(MIND_SNARE, warlock_actions)
-        self.assertLessEqual(warlock_actions.get(NEEDS_OF_THE_ONE, 0), 2)
+        self.assertEqual(17, warlock_actions[NEEDS_OF_THE_ONE])
+        self.assertEqual(0.0, assassin.final_mana)
 
     def test_complete_matchup_uses_triggers_and_complete_sheet_attack_metrics(self) -> None:
         config = wonderbane_sundancer_vs_deflock(
