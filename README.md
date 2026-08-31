@@ -59,7 +59,8 @@ an emergency stop, and explicit profile confirmation. See [the architecture](doc
 [PvP data catalog and capture guide](docs/pvp-data.md),
 [automated VM setup](docs/vm-setup.md),
 [simulation rollout guide](docs/simulation-rollouts.md),
-[differential-validation contract](docs/differential-validation.md), and
+[differential-validation contract](docs/differential-validation.md),
+[produced-build runtime consistency gate](docs/runtime-consistency.md), and
 [development plan](docs/plan.md).
 
 ## Local validation
