@@ -64,10 +64,8 @@ if (-not (Test-Path -LiteralPath $evidenceDirectory)) {
 $manifestPath = Join-Path $evidenceDirectory "bootstrap.manifest.json"
 $dryRunReceipt = Join-Path $evidenceDirectory "dry-run.json"
 $publicationReceipt = Join-Path $evidenceDirectory "publication.json"
-foreach ($newEvidence in @($dryRunReceipt, $publicationReceipt)) {
-    if (Test-Path -LiteralPath $newEvidence) {
-        throw "Graphics package evidence already exists: $newEvidence"
-    }
+if (Test-Path -LiteralPath $publicationReceipt) {
+    throw "Graphics package publication evidence already exists: $publicationReceipt"
 }
 
 $env:PYTHONPATH = Join-Path $RepositoryShare "src"
@@ -98,18 +96,39 @@ if ($LASTEXITCODE -ne 0) {
 $extensionSha256 = (
     Get-FileHash -LiteralPath $ExtensionArtifact -Algorithm SHA256
 ).Hash.ToLowerInvariant()
-$dryRun = [ordered]@{
+$expectedDryRun = [ordered]@{
     schema_version = 1
     status = "passed"
-    completed_at_utc = [DateTime]::UtcNow.ToString("o")
     content_build_id = $contentBuildId
     baseline_tree_sha256 = $treeSha256
     extension_version = $ExtensionVersion
     extension_sha256 = $extensionSha256
     destination = $DestinationDirectory
-} | ConvertTo-Json
+}
 $utf8 = [Text.UTF8Encoding]::new($false)
-[IO.File]::WriteAllText($dryRunReceipt, "$dryRun`n", $utf8)
+if (Test-Path -LiteralPath $dryRunReceipt -PathType Leaf) {
+    $existingDryRun = Get-Content -LiteralPath $dryRunReceipt -Raw | ConvertFrom-Json
+    foreach ($field in $expectedDryRun.Keys) {
+        $property = $existingDryRun.PSObject.Properties[$field]
+        if ($null -eq $property -or [string] $property.Value -cne [string] $expectedDryRun[$field]) {
+            throw "Existing graphics dry-run receipt does not match field '$field': $dryRunReceipt"
+        }
+    }
+    Write-Output "Reused matching graphics package dry-run receipt: $dryRunReceipt"
+}
+else {
+    $newDryRun = [ordered]@{
+        schema_version = $expectedDryRun.schema_version
+        status = $expectedDryRun.status
+        completed_at_utc = [DateTime]::UtcNow.ToString("o")
+        content_build_id = $expectedDryRun.content_build_id
+        baseline_tree_sha256 = $expectedDryRun.baseline_tree_sha256
+        extension_version = $expectedDryRun.extension_version
+        extension_sha256 = $expectedDryRun.extension_sha256
+        destination = $expectedDryRun.destination
+    } | ConvertTo-Json
+    [IO.File]::WriteAllText($dryRunReceipt, "$newDryRun`n", $utf8)
+}
 if ($DryRunOnly) {
     Write-Output "Graphics package dry run passed: $contentBuildId"
     return
