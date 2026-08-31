@@ -7,6 +7,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <unordered_map>
+#include <utility>
+#include <vector>
 
 namespace wonderbane::extension {
 namespace {
@@ -35,7 +38,6 @@ constexpr unsigned int kGlLineSmooth = 0x0B20U;
 constexpr unsigned int kGlDither = 0x0BD0U;
 constexpr unsigned int kGlColorLogicOp = 0x0BF2U;
 constexpr unsigned int kGlDepthTest = 0x0B71U;
-constexpr unsigned int kGlPolygonOffsetLine = 0x2A02U;
 constexpr unsigned int kGlFront = 0x0404U;
 constexpr unsigned int kGlBack = 0x0405U;
 constexpr unsigned int kGlFrontAndBack = 0x0408U;
@@ -51,14 +53,18 @@ constexpr double kOutlineWorldThickness = 0.5;
 constexpr double kMinimumVisibleOutlinePixels = 0.75;
 constexpr float kMinimumRasterOutlinePixels = 1.0F;
 constexpr float kMaximumRasterOutlinePixels = 4.0F;
-constexpr float kMinimumInteriorContourOutlinePixels = 1.5F;
+constexpr float kMinimumFeatureEdgeOutlinePixels = 1.5F;
 constexpr float kMinimumInteriorContourPixels = 1.0F;
 constexpr float kMaximumInteriorContourPixels = 1.25F;
+constexpr float kFeatureEdgeCosineThreshold = 0.82F;
 constexpr float kMaximumOutlineHullScale = 1.25F;
 constexpr std::size_t kCapturedDisplayListCapacity = 65536U;
+constexpr std::size_t kMaximumCapturedVerticesPerList = 65536U;
+constexpr std::size_t kMaximumFeatureEdgesPerList = 4096U;
 
 using GlShadeModel = void(APIENTRY*)(unsigned int mode);
 using GlBegin = void(APIENTRY*)(unsigned int mode);
+using GlEnd = void(APIENTRY*)();
 using GlCallList = void(APIENTRY*)(unsigned int list);
 using GlNewList = void(APIENTRY*)(unsigned int list, unsigned int mode);
 using GlEndList = void(APIENTRY*)();
@@ -93,6 +99,7 @@ using GlPolygonOffset = void(APIENTRY*)(float factor, float units);
 
 PVOID volatile g_original_shade_model = nullptr;
 PVOID volatile g_original_begin = nullptr;
+PVOID volatile g_end = nullptr;
 PVOID volatile g_original_call_list = nullptr;
 PVOID volatile g_original_new_list = nullptr;
 PVOID volatile g_original_end_list = nullptr;
@@ -138,7 +145,18 @@ thread_local unsigned int g_current_matrix_mode = kGlModelView;
 
 struct CapturedDisplayListBounds {
     OutlineBounds bounds{};
+    struct FeatureEdge {
+        std::array<float, 3U> first{};
+        std::array<float, 3U> second{};
+    };
+    std::vector<FeatureEdge> feature_edges{};
     bool valid = false;
+};
+
+struct CapturedPrimitiveRange {
+    unsigned int mode = 0U;
+    std::size_t first = 0U;
+    std::size_t count = 0U;
 };
 
 struct ActiveDisplayListCapture {
@@ -147,6 +165,9 @@ struct ActiveDisplayListCapture {
     bool active = false;
     bool has_vertex = false;
     bool invalid = false;
+    bool primitive_open = false;
+    std::vector<std::array<float, 3U>> vertices{};
+    std::vector<CapturedPrimitiveRange> primitives{};
 };
 
 SRWLOCK g_display_list_lock = SRWLOCK_INIT;
@@ -160,6 +181,223 @@ Function LoadFunction(PVOID volatile* const storage) noexcept {
         nullptr,
         nullptr
     ));
+}
+
+struct VertexKey {
+    std::array<std::uint32_t, 3U> bits{};
+    bool operator==(const VertexKey& other) const noexcept { return bits == other.bits; }
+    bool operator<(const VertexKey& other) const noexcept { return bits < other.bits; }
+};
+
+struct EdgeKey {
+    VertexKey first{};
+    VertexKey second{};
+    bool operator==(const EdgeKey& other) const noexcept {
+        return first == other.first && second == other.second;
+    }
+};
+
+struct EdgeKeyHash {
+    std::size_t operator()(const EdgeKey& edge) const noexcept {
+        std::size_t hash = 2166136261U;
+        for (const VertexKey* vertex : {&edge.first, &edge.second}) {
+            for (const std::uint32_t bits : vertex->bits) {
+                hash ^= bits;
+                hash *= 16777619U;
+            }
+        }
+        return hash;
+    }
+};
+
+struct EdgeFaces {
+    CapturedDisplayListBounds::FeatureEdge edge{};
+    std::array<float, 3U> first_normal{};
+    std::size_t face_count = 0U;
+    bool sharp = false;
+};
+
+VertexKey MakeVertexKey(const std::array<float, 3U>& vertex) noexcept {
+    VertexKey key{};
+    for (std::size_t index = 0U; index < vertex.size(); ++index) {
+        const float canonical = vertex[index] == 0.0F ? 0.0F : vertex[index];
+        std::memcpy(&key.bits[index], &canonical, sizeof(canonical));
+    }
+    return key;
+}
+
+std::array<float, 3U> FaceNormal(
+    const std::array<float, 3U>& first,
+    const std::array<float, 3U>& second,
+    const std::array<float, 3U>& third
+) noexcept {
+    const std::array<float, 3U> left{
+        second[0] - first[0], second[1] - first[1], second[2] - first[2]
+    };
+    const std::array<float, 3U> right{
+        third[0] - first[0], third[1] - first[1], third[2] - first[2]
+    };
+    std::array<float, 3U> normal{
+        left[1] * right[2] - left[2] * right[1],
+        left[2] * right[0] - left[0] * right[2],
+        left[0] * right[1] - left[1] * right[0],
+    };
+    const float length = std::sqrt(
+        normal[0] * normal[0]
+        + normal[1] * normal[1]
+        + normal[2] * normal[2]
+    );
+    if (!std::isfinite(length) || length <= 0.00001F) {
+        return {};
+    }
+    for (float& component : normal) {
+        component /= length;
+    }
+    return normal;
+}
+
+using CapturedEdgeMap = std::unordered_map<EdgeKey, EdgeFaces, EdgeKeyHash>;
+
+void AddFaceEdge(
+    CapturedEdgeMap* const edges,
+    const std::array<float, 3U>& first,
+    const std::array<float, 3U>& second,
+    const std::array<float, 3U>& normal
+) {
+    VertexKey first_key = MakeVertexKey(first);
+    VertexKey second_key = MakeVertexKey(second);
+    if (first_key == second_key) {
+        return;
+    }
+    CapturedDisplayListBounds::FeatureEdge edge{first, second};
+    if (second_key < first_key) {
+        std::swap(first_key, second_key);
+        std::swap(edge.first, edge.second);
+    }
+    EdgeFaces& faces = (*edges)[{first_key, second_key}];
+    if (faces.face_count == 0U) {
+        faces.edge = edge;
+        faces.first_normal = normal;
+    } else {
+        const float cosine = (
+            faces.first_normal[0] * normal[0]
+            + faces.first_normal[1] * normal[1]
+            + faces.first_normal[2] * normal[2]
+        );
+        if (!std::isfinite(cosine) || cosine < kFeatureEdgeCosineThreshold) {
+            faces.sharp = true;
+        }
+    }
+    ++faces.face_count;
+}
+
+void AddFace(
+    CapturedEdgeMap* const edges,
+    const std::array<float, 3U>* const vertices,
+    const std::size_t count
+) {
+    if (edges == nullptr || vertices == nullptr || count < 3U) {
+        return;
+    }
+    std::array<float, 3U> normal{};
+    for (std::size_t index = 2U; index < count; ++index) {
+        normal = FaceNormal(vertices[0], vertices[index - 1U], vertices[index]);
+        if (normal != std::array<float, 3U>{}) {
+            break;
+        }
+    }
+    if (normal == std::array<float, 3U>{}) {
+        return;
+    }
+    for (std::size_t index = 0U; index < count; ++index) {
+        AddFaceEdge(edges, vertices[index], vertices[(index + 1U) % count], normal);
+    }
+}
+
+std::vector<CapturedDisplayListBounds::FeatureEdge> BuildFeatureEdges(
+    const ActiveDisplayListCapture& capture
+) {
+    CapturedEdgeMap edges{};
+    for (const CapturedPrimitiveRange& primitive : capture.primitives) {
+        if (primitive.first > capture.vertices.size()
+            || primitive.count > capture.vertices.size() - primitive.first) {
+            continue;
+        }
+        const auto* const vertices = capture.vertices.data() + primitive.first;
+        const std::size_t count = primitive.count;
+        if (primitive.mode == kGlTriangles) {
+            for (std::size_t index = 0U; index + 2U < count; index += 3U) {
+                AddFace(&edges, vertices + index, 3U);
+            }
+        } else if (primitive.mode == kGlTriangleStrip) {
+            for (std::size_t index = 2U; index < count; ++index) {
+                const std::array<float, 3U> face[3U]{
+                    vertices[index % 2U == 0U ? index - 2U : index - 1U],
+                    vertices[index % 2U == 0U ? index - 1U : index - 2U],
+                    vertices[index]
+                };
+                AddFace(&edges, face, 3U);
+            }
+        } else if (primitive.mode == kGlTriangleFan) {
+            for (std::size_t index = 2U; index < count; ++index) {
+                const std::array<float, 3U> face[3U]{
+                    vertices[0], vertices[index - 1U], vertices[index]
+                };
+                AddFace(&edges, face, 3U);
+            }
+        } else if (primitive.mode == kGlQuads) {
+            for (std::size_t index = 0U; index + 3U < count; index += 4U) {
+                AddFace(&edges, vertices + index, 4U);
+            }
+        } else if (primitive.mode == kGlQuadStrip) {
+            for (std::size_t index = 0U; index + 3U < count; index += 2U) {
+                const std::array<float, 3U> face[4U]{
+                    vertices[index], vertices[index + 1U],
+                    vertices[index + 3U], vertices[index + 2U]
+                };
+                AddFace(&edges, face, 4U);
+            }
+        } else if (primitive.mode == kGlPolygon) {
+            AddFace(&edges, vertices, count);
+        }
+    }
+    std::vector<CapturedDisplayListBounds::FeatureEdge> result{};
+    result.reserve(edges.size() < kMaximumFeatureEdgesPerList
+        ? edges.size() : kMaximumFeatureEdgesPerList);
+    for (const auto& entry : edges) {
+        const EdgeFaces& faces = entry.second;
+        if (faces.face_count == 1U || faces.sharp || faces.face_count > 2U) {
+            if (result.size() == kMaximumFeatureEdgesPerList) {
+                return {};
+            }
+            result.push_back(faces.edge);
+        }
+    }
+    return result;
+}
+
+void CloseCapturedPrimitive() noexcept {
+    if (!g_active_display_list_capture.primitive_open) {
+        return;
+    }
+    CapturedPrimitiveRange& primitive = g_active_display_list_capture.primitives.back();
+    primitive.count = g_active_display_list_capture.vertices.size() - primitive.first;
+    g_active_display_list_capture.primitive_open = false;
+}
+
+void CaptureDisplayListBegin(const unsigned int mode) noexcept {
+    if (!g_active_display_list_capture.active || g_active_display_list_capture.invalid) {
+        return;
+    }
+    try {
+        CloseCapturedPrimitive();
+        g_active_display_list_capture.primitives.push_back({
+            mode, g_active_display_list_capture.vertices.size(), 0U
+        });
+        g_active_display_list_capture.primitive_open = true;
+    } catch (...) {
+        g_active_display_list_capture.invalid = true;
+    }
 }
 
 void BeginDisplayListCapture(const unsigned int list) noexcept {
@@ -182,6 +420,18 @@ void CaptureDisplayListVertex(const float x, const float y, const float z) noexc
             g_active_display_list_capture.invalid = true;
             return;
         }
+        if (!g_active_display_list_capture.primitive_open
+            || g_active_display_list_capture.vertices.size()
+                == kMaximumCapturedVerticesPerList) {
+            g_active_display_list_capture.invalid = true;
+            return;
+        }
+        try {
+            g_active_display_list_capture.vertices.push_back({x, y, z});
+        } catch (...) {
+            g_active_display_list_capture.invalid = true;
+            return;
+        }
         if (!g_active_display_list_capture.has_vertex) {
             g_active_display_list_capture.bounds = {{x, y, z}, {x, y, z}};
             g_active_display_list_capture.has_vertex = true;
@@ -197,6 +447,7 @@ void CaptureDisplayListVertex(const float x, const float y, const float z) noexc
 }
 
 void EndDisplayListCapture() noexcept {
+    CloseCapturedPrimitive();
     if (
         g_active_display_list_capture.active
         && g_active_display_list_capture.list < g_display_list_bounds.size()
@@ -208,6 +459,11 @@ void EndDisplayListCapture() noexcept {
             g_display_list_bounds[g_active_display_list_capture.list]
         );
         captured.bounds = g_active_display_list_capture.bounds;
+        try {
+            captured.feature_edges = BuildFeatureEdges(g_active_display_list_capture);
+        } catch (...) {
+            captured.feature_edges.clear();
+        }
         captured.valid = true;
         ReleaseSRWLockExclusive(&g_display_list_lock);
     }
@@ -326,14 +582,23 @@ bool LoadOutlineApi(OutlineApi* const api) noexcept {
         && api->polygon_offset != nullptr;
 }
 
-template <typename Draw>
-void DrawInteriorContours(
-    const Draw& draw,
+void DrawFeatureEdges(
+    const unsigned int list,
     const OutlineApi& api,
     const float outline_width
 ) noexcept {
     const float contour_width = InteriorContourLineWidth(outline_width);
-    if (contour_width <= 0.0F) {
+    const auto begin = LoadFunction<GlBegin>(&g_original_begin);
+    const auto vertex = LoadFunction<GlVertex3f>(&g_original_vertex_3f);
+    const auto end = LoadFunction<GlEnd>(&g_end);
+    if (contour_width <= 0.0F || begin == nullptr || vertex == nullptr
+        || end == nullptr || list >= g_display_list_bounds.size()) {
+        return;
+    }
+    AcquireSRWLockShared(&g_display_list_lock);
+    const CapturedDisplayListBounds& captured = g_display_list_bounds[list];
+    if (!captured.valid || captured.feature_edges.empty()) {
+        ReleaseSRWLockShared(&g_display_list_lock);
         return;
     }
     api.push_attrib(kGlAllAttribBits);
@@ -349,20 +614,23 @@ void DrawInteriorContours(
     api.enable(kGlDepthTest);
     api.depth_func(kGlLequal);
     api.depth_mask(FALSE);
-    api.enable(kGlCullFace);
-    api.cull_face(kGlBack);
-    api.enable(kGlPolygonOffsetLine);
-    api.polygon_offset(-1.0F, -1.0F);
-    api.polygon_mode(kGlFrontAndBack, kGlLine);
+    api.disable(kGlCullFace);
     api.line_width(contour_width);
-    draw();
+    begin(kGlLines);
+    for (const CapturedDisplayListBounds::FeatureEdge& edge : captured.feature_edges) {
+        vertex(edge.first[0], edge.first[1], edge.first[2]);
+        vertex(edge.second[0], edge.second[1], edge.second[2]);
+    }
+    end();
     api.pop_attrib();
+    ReleaseSRWLockShared(&g_display_list_lock);
 }
 
 template <typename Draw>
 void DrawWithSilhouette(
     const Draw& draw,
-    const OutlineHullTransform* const hull = nullptr
+    const OutlineHullTransform* const hull = nullptr,
+    const unsigned int feature_list = UINT32_MAX
 ) noexcept {
     OutlineApi api{};
     std::array<float, 16U> projection{};
@@ -436,7 +704,9 @@ void DrawWithSilhouette(
     api.pop_attrib();
 
     draw();
-    DrawInteriorContours(draw, api, outline_width);
+    if (feature_list != UINT32_MAX) {
+        DrawFeatureEdges(feature_list, api, outline_width);
+    }
 }
 
 template <typename Value>
@@ -497,6 +767,7 @@ void APIENTRY StrongShadeModel(const unsigned int) noexcept {
 }
 
 void APIENTRY StrongBegin(const unsigned int mode) noexcept {
+    CaptureDisplayListBegin(mode);
     const auto shade_model = LoadFunction<GlShadeModel>(&g_original_shade_model);
     if (shade_model != nullptr) {
         shade_model(kGlFlat);
@@ -578,7 +849,8 @@ void APIENTRY StrongCallList(const unsigned int list) noexcept {
         const bool has_hull = LookupDisplayListHull(list, &hull);
         DrawWithSilhouette(
             [original, list]() noexcept { original(list); },
-            has_hull ? &hull : nullptr
+            has_hull ? &hull : nullptr,
+            list
         );
     }
 }
@@ -815,7 +1087,7 @@ float PerspectiveOutlineLineWidth(
 float InteriorContourLineWidth(const float outline_width) noexcept {
     if (
         !std::isfinite(outline_width)
-        || outline_width < kMinimumInteriorContourOutlinePixels
+        || outline_width < kMinimumFeatureEdgeOutlinePixels
     ) {
         return 0.0F;
     }
@@ -827,6 +1099,28 @@ float InteriorContourLineWidth(const float outline_width) noexcept {
         return kMaximumInteriorContourPixels;
     }
     return requested;
+}
+
+std::size_t TriangleFeatureEdgeCount(
+    const float* const vertices,
+    const std::size_t float_count
+) noexcept {
+    if (vertices == nullptr || float_count == 0U || float_count % 9U != 0U) {
+        return 0U;
+    }
+    try {
+        ActiveDisplayListCapture capture{};
+        capture.vertices.reserve(float_count / 3U);
+        for (std::size_t index = 0U; index < float_count; index += 3U) {
+            capture.vertices.push_back({
+                vertices[index], vertices[index + 1U], vertices[index + 2U]
+            });
+        }
+        capture.primitives.push_back({kGlTriangles, 0U, capture.vertices.size()});
+        return BuildFeatureEdges(capture).size();
+    } catch (...) {
+        return 0U;
+    }
 }
 
 bool ExpandOutlineBounds(
@@ -1092,6 +1386,7 @@ DWORD StartStrongCelShading() noexcept {
         || g_draw_elements_slot != nullptr
         || g_original_shade_model != nullptr
         || g_original_begin != nullptr
+        || g_end != nullptr
         || g_original_call_list != nullptr
         || g_original_new_list != nullptr
         || g_original_end_list != nullptr
@@ -1259,7 +1554,8 @@ DWORD StartStrongCelShading() noexcept {
         }
     }
 
-    std::array<HelperFunctionPlan, 17U> helpers{{
+    std::array<HelperFunctionPlan, 18U> helpers{{
+        {"glEnd", &g_end, nullptr},
         {"glGetFloatv", &g_get_floatv, nullptr},
         {"glGetBooleanv", &g_get_booleanv, nullptr},
         {"glPushAttrib", &g_push_attrib, nullptr},
@@ -1403,6 +1699,7 @@ void StopStrongCelShading() noexcept {
         InterlockedExchange(&g_viewport_y, 0);
         InterlockedExchange(&g_viewport_x, 0);
         g_current_matrix_mode = kGlModelView;
+        InterlockedExchangePointer(&g_end, nullptr);
         InterlockedExchangePointer(&g_polygon_offset, nullptr);
         InterlockedExchangePointer(&g_depth_func, nullptr);
         InterlockedExchangePointer(&g_depth_mask, nullptr);

@@ -265,6 +265,24 @@ int wmain() {
     ) {
         return Fail(L"bounded interior contour width policy");
     }
+    constexpr float coplanar_triangles[]{
+        0.0F, 0.0F, 0.0F, 1.0F, 0.0F, 0.0F, 1.0F, 1.0F, 0.0F,
+        0.0F, 0.0F, 0.0F, 1.0F, 1.0F, 0.0F, 0.0F, 1.0F, 0.0F,
+    };
+    constexpr float creased_triangles[]{
+        0.0F, 0.0F, 0.0F, 1.0F, 0.0F, 0.0F, 1.0F, 1.0F, 0.0F,
+        0.0F, 0.0F, 0.0F, 1.0F, 1.0F, 0.0F, 0.0F, 1.0F, 1.0F,
+    };
+    if (
+        wonderbane::extension::TriangleFeatureEdgeCount(
+            coplanar_triangles, std::size(coplanar_triangles)
+        ) != 4U
+        || wonderbane::extension::TriangleFeatureEdgeCount(
+            creased_triangles, std::size(creased_triangles)
+        ) != 5U
+    ) {
+        return Fail(L"feature-edge crease selection");
+    }
     wonderbane::extension::OutlineBounds expanded{{90.0F, -5.0F, -2.0F}, {110.0F, 5.0F, 2.0F}};
     if (
         !wonderbane::extension::ExpandOutlineBounds(&expanded, 112.0F, 6.0F, 3.0F)

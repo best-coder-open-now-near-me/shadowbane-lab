@@ -277,13 +277,18 @@ distance rule and ensuring the centered hull runs only against the model-view st
 lighting-state audit is required before introducing discrete diffuse bands; version 1.4.5 does not
 claim or synthesize lighting bands.
 
-Extension 1.4.6 adds a bounded interior-contour pass after the ordinary fill. Eligible local model
-draws replay once in front-face-only line mode, with a small polygon depth bias and no depth writes.
-The 1–1.25 pixel accent follows polygon and component transitions without changing the approved
-world-scaled exterior hull. It is omitted once the projected exterior width falls below 1.5 pixels,
-preventing distant characters and props from becoming dense wireframes. Texture, lighting, fog,
-blending, smoothing, dithering, and alpha-test state remain isolated by the existing attribute guard;
-black coverage still uses `GL_CLEAR`, and the client's fill, depth, and state are preserved.
+Extension 1.4.6 tested a post-fill polygon-line replay for interior accents. Live validation rejected
+that design because its depth-biased triangle edges visibly separated from animated surfaces and
+read as wireframe beneath the skin. The rejected pass remains documented so it is not reintroduced.
+
+Extension 1.4.7 replaces polygon-line replay with geometry-aware feature edges captured once while
+each display list is compiled. It reconstructs triangle, strip, fan, quad, quad-strip, and polygon
+faces, merges shared edges by exact local-space vertex identity, removes coplanar triangle seams,
+and retains only open boundaries, non-manifold boundaries, and edges whose adjacent face normals
+cross the reviewed crease threshold. A hard vertex and retained-edge budget rejects pathological
+lists rather than creating an unbounded renderer cost. The retained segments draw after the normal
+fill at the same depth, without polygon offset or depth writes, so they cannot protrude from the
+surface like the 1.4.6 diagnostic. The approved world-scaled exterior silhouette remains unchanged.
 
 Orthographic UI/map rendering, points, lines, and array draws outside the reviewed element-count
 bound remain single-pass. Immediate-mode geometry remains filled and flat-shaded because replaying
