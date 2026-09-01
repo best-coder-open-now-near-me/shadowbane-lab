@@ -100,22 +100,24 @@ def test_graphics_publication_and_launch_pin_the_golden_package() -> None:
     launch = (ROOT / "scripts" / "launch-wonderbane-graphics-baseline.ps1").read_text(
         encoding="utf-8"
     )
-    assert 'ExtensionVersion = "1.6.1"' in publish
-    assert "wonderbane-extension-1.6.1.dll" in publish
+    assert 'RepositoryShare = "\\\\VBOXSVR\\codexrepo"' in publish
+    assert 'ExtensionVersion = "1.6.4"' in publish
+    assert "wonderbane-extension.dll" in publish
     assert r"\build\wonderbane-client-extension\Release" in publish
-    assert "408ffb9aea64420dd201f11eb259ab3e8417b4a7e67fa05a0cbbd65f5a3c5e53" in publish
-    assert "621ad78f17ed9e1be2dce6cf95e3a09d2f8b991d8c2169b6c8e5e26f5ab527a6" in publish
+    assert "10deb5396f2061ac647d9c4ef42220baa88e3b9477f3e4d4383d663a004348e2" in publish
+    assert "a9a59004b36f9331bb85f85e7853a02a5d5f07bda9acb9ea4a8affbf169a54b8" in publish
     assert "$extensionSha256 -cne $ExpectedExtensionSha256" in publish
     assert "$resultExecutableSha256 -cne $ExpectedExecutableSha256" in publish
     assert "patched_executable_sha256" in publish
     assert "--texture-patch-manifest $TexturePatchManifest" in publish
     assert "--texture-artifact-directory $TextureArtifactDirectory" in publish
     assert "texture_patch_manifest_sha256" in publish
-    assert 'ExtensionVersion = "1.6.1"' in launch
-    assert "408ffb9aea64420dd201f11eb259ab3e8417b4a7e67fa05a0cbbd65f5a3c5e53" in launch
-    assert '$expectedExtensionRelativePath = "wonderbane-extension-1.6.1.dll"' in launch
+    assert 'RepositoryShare = "\\\\VBOXSVR\\codexrepo"' in launch
+    assert 'ExtensionVersion = "1.6.4"' in launch
+    assert "10deb5396f2061ac647d9c4ef42220baa88e3b9477f3e4d4383d663a004348e2" in launch
+    assert '$expectedExtensionRelativePath = "wonderbane-extension.dll"' in launch
     assert 'Properties["extension_relative_path"]' in launch
-    assert "621ad78f17ed9e1be2dce6cf95e3a09d2f8b991d8c2169b6c8e5e26f5ab527a6" in launch
+    assert "a9a59004b36f9331bb85f85e7853a02a5d5f07bda9acb9ea4a8affbf169a54b8" in launch
     assert 'Properties["result_executable_sha256"]' in launch
     assert "verify-runtime-copy" in launch
     assert manifest_sha256 in launch

@@ -33,10 +33,10 @@ publishes and rereads a versioned graphics-only client:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
-  \\VBOXSVR\codexgfx\scripts\publish-wonderbane-graphics-baseline.ps1
+  \\VBOXSVR\codexrepo\scripts\publish-wonderbane-graphics-baseline.ps1
 ```
 
-The wrapper sets `PYTHONPATH` to the `codexgfx` share and never starts the control center, listener,
+The wrapper sets `PYTHONPATH` to the `codexrepo` convergence share and never starts the control center, listener,
 manager, map capture, movement, combat, or automation paths. Graphics package 1.5.0 also applies the
 hash-pinned restrained-cel atlas manifest while the copy is still unpublished; the patched cache and
 its texture evidence are included in the package inventory before atomic publication.
@@ -45,7 +45,7 @@ After publication succeeds, launch that exact verified package for graphics test
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
-  \\VBOXSVR\codexgfx\scripts\launch-wonderbane-graphics-baseline.ps1
+  \\VBOXSVR\codexrepo\scripts\launch-wonderbane-graphics-baseline.ps1
 ```
 
 The launcher rechecks the publication receipt, executable and extension hashes, and complete package
@@ -491,5 +491,6 @@ Semantic actor, terrain, building, water, and particle identities are deliberate
 the current fixed-function state. The 1.6.4 classes are reliable rendering-policy layers; the next
 renderer ownership slice will bind bounded texture/display-list provenance to semantic class masks,
 using these diagnostics to review the mapping before normals, AO, or material-specific effects rely
-on it. The older 1.6.1 graphics publication scripts remain sealed to their golden package until a
-1.6.4 VM artifact and patched executable receive new exact hashes and a publication receipt.
+on it. The 1.6.4 graphics publication scripts are sealed to the probed full-renderer artifact
+and the patched executable derived from the frozen 55fb baseline. Publication creates a fresh
+1.6.4 package and receipt before the launcher will execute it.

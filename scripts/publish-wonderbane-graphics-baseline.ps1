@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string] $RepositoryShare = "\\VBOXSVR\codexgfx",
+    [string] $RepositoryShare = "\\VBOXSVR\codexrepo",
     [string] $DiagnosticsShare = "\\VBOXSVR\codexdiag",
     [string] $PythonExecutable = "$env:USERPROFILE\shadowbane-lab\.venv\Scripts\python.exe",
     [string] $BaselineDirectory = (
@@ -8,23 +8,23 @@ param(
     ),
     [string] $ExpectedContentBuildId = "wb-55fbad5f-4b602995",
     [string] $ExpectedExtensionSha256 = (
-        "408ffb9aea64420dd201f11eb259ab3e8417b4a7e67fa05a0cbbd65f5a3c5e53"
+        "10deb5396f2061ac647d9c4ef42220baa88e3b9477f3e4d4383d663a004348e2"
     ),
     [string] $ExpectedExecutableSha256 = (
-        "621ad78f17ed9e1be2dce6cf95e3a09d2f8b991d8c2169b6c8e5e26f5ab527a6"
+        "a9a59004b36f9331bb85f85e7853a02a5d5f07bda9acb9ea4a8affbf169a54b8"
     ),
-    [string] $ExtensionVersion = "1.6.1",
+    [string] $ExtensionVersion = "1.6.4",
     [string] $ExtensionArtifact = (
-        "\\VBOXSVR\codexgfx\build\wonderbane-client-extension\Release\wonderbane-extension-1.6.1.dll"
+        "\\VBOXSVR\codexrepo\build\wonderbane-client-extension\Release\wonderbane-extension.dll"
     ),
     [string] $TexturePatchManifest = (
-        "\\VBOXSVR\codexgfx\assets\wonderbane_graphics\restrained-cel-v1\texture-patches.json"
+        "\\VBOXSVR\codexrepo\assets\wonderbane_graphics\restrained-cel-v1\texture-patches.json"
     ),
     [string] $TextureArtifactDirectory = (
-        "\\VBOXSVR\codexgfx\assets\wonderbane_graphics\restrained-cel-v1"
+        "\\VBOXSVR\codexrepo\assets\wonderbane_graphics\restrained-cel-v1"
     ),
     [string] $DestinationDirectory = (
-        "S:\Wonderbane-graphics-wb-55fbad5f-4b602995-cel-1.6.1"
+        "S:\Wonderbane-graphics-wb-55fbad5f-4b602995-cel-1.6.4"
     ),
     [switch] $DryRunOnly
 )
