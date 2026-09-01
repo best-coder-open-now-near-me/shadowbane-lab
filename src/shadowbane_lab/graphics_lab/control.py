@@ -170,6 +170,26 @@ def _validate_range(value: float, minimum: float, maximum: float, name: str) -> 
         raise ValueError(f"{name} must be between {minimum:g} and {maximum:g}")
 
 
+def _clamp_transport_range(
+    value: float,
+    minimum: float,
+    maximum: float,
+    name: str,
+) -> float:
+    if not math.isfinite(value):
+        raise ValueError(f"{name} must be between {minimum:g} and {maximum:g}")
+    tolerance = max(1e-7, max(abs(minimum), abs(maximum)) * 1e-7)
+    if value < minimum:
+        if value >= minimum - tolerance:
+            return minimum
+        raise ValueError(f"{name} must be between {minimum:g} and {maximum:g}")
+    if value > maximum:
+        if value <= maximum + tolerance:
+            return maximum
+        raise ValueError(f"{name} must be between {minimum:g} and {maximum:g}")
+    return value
+
+
 def _validate_color(color: tuple[float, float, float], name: str) -> None:
     if len(color) != 3:
         raise ValueError(f"{name} must have exactly three channels")
@@ -266,15 +286,7 @@ def pack_control_block(
 
 
 def unpack_control_block(data: bytes, target: GraphicsControlTarget) -> GraphicsControlSnapshot:
-    if len(data) != CONTROL_STRUCTURE_SIZE:
-        raise ValueError("graphics control block has the wrong size")
-    values = CONTROL_HEADER.unpack(data)
-    magic, schema, size, process_id, creation_low, creation_high = values[:6]
-    if magic != CONTROL_MAGIC or schema != CONTROL_SCHEMA_VERSION or size != 256:
-        raise ValueError("graphics control block has an unsupported ABI")
-    creation = creation_low | (creation_high << 32)
-    if process_id != target.process_id or creation != target.process_creation_filetime_utc:
-        raise ValueError("graphics control block belongs to a different client")
+    values = _unpack_control_values(data, target)
     desired, applied, rejected, last_error = values[6:10]
     flags = values[10]
     floats = values[11:35]
@@ -283,7 +295,12 @@ def unpack_control_block(data: bytes, target: GraphicsControlTarget) -> Graphics
         dark_scene_outline=(floats[0], floats[1], floats[2]),
         dark_scene_outline_strength=floats[3],
         bright_scene_ink_alpha=floats[4],
-        depth_edge_threshold=floats[5],
+        depth_edge_threshold=_clamp_transport_range(
+            floats[5],
+            0.005,
+            0.5,
+            "depth_edge_threshold",
+        ),
         band_thresholds=(floats[6], floats[7], floats[8]),
         band_colors=(
             (floats[9], floats[10], floats[11]),
@@ -303,6 +320,21 @@ def unpack_control_block(data: bytes, target: GraphicsControlTarget) -> Graphics
         rejected_sequence=rejected,
         last_error=last_error & 0xFFFFFFFF,
     )
+
+
+def _unpack_control_values(
+    data: bytes, target: GraphicsControlTarget
+) -> tuple[int | float, ...]:
+    if len(data) != CONTROL_STRUCTURE_SIZE:
+        raise ValueError("graphics control block has the wrong size")
+    values = CONTROL_HEADER.unpack(data)
+    magic, schema, size, process_id, creation_low, creation_high = values[:6]
+    if magic != CONTROL_MAGIC or schema != CONTROL_SCHEMA_VERSION or size != 256:
+        raise ValueError("graphics control block has an unsupported ABI")
+    creation = creation_low | (creation_high << 32)
+    if process_id != target.process_id or creation != target.process_creation_filetime_utc:
+        raise ValueError("graphics control block belongs to a different client")
+    return values
 
 
 def _status_root(local_app_data: Path | None) -> Path:
@@ -494,7 +526,11 @@ class GraphicsControlClient:
             error = ctypes.get_last_error()
             self.close()
             raise OSError(error, "could not create graphics control writer mutex")
-        self.read()
+        try:
+            self._read_values()
+        except Exception:
+            self.close()
+            raise
 
     def close(self) -> None:
         mutex = getattr(self, "_mutex", None)
@@ -523,6 +559,27 @@ class GraphicsControlClient:
         return unpack_control_block(data, self.target)
 
     def write(self, parameters: GraphicsParameters) -> int:
+        return self._write_parameters(parameters, require_valid_current=True)
+
+    def restore_reviewed_baseline(self) -> int:
+        """Replace invalid live parameters without bypassing ABI or identity checks."""
+        return self._write_parameters(
+            DEFAULT_PARAMETERS,
+            require_valid_current=False,
+        )
+
+    def _read_values(self) -> tuple[int | float, ...]:
+        if not self._address:
+            raise RuntimeError("graphics control client is closed")
+        data = ctypes.string_at(self._address, CONTROL_STRUCTURE_SIZE)
+        return _unpack_control_values(data, self.target)
+
+    def _write_parameters(
+        self,
+        parameters: GraphicsParameters,
+        *,
+        require_valid_current: bool,
+    ) -> int:
         parameters.validate()
         wait_object_0 = 0
         wait_abandoned = 0x80
@@ -530,11 +587,16 @@ class GraphicsControlClient:
         if wait_result not in (wait_object_0, wait_abandoned):
             raise TimeoutError("another Graphics Lab writer held the client control lock")
         try:
-            snapshot = self.read()
+            values = self._read_values()
+            if require_valid_current:
+                self.read()
+            desired, applied, rejected, last_error = (
+                int(value) for value in values[6:10]
+            )
             next_sequence = max(
-                snapshot.desired_sequence,
-                snapshot.applied_sequence,
-                snapshot.rejected_sequence,
+                desired,
+                applied,
+                rejected,
                 0,
             ) + 2
             if next_sequence >= 0x7FFFFFFE:
@@ -543,9 +605,9 @@ class GraphicsControlClient:
                 self.target,
                 parameters,
                 desired_sequence=next_sequence,
-                applied_sequence=snapshot.applied_sequence,
-                rejected_sequence=snapshot.rejected_sequence,
-                last_error=snapshot.last_error,
+                applied_sequence=applied,
+                rejected_sequence=rejected,
+                last_error=last_error,
             )
             sequence = ctypes.c_int32.from_address(
                 self._address + CONTROL_DESIRED_SEQUENCE_OFFSET

@@ -79,6 +79,13 @@ def test_control_abi_round_trips_exact_256_byte_layout() -> None:
     assert CONTROL_PARAMETER_END == 140
 
 
+def test_control_abi_clamps_float32_boundary_drift() -> None:
+    target = _target()
+    minimum = replace(DEFAULT_PARAMETERS, depth_edge_threshold=0.005)
+    snapshot = unpack_control_block(pack_control_block(target, minimum), target)
+    assert snapshot.parameters.depth_edge_threshold == 0.005
+
+
 @pytest.mark.parametrize(
     "parameters",
     [
@@ -167,3 +174,28 @@ def test_named_mapping_write_uses_even_sequence_and_parameter_slice() -> None:
             _assert_parameters_close(snapshot.parameters, adaptive)
         owner.seek(CONTROL_DESIRED_SEQUENCE_OFFSET)
         assert struct.unpack("<i", owner.read(4))[0] == 4
+
+
+@pytest.mark.skipif(os.name != "nt", reason="named Windows mappings are Windows-only")
+def test_named_mapping_can_restore_reviewed_baseline_from_invalid_parameters() -> None:
+    mapping_name = f"Local\\WonderBaneGraphicsControl-repair-{os.getpid()}"
+    target = _target(mapping_name)
+    invalid = bytearray(pack_control_block(target, DEFAULT_PARAMETERS))
+    depth_edge_threshold_offset = CONTROL_PARAMETER_OFFSET + 4 + (5 * 4)
+    struct.pack_into("<f", invalid, depth_edge_threshold_offset, float("nan"))
+    with mmap.mmap(
+        -1,
+        CONTROL_STRUCTURE_SIZE,
+        tagname=mapping_name,
+        access=mmap.ACCESS_WRITE,
+    ) as owner:
+        owner[:] = invalid
+        with GraphicsControlClient(target) as client:
+            with pytest.raises(ValueError, match="depth_edge_threshold"):
+                client.read()
+            sequence = client.restore_reviewed_baseline()
+            assert sequence == 4
+            snapshot = client.read()
+            _assert_parameters_close(snapshot.parameters, DEFAULT_PARAMETERS)
+            assert snapshot.desired_sequence == 4
+            assert snapshot.applied_sequence == 2

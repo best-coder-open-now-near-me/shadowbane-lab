@@ -330,10 +330,27 @@ class GraphicsLabApp:
         self._disconnect()
         try:
             self.client = GraphicsControlClient(target)
-            snapshot = self.client.read()
         except (OSError, RuntimeError, ValueError) as error:
             self.client = None
             self._show_status(f"Attach failed: {error}", error=True)
+            return
+        try:
+            snapshot = self.client.read()
+        except ValueError as error:
+            try:
+                self.pending_sequence = self.client.restore_reviewed_baseline()
+            except (OSError, RuntimeError, TimeoutError, ValueError) as repair_error:
+                self._disconnect()
+                self._show_status(
+                    f"Attach failed: {error}; baseline restore failed: {repair_error}",
+                    error=True,
+                )
+                return
+            self._set_parameters(DEFAULT_PARAMETERS)
+            self._show_status(
+                "Restored invalid live controls to the reviewed visual baseline "
+                f"· queued sequence {self.pending_sequence}"
+            )
             return
         self.pending_sequence = None
         self._set_parameters(snapshot.parameters)
