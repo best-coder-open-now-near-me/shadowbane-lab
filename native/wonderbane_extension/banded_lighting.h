@@ -13,6 +13,7 @@ struct CelBandColor {
 std::size_t CelBandIndex(float intensity) noexcept;
 CelBandColor CelBandForIntensity(float intensity) noexcept;
 const char* BandedLightingFragmentSource() noexcept;
+const char* BandedLightingVertexSource() noexcept;
 
 struct BandedLightingDraw {
     int previous_program = 0;

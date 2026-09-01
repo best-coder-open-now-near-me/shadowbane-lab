@@ -63,6 +63,7 @@ def test_restrained_cel_target_is_pinned_end_to_end() -> None:
         "vec3(0.72, 0.76, 0.80)",
         "vec3(1.00, 0.98, 0.92)",
         "gl_Color.rgb",
+        "gl_NormalMatrix * gl_Normal",
         "gl_FogFragCoord",
     ):
         assert token in shader
@@ -83,10 +84,10 @@ def test_graphics_publication_and_launch_pin_the_golden_package() -> None:
     launch = (ROOT / "scripts" / "launch-wonderbane-graphics-baseline.ps1").read_text(
         encoding="utf-8"
     )
-    assert 'ExtensionVersion = "1.5.0"' in publish
+    assert 'ExtensionVersion = "1.5.1"' in publish
     assert "--texture-patch-manifest $TexturePatchManifest" in publish
     assert "--texture-artifact-directory $TextureArtifactDirectory" in publish
     assert "texture_patch_manifest_sha256" in publish
-    assert 'ExtensionVersion = "1.5.0"' in launch
+    assert 'ExtensionVersion = "1.5.1"' in launch
     assert manifest_sha256 in launch
     assert "wonderbane-1.0.5-55fbad5f.restrained-cel-v1" in launch

@@ -31,6 +31,7 @@ int Fail(const char* const operation) noexcept {
 
 int main() {
     using wonderbane::extension::BandedLightingFragmentSource;
+    using wonderbane::extension::BandedLightingVertexSource;
     using wonderbane::extension::CelBandForIntensity;
     using wonderbane::extension::CelBandIndex;
 
@@ -49,15 +50,22 @@ int main() {
         return Fail("band color contract");
     }
 
-    const char* const source = BandedLightingFragmentSource();
-    if (source == nullptr
-        || std::strstr(source, "#version 120") == nullptr
-        || std::strstr(source, "gl_Color.rgb") == nullptr
-        || std::strstr(source, "gl_TexCoord[0].st") == nullptr
-        || std::strstr(source, "gl_FogFragCoord") == nullptr
-        || std::strstr(source, "wbFogMode == 2048") == nullptr
-        || std::strstr(source, "wbFogMode == 2049") == nullptr) {
-        return Fail("fragment-only compatibility contract");
+    const char* const vertex_source = BandedLightingVertexSource();
+    const char* const fragment_source = BandedLightingFragmentSource();
+    if (vertex_source == nullptr || fragment_source == nullptr
+        || std::strstr(vertex_source, "#version 120") == nullptr
+        || std::strstr(vertex_source, "gl_NormalMatrix * gl_Normal") == nullptr
+        || std::strstr(vertex_source, "normalLength > 0.0001") == nullptr
+        || std::strstr(vertex_source, "gl_ModelViewMatrix * gl_Vertex") == nullptr
+        || std::strstr(vertex_source, "wbIntensity") == nullptr
+        || std::strstr(fragment_source, "gl_Color.rgb") == nullptr
+        || std::strstr(fragment_source, "gl_TexCoord[0].st") == nullptr
+        || std::strstr(fragment_source, "wbTextureEnvMode == 7681") == nullptr
+        || std::strstr(fragment_source, "wbTextureEnvMode == 8449") == nullptr
+        || std::strstr(fragment_source, "gl_FogFragCoord") == nullptr
+        || std::strstr(fragment_source, "wbFogMode == 2048") == nullptr
+        || std::strstr(fragment_source, "wbFogMode == 2049") == nullptr) {
+        return Fail("normal-driven compatibility contract");
     }
     return 0;
 }

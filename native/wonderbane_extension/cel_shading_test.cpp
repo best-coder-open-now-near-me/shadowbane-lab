@@ -263,16 +263,16 @@ int wmain() {
         viewport.data(), viewport.size()
     );
     if (
-        std::fabs(near_width - 4.0F) > 0.001F
-        || std::fabs(middle_width - 2.0F) > 0.001F
+        std::fabs(near_width - 1.35F) > 0.001F
+        || std::fabs(middle_width - 1.35F) > 0.001F
         || far_width != 0.0F
     ) {
         return Fail(L"perspective outline width policy");
     }
     if (
-        std::fabs(wonderbane::extension::InteriorContourLineWidth(4.0F) - 1.25F) > 0.001F
-        || std::fabs(wonderbane::extension::InteriorContourLineWidth(2.0F) - 1.0F) > 0.001F
-        || wonderbane::extension::InteriorContourLineWidth(1.0F) != 0.0F
+        std::fabs(wonderbane::extension::InteriorContourLineWidth(4.0F) - 1.0F) > 0.001F
+        || std::fabs(wonderbane::extension::InteriorContourLineWidth(1.35F) - 1.0F) > 0.001F
+        || wonderbane::extension::InteriorContourLineWidth(0.9F) != 0.0F
         || wonderbane::extension::InteriorContourLineWidth(NAN) != 0.0F
     ) {
         return Fail(L"bounded interior contour width policy");
@@ -320,6 +320,7 @@ int wmain() {
         || std::fabs(hull.center[1]) > 0.001F
         || std::fabs(hull.center[2]) > 0.001F
         || std::fabs(hull.scale - expected_scale) > 0.001F
+        || std::fabs(hull.radius - std::sqrt(129.0F)) > 0.001F
     ) {
         return Fail(L"centered outline hull transform");
     }
@@ -340,7 +341,8 @@ int wmain() {
     if (
         !wonderbane::extension::IsOutlinePrimitive(0x0004U, 36)
         || wonderbane::extension::IsOutlinePrimitive(0x0001U, 36)
-        || wonderbane::extension::IsOutlinePrimitive(0x0004U, 8193)
+        || !wonderbane::extension::IsOutlinePrimitive(0x0004U, 8193)
+        || wonderbane::extension::IsOutlinePrimitive(0x0004U, 65537)
     ) {
         return Fail(L"bounded outline primitive policy");
     }

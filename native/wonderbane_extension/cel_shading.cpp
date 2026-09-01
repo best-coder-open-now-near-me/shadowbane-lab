@@ -53,15 +53,15 @@ constexpr unsigned int kGlLine = 0x1B01U;
 constexpr unsigned int kGlClear = 0x1500U;
 constexpr unsigned int kGlLequal = 0x0203U;
 constexpr unsigned int kGlAllAttribBits = 0x000FFFFFU;
-constexpr int kMaximumOutlinedElementCount = 8192;
+constexpr int kMaximumOutlinedElementCount = 65536;
+constexpr int kMaximumFeatureEdgeElementCount = 8192;
 constexpr double kMaximumOutlineOriginDistance = 4096.0;
 constexpr double kOutlineWorldThickness = 0.5;
 constexpr double kMinimumVisibleOutlinePixels = 0.75;
-constexpr float kMinimumRasterOutlinePixels = 1.0F;
-constexpr float kMaximumRasterOutlinePixels = 4.0F;
-constexpr float kMinimumFeatureEdgeOutlinePixels = 1.5F;
+constexpr float kTargetOutlinePixels = 1.35F;
+constexpr float kMinimumFeatureEdgeOutlinePixels = 1.0F;
 constexpr float kMinimumInteriorContourPixels = 1.0F;
-constexpr float kMaximumInteriorContourPixels = 1.25F;
+constexpr float kMaximumInteriorContourPixels = 1.0F;
 constexpr float kFeatureEdgeCosineThreshold = 0.82F;
 constexpr float kMaximumOutlineHullScale = 1.25F;
 constexpr std::size_t kCapturedDisplayListCapacity = 65536U;
@@ -531,11 +531,15 @@ std::vector<CapturedDisplayListBounds::FeatureEdge> BuildArrayFeatureEdges(
     const int first,
     const int count,
     const unsigned int index_type,
-    const void* const indices
+    const void* const indices,
+    OutlineHullTransform* const hull
 ) noexcept {
     std::vector<CapturedDisplayListBounds::FeatureEdge> empty{};
     const VertexArrayState state = g_vertex_array_state;
     const VertexArrayState tex_coord_state = g_tex_coord_array_state;
+    if (hull != nullptr) {
+        *hull = {};
+    }
     if (!state.enabled || state.pointer == nullptr || state.type != kGlFloat
         || state.size < 2 || state.size > 4 || state.stride < 0
         || count <= 0 || count > kMaximumOutlinedElementCount || first < 0) {
@@ -581,7 +585,8 @@ std::vector<CapturedDisplayListBounds::FeatureEdge> BuildArrayFeatureEdges(
     if (!IsReadableMemoryRange(state.pointer, required_vertex_bytes)) {
         return empty;
     }
-    const bool has_tex_coords = tex_coord_state.enabled
+    const bool collect_feature_edges = count <= kMaximumFeatureEdgeElementCount;
+    const bool has_tex_coords = collect_feature_edges && tex_coord_state.enabled
         && tex_coord_state.pointer != nullptr
         && tex_coord_state.type == kGlFloat
         && tex_coord_state.size >= 2
@@ -608,7 +613,11 @@ std::vector<CapturedDisplayListBounds::FeatureEdge> BuildArrayFeatureEdges(
     }
     try {
         ActiveDisplayListCapture capture{};
-        capture.vertices.reserve(requested);
+        if (collect_feature_edges) {
+            capture.vertices.reserve(requested);
+        }
+        OutlineBounds bounds{};
+        bool has_bounds = false;
         for (std::size_t position = 0U; position < requested; ++position) {
             std::uint32_t vertex_index = 0U;
             if (indexed) {
@@ -641,6 +650,20 @@ std::vector<CapturedDisplayListBounds::FeatureEdge> BuildArrayFeatureEdges(
                 || !std::isfinite(vertex[2])) {
                 return empty;
             }
+            if (!has_bounds) {
+                bounds = {
+                    {vertex[0], vertex[1], vertex[2]},
+                    {vertex[0], vertex[1], vertex[2]},
+                };
+                has_bounds = true;
+            } else if (!ExpandOutlineBounds(
+                    &bounds, vertex[0], vertex[1], vertex[2]
+                )) {
+                return empty;
+            }
+            if (!collect_feature_edges) {
+                continue;
+            }
             CapturedVertex captured{};
             captured.position = vertex;
             if (tex_coord_stride != 0U) {
@@ -666,6 +689,16 @@ std::vector<CapturedDisplayListBounds::FeatureEdge> BuildArrayFeatureEdges(
                 captured.has_tex_coord = true;
             }
             capture.vertices.push_back(captured);
+        }
+        if (has_bounds && hull != nullptr) {
+            CenteredOutlineHullTransform(
+                &bounds,
+                static_cast<float>(kOutlineWorldThickness),
+                hull
+            );
+        }
+        if (!collect_feature_edges) {
+            return empty;
         }
         capture.primitives.push_back({mode, 0U, capture.vertices.size()});
         return BuildFeatureEdges(capture);
@@ -848,6 +881,32 @@ struct ArrayFeatureRequest {
     const void* indices = nullptr;
 };
 
+bool IsFilledPrimitiveMode(const unsigned int mode) noexcept {
+    switch (mode) {
+        case kGlTriangles:
+        case kGlTriangleStrip:
+        case kGlTriangleFan:
+        case kGlQuads:
+        case kGlQuadStrip:
+        case kGlPolygon:
+            return true;
+        case kGlPoints:
+        case kGlLines:
+        case kGlLineLoop:
+        case kGlLineStrip:
+        default:
+            return false;
+    }
+}
+
+template <typename Draw>
+void DrawWithBandedLighting(const Draw& draw) noexcept {
+    BandedLightingDraw banded{};
+    BeginBandedLightingDraw(&banded);
+    draw();
+    EndBandedLightingDraw(&banded);
+}
+
 bool LoadOutlineApi(OutlineApi* const api) noexcept {
     if (api == nullptr) {
         return false;
@@ -996,70 +1055,98 @@ void DrawWithSilhouette(
         viewport.data(),
         viewport.size()
     );
-    if (
-        !IsPerspectiveProjectionMatrix(projection.data(), projection.size())
-        || !IsLocalOutlineModelViewMatrix(model_view.data(), model_view.size())
-        || outline_width <= 0.0F
-        || depth_writes == FALSE
-    ) {
+    if (!IsPerspectiveProjectionMatrix(projection.data(), projection.size())) {
         draw();
         return;
     }
 
-    const auto feature_edges = array_features == nullptr
+    const bool outline_enabled = (
+        IsLocalOutlineModelViewMatrix(model_view.data(), model_view.size())
+        && outline_width > 0.0F
+        && depth_writes != FALSE
+    );
+
+    OutlineHullTransform array_hull{};
+    const auto feature_edges = !outline_enabled || array_features == nullptr
         ? std::vector<CapturedDisplayListBounds::FeatureEdge>{}
         : BuildArrayFeatureEdges(
             array_features->mode,
             array_features->first,
             array_features->count,
             array_features->index_type,
-            array_features->indices
+            array_features->indices,
+            &array_hull
         );
-
-    api.push_attrib(kGlAllAttribBits);
-    api.disable(kGlLighting);
-    api.disable(kGlFog);
-    api.disable(kGlBlend);
-    if (alpha_test_enabled == FALSE) {
-        api.disable(kGlTexture2D);
-        api.disable(kGlAlphaTest);
+    const OutlineHullTransform* effective_hull = hull;
+    if (effective_hull == nullptr && array_hull.radius > 0.0F) {
+        effective_hull = &array_hull;
     }
-    api.disable(kGlLineSmooth);
-    api.disable(kGlDither);
-    api.enable(kGlColorLogicOp);
-    api.logic_op(kGlClear);
-    api.depth_mask(FALSE);
+    OutlineHullTransform screen_hull{};
+    if (effective_hull != nullptr) {
+        screen_hull = *effective_hull;
+        const double depth = std::fabs(static_cast<double>(model_view[14]));
+        const double projection_scale = std::fabs(
+            static_cast<double>(projection[5])
+        );
+        const double pixels_per_world = depth > 0.001
+            ? static_cast<double>(viewport[3]) * projection_scale / (2.0 * depth)
+            : 0.0;
+        if (pixels_per_world > 0.0 && std::isfinite(pixels_per_world)
+            && effective_hull->radius > 0.0F) {
+            const double requested_scale = 1.0
+                + static_cast<double>(outline_width)
+                    / pixels_per_world
+                    / static_cast<double>(effective_hull->radius);
+            screen_hull.scale = static_cast<float>(std::min(
+                requested_scale,
+                static_cast<double>(kMaximumOutlineHullScale)
+            ));
+        }
+    }
+
     const bool use_centered_hull = (
-        hull != nullptr && matrix_mode == static_cast<int>(kGlModelView)
+        outline_enabled
+        &&
+        effective_hull != nullptr
+        && screen_hull.scale > 1.0F
+        && matrix_mode == static_cast<int>(kGlModelView)
     );
     if (use_centered_hull) {
+        api.push_attrib(kGlAllAttribBits);
+        api.disable(kGlLighting);
+        api.disable(kGlFog);
+        api.disable(kGlBlend);
+        if (alpha_test_enabled == FALSE) {
+            api.disable(kGlTexture2D);
+            api.disable(kGlAlphaTest);
+        }
+        api.disable(kGlLineSmooth);
+        api.disable(kGlDither);
+        api.enable(kGlColorLogicOp);
+        api.logic_op(kGlClear);
+        api.depth_mask(FALSE);
         api.enable(kGlCullFace);
         api.cull_face(kGlFront);
         api.polygon_mode(kGlFrontAndBack, kGlFill);
         api.push_matrix();
-        api.translatef(hull->center[0], hull->center[1], hull->center[2]);
-        api.scalef(hull->scale, hull->scale, hull->scale);
-        api.translatef(-hull->center[0], -hull->center[1], -hull->center[2]);
+        api.translatef(
+            screen_hull.center[0], screen_hull.center[1], screen_hull.center[2]
+        );
+        api.scalef(screen_hull.scale, screen_hull.scale, screen_hull.scale);
+        api.translatef(
+            -screen_hull.center[0], -screen_hull.center[1], -screen_hull.center[2]
+        );
         draw();
         api.pop_matrix();
+        api.pop_attrib();
     }
-    else {
-        api.disable(kGlCullFace);
-        api.polygon_mode(kGlFrontAndBack, kGlLine);
-        api.line_width(outline_width);
-        draw();
-    }
-    api.pop_attrib();
 
-    BandedLightingDraw banded{};
-    BeginBandedLightingDraw(&banded);
-    draw();
-    EndBandedLightingDraw(&banded);
-    if (feature_list != UINT32_MAX) {
+    DrawWithBandedLighting(draw);
+    if (outline_enabled && feature_list != UINT32_MAX) {
         DrawDisplayListFeatureEdges(
             feature_list, api, outline_width, alpha_test_enabled != FALSE
         );
-    } else if (!feature_edges.empty()) {
+    } else if (outline_enabled && !feature_edges.empty()) {
         DrawFeatureEdgeSegments(
             feature_edges, api, outline_width, alpha_test_enabled != FALSE
         );
@@ -1223,6 +1310,8 @@ void APIENTRY StrongDrawArrays(
         } else if (IsOutlinePrimitive(mode, count)) {
             const ArrayFeatureRequest request{mode, first, count, 0U, nullptr};
             DrawWithSilhouette(draw, nullptr, UINT32_MAX, &request);
+        } else if (count >= 3 && IsFilledPrimitiveMode(mode)) {
+            DrawWithBandedLighting(draw);
         } else {
             draw();
         }
@@ -1245,6 +1334,8 @@ void APIENTRY StrongDrawElements(
         } else if (IsOutlinePrimitive(mode, count)) {
             const ArrayFeatureRequest request{mode, 0, count, type, indices};
             DrawWithSilhouette(draw, nullptr, UINT32_MAX, &request);
+        } else if (count >= 3 && IsFilledPrimitiveMode(mode)) {
+            DrawWithBandedLighting(draw);
         } else {
             draw();
         }
@@ -1419,7 +1510,7 @@ float PerspectiveOutlineLineWidth(
     }
     const double depth = std::fabs(static_cast<double>(model_view[14]));
     if (depth < 0.001) {
-        return kMaximumRasterOutlinePixels;
+        return kTargetOutlinePixels;
     }
     const double pixels = (
         static_cast<double>(viewport[3])
@@ -1430,13 +1521,7 @@ float PerspectiveOutlineLineWidth(
     if (!std::isfinite(pixels) || pixels < kMinimumVisibleOutlinePixels) {
         return 0.0F;
     }
-    if (pixels <= kMinimumRasterOutlinePixels) {
-        return kMinimumRasterOutlinePixels;
-    }
-    if (pixels >= kMaximumRasterOutlinePixels) {
-        return kMaximumRasterOutlinePixels;
-    }
-    return static_cast<float>(pixels);
+    return kTargetOutlinePixels;
 }
 
 float InteriorContourLineWidth(const float outline_width) noexcept {
@@ -1618,6 +1703,7 @@ bool CenteredOutlineHullTransform(
     if (!std::isfinite(candidate.scale) || candidate.scale <= 1.0F) {
         return false;
     }
+    candidate.radius = static_cast<float>(radius);
     *transform = candidate;
     return true;
 }
@@ -1626,21 +1712,7 @@ bool IsOutlinePrimitive(const unsigned int mode, const int count) noexcept {
     if (count < 3 || count > kMaximumOutlinedElementCount) {
         return false;
     }
-    switch (mode) {
-        case kGlTriangles:
-        case kGlTriangleStrip:
-        case kGlTriangleFan:
-        case kGlQuads:
-        case kGlQuadStrip:
-        case kGlPolygon:
-            return true;
-        case kGlPoints:
-        case kGlLines:
-        case kGlLineLoop:
-        case kGlLineStrip:
-        default:
-            return false;
-    }
+    return IsFilledPrimitiveMode(mode);
 }
 
 std::uint32_t* FindImportAddressSlot(

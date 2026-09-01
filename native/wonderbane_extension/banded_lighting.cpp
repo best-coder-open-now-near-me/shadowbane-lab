@@ -13,16 +13,18 @@ namespace {
 constexpr unsigned int kGlActiveTexture = 0x84E0U;
 constexpr unsigned int kGlCompileStatus = 0x8B81U;
 constexpr unsigned int kGlCurrentProgram = 0x8B8DU;
+constexpr unsigned int kGlDecal = 0x2101U;
 constexpr unsigned int kGlFog = 0x0B60U;
 constexpr unsigned int kGlFogMode = 0x0B65U;
 constexpr unsigned int kGlFragmentShader = 0x8B30U;
-constexpr unsigned int kGlLighting = 0x0B50U;
 constexpr unsigned int kGlLinkStatus = 0x8B82U;
 constexpr unsigned int kGlModulate = 0x2100U;
+constexpr unsigned int kGlReplace = 0x1E01U;
 constexpr unsigned int kGlTexture0 = 0x84C0U;
 constexpr unsigned int kGlTexture2D = 0x0DE1U;
 constexpr unsigned int kGlTextureEnv = 0x2300U;
 constexpr unsigned int kGlTextureEnvMode = 0x2200U;
+constexpr unsigned int kGlVertexShader = 0x8B31U;
 
 constexpr std::array<float, 3U> kThresholds{0.22F, 0.43F, 0.66F};
 constexpr std::array<CelBandColor, 4U> kBandColors{{
@@ -96,6 +98,7 @@ struct BandedProgram {
     unsigned int program = 0U;
     int sampler_location = -1;
     int texture_enabled_location = -1;
+    int texture_env_mode_location = -1;
     int fog_enabled_location = -1;
     int fog_mode_location = -1;
     LONG generation = 0;
@@ -105,11 +108,36 @@ struct BandedProgram {
 volatile LONG g_generation = 1;
 thread_local BandedProgram g_program{};
 
+const char kVertexSource[] = R"glsl(#version 120
+varying float wbIntensity;
+
+void main() {
+    gl_Position = ftransform();
+    gl_FrontColor = gl_Color;
+    gl_BackColor = gl_Color;
+    gl_TexCoord[0] = gl_TextureMatrix[0] * gl_MultiTexCoord0;
+
+    vec3 transformedNormal = gl_NormalMatrix * gl_Normal;
+    float normalLength = length(transformedNormal);
+    vec3 normal = normalLength > 0.0001
+        ? transformedNormal / normalLength
+        : vec3(0.0, 0.0, 1.0);
+    vec3 lightDirection = normalize(vec3(-0.35, 0.55, 0.76));
+    float diffuse = max(dot(normal, lightDirection), 0.0);
+    wbIntensity = clamp(0.18 + 0.94 * diffuse, 0.0, 1.0);
+
+    vec4 eyePosition = gl_ModelViewMatrix * gl_Vertex;
+    gl_FogFragCoord = abs(eyePosition.z);
+}
+)glsl";
+
 const char kFragmentSource[] = R"glsl(#version 120
 uniform sampler2D wbTexture;
 uniform int wbTextureEnabled;
+uniform int wbTextureEnvMode;
 uniform int wbFogEnabled;
 uniform int wbFogMode;
+varying float wbIntensity;
 
 vec3 wbBand(float intensity) {
     if (intensity < 0.22) return vec3(0.20, 0.20, 0.20);
@@ -119,15 +147,24 @@ vec3 wbBand(float intensity) {
 }
 
 void main() {
-    vec3 fixedLighting = clamp(gl_Color.rgb, 0.0, 1.0);
-    float intensity = dot(fixedLighting, vec3(0.2126, 0.7152, 0.0722));
-    vec3 chroma = intensity > 0.001
-        ? fixedLighting / intensity
-        : vec3(1.0);
+    vec3 vertexTint = clamp(gl_Color.rgb, 0.0, 1.0);
     vec4 texel = wbTextureEnabled != 0
         ? texture2D(wbTexture, gl_TexCoord[0].st)
         : vec4(1.0);
-    vec4 result = vec4(texel.rgb * chroma * wbBand(intensity), texel.a * gl_Color.a);
+    vec3 baseColor = vertexTint;
+    float alpha = gl_Color.a;
+    if (wbTextureEnabled != 0) {
+        if (wbTextureEnvMode == 7681) {
+            baseColor = texel.rgb;
+            alpha = texel.a;
+        } else if (wbTextureEnvMode == 8449) {
+            baseColor = mix(vertexTint, texel.rgb, texel.a);
+        } else {
+            baseColor = texel.rgb * vertexTint;
+            alpha = texel.a * gl_Color.a;
+        }
+    }
+    vec4 result = vec4(baseColor * wbBand(wbIntensity), alpha);
 
     if (wbFogEnabled != 0) {
         float distance = abs(gl_FogFragCoord);
@@ -250,33 +287,57 @@ bool BuildProgram(BandedProgram* const state) noexcept {
         return false;
     }
     BandedApi& api = state->api;
-    const unsigned int shader = api.create_shader(kGlFragmentShader);
-    if (shader == 0U) {
+    const unsigned int vertex_shader = api.create_shader(kGlVertexShader);
+    if (vertex_shader == 0U) {
         return false;
     }
-    const char* source = kFragmentSource;
-    api.shader_source(shader, 1, &source, nullptr);
-    api.compile_shader(shader);
+    const char* vertex_source = kVertexSource;
+    api.shader_source(vertex_shader, 1, &vertex_source, nullptr);
+    api.compile_shader(vertex_shader);
     int compiled = 0;
-    api.get_shaderiv(shader, kGlCompileStatus, &compiled);
+    api.get_shaderiv(vertex_shader, kGlCompileStatus, &compiled);
     if (compiled == 0) {
         DebugLog(
-            "WonderBane banded fragment shader compilation failed: ",
-            shader,
+            "WonderBane banded vertex shader compilation failed: ",
+            vertex_shader,
             true,
             api
         );
-        api.delete_shader(shader);
+        api.delete_shader(vertex_shader);
+        return false;
+    }
+    const unsigned int fragment_shader = api.create_shader(kGlFragmentShader);
+    if (fragment_shader == 0U) {
+        api.delete_shader(vertex_shader);
+        return false;
+    }
+    const char* fragment_source = kFragmentSource;
+    api.shader_source(fragment_shader, 1, &fragment_source, nullptr);
+    api.compile_shader(fragment_shader);
+    compiled = 0;
+    api.get_shaderiv(fragment_shader, kGlCompileStatus, &compiled);
+    if (compiled == 0) {
+        DebugLog(
+            "WonderBane banded fragment shader compilation failed: ",
+            fragment_shader,
+            true,
+            api
+        );
+        api.delete_shader(fragment_shader);
+        api.delete_shader(vertex_shader);
         return false;
     }
     const unsigned int program = api.create_program();
     if (program == 0U) {
-        api.delete_shader(shader);
+        api.delete_shader(fragment_shader);
+        api.delete_shader(vertex_shader);
         return false;
     }
-    api.attach_shader(program, shader);
+    api.attach_shader(program, vertex_shader);
+    api.attach_shader(program, fragment_shader);
     api.link_program(program);
-    api.delete_shader(shader);
+    api.delete_shader(fragment_shader);
+    api.delete_shader(vertex_shader);
     int linked = 0;
     api.get_programiv(program, kGlLinkStatus, &linked);
     if (linked == 0) {
@@ -294,15 +355,22 @@ bool BuildProgram(BandedProgram* const state) noexcept {
     state->texture_enabled_location = api.get_uniform_location(
         program, "wbTextureEnabled"
     );
+    state->texture_env_mode_location = api.get_uniform_location(
+        program, "wbTextureEnvMode"
+    );
     state->fog_enabled_location = api.get_uniform_location(program, "wbFogEnabled");
     state->fog_mode_location = api.get_uniform_location(program, "wbFogMode");
     const bool has_uniforms = state->sampler_location >= 0
         && state->texture_enabled_location >= 0
+        && state->texture_env_mode_location >= 0
         && state->fog_enabled_location >= 0
         && state->fog_mode_location >= 0;
     if (!has_uniforms) {
         api.delete_program(program);
         state->program = 0U;
+    }
+    if (has_uniforms) {
+        OutputDebugStringA("WonderBane normal-driven cel program linked.\n");
     }
     return has_uniforms;
 }
@@ -364,6 +432,10 @@ const char* BandedLightingFragmentSource() noexcept {
     return kFragmentSource;
 }
 
+const char* BandedLightingVertexSource() noexcept {
+    return kVertexSource;
+}
+
 bool BeginBandedLightingDraw(BandedLightingDraw* const draw) noexcept {
     if (draw == nullptr) {
         return false;
@@ -378,15 +450,16 @@ bool BeginBandedLightingDraw(BandedLightingDraw* const draw) noexcept {
     api.get_integerv(kGlCurrentProgram, &current_program);
     api.get_integerv(kGlActiveTexture, &active_texture);
     if (current_program != 0
-        || active_texture != static_cast<int>(kGlTexture0)
-        || api.is_enabled(kGlLighting) == FALSE) {
+        || active_texture != static_cast<int>(kGlTexture0)) {
         return false;
     }
     const bool texture_enabled = api.is_enabled(kGlTexture2D) != FALSE;
+    int texture_mode = static_cast<int>(kGlModulate);
     if (texture_enabled) {
-        int texture_mode = 0;
         api.get_tex_enviv(kGlTextureEnv, kGlTextureEnvMode, &texture_mode);
-        if (texture_mode != static_cast<int>(kGlModulate)) {
+        if (texture_mode != static_cast<int>(kGlModulate)
+            && texture_mode != static_cast<int>(kGlReplace)
+            && texture_mode != static_cast<int>(kGlDecal)) {
             return false;
         }
     }
@@ -398,6 +471,7 @@ bool BeginBandedLightingDraw(BandedLightingDraw* const draw) noexcept {
     api.use_program(g_program.program);
     api.uniform_1i(g_program.sampler_location, 0);
     api.uniform_1i(g_program.texture_enabled_location, texture_enabled ? 1 : 0);
+    api.uniform_1i(g_program.texture_env_mode_location, texture_mode);
     api.uniform_1i(g_program.fog_enabled_location, fog_enabled ? 1 : 0);
     api.uniform_1i(g_program.fog_mode_location, fog_mode);
     draw->previous_program = current_program;
