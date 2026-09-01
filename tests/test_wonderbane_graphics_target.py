@@ -127,12 +127,8 @@ def test_graphics_publication_and_launch_pin_the_golden_package() -> None:
     assert "wonderbane-1.0.5-55fbad5f.restrained-cel-v1" in launch
     assert "start-wonderbane-graphics-lab.ps1" in launch
     assert 'RepositoryShare = "\\\\VBOXSVR\\codexrepo"' in lab_start
-    assert "Get-ReadyGraphicsLabProcess" in lab_start
-    assert "MainWindowHandle" in lab_start
-    assert "CreationDate" in lab_start
-    assert "RedirectStandardError" in lab_start
-    assert "did not create a visible window within 10 seconds" in lab_start
-    assert "Stop-ExactHeadlessGraphicsLabProcess" in lab_start
+    assert "WonderBane Graphics Lab is already running" in lab_start
+    assert "Stop-Process" not in lab_start
 
     cel_shading = (
         ROOT / "native" / "wonderbane_extension" / "cel_shading.cpp"
