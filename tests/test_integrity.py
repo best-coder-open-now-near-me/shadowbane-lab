@@ -14,10 +14,12 @@ from shadowbane_lab.integrity import (
     canonical_json_text,
     canonical_timestamp,
     create_only_json,
+    freeze_json,
     inventory_tree,
     load_strict_json,
     resolve_within_root,
     strict_json_loads,
+    thaw_json,
     tree_sha256,
     validate_relative_path,
 )
@@ -31,6 +33,24 @@ class CanonicalJsonTests(unittest.TestCase):
         right = {"a": [2, 1], "z": "é"}
         self.assertEqual(canonical_json_text(left), '{"a":[2,1],"z":"\\u00e9"}')
         self.assertEqual(canonical_json_sha256(left), canonical_json_sha256(right))
+
+    def test_frozen_json_is_detached_immutable_and_canonical(self) -> None:
+        original = {"nested": [{"value": 1}], "name": "fixture"}
+        frozen = freeze_json(original)
+        expected_digest = canonical_json_sha256(frozen)
+
+        original["nested"][0]["value"] = 2
+        original["nested"].append({"value": 3})
+
+        self.assertEqual(
+            {"name": "fixture", "nested": [{"value": 1}]},
+            thaw_json(frozen),
+        )
+        self.assertEqual(expected_digest, canonical_json_sha256(frozen))
+        with self.assertRaises(TypeError):
+            frozen["new"] = True
+        with self.assertRaises(AttributeError):
+            frozen["nested"].append({"value": 4})
 
     def test_strict_decoder_rejects_duplicate_and_nonfinite_fields(self) -> None:
         with self.assertRaisesRegex(IntegrityJsonError, "duplicate"):

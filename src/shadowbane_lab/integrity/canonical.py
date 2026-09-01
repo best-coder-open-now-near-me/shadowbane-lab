@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+from .frozen_json import thaw_json
 
 
 class IntegrityJsonError(ValueError):
@@ -89,7 +92,7 @@ def load_strict_json(
 def validate_finite_json(value: Any, *, bounds: JsonBounds = DEFAULT_JSON_BOUNDS) -> None:
     _validate_bounds(value, bounds)
     try:
-        json.dumps(value, allow_nan=False, ensure_ascii=True, sort_keys=True)
+        json.dumps(thaw_json(value), allow_nan=False, ensure_ascii=True, sort_keys=True)
     except (TypeError, ValueError) as exc:
         raise IntegrityJsonError(f"value must be finite JSON: {exc}") from exc
 
@@ -97,7 +100,7 @@ def validate_finite_json(value: Any, *, bounds: JsonBounds = DEFAULT_JSON_BOUNDS
 def canonical_json_text(value: Any) -> str:
     validate_finite_json(value)
     return json.dumps(
-        value,
+        thaw_json(value),
         allow_nan=False,
         ensure_ascii=True,
         separators=(",", ":"),
@@ -117,7 +120,7 @@ def pretty_json_text(value: Any) -> str:
     validate_finite_json(value)
     return (
         json.dumps(
-            value,
+            thaw_json(value),
             allow_nan=False,
             ensure_ascii=True,
             indent=2,
@@ -147,7 +150,7 @@ def _validate_bounds(value: Any, bounds: JsonBounds) -> None:
                 raise IntegrityJsonError("JSON numbers must be finite")
         elif isinstance(current, list | tuple):
             stack.extend((item, depth + 1) for item in current)
-        elif isinstance(current, dict):
+        elif isinstance(current, Mapping):
             for key, item in current.items():
                 if not isinstance(key, str):
                     raise IntegrityJsonError("JSON object keys must be strings")
