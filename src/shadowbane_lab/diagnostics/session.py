@@ -97,9 +97,9 @@ def run_diagnostic_capture(
 
     probe = process_probe or WindowsProcessProbe()
     session_clock = clock or SystemSessionClock()
-    initial_sample = probe.sample(request.process_id)
-    _validate_requested_executable(request.client_executable, initial_sample.identity)
-    live_executable = Path(initial_sample.identity.executable_path)
+    discovery_sample = probe.sample(request.process_id)
+    _validate_requested_executable(request.client_executable, discovery_sample.identity)
+    live_executable = Path(discovery_sample.identity.executable_path)
     fingerprint = capture_fingerprint(
         FingerprintCaptureInputs(
             client_directory=request.client_directory,
@@ -130,6 +130,11 @@ def run_diagnostic_capture(
     channel_failures: dict[str, str] = {}
     warnings: set[str] = set()
     fatal = False
+    initial_sample = probe.sample(request.process_id)
+    _validate_capture_start_identity(
+        discovery_sample.identity,
+        initial_sample.identity,
+    )
     started_ns = session_clock.monotonic_ns()
     started_utc = session_clock.utc_timestamp()
     deadline_ns = started_ns + int(request.effective_duration_seconds * 1_000_000_000)
@@ -914,6 +919,16 @@ def _validate_requested_executable(
         raise DiagnosticError(
             "requested client executable does not match the exact live process image"
         )
+
+
+def _validate_capture_start_identity(
+    discovered: ProcessIdentity,
+    captured: ProcessIdentity,
+) -> None:
+    if captured.exact_key != discovered.exact_key:
+        raise DiagnosticError("process identity changed between fingerprinting and capture start")
+    if _normalized_path(captured.executable_path) != _normalized_path(discovered.executable_path):
+        raise DiagnosticError("process executable changed between fingerprinting and capture start")
 
 
 def _normalized_path(value: str | Path) -> str:

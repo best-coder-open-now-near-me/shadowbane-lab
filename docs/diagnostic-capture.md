@@ -55,6 +55,13 @@ The collector observes the marker but does not create or delete it.
 Every process sample reads the image path, PID, and Windows process creation FILETIME through the
 same live handle as the counters. PID reuse, process restart, or image-path drift fails closed and
 seals the partial evidence. The run also fingerprints:
+Process discovery and metric capture use separate probes. The discovery identity selects and
+fingerprints the exact executable; after the store and collectors are ready, the process is sampled
+again and that fresh observation becomes sample 1 and the capture clock origin. PID/creation
+identity or executable-path drift between those probes blocks capture start. Fingerprinting time and
+counter changes are therefore never compressed into the first sampling interval, so whole-window
+deltas and rates no longer require a manual first-sample exclusion.
+
 
 - the exact live executable bytes and PE layout;
 - the whole client tree when --client-directory is supplied;

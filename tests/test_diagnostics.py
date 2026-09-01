@@ -13,6 +13,7 @@ from client_alignment_fixture import build_pe
 
 from shadowbane_lab.cli import main
 from shadowbane_lab.diagnostics import (
+    DiagnosticError,
     DiagnosticProfile,
     DiagnosticRequest,
     FileCaptureMode,
@@ -77,9 +78,7 @@ class _FakeProbe:
             "cpu_kernel_seconds": float(self.samples),
             "cpu_user_seconds": float(self.samples * 2),
             "process_handle_count": float(50 + self.samples),
-            "process_private_bytes": float(
-                100 + (self.samples - 1) * self.private_growth
-            ),
+            "process_private_bytes": float(100 + (self.samples - 1) * self.private_growth),
             "process_working_set_bytes": float(80 + self.samples),
         }
         return ProcessSample(identity, tuple(sorted(metrics.items())))
@@ -119,9 +118,9 @@ class DiagnosticSessionTests(unittest.TestCase):
             self.assertIs(result.manifest.terminal_state, ManifestTerminalState.COMPLETE)
             self.assertIn("graphics-present", result.manifest.completed_channels)
             graphics = json.loads(_artifact_payload(result, "graphics-present"))
-            self.assertEqual("exact-live-executable-bytes", graphics["assessment"][
-                "static_import_authority"
-            ])
+            self.assertEqual(
+                "exact-live-executable-bytes", graphics["assessment"]["static_import_authority"]
+            )
             self.assertEqual("none", graphics["assessment"]["candidate_status"])
             self.assertEqual("unresolved", graphics["assessment"]["active_route_authority"])
 
@@ -155,14 +154,16 @@ class DiagnosticSessionTests(unittest.TestCase):
             )
             stream = json.loads(_artifact_payload(result, "capture-stream"))
             metrics = [
-                record
-                for record in stream["records"]
-                if record["channel_id"] == "process-metrics"
+                record for record in stream["records"] if record["channel_id"] == "process-metrics"
             ]
             self.assertEqual(3, len(metrics))
-            self.assertEqual(123_456, result.summary["process_identity"][
-                "process_creation_filetime_utc"
-            ])
+            self.assertEqual(
+                110.0,
+                metrics[0]["payload"]["process_private_bytes"],
+            )
+            self.assertEqual(
+                123_456, result.summary["process_identity"]["process_creation_filetime_utc"]
+            )
 
     def test_triggered_capture_retains_only_configured_binary_pre_window(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -252,7 +253,7 @@ class DiagnosticSessionTests(unittest.TestCase):
                     sample_interval_seconds=0.1,
                     client_executable=executable,
                 ),
-                process_probe=_FakeProbe(executable, change_identity_at=2),
+                process_probe=_FakeProbe(executable, change_identity_at=3),
                 clock=_FakeClock(),
             )
             self.assertIs(result.manifest.terminal_state, ManifestTerminalState.FAILED)
@@ -261,6 +262,26 @@ class DiagnosticSessionTests(unittest.TestCase):
                 VerificationStatus.PASS,
                 verify_manifest(result.store, result.manifest).status,
             )
+
+    def test_identity_change_during_fingerprinting_blocks_capture_start(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            executable = Path(sys.executable)
+            with self.assertRaisesRegex(
+                DiagnosticError,
+                "between fingerprinting and capture start",
+            ):
+                run_diagnostic_capture(
+                    DiagnosticRequest(
+                        output_directory=root / "capture",
+                        process_id=46,
+                        duration_seconds=0.1,
+                        sample_interval_seconds=0.1,
+                        client_executable=executable,
+                    ),
+                    process_probe=_FakeProbe(executable, change_identity_at=2),
+                    clock=_FakeClock(),
+                )
 
     def test_build_drift_is_evidence_only_and_never_auto_promoted(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -283,13 +304,9 @@ class DiagnosticSessionTests(unittest.TestCase):
             )
             alignment = json.loads(_artifact_payload(result, "client-alignment"))
             interpretation = alignment["diagnostic_interpretation"]
-            self.assertEqual("candidate-evidence-only", interpretation[
-                "address_mapping_authority"
-            ])
+            self.assertEqual("candidate-evidence-only", interpretation["address_mapping_authority"])
             self.assertFalse(interpretation["automatic_compatibility_promotion"])
-            self.assertTrue(
-                interpretation["unresolved_mapping_blocks_dependent_decoders"]
-            )
+            self.assertTrue(interpretation["unresolved_mapping_blocks_dependent_decoders"])
 
     def test_analysis_is_stable_and_reuses_sealed_raw_samples(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -348,7 +365,7 @@ class DiagnosticSessionTests(unittest.TestCase):
                 candidate.manifest,
             )
             private = comparison["metrics"]["process_private_bytes"]
-            self.assertEqual(10.0, private["mean_delta"])
+            self.assertEqual(20.0, private["mean_delta"])
             self.assertEqual(20.0, private["net_change_delta"])
             self.assertFalse(comparison["review_required"])
 
