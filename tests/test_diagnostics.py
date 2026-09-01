@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 import io
 import json
-import sys
 import tempfile
 import unittest
 from contextlib import redirect_stdout
@@ -191,11 +190,17 @@ def _artifact_payload(result, channel_id: str) -> bytes:
         return stream.read()
 
 
+def _write_client_executable(root: Path) -> Path:
+    executable = root / "sb.exe"
+    executable.write_bytes(build_pe())
+    return executable
+
+
 class DiagnosticSessionTests(unittest.TestCase):
     def test_aggregate_performance_capture_seals_one_correlated_timeline(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            executable = Path(sys.executable)
+            executable = _write_client_executable(root)
             source_instances: list[_FakePerformanceSource] = []
 
             def source_factory(identity: ProcessIdentity) -> _FakePerformanceSource:
@@ -268,7 +273,7 @@ class DiagnosticSessionTests(unittest.TestCase):
     def test_standard_capture_seals_reusable_metrics_and_identity(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            executable = Path(sys.executable)
+            executable = _write_client_executable(root)
             result = run_diagnostic_capture(
                 DiagnosticRequest(
                     output_directory=root / "capture",
@@ -309,7 +314,7 @@ class DiagnosticSessionTests(unittest.TestCase):
     def test_native_position_uses_process_metric_clock_and_exact_identity(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            executable = Path(sys.executable)
+            executable = _write_client_executable(root)
             source: _FakeNativePositionSource | None = None
 
             def factory(process_id: int) -> _FakeNativePositionSource:
@@ -361,7 +366,7 @@ class DiagnosticSessionTests(unittest.TestCase):
     def test_native_position_identity_mismatch_is_sealed_as_omission(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            executable = Path(sys.executable)
+            executable = _write_client_executable(root)
             source = _FakeNativePositionSource(
                 executable,
                 process_id=143,
@@ -394,7 +399,7 @@ class DiagnosticSessionTests(unittest.TestCase):
     def test_triggered_capture_retains_only_configured_binary_pre_window(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            executable = Path(sys.executable)
+            executable = _write_client_executable(root)
             log = root / "client.log"
             log.write_bytes(b"a")
             appended = iter((b"b", b"c", b"d", b"e"))
@@ -441,7 +446,7 @@ class DiagnosticSessionTests(unittest.TestCase):
     def test_requested_missing_channel_is_explicitly_incomplete(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            executable = Path(sys.executable)
+            executable = _write_client_executable(root)
             result = run_diagnostic_capture(
                 DiagnosticRequest(
                     output_directory=root / "capture",
@@ -470,7 +475,7 @@ class DiagnosticSessionTests(unittest.TestCase):
     def test_pid_reuse_fails_closed_but_preserves_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            executable = Path(sys.executable)
+            executable = _write_client_executable(root)
             result = run_diagnostic_capture(
                 DiagnosticRequest(
                     output_directory=root / "capture",
@@ -492,7 +497,7 @@ class DiagnosticSessionTests(unittest.TestCase):
     def test_identity_change_during_fingerprinting_blocks_capture_start(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            executable = Path(sys.executable)
+            executable = _write_client_executable(root)
             with self.assertRaisesRegex(
                 DiagnosticError,
                 "between fingerprinting and capture start",
@@ -537,7 +542,7 @@ class DiagnosticSessionTests(unittest.TestCase):
     def test_analysis_is_stable_and_reuses_sealed_raw_samples(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            executable = Path(sys.executable)
+            executable = _write_client_executable(root)
             result = run_diagnostic_capture(
                 DiagnosticRequest(
                     output_directory=root / "capture",
@@ -561,7 +566,7 @@ class DiagnosticSessionTests(unittest.TestCase):
     def test_comparison_uses_raw_samples_from_both_captures(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            executable = Path(sys.executable)
+            executable = _write_client_executable(root)
             request = dict(
                 process_id=48,
                 duration_seconds=0.2,
