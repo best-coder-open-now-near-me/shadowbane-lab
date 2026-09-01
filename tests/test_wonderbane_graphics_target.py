@@ -136,13 +136,13 @@ def test_extension_version_is_consistent_across_every_runtime_surface() -> None:
     graphics_status = (native / "graphics_status.cpp").read_text(encoding="utf-8")
     api = (native / "extension_api.h").read_text(encoding="utf-8")
     resource = (native / "extension.rc").read_text(encoding="utf-8")
-    assert "project(wonderbane_extension VERSION 1.6.3" in cmake
-    assert 'kExtensionVersion[] = "1.6.3"' in extension
-    assert 'kExtensionVersion[] = "1.6.3"' in graphics_status
+    assert "project(wonderbane_extension VERSION 1.6.4" in cmake
+    assert 'kExtensionVersion[] = "1.6.4"' in extension
+    assert 'kExtensionVersion[] = "1.6.4"' in graphics_status
     assert "WONDERBANE_EXTENSION_VERSION_MAJOR 1U" in api
     assert "WONDERBANE_EXTENSION_VERSION_MINOR 6U" in api
-    assert "WONDERBANE_EXTENSION_VERSION_PATCH 3U" in api
-    assert "FILEVERSION 1,6,3,0" in resource
-    assert "PRODUCTVERSION 1,6,3,0" in resource
-    assert 'VALUE "FileVersion", "1.6.3.0\\0"' in resource
-    assert 'VALUE "ProductVersion", "1.6.3.0\\0"' in resource
+    assert "WONDERBANE_EXTENSION_VERSION_PATCH 4U" in api
+    assert "FILEVERSION 1,6,4,0" in resource
+    assert "PRODUCTVERSION 1,6,4,0" in resource
+    assert 'VALUE "FileVersion", "1.6.4.0\\0"' in resource
+    assert 'VALUE "ProductVersion", "1.6.4.0\\0"' in resource

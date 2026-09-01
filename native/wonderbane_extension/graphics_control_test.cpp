@@ -34,6 +34,8 @@ int main() {
 
     const auto defaults = DefaultGraphicsParameters();
     if (!ValidateGraphicsParameters(defaults)
+        || (defaults.flags & wonderbane::extension::kGraphicsControlAdaptiveOutlines)
+            == 0U
         || defaults.depth_edge_threshold != 0.055F
         || defaults.feature_outline_width != 1.35F) {
         return Fail("default parameter contract");

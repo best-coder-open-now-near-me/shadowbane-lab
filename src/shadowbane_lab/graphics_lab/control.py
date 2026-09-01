@@ -124,7 +124,7 @@ class GraphicsParameters:
 
 
 DEFAULT_PARAMETERS = GraphicsParameters(
-    flags=BANDED_LIGHTING | DEPTH_CONTOURS | FEATURE_ACCENTS,
+    flags=BANDED_LIGHTING | DEPTH_CONTOURS | FEATURE_ACCENTS | ADAPTIVE_OUTLINES,
     dark_scene_outline=(0.52, 0.56, 0.70),
     dark_scene_outline_strength=0.28,
     bright_scene_ink_alpha=0.86,

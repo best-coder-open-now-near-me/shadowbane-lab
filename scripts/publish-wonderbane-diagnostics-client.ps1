@@ -5,8 +5,8 @@ param(
     [string] $PythonExecutable = "$env:USERPROFILE\shadowbane-lab\.venv\Scripts\python.exe",
     [string] $ClientDirectory = "$env:USERPROFILE\Downloads\WonderbaneClient\Wonderbane",
     [string] $ExpectedVanillaExecutableSha256 = "55fbad5f0110cd99b4085af72d1e8fddb782ccdec1491478492c18158f5c61bc",
-    [string] $ExtensionVersion = "1.6.3",
-    [string] $ExpectedExtensionSha256 = "60d3aee38171327b8a91bbc34bc619a6a28fb670a1f40307ae2d02e00d266e81",
+    [string] $ExtensionVersion = "1.6.4",
+    [string] $ExpectedExtensionSha256 = "2fe197f0b8fb426579a8f71c76aa9ae0822ca9eb7d619c2625f1b068a8f47935",
     [string] $ExtensionArtifact = "\\VBOXSVR\codexdiagtools\build\wonderbane-diagnostics-extension\Release\wonderbane-extension.dll",
     [ValidatePattern("(?-i)^[a-z0-9][a-z0-9-]{0,31}$")]
     [string] $InstanceId = "primary",

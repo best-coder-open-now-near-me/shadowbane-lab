@@ -100,6 +100,8 @@ const char* DrawClassificationReasonName(
             return "blended-perspective";
         case DrawClassificationReason::depthless_perspective:
             return "depthless-perspective";
+        case DrawClassificationReason::count:
+            break;
     }
     return "invalid";
 }
@@ -116,6 +118,12 @@ SceneFrameDecision AdvanceSceneFrame(
     const std::size_t layer_index = static_cast<std::size_t>(classification.layer);
     if (layer_index < frame->draw_counts.size()) {
         ++frame->draw_counts[layer_index];
+    }
+    const std::size_t reason_index = static_cast<std::size_t>(
+        classification.reason
+    );
+    if (reason_index < frame->reason_counts.size()) {
+        ++frame->reason_counts[reason_index];
     }
     if (IsWorldLayer(classification.layer)) {
         if (frame->phase == SceneFramePhase::ui) {

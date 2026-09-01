@@ -31,6 +31,7 @@ constexpr unsigned int kGlFog = 0x0B60U;
 constexpr unsigned int kGlFragmentShader = 0x8B30U;
 constexpr unsigned int kGlLighting = 0x0B50U;
 constexpr unsigned int kGlLinkStatus = 0x8B82U;
+constexpr unsigned int kGlMaxTextureSize = 0x0D33U;
 constexpr unsigned int kGlMatrixMode = 0x0BA0U;
 constexpr unsigned int kGlModelView = 0x1700U;
 constexpr unsigned int kGlNearest = 0x2600U;
@@ -39,10 +40,13 @@ constexpr unsigned int kGlOneMinusSrcAlpha = 0x0303U;
 constexpr unsigned int kGlOneMinusDstColor = 0x0307U;
 constexpr unsigned int kGlProjection = 0x1701U;
 constexpr unsigned int kGlQuads = 0x0007U;
+constexpr unsigned int kGlRgb = 0x1907U;
+constexpr unsigned int kGlRgb8 = 0x8051U;
 constexpr unsigned int kGlScissorTest = 0x0C11U;
 constexpr unsigned int kGlSrcAlpha = 0x0302U;
 constexpr unsigned int kGlStencilTest = 0x0B90U;
 constexpr unsigned int kGlTexture0 = 0x84C0U;
+constexpr unsigned int kGlTexture1 = 0x84C1U;
 constexpr unsigned int kGlTexture2D = 0x0DE1U;
 constexpr unsigned int kGlTextureBinding2D = 0x8069U;
 constexpr unsigned int kGlTextureMagFilter = 0x2800U;
@@ -50,6 +54,7 @@ constexpr unsigned int kGlTextureMinFilter = 0x2801U;
 constexpr unsigned int kGlTextureWrapS = 0x2802U;
 constexpr unsigned int kGlTextureWrapT = 0x2803U;
 constexpr unsigned int kGlUnsignedInt = 0x1405U;
+constexpr unsigned int kGlUnsignedByte = 0x1401U;
 constexpr unsigned int kGlVertexShader = 0x8B31U;
 
 using GlActiveTexture = void(APIENTRY*)(unsigned int texture);
@@ -78,6 +83,7 @@ using GlCreateProgram = unsigned int(APIENTRY*)();
 using GlCreateShader = unsigned int(APIENTRY*)(unsigned int type);
 using GlDeleteProgram = void(APIENTRY*)(unsigned int program);
 using GlDeleteShader = void(APIENTRY*)(unsigned int shader);
+using GlDeleteTextures = void(APIENTRY*)(int count, const unsigned int* textures);
 using GlDepthMask = void(APIENTRY*)(unsigned char enabled);
 using GlDisable = void(APIENTRY*)(unsigned int capability);
 using GlEnable = void(APIENTRY*)(unsigned int capability);
@@ -166,6 +172,7 @@ struct DepthEdgeApi {
     GlCreateShader create_shader = nullptr;
     GlDeleteProgram delete_program = nullptr;
     GlDeleteShader delete_shader = nullptr;
+    GlDeleteTextures delete_textures = nullptr;
     GlDepthMask depth_mask = nullptr;
     GlDisable disable = nullptr;
     GlEnable enable = nullptr;
@@ -205,7 +212,10 @@ struct DepthEdgeRuntime {
     DepthEdgeApi api{};
     unsigned int program = 0U;
     unsigned int depth_texture = 0U;
-    int sampler_location = -1;
+    unsigned int scene_color_texture = 0U;
+    int depth_sampler_location = -1;
+    int scene_color_sampler_location = -1;
+    int scene_color_available_location = -1;
     int texel_size_location = -1;
     int projection_location = -1;
     int adaptive_outline_location = -1;
@@ -213,8 +223,11 @@ struct DepthEdgeRuntime {
     int dark_scene_outline_strength_location = -1;
     int bright_scene_ink_alpha_location = -1;
     int edge_threshold_location = -1;
-    int texture_width = 0;
-    int texture_height = 0;
+    int depth_texture_width = 0;
+    int depth_texture_height = 0;
+    int scene_color_texture_width = 0;
+    int scene_color_texture_height = 0;
+    int maximum_texture_size = 0;
     LONG generation = 0;
     bool failed = false;
 };
@@ -241,6 +254,8 @@ void main() {
 
 const char kFragmentSource[] = R"glsl(#version 120
 uniform sampler2D wbDepthTexture;
+uniform sampler2D wbSceneColorTexture;
+uniform int wbSceneColorAvailable;
 uniform vec2 wbTexelSize;
 uniform vec3 wbProjection;
 uniform int wbAdaptiveOutlineEnabled;
@@ -263,6 +278,28 @@ float wbForegroundPairCurvature(float first, float second, float center) {
     return abs(first + second - 2.0 * center) / max(center, 0.000001);
 }
 
+vec4 wbAdaptiveOutline(vec3 sceneColor) {
+    float luminance = dot(sceneColor, vec3(0.2126, 0.7152, 0.0722));
+    float maximumChannel = max(sceneColor.r, max(sceneColor.g, sceneColor.b));
+    float minimumChannel = min(sceneColor.r, min(sceneColor.g, sceneColor.b));
+    float saturation = (maximumChannel - minimumChannel)
+        / max(maximumChannel, 0.001);
+    vec3 localHue = maximumChannel > 0.001
+        ? sceneColor / maximumChannel
+        : wbDarkSceneOutline;
+    vec3 darkSurfaceRim = mix(
+        wbDarkSceneOutline,
+        localHue,
+        clamp(saturation * 0.45, 0.0, 0.45)
+    ) * wbDarkSceneOutlineStrength;
+    float brightSurface = smoothstep(0.36, 0.70, luminance);
+    vec3 brightSurfaceInk = vec3(0.012, 0.010, 0.016);
+    return vec4(
+        mix(darkSurfaceRim, brightSurfaceInk, brightSurface),
+        mix(0.58, wbBrightSceneInkAlpha, brightSurface)
+    );
+}
+
 void main() {
     float centerSample = texture2D(wbDepthTexture, wbDepthUv).r;
     if (centerSample >= 0.999999) discard;
@@ -274,9 +311,16 @@ void main() {
     float response = wbForegroundPairCurvature(right, left, center);
     response = max(response, wbForegroundPairCurvature(up, down, center));
     if (response <= wbEdgeThreshold) discard;
-    gl_FragColor = wbAdaptiveOutlineEnabled != 0
-        ? vec4(wbDarkSceneOutline * wbDarkSceneOutlineStrength, wbBrightSceneInkAlpha)
-        : vec4(0.012, 0.010, 0.016, 0.86);
+    if (wbAdaptiveOutlineEnabled != 0) {
+        gl_FragColor = wbSceneColorAvailable != 0
+            ? wbAdaptiveOutline(texture2D(wbSceneColorTexture, wbDepthUv).rgb)
+            : vec4(
+                wbDarkSceneOutline * wbDarkSceneOutlineStrength,
+                wbBrightSceneInkAlpha
+            );
+    } else {
+        gl_FragColor = vec4(0.012, 0.010, 0.016, 0.86);
+    }
 }
 )glsl";
 
@@ -339,6 +383,7 @@ bool ResolveApi(DepthEdgeApi* const api) noexcept {
     WB_RESOLVE(create_shader, GlCreateShader, "glCreateShader");
     WB_RESOLVE(delete_program, GlDeleteProgram, "glDeleteProgram");
     WB_RESOLVE(delete_shader, GlDeleteShader, "glDeleteShader");
+    WB_RESOLVE(delete_textures, GlDeleteTextures, "glDeleteTextures");
     WB_RESOLVE(depth_mask, GlDepthMask, "glDepthMask");
     WB_RESOLVE(disable, GlDisable, "glDisable");
     WB_RESOLVE(enable, GlEnable, "glEnable");
@@ -376,6 +421,7 @@ bool ResolveApi(DepthEdgeApi* const api) noexcept {
         && api->compile_shader != nullptr && api->copy_tex_sub_image_2d != nullptr
         && api->create_program != nullptr && api->create_shader != nullptr
         && api->delete_program != nullptr && api->delete_shader != nullptr
+        && api->delete_textures != nullptr
         && api->depth_mask != nullptr && api->disable != nullptr
         && api->enable != nullptr && api->end != nullptr
         && api->gen_textures != nullptr && api->get_error != nullptr
@@ -471,7 +517,15 @@ bool BuildResources(DepthEdgeRuntime* const runtime) noexcept {
         api.delete_program(program);
         return false;
     }
-    runtime->sampler_location = api.get_uniform_location(program, "wbDepthTexture");
+    runtime->depth_sampler_location = api.get_uniform_location(
+        program, "wbDepthTexture"
+    );
+    runtime->scene_color_sampler_location = api.get_uniform_location(
+        program, "wbSceneColorTexture"
+    );
+    runtime->scene_color_available_location = api.get_uniform_location(
+        program, "wbSceneColorAvailable"
+    );
     runtime->texel_size_location = api.get_uniform_location(program, "wbTexelSize");
     runtime->projection_location = api.get_uniform_location(program, "wbProjection");
     runtime->adaptive_outline_location = api.get_uniform_location(
@@ -489,7 +543,10 @@ bool BuildResources(DepthEdgeRuntime* const runtime) noexcept {
     runtime->edge_threshold_location = api.get_uniform_location(
         program, "wbEdgeThreshold"
     );
-    if (runtime->sampler_location < 0 || runtime->texel_size_location < 0
+    if (runtime->depth_sampler_location < 0
+        || runtime->scene_color_sampler_location < 0
+        || runtime->scene_color_available_location < 0
+        || runtime->texel_size_location < 0
         || runtime->projection_location < 0
         || runtime->adaptive_outline_location < 0
         || runtime->dark_scene_outline_location < 0
@@ -499,21 +556,48 @@ bool BuildResources(DepthEdgeRuntime* const runtime) noexcept {
         api.delete_program(program);
         return false;
     }
-    unsigned int texture = 0U;
-    api.gen_textures(1, &texture);
-    if (texture == 0U) {
+    std::array<unsigned int, 2U> textures{};
+    api.gen_textures(static_cast<int>(textures.size()), textures.data());
+    if (textures[0] == 0U || textures[1] == 0U) {
+        api.delete_textures(static_cast<int>(textures.size()), textures.data());
         api.delete_program(program);
         return false;
     }
     runtime->program = program;
-    runtime->depth_texture = texture;
+    runtime->depth_texture = textures[0];
+    runtime->scene_color_texture = textures[1];
     OutputDebugStringA("WonderBane fixed-pixel depth-edge program linked.\n");
     return true;
+}
+
+void ReleaseResources(DepthEdgeRuntime* const runtime) noexcept {
+    if (runtime == nullptr || runtime->context == nullptr
+        || runtime->api.get_current_context == nullptr
+        || runtime->api.get_current_context() != runtime->context) {
+        return;
+    }
+    if (runtime->program != 0U && runtime->api.delete_program != nullptr) {
+        runtime->api.delete_program(runtime->program);
+        runtime->program = 0U;
+    }
+    if (runtime->api.delete_textures != nullptr) {
+        const std::array<unsigned int, 2U> textures{
+            runtime->depth_texture,
+            runtime->scene_color_texture,
+        };
+        runtime->api.delete_textures(
+            static_cast<int>(textures.size()),
+            textures.data()
+        );
+        runtime->depth_texture = 0U;
+        runtime->scene_color_texture = 0U;
+    }
 }
 
 bool EnsureResources() noexcept {
     const LONG generation = InterlockedCompareExchange(&g_generation, 0, 0);
     if (g_runtime.generation != generation) {
+        ReleaseResources(&g_runtime);
         g_runtime = {};
         g_runtime.generation = generation;
     }
@@ -526,6 +610,7 @@ bool EnsureResources() noexcept {
         if (current == g_runtime.context && g_runtime.failed) {
             return false;
         }
+        ReleaseResources(&g_runtime);
         g_runtime = {};
         g_runtime.generation = generation;
     }
@@ -538,6 +623,15 @@ bool EnsureResources() noexcept {
     if (g_runtime.context == nullptr) {
         g_runtime.failed = true;
         ReportDepthEdgePassFailure("current-context-unavailable");
+        return false;
+    }
+    g_runtime.api.get_integerv(
+        kGlMaxTextureSize,
+        &g_runtime.maximum_texture_size
+    );
+    if (g_runtime.maximum_texture_size <= 0) {
+        g_runtime.failed = true;
+        ReportDepthEdgePassFailure("maximum-texture-size-unavailable");
         return false;
     }
     if (!BuildResources(&g_runtime)) {
@@ -563,7 +657,12 @@ bool CopyDepthTexture(const DepthEdgeFrame& frame) noexcept {
     if (width <= 0 || height <= 0) {
         return false;
     }
-    if (g_runtime.texture_width != width || g_runtime.texture_height != height) {
+    if (width > g_runtime.maximum_texture_size
+        || height > g_runtime.maximum_texture_size) {
+        return false;
+    }
+    if (g_runtime.depth_texture_width != width
+        || g_runtime.depth_texture_height != height) {
         api.tex_image_2d(
             kGlTexture2D,
             0,
@@ -590,8 +689,63 @@ bool CopyDepthTexture(const DepthEdgeFrame& frame) noexcept {
         if (api.get_error() != kGlNoError) {
             return false;
         }
-        g_runtime.texture_width = width;
-        g_runtime.texture_height = height;
+        g_runtime.depth_texture_width = width;
+        g_runtime.depth_texture_height = height;
+    }
+    api.copy_tex_sub_image_2d(
+        kGlTexture2D,
+        0,
+        0,
+        0,
+        frame.viewport[0],
+        frame.viewport[1],
+        width,
+        height
+    );
+    return api.get_error() == kGlNoError;
+}
+
+bool CopySceneColorTexture(const DepthEdgeFrame& frame) noexcept {
+    DepthEdgeApi& api = g_runtime.api;
+    const int width = frame.viewport[2];
+    const int height = frame.viewport[3];
+    if (width <= 0 || height <= 0) {
+        return false;
+    }
+    if (width > g_runtime.maximum_texture_size
+        || height > g_runtime.maximum_texture_size) {
+        return false;
+    }
+    if (g_runtime.scene_color_texture_width != width
+        || g_runtime.scene_color_texture_height != height) {
+        api.tex_image_2d(
+            kGlTexture2D,
+            0,
+            static_cast<int>(kGlRgb8),
+            width,
+            height,
+            0,
+            kGlRgb,
+            kGlUnsignedByte,
+            nullptr
+        );
+        api.tex_parameter_i(
+            kGlTexture2D, kGlTextureMinFilter, static_cast<int>(kGlNearest)
+        );
+        api.tex_parameter_i(
+            kGlTexture2D, kGlTextureMagFilter, static_cast<int>(kGlNearest)
+        );
+        api.tex_parameter_i(
+            kGlTexture2D, kGlTextureWrapS, static_cast<int>(kGlClampToEdge)
+        );
+        api.tex_parameter_i(
+            kGlTexture2D, kGlTextureWrapT, static_cast<int>(kGlClampToEdge)
+        );
+        if (api.get_error() != kGlNoError) {
+            return false;
+        }
+        g_runtime.scene_color_texture_width = width;
+        g_runtime.scene_color_texture_height = height;
     }
     api.copy_tex_sub_image_2d(
         kGlTexture2D,
@@ -620,18 +774,34 @@ bool CompositeDepthEdges(const DepthEdgeFrame& frame) noexcept {
     api.get_integerv(kGlMatrixMode, &previous_matrix_mode);
     api.push_attrib(kGlAllAttribBits);
     api.active_texture(kGlTexture0);
-    int previous_texture = 0;
-    api.get_integerv(kGlTextureBinding2D, &previous_texture);
+    int previous_depth_unit_texture = 0;
+    api.get_integerv(kGlTextureBinding2D, &previous_depth_unit_texture);
     api.bind_texture(kGlTexture2D, g_runtime.depth_texture);
     ClearErrors(api);
     if (!CopyDepthTexture(frame)) {
-        api.bind_texture(kGlTexture2D, static_cast<unsigned int>(previous_texture));
+        api.bind_texture(
+            kGlTexture2D,
+            static_cast<unsigned int>(previous_depth_unit_texture)
+        );
         api.active_texture(static_cast<unsigned int>(previous_active_texture));
         api.pop_attrib();
         api.matrix_mode(static_cast<unsigned int>(previous_matrix_mode));
         ReportDepthEdgePassFailure("default-depth-copy-failed");
         return false;
     }
+    api.active_texture(kGlTexture1);
+    int previous_scene_color_unit_texture = 0;
+    api.get_integerv(kGlTextureBinding2D, &previous_scene_color_unit_texture);
+    api.bind_texture(kGlTexture2D, g_runtime.scene_color_texture);
+    ClearErrors(api);
+    const bool scene_color_available = CopySceneColorTexture(frame);
+    if (scene_color_available) {
+        ReportSceneColorCapture();
+    } else {
+        ReportSceneColorCaptureFailure("default-color-copy-failed");
+    }
+    api.active_texture(kGlTexture0);
+    api.bind_texture(kGlTexture2D, g_runtime.depth_texture);
 
     api.disable(kGlAlphaTest);
     api.disable(kGlColorLogicOp);
@@ -646,14 +816,19 @@ bool CompositeDepthEdges(const DepthEdgeFrame& frame) noexcept {
     api.enable(kGlTexture2D);
     api.blend_func(
         (parameters.flags & kGraphicsControlAdaptiveOutlines) != 0U
-            ? kGlOneMinusDstColor
+            && !scene_color_available ? kGlOneMinusDstColor
             : kGlSrcAlpha,
         kGlOneMinusSrcAlpha
     );
     api.color_mask(TRUE, TRUE, TRUE, TRUE);
     api.depth_mask(FALSE);
     api.use_program(g_runtime.program);
-    api.uniform_1i(g_runtime.sampler_location, 0);
+    api.uniform_1i(g_runtime.depth_sampler_location, 0);
+    api.uniform_1i(g_runtime.scene_color_sampler_location, 1);
+    api.uniform_1i(
+        g_runtime.scene_color_available_location,
+        scene_color_available ? 1 : 0
+    );
     api.uniform_2f(
         g_runtime.texel_size_location,
         1.0F / static_cast<float>(frame.viewport[2]),
@@ -706,7 +881,16 @@ bool CompositeDepthEdges(const DepthEdgeFrame& frame) noexcept {
     api.matrix_mode(kGlProjection);
     api.pop_matrix();
     api.use_program(static_cast<unsigned int>(previous_program));
-    api.bind_texture(kGlTexture2D, static_cast<unsigned int>(previous_texture));
+    api.active_texture(kGlTexture1);
+    api.bind_texture(
+        kGlTexture2D,
+        static_cast<unsigned int>(previous_scene_color_unit_texture)
+    );
+    api.active_texture(kGlTexture0);
+    api.bind_texture(
+        kGlTexture2D,
+        static_cast<unsigned int>(previous_depth_unit_texture)
+    );
     api.active_texture(static_cast<unsigned int>(previous_active_texture));
     api.pop_attrib();
     api.matrix_mode(static_cast<unsigned int>(previous_matrix_mode));
@@ -823,6 +1007,7 @@ void EndDepthEdgeFrame() noexcept {
 }
 
 void ResetDepthEdges() noexcept {
+    ReleaseResources(&g_runtime);
     InterlockedIncrement(&g_generation);
     g_runtime = {};
     g_frame = {};

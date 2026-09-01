@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(wonderbane_extension VERSION 1.6.3 LANGUAGES CXX RC)
+project(wonderbane_extension VERSION 1.6.4 LANGUAGES CXX RC)
 
 set(WONDERBANE_EXTENSION_PROFILE "full" CACHE STRING "Extension runtime profile")
 set_property(
@@ -162,6 +162,7 @@ if(BUILD_TESTING)
     graphics_status.cpp
     import_hook.cpp
     performance_telemetry.cpp
+    scene_frame.cpp
   )
   target_compile_features(
     wonderbane_extension_cel_shading_test
@@ -524,6 +525,7 @@ if(BUILD_TESTING)
     import_hook.cpp
     performance_telemetry.cpp
     performance_telemetry_test.cpp
+    scene_frame.cpp
   )
   target_compile_features(
     wonderbane_extension_performance_telemetry_test

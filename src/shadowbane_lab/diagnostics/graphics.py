@@ -81,6 +81,8 @@ def collect_graphics_present_evidence(
         else "unresolved"
     )
     graphics_context = runtime.get("graphics_context")
+    scene_color_capture = runtime.get("scene_color_capture")
+    draw_classification = runtime.get("draw_classification")
     depth_edge_ready = bool(
         active_route_authority == "runtime-observed-exact-process"
         and isinstance(graphics_context, dict)
@@ -89,6 +91,20 @@ def collect_graphics_present_evidence(
         and graphics_context["depth_bits"] > 0
         and graphics_context.get("depth_texture_supported") is True
         and _bounded_text(graphics_context.get("glsl_version"), 256)
+    )
+    scene_color_ready = bool(
+        runtime.get("state") == "accepted"
+        and isinstance(scene_color_capture, dict)
+        and scene_color_capture.get("state") == "active"
+        and isinstance(scene_color_capture.get("capture_count"), int)
+        and scene_color_capture["capture_count"] > 0
+    )
+    world_ui_separation_observed = bool(
+        runtime.get("state") == "accepted"
+        and isinstance(draw_classification, dict)
+        and draw_classification.get("state") == "active"
+        and isinstance(draw_classification.get("classified_frame_count"), int)
+        and draw_classification["classified_frame_count"] > 0
     )
     report: dict[str, object] = {
         "schema_version": GRAPHICS_PRESENT_EVIDENCE_SCHEMA_VERSION,
@@ -116,6 +132,8 @@ def collect_graphics_present_evidence(
             ),
             "active_route_authority": active_route_authority,
             "depth_edge_prerequisites_observed": depth_edge_ready,
+            "scene_color_capture_observed": scene_color_ready,
+            "world_ui_separation_observed": world_ui_separation_observed,
             "unresolved_mapping_blocks_dependent_renderer_work": not depth_edge_ready,
         },
     }
@@ -165,6 +183,8 @@ def _runtime_evidence(
             "present_entries": payload["present_entries"],
             "graphics_context": payload["graphics_context"],
             "depth_edge_pass": payload["depth_edge_pass"],
+            "scene_color_capture": payload.get("scene_color_capture"),
+            "draw_classification": payload.get("draw_classification"),
         },
         True,
         None,
@@ -254,8 +274,107 @@ def _validate_runtime_status(
     ):
         raise ValueError("graphics_context.viewport must be null or x,y,width,height")
     _mapping(payload.get("depth_edge_pass"), "depth_edge_pass")
+    scene_color = payload.get("scene_color_capture")
+    if scene_color is not None:
+        _validate_scene_color_capture(scene_color)
+    classification = payload.get("draw_classification")
+    if classification is not None:
+        _validate_draw_classification(classification)
 
     _validate_frame_timing(payload.get("frame_timing"), observed_counts)
+
+
+def _validate_scene_color_capture(value: object) -> None:
+    capture = _mapping(value, "scene_color_capture")
+    if capture.get("schema_version") != 1:
+        raise ValueError("scene_color_capture schema is unsupported")
+    state = capture.get("state")
+    if state not in {"armed", "active", "fallback"}:
+        raise ValueError("scene_color_capture state is unsupported")
+    if not _bounded_text(capture.get("reason"), 128):
+        raise ValueError("scene_color_capture reason must be bounded text")
+    count = _non_negative_counter(capture.get("capture_count"), "capture_count")
+    if capture.get("copy_boundary") != "before-ui":
+        raise ValueError("scene_color_capture boundary is unsupported")
+    if capture.get("copy_frequency") != "once-per-frame":
+        raise ValueError("scene_color_capture frequency is unsupported")
+    if capture.get("transport") != "gpu-to-gpu":
+        raise ValueError("scene_color_capture transport is unsupported")
+    if capture.get("cpu_readback") is not False:
+        raise ValueError("scene_color_capture must not use CPU readback")
+    if state == "active" and count == 0:
+        raise ValueError("scene_color_capture active state requires a capture")
+    if state == "armed" and count != 0:
+        raise ValueError("scene_color_capture armed state requires zero captures")
+
+
+_DRAW_LAYER_NAMES = (
+    "unknown",
+    "world_opaque",
+    "world_alpha_tested",
+    "world_translucent",
+    "world_overlay",
+    "ui_overlay",
+)
+_DRAW_REASON_NAMES = (
+    "projection_unavailable",
+    "orthographic_projection",
+    "planar_overlay_state",
+    "depth_writing_opaque",
+    "depth_writing_alpha_tested",
+    "blended_perspective",
+    "depthless_perspective",
+)
+
+
+def _validate_draw_classification(value: object) -> None:
+    classification = _mapping(value, "draw_classification")
+    if classification.get("schema_version") != 1:
+        raise ValueError("draw_classification schema is unsupported")
+    state = classification.get("state")
+    if state not in {"armed", "active"}:
+        raise ValueError("draw_classification state is unsupported")
+    frame_count = _non_negative_counter(
+        classification.get("classified_frame_count"),
+        "classified_frame_count",
+    )
+    if (state == "active") != (frame_count > 0):
+        raise ValueError("draw_classification state disagrees with frame count")
+    latest = _mapping(classification.get("latest"), "draw_classification.latest")
+    if latest.get("phase") not in {"awaiting-world", "world", "ui"}:
+        raise ValueError("draw_classification latest phase is unsupported")
+    _validate_classification_counts(latest, "draw_classification.latest")
+    totals = _mapping(classification.get("totals"), "draw_classification.totals")
+    _validate_classification_counts(totals, "draw_classification.totals")
+    policy = _mapping(classification.get("policy"), "draw_classification.policy")
+    if policy.get("single_world_to_ui_boundary") is not True:
+        raise ValueError("draw_classification boundary policy is unsupported")
+    if policy.get("late_world_after_ui") != "excluded-and-counted":
+        raise ValueError("draw_classification late-world policy is unsupported")
+
+
+def _validate_classification_counts(value: dict[str, Any], field_name: str) -> None:
+    layers = _mapping(value.get("layers"), f"{field_name}.layers")
+    reasons = _mapping(value.get("reasons"), f"{field_name}.reasons")
+    if set(layers) != set(_DRAW_LAYER_NAMES):
+        raise ValueError(f"{field_name}.layers has an unsupported shape")
+    if set(reasons) != set(_DRAW_REASON_NAMES):
+        raise ValueError(f"{field_name}.reasons has an unsupported shape")
+    for name in _DRAW_LAYER_NAMES:
+        _non_negative_counter(layers.get(name), f"{field_name}.layers.{name}")
+    for name in _DRAW_REASON_NAMES:
+        _non_negative_counter(reasons.get(name), f"{field_name}.reasons.{name}")
+    _non_negative_counter(value.get("boundary_count"), f"{field_name}.boundary_count")
+    _non_negative_counter(
+        value.get("late_world_draw_count"),
+        f"{field_name}.late_world_draw_count",
+    )
+
+
+def _non_negative_counter(value: object, field_name: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value < 2**64:
+        raise ValueError(f"{field_name} must be a bounded non-negative integer")
+    return value
 
 
 def load_graphics_runtime_status(

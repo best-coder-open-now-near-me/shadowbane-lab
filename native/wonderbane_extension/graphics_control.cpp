@@ -57,7 +57,8 @@ GraphicsParameters DefaultGraphicsParameters() noexcept {
     GraphicsParameters parameters{};
     parameters.flags = kGraphicsControlBandedLighting
         | kGraphicsControlDepthContours
-        | kGraphicsControlFeatureAccents;
+        | kGraphicsControlFeatureAccents
+        | kGraphicsControlAdaptiveOutlines;
     parameters.dark_scene_outline = {0.52F, 0.56F, 0.70F};
     parameters.dark_scene_outline_strength = 0.28F;
     parameters.bright_scene_ink_alpha = 0.86F;

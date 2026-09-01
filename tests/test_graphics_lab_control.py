@@ -66,6 +66,7 @@ def _assert_parameters_close(
 
 def test_control_abi_round_trips_exact_256_byte_layout() -> None:
     target = _target()
+    assert DEFAULT_PARAMETERS.flags & ADAPTIVE_OUTLINES
     data = pack_control_block(target, DEFAULT_PARAMETERS)
     assert CONTROL_HEADER.size == CONTROL_STRUCTURE_SIZE == 256
     assert len(data) == 256

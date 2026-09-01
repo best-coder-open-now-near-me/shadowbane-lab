@@ -1,5 +1,6 @@
 #include "graphics_status.h"
 #include "graphics_control.h"
+#include "scene_frame.h"
 
 #include <Windows.h>
 
@@ -30,6 +31,10 @@ int wmain() {
     using wonderbane::extension::ObserveGraphicsCameraState;
     using wonderbane::extension::ObserveGraphicsPresent;
     using wonderbane::extension::ReportDepthEdgePassComposite;
+    using wonderbane::extension::ReportSceneColorCapture;
+    using wonderbane::extension::ReportSceneFrameClassification;
+    using wonderbane::extension::SceneFramePhase;
+    using wonderbane::extension::SceneFrameState;
     using wonderbane::extension::StartGraphicsControl;
     using wonderbane::extension::StartGraphicsStatusPublication;
     using wonderbane::extension::StopGraphicsControl;
@@ -124,6 +129,16 @@ int wmain() {
     );
     ObserveGraphicsPresent();
     ReportDepthEdgePassComposite();
+    ReportSceneColorCapture();
+    SceneFrameState classified_frame{};
+    classified_frame.phase = SceneFramePhase::ui;
+    classified_frame.draw_counts[1] = 3U;
+    classified_frame.draw_counts[5] = 2U;
+    classified_frame.reason_counts[1] = 2U;
+    classified_frame.reason_counts[3] = 3U;
+    classified_frame.boundary_count = 1U;
+    classified_frame.late_world_draw_count = 1U;
+    ReportSceneFrameClassification(classified_frame);
     std::array<wchar_t, 1024U> path{};
     result = GetGraphicsStatusPath(path.data(), path.size());
     if (result != ERROR_SUCCESS || path[0] == L'\0') {
@@ -217,6 +232,20 @@ int wmain() {
         || json.find("\"edge_metric\":\"single-owner-inverse-depth-curvature\"")
             == std::string::npos
         || json.find("\"sample_kernel\":\"cardinal-five-sample\"")
+            == std::string::npos
+        || json.find("\"scene_color_capture\":{\"schema_version\":1,"
+            "\"state\":\"active\"")
+            == std::string::npos
+        || json.find("\"capture_count\":1") == std::string::npos
+        || json.find("\"transport\":\"gpu-to-gpu\"") == std::string::npos
+        || json.find("\"cpu_readback\":false") == std::string::npos
+        || json.find("\"draw_classification\":{\"schema_version\":1,"
+            "\"state\":\"active\"")
+            == std::string::npos
+        || json.find("\"latest\":{\"phase\":\"ui\"") == std::string::npos
+        || json.find("\"world_opaque\":3") == std::string::npos
+        || json.find("\"orthographic_projection\":2") == std::string::npos
+        || json.find("\"late_world_after_ui\":\"excluded-and-counted\"")
             == std::string::npos
         || json.find("\"live_controls\":{\"available\":true")
             == std::string::npos

@@ -37,6 +37,7 @@ enum class DrawClassificationReason : std::uint8_t {
     depth_writing_alpha_tested,
     blended_perspective,
     depthless_perspective,
+    count,
 };
 
 struct FixedFunctionDrawState {
@@ -66,10 +67,13 @@ enum class SceneFramePhase : std::uint8_t {
 
 constexpr std::size_t kDrawLayerCount =
     static_cast<std::size_t>(DrawLayer::count);
+constexpr std::size_t kDrawClassificationReasonCount =
+    static_cast<std::size_t>(DrawClassificationReason::count);
 
 struct SceneFrameState {
     SceneFramePhase phase = SceneFramePhase::awaiting_world;
     std::array<std::uint64_t, kDrawLayerCount> draw_counts{};
+    std::array<std::uint64_t, kDrawClassificationReasonCount> reason_counts{};
     std::uint64_t boundary_count = 0U;
     std::uint64_t late_world_draw_count = 0U;
     bool composite_requested = false;

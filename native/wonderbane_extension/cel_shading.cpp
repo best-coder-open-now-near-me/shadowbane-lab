@@ -5,6 +5,7 @@
 #include "graphics_status.h"
 #include "import_hook.h"
 #include "performance_telemetry.h"
+#include "scene_frame.h"
 
 #include <Windows.h>
 
@@ -203,6 +204,7 @@ thread_local bool g_immediate_primitive_open = false;
 thread_local bool g_immediate_depth_scene_draw = false;
 thread_local std::array<float, 16U> g_immediate_scene_projection{};
 thread_local std::array<int, 4U> g_immediate_scene_viewport{};
+thread_local SceneFrameState g_scene_frame{};
 
 struct CapturedVertex {
     std::array<float, 3U> position{};
@@ -1100,17 +1102,89 @@ void DrawDisplayListFeatureEdges(
     ReleaseSRWLockShared(&g_display_list_lock);
 }
 
+SceneFrameDecision ObserveClassifiedDraw(
+    const DrawSubmission submission,
+    const bool perspective,
+    const bool planar_overlay_candidate,
+    const bool depth_writes,
+    const bool depth_test_enabled,
+    const bool texture_enabled,
+    const bool alpha_test_enabled,
+    const bool blend_enabled,
+    const bool lighting_enabled,
+    const bool fog_enabled
+) noexcept {
+    const FixedFunctionDrawState state{
+        submission,
+        perspective ? DrawProjection::perspective : DrawProjection::orthographic,
+        planar_overlay_candidate,
+        depth_writes,
+        depth_test_enabled,
+        texture_enabled,
+        alpha_test_enabled,
+        blend_enabled,
+        lighting_enabled,
+        fog_enabled,
+    };
+    const SceneFrameDecision decision = AdvanceSceneFrame(
+        &g_scene_frame,
+        ClassifyFixedFunctionDraw(state)
+    );
+    if (decision.composite_before_draw) {
+        CompositeDepthEdgesBeforeUi();
+    }
+    return decision;
+}
+
+SceneFrameDecision ObserveCurrentDraw(
+    const DrawSubmission submission,
+    const bool perspective,
+    const bool planar_overlay_candidate = false
+) noexcept {
+    const auto get_booleanv = LoadFunction<GlGetBooleanv>(&g_get_booleanv);
+    unsigned char depth_writes = FALSE;
+    unsigned char depth_test_enabled = FALSE;
+    unsigned char texture_enabled = FALSE;
+    unsigned char alpha_test_enabled = FALSE;
+    unsigned char blend_enabled = FALSE;
+    unsigned char lighting_enabled = FALSE;
+    unsigned char fog_enabled = FALSE;
+    if (get_booleanv != nullptr) {
+        get_booleanv(kGlDepthWriteMask, &depth_writes);
+        get_booleanv(kGlDepthTest, &depth_test_enabled);
+        get_booleanv(kGlTexture2D, &texture_enabled);
+        get_booleanv(kGlAlphaTest, &alpha_test_enabled);
+        get_booleanv(kGlBlend, &blend_enabled);
+        get_booleanv(kGlLighting, &lighting_enabled);
+        get_booleanv(kGlFog, &fog_enabled);
+    }
+    return ObserveClassifiedDraw(
+        submission,
+        perspective,
+        planar_overlay_candidate,
+        depth_writes != FALSE,
+        depth_test_enabled != FALSE,
+        texture_enabled != FALSE,
+        alpha_test_enabled != FALSE,
+        blend_enabled != FALSE,
+        lighting_enabled != FALSE,
+        fog_enabled != FALSE
+    );
+}
+
 template <typename Draw>
 void DrawWithSilhouette(
     const Draw& draw,
     const unsigned int feature_list = UINT32_MAX,
-    const ArrayFeatureRequest* const array_features = nullptr
+    const ArrayFeatureRequest* const array_features = nullptr,
+    const DrawSubmission submission = DrawSubmission::display_list
 ) noexcept {
     OutlineApi api{};
     std::array<float, 16U> projection{};
     std::array<float, 16U> model_view{};
     std::array<int, 4U> viewport{};
     unsigned char depth_writes = FALSE;
+    unsigned char depth_test_enabled = FALSE;
     unsigned char alpha_test_enabled = FALSE;
     unsigned char blend_enabled = FALSE;
     unsigned char texture_enabled = FALSE;
@@ -1129,16 +1203,15 @@ void DrawWithSilhouette(
         static_cast<int>(InterlockedCompareExchange(&g_viewport_height, 0, 0)),
     };
     api.get_booleanv(kGlDepthWriteMask, &depth_writes);
+    api.get_booleanv(kGlDepthTest, &depth_test_enabled);
     api.get_booleanv(kGlAlphaTest, &alpha_test_enabled);
     api.get_booleanv(kGlBlend, &blend_enabled);
     api.get_booleanv(kGlTexture2D, &texture_enabled);
     api.get_booleanv(kGlLighting, &lighting_enabled);
     api.get_booleanv(kGlFog, &fog_enabled);
-    if (!IsPerspectiveProjectionMatrix(projection.data(), projection.size())) {
-        CompositeDepthEdgesBeforeUi();
-        draw();
-        return;
-    }
+    const bool perspective = IsPerspectiveProjectionMatrix(
+        projection.data(), projection.size()
+    );
     const GraphicsParameters graphics_parameters = CurrentGraphicsParameters();
     const bool outline_enabled = (
         graphics_parameters.flags & kGraphicsControlFeatureAccents
@@ -1163,15 +1236,19 @@ void DrawWithSilhouette(
     const bool planar_overlay_candidate = (
         feature_list != UINT32_MAX && IsPlanarOverlayCandidate(feature_list)
     ) || array_planar_overlay_candidate;
-    if (IsPlanarOverlayDrawState(
-            planar_overlay_candidate,
-            texture_enabled != FALSE,
-            alpha_test_enabled != FALSE,
-            blend_enabled != FALSE,
-            lighting_enabled != FALSE,
-            fog_enabled != FALSE
-        )) {
-        CompositeDepthEdgesBeforeUi();
+    const SceneFrameDecision frame_decision = ObserveClassifiedDraw(
+        submission,
+        perspective,
+        planar_overlay_candidate,
+        depth_writes != FALSE,
+        depth_test_enabled != FALSE,
+        texture_enabled != FALSE,
+        alpha_test_enabled != FALSE,
+        blend_enabled != FALSE,
+        lighting_enabled != FALSE,
+        fog_enabled != FALSE
+    );
+    if (!frame_decision.contributes_to_scene) {
         draw();
         return;
     }
@@ -1250,9 +1327,16 @@ void APIENTRY StrongBegin(const unsigned int mode) noexcept {
         bool perspective = false;
         const bool has_projection = !compiling
             && CurrentProjection(&projection, &perspective);
-        if (has_projection && !perspective) {
-            CompositeDepthEdgesBeforeUi();
-        } else if (has_projection && perspective && IsFilledPrimitiveMode(mode)) {
+        SceneFrameDecision frame_decision{};
+        if (has_projection) {
+            frame_decision = ObserveCurrentDraw(
+                DrawSubmission::immediate,
+                perspective
+            );
+        }
+        if (has_projection && perspective
+            && frame_decision.contributes_to_scene
+            && IsFilledPrimitiveMode(mode)) {
             BeginBandedLightingDraw(&g_immediate_banded_draw);
             const auto get_booleanv = LoadFunction<GlGetBooleanv>(&g_get_booleanv);
             unsigned char depth_writes = FALSE;
@@ -1403,7 +1487,9 @@ void APIENTRY StrongCallList(const unsigned int list) noexcept {
         }
         DrawWithSilhouette(
             [original, list]() noexcept { original(list); },
-            list
+            list,
+            nullptr,
+            DrawSubmission::display_list
         );
     }
 }
@@ -1422,33 +1508,18 @@ void APIENTRY StrongDrawArrays(
             draw();
         } else if (IsOutlinePrimitive(mode, count)) {
             const ArrayFeatureRequest request{mode, first, count, 0U, nullptr};
-            DrawWithSilhouette(draw, UINT32_MAX, &request);
+            DrawWithSilhouette(
+                draw, UINT32_MAX, &request, DrawSubmission::arrays
+            );
         } else if (count >= 3 && IsFilledPrimitiveMode(mode)) {
-            std::array<float, 16U> projection{};
-            bool perspective = false;
-            if (!CurrentProjection(&projection, &perspective)) {
-                draw();
-            } else if (!perspective) {
-                CompositeDepthEdgesBeforeUi();
-                draw();
-            } else {
-                DrawWithBandedLighting(draw);
-                std::array<int, 4U> viewport{
-                    static_cast<int>(InterlockedCompareExchange(&g_viewport_x, 0, 0)),
-                    static_cast<int>(InterlockedCompareExchange(&g_viewport_y, 0, 0)),
-                    static_cast<int>(InterlockedCompareExchange(&g_viewport_width, 0, 0)),
-                    static_cast<int>(InterlockedCompareExchange(&g_viewport_height, 0, 0)),
-                };
-                MarkDepthEdgeSceneDraw(
-                    projection.data(), projection.size(),
-                    viewport.data(), viewport.size()
-                );
-            }
+            DrawWithSilhouette(
+                draw, UINT32_MAX, nullptr, DrawSubmission::arrays
+            );
         } else {
             std::array<float, 16U> projection{};
             bool perspective = false;
-            if (CurrentProjection(&projection, &perspective) && !perspective) {
-                CompositeDepthEdgesBeforeUi();
+            if (CurrentProjection(&projection, &perspective)) {
+                ObserveCurrentDraw(DrawSubmission::arrays, perspective);
             }
             draw();
         }
@@ -1470,33 +1541,18 @@ void APIENTRY StrongDrawElements(
             draw();
         } else if (IsOutlinePrimitive(mode, count)) {
             const ArrayFeatureRequest request{mode, 0, count, type, indices};
-            DrawWithSilhouette(draw, UINT32_MAX, &request);
+            DrawWithSilhouette(
+                draw, UINT32_MAX, &request, DrawSubmission::elements
+            );
         } else if (count >= 3 && IsFilledPrimitiveMode(mode)) {
-            std::array<float, 16U> projection{};
-            bool perspective = false;
-            if (!CurrentProjection(&projection, &perspective)) {
-                draw();
-            } else if (!perspective) {
-                CompositeDepthEdgesBeforeUi();
-                draw();
-            } else {
-                DrawWithBandedLighting(draw);
-                std::array<int, 4U> viewport{
-                    static_cast<int>(InterlockedCompareExchange(&g_viewport_x, 0, 0)),
-                    static_cast<int>(InterlockedCompareExchange(&g_viewport_y, 0, 0)),
-                    static_cast<int>(InterlockedCompareExchange(&g_viewport_width, 0, 0)),
-                    static_cast<int>(InterlockedCompareExchange(&g_viewport_height, 0, 0)),
-                };
-                MarkDepthEdgeSceneDraw(
-                    projection.data(), projection.size(),
-                    viewport.data(), viewport.size()
-                );
-            }
+            DrawWithSilhouette(
+                draw, UINT32_MAX, nullptr, DrawSubmission::elements
+            );
         } else {
             std::array<float, 16U> projection{};
             bool perspective = false;
-            if (CurrentProjection(&projection, &perspective) && !perspective) {
-                CompositeDepthEdgesBeforeUi();
+            if (CurrentProjection(&projection, &perspective)) {
+                ObserveCurrentDraw(DrawSubmission::elements, perspective);
             }
             draw();
         }
@@ -1506,10 +1562,12 @@ void APIENTRY StrongDrawElements(
 BOOL WINAPI StrongSwapBuffers(const HDC device_context) noexcept {
     const std::uint64_t performance_started_qpc = BeginPerformancePresent();
     ApplyPendingGraphicsControl();
+    ReportSceneFrameClassification(g_scene_frame);
     ObserveGraphicsPresent();
     const auto original = LoadFunction<GdiSwapBuffers>(&g_original_swap_buffers);
     const BOOL result = original != nullptr ? original(device_context) : FALSE;
     EndDepthEdgeFrame();
+    g_scene_frame = {};
     ObservePerformancePresent(performance_started_qpc, result != FALSE);
     return result;
 }
@@ -2331,6 +2389,7 @@ DWORD StartStrongCelShading() noexcept {
     g_immediate_depth_scene_draw = false;
     g_immediate_scene_projection = {};
     g_immediate_scene_viewport = {};
+    g_scene_frame = {};
     ResetBandedLighting();
     ResetDepthEdges();
     for (ImportHookPlan& plan : plans) {
@@ -2501,6 +2560,7 @@ void StopStrongCelShading() noexcept {
         g_immediate_depth_scene_draw = false;
         g_immediate_scene_projection = {};
         g_immediate_scene_viewport = {};
+        g_scene_frame = {};
         ResetBandedLighting();
         ResetDepthEdges();
         InterlockedExchangePointer(&g_tex_coord_2f, nullptr);

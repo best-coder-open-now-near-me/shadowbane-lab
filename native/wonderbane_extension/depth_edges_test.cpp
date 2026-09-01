@@ -136,8 +136,12 @@ int wmain() {
         || std::strstr(fragment, "upRight") != nullptr
         || std::strstr(fragment, "response <= wbEdgeThreshold") == nullptr
         || std::strstr(fragment, "wbAdaptiveOutlineEnabled") == nullptr
-        || std::strstr(fragment, "wbDarkSceneOutline * wbDarkSceneOutlineStrength")
+        || std::strstr(fragment, "wbSceneColorTexture") == nullptr
+        || std::strstr(fragment, "wbSceneColorAvailable") == nullptr
+        || std::strstr(fragment, "dot(sceneColor, vec3(0.2126, 0.7152, 0.0722))")
             == nullptr
+        || std::strstr(fragment, "sceneColor / maximumChannel") == nullptr
+        || std::strstr(fragment, "smoothstep(0.36, 0.70, luminance)") == nullptr
         || std::strstr(fragment, "discard") == nullptr) {
         return Fail(L"fixed-pixel depth shader contract");
     }

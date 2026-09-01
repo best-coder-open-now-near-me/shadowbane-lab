@@ -7,6 +7,8 @@
 
 namespace wonderbane::extension {
 
+struct SceneFrameState;
+
 struct GraphicsCameraState {
     float position[3U]{};
     float forward[3U]{};
@@ -57,6 +59,9 @@ void ObserveGraphicsCameraState(
 void ObserveGraphicsPresent() noexcept;
 void ReportDepthEdgePassComposite() noexcept;
 void ReportDepthEdgePassFailure(const char* reason) noexcept;
+void ReportSceneColorCapture() noexcept;
+void ReportSceneColorCaptureFailure(const char* reason) noexcept;
+void ReportSceneFrameClassification(const SceneFrameState& frame) noexcept;
 void StopGraphicsStatusPublication() noexcept;
 DWORD GetGraphicsStatusPath(
     wchar_t* destination,

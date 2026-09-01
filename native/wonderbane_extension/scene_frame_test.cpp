@@ -86,6 +86,14 @@ int wmain() {
         || frame.draw_counts[static_cast<std::size_t>(DrawLayer::ui_overlay)] != 2U) {
         return Fail(L"bounded layer counters");
     }
+    if (frame.reason_counts[static_cast<std::size_t>(
+            DrawClassificationReason::depth_writing_opaque
+        )] != 2U
+        || frame.reason_counts[static_cast<std::size_t>(
+            DrawClassificationReason::orthographic_projection
+        )] != 2U) {
+        return Fail(L"bounded reason counters");
+    }
     if (std::strcmp(DrawLayerName(DrawLayer::world_opaque), "world-opaque") != 0
         || std::strcmp(
             DrawClassificationReasonName(

@@ -463,3 +463,33 @@ Startup remains transactional. Exact process identity and client executable chec
 services; failure unwinds performance telemetry, renderer or passive observation, graphics control,
 status publication, world-map capture, and the event channel in reverse ownership order. Both full
 and diagnostics-only Win32 profiles are built and tested as release gates.
+
+Extension 1.6.4 establishes the first compatibility-era deferred-renderer substrate. Every hooked
+submission is classified from mirrored fixed-function state as unknown, opaque world,
+alpha-tested world, translucent world, depthless world overlay, or UI overlay. A typed frame state
+owns one world-to-UI transition; the scene composite runs before that first UI draw, and any later
+world-shaped submissions are rendered by the original client unchanged while being counted as a
+boundary violation. This replaces the previous scattered orthographic/planar checks with one
+auditable policy used by immediate, display-list, array, and indexed draws.
+
+At that boundary the renderer performs one GPU-to-GPU depth copy and one GPU-to-GPU scene-color
+copy. The outline shader samples the captured world pixel, derives local luminance and hue, uses
+dark ink on bright surfaces, and uses a restrained chromatic rim on dark surfaces. UI and text draw
+after the composite and are therefore absent from both the captured scene and the effect. No pixel
+readback, per-draw framebuffer copy, or CPU image processing is permitted. Texture storage is
+reused until resize, bounded by the reported maximum texture size, tied to the current OpenGL
+context, and explicitly released on a same-context renderer reset. Any scene-color copy failure
+falls back to the previous depth-outline blend without blocking the original renderer.
+
+The graphics status document carries versioned `scene_color_capture` and `draw_classification`
+blocks. They report capture/fallback state, latest and cumulative layer counts, the exact reason
+counts behind each classification, world-to-UI boundaries, and excluded late-world draws. The
+diagnostics collector preserves and validates both blocks and separately assesses whether true
+scene color and world/UI separation were observed.
+
+Semantic actor, terrain, building, water, and particle identities are deliberately not guessed from
+the current fixed-function state. The 1.6.4 classes are reliable rendering-policy layers; the next
+renderer ownership slice will bind bounded texture/display-list provenance to semantic class masks,
+using these diagnostics to review the mapping before normals, AO, or material-specific effects rely
+on it. The older 1.6.1 graphics publication scripts remain sealed to their golden package until a
+1.6.4 VM artifact and patched executable receive new exact hashes and a publication receipt.

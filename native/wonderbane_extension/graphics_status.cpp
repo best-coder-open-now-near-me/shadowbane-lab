@@ -2,6 +2,7 @@
 
 #include "extension_api.h"
 #include "graphics_control.h"
+#include "scene_frame.h"
 
 #include <KnownFolders.h>
 #include <ShlObj.h>
@@ -22,7 +23,7 @@ namespace {
 constexpr wchar_t kProductDirectory[] = L"ShadowbaneLab";
 constexpr wchar_t kExtensionDirectory[] = L"client-extension";
 constexpr char kProducerId[] = "wonderbane-extension.graphics";
-constexpr char kExtensionVersion[] = "1.6.3";
+constexpr char kExtensionVersion[] = "1.6.4";
 constexpr std::size_t kPathCapacity = WONDERBANE_EXTENSION_HEARTBEAT_PATH_CAPACITY;
 constexpr std::size_t kExecutablePathUtf8Capacity = kPathCapacity * 4U;
 constexpr std::size_t kEscapedPathCapacity = kExecutablePathUtf8Capacity * 2U + 3U;
@@ -97,6 +98,16 @@ struct GraphicsStatusState {
     std::uint64_t depth_edge_composite_count = 0U;
     bool depth_edge_failed = false;
     char depth_edge_failure_reason[kDepthEdgeReasonCapacity]{};
+    std::uint64_t scene_color_capture_count = 0U;
+    bool scene_color_failed = false;
+    char scene_color_failure_reason[kDepthEdgeReasonCapacity]{};
+    std::uint64_t classified_frame_count = 0U;
+    SceneFrameState latest_scene_frame{};
+    std::array<std::uint64_t, kDrawLayerCount> classified_draw_counts{};
+    std::array<std::uint64_t, kDrawClassificationReasonCount>
+        classification_reason_counts{};
+    std::uint64_t scene_boundary_count = 0U;
+    std::uint64_t late_world_draw_count = 0U;
 };
 
 struct PublisherSnapshot {
@@ -135,6 +146,18 @@ std::uint64_t FileTimeValue(const FILETIME value) noexcept {
     combined.LowPart = value.dwLowDateTime;
     combined.HighPart = value.dwHighDateTime;
     return combined.QuadPart;
+}
+
+void SaturatingAdd(
+    std::uint64_t* const destination,
+    const std::uint64_t value
+) noexcept {
+    if (destination == nullptr) {
+        return;
+    }
+    *destination = *destination > UINT64_MAX - value
+        ? UINT64_MAX
+        : *destination + value;
 }
 
 bool NtSucceeded(const NTSTATUS status) noexcept {
@@ -921,6 +944,119 @@ DWORD PublishSnapshot(const PublisherSnapshot& snapshot) noexcept {
     if (FAILED(result)) {
         return HResultToWin32(result);
     }
+    const char* scene_color_state = "armed";
+    const char* scene_color_reason = "awaiting-pre-ui-scene-boundary";
+    if (snapshot.status.scene_color_failed) {
+        scene_color_state = "fallback";
+        scene_color_reason = snapshot.status.scene_color_failure_reason;
+    } else if (snapshot.status.scene_color_capture_count > 0U) {
+        scene_color_state = "active";
+        scene_color_reason = "single-pre-ui-gpu-copy";
+    }
+    std::array<char, kEscapedDepthEdgeReasonCapacity> scene_color_reason_json{};
+    if (!JsonString(
+            scene_color_reason,
+            scene_color_reason_json.data(),
+            scene_color_reason_json.size()
+        )) {
+        return ERROR_INSUFFICIENT_BUFFER;
+    }
+    std::array<char, 512U> scene_color_json{};
+    result = StringCchPrintfA(
+        scene_color_json.data(),
+        scene_color_json.size(),
+        "{\"schema_version\":1,\"state\":\"%s\",\"reason\":%s,"
+        "\"capture_count\":%llu,"
+        "\"copy_boundary\":\"before-ui\",\"copy_frequency\":\"once-per-frame\","
+        "\"transport\":\"gpu-to-gpu\",\"cpu_readback\":false}",
+        scene_color_state,
+        scene_color_reason_json.data(),
+        static_cast<unsigned long long>(
+            snapshot.status.scene_color_capture_count
+        )
+    );
+    if (FAILED(result)) {
+        return HResultToWin32(result);
+    }
+    const char* scene_frame_state = snapshot.status.classified_frame_count > 0U
+        ? "active"
+        : "armed";
+    const char* scene_frame_phase = "awaiting-world";
+    if (snapshot.status.latest_scene_frame.phase == SceneFramePhase::world) {
+        scene_frame_phase = "world";
+    } else if (snapshot.status.latest_scene_frame.phase == SceneFramePhase::ui) {
+        scene_frame_phase = "ui";
+    }
+    const auto& latest_layers = snapshot.status.latest_scene_frame.draw_counts;
+    const auto& latest_reasons = snapshot.status.latest_scene_frame.reason_counts;
+    const auto& total_layers = snapshot.status.classified_draw_counts;
+    const auto& total_reasons = snapshot.status.classification_reason_counts;
+    std::array<char, 4096U> scene_frame_json{};
+    result = StringCchPrintfA(
+        scene_frame_json.data(),
+        scene_frame_json.size(),
+        "{\"schema_version\":1,\"state\":\"%s\","
+        "\"classified_frame_count\":%llu,"
+        "\"latest\":{\"phase\":\"%s\",\"layers\":{"
+        "\"unknown\":%llu,\"world_opaque\":%llu,"
+        "\"world_alpha_tested\":%llu,\"world_translucent\":%llu,"
+        "\"world_overlay\":%llu,\"ui_overlay\":%llu},\"reasons\":{"
+        "\"projection_unavailable\":%llu,\"orthographic_projection\":%llu,"
+        "\"planar_overlay_state\":%llu,\"depth_writing_opaque\":%llu,"
+        "\"depth_writing_alpha_tested\":%llu,\"blended_perspective\":%llu,"
+        "\"depthless_perspective\":%llu},\"boundary_count\":%llu,"
+        "\"late_world_draw_count\":%llu},\"totals\":{\"layers\":{"
+        "\"unknown\":%llu,\"world_opaque\":%llu,"
+        "\"world_alpha_tested\":%llu,\"world_translucent\":%llu,"
+        "\"world_overlay\":%llu,\"ui_overlay\":%llu},\"reasons\":{"
+        "\"projection_unavailable\":%llu,\"orthographic_projection\":%llu,"
+        "\"planar_overlay_state\":%llu,\"depth_writing_opaque\":%llu,"
+        "\"depth_writing_alpha_tested\":%llu,\"blended_perspective\":%llu,"
+        "\"depthless_perspective\":%llu},\"boundary_count\":%llu,"
+        "\"late_world_draw_count\":%llu},\"policy\":{"
+        "\"single_world_to_ui_boundary\":true,"
+        "\"late_world_after_ui\":\"excluded-and-counted\"}}",
+        scene_frame_state,
+        static_cast<unsigned long long>(snapshot.status.classified_frame_count),
+        scene_frame_phase,
+        static_cast<unsigned long long>(latest_layers[0]),
+        static_cast<unsigned long long>(latest_layers[1]),
+        static_cast<unsigned long long>(latest_layers[2]),
+        static_cast<unsigned long long>(latest_layers[3]),
+        static_cast<unsigned long long>(latest_layers[4]),
+        static_cast<unsigned long long>(latest_layers[5]),
+        static_cast<unsigned long long>(latest_reasons[0]),
+        static_cast<unsigned long long>(latest_reasons[1]),
+        static_cast<unsigned long long>(latest_reasons[2]),
+        static_cast<unsigned long long>(latest_reasons[3]),
+        static_cast<unsigned long long>(latest_reasons[4]),
+        static_cast<unsigned long long>(latest_reasons[5]),
+        static_cast<unsigned long long>(latest_reasons[6]),
+        static_cast<unsigned long long>(
+            snapshot.status.latest_scene_frame.boundary_count
+        ),
+        static_cast<unsigned long long>(
+            snapshot.status.latest_scene_frame.late_world_draw_count
+        ),
+        static_cast<unsigned long long>(total_layers[0]),
+        static_cast<unsigned long long>(total_layers[1]),
+        static_cast<unsigned long long>(total_layers[2]),
+        static_cast<unsigned long long>(total_layers[3]),
+        static_cast<unsigned long long>(total_layers[4]),
+        static_cast<unsigned long long>(total_layers[5]),
+        static_cast<unsigned long long>(total_reasons[0]),
+        static_cast<unsigned long long>(total_reasons[1]),
+        static_cast<unsigned long long>(total_reasons[2]),
+        static_cast<unsigned long long>(total_reasons[3]),
+        static_cast<unsigned long long>(total_reasons[4]),
+        static_cast<unsigned long long>(total_reasons[5]),
+        static_cast<unsigned long long>(total_reasons[6]),
+        static_cast<unsigned long long>(snapshot.status.scene_boundary_count),
+        static_cast<unsigned long long>(snapshot.status.late_world_draw_count)
+    );
+    if (FAILED(result)) {
+        return HResultToWin32(result);
+    }
     const GraphicsControlStatus control = GetGraphicsControlStatus();
     std::array<char, 1024U> control_json{};
     if (control.available) {
@@ -974,6 +1110,7 @@ DWORD PublishSnapshot(const PublisherSnapshot& snapshot) noexcept {
         "\"present_entries\":%s,\"active_present_entry\":%s,"
         "\"graphics_context\":%s,\"frame_timing\":%s,"
         "\"camera_state\":%s,\"depth_edge_pass\":%s,"
+        "\"scene_color_capture\":%s,\"draw_classification\":%s,"
         "\"live_controls\":%s}\n",
         kProducerId,
         kExtensionVersion,
@@ -988,6 +1125,8 @@ DWORD PublishSnapshot(const PublisherSnapshot& snapshot) noexcept {
         frame_timing_json.data(),
         camera_state_json.data(),
         depth_edge_json.data(),
+        scene_color_json.data(),
+        scene_frame_json.data(),
         control_json.data()
     );
     if (FAILED(result)) {
@@ -1692,6 +1831,76 @@ void ReportDepthEdgePassFailure(const char* const reason) noexcept {
         g_status.depth_edge_failure_reason,
         std::size(g_status.depth_edge_failure_reason),
         reason
+    );
+    ReleaseSRWLockExclusive(&g_state_lock);
+    if (publish) {
+        SetEvent(g_wake_event);
+    }
+}
+
+void ReportSceneColorCapture() noexcept {
+    if (InterlockedCompareExchange(&g_started, 0, 0) == 0) {
+        return;
+    }
+    bool publish = false;
+    AcquireSRWLockExclusive(&g_state_lock);
+    ++g_status.scene_color_capture_count;
+    g_status.scene_color_failed = false;
+    g_status.scene_color_failure_reason[0] = '\0';
+    publish = g_status.scene_color_capture_count == 1U;
+    ReleaseSRWLockExclusive(&g_state_lock);
+    if (publish) {
+        SetEvent(g_wake_event);
+    }
+}
+
+void ReportSceneColorCaptureFailure(const char* const reason) noexcept {
+    if (InterlockedCompareExchange(&g_started, 0, 0) == 0
+        || reason == nullptr || reason[0] == '\0') {
+        return;
+    }
+    bool publish = false;
+    AcquireSRWLockExclusive(&g_state_lock);
+    publish = !g_status.scene_color_failed
+        || std::strcmp(g_status.scene_color_failure_reason, reason) != 0;
+    g_status.scene_color_failed = true;
+    StringCchCopyA(
+        g_status.scene_color_failure_reason,
+        std::size(g_status.scene_color_failure_reason),
+        reason
+    );
+    ReleaseSRWLockExclusive(&g_state_lock);
+    if (publish) {
+        SetEvent(g_wake_event);
+    }
+}
+
+void ReportSceneFrameClassification(const SceneFrameState& frame) noexcept {
+    if (InterlockedCompareExchange(&g_started, 0, 0) == 0) {
+        return;
+    }
+    bool publish = false;
+    AcquireSRWLockExclusive(&g_state_lock);
+    publish = g_status.classified_frame_count == 0U
+        || frame.late_world_draw_count > 0U;
+    SaturatingAdd(&g_status.classified_frame_count, 1U);
+    g_status.latest_scene_frame = frame;
+    for (std::size_t index = 0U; index < frame.draw_counts.size(); ++index) {
+        SaturatingAdd(
+            &g_status.classified_draw_counts[index],
+            frame.draw_counts[index]
+        );
+    }
+    for (std::size_t index = 0U; index < frame.reason_counts.size(); ++index) {
+        SaturatingAdd(
+            &g_status.classification_reason_counts[index],
+            frame.reason_counts[index]
+        );
+    }
+    SaturatingAdd(&g_status.scene_boundary_count, frame.boundary_count);
+    SaturatingAdd(
+        &g_status.late_world_draw_count,
+        frame.late_world_draw_count
     );
     ReleaseSRWLockExclusive(&g_state_lock);
     if (publish) {

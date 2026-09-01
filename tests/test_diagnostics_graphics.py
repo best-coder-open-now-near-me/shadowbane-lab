@@ -125,6 +125,68 @@ def _status(
             ],
         },
         "depth_edge_pass": {"state": "disabled", "reason": "diagnostic fixture"},
+        "scene_color_capture": {
+            "schema_version": 1,
+            "state": "active",
+            "reason": "single-pre-ui-gpu-copy",
+            "capture_count": latest_sequence,
+            "copy_boundary": "before-ui",
+            "copy_frequency": "once-per-frame",
+            "transport": "gpu-to-gpu",
+            "cpu_readback": False,
+        },
+        "draw_classification": {
+            "schema_version": 1,
+            "state": "active",
+            "classified_frame_count": latest_sequence,
+            "latest": {
+                "phase": "ui",
+                "layers": {
+                    "unknown": 0,
+                    "world_opaque": 40,
+                    "world_alpha_tested": 8,
+                    "world_translucent": 12,
+                    "world_overlay": 2,
+                    "ui_overlay": 15,
+                },
+                "reasons": {
+                    "projection_unavailable": 0,
+                    "orthographic_projection": 13,
+                    "planar_overlay_state": 2,
+                    "depth_writing_opaque": 40,
+                    "depth_writing_alpha_tested": 8,
+                    "blended_perspective": 12,
+                    "depthless_perspective": 2,
+                },
+                "boundary_count": 1,
+                "late_world_draw_count": 0,
+            },
+            "totals": {
+                "layers": {
+                    "unknown": 0,
+                    "world_opaque": 400,
+                    "world_alpha_tested": 80,
+                    "world_translucent": 120,
+                    "world_overlay": 20,
+                    "ui_overlay": 150,
+                },
+                "reasons": {
+                    "projection_unavailable": 0,
+                    "orthographic_projection": 130,
+                    "planar_overlay_state": 20,
+                    "depth_writing_opaque": 400,
+                    "depth_writing_alpha_tested": 80,
+                    "blended_perspective": 120,
+                    "depthless_perspective": 20,
+                },
+                "boundary_count": latest_sequence,
+                "late_world_draw_count": 0,
+            },
+            "policy": {
+                "single_world_to_ui_boundary": True,
+                "late_world_after_ui": "excluded-and-counted",
+            },
+        },
     }
 
 
@@ -256,6 +318,12 @@ class GraphicsPresentEvidenceTests(unittest.TestCase):
                 result.report["assessment"]["active_route_authority"],
             )
             self.assertTrue(result.report["assessment"]["depth_edge_prerequisites_observed"])
+            self.assertTrue(result.report["assessment"]["scene_color_capture_observed"])
+            self.assertTrue(result.report["assessment"]["world_ui_separation_observed"])
+            self.assertEqual(
+                "gpu-to-gpu",
+                result.report["runtime_status"]["scene_color_capture"]["transport"],
+            )
 
     def test_continuous_collector_reports_ring_overwrite_as_incomplete(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -530,6 +598,46 @@ class GraphicsPresentEvidenceTests(unittest.TestCase):
             self.assertFalse(result.complete)
             self.assertIn("creation identity", result.failure or "")
             self.assertEqual("rejected", result.report["runtime_status"]["state"])
+
+    def test_runtime_status_rejects_scene_color_cpu_readback(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            executable = root / "sb.exe"
+            executable.write_bytes(_present_pe())
+            identity = ProcessIdentity(48, 123456, str(executable))
+            payload = _status(executable, identity)
+            payload["scene_color_capture"]["cpu_readback"] = True
+            status = root / "graphics-status.json"
+            status.write_text(json.dumps(payload), encoding="utf-8")
+
+            result = collect_graphics_present_evidence(
+                executable,
+                identity,
+                runtime_status_path=status,
+            )
+
+            self.assertFalse(result.complete)
+            self.assertIn("must not use CPU readback", result.failure or "")
+
+    def test_runtime_status_rejects_unbounded_classification_shape(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            executable = root / "sb.exe"
+            executable.write_bytes(_present_pe())
+            identity = ProcessIdentity(49, 123456, str(executable))
+            payload = _status(executable, identity)
+            payload["draw_classification"]["latest"]["layers"]["guessed_actor"] = 1
+            status = root / "graphics-status.json"
+            status.write_text(json.dumps(payload), encoding="utf-8")
+
+            result = collect_graphics_present_evidence(
+                executable,
+                identity,
+                runtime_status_path=status,
+            )
+
+            self.assertFalse(result.complete)
+            self.assertIn("unsupported shape", result.failure or "")
 
 
 if __name__ == "__main__":
