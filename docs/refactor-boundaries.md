@@ -1,17 +1,31 @@
-# Rendering and non-render refactor boundaries
+# Client convergence ownership boundaries
 
 This is the working merge contract for development after the 2026-09-01 client convergence. It is
-an ownership map, not a new framework: its purpose is to let renderer and non-render changes proceed
-without repeatedly resolving the same native and packaging seams.
+an ownership map, not a new framework or a pair of product branches. Its purpose is to keep one
+continuously integrated client while preventing renderer and non-render code from taking ownership
+of each other's runtime responsibilities.
 
-## Stable branch base
+## Integration branch policy
 
-All new production work starts from `codex/client-convergence` after it contains:
+`codex/client-convergence-v2` is the only long-lived, advancing product and experiment branch.
+Rendering, non-render, streaming, and diagnostics are ownership lanes within that history, not
+parallel release lines.
 
-- diagnostics-client investigation tip `7245478`;
-- preserved production client features;
-- graphics extension 1.6.1; and
-- the semantic conflict resolutions and dual-profile validation recorded by its merge commits.
+Risky or concurrent work may use a short-lived topic branch from the latest convergence tip. A
+topic must remain a small reviewable slice, pass the shared validation matrix, and merge back
+promptly. The topic branch must not become a second integration base or accumulate unrelated work.
+
+The former v2 workstream names are frozen recovery aliases at their shared pre-policy tip:
+
+- `codex/non-render-refactor-v2`;
+- `codex/client-streaming-diagnostics-v2`.
+
+Do not advance or delete those aliases. Retire them only after Git confirms that convergence
+contains their complete histories and the containing convergence tip is published.
+
+All runtime variants build from convergence. In particular, the plain VM uses the compile-time
+`diagnostics-only` profile from the same source as the testing VM; it does not require a separate
+diagnostics product branch.
 
 Do not base new slices directly on `codex/graphics-diagnostics-client`,
 `codex/graphics-banded-lighting`, or the older preserved-feature branch. Those remain evidence and
@@ -28,9 +42,9 @@ recovery refs, not parallel product bases.
 | Package and launch | renderer DLL/version and reviewed graphics evidence | immutable/runtime-drift policy, publication, cleanup, launch orchestration | CMake, resource/version files, package manifest, launch/publish scripts |
 | Simulator | none | rules, builds, policies, replay, search, and deterministic evidence | product convergence only; no native-render dependency |
 
-The shared seam files are integration-owned. Renderer or non-render branches may change them only
-when their slice cannot be completed through an existing API, and such changes should be isolated in
-a small commit so they can be replayed once during convergence:
+The shared seam files are integration-owned. Short-lived renderer or non-render topics may change
+them only when their slice cannot be completed through an existing API, and such changes must be
+isolated in a small commit and merged once into convergence:
 
 - `native/wonderbane_extension/extension.cpp`
 - `native/wonderbane_extension/extension_api.h`
@@ -39,7 +53,7 @@ a small commit so they can be replayed once during convergence:
 - `src/shadowbane_lab/client_extension/package.py`
 - client-extension launch and publish scripts
 
-## Non-render refactor backlog
+## Non-render ownership backlog
 
 The first production slice is an exact-process native observation snapshot. A single request must
 bind progression, training, and player state to one process ID, process-creation FILETIME, capture
@@ -47,7 +61,7 @@ timestamp, and snapshot token. The current three-command PowerShell collection r
 compatibility aliases, but the exporter should consume the atomic snapshot so a report cannot mix
 states from different client moments or a reused PID.
 
-The non-render slice implements the ownership checkpoints as follows:
+The non-render lane implements the ownership checkpoints as follows:
 
 1. Exact-process observation is composed in `client_observation/native_snapshot.py`; focused
    observation commands remain compatibility surfaces.
@@ -96,6 +110,8 @@ Every shared checkpoint requires:
 
 - `git diff --check` and no unresolved merge markers;
 - the complete Python suite with declared dependencies;
+- Ruff lint and PowerShell parser checks for changed surfaces;
 - Win32 Release builds and CTest for both `full` and `diagnostics-only` profiles;
+- full-renderer and diagnostics-only package-boundary checks;
 - focused compatibility tests for any retained command or public import alias; and
 - a small pushed commit before the next ownership area begins.
