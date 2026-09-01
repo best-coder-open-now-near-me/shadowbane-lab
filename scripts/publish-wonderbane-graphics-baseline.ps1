@@ -12,7 +12,7 @@ param(
     ),
     [string] $ExtensionVersion = "1.5.5",
     [string] $ExtensionArtifact = (
-        "\\VBOXSVR\codexgfx\build\wonderbane-graphics-baseline\Release\wonderbane-extension-1.5.5.dll"
+        "\\VBOXSVR\codexgfx\build\wonderbane-client-extension\Release\wonderbane-extension-1.5.5.dll"
     ),
     [string] $TexturePatchManifest = (
         "\\VBOXSVR\codexgfx\assets\wonderbane_graphics\restrained-cel-v1\texture-patches.json"

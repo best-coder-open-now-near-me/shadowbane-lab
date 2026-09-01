@@ -86,6 +86,7 @@ def test_graphics_publication_and_launch_pin_the_golden_package() -> None:
     )
     assert 'ExtensionVersion = "1.5.5"' in publish
     assert "wonderbane-extension-1.5.5.dll" in publish
+    assert r"\build\wonderbane-client-extension\Release" in publish
     assert "06030ef64ce35cd363306de4367cf0b2d5014a5b642c318810d7bf97323bf161" in publish
     assert "$extensionSha256 -cne $ExpectedExtensionSha256" in publish
     assert "--texture-patch-manifest $TexturePatchManifest" in publish
