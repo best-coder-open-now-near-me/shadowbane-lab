@@ -18,6 +18,7 @@ from shadowbane_lab.diagnostics import (
     TriggerRule,
     analyze_diagnostic_capture,
     compare_diagnostic_captures,
+    plan_stationary_cpu_stack_capture,
     run_diagnostic_capture,
     submit_observation_marker,
 )
@@ -40,6 +41,8 @@ def handle(arguments: Namespace) -> int:
             return _capture(arguments, as_json=as_json)
         if arguments.diagnose_command == "mark":
             return _mark(arguments, as_json=as_json)
+        if arguments.diagnose_command == "stack-plan":
+            return _stack_plan(arguments, as_json=as_json)
         if arguments.diagnose_command == "analyze":
             store = ArtifactStore(arguments.store)
             report = analyze_diagnostic_capture(
@@ -179,6 +182,23 @@ def _mark(arguments: Namespace, *, as_json: bool) -> int:
         print(json.dumps(payload, allow_nan=False, sort_keys=True))
     else:
         for name in ("marker_id", "label", "phase", "finish"):
+            print(f"{name}: {payload[name]}")
+    return 0
+
+
+def _stack_plan(arguments: Namespace, *, as_json: bool) -> int:
+    plan = plan_stationary_cpu_stack_capture(arguments.capture_directory)
+    payload = {"ok": True, **plan}
+    if as_json:
+        print(json.dumps(payload, allow_nan=False, sort_keys=True))
+    else:
+        for name in (
+            "status",
+            "capture_directory",
+            "manifest_id",
+            "timeline_path",
+            "stationary_resident_unexplained_slow_frame_count",
+        ):
             print(f"{name}: {payload[name]}")
     return 0
 

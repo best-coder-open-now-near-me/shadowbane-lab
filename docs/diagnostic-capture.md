@@ -93,6 +93,35 @@ hitch classifications. Its summary keeps the two expensive follow-ups evidence-g
 The aggregate timeline cannot identify a CPU call stack or prove that two uploads name the same
 texture. Those remain separate optional captures so the normal reproduction stays low-overhead.
 
+### Optional stationary CPU stacks
+
+When `cpu_stack_capture_recommended` is true and the same exact client lifetime is still running,
+stand still at the reproduced slowdown and run:
+
+    .\scripts\capture-shadowbane-stationary-cpu-stacks.ps1 `
+        -CaptureDirectory '<completed-evidence-directory>' `
+        -ConfirmStationary
+
+The default trace is 10 seconds and the accepted range is 1-30 seconds. Before arming WPR, the
+launcher asks `diagnose stack-plan` to verify the content-addressed store and complete manifest,
+prove that the convenience timeline equals its sealed artifact, require all three hotspot phases,
+and require the timeline's positive recommendation. It then verifies PID, creation FILETIME, and
+executable path before and after the trace. Restart, PID reuse, path drift, an incomplete run, or a
+changed convenience file fails closed.
+
+Windows CPU sampling is system-wide at collection time. The receipt says that explicitly; it does
+not mislabel the ETL as a PID-filtered collection. Analysis must filter to the exact target PID and
+creation lifetime recorded in `capture.json`. The launcher refuses to start when another WPR
+session is active, uses the built-in CPU profile, limits the duration, and writes the ETL and a
+hashed create-only receipt outside the sealed diagnostic directory. It does not inject game input
+or write process memory. WPR may require an elevated terminal.
+
+`texture_identity_followup_recommended` is a separate gate. When false, no texture-identity capture
+is justified. When true, the next producer extension should record bounded texture IDs/generations,
+allocation/deletion lifetimes, and aggregate upload bytes so repeated warm uploads can be proven;
+the base capture intentionally does not pay that overhead or pretend aggregate bytes identify an
+asset.
+
 The triggered CLI supplies two conservative defaults when no explicit or manual trigger is given:
 
 - private bytes grow by at least 256 MiB from the first sample for two consecutive samples; or

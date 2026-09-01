@@ -39,6 +39,10 @@ from .session import (
     SystemSessionClock,
     run_diagnostic_capture,
 )
+from .stack_capture import (
+    STACK_CAPTURE_PLAN_SCHEMA_VERSION,
+    plan_stationary_cpu_stack_capture,
+)
 from .timeline import (
     DIAGNOSTIC_TIMELINE_SCHEMA_VERSION,
     build_diagnostic_timeline,
@@ -68,6 +72,7 @@ __all__ = [
     "ProcessProbe",
     "ProcessSample",
     "SessionClock",
+    "STACK_CAPTURE_PLAN_SCHEMA_VERSION",
     "SystemSessionClock",
     "TriggerOperator",
     "TriggerRule",
@@ -76,6 +81,7 @@ __all__ = [
     "build_diagnostic_timeline",
     "compare_diagnostic_captures",
     "collect_graphics_present_evidence",
+    "plan_stationary_cpu_stack_capture",
     "run_diagnostic_capture",
     "submit_observation_marker",
 ]

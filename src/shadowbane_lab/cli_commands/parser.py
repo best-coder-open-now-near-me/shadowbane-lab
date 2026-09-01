@@ -271,6 +271,13 @@ def _parser() -> argparse.ArgumentParser:
     diagnose_mark.add_argument("--finish", action="store_true")
     diagnose_mark.add_argument("--json", action="store_true")
 
+    diagnose_stack_plan = diagnose_commands.add_parser(
+        "stack-plan",
+        help="verify sealed timeline evidence and plan an optional CPU-stack capture",
+    )
+    diagnose_stack_plan.add_argument("capture_directory", type=Path)
+    diagnose_stack_plan.add_argument("--json", action="store_true")
+
     diagnose_analyze = diagnose_commands.add_parser(
         "analyze",
         help="reanalyze one sealed capture without recollecting",
