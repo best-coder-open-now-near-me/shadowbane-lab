@@ -856,6 +856,33 @@ These are inferences, ordered by present fit rather than certainty.
 4. Record whether turtles are inside each view and whether an emptied camp sector still activates.
 5. Preserve run `04` IDs and exact trigger timing before assigning the defect to props.
 
+## 2026-09-01 — Run 04 identifies the northern camp side as a candidate sector
+
+### Operator observation
+
+- Marker `shadowbane-lag-trigger-maelstrom-turtles-c06ea3d-04.marker` was created at approximately
+  `2026-09-01 03:39` America/New_York; the displayed file timestamp did not include seconds.
+- While isolating camp sections through camera coverage, the operator reported that the northern
+  side appears to be the view associated with the frame-rate collapse.
+- A fixed-position, fixed-zoom north/south repeat has not yet been recorded, so this remains a
+  candidate sector rather than a demonstrated individual prop or object set.
+
+### Updated interpretation
+
+- **Candidate:** One or more northern-sector props, creature placements, effects, geometry, LODs,
+  or scene nodes may cross the active visible-set threshold.
+- **Not established:** Whether the direction itself matters, whether the northern view merely
+  contains more objects, or whether one pathological object owns most of the cost.
+- Exact camera-forward telemetry is now a required tooling backlog item because it would align this
+  sector boundary with process, resource, and future frame-time spikes without manual timing.
+
+### Smallest confirmation
+
+1. Hold character position, zoom, combat state, and turtle locations constant.
+2. Pan north, south, and north for matched intervals and require lag to follow both northern views.
+3. If repeatable, split the northern view into west/east and near/far coverage without moving.
+4. Record the smallest view that activates lag before naming a specific prop or asset.
+
 ## Journal maintenance rule
 
 After every live test, append one entry containing:
