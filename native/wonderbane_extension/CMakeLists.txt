@@ -35,6 +35,7 @@ add_library(
   graphics_status.cpp
   import_hook.cpp
   performance_telemetry.cpp
+  scene_frame.cpp
   extension.def
   extension.rc
   world_map_capture.cpp
@@ -103,6 +104,54 @@ add_custom_command(
 )
 
 if(BUILD_TESTING)
+  add_executable(
+    wonderbane_extension_scene_frame_test
+    scene_frame.cpp
+    scene_frame_test.cpp
+  )
+  target_compile_features(
+    wonderbane_extension_scene_frame_test
+    PRIVATE
+    cxx_std_20
+  )
+  target_compile_definitions(
+    wonderbane_extension_scene_frame_test
+    PRIVATE
+    UNICODE
+    _UNICODE
+    WIN32_LEAN_AND_MEAN
+    NOMINMAX
+    STRICT
+  )
+  target_compile_options(
+    wonderbane_extension_scene_frame_test
+    PRIVATE
+    /W4
+    /WX
+    /permissive-
+    /sdl
+    /GS
+    /guard:cf
+    /Zc:__cplusplus
+    /utf-8
+  )
+  target_link_options(
+    wonderbane_extension_scene_frame_test
+    PRIVATE
+    /DYNAMICBASE
+    /NXCOMPAT
+    /guard:cf
+    /INCREMENTAL:NO
+  )
+  set_property(
+    TARGET wonderbane_extension_scene_frame_test
+    PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded"
+  )
+  add_test(
+    NAME wonderbane_extension_scene_frame
+    COMMAND wonderbane_extension_scene_frame_test
+  )
+
   add_executable(
     wonderbane_extension_cel_shading_test
     banded_lighting.cpp
