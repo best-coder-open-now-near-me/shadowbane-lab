@@ -788,6 +788,163 @@ These are inferences, ordered by present fit rather than certainty.
 4. Confirm whether looking away still fails to clear the mature state without leaving the camp.
 5. Summon PID `8856`, mark its first rendering of the camp, and hold both clients afterward.
 
+## 2026-09-01 — Camp entry ramps without full view; relocated turtles are smooth
+
+### Operator observation
+
+- PID `5416` ramped back into substantial lag while entering the original turtle camp even though
+  the camp was not fully in view.
+- After all turtles were pulled out of the camp and the camera was oriented away from the camp, the
+  client returned to a no-lag or near-normal state.
+- It is not established whether this particular sequence had already reached the fully mature state
+  that previously remained laggy while looking away.
+
+### Updated interpretation
+
+- **Supported:** Full visual exposure to the camp is not required for the lag to ramp during entry.
+  Spatial entry, partial visibility, streaming activation, or scene-cell activation can fit.
+- **Supported:** The pulled turtles outside the original camp context are not by themselves
+  sufficient to reproduce the active cost under the observed camera condition.
+- **Weakened:** A simple model in which each large turtle's animation or geometry imposes the same
+  cost wherever that creature is active.
+- **Still unresolved:** Turtle location, player location, camp visibility, and camera direction
+  changed together. The current observation does not identify which change removed the lag.
+
+### Smallest separation test
+
+1. Re-arm the unchanged live processes with the new `03` marker before further intervention.
+2. Preserve the current smooth state with turtles outside and the camp out of frame as baseline.
+3. Without changing player location, rotate to put the pulled turtles in view while keeping the camp
+   out of frame, if geometry permits.
+4. From the same position, face the now-emptier camp without re-entering it.
+5. If safe, enter the camp while the pulled turtles remain outside.
+6. Record symptom severity for each condition before resuming the late-arrival control experiment.
+
+## 2026-09-01 — Run 04 isolates a visible-scene threshold inside the camp
+
+### Operator observation
+
+- The operator refers to the current or most recent live trial as `04`; its sealed run, manifest,
+  and report identities have not yet been copied into the journal.
+- PID `5416` physically entered the original turtle camp and remained inside it while the operator
+  changed camera zoom and coverage.
+- Zoom and camera composition forced different sections of the camp out of view without requiring
+  the character to leave the camp.
+- When enough of the camp contents or props were excluded from the camera, frame rate returned to a
+  good or near-normal state. Broader camp coverage reproduced the bad state.
+- The exact visible prop, creature, effect, sector, LOD, and zoom sets were not instrumented.
+
+### Updated interpretation
+
+- **Strengthened:** The immediate active cost depends on the size or membership of the currently
+  visible scene set, with an apparent threshold rather than simple inside-versus-outside locality.
+- **Strengthened:** Renderer submission, visibility bookkeeping, culling, LOD, scene traversal, or
+  resource activation now fit better than a purely geographic or server-traffic explanation.
+- **Weakened:** Being inside the camp cell is sufficient by itself to impose the full frame-rate
+  penalty; camera coverage can relieve it without movement.
+- **Not proven:** Static props specifically own the defect. Zoom also changes frustum coverage, LOD,
+  occlusion, turtle/effect visibility, draw count, and potentially resource-residency behavior.
+- **Still unresolved:** Whether one pathological sector or object crosses the boundary, or whether
+  aggregate visible-object complexity exceeds a nonlinear threshold.
+
+### Smallest next separation
+
+1. Hold position, combat state, and zoom fixed inside the camp.
+2. Pan across camp sectors one at a time to find the smallest view that reliably activates lag.
+3. At the worst heading, vary zoom without changing heading; then hold zoom fixed and vary heading
+   to separate coverage or LOD effects from a particular sector.
+4. Record whether turtles are inside each view and whether an emptied camp sector still activates.
+5. Preserve run `04` IDs and exact trigger timing before assigning the defect to props.
+
+## 2026-09-01 — Run 04 identifies the northern camp side as a candidate sector
+
+### Operator observation
+
+- Marker `shadowbane-lag-trigger-maelstrom-turtles-c06ea3d-04.marker` was created at approximately
+  `2026-09-01 03:39` America/New_York; the displayed file timestamp did not include seconds.
+- While isolating camp sections through camera coverage, the operator reported that the northern
+  side appears to be the view associated with the frame-rate collapse.
+- A fixed-position, fixed-zoom north/south repeat has not yet been recorded, so this remains a
+  candidate sector rather than a demonstrated individual prop or object set.
+
+### Updated interpretation
+
+- **Candidate:** One or more northern-sector props, creature placements, effects, geometry, LODs,
+  or scene nodes may cross the active visible-set threshold.
+- **Not established:** Whether the direction itself matters, whether the northern view merely
+  contains more objects, or whether one pathological object owns most of the cost.
+- Exact camera-forward telemetry is now a required tooling backlog item because it would align this
+  sector boundary with process, resource, and future frame-time spikes without manual timing.
+
+### Smallest confirmation
+
+1. Hold character position, zoom, combat state, and turtle locations constant.
+2. Pan north, south, and north for matched intervals and require lag to follow both northern views.
+3. If repeatable, split the northern view into west/east and near/far coverage without moving.
+4. Record the smallest view that activates lag before naming a specific prop or asset.
+
+## 2026-09-01 — Northern candidate narrows to an empty-looking view hotspot
+
+### Operator observation
+
+- During further northern-sector isolation, the severe frame-rate response appeared tied to a very
+  specific camera aim or world spot rather than the whole northern side.
+- Nothing visually obvious appeared to occupy the hotspot. No visible prop has therefore been
+  identified as the owner.
+- Exact camera position, forward vector, zoom, field of view, and frustum membership were not
+  captured for this observation.
+
+### Updated interpretation
+
+- **Candidate:** A hidden or buried scene node, oversized or corrupt bounding volume, invisible
+  emitter, terrain or vegetation batch, portal/cell, or wrongly admitted off-screen object.
+- **Also possible:** The apparent center hotspot is only the camera orientation at which another
+  object crosses a frustum, LOD, or occlusion boundary elsewhere on screen.
+- **Important boundary:** An empty screen-center location does not establish an empty visible set;
+  assigning a world object requires camera and projection telemetry plus repeatable angular bounds.
+
+### Smallest next separation
+
+1. Hold character position and zoom fixed.
+2. Nudge left/right and up/down around the hotspot to map the smallest activating view cone.
+3. After mapping that cone, move laterally and aim at the same world location to test whether the
+   lag follows a world-space target or only a compass direction or frustum composition.
+4. Record whether vertical tilt changes the result; a ground-locked response raises terrain or a
+   buried node, while a horizon-locked response raises distant geometry or culling.
+5. Extend required camera telemetry beyond forward direction to enough reviewed projection state
+   to reconstruct the actual visible frustum when mappings become available.
+
+## 2026-09-01 — Four-direction movement pins the hotspot to the camp center
+
+### Corrected operator observation
+
+- The camera could not be moved independently of the character in this test. The earlier proposed
+  stationary camera-only interpretation does not apply.
+- The operator moved the character in all four directions around the candidate area. Across those
+  approaches, the same central camp world position crossed out of view at the response boundary.
+- Lag cleared when that central position left the view and returned when it re-entered, consistently
+  across the four movement directions.
+- Nothing visually obvious occupies the central position; no visible prop has been identified.
+
+### Updated interpretation
+
+- **Strongly supported:** The immediate active cost follows a stable world-space camp-center point
+  or tightly colocated scene cluster rather than a single compass heading.
+- **Weakened:** A direction-only renderer defect unrelated to world contents.
+- **Important confound:** Character movement also changes camera position, distance, LOD, streaming,
+  occlusion, and frustum membership, so the exact activating mechanism is not yet isolated.
+- **Leading candidates:** A hidden or buried node, bad world-space bounds, invisible emitter, terrain
+  or vegetation batch, portal/cell, or tightly colocated object cluster at the camp center.
+
+### Next evidence boundary
+
+1. Record exact player LT, LG, and altitude at each lag-on/lag-off transition point.
+2. Sample camera position, forward vector, zoom, and projection on the same monotonic clock as the
+   player position and process metrics.
+3. Reconstruct the four view boundaries to triangulate the shared world-space candidate region.
+4. Inspect static scene and cache records intersecting that region for hidden nodes, bad bounds,
+   emitters, terrain batches, or duplicated placements.
+
 ## Journal maintenance rule
 
 After every live test, append one entry containing:
