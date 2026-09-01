@@ -1,12 +1,51 @@
+import multiprocessing
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from shadowbane_lab.manager.record_store import publish_atomic_record
+from shadowbane_lab.manager.record_store import (
+    exclusive_record_lock,
+    publish_atomic_record,
+)
+
+
+def _hold_record_lock(path: str, ready, release) -> None:
+    with exclusive_record_lock(Path(path)):
+        ready.set()
+        if not release.wait(5.0):
+            raise TimeoutError("test parent did not release the record lock")
 
 
 class ManagerRecordStoreTests(unittest.TestCase):
+    def test_record_lock_is_exclusive_across_processes(self) -> None:
+        context = multiprocessing.get_context("spawn")
+        with tempfile.TemporaryDirectory() as directory:
+            lock_path = Path(directory) / "ledger.lock"
+            ready = context.Event()
+            release = context.Event()
+            process = context.Process(
+                target=_hold_record_lock,
+                args=(str(lock_path), ready, release),
+            )
+            process.start()
+            try:
+                self.assertTrue(ready.wait(5.0), "child did not acquire the record lock")
+                with self.assertRaisesRegex(TimeoutError, "timed out acquiring"):
+                    with exclusive_record_lock(
+                        lock_path,
+                        timeout_seconds=0.1,
+                        poll_seconds=0.01,
+                    ):
+                        self.fail("second process acquired an exclusive record lock")
+            finally:
+                release.set()
+                process.join(5.0)
+                if process.is_alive():
+                    process.terminate()
+                    process.join(5.0)
+            self.assertEqual(0, process.exitcode)
+
     def test_record_is_durably_replaced_without_temporary_residue(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory) / "nested" / "worker.json"
