@@ -141,6 +141,19 @@ class FrameTimingCollector:
         if len(self._poll_failures) < _MAX_POLL_FAILURE_DETAILS:
             self._poll_failures.append((observed_monotonic_ns, failure[:2048]))
 
+    def discard_before(self, cutoff_monotonic_ns: int) -> None:
+        self._samples = [item for item in self._samples if item[2] >= cutoff_monotonic_ns]
+        self._gaps = [
+            item for item in self._gaps if int(item["observed_monotonic_ns"]) >= cutoff_monotonic_ns
+        ]
+        self._query_failure_events = [
+            event for event in self._query_failure_events if event[1] >= cutoff_monotonic_ns
+        ]
+        self._sample_drop_events = [
+            event for event in self._sample_drop_events if event[1] >= cutoff_monotonic_ns
+        ]
+        self._anchors = self._retained_anchors(cutoff_monotonic_ns)
+
     def as_report(
         self,
         *,

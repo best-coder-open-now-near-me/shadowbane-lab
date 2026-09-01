@@ -52,6 +52,31 @@ class PerformanceFrameCollectorTests(unittest.TestCase):
         self.assertEqual(4, report["frames"][0]["cache_reads"]["count"])
         self.assertEqual(8192, report["frames"][0]["texture_uploads"]["bytes"])
 
+    def test_discard_before_releases_pretrigger_frames(self) -> None:
+        identity = ProcessIdentity(42, 1000, "C:/Wonderbane/sb.exe")
+        source = _Source(
+            [
+                _snapshot(10),
+                _snapshot(11, _frame(11, 11_000)),
+                _snapshot(12, _frame(12, 12_000)),
+            ]
+        )
+        collector = PerformanceFrameCollector(identity, source)
+        collector.poll(1, "2026-09-01T00:00:00.000Z")
+        collector.poll(2, "2026-09-01T00:00:01.000Z")
+        collector.poll(3, "2026-09-01T00:00:02.000Z")
+
+        collector.discard_before(3)
+        report = collector.as_report(
+            started_monotonic_ns=1,
+            started_at_utc="2026-09-01T00:00:00.000Z",
+            ended_monotonic_ns=3,
+            ended_at_utc="2026-09-01T00:00:02.000Z",
+            retained_cutoff_monotonic_ns=1,
+        )
+
+        self.assertEqual([12], [item["sequence"] for item in report["frames"]])
+
     def test_reports_ring_overwrite_and_capture_drop_as_incomplete(self) -> None:
         identity = ProcessIdentity(42, 1000, "C:/Wonderbane/sb.exe")
         collector = PerformanceFrameCollector(

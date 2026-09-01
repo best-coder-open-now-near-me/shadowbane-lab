@@ -153,6 +153,19 @@ class PerformanceFrameCollector:
         if len(self._poll_failures) < _MAX_POLL_FAILURE_DETAILS:
             self._poll_failures.append((observed_monotonic_ns, failure[:2048]))
 
+    def discard_before(self, cutoff_monotonic_ns: int) -> None:
+        self._frames = [
+            frame
+            for frame in self._frames
+            if int(frame["observed_monotonic_ns"]) >= cutoff_monotonic_ns
+        ]
+        self._gaps = [
+            gap for gap in self._gaps if int(gap["observed_monotonic_ns"]) >= cutoff_monotonic_ns
+        ]
+        self._capture_drop_events = [
+            event for event in self._capture_drop_events if event[1] >= cutoff_monotonic_ns
+        ]
+
     def as_report(
         self,
         *,

@@ -381,6 +381,66 @@ class GraphicsPresentEvidenceTests(unittest.TestCase):
             self.assertEqual("producer-ring-overwrite", report["gaps"][0]["reason"])
             self.assertEqual(66, report["gaps"][0]["missing_count"])
 
+    def test_collectors_discard_pretrigger_samples_and_preserve_clock_anchor(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            executable = root / "sb.exe"
+            executable.write_bytes(_present_pe())
+            identity = ProcessIdentity(245, 123456, str(executable))
+            status = root / "graphics-status.json"
+            candidates = (
+                {
+                    "candidate_id": "gdi32-swap-buffers",
+                    "library": "GDI32.dll",
+                    "symbol": "SwapBuffers",
+                    "iat_rva": 0x2050,
+                    "ordinal": None,
+                },
+            )
+            executable_sha256 = hashlib.sha256(executable.read_bytes()).hexdigest()
+            timing = FrameTimingCollector(
+                status,
+                identity,
+                executable_sha256,
+                candidates,
+            )
+            camera = CameraStateCollector(
+                status,
+                identity,
+                executable_sha256,
+                candidates,
+            )
+            for latest, observed_ns in ((10, 1), (12, 2), (14, 3)):
+                status.write_text(
+                    json.dumps(_status(executable, identity, latest_sequence=latest)),
+                    encoding="utf-8",
+                )
+                observed_at = f"2026-09-01T03:30:0{observed_ns}.000Z"
+                timing.poll(observed_ns, observed_at)
+                camera.poll(observed_ns, observed_at)
+
+            timing.discard_before(3)
+            camera.discard_before(3)
+            report_arguments = {
+                "started_monotonic_ns": 1,
+                "started_at_utc": "2026-09-01T03:30:01.000Z",
+                "ended_monotonic_ns": 3,
+                "ended_at_utc": "2026-09-01T03:30:03.000Z",
+                "retained_cutoff_monotonic_ns": 1,
+            }
+            timing_report = timing.as_report(**report_arguments)
+            camera_report = camera.as_report(**report_arguments)
+
+            self.assertEqual([13, 14], [item[0] for item in timing_report["samples"]])
+            self.assertEqual(
+                [2, 3],
+                [item["observed_monotonic_ns"] for item in timing_report["clock"]["anchors"]],
+            )
+            self.assertEqual(
+                [13, 14],
+                [item["sequence"] for item in camera_report["samples"]],
+            )
+
     def test_capture_continuously_drains_and_analyzes_exact_present_timing(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

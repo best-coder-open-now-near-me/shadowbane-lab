@@ -78,6 +78,23 @@ class EvidenceSpineTests(unittest.TestCase):
             with store.open_artifact(first.artifact_id or "") as stream:
                 self.assertEqual(b"evidence", stream.read())
 
+    def test_store_streams_chunks_without_joining_and_deduplicates(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            store = self._store(Path(temporary))
+            streamed = store.ingest_chunks(
+                (chunk for chunk in (b"evi", b"dence")),
+                artifact_kind=ArtifactKind.SEMANTIC_TRACE,
+                media_type="application/json",
+                logical_name="streamed-trace.json",
+                producer_id="test-producer",
+                producer_version="1.0.0",
+                captured_at_utc="2026-08-31T12:00:00.000Z",
+            )
+            ordinary = self._descriptor(store)
+
+            self.assertEqual(ordinary.artifact_id, streamed.artifact_id)
+            self.assertEqual((True, None), store.verify_descriptor(streamed))
+
     def test_object_path_rejects_reparse_at_every_existing_segment(self) -> None:
         payload = b"reparse containment"
         digest = hashlib.sha256(payload).hexdigest()

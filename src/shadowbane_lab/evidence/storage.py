@@ -140,6 +140,37 @@ class ArtifactStore:
         self._publish_stage(stage, descriptor)
         return descriptor
 
+    def ingest_chunks(
+        self,
+        chunks: Iterable[bytes],
+        *,
+        artifact_kind: ArtifactKind,
+        media_type: str,
+        logical_name: str,
+        producer_id: str,
+        producer_version: str,
+        captured_at_utc: str | None = None,
+        redaction: Redaction | None = None,
+        parents: Iterable[str] = (),
+        metadata: Iterable[tuple[str, object]] = (),
+    ) -> ArtifactDescriptor:
+        """Ingest a finite byte-chunk stream without materializing one joined payload."""
+
+        descriptor, stage = self._stage_stream(
+            _ChunkReader(chunks),
+            artifact_kind=artifact_kind,
+            media_type=media_type,
+            logical_name=logical_name,
+            producer_id=producer_id,
+            producer_version=producer_version,
+            captured_at_utc=captured_at_utc,
+            redaction=redaction,
+            parents=parents,
+            metadata=metadata,
+        )
+        self._publish_stage(stage, descriptor)
+        return descriptor
+
     def ingest_file(
         self,
         source: str | Path,
@@ -274,6 +305,27 @@ class ArtifactStore:
         valid, issue = self.verify_descriptor(descriptor)
         if not valid:
             raise EvidenceError(f"published artifact verification failed: {issue}")
+
+
+class _ChunkReader:
+    def __init__(self, chunks: Iterable[bytes]) -> None:
+        self._chunks = iter(chunks)
+        self._current = b""
+        self._offset = 0
+
+    def read(self, size: int) -> bytes:
+        while self._offset >= len(self._current):
+            try:
+                current = next(self._chunks)
+            except StopIteration:
+                return b""
+            if not isinstance(current, bytes):
+                raise TypeError("artifact chunks must be bytes")
+            self._current = current
+            self._offset = 0
+        result = self._current[self._offset : self._offset + size]
+        self._offset += len(result)
+        return result
 
 
 class _BytesReader:

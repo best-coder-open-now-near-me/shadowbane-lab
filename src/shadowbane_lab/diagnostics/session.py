@@ -54,6 +54,7 @@ from .performance import (
     open_performance_snapshot_source,
 )
 from .process import ProcessIdentity, ProcessProbe, ProcessSample, WindowsProcessProbe
+from .retention import ByteRetentionBuffer
 from .timeline import build_diagnostic_timeline
 
 _PRODUCER_ID = "shadowbane-lab.diagnostics"
@@ -123,6 +124,7 @@ class _PendingRecord:
     artifact_id: str | None = None
     quality: tuple[CaptureQuality, ...] = ()
     binary_key: tuple[object, ...] | None = None
+    retention_scoped: bool = False
 
 
 def run_diagnostic_capture(
@@ -414,10 +416,20 @@ def run_diagnostic_capture(
         for channel in request.file_channels
         if channel.mode is FileCaptureMode.TAIL
     }
-    tail_chunks: dict[str, list[FileChunk]] = {channel_id: [] for channel_id in tail_collectors}
+    tail_chunks = {
+        channel_id: ByteRetentionBuffer[FileChunk](
+            collector.channel.maximum_bytes,
+            monotonic_ns=lambda item: item.captured_monotonic_ns,
+            size_bytes=lambda item: len(item.payload),
+        )
+        for channel_id, collector in tail_collectors.items()
+    }
     screenshot_collector: ScreenshotCollector | None = None
-    screenshots: list[ScreenshotCapture] = []
-    screenshot_bytes = 0
+    screenshots = ByteRetentionBuffer[ScreenshotCapture](
+        _MAX_SCREENSHOT_BUFFER_BYTES,
+        monotonic_ns=lambda item: item.captured_monotonic_ns,
+        size_bytes=lambda item: len(item.png_bytes),
+    )
     if request.screenshot_region is not None:
         factory = screenshot_factory or (
             lambda region, interval: ScreenshotCollector(region, interval)
@@ -462,6 +474,32 @@ def run_diagnostic_capture(
     while True:
         now_ns = session_clock.monotonic_ns()
         now_utc = session_clock.utc_timestamp()
+        if request.profile is DiagnosticProfile.TRIGGERED:
+            rolling_cutoff_ns = _retained_cutoff_ns(
+                request,
+                started_ns=started_ns,
+                current_ns=now_ns,
+                trigger_ns=trigger_ns,
+            )
+            for buffer in tail_chunks.values():
+                buffer.discard_before(rolling_cutoff_ns)
+            screenshots.discard_before(rolling_cutoff_ns)
+            if performance_collector is not None:
+                performance_collector.discard_before(rolling_cutoff_ns)
+            if frame_timing_collector is not None:
+                frame_timing_collector.discard_before(rolling_cutoff_ns)
+            if camera_state_collector is not None:
+                camera_state_collector.discard_before(rolling_cutoff_ns)
+            pending[:] = [
+                item
+                for item in pending
+                if not item.retention_scoped or item.monotonic_ns >= rolling_cutoff_ns
+            ]
+            native_position_samples[:] = [
+                item
+                for item in native_position_samples
+                if int(item["monotonic_ns"]) >= rolling_cutoff_ns
+            ]
         if current_sample is None:
             try:
                 current_sample = probe.sample(request.process_id)
@@ -497,6 +535,7 @@ def run_diagnostic_capture(
                         }.items()
                     )
                 ),
+                retention_scoped=True,
             )
         )
         completed.add("process-metrics")
@@ -521,6 +560,7 @@ def run_diagnostic_capture(
                         captured_at_utc=now_utc,
                         kind=CaptureRecordKind.OBSERVATION,
                         payload=tuple(sorted(position_sample.items())),
+                        retention_scoped=True,
                     )
                 )
             except Exception as exc:
@@ -535,6 +575,7 @@ def run_diagnostic_capture(
                         kind=CaptureRecordKind.EVENT,
                         payload=(("failure", failure[:2048]),),
                         quality=(CaptureQuality.DROPPED,),
+                        retention_scoped=True,
                     )
                 )
         if frame_timing_collector is not None:
@@ -564,7 +605,12 @@ def run_diagnostic_capture(
         for channel_id, collector in tuple(tail_collectors.items()):
             try:
                 for chunk in collector.poll(now_ns):
-                    tail_chunks[channel_id].append(chunk)
+                    if not tail_chunks[channel_id].append(chunk):
+                        channel_failures[channel_id] = (
+                            "retained tail buffer would exceed its configured byte limit"
+                        )
+                        tail_collectors.pop(channel_id, None)
+                        break
                     key = _file_chunk_key(chunk)
                     quality = (
                         (CaptureQuality.DROPPED,)
@@ -593,6 +639,7 @@ def run_diagnostic_capture(
                             ),
                             quality=quality,
                             binary_key=key,
+                            retention_scoped=True,
                         )
                     )
                     if chunk.dropped_bytes:
@@ -601,12 +648,16 @@ def run_diagnostic_capture(
                         )
             except Exception as exc:
                 channel_failures[channel_id] = f"{type(exc).__name__}: {exc}"
-                del tail_collectors[channel_id]
+                tail_collectors.pop(channel_id, None)
         if screenshot_collector is not None:
             try:
                 for capture in screenshot_collector.poll(now_ns):
-                    screenshots.append(capture)
-                    screenshot_bytes += len(capture.png_bytes)
+                    if not screenshots.append(capture):
+                        channel_failures["screenshots"] = (
+                            f"screenshot buffer would exceed {_MAX_SCREENSHOT_BUFFER_BYTES} bytes"
+                        )
+                        screenshot_collector = None
+                        break
                     pending.append(
                         _PendingRecord(
                             channel_id="screenshots",
@@ -619,12 +670,9 @@ def run_diagnostic_capture(
                                 ("width", capture.width),
                             ),
                             binary_key=_screenshot_key(capture),
+                            retention_scoped=True,
                         )
                     )
-                    if screenshot_bytes > _MAX_SCREENSHOT_BUFFER_BYTES:
-                        channel_failures["screenshots"] = "screenshot buffer exceeded 256 MiB"
-                        screenshot_collector = None
-                        break
             except Exception as exc:
                 channel_failures["screenshots"] = f"{type(exc).__name__}: {exc}"
                 screenshot_collector = None
@@ -747,13 +795,21 @@ def run_diagnostic_capture(
         monotonic_ns=ended_ns,
         captured_at_utc=ended_utc,
     )
-    retained_cutoff_ns = started_ns
+    retained_cutoff_ns = _retained_cutoff_ns(
+        request,
+        started_ns=started_ns,
+        current_ns=ended_ns,
+        trigger_ns=trigger_ns,
+    )
     if request.profile is DiagnosticProfile.TRIGGERED:
-        anchor_ns = trigger_ns if trigger_ns is not None else ended_ns
-        retained_cutoff_ns = max(
-            started_ns,
-            anchor_ns - int(request.effective_pre_trigger_seconds * 1_000_000_000),
-        )
+        for buffer in tail_chunks.values():
+            buffer.discard_before(retained_cutoff_ns)
+        screenshots.discard_before(retained_cutoff_ns)
+        native_position_samples[:] = [
+            item
+            for item in native_position_samples
+            if int(item["monotonic_ns"]) >= retained_cutoff_ns
+        ]
 
     performance_report: dict[str, object] | None = None
     if performance_collector is not None:
@@ -953,9 +1009,8 @@ def run_diagnostic_capture(
         if not source_seen:
             channel_failures.setdefault(channel.channel_id, f"source not found: {channel.path}")
             continue
-        payload = b"".join(item.payload for item in chunks)
-        descriptor = store.ingest_bytes(
-            payload,
+        descriptor = store.ingest_chunks(
+            (item.payload for item in chunks),
             artifact_kind=channel.artifact_kind,
             media_type=channel.media_type,
             logical_name=f"{channel.channel_id}-{channel.path.name}.tail",
@@ -1034,7 +1089,10 @@ def run_diagnostic_capture(
     filtered_pending = [
         item
         for item in pending
-        if item.binary_key is None or item.binary_key in retained_binary_keys
+        if (
+            (not item.retention_scoped or item.monotonic_ns >= retained_cutoff_ns)
+            and (item.binary_key is None or item.binary_key in retained_binary_keys)
+        )
     ]
     records = _finalize_records(
         run_id,
@@ -1145,6 +1203,11 @@ def run_diagnostic_capture(
         "triggered": trigger_ns is not None,
         "trigger_reason": trigger_reason,
         "retained_pre_trigger_cutoff_monotonic_ns": retained_cutoff_ns,
+        "retained_screenshot_bytes": screenshots.retained_bytes,
+        "peak_screenshot_bytes": screenshots.peak_retained_bytes,
+        "retained_tail_bytes": {
+            channel_id: buffer.retained_bytes for channel_id, buffer in sorted(tail_chunks.items())
+        },
         "required_channels": sorted(required),
         "completed_channels": sorted(completed),
         "channel_failures": dict(sorted(channel_failures.items())),
@@ -1192,6 +1255,22 @@ def run_diagnostic_capture(
         timeline_path=timeline_path,
         manifest=manifest,
         summary=summary,
+    )
+
+
+def _retained_cutoff_ns(
+    request: DiagnosticRequest,
+    *,
+    started_ns: int,
+    current_ns: int,
+    trigger_ns: int | None,
+) -> int:
+    if request.profile is not DiagnosticProfile.TRIGGERED:
+        return started_ns
+    anchor_ns = trigger_ns if trigger_ns is not None else current_ns
+    return max(
+        started_ns,
+        anchor_ns - int(request.effective_pre_trigger_seconds * 1_000_000_000),
     )
 
 
