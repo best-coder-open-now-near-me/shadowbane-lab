@@ -243,6 +243,68 @@ int wmain() {
     ) {
         return Fail(L"local model-view outline policy");
     }
+    constexpr wonderbane::extension::OutlineBounds glyph_bounds{
+        {0.0F, 0.0F, 0.0F},
+        {16.0F, 24.0F, 0.0F},
+    };
+    constexpr wonderbane::extension::OutlineBounds volume_bounds{
+        {0.0F, 0.0F, 0.0F},
+        {16.0F, 24.0F, 8.0F},
+    };
+    if (
+        !wonderbane::extension::IsPlanarOverlayGeometry(
+            &glyph_bounds, 4U, 1U
+        )
+        || !wonderbane::extension::IsPlanarOverlayGeometry(
+            &glyph_bounds, 6U, 1U
+        )
+        || wonderbane::extension::IsPlanarOverlayGeometry(
+            &volume_bounds, 4U, 1U
+        )
+        || wonderbane::extension::IsPlanarOverlayGeometry(
+            &glyph_bounds, 8193U, 1U
+        )
+    ) {
+        return Fail(L"planar overlay exclusion policy");
+    }
+    if (
+        !wonderbane::extension::IsPlanarOverlayDrawState(
+            true, true, true, false, false, false
+        )
+        || !wonderbane::extension::IsPlanarOverlayDrawState(
+            true, true, false, true, false, false
+        )
+        || wonderbane::extension::IsPlanarOverlayDrawState(
+            true, true, true, false, true, false
+        )
+        || wonderbane::extension::IsPlanarOverlayDrawState(
+            true, true, true, false, false, true
+        )
+        || wonderbane::extension::IsPlanarOverlayDrawState(
+            false, true, true, false, false, false
+        )
+    ) {
+        return Fail(L"planar overlay render-state policy");
+    }
+    if (
+        !wonderbane::extension::IsFeatureAccentDrawState(
+            true, true, false, true
+        )
+        || !wonderbane::extension::IsFeatureAccentDrawState(
+            true, false, false, true
+        )
+        || wonderbane::extension::IsFeatureAccentDrawState(
+            true, false, true, true
+        )
+        || wonderbane::extension::IsFeatureAccentDrawState(
+            true, false, false, false
+        )
+        || wonderbane::extension::IsFeatureAccentDrawState(
+            false, true, false, true
+        )
+    ) {
+        return Fail(L"layered equipment feature-accent policy");
+    }
     constexpr std::array<int, 4U> viewport{0, 0, 1200, 800};
     std::array<float, 16U> near_model_view = local_model_view;
     near_model_view[14] = -50.0F;

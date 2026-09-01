@@ -1,5 +1,7 @@
 #include "cel_shading.h"
 #include "banded_lighting.h"
+#include "depth_edges.h"
+#include "graphics_control.h"
 #include "graphics_status.h"
 
 #include <Windows.h>
@@ -68,6 +70,8 @@ constexpr float kMaximumOutlineHullScale = 1.25F;
 constexpr std::size_t kCapturedDisplayListCapacity = 65536U;
 constexpr std::size_t kMaximumCapturedVerticesPerList = 65536U;
 constexpr std::size_t kMaximumFeatureEdgesPerList = 4096U;
+constexpr std::size_t kMaximumOverlayVerticesPerList = 8192U;
+constexpr std::size_t kMaximumNestedDisplayListsPerList = 4096U;
 constexpr std::uint32_t kReviewedSwapBuffersIatRva = 23'789'964U;
 
 using GlShadeModel = void(APIENTRY*)(unsigned int mode);
@@ -191,6 +195,9 @@ thread_local VertexArrayState g_vertex_array_state{};
 thread_local VertexArrayState g_tex_coord_array_state{};
 thread_local BandedLightingDraw g_immediate_banded_draw{};
 thread_local bool g_immediate_primitive_open = false;
+thread_local bool g_immediate_depth_scene_draw = false;
+thread_local std::array<float, 16U> g_immediate_scene_projection{};
+thread_local std::array<int, 4U> g_immediate_scene_viewport{};
 
 struct CapturedVertex {
     std::array<float, 3U> position{};
@@ -208,6 +215,7 @@ struct CapturedDisplayListBounds {
         bool has_tex_coords = false;
     };
     std::vector<FeatureEdge> feature_edges{};
+    bool planar_overlay_candidate = false;
     bool valid = false;
 };
 
@@ -226,11 +234,14 @@ struct ActiveDisplayListCapture {
     bool primitive_open = false;
     std::vector<CapturedVertex> vertices{};
     std::vector<CapturedPrimitiveRange> primitives{};
+    std::vector<unsigned int> nested_lists{};
 };
 
 SRWLOCK g_display_list_lock = SRWLOCK_INIT;
 std::array<CapturedDisplayListBounds, kCapturedDisplayListCapacity> g_display_list_bounds{};
 thread_local ActiveDisplayListCapture g_active_display_list_capture{};
+
+bool IsFilledPrimitiveMode(unsigned int mode) noexcept;
 
 template <typename Function>
 Function LoadFunction(PVOID volatile* const storage) noexcept {
@@ -540,13 +551,14 @@ std::vector<CapturedDisplayListBounds::FeatureEdge> BuildArrayFeatureEdges(
     const int count,
     const unsigned int index_type,
     const void* const indices,
-    OutlineHullTransform* const hull
+    const bool capture_feature_edges,
+    bool* const planar_overlay_candidate
 ) noexcept {
     std::vector<CapturedDisplayListBounds::FeatureEdge> empty{};
     const VertexArrayState state = g_vertex_array_state;
     const VertexArrayState tex_coord_state = g_tex_coord_array_state;
-    if (hull != nullptr) {
-        *hull = {};
+    if (planar_overlay_candidate != nullptr) {
+        *planar_overlay_candidate = false;
     }
     if (!state.enabled || state.pointer == nullptr || state.type != kGlFloat
         || state.size < 2 || state.size > 4 || state.stride < 0
@@ -593,7 +605,8 @@ std::vector<CapturedDisplayListBounds::FeatureEdge> BuildArrayFeatureEdges(
     if (!IsReadableMemoryRange(state.pointer, required_vertex_bytes)) {
         return empty;
     }
-    const bool collect_feature_edges = count <= kMaximumFeatureEdgeElementCount;
+    const bool collect_feature_edges = capture_feature_edges
+        && count <= kMaximumFeatureEdgeElementCount;
     const bool has_tex_coords = collect_feature_edges && tex_coord_state.enabled
         && tex_coord_state.pointer != nullptr
         && tex_coord_state.type == kGlFloat
@@ -698,12 +711,9 @@ std::vector<CapturedDisplayListBounds::FeatureEdge> BuildArrayFeatureEdges(
             }
             capture.vertices.push_back(captured);
         }
-        if (has_bounds && hull != nullptr) {
-            CenteredOutlineHullTransform(
-                &bounds,
-                static_cast<float>(kOutlineWorldThickness),
-                hull
-            );
+        if (has_bounds && planar_overlay_candidate != nullptr) {
+            *planar_overlay_candidate = IsFilledPrimitiveMode(mode)
+                && IsPlanarOverlayGeometry(&bounds, requested, 1U);
         }
         if (!collect_feature_edges) {
             return empty;
@@ -789,19 +799,56 @@ void CaptureDisplayListVertex(const float x, const float y, const float z) noexc
 
 void EndDisplayListCapture() noexcept {
     CloseCapturedPrimitive();
+    bool nested_overlay_candidate = false;
+    if (g_active_display_list_capture.active
+        && !g_active_display_list_capture.nested_lists.empty()
+        && !g_active_display_list_capture.invalid) {
+        nested_overlay_candidate = true;
+        AcquireSRWLockShared(&g_display_list_lock);
+        for (const unsigned int list : g_active_display_list_capture.nested_lists) {
+            if (list >= g_display_list_bounds.size()
+                || !g_display_list_bounds[list].valid
+                || !g_display_list_bounds[list].planar_overlay_candidate) {
+                nested_overlay_candidate = false;
+                break;
+            }
+        }
+        ReleaseSRWLockShared(&g_display_list_lock);
+    }
     if (
         g_active_display_list_capture.active
         && g_active_display_list_capture.list < g_display_list_bounds.size()
-        && g_active_display_list_capture.has_vertex
         && !g_active_display_list_capture.invalid
+        && (g_active_display_list_capture.has_vertex || nested_overlay_candidate)
     ) {
         AcquireSRWLockExclusive(&g_display_list_lock);
         CapturedDisplayListBounds& captured = (
             g_display_list_bounds[g_active_display_list_capture.list]
         );
-        captured.bounds = g_active_display_list_capture.bounds;
+        if (g_active_display_list_capture.has_vertex) {
+            captured.bounds = g_active_display_list_capture.bounds;
+        }
+        bool only_filled_primitives = (
+            !g_active_display_list_capture.primitives.empty()
+        );
+        for (const CapturedPrimitiveRange& primitive
+             : g_active_display_list_capture.primitives) {
+            only_filled_primitives = only_filled_primitives
+                && IsFilledPrimitiveMode(primitive.mode);
+        }
+        const bool direct_overlay_candidate = only_filled_primitives
+            && IsPlanarOverlayGeometry(
+                &captured.bounds,
+                g_active_display_list_capture.vertices.size(),
+                g_active_display_list_capture.primitives.size()
+            );
+        captured.planar_overlay_candidate = direct_overlay_candidate
+            || (!g_active_display_list_capture.has_vertex
+                && nested_overlay_candidate);
         try {
-            captured.feature_edges = BuildFeatureEdges(g_active_display_list_capture);
+            captured.feature_edges = g_active_display_list_capture.has_vertex
+                ? BuildFeatureEdges(g_active_display_list_capture)
+                : std::vector<CapturedDisplayListBounds::FeatureEdge>{};
         } catch (...) {
             captured.feature_edges.clear();
         }
@@ -898,6 +945,17 @@ bool HasOutlineHull(const OutlineHullTransform& hull) noexcept {
         }
     }
     return false;
+}
+
+bool IsPlanarOverlayCandidate(const unsigned int list) noexcept {
+    if (list >= g_display_list_bounds.size()) {
+        return false;
+    }
+    AcquireSRWLockShared(&g_display_list_lock);
+    const bool candidate = g_display_list_bounds[list].valid
+        && g_display_list_bounds[list].planar_overlay_candidate;
+    ReleaseSRWLockShared(&g_display_list_lock);
+    return candidate;
 }
 
 bool IsFilledPrimitiveMode(const unsigned int mode) noexcept {
@@ -1029,7 +1087,7 @@ void DrawDisplayListFeatureEdges(
     }
     AcquireSRWLockShared(&g_display_list_lock);
     const CapturedDisplayListBounds& captured = g_display_list_bounds[list];
-    if (captured.valid) {
+    if (captured.valid && !captured.planar_overlay_candidate) {
         DrawFeatureEdgeSegments(
             captured.feature_edges, api, outline_width, preserve_alpha_test
         );
@@ -1040,7 +1098,6 @@ void DrawDisplayListFeatureEdges(
 template <typename Draw>
 void DrawWithSilhouette(
     const Draw& draw,
-    const OutlineHullTransform* const hull = nullptr,
     const unsigned int feature_list = UINT32_MAX,
     const ArrayFeatureRequest* const array_features = nullptr
 ) noexcept {
@@ -1048,9 +1105,12 @@ void DrawWithSilhouette(
     std::array<float, 16U> projection{};
     std::array<float, 16U> model_view{};
     std::array<int, 4U> viewport{};
-    int matrix_mode = 0;
     unsigned char depth_writes = FALSE;
     unsigned char alpha_test_enabled = FALSE;
+    unsigned char blend_enabled = FALSE;
+    unsigned char texture_enabled = FALSE;
+    unsigned char lighting_enabled = FALSE;
+    unsigned char fog_enabled = FALSE;
     if (!LoadOutlineApi(&api)) {
         draw();
         return;
@@ -1063,30 +1123,28 @@ void DrawWithSilhouette(
         static_cast<int>(InterlockedCompareExchange(&g_viewport_width, 0, 0)),
         static_cast<int>(InterlockedCompareExchange(&g_viewport_height, 0, 0)),
     };
-    matrix_mode = static_cast<int>(g_current_matrix_mode);
     api.get_booleanv(kGlDepthWriteMask, &depth_writes);
     api.get_booleanv(kGlAlphaTest, &alpha_test_enabled);
-    const float outline_width = PerspectiveOutlineLineWidth(
-        projection.data(),
-        projection.size(),
-        model_view.data(),
-        model_view.size(),
-        viewport.data(),
-        viewport.size()
-    );
+    api.get_booleanv(kGlBlend, &blend_enabled);
+    api.get_booleanv(kGlTexture2D, &texture_enabled);
+    api.get_booleanv(kGlLighting, &lighting_enabled);
+    api.get_booleanv(kGlFog, &fog_enabled);
     if (!IsPerspectiveProjectionMatrix(projection.data(), projection.size())) {
+        CompositeDepthEdgesBeforeUi();
         draw();
         return;
     }
-
+    const GraphicsParameters graphics_parameters = CurrentGraphicsParameters();
     const bool outline_enabled = (
-        IsLocalOutlineModelViewMatrix(model_view.data(), model_view.size())
-        && outline_width > 0.0F
-        && depth_writes != FALSE
+        graphics_parameters.flags & kGraphicsControlFeatureAccents
+    ) != 0U && IsFeatureAccentDrawState(
+        IsLocalOutlineModelViewMatrix(model_view.data(), model_view.size()),
+        depth_writes != FALSE,
+        blend_enabled != FALSE,
+        lighting_enabled != FALSE
     );
-
-    OutlineHullTransform array_hull{};
-    const auto feature_edges = !outline_enabled || array_features == nullptr
+    bool array_planar_overlay_candidate = false;
+    auto feature_edges = array_features == nullptr
         ? std::vector<CapturedDisplayListBounds::FeatureEdge>{}
         : BuildArrayFeatureEdges(
             array_features->mode,
@@ -1094,79 +1152,28 @@ void DrawWithSilhouette(
             array_features->count,
             array_features->index_type,
             array_features->indices,
-            &array_hull
+            outline_enabled,
+            &array_planar_overlay_candidate
         );
-    const OutlineHullTransform* effective_hull = hull;
-    if (effective_hull == nullptr && HasOutlineHull(array_hull)) {
-        effective_hull = &array_hull;
-    }
-    OutlineHullTransform screen_hull{};
-    if (effective_hull != nullptr) {
-        screen_hull = *effective_hull;
-        const double depth = std::fabs(static_cast<double>(model_view[14]));
-        const double projection_scale = std::fabs(
-            static_cast<double>(projection[5])
-        );
-        const double pixels_per_world = depth > 0.001
-            ? static_cast<double>(viewport[3]) * projection_scale / (2.0 * depth)
-            : 0.0;
-        if (pixels_per_world > 0.0 && std::isfinite(pixels_per_world)) {
-            const double world_thickness = static_cast<double>(outline_width)
-                / pixels_per_world;
-            for (std::size_t axis = 0U; axis < 3U; ++axis) {
-                const double half_extent = effective_hull->half_extent[axis];
-                if (half_extent <= 0.0 || !std::isfinite(half_extent)) {
-                    screen_hull.scale[axis] = 1.0F;
-                    continue;
-                }
-                const double requested_scale = 1.0
-                    + world_thickness / half_extent;
-                screen_hull.scale[axis] = static_cast<float>(std::min(
-                    requested_scale,
-                    static_cast<double>(kMaximumOutlineHullScale)
-                ));
-            }
-        }
+    const bool planar_overlay_candidate = (
+        feature_list != UINT32_MAX && IsPlanarOverlayCandidate(feature_list)
+    ) || array_planar_overlay_candidate;
+    if (IsPlanarOverlayDrawState(
+            planar_overlay_candidate,
+            texture_enabled != FALSE,
+            alpha_test_enabled != FALSE,
+            blend_enabled != FALSE,
+            lighting_enabled != FALSE,
+            fog_enabled != FALSE
+        )) {
+        CompositeDepthEdgesBeforeUi();
+        draw();
+        return;
     }
 
-    const bool use_centered_hull = (
-        outline_enabled
-        &&
-        effective_hull != nullptr
-        && HasOutlineHull(screen_hull)
-        && matrix_mode == static_cast<int>(kGlModelView)
-    );
-    if (use_centered_hull) {
-        api.push_attrib(kGlAllAttribBits);
-        api.disable(kGlLighting);
-        api.disable(kGlFog);
-        api.disable(kGlBlend);
-        if (alpha_test_enabled == FALSE) {
-            api.disable(kGlTexture2D);
-            api.disable(kGlAlphaTest);
-        }
-        api.disable(kGlLineSmooth);
-        api.disable(kGlDither);
-        api.enable(kGlColorLogicOp);
-        api.logic_op(kGlClear);
-        api.depth_mask(FALSE);
-        api.enable(kGlCullFace);
-        api.cull_face(kGlFront);
-        api.polygon_mode(kGlFrontAndBack, kGlFill);
-        api.push_matrix();
-        api.translatef(
-            screen_hull.center[0], screen_hull.center[1], screen_hull.center[2]
-        );
-        api.scalef(
-            screen_hull.scale[0], screen_hull.scale[1], screen_hull.scale[2]
-        );
-        api.translatef(
-            -screen_hull.center[0], -screen_hull.center[1], -screen_hull.center[2]
-        );
-        draw();
-        api.pop_matrix();
-        api.pop_attrib();
-    }
+    const float outline_width = outline_enabled
+        ? graphics_parameters.feature_outline_width
+        : 0.0F;
 
     DrawWithBandedLighting(draw);
     if (outline_enabled && feature_list != UINT32_MAX) {
@@ -1176,6 +1183,14 @@ void DrawWithSilhouette(
     } else if (outline_enabled && !feature_edges.empty()) {
         DrawFeatureEdgeSegments(
             feature_edges, api, outline_width, alpha_test_enabled != FALSE
+        );
+    }
+    if (depth_writes != FALSE) {
+        MarkDepthEdgeSceneDraw(
+            projection.data(),
+            projection.size(),
+            viewport.data(),
+            viewport.size()
         );
     }
 }
@@ -1237,14 +1252,22 @@ void APIENTRY StrongShadeModel(const unsigned int mode) noexcept {
     }
 }
 
-bool IsCurrentPerspectiveProjection() noexcept {
+bool CurrentProjection(
+    std::array<float, 16U>* const projection,
+    bool* const perspective
+) noexcept {
+    if (projection == nullptr || perspective == nullptr) {
+        return false;
+    }
     const auto get_floatv = LoadFunction<GlGetFloatv>(&g_get_floatv);
     if (get_floatv == nullptr) {
         return false;
     }
-    std::array<float, 16U> projection{};
-    get_floatv(kGlProjectionMatrix, projection.data());
-    return IsPerspectiveProjectionMatrix(projection.data(), projection.size());
+    get_floatv(kGlProjectionMatrix, projection->data());
+    *perspective = IsPerspectiveProjectionMatrix(
+        projection->data(), projection->size()
+    );
+    return true;
 }
 
 void APIENTRY StrongBegin(const unsigned int mode) noexcept {
@@ -1253,9 +1276,38 @@ void APIENTRY StrongBegin(const unsigned int mode) noexcept {
     const auto original = LoadFunction<GlBegin>(&g_original_begin);
     if (original != nullptr) {
         g_immediate_banded_draw = {};
-        if (!compiling && IsFilledPrimitiveMode(mode)
-            && IsCurrentPerspectiveProjection()) {
+        g_immediate_depth_scene_draw = false;
+        std::array<float, 16U> projection{};
+        bool perspective = false;
+        const bool has_projection = !compiling
+            && CurrentProjection(&projection, &perspective);
+        if (has_projection && !perspective) {
+            CompositeDepthEdgesBeforeUi();
+        } else if (has_projection && perspective && IsFilledPrimitiveMode(mode)) {
             BeginBandedLightingDraw(&g_immediate_banded_draw);
+            const auto get_booleanv = LoadFunction<GlGetBooleanv>(&g_get_booleanv);
+            unsigned char depth_writes = FALSE;
+            if (get_booleanv != nullptr) {
+                get_booleanv(kGlDepthWriteMask, &depth_writes);
+            }
+            if (depth_writes != FALSE) {
+                g_immediate_depth_scene_draw = true;
+                g_immediate_scene_projection = projection;
+                g_immediate_scene_viewport = {
+                    static_cast<int>(InterlockedCompareExchange(
+                        &g_viewport_x, 0, 0
+                    )),
+                    static_cast<int>(InterlockedCompareExchange(
+                        &g_viewport_y, 0, 0
+                    )),
+                    static_cast<int>(InterlockedCompareExchange(
+                        &g_viewport_width, 0, 0
+                    )),
+                    static_cast<int>(InterlockedCompareExchange(
+                        &g_viewport_height, 0, 0
+                    )),
+                };
+            }
         }
         original(mode);
         g_immediate_primitive_open = true;
@@ -1269,6 +1321,15 @@ void APIENTRY StrongEnd() noexcept {
     }
     if (g_immediate_primitive_open) {
         EndBandedLightingDraw(&g_immediate_banded_draw);
+        if (g_immediate_depth_scene_draw) {
+            MarkDepthEdgeSceneDraw(
+                g_immediate_scene_projection.data(),
+                g_immediate_scene_projection.size(),
+                g_immediate_scene_viewport.data(),
+                g_immediate_scene_viewport.size()
+            );
+        }
+        g_immediate_depth_scene_draw = false;
         g_immediate_primitive_open = false;
     }
 }
@@ -1337,14 +1398,21 @@ void APIENTRY StrongCallList(const unsigned int list) noexcept {
     const auto original = LoadFunction<GlCallList>(&g_original_call_list);
     if (original != nullptr) {
         if (IsCompilingDisplayListOnCurrentThread()) {
+            if (g_active_display_list_capture.nested_lists.size()
+                == kMaximumNestedDisplayListsPerList) {
+                g_active_display_list_capture.invalid = true;
+            } else {
+                try {
+                    g_active_display_list_capture.nested_lists.push_back(list);
+                } catch (...) {
+                    g_active_display_list_capture.invalid = true;
+                }
+            }
             original(list);
             return;
         }
-        OutlineHullTransform hull{};
-        const bool has_hull = LookupDisplayListHull(list, &hull);
         DrawWithSilhouette(
             [original, list]() noexcept { original(list); },
-            has_hull ? &hull : nullptr,
             list
         );
     }
@@ -1364,10 +1432,34 @@ void APIENTRY StrongDrawArrays(
             draw();
         } else if (IsOutlinePrimitive(mode, count)) {
             const ArrayFeatureRequest request{mode, first, count, 0U, nullptr};
-            DrawWithSilhouette(draw, nullptr, UINT32_MAX, &request);
+            DrawWithSilhouette(draw, UINT32_MAX, &request);
         } else if (count >= 3 && IsFilledPrimitiveMode(mode)) {
-            DrawWithBandedLighting(draw);
+            std::array<float, 16U> projection{};
+            bool perspective = false;
+            if (!CurrentProjection(&projection, &perspective)) {
+                draw();
+            } else if (!perspective) {
+                CompositeDepthEdgesBeforeUi();
+                draw();
+            } else {
+                DrawWithBandedLighting(draw);
+                std::array<int, 4U> viewport{
+                    static_cast<int>(InterlockedCompareExchange(&g_viewport_x, 0, 0)),
+                    static_cast<int>(InterlockedCompareExchange(&g_viewport_y, 0, 0)),
+                    static_cast<int>(InterlockedCompareExchange(&g_viewport_width, 0, 0)),
+                    static_cast<int>(InterlockedCompareExchange(&g_viewport_height, 0, 0)),
+                };
+                MarkDepthEdgeSceneDraw(
+                    projection.data(), projection.size(),
+                    viewport.data(), viewport.size()
+                );
+            }
         } else {
+            std::array<float, 16U> projection{};
+            bool perspective = false;
+            if (CurrentProjection(&projection, &perspective) && !perspective) {
+                CompositeDepthEdgesBeforeUi();
+            }
             draw();
         }
     }
@@ -1388,19 +1480,46 @@ void APIENTRY StrongDrawElements(
             draw();
         } else if (IsOutlinePrimitive(mode, count)) {
             const ArrayFeatureRequest request{mode, 0, count, type, indices};
-            DrawWithSilhouette(draw, nullptr, UINT32_MAX, &request);
+            DrawWithSilhouette(draw, UINT32_MAX, &request);
         } else if (count >= 3 && IsFilledPrimitiveMode(mode)) {
-            DrawWithBandedLighting(draw);
+            std::array<float, 16U> projection{};
+            bool perspective = false;
+            if (!CurrentProjection(&projection, &perspective)) {
+                draw();
+            } else if (!perspective) {
+                CompositeDepthEdgesBeforeUi();
+                draw();
+            } else {
+                DrawWithBandedLighting(draw);
+                std::array<int, 4U> viewport{
+                    static_cast<int>(InterlockedCompareExchange(&g_viewport_x, 0, 0)),
+                    static_cast<int>(InterlockedCompareExchange(&g_viewport_y, 0, 0)),
+                    static_cast<int>(InterlockedCompareExchange(&g_viewport_width, 0, 0)),
+                    static_cast<int>(InterlockedCompareExchange(&g_viewport_height, 0, 0)),
+                };
+                MarkDepthEdgeSceneDraw(
+                    projection.data(), projection.size(),
+                    viewport.data(), viewport.size()
+                );
+            }
         } else {
+            std::array<float, 16U> projection{};
+            bool perspective = false;
+            if (CurrentProjection(&projection, &perspective) && !perspective) {
+                CompositeDepthEdgesBeforeUi();
+            }
             draw();
         }
     }
 }
 
 BOOL WINAPI StrongSwapBuffers(const HDC device_context) noexcept {
+    ApplyPendingGraphicsControl();
     ObserveGraphicsPresent();
     const auto original = LoadFunction<GdiSwapBuffers>(&g_original_swap_buffers);
-    return original != nullptr ? original(device_context) : FALSE;
+    const BOOL result = original != nullptr ? original(device_context) : FALSE;
+    EndDepthEdgeFrame();
+    return result;
 }
 
 DWORD ReplaceImportSlot(
@@ -1777,6 +1896,55 @@ bool IsOutlinePrimitive(const unsigned int mode, const int count) noexcept {
         return false;
     }
     return IsFilledPrimitiveMode(mode);
+}
+
+bool IsPlanarOverlayGeometry(
+    const OutlineBounds* const bounds,
+    const std::size_t vertex_count,
+    const std::size_t primitive_count
+) noexcept {
+    if (bounds == nullptr || vertex_count < 3U
+        || vertex_count > kMaximumOverlayVerticesPerList
+        || primitive_count == 0U
+        || primitive_count > vertex_count / 3U + 1U) {
+        return false;
+    }
+    std::array<float, 3U> extents{};
+    for (std::size_t axis = 0U; axis < extents.size(); ++axis) {
+        extents[axis] = bounds->maximum[axis] - bounds->minimum[axis];
+        if (!std::isfinite(extents[axis]) || extents[axis] < 0.0F) {
+            return false;
+        }
+    }
+    const float maximum = *std::max_element(extents.begin(), extents.end());
+    const float minimum = *std::min_element(extents.begin(), extents.end());
+    return maximum > 0.0001F
+        && minimum <= maximum * 0.0001F + 0.00001F;
+}
+
+bool IsPlanarOverlayDrawState(
+    const bool planar_candidate,
+    const bool texture_enabled,
+    const bool alpha_test_enabled,
+    const bool blend_enabled,
+    const bool lighting_enabled,
+    const bool fog_enabled
+) noexcept {
+    return planar_candidate
+        && texture_enabled
+        && (alpha_test_enabled || blend_enabled)
+        && !lighting_enabled
+        && !fog_enabled;
+}
+
+bool IsFeatureAccentDrawState(
+    const bool local_model,
+    const bool depth_writes,
+    const bool blend_enabled,
+    const bool lighting_enabled
+) noexcept {
+    return local_model
+        && (depth_writes || (!blend_enabled && lighting_enabled));
 }
 
 std::uint32_t* FindImportAddressSlot(
@@ -2311,7 +2479,11 @@ DWORD StartStrongCelShading() noexcept {
     g_tex_coord_array_state = {};
     g_immediate_banded_draw = {};
     g_immediate_primitive_open = false;
+    g_immediate_depth_scene_draw = false;
+    g_immediate_scene_projection = {};
+    g_immediate_scene_viewport = {};
     ResetBandedLighting();
+    ResetDepthEdges();
     for (ImportHookPlan& plan : plans) {
         InterlockedExchangePointer(plan.original_storage, plan.original);
         const DWORD result = ReplaceImportSlot(
@@ -2477,7 +2649,11 @@ void StopStrongCelShading() noexcept {
         g_tex_coord_array_state = {};
         g_immediate_banded_draw = {};
         g_immediate_primitive_open = false;
+        g_immediate_depth_scene_draw = false;
+        g_immediate_scene_projection = {};
+        g_immediate_scene_viewport = {};
         ResetBandedLighting();
+        ResetDepthEdges();
         InterlockedExchangePointer(&g_tex_coord_2f, nullptr);
         InterlockedExchangePointer(&g_polygon_offset, nullptr);
         InterlockedExchangePointer(&g_depth_func, nullptr);

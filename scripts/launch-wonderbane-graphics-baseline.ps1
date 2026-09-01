@@ -4,17 +4,19 @@ param(
     [string] $DiagnosticsShare = "\\VBOXSVR\codexdiag",
     [string] $PythonExecutable = "$env:USERPROFILE\shadowbane-lab\.venv\Scripts\python.exe",
     [string] $ContentBuildId = "wb-55fbad5f-4b602995",
-    [string] $ExtensionVersion = "1.5.5",
+    [string] $ExtensionVersion = "1.6.1",
     [string] $PackageDirectory = (
-        "S:\Wonderbane-graphics-wb-55fbad5f-4b602995-cel-1.5.5"
-    )
+        "S:\Wonderbane-graphics-wb-55fbad5f-4b602995-cel-1.6.1"
+    ),
+    [bool] $StartGraphicsLab = $true
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-$expectedExtensionSha256 = "2548bdfab015f8a966836e637f3354d3a2f7ff1fa41b128dc331ecd12b064249"
-$expectedExecutableSha256 = "a9a59004b36f9331bb85f85e7853a02a5d5f07bda9acb9ea4a8affbf169a54b8"
+$expectedExtensionSha256 = "408ffb9aea64420dd201f11eb259ab3e8417b4a7e67fa05a0cbbd65f5a3c5e53"
+$expectedExtensionRelativePath = "wonderbane-extension-1.6.1.dll"
+$expectedExecutableSha256 = "621ad78f17ed9e1be2dce6cf95e3a09d2f8b991d8c2169b6c8e5e26f5ab527a6"
 $expectedTexturePatchId = "wonderbane-1.0.5-55fbad5f.restrained-cel-v1"
 $expectedTexturePatchManifestSha256 = (
     "1128d1c82463805b6acfb5841d46c608362170963535b9db39be0f5e9079197c"
@@ -24,7 +26,9 @@ $evidenceDirectory = Join-Path `
     "$ContentBuildId-cel-$ExtensionVersion"
 $publicationReceipt = Join-Path $evidenceDirectory "publication.json"
 $gameExecutable = Join-Path $PackageDirectory "sb.exe"
-$extensionArtifact = Join-Path $PackageDirectory "wonderbane-extension.dll"
+$packageEvidence = Join-Path `
+    (Join-Path $PackageDirectory ".wonderbane-extension") `
+    "package.json"
 
 foreach ($required in @(
     @{ Path = $RepositoryShare; Description = "graphics-only repository share" },
@@ -32,7 +36,7 @@ foreach ($required in @(
     @{ Path = $PackageDirectory; Description = "published graphics package" },
     @{ Path = $publicationReceipt; Description = "graphics publication receipt" },
     @{ Path = $gameExecutable; Description = "published WonderBane executable" },
-    @{ Path = $extensionArtifact; Description = "published graphics extension" }
+    @{ Path = $packageEvidence; Description = "sealed graphics package evidence" }
 )) {
     if (-not (Test-Path -LiteralPath $required.Path)) {
         throw "$($required.Description) was not found: $($required.Path)"
@@ -55,6 +59,45 @@ foreach ($field in $receiptChecks.Keys) {
         throw "Graphics publication receipt does not match field '$field': $publicationReceipt"
     }
 }
+$receiptExecutableProperty = (
+    $receipt.PSObject.Properties["result_executable_sha256"]
+)
+if (
+    $null -ne $receiptExecutableProperty -and
+    [string] $receiptExecutableProperty.Value -cne $expectedExecutableSha256
+) {
+    throw (
+        "Graphics publication receipt does not match field " +
+        "'result_executable_sha256': $publicationReceipt"
+    )
+}
+
+$env:PYTHONPATH = Join-Path $RepositoryShare "src"
+& $PythonExecutable -m shadowbane_lab.client_extension `
+    verify-runtime-copy `
+    $PackageDirectory | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    throw "Published graphics package verification failed with exit code $LASTEXITCODE"
+}
+$package = Get-Content -LiteralPath $packageEvidence -Raw | ConvertFrom-Json
+$extensionRelativeProperty = $package.PSObject.Properties["extension_relative_path"]
+if (
+    $null -eq $extensionRelativeProperty -or
+    [string] $extensionRelativeProperty.Value -cne $expectedExtensionRelativePath
+) {
+    throw "Sealed graphics package does not name the reviewed extension runtime path"
+}
+$resultExecutableProperty = $package.PSObject.Properties["result_executable_sha256"]
+if (
+    $null -eq $resultExecutableProperty -or
+    [string] $resultExecutableProperty.Value -cne $expectedExecutableSha256
+) {
+    throw "Sealed graphics package does not name the reviewed executable identity"
+}
+$extensionArtifact = Join-Path $PackageDirectory $expectedExtensionRelativePath
+if (-not (Test-Path -LiteralPath $extensionArtifact -PathType Leaf)) {
+    throw "Published graphics extension was not found: $extensionArtifact"
+}
 
 $actualExecutableSha256 = (
     Get-FileHash -LiteralPath $gameExecutable -Algorithm SHA256
@@ -72,14 +115,6 @@ if ($actualExtensionSha256 -ne $expectedExtensionSha256) {
 $runningGame = Get-Process -Name "sb" -ErrorAction SilentlyContinue
 if ($null -ne $runningGame) {
     throw "Close every running sb.exe before launching the isolated graphics client"
-}
-
-$env:PYTHONPATH = Join-Path $RepositoryShare "src"
-& $PythonExecutable -m shadowbane_lab.client_extension `
-    verify-copy `
-    $PackageDirectory | Out-Null
-if ($LASTEXITCODE -ne 0) {
-    throw "Published graphics package verification failed with exit code $LASTEXITCODE"
 }
 
 $graphicsEnvironment = [ordered]@{
@@ -111,3 +146,10 @@ Write-Output "Launched isolated WonderBane graphics client (PID $($game.Id))"
 Write-Output "WonderBane content build: $ContentBuildId"
 Write-Output "Graphics extension version: $ExtensionVersion"
 Write-Output "Package: $PackageDirectory"
+if ($StartGraphicsLab) {
+    $labArguments = @{
+        RepositoryShare = $RepositoryShare
+        PythonExecutable = $PythonExecutable
+    }
+    & (Join-Path $RepositoryShare "scripts\start-wonderbane-graphics-lab.ps1") @labArguments
+}

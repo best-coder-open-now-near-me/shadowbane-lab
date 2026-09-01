@@ -30,10 +30,10 @@ def test_restrained_cel_target_is_pinned_end_to_end() -> None:
         None,
     ]
     assert [item["color"] for item in bands] == [
-        [0.2, 0.2, 0.2],
-        [0.48, 0.53, 0.61],
-        [0.72, 0.76, 0.8],
-        [1.0, 0.98, 0.92],
+        [0.23, 0.24, 0.26],
+        [0.54, 0.58, 0.65],
+        [0.78, 0.81, 0.84],
+        [1.0, 0.99, 0.95],
     ]
 
     samples = target["render_reference"]["samples"]
@@ -41,6 +41,9 @@ def test_restrained_cel_target_is_pinned_end_to_end() -> None:
         assert _sha256(ROOT / sample["atlas_path"]) == sample["atlas_sha256"]
 
     runtime = target["runtime_translation"]
+    assert runtime["extension_version"] == "1.6.1"
+    assert runtime["depth_edge_radius_pixels"] == 1.0
+    assert "inverse-eye-depth curvature" in runtime["depth_edge_source"]
     manifest_path = ROOT / runtime["texture_manifest_path"]
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert manifest["patch_id"] == runtime["texture_patch_id"]
@@ -55,18 +58,31 @@ def test_restrained_cel_target_is_pinned_end_to_end() -> None:
         ROOT / "native" / "wonderbane_extension" / "banded_lighting.cpp"
     ).read_text(encoding="utf-8")
     for token in (
-        "if (intensity < 0.22)",
-        "if (intensity < 0.43)",
-        "if (intensity < 0.66)",
-        "vec3(0.20, 0.20, 0.20)",
-        "vec3(0.48, 0.53, 0.61)",
-        "vec3(0.72, 0.76, 0.80)",
-        "vec3(1.00, 0.98, 0.92)",
+        "fwidth(intensity)",
+        "wbBandThresholds.x - transitionWidth",
+        "wbBandThresholds.y - transitionWidth",
+        "wbBandThresholds.z - transitionWidth",
+        "distantAlias * wbDistantHighlightCompression",
+        "wbBandColor0",
+        "wbBandColor1",
+        "wbBandColor2",
+        "wbBandColor3",
         "gl_Color.rgb",
         "gl_NormalMatrix * gl_Normal",
         "gl_FogFragCoord",
     ):
         assert token in shader
+    defaults = (
+        ROOT / "native" / "wonderbane_extension" / "graphics_control.cpp"
+    ).read_text(encoding="utf-8")
+    for token in (
+        "{0.23F, 0.24F, 0.26F}",
+        "{0.54F, 0.58F, 0.65F}",
+        "{0.78F, 0.81F, 0.84F}",
+        "{1.00F, 0.99F, 0.95F}",
+        "parameters.depth_edge_threshold = 0.055F",
+    ):
+        assert token in defaults
 
 
 def test_graphics_publication_and_launch_pin_the_golden_package() -> None:
@@ -84,11 +100,49 @@ def test_graphics_publication_and_launch_pin_the_golden_package() -> None:
     launch = (ROOT / "scripts" / "launch-wonderbane-graphics-baseline.ps1").read_text(
         encoding="utf-8"
     )
-    assert 'ExtensionVersion = "1.5.5"' in publish
+    assert 'ExtensionVersion = "1.6.1"' in publish
+    assert "wonderbane-extension-1.6.1.dll" in publish
+    assert r"\build\wonderbane-client-extension\Release" in publish
+    assert "408ffb9aea64420dd201f11eb259ab3e8417b4a7e67fa05a0cbbd65f5a3c5e53" in publish
+    assert "621ad78f17ed9e1be2dce6cf95e3a09d2f8b991d8c2169b6c8e5e26f5ab527a6" in publish
+    assert "$extensionSha256 -cne $ExpectedExtensionSha256" in publish
+    assert "$resultExecutableSha256 -cne $ExpectedExecutableSha256" in publish
+    assert "patched_executable_sha256" in publish
     assert "--texture-patch-manifest $TexturePatchManifest" in publish
     assert "--texture-artifact-directory $TextureArtifactDirectory" in publish
     assert "texture_patch_manifest_sha256" in publish
-    assert 'ExtensionVersion = "1.5.5"' in launch
-    assert "2548bdfab015f8a966836e637f3354d3a2f7ff1fa41b128dc331ecd12b064249" in launch
+    assert 'ExtensionVersion = "1.6.1"' in launch
+    assert "408ffb9aea64420dd201f11eb259ab3e8417b4a7e67fa05a0cbbd65f5a3c5e53" in launch
+    assert '$expectedExtensionRelativePath = "wonderbane-extension-1.6.1.dll"' in launch
+    assert 'Properties["extension_relative_path"]' in launch
+    assert "621ad78f17ed9e1be2dce6cf95e3a09d2f8b991d8c2169b6c8e5e26f5ab527a6" in launch
+    assert 'Properties["result_executable_sha256"]' in launch
+    assert "verify-runtime-copy" in launch
     assert manifest_sha256 in launch
     assert "wonderbane-1.0.5-55fbad5f.restrained-cel-v1" in launch
+    assert "start-wonderbane-graphics-lab.ps1" in launch
+
+    cel_shading = (
+        ROOT / "native" / "wonderbane_extension" / "cel_shading.cpp"
+    ).read_text(encoding="utf-8")
+    assert "IsFeatureAccentDrawState" in cel_shading
+    assert "array_planar_overlay_candidate" in cel_shading
+
+
+def test_extension_version_is_consistent_across_every_runtime_surface() -> None:
+    native = ROOT / "native" / "wonderbane_extension"
+    cmake = (native / "CMakeLists.txt").read_text(encoding="utf-8")
+    extension = (native / "extension.cpp").read_text(encoding="utf-8")
+    graphics_status = (native / "graphics_status.cpp").read_text(encoding="utf-8")
+    api = (native / "extension_api.h").read_text(encoding="utf-8")
+    resource = (native / "extension.rc").read_text(encoding="utf-8")
+    assert "project(wonderbane_extension VERSION 1.6.1" in cmake
+    assert 'kExtensionVersion[] = "1.6.1"' in extension
+    assert 'kExtensionVersion[] = "1.6.1"' in graphics_status
+    assert "WONDERBANE_EXTENSION_VERSION_MAJOR 1U" in api
+    assert "WONDERBANE_EXTENSION_VERSION_MINOR 6U" in api
+    assert "WONDERBANE_EXTENSION_VERSION_PATCH 1U" in api
+    assert "FILEVERSION 1,6,1,0" in resource
+    assert "PRODUCTVERSION 1,6,1,0" in resource
+    assert 'VALUE "FileVersion", "1.6.1.0\\0"' in resource
+    assert 'VALUE "ProductVersion", "1.6.1.0\\0"' in resource

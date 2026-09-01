@@ -585,50 +585,48 @@ def verify_patched_client_copy(directory: str | Path) -> PatchPackageEvidence:
     return evidence
 
 
-def verify_launchable_patched_client_copy(directory: str | Path) -> PatchPackageEvidence:
-    """Require immutable package bytes while permitting classified runtime drift."""
+def verify_runtime_patched_client_copy(directory: str | Path) -> PatchPackageEvidence:
+    """Require all drift to be confined to reviewed client-written paths.
 
-    drift = audit_patched_client_copy(directory)
-    if drift.added:
-        raise ClientPatchPackageError(
-            "launch verification found added files: "
-            + ", ".join(item.relative_path for item in drift.added)
-        )
-    unexpected_changed = tuple(
-        item.actual.relative_path
-        for item in drift.changed
-        if not _is_known_runtime_mutable_path(item.actual.relative_path)
+    Publication uses :func:`verify_patched_client_copy` before the package has
+    ever run. A launched Shadowbane client rewrites a small, reviewed set of
+    settings, log, and DoubleFusion runtime files; those writes must not make a
+    later launch indistinguishable from immutable package tampering.
+    """
+
+    root = Path(directory).resolve()
+    drift = audit_patched_client_copy(root)
+    unexpected_added = tuple(
+        item.relative_path
+        for item in drift.added
+        if not _is_known_runtime_mutable_path(item.relative_path)
     )
     unexpected_missing = tuple(
         item.relative_path
         for item in drift.missing
         if not _is_known_runtime_mutable_path(item.relative_path)
     )
-    unexpected = unexpected_changed + unexpected_missing
+    unexpected_changed = tuple(
+        item.actual.relative_path
+        for item in drift.changed
+        if not _is_known_runtime_mutable_path(item.actual.relative_path)
+    )
+    unexpected = (
+        tuple(f"added:{path}" for path in unexpected_added)
+        + tuple(f"missing:{path}" for path in unexpected_missing)
+        + tuple(f"changed:{path}" for path in unexpected_changed)
+    )
     if unexpected:
         raise ClientPatchPackageError(
-            "launch verification found immutable package drift: " + ", ".join(unexpected)
+            "runtime client copy contains non-runtime drift: " + ", ".join(unexpected)
         )
+    return _load_package_evidence(root / _EVIDENCE_DIRECTORY_NAME / _PACKAGE_FILE_NAME)
 
-    root = Path(directory).resolve()
-    evidence = _load_package_evidence(root / _EVIDENCE_DIRECTORY_NAME / _PACKAGE_FILE_NAME)
-    actual = _inventory(
-        root,
-        excluded=frozenset(
-            {
-                f"{_EVIDENCE_DIRECTORY_NAME}/{_PACKAGE_FILE_NAME}".casefold(),
-            }
-        ),
-        max_files=_DEFAULT_MAX_FILES,
-        max_total_bytes=_DEFAULT_MAX_TOTAL_BYTES,
-    )
-    executable = _unique_record(actual, evidence.executable_relative_path)
-    extension = _unique_record(actual, evidence.extension_relative_path)
-    if executable.sha256 != evidence.result_executable_sha256:
-        raise ClientPatchPackageError("launchable executable hash does not match its evidence")
-    if extension.sha256 != evidence.extension_sha256:
-        raise ClientPatchPackageError("launchable extension hash does not match its evidence")
-    return evidence
+
+def verify_launchable_patched_client_copy(directory: str | Path) -> PatchPackageEvidence:
+    """Compatibility alias for runtime-copy verification."""
+
+    return verify_runtime_patched_client_copy(directory)
 
 
 def audit_patched_client_copy(directory: str | Path) -> PatchPackageDrift:

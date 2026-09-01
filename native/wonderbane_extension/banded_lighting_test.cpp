@@ -44,10 +44,10 @@ int main() {
         || CelBandIndex(std::numeric_limits<float>::quiet_NaN()) != 0U) {
         return Fail("band threshold contract");
     }
-    if (!HasColor(CelBandForIntensity(0.1F), 0.20F, 0.20F, 0.20F)
-        || !HasColor(CelBandForIntensity(0.3F), 0.48F, 0.53F, 0.61F)
-        || !HasColor(CelBandForIntensity(0.5F), 0.72F, 0.76F, 0.80F)
-        || !HasColor(CelBandForIntensity(0.8F), 1.00F, 0.98F, 0.92F)) {
+    if (!HasColor(CelBandForIntensity(0.1F), 0.23F, 0.24F, 0.26F)
+        || !HasColor(CelBandForIntensity(0.3F), 0.54F, 0.58F, 0.65F)
+        || !HasColor(CelBandForIntensity(0.5F), 0.78F, 0.81F, 0.84F)
+        || !HasColor(CelBandForIntensity(0.8F), 1.00F, 0.99F, 0.95F)) {
         return Fail("band color contract");
     }
     if (!IsBandedLightingSceneState(true, false)
@@ -72,7 +72,16 @@ int main() {
         || std::strstr(fragment_source, "wbTextureEnvMode == 8449") == nullptr
         || std::strstr(fragment_source, "gl_FogFragCoord") == nullptr
         || std::strstr(fragment_source, "wbFogMode == 2048") == nullptr
-        || std::strstr(fragment_source, "wbFogMode == 2049") == nullptr) {
+        || std::strstr(fragment_source, "wbFogMode == 2049") == nullptr
+        || std::strstr(fragment_source, "fwidth(intensity)") == nullptr
+        || std::strstr(fragment_source, "wbVertexTintGamma") == nullptr
+        || std::strstr(
+            fragment_source,
+            "distantAlias * wbDistantHighlightCompression"
+        ) == nullptr
+        || std::strstr(fragment_source, "wbBandThresholds.z - transitionWidth")
+            == nullptr
+        || std::strstr(fragment_source, "wbBandColor3") == nullptr) {
         return Fail("normal-driven compatibility contract");
     }
     return 0;

@@ -7,9 +7,15 @@ param(
         "\\VBOXSVR\codexdiag\client-baselines\wonderbane-20260831T023921516Z"
     ),
     [string] $ExpectedContentBuildId = "wb-55fbad5f-4b602995",
-    [string] $ExtensionVersion = "1.5.5",
+    [string] $ExpectedExtensionSha256 = (
+        "408ffb9aea64420dd201f11eb259ab3e8417b4a7e67fa05a0cbbd65f5a3c5e53"
+    ),
+    [string] $ExpectedExecutableSha256 = (
+        "621ad78f17ed9e1be2dce6cf95e3a09d2f8b991d8c2169b6c8e5e26f5ab527a6"
+    ),
+    [string] $ExtensionVersion = "1.6.1",
     [string] $ExtensionArtifact = (
-        "\\VBOXSVR\codexgfx\build\wonderbane-graphics-baseline\Release\wonderbane-extension.dll"
+        "\\VBOXSVR\codexgfx\build\wonderbane-client-extension\Release\wonderbane-extension-1.6.1.dll"
     ),
     [string] $TexturePatchManifest = (
         "\\VBOXSVR\codexgfx\assets\wonderbane_graphics\restrained-cel-v1\texture-patches.json"
@@ -18,7 +24,7 @@ param(
         "\\VBOXSVR\codexgfx\assets\wonderbane_graphics\restrained-cel-v1"
     ),
     [string] $DestinationDirectory = (
-        "S:\Wonderbane-graphics-wb-55fbad5f-4b602995-cel-1.5.5"
+        "S:\Wonderbane-graphics-wb-55fbad5f-4b602995-cel-1.6.1"
     ),
     [switch] $DryRunOnly
 )
@@ -47,6 +53,21 @@ foreach ($required in @(
 }
 if (Test-Path -LiteralPath $DestinationDirectory) {
     throw "Graphics package destination already exists: $DestinationDirectory"
+}
+$extensionSha256 = (
+    Get-FileHash -LiteralPath $ExtensionArtifact -Algorithm SHA256
+).Hash.ToLowerInvariant()
+if ($ExpectedExtensionSha256 -notmatch "^[0-9a-f]{64}$") {
+    throw "Expected graphics extension SHA-256 is not a lowercase SHA-256"
+}
+if ($extensionSha256 -cne $ExpectedExtensionSha256) {
+    throw (
+        "Graphics extension identity mismatch: expected $ExpectedExtensionSha256, " +
+        "found $extensionSha256"
+    )
+}
+if ($ExpectedExecutableSha256 -notmatch "^[0-9a-f]{64}$") {
+    throw "Expected patched executable SHA-256 is not a lowercase SHA-256"
 }
 
 $baselineManifest = Join-Path $BaselineDirectory "client-baseline.json"
@@ -95,6 +116,14 @@ if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
         throw "55fb bootstrap manifest authoring failed with exit code $LASTEXITCODE"
     }
 }
+$bootstrapManifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+$resultExecutableSha256 = [string] $bootstrapManifest.patched_executable_sha256
+if ($resultExecutableSha256 -cne $ExpectedExecutableSha256) {
+    throw (
+        "Patched executable identity mismatch: expected $ExpectedExecutableSha256, " +
+        "manifest produces $resultExecutableSha256"
+    )
+}
 
 & $PythonExecutable -m shadowbane_lab.client_extension `
     prepare-copy `
@@ -109,9 +138,6 @@ if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
 if ($LASTEXITCODE -ne 0) {
     throw "Graphics package dry run failed with exit code $LASTEXITCODE"
 }
-$extensionSha256 = (
-    Get-FileHash -LiteralPath $ExtensionArtifact -Algorithm SHA256
-).Hash.ToLowerInvariant()
 $texturePatch = Get-Content -LiteralPath $TexturePatchManifest -Raw | ConvertFrom-Json
 $texturePatchId = [string] $texturePatch.patch_id
 $texturePatchManifestSha256 = (
@@ -124,6 +150,7 @@ $expectedDryRun = [ordered]@{
     baseline_tree_sha256 = $treeSha256
     extension_version = $ExtensionVersion
     extension_sha256 = $extensionSha256
+    result_executable_sha256 = $resultExecutableSha256
     texture_patch_id = $texturePatchId
     texture_patch_manifest_sha256 = $texturePatchManifestSha256
     destination = $DestinationDirectory
@@ -148,6 +175,7 @@ else {
         baseline_tree_sha256 = $expectedDryRun.baseline_tree_sha256
         extension_version = $expectedDryRun.extension_version
         extension_sha256 = $expectedDryRun.extension_sha256
+        result_executable_sha256 = $expectedDryRun.result_executable_sha256
         texture_patch_id = $expectedDryRun.texture_patch_id
         texture_patch_manifest_sha256 = $expectedDryRun.texture_patch_manifest_sha256
         destination = $expectedDryRun.destination
@@ -233,6 +261,7 @@ $published = [ordered]@{
     baseline_tree_sha256 = $treeSha256
     extension_version = $ExtensionVersion
     extension_sha256 = $extensionSha256
+    result_executable_sha256 = $resultExecutableSha256
     texture_patch_id = $texturePatchId
     texture_patch_manifest_sha256 = $texturePatchManifestSha256
     destination = $DestinationDirectory

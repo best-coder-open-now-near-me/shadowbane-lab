@@ -1,6 +1,7 @@
 #include "cel_shading.h"
 #include "extension_api.h"
 #include "event_channel.h"
+#include "graphics_control.h"
 #include "graphics_status.h"
 #include "performance_telemetry.h"
 #include "world_map_capture.h"
@@ -20,7 +21,7 @@ constexpr std::size_t kPathCapacity = WONDERBANE_EXTENSION_HEARTBEAT_PATH_CAPACI
 constexpr std::size_t kJsonCapacity = 768;
 constexpr LONG kMaximumInitializationPolls = 500;
 constexpr DWORD kInitializationPollMilliseconds = 10;
-constexpr char kExtensionVersion[] = "1.5.6";
+constexpr char kExtensionVersion[] = "1.6.1";
 constexpr wchar_t kClientExecutableName[] = L"sb.exe";
 constexpr wchar_t kPerformanceProfileEnvironment[] = L"WONDERBANE_PERFORMANCE_PROFILE";
 constexpr std::size_t kPerformanceProfileCapacity = 16U;
@@ -368,6 +369,7 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
         );
         bool event_channel_started = false;
         bool world_map_started = false;
+        bool graphics_control_started = false;
         bool graphics_status_started = false;
         bool renderer_started = false;
         bool performance_telemetry_started = false;
@@ -396,6 +398,10 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
         if (result == ERROR_SUCCESS && is_client) {
             result = wonderbane::extension::StartGraphicsStatusPublication();
             graphics_status_started = result == ERROR_SUCCESS;
+        }
+        if (result == ERROR_SUCCESS && is_client && !kDiagnosticsOnly) {
+            result = wonderbane::extension::StartGraphicsControl();
+            graphics_control_started = result == ERROR_SUCCESS;
         }
         if (result == ERROR_SUCCESS && is_client) {
 #if defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
@@ -434,6 +440,9 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
 #else
                 wonderbane::extension::StopStrongCelShading();
 #endif
+            }
+            if (graphics_control_started) {
+                wonderbane::extension::StopGraphicsControl();
             }
             if (graphics_status_started) {
                 wonderbane::extension::StopGraphicsStatusPublication();

@@ -27,6 +27,25 @@ std::uint32_t* FindImportAddressSlot(
 
 bool IsPerspectiveProjectionMatrix(const float* matrix, std::size_t count) noexcept;
 bool IsLocalOutlineModelViewMatrix(const float* matrix, std::size_t count) noexcept;
+bool IsPlanarOverlayGeometry(
+    const OutlineBounds* bounds,
+    std::size_t vertex_count,
+    std::size_t primitive_count
+) noexcept;
+bool IsPlanarOverlayDrawState(
+    bool planar_candidate,
+    bool texture_enabled,
+    bool alpha_test_enabled,
+    bool blend_enabled,
+    bool lighting_enabled,
+    bool fog_enabled
+) noexcept;
+bool IsFeatureAccentDrawState(
+    bool local_model,
+    bool depth_writes,
+    bool blend_enabled,
+    bool lighting_enabled
+) noexcept;
 float PerspectiveOutlineLineWidth(
     const float* projection,
     std::size_t projection_count,

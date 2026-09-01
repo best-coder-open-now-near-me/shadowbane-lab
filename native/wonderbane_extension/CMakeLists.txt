@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(wonderbane_extension VERSION 1.5.6 LANGUAGES CXX RC)
+project(wonderbane_extension VERSION 1.6.1 LANGUAGES CXX RC)
 
 set(WONDERBANE_EXTENSION_PROFILE "full" CACHE STRING "Extension runtime profile")
 set_property(
@@ -27,8 +27,10 @@ add_library(
   SHARED
   banded_lighting.cpp
   cel_shading.cpp
+  depth_edges.cpp
   event_channel.cpp
   extension.cpp
+  graphics_control.cpp
   graphics_status.cpp
   import_hook.cpp
   performance_telemetry.cpp
@@ -89,6 +91,15 @@ set_target_properties(
   OUTPUT_NAME "wonderbane-extension"
   PREFIX ""
 )
+add_custom_command(
+  TARGET wonderbane_extension
+  POST_BUILD
+  COMMAND
+    "${CMAKE_COMMAND}" -E copy_if_different
+    "$<TARGET_FILE:wonderbane_extension>"
+    "$<TARGET_FILE_DIR:wonderbane_extension>/wonderbane-extension-${PROJECT_VERSION}.dll"
+  VERBATIM
+)
 
 if(BUILD_TESTING)
   add_executable(
@@ -96,6 +107,8 @@ if(BUILD_TESTING)
     banded_lighting.cpp
     cel_shading.cpp
     cel_shading_test.cpp
+    depth_edges.cpp
+    graphics_control.cpp
     graphics_status.cpp
   )
   target_compile_features(
@@ -145,6 +158,7 @@ if(BUILD_TESTING)
     wonderbane_extension_banded_lighting_test
     banded_lighting.cpp
     banded_lighting_test.cpp
+    graphics_control.cpp
   )
   target_compile_features(
     wonderbane_extension_banded_lighting_test
@@ -198,7 +212,110 @@ if(BUILD_TESTING)
   )
 
   add_executable(
+    wonderbane_extension_depth_edges_test
+    depth_edges.cpp
+    depth_edges_test.cpp
+    graphics_control.cpp
+    graphics_status.cpp
+  )
+  target_compile_features(wonderbane_extension_depth_edges_test PRIVATE cxx_std_20)
+  target_compile_definitions(
+    wonderbane_extension_depth_edges_test
+    PRIVATE
+    UNICODE
+    _UNICODE
+    WIN32_LEAN_AND_MEAN
+    NOMINMAX
+    STRICT
+  )
+  target_compile_options(
+    wonderbane_extension_depth_edges_test
+    PRIVATE
+    /W4
+    /WX
+    /permissive-
+    /sdl
+    /GS
+    /guard:cf
+    /Zc:__cplusplus
+    /utf-8
+  )
+  target_link_options(
+    wonderbane_extension_depth_edges_test
+    PRIVATE
+    /DYNAMICBASE
+    /NXCOMPAT
+    /guard:cf
+    /INCREMENTAL:NO
+  )
+  target_link_libraries(
+    wonderbane_extension_depth_edges_test
+    PRIVATE
+    bcrypt
+    shell32
+    ole32
+    uuid
+  )
+  set_property(
+    TARGET wonderbane_extension_depth_edges_test
+    PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded"
+  )
+  add_test(
+    NAME wonderbane_extension_depth_edges
+    COMMAND wonderbane_extension_depth_edges_test
+  )
+
+  add_executable(
+    wonderbane_extension_graphics_control_test
+    graphics_control.cpp
+    graphics_control_test.cpp
+  )
+  target_compile_features(
+    wonderbane_extension_graphics_control_test
+    PRIVATE
+    cxx_std_20
+  )
+  target_compile_definitions(
+    wonderbane_extension_graphics_control_test
+    PRIVATE
+    UNICODE
+    _UNICODE
+    WIN32_LEAN_AND_MEAN
+    NOMINMAX
+    STRICT
+  )
+  target_compile_options(
+    wonderbane_extension_graphics_control_test
+    PRIVATE
+    /W4
+    /WX
+    /permissive-
+    /sdl
+    /GS
+    /guard:cf
+    /Zc:__cplusplus
+    /utf-8
+  )
+  target_link_options(
+    wonderbane_extension_graphics_control_test
+    PRIVATE
+    /DYNAMICBASE
+    /NXCOMPAT
+    /guard:cf
+    /INCREMENTAL:NO
+  )
+  set_property(
+    TARGET wonderbane_extension_graphics_control_test
+    PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded"
+  )
+  add_test(
+    NAME wonderbane_extension_graphics_control
+    COMMAND wonderbane_extension_graphics_control_test
+  )
+
+  add_executable(
     wonderbane_extension_graphics_status_test
+    graphics_control.cpp
     graphics_status.cpp
     graphics_status_test.cpp
   )
@@ -349,6 +466,8 @@ if(BUILD_TESTING)
     wonderbane_extension_performance_telemetry_test
     banded_lighting.cpp
     cel_shading.cpp
+    depth_edges.cpp
+    graphics_control.cpp
     graphics_status.cpp
     import_hook.cpp
     performance_telemetry.cpp

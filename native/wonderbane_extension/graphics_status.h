@@ -25,6 +25,8 @@ DWORD ConfigureGraphicsPresentEntry(
     const char* runtime_profile
 ) noexcept;
 void ObserveGraphicsPresent() noexcept;
+void ReportDepthEdgePassComposite() noexcept;
+void ReportDepthEdgePassFailure(const char* reason) noexcept;
 void StopGraphicsStatusPublication() noexcept;
 DWORD GetGraphicsStatusPath(
     wchar_t* destination,

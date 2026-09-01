@@ -416,3 +416,21 @@ removes its transient full baseline payload while retaining the baseline manifes
 source directory is never patched in place. The diagnostics launcher uses the normal inherited
 graphics environment and waits for an identity-bound diagnostics-only status before reporting a
 successful launch.
+
+Extension 1.6.1 converges the passive diagnostic producer with the live graphics laboratory. The
+full profile owns the reviewed event channel, world-map capture, live graphics-control mapping,
+strong cel renderer, depth-edge composite, and optional performance telemetry. The diagnostics-only
+profile owns only identity publication, atomic graphics status, and passive present observation; it
+does not create the event channel, graphics-control mapping, world-map capture, renderer mutations,
+or performance telemetry.
+
+The status schema now publishes the bounded present-timing ring, depth-edge state and composite
+count, and live-control revision state in one atomic document. The depth pass is owned once per
+frame at the perspective-to-overlay boundary so UI and text remain outside the composite. Control
+changes cross the process boundary through the versioned shared mapping and are applied by the
+render thread at a reviewed frame boundary.
+
+Startup remains transactional. Exact process identity and client executable checks precede native
+services; failure unwinds performance telemetry, renderer or passive observation, graphics control,
+status publication, world-map capture, and the event channel in reverse ownership order. Both full
+and diagnostics-only Win32 profiles are built and tested as release gates.

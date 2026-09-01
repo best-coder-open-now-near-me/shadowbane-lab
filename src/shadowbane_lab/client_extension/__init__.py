@@ -108,6 +108,7 @@ from .package import (
     verify_frozen_client_baseline,
     verify_launchable_patched_client_copy,
     verify_patched_client_copy,
+    verify_runtime_patched_client_copy,
 )
 from .patch_diff import (
     CLIENT_PATCH_DIFF_SCHEMA_VERSION,
@@ -323,6 +324,7 @@ __all__ = [
     "verify_frozen_client_baseline",
     "verify_launchable_patched_client_copy",
     "verify_patched_client_copy",
+    "verify_runtime_patched_client_copy",
     "write_client_patch_diff",
     "apply_texture_patch_plan",
     "author_texture_patch_manifest",

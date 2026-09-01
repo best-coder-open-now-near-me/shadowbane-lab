@@ -1,0 +1,81 @@
+# Rendering and non-render refactor boundaries
+
+This is the working merge contract for development after the 2026-09-01 client convergence. It is
+an ownership map, not a new framework: its purpose is to let renderer and non-render changes proceed
+without repeatedly resolving the same native and packaging seams.
+
+## Stable branch base
+
+All new production work starts from `codex/client-convergence` after it contains:
+
+- diagnostics-client investigation tip `7245478`;
+- preserved production client features;
+- graphics extension 1.6.1; and
+- the semantic conflict resolutions and dual-profile validation recorded by its merge commits.
+
+Do not base new slices directly on `codex/graphics-diagnostics-client`,
+`codex/graphics-banded-lighting`, or the older preserved-feature branch. Those remain evidence and
+recovery refs, not parallel product bases.
+
+## Ownership map
+
+| Surface | Rendering slice owns | Non-render slice owns | Shared integration seam |
+| --- | --- | --- | --- |
+| Native draw path | draw classification, fixed-function mirror, cel lighting, depth/normal/class targets, scene composite, UI exclusion | none | status fields may be consumed read-only by diagnostics |
+| Graphics diagnostics | per-present timing, graphics context, depth/composite counters, graphics-control state | capture, sealing, correlation, reporting, and exact-process validation | versioned status schema and process identity |
+| Native client services | no travel, manager, or action policy | event transport, world-map capture, performance records, native snapshot inputs | `extension.cpp` startup/rollback and `extension_api.h` |
+| Runtime control | graphics presets and render-thread application | launcher selection and observation only | versioned graphics-control mapping |
+| Package and launch | renderer DLL/version and reviewed graphics evidence | immutable/runtime-drift policy, publication, cleanup, launch orchestration | CMake, resource/version files, package manifest, launch/publish scripts |
+| Simulator | none | rules, builds, policies, replay, search, and deterministic evidence | product convergence only; no native-render dependency |
+
+The shared seam files are integration-owned. Renderer or non-render branches may change them only
+when their slice cannot be completed through an existing API, and such changes should be isolated in
+a small commit so they can be replayed once during convergence:
+
+- `native/wonderbane_extension/extension.cpp`
+- `native/wonderbane_extension/extension_api.h`
+- `native/wonderbane_extension/extension.rc`
+- `native/wonderbane_extension/CMakeLists.txt`
+- `src/shadowbane_lab/client_extension/package.py`
+- client-extension launch and publish scripts
+
+## Non-render refactor backlog
+
+The first production slice is an exact-process native observation snapshot. A single request must
+bind progression, training, and player state to one process ID, process-creation FILETIME, capture
+timestamp, and snapshot token. The current three-command PowerShell collection remains available as
+compatibility aliases, but the exporter should consume the atomic snapshot so a report cannot mix
+states from different client moments or a reused PID.
+
+After that snapshot exists, refactor in these checkpoints:
+
+1. Manager orchestration: separate worker lifecycle and permit/retry ownership from character,
+   progression, and travel operations while preserving cancellation and physical-input rules.
+2. Integrity and packaging: make immutable publication verification and reviewed runtime drift two
+   policies over one inventory/audit engine; keep old command names as compatibility aliases.
+3. Launch/runtime cleanup: centralize exact process selection, runtime-copy cleanup, status waits,
+   and evidence sealing without changing the renderer hook lifecycle.
+4. Simulator: merge the preserved simulator line only after product convergence, then modularize
+   policy/build/search ownership behind existing public imports and CLI commands.
+
+## Merge and validation rules
+
+- Renderer code may add versioned diagnostic fields; it must not own capture retention, report
+  sealing, or manager decisions.
+- Non-render code may read renderer evidence; it must not install draw hooks, copy framebuffers, or
+  mutate OpenGL state.
+- Diagnostics-only builds must remain passive. A new service is full-profile-only unless its entire
+  purpose is identity-bound observation and it performs no renderer or client mutation.
+- One process identity must flow through every observation in a diagnostic bundle. PID alone is not
+  identity; creation FILETIME and executable identity are required.
+- The original renderer remains the fail-safe path when capability checks, shader creation, frame
+  resources, or reviewed imports fail.
+- The untracked network residency launcher is outside this plan and must not be run or incorporated.
+
+Every shared checkpoint requires:
+
+- `git diff --check` and no unresolved merge markers;
+- the complete Python suite with declared dependencies;
+- Win32 Release builds and CTest for both `full` and `diagnostics-only` profiles;
+- focused compatibility tests for any retained command or public import alias; and
+- a small pushed commit before the next ownership area begins.

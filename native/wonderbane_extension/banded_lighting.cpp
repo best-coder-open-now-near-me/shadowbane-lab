@@ -1,4 +1,5 @@
 #include "banded_lighting.h"
+#include "graphics_control.h"
 
 #include <Windows.h>
 
@@ -30,10 +31,10 @@ constexpr unsigned int kGlVertexShader = 0x8B31U;
 
 constexpr std::array<float, 3U> kThresholds{0.22F, 0.43F, 0.66F};
 constexpr std::array<CelBandColor, 4U> kBandColors{{
-    {0.20F, 0.20F, 0.20F},
-    {0.48F, 0.53F, 0.61F},
-    {0.72F, 0.76F, 0.80F},
-    {1.00F, 0.98F, 0.92F},
+    {0.23F, 0.24F, 0.26F},
+    {0.54F, 0.58F, 0.65F},
+    {0.78F, 0.81F, 0.84F},
+    {1.00F, 0.99F, 0.95F},
 }};
 
 using GlAttachShader = void(APIENTRY*)(unsigned int program, unsigned int shader);
@@ -67,6 +68,8 @@ using GlShaderSource = void(APIENTRY*)(
     unsigned int shader, int count, const char* const* strings, const int* lengths
 );
 using GlUniform1i = void(APIENTRY*)(int location, int value);
+using GlUniform1f = void(APIENTRY*)(int location, float value);
+using GlUniform3f = void(APIENTRY*)(int location, float first, float second, float third);
 using GlUseProgram = void(APIENTRY*)(unsigned int program);
 using WglGetCurrentContext = HGLRC(WINAPI*)();
 using WglGetProcAddress = PROC(WINAPI*)(LPCSTR name);
@@ -91,6 +94,8 @@ struct BandedApi {
     GlLinkProgram link_program = nullptr;
     GlShaderSource shader_source = nullptr;
     GlUniform1i uniform_1i = nullptr;
+    GlUniform1f uniform_1f = nullptr;
+    GlUniform3f uniform_3f = nullptr;
     GlUseProgram use_program = nullptr;
     WglGetCurrentContext get_current_context = nullptr;
     WglGetProcAddress get_proc_address = nullptr;
@@ -105,6 +110,11 @@ struct BandedProgram {
     int texture_env_mode_location = -1;
     int fog_enabled_location = -1;
     int fog_mode_location = -1;
+    int band_thresholds_location = -1;
+    std::array<int, 4U> band_color_locations{{-1, -1, -1, -1}};
+    int vertex_tint_gamma_location = -1;
+    int distant_highlight_compression_location = -1;
+    std::uint32_t graphics_parameter_revision = 0U;
     LONG generation = 0;
     bool failed = false;
 };
@@ -141,17 +151,59 @@ uniform int wbTextureEnabled;
 uniform int wbTextureEnvMode;
 uniform int wbFogEnabled;
 uniform int wbFogMode;
+uniform vec3 wbBandThresholds;
+uniform vec3 wbBandColor0;
+uniform vec3 wbBandColor1;
+uniform vec3 wbBandColor2;
+uniform vec3 wbBandColor3;
+uniform float wbVertexTintGamma;
+uniform float wbDistantHighlightCompression;
 varying float wbIntensity;
 
 vec3 wbBand(float intensity) {
-    if (intensity < 0.22) return vec3(0.20, 0.20, 0.20);
-    if (intensity < 0.43) return vec3(0.48, 0.53, 0.61);
-    if (intensity < 0.66) return vec3(0.72, 0.76, 0.80);
-    return vec3(1.00, 0.98, 0.92);
+    float pixelVariation = fwidth(intensity);
+    float transitionWidth = clamp(pixelVariation * 1.25, 0.004, 0.06);
+    float distantAlias = smoothstep(0.025, 0.10, pixelVariation);
+    vec3 brightest = mix(
+        wbBandColor3,
+        wbBandColor2,
+        distantAlias * wbDistantHighlightCompression
+    );
+    vec3 color = wbBandColor0;
+    color = mix(
+        color,
+        wbBandColor1,
+        smoothstep(
+            wbBandThresholds.x - transitionWidth,
+            wbBandThresholds.x + transitionWidth,
+            intensity
+        )
+    );
+    color = mix(
+        color,
+        wbBandColor2,
+        smoothstep(
+            wbBandThresholds.y - transitionWidth,
+            wbBandThresholds.y + transitionWidth,
+            intensity
+        )
+    );
+    return mix(
+        color,
+        brightest,
+        smoothstep(
+            wbBandThresholds.z - transitionWidth,
+            wbBandThresholds.z + transitionWidth,
+            intensity
+        )
+    );
 }
 
 void main() {
-    vec3 vertexTint = clamp(gl_Color.rgb, 0.0, 1.0);
+    vec3 vertexTint = pow(
+        clamp(gl_Color.rgb, 0.0, 1.0),
+        vec3(wbVertexTintGamma)
+    );
     vec4 texel = wbTextureEnabled != 0
         ? texture2D(wbTexture, gl_TexCoord[0].st)
         : vec4(1.0);
@@ -255,6 +307,8 @@ bool ResolveApi(BandedApi* const api) noexcept {
     api->link_program = Resolve<GlLinkProgram>(opengl, get_proc, "glLinkProgram");
     api->shader_source = Resolve<GlShaderSource>(opengl, get_proc, "glShaderSource");
     api->uniform_1i = Resolve<GlUniform1i>(opengl, get_proc, "glUniform1i");
+    api->uniform_1f = Resolve<GlUniform1f>(opengl, get_proc, "glUniform1f");
+    api->uniform_3f = Resolve<GlUniform3f>(opengl, get_proc, "glUniform3f");
     api->use_program = Resolve<GlUseProgram>(opengl, get_proc, "glUseProgram");
     return api->attach_shader != nullptr && api->compile_shader != nullptr
         && api->create_program != nullptr && api->create_shader != nullptr
@@ -265,6 +319,7 @@ bool ResolveApi(BandedApi* const api) noexcept {
         && api->get_uniform_location != nullptr && api->is_enabled != nullptr
         && api->is_program != nullptr && api->link_program != nullptr
         && api->shader_source != nullptr && api->uniform_1i != nullptr
+        && api->uniform_1f != nullptr && api->uniform_3f != nullptr
         && api->use_program != nullptr && api->get_current_context != nullptr;
 }
 
@@ -366,11 +421,34 @@ bool BuildProgram(BandedProgram* const state) noexcept {
     );
     state->fog_enabled_location = api.get_uniform_location(program, "wbFogEnabled");
     state->fog_mode_location = api.get_uniform_location(program, "wbFogMode");
+    state->band_thresholds_location = api.get_uniform_location(
+        program, "wbBandThresholds"
+    );
+    state->band_color_locations = {
+        api.get_uniform_location(program, "wbBandColor0"),
+        api.get_uniform_location(program, "wbBandColor1"),
+        api.get_uniform_location(program, "wbBandColor2"),
+        api.get_uniform_location(program, "wbBandColor3"),
+    };
+    state->vertex_tint_gamma_location = api.get_uniform_location(
+        program, "wbVertexTintGamma"
+    );
+    state->distant_highlight_compression_location = api.get_uniform_location(
+        program, "wbDistantHighlightCompression"
+    );
     const bool has_uniforms = state->sampler_location >= 0
         && state->texture_enabled_location >= 0
         && state->texture_env_mode_location >= 0
         && state->fog_enabled_location >= 0
-        && state->fog_mode_location >= 0;
+        && state->fog_mode_location >= 0
+        && state->band_thresholds_location >= 0
+        && std::all_of(
+            state->band_color_locations.begin(),
+            state->band_color_locations.end(),
+            [](const int location) { return location >= 0; }
+        )
+        && state->vertex_tint_gamma_location >= 0
+        && state->distant_highlight_compression_location >= 0;
     if (!has_uniforms) {
         api.delete_program(program);
         state->program = 0U;
@@ -454,6 +532,11 @@ bool BeginBandedLightingDraw(BandedLightingDraw* const draw) noexcept {
         return false;
     }
     *draw = {};
+    const std::uint32_t parameter_revision = CurrentGraphicsParametersRevision();
+    const GraphicsParameters parameters = CurrentGraphicsParameters();
+    if ((parameters.flags & kGraphicsControlBandedLighting) == 0U) {
+        return false;
+    }
     if (!EnsureProgram()) {
         return false;
     }
@@ -493,6 +576,29 @@ bool BeginBandedLightingDraw(BandedLightingDraw* const draw) noexcept {
     api.uniform_1i(g_program.texture_env_mode_location, texture_mode);
     api.uniform_1i(g_program.fog_enabled_location, fog_enabled ? 1 : 0);
     api.uniform_1i(g_program.fog_mode_location, fog_mode);
+    if (g_program.graphics_parameter_revision != parameter_revision) {
+        api.uniform_3f(
+            g_program.band_thresholds_location,
+            parameters.band_thresholds[0],
+            parameters.band_thresholds[1],
+            parameters.band_thresholds[2]
+        );
+        for (std::size_t index = 0U; index < parameters.band_colors.size(); ++index) {
+            const auto& color = parameters.band_colors[index];
+            api.uniform_3f(
+                g_program.band_color_locations[index], color[0], color[1], color[2]
+            );
+        }
+        api.uniform_1f(
+            g_program.vertex_tint_gamma_location,
+            parameters.vertex_tint_gamma
+        );
+        api.uniform_1f(
+            g_program.distant_highlight_compression_location,
+            parameters.distant_highlight_compression
+        );
+        g_program.graphics_parameter_revision = parameter_revision;
+    }
     draw->previous_program = current_program;
     draw->active = true;
     return true;

@@ -102,3 +102,22 @@ A branch or worktree may be removed only after all of the following are true:
 
 This gate allows old names and worktrees to disappear without losing their code, evidence, or
 design rationale.
+
+## Convergence checkpoint: 2026-09-01
+
+`codex/client-convergence` joins the diagnostics-client tip `7245478`, preserved production
+features, and graphics 1.6.1. The translocation investigation commits after the previous diagnostics
+tip are documentation-only and do not change the client ABI, package, native runtime, scripts, or
+tests. The formerly unpublished graphics 1.6.1 tip is retained on
+`origin/codex/graphics-banded-lighting`.
+
+The convergence resolution keeps the diagnostics exact-present timing ring alongside the 1.6.1
+depth-edge and live-control status fields. Full runtime initialization retains the preserved event,
+world-map, and optional performance-telemetry services; diagnostics-only initialization remains
+passive. Runtime package verification is canonicalized as `verify-runtime-copy`, with
+`verify-launchable-copy` retained as a compatibility alias.
+
+The operational ownership and merge boundaries for the rendering and non-render refactor slices are
+recorded in `docs/refactor-boundaries.md`. This checkpoint supersedes the integration-order list as
+the active production client base once its merge commit is published; simulator convergence remains
+a separate next step.
