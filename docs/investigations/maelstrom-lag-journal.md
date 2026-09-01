@@ -275,6 +275,86 @@ These are inferences, ordered by present fit rather than certainty.
   clean, Druid-specific forms, animation/effect combinations, powers, pets, or replicated combat
   state become stronger candidates.
 
+### Suspected early degradation and monitoring result
+
+**Operator observation**
+
+- During continued Warlock turtle exposure, the operator reported that the frame rate appeared to
+  be dropping. This is the first suspected Warlock degradation signal, not yet a quantified FPS
+  result or a confirmed severe-stall threshold.
+
+**Instrumented evidence**
+
+- A regular-VM screenshot at `2026-09-01T03:26:26Z` visually identified the active character as
+  the male Shade Warlock `Qualgnarr`.
+- Twelve additional VM screenshots were sampled from `2026-09-01T03:27:28.736Z` through
+  `2026-09-01T03:27:36.220Z`. Capture intervals were approximately 0.58–0.78 seconds because the
+  VirtualBox screenshot path is slow.
+- Every consecutive image differed, so presentation continued advancing during those coarse
+  samples. This rules out repeated 0.6-second-or-longer complete presentation freezes in that
+  short window; it cannot quantify FPS or rule out a substantial drop from normal.
+- No readable FPS counter was present in the captured display.
+
+### Diagnostic coverage gap exposed by this run
+
+**Tooling finding**
+
+- No diagnostic capture was armed on the Warlock. The sealed degraded capture for PID `7492` had
+  ended approximately 20 minutes earlier.
+- The host-side screenshot sequence was outside the evidence collector and is not a substitute for
+  synchronized frame telemetry.
+- Existing process metrics contain CPU, memory, page-fault, handle, GUI-object, and I/O counters;
+  they do not contain presentation timestamps or frame times.
+- Existing `graphics-present` evidence establishes static import identity and can accept an
+  external runtime status/count. It does not currently publish every present timestamp, frame-time
+  distribution, or hitch marker.
+- ETW, screenshot, packet, and dump paths in the capture tool are bounded ingestion channels for
+  explicitly requested or externally produced artifacts. They are not silently started and were
+  not enabled for the prior capture.
+
+**Required production improvement**
+
+1. Add an identity-bound graphics-present producer with monotonic per-present timing, sequence and
+   drop accounting, and bounded aggregation.
+2. Derive frame-time median, p95, p99, maximum, and explicit hitch counts/timestamps in offline
+   analysis while retaining raw present records.
+3. Arm the triggered process/frame capture before an exposure ladder begins; fail visibly when the
+   requested frame producer is unavailable instead of implying that process counters measure FPS.
+
+### Renderer diagnostics 1.5.4 integration available
+
+**Reviewed repository evidence and operator release report**
+
+- Graphics producer commit `c9933ee` adds extension `1.5.4` identity-bound graphics-present
+  diagnostics for the reviewed client. Commit `1df6f4a` pins the package identity. Both are on the
+  graphics branches, not yet ancestors of `codex/evidence-spine`.
+- The producer hooks the exact `GDI32.dll!SwapBuffers` import at IAT RVA `23789964`, increments an
+  in-memory present counter, samples a newly observed OpenGL context once, and delegates status
+  publication to a background thread. The hook itself performs no hashing or filesystem I/O.
+- Its atomic status binds PID, process-creation FILETIME, executable path, and executable SHA-256.
+  It reports the active present entry, observed present count, GL/GLSL versions, depth-buffer
+  precision, viewport, depth-texture capability, and framebuffer-object capability.
+- Evidence-branch commit `f2b82db` already auto-discovers the matching status by PID and creation
+  time. This completes exact producer/consumer identity once both sides are deployed together.
+- The operator reports that the VM-facing DLL built and all four native tests passed, and that a
+  transient read-only `codexevidence` VM share was added. Those deployment-state claims have not
+  yet been independently captured in the regular `shadowbane` VM.
+- Publication and launch commands require `sb.exe` to be closed. They were deliberately not run
+  during the active Warlock reproduction, so the sealed local capture remains undisturbed.
+
+**Integration boundary**
+
+- `1.5.4` closes present-hook identity and renderer-prerequisite discovery. Its cumulative present
+  count can prove that presentation occurred between status publications.
+- It does not publish per-present monotonic timestamps, frame intervals, or hitch records. It does
+  not by itself quantify the reported Warlock FPS decline.
+- The production frame-telemetry improvement should extend this exact bounded hook/status producer
+  with sequence/drop health and monotonic timing rather than add a second unverified presentation
+  hook.
+- The graphics commits sit atop a long renderer feature branch. Integration must isolate the
+  producer/package changes or deliberately merge the complete renderer line; it must not silently
+  import unrelated visual behavior into the evidence branch.
+
 ### Observations to record during this run
 
 1. Approximate completed turtle fights from this point.
