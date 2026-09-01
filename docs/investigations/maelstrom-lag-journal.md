@@ -519,6 +519,36 @@ These are inferences, ordered by present fit rather than certainty.
 3. Fix the stale first-sample timestamp boundary, then add thread-level CPU/wait and allocation or
    resource-lifecycle evidence to identify the owner of the churn.
 
+## 2026-09-01 — Frame timing completed and stale first-sample defect fixed
+
+### Tooling resolution
+
+**Reviewed repository evidence**
+
+- Integration commit `32765bb` adds extension `1.5.5`: the exact
+  `GDI32.dll!SwapBuffers` hook now records a bounded 1,024-present sequence/QPC ring and publishes
+  producer clock anchors and timing-query health from the background status writer.
+- Integration commit `b1504af` continuously drains that ring during diagnostic capture, binds
+  every poll to PID, creation FILETIME, executable path/hash, and exact PE present candidates, and
+  seals raw timing as a required `frame-timing` channel. Ring overwrite, QPC failure, poll failure,
+  or capture-side sample loss makes the channel explicitly incomplete.
+- Offline analysis now derives average FPS, frame-time median/p95/p99/maximum, and hitch records at
+  33.3, 50, 100, and 250 milliseconds. Each hitch retains its present sequence, exact QPC interval,
+  and a clock-anchor-derived UTC estimate. Before/after comparison rereads both sealed timing
+  artifacts.
+- Integration commit `acb09b8` removes the stale first-sample defect. Process discovery and
+  fingerprinting use an unrecorded discovery probe; after setup, a fresh identity-validated process
+  sample becomes sample 1 and the capture clock origin.
+- Focused validation passed: all six native extension tests, six graphics/frame-timing tests, nine
+  core diagnostic capture/analysis tests, Ruff checks, and the two package-pin tests.
+
+### Interpretation boundary
+
+- The two existing Maelstrom captures remain immutable and still require the documented raw-sample
+  correction; the fix applies only to captures made with the new collector revision.
+- Renderer timing has been implemented and pushed but has not yet been deployed into a new regular-
+  VM gameplay run. No historical FPS or hitch values are inferred from the old process-only captures.
+
 ## Journal maintenance rule
 
 After every live test, append one entry containing:
