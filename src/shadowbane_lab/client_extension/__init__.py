@@ -63,6 +63,7 @@ from .package import (
     prepare_patched_client_copy,
     verify_frozen_client_baseline,
     verify_patched_client_copy,
+    verify_runtime_patched_client_copy,
 )
 from .resolver import (
     PE_HEADERS_SECTION,
@@ -181,6 +182,7 @@ __all__ = [
     "unconfigured_extension_status",
     "verify_frozen_client_baseline",
     "verify_patched_client_copy",
+    "verify_runtime_patched_client_copy",
     "WONDERBANE_1_0_5_PROFILE",
     "WONDERBANE_1_0_5_55FB_PROFILE",
     "WONDERBANE_REVIEWED_BOOTSTRAP_PROFILES",

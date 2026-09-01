@@ -74,7 +74,7 @@ if (
 
 $env:PYTHONPATH = Join-Path $RepositoryShare "src"
 & $PythonExecutable -m shadowbane_lab.client_extension `
-    verify-copy `
+    verify-runtime-copy `
     $PackageDirectory | Out-Null
 if ($LASTEXITCODE -ne 0) {
     throw "Published graphics package verification failed with exit code $LASTEXITCODE"

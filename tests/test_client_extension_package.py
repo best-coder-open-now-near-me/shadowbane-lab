@@ -28,6 +28,7 @@ from shadowbane_lab.client_extension.package import (
     prepare_patched_client_copy,
     verify_frozen_client_baseline,
     verify_patched_client_copy,
+    verify_runtime_patched_client_copy,
 )
 from tests.client_alignment_fixture import build_pe
 
@@ -379,6 +380,42 @@ class ClientExtensionPackageTests(unittest.TestCase):
             self.assertFalse(payload["matches"])
             self.assertEqual("runtime.log", payload["added"][0]["relative_path"])
             self.assertTrue(destination.exists())
+
+    def test_runtime_copy_verification_allows_only_reviewed_client_writes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = _source_executable()
+            extension = _extension_dll()
+            _, frozen = _freeze(root, source)
+            extension_path = root / "wonderbane-extension.dll"
+            extension_path.write_bytes(extension)
+            destination = root / "working"
+            prepare_patched_client_copy(
+                frozen,
+                destination,
+                _manifest(source, extension),
+                extension_path,
+            )
+
+            (destination / "Config" / "ArcanePref.cfg").write_text(
+                "PREF=runtime\n", encoding="utf-8"
+            )
+            (destination / "Config" / "SCREEN_GAME_0074006500730074_Wonderbane.cfg").write_text(
+                "runtime screen\n", encoding="utf-8"
+            )
+            verified = verify_runtime_patched_client_copy(destination)
+
+            self.assertEqual(str(destination.resolve()), verified.destination_directory)
+            output = io.StringIO()
+            with redirect_stdout(output):
+                result = main(["verify-runtime-copy", str(destination)])
+            self.assertEqual(0, result)
+
+            (destination / "Config" / "ArcaneIP.cfg").write_text(
+                "immutable drift", encoding="utf-8"
+            )
+            with self.assertRaisesRegex(ClientPatchPackageError, "non-runtime drift"):
+                verify_runtime_patched_client_copy(destination)
 
     def test_runtime_drifted_discard_archives_allowed_changes(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

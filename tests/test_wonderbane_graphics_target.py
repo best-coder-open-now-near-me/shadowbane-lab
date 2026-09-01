@@ -117,7 +117,7 @@ def test_graphics_publication_and_launch_pin_the_golden_package() -> None:
     assert 'Properties["extension_relative_path"]' in launch
     assert "5a66b7cae5399f4c67ec4a2f4d8919f9bff50f14048a0b25b6bc8ff23f7cb061" in launch
     assert 'Properties["result_executable_sha256"]' in launch
-    assert "verify-copy" in launch
+    assert "verify-runtime-copy" in launch
     assert manifest_sha256 in launch
     assert "wonderbane-1.0.5-55fbad5f.restrained-cel-v1" in launch
     assert "start-wonderbane-graphics-lab.ps1" in launch

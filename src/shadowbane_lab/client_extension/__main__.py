@@ -34,6 +34,7 @@ from shadowbane_lab.client_extension.package import (
     prepare_patched_client_copy,
     verify_frozen_client_baseline,
     verify_patched_client_copy,
+    verify_runtime_patched_client_copy,
 )
 from shadowbane_lab.client_extension.resolver import (
     PatchResolutionError,
@@ -112,6 +113,12 @@ def _parser() -> argparse.ArgumentParser:
     )
     verify.add_argument("directory", type=Path)
     verify.add_argument("--pretty", action="store_true")
+    verify_runtime = commands.add_parser(
+        "verify-runtime-copy",
+        help="verify immutable package content while allowing reviewed client-written drift",
+    )
+    verify_runtime.add_argument("directory", type=Path)
+    verify_runtime.add_argument("--pretty", action="store_true")
     audit = commands.add_parser(
         "audit-copy",
         help="report exact drift from a disposable copy's package evidence",
@@ -220,6 +227,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             ).as_dict()
         elif arguments.command == "verify-copy":
             payload = verify_patched_client_copy(arguments.directory).as_dict()
+        elif arguments.command == "verify-runtime-copy":
+            payload = verify_runtime_patched_client_copy(arguments.directory).as_dict()
         elif arguments.command == "audit-copy":
             payload = audit_patched_client_copy(arguments.directory).as_dict()
         elif arguments.command == "discard-copy":

@@ -552,6 +552,44 @@ def verify_patched_client_copy(directory: str | Path) -> PatchPackageEvidence:
     return evidence
 
 
+def verify_runtime_patched_client_copy(directory: str | Path) -> PatchPackageEvidence:
+    """Require all drift to be confined to reviewed client-written paths.
+
+    Publication uses :func:`verify_patched_client_copy` before the package has
+    ever run. A launched Shadowbane client rewrites a small, reviewed set of
+    settings, log, and DoubleFusion runtime files; those writes must not make a
+    later launch indistinguishable from immutable package tampering.
+    """
+
+    root = Path(directory).resolve()
+    drift = audit_patched_client_copy(root)
+    unexpected_added = tuple(
+        item.relative_path
+        for item in drift.added
+        if not _is_known_runtime_mutable_path(item.relative_path)
+    )
+    unexpected_missing = tuple(
+        item.relative_path
+        for item in drift.missing
+        if not _is_known_runtime_mutable_path(item.relative_path)
+    )
+    unexpected_changed = tuple(
+        item.actual.relative_path
+        for item in drift.changed
+        if not _is_known_runtime_mutable_path(item.actual.relative_path)
+    )
+    unexpected = (
+        tuple(f"added:{path}" for path in unexpected_added)
+        + tuple(f"missing:{path}" for path in unexpected_missing)
+        + tuple(f"changed:{path}" for path in unexpected_changed)
+    )
+    if unexpected:
+        raise ClientPatchPackageError(
+            "runtime client copy contains non-runtime drift: " + ", ".join(unexpected)
+        )
+    return _load_package_evidence(root / _EVIDENCE_DIRECTORY_NAME / _PACKAGE_FILE_NAME)
+
+
 def audit_patched_client_copy(directory: str | Path) -> PatchPackageDrift:
     """Report exact package drift without modifying the disposable copy."""
 
