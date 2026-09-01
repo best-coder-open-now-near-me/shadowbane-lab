@@ -386,3 +386,18 @@ and GLSL versions, depth-buffer precision, viewport, depth-texture capability, a
 capability. A screen-space depth-edge pass remains explicitly `not-implemented` until a live capture
 confirms those prerequisites. Missing, mismatched, or stale runtime evidence therefore blocks the
 dependent decoder instead of silently selecting an unverified rendering path.
+
+Extension 1.5.5 extends that same identity-bound producer with exact present timing. Each successful
+present observation receives a monotonic sequence number and a Windows Query Performance Counter
+timestamp. The status schema publishes a bounded 1,024-sample ring plus the counter frequency, a
+snapshot QPC/UTC FILETIME anchor, oldest and latest available sequences, capacity, sample count, and
+timing-query failure count.
+
+The hook remains memory-only: it performs one QPC query, updates the bounded ring under the existing
+state lock, and signals the publisher. The background thread formats and atomically replaces the
+status document. A continuously polling diagnostic consumer must deduplicate by present sequence and
+record a gap whenever the producer's oldest available sequence overtakes the next sequence expected
+by the consumer. This allows captures longer than the ring's residence window without making the
+hook retain unbounded history. Exact per-present records, producer overwrite gaps, query failures,
+and clock anchors must be sealed before offline FPS, percentile frame-time, and hitch analysis is
+considered complete.

@@ -74,11 +74,30 @@ int wmain() {
         }
         Sleep(20U);
     }
+    Sleep(2U);
+    ObserveGraphicsPresent();
+    Sleep(2U);
+    ObserveGraphicsPresent();
     StopGraphicsStatusPublication();
+    {
+        std::ifstream stream(std::filesystem::path(path.data()), std::ios::binary);
+        if (stream) {
+            json.assign(
+                std::istreambuf_iterator<char>(stream),
+                std::istreambuf_iterator<char>()
+            );
+        }
+    }
     DeleteFileW(path.data());
     if (!observed
         || json.find("\"producer_id\":\"wonderbane-extension.graphics\"")
             == std::string::npos
+        || json.find("\"schema_version\":2") == std::string::npos
+        || json.find("\"call_count\":3") == std::string::npos
+        || json.find("\"clock\":\"windows-query-performance-counter\"")
+            == std::string::npos
+        || json.find("\"sample_count\":3") == std::string::npos
+        || json.find("\"samples\":[[1,") == std::string::npos
         || json.find("\"iat_rva\":23789964") == std::string::npos
         || json.find("\"executable_sha256\":\"") == std::string::npos
         || json.find("\"context_observed\":false") == std::string::npos) {

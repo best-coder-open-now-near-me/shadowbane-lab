@@ -4,7 +4,7 @@ param(
     [string] $DestinationDirectory = "\\VBOXSVR\codexdiag\client-extension-working\wonderbane-1.0.5-world-map-click-v1",
     [string] $ExtensionArtifact = "\\VBOXSVR\codexrepo\build\wonderbane-client-extension-final\Release\wonderbane-extension.dll",
     [string] $ManifestPath = "",
-    [string] $ExtensionVersion = "1.5.4",
+    [string] $ExtensionVersion = "1.5.5",
     [string] $TexturePatchManifest = "",
     [string] $TextureArtifactDirectory = "",
     [string] $PythonExecutable = "$env:USERPROFILE\shadowbane-lab\.venv\Scripts\python.exe",

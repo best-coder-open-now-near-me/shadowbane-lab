@@ -20,13 +20,15 @@ namespace {
 constexpr wchar_t kProductDirectory[] = L"ShadowbaneLab";
 constexpr wchar_t kExtensionDirectory[] = L"client-extension";
 constexpr char kProducerId[] = "wonderbane-extension.graphics";
-constexpr char kExtensionVersion[] = "1.5.4";
+constexpr char kExtensionVersion[] = "1.5.5";
 constexpr std::size_t kPathCapacity = WONDERBANE_EXTENSION_HEARTBEAT_PATH_CAPACITY;
 constexpr std::size_t kExecutablePathUtf8Capacity = kPathCapacity * 4U;
 constexpr std::size_t kEscapedPathCapacity = kExecutablePathUtf8Capacity * 2U + 3U;
 constexpr std::size_t kDriverStringCapacity = 256U;
 constexpr std::size_t kEscapedDriverStringCapacity = kDriverStringCapacity * 2U + 3U;
-constexpr std::size_t kJsonCapacity = 24U * 1024U;
+constexpr std::size_t kFrameTimingSampleCapacity = 1024U;
+constexpr std::size_t kFrameTimingJsonCapacity = 64U * 1024U;
+constexpr std::size_t kJsonCapacity = 96U * 1024U;
 constexpr DWORD kPublishIntervalMilliseconds = 2'000U;
 constexpr DWORD kWorkerStopTimeoutMilliseconds = 5'000U;
 constexpr std::size_t kHashReadCapacity = 64U * 1024U;
@@ -52,6 +54,11 @@ struct GraphicsContextSnapshot {
     int viewport[4U]{};
 };
 
+struct FrameTimingSample {
+    std::uint64_t sequence = 0U;
+    std::int64_t counter = 0;
+};
+
 struct GraphicsStatusState {
     bool configured = false;
     char library_name[64U]{};
@@ -59,6 +66,9 @@ struct GraphicsStatusState {
     std::uint32_t iat_rva = 0U;
     std::uint64_t call_count = 0U;
     ULONGLONG last_publish_signal_tick = 0U;
+    std::int64_t performance_counter_frequency = 0;
+    std::uint64_t timing_query_failure_count = 0U;
+    std::array<FrameTimingSample, kFrameTimingSampleCapacity> frame_timing_samples{};
     GraphicsContextSnapshot graphics_context{};
 };
 
@@ -69,6 +79,8 @@ struct PublisherSnapshot {
     char executable_sha256[65U]{};
     wchar_t final_path[kPathCapacity]{};
     GraphicsStatusState status{};
+    std::int64_t snapshot_counter = 0;
+    std::uint64_t snapshot_filetime_utc = 0U;
 };
 
 SRWLOCK g_state_lock = SRWLOCK_INIT;
@@ -467,7 +479,101 @@ PublisherSnapshot SnapshotState() noexcept {
     StringCchCopyW(snapshot.final_path, kPathCapacity, g_graphics_status_path);
     snapshot.status = g_status;
     ReleaseSRWLockShared(&g_state_lock);
+    LARGE_INTEGER counter{};
+    QueryPerformanceCounter(&counter);
+    snapshot.snapshot_counter = counter.QuadPart;
+    FILETIME snapshot_time{};
+    GetSystemTimePreciseAsFileTime(&snapshot_time);
+    snapshot.snapshot_filetime_utc = FileTimeValue(snapshot_time);
     return snapshot;
+}
+
+DWORD FormatFrameTiming(
+    const PublisherSnapshot& snapshot,
+    char* const destination,
+    const std::size_t destination_capacity
+) noexcept {
+    if (destination == nullptr || destination_capacity == 0U) {
+        return ERROR_INVALID_PARAMETER;
+    }
+    const std::uint64_t first_candidate = (
+        snapshot.status.call_count > kFrameTimingSampleCapacity
+            ? snapshot.status.call_count - kFrameTimingSampleCapacity + 1U
+            : 1U
+    );
+    std::uint64_t oldest_sequence = 0U;
+    std::size_t sample_count = 0U;
+    for (
+        std::uint64_t sequence = first_candidate;
+        sequence <= snapshot.status.call_count;
+        ++sequence
+    ) {
+        const FrameTimingSample& sample = snapshot.status.frame_timing_samples[
+            static_cast<std::size_t>((sequence - 1U) % kFrameTimingSampleCapacity)
+        ];
+        if (sample.sequence == sequence) {
+            if (oldest_sequence == 0U) {
+                oldest_sequence = sequence;
+            }
+            ++sample_count;
+        }
+    }
+    char* cursor = destination;
+    std::size_t remaining = destination_capacity;
+    HRESULT result = StringCchPrintfExA(
+        cursor,
+        remaining,
+        &cursor,
+        &remaining,
+        0U,
+        "{\"clock\":\"windows-query-performance-counter\","
+        "\"counter_frequency_hz\":%lld,\"snapshot_counter\":%lld,"
+        "\"snapshot_filetime_utc\":%llu,\"latest_present_sequence\":%llu,"
+        "\"oldest_available_sequence\":%llu,\"sample_capacity\":%llu,"
+        "\"sample_count\":%llu,\"timing_query_failure_count\":%llu,"
+        "\"samples\":[",
+        static_cast<long long>(snapshot.status.performance_counter_frequency),
+        static_cast<long long>(snapshot.snapshot_counter),
+        static_cast<unsigned long long>(snapshot.snapshot_filetime_utc),
+        static_cast<unsigned long long>(snapshot.status.call_count),
+        static_cast<unsigned long long>(oldest_sequence),
+        static_cast<unsigned long long>(kFrameTimingSampleCapacity),
+        static_cast<unsigned long long>(sample_count),
+        static_cast<unsigned long long>(snapshot.status.timing_query_failure_count)
+    );
+    if (FAILED(result)) {
+        return HResultToWin32(result);
+    }
+    bool first_sample = true;
+    for (
+        std::uint64_t sequence = first_candidate;
+        sequence <= snapshot.status.call_count;
+        ++sequence
+    ) {
+        const FrameTimingSample& sample = snapshot.status.frame_timing_samples[
+            static_cast<std::size_t>((sequence - 1U) % kFrameTimingSampleCapacity)
+        ];
+        if (sample.sequence != sequence) {
+            continue;
+        }
+        result = StringCchPrintfExA(
+            cursor,
+            remaining,
+            &cursor,
+            &remaining,
+            0U,
+            "%s[%llu,%lld]",
+            first_sample ? "" : ",",
+            static_cast<unsigned long long>(sample.sequence),
+            static_cast<long long>(sample.counter)
+        );
+        if (FAILED(result)) {
+            return HResultToWin32(result);
+        }
+        first_sample = false;
+    }
+    result = StringCchCopyA(cursor, remaining, "]}");
+    return SUCCEEDED(result) ? ERROR_SUCCESS : HResultToWin32(result);
 }
 
 DWORD PublishSnapshot(const PublisherSnapshot& snapshot) noexcept {
@@ -561,16 +667,26 @@ DWORD PublishSnapshot(const PublisherSnapshot& snapshot) noexcept {
     if (FAILED(result)) {
         return HResultToWin32(result);
     }
+    std::array<char, kFrameTimingJsonCapacity> frame_timing_json{};
+    const DWORD timing_result = FormatFrameTiming(
+        snapshot,
+        frame_timing_json.data(),
+        frame_timing_json.size()
+    );
+    if (timing_result != ERROR_SUCCESS) {
+        return timing_result;
+    }
     std::array<char, kJsonCapacity> json{};
     result = StringCchPrintfA(
         json.data(),
         json.size(),
-        "{\"schema_version\":1,\"producer_id\":\"%s\","
+        "{\"schema_version\":2,\"producer_id\":\"%s\","
         "\"extension_version\":\"%s\",\"process_identity\":{"
         "\"process_id\":%lu,\"process_creation_filetime_utc\":%llu,"
         "\"executable_path\":%s},\"executable_sha256\":\"%s\","
         "\"present_entries\":%s,\"active_present_entry\":%s,"
-        "\"graphics_context\":%s,\"depth_edge_pass\":{"
+        "\"graphics_context\":%s,\"frame_timing\":%s,"
+        "\"depth_edge_pass\":{"
         "\"state\":\"not-implemented\","
         "\"reason\":\"runtime-capability-evidence-only\"}}\n",
         kProducerId,
@@ -581,7 +697,8 @@ DWORD PublishSnapshot(const PublisherSnapshot& snapshot) noexcept {
         snapshot.executable_sha256,
         entries_json.data(),
         active_json.data(),
-        context_json.data()
+        context_json.data(),
+        frame_timing_json.data()
     );
     if (FAILED(result)) {
         return HResultToWin32(result);
@@ -822,6 +939,16 @@ DWORD StartGraphicsStatusPublication() noexcept {
     if (result == ERROR_SUCCESS) {
         result = RequireOrdinaryDirectory(extension_directory);
     }
+    LARGE_INTEGER performance_counter_frequency{};
+    if (result == ERROR_SUCCESS && (
+            QueryPerformanceFrequency(&performance_counter_frequency) == FALSE
+            || performance_counter_frequency.QuadPart <= 0
+        )) {
+        result = GetLastError();
+        if (result == ERROR_SUCCESS) {
+            result = ERROR_GEN_FAILURE;
+        }
+    }
     wchar_t final_path[kPathCapacity]{};
     const DWORD process_id = GetCurrentProcessId();
     const std::uint64_t creation_value = FileTimeValue(creation_time);
@@ -871,6 +998,7 @@ DWORD StartGraphicsStatusPublication() noexcept {
         );
         StringCchCopyW(g_graphics_status_path, kPathCapacity, final_path);
         g_status = {};
+        g_status.performance_counter_frequency = performance_counter_frequency.QuadPart;
         g_stop_event = stop_event;
         g_wake_event = wake_event;
         g_ready_event = ready_event;
@@ -963,6 +1091,9 @@ void ObserveGraphicsPresent() noexcept {
     if (InterlockedCompareExchange(&g_started, 0, 0) == 0) {
         return;
     }
+    LARGE_INTEGER present_counter{};
+    const bool timing_observed = QueryPerformanceCounter(&present_counter) != FALSE
+        && present_counter.QuadPart > 0;
     GraphicsContextSnapshot context{};
     const HMODULE opengl = GetModuleHandleW(L"OPENGL32.dll");
     if (opengl != nullptr) {
@@ -985,6 +1116,17 @@ void ObserveGraphicsPresent() noexcept {
     AcquireSRWLockExclusive(&g_state_lock);
     if (g_status.configured) {
         ++g_status.call_count;
+        if (timing_observed) {
+            const std::size_t timing_index = static_cast<std::size_t>(
+                (g_status.call_count - 1U) % kFrameTimingSampleCapacity
+            );
+            g_status.frame_timing_samples[timing_index] = {
+                g_status.call_count,
+                present_counter.QuadPart,
+            };
+        } else {
+            ++g_status.timing_query_failure_count;
+        }
         if (context.observed) {
             g_status.graphics_context = context;
         }
