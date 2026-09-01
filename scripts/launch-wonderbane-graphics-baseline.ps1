@@ -15,7 +15,7 @@ $ErrorActionPreference = "Stop"
 
 $expectedExtensionSha256 = "06030ef64ce35cd363306de4367cf0b2d5014a5b642c318810d7bf97323bf161"
 $expectedExtensionRelativePath = "wonderbane-extension-1.5.5.dll"
-$expectedExecutableSha256 = "a9a59004b36f9331bb85f85e7853a02a5d5f07bda9acb9ea4a8affbf169a54b8"
+$expectedExecutableSha256 = "3edf4702535a2ef61ddd058a45bc3db3dda7f6238d19222405db96ee2717b1c1"
 $expectedTexturePatchId = "wonderbane-1.0.5-55fbad5f.restrained-cel-v1"
 $expectedTexturePatchManifestSha256 = (
     "1128d1c82463805b6acfb5841d46c608362170963535b9db39be0f5e9079197c"
@@ -73,6 +73,13 @@ if (
     [string] $extensionRelativeProperty.Value -cne $expectedExtensionRelativePath
 ) {
     throw "Sealed graphics package does not name the reviewed extension runtime path"
+}
+$resultExecutableProperty = $package.PSObject.Properties["result_executable_sha256"]
+if (
+    $null -eq $resultExecutableProperty -or
+    [string] $resultExecutableProperty.Value -cne $expectedExecutableSha256
+) {
+    throw "Sealed graphics package does not name the reviewed executable identity"
 }
 $extensionArtifact = Join-Path $PackageDirectory $expectedExtensionRelativePath
 if (-not (Test-Path -LiteralPath $extensionArtifact -PathType Leaf)) {

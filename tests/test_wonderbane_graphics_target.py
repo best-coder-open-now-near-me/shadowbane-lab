@@ -96,6 +96,8 @@ def test_graphics_publication_and_launch_pin_the_golden_package() -> None:
     assert "06030ef64ce35cd363306de4367cf0b2d5014a5b642c318810d7bf97323bf161" in launch
     assert '$expectedExtensionRelativePath = "wonderbane-extension-1.5.5.dll"' in launch
     assert 'Properties["extension_relative_path"]' in launch
+    assert "3edf4702535a2ef61ddd058a45bc3db3dda7f6238d19222405db96ee2717b1c1" in launch
+    assert 'Properties["result_executable_sha256"]' in launch
     assert "verify-copy" in launch
     assert manifest_sha256 in launch
     assert "wonderbane-1.0.5-55fbad5f.restrained-cel-v1" in launch
