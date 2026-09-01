@@ -504,3 +504,11 @@ driver synchronization observable before another live release.
 The 1.6.5 graphics publication scripts are sealed to the probed full-renderer artifact and the
 patched executable derived from the frozen 55fb baseline. Publication creates a fresh 1.6.5
 package and receipt before the launcher will execute it.
+
+Extension 1.6.6 corrects the scene-frame ordering assumption exposed by the live WonderBane
+client. Orthographic draws that occur before the first positively classified world draw are now
+treated as a prelude rather than a permanent world/UI boundary. Positively classified world draws
+remain eligible for per-draw cel lighting and feature accents even when they occur after an
+observed UI boundary; the late ordering remains counted diagnostically and does not request a
+second scene composite. This preserves original UI draws while preventing an early orthographic
+submission from disabling world effects for the entire frame.

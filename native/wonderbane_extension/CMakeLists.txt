@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(wonderbane_extension VERSION 1.6.5 LANGUAGES CXX RC)
+project(wonderbane_extension VERSION 1.6.6 LANGUAGES CXX RC)
 
 set(WONDERBANE_EXTENSION_PROFILE "full" CACHE STRING "Extension runtime profile")
 set_property(

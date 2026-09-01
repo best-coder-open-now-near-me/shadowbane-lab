@@ -126,15 +126,18 @@ SceneFrameDecision AdvanceSceneFrame(
         ++frame->reason_counts[reason_index];
     }
     if (IsWorldLayer(classification.layer)) {
+        decision.contributes_to_scene = true;
         if (frame->phase == SceneFramePhase::ui) {
             ++frame->late_world_draw_count;
             return decision;
         }
         frame->phase = SceneFramePhase::world;
-        decision.contributes_to_scene = true;
         return decision;
     }
     if (IsUiLayer(classification.layer)) {
+        if (frame->phase == SceneFramePhase::awaiting_world) {
+            return decision;
+        }
         if (frame->phase == SceneFramePhase::world
             && !frame->composite_requested) {
             frame->composite_requested = true;
