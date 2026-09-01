@@ -33,6 +33,7 @@ from shadowbane_lab.client_extension.package import (
     discard_runtime_drifted_client_copy,
     prepare_patched_client_copy,
     verify_frozen_client_baseline,
+    verify_launchable_patched_client_copy,
     verify_patched_client_copy,
 )
 from shadowbane_lab.client_extension.patch_diff import (
@@ -128,6 +129,12 @@ def _parser() -> argparse.ArgumentParser:
     )
     verify.add_argument("directory", type=Path)
     verify.add_argument("--pretty", action="store_true")
+    verify_launchable = commands.add_parser(
+        "verify-launchable-copy",
+        help="require immutable package bytes while allowing classified runtime drift",
+    )
+    verify_launchable.add_argument("directory", type=Path)
+    verify_launchable.add_argument("--pretty", action="store_true")
     audit = commands.add_parser(
         "audit-copy",
         help="report exact drift from a disposable copy's package evidence",
@@ -251,6 +258,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             ).as_dict()
         elif arguments.command == "verify-copy":
             payload = verify_patched_client_copy(arguments.directory).as_dict()
+        elif arguments.command == "verify-launchable-copy":
+            payload = verify_launchable_patched_client_copy(arguments.directory).as_dict()
         elif arguments.command == "audit-copy":
             payload = audit_patched_client_copy(arguments.directory).as_dict()
         elif arguments.command == "discard-copy":

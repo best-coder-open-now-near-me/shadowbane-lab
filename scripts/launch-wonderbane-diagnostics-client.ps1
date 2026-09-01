@@ -73,11 +73,11 @@ else {
 }
 try {
     $verificationArguments = @(
-        "-m", "shadowbane_lab.client_extension", "verify-copy", $packageDirectory
+        "-m", "shadowbane_lab.client_extension", "verify-launchable-copy", $packageDirectory
     )
     $verificationOutput = @(& $PythonExecutable @verificationArguments)
     if ($LASTEXITCODE -ne 0) {
-        throw "Diagnostics client verification failed with exit code $LASTEXITCODE"
+        throw "Diagnostics client launch verification failed with exit code $LASTEXITCODE"
     }
 }
 finally {

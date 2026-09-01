@@ -640,6 +640,34 @@ These are inferences, ordered by present fit rather than certainty.
 - Next action: publish and launch \`summoner\` without stopping PID 3196, then record its exact PID,
   creation time, and renderer-status path before movement.
 
+## 2026-09-01 02:01 EDT / 06:01 UTC — Runtime-drift launch verifier defect
+
+### Observed publication and failed launch
+
+- Named diagnostics-only package \`summoner\` published and verified at
+  \`C:\Users\admin\Wonderbane-diagnostics-wb-55fbad5f-present-1.5.6-summoner\`.
+- A brief direct start opened and exited before an identity-bound renderer status was recorded.
+  The following launcher preflight then refused the package because its entire working-tree digest
+  no longer equaled the publication-time digest.
+- Read-only audit expected tree
+  \`e991ceb5fab8adc8745e260a4a41db4bce24747968211420ac5a14eba62218cc\` and found tree
+  \`d2517ec450140aea236ebef9ab36a1b3e2d905dda96583ee637ea62a3da0cf46\`.
+- No files were added. Changed files were \`DoubleFusion/dftm.dat\`,
+  \`DoubleFusion/Engine.Log\`, \`DoubleFusion/User.var\`, and \`Logs/debug.txt\`.
+  \`DoubleFusion/dfts.dat\` was missing. Every path was already classified by the package lifecycle
+  as runtime-mutable.
+- The audit did not report drift in \`sb.exe\`, the extension DLL, or any other immutable packaged
+  asset. This is a tooling-verifier defect, not evidence of executable tampering.
+
+### Tooling correction
+
+- Publication retains exact whole-tree verification.
+- Launch verification now permits changed or missing paths only from the existing bounded
+  runtime-mutable allowlist. It rejects every added file and every changed or missing path outside
+  that allowlist, then separately requires the exact packaged \`sb.exe\` and extension hashes.
+- Next action: retry the named \`summoner\` launcher. If the process still exits, collect that
+  startup failure independently of normal runtime-file drift.
+
 ## Journal maintenance rule
 
 After every live test, append one entry containing:

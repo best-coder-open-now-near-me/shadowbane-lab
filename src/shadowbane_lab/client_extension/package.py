@@ -558,6 +558,52 @@ def verify_patched_client_copy(directory: str | Path) -> PatchPackageEvidence:
     return evidence
 
 
+def verify_launchable_patched_client_copy(directory: str | Path) -> PatchPackageEvidence:
+    """Require immutable package bytes while permitting classified runtime drift."""
+
+    drift = audit_patched_client_copy(directory)
+    if drift.added:
+        raise ClientPatchPackageError(
+            "launch verification found added files: "
+            + ", ".join(item.relative_path for item in drift.added)
+        )
+    unexpected_changed = tuple(
+        item.actual.relative_path
+        for item in drift.changed
+        if not _is_known_runtime_mutable_path(item.actual.relative_path)
+    )
+    unexpected_missing = tuple(
+        item.relative_path
+        for item in drift.missing
+        if not _is_known_runtime_mutable_path(item.relative_path)
+    )
+    unexpected = unexpected_changed + unexpected_missing
+    if unexpected:
+        raise ClientPatchPackageError(
+            "launch verification found immutable package drift: " + ", ".join(unexpected)
+        )
+
+    root = Path(directory).resolve()
+    evidence = _load_package_evidence(root / _EVIDENCE_DIRECTORY_NAME / _PACKAGE_FILE_NAME)
+    actual = _inventory(
+        root,
+        excluded=frozenset(
+            {
+                f"{_EVIDENCE_DIRECTORY_NAME}/{_PACKAGE_FILE_NAME}".casefold(),
+            }
+        ),
+        max_files=_DEFAULT_MAX_FILES,
+        max_total_bytes=_DEFAULT_MAX_TOTAL_BYTES,
+    )
+    executable = _unique_record(actual, evidence.executable_relative_path)
+    extension = _unique_record(actual, evidence.extension_relative_path)
+    if executable.sha256 != evidence.result_executable_sha256:
+        raise ClientPatchPackageError("launchable executable hash does not match its evidence")
+    if extension.sha256 != evidence.extension_sha256:
+        raise ClientPatchPackageError("launchable extension hash does not match its evidence")
+    return evidence
+
+
 def audit_patched_client_copy(directory: str | Path) -> PatchPackageDrift:
     """Report exact package drift without modifying the disposable copy."""
 

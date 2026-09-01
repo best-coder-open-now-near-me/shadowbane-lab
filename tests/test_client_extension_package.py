@@ -27,6 +27,7 @@ from shadowbane_lab.client_extension.package import (
     discard_runtime_drifted_client_copy,
     prepare_patched_client_copy,
     verify_frozen_client_baseline,
+    verify_launchable_patched_client_copy,
     verify_patched_client_copy,
 )
 from tests.client_alignment_fixture import build_pe
@@ -120,6 +121,54 @@ def _freeze(root: Path, executable: bytes) -> tuple[Path, Path]:
 
 
 class ClientExtensionPackageTests(unittest.TestCase):
+    def test_launch_verification_allows_only_classified_runtime_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = _source_executable()
+            extension = _extension_dll()
+            _, frozen = _freeze(root, source)
+            extension_path = root / "wonderbane-extension.dll"
+            extension_path.write_bytes(extension)
+            destination = root / "working"
+            evidence = prepare_patched_client_copy(
+                frozen,
+                destination,
+                _manifest(source, extension),
+                extension_path,
+            ).evidence
+            self.assertIsNotNone(evidence)
+
+            mutable = destination / "Config" / "ArcanePref.cfg"
+            mutable.write_text("PREF=runtime\n", encoding="utf-8")
+            verified = verify_launchable_patched_client_copy(destination)
+            self.assertEqual(evidence, verified)
+            output = io.StringIO()
+            with redirect_stdout(output):
+                result = main(("verify-launchable-copy", str(destination)))
+            self.assertEqual(0, result)
+            self.assertEqual(
+                evidence.working_tree_sha256,
+                json.loads(output.getvalue())["working_tree_sha256"],
+            )
+
+            mutable.unlink()
+            verified = verify_launchable_patched_client_copy(destination)
+            self.assertEqual(evidence, verified)
+
+            added = destination / "unexpected.dat"
+            added.write_bytes(b"unexpected")
+            with self.assertRaisesRegex(ClientPatchPackageError, "added files: unexpected.dat"):
+                verify_launchable_patched_client_copy(destination)
+            added.unlink()
+
+            immutable = destination / "Config" / "ArcaneIP.cfg"
+            immutable.write_text("SERVER=changed\n", encoding="utf-8")
+            with self.assertRaisesRegex(
+                ClientPatchPackageError,
+                "immutable package drift: Config/ArcaneIP.cfg",
+            ):
+                verify_launchable_patched_client_copy(destination)
+
     def test_cli_dry_run_emits_machine_readable_plan(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -99,6 +99,7 @@ from .package import (
     discard_runtime_drifted_client_copy,
     prepare_patched_client_copy,
     verify_frozen_client_baseline,
+    verify_launchable_patched_client_copy,
     verify_patched_client_copy,
 )
 from .patch_diff import (
@@ -270,6 +271,7 @@ __all__ = [
     "resolve_reviewed_bootstrap_profile",
     "unconfigured_extension_status",
     "verify_frozen_client_baseline",
+    "verify_launchable_patched_client_copy",
     "verify_patched_client_copy",
     "write_client_patch_diff",
     "apply_texture_patch_plan",

@@ -42,7 +42,7 @@ class DiagnosticsClientBoundaryTests(unittest.TestCase):
         self.assertIn("baseline_payload_retained = $false", publish)
         self.assertIn("Remove-ExactTransientBaseline", publish)
         self.assertIn("verify-copy", publish)
-        self.assertIn("verify-copy", launch)
+        self.assertIn("verify-launchable-copy", launch)
         self.assertIn('runtime_profile -eq "diagnostics-only"', launch)
         self.assertIn("Start-Process @startArguments", launch)
         self.assertIn("Join-Path $env:USERPROFILE", publish)
