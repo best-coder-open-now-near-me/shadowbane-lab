@@ -5,7 +5,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-
 SCRIPT = Path(__file__).parents[1] / "scripts" / "find-wonderbane-location.ps1"
 POWERSHELL = shutil.which("powershell.exe") or shutil.which("powershell")
 
