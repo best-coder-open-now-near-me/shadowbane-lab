@@ -34,6 +34,7 @@ from shadowbane_lab.protocol import (
     Relation,
     Vector2,
 )
+from shadowbane_lab.rollouts.builds import progression_build
 from shadowbane_lab.rollouts.ruleset import load_wonderbane_guide_duel_ruleset
 from shadowbane_lab.rulesets import CharacterBuild, CompiledRuleset
 from shadowbane_lab.sim import (
@@ -75,23 +76,6 @@ _OPEN_RANGE = OPEN_RANGE_ACTION_KEY
 _MELEE_RANGE = 3.0
 _DEFAULT_LEVELS = (10, 15, 18, 19, 22, 26, 28, 42, 75)
 _DEFAULT_POWER_RANKS = (0, 10, 20, 40)
-_POWER_MAXIMUMS = {
-    "assassin": (
-        (SHADOW_BOLT, 40),
-        (SHADOW_TOUCH, 40),
-        (STEAL_BREATH, 40),
-        (FADE, 20),
-        (BACKSTAB, 40),
-        (INVISIBILITY, 20),
-        (SHADOW_MANTLE, 40),
-    ),
-    "warlock": (
-        (MIND_STRIKE, 40),
-        (MIND_SNARE, 40),
-        (PSYCHIC_HEALING, 40),
-        (PSYCHIC_SHIELD, 40),
-    ),
-}
 
 
 def _positive_number(value: float, field_name: str) -> None:
@@ -1389,31 +1373,6 @@ def progression_duel_matrix(
                     )
                 )
     return tuple(cells)
-
-
-def progression_build(profession: str, level: int, rank: int) -> CharacterBuild:
-    """Build an explicit equal-rank bracket, respecting individual power caps."""
-
-    try:
-        power_limits = _POWER_MAXIMUMS[profession]
-    except KeyError as exc:
-        raise ValueError(f"unsupported duel profession: {profession}") from exc
-    if isinstance(level, bool) or not isinstance(level, int) or level < 1:
-        raise ValueError("level must be a positive integer")
-    if isinstance(rank, bool) or not isinstance(rank, int) or not 0 <= rank <= 40:
-        raise ValueError("rank must be an integer between zero and 40")
-    if profession == "assassin":
-        skills = (("shadowmastery", 200), ("sorcery", 1), ("stalk", 1))
-    else:
-        skills = (("warlockry", 200),)
-    return CharacterBuild(
-        profession=profession,
-        level=level,
-        skill_ranks=skills,
-        power_ranks=tuple(
-            (action_key, min(rank, maximum_rank)) for action_key, maximum_rank in power_limits
-        ),
-    )
 
 
 def _progression_build(profession: str, level: int, rank: int) -> CharacterBuild:

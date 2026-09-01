@@ -60,8 +60,11 @@ The non-render slice implements the ownership checkpoints as follows:
    remains in the verified package transaction, and the bounded graphics startup wait is owned by
    `client_extension/graphics_status_wait.py`. Evidence capture and sealing remain in diagnostics
    and evidence modules. None of these services owns renderer hooks or state.
-5. The preserved simulator line is merged only at product convergence. Further simulator
-   modularization stays behind existing public imports and CLI commands.
+5. The preserved simulator line is merged only at product convergence. Canonical affiliation
+   interchange already owns serialization, with the byte codec retained as a compatibility facade;
+   rollout search remains in `rollouts/open_builds.py`, and bracket construction now belongs to
+   `rollouts/builds.py`. Scenario-coupled policies remain with their scenario runner. Existing
+   `rollouts` and `rollouts.duel` imports and CLI commands remain compatible.
 
 This is intentionally distributed ownership, not one launch god-object: exact identity, package
 retirement, status validation, and evidence sealing have different failure and authority models.

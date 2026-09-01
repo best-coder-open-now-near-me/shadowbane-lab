@@ -1,5 +1,6 @@
 """Scenario rollouts and deterministic baseline policies."""
 
+from shadowbane_lab.rollouts.builds import progression_build
 from shadowbane_lab.rollouts.duel import (
     ActionCount,
     CombatantConfig,
@@ -16,7 +17,6 @@ from shadowbane_lab.rollouts.duel import (
     VerifiedDuelConfig,
     VerifiedDuelResult,
     matched_progression_duels,
-    progression_build,
     progression_duel_matrix,
     run_duel,
     run_verified_duel,
