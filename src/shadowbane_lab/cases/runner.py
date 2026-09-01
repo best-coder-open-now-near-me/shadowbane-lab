@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from math import isfinite
 from time import monotonic
@@ -41,6 +41,7 @@ class StepOutcome:
     input_count: int = 0
     resource_loss: float = 0.0
     elapsed_seconds: float = 0.0
+    artifacts: tuple[ProducedArtifact, ...] = ()
     stop: bool = False
 
     def __post_init__(self) -> None:
@@ -73,6 +74,98 @@ class StepOutcome:
             raise ValueError("elapsed_seconds must be finite and non-negative")
 
 
+@dataclass(frozen=True, slots=True)
+class ProducedArtifact:
+    payload: bytes
+    artifact_kind: ArtifactKind
+    media_type: str
+    logical_name: str
+    metadata: tuple[tuple[str, Any], ...] = ()
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.payload, bytes):
+            raise ValueError("produced artifact payload must be bytes")
+        if not isinstance(self.artifact_kind, ArtifactKind):
+            raise ValueError("produced artifact kind is invalid")
+        names = tuple(name for name, _ in self.metadata)
+        if names != tuple(sorted(set(names))):
+            raise ValueError("produced artifact metadata must use canonical keys")
+        for _, value in self.metadata:
+            validate_finite_json(value)
+
+
+class ExecutionControl:
+    """Per-run authority that reserves irreversible effects before execution."""
+
+    def __init__(
+        self,
+        *,
+        started_monotonic: float,
+        deadline_monotonic: float,
+        maximum_input_count: int,
+        maximum_input_rate_per_second: float,
+        maximum_resource_loss: float,
+        cancellation_requested: Callable[[], bool],
+    ) -> None:
+        self.started_monotonic = started_monotonic
+        self.deadline_monotonic = deadline_monotonic
+        self.maximum_input_count = maximum_input_count
+        self.maximum_input_rate_per_second = maximum_input_rate_per_second
+        self.maximum_resource_loss = maximum_resource_loss
+        self._cancellation_requested = cancellation_requested
+        self._reserved_inputs = 0
+        self._reserved_resource_loss = 0.0
+
+    @property
+    def reserved_inputs(self) -> int:
+        return self._reserved_inputs
+
+    @property
+    def reserved_resource_loss(self) -> float:
+        return self._reserved_resource_loss
+
+    @property
+    def remaining_input_count(self) -> int:
+        return self.maximum_input_count - self._reserved_inputs
+
+    @property
+    def remaining_resource_loss(self) -> float:
+        return self.maximum_resource_loss - self._reserved_resource_loss
+
+    def check(self) -> None:
+        if self._cancellation_requested():
+            raise CaseError("experiment execution was cancelled")
+        if monotonic() >= self.deadline_monotonic:
+            raise CaseError("experiment exceeded maximum duration")
+
+    def reserve(self, *, input_count: int = 0, resource_loss: float = 0.0) -> None:
+        """Reserve declared effects before an adapter performs them."""
+
+        self.check()
+        if isinstance(input_count, bool) or not isinstance(input_count, int) or input_count < 0:
+            raise ValueError("reserved input_count must be a non-negative integer")
+        if (
+            isinstance(resource_loss, bool)
+            or not isinstance(resource_loss, int | float)
+            or not isfinite(resource_loss)
+            or resource_loss < 0
+        ):
+            raise ValueError("reserved resource_loss must be finite and non-negative")
+        proposed_inputs = self._reserved_inputs + input_count
+        proposed_loss = self._reserved_resource_loss + float(resource_loss)
+        if proposed_inputs > self.maximum_input_count:
+            raise CaseError("input reservation exceeds maximum input count")
+        if proposed_loss > self.maximum_resource_loss:
+            raise CaseError("resource reservation exceeds maximum resource loss")
+        if input_count and self.maximum_input_rate_per_second <= 0:
+            raise CaseError("input reservation is forbidden by the maximum input rate")
+        elapsed = max(monotonic() - self.started_monotonic, 1.0)
+        if input_count and proposed_inputs / elapsed > self.maximum_input_rate_per_second:
+            raise CaseError("input reservation exceeds maximum input rate")
+        self._reserved_inputs = proposed_inputs
+        self._reserved_resource_loss = proposed_loss
+
+
 class ExperimentStepExecutor(Protocol):
     """Named adapter boundary; definitions cannot carry executable code."""
 
@@ -85,6 +178,7 @@ class ExperimentStepExecutor(Protocol):
         *,
         run: ExpandedRun,
         context: Mapping[str, Any],
+        control: ExecutionControl,
     ) -> StepOutcome: ...
 
 
@@ -98,8 +192,10 @@ class DryRunExecutor:
         *,
         run: ExpandedRun,
         context: Mapping[str, Any],
+        control: ExecutionControl,
     ) -> StepOutcome:
         del run, context
+        control.check()
         return StepOutcome(
             passed=True,
             observations=(("dry_run_step", step.kind.value),),
@@ -134,8 +230,10 @@ class RecordedExecutor:
         *,
         run: ExpandedRun,
         context: Mapping[str, Any],
+        control: ExecutionControl,
     ) -> StepOutcome:
         del run, context
+        control.check()
         observations = self._observations.get(step.sequence, ())
         return StepOutcome(
             passed=_evaluate_step(step, dict(observations)),
@@ -185,6 +283,7 @@ def execute_run(
     store: ArtifactStore,
     manifest_path: str,
     executor: ExperimentStepExecutor,
+    cancellation_requested: Callable[[], bool] | None = None,
 ) -> RunExecution:
     validate_case_experiment(case, definition, fingerprint)
     if (
@@ -194,68 +293,101 @@ def execute_run(
         raise CaseError("expanded run does not belong to this experiment revision")
     step_by_sequence = {item.sequence: item for item in definition.steps}
     sequence = 1
-    repeat_counts: dict[int, int] = {}
+    active_repeat: tuple[int, int, int, int] | None = None
     observations: dict[str, Any] = dict(run.variables)
     completed_channels: set[str] = set()
     trace: list[dict[str, object]] = []
+    produced_artifacts: list[ProducedArtifact] = []
     total_inputs = 0
     total_loss = 0.0
     reported_elapsed = 0.0
     started = monotonic()
+    control = ExecutionControl(
+        started_monotonic=started,
+        deadline_monotonic=started + definition.safety.maximum_duration_seconds,
+        maximum_input_count=definition.safety.maximum_input_count,
+        maximum_input_rate_per_second=definition.safety.maximum_input_rate_per_second,
+        maximum_resource_loss=definition.safety.maximum_resource_loss,
+        cancellation_requested=cancellation_requested or (lambda: False),
+    )
     execution_count = 0
     max_executions = min(1_000_000, len(definition.steps) * 10_001)
     failed = False
-    while sequence <= len(definition.steps):
-        execution_count += 1
-        if execution_count > max_executions:
-            raise CaseError("experiment exceeded its bounded step execution limit")
-        if monotonic() - started > definition.safety.maximum_duration_seconds:
-            raise CaseError("experiment exceeded maximum duration")
-        step = step_by_sequence[sequence]
-        if step.kind is StepKind.REPEAT:
-            parameters = dict(step.parameters)
-            count = repeat_counts.get(sequence, 0)
-            if count < parameters["count"]:
-                repeat_counts[sequence] = count + 1
+    execution_error: str | None = None
+    try:
+        while sequence <= len(definition.steps):
+            execution_count += 1
+            if execution_count > max_executions:
+                raise CaseError("experiment exceeded its bounded step execution limit")
+            control.check()
+            step = step_by_sequence[sequence]
+            if step.kind is StepKind.REPEAT:
+                if active_repeat is not None:
+                    raise CaseError("overlapping repeat execution is not permitted")
+                parameters = dict(step.parameters)
+                active_repeat = (
+                    parameters["start_sequence"],
+                    parameters["end_sequence"],
+                    parameters["count"],
+                    step.sequence,
+                )
                 sequence = parameters["start_sequence"]
                 continue
-            repeat_counts.pop(sequence, None)
-            sequence += 1
-            continue
-        outcome = executor.execute(step, run=run, context=observations)
-        total_inputs += outcome.input_count
-        total_loss += float(outcome.resource_loss)
-        reported_elapsed += float(outcome.elapsed_seconds)
-        if total_inputs > definition.safety.maximum_input_count:
-            raise CaseError("executor exceeded maximum input count")
-        if total_loss > definition.safety.maximum_resource_loss:
-            raise CaseError("executor exceeded maximum resource loss")
-        elapsed = max(monotonic() - started, reported_elapsed)
-        if total_inputs and (
-            definition.safety.maximum_input_rate_per_second <= 0
-            or total_inputs / max(elapsed, 1e-9) > definition.safety.maximum_input_rate_per_second
-        ):
-            raise CaseError("executor exceeded maximum input rate")
-        observations.update(outcome.observations)
-        completed_channels.update(outcome.completed_channels)
-        trace.append(
-            {
-                "sequence": step.sequence,
-                "kind": step.kind.value,
-                "passed": outcome.passed,
-                "observations": dict(outcome.observations),
-            }
-        )
-        if not outcome.passed and step.kind is StepKind.ASSERT_PRECONDITION:
-            failed = True
-            break
-        if step.kind is StepKind.BRANCH_ON_OBSERVATION:
-            values = dict(step.parameters)
-            sequence = values["true_sequence"] if outcome.passed else values["false_sequence"]
-        else:
-            sequence += 1
-        if outcome.stop:
-            break
+            before_inputs = control.reserved_inputs
+            before_loss = control.reserved_resource_loss
+            outcome = executor.execute(
+                step,
+                run=run,
+                context=observations,
+                control=control,
+            )
+            control.check()
+            reserved_inputs = control.reserved_inputs - before_inputs
+            reserved_loss = control.reserved_resource_loss - before_loss
+            if outcome.input_count != reserved_inputs:
+                raise CaseError("executor input report does not match its pre-action reservation")
+            if float(outcome.resource_loss) != reserved_loss:
+                raise CaseError("executor resource report does not match its pre-action reservation")
+            total_inputs += outcome.input_count
+            total_loss += float(outcome.resource_loss)
+            reported_elapsed += float(outcome.elapsed_seconds)
+            observations.update(outcome.observations)
+            completed_channels.update(outcome.completed_channels)
+            produced_artifacts.extend(outcome.artifacts)
+            trace.append(
+                {
+                    "sequence": step.sequence,
+                    "kind": step.kind.value,
+                    "passed": outcome.passed,
+                    "observations": dict(outcome.observations),
+                }
+            )
+            if not outcome.passed and step.kind is StepKind.ASSERT_PRECONDITION:
+                failed = True
+                break
+            if active_repeat is not None and step.sequence == active_repeat[1]:
+                start_sequence, end_sequence, remaining, repeat_sequence = active_repeat
+                if remaining > 1:
+                    active_repeat = (
+                        start_sequence,
+                        end_sequence,
+                        remaining - 1,
+                        repeat_sequence,
+                    )
+                    sequence = start_sequence
+                else:
+                    active_repeat = None
+                    sequence = repeat_sequence + 1
+            elif step.kind is StepKind.BRANCH_ON_OBSERVATION:
+                values = dict(step.parameters)
+                sequence = values["true_sequence"] if outcome.passed else values["false_sequence"]
+            else:
+                sequence += 1
+            if outcome.stop:
+                break
+    except Exception as exc:
+        failed = True
+        execution_error = f"{type(exc).__name__}: {exc}"
     oracle_results = tuple(_evaluate_oracle(item, observations) for item in definition.oracle)
     if any(
         not passed and severity is OracleSeverity.FAILURE for passed, severity in oracle_results
@@ -292,8 +424,22 @@ def execute_run(
         "terminal_state": terminal.value,
         "completed_channels": list(completed),
         "missing_channels": list(missing),
+        "execution_error": execution_error,
     }
     captured = canonical_timestamp()
+    descriptors = [
+        store.ingest_bytes(
+            artifact.payload,
+            artifact_kind=artifact.artifact_kind,
+            media_type=artifact.media_type,
+            logical_name=artifact.logical_name,
+            producer_id=executor.executor_id,
+            producer_version=executor.executor_version,
+            captured_at_utc=captured,
+            metadata=artifact.metadata,
+        )
+        for artifact in produced_artifacts
+    ]
     descriptor = store.ingest_bytes(
         canonical_json_bytes(record),
         artifact_kind=ArtifactKind.SIMULATION_RESULT,
@@ -304,7 +450,13 @@ def execute_run(
         captured_at_utc=captured,
         metadata=(("definition_id", definition.definition_id),),
     )
-    artifacts: tuple[ArtifactDescriptor, ...] = (descriptor,)
+    descriptors.append(descriptor)
+    artifacts: tuple[ArtifactDescriptor, ...] = tuple(
+        sorted(
+            {item.artifact_id: item for item in descriptors}.values(),
+            key=lambda item: item.artifact_id or "",
+        )
+    )
     manifest = EvidenceManifest(
         created_at_utc=captured,
         fingerprint_id=fingerprint.fingerprint_id,
@@ -316,7 +468,16 @@ def execute_run(
         required_channels=required,
         completed_channels=completed,
         omissions=missing,
-        warnings=() if not failed else ("experiment or oracle failure",),
+        warnings=()
+        if not failed
+        else tuple(
+            sorted(
+                {
+                    "experiment or oracle failure",
+                    *((execution_error,) if execution_error is not None else ()),
+                }
+            )
+        ),
     )
     save_contract(manifest_path, manifest)
     return RunExecution(manifest=manifest, record=record)
@@ -331,6 +492,7 @@ def execute_plan(
     manifest_directory: str,
     executor: ExperimentStepExecutor,
     execution_nonce: str,
+    cancellation_requested: Callable[[], bool] | None = None,
 ) -> tuple[RunExecution, ...]:
     from pathlib import Path
 
@@ -345,6 +507,7 @@ def execute_plan(
             store=store,
             manifest_path=str(directory / f"{run.run_id}.manifest.json"),
             executor=executor,
+            cancellation_requested=cancellation_requested,
         )
         for run in runs
     )
@@ -399,8 +562,10 @@ def _compare(actual: Any, operator: str, expected: Any, tolerance: float) -> boo
 
 __all__ = [
     "DryRunExecutor",
+    "ExecutionControl",
     "ExperimentStepExecutor",
     "RecordedExecutor",
+    "ProducedArtifact",
     "RunExecution",
     "StepOutcome",
     "execute_plan",

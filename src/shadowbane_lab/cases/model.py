@@ -450,6 +450,33 @@ class ExperimentDefinition:
                 for target in (values["true_sequence"], values["false_sequence"]):
                     if target <= step.sequence or target > len(self.steps):
                         raise ValueError("branch targets must be later valid steps")
+        repeat_ranges: list[tuple[int, int, int]] = []
+        for step in self.steps:
+            if step.kind is not StepKind.REPEAT:
+                continue
+            values = dict(step.parameters)
+            start = values["start_sequence"]
+            end = values["end_sequence"]
+            if any(
+                candidate.kind is StepKind.REPEAT
+                for candidate in self.steps[start - 1 : end]
+            ):
+                raise ValueError("repeat ranges cannot contain repeat control steps")
+            for candidate in self.steps[start - 1 : end]:
+                if candidate.kind is not StepKind.BRANCH_ON_OBSERVATION:
+                    continue
+                targets = dict(candidate.parameters)
+                if any(
+                    target < start or target > end
+                    for target in (targets["true_sequence"], targets["false_sequence"])
+                ):
+                    raise ValueError("branches inside repeat ranges cannot escape the range")
+            if any(
+                not (end < prior_start or prior_end < start)
+                for prior_start, prior_end, _ in repeat_ranges
+            ):
+                raise ValueError("repeat ranges cannot overlap")
+            repeat_ranges.append((start, end, step.sequence))
         if not isinstance(self.capture, CapturePolicy):
             raise ValueError("capture must be CapturePolicy")
         if not isinstance(self.repetition, RepetitionPolicy):
@@ -518,6 +545,14 @@ def expand_experiment(
         )[:32]
     )
     names = tuple(item.name for item in definition.variables)
+    combination_count = 1
+    for variable in definition.variables:
+        combination_count *= len(variable.values)
+        if combination_count > 1_000_000:
+            raise ValueError("expanded experiment exceeds one million runs")
+    total_runs = combination_count * definition.repetition.repetitions
+    if total_runs > 1_000_000:
+        raise ValueError("expanded experiment exceeds one million runs")
     combinations = list(product(*(item.values for item in definition.variables)))
     if not combinations:
         combinations = [()]
@@ -552,8 +587,8 @@ def expand_experiment(
                     variables=variables,
                 )
             )
-    if len(runs) > 1_000_000:
-        raise ValueError("expanded experiment exceeds one million runs")
+    if len(runs) != total_runs:
+        raise RuntimeError("expanded experiment run count does not match its bounded plan")
     return tuple(runs)
 
 

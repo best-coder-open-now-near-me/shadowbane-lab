@@ -8,6 +8,23 @@ from .codec import (
     save_case,
     save_experiment,
 )
+from .capture import (
+    CaptureQuality,
+    CaptureRecord,
+    CaptureRecordKind,
+    ProducerHealth,
+    completed_capture_channels,
+    load_capture_records,
+    producer_health,
+    save_capture_records,
+)
+from .alignment import SemanticTrace, align_capture_records, save_semantic_trace
+from .adapters import (
+    CaptureReplayExecutor,
+    combat_breakpoint_executor,
+    runtime_health_executor,
+    vendor_dialog_executor,
+)
 from .model import (
     CapturePolicy,
     CaseError,
@@ -30,6 +47,8 @@ from .model import (
 )
 from .runner import (
     DryRunExecutor,
+    ExecutionControl,
+    ProducedArtifact,
     RecordedExecutor,
     RunExecution,
     StepOutcome,
@@ -40,9 +59,14 @@ from .runner import (
 
 __all__ = [
     "CapturePolicy",
+    "CaptureQuality",
+    "CaptureRecord",
+    "CaptureRecordKind",
+    "CaptureReplayExecutor",
     "CaseError",
     "CaseState",
     "DryRunExecutor",
+    "ExecutionControl",
     "ExpandedRun",
     "ExperimentDefinition",
     "ExperimentReference",
@@ -51,6 +75,8 @@ __all__ = [
     "Hypothesis",
     "OracleRule",
     "OracleSeverity",
+    "ProducedArtifact",
+    "ProducerHealth",
     "RecordedExecutor",
     "RepetitionPolicy",
     "ResearchCase",
@@ -58,16 +84,26 @@ __all__ = [
     "SafetyPolicy",
     "StepKind",
     "StepOutcome",
+    "SemanticTrace",
     "VariableOrder",
     "execute_plan",
     "execute_run",
     "expand_experiment",
+    "align_capture_records",
+    "combat_breakpoint_executor",
+    "completed_capture_channels",
     "load_case",
     "load_experiment",
     "parse_case",
     "parse_experiment",
     "review_case",
+    "load_capture_records",
+    "producer_health",
+    "runtime_health_executor",
+    "save_capture_records",
     "save_case",
     "save_experiment",
+    "save_semantic_trace",
     "validate_case_experiment",
+    "vendor_dialog_executor",
 ]
