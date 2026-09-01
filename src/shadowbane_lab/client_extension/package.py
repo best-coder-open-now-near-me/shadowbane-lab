@@ -25,6 +25,7 @@ from shadowbane_lab.client_extension.resolver import (
     apply_patch_plan,
     build_patch_plan,
 )
+from shadowbane_lab.client_extension.runtime_drift import assess_runtime_drift_paths
 from shadowbane_lab.client_extension.texture_patch import (
     TexturePatchError,
     TexturePatchManifest,
@@ -203,6 +204,14 @@ class PatchPackageDrift:
             "missing": [item.as_dict() for item in self.missing],
             "changed": [item.as_dict() for item in self.changed],
         }
+
+
+@dataclass(frozen=True, slots=True)
+class _AuditedPatchPackage:
+    root: Path
+    evidence: PatchPackageEvidence
+    actual_files: tuple[BaselineFile, ...]
+    drift: PatchPackageDrift
 
 
 @dataclass(frozen=True, slots=True)
@@ -559,30 +568,16 @@ def verify_patched_client_copy(directory: str | Path) -> PatchPackageEvidence:
     """Require a disposable copy and every packaged byte to match its marker."""
 
     root = Path(directory).resolve()
-    if not root.is_dir() or _is_reparse_point(root):
-        raise ClientPatchPackageError(f"patched client copy is not a regular directory: {root}")
-    evidence = _load_package_evidence(root / _EVIDENCE_DIRECTORY_NAME / _PACKAGE_FILE_NAME)
-    if Path(evidence.destination_directory).resolve() != root:
-        raise ClientPatchPackageError("package evidence is bound to a different destination")
-    actual = _inventory(
-        root,
-        excluded=frozenset(
-            {
-                f"{_EVIDENCE_DIRECTORY_NAME}/{_PACKAGE_FILE_NAME}".casefold(),
-            }
-        ),
-        max_files=_DEFAULT_MAX_FILES,
-        max_total_bytes=_DEFAULT_MAX_TOTAL_BYTES,
-    )
-    if actual != evidence.files or _tree_sha256(actual) != evidence.working_tree_sha256:
+    audit = _audit_patched_client_copy(root)
+    if not audit.drift.matches:
         raise ClientPatchPackageError("patched client copy differs from its package inventory")
-    executable = _unique_record(actual, evidence.executable_relative_path)
-    extension = _unique_record(actual, evidence.extension_relative_path)
-    if executable.sha256 != evidence.result_executable_sha256:
+    executable = _unique_record(audit.actual_files, audit.evidence.executable_relative_path)
+    extension = _unique_record(audit.actual_files, audit.evidence.extension_relative_path)
+    if executable.sha256 != audit.evidence.result_executable_sha256:
         raise ClientPatchPackageError("packaged executable hash does not match its evidence")
-    if extension.sha256 != evidence.extension_sha256:
+    if extension.sha256 != audit.evidence.extension_sha256:
         raise ClientPatchPackageError("packaged extension hash does not match its evidence")
-    return evidence
+    return audit.evidence
 
 
 def verify_runtime_patched_client_copy(directory: str | Path) -> PatchPackageEvidence:
@@ -595,32 +590,18 @@ def verify_runtime_patched_client_copy(directory: str | Path) -> PatchPackageEvi
     """
 
     root = Path(directory).resolve()
-    drift = audit_patched_client_copy(root)
-    unexpected_added = tuple(
-        item.relative_path
-        for item in drift.added
-        if not _is_known_runtime_mutable_path(item.relative_path)
+    audit = _audit_patched_client_copy(root)
+    assessment = assess_runtime_drift_paths(
+        added=(item.relative_path for item in audit.drift.added),
+        missing=(item.relative_path for item in audit.drift.missing),
+        changed=(item.actual.relative_path for item in audit.drift.changed),
     )
-    unexpected_missing = tuple(
-        item.relative_path
-        for item in drift.missing
-        if not _is_known_runtime_mutable_path(item.relative_path)
-    )
-    unexpected_changed = tuple(
-        item.actual.relative_path
-        for item in drift.changed
-        if not _is_known_runtime_mutable_path(item.actual.relative_path)
-    )
-    unexpected = (
-        tuple(f"added:{path}" for path in unexpected_added)
-        + tuple(f"missing:{path}" for path in unexpected_missing)
-        + tuple(f"changed:{path}" for path in unexpected_changed)
-    )
-    if unexpected:
+    if not assessment.allowed:
         raise ClientPatchPackageError(
-            "runtime client copy contains non-runtime drift: " + ", ".join(unexpected)
+            "runtime client copy contains non-runtime drift: "
+            + ", ".join(assessment.labeled_paths())
         )
-    return _load_package_evidence(root / _EVIDENCE_DIRECTORY_NAME / _PACKAGE_FILE_NAME)
+    return audit.evidence
 
 
 def verify_launchable_patched_client_copy(directory: str | Path) -> PatchPackageEvidence:
@@ -633,6 +614,12 @@ def audit_patched_client_copy(directory: str | Path) -> PatchPackageDrift:
     """Report exact package drift without modifying the disposable copy."""
 
     root = Path(directory).resolve()
+    return _audit_patched_client_copy(root).drift
+
+
+def _audit_patched_client_copy(root: Path) -> _AuditedPatchPackage:
+    """Load evidence and inventory once for every package policy."""
+
     if not root.is_dir() or _is_reparse_point(root):
         raise ClientPatchPackageError(f"patched client copy is not a regular directory: {root}")
     evidence = _load_package_evidence(root / _EVIDENCE_DIRECTORY_NAME / _PACKAGE_FILE_NAME)
@@ -663,13 +650,19 @@ def audit_patched_client_copy(directory: str | Path) -> PatchPackageDrift:
         for key in sorted(expected_by_path.keys() & actual_by_path.keys())
         if expected_by_path[key] != actual_by_path[key]
     )
-    return PatchPackageDrift(
+    drift = PatchPackageDrift(
         directory=str(root),
         expected_working_tree_sha256=evidence.working_tree_sha256,
         actual_working_tree_sha256=_tree_sha256(actual),
         added=added,
         missing=missing,
         changed=changed,
+    )
+    return _AuditedPatchPackage(
+        root=root,
+        evidence=evidence,
+        actual_files=actual,
+        drift=drift,
     )
 
 
@@ -741,7 +734,8 @@ def discard_runtime_drifted_client_copy(
             "rollback receipt and runtime-drift archive must be outside the discarded directory"
         )
 
-    drift = audit_patched_client_copy(root)
+    audit = _audit_patched_client_copy(root)
+    drift = audit.drift
     if drift.actual_working_tree_sha256 != actual_working_tree_sha256:
         raise ClientPatchPackageError("patched client copy changed after its reviewed drift audit")
     if drift.matches:
@@ -750,23 +744,17 @@ def discard_runtime_drifted_client_copy(
         )
     if drift.added:
         raise ClientPatchPackageError("runtime-drift retirement does not allow added files")
-    unexpected_changed = tuple(
-        item.actual.relative_path
-        for item in drift.changed
-        if not _is_known_runtime_mutable_path(item.actual.relative_path)
+    assessment = assess_runtime_drift_paths(
+        missing=(item.relative_path for item in drift.missing),
+        changed=(item.actual.relative_path for item in drift.changed),
     )
-    unexpected_missing = tuple(
-        item.relative_path
-        for item in drift.missing
-        if not _is_known_runtime_mutable_path(item.relative_path)
-    )
-    unexpected = unexpected_changed + unexpected_missing
-    if unexpected:
+    if not assessment.allowed:
         raise ClientPatchPackageError(
-            "runtime-drift retirement found non-runtime changes: " + ", ".join(unexpected)
+            "runtime-drift retirement found non-runtime changes: "
+            + ", ".join(assessment.unexpected_paths)
         )
 
-    evidence = _load_package_evidence(root / _EVIDENCE_DIRECTORY_NAME / _PACKAGE_FILE_NAME)
+    evidence = audit.evidence
     baseline = verify_frozen_client_baseline(evidence.baseline_directory)
     if baseline.tree_sha256 != evidence.baseline_tree_sha256:
         raise ClientPatchPackageError("frozen baseline digest changed before rollback")
@@ -827,26 +815,6 @@ def discard_runtime_drifted_client_copy(
             shutil.rmtree(archive, ignore_errors=True)
     verify_frozen_client_baseline(baseline.directory)
     return result
-
-
-def _is_known_runtime_mutable_path(relative_path: str) -> bool:
-    normalized = relative_path.casefold()
-    exact = {
-        "config/arcanepref.cfg",
-        "doublefusion/cache/cache.dat",
-        "doublefusion/dftm.dat",
-        "doublefusion/dfts.dat",
-        "doublefusion/engine.log",
-        "doublefusion/user.var",
-        "logs/debug.txt",
-    }
-    if normalized in exact:
-        return True
-    return (
-        normalized.startswith("config/screen_game_")
-        and normalized.endswith("_wonderbane.cfg")
-        and normalized.count("/") == 1
-    )
 
 
 def _verified_extension(path: Path, manifest: PatchManifest) -> bytes:
