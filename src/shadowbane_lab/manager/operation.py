@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import NoReturn
 
 from .manifest import ManagerManifest
+from .record_store import publish_atomic_record
 from .worker import WorkerDispatchPermit
 
 WORKER_OPERATION_SCHEMA_VERSION = 1
@@ -774,19 +775,13 @@ class WorkerOperationLedger:
                     f"invalid operation transition {current.state.value} -> {receipt.state.value}"
                 )
         payload = self._encode(receipt.to_dict())
-        temporary = directory / f".{receipt.operation_id}.{os.getpid()}.{uuid.uuid4().hex}.tmp"
         try:
-            directory.mkdir(parents=True, exist_ok=True)
-            with temporary.open("xb") as destination:
-                destination.write(payload)
-                destination.flush()
-                os.fsync(destination.fileno())
-            temporary.replace(target)
+            publish_atomic_record(
+                target,
+                payload,
+                temporary_label=receipt.operation_id,
+            )
         except OSError as exc:
-            try:
-                temporary.unlink(missing_ok=True)
-            except OSError:
-                pass
             raise WorkerOperationLedgerError(f"could not persist receipt: {exc}") from exc
         return target
 

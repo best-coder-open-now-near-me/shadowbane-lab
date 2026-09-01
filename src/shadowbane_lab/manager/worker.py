@@ -22,6 +22,7 @@ from time import sleep, time
 from typing import NoReturn
 
 from .manifest import ManagerManifest
+from .record_store import publish_atomic_record, replace_record_with_retry
 from .supervisor import ProcessLifetimeInspector, ProcessLifetimeSnapshot
 
 WORKER_HEARTBEAT_SCHEMA_VERSION = 1
@@ -88,18 +89,12 @@ _STOP_REQUEST_REQUIRED_FIELDS = frozenset(
 def _replace_worker_record(temporary: Path, target: Path) -> None:
     """Replace one local worker record despite bounded transient reader locks."""
 
-    for delay in (*_ATOMIC_REPLACE_RETRY_DELAYS_SECONDS, None):
-        try:
-            temporary.replace(target)
-            return
-        except OSError as exc:
-            retryable = isinstance(exc, PermissionError) or getattr(exc, "winerror", None) in {
-                5,
-                32,
-            }
-            if not retryable or delay is None:
-                raise
-            sleep(delay)
+    replace_record_with_retry(
+        temporary,
+        target,
+        retry_delays_seconds=_ATOMIC_REPLACE_RETRY_DELAYS_SECONDS,
+        sleeper=sleep,
+    )
 
 
 class WorkerHeartbeatError(RuntimeError):
@@ -736,7 +731,6 @@ class WorkerHeartbeatLedger:
             )
         directory = self._slot_directory(canonical)
         target = directory / f"{heartbeat.worker_id}.json"
-        temporary = directory / f".{heartbeat.worker_id}.{os.getpid()}.{uuid.uuid4().hex}.tmp"
         payload = json.dumps(
             heartbeat.to_dict(),
             ensure_ascii=True,
@@ -747,17 +741,13 @@ class WorkerHeartbeatLedger:
         if len(payload) > self._max_record_bytes:
             raise WorkerHeartbeatLedgerError("serialized worker heartbeat exceeds size limit")
         try:
-            directory.mkdir(parents=True, exist_ok=True)
-            with temporary.open("xb") as destination:
-                destination.write(payload)
-                destination.flush()
-                os.fsync(destination.fileno())
-            _replace_worker_record(temporary, target)
+            publish_atomic_record(
+                target,
+                payload,
+                temporary_label=heartbeat.worker_id,
+                replacer=_replace_worker_record,
+            )
         except OSError as exc:
-            try:
-                temporary.unlink(missing_ok=True)
-            except OSError:
-                pass
             raise WorkerHeartbeatLedgerError(f"could not persist worker heartbeat: {exc}") from exc
         return target
 
@@ -773,7 +763,6 @@ class WorkerHeartbeatLedger:
             )
         directory = self._slot_directory(canonical)
         target = directory / "dispatch.permit"
-        temporary = directory / f".dispatch.{os.getpid()}.{uuid.uuid4().hex}.tmp"
         payload = json.dumps(
             permit.to_dict(),
             ensure_ascii=True,
@@ -784,17 +773,13 @@ class WorkerHeartbeatLedger:
         if len(payload) > self._max_record_bytes:
             raise WorkerHeartbeatLedgerError("serialized worker dispatch permit exceeds size limit")
         try:
-            directory.mkdir(parents=True, exist_ok=True)
-            with temporary.open("xb") as destination:
-                destination.write(payload)
-                destination.flush()
-                os.fsync(destination.fileno())
-            _replace_worker_record(temporary, target)
+            publish_atomic_record(
+                target,
+                payload,
+                temporary_label="dispatch",
+                replacer=_replace_worker_record,
+            )
         except OSError as exc:
-            try:
-                temporary.unlink(missing_ok=True)
-            except OSError:
-                pass
             raise WorkerHeartbeatLedgerError(
                 f"could not persist worker dispatch permit: {exc}"
             ) from exc
@@ -839,7 +824,6 @@ class WorkerHeartbeatLedger:
             )
         directory = self._slot_directory(canonical)
         target = directory / f"stop.{request.worker_id}"
-        temporary = directory / f".stop.{request.worker_id}.{os.getpid()}.{uuid.uuid4().hex}.tmp"
         payload = json.dumps(
             request.to_dict(),
             ensure_ascii=True,
@@ -850,17 +834,13 @@ class WorkerHeartbeatLedger:
         if len(payload) > self._max_record_bytes:
             raise WorkerHeartbeatLedgerError("serialized worker stop request exceeds size limit")
         try:
-            directory.mkdir(parents=True, exist_ok=True)
-            with temporary.open("xb") as destination:
-                destination.write(payload)
-                destination.flush()
-                os.fsync(destination.fileno())
-            _replace_worker_record(temporary, target)
+            publish_atomic_record(
+                target,
+                payload,
+                temporary_label=f"stop.{request.worker_id}",
+                replacer=_replace_worker_record,
+            )
         except OSError as exc:
-            try:
-                temporary.unlink(missing_ok=True)
-            except OSError:
-                pass
             raise WorkerHeartbeatLedgerError(
                 f"could not persist worker stop request: {exc}"
             ) from exc
