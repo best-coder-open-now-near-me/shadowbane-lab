@@ -216,7 +216,7 @@ def _four_colors(
         raise ValueError(f"{key} must contain exactly four colors")
     colors = []
     for index, color in enumerate(item):
-        colors.append(_triple({"color": color}, f"color"))
+        colors.append(_triple({"color": color}, "color"))
         _validate_color(colors[-1], f"{key}[{index}]")
     return colors[0], colors[1], colors[2], colors[3]
 
