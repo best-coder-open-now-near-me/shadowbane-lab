@@ -356,3 +356,17 @@ bound remain single-pass. Immediate-mode geometry retains the client's original 
 an arbitrary `glBegin`/`glEnd` stream would require intercepting every vertex and state mutation.
 Any missing or ambiguous required import or OpenGL helper still rejects initialization before the
 first IAT mutation; partial hook installation retains the existing rollback behavior.
+
+Extension 1.5.4 adds identity-bound graphics-present diagnostics for the reviewed client. The
+extension hooks the exact `GDI32.dll!SwapBuffers` import at IAT RVA `23789964`, counts observed
+presents, and publishes an atomic status document under
+`%LOCALAPPDATA%\ShadowbaneLab\client-extension`. The filename binds the record to the process ID and
+process-creation FILETIME; the document also records the executable path and SHA-256 so a diagnostic
+consumer can reject stale records, PID reuse, and a different client binary.
+
+The present hook performs no hashing or filesystem I/O. It samples a newly observed OpenGL context
+once, increments an in-memory counter, and signals a background publisher. The status reports the GL
+and GLSL versions, depth-buffer precision, viewport, depth-texture capability, and framebuffer-object
+capability. A screen-space depth-edge pass remains explicitly `not-implemented` until a live capture
+confirms those prerequisites. Missing, mismatched, or stale runtime evidence therefore blocks the
+dependent decoder instead of silently selecting an unverified rendering path.

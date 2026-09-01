@@ -1,5 +1,6 @@
 #include "cel_shading.h"
 #include "extension_api.h"
+#include "graphics_status.h"
 
 #include <KnownFolders.h>
 #include <ShlObj.h>
@@ -16,7 +17,7 @@ constexpr std::size_t kPathCapacity = WONDERBANE_EXTENSION_HEARTBEAT_PATH_CAPACI
 constexpr std::size_t kJsonCapacity = 768;
 constexpr LONG kMaximumInitializationPolls = 500;
 constexpr DWORD kInitializationPollMilliseconds = 10;
-constexpr char kExtensionVersion[] = "1.5.3";
+constexpr char kExtensionVersion[] = "1.5.4";
 constexpr wchar_t kClientExecutableName[] = L"sb.exe";
 
 volatile LONG g_state = static_cast<LONG>(WonderBaneExtensionState::uninitialized);
@@ -281,15 +282,23 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
         bool is_client = false;
         DWORD result = IsClientExecutable(&is_client);
         bool renderer_started = false;
+        bool graphics_status_started = false;
         if (result == ERROR_SUCCESS && is_client) {
-            result = wonderbane::extension::StartStrongCelShading();
-            renderer_started = result == ERROR_SUCCESS;
+            result = wonderbane::extension::StartGraphicsStatusPublication();
+            graphics_status_started = result == ERROR_SUCCESS;
+            if (result == ERROR_SUCCESS) {
+                result = wonderbane::extension::StartStrongCelShading();
+                renderer_started = result == ERROR_SUCCESS;
+            }
         }
         if (result == ERROR_SUCCESS) {
             result = WriteHeartbeat();
         }
         if (result != ERROR_SUCCESS && renderer_started) {
             wonderbane::extension::StopStrongCelShading();
+        }
+        if (result != ERROR_SUCCESS && graphics_status_started) {
+            wonderbane::extension::StopGraphicsStatusPublication();
         }
         InterlockedExchange(&g_initialization_result, static_cast<LONG>(result));
         InterlockedExchange(

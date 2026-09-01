@@ -1,5 +1,6 @@
 #include "cel_shading.h"
 #include "banded_lighting.h"
+#include "graphics_status.h"
 
 #include <Windows.h>
 
@@ -67,6 +68,7 @@ constexpr float kMaximumOutlineHullScale = 1.25F;
 constexpr std::size_t kCapturedDisplayListCapacity = 65536U;
 constexpr std::size_t kMaximumCapturedVerticesPerList = 65536U;
 constexpr std::size_t kMaximumFeatureEdgesPerList = 4096U;
+constexpr std::uint32_t kReviewedSwapBuffersIatRva = 23'789'964U;
 
 using GlShadeModel = void(APIENTRY*)(unsigned int mode);
 using GlBegin = void(APIENTRY*)(unsigned int mode);
@@ -117,6 +119,7 @@ using GlLogicOp = void(APIENTRY*)(unsigned int operation);
 using GlDepthMask = void(APIENTRY*)(unsigned char flag);
 using GlDepthFunc = void(APIENTRY*)(unsigned int function);
 using GlPolygonOffset = void(APIENTRY*)(float factor, float units);
+using GdiSwapBuffers = BOOL(WINAPI*)(HDC device_context);
 
 PVOID volatile g_original_shade_model = nullptr;
 PVOID volatile g_original_begin = nullptr;
@@ -152,6 +155,7 @@ PVOID volatile g_logic_op = nullptr;
 PVOID volatile g_depth_mask = nullptr;
 PVOID volatile g_depth_func = nullptr;
 PVOID volatile g_polygon_offset = nullptr;
+PVOID volatile g_original_swap_buffers = nullptr;
 std::uint32_t* g_shade_model_slot = nullptr;
 std::uint32_t* g_begin_slot = nullptr;
 std::uint32_t* g_end_slot = nullptr;
@@ -168,6 +172,7 @@ std::uint32_t* g_vertex_pointer_slot = nullptr;
 std::uint32_t* g_tex_coord_pointer_slot = nullptr;
 std::uint32_t* g_enable_client_state_slot = nullptr;
 std::uint32_t* g_disable_client_state_slot = nullptr;
+std::uint32_t* g_swap_buffers_slot = nullptr;
 volatile LONG g_viewport_x = 0;
 volatile LONG g_viewport_y = 0;
 volatile LONG g_viewport_width = 0;
@@ -1392,6 +1397,12 @@ void APIENTRY StrongDrawElements(
     }
 }
 
+BOOL WINAPI StrongSwapBuffers(const HDC device_context) noexcept {
+    ObserveGraphicsPresent();
+    const auto original = LoadFunction<GdiSwapBuffers>(&g_original_swap_buffers);
+    return original != nullptr ? original(device_context) : FALSE;
+}
+
 DWORD ReplaceImportSlot(
     std::uint32_t* const slot,
     const std::uint32_t expected,
@@ -1931,6 +1942,7 @@ DWORD StartStrongCelShading() noexcept {
         || g_tex_coord_pointer_slot != nullptr
         || g_enable_client_state_slot != nullptr
         || g_disable_client_state_slot != nullptr
+        || g_swap_buffers_slot != nullptr
         || g_original_shade_model != nullptr
         || g_original_begin != nullptr
         || g_original_end != nullptr
@@ -1947,6 +1959,7 @@ DWORD StartStrongCelShading() noexcept {
         || g_original_tex_coord_pointer != nullptr
         || g_original_enable_client_state != nullptr
         || g_original_disable_client_state != nullptr
+        || g_original_swap_buffers != nullptr
         || g_get_floatv != nullptr
         || g_get_booleanv != nullptr
         || g_push_attrib != nullptr
@@ -1962,12 +1975,15 @@ DWORD StartStrongCelShading() noexcept {
         || g_line_width != nullptr
         || g_logic_op != nullptr
         || g_depth_mask != nullptr
+        || g_depth_func != nullptr
+        || g_polygon_offset != nullptr
     ) {
         return ERROR_ALREADY_INITIALIZED;
     }
     const HMODULE executable = GetModuleHandleW(nullptr);
     const HMODULE opengl = GetModuleHandleW(L"OPENGL32.dll");
-    if (executable == nullptr || opengl == nullptr) {
+    const HMODULE gdi = GetModuleHandleW(L"GDI32.dll");
+    if (executable == nullptr || opengl == nullptr || gdi == nullptr) {
         return ERROR_MOD_NOT_FOUND;
     }
     const auto* const dos = reinterpret_cast<const IMAGE_DOS_HEADER*>(executable);
@@ -2144,6 +2160,52 @@ DWORD StartStrongCelShading() noexcept {
             }
         }
     }
+    ImportHookPlan present_plan{
+        "SwapBuffers",
+        reinterpret_cast<PVOID>(&StrongSwapBuffers),
+        reinterpret_cast<PVOID>(GetProcAddress(gdi, "SwapBuffers")),
+        FindImportAddressSlot(
+            image,
+            nt->OptionalHeader.SizeOfImage,
+            "GDI32.dll",
+            "SwapBuffers"
+        ),
+        &g_original_swap_buffers,
+        &g_swap_buffers_slot,
+    };
+    if (present_plan.slot == nullptr || present_plan.original == nullptr) {
+        return ERROR_PROC_NOT_FOUND;
+    }
+    const std::uintptr_t present_original_address = reinterpret_cast<std::uintptr_t>(
+        present_plan.original
+    );
+    const std::uintptr_t present_replacement_address = reinterpret_cast<std::uintptr_t>(
+        present_plan.replacement
+    );
+    const std::uintptr_t present_iat_rva = reinterpret_cast<std::uint8_t*>(
+        present_plan.slot
+    ) - image;
+    if (
+        present_original_address > UINT32_MAX
+        || present_replacement_address > UINT32_MAX
+        || present_iat_rva != kReviewedSwapBuffersIatRva
+        || *present_plan.slot != static_cast<std::uint32_t>(present_original_address)
+    ) {
+        return ERROR_REVISION_MISMATCH;
+    }
+    for (const ImportHookPlan& plan : plans) {
+        if (plan.slot == present_plan.slot) {
+            return ERROR_INVALID_DATA;
+        }
+    }
+    const DWORD status_result = ConfigureGraphicsPresentEntry(
+        "GDI32.dll",
+        present_plan.symbol_name,
+        static_cast<std::uint32_t>(present_iat_rva)
+    );
+    if (status_result != ERROR_SUCCESS) {
+        return status_result;
+    }
 
     std::array<HelperFunctionPlan, 18U> helpers{{
         {"glTexCoord2f", &g_tex_coord_2f, nullptr},
@@ -2206,11 +2268,34 @@ DWORD StartStrongCelShading() noexcept {
         }
         *plan.slot_storage = plan.slot;
     }
+    InterlockedExchangePointer(present_plan.original_storage, present_plan.original);
+    const DWORD present_result = ReplaceImportSlot(
+        present_plan.slot,
+        static_cast<std::uint32_t>(present_original_address),
+        static_cast<std::uint32_t>(present_replacement_address)
+    );
+    if (present_result != ERROR_SUCCESS) {
+        if (*present_plan.slot == static_cast<std::uint32_t>(present_replacement_address)) {
+            *present_plan.slot_storage = present_plan.slot;
+        } else {
+            InterlockedExchangePointer(present_plan.original_storage, nullptr);
+        }
+        StopStrongCelShading();
+        return present_result;
+    }
+    *present_plan.slot_storage = present_plan.slot;
     return ERROR_SUCCESS;
 }
 
 void StopStrongCelShading() noexcept {
     bool restored = true;
+    if (!RestoreHook(
+            &g_swap_buffers_slot,
+            &g_original_swap_buffers,
+            reinterpret_cast<PVOID>(&StrongSwapBuffers)
+        )) {
+        restored = false;
+    }
     if (!RestoreHook(
             &g_draw_elements_slot,
             &g_original_draw_elements,

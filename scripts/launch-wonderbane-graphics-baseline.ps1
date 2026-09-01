@@ -4,9 +4,9 @@ param(
     [string] $DiagnosticsShare = "\\VBOXSVR\codexdiag",
     [string] $PythonExecutable = "$env:USERPROFILE\shadowbane-lab\.venv\Scripts\python.exe",
     [string] $ContentBuildId = "wb-55fbad5f-4b602995",
-    [string] $ExtensionVersion = "1.5.3",
+    [string] $ExtensionVersion = "1.5.4",
     [string] $PackageDirectory = (
-        "S:\Wonderbane-graphics-wb-55fbad5f-4b602995-cel-1.5.3"
+        "S:\Wonderbane-graphics-wb-55fbad5f-4b602995-cel-1.5.4"
     )
 )
 

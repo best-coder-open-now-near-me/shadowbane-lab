@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(wonderbane_extension VERSION 1.5.3 LANGUAGES CXX RC)
+project(wonderbane_extension VERSION 1.5.4 LANGUAGES CXX RC)
 
 include(CTest)
 
@@ -18,6 +18,7 @@ add_library(
   banded_lighting.cpp
   cel_shading.cpp
   extension.cpp
+  graphics_status.cpp
   extension.def
   extension.rc
 )
@@ -57,7 +58,7 @@ target_link_options(
   /OPT:ICF
   /Brepro
 )
-target_link_libraries(wonderbane_extension PRIVATE shell32 ole32 uuid)
+target_link_libraries(wonderbane_extension PRIVATE bcrypt shell32 ole32 uuid)
 
 set_property(TARGET wonderbane_extension PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded")
 set_target_properties(
@@ -73,6 +74,7 @@ if(BUILD_TESTING)
     banded_lighting.cpp
     cel_shading.cpp
     cel_shading_test.cpp
+    graphics_status.cpp
   )
   target_compile_features(
     wonderbane_extension_cel_shading_test
@@ -160,9 +162,73 @@ if(BUILD_TESTING)
     TARGET wonderbane_extension_banded_lighting_test
     PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded"
   )
+  target_link_libraries(
+    wonderbane_extension_cel_shading_test
+    PRIVATE
+    bcrypt
+    shell32
+    ole32
+    uuid
+  )
   add_test(
     NAME wonderbane_extension_banded_lighting
     COMMAND wonderbane_extension_banded_lighting_test
+  )
+
+  add_executable(
+    wonderbane_extension_graphics_status_test
+    graphics_status.cpp
+    graphics_status_test.cpp
+  )
+  target_compile_features(
+    wonderbane_extension_graphics_status_test
+    PRIVATE
+    cxx_std_20
+  )
+  target_compile_definitions(
+    wonderbane_extension_graphics_status_test
+    PRIVATE
+    UNICODE
+    _UNICODE
+    WIN32_LEAN_AND_MEAN
+    NOMINMAX
+    STRICT
+  )
+  target_compile_options(
+    wonderbane_extension_graphics_status_test
+    PRIVATE
+    /W4
+    /WX
+    /permissive-
+    /sdl
+    /GS
+    /guard:cf
+    /Zc:__cplusplus
+    /utf-8
+  )
+  target_link_options(
+    wonderbane_extension_graphics_status_test
+    PRIVATE
+    /DYNAMICBASE
+    /NXCOMPAT
+    /guard:cf
+    /INCREMENTAL:NO
+  )
+  target_link_libraries(
+    wonderbane_extension_graphics_status_test
+    PRIVATE
+    bcrypt
+    shell32
+    ole32
+    uuid
+  )
+  set_property(
+    TARGET wonderbane_extension_graphics_status_test
+    PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded"
+  )
+  add_test(
+    NAME wonderbane_extension_graphics_status
+    COMMAND wonderbane_extension_graphics_status_test
   )
 
   add_executable(wonderbane_extension_probe probe.cpp)
