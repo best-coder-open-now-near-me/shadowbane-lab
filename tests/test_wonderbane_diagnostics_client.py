@@ -45,6 +45,8 @@ class DiagnosticsClientBoundaryTests(unittest.TestCase):
         self.assertIn("verify-copy", launch)
         self.assertIn('runtime_profile -eq "diagnostics-only"', launch)
         self.assertIn("Start-Process @startArguments", launch)
+        self.assertIn('$env:USERPROFILE\\Wonderbane-diagnostics-', publish)
+        self.assertNotIn('"S:\\Wonderbane-diagnostics-', publish)
         for forbidden in (
             "TexturePatchManifest",
             "TextureArtifactDirectory",

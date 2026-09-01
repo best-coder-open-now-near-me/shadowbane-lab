@@ -8,7 +8,7 @@ param(
     [string] $ExtensionVersion = "1.5.6",
     [string] $ExpectedExtensionSha256 = "94a4f4043d429ad63775bb4bf77ecd31a29ffc7a01146fb919bfb25cc5c7cdcb",
     [string] $ExtensionArtifact = "\\VBOXSVR\codexdiagtools\build\wonderbane-diagnostics-extension\Release\wonderbane-extension.dll",
-    [string] $DestinationDirectory = "S:\Wonderbane-diagnostics-wb-55fbad5f-present-1.5.6",
+    [string] $DestinationDirectory = "$env:USERPROFILE\Wonderbane-diagnostics-wb-55fbad5f-present-1.5.6",
     [string] $CurrentReceipt = "$env:LOCALAPPDATA\ShadowbaneLab\diagnostics-client\current.json"
 )
 
