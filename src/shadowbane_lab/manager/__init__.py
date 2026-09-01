@@ -83,6 +83,14 @@ from .runtime_deployment import (
     RuntimeDeploymentSlot,
     provision_isolated_client_runtimes,
 )
+from .runtime_paths import (
+    GuestWindowsPath,
+    HostRuntimePath,
+    RootedRuntimePathMapper,
+    RuntimePathDomainError,
+    RuntimePathMapper,
+    local_windows_runtime_mapper,
+)
 from .session import (
     MANAGER_SESSION_SCHEMA_VERSION,
     ManagerSession,
@@ -291,6 +299,12 @@ __all__ = [
     "RuntimeDeploymentError",
     "RuntimeDeploymentResult",
     "RuntimeDeploymentSlot",
+    "GuestWindowsPath",
+    "HostRuntimePath",
+    "RootedRuntimePathMapper",
+    "RuntimePathDomainError",
+    "RuntimePathMapper",
+    "local_windows_runtime_mapper",
     "provision_isolated_client_runtimes",
     "recover_manager_bindings",
     "selector_from_config",

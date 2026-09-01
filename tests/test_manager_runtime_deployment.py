@@ -2,7 +2,7 @@ import hashlib
 import json
 import tempfile
 import unittest
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -19,6 +19,11 @@ from shadowbane_lab.manager.runtime_deployment import (
     IsolatedRuntimeCapacityProvisioner,
     RuntimeDeploymentError,
     provision_isolated_client_runtimes,
+)
+from shadowbane_lab.manager.runtime_paths import (
+    GuestWindowsPath,
+    HostRuntimePath,
+    RootedRuntimePathMapper,
 )
 
 
@@ -85,6 +90,10 @@ class ManagerRuntimeDeploymentTests(unittest.TestCase):
             root = Path(directory)
             manifest_path = root / "client-manager.json"
             manifest_path.write_text(json.dumps(_manager_payload()), encoding="utf-8")
+            path_mapper = RootedRuntimePathMapper(
+                host_root=HostRuntimePath(root),
+                guest_root=GuestWindowsPath(PureWindowsPath(r"S:\WonderBaneState")),
+            )
             frozen = root / "frozen"
             frozen.mkdir()
             extension = root / "wonderbane-extension.dll"
@@ -129,6 +138,7 @@ class ManagerRuntimeDeploymentTests(unittest.TestCase):
                     extension,
                     deployment_id="vanilla-20260831",
                     slot_count=2,
+                    path_mapper=path_mapper,
                 )
 
             configured = load_manager_manifest(manifest_path)
@@ -140,6 +150,14 @@ class ManagerRuntimeDeploymentTests(unittest.TestCase):
             self.assertEqual(
                 2,
                 len({str(client.launch.working_directory) for client in configured.clients}),
+            )
+            self.assertTrue(
+                all(
+                    str(client.launch.working_directory).startswith(
+                        r"S:\WonderBaneState\vanilla-20260831"
+                    )
+                    for client in configured.clients
+                )
             )
             self.assertTrue(
                 all(
