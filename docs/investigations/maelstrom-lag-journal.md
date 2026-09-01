@@ -788,6 +788,38 @@ These are inferences, ordered by present fit rather than certainty.
 4. Confirm whether looking away still fails to clear the mature state without leaving the camp.
 5. Summon PID `8856`, mark its first rendering of the camp, and hold both clients afterward.
 
+## 2026-09-01 — Camp entry ramps without full view; relocated turtles are smooth
+
+### Operator observation
+
+- PID `5416` ramped back into substantial lag while entering the original turtle camp even though
+  the camp was not fully in view.
+- After all turtles were pulled out of the camp and the camera was oriented away from the camp, the
+  client returned to a no-lag or near-normal state.
+- It is not established whether this particular sequence had already reached the fully mature state
+  that previously remained laggy while looking away.
+
+### Updated interpretation
+
+- **Supported:** Full visual exposure to the camp is not required for the lag to ramp during entry.
+  Spatial entry, partial visibility, streaming activation, or scene-cell activation can fit.
+- **Supported:** The pulled turtles outside the original camp context are not by themselves
+  sufficient to reproduce the active cost under the observed camera condition.
+- **Weakened:** A simple model in which each large turtle's animation or geometry imposes the same
+  cost wherever that creature is active.
+- **Still unresolved:** Turtle location, player location, camp visibility, and camera direction
+  changed together. The current observation does not identify which change removed the lag.
+
+### Smallest separation test
+
+1. Re-arm the unchanged live processes with the new `03` marker before further intervention.
+2. Preserve the current smooth state with turtles outside and the camp out of frame as baseline.
+3. Without changing player location, rotate to put the pulled turtles in view while keeping the camp
+   out of frame, if geometry permits.
+4. From the same position, face the now-emptier camp without re-entering it.
+5. If safe, enter the camp while the pulled turtles remain outside.
+6. Record symptom severity for each condition before resuming the late-arrival control experiment.
+
 ## Journal maintenance rule
 
 After every live test, append one entry containing:
