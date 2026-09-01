@@ -103,6 +103,7 @@ void PopulateGraphicsControlBlock(
 DWORD StartGraphicsControl() noexcept;
 void ApplyPendingGraphicsControl() noexcept;
 GraphicsParameters CurrentGraphicsParameters() noexcept;
+std::uint32_t CurrentGraphicsParametersRevision() noexcept;
 void StopGraphicsControl() noexcept;
 DWORD GetGraphicsControlName(
     wchar_t* destination,

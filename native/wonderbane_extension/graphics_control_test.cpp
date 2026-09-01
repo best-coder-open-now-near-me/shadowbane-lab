@@ -21,6 +21,7 @@ int Fail(const char* const operation) noexcept {
 
 int main() {
     using wonderbane::extension::CurrentGraphicsParameters;
+    using wonderbane::extension::CurrentGraphicsParametersRevision;
     using wonderbane::extension::DefaultGraphicsParameters;
     using wonderbane::extension::GetGraphicsControlName;
     using wonderbane::extension::GetGraphicsControlStatus;
@@ -91,6 +92,35 @@ int main() {
     if (!ValidateGraphicsParameters(CurrentGraphicsParameters())) {
         StopGraphicsControl();
         return Fail("published defaults");
+    }
+    const std::uint32_t initial_revision = CurrentGraphicsParametersRevision();
+    HANDLE mapping = OpenFileMappingW(FILE_MAP_ALL_ACCESS, FALSE, name);
+    if (mapping == nullptr) {
+        StopGraphicsControl();
+        return Fail("open control mapping");
+    }
+    auto* const live_block = static_cast<GraphicsControlBlockV1*>(
+        MapViewOfFile(mapping, FILE_MAP_ALL_ACCESS, 0U, 0U, sizeof(GraphicsControlBlockV1))
+    );
+    if (live_block == nullptr) {
+        CloseHandle(mapping);
+        StopGraphicsControl();
+        return Fail("map control view");
+    }
+    InterlockedExchange(&live_block->desired_sequence, 3);
+    MemoryBarrier();
+    live_block->feature_outline_width = 1.75F;
+    MemoryBarrier();
+    InterlockedExchange(&live_block->desired_sequence, 4);
+    wonderbane::extension::ApplyPendingGraphicsControl();
+    const auto updated = CurrentGraphicsParameters();
+    const std::uint32_t updated_revision = CurrentGraphicsParametersRevision();
+    UnmapViewOfFile(live_block);
+    CloseHandle(mapping);
+    if (updated_revision == initial_revision
+        || !NearlyEqual(updated.feature_outline_width, 1.75F)) {
+        StopGraphicsControl();
+        return Fail("published parameter revision");
     }
     StopGraphicsControl();
     if (GetGraphicsControlStatus().available) {

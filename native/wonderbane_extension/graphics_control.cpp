@@ -23,6 +23,7 @@ std::array<GraphicsParameters, 2U> g_parameter_snapshots{{
     DefaultGraphicsParameters(),
 }};
 volatile LONG g_active_parameter_snapshot = 0;
+volatile LONG g_parameter_revision = 1;
 
 std::uint64_t FileTimeValue(const FILETIME value) noexcept {
     ULARGE_INTEGER combined{};
@@ -47,6 +48,7 @@ void PublishParameters(const GraphicsParameters& parameters) noexcept {
     g_parameter_snapshots[static_cast<std::size_t>(inactive)] = parameters;
     MemoryBarrier();
     InterlockedExchange(&g_active_parameter_snapshot, inactive);
+    InterlockedIncrement(&g_parameter_revision);
 }
 
 }  // namespace
@@ -244,6 +246,7 @@ DWORD StartGraphicsControl() noexcept {
     const GraphicsParameters defaults = DefaultGraphicsParameters();
     g_parameter_snapshots = {defaults, defaults};
     InterlockedExchange(&g_active_parameter_snapshot, 0);
+    InterlockedIncrement(&g_parameter_revision);
     PopulateGraphicsControlBlock(g_control, defaults, process_id, creation_value);
     return ERROR_SUCCESS;
 }
@@ -306,6 +309,12 @@ GraphicsParameters CurrentGraphicsParameters() noexcept {
     return g_parameter_snapshots[static_cast<std::size_t>(active == 0 ? 0 : 1)];
 }
 
+std::uint32_t CurrentGraphicsParametersRevision() noexcept {
+    return static_cast<std::uint32_t>(
+        InterlockedCompareExchange(&g_parameter_revision, 0, 0)
+    );
+}
+
 void StopGraphicsControl() noexcept {
     GraphicsControlBlockV1* const block = g_control;
     g_control = nullptr;
@@ -321,6 +330,7 @@ void StopGraphicsControl() noexcept {
     const GraphicsParameters defaults = DefaultGraphicsParameters();
     g_parameter_snapshots = {defaults, defaults};
     InterlockedExchange(&g_active_parameter_snapshot, 0);
+    InterlockedIncrement(&g_parameter_revision);
 }
 
 DWORD GetGraphicsControlName(

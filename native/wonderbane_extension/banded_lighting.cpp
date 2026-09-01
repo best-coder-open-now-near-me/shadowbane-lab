@@ -114,6 +114,7 @@ struct BandedProgram {
     std::array<int, 4U> band_color_locations{{-1, -1, -1, -1}};
     int vertex_tint_gamma_location = -1;
     int distant_highlight_compression_location = -1;
+    std::uint32_t graphics_parameter_revision = 0U;
     LONG generation = 0;
     bool failed = false;
 };
@@ -531,6 +532,7 @@ bool BeginBandedLightingDraw(BandedLightingDraw* const draw) noexcept {
         return false;
     }
     *draw = {};
+    const std::uint32_t parameter_revision = CurrentGraphicsParametersRevision();
     const GraphicsParameters parameters = CurrentGraphicsParameters();
     if ((parameters.flags & kGraphicsControlBandedLighting) == 0U) {
         return false;
@@ -574,23 +576,29 @@ bool BeginBandedLightingDraw(BandedLightingDraw* const draw) noexcept {
     api.uniform_1i(g_program.texture_env_mode_location, texture_mode);
     api.uniform_1i(g_program.fog_enabled_location, fog_enabled ? 1 : 0);
     api.uniform_1i(g_program.fog_mode_location, fog_mode);
-    api.uniform_3f(
-        g_program.band_thresholds_location,
-        parameters.band_thresholds[0],
-        parameters.band_thresholds[1],
-        parameters.band_thresholds[2]
-    );
-    for (std::size_t index = 0U; index < parameters.band_colors.size(); ++index) {
-        const auto& color = parameters.band_colors[index];
+    if (g_program.graphics_parameter_revision != parameter_revision) {
         api.uniform_3f(
-            g_program.band_color_locations[index], color[0], color[1], color[2]
+            g_program.band_thresholds_location,
+            parameters.band_thresholds[0],
+            parameters.band_thresholds[1],
+            parameters.band_thresholds[2]
         );
+        for (std::size_t index = 0U; index < parameters.band_colors.size(); ++index) {
+            const auto& color = parameters.band_colors[index];
+            api.uniform_3f(
+                g_program.band_color_locations[index], color[0], color[1], color[2]
+            );
+        }
+        api.uniform_1f(
+            g_program.vertex_tint_gamma_location,
+            parameters.vertex_tint_gamma
+        );
+        api.uniform_1f(
+            g_program.distant_highlight_compression_location,
+            parameters.distant_highlight_compression
+        );
+        g_program.graphics_parameter_revision = parameter_revision;
     }
-    api.uniform_1f(g_program.vertex_tint_gamma_location, parameters.vertex_tint_gamma);
-    api.uniform_1f(
-        g_program.distant_highlight_compression_location,
-        parameters.distant_highlight_compression
-    );
     draw->previous_program = current_program;
     draw->active = true;
     return true;
