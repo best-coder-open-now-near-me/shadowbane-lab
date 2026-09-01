@@ -14,8 +14,8 @@ struct OutlineBounds {
 
 struct OutlineHullTransform {
     float center[3];
-    float scale;
-    float radius;
+    float scale[3];
+    float half_extent[3];
 };
 
 std::uint32_t* FindImportAddressSlot(

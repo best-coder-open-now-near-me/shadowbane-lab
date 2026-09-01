@@ -312,7 +312,6 @@ int wmain() {
         {110.0F, 5.0F, 2.0F},
     };
     wonderbane::extension::OutlineHullTransform hull{};
-    const float expected_scale = 1.0F + 0.5F / std::sqrt(129.0F);
     if (
         !wonderbane::extension::CenteredOutlineHullTransform(
             &centered_bounds,
@@ -322,8 +321,12 @@ int wmain() {
         || std::fabs(hull.center[0] - 100.0F) > 0.001F
         || std::fabs(hull.center[1]) > 0.001F
         || std::fabs(hull.center[2]) > 0.001F
-        || std::fabs(hull.scale - expected_scale) > 0.001F
-        || std::fabs(hull.radius - std::sqrt(129.0F)) > 0.001F
+        || std::fabs(hull.scale[0] - 1.05F) > 0.001F
+        || std::fabs(hull.scale[1] - 1.10F) > 0.001F
+        || std::fabs(hull.scale[2] - 1.25F) > 0.001F
+        || std::fabs(hull.half_extent[0] - 10.0F) > 0.001F
+        || std::fabs(hull.half_extent[1] - 5.0F) > 0.001F
+        || std::fabs(hull.half_extent[2] - 2.0F) > 0.001F
     ) {
         return Fail(L"centered outline hull transform");
     }
@@ -337,7 +340,9 @@ int wmain() {
             0.5F,
             &hull
         )
-        || std::fabs(hull.scale - 1.25F) > 0.001F
+        || std::fabs(hull.scale[0] - 1.25F) > 0.001F
+        || std::fabs(hull.scale[1] - 1.25F) > 0.001F
+        || std::fabs(hull.scale[2] - 1.25F) > 0.001F
     ) {
         return Fail(L"bounded outline hull scale");
     }

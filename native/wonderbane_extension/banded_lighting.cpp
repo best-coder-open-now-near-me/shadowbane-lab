@@ -11,9 +11,11 @@ namespace wonderbane::extension {
 namespace {
 
 constexpr unsigned int kGlActiveTexture = 0x84E0U;
+constexpr unsigned int kGlBlend = 0x0BE2U;
 constexpr unsigned int kGlCompileStatus = 0x8B81U;
 constexpr unsigned int kGlCurrentProgram = 0x8B8DU;
 constexpr unsigned int kGlDecal = 0x2101U;
+constexpr unsigned int kGlDepthWriteMask = 0x0B72U;
 constexpr unsigned int kGlFog = 0x0B60U;
 constexpr unsigned int kGlFogMode = 0x0B65U;
 constexpr unsigned int kGlFragmentShader = 0x8B30U;
@@ -41,6 +43,7 @@ using GlCreateShader = unsigned int(APIENTRY*)(unsigned int type);
 using GlDeleteProgram = void(APIENTRY*)(unsigned int program);
 using GlDeleteShader = void(APIENTRY*)(unsigned int shader);
 using GlGetIntegerv = void(APIENTRY*)(unsigned int name, int* value);
+using GlGetBooleanv = void(APIENTRY*)(unsigned int name, unsigned char* value);
 using GlGetProgramInfoLog = void(APIENTRY*)(
     unsigned int program, int capacity, int* length, char* log
 );
@@ -76,6 +79,7 @@ struct BandedApi {
     GlDeleteProgram delete_program = nullptr;
     GlDeleteShader delete_shader = nullptr;
     GlGetIntegerv get_integerv = nullptr;
+    GlGetBooleanv get_booleanv = nullptr;
     GlGetProgramInfoLog get_program_info_log = nullptr;
     GlGetProgramiv get_programiv = nullptr;
     GlGetShaderInfoLog get_shader_info_log = nullptr;
@@ -233,6 +237,7 @@ bool ResolveApi(BandedApi* const api) noexcept {
     api->delete_program = Resolve<GlDeleteProgram>(opengl, get_proc, "glDeleteProgram");
     api->delete_shader = Resolve<GlDeleteShader>(opengl, get_proc, "glDeleteShader");
     api->get_integerv = Resolve<GlGetIntegerv>(opengl, get_proc, "glGetIntegerv");
+    api->get_booleanv = Resolve<GlGetBooleanv>(opengl, get_proc, "glGetBooleanv");
     api->get_program_info_log = Resolve<GlGetProgramInfoLog>(
         opengl, get_proc, "glGetProgramInfoLog"
     );
@@ -254,7 +259,8 @@ bool ResolveApi(BandedApi* const api) noexcept {
     return api->attach_shader != nullptr && api->compile_shader != nullptr
         && api->create_program != nullptr && api->create_shader != nullptr
         && api->delete_program != nullptr && api->delete_shader != nullptr
-        && api->get_integerv != nullptr && api->get_programiv != nullptr
+        && api->get_integerv != nullptr && api->get_booleanv != nullptr
+        && api->get_programiv != nullptr
         && api->get_shaderiv != nullptr && api->get_tex_enviv != nullptr
         && api->get_uniform_location != nullptr && api->is_enabled != nullptr
         && api->is_program != nullptr && api->link_program != nullptr
@@ -428,6 +434,13 @@ CelBandColor CelBandForIntensity(const float intensity) noexcept {
     return kBandColors[CelBandIndex(intensity)];
 }
 
+bool IsBandedLightingSceneState(
+    const bool depth_writes,
+    const bool blend_enabled
+) noexcept {
+    return depth_writes && !blend_enabled;
+}
+
 const char* BandedLightingFragmentSource() noexcept {
     return kFragmentSource;
 }
@@ -447,10 +460,16 @@ bool BeginBandedLightingDraw(BandedLightingDraw* const draw) noexcept {
     BandedApi& api = g_program.api;
     int current_program = 0;
     int active_texture = 0;
+    unsigned char depth_writes = FALSE;
     api.get_integerv(kGlCurrentProgram, &current_program);
     api.get_integerv(kGlActiveTexture, &active_texture);
+    api.get_booleanv(kGlDepthWriteMask, &depth_writes);
     if (current_program != 0
-        || active_texture != static_cast<int>(kGlTexture0)) {
+        || active_texture != static_cast<int>(kGlTexture0)
+        || !IsBandedLightingSceneState(
+            depth_writes != FALSE,
+            api.is_enabled(kGlBlend) != FALSE
+        )) {
         return false;
     }
     const bool texture_enabled = api.is_enabled(kGlTexture2D) != FALSE;

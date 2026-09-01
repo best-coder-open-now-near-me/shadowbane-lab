@@ -34,6 +34,7 @@ int main() {
     using wonderbane::extension::BandedLightingVertexSource;
     using wonderbane::extension::CelBandForIntensity;
     using wonderbane::extension::CelBandIndex;
+    using wonderbane::extension::IsBandedLightingSceneState;
 
     if (CelBandIndex(-1.0F) != 0U || CelBandIndex(0.2199F) != 0U
         || CelBandIndex(0.22F) != 1U || CelBandIndex(0.4299F) != 1U
@@ -48,6 +49,12 @@ int main() {
         || !HasColor(CelBandForIntensity(0.5F), 0.72F, 0.76F, 0.80F)
         || !HasColor(CelBandForIntensity(0.8F), 1.00F, 0.98F, 0.92F)) {
         return Fail("band color contract");
+    }
+    if (!IsBandedLightingSceneState(true, false)
+        || IsBandedLightingSceneState(false, false)
+        || IsBandedLightingSceneState(true, true)
+        || IsBandedLightingSceneState(false, true)) {
+        return Fail("opaque scene state contract");
     }
 
     const char* const vertex_source = BandedLightingVertexSource();

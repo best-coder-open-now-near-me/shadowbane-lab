@@ -12,6 +12,7 @@ struct CelBandColor {
 
 std::size_t CelBandIndex(float intensity) noexcept;
 CelBandColor CelBandForIntensity(float intensity) noexcept;
+bool IsBandedLightingSceneState(bool depth_writes, bool blend_enabled) noexcept;
 const char* BandedLightingFragmentSource() noexcept;
 const char* BandedLightingVertexSource() noexcept;
 

@@ -884,6 +884,17 @@ struct ArrayFeatureRequest {
     const void* indices = nullptr;
 };
 
+bool HasOutlineHull(const OutlineHullTransform& hull) noexcept {
+    for (std::size_t axis = 0U; axis < 3U; ++axis) {
+        if (std::isfinite(hull.scale[axis]) && hull.scale[axis] > 1.0F
+            && std::isfinite(hull.half_extent[axis])
+            && hull.half_extent[axis] > 0.0F) {
+            return true;
+        }
+    }
+    return false;
+}
+
 bool IsFilledPrimitiveMode(const unsigned int mode) noexcept {
     switch (mode) {
         case kGlTriangles:
@@ -1081,7 +1092,7 @@ void DrawWithSilhouette(
             &array_hull
         );
     const OutlineHullTransform* effective_hull = hull;
-    if (effective_hull == nullptr && array_hull.radius > 0.0F) {
+    if (effective_hull == nullptr && HasOutlineHull(array_hull)) {
         effective_hull = &array_hull;
     }
     OutlineHullTransform screen_hull{};
@@ -1094,16 +1105,22 @@ void DrawWithSilhouette(
         const double pixels_per_world = depth > 0.001
             ? static_cast<double>(viewport[3]) * projection_scale / (2.0 * depth)
             : 0.0;
-        if (pixels_per_world > 0.0 && std::isfinite(pixels_per_world)
-            && effective_hull->radius > 0.0F) {
-            const double requested_scale = 1.0
-                + static_cast<double>(outline_width)
-                    / pixels_per_world
-                    / static_cast<double>(effective_hull->radius);
-            screen_hull.scale = static_cast<float>(std::min(
-                requested_scale,
-                static_cast<double>(kMaximumOutlineHullScale)
-            ));
+        if (pixels_per_world > 0.0 && std::isfinite(pixels_per_world)) {
+            const double world_thickness = static_cast<double>(outline_width)
+                / pixels_per_world;
+            for (std::size_t axis = 0U; axis < 3U; ++axis) {
+                const double half_extent = effective_hull->half_extent[axis];
+                if (half_extent <= 0.0 || !std::isfinite(half_extent)) {
+                    screen_hull.scale[axis] = 1.0F;
+                    continue;
+                }
+                const double requested_scale = 1.0
+                    + world_thickness / half_extent;
+                screen_hull.scale[axis] = static_cast<float>(std::min(
+                    requested_scale,
+                    static_cast<double>(kMaximumOutlineHullScale)
+                ));
+            }
         }
     }
 
@@ -1111,7 +1128,7 @@ void DrawWithSilhouette(
         outline_enabled
         &&
         effective_hull != nullptr
-        && screen_hull.scale > 1.0F
+        && HasOutlineHull(screen_hull)
         && matrix_mode == static_cast<int>(kGlModelView)
     );
     if (use_centered_hull) {
@@ -1135,7 +1152,9 @@ void DrawWithSilhouette(
         api.translatef(
             screen_hull.center[0], screen_hull.center[1], screen_hull.center[2]
         );
-        api.scalef(screen_hull.scale, screen_hull.scale, screen_hull.scale);
+        api.scalef(
+            screen_hull.scale[0], screen_hull.scale[1], screen_hull.scale[2]
+        );
         api.translatef(
             -screen_hull.center[0], -screen_hull.center[1], -screen_hull.center[2]
         );
@@ -1702,8 +1721,8 @@ bool CenteredOutlineHullTransform(
     ) {
         return false;
     }
-    double radius_squared = 0.0;
     OutlineHullTransform candidate{};
+    bool has_expansion = false;
     for (std::size_t axis = 0U; axis < 3U; ++axis) {
         const float minimum = bounds->minimum[axis];
         const float maximum = bounds->maximum[axis];
@@ -1718,23 +1737,26 @@ bool CenteredOutlineHullTransform(
         const double half_extent = (
             static_cast<double>(maximum) - static_cast<double>(minimum)
         ) * 0.5;
-        radius_squared += half_extent * half_extent;
+        candidate.half_extent[axis] = static_cast<float>(half_extent);
+        if (!std::isfinite(half_extent) || half_extent < 0.001) {
+            candidate.scale[axis] = 1.0F;
+            continue;
+        }
+        const double requested_scale = 1.0
+            + static_cast<double>(world_thickness) / half_extent;
+        candidate.scale[axis] = static_cast<float>(
+            requested_scale > kMaximumOutlineHullScale
+                ? kMaximumOutlineHullScale
+                : requested_scale
+        );
+        if (!std::isfinite(candidate.scale[axis])) {
+            return false;
+        }
+        has_expansion = has_expansion || candidate.scale[axis] > 1.0F;
     }
-    const double radius = std::sqrt(radius_squared);
-    if (!std::isfinite(radius) || radius < 0.001) {
+    if (!has_expansion) {
         return false;
     }
-    const double requested_scale = 1.0
-        + static_cast<double>(world_thickness) / radius;
-    candidate.scale = static_cast<float>(
-        requested_scale > kMaximumOutlineHullScale
-            ? kMaximumOutlineHullScale
-            : requested_scale
-    );
-    if (!std::isfinite(candidate.scale) || candidate.scale <= 1.0F) {
-        return false;
-    }
-    candidate.radius = static_cast<float>(radius);
     *transform = candidate;
     return true;
 }
