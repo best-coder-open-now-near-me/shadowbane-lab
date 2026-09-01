@@ -24,6 +24,7 @@ int wmain() {
     using wonderbane::extension::HasGraphicsExtensionToken;
     using wonderbane::extension::IsGraphicsVersionAtLeast;
     using wonderbane::extension::ObserveGraphicsPresent;
+    using wonderbane::extension::ReportDepthEdgePassComposite;
     using wonderbane::extension::StartGraphicsStatusPublication;
     using wonderbane::extension::StopGraphicsStatusPublication;
 
@@ -51,6 +52,7 @@ int wmain() {
         return Fail(L"present entry configuration");
     }
     ObserveGraphicsPresent();
+    ReportDepthEdgePassComposite();
     std::array<wchar_t, 1024U> path{};
     result = GetGraphicsStatusPath(path.data(), path.size());
     if (result != ERROR_SUCCESS || path[0] == L'\0') {
@@ -67,7 +69,8 @@ int wmain() {
                 std::istreambuf_iterator<char>()
             );
             stream.close();
-            if (json.find("\"call_count\":1") != std::string::npos) {
+            if (json.find("\"call_count\":1") != std::string::npos
+                && json.find("\"state\":\"active\"") != std::string::npos) {
                 observed = true;
                 break;
             }
@@ -81,7 +84,9 @@ int wmain() {
             == std::string::npos
         || json.find("\"iat_rva\":23789964") == std::string::npos
         || json.find("\"executable_sha256\":\"") == std::string::npos
-        || json.find("\"context_observed\":false") == std::string::npos) {
+        || json.find("\"context_observed\":false") == std::string::npos
+        || json.find("\"composite_count\":1") == std::string::npos
+        || json.find("\"radius_pixels\":1.0") == std::string::npos) {
         ::fprintf(stderr, "status JSON: %s\n", json.c_str());
         return Fail(L"published status JSON");
     }

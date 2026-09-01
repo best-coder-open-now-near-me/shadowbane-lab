@@ -24,6 +24,8 @@ DWORD ConfigureGraphicsPresentEntry(
     std::uint32_t iat_rva
 ) noexcept;
 void ObserveGraphicsPresent() noexcept;
+void ReportDepthEdgePassComposite() noexcept;
+void ReportDepthEdgePassFailure(const char* reason) noexcept;
 void StopGraphicsStatusPublication() noexcept;
 DWORD GetGraphicsStatusPath(
     wchar_t* destination,

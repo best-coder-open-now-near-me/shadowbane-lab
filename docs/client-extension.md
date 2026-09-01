@@ -367,11 +367,20 @@ consumer can reject stale records, PID reuse, and a different client binary.
 The present hook performs no hashing or filesystem I/O. It samples a newly observed OpenGL context
 once, increments an in-memory counter, and signals a background publisher. The status reports the GL
 and GLSL versions, depth-buffer precision, viewport, depth-texture capability, and framebuffer-object
-capability. A screen-space depth-edge pass remains explicitly `not-implemented` until a live capture
-confirms those prerequisites. Missing, mismatched, or stale runtime evidence therefore blocks the
-dependent decoder instead of silently selecting an unverified rendering path.
+capability. Missing, mismatched, or stale runtime evidence blocks dependent rendering work instead
+of silently selecting an unverified path.
 
 Extension 1.5.5 makes that renderer artifact immutable at the publication boundary. The native build
 emits a versioned DLL filename, and the graphics publisher verifies its pinned SHA-256 before
 authoring a bootstrap manifest, package, or receipt. This prevents a shared-folder cache or stale
 unversioned build output from being mislabeled as a newer extension release.
+
+Extension 1.5.6 consumes the verified 24-bit depth buffer through a GLSL 1.20 compatibility pass.
+After perspective depth-writing scene geometry and immediately before the first orthographic UI
+draw, it copies the default framebuffer depth, reconstructs eye-space depth, and draws only the
+foreground side of discontinuities with an eight-neighbour one-pixel kernel. This supplies stable
+character/object silhouettes and object-ground contact seams without scaling meshes, so camera
+distance cannot thicken, suppress, or pop the line. The previous enlarged-mesh silhouette is
+retired; the one-pixel geometry crease/open-boundary accents remain for texture-aligned internal
+detail. The pass restores program, texture, matrix, and fixed-function state before the client draws
+its UI, and publishes armed, active, or failed runtime status from the background status producer.

@@ -20,12 +20,15 @@ namespace {
 constexpr wchar_t kProductDirectory[] = L"ShadowbaneLab";
 constexpr wchar_t kExtensionDirectory[] = L"client-extension";
 constexpr char kProducerId[] = "wonderbane-extension.graphics";
-constexpr char kExtensionVersion[] = "1.5.5";
+constexpr char kExtensionVersion[] = "1.5.6";
 constexpr std::size_t kPathCapacity = WONDERBANE_EXTENSION_HEARTBEAT_PATH_CAPACITY;
 constexpr std::size_t kExecutablePathUtf8Capacity = kPathCapacity * 4U;
 constexpr std::size_t kEscapedPathCapacity = kExecutablePathUtf8Capacity * 2U + 3U;
 constexpr std::size_t kDriverStringCapacity = 256U;
 constexpr std::size_t kEscapedDriverStringCapacity = kDriverStringCapacity * 2U + 3U;
+constexpr std::size_t kDepthEdgeReasonCapacity = 128U;
+constexpr std::size_t kEscapedDepthEdgeReasonCapacity =
+    kDepthEdgeReasonCapacity * 2U + 3U;
 constexpr std::size_t kJsonCapacity = 24U * 1024U;
 constexpr DWORD kPublishIntervalMilliseconds = 2'000U;
 constexpr DWORD kWorkerStopTimeoutMilliseconds = 5'000U;
@@ -60,6 +63,9 @@ struct GraphicsStatusState {
     std::uint64_t call_count = 0U;
     ULONGLONG last_publish_signal_tick = 0U;
     GraphicsContextSnapshot graphics_context{};
+    std::uint64_t depth_edge_composite_count = 0U;
+    bool depth_edge_failed = false;
+    char depth_edge_failure_reason[kDepthEdgeReasonCapacity]{};
 };
 
 struct PublisherSnapshot {
@@ -561,6 +567,39 @@ DWORD PublishSnapshot(const PublisherSnapshot& snapshot) noexcept {
     if (FAILED(result)) {
         return HResultToWin32(result);
     }
+    const char* depth_edge_state = "armed";
+    const char* depth_edge_reason = "awaiting-perspective-to-orthographic-boundary";
+    if (snapshot.status.depth_edge_failed) {
+        depth_edge_state = "failed";
+        depth_edge_reason = snapshot.status.depth_edge_failure_reason;
+    } else if (snapshot.status.depth_edge_composite_count > 0U) {
+        depth_edge_state = "active";
+        depth_edge_reason = "fixed-pixel-depth-discontinuity";
+    }
+    std::array<char, kEscapedDepthEdgeReasonCapacity> depth_edge_reason_json{};
+    if (!JsonString(
+            depth_edge_reason,
+            depth_edge_reason_json.data(),
+            depth_edge_reason_json.size()
+        )) {
+        return ERROR_INSUFFICIENT_BUFFER;
+    }
+    std::array<char, 512U> depth_edge_json{};
+    result = StringCchPrintfA(
+        depth_edge_json.data(),
+        depth_edge_json.size(),
+        "{\"state\":\"%s\",\"reason\":%s,\"composite_count\":%llu,"
+        "\"radius_pixels\":1.0,"
+        "\"composite_boundary\":\"perspective-to-orthographic\"}",
+        depth_edge_state,
+        depth_edge_reason_json.data(),
+        static_cast<unsigned long long>(
+            snapshot.status.depth_edge_composite_count
+        )
+    );
+    if (FAILED(result)) {
+        return HResultToWin32(result);
+    }
     std::array<char, kJsonCapacity> json{};
     result = StringCchPrintfA(
         json.data(),
@@ -570,9 +609,7 @@ DWORD PublishSnapshot(const PublisherSnapshot& snapshot) noexcept {
         "\"process_id\":%lu,\"process_creation_filetime_utc\":%llu,"
         "\"executable_path\":%s},\"executable_sha256\":\"%s\","
         "\"present_entries\":%s,\"active_present_entry\":%s,"
-        "\"graphics_context\":%s,\"depth_edge_pass\":{"
-        "\"state\":\"not-implemented\","
-        "\"reason\":\"runtime-capability-evidence-only\"}}\n",
+        "\"graphics_context\":%s,\"depth_edge_pass\":%s}\n",
         kProducerId,
         kExtensionVersion,
         static_cast<unsigned long>(snapshot.process_id),
@@ -581,7 +618,8 @@ DWORD PublishSnapshot(const PublisherSnapshot& snapshot) noexcept {
         snapshot.executable_sha256,
         entries_json.data(),
         active_json.data(),
-        context_json.data()
+        context_json.data(),
+        depth_edge_json.data()
     );
     if (FAILED(result)) {
         return HResultToWin32(result);
@@ -995,6 +1033,43 @@ void ObserveGraphicsPresent() noexcept {
             g_status.last_publish_signal_tick = tick;
         }
     }
+    ReleaseSRWLockExclusive(&g_state_lock);
+    if (publish) {
+        SetEvent(g_wake_event);
+    }
+}
+
+void ReportDepthEdgePassComposite() noexcept {
+    if (InterlockedCompareExchange(&g_started, 0, 0) == 0) {
+        return;
+    }
+    bool publish = false;
+    AcquireSRWLockExclusive(&g_state_lock);
+    ++g_status.depth_edge_composite_count;
+    g_status.depth_edge_failed = false;
+    g_status.depth_edge_failure_reason[0] = '\0';
+    publish = g_status.depth_edge_composite_count == 1U;
+    ReleaseSRWLockExclusive(&g_state_lock);
+    if (publish) {
+        SetEvent(g_wake_event);
+    }
+}
+
+void ReportDepthEdgePassFailure(const char* const reason) noexcept {
+    if (InterlockedCompareExchange(&g_started, 0, 0) == 0
+        || reason == nullptr || reason[0] == '\0') {
+        return;
+    }
+    bool publish = false;
+    AcquireSRWLockExclusive(&g_state_lock);
+    publish = !g_status.depth_edge_failed
+        || std::strcmp(g_status.depth_edge_failure_reason, reason) != 0;
+    g_status.depth_edge_failed = true;
+    StringCchCopyA(
+        g_status.depth_edge_failure_reason,
+        std::size(g_status.depth_edge_failure_reason),
+        reason
+    );
     ReleaseSRWLockExclusive(&g_state_lock);
     if (publish) {
         SetEvent(g_wake_event);

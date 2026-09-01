@@ -84,19 +84,19 @@ def test_graphics_publication_and_launch_pin_the_golden_package() -> None:
     launch = (ROOT / "scripts" / "launch-wonderbane-graphics-baseline.ps1").read_text(
         encoding="utf-8"
     )
-    assert 'ExtensionVersion = "1.5.5"' in publish
-    assert "wonderbane-extension-1.5.5.dll" in publish
+    assert 'ExtensionVersion = "1.5.6"' in publish
+    assert "wonderbane-extension-1.5.6.dll" in publish
     assert r"\build\wonderbane-client-extension\Release" in publish
-    assert "06030ef64ce35cd363306de4367cf0b2d5014a5b642c318810d7bf97323bf161" in publish
+    assert "67dbc424e9c37c84060f93c8b841b7f39f77f48789f10043086d68b32350cb77" in publish
     assert "$extensionSha256 -cne $ExpectedExtensionSha256" in publish
     assert "--texture-patch-manifest $TexturePatchManifest" in publish
     assert "--texture-artifact-directory $TextureArtifactDirectory" in publish
     assert "texture_patch_manifest_sha256" in publish
-    assert 'ExtensionVersion = "1.5.5"' in launch
-    assert "06030ef64ce35cd363306de4367cf0b2d5014a5b642c318810d7bf97323bf161" in launch
-    assert '$expectedExtensionRelativePath = "wonderbane-extension-1.5.5.dll"' in launch
+    assert 'ExtensionVersion = "1.5.6"' in launch
+    assert "67dbc424e9c37c84060f93c8b841b7f39f77f48789f10043086d68b32350cb77" in launch
+    assert '$expectedExtensionRelativePath = "wonderbane-extension-1.5.6.dll"' in launch
     assert 'Properties["extension_relative_path"]' in launch
-    assert "3edf4702535a2ef61ddd058a45bc3db3dda7f6238d19222405db96ee2717b1c1" in launch
+    assert "4fb6477f82edd58f0ec9307b03e89c6f7368294b6429499260606eeb480faed3" in launch
     assert 'Properties["result_executable_sha256"]' in launch
     assert "verify-copy" in launch
     assert manifest_sha256 in launch

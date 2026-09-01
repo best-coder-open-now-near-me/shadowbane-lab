@@ -1,5 +1,6 @@
 #include "cel_shading.h"
 #include "banded_lighting.h"
+#include "depth_edges.h"
 #include "graphics_status.h"
 
 #include <Windows.h>
@@ -191,6 +192,9 @@ thread_local VertexArrayState g_vertex_array_state{};
 thread_local VertexArrayState g_tex_coord_array_state{};
 thread_local BandedLightingDraw g_immediate_banded_draw{};
 thread_local bool g_immediate_primitive_open = false;
+thread_local bool g_immediate_depth_scene_draw = false;
+thread_local std::array<float, 16U> g_immediate_scene_projection{};
+thread_local std::array<int, 4U> g_immediate_scene_viewport{};
 
 struct CapturedVertex {
     std::array<float, 3U> position{};
@@ -1040,7 +1044,6 @@ void DrawDisplayListFeatureEdges(
 template <typename Draw>
 void DrawWithSilhouette(
     const Draw& draw,
-    const OutlineHullTransform* const hull = nullptr,
     const unsigned int feature_list = UINT32_MAX,
     const ArrayFeatureRequest* const array_features = nullptr
 ) noexcept {
@@ -1048,7 +1051,6 @@ void DrawWithSilhouette(
     std::array<float, 16U> projection{};
     std::array<float, 16U> model_view{};
     std::array<int, 4U> viewport{};
-    int matrix_mode = 0;
     unsigned char depth_writes = FALSE;
     unsigned char alpha_test_enabled = FALSE;
     if (!LoadOutlineApi(&api)) {
@@ -1063,29 +1065,20 @@ void DrawWithSilhouette(
         static_cast<int>(InterlockedCompareExchange(&g_viewport_width, 0, 0)),
         static_cast<int>(InterlockedCompareExchange(&g_viewport_height, 0, 0)),
     };
-    matrix_mode = static_cast<int>(g_current_matrix_mode);
     api.get_booleanv(kGlDepthWriteMask, &depth_writes);
     api.get_booleanv(kGlAlphaTest, &alpha_test_enabled);
-    const float outline_width = PerspectiveOutlineLineWidth(
-        projection.data(),
-        projection.size(),
-        model_view.data(),
-        model_view.size(),
-        viewport.data(),
-        viewport.size()
-    );
     if (!IsPerspectiveProjectionMatrix(projection.data(), projection.size())) {
+        CompositeDepthEdgesBeforeUi();
         draw();
         return;
     }
 
     const bool outline_enabled = (
         IsLocalOutlineModelViewMatrix(model_view.data(), model_view.size())
-        && outline_width > 0.0F
         && depth_writes != FALSE
     );
+    const float outline_width = outline_enabled ? kTargetOutlinePixels : 0.0F;
 
-    OutlineHullTransform array_hull{};
     const auto feature_edges = !outline_enabled || array_features == nullptr
         ? std::vector<CapturedDisplayListBounds::FeatureEdge>{}
         : BuildArrayFeatureEdges(
@@ -1094,79 +1087,8 @@ void DrawWithSilhouette(
             array_features->count,
             array_features->index_type,
             array_features->indices,
-            &array_hull
+            nullptr
         );
-    const OutlineHullTransform* effective_hull = hull;
-    if (effective_hull == nullptr && HasOutlineHull(array_hull)) {
-        effective_hull = &array_hull;
-    }
-    OutlineHullTransform screen_hull{};
-    if (effective_hull != nullptr) {
-        screen_hull = *effective_hull;
-        const double depth = std::fabs(static_cast<double>(model_view[14]));
-        const double projection_scale = std::fabs(
-            static_cast<double>(projection[5])
-        );
-        const double pixels_per_world = depth > 0.001
-            ? static_cast<double>(viewport[3]) * projection_scale / (2.0 * depth)
-            : 0.0;
-        if (pixels_per_world > 0.0 && std::isfinite(pixels_per_world)) {
-            const double world_thickness = static_cast<double>(outline_width)
-                / pixels_per_world;
-            for (std::size_t axis = 0U; axis < 3U; ++axis) {
-                const double half_extent = effective_hull->half_extent[axis];
-                if (half_extent <= 0.0 || !std::isfinite(half_extent)) {
-                    screen_hull.scale[axis] = 1.0F;
-                    continue;
-                }
-                const double requested_scale = 1.0
-                    + world_thickness / half_extent;
-                screen_hull.scale[axis] = static_cast<float>(std::min(
-                    requested_scale,
-                    static_cast<double>(kMaximumOutlineHullScale)
-                ));
-            }
-        }
-    }
-
-    const bool use_centered_hull = (
-        outline_enabled
-        &&
-        effective_hull != nullptr
-        && HasOutlineHull(screen_hull)
-        && matrix_mode == static_cast<int>(kGlModelView)
-    );
-    if (use_centered_hull) {
-        api.push_attrib(kGlAllAttribBits);
-        api.disable(kGlLighting);
-        api.disable(kGlFog);
-        api.disable(kGlBlend);
-        if (alpha_test_enabled == FALSE) {
-            api.disable(kGlTexture2D);
-            api.disable(kGlAlphaTest);
-        }
-        api.disable(kGlLineSmooth);
-        api.disable(kGlDither);
-        api.enable(kGlColorLogicOp);
-        api.logic_op(kGlClear);
-        api.depth_mask(FALSE);
-        api.enable(kGlCullFace);
-        api.cull_face(kGlFront);
-        api.polygon_mode(kGlFrontAndBack, kGlFill);
-        api.push_matrix();
-        api.translatef(
-            screen_hull.center[0], screen_hull.center[1], screen_hull.center[2]
-        );
-        api.scalef(
-            screen_hull.scale[0], screen_hull.scale[1], screen_hull.scale[2]
-        );
-        api.translatef(
-            -screen_hull.center[0], -screen_hull.center[1], -screen_hull.center[2]
-        );
-        draw();
-        api.pop_matrix();
-        api.pop_attrib();
-    }
 
     DrawWithBandedLighting(draw);
     if (outline_enabled && feature_list != UINT32_MAX) {
@@ -1176,6 +1098,14 @@ void DrawWithSilhouette(
     } else if (outline_enabled && !feature_edges.empty()) {
         DrawFeatureEdgeSegments(
             feature_edges, api, outline_width, alpha_test_enabled != FALSE
+        );
+    }
+    if (depth_writes != FALSE) {
+        MarkDepthEdgeSceneDraw(
+            projection.data(),
+            projection.size(),
+            viewport.data(),
+            viewport.size()
         );
     }
 }
@@ -1237,14 +1167,22 @@ void APIENTRY StrongShadeModel(const unsigned int mode) noexcept {
     }
 }
 
-bool IsCurrentPerspectiveProjection() noexcept {
+bool CurrentProjection(
+    std::array<float, 16U>* const projection,
+    bool* const perspective
+) noexcept {
+    if (projection == nullptr || perspective == nullptr) {
+        return false;
+    }
     const auto get_floatv = LoadFunction<GlGetFloatv>(&g_get_floatv);
     if (get_floatv == nullptr) {
         return false;
     }
-    std::array<float, 16U> projection{};
-    get_floatv(kGlProjectionMatrix, projection.data());
-    return IsPerspectiveProjectionMatrix(projection.data(), projection.size());
+    get_floatv(kGlProjectionMatrix, projection->data());
+    *perspective = IsPerspectiveProjectionMatrix(
+        projection->data(), projection->size()
+    );
+    return true;
 }
 
 void APIENTRY StrongBegin(const unsigned int mode) noexcept {
@@ -1253,9 +1191,38 @@ void APIENTRY StrongBegin(const unsigned int mode) noexcept {
     const auto original = LoadFunction<GlBegin>(&g_original_begin);
     if (original != nullptr) {
         g_immediate_banded_draw = {};
-        if (!compiling && IsFilledPrimitiveMode(mode)
-            && IsCurrentPerspectiveProjection()) {
+        g_immediate_depth_scene_draw = false;
+        std::array<float, 16U> projection{};
+        bool perspective = false;
+        const bool has_projection = !compiling
+            && CurrentProjection(&projection, &perspective);
+        if (has_projection && !perspective) {
+            CompositeDepthEdgesBeforeUi();
+        } else if (has_projection && perspective && IsFilledPrimitiveMode(mode)) {
             BeginBandedLightingDraw(&g_immediate_banded_draw);
+            const auto get_booleanv = LoadFunction<GlGetBooleanv>(&g_get_booleanv);
+            unsigned char depth_writes = FALSE;
+            if (get_booleanv != nullptr) {
+                get_booleanv(kGlDepthWriteMask, &depth_writes);
+            }
+            if (depth_writes != FALSE) {
+                g_immediate_depth_scene_draw = true;
+                g_immediate_scene_projection = projection;
+                g_immediate_scene_viewport = {
+                    static_cast<int>(InterlockedCompareExchange(
+                        &g_viewport_x, 0, 0
+                    )),
+                    static_cast<int>(InterlockedCompareExchange(
+                        &g_viewport_y, 0, 0
+                    )),
+                    static_cast<int>(InterlockedCompareExchange(
+                        &g_viewport_width, 0, 0
+                    )),
+                    static_cast<int>(InterlockedCompareExchange(
+                        &g_viewport_height, 0, 0
+                    )),
+                };
+            }
         }
         original(mode);
         g_immediate_primitive_open = true;
@@ -1269,6 +1236,15 @@ void APIENTRY StrongEnd() noexcept {
     }
     if (g_immediate_primitive_open) {
         EndBandedLightingDraw(&g_immediate_banded_draw);
+        if (g_immediate_depth_scene_draw) {
+            MarkDepthEdgeSceneDraw(
+                g_immediate_scene_projection.data(),
+                g_immediate_scene_projection.size(),
+                g_immediate_scene_viewport.data(),
+                g_immediate_scene_viewport.size()
+            );
+        }
+        g_immediate_depth_scene_draw = false;
         g_immediate_primitive_open = false;
     }
 }
@@ -1340,11 +1316,8 @@ void APIENTRY StrongCallList(const unsigned int list) noexcept {
             original(list);
             return;
         }
-        OutlineHullTransform hull{};
-        const bool has_hull = LookupDisplayListHull(list, &hull);
         DrawWithSilhouette(
             [original, list]() noexcept { original(list); },
-            has_hull ? &hull : nullptr,
             list
         );
     }
@@ -1364,10 +1337,34 @@ void APIENTRY StrongDrawArrays(
             draw();
         } else if (IsOutlinePrimitive(mode, count)) {
             const ArrayFeatureRequest request{mode, first, count, 0U, nullptr};
-            DrawWithSilhouette(draw, nullptr, UINT32_MAX, &request);
+            DrawWithSilhouette(draw, UINT32_MAX, &request);
         } else if (count >= 3 && IsFilledPrimitiveMode(mode)) {
-            DrawWithBandedLighting(draw);
+            std::array<float, 16U> projection{};
+            bool perspective = false;
+            if (!CurrentProjection(&projection, &perspective)) {
+                draw();
+            } else if (!perspective) {
+                CompositeDepthEdgesBeforeUi();
+                draw();
+            } else {
+                DrawWithBandedLighting(draw);
+                std::array<int, 4U> viewport{
+                    static_cast<int>(InterlockedCompareExchange(&g_viewport_x, 0, 0)),
+                    static_cast<int>(InterlockedCompareExchange(&g_viewport_y, 0, 0)),
+                    static_cast<int>(InterlockedCompareExchange(&g_viewport_width, 0, 0)),
+                    static_cast<int>(InterlockedCompareExchange(&g_viewport_height, 0, 0)),
+                };
+                MarkDepthEdgeSceneDraw(
+                    projection.data(), projection.size(),
+                    viewport.data(), viewport.size()
+                );
+            }
         } else {
+            std::array<float, 16U> projection{};
+            bool perspective = false;
+            if (CurrentProjection(&projection, &perspective) && !perspective) {
+                CompositeDepthEdgesBeforeUi();
+            }
             draw();
         }
     }
@@ -1388,10 +1385,34 @@ void APIENTRY StrongDrawElements(
             draw();
         } else if (IsOutlinePrimitive(mode, count)) {
             const ArrayFeatureRequest request{mode, 0, count, type, indices};
-            DrawWithSilhouette(draw, nullptr, UINT32_MAX, &request);
+            DrawWithSilhouette(draw, UINT32_MAX, &request);
         } else if (count >= 3 && IsFilledPrimitiveMode(mode)) {
-            DrawWithBandedLighting(draw);
+            std::array<float, 16U> projection{};
+            bool perspective = false;
+            if (!CurrentProjection(&projection, &perspective)) {
+                draw();
+            } else if (!perspective) {
+                CompositeDepthEdgesBeforeUi();
+                draw();
+            } else {
+                DrawWithBandedLighting(draw);
+                std::array<int, 4U> viewport{
+                    static_cast<int>(InterlockedCompareExchange(&g_viewport_x, 0, 0)),
+                    static_cast<int>(InterlockedCompareExchange(&g_viewport_y, 0, 0)),
+                    static_cast<int>(InterlockedCompareExchange(&g_viewport_width, 0, 0)),
+                    static_cast<int>(InterlockedCompareExchange(&g_viewport_height, 0, 0)),
+                };
+                MarkDepthEdgeSceneDraw(
+                    projection.data(), projection.size(),
+                    viewport.data(), viewport.size()
+                );
+            }
         } else {
+            std::array<float, 16U> projection{};
+            bool perspective = false;
+            if (CurrentProjection(&projection, &perspective) && !perspective) {
+                CompositeDepthEdgesBeforeUi();
+            }
             draw();
         }
     }
@@ -1400,7 +1421,9 @@ void APIENTRY StrongDrawElements(
 BOOL WINAPI StrongSwapBuffers(const HDC device_context) noexcept {
     ObserveGraphicsPresent();
     const auto original = LoadFunction<GdiSwapBuffers>(&g_original_swap_buffers);
-    return original != nullptr ? original(device_context) : FALSE;
+    const BOOL result = original != nullptr ? original(device_context) : FALSE;
+    EndDepthEdgeFrame();
+    return result;
 }
 
 DWORD ReplaceImportSlot(
@@ -2246,7 +2269,11 @@ DWORD StartStrongCelShading() noexcept {
     g_tex_coord_array_state = {};
     g_immediate_banded_draw = {};
     g_immediate_primitive_open = false;
+    g_immediate_depth_scene_draw = false;
+    g_immediate_scene_projection = {};
+    g_immediate_scene_viewport = {};
     ResetBandedLighting();
+    ResetDepthEdges();
     for (ImportHookPlan& plan : plans) {
         InterlockedExchangePointer(plan.original_storage, plan.original);
         const DWORD result = ReplaceImportSlot(
@@ -2419,7 +2446,11 @@ void StopStrongCelShading() noexcept {
         g_tex_coord_array_state = {};
         g_immediate_banded_draw = {};
         g_immediate_primitive_open = false;
+        g_immediate_depth_scene_draw = false;
+        g_immediate_scene_projection = {};
+        g_immediate_scene_viewport = {};
         ResetBandedLighting();
+        ResetDepthEdges();
         InterlockedExchangePointer(&g_tex_coord_2f, nullptr);
         InterlockedExchangePointer(&g_polygon_offset, nullptr);
         InterlockedExchangePointer(&g_depth_func, nullptr);
