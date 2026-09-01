@@ -33,6 +33,7 @@ from shadowbane_lab.fingerprints import FingerprintCaptureInputs, capture_finger
 from shadowbane_lab.integrity import canonical_json_bytes, canonical_timestamp
 
 from .collectors import FileChunk, ScreenshotCapture, ScreenshotCollector, TailFileCollector
+from .graphics import collect_graphics_present_evidence
 from .model import DiagnosticError, DiagnosticProfile, DiagnosticRequest, FileCaptureMode
 from .process import ProcessIdentity, ProcessProbe, ProcessSample, WindowsProcessProbe
 
@@ -172,6 +173,41 @@ def run_diagnostic_capture(
             artifact_id=fingerprint_descriptor.artifact_id,
         )
     )
+
+    if request.capture_graphics_present:
+        try:
+            graphics = collect_graphics_present_evidence(
+                live_executable,
+                initial_sample.identity,
+                runtime_status_path=request.graphics_runtime_status,
+            )
+            descriptor = _ingest_json(
+                store,
+                graphics.report,
+                kind=ArtifactKind.PE_INSPECTION,
+                logical_name=f"{run_id}.graphics-present.json",
+                captured_at_utc=started_utc,
+                metadata=(("channel_id", "graphics-present"),),
+            )
+            descriptors.append(descriptor)
+            pending.append(
+                _PendingRecord(
+                    channel_id="graphics-present",
+                    monotonic_ns=started_ns,
+                    captured_at_utc=started_utc,
+                    kind=CaptureRecordKind.ARTIFACT_REFERENCE,
+                    artifact_id=descriptor.artifact_id,
+                )
+            )
+            warnings.update(graphics.warnings)
+            if graphics.complete:
+                completed.add("graphics-present")
+            else:
+                channel_failures["graphics-present"] = (
+                    graphics.failure or "graphics-present evidence is incomplete"
+                )
+        except Exception as exc:
+            channel_failures["graphics-present"] = f"{type(exc).__name__}: {exc}"
 
     if request.reference_executable is not None:
         try:
@@ -585,6 +621,8 @@ def run_diagnostic_capture(
     }
     if request.reference_executable is not None:
         required.add("client-alignment")
+    if request.capture_graphics_present:
+        required.add("graphics-present")
     required.update(item.channel_id for item in request.file_channels)
     if request.screenshot_region is not None:
         required.add("screenshots")

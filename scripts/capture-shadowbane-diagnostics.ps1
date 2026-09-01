@@ -7,6 +7,7 @@ param(
     [string]$ClientDirectory = '',
     [string]$ReferenceExecutable = '',
     [string]$AlignmentProfileDirectory = '',
+    [string]$GraphicsRuntimeStatus = '',
     [string]$OutputRoot =
         "$env:LOCALAPPDATA\shadowbane-lab\diagnostics",
     [string]$PythonPath = '',
@@ -132,6 +133,7 @@ foreach ($value in @(
     (Resolve-Path -LiteralPath $ClientDirectory).Path,
     '--repository',
     $repositoryRoot,
+    '--graphics-present',
     '--screenshot-interval',
     "$ScreenshotIntervalSeconds",
     '--initial-log-mib',
@@ -168,6 +170,7 @@ if ($PostTriggerSeconds -gt 0) {
 }
 Add-Option -Name '--reference-executable' -Value $ReferenceExecutable
 Add-Option -Name '--alignment-profile-directory' -Value $AlignmentProfileDirectory
+Add-Option -Name '--graphics-runtime-status' -Value $GraphicsRuntimeStatus
 Add-Option -Name '--extension-events' -Value $ExtensionEvents
 Add-Option -Name '--network-summary' -Value $NetworkSummary
 Add-Option -Name '--packet-capture' -Value $PacketCapture

@@ -39,7 +39,7 @@ The scripts are deployment adapters, not additional domain APIs:
 | Start/stop | `start-wonderbane-control-center.ps1`, `start-wonderbane-go-listener.ps1`, `stop-wonderbane-go-listener.ps1` | manager app and listener process lifecycle |
 | Extension evidence | `build-wonderbane-client-extension.ps1`, `freeze-wonderbane-client-baseline.ps1`, `collect-wonderbane-client-extension-evidence.ps1`, `prepare-wonderbane-client-extension-copy.ps1` | client-extension maintenance commands |
 | Live evidence | `run-wonderbane-pve-evidence.ps1`, `export-wonderbane-sim-observation.ps1`, `trace-wonderbane-vendor-dialog.ps1` | bounded client observations and runs |
-| Capture-once diagnostics | `capture-shadowbane-diagnostics.ps1` | exact process identity, bounded metrics/log/screenshot capture, patched-client alignment evidence, and offline reanalysis |
+| Capture-once diagnostics | `capture-shadowbane-diagnostics.ps1` | exact process identity, bounded metrics/log/screenshot capture, patched-client alignment, graphics-present evidence, and offline reanalysis |
 | Network evidence | `start-wonderbane-incoming-capture.ps1`, `stop-wonderbane-incoming-capture.ps1` | Windows Packet Monitor session lifecycle |
 
 The similarly named control-center scripts are sequential layers rather than substitutes:

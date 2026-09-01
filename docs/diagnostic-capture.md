@@ -74,6 +74,33 @@ The current alignment engine is conservative, not a completed semantic relocator
 claim normalized instruction, control-flow, call-graph, or field-access equivalence. Those can be
 added as new derived evidence without changing the raw capture.
 
+## Graphics-present evidence
+
+The PowerShell launcher always requests the first-class `graphics-present` channel. It reads the
+exact live executable bytes, seals the complete PE identity, and inventories these supported frame
+presentation imports without claiming that an imported function is the active runtime route:
+
+- `GDI32.dll!SwapBuffers`
+- `OPENGL32.dll!wglSwapLayerBuffers`
+
+Static import presence has `exact-live-executable-bytes` authority. The active route remains
+`unresolved`, and renderer work that depends on a proven frame boundary remains blocked, until the
+extension publishes identity-bound runtime status with a positive call count. When that producer is
+available, include its create-new JSON file:
+
+    .\scripts\capture-shadowbane-diagnostics.ps1 -Profile full -GraphicsRuntimeStatus 'C:\ShadowbaneLab\graphics-status.json'
+
+Runtime status must use schema version 1 and producer ID `wonderbane-extension.graphics`. It must
+match the captured PID, process creation FILETIME, executable path, and executable SHA-256. Its
+active entry must match an exact PE import and have a positive observed call count. A mismatched,
+stale, malformed, or missing requested status file is retained as rejected evidence and makes the
+capture incomplete rather than silently promoting a candidate.
+
+The depth-edge prerequisite assessment is deliberately conservative. It becomes ready only after
+runtime evidence observes an active present entry, an active graphics context, a nonzero depth
+buffer, depth-texture support, and GLSL support. Framebuffer-object support is recorded separately;
+its absence does not erase the evidence or imply that a copy-based depth path is impossible.
+
 ## Additional channels
 
 Convenience switches cover common evidence:

@@ -98,6 +98,33 @@ def _artifact_payload(result, channel_id: str) -> bytes:
 
 
 class DiagnosticSessionTests(unittest.TestCase):
+    def test_requested_graphics_present_channel_seals_exact_import_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            executable = root / "sb.exe"
+            executable.write_bytes(build_pe())
+            result = run_diagnostic_capture(
+                DiagnosticRequest(
+                    output_directory=root / "capture",
+                    process_id=41,
+                    duration_seconds=0.1,
+                    sample_interval_seconds=0.1,
+                    client_executable=executable,
+                    capture_graphics_present=True,
+                ),
+                process_probe=_FakeProbe(executable),
+                clock=_FakeClock(),
+            )
+
+            self.assertIs(result.manifest.terminal_state, ManifestTerminalState.COMPLETE)
+            self.assertIn("graphics-present", result.manifest.completed_channels)
+            graphics = json.loads(_artifact_payload(result, "graphics-present"))
+            self.assertEqual("exact-live-executable-bytes", graphics["assessment"][
+                "static_import_authority"
+            ])
+            self.assertEqual("none", graphics["assessment"]["candidate_status"])
+            self.assertEqual("unresolved", graphics["assessment"]["active_route_authority"])
+
     def test_standard_capture_seals_reusable_metrics_and_identity(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

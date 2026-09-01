@@ -113,6 +113,11 @@ def _capture(arguments: Namespace, *, as_json: bool) -> int:
             reference_executable=arguments.reference_executable,
             alignment_profile_directory=arguments.alignment_profile_directory,
             repository_directory=arguments.repository,
+            capture_graphics_present=(
+                arguments.graphics_present
+                or arguments.graphics_runtime_status is not None
+            ),
+            graphics_runtime_status=arguments.graphics_runtime_status,
             file_channels=channels,
             trigger_rules=trigger_rules,
             manual_trigger_file=arguments.manual_trigger_file,

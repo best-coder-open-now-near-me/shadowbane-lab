@@ -1,0 +1,297 @@
+"""Exact static and runtime evidence for the client frame-present path."""
+
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+from shadowbane_lab.client_extension.bootstrap_inspection import inspect_pe_imports
+from shadowbane_lab.integrity import load_strict_json, validate_finite_json, validate_sha256
+
+from .model import DiagnosticError
+from .process import ProcessIdentity
+
+GRAPHICS_PRESENT_EVIDENCE_SCHEMA_VERSION = 1
+GRAPHICS_RUNTIME_STATUS_SCHEMA_VERSION = 1
+
+_PRESENT_ENTRY_POINTS = {
+    ("gdi32.dll", "SwapBuffers"): "gdi32-swap-buffers",
+    ("opengl32.dll", "wglSwapLayerBuffers"): "opengl32-wgl-swap-layer-buffers",
+}
+
+
+@dataclass(frozen=True, slots=True)
+class GraphicsPresentCollection:
+    report: dict[str, object]
+    complete: bool
+    failure: str | None = None
+    warnings: tuple[str, ...] = ()
+
+
+def collect_graphics_present_evidence(
+    executable_path: Path,
+    process_identity: ProcessIdentity,
+    *,
+    runtime_status_path: Path | None = None,
+) -> GraphicsPresentCollection:
+    """Collect exact PE imports and, when requested, identity-bound runtime status."""
+
+    try:
+        executable = executable_path.read_bytes()
+    except OSError as exc:
+        raise DiagnosticError(
+            f"could not read the live executable for graphics evidence: {executable_path}"
+        ) from exc
+    imports = inspect_pe_imports(executable)
+    image = _mapping(imports.get("executable"), "PE executable evidence")
+    executable_sha256 = validate_sha256(image.get("sha256"), "live executable sha256")
+    candidates = tuple(
+        sorted(
+            (
+                {
+                    "candidate_id": candidate_id,
+                    "iat_rva": item["iat_rva"],
+                    "library": item["library"],
+                    "ordinal": item["ordinal"],
+                    "symbol": item["symbol"],
+                }
+                for item in imports["imports"]
+                if (
+                    candidate_id := _PRESENT_ENTRY_POINTS.get(
+                        (str(item["library"]).casefold(), item["symbol"])
+                    )
+                )
+            ),
+            key=lambda item: (str(item["candidate_id"]), int(item["iat_rva"])),
+        )
+    )
+    runtime, runtime_complete, runtime_failure, runtime_warnings = _runtime_evidence(
+        runtime_status_path,
+        process_identity,
+        executable_sha256,
+        candidates,
+    )
+    active_route = runtime.get("active_present_entry")
+    active_route_authority = (
+        "runtime-observed-exact-process"
+        if runtime.get("state") == "accepted" and active_route is not None
+        else "unresolved"
+    )
+    graphics_context = runtime.get("graphics_context")
+    depth_edge_ready = bool(
+        active_route_authority == "runtime-observed-exact-process"
+        and isinstance(graphics_context, dict)
+        and graphics_context.get("context_observed") is True
+        and isinstance(graphics_context.get("depth_bits"), int)
+        and graphics_context["depth_bits"] > 0
+        and graphics_context.get("depth_texture_supported") is True
+        and _bounded_text(graphics_context.get("glsl_version"), 256)
+    )
+    report: dict[str, object] = {
+        "schema_version": GRAPHICS_PRESENT_EVIDENCE_SCHEMA_VERSION,
+        "authorization": "evidence_only_no_hook_or_patch_authority",
+        "process_identity": process_identity.as_dict(),
+        "executable": {
+            "path": str(executable_path),
+            "sha256": executable_sha256,
+            "size_bytes": image["length"],
+            "machine": image["machine"],
+            "pointer_size": image["pointer_size"],
+        },
+        "searched_entry_points": [
+            {"library": library, "symbol": symbol}
+            for library, symbol in sorted(_PRESENT_ENTRY_POINTS)
+        ],
+        "pe_import_count": len(imports["imports"]),
+        "present_candidates": list(candidates),
+        "runtime_status": runtime,
+        "assessment": {
+            "static_import_authority": "exact-live-executable-bytes",
+            "candidate_count": len(candidates),
+            "candidate_status": (
+                "none" if not candidates else "single" if len(candidates) == 1 else "multiple"
+            ),
+            "active_route_authority": active_route_authority,
+            "depth_edge_prerequisites_observed": depth_edge_ready,
+            "unresolved_mapping_blocks_dependent_renderer_work": not depth_edge_ready,
+        },
+    }
+    validate_finite_json(report)
+    return GraphicsPresentCollection(
+        report,
+        complete=runtime_complete,
+        failure=runtime_failure,
+        warnings=runtime_warnings,
+    )
+
+
+def _runtime_evidence(
+    path: Path | None,
+    identity: ProcessIdentity,
+    executable_sha256: str,
+    candidates: tuple[dict[str, object], ...],
+) -> tuple[dict[str, object], bool, str | None, tuple[str, ...]]:
+    if path is None:
+        return (
+            {
+                "state": "not-requested",
+                "active_present_entry": None,
+                "graphics_context": None,
+            },
+            True,
+            None,
+            ("active frame-present route remains unresolved without runtime status",),
+        )
+    if not path.is_file():
+        failure = f"runtime graphics status source not found: {path}"
+        return _rejected_runtime(path, failure), False, failure, ()
+    try:
+        payload = _mapping(load_strict_json(path), "runtime graphics status")
+        _validate_runtime_status(payload, identity, executable_sha256, candidates)
+    except (OSError, TypeError, ValueError) as exc:
+        failure = f"runtime graphics status rejected: {exc}"
+        return _rejected_runtime(path, failure), False, failure, ()
+    return (
+        {
+            "state": "accepted",
+            "source_path": str(path),
+            "producer_id": payload["producer_id"],
+            "extension_version": payload["extension_version"],
+            "active_present_entry": payload["active_present_entry"],
+            "present_entries": payload["present_entries"],
+            "graphics_context": payload["graphics_context"],
+            "depth_edge_pass": payload["depth_edge_pass"],
+        },
+        True,
+        None,
+        (),
+    )
+
+
+def _validate_runtime_status(
+    payload: dict[str, Any],
+    identity: ProcessIdentity,
+    executable_sha256: str,
+    candidates: tuple[dict[str, object], ...],
+) -> None:
+    validate_finite_json(payload)
+    if payload.get("schema_version") != GRAPHICS_RUNTIME_STATUS_SCHEMA_VERSION:
+        raise ValueError("unsupported runtime graphics status schema version")
+    if payload.get("producer_id") != "wonderbane-extension.graphics":
+        raise ValueError("unexpected runtime graphics status producer")
+    if not _bounded_text(payload.get("extension_version"), 128):
+        raise ValueError("runtime extension_version must be bounded non-empty text")
+    observed_identity = _mapping(payload.get("process_identity"), "runtime process_identity")
+    if observed_identity.get("process_id") != identity.process_id:
+        raise ValueError("runtime status process ID does not match the captured process")
+    if (
+        observed_identity.get("process_creation_filetime_utc")
+        != identity.process_creation_filetime_utc
+    ):
+        raise ValueError("runtime status process creation identity does not match")
+    if _normalized_path(observed_identity.get("executable_path")) != _normalized_path(
+        identity.executable_path
+    ):
+        raise ValueError("runtime status executable path does not match")
+    if validate_sha256(payload.get("executable_sha256"), "runtime executable sha256") != (
+        executable_sha256
+    ):
+        raise ValueError("runtime status executable hash does not match")
+    entries = payload.get("present_entries")
+    if not isinstance(entries, list) or len(entries) > 32:
+        raise ValueError("runtime present_entries must be a bounded list")
+    candidate_keys = {
+        (str(item["library"]).casefold(), item["symbol"], item["iat_rva"]) for item in candidates
+    }
+    observed_counts: dict[tuple[str, object, object], int] = {}
+    for value in entries:
+        entry = _mapping(value, "runtime present entry")
+        key = _present_key(entry)
+        if key not in candidate_keys:
+            raise ValueError("runtime present entry is absent from the exact PE import table")
+        count = entry.get("call_count")
+        if isinstance(count, bool) or not isinstance(count, int) or count < 0:
+            raise ValueError("runtime present call_count must be a non-negative integer")
+        if key in observed_counts:
+            raise ValueError("runtime present_entries contains a duplicate entry")
+        observed_counts[key] = count
+    active = payload.get("active_present_entry")
+    if active is not None:
+        active_key = _present_key(_mapping(active, "active_present_entry"))
+        if observed_counts.get(active_key, 0) <= 0:
+            raise ValueError("active present entry requires an observed positive call count")
+    context = _mapping(payload.get("graphics_context"), "graphics_context")
+    if not isinstance(context.get("context_observed"), bool):
+        raise ValueError("graphics_context.context_observed must be boolean")
+    depth_bits = context.get("depth_bits")
+    if depth_bits is not None and (
+        isinstance(depth_bits, bool)
+        or not isinstance(depth_bits, int)
+        or not 0 <= depth_bits <= 128
+    ):
+        raise ValueError("graphics_context.depth_bits must be null or a bounded integer")
+    for name in ("depth_texture_supported", "framebuffer_object_supported"):
+        value = context.get(name)
+        if value is not None and not isinstance(value, bool):
+            raise ValueError(f"graphics_context.{name} must be null or boolean")
+    for name in ("gl_version", "glsl_version"):
+        value = context.get(name)
+        if value is not None and not _bounded_text(value, 256):
+            raise ValueError(f"graphics_context.{name} must be null or bounded text")
+    viewport = context.get("viewport")
+    if viewport is not None and (
+        not isinstance(viewport, list)
+        or len(viewport) != 4
+        or any(isinstance(item, bool) or not isinstance(item, int) for item in viewport)
+        or viewport[2] <= 0
+        or viewport[3] <= 0
+    ):
+        raise ValueError("graphics_context.viewport must be null or x,y,width,height")
+    _mapping(payload.get("depth_edge_pass"), "depth_edge_pass")
+
+
+def _rejected_runtime(path: Path, failure: str) -> dict[str, object]:
+    return {
+        "state": "rejected",
+        "source_path": str(path),
+        "failure": failure,
+        "active_present_entry": None,
+        "graphics_context": None,
+    }
+
+
+def _present_key(entry: dict[str, Any]) -> tuple[str, object, object]:
+    library = entry.get("library")
+    symbol = entry.get("symbol")
+    iat_rva = entry.get("iat_rva")
+    if not _bounded_text(library, 260) or not _bounded_text(symbol, 260):
+        raise ValueError("present entry library and symbol must be bounded text")
+    if isinstance(iat_rva, bool) or not isinstance(iat_rva, int) or iat_rva < 0:
+        raise ValueError("present entry iat_rva must be a non-negative integer")
+    return str(library).casefold(), symbol, iat_rva
+
+
+def _mapping(value: object, field_name: str) -> dict[str, Any]:
+    if not isinstance(value, dict) or not all(isinstance(key, str) for key in value):
+        raise ValueError(f"{field_name} must be an object")
+    return value
+
+
+def _bounded_text(value: object, maximum: int) -> bool:
+    return isinstance(value, str) and bool(value) and "\0" not in value and len(value) <= maximum
+
+
+def _normalized_path(value: object) -> str:
+    if not isinstance(value, str) or not value or "\0" in value:
+        raise ValueError("runtime executable path must be bounded non-empty text")
+    return os.path.normcase(str(Path(value).resolve(strict=False)))
+
+
+__all__ = [
+    "GRAPHICS_PRESENT_EVIDENCE_SCHEMA_VERSION",
+    "GRAPHICS_RUNTIME_STATUS_SCHEMA_VERSION",
+    "GraphicsPresentCollection",
+    "collect_graphics_present_evidence",
+]

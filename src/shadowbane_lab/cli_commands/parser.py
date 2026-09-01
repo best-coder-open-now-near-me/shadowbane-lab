@@ -202,6 +202,12 @@ def _parser() -> argparse.ArgumentParser:
     diagnose_capture.add_argument("--reference-executable", type=Path)
     diagnose_capture.add_argument("--alignment-profile-directory", type=Path)
     diagnose_capture.add_argument("--repository", type=Path)
+    diagnose_capture.add_argument(
+        "--graphics-present",
+        action="store_true",
+        help="seal exact frame-present imports and optional identity-bound runtime status",
+    )
+    diagnose_capture.add_argument("--graphics-runtime-status", type=Path)
     diagnose_capture.add_argument("--log", type=Path, action="append", default=[])
     diagnose_capture.add_argument("--extension-events", type=Path)
     diagnose_capture.add_argument("--network-summary", type=Path)

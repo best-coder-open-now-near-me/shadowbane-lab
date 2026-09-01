@@ -18,9 +18,11 @@ from .bootstrap_author import (
 )
 from .bootstrap_inspection import (
     BOOTSTRAP_INSPECTION_SCHEMA_VERSION,
+    PE_IMPORT_INSPECTION_SCHEMA_VERSION,
     BootstrapInspectionError,
     inspect_bootstrap_candidate,
     inspect_bootstrap_file,
+    inspect_pe_imports,
 )
 from .event_consumer import (
     ExtensionEventConsumer,
@@ -151,6 +153,7 @@ __all__ = [
     "CLIENT_BASELINE_SCHEMA_VERSION",
     "CLIENT_PATCH_DIFF_SCHEMA_VERSION",
     "BOOTSTRAP_INSPECTION_SCHEMA_VERSION",
+    "PE_IMPORT_INSPECTION_SCHEMA_VERSION",
     "EXTENSION_ABI_VERSION",
     "EXTENSION_HEARTBEAT_SCHEMA_VERSION",
     "EXTENSION_RUNTIME_STATUS_SCHEMA_VERSION",
@@ -235,6 +238,7 @@ __all__ = [
     "freeze_client_baseline",
     "inspect_bootstrap_candidate",
     "inspect_bootstrap_file",
+    "inspect_pe_imports",
     "load_extension_heartbeat",
     "load_patch_manifest",
     "load_texture_patch_manifest",

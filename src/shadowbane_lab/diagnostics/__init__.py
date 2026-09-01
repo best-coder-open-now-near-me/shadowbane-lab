@@ -1,6 +1,12 @@
 """Capture-once, analyze-repeatedly diagnostic tooling."""
 
 from .analysis import analyze_diagnostic_capture, compare_diagnostic_captures
+from .graphics import (
+    GRAPHICS_PRESENT_EVIDENCE_SCHEMA_VERSION,
+    GRAPHICS_RUNTIME_STATUS_SCHEMA_VERSION,
+    GraphicsPresentCollection,
+    collect_graphics_present_evidence,
+)
 from .model import (
     DiagnosticError,
     DiagnosticProfile,
@@ -25,6 +31,9 @@ __all__ = [
     "DiagnosticRequest",
     "FileCaptureMode",
     "FileChannel",
+    "GRAPHICS_PRESENT_EVIDENCE_SCHEMA_VERSION",
+    "GRAPHICS_RUNTIME_STATUS_SCHEMA_VERSION",
+    "GraphicsPresentCollection",
     "ProcessIdentity",
     "ProcessProbe",
     "ProcessSample",
@@ -35,5 +44,6 @@ __all__ = [
     "WindowsProcessProbe",
     "analyze_diagnostic_capture",
     "compare_diagnostic_captures",
+    "collect_graphics_present_evidence",
     "run_diagnostic_capture",
 ]

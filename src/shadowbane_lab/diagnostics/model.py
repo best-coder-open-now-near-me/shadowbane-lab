@@ -141,6 +141,8 @@ class DiagnosticRequest:
     reference_executable: Path | None = None
     alignment_profile_directory: Path | None = None
     repository_directory: Path | None = None
+    capture_graphics_present: bool = False
+    graphics_runtime_status: Path | None = None
     file_channels: tuple[FileChannel, ...] = ()
     trigger_rules: tuple[TriggerRule, ...] = ()
     manual_trigger_file: Path | None = None
@@ -158,6 +160,12 @@ class DiagnosticRequest:
             raise ValueError("process_id must be positive")
         if not isinstance(self.profile, DiagnosticProfile):
             raise ValueError("profile must be DiagnosticProfile")
+        if not isinstance(self.capture_graphics_present, bool):
+            raise ValueError("capture_graphics_present must be boolean")
+        if self.graphics_runtime_status is not None and not self.capture_graphics_present:
+            raise ValueError(
+                "graphics_runtime_status requires capture_graphics_present"
+            )
         for value, name, maximum in (
             (self.effective_duration_seconds, "duration_seconds", 86_400.0),
             (self.effective_sample_interval_seconds, "sample_interval_seconds", 60.0),
