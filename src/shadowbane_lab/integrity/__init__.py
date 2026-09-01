@@ -10,6 +10,7 @@ from .canonical import (
     strict_json_loads,
     validate_finite_json,
 )
+from .frozen_json import FrozenJson, FrozenJsonObject, freeze_json, thaw_json
 from .paths import (
     PathSecurityError,
     canonical_timestamp,
@@ -36,6 +37,8 @@ from .tree import (
 __all__ = [
     "CreateOnlyError",
     "FileRecord",
+    "FrozenJson",
+    "FrozenJsonObject",
     "JsonBounds",
     "PathSecurityError",
     "TreeInventory",
@@ -46,6 +49,7 @@ __all__ = [
     "create_only_bytes",
     "create_only_json",
     "create_only_text",
+    "freeze_json",
     "hash_file",
     "inventory_tree",
     "is_reparse_point",
@@ -53,6 +57,7 @@ __all__ = [
     "pretty_json_text",
     "resolve_within_root",
     "strict_json_loads",
+    "thaw_json",
     "tree_sha256",
     "validate_finite_json",
     "validate_identifier",

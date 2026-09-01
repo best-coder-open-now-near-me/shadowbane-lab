@@ -77,7 +77,7 @@
         "maximum_input_count": {"type": "integer", "minimum": 0, "maximum": 1000000},
         "maximum_input_rate_per_second": {"type": "number", "minimum": 0, "maximum": 10000},
         "maximum_resource_loss": {"type": "number", "minimum": 0},
-        "stop_conditions": {"$ref": "#/$defs/strings"}
+        "stop_conditions": {"type": "array", "minItems": 1, "uniqueItems": true, "description": "Observation identifiers that stop execution when their value is literal JSON true.", "items": {"$ref": "#/$defs/identifier"}}
       }
     },
     "outputs": {"$ref": "#/$defs/strings"}

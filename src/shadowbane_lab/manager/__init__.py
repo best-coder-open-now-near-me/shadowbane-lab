@@ -42,6 +42,7 @@ from .model import (
 )
 from .operation import (
     DEFAULT_WORKER_OPERATION_ACK_TIMEOUT_SECONDS,
+    DEFAULT_WORKER_OPERATION_TERMINAL_RETENTION_SECONDS,
     DEFAULT_WORKER_OPERATION_TTL_SECONDS,
     WORKER_OPERATION_RECEIPT_SCHEMA_VERSION,
     WORKER_OPERATION_SCHEMA_VERSION,
@@ -82,6 +83,14 @@ from .runtime_deployment import (
     RuntimeDeploymentResult,
     RuntimeDeploymentSlot,
     provision_isolated_client_runtimes,
+)
+from .runtime_paths import (
+    GuestWindowsPath,
+    HostRuntimePath,
+    RootedRuntimePathMapper,
+    RuntimePathDomainError,
+    RuntimePathMapper,
+    local_windows_runtime_mapper,
 )
 from .session import (
     MANAGER_SESSION_SCHEMA_VERSION,
@@ -189,6 +198,7 @@ __all__ = [
     "DEFAULT_WORKER_DISPATCH_PERMIT_TTL_SECONDS",
     "DEFAULT_WORKER_HEARTBEAT_TIMEOUT_SECONDS",
     "DEFAULT_WORKER_OPERATION_ACK_TIMEOUT_SECONDS",
+    "DEFAULT_WORKER_OPERATION_TERMINAL_RETENTION_SECONDS",
     "DEFAULT_WORKER_OPERATION_TTL_SECONDS",
     "ExactClientWorkerBinding",
     "ExactClientWorkerError",
@@ -291,6 +301,12 @@ __all__ = [
     "RuntimeDeploymentError",
     "RuntimeDeploymentResult",
     "RuntimeDeploymentSlot",
+    "GuestWindowsPath",
+    "HostRuntimePath",
+    "RootedRuntimePathMapper",
+    "RuntimePathDomainError",
+    "RuntimePathMapper",
+    "local_windows_runtime_mapper",
     "provision_isolated_client_runtimes",
     "recover_manager_bindings",
     "selector_from_config",

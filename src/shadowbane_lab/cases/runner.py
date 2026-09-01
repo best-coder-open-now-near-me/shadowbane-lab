@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass
 from math import isfinite
 from time import monotonic
@@ -17,11 +17,18 @@ from shadowbane_lab.evidence import (
     save_contract,
 )
 from shadowbane_lab.fingerprints import Applicability, FingerprintEnvelope
-from shadowbane_lab.integrity import canonical_json_bytes, canonical_timestamp, validate_finite_json
+from shadowbane_lab.integrity import (
+    canonical_json_bytes,
+    canonical_timestamp,
+    freeze_json,
+    thaw_json,
+    validate_finite_json,
+)
 
 from .model import (
     CaseError,
     CaseState,
+    ExpandedPlan,
     ExpandedRun,
     ExperimentDefinition,
     ExperimentStep,
@@ -30,6 +37,7 @@ from .model import (
     ResearchCase,
     StepKind,
     expand_experiment,
+    validate_expanded_run,
 )
 
 
@@ -48,8 +56,11 @@ class StepOutcome:
         names = tuple(name for name, _ in self.observations)
         if names != tuple(sorted(names)) or len(names) != len(set(names)):
             raise ValueError("step observations must use unique canonical keys")
-        for _, value in self.observations:
-            validate_finite_json(value)
+        object.__setattr__(
+            self,
+            "observations",
+            tuple((name, freeze_json(value)) for name, value in self.observations),
+        )
         if self.completed_channels != tuple(sorted(set(self.completed_channels))):
             raise ValueError("completed channels must use canonical ordering")
         if (
@@ -90,8 +101,11 @@ class ProducedArtifact:
         names = tuple(name for name, _ in self.metadata)
         if names != tuple(sorted(set(names))):
             raise ValueError("produced artifact metadata must use canonical keys")
-        for _, value in self.metadata:
-            validate_finite_json(value)
+        object.__setattr__(
+            self,
+            "metadata",
+            tuple((name, freeze_json(value)) for name, value in self.metadata),
+        )
 
 
 class ExecutionControl:
@@ -216,7 +230,9 @@ class RecordedExecutor:
         completed_channels: Iterable[str] = (),
     ) -> None:
         self._observations = {
-            int(sequence): tuple(sorted(values.items()))
+            int(sequence): tuple(
+                sorted((name, freeze_json(value)) for name, value in values.items())
+            )
             for sequence, values in observations_by_sequence.items()
         }
         self._completed = tuple(sorted(set(completed_channels)))
@@ -278,6 +294,7 @@ def execute_run(
     *,
     case: ResearchCase,
     definition: ExperimentDefinition,
+    plan: ExpandedPlan,
     run: ExpandedRun,
     fingerprint: FingerprintEnvelope,
     store: ArtifactStore,
@@ -286,18 +303,18 @@ def execute_run(
     cancellation_requested: Callable[[], bool] | None = None,
 ) -> RunExecution:
     validate_case_experiment(case, definition, fingerprint)
-    if (
-        run.experiment_id != definition.experiment_id
-        or run.experiment_revision != definition.revision
-    ):
-        raise CaseError("expanded run does not belong to this experiment revision")
+    if plan.definition_id != definition.definition_id:
+        raise CaseError("expanded plan does not belong to this experiment definition")
+    validate_expanded_run(plan, run)
     step_by_sequence = {item.sequence: item for item in definition.steps}
     sequence = 1
     active_repeat: tuple[int, int, int, int] | None = None
     observations: dict[str, Any] = dict(run.variables)
     completed_channels: set[str] = set()
     trace: list[dict[str, object]] = []
-    produced_artifacts: list[ProducedArtifact] = []
+    artifact_descriptors: list[ArtifactDescriptor] = []
+    stop_condition_evaluations: list[dict[str, object]] = []
+    triggered_stop_conditions: set[str] = set()
     total_inputs = 0
     total_loss = 0.0
     reported_elapsed = 0.0
@@ -355,15 +372,51 @@ def execute_run(
             reported_elapsed += float(outcome.elapsed_seconds)
             observations.update(outcome.observations)
             completed_channels.update(outcome.completed_channels)
-            produced_artifacts.extend(outcome.artifacts)
+            for artifact in outcome.artifacts:
+                artifact_descriptors.append(
+                    store.ingest_bytes(
+                        artifact.payload,
+                        artifact_kind=artifact.artifact_kind,
+                        media_type=artifact.media_type,
+                        logical_name=artifact.logical_name,
+                        producer_id=executor.executor_id,
+                        producer_version=executor.executor_version,
+                        captured_at_utc=canonical_timestamp(),
+                        metadata=artifact.metadata,
+                    )
+                )
             trace.append(
                 {
                     "sequence": step.sequence,
                     "kind": step.kind.value,
                     "passed": outcome.passed,
-                    "observations": dict(outcome.observations),
+                    "observations": thaw_json(dict(outcome.observations)),
                 }
             )
+            condition_results = [
+                {
+                    "condition": condition,
+                    "observed": thaw_json(observations.get(condition)),
+                    "triggered": observations.get(condition) is True,
+                }
+                for condition in definition.safety.stop_conditions
+            ]
+            stop_condition_evaluations.append(
+                {
+                    "after_sequence": step.sequence,
+                    "conditions": condition_results,
+                }
+            )
+            triggered = {
+                item["condition"] for item in condition_results if item["triggered"] is True
+            }
+            if triggered:
+                triggered_stop_conditions.update(str(item) for item in triggered)
+                failed = True
+                execution_error = "stop condition triggered: " + ", ".join(
+                    sorted(triggered_stop_conditions)
+                )
+                break
             if not outcome.passed and step.kind is StepKind.ASSERT_PRECONDITION:
                 failed = True
                 break
@@ -415,7 +468,7 @@ def execute_run(
         "executor_version": executor.executor_version,
         "run": run.as_dict(),
         "trace": trace,
-        "observations": dict(sorted(observations.items())),
+        "observations": thaw_json(dict(sorted(observations.items()))),
         "oracle": [
             {"rule": rule.as_dict(), "passed": result[0]}
             for rule, result in zip(definition.oracle, oracle_results, strict=True)
@@ -427,21 +480,12 @@ def execute_run(
         "completed_channels": list(completed),
         "missing_channels": list(missing),
         "execution_error": execution_error,
+        "stop_condition_evaluations": stop_condition_evaluations,
+        "triggered_stop_conditions": sorted(triggered_stop_conditions),
     }
     captured = canonical_timestamp()
-    descriptors = [
-        store.ingest_bytes(
-            artifact.payload,
-            artifact_kind=artifact.artifact_kind,
-            media_type=artifact.media_type,
-            logical_name=artifact.logical_name,
-            producer_id=executor.executor_id,
-            producer_version=executor.executor_version,
-            captured_at_utc=captured,
-            metadata=artifact.metadata,
-        )
-        for artifact in produced_artifacts
-    ]
+    descriptors = list(artifact_descriptors)
+
     descriptor = store.ingest_bytes(
         canonical_json_bytes(record),
         artifact_kind=ArtifactKind.SIMULATION_RESULT,
@@ -495,15 +539,18 @@ def execute_plan(
     executor: ExperimentStepExecutor,
     execution_nonce: str,
     cancellation_requested: Callable[[], bool] | None = None,
-) -> tuple[RunExecution, ...]:
+) -> Iterator[RunExecution]:
+    """Execute and journal a bounded plan one run at a time."""
+
     from pathlib import Path
 
     directory = Path(manifest_directory)
-    runs = expand_experiment(definition, execution_nonce=execution_nonce)
-    return tuple(
-        execute_run(
+    plan = expand_experiment(definition, execution_nonce=execution_nonce)
+    for run in plan:
+        result = execute_run(
             case=case,
             definition=definition,
+            plan=plan,
             run=run,
             fingerprint=fingerprint,
             store=store,
@@ -511,8 +558,9 @@ def execute_plan(
             executor=executor,
             cancellation_requested=cancellation_requested,
         )
-        for run in runs
-    )
+        yield result
+        if result.record["triggered_stop_conditions"]:
+            return
 
 
 def _evaluate_step(step: ExperimentStep, observations: Mapping[str, Any]) -> bool:

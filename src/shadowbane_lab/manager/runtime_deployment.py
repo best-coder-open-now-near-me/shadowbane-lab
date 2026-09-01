@@ -29,6 +29,12 @@ from .manifest import (
     load_manager_manifest,
     retarget_manager_client_directories,
 )
+from .runtime_paths import (
+    GuestWindowsPath,
+    HostRuntimePath,
+    RuntimePathMapper,
+    local_windows_runtime_mapper,
+)
 
 RUNTIME_DEPLOYMENT_SCHEMA_VERSION = 2
 _DEPLOYMENT_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
@@ -95,10 +101,18 @@ class PreparedIsolatedRuntimeSlot:
 class IsolatedRuntimeCapacityProvisioner:
     """Prepare fresh isolated slots from immutable deployment inputs."""
 
-    def __init__(self, manager_manifest_path: str | Path) -> None:
+    def __init__(
+        self,
+        manager_manifest_path: str | Path,
+        *,
+        path_mapper: RuntimePathMapper | None = None,
+    ) -> None:
         manifest_path = Path(manager_manifest_path).resolve(strict=False)
-        _require_guest_local_path(manifest_path, field_name="manager_manifest_path")
+        _require_host_local_path(manifest_path, field_name="manager_manifest_path")
         self._manifest_path = manifest_path
+        self._path_mapper = path_mapper or local_windows_runtime_mapper(
+            Path(manifest_path.anchor)
+        )
         self._runtime_root = manifest_path.parent / "client-runtimes"
 
     def prepare(self, manifest: ManagerManifest) -> PreparedIsolatedRuntimeSlot:
@@ -113,7 +127,7 @@ class IsolatedRuntimeCapacityProvisioner:
                 f"no more than {MAX_MANAGER_CLIENT_SLOTS} clients can be managed"
             )
 
-        inputs = _resolve_runtime_inputs(self._manifest_path, manifest)
+        inputs = _resolve_runtime_inputs(self._manifest_path, manifest, self._path_mapper)
         expanded = expand_manager_slots(manifest, len(manifest.clients) + 1)
         client_id = expanded.clients[-1].client_id
         timestamp = datetime.now(UTC)
@@ -121,7 +135,7 @@ class IsolatedRuntimeCapacityProvisioner:
             f"live-{timestamp.strftime('%Y%m%dT%H%M%S%fZ')}-{uuid.uuid4().hex[:8]}"
         )
         deployment_path = self._runtime_root / deployment_id
-        _require_guest_local_path(deployment_path, field_name="deployment_directory")
+        _require_host_local_path(deployment_path, field_name="deployment_directory")
         if deployment_path.exists():
             raise RuntimeDeploymentError(
                 f"generated live deployment already exists: {deployment_path}"
@@ -151,7 +165,13 @@ class IsolatedRuntimeCapacityProvisioner:
             template = replace(manifest.clients[0], client_id=client_id)
             isolated = retarget_manager_client_directories(
                 ManagerManifest(node_id=manifest.node_id, clients=(template,)),
-                {client_id: str(runtime_path)},
+                {
+                    client_id: str(
+                        self._path_mapper.host_to_guest(
+                            HostRuntimePath(runtime_path)
+                        ).path
+                    )
+                },
                 executable_name=inputs.patch_manifest.source.file_name,
                 resolution_width=inputs.resolution_width,
                 resolution_height=inputs.resolution_height,
@@ -261,6 +281,7 @@ def provision_isolated_client_runtimes(
     resolution_width: int = 1920,
     resolution_height: int = 955,
     created_at: datetime | None = None,
+    path_mapper: RuntimePathMapper | None = None,
 ) -> RuntimeDeploymentResult:
     """Publish verified copies, then atomically point the manager at all of them.
 
@@ -282,9 +303,10 @@ def provision_isolated_client_runtimes(
     baseline_path = Path(frozen_directory).resolve(strict=False)
     deployment_path = Path(deployment_directory).resolve(strict=False)
     extension_path = Path(extension_artifact).resolve(strict=False)
-    _require_guest_local_path(manifest_path, field_name="manager_manifest_path")
-    _require_guest_local_path(baseline_path, field_name="frozen_directory")
-    _require_guest_local_path(deployment_path, field_name="deployment_directory")
+    _require_host_local_path(manifest_path, field_name="manager_manifest_path")
+    _require_host_local_path(baseline_path, field_name="frozen_directory")
+    _require_host_local_path(deployment_path, field_name="deployment_directory")
+    runtime_path_mapper = path_mapper or local_windows_runtime_mapper(Path(manifest_path.anchor))
     if deployment_path.exists():
         raise RuntimeDeploymentError(f"deployment directory already exists: {deployment_path}")
     if deployment_path.name != deployment_id:
@@ -326,7 +348,9 @@ def provision_isolated_client_runtimes(
                     f"client package was not published for {client.client_id}"
                 )
             package_evidence.append((client.client_id, result.evidence))
-            runtime_directories[client.client_id] = str(runtime_path)
+            runtime_directories[client.client_id] = str(
+                runtime_path_mapper.host_to_guest(HostRuntimePath(runtime_path)).path
+            )
 
         replacement = retarget_manager_client_directories(
             target,
@@ -335,11 +359,14 @@ def provision_isolated_client_runtimes(
             resolution_width=resolution_width,
             resolution_height=resolution_height,
         )
-        for client in replacement.clients:
-            executable = Path(str(client.launch.executable))
+        for client_id, evidence in package_evidence:
+            executable = (
+                HostRuntimePath(Path(evidence.destination_directory)).path / executable_name
+            )
             if not executable.is_file():
                 raise RuntimeDeploymentError(
-                    f"published runtime executable was not found: {executable}"
+                    "published runtime executable was not found for "
+                    f"{client_id}: {executable}"
                 )
 
         slots = tuple(
@@ -472,10 +499,13 @@ def _deployment_evidence(
 def _resolve_runtime_inputs(
     manifest_path: Path,
     manifest: ManagerManifest,
+    path_mapper: RuntimePathMapper,
 ) -> _RuntimeInputs:
     evidence_records: list[tuple[Path, dict[str, object]]] = []
     for client in manifest.clients:
-        runtime_path = Path(str(client.launch.working_directory)).resolve(strict=False)
+        runtime_path = path_mapper.guest_to_host(
+            GuestWindowsPath(client.launch.working_directory)
+        ).path
         evidence_path = runtime_path.parent / _DEPLOYMENT_FILE_NAME
         evidence = _load_deployment_evidence(evidence_path)
         manager_manifest_path = evidence.get("manager_manifest_path")
@@ -575,7 +605,9 @@ def _resolve_runtime_inputs(
     elif schema_version == 1:
         patch_manifest = _find_legacy_patch_manifest(manifest_path.parent, patch_id)
         extension_path = (
-            Path(str(manifest.clients[0].launch.working_directory)).resolve(strict=False)
+            path_mapper.guest_to_host(
+                GuestWindowsPath(manifest.clients[0].launch.working_directory)
+            ).path
             / patch_manifest.extension.file_name
         )
     else:
@@ -722,10 +754,10 @@ def _manifest_with_slot_count(
     return expand_manager_slots(manifest, slot_count)
 
 
-def _require_guest_local_path(path: Path, *, field_name: str) -> None:
+def _require_host_local_path(path: Path, *, field_name: str) -> None:
     text = str(path)
     if text.startswith(("\\\\", "//")):
-        raise RuntimeDeploymentError(f"{field_name} must be guest-local, not a UNC path")
+        raise RuntimeDeploymentError(f"{field_name} must be host-local, not a UNC path")
 
 
 def _write_new_json(path: Path, payload: dict[str, object]) -> None:

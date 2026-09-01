@@ -396,6 +396,7 @@ class RuntimeConsistencyTests(unittest.TestCase):
             runtime = deployment / "client-01"
             inputs = deployment / ".deployment-inputs"
             runtime.mkdir(parents=True)
+            resolved_runtime = runtime.resolve(strict=True)
             inputs.mkdir()
             evidence_path = deployment / "runtime-deployment.json"
             manifest_path = inputs / "bootstrap-manifest.json"
@@ -465,7 +466,7 @@ class RuntimeConsistencyTests(unittest.TestCase):
 
         self.assertEqual("deployment-1", inspected.identity.deployment_id)
         self.assertEqual(("client-01",), tuple(item.client_id for item in inspected.slots))
-        verify.assert_called_once_with(runtime)
+        verify.assert_called_once_with(resolved_runtime)
 
 
 if __name__ == "__main__":

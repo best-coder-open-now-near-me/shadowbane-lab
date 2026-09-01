@@ -16,6 +16,7 @@ from shadowbane_lab.integrity import (
     hash_file,
     is_reparse_point,
     load_strict_json,
+    resolve_within_root,
     validate_identifier,
 )
 
@@ -100,7 +101,11 @@ class ArtifactStore:
 
     def object_path(self, artifact_id: str) -> Path:
         digest = parse_artifact_id(artifact_id)[7:]
-        return self.objects_directory / digest[:2] / digest[2:]
+        relative = f"objects/sha256/{digest[:2]}/{digest[2:]}"
+        try:
+            return resolve_within_root(self.root, relative)
+        except ValueError as exc:
+            raise EvidenceError("artifact object path is unsafe") from exc
 
     def ingest_bytes(
         self,
@@ -122,6 +127,37 @@ class ArtifactStore:
             raise EvidenceError("artifact exceeds the configured byte limit")
         descriptor, stage = self._stage_stream(
             _BytesReader(payload),
+            artifact_kind=artifact_kind,
+            media_type=media_type,
+            logical_name=logical_name,
+            producer_id=producer_id,
+            producer_version=producer_version,
+            captured_at_utc=captured_at_utc,
+            redaction=redaction,
+            parents=parents,
+            metadata=metadata,
+        )
+        self._publish_stage(stage, descriptor)
+        return descriptor
+
+    def ingest_chunks(
+        self,
+        chunks: Iterable[bytes],
+        *,
+        artifact_kind: ArtifactKind,
+        media_type: str,
+        logical_name: str,
+        producer_id: str,
+        producer_version: str,
+        captured_at_utc: str | None = None,
+        redaction: Redaction | None = None,
+        parents: Iterable[str] = (),
+        metadata: Iterable[tuple[str, object]] = (),
+    ) -> ArtifactDescriptor:
+        """Ingest a finite byte-chunk stream without materializing one joined payload."""
+
+        descriptor, stage = self._stage_stream(
+            _ChunkReader(chunks),
             artifact_kind=artifact_kind,
             media_type=media_type,
             logical_name=logical_name,
@@ -252,21 +288,44 @@ class ArtifactStore:
             raise
 
     def _publish_stage(self, stage: Path, descriptor: ArtifactDescriptor) -> None:
-        target = self.object_path(descriptor.artifact_id or "")
-        target.parent.mkdir(parents=True, exist_ok=True)
         try:
-            os.link(stage, target)
-        except FileExistsError as exc:
-            valid, issue = self.verify_descriptor(descriptor)
-            if not valid:
-                raise EvidenceError(f"existing artifact object is corrupt: {issue}") from exc
-        except OSError as exc:
-            raise EvidenceError(f"could not publish artifact object: {exc}") from exc
+            target = self.object_path(descriptor.artifact_id or "")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target = self.object_path(descriptor.artifact_id or "")
+            try:
+                os.link(stage, target)
+            except FileExistsError as exc:
+                valid, issue = self.verify_descriptor(descriptor)
+                if not valid:
+                    raise EvidenceError(f"existing artifact object is corrupt: {issue}") from exc
+            except OSError as exc:
+                raise EvidenceError(f"could not publish artifact object: {exc}") from exc
         finally:
             stage.unlink(missing_ok=True)
         valid, issue = self.verify_descriptor(descriptor)
         if not valid:
             raise EvidenceError(f"published artifact verification failed: {issue}")
+
+
+class _ChunkReader:
+    def __init__(self, chunks: Iterable[bytes]) -> None:
+        self._chunks = iter(chunks)
+        self._current = b""
+        self._offset = 0
+
+    def read(self, size: int) -> bytes:
+        while self._offset >= len(self._current):
+            try:
+                current = next(self._chunks)
+            except StopIteration:
+                return b""
+            if not isinstance(current, bytes):
+                raise TypeError("artifact chunks must be bytes")
+            self._current = current
+            self._offset = 0
+        result = self._current[self._offset : self._offset + size]
+        self._offset += len(result)
+        return result
 
 
 class _BytesReader:

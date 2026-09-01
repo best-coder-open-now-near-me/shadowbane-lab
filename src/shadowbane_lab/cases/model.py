@@ -2,18 +2,21 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from collections.abc import Iterator, Mapping
+from dataclasses import dataclass, field, replace
 from enum import StrEnum
-from itertools import product
-from math import isfinite
+from math import gcd, isfinite
 from typing import Any
 
 from shadowbane_lab.evidence.model import parse_artifact_id
 from shadowbane_lab.fingerprints import SectionName
 from shadowbane_lab.integrity import (
     canonical_json_sha256,
+    freeze_json,
+    thaw_json,
     validate_finite_json,
     validate_identifier,
+    validate_sha256,
 )
 
 RESEARCH_CASE_SCHEMA_VERSION = 1
@@ -217,13 +220,13 @@ class ExperimentVariable:
         validate_identifier(self.name, "variable name")
         if not self.values or len(self.values) > 10_000:
             raise ValueError("experiment variable requires 1-10000 values")
-        for value in self.values:
-            validate_finite_json(value)
-        if len({canonical_json_sha256(value) for value in self.values}) != len(self.values):
+        frozen_values = tuple(freeze_json(value) for value in self.values)
+        if len({canonical_json_sha256(value) for value in frozen_values}) != len(frozen_values):
             raise ValueError("experiment variable values must be unique")
+        object.__setattr__(self, "values", frozen_values)
 
     def as_dict(self) -> dict[str, object]:
-        return {"name": self.name, "values": list(self.values)}
+        return {"name": self.name, "values": [thaw_json(value) for value in self.values]}
 
 
 _STEP_FIELDS: dict[StepKind, frozenset[str]] = {
@@ -256,15 +259,18 @@ class ExperimentStep:
             raise ValueError("step parameters must use unique canonical keys")
         if set(names) != _STEP_FIELDS[self.kind]:
             raise ValueError(f"{self.kind.value} step parameters are not exact")
-        for _name, value in self.parameters:
-            validate_finite_json(value)
+        object.__setattr__(
+            self,
+            "parameters",
+            tuple((name, freeze_json(value)) for name, value in self.parameters),
+        )
         self._validate_semantics()
 
     def _validate_semantics(self) -> None:
         values = dict(self.parameters)
         if self.kind is StepKind.SEMANTIC_DECISION:
             validate_identifier(values["action_key"], "action_key")
-            if not isinstance(values["binding"], dict):
+            if not isinstance(values["binding"], Mapping):
                 raise ValueError("semantic decision binding must be an object")
         elif self.kind is StepKind.WAIT_DURATION:
             _positive_number(values["duration_seconds"], "duration_seconds", 86_400)
@@ -285,7 +291,7 @@ class ExperimentStep:
         return {
             "sequence": self.sequence,
             "kind": self.kind.value,
-            "parameters": {name: value for name, value in self.parameters},
+            "parameters": {name: thaw_json(value) for name, value in self.parameters},
         }
 
 
@@ -324,6 +330,7 @@ class RepetitionPolicy:
     ordering_seed: int = 0
 
     def __post_init__(self) -> None:
+        object.__setattr__(self, "seeds", tuple(self.seeds))
         _positive_integer(self.repetitions, "repetitions", maximum=100_000)
         if not self.seeds or len(self.seeds) > 100_000:
             raise ValueError("repetition policy requires 1-100000 seeds")
@@ -356,7 +363,7 @@ class OracleRule:
         _bounded_text(self.field, "oracle field", 512)
         if self.operator not in ("eq", "ne", "lt", "le", "gt", "ge", "contains"):
             raise ValueError("unsupported oracle operator")
-        validate_finite_json(self.expected)
+        object.__setattr__(self, "expected", freeze_json(self.expected))
         _non_negative_number(self.absolute_tolerance, "absolute_tolerance", 1e18)
         if not isinstance(self.severity, OracleSeverity):
             raise ValueError("oracle severity must be OracleSeverity")
@@ -365,7 +372,7 @@ class OracleRule:
         return {
             "field": self.field,
             "operator": self.operator,
-            "expected": self.expected,
+            "expected": thaw_json(self.expected),
             "absolute_tolerance": self.absolute_tolerance,
             "severity": self.severity.value,
         }
@@ -373,6 +380,8 @@ class OracleRule:
 
 @dataclass(frozen=True, slots=True)
 class SafetyPolicy:
+    """Stop when a named observation becomes literal JSON true."""
+
     maximum_duration_seconds: float
     maximum_input_count: int
     maximum_input_rate_per_second: float
@@ -391,6 +400,8 @@ class SafetyPolicy:
         _canonical_strings(self.stop_conditions, "stop_conditions")
         if not self.stop_conditions:
             raise ValueError("safety policy requires at least one stop condition")
+        for condition in self.stop_conditions:
+            validate_identifier(condition, "stop condition")
 
     def as_dict(self) -> dict[str, object]:
         return {
@@ -428,6 +439,22 @@ class ExperimentDefinition:
         if len(self.hypothesis_ids) < 2:
             raise ValueError("experiment requires at least two hypotheses")
         _canonical_items(self.preconditions, "preconditions")
+        object.__setattr__(
+            self,
+            "preconditions",
+            tuple((name, freeze_json(value)) for name, value in self.preconditions),
+        )
+        for field_name, item_type in (
+            ("variables", ExperimentVariable),
+            ("steps", ExperimentStep),
+            ("oracle", OracleRule),
+        ):
+            items = tuple(getattr(self, field_name))
+            if any(not isinstance(item, item_type) for item in items):
+                raise ValueError(f"{field_name} contains an invalid contract type")
+            object.__setattr__(self, field_name, items)
+        if not isinstance(self.safety, SafetyPolicy):
+            raise ValueError("safety must be SafetyPolicy")
         variable_names = tuple(item.name for item in self.variables)
         if variable_names != tuple(sorted(variable_names)) or len(variable_names) != len(
             set(variable_names)
@@ -457,10 +484,7 @@ class ExperimentDefinition:
             values = dict(step.parameters)
             start = values["start_sequence"]
             end = values["end_sequence"]
-            if any(
-                candidate.kind is StepKind.REPEAT
-                for candidate in self.steps[start - 1 : end]
-            ):
+            if any(candidate.kind is StepKind.REPEAT for candidate in self.steps[start - 1 : end]):
                 raise ValueError("repeat ranges cannot contain repeat control steps")
             for candidate in self.steps[start - 1 : end]:
                 if candidate.kind is not StepKind.BRANCH_ON_OBSERVATION:
@@ -496,7 +520,7 @@ class ExperimentDefinition:
             "revision": self.revision,
             "question_type": self.question_type,
             "hypothesis_ids": list(self.hypothesis_ids),
-            "preconditions": {name: value for name, value in self.preconditions},
+            "preconditions": {name: thaw_json(value) for name, value in self.preconditions},
             "variables": [item.as_dict() for item in self.variables],
             "steps": [item.as_dict() for item in self.steps],
             "capture": self.capture.as_dict(),
@@ -511,85 +535,258 @@ class ExperimentDefinition:
 class ExpandedRun:
     run_id: str
     plan_id: str
+    definition_id: str
     experiment_id: str
     experiment_revision: int
     repetition: int
     seed: int
     variables: tuple[tuple[str, Any], ...]
 
+    def __post_init__(self) -> None:
+        _prefixed_digest(self.run_id, "run-", 32, "run_id")
+        _prefixed_digest(self.plan_id, "plan-", 32, "plan_id")
+        _definition_digest(self.definition_id)
+        validate_identifier(self.experiment_id, "experiment_id")
+        _positive_integer(
+            self.experiment_revision,
+            "experiment_revision",
+            maximum=1_000_000,
+        )
+        _positive_integer(self.repetition, "repetition", maximum=100_000)
+        _non_negative_integer(self.seed, "seed", maximum=0xFFFFFFFFFFFFFFFF)
+        _canonical_items(self.variables, "expanded run variables")
+        object.__setattr__(
+            self,
+            "variables",
+            tuple((name, freeze_json(value)) for name, value in self.variables),
+        )
+
     def as_dict(self) -> dict[str, object]:
         return {
             "run_id": self.run_id,
             "plan_id": self.plan_id,
+            "definition_id": self.definition_id,
             "experiment_id": self.experiment_id,
             "experiment_revision": self.experiment_revision,
             "repetition": self.repetition,
             "seed": self.seed,
-            "variables": {name: value for name, value in self.variables},
+            "variables": {name: thaw_json(value) for name, value in self.variables},
         }
+
+
+@dataclass(frozen=True, slots=True)
+class ExpandedPlan:
+    """Reusable, bounded plan identity whose runs are generated lazily."""
+
+    definition: ExperimentDefinition
+    execution_nonce: str
+    plan_id: str = field(init=False)
+    definition_id: str = field(init=False)
+    run_count: int = field(init=False)
+    _allowed_value_ids: tuple[frozenset[str], ...] = field(
+        init=False,
+        repr=False,
+        compare=False,
+    )
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.definition, ExperimentDefinition):
+            raise ValueError("definition must be ExperimentDefinition")
+        validate_identifier(self.execution_nonce, "execution_nonce")
+        combination_count = 1
+        for variable in self.definition.variables:
+            combination_count *= len(variable.values)
+            if combination_count > 1_000_000:
+                raise ValueError("expanded experiment exceeds one million runs")
+        total_runs = combination_count * self.definition.repetition.repetitions
+        if total_runs > 1_000_000:
+            raise ValueError("expanded experiment exceeds one million runs")
+        definition_id = self.definition.definition_id
+        object.__setattr__(self, "definition_id", definition_id)
+        object.__setattr__(
+            self,
+            "plan_id",
+            "plan-"
+            + canonical_json_sha256(
+                {
+                    "definition_id": definition_id,
+                    "execution_nonce": self.execution_nonce,
+                }
+            )[:32],
+        )
+        object.__setattr__(self, "run_count", total_runs)
+        object.__setattr__(
+            self,
+            "_allowed_value_ids",
+            tuple(
+                frozenset(canonical_json_sha256(value) for value in variable.values)
+                for variable in self.definition.variables
+            ),
+        )
+
+    def __len__(self) -> int:
+        return self.run_count
+
+    def __iter__(self) -> Iterator[ExpandedRun]:
+        names = tuple(item.name for item in self.definition.variables)
+        combination_count = self.run_count // self.definition.repetition.repetitions
+        for combination_index in _ordered_combination_indices(
+            combination_count,
+            self.definition.repetition.order,
+            self.definition.repetition.ordering_seed,
+        ):
+            combination = _combination_at(self.definition, combination_index)
+            variables = tuple(zip(names, combination, strict=True))
+            for repetition in range(1, self.definition.repetition.repetitions + 1):
+                seed = self.definition.repetition.seeds[
+                    (repetition - 1) % len(self.definition.repetition.seeds)
+                ]
+                yield ExpandedRun(
+                    run_id=_canonical_run_id(
+                        self.plan_id,
+                        self.definition_id,
+                        variables,
+                        repetition,
+                        seed,
+                    ),
+                    plan_id=self.plan_id,
+                    definition_id=self.definition_id,
+                    experiment_id=self.definition.experiment_id,
+                    experiment_revision=self.definition.revision,
+                    repetition=repetition,
+                    seed=seed,
+                    variables=variables,
+                )
 
 
 def expand_experiment(
     definition: ExperimentDefinition,
     *,
     execution_nonce: str,
-) -> tuple[ExpandedRun, ...]:
-    validate_identifier(execution_nonce, "execution_nonce")
-    plan_id = (
-        "plan-"
+) -> ExpandedPlan:
+    return ExpandedPlan(definition, execution_nonce)
+
+
+def validate_expanded_run(plan: ExpandedPlan, run: ExpandedRun) -> None:
+    """Prove a run is one canonical member of its immutable expanded plan."""
+
+    if not isinstance(plan, ExpandedPlan):
+        raise ValueError("plan must be ExpandedPlan")
+    if not isinstance(run, ExpandedRun):
+        raise ValueError("run must be ExpandedRun")
+    definition = plan.definition
+    if (
+        run.plan_id != plan.plan_id
+        or run.definition_id != plan.definition_id
+        or run.experiment_id != definition.experiment_id
+        or run.experiment_revision != definition.revision
+    ):
+        raise CaseError("expanded run does not belong to this experiment plan")
+    expected_names = tuple(variable.name for variable in definition.variables)
+    if tuple(name for name, _ in run.variables) != expected_names:
+        raise CaseError("expanded run variables do not exactly match the experiment dimensions")
+    for variable, allowed, (_, value) in zip(
+        definition.variables,
+        plan._allowed_value_ids,
+        run.variables,
+        strict=True,
+    ):
+        if canonical_json_sha256(value) not in allowed:
+            raise CaseError(f"expanded run contains illegal value for variable {variable.name}")
+    if not 1 <= run.repetition <= definition.repetition.repetitions:
+        raise CaseError("expanded run repetition is outside the experiment plan")
+    expected_seed = definition.repetition.seeds[
+        (run.repetition - 1) % len(definition.repetition.seeds)
+    ]
+    if run.seed != expected_seed:
+        raise CaseError("expanded run seed does not match its repetition")
+    expected_run_id = _canonical_run_id(
+        plan.plan_id,
+        plan.definition_id,
+        run.variables,
+        run.repetition,
+        run.seed,
+    )
+    if run.run_id != expected_run_id:
+        raise CaseError("expanded run ID is not canonical for its plan content")
+
+
+def _canonical_run_id(
+    plan_id: str,
+    definition_id: str,
+    variables: tuple[tuple[str, Any], ...],
+    repetition: int,
+    seed: int,
+) -> str:
+    return (
+        "run-"
         + canonical_json_sha256(
             {
-                "definition_id": definition.definition_id,
-                "execution_nonce": execution_nonce,
+                "plan_id": plan_id,
+                "definition_id": definition_id,
+                "variables": {name: thaw_json(value) for name, value in variables},
+                "repetition": repetition,
+                "seed": seed,
             }
         )[:32]
     )
-    names = tuple(item.name for item in definition.variables)
-    combination_count = 1
-    for variable in definition.variables:
-        combination_count *= len(variable.values)
-        if combination_count > 1_000_000:
-            raise ValueError("expanded experiment exceeds one million runs")
-    total_runs = combination_count * definition.repetition.repetitions
-    if total_runs > 1_000_000:
-        raise ValueError("expanded experiment exceeds one million runs")
-    combinations = list(product(*(item.values for item in definition.variables)))
-    if not combinations:
-        combinations = [()]
-    if definition.repetition.order is VariableOrder.SEEDED_SHUFFLE:
-        import random
 
-        random.Random(definition.repetition.ordering_seed).shuffle(combinations)
-    runs: list[ExpandedRun] = []
-    for combination in combinations:
-        variables = tuple(zip(names, combination, strict=True))
-        for repetition in range(1, definition.repetition.repetitions + 1):
-            seed = definition.repetition.seeds[(repetition - 1) % len(definition.repetition.seeds)]
-            run_id = (
-                "run-"
-                + canonical_json_sha256(
-                    {
-                        "plan_id": plan_id,
-                        "variables": dict(variables),
-                        "repetition": repetition,
-                        "seed": seed,
-                    }
-                )[:32]
-            )
-            runs.append(
-                ExpandedRun(
-                    run_id=run_id,
-                    plan_id=plan_id,
-                    experiment_id=definition.experiment_id,
-                    experiment_revision=definition.revision,
-                    repetition=repetition,
-                    seed=seed,
-                    variables=variables,
-                )
-            )
-    if len(runs) != total_runs:
-        raise RuntimeError("expanded experiment run count does not match its bounded plan")
-    return tuple(runs)
+
+def _combination_at(
+    definition: ExperimentDefinition,
+    combination_index: int,
+) -> tuple[Any, ...]:
+    values = []
+    remaining = combination_index
+    for variable in reversed(definition.variables):
+        remaining, value_index = divmod(remaining, len(variable.values))
+        values.append(variable.values[value_index])
+    if remaining:
+        raise RuntimeError("combination index exceeds the bounded experiment dimensions")
+    return tuple(reversed(values))
+
+
+def _ordered_combination_indices(
+    combination_count: int,
+    order: VariableOrder,
+    ordering_seed: int,
+) -> Iterator[int]:
+    if order is VariableOrder.CANONICAL or combination_count <= 1:
+        yield from range(combination_count)
+        return
+    digest = int(
+        canonical_json_sha256(
+            {
+                "combination_count": combination_count,
+                "ordering_seed": ordering_seed,
+            }
+        ),
+        16,
+    )
+    offset = digest % combination_count
+    step = ((digest >> 128) % combination_count) or 1
+    while gcd(step, combination_count) != 1:
+        step = (step + 1) % combination_count or 1
+    for ordinal in range(combination_count):
+        yield (offset + ordinal * step) % combination_count
+
+
+def _definition_digest(value: object) -> str:
+    if not isinstance(value, str) or not value.startswith("sha256:"):
+        raise ValueError("definition_id must be a sha256-prefixed digest")
+    validate_sha256(value.removeprefix("sha256:"), "definition_id")
+    return value
+
+
+def _prefixed_digest(value: object, prefix: str, length: int, field_name: str) -> str:
+    if (
+        not isinstance(value, str)
+        or not value.startswith(prefix)
+        or len(value) != len(prefix) + length
+        or any(character not in "0123456789abcdef" for character in value[len(prefix) :])
+    ):
+        raise ValueError(f"{field_name} must be {prefix} followed by {length} lowercase hex digits")
+    return value
 
 
 def review_case(
@@ -689,6 +886,7 @@ __all__ = [
     "CapturePolicy",
     "CaseError",
     "CaseState",
+    "ExpandedPlan",
     "ExpandedRun",
     "ExperimentDefinition",
     "ExperimentReference",
@@ -704,4 +902,5 @@ __all__ = [
     "VariableOrder",
     "expand_experiment",
     "review_case",
+    "validate_expanded_run",
 ]

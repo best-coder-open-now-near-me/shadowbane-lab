@@ -3,12 +3,12 @@ from __future__ import annotations
 import hashlib
 import io
 import json
-import sys
 import tempfile
 import unittest
 from contextlib import redirect_stdout
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from unittest.mock import patch
 
 from client_alignment_fixture import build_pe
 
@@ -38,6 +38,7 @@ from shadowbane_lab.diagnostics import (
     compare_diagnostic_captures,
     run_diagnostic_capture,
 )
+from shadowbane_lab.diagnostics.collectors import ScreenshotCapture
 from shadowbane_lab.evidence import (
     ArtifactKind,
     ManifestTerminalState,
@@ -179,6 +180,18 @@ class _FakePerformanceSource:
         )
 
 
+class _FakeScreenshotCollector:
+    def __init__(self, payloads: tuple[bytes, ...]) -> None:
+        self._payloads = iter(payloads)
+
+    def poll(self, monotonic_ns: int) -> tuple[ScreenshotCapture, ...]:
+        try:
+            payload = next(self._payloads)
+        except StopIteration:
+            return ()
+        return (ScreenshotCapture(monotonic_ns, payload, 1, 1),)
+
+
 def _artifact_payload(result, channel_id: str) -> bytes:
     descriptors = [
         item
@@ -191,11 +204,17 @@ def _artifact_payload(result, channel_id: str) -> bytes:
         return stream.read()
 
 
+def _write_client_executable(root: Path) -> Path:
+    executable = root / "sb.exe"
+    executable.write_bytes(build_pe())
+    return executable
+
+
 class DiagnosticSessionTests(unittest.TestCase):
     def test_aggregate_performance_capture_seals_one_correlated_timeline(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            executable = Path(sys.executable)
+            executable = _write_client_executable(root)
             source_instances: list[_FakePerformanceSource] = []
 
             def source_factory(identity: ProcessIdentity) -> _FakePerformanceSource:
@@ -268,7 +287,7 @@ class DiagnosticSessionTests(unittest.TestCase):
     def test_standard_capture_seals_reusable_metrics_and_identity(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            executable = Path(sys.executable)
+            executable = _write_client_executable(root)
             result = run_diagnostic_capture(
                 DiagnosticRequest(
                     output_directory=root / "capture",
@@ -309,7 +328,7 @@ class DiagnosticSessionTests(unittest.TestCase):
     def test_native_position_uses_process_metric_clock_and_exact_identity(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            executable = Path(sys.executable)
+            executable = _write_client_executable(root)
             source: _FakeNativePositionSource | None = None
 
             def factory(process_id: int) -> _FakeNativePositionSource:
@@ -361,7 +380,7 @@ class DiagnosticSessionTests(unittest.TestCase):
     def test_native_position_identity_mismatch_is_sealed_as_omission(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            executable = Path(sys.executable)
+            executable = _write_client_executable(root)
             source = _FakeNativePositionSource(
                 executable,
                 process_id=143,
@@ -394,7 +413,7 @@ class DiagnosticSessionTests(unittest.TestCase):
     def test_triggered_capture_retains_only_configured_binary_pre_window(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            executable = Path(sys.executable)
+            executable = _write_client_executable(root)
             log = root / "client.log"
             log.write_bytes(b"a")
             appended = iter((b"b", b"c", b"d", b"e"))
@@ -438,10 +457,157 @@ class DiagnosticSessionTests(unittest.TestCase):
             self.assertTrue(result.summary["triggered"])
             self.assertEqual(b"bcd", _artifact_payload(result, "client-log"))
 
+    def test_screenshot_buffer_accepts_payload_at_exact_cap(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            executable = _write_client_executable(root)
+            collector = _FakeScreenshotCollector((b"1234",))
+            with patch(
+                "shadowbane_lab.diagnostics.session._MAX_SCREENSHOT_BUFFER_BYTES",
+                4,
+            ):
+                result = run_diagnostic_capture(
+                    DiagnosticRequest(
+                        output_directory=root / "capture",
+                        process_id=143,
+                        duration_seconds=0.1,
+                        sample_interval_seconds=0.1,
+                        client_executable=executable,
+                        screenshot_region=(0, 0, 1, 1),
+                        screenshot_interval_seconds=0.1,
+                    ),
+                    process_probe=_FakeProbe(executable),
+                    screenshot_factory=lambda _region, _interval: collector,
+                    clock=_FakeClock(),
+                )
+
+            self.assertIs(result.manifest.terminal_state, ManifestTerminalState.COMPLETE)
+            self.assertEqual(4, result.summary["retained_screenshot_bytes"])
+            self.assertEqual(4, result.summary["peak_screenshot_bytes"])
+            screenshots = [
+                item
+                for item in result.manifest.artifacts
+                if dict(item.metadata).get("channel_id") == "screenshots"
+            ]
+            self.assertEqual(1, len(screenshots))
+
+    def test_screenshot_buffer_rejects_crossing_cap_before_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            executable = _write_client_executable(root)
+            collector = _FakeScreenshotCollector((b"1234", b"5"))
+            with patch(
+                "shadowbane_lab.diagnostics.session._MAX_SCREENSHOT_BUFFER_BYTES",
+                4,
+            ):
+                result = run_diagnostic_capture(
+                    DiagnosticRequest(
+                        output_directory=root / "capture",
+                        process_id=144,
+                        duration_seconds=0.1,
+                        sample_interval_seconds=0.1,
+                        client_executable=executable,
+                        screenshot_region=(0, 0, 1, 1),
+                        screenshot_interval_seconds=0.1,
+                    ),
+                    process_probe=_FakeProbe(executable),
+                    screenshot_factory=lambda _region, _interval: collector,
+                    clock=_FakeClock(),
+                )
+
+            self.assertIs(result.manifest.terminal_state, ManifestTerminalState.INCOMPLETE)
+            self.assertEqual(4, result.summary["retained_screenshot_bytes"])
+            self.assertIn(
+                "would exceed 4 bytes",
+                result.summary["channel_failures"]["screenshots"],
+            )
+
+    def test_screenshot_buffer_rejects_single_payload_larger_than_cap(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            executable = _write_client_executable(root)
+            collector = _FakeScreenshotCollector((b"12345",))
+            with patch(
+                "shadowbane_lab.diagnostics.session._MAX_SCREENSHOT_BUFFER_BYTES",
+                4,
+            ):
+                result = run_diagnostic_capture(
+                    DiagnosticRequest(
+                        output_directory=root / "capture",
+                        process_id=145,
+                        duration_seconds=0.1,
+                        sample_interval_seconds=0.1,
+                        client_executable=executable,
+                        screenshot_region=(0, 0, 1, 1),
+                        screenshot_interval_seconds=0.1,
+                    ),
+                    process_probe=_FakeProbe(executable),
+                    screenshot_factory=lambda _region, _interval: collector,
+                    clock=_FakeClock(),
+                )
+
+            self.assertIs(result.manifest.terminal_state, ManifestTerminalState.INCOMPLETE)
+            self.assertEqual(0, result.summary["retained_screenshot_bytes"])
+            screenshots = [
+                item
+                for item in result.manifest.artifacts
+                if dict(item.metadata).get("channel_id") == "screenshots"
+            ]
+            self.assertEqual([], screenshots)
+
+    def test_triggered_capture_prunes_long_pretrigger_history_while_running(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            executable = _write_client_executable(root)
+            payloads = tuple(bytes((index, 0, 0)) for index in range(20))
+            collector = _FakeScreenshotCollector(payloads)
+            result = run_diagnostic_capture(
+                DiagnosticRequest(
+                    output_directory=root / "capture",
+                    process_id=146,
+                    profile=DiagnosticProfile.TRIGGERED,
+                    duration_seconds=2.0,
+                    sample_interval_seconds=0.1,
+                    pre_trigger_seconds=0.1,
+                    post_trigger_seconds=0.1,
+                    client_executable=executable,
+                    screenshot_region=(0, 0, 1, 1),
+                    screenshot_interval_seconds=0.1,
+                    trigger_rules=(
+                        TriggerRule(
+                            "process_private_bytes",
+                            TriggerOperator.GE,
+                            50,
+                            compare_to_baseline=True,
+                        ),
+                    ),
+                ),
+                process_probe=_FakeProbe(executable),
+                screenshot_factory=lambda _region, _interval: collector,
+                clock=_FakeClock(),
+            )
+
+            self.assertIs(result.manifest.terminal_state, ManifestTerminalState.COMPLETE)
+            self.assertEqual(9, result.summary["retained_screenshot_bytes"])
+            self.assertEqual(9, result.summary["peak_screenshot_bytes"])
+            screenshots = [
+                item
+                for item in result.manifest.artifacts
+                if dict(item.metadata).get("channel_id") == "screenshots"
+            ]
+            self.assertEqual(3, len(screenshots))
+            stream = json.loads(_artifact_payload(result, "capture-stream"))
+            cutoff = result.summary["retained_pre_trigger_cutoff_monotonic_ns"]
+            process_rows = [
+                item for item in stream["records"] if item["channel_id"] == "process-metrics"
+            ]
+            self.assertTrue(process_rows)
+            self.assertTrue(all(item["monotonic_ns"] >= cutoff for item in process_rows))
+
     def test_requested_missing_channel_is_explicitly_incomplete(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            executable = Path(sys.executable)
+            executable = _write_client_executable(root)
             result = run_diagnostic_capture(
                 DiagnosticRequest(
                     output_directory=root / "capture",
@@ -470,7 +636,7 @@ class DiagnosticSessionTests(unittest.TestCase):
     def test_pid_reuse_fails_closed_but_preserves_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            executable = Path(sys.executable)
+            executable = _write_client_executable(root)
             result = run_diagnostic_capture(
                 DiagnosticRequest(
                     output_directory=root / "capture",
@@ -492,7 +658,7 @@ class DiagnosticSessionTests(unittest.TestCase):
     def test_identity_change_during_fingerprinting_blocks_capture_start(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            executable = Path(sys.executable)
+            executable = _write_client_executable(root)
             with self.assertRaisesRegex(
                 DiagnosticError,
                 "between fingerprinting and capture start",
@@ -537,7 +703,7 @@ class DiagnosticSessionTests(unittest.TestCase):
     def test_analysis_is_stable_and_reuses_sealed_raw_samples(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            executable = Path(sys.executable)
+            executable = _write_client_executable(root)
             result = run_diagnostic_capture(
                 DiagnosticRequest(
                     output_directory=root / "capture",
@@ -561,7 +727,7 @@ class DiagnosticSessionTests(unittest.TestCase):
     def test_comparison_uses_raw_samples_from_both_captures(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            executable = Path(sys.executable)
+            executable = _write_client_executable(root)
             request = dict(
                 process_id=48,
                 duration_seconds=0.2,

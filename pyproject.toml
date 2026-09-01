@@ -30,7 +30,11 @@ client-extension = [
     "capstone>=5.0.6,<6",
 ]
 test = [
+    "capstone>=5.0.6,<6",
     "jsonschema>=4.23",
+    "Pillow>=11.0",
+    "PyAutoGUI>=0.9.54",
+    "pytest>=8.3",
     "ruff>=0.12",
 ]
 
@@ -51,3 +55,7 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "tests"]
+testpaths = ["tests"]
