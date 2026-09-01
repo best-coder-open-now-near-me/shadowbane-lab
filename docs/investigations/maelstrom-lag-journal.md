@@ -820,6 +820,42 @@ These are inferences, ordered by present fit rather than certainty.
 5. If safe, enter the camp while the pulled turtles remain outside.
 6. Record symptom severity for each condition before resuming the late-arrival control experiment.
 
+## 2026-09-01 — Run 04 isolates a visible-scene threshold inside the camp
+
+### Operator observation
+
+- The operator refers to the current or most recent live trial as `04`; its sealed run, manifest,
+  and report identities have not yet been copied into the journal.
+- PID `5416` physically entered the original turtle camp and remained inside it while the operator
+  changed camera zoom and coverage.
+- Zoom and camera composition forced different sections of the camp out of view without requiring
+  the character to leave the camp.
+- When enough of the camp contents or props were excluded from the camera, frame rate returned to a
+  good or near-normal state. Broader camp coverage reproduced the bad state.
+- The exact visible prop, creature, effect, sector, LOD, and zoom sets were not instrumented.
+
+### Updated interpretation
+
+- **Strengthened:** The immediate active cost depends on the size or membership of the currently
+  visible scene set, with an apparent threshold rather than simple inside-versus-outside locality.
+- **Strengthened:** Renderer submission, visibility bookkeeping, culling, LOD, scene traversal, or
+  resource activation now fit better than a purely geographic or server-traffic explanation.
+- **Weakened:** Being inside the camp cell is sufficient by itself to impose the full frame-rate
+  penalty; camera coverage can relieve it without movement.
+- **Not proven:** Static props specifically own the defect. Zoom also changes frustum coverage, LOD,
+  occlusion, turtle/effect visibility, draw count, and potentially resource-residency behavior.
+- **Still unresolved:** Whether one pathological sector or object crosses the boundary, or whether
+  aggregate visible-object complexity exceeds a nonlinear threshold.
+
+### Smallest next separation
+
+1. Hold position, combat state, and zoom fixed inside the camp.
+2. Pan across camp sectors one at a time to find the smallest view that reliably activates lag.
+3. At the worst heading, vary zoom without changing heading; then hold zoom fixed and vary heading
+   to separate coverage or LOD effects from a particular sector.
+4. Record whether turtles are inside each view and whether an emptied camp sector still activates.
+5. Preserve run `04` IDs and exact trigger timing before assigning the defect to props.
+
 ## Journal maintenance rule
 
 After every live test, append one entry containing:
