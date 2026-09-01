@@ -7,7 +7,6 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
-from shadowbane_lab.evidence import parse_artifact
 from shadowbane_lab.evidence.model import parse_artifact_id
 from shadowbane_lab.integrity import (
     canonical_json_sha256,

@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from importlib import import_module
 from io import BytesIO
-from pathlib import Path
 from typing import Any
 
 from shadowbane_lab.integrity import is_reparse_point

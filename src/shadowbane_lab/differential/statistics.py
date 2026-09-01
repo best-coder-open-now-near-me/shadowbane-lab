@@ -101,7 +101,11 @@ def summarize_samples(
                 (len(values) - 1) * stdev(values) ** 2
                 + (len(baseline) - 1) * stdev(baseline) ** 2
             ) / (len(values) + len(baseline) - 2)
-            effect_size = (estimate - baseline_mean) / sqrt(pooled_variance) if pooled_variance else 0.0
+            effect_size = (
+                (estimate - baseline_mean) / sqrt(pooled_variance)
+                if pooled_variance
+                else 0.0
+            )
         else:
             effect_size = 0.0 if estimate == baseline_mean else None
     stopping_rule = f"n>={minimum_samples}"

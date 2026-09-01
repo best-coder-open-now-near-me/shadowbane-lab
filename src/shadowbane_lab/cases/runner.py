@@ -347,7 +347,9 @@ def execute_run(
             if outcome.input_count != reserved_inputs:
                 raise CaseError("executor input report does not match its pre-action reservation")
             if float(outcome.resource_loss) != reserved_loss:
-                raise CaseError("executor resource report does not match its pre-action reservation")
+                raise CaseError(
+                    "executor resource report does not match its pre-action reservation"
+                )
             total_inputs += outcome.input_count
             total_loss += float(outcome.resource_loss)
             reported_elapsed += float(outcome.elapsed_seconds)

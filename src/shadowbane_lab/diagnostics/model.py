@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 from math import ceil, isfinite
 from pathlib import Path
-from typing import Mapping
 
 from shadowbane_lab.evidence import ArtifactKind
 from shadowbane_lab.integrity import validate_identifier

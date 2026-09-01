@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 
 @dataclass(frozen=True, slots=True)
@@ -246,9 +246,9 @@ class WindowsProcessProbe:
             kernel32.CloseHandle(handle)
 
 
-def _filetime_seconds(value: object) -> float:
-    high = getattr(value, "dwHighDateTime")
-    low = getattr(value, "dwLowDateTime")
+def _filetime_seconds(value: Any) -> float:
+    high = value.dwHighDateTime
+    low = value.dwLowDateTime
     return float(((high << 32) | low) / 10_000_000)
 
 

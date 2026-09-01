@@ -10,6 +10,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from client_alignment_fixture import build_pe
+
 from shadowbane_lab.cli import main
 from shadowbane_lab.diagnostics import (
     DiagnosticProfile,

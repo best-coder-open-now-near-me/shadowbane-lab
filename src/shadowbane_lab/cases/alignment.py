@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
-from shadowbane_lab.integrity import canonical_json_sha256, create_only_json, load_strict_json
+from shadowbane_lab.integrity import canonical_json_sha256, create_only_json
 
-from .capture import CaptureQuality, CaptureRecord, CaptureRecordKind
+from .capture import CaptureRecord, CaptureRecordKind
 from .model import CaseError
 
 SEMANTIC_TRACE_SCHEMA_VERSION = 1
@@ -166,7 +166,7 @@ def align_capture_records(records: tuple[CaptureRecord, ...]) -> SemanticTrace:
 
 def _utc_epoch_ns(value: str) -> int:
     parsed = datetime.fromisoformat(value.removesuffix("Z") + "+00:00")
-    return int(parsed.astimezone(timezone.utc).timestamp() * 1_000_000_000)
+    return int(parsed.astimezone(UTC).timestamp() * 1_000_000_000)
 
 
 def save_semantic_trace(path: str | Path, trace: SemanticTrace) -> None:
