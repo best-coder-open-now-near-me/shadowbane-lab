@@ -50,6 +50,13 @@ For a manual lag marker, choose a path that does not exist before capture:
 
 The collector observes the marker but does not create or delete it.
 
+When `-OutputRoot` is a UNC path, the launcher keeps the content-addressed store on the VM's local
+filesystem because VirtualBox shared folders do not provide the atomic rename semantics required by
+the store. After sealing and analyzing the capture, it creates a portable verified evidence bundle,
+copies the bundle and derived analysis to the requested share, verifies their SHA-256 values, writes
+an export receipt last, and removes the local staging directory. A failed or interrupted export does
+not weaken store semantics or masquerade as a completed export.
+
 ## Exact process and patched-client identity
 
 Every process sample reads the image path, PID, and Windows process creation FILETIME through the

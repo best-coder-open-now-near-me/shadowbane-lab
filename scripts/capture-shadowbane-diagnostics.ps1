@@ -123,6 +123,15 @@ elseif (-not (Test-Path -LiteralPath $GraphicsRuntimeStatus -PathType Leaf)) {
     throw "Graphics runtime status was not found: $GraphicsRuntimeStatus"
 }
 
+$exportOutputRoot = ''
+if ($OutputRoot.StartsWith('\\')) {
+    $exportOutputRoot = $OutputRoot
+    $OutputRoot = Join-Path $env:LOCALAPPDATA 'shadowbane-lab\diagnostic-staging'
+    Write-Host (
+        'Network output requested; capturing atomically on local storage before ' +
+        "verified bundle export to $exportOutputRoot"
+    )
+}
 if (-not (Test-Path -LiteralPath $OutputRoot -PathType Container)) {
     New-Item -ItemType Directory -Path $OutputRoot -Force | Out-Null
 }
@@ -219,6 +228,7 @@ $manifestDirectory = Join-Path $outputDirectory 'manifests'
 $manifest = @(
     Get-ChildItem -LiteralPath $manifestDirectory -Filter '*.manifest.json' -File -ErrorAction SilentlyContinue
 )
+$analysisPath = ''
 if (-not $NoAnalyze -and $manifest.Count -eq 1) {
     $analysisPath = Join-Path $outputDirectory 'analysis.json'
     $analysisArguments = @(
@@ -243,5 +253,98 @@ elseif (-not $NoAnalyze) {
     Write-Warning "Expected one sealed manifest for analysis; found $($manifest.Count)."
 }
 
-Write-Host "Diagnostic evidence: $outputDirectory"
+if ($exportOutputRoot) {
+    if ($manifest.Count -ne 1) {
+        throw "Cannot export diagnostic evidence without exactly one sealed manifest"
+    }
+    if (-not (Test-Path -LiteralPath $exportOutputRoot -PathType Container)) {
+        New-Item -ItemType Directory -Path $exportOutputRoot -Force | Out-Null
+    }
+    $captureName = Split-Path -Leaf $outputDirectory
+    $localBundle = Join-Path $OutputRoot "$captureName.evidence.zip"
+    $exportedBundle = Join-Path $exportOutputRoot "$captureName.evidence.zip"
+    $exportReceipt = Join-Path $exportOutputRoot "$captureName.export.json"
+    foreach ($path in @($localBundle, $exportedBundle, $exportReceipt)) {
+        if (Test-Path -LiteralPath $path) {
+            throw "Refusing to replace diagnostic export output: $path"
+        }
+    }
+    & $PythonPath -u -m shadowbane_lab.cli `
+        evidence `
+        bundle `
+        (Join-Path $outputDirectory 'store') `
+        $manifest[0].FullName `
+        $localBundle `
+        --json
+    if ($LASTEXITCODE -ne 0) {
+        throw "Diagnostic evidence bundling failed with exit code $LASTEXITCODE"
+    }
+    Copy-Item -LiteralPath $localBundle -Destination $exportedBundle
+    $localBundleFile = Get-Item -LiteralPath $localBundle
+    $exportedBundleFile = Get-Item -LiteralPath $exportedBundle
+    $localBundleSha256 = (
+        Get-FileHash -LiteralPath $localBundle -Algorithm SHA256
+    ).Hash.ToLowerInvariant()
+    $exportedBundleSha256 = (
+        Get-FileHash -LiteralPath $exportedBundle -Algorithm SHA256
+    ).Hash.ToLowerInvariant()
+    if (
+        $localBundleFile.Length -ne $exportedBundleFile.Length -or
+        $localBundleSha256 -cne $exportedBundleSha256
+    ) {
+        Remove-Item -LiteralPath $exportedBundle -Force -ErrorAction SilentlyContinue
+        throw "Exported diagnostic bundle differs from its verified local source"
+    }
+    $analysisExport = $null
+    $analysisSha256 = $null
+    if ($analysisPath) {
+        $analysisExport = Join-Path $exportOutputRoot "$captureName.analysis.json"
+        if (Test-Path -LiteralPath $analysisExport) {
+            throw "Refusing to replace diagnostic analysis export: $analysisExport"
+        }
+        Copy-Item -LiteralPath $analysisPath -Destination $analysisExport
+        $localAnalysisSha256 = (
+            Get-FileHash -LiteralPath $analysisPath -Algorithm SHA256
+        ).Hash.ToLowerInvariant()
+        $analysisSha256 = (
+            Get-FileHash -LiteralPath $analysisExport -Algorithm SHA256
+        ).Hash.ToLowerInvariant()
+        if ($localAnalysisSha256 -cne $analysisSha256) {
+            Remove-Item -LiteralPath $analysisExport -Force -ErrorAction SilentlyContinue
+            throw "Exported diagnostic analysis differs from its local source"
+        }
+    }
+    $receipt = [ordered]@{
+        schema_version = 1
+        status = 'verified_export'
+        exported_at_utc = [DateTime]::UtcNow.ToString('o')
+        capture_name = $captureName
+        manifest_id = $manifest[0].BaseName.Replace('.manifest', '')
+        bundle_file = Split-Path -Leaf $exportedBundle
+        bundle_size_bytes = $exportedBundleFile.Length
+        bundle_sha256 = $exportedBundleSha256
+        analysis_file = if ($analysisExport) { Split-Path -Leaf $analysisExport } else { $null }
+        analysis_sha256 = $analysisSha256
+    } | ConvertTo-Json
+    $utf8 = [Text.UTF8Encoding]::new($false)
+    [IO.File]::WriteAllText($exportReceipt, "$receipt`n", $utf8)
+
+    $resolvedStagingRoot = (Resolve-Path -LiteralPath $OutputRoot).Path.TrimEnd('\')
+    $resolvedOutputDirectory = (Resolve-Path -LiteralPath $outputDirectory).Path
+    $resolvedOutputParent = (Split-Path -Parent $resolvedOutputDirectory).TrimEnd('\')
+    $outputAttributes = (Get-Item -LiteralPath $resolvedOutputDirectory).Attributes
+    if ($resolvedOutputParent -cne $resolvedStagingRoot) {
+        throw "Refusing to clean diagnostic staging outside its exact local root"
+    }
+    if (($outputAttributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        throw "Refusing to clean a reparse-point diagnostic staging directory"
+    }
+    Remove-Item -LiteralPath $resolvedOutputDirectory -Recurse -Force
+    Remove-Item -LiteralPath $localBundle -Force
+    Write-Host "Diagnostic evidence bundle: $exportedBundle"
+    Write-Host "Diagnostic export receipt: $exportReceipt"
+}
+else {
+    Write-Host "Diagnostic evidence: $outputDirectory"
+}
 exit $captureExitCode

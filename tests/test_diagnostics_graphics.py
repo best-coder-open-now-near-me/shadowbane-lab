@@ -78,6 +78,11 @@ class GraphicsPresentEvidenceTests(unittest.TestCase):
             "Test-Path -LiteralPath $expectedGraphicsRuntimeStatus -PathType Leaf",
             launcher,
         )
+        self.assertIn("$OutputRoot.StartsWith('\\\\')", launcher)
+        self.assertIn("shadowbane-lab\\diagnostic-staging", launcher)
+        self.assertIn("evidence `\n        bundle `", launcher)
+        self.assertIn("bundle_sha256 = $exportedBundleSha256", launcher)
+        self.assertIn("status = 'verified_export'", launcher)
 
     def test_static_import_is_exact_but_active_route_remains_unresolved(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
