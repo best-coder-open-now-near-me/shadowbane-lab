@@ -91,6 +91,12 @@ priorities:
    policy. A wrapper that merely renames a Python command should not be added.
 4. Standardize operator documentation on the installed `shadowbane-lab` command. Reserve
    `python -m ...` spellings for maintenance modules without console entry points.
+5. Make read-only camera-state telemetry a required capture-once diagnostic channel. Bind every
+   sample to exact PID, creation time, executable fingerprint, and reviewed build mapping; record
+   the normalized forward vector on the process-metric monotonic clock; seal omissions and mapping
+   failures instead of guessing; and correlate direction or angular changes with resource and frame
+   spikes offline. Provide an explicit mapping discovery and review workflow for new executable
+   builds rather than promoting heuristic candidates automatically.
 6. Establish the shared integrity package, content-addressed evidence manifests, complete
    fingerprint envelope, and research-case runner before adding deeper binary, asset, network, or
    memory-discovery commands.
