@@ -205,8 +205,12 @@ class GraphicsPresentEvidenceTests(unittest.TestCase):
         self.assertIn("evidence `\n        bundle `", launcher)
         self.assertIn("bundle_sha256 = $exportedBundleSha256", launcher)
         self.assertIn("status = 'verified_export'", launcher)
+        self.assertIn("[switch]$HotspotProtocol", launcher)
+        self.assertIn("$IntervalSeconds = 0.125", launcher)
+        self.assertIn("$arguments.Add('--performance-telemetry')", launcher)
         self.assertIn("'--native-position'", launcher)
         self.assertIn("$arguments.Add('--camera-state')", launcher)
+        self.assertIn("--phase complete --finish", launcher)
 
     def test_static_import_is_exact_but_active_route_remains_unresolved(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

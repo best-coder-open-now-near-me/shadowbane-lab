@@ -1,8 +1,11 @@
+import io
 import json
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 
+from shadowbane_lab.cli import main
 from shadowbane_lab.diagnostics.markers import (
     ObservationMarkerInbox,
     ObservationPhase,
@@ -12,6 +15,36 @@ from shadowbane_lab.diagnostics.process import ProcessIdentity
 
 
 class ObservationMarkerTests(unittest.TestCase):
+    def test_cli_submits_marker_to_the_authenticated_active_capture(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            inbox = ObservationMarkerInbox(
+                output,
+                "diag-test",
+                ProcessIdentity(42, 1000, "C:/Wonderbane/sb.exe"),
+            )
+            stdout = io.StringIO()
+
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    (
+                        "diagnose",
+                        "mark",
+                        str(output),
+                        "stationary at camp center",
+                        "--phase",
+                        "stationary",
+                        "--json",
+                    )
+                )
+
+            payload = json.loads(stdout.getvalue())
+            retained = inbox.poll()
+            self.assertEqual(0, exit_code)
+            self.assertTrue(payload["ok"])
+            self.assertEqual("stationary", payload["phase"])
+            self.assertEqual(payload["marker_id"], retained[0].marker_id)
+
     def test_submits_multiple_timestamped_markers_without_game_input(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary)

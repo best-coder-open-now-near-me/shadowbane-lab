@@ -49,6 +49,50 @@ Full means higher-frequency core counters plus every channel explicitly requeste
 It does not silently start privileged collectors. This distinction keeps a run honest: an omitted
 ETW trace is not reported as captured.
 
+## Turtle-camp hotspot protocol
+
+Use the focused protocol when one run must distinguish cold arrival streaming from warm resident
+slowdown:
+
+    .\scripts\capture-shadowbane-diagnostics.ps1 -HotspotProtocol -ProcessId 6888
+
+`-HotspotProtocol` binds one exact PID and creation time, enables aggregate performance telemetry,
+samples process/player state every 125 ms (8 Hz), and uses a 300-second safety limit. A manual
+`complete` marker ends it early. The native producer publishes exactly one aggregate record per
+present: frame time plus cache-read and texture-upload count, bytes, and summed duration. It does
+not publish one event per read or upload.
+
+The launcher prints the unique evidence directory and four exact marker commands before capture.
+Run those commands in another terminal at these visible boundaries:
+
+1. Mark `cold-approach` immediately before approaching and crossing the camp center.
+2. Mark `stationary` on arrival, then stand still there for about 20 seconds.
+3. Leave the area, mark `warm-return`, and cross the same center again.
+4. Mark `complete` with `--finish` after the warm crossing.
+
+The underlying command is create-only and authenticated to that capture. For example:
+
+    python -m shadowbane_lab.cli diagnose mark <evidence-directory> `
+        'stationary at camp center' --phase stationary
+
+It only writes a marker beside the capture. It never injects a key, sends window input, writes game
+memory, or guesses an offset. Restart or PID reuse still fails closed. Player LT, LG, and altitude
+come only from a reviewed exact-build mapping; camera samples are included when the exact
+identity-bound graphics status is available.
+
+The capture writes and seals one convenience file named `<run-id>.timeline.json` in the evidence
+directory. It contains every retained frame, aggregate cache/upload totals, 5-10 Hz player samples,
+camera samples when available, all observation markers, nearest-sample references, and phase-aware
+hitch classifications. Its summary keeps the two expensive follow-ups evidence-gated:
+
+- `cpu_stack_capture_recommended` becomes true only after at least three stationary slow frames
+  have neither cache reads nor texture uploads.
+- `texture_identity_followup_recommended` becomes true only when the warm return still uploads
+  textures; IDs and lifetimes can then determine whether the same assets are repeating.
+
+The aggregate timeline cannot identify a CPU call stack or prove that two uploads name the same
+texture. Those remain separate optional captures so the normal reproduction stays low-overhead.
+
 The triggered CLI supplies two conservative defaults when no explicit or manual trigger is given:
 
 - private bytes grow by at least 256 MiB from the first sample for two consecutive samples; or

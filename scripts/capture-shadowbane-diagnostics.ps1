@@ -39,11 +39,28 @@ param(
     [double]$InitialLogMiB = 1.0,
     [ValidateRange(0.001, 16384.0)]
     [double]$MaximumChannelMiB = 64.0,
+    [switch]$PerformanceTelemetry,
+    [switch]$HotspotProtocol,
     [switch]$NoAnalyze
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+if ($HotspotProtocol) {
+    if ($AllMatchingProcesses) {
+        throw 'HotspotProtocol requires one exact process, not AllMatchingProcesses.'
+    }
+    if ($DurationSeconds -eq 0.0) {
+        $DurationSeconds = 300.0
+    }
+    if ($IntervalSeconds -eq 0.0) {
+        $IntervalSeconds = 0.125
+    }
+    if ($IntervalSeconds -lt 0.1 -or $IntervalSeconds -gt 0.2) {
+        throw 'HotspotProtocol requires IntervalSeconds from 0.1 through 0.2 (5-10 Hz).'
+    }
+}
 
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $sourceDirectory = Join-Path $repositoryRoot 'src'
@@ -275,6 +292,9 @@ Add-Option -Name '--graphics-runtime-status' -Value $GraphicsRuntimeStatus
 if ($GraphicsRuntimeStatus) {
     $arguments.Add('--camera-state')
 }
+if ($PerformanceTelemetry -or $HotspotProtocol) {
+    $arguments.Add('--performance-telemetry')
+}
 Add-Option -Name '--extension-events' -Value $ExtensionEvents
 Add-Option -Name '--network-summary' -Value $NetworkSummary
 Add-Option -Name '--packet-capture' -Value $PacketCapture
@@ -299,6 +319,23 @@ $arguments.Add('--json')
 $env:PYTHONPATH = $sourceDirectory
 Write-Host "Capturing $Profile diagnostics for PID $($clientProcess.Id)."
 Write-Host "Evidence directory: $outputDirectory"
+if ($HotspotProtocol) {
+    $markerPrefix = (
+        "& '$PythonPath' -u -m shadowbane_lab.cli diagnose mark " +
+        "'$outputDirectory'"
+    )
+    Write-Host 'Hotspot protocol is active at 5-10 Hz. In another terminal, mark:'
+    Write-Host (
+        "$markerPrefix 'approach and cross camp center' --phase cold-approach"
+    )
+    Write-Host (
+        "$markerPrefix 'stationary at camp center' --phase stationary"
+    )
+    Write-Host (
+        "$markerPrefix 'leave and cross again warm' --phase warm-return"
+    )
+    Write-Host "$markerPrefix 'protocol complete' --phase complete --finish"
+}
 & $PythonPath @arguments
 $captureExitCode = $LASTEXITCODE
 
