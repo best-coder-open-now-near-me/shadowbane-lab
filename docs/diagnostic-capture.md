@@ -85,8 +85,11 @@ presentation imports without claiming that an imported function is the active ru
 
 Static import presence has `exact-live-executable-bytes` authority. The active route remains
 `unresolved`, and renderer work that depends on a proven frame boundary remains blocked, until the
-extension publishes identity-bound runtime status with a positive call count. When that producer is
-available, include its create-new JSON file:
+extension publishes identity-bound runtime status with a positive call count. The launcher derives
+the exact status filename from the selected process ID and its creation FILETIME and includes it
+automatically when that file exists under
+`%LOCALAPPDATA%\ShadowbaneLab\client-extension`. An explicit path remains available for offline or
+relocated evidence:
 
     .\scripts\capture-shadowbane-diagnostics.ps1 -Profile full -GraphicsRuntimeStatus 'C:\ShadowbaneLab\graphics-status.json'
 

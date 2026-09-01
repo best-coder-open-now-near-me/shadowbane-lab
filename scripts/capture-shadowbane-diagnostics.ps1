@@ -106,6 +106,23 @@ if ($matchingProcesses.Count -ne 1) {
 }
 $clientProcess = $matchingProcesses[0]
 
+$processCreationFiletimeUtc = $clientProcess.StartTime.ToUniversalTime().ToFileTimeUtc()
+if (-not $GraphicsRuntimeStatus) {
+    $graphicsStatusDirectory = Join-Path (
+        Join-Path $env:LOCALAPPDATA 'ShadowbaneLab'
+    ) 'client-extension'
+    $expectedGraphicsRuntimeStatus = Join-Path $graphicsStatusDirectory (
+        "graphics-status-$($clientProcess.Id)-$processCreationFiletimeUtc.json"
+    )
+    if (Test-Path -LiteralPath $expectedGraphicsRuntimeStatus -PathType Leaf) {
+        $GraphicsRuntimeStatus = $expectedGraphicsRuntimeStatus
+        Write-Host "Using exact graphics runtime status: $GraphicsRuntimeStatus"
+    }
+}
+elseif (-not (Test-Path -LiteralPath $GraphicsRuntimeStatus -PathType Leaf)) {
+    throw "Graphics runtime status was not found: $GraphicsRuntimeStatus"
+}
+
 if (-not (Test-Path -LiteralPath $OutputRoot -PathType Container)) {
     New-Item -ItemType Directory -Path $OutputRoot -Force | Out-Null
 }

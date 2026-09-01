@@ -60,6 +60,25 @@ def _status(executable: Path, identity: ProcessIdentity) -> dict[str, object]:
 
 
 class GraphicsPresentEvidenceTests(unittest.TestCase):
+    def test_capture_launcher_auto_discovers_identity_bound_runtime_status(self) -> None:
+        launcher = (
+            Path(__file__).resolve().parents[1]
+            / "scripts"
+            / "capture-shadowbane-diagnostics.ps1"
+        ).read_text(encoding="utf-8")
+        self.assertIn(
+            "$clientProcess.StartTime.ToUniversalTime().ToFileTimeUtc()",
+            launcher,
+        )
+        self.assertIn(
+            '"graphics-status-$($clientProcess.Id)-$processCreationFiletimeUtc.json"',
+            launcher,
+        )
+        self.assertIn(
+            "Test-Path -LiteralPath $expectedGraphicsRuntimeStatus -PathType Leaf",
+            launcher,
+        )
+
     def test_static_import_is_exact_but_active_route_remains_unresolved(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             executable = Path(temporary) / "sb.exe"
