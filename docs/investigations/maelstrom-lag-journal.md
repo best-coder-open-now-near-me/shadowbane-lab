@@ -389,6 +389,30 @@ These are inferences, ordered by present fit rather than certainty.
   count on each side, and whether the recurrence is immediate on crossing or delayed until models
   appear.
 
+### Different-camp control result
+
+**Operator observation**
+
+- Without relogging the Warlock/client, the operator moved to a different camp.
+- The different camp was quite smooth, with no comparable lag.
+- The comparison camp's creature type and turtle presence have not yet been recorded.
+
+**Supported or strengthened**
+
+- The expensive state is activated by the original turtle camp or its particular loaded/visible
+  set, not by a continuously global process slowdown.
+- The accumulated client/session can still render another camp smoothly, which further narrows the
+  candidate boundary toward original-camp entities, density, resources, scene-cell streaming, or
+  region-scoped replication.
+
+**Interpretation branch awaiting one fact**
+
+- If the smooth camp also contains turtles, generic turtle species/animation cost is strongly
+  weakened and the original camp instance, composition, density, asset set, or scene cell becomes
+  the lead.
+- If the smooth camp contains different creatures, the result confirms locality but does not yet
+  distinguish turtle-specific handling from the original camp's environmental state.
+
 ### Observations to record during this run
 
 1. Approximate completed turtle fights from this point.
