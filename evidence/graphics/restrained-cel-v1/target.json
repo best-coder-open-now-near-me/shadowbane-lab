@@ -73,14 +73,14 @@
   },
   "runtime_translation": {
     "band_source": "compatibility vertex program using the client's original mesh normals",
-    "extension_version": "1.5.1",
+    "extension_version": "1.5.2",
     "fog_modes_preserved": ["linear", "exp", "exp2"],
     "fragment_program": "GLSL 1.20 compatibility fragment program preserving texture environment and fog",
     "per_model_preview_exposure": "reference-only; not applied at runtime",
     "texture_manifest_path": "assets/wonderbane_graphics/restrained-cel-v1/texture-patches.json",
     "texture_patch_id": "wonderbane-1.0.5-55fbad5f.restrained-cel-v1",
     "unsupported_state_behavior": "preserve the client's original fill",
-    "vertex_processing": "GLSL 1.20 compatibility vertex program preserves client transforms and texture coordinates while deriving one-sun cel intensity from original normals"
+    "vertex_processing": "GLSL 1.20 compatibility vertex program preserves client transforms and texture coordinates while deriving one-sun cel intensity from original normals; display-list, array, and immediate-mode terrain submissions share the same band policy"
   },
   "schema_version": 1,
   "target_id": "wonderbane-55fb-restrained-cel-v1"

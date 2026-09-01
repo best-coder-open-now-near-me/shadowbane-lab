@@ -56,6 +56,7 @@ int main() {
         || std::strstr(vertex_source, "#version 120") == nullptr
         || std::strstr(vertex_source, "gl_NormalMatrix * gl_Normal") == nullptr
         || std::strstr(vertex_source, "normalLength > 0.0001") == nullptr
+        || std::strstr(vertex_source, "0.30 + 0.82 * diffuse") == nullptr
         || std::strstr(vertex_source, "gl_ModelViewMatrix * gl_Vertex") == nullptr
         || std::strstr(vertex_source, "wbIntensity") == nullptr
         || std::strstr(fragment_source, "gl_Color.rgb") == nullptr

@@ -124,7 +124,7 @@ void main() {
         : vec3(0.0, 0.0, 1.0);
     vec3 lightDirection = normalize(vec3(-0.35, 0.55, 0.76));
     float diffuse = max(dot(normal, lightDirection), 0.0);
-    wbIntensity = clamp(0.18 + 0.94 * diffuse, 0.0, 1.0);
+    wbIntensity = clamp(0.30 + 0.82 * diffuse, 0.0, 1.0);
 
     vec4 eyePosition = gl_ModelViewMatrix * gl_Vertex;
     gl_FogFragCoord = abs(eyePosition.z);

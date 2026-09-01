@@ -84,10 +84,10 @@ def test_graphics_publication_and_launch_pin_the_golden_package() -> None:
     launch = (ROOT / "scripts" / "launch-wonderbane-graphics-baseline.ps1").read_text(
         encoding="utf-8"
     )
-    assert 'ExtensionVersion = "1.5.1"' in publish
+    assert 'ExtensionVersion = "1.5.2"' in publish
     assert "--texture-patch-manifest $TexturePatchManifest" in publish
     assert "--texture-artifact-directory $TextureArtifactDirectory" in publish
     assert "texture_patch_manifest_sha256" in publish
-    assert 'ExtensionVersion = "1.5.1"' in launch
+    assert 'ExtensionVersion = "1.5.2"' in launch
     assert manifest_sha256 in launch
     assert "wonderbane-1.0.5-55fbad5f.restrained-cel-v1" in launch

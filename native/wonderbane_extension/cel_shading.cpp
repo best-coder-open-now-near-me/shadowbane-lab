@@ -120,7 +120,7 @@ using GlPolygonOffset = void(APIENTRY*)(float factor, float units);
 
 PVOID volatile g_original_shade_model = nullptr;
 PVOID volatile g_original_begin = nullptr;
-PVOID volatile g_end = nullptr;
+PVOID volatile g_original_end = nullptr;
 PVOID volatile g_original_call_list = nullptr;
 PVOID volatile g_original_new_list = nullptr;
 PVOID volatile g_original_end_list = nullptr;
@@ -154,6 +154,7 @@ PVOID volatile g_depth_func = nullptr;
 PVOID volatile g_polygon_offset = nullptr;
 std::uint32_t* g_shade_model_slot = nullptr;
 std::uint32_t* g_begin_slot = nullptr;
+std::uint32_t* g_end_slot = nullptr;
 std::uint32_t* g_call_list_slot = nullptr;
 std::uint32_t* g_new_list_slot = nullptr;
 std::uint32_t* g_end_list_slot = nullptr;
@@ -183,6 +184,8 @@ struct VertexArrayState {
 
 thread_local VertexArrayState g_vertex_array_state{};
 thread_local VertexArrayState g_tex_coord_array_state{};
+thread_local BandedLightingDraw g_immediate_banded_draw{};
+thread_local bool g_immediate_primitive_open = false;
 
 struct CapturedVertex {
     std::array<float, 3U> position{};
@@ -959,7 +962,7 @@ void DrawFeatureEdgeSegments(
     const auto begin = LoadFunction<GlBegin>(&g_original_begin);
     const auto vertex = LoadFunction<GlVertex3f>(&g_original_vertex_3f);
     const auto tex_coord = LoadFunction<GlTexCoord2f>(&g_tex_coord_2f);
-    const auto end = LoadFunction<GlEnd>(&g_end);
+    const auto end = LoadFunction<GlEnd>(&g_original_end);
     if (contour_width <= 0.0F || begin == nullptr || vertex == nullptr
         || end == nullptr || edges.empty()) {
         return;
@@ -1210,11 +1213,39 @@ void APIENTRY StrongShadeModel(const unsigned int mode) noexcept {
     }
 }
 
+bool IsCurrentPerspectiveProjection() noexcept {
+    const auto get_floatv = LoadFunction<GlGetFloatv>(&g_get_floatv);
+    if (get_floatv == nullptr) {
+        return false;
+    }
+    std::array<float, 16U> projection{};
+    get_floatv(kGlProjectionMatrix, projection.data());
+    return IsPerspectiveProjectionMatrix(projection.data(), projection.size());
+}
+
 void APIENTRY StrongBegin(const unsigned int mode) noexcept {
+    const bool compiling = IsCompilingDisplayListOnCurrentThread();
     CaptureDisplayListBegin(mode);
     const auto original = LoadFunction<GlBegin>(&g_original_begin);
     if (original != nullptr) {
+        g_immediate_banded_draw = {};
+        if (!compiling && IsFilledPrimitiveMode(mode)
+            && IsCurrentPerspectiveProjection()) {
+            BeginBandedLightingDraw(&g_immediate_banded_draw);
+        }
         original(mode);
+        g_immediate_primitive_open = true;
+    }
+}
+
+void APIENTRY StrongEnd() noexcept {
+    const auto original = LoadFunction<GlEnd>(&g_original_end);
+    if (original != nullptr) {
+        original();
+    }
+    if (g_immediate_primitive_open) {
+        EndBandedLightingDraw(&g_immediate_banded_draw);
+        g_immediate_primitive_open = false;
     }
 }
 
@@ -1864,6 +1895,7 @@ DWORD StartStrongCelShading() noexcept {
     if (
         g_shade_model_slot != nullptr
         || g_begin_slot != nullptr
+        || g_end_slot != nullptr
         || g_call_list_slot != nullptr
         || g_new_list_slot != nullptr
         || g_end_list_slot != nullptr
@@ -1879,7 +1911,7 @@ DWORD StartStrongCelShading() noexcept {
         || g_disable_client_state_slot != nullptr
         || g_original_shade_model != nullptr
         || g_original_begin != nullptr
-        || g_end != nullptr
+        || g_original_end != nullptr
         || g_original_call_list != nullptr
         || g_original_new_list != nullptr
         || g_original_end_list != nullptr
@@ -1929,7 +1961,7 @@ DWORD StartStrongCelShading() noexcept {
     ) {
         return ERROR_BAD_EXE_FORMAT;
     }
-    std::array<ImportHookPlan, 15U> plans{{
+    std::array<ImportHookPlan, 16U> plans{{
         {
             "glShadeModel",
             reinterpret_cast<PVOID>(&StrongShadeModel),
@@ -1945,6 +1977,14 @@ DWORD StartStrongCelShading() noexcept {
             nullptr,
             &g_original_begin,
             &g_begin_slot,
+        },
+        {
+            "glEnd",
+            reinterpret_cast<PVOID>(&StrongEnd),
+            nullptr,
+            nullptr,
+            &g_original_end,
+            &g_end_slot,
         },
         {
             "glCallList",
@@ -2083,8 +2123,7 @@ DWORD StartStrongCelShading() noexcept {
         }
     }
 
-    std::array<HelperFunctionPlan, 19U> helpers{{
-        {"glEnd", &g_end, nullptr},
+    std::array<HelperFunctionPlan, 18U> helpers{{
         {"glTexCoord2f", &g_tex_coord_2f, nullptr},
         {"glGetFloatv", &g_get_floatv, nullptr},
         {"glGetBooleanv", &g_get_booleanv, nullptr},
@@ -2121,6 +2160,8 @@ DWORD StartStrongCelShading() noexcept {
     g_current_matrix_mode = kGlModelView;
     g_vertex_array_state = {};
     g_tex_coord_array_state = {};
+    g_immediate_banded_draw = {};
+    g_immediate_primitive_open = false;
     ResetBandedLighting();
     for (ImportHookPlan& plan : plans) {
         InterlockedExchangePointer(plan.original_storage, plan.original);
@@ -2247,6 +2288,13 @@ void StopStrongCelShading() noexcept {
         restored = false;
     }
     if (!RestoreHook(
+            &g_end_slot,
+            &g_original_end,
+            reinterpret_cast<PVOID>(&StrongEnd)
+        )) {
+        restored = false;
+    }
+    if (!RestoreHook(
             &g_shade_model_slot,
             &g_original_shade_model,
             reinterpret_cast<PVOID>(&StrongShadeModel)
@@ -2262,8 +2310,9 @@ void StopStrongCelShading() noexcept {
         g_current_matrix_mode = kGlModelView;
         g_vertex_array_state = {};
         g_tex_coord_array_state = {};
+        g_immediate_banded_draw = {};
+        g_immediate_primitive_open = false;
         ResetBandedLighting();
-        InterlockedExchangePointer(&g_end, nullptr);
         InterlockedExchangePointer(&g_tex_coord_2f, nullptr);
         InterlockedExchangePointer(&g_polygon_offset, nullptr);
         InterlockedExchangePointer(&g_depth_func, nullptr);
