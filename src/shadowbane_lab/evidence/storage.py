@@ -16,6 +16,7 @@ from shadowbane_lab.integrity import (
     hash_file,
     is_reparse_point,
     load_strict_json,
+    resolve_within_root,
     validate_identifier,
 )
 
@@ -100,7 +101,11 @@ class ArtifactStore:
 
     def object_path(self, artifact_id: str) -> Path:
         digest = parse_artifact_id(artifact_id)[7:]
-        return self.objects_directory / digest[:2] / digest[2:]
+        relative = f"objects/sha256/{digest[:2]}/{digest[2:]}"
+        try:
+            return resolve_within_root(self.root, relative)
+        except ValueError as exc:
+            raise EvidenceError("artifact object path is unsafe") from exc
 
     def ingest_bytes(
         self,
@@ -252,16 +257,18 @@ class ArtifactStore:
             raise
 
     def _publish_stage(self, stage: Path, descriptor: ArtifactDescriptor) -> None:
-        target = self.object_path(descriptor.artifact_id or "")
-        target.parent.mkdir(parents=True, exist_ok=True)
         try:
-            os.link(stage, target)
-        except FileExistsError as exc:
-            valid, issue = self.verify_descriptor(descriptor)
-            if not valid:
-                raise EvidenceError(f"existing artifact object is corrupt: {issue}") from exc
-        except OSError as exc:
-            raise EvidenceError(f"could not publish artifact object: {exc}") from exc
+            target = self.object_path(descriptor.artifact_id or "")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target = self.object_path(descriptor.artifact_id or "")
+            try:
+                os.link(stage, target)
+            except FileExistsError as exc:
+                valid, issue = self.verify_descriptor(descriptor)
+                if not valid:
+                    raise EvidenceError(f"existing artifact object is corrupt: {issue}") from exc
+            except OSError as exc:
+                raise EvidenceError(f"could not publish artifact object: {exc}") from exc
         finally:
             stage.unlink(missing_ok=True)
         valid, issue = self.verify_descriptor(descriptor)

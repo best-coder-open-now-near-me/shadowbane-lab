@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import tempfile
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
+from unittest.mock import patch
 
 from jsonschema import Draft202012Validator
 from referencing import Registry, Resource
@@ -31,7 +33,7 @@ from shadowbane_lab.evidence import (
     verify_bundle,
     verify_manifest,
 )
-from shadowbane_lab.integrity import canonical_timestamp
+from shadowbane_lab.integrity import PathSecurityError, canonical_timestamp
 
 
 class EvidenceSpineTests(unittest.TestCase):
@@ -75,6 +77,102 @@ class EvidenceSpineTests(unittest.TestCase):
             self.assertEqual((True, None), store.verify_descriptor(first))
             with store.open_artifact(first.artifact_id or "") as stream:
                 self.assertEqual(b"evidence", stream.read())
+
+    def test_object_path_rejects_reparse_at_every_existing_segment(self) -> None:
+        payload = b"reparse containment"
+        digest = hashlib.sha256(payload).hexdigest()
+        artifact_id = f"sha256:{digest}"
+        for segment in ("algorithm", "prefix", "object"):
+            with self.subTest(segment=segment), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                store = self._store(root)
+                outside_directory = root / f"outside-{segment}"
+                outside_directory.mkdir()
+                if segment == "algorithm":
+                    unsafe = store.objects_directory
+                    unsafe.rmdir()
+                    target = outside_directory
+                    directory_link = True
+                elif segment == "prefix":
+                    unsafe = store.objects_directory / digest[:2]
+                    target = outside_directory
+                    directory_link = True
+                else:
+                    unsafe = store.objects_directory / digest[:2] / digest[2:]
+                    unsafe.parent.mkdir()
+                    target = outside_directory / "object"
+                    target.write_bytes(payload)
+                    directory_link = False
+                try:
+                    unsafe.symlink_to(target, target_is_directory=directory_link)
+                except OSError:
+                    self.skipTest("symlink creation is not permitted")
+
+                with self.assertRaisesRegex(EvidenceError, "object path is unsafe"):
+                    store.object_path(artifact_id)
+
+    def test_publication_revalidation_is_fail_closed_without_symlink_support(self) -> None:
+        payload = b"deterministic publication containment"
+        digest = hashlib.sha256(payload).hexdigest()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            store = self._store(root)
+            target = store.objects_directory / digest[:2] / digest[2:]
+            calls = 0
+
+            def reject_second_resolution(_root: Path, _relative: str) -> Path:
+                nonlocal calls
+                calls += 1
+                if calls == 2:
+                    raise PathSecurityError("simulated prefix replacement")
+                return target
+
+            with (
+                patch(
+                    "shadowbane_lab.evidence.storage.resolve_within_root",
+                    side_effect=reject_second_resolution,
+                ),
+                self.assertRaisesRegex(EvidenceError, "object path is unsafe"),
+            ):
+                self._descriptor(store, payload)
+
+            self.assertEqual(2, calls)
+            self.assertEqual((), store.quarantine_inventory())
+            self.assertFalse(target.exists())
+
+    def test_publication_revalidates_containment_and_cleans_stage(self) -> None:
+        payload = b"publication containment"
+        digest = hashlib.sha256(payload).hexdigest()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            store = self._store(root)
+            outside = root / "outside"
+            outside.mkdir()
+            probe = root / "symlink-probe"
+            try:
+                probe.symlink_to(outside, target_is_directory=True)
+            except OSError:
+                self.skipTest("symlink creation is not permitted")
+            probe.unlink()
+            prefix = store.objects_directory / digest[:2]
+            original_object_path = store.object_path
+            calls = 0
+
+            def swap_before_revalidation(artifact_id: str) -> Path:
+                nonlocal calls
+                calls += 1
+                if calls == 2:
+                    prefix.rmdir()
+                    prefix.symlink_to(outside, target_is_directory=True)
+                return original_object_path(artifact_id)
+
+            with (
+                patch.object(store, "object_path", side_effect=swap_before_revalidation),
+                self.assertRaisesRegex(EvidenceError, "object path is unsafe"),
+            ):
+                self._descriptor(store, payload)
+
+            self.assertEqual((), store.quarantine_inventory())
 
     def test_manifest_and_receipt_round_trip_and_refuse_overwrite(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
