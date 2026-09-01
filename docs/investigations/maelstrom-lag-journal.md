@@ -355,6 +355,40 @@ These are inferences, ordered by present fit rather than certainty.
   producer/package changes or deliberately merge the complete renderer line; it must not silently
   import unrelated visual behavior into the evidence branch.
 
+### Camp-boundary activation result
+
+**Operator observation**
+
+- After the Warlock degradation became clearly noticeable, the operator moved out of the turtle
+  camp while a turtle remained engaged and following/attacking the character.
+- The lag let up outside the camp despite that turtle remaining active.
+- Heading back into the camp caused the Warlock to become substantially laggy again almost
+  immediately.
+- The character was not relogged between the relief and recurrence, so both states occurred within
+  the same accumulated client/session state.
+
+**Supported or strengthened**
+
+- The active cost is spatially gated by the turtle camp or its visible/loaded entity set. Candidate
+  gates include multiple turtle instances, scene-cell streaming, camp environment resources,
+  visibility/LOD bookkeeping, and region-scoped replicated state.
+- The result fits a two-part model: exposure accumulates latent state, while camp presence or
+  visibility activates its expensive per-frame cost.
+
+**Ruled out or weakened**
+
+- One engaged turtle's ordinary animation or combat loop is not sufficient to maintain the severe
+  lag outside the camp.
+- A continuously global process slowdown is weakened because responsiveness improves without a
+  relog or process reset when the camp is left.
+
+**Next boundary test**
+
+- Repeat one out/in pass without additional kills, keeping camera direction and travel stance as
+  stable as practical. Record the approximate spatial or visibility threshold, visible turtle
+  count on each side, and whether the recurrence is immediate on crossing or delayed until models
+  appear.
+
 ### Observations to record during this run
 
 1. Approximate completed turtle fights from this point.
