@@ -27,10 +27,12 @@ from shadowbane_lab.sim import (
     EntityState,
     ModifyTag,
     PhaseKind,
+    RangeBand,
     ReferenceEnvironment,
     SubjectRef,
     TagOperation,
     TargetingSpec,
+    open_range_action,
 )
 
 
@@ -69,6 +71,33 @@ def _decision(
 
 
 class StanceRuntimeTests(unittest.TestCase):
+    def test_kiting_policy_opens_range_after_the_target_is_controlled(self) -> None:
+        retreat = open_range_action(RangeBand(minimum=30.0, maximum=120.0))
+        actor = _actor(
+            "actor",
+            "red",
+            Vector2(0.0, 0.0),
+            (retreat.action_key,),
+        )
+        actor.tags.add("behavior.kite")
+        actor.scalars["move_speed"] = 30.0
+        target = _actor("target", "blue", Vector2(5.0, 0.0))
+        target.tags.update(("debuff", "snare"))
+        environment = ReferenceEnvironment(
+            ActionCatalog((retreat,)),
+            (actor, target),
+            seed=5,
+        )
+
+        decision = UtilityDuelPolicy(100.0).decide(
+            environment.exchange("actor"),
+            "kite-controlled-target",
+        )
+
+        self.assertIsNotNone(decision)
+        assert decision is not None
+        self.assertEqual(retreat.action_key, decision.action_key)
+
     def test_stance_multipliers_drive_damage_weapon_timing_and_snapshots(self) -> None:
         strike = ActionSpec(
             action_key="weapon-strike",

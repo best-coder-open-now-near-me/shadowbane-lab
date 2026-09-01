@@ -116,6 +116,27 @@ The scenario accepts its bundled source-revision sheets and reviewed static rule
 explicitly. See [wonderbane-sundancer-deflock-presets.md](wonderbane-sundancer-deflock-presets.md)
 for the complete inputs, first sweep and remaining live calibration boundaries.
 
+## Elf Druid guide matchups
+
+The bundled `wonderbane-druid-duels` scenario adds the archived Elf Healer Druid and can run it
+against either complete existing guide build. The matrix crosses visible and hidden Assassin
+openers automatically and includes the Deflock cells once per distance:
+
+```powershell
+python -m shadowbane_lab.rollouts `
+  --scenario wonderbane-druid-duels `
+  --matrix `
+  --distances 6,15,40,100 `
+  --episodes 1000 `
+  --max-ticks 2400 `
+  --json
+```
+
+For one duel, omit `--matrix`, set `--druid-opponent assassin` or
+`--druid-opponent warlock`, and use `--assassin-stealthed` when applicable. See
+[wonderbane-elf-druid-presets.md](wonderbane-elf-druid-presets.md) for the source-pinned build,
+action semantics, 20-seed sweep and live-data boundaries.
+
 The checked-in level-75 source scenarios are
 `configs/combat/irekei-proc-assassin-75.source.json` and
 `configs/combat/nephilim-resist-warlock-75.source.json`. They intentionally describe naked

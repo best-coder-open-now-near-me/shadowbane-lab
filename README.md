@@ -64,7 +64,8 @@ an emergency stop, and explicit profile confirmation. See [the architecture](doc
 [capture-once diagnostic runbook](docs/diagnostic-capture.md),
 [evidence-spine architecture](docs/evidence-spine.md),
 [evidence-spine delivery plan](docs/evidence-spine-delivery-plan.md),
-[tool ownership map](docs/tooling-map.md), and
+[tool ownership map](docs/tooling-map.md),
+[Elf Druid guide matchup](docs/wonderbane-elf-druid-presets.md), and
 [development plan](docs/plan.md).
 
 ## Local validation
@@ -79,6 +80,7 @@ python -m shadowbane_lab.rollouts --matrix --levels 10,42,75 --ranks 0,20,40 --d
 python -m shadowbane_lab.rollouts --scenario irekei-proc --level 59 --json
 python -m shadowbane_lab.rollouts --scenario verified-duel --left-profile .\assassin.json --right-profile .\warlock.json --episodes 1000 --accept-source-revision --accept-ruleset-overrides --json
 python -m shadowbane_lab.rollouts --scenario wonderbane-guide-duel --matrix --distances 6,15,40,100 --episodes 1000 --assassin-stealthed --max-ticks 2400 --json
+python -m shadowbane_lab.rollouts --scenario wonderbane-druid-duels --matrix --distances 6,15,40,100 --episodes 1000 --max-ticks 2400 --json
 python -m shadowbane_lab.cli client observe-native-progression --json
 python -m shadowbane_lab.cli client observe-native-training --json
 python -m shadowbane_lab.cli client advise-irekei-proc --json
