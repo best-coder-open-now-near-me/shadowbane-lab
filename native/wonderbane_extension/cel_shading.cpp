@@ -550,13 +550,14 @@ std::vector<CapturedDisplayListBounds::FeatureEdge> BuildArrayFeatureEdges(
     const int count,
     const unsigned int index_type,
     const void* const indices,
-    OutlineHullTransform* const hull
+    const bool capture_feature_edges,
+    bool* const planar_overlay_candidate
 ) noexcept {
     std::vector<CapturedDisplayListBounds::FeatureEdge> empty{};
     const VertexArrayState state = g_vertex_array_state;
     const VertexArrayState tex_coord_state = g_tex_coord_array_state;
-    if (hull != nullptr) {
-        *hull = {};
+    if (planar_overlay_candidate != nullptr) {
+        *planar_overlay_candidate = false;
     }
     if (!state.enabled || state.pointer == nullptr || state.type != kGlFloat
         || state.size < 2 || state.size > 4 || state.stride < 0
@@ -603,7 +604,8 @@ std::vector<CapturedDisplayListBounds::FeatureEdge> BuildArrayFeatureEdges(
     if (!IsReadableMemoryRange(state.pointer, required_vertex_bytes)) {
         return empty;
     }
-    const bool collect_feature_edges = count <= kMaximumFeatureEdgeElementCount;
+    const bool collect_feature_edges = capture_feature_edges
+        && count <= kMaximumFeatureEdgeElementCount;
     const bool has_tex_coords = collect_feature_edges && tex_coord_state.enabled
         && tex_coord_state.pointer != nullptr
         && tex_coord_state.type == kGlFloat
@@ -708,12 +710,9 @@ std::vector<CapturedDisplayListBounds::FeatureEdge> BuildArrayFeatureEdges(
             }
             capture.vertices.push_back(captured);
         }
-        if (has_bounds && hull != nullptr) {
-            CenteredOutlineHullTransform(
-                &bounds,
-                static_cast<float>(kOutlineWorldThickness),
-                hull
-            );
+        if (has_bounds && planar_overlay_candidate != nullptr) {
+            *planar_overlay_candidate = IsFilledPrimitiveMode(mode)
+                && IsPlanarOverlayGeometry(&bounds, requested, 1U);
         }
         if (!collect_feature_edges) {
             return empty;
@@ -1134,8 +1133,27 @@ void DrawWithSilhouette(
         draw();
         return;
     }
-    const bool planar_overlay_candidate = feature_list != UINT32_MAX
-        && IsPlanarOverlayCandidate(feature_list);
+    const bool outline_enabled = IsFeatureAccentDrawState(
+        IsLocalOutlineModelViewMatrix(model_view.data(), model_view.size()),
+        depth_writes != FALSE,
+        blend_enabled != FALSE,
+        lighting_enabled != FALSE
+    );
+    bool array_planar_overlay_candidate = false;
+    auto feature_edges = array_features == nullptr
+        ? std::vector<CapturedDisplayListBounds::FeatureEdge>{}
+        : BuildArrayFeatureEdges(
+            array_features->mode,
+            array_features->first,
+            array_features->count,
+            array_features->index_type,
+            array_features->indices,
+            outline_enabled,
+            &array_planar_overlay_candidate
+        );
+    const bool planar_overlay_candidate = (
+        feature_list != UINT32_MAX && IsPlanarOverlayCandidate(feature_list)
+    ) || array_planar_overlay_candidate;
     if (IsPlanarOverlayDrawState(
             planar_overlay_candidate,
             texture_enabled != FALSE,
@@ -1149,22 +1167,7 @@ void DrawWithSilhouette(
         return;
     }
 
-    const bool outline_enabled = (
-        IsLocalOutlineModelViewMatrix(model_view.data(), model_view.size())
-        && depth_writes != FALSE
-    );
     const float outline_width = outline_enabled ? kTargetOutlinePixels : 0.0F;
-
-    const auto feature_edges = !outline_enabled || array_features == nullptr
-        ? std::vector<CapturedDisplayListBounds::FeatureEdge>{}
-        : BuildArrayFeatureEdges(
-            array_features->mode,
-            array_features->first,
-            array_features->count,
-            array_features->index_type,
-            array_features->indices,
-            nullptr
-        );
 
     DrawWithBandedLighting(draw);
     if (outline_enabled && feature_list != UINT32_MAX) {
@@ -1925,6 +1928,16 @@ bool IsPlanarOverlayDrawState(
         && (alpha_test_enabled || blend_enabled)
         && !lighting_enabled
         && !fog_enabled;
+}
+
+bool IsFeatureAccentDrawState(
+    const bool local_model,
+    const bool depth_writes,
+    const bool blend_enabled,
+    const bool lighting_enabled
+) noexcept {
+    return local_model
+        && (depth_writes || (!blend_enabled && lighting_enabled));
 }
 
 std::uint32_t* FindImportAddressSlot(

@@ -4,18 +4,18 @@ param(
     [string] $DiagnosticsShare = "\\VBOXSVR\codexdiag",
     [string] $PythonExecutable = "$env:USERPROFILE\shadowbane-lab\.venv\Scripts\python.exe",
     [string] $ContentBuildId = "wb-55fbad5f-4b602995",
-    [string] $ExtensionVersion = "1.5.8",
+    [string] $ExtensionVersion = "1.5.9",
     [string] $PackageDirectory = (
-        "S:\Wonderbane-graphics-wb-55fbad5f-4b602995-cel-1.5.8"
+        "S:\Wonderbane-graphics-wb-55fbad5f-4b602995-cel-1.5.9"
     )
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-$expectedExtensionSha256 = "1550724038d38344178be79721bb1204d3e65838ef49fd31b092d89f03dd1898"
-$expectedExtensionRelativePath = "wonderbane-extension-1.5.8.dll"
-$expectedExecutableSha256 = "a86feb1a3a35a40a64df9c87de590cf8f37ce29e5649a92626de68489150754a"
+$expectedExtensionSha256 = "ef78dfece79f7d5211d3c0ddab10eff3d18cb8fdaa55acd3a3c48d10f4a0aac4"
+$expectedExtensionRelativePath = "wonderbane-extension-1.5.9.dll"
+$expectedExecutableSha256 = "453321704915d5d61da2322d85c4e74175549acd17aa617acc76b25412131885"
 $expectedTexturePatchId = "wonderbane-1.0.5-55fbad5f.restrained-cel-v1"
 $expectedTexturePatchManifestSha256 = (
     "1128d1c82463805b6acfb5841d46c608362170963535b9db39be0f5e9079197c"

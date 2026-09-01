@@ -408,3 +408,10 @@ Because the bootstrap embeds the versioned extension filename, each extension re
 distinct patched-executable identity. The 1.5.8 publisher pins and verifies that deterministic
 result before copying the client, records it in new dry-run and publication receipts, and the
 launcher checks the sealed package plus the actual executable against the same reviewed SHA-256.
+
+Extension 1.5.9 gives opaque, lit equipment layers a fixed one-pixel feature-accent owner even when
+the client intentionally preserves the existing depth buffer. This closes footwear and
+object-ground boundaries that the screen-space depth pass cannot observe, without admitting
+blended or unlit text into the equipment path. Planar overlay detection now also covers indexed and
+sequential vertex-array glyph geometry, while feature-edge construction remains gated to draws that
+can actually receive an accent.

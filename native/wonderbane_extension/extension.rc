@@ -19,11 +19,11 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "Shadowbane Lab\0"
             VALUE "FileDescription", "WonderBane persistent client extension\0"
-            VALUE "FileVersion", "1.5.8.0\0"
+            VALUE "FileVersion", "1.5.9.0\0"
             VALUE "InternalName", "wonderbane-extension\0"
             VALUE "OriginalFilename", "wonderbane-extension.dll\0"
             VALUE "ProductName", "Shadowbane Lab WonderBane extension\0"
-            VALUE "ProductVersion", "1.5.8.0\0"
+            VALUE "ProductVersion", "1.5.9.0\0"
         END
     END
     BLOCK "VarFileInfo"

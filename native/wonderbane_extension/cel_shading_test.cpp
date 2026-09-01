@@ -286,6 +286,25 @@ int wmain() {
     ) {
         return Fail(L"planar overlay render-state policy");
     }
+    if (
+        !wonderbane::extension::IsFeatureAccentDrawState(
+            true, true, false, true
+        )
+        || !wonderbane::extension::IsFeatureAccentDrawState(
+            true, false, false, true
+        )
+        || wonderbane::extension::IsFeatureAccentDrawState(
+            true, false, true, true
+        )
+        || wonderbane::extension::IsFeatureAccentDrawState(
+            true, false, false, false
+        )
+        || wonderbane::extension::IsFeatureAccentDrawState(
+            false, true, false, true
+        )
+    ) {
+        return Fail(L"layered equipment feature-accent policy");
+    }
     constexpr std::array<int, 4U> viewport{0, 0, 1200, 800};
     std::array<float, 16U> near_model_view = local_model_view;
     near_model_view[14] = -50.0F;

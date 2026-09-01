@@ -41,7 +41,7 @@ def test_restrained_cel_target_is_pinned_end_to_end() -> None:
         assert _sha256(ROOT / sample["atlas_path"]) == sample["atlas_sha256"]
 
     runtime = target["runtime_translation"]
-    assert runtime["extension_version"] == "1.5.8"
+    assert runtime["extension_version"] == "1.5.9"
     assert runtime["depth_edge_radius_pixels"] == 1.0
     assert "inverse-eye-depth curvature" in runtime["depth_edge_source"]
     manifest_path = ROOT / runtime["texture_manifest_path"]
@@ -89,23 +89,29 @@ def test_graphics_publication_and_launch_pin_the_golden_package() -> None:
     launch = (ROOT / "scripts" / "launch-wonderbane-graphics-baseline.ps1").read_text(
         encoding="utf-8"
     )
-    assert 'ExtensionVersion = "1.5.8"' in publish
-    assert "wonderbane-extension-1.5.8.dll" in publish
+    assert 'ExtensionVersion = "1.5.9"' in publish
+    assert "wonderbane-extension-1.5.9.dll" in publish
     assert r"\build\wonderbane-client-extension\Release" in publish
-    assert "1550724038d38344178be79721bb1204d3e65838ef49fd31b092d89f03dd1898" in publish
-    assert "a86feb1a3a35a40a64df9c87de590cf8f37ce29e5649a92626de68489150754a" in publish
+    assert "ef78dfece79f7d5211d3c0ddab10eff3d18cb8fdaa55acd3a3c48d10f4a0aac4" in publish
+    assert "453321704915d5d61da2322d85c4e74175549acd17aa617acc76b25412131885" in publish
     assert "$extensionSha256 -cne $ExpectedExtensionSha256" in publish
     assert "$resultExecutableSha256 -cne $ExpectedExecutableSha256" in publish
     assert "patched_executable_sha256" in publish
     assert "--texture-patch-manifest $TexturePatchManifest" in publish
     assert "--texture-artifact-directory $TextureArtifactDirectory" in publish
     assert "texture_patch_manifest_sha256" in publish
-    assert 'ExtensionVersion = "1.5.8"' in launch
-    assert "1550724038d38344178be79721bb1204d3e65838ef49fd31b092d89f03dd1898" in launch
-    assert '$expectedExtensionRelativePath = "wonderbane-extension-1.5.8.dll"' in launch
+    assert 'ExtensionVersion = "1.5.9"' in launch
+    assert "ef78dfece79f7d5211d3c0ddab10eff3d18cb8fdaa55acd3a3c48d10f4a0aac4" in launch
+    assert '$expectedExtensionRelativePath = "wonderbane-extension-1.5.9.dll"' in launch
     assert 'Properties["extension_relative_path"]' in launch
-    assert "a86feb1a3a35a40a64df9c87de590cf8f37ce29e5649a92626de68489150754a" in launch
+    assert "453321704915d5d61da2322d85c4e74175549acd17aa617acc76b25412131885" in launch
     assert 'Properties["result_executable_sha256"]' in launch
     assert "verify-copy" in launch
     assert manifest_sha256 in launch
     assert "wonderbane-1.0.5-55fbad5f.restrained-cel-v1" in launch
+
+    cel_shading = (
+        ROOT / "native" / "wonderbane_extension" / "cel_shading.cpp"
+    ).read_text(encoding="utf-8")
+    assert "IsFeatureAccentDrawState" in cel_shading
+    assert "array_planar_overlay_candidate" in cel_shading
