@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 
 from jsonschema import Draft202012Validator
@@ -30,6 +31,7 @@ from shadowbane_lab.cases import (
     load_experiment,
     save_case,
     save_experiment,
+    validate_expanded_run,
 )
 from shadowbane_lab.cli import main
 from shadowbane_lab.evidence import (
@@ -116,16 +118,128 @@ class ResearchCaseTests(unittest.TestCase):
                 Draft202012Validator(schema).validate(contract)
 
     def test_expansion_is_deterministic_and_complete(self) -> None:
-        first = expand_experiment(self._definition(), execution_nonce="review-1")
-        second = expand_experiment(self._definition(), execution_nonce="review-1")
-        self.assertEqual(first, second)
+        definition = self._definition()
+        first = expand_experiment(definition, execution_nonce="review-1")
+        second = expand_experiment(definition, execution_nonce="review-1")
+        first_runs = tuple(first)
+        self.assertEqual(first_runs, tuple(second))
         self.assertEqual(6, len(first))
-        self.assertEqual(("rank", 1), first[0].variables[0])
-        self.assertEqual(11, first[0].seed)
+        self.assertEqual(("rank", 1), first_runs[0].variables[0])
+        self.assertEqual(11, first_runs[0].seed)
+        self.assertEqual(definition.definition_id, first_runs[0].definition_id)
         self.assertNotEqual(
-            first,
-            expand_experiment(self._definition(), execution_nonce="review-2"),
+            first.plan_id,
+            expand_experiment(definition, execution_nonce="review-2").plan_id,
         )
+
+    def test_definition_identity_is_detached_from_mutable_inputs(self) -> None:
+        precondition = {"client": {"ready": True}}
+        variable = {"route": ["approach", "cross"]}
+        binding = {"targets": ["turtle-camp"]}
+        seeds = [11, 22]
+        definition = replace(
+            self._definition(),
+            preconditions=(("fixture_ready", precondition),),
+            variables=(ExperimentVariable("config", (variable,)),),
+            repetition=RepetitionPolicy(2, seeds),
+            steps=(
+                ExperimentStep(
+                    1,
+                    StepKind.SEMANTIC_DECISION,
+                    (("action_key", "travel"), ("binding", binding)),
+                ),
+                ExperimentStep(2, StepKind.STOP, (("reason", "complete"),)),
+            ),
+        )
+        definition_id = definition.definition_id
+
+        precondition["client"]["ready"] = False
+        variable["route"].append("leave")
+        binding["targets"].append("maelstrom")
+        seeds[0] = 99
+
+        self.assertEqual(definition_id, definition.definition_id)
+        self.assertEqual((11, 22), definition.repetition.seeds)
+        self.assertEqual(
+            {"fixture_ready": {"client": {"ready": True}}},
+            definition.as_dict()["preconditions"],
+        )
+        self.assertEqual(
+            [{"route": ["approach", "cross"]}],
+            definition.variables[0].as_dict()["values"],
+        )
+        with self.assertRaises(TypeError):
+            definition.variables[0].values[0]["route"] = ()
+
+    def test_forged_expanded_runs_are_rejected_before_execution(self) -> None:
+        plan = expand_experiment(self._definition(), execution_nonce="identity-check")
+        run = next(iter(plan))
+
+        with self.assertRaisesRegex(CaseError, "experiment plan"):
+            validate_expanded_run(
+                plan,
+                replace(run, plan_id="plan-00000000000000000000000000000000"),
+            )
+        with self.assertRaisesRegex(CaseError, "experiment plan"):
+            validate_expanded_run(
+                plan,
+                replace(run, definition_id="sha256:" + "0" * 64),
+            )
+        with self.assertRaisesRegex(CaseError, "illegal value"):
+            validate_expanded_run(plan, replace(run, variables=(("rank", 99),)))
+        with self.assertRaisesRegex(CaseError, "not canonical"):
+            validate_expanded_run(
+                plan,
+                replace(run, run_id="run-00000000000000000000000000000000"),
+            )
+
+    def test_million_run_plan_is_bounded_but_lazily_iterated(self) -> None:
+        definition = replace(
+            self._definition(),
+            variables=(
+                ExperimentVariable("a", tuple(range(1000))),
+                ExperimentVariable("b", tuple(range(1000))),
+            ),
+            repetition=RepetitionPolicy(1, (11,)),
+        )
+
+        plan = expand_experiment(definition, execution_nonce="lazy-million")
+        first = next(iter(plan))
+
+        self.assertEqual(1_000_000, len(plan))
+        self.assertEqual(("a", 0), first.variables[0])
+        self.assertEqual(("b", 0), first.variables[1])
+
+    def test_stop_condition_seals_decision_and_halts_remaining_plan(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            store = ArtifactStore.initialize(root / "store", store_id="case-stop-test")
+            executor = RecordedExecutor(
+                {1: {"emergency_stop": True, "result": 10}},
+                completed_channels=("semantic_trace",),
+            )
+
+            results = tuple(
+                execute_plan(
+                    case=self._case(),
+                    definition=self._definition(),
+                    fingerprint=self._fingerprint(),
+                    store=store,
+                    manifest_directory=str(root / "manifests"),
+                    executor=executor,
+                    execution_nonce="stop-condition-1",
+                )
+            )
+
+        self.assertEqual(1, len(results))
+        result = results[0]
+        self.assertIs(result.manifest.terminal_state, ManifestTerminalState.FAILED)
+        self.assertEqual(["emergency_stop"], result.record["triggered_stop_conditions"])
+        self.assertEqual(
+            "stop condition triggered: emergency_stop",
+            result.record["execution_error"],
+        )
+        self.assertEqual(1, len(result.record["stop_condition_evaluations"]))
 
     def test_step_algebra_rejects_undeclared_execution_authority(self) -> None:
         with self.assertRaises(ValueError):
@@ -147,14 +261,16 @@ class ResearchCaseTests(unittest.TestCase):
                 {1: {"result": 10}, 2: {}},
                 completed_channels=("semantic_trace",),
             )
-            results = execute_plan(
-                case=self._case(),
-                definition=self._definition(),
-                fingerprint=self._fingerprint(),
-                store=store,
-                manifest_directory=str(root / "manifests"),
-                executor=executor,
-                execution_nonce="recorded-1",
+            results = tuple(
+                execute_plan(
+                    case=self._case(),
+                    definition=self._definition(),
+                    fingerprint=self._fingerprint(),
+                    store=store,
+                    manifest_directory=str(root / "manifests"),
+                    executor=executor,
+                    execution_nonce="recorded-1",
+                )
             )
             self.assertEqual(6, len(results))
             self.assertTrue(

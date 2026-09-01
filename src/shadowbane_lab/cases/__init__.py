@@ -30,6 +30,7 @@ from .model import (
     CapturePolicy,
     CaseError,
     CaseState,
+    ExpandedPlan,
     ExpandedRun,
     ExperimentDefinition,
     ExperimentReference,
@@ -45,6 +46,7 @@ from .model import (
     VariableOrder,
     expand_experiment,
     review_case,
+    validate_expanded_run,
 )
 from .runner import (
     DryRunExecutor,
@@ -68,6 +70,7 @@ __all__ = [
     "CaseState",
     "DryRunExecutor",
     "ExecutionControl",
+    "ExpandedPlan",
     "ExpandedRun",
     "ExperimentDefinition",
     "ExperimentReference",
@@ -107,5 +110,6 @@ __all__ = [
     "save_experiment",
     "save_semantic_trace",
     "validate_case_experiment",
+    "validate_expanded_run",
     "vendor_dialog_executor",
 ]

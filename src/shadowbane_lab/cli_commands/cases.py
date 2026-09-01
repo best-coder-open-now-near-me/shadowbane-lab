@@ -169,14 +169,16 @@ def _run(arguments: Namespace, *, as_json: bool) -> int:
     executor = (
         DryRunExecutor() if arguments.recorded is None else _recorded_executor(arguments.recorded)
     )
-    results = execute_plan(
-        case=case,
-        definition=definition,
-        fingerprint=fingerprint,
-        store=store,
-        manifest_directory=str(arguments.manifest_directory),
-        executor=executor,
-        execution_nonce=arguments.execution_nonce,
+    results = tuple(
+        execute_plan(
+            case=case,
+            definition=definition,
+            fingerprint=fingerprint,
+            store=store,
+            manifest_directory=str(arguments.manifest_directory),
+            executor=executor,
+            execution_nonce=arguments.execution_nonce,
+        )
     )
     complete = sum(
         item.manifest.terminal_state is ManifestTerminalState.COMPLETE for item in results

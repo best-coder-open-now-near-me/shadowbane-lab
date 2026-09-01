@@ -220,16 +220,18 @@ class HardenedRunnerTests(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         root = Path(temporary.name)
         store = ArtifactStore.initialize(root / "store", store_id="runner-hardening")
-        result = execute_plan(
-            case=self._case(),
-            definition=self._definition(),
-            fingerprint=self._fingerprint(),
-            store=store,
-            manifest_directory=str(root / "manifests"),
-            executor=executor,
-            execution_nonce="fixture",
-            cancellation_requested=(lambda: cancelled),
-        )[0]
+        result = next(
+            execute_plan(
+                case=self._case(),
+                definition=self._definition(),
+                fingerprint=self._fingerprint(),
+                store=store,
+                manifest_directory=str(root / "manifests"),
+                executor=executor,
+                execution_nonce="fixture",
+                cancellation_requested=(lambda: cancelled),
+            )
+        )
         return result, store
 
     def test_repeat_executes_only_the_declared_range(self) -> None:
