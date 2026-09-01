@@ -160,6 +160,55 @@ class ForegroundWorkerOperationIngressTests(unittest.TestCase):
 
         self.assertEqual(captured_client.instance_id, dispatch.operation.instance_id)
 
+    def test_cancel_if_inflight_is_input_free_and_coalesced(self) -> None:
+        manifest = _manifest()
+        with tempfile.TemporaryDirectory() as directory:
+            ledger = WorkerOperationLedger(manifest, directory)
+            ingress = ForegroundWorkerOperationIngress(
+                manifest,
+                _Registry((_client(),)),
+                _Permits(_permit()),
+                ledger,
+                clock=lambda: 100.0,
+                acknowledgement_timeout_seconds=0.01,
+            )
+
+            self.assertIsNone(
+                ingress.cancel_if_inflight(
+                    "physical-client-interaction",
+                    expected_process_id=GAME_PROCESS_ID,
+                )
+            )
+            travel = ingress.dispatch(
+                WorkerOperationKind.TRAVEL,
+                "/go 106662 52432",
+                destination=WorkerTravelDestination(106_662.0, 52_432.0),
+                expected_process_id=GAME_PROCESS_ID,
+            )
+            cancellation = ingress.cancel_if_inflight(
+                "physical-client-interaction",
+                expected_process_id=GAME_PROCESS_ID,
+            )
+            duplicate = ingress.cancel_if_inflight(
+                "physical-client-interaction",
+                expected_process_id=GAME_PROCESS_ID,
+            )
+            snapshots = ledger.inspect_slot(CLIENT_ID)
+
+        self.assertIsNotNone(cancellation)
+        assert cancellation is not None
+        self.assertEqual(WorkerOperationKind.CANCEL, cancellation.operation.kind)
+        self.assertIsNone(cancellation.operation.destination)
+        self.assertIsNone(duplicate)
+        self.assertCountEqual(
+            [WorkerOperationKind.TRAVEL, WorkerOperationKind.CANCEL],
+            [snapshot.operation.kind for snapshot in snapshots],
+        )
+        self.assertEqual(
+            travel.operation.target_identity(),
+            cancellation.operation.target_identity(),
+        )
+
     def test_exact_captured_client_rejects_reused_process_on_wrong_window(self) -> None:
         manifest = _manifest()
         captured_client = replace(_client(), is_foreground=False)

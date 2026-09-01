@@ -90,6 +90,91 @@ class ForegroundWorkerOperationIngress:
         operation_id: str | None = None,
         deduplication_id: str | None = None,
     ) -> WorkerOperationDispatch:
+        now, client, permit = self._resolve_target(
+            expected_process_id=expected_process_id,
+            expected_window_handle=expected_window_handle,
+            require_foreground=require_foreground,
+        )
+        return self._submit(
+            client,
+            new_worker_operation(
+                permit,
+                kind,
+                command,
+                destination=destination,
+                now=now,
+                ttl_seconds=self._operation_ttl_seconds,
+                operation_id=operation_id,
+                deduplication_id=deduplication_id,
+            ),
+        )
+
+    def cancel_if_inflight(
+        self,
+        command: str,
+        *,
+        expected_process_id: int | None = None,
+        expected_window_handle: int | None = None,
+        require_foreground: bool = True,
+        operation_id: str | None = None,
+    ) -> WorkerOperationDispatch | None:
+        """Cancel exact in-flight automation without issuing client input.
+
+        Existing non-terminal cancellations are coalesced. Public ``/stop`` remains
+        a separate physical movement-stop operation.
+        """
+
+        now, client, permit = self._resolve_target(
+            expected_process_id=expected_process_id,
+            expected_window_handle=expected_window_handle,
+            require_foreground=require_foreground,
+        )
+        target_identity = (
+            permit.node_id,
+            permit.client_id,
+            permit.instance_id,
+            permit.worker_id,
+            permit.process_id,
+            permit.process_started_at_100ns,
+        )
+        has_inflight_automation = False
+        for snapshot in self._operations.inspect_slot(permit.client_id):
+            operation = snapshot.operation
+            if operation.target_identity() != target_identity:
+                continue
+            receipt = snapshot.receipt
+            if receipt is not None and receipt.state.terminal:
+                continue
+            if receipt is None and operation.expires_at <= now:
+                continue
+            if operation.kind is WorkerOperationKind.CANCEL:
+                return None
+            if operation.kind in {
+                WorkerOperationKind.TRAVEL,
+                WorkerOperationKind.PVE,
+            }:
+                has_inflight_automation = True
+        if not has_inflight_automation:
+            return None
+        return self._submit(
+            client,
+            new_worker_operation(
+                permit,
+                WorkerOperationKind.CANCEL,
+                command,
+                now=now,
+                ttl_seconds=self._operation_ttl_seconds,
+                operation_id=operation_id,
+            ),
+        )
+
+    def _resolve_target(
+        self,
+        *,
+        expected_process_id: int | None,
+        expected_window_handle: int | None,
+        require_foreground: bool,
+    ) -> tuple[float, ClientInstanceSnapshot, WorkerDispatchPermit]:
         if not isinstance(require_foreground, bool):
             raise ValueError("require_foreground must be a boolean")
         for value, field_name in (
@@ -111,16 +196,13 @@ class ForegroundWorkerOperationIngress:
             require_foreground=require_foreground,
         )
         permit = self._exact_permit(client, now=now)
-        operation = new_worker_operation(
-            permit,
-            kind,
-            command,
-            destination=destination,
-            now=now,
-            ttl_seconds=self._operation_ttl_seconds,
-            operation_id=operation_id,
-            deduplication_id=deduplication_id,
-        )
+        return now, client, permit
+
+    def _submit(
+        self,
+        client: ClientInstanceSnapshot,
+        operation: WorkerOperation,
+    ) -> WorkerOperationDispatch:
         submission = self._operations.submit(operation)
         acknowledgement = self._operations.wait_for_acknowledgement(
             submission.operation,

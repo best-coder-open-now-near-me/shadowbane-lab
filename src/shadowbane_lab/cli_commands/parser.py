@@ -1095,6 +1095,13 @@ def _parser() -> argparse.ArgumentParser:
         help="runtime-owned PID file written by the actual manager interpreter",
     )
     manager_app.add_argument(
+        "--authorization-token-file",
+        type=Path,
+        help=(
+            "local persistent dashboard token; defaults beside manager worker state"
+        ),
+    )
+    manager_app.add_argument(
         "--no-browser",
         action="store_true",
         help="print the authenticated dashboard URL without opening a browser",

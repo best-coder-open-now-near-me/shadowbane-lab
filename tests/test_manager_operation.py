@@ -117,7 +117,7 @@ class WorkerOperationContractTests(unittest.TestCase):
         self.assertTrue(duplicate.duplicate)
         self.assertEqual(operation, duplicate.operation)
 
-    def test_priority_stop_precedes_travel_and_expired_work_is_terminal(self) -> None:
+    def test_control_operations_precede_travel_and_expired_work_is_terminal(self) -> None:
         travel = new_worker_operation(
             _permit(),
             WorkerOperationKind.TRAVEL,
@@ -134,9 +134,17 @@ class WorkerOperationContractTests(unittest.TestCase):
             now=100.5,
             operation_id="operation-44444444444444444444444444444444",
         )
+        cancel = new_worker_operation(
+            _permit(),
+            WorkerOperationKind.CANCEL,
+            "physical-client-interaction",
+            now=100.25,
+            operation_id="operation-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        )
         with tempfile.TemporaryDirectory() as directory:
             ledger = WorkerOperationLedger(_manifest(), directory)
             ledger.submit(travel)
+            ledger.submit(cancel)
             ledger.submit(stop)
 
             pending = ledger.pending_for(
@@ -147,7 +155,7 @@ class WorkerOperationContractTests(unittest.TestCase):
                 worker_process_started_at_100ns=WORKER_PROCESS_STARTED,
                 now=100.75,
             )
-            self.assertEqual([stop, travel], list(pending))
+            self.assertEqual([stop, cancel, travel], list(pending))
 
             remaining = ledger.pending_for(
                 client_id=CLIENT_ID,
@@ -159,7 +167,7 @@ class WorkerOperationContractTests(unittest.TestCase):
             )
             receipt = ledger.inspect_receipt(CLIENT_ID, travel.operation_id)
 
-        self.assertEqual((stop,), remaining)
+        self.assertEqual((stop, cancel), remaining)
         self.assertIsNotNone(receipt)
         assert receipt is not None
         self.assertEqual(WorkerOperationState.EXPIRED, receipt.state)

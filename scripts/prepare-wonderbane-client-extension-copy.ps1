@@ -1,12 +1,14 @@
 [CmdletBinding()]
 param(
     [string] $EvidenceDirectory = "\\VBOXSVR\codexdiag\client-extension-evidence\wonderbane-20260830T141558722Z",
+    [string] $FrozenBaselineDirectory = "",
     [string] $DestinationDirectory = "\\VBOXSVR\codexdiag\client-extension-working\wonderbane-1.0.5-world-map-click-v1",
     [string] $ExtensionArtifact = "\\VBOXSVR\codexrepo\build\wonderbane-client-extension-final\Release\wonderbane-extension.dll",
     [string] $ManifestPath = "",
     [string] $ExtensionVersion = "1.5.5",
     [string] $TexturePatchManifest = "",
     [string] $TextureArtifactDirectory = "",
+    [string] $BaselineExclusionManifest = "",
     [string] $PythonExecutable = "$env:USERPROFILE\shadowbane-lab\.venv\Scripts\python.exe",
     [switch] $DryRunOnly
 )
@@ -15,7 +17,12 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
 $repositorySource = Join-Path (Split-Path -Parent $PSScriptRoot) "src"
-$baselineDirectory = Join-Path $EvidenceDirectory "client-baseline"
+$baselineDirectory = if ([string]::IsNullOrWhiteSpace($FrozenBaselineDirectory)) {
+    Join-Path $EvidenceDirectory "client-baseline"
+}
+else {
+    $FrozenBaselineDirectory
+}
 $sourceExecutable = Join-Path $baselineDirectory "sb.exe"
 $packageId = Split-Path -Leaf $DestinationDirectory
 if (-not $ManifestPath) {
@@ -42,6 +49,9 @@ if ($TexturePatchManifest -and -not (Test-Path -LiteralPath $TexturePatchManifes
 if ($TextureArtifactDirectory -and -not (Test-Path -LiteralPath $TextureArtifactDirectory -PathType Container)) {
     throw "Texture artifact directory was not found: $TextureArtifactDirectory"
 }
+if ($BaselineExclusionManifest -and -not (Test-Path -LiteralPath $BaselineExclusionManifest -PathType Leaf)) {
+    throw "Reviewed baseline-exclusion manifest was not found: $BaselineExclusionManifest"
+}
 if (-not (Test-Path -LiteralPath $repositorySource -PathType Container)) {
     throw "Repository Python source directory was not found: $repositorySource"
 }
@@ -61,6 +71,12 @@ if ($TexturePatchManifest) {
     $textureArguments = @(
         "--texture-patch-manifest", $TexturePatchManifest,
         "--texture-artifact-directory", $TextureArtifactDirectory
+    )
+}
+$baselineExclusionArguments = @()
+if ($BaselineExclusionManifest) {
+    $baselineExclusionArguments = @(
+        "--baseline-exclusion-manifest", $BaselineExclusionManifest
     )
 }
 
@@ -84,6 +100,7 @@ if (-not (Test-Path -LiteralPath $ManifestPath -PathType Leaf)) {
     $ManifestPath `
     $ExtensionArtifact `
     @textureArguments `
+    @baselineExclusionArguments `
     --dry-run `
     --pretty
 if ($LASTEXITCODE -ne 0) {
@@ -114,6 +131,7 @@ if ($DryRunOnly) {
     $ManifestPath `
     $ExtensionArtifact `
     @textureArguments `
+    @baselineExclusionArguments `
     --pretty
 if ($LASTEXITCODE -ne 0) {
     throw "Disposable client publication failed with exit code $LASTEXITCODE"

@@ -2,6 +2,7 @@
 #include "extension_api.h"
 #include "event_channel.h"
 #include "graphics_status.h"
+#include "performance_telemetry.h"
 #include "world_map_capture.h"
 
 #include <KnownFolders.h>
@@ -21,6 +22,8 @@ constexpr LONG kMaximumInitializationPolls = 500;
 constexpr DWORD kInitializationPollMilliseconds = 10;
 constexpr char kExtensionVersion[] = "1.5.6";
 constexpr wchar_t kClientExecutableName[] = L"sb.exe";
+constexpr wchar_t kPerformanceProfileEnvironment[] = L"WONDERBANE_PERFORMANCE_PROFILE";
+constexpr std::size_t kPerformanceProfileCapacity = 16U;
 #if defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
 constexpr bool kDiagnosticsOnly = true;
 #else
@@ -184,6 +187,34 @@ DWORD PinExtensionModule() noexcept {
         : ERROR_INVALID_HANDLE;
 }
 
+DWORD ReadPerformanceTelemetryProfile(
+    wonderbane::extension::PerformanceTelemetryProfile* const profile
+) noexcept {
+    if (profile == nullptr) {
+        return ERROR_INVALID_PARAMETER;
+    }
+    wchar_t value[kPerformanceProfileCapacity]{};
+    SetLastError(ERROR_SUCCESS);
+    const DWORD length = GetEnvironmentVariableW(
+        kPerformanceProfileEnvironment,
+        value,
+        static_cast<DWORD>(kPerformanceProfileCapacity)
+    );
+    if (length == 0U) {
+        const DWORD error = GetLastError();
+        if (error == ERROR_ENVVAR_NOT_FOUND) {
+            return wonderbane::extension::SelectPerformanceTelemetryProfile(nullptr, profile);
+        }
+        if (error != ERROR_SUCCESS) {
+            return error;
+        }
+    }
+    if (length >= kPerformanceProfileCapacity) {
+        return ERROR_INSUFFICIENT_BUFFER;
+    }
+    return wonderbane::extension::SelectPerformanceTelemetryProfile(value, profile);
+}
+
 DWORD WriteHeartbeat(
     const wonderbane::extension::ProcessIdentity& identity
 ) noexcept {
@@ -323,6 +354,7 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
     );
     if (previous == static_cast<LONG>(WonderBaneExtensionState::uninitialized)) {
         wonderbane::extension::ProcessIdentity identity{};
+        wonderbane::extension::PerformanceTelemetryProfile performance_profile{};
         DWORD result = ReadProcessIdentity(&identity);
         bool is_client = false;
         if (result == ERROR_SUCCESS) {
@@ -338,6 +370,7 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
         bool world_map_started = false;
         bool graphics_status_started = false;
         bool renderer_started = false;
+        bool performance_telemetry_started = false;
         if (result == ERROR_SUCCESS && !kDiagnosticsOnly) {
             result = wonderbane::extension::InitializeEventChannel(
                 identity,
@@ -372,10 +405,29 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
 #endif
             renderer_started = result == ERROR_SUCCESS;
         }
+        if (result == ERROR_SUCCESS && is_client && !kDiagnosticsOnly) {
+            result = ReadPerformanceTelemetryProfile(&performance_profile);
+        }
+        if (
+            result == ERROR_SUCCESS
+            && is_client
+            && !kDiagnosticsOnly
+            && performance_profile
+                != wonderbane::extension::PerformanceTelemetryProfile::disabled
+        ) {
+            result = wonderbane::extension::StartPerformanceTelemetry(
+                identity,
+                performance_profile
+            );
+            performance_telemetry_started = result == ERROR_SUCCESS;
+        }
         if (result == ERROR_SUCCESS) {
             result = WriteHeartbeat(identity);
         }
         if (result != ERROR_SUCCESS) {
+            if (performance_telemetry_started) {
+                wonderbane::extension::StopPerformanceTelemetry();
+            }
             if (renderer_started) {
 #if defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
                 wonderbane::extension::StopGraphicsPresentObservation();

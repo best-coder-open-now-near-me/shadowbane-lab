@@ -12,7 +12,10 @@ from pathlib import Path
 from unittest.mock import patch
 
 from shadowbane_lab.client_extension.__main__ import main
-from shadowbane_lab.client_extension.baseline import freeze_client_baseline
+from shadowbane_lab.client_extension.baseline import BaselineFile, freeze_client_baseline
+from shadowbane_lab.client_extension.baseline_exclusion import (
+    BaselineExclusionManifest,
+)
 from shadowbane_lab.client_extension.manifest import (
     ExtensionArtifact,
     MaskedSignature,
@@ -273,6 +276,89 @@ class ClientExtensionPackageTests(unittest.TestCase):
 
             self.assertTrue(result.plan.already_patched)
             self.assertTrue(result.evidence and result.evidence.already_patched)
+
+    def test_hash_pinned_baseline_exclusion_is_embedded_and_verified(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = _source_executable()
+            extension = _extension_dll()
+            official = root / "official-with-renderer"
+            official.mkdir()
+            (official / "sb.exe").write_bytes(source)
+            (official / "opengl32.dll").write_bytes(b"reviewed renderer")
+            renderer_frozen = root / "renderer-frozen"
+            freeze_client_baseline(
+                official,
+                renderer_frozen,
+                repository_revision="443bfc5",
+                captured_at=_CREATED_AT,
+            )
+            extension_path = root / "wonderbane-extension.dll"
+            extension_path.write_bytes(extension)
+            record = BaselineFile(
+                relative_path="opengl32.dll",
+                size=len(b"reviewed renderer"),
+                sha256=hashlib.sha256(b"reviewed renderer").hexdigest(),
+            )
+            exclusions = BaselineExclusionManifest(
+                profile_id="system-opengl-v1",
+                files=(record,),
+            )
+            destination = root / "working"
+
+            result = prepare_patched_client_copy(
+                renderer_frozen,
+                destination,
+                _manifest(source, extension),
+                extension_path,
+                baseline_exclusion_manifest=exclusions,
+                created_at=_CREATED_AT,
+            )
+
+            self.assertEqual((record,), result.baseline_exclusions)
+            self.assertFalse((destination / "opengl32.dll").exists())
+            receipt = destination / ".wonderbane-extension" / "baseline-exclusions.json"
+            self.assertEqual("system-opengl-v1", json.loads(receipt.read_text())["profile_id"])
+            self.assertEqual(result.evidence, verify_patched_client_copy(destination))
+
+    def test_baseline_exclusion_rejects_hash_drift_and_executable(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = _source_executable()
+            extension = _extension_dll()
+            _, frozen = _freeze(root, source)
+            extension_path = root / "wonderbane-extension.dll"
+            extension_path.write_bytes(extension)
+            bad_hash = BaselineFile(
+                relative_path="Config/ArcaneIP.cfg",
+                size=len("SERVER=fixture\n"),
+                sha256="0" * 64,
+            )
+
+            with self.assertRaisesRegex(ClientPatchPackageError, "differs"):
+                prepare_patched_client_copy(
+                    frozen,
+                    root / "bad-hash",
+                    _manifest(source, extension),
+                    extension_path,
+                    baseline_exclusion_manifest=BaselineExclusionManifest(
+                        profile_id="bad-hash",
+                        files=(bad_hash,),
+                    ),
+                )
+
+            executable = verify_frozen_client_baseline(frozen).files[-1]
+            with self.assertRaisesRegex(ClientPatchPackageError, "executable cannot be excluded"):
+                prepare_patched_client_copy(
+                    frozen,
+                    root / "bad-executable",
+                    _manifest(source, extension),
+                    extension_path,
+                    baseline_exclusion_manifest=BaselineExclusionManifest(
+                        profile_id="bad-executable",
+                        files=(executable,),
+                    ),
+                )
 
     def test_tampered_baseline_and_invalid_extension_fail_before_output(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

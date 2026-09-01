@@ -134,6 +134,11 @@ shortcut. The small share-waiting bootstrap is deliberately local so Windows can
 the VirtualBox shares are ready. It waits up to 90 seconds and then invokes the current runner
 from `codexrepo`, so fetched runner changes take effect on the next logon without reinstalling.
 
+The runner uses fixed loopback port `52739` plus a persistent random token beneath the same local
+state root. Existing dashboard tabs therefore reconnect after manager restarts instead of becoming
+dead controls on an abandoned ephemeral port. During the restart window, all action buttons are
+disabled and the page reports the unavailable manager explicitly.
+
 Every isolated slot launches a full 1920x955 client and has no resize tile. The windows overlap
 because Shadowbane clips its render surface when its outer window is resized; the existing
 1920x955 automation calibration therefore remains exact. A second smaller layout needs its own

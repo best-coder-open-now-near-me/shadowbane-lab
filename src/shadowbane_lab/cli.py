@@ -345,6 +345,7 @@ _DOMAIN_EXPORTS = {
     ),
     _client_listener_commands: (
         "_listen_for_go_commands",
+        "_load_world_map_close_plan",
         "_new_chat_pve_evidence_path",
         "_print_go_listener_event",
         "_print_go_stop_result",
@@ -452,6 +453,9 @@ _catalog_with_live_runegates = _domain_facade(
     _client_travel_commands, "_catalog_with_live_runegates"
 )
 _listen_for_go_commands = _domain_facade(_client_listener_commands, "_listen_for_go_commands")
+_load_world_map_close_plan = _domain_facade(
+    _client_listener_commands, "_load_world_map_close_plan"
+)
 _new_chat_pve_evidence_path = _domain_facade(
     _client_listener_commands, "_new_chat_pve_evidence_path"
 )
@@ -567,6 +571,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             poll_ms=arguments.poll_ms,
             worker_state_directory=arguments.worker_state_directory,
             pid_file=arguments.pid_file,
+            authorization_token_file=arguments.authorization_token_file,
             open_browser=not arguments.no_browser,
             live=arguments.live,
         )

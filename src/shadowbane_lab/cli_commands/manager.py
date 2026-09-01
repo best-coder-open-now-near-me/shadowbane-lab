@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import ntpath
 import os
+import secrets
 import sys
 import time
 import webbrowser
@@ -409,6 +410,34 @@ def _remove_manager_pid_file(path: Path) -> None:
         pid_path.unlink(missing_ok=True)
 
 
+def _load_or_create_dashboard_token(path: Path) -> str:
+    token_path = path.resolve(strict=False)
+    token_path.parent.mkdir(parents=True, exist_ok=True)
+
+    def read_existing() -> str:
+        if token_path.is_symlink() or not token_path.is_file():
+            raise RuntimeError(
+                f"dashboard authorization token must be a regular file: {token_path}"
+            )
+        try:
+            return token_path.read_text(encoding="ascii").strip()
+        except UnicodeError as exc:
+            raise RuntimeError("dashboard authorization token must be ASCII") from exc
+
+    if token_path.exists() or token_path.is_symlink():
+        return read_existing()
+
+    generated = secrets.token_urlsafe(32)
+    try:
+        with token_path.open("x", encoding="ascii", newline="\n") as destination:
+            destination.write(generated + "\n")
+            destination.flush()
+            os.fsync(destination.fileno())
+    except FileExistsError:
+        return read_existing()
+    return generated
+
+
 def _run_manager_app(
     manifest_path: Path,
     *,
@@ -417,6 +446,7 @@ def _run_manager_app(
     poll_ms: int,
     worker_state_directory: Path | None,
     pid_file: Path | None,
+    authorization_token_file: Path | None,
     open_browser: bool,
     live: bool,
 ) -> int:
@@ -481,6 +511,12 @@ def _run_manager_app(
         else:
             heartbeat_root = worker_state_directory
             manager_state_root = heartbeat_root.parent
+        dashboard_token_path = (
+            manager_state_root / "dashboard.token"
+            if authorization_token_file is None
+            else authorization_token_file
+        )
+        dashboard_token = _load_or_create_dashboard_token(dashboard_token_path)
         local_app_data = os.environ.get("LOCALAPPDATA")
         extension_status = (
             None
@@ -561,7 +597,11 @@ def _run_manager_app(
             capacity_provisioner=IsolatedRuntimeCapacityProvisioner(manifest_path),
         )
         application.status()
-        server = DashboardServer(application, port=port)
+        server = DashboardServer(
+            application,
+            port=port,
+            authorization_token=dashboard_token,
+        )
         with server:
             try:
                 if pid_file is not None:
@@ -751,6 +791,11 @@ class _ExactWorkerEngineExecutor:
             return WorkerOperationExecution(
                 WorkerOperationState.FAILED,
                 "operation does not own this exact game instance",
+            )
+        if operation.kind is WorkerOperationKind.CANCEL:
+            return WorkerOperationExecution(
+                WorkerOperationState.SUCCEEDED,
+                "in-flight automation cancellation acknowledged without client input",
             )
         if stop_signal.is_set():
             return WorkerOperationExecution(

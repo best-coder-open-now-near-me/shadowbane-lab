@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from math import isfinite
 from pathlib import Path
-from time import time
+from time import sleep, time
 from typing import NoReturn
 
 from .manifest import ManagerManifest
@@ -32,6 +32,7 @@ DEFAULT_WORKER_FUTURE_TOLERANCE_SECONDS = 2.0
 DEFAULT_WORKER_DISPATCH_PERMIT_TTL_SECONDS = 2.0
 DEFAULT_MAX_WORKER_RECORD_BYTES = 16_384
 DEFAULT_MAX_WORKER_RECORDS_PER_SLOT = 256
+_ATOMIC_REPLACE_RETRY_DELAYS_SECONDS = (0.01, 0.02, 0.04, 0.08, 0.16, 0.32, 0.5)
 
 _ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
 _WORKER_ID_PATTERN = re.compile(r"worker-[0-9a-f]{32}\Z")
@@ -82,6 +83,23 @@ _STOP_REQUEST_REQUIRED_FIELDS = frozenset(
         "reason",
     }
 )
+
+
+def _replace_worker_record(temporary: Path, target: Path) -> None:
+    """Replace one local worker record despite bounded transient reader locks."""
+
+    for delay in (*_ATOMIC_REPLACE_RETRY_DELAYS_SECONDS, None):
+        try:
+            temporary.replace(target)
+            return
+        except OSError as exc:
+            retryable = isinstance(exc, PermissionError) or getattr(exc, "winerror", None) in {
+                5,
+                32,
+            }
+            if not retryable or delay is None:
+                raise
+            sleep(delay)
 
 
 class WorkerHeartbeatError(RuntimeError):
@@ -734,7 +752,7 @@ class WorkerHeartbeatLedger:
                 destination.write(payload)
                 destination.flush()
                 os.fsync(destination.fileno())
-            temporary.replace(target)
+            _replace_worker_record(temporary, target)
         except OSError as exc:
             try:
                 temporary.unlink(missing_ok=True)
@@ -771,7 +789,7 @@ class WorkerHeartbeatLedger:
                 destination.write(payload)
                 destination.flush()
                 os.fsync(destination.fileno())
-            temporary.replace(target)
+            _replace_worker_record(temporary, target)
         except OSError as exc:
             try:
                 temporary.unlink(missing_ok=True)
@@ -837,7 +855,7 @@ class WorkerHeartbeatLedger:
                 destination.write(payload)
                 destination.flush()
                 os.fsync(destination.fileno())
-            temporary.replace(target)
+            _replace_worker_record(temporary, target)
         except OSError as exc:
             try:
                 temporary.unlink(missing_ok=True)

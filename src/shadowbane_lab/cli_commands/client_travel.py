@@ -289,6 +289,13 @@ def _run_travel(
         "pathfinding": {
             "enabled": astar_controller is not None,
             "replans": 0 if astar_controller is None else astar_controller.replan_count,
+            "direct_fallbacks": (
+                0 if astar_controller is None else astar_controller.direct_fallback_count
+            ),
+            "partial_routes": (
+                0 if astar_controller is None else astar_controller.partial_route_count
+            ),
+            "route_mode": None if astar_controller is None else astar_controller.route_mode,
             "navigation_token": (
                 None if astar_controller is None else astar_controller.navigation_token
             ),

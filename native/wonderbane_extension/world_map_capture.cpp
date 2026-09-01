@@ -61,8 +61,6 @@ constexpr ULONGLONG kObservationIntervalMilliseconds = 50U;
 constexpr ULONGLONG kMaximumObservationAgeMilliseconds = 250U;
 constexpr ULONGLONG kObjectScanIntervalMilliseconds = 1000U;
 constexpr ULONGLONG kPendingButtonUpMilliseconds = 2000U;
-constexpr UINT_PTR kObservationTimerId = 1U;
-constexpr UINT kObservationTimerMilliseconds = 50U;
 constexpr DWORD kCaptureStartupTimeoutMilliseconds = 5000U;
 
 struct WorldMapSnapshot {
@@ -96,6 +94,8 @@ struct PendingButtonUp {
 
 HANDLE g_capture_thread = nullptr;
 HANDLE g_capture_ready = nullptr;
+HANDLE g_observation_thread = nullptr;
+HANDLE g_observation_stop = nullptr;
 volatile LONG g_capture_start_result = ERROR_INVALID_STATE;
 DWORD g_capture_thread_id = 0U;
 HMODULE g_extension_module = nullptr;
@@ -103,6 +103,7 @@ ProcessIdentity g_process_identity{};
 HHOOK g_mouse_hook = nullptr;
 std::uintptr_t g_world_map_object = 0U;
 ULONGLONG g_last_object_scan = 0U;
+SRWLOCK g_snapshot_lock = SRWLOCK_INIT;
 WorldMapSnapshot g_snapshot{};
 PendingButtonUp g_pending_button_up{};
 
@@ -397,6 +398,8 @@ bool DiscoverWorldMapObject(std::uintptr_t* const unique_address) noexcept {
     const std::uint32_t expected_vtable = static_cast<std::uint32_t>(
         kReviewedImageBase + kObjectVtableRva
     );
+    const auto scan_buffer_begin = reinterpret_cast<std::uintptr_t>(buffer);
+    const std::uintptr_t scan_buffer_end = scan_buffer_begin + kScanChunkSize;
     std::array<std::uintptr_t, kMaximumCandidates> candidates{};
     std::size_t candidate_count = 0U;
     std::uintptr_t address = kMinimumUserAddress;
@@ -415,10 +418,14 @@ bool DiscoverWorldMapObject(std::uintptr_t* const unique_address) noexcept {
         const std::uintptr_t region_end = (
             region_base >= maximum_end || region_size > maximum_end - region_base
         ) ? maximum_end : region_base + region_size;
+        const bool is_scan_buffer = (
+            region_base < scan_buffer_end && scan_buffer_begin < region_end
+        );
         if (
             region.State == MEM_COMMIT
             && region.Type == MEM_PRIVATE
             && region.Protect == PAGE_READWRITE
+            && !is_scan_buffer
         ) {
             for (
                 std::uintptr_t chunk = region_base;
@@ -509,6 +516,19 @@ bool ForegroundClient(HWND* const window, POINT* const client_origin) noexcept {
     return true;
 }
 
+void StoreWorldMapSnapshot(const WorldMapSnapshot& snapshot) noexcept {
+    AcquireSRWLockExclusive(&g_snapshot_lock);
+    g_snapshot = snapshot;
+    ReleaseSRWLockExclusive(&g_snapshot_lock);
+}
+
+WorldMapSnapshot LoadWorldMapSnapshot() noexcept {
+    AcquireSRWLockShared(&g_snapshot_lock);
+    const WorldMapSnapshot snapshot = g_snapshot;
+    ReleaseSRWLockShared(&g_snapshot_lock);
+    return snapshot;
+}
+
 void ObserveWorldMap() noexcept {
     const ULONGLONG now = GetTickCount64();
     WorldMapSnapshot snapshot{};
@@ -532,19 +552,19 @@ void ObserveWorldMap() noexcept {
         }
     }
     if (!snapshot.valid) {
-        g_snapshot = {};
+        StoreWorldMapSnapshot({});
         return;
     }
     HWND window = nullptr;
     POINT origin{};
     if (!ForegroundClient(&window, &origin)) {
-        g_snapshot = {};
+        StoreWorldMapSnapshot({});
         return;
     }
     snapshot.window = window;
     snapshot.client_origin = origin;
     snapshot.observed_at = now;
-    g_snapshot = snapshot;
+    StoreWorldMapSnapshot(snapshot);
 }
 
 bool ResolveDestination(
@@ -646,7 +666,7 @@ LRESULT CALLBACK MouseHook(
         return CallNextHookEx(g_mouse_hook, code, message, event_pointer);
     }
     g_pending_button_up = {};
-    const WorldMapSnapshot snapshot = g_snapshot;
+    const WorldMapSnapshot snapshot = LoadWorldMapSnapshot();
     if (
         !foreground_matches
         || foreground != snapshot.window
@@ -702,6 +722,8 @@ LRESULT CALLBACK MouseHook(
 
 DWORD WINAPI CaptureThread(void*) noexcept {
     g_capture_thread_id = GetCurrentThreadId();
+    MSG message{};
+    PeekMessageW(&message, nullptr, WM_USER, WM_USER, PM_NOREMOVE);
     g_mouse_hook = SetWindowsHookExW(
         WH_MOUSE_LL,
         MouseHook,
@@ -716,32 +738,32 @@ DWORD WINAPI CaptureThread(void*) noexcept {
         SetEvent(g_capture_ready);
         return 0U;
     }
-    if (SetTimer(nullptr, kObservationTimerId, kObservationTimerMilliseconds, nullptr) == 0U) {
-        const DWORD error = GetLastError();
-        UnhookWindowsHookEx(g_mouse_hook);
-        g_mouse_hook = nullptr;
-        InterlockedExchange(&g_capture_start_result, static_cast<LONG>(error));
-        SetEvent(g_capture_ready);
-        return 0U;
-    }
-    ObserveWorldMap();
     InterlockedExchange(&g_capture_start_result, ERROR_SUCCESS);
     SetEvent(g_capture_ready);
-    MSG message{};
     while (true) {
         const BOOL status = GetMessageW(&message, nullptr, 0U, 0U);
         if (status <= 0) {
             break;
         }
-        if (message.message == WM_TIMER && message.wParam == kObservationTimerId) {
-            ObserveWorldMap();
-        }
     }
-    KillTimer(nullptr, kObservationTimerId);
     UnhookWindowsHookEx(g_mouse_hook);
     g_mouse_hook = nullptr;
-    g_snapshot = {};
     g_pending_button_up = {};
+    return 0U;
+}
+
+DWORD WINAPI ObservationThread(void*) noexcept {
+    while (true) {
+        ObserveWorldMap();
+        const DWORD wait_result = WaitForSingleObject(
+            g_observation_stop,
+            static_cast<DWORD>(kObservationIntervalMilliseconds)
+        );
+        if (wait_result != WAIT_TIMEOUT) {
+            break;
+        }
+    }
+    StoreWorldMapSnapshot({});
     return 0U;
 }
 
@@ -820,15 +842,24 @@ DWORD StartWorldMapCapture(
         || identity.creation_filetime_utc == 0U
         || g_capture_thread != nullptr
         || g_capture_ready != nullptr
+        || g_observation_thread != nullptr
+        || g_observation_stop != nullptr
         || !IsReviewedWorldMapClient()
     ) {
         return ERROR_NOT_SUPPORTED;
     }
     g_extension_module = extension_module;
     g_process_identity = identity;
+    g_observation_stop = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+    if (g_observation_stop == nullptr) {
+        return GetLastError();
+    }
     g_capture_ready = CreateEventW(nullptr, TRUE, FALSE, nullptr);
     if (g_capture_ready == nullptr) {
-        return GetLastError();
+        const DWORD error = GetLastError();
+        CloseHandle(g_observation_stop);
+        g_observation_stop = nullptr;
+        return error;
     }
     InterlockedExchange(&g_capture_start_result, ERROR_IO_PENDING);
     g_capture_thread = CreateThread(nullptr, 0U, CaptureThread, nullptr, 0U, nullptr);
@@ -836,6 +867,8 @@ DWORD StartWorldMapCapture(
         const DWORD error = GetLastError();
         CloseHandle(g_capture_ready);
         g_capture_ready = nullptr;
+        CloseHandle(g_observation_stop);
+        g_observation_stop = nullptr;
         return error;
     }
     const DWORD wait_result = WaitForSingleObject(
@@ -852,6 +885,8 @@ DWORD StartWorldMapCapture(
         g_capture_thread = nullptr;
         CloseHandle(g_capture_ready);
         g_capture_ready = nullptr;
+        CloseHandle(g_observation_stop);
+        g_observation_stop = nullptr;
         return error;
     }
     const DWORD result = static_cast<DWORD>(InterlockedCompareExchange(
@@ -865,12 +900,42 @@ DWORD StartWorldMapCapture(
         g_capture_thread = nullptr;
         CloseHandle(g_capture_ready);
         g_capture_ready = nullptr;
+        CloseHandle(g_observation_stop);
+        g_observation_stop = nullptr;
         return result;
+    }
+    g_observation_thread = CreateThread(
+        nullptr,
+        0U,
+        ObservationThread,
+        nullptr,
+        0U,
+        nullptr
+    );
+    if (g_observation_thread == nullptr) {
+        const DWORD error = GetLastError();
+        PostThreadMessageW(g_capture_thread_id, WM_QUIT, 0U, 0);
+        WaitForSingleObject(g_capture_thread, kCaptureStartupTimeoutMilliseconds);
+        CloseHandle(g_capture_thread);
+        g_capture_thread = nullptr;
+        CloseHandle(g_capture_ready);
+        g_capture_ready = nullptr;
+        CloseHandle(g_observation_stop);
+        g_observation_stop = nullptr;
+        return error;
     }
     return ERROR_SUCCESS;
 }
 
 void StopWorldMapCapture() noexcept {
+    if (g_observation_stop != nullptr) {
+        SetEvent(g_observation_stop);
+    }
+    if (g_observation_thread != nullptr) {
+        WaitForSingleObject(g_observation_thread, kCaptureStartupTimeoutMilliseconds);
+        CloseHandle(g_observation_thread);
+        g_observation_thread = nullptr;
+    }
     if (g_capture_thread != nullptr) {
         if (g_capture_thread_id != 0U) {
             PostThreadMessageW(g_capture_thread_id, WM_QUIT, 0U, 0);
@@ -883,12 +948,16 @@ void StopWorldMapCapture() noexcept {
         CloseHandle(g_capture_ready);
         g_capture_ready = nullptr;
     }
+    if (g_observation_stop != nullptr) {
+        CloseHandle(g_observation_stop);
+        g_observation_stop = nullptr;
+    }
     g_capture_thread_id = 0U;
     g_extension_module = nullptr;
     g_process_identity = {};
     g_world_map_object = 0U;
     g_last_object_scan = 0U;
-    g_snapshot = {};
+    StoreWorldMapSnapshot({});
     g_pending_button_up = {};
 }
 

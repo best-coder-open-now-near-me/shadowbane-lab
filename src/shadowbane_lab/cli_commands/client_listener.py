@@ -10,6 +10,7 @@ import time
 from collections.abc import Sequence
 from pathlib import Path
 
+from shadowbane_lab.client_extension import ExtensionWorldMapDestinationEvent
 from shadowbane_lab.client_input import (
     AnyStopSignal,
     ArcaneClientPower,
@@ -48,6 +49,7 @@ from shadowbane_lab.client_observation import (
     open_windows_native_world_map_reader,
 )
 from shadowbane_lab.manager import (
+    ClientInstanceSnapshot,
     ExactExtensionEventRouter,
     ForegroundWorkerOperationIngress,
     ManifestClientRegistryProvider,
@@ -85,6 +87,41 @@ from .client_pve import (
 from .client_runtime import _require_window_process_id
 from .client_travel import _catalog_with_live_runegates, _run_travel
 from .common import _error
+
+
+def _load_world_map_close_plan(
+    hotkey_config_path: Path | None,
+    *,
+    config_directory: Path | None,
+) -> InputPlan:
+    """Resolve one canonical WorldMap chord, including configs created after startup."""
+
+    if hotkey_config_path is not None:
+        candidates = (hotkey_config_path,)
+    elif config_directory is None:
+        candidates = ()
+    else:
+        candidates = tuple(sorted(config_directory.glob("SCREEN_GAME_*_Wonderbane.cfg")))
+    if not candidates:
+        raise ValueError("no character hotkey config is available to close the world map")
+    chords = []
+    for candidate in candidates:
+        bindings = load_arcane_hotkeys(candidate).bindings_for_argument("WorldMap")
+        if len(bindings) != 1:
+            raise ValueError(
+                f"{candidate} must contain exactly one WorldMap binding; found {len(bindings)}"
+            )
+        chords.append(bindings[0].input_keys)
+    unique_chords = tuple(dict.fromkeys(chords))
+    if len(unique_chords) != 1:
+        raise ValueError("character hotkey configs disagree on the WorldMap binding")
+    keys = unique_chords[0]
+    command = KeyPressCommand(keys[0]) if len(keys) == 1 else HotkeyCommand(keys)
+    return InputPlan(
+        correlation_id="travel:world-map-close",
+        action_key="client.world-map.close",
+        commands=(WaitCommand(75), command),
+    )
 
 
 def _listen_for_go_commands(
@@ -133,6 +170,8 @@ def _listen_for_go_commands(
             )
         worker_ingress = None
         extension_router = None
+        manager_manifest = None
+        manager_registry = None
         if manager_manifest_path is not None:
             assert worker_state_directory is not None
             manager_manifest = load_manager_manifest(manager_manifest_path)
@@ -145,11 +184,6 @@ def _listen_for_go_commands(
                 manager_registry,
                 WorkerHeartbeatLedger(manager_manifest, worker_state_directory),
                 WorkerOperationLedger(manager_manifest, worker_state_directory),
-            )
-            extension_router = ExactExtensionEventRouter(
-                manager_manifest,
-                manager_registry,
-                worker_ingress,
             )
         named_catalog = (
             None
@@ -175,27 +209,7 @@ def _listen_for_go_commands(
             if native_world_map_profile_path is not None
             else load_bundled_native_world_map_profile()
         )
-        world_map_close_plan = None
-        if hotkey_config_path is not None:
-            world_map_bindings = load_arcane_hotkeys(hotkey_config_path).bindings_for_argument(
-                "WorldMap"
-            )
-            if len(world_map_bindings) != 1:
-                raise ValueError(
-                    "hotkey config must contain exactly one WorldMap binding; "
-                    f"found {len(world_map_bindings)}"
-                )
-            world_map_keys = world_map_bindings[0].input_keys
-            world_map_command = (
-                KeyPressCommand(world_map_keys[0])
-                if len(world_map_keys) == 1
-                else HotkeyCommand(world_map_keys)
-            )
-            world_map_close_plan = InputPlan(
-                correlation_id="travel:world-map-close",
-                action_key="client.world-map.close",
-                commands=(WaitCommand(75), world_map_command),
-            )
+        world_map_config_directory = None if world_def_path is None else world_def_path.parent
         pve_profile = None
         if pve_client_profile_path is not None:
             pve_profile = load_calibration(pve_client_profile_path)
@@ -227,13 +241,17 @@ def _listen_for_go_commands(
     ) as exc:
         return _error(f"chat control failed: {exc}", as_json=as_json)
 
-    commands: queue.Queue[str | tuple[PhysicalPointerInteraction, float]] = queue.Queue()
+    cancel_worker_operation = object()
+    cancel_worker_operation_queued = threading.Event()
+    commands: queue.Queue[str | tuple[PhysicalPointerInteraction, float] | object] = queue.Queue()
     active_lock = threading.Lock()
     active_operation_stop: EventEmergencyStop | None = None
 
     def cancel_active_operation() -> None:
         if worker_ingress is not None:
-            commands.put("/stop")
+            if not cancel_worker_operation_queued.is_set():
+                cancel_worker_operation_queued.set()
+                commands.put(cancel_worker_operation)
             return
         with active_lock:
             if active_operation_stop is not None:
@@ -354,7 +372,7 @@ def _listen_for_go_commands(
         "on_interaction": cancel_active_operation,
         "on_pointer": submit_pointer,
     }
-    if extension_router is not None:
+    if worker_ingress is not None:
         listener_callbacks["pointer_claims_interaction"] = lambda interaction: (
             interaction.button == "right"
         )
@@ -379,6 +397,42 @@ def _listen_for_go_commands(
                 backend=PyAutoGuiBackend(),
                 stop_signal=service_stop,
             )
+            if worker_ingress is not None:
+                assert manager_manifest is not None
+                assert manager_registry is not None
+
+                def prepare_extension_event(
+                    client: ClientInstanceSnapshot,
+                    _event: ExtensionWorldMapDestinationEvent,
+                ) -> None:
+                    close_plan = _load_world_map_close_plan(
+                        hotkey_config_path,
+                        config_directory=world_map_config_directory,
+                    )
+                    exact_guard = ForegroundWindowGuard(
+                        client_profile,
+                        WindowsForegroundWindowInspector(),
+                        expected_process_id=client.process_id,
+                        expected_process_started_at_100ns=client.process_started_at_100ns,
+                        expected_window_handle=client.window_handle,
+                    )
+                    # The in-process extension publishes only after resolving an open
+                    # map and consumes both physical button messages. The event is
+                    # therefore the exact map-open proof; rescanning here can see
+                    # equivalent HUD instances created later in the client lifetime.
+                    GuardedInputExecutor(
+                        guard=exact_guard,
+                        backend=PyAutoGuiBackend(),
+                        stop_signal=service_stop,
+                    ).execute(close_plan)
+                    time.sleep(0.1)
+
+                extension_router = ExactExtensionEventRouter(
+                    manager_manifest,
+                    manager_registry,
+                    worker_ingress,
+                    event_preparer=prepare_extension_event,
+                )
             stop_sequence = 0
             _print_go_listener_event("listening", as_json=as_json)
             next_listener_heartbeat = time.monotonic() + 30.0
@@ -401,6 +455,20 @@ def _listen_for_go_commands(
                 try:
                     interaction = commands.get(timeout=0.1)
                 except queue.Empty:
+                    continue
+
+                if interaction is cancel_worker_operation:
+                    try:
+                        assert worker_ingress is not None
+                        target = guard.require_target()
+                        worker_ingress.cancel_if_inflight(
+                            "physical-client-interaction",
+                            expected_process_id=_require_window_process_id(target),
+                        )
+                    except (OSError, RuntimeError, ValueError, WindowGuardError):
+                        pass
+                    finally:
+                        cancel_worker_operation_queued.clear()
                     continue
 
                 pointer_destination = None
@@ -461,12 +529,6 @@ def _listen_for_go_commands(
                             >= pointer_observed_at
                         ):
                             continue
-                        if not dispatch_to_exact_worker(
-                            WorkerOperationKind.STOP,
-                            f"extension-fallback-stop:{command}",
-                            process_id=command_process_id,
-                        ):
-                            continue
                     try:
                         if (
                             world_map_reader is None
@@ -492,6 +554,20 @@ def _listen_for_go_commands(
                             reason=str(exc),
                         )
                         continue
+                    if extension_router is not None:
+                        try:
+                            worker_ingress.cancel_if_inflight(
+                                f"extension-fallback-cancel:{command}",
+                                expected_process_id=command_process_id,
+                            )
+                        except (OSError, RuntimeError, ValueError) as exc:
+                            _print_go_listener_event(
+                                "rejected",
+                                as_json=as_json,
+                                command=command,
+                                reason=str(exc),
+                            )
+                            continue
                 if normalized is not None and (
                     normalized == "/zone" or normalized.startswith("/zone ")
                 ):
@@ -687,10 +763,15 @@ def _listen_for_go_commands(
                             reason=str(exc),
                         )
                         continue
-                    if pointer_destination is not None and world_map_close_plan is not None:
+                    if pointer_destination is not None:
                         try:
-                            world_map_executor.execute(world_map_close_plan)
-                        except InputExecutionError as exc:
+                            world_map_executor.execute(
+                                _load_world_map_close_plan(
+                                    hotkey_config_path,
+                                    config_directory=world_map_config_directory,
+                                )
+                            )
+                        except (InputExecutionError, OSError, ValueError) as exc:
                             _print_go_listener_event(
                                 "rejected",
                                 as_json=as_json,
@@ -726,10 +807,15 @@ def _listen_for_go_commands(
                 with active_lock:
                     active_operation_stop = route_stop
                 try:
-                    if pointer_destination is not None and world_map_close_plan is not None:
+                    if pointer_destination is not None:
                         try:
-                            world_map_executor.execute(world_map_close_plan)
-                        except InputExecutionError as exc:
+                            world_map_executor.execute(
+                                _load_world_map_close_plan(
+                                    hotkey_config_path,
+                                    config_directory=world_map_config_directory,
+                                )
+                            )
+                        except (InputExecutionError, OSError, ValueError) as exc:
                             _print_go_listener_event(
                                 "rejected",
                                 as_json=as_json,

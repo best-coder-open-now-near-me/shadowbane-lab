@@ -30,6 +30,8 @@ add_library(
   event_channel.cpp
   extension.cpp
   graphics_status.cpp
+  import_hook.cpp
+  performance_telemetry.cpp
   extension.def
   extension.rc
   world_map_capture.cpp
@@ -341,6 +343,67 @@ if(BUILD_TESTING)
   add_test(
     NAME wonderbane_extension_event_channel
     COMMAND wonderbane_extension_event_channel_test
+  )
+
+  add_executable(
+    wonderbane_extension_performance_telemetry_test
+    banded_lighting.cpp
+    cel_shading.cpp
+    graphics_status.cpp
+    import_hook.cpp
+    performance_telemetry.cpp
+    performance_telemetry_test.cpp
+  )
+  target_compile_features(
+    wonderbane_extension_performance_telemetry_test
+    PRIVATE
+    cxx_std_20
+  )
+  target_compile_definitions(
+    wonderbane_extension_performance_telemetry_test
+    PRIVATE
+    UNICODE
+    _UNICODE
+    WIN32_LEAN_AND_MEAN
+    NOMINMAX
+    STRICT
+  )
+  target_compile_options(
+    wonderbane_extension_performance_telemetry_test
+    PRIVATE
+    /W4
+    /WX
+    /permissive-
+    /sdl
+    /GS
+    /guard:cf
+    /Zc:__cplusplus
+    /utf-8
+  )
+  target_link_options(
+    wonderbane_extension_performance_telemetry_test
+    PRIVATE
+    /DYNAMICBASE
+    /NXCOMPAT
+    /guard:cf
+    /INCREMENTAL:NO
+  )
+  target_link_libraries(
+    wonderbane_extension_performance_telemetry_test
+    PRIVATE
+    bcrypt
+    shell32
+    ole32
+    user32
+    uuid
+  )
+  set_property(
+    TARGET wonderbane_extension_performance_telemetry_test
+    PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded"
+  )
+  add_test(
+    NAME wonderbane_extension_performance_telemetry
+    COMMAND wonderbane_extension_performance_telemetry_test
   )
 
   add_executable(wonderbane_extension_probe event_channel.cpp probe.cpp)

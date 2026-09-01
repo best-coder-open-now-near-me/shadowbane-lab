@@ -13,6 +13,10 @@ from shadowbane_lab.client_extension.baseline import (
     client_content_build_id,
     freeze_client_baseline,
 )
+from shadowbane_lab.client_extension.baseline_exclusion import (
+    BaselineExclusionError,
+    load_baseline_exclusion_manifest,
+)
 from shadowbane_lab.client_extension.bootstrap_author import (
     BootstrapAuthoringError,
     author_reviewed_bootstrap_file,
@@ -40,6 +44,11 @@ from shadowbane_lab.client_extension.patch_diff import (
     ClientPatchDiffError,
     compare_frozen_client_baselines,
     write_client_patch_diff,
+)
+from shadowbane_lab.client_extension.performance import PerformanceTelemetryError
+from shadowbane_lab.client_extension.performance_reader import (
+    PerformanceTelemetryReadError,
+    open_windows_performance_telemetry_reader,
 )
 from shadowbane_lab.client_extension.resolver import (
     PatchResolutionError,
@@ -121,6 +130,7 @@ def _parser() -> argparse.ArgumentParser:
     prepare.add_argument("extension_artifact", type=Path)
     prepare.add_argument("--texture-patch-manifest", type=Path)
     prepare.add_argument("--texture-artifact-directory", type=Path)
+    prepare.add_argument("--baseline-exclusion-manifest", type=Path)
     prepare.add_argument("--dry-run", action="store_true")
     prepare.add_argument("--pretty", action="store_true")
     verify = commands.add_parser(
@@ -163,6 +173,13 @@ def _parser() -> argparse.ArgumentParser:
     )
     heartbeat.add_argument("heartbeat", type=Path)
     heartbeat.add_argument("--pretty", action="store_true")
+    snapshot_performance = commands.add_parser(
+        "snapshot-performance",
+        help="export a coherent read-only frame/cache/texture telemetry snapshot",
+    )
+    snapshot_performance.add_argument("process_id", type=int)
+    snapshot_performance.add_argument("process_creation_filetime_utc", type=int)
+    snapshot_performance.add_argument("--pretty", action="store_true")
     inspect_bootstrap = commands.add_parser(
         "inspect-bootstrap",
         help="collect read-only client-specific loader evidence",
@@ -247,6 +264,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 if arguments.texture_patch_manifest is None
                 else load_texture_patch_manifest(arguments.texture_patch_manifest)
             )
+            baseline_exclusion_manifest = (
+                None
+                if arguments.baseline_exclusion_manifest is None
+                else load_baseline_exclusion_manifest(arguments.baseline_exclusion_manifest)
+            )
             payload = prepare_patched_client_copy(
                 arguments.frozen_directory,
                 arguments.destination_directory,
@@ -254,6 +276,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 arguments.extension_artifact,
                 texture_patch_manifest=texture_manifest,
                 texture_artifact_directory=arguments.texture_artifact_directory,
+                baseline_exclusion_manifest=baseline_exclusion_manifest,
                 dry_run=arguments.dry_run,
             ).as_dict()
         elif arguments.command == "verify-copy":
@@ -276,6 +299,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             ).as_dict()
         elif arguments.command == "verify-heartbeat":
             payload = load_extension_heartbeat(arguments.heartbeat).as_dict()
+        elif arguments.command == "snapshot-performance":
+            payload = open_windows_performance_telemetry_reader(
+                arguments.process_id,
+                arguments.process_creation_filetime_utc,
+            ).snapshot().as_dict()
         elif arguments.command == "inspect-bootstrap":
             payload = inspect_bootstrap_file(
                 arguments.executable,
@@ -324,6 +352,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             raise AssertionError(f"unhandled command: {arguments.command}")
     except (
         ClientBaselineError,
+        BaselineExclusionError,
         ClientPatchDiffError,
         ClientPatchPackageError,
         BootstrapInspectionError,
@@ -331,6 +360,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         ExtensionHeartbeatError,
         PatchManifestError,
         PatchResolutionError,
+        PerformanceTelemetryError,
+        PerformanceTelemetryReadError,
         TexturePatchError,
         OSError,
         ValueError,

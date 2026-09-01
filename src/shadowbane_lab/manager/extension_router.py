@@ -33,6 +33,16 @@ class ClientRegistryProvider(Protocol):
 
 
 class ExactWorkerIngress(Protocol):
+    def cancel_if_inflight(
+        self,
+        command: str,
+        *,
+        expected_process_id: int | None = None,
+        expected_window_handle: int | None = None,
+        require_foreground: bool = True,
+        operation_id: str | None = None,
+    ) -> object | None: ...
+
     def dispatch(
         self,
         kind: WorkerOperationKind,
@@ -105,22 +115,29 @@ class ExactExtensionEventRouter:
         consumer_factory: Callable[[int, int], ExtensionEventConsumerSource] = (
             open_windows_extension_event_consumer
         ),
+        event_preparer: (
+            Callable[[ClientInstanceSnapshot, ExtensionWorldMapDestinationEvent], None] | None
+        ) = None,
         clock: Callable[[], float] = time.time,
     ) -> None:
         if not isinstance(manifest, ManagerManifest):
             raise ValueError("manifest must be ManagerManifest")
         if not callable(getattr(registry, "inspect", None)):
             raise ValueError("registry must provide inspect()")
-        if not isinstance(ingress, ForegroundWorkerOperationIngress) and not callable(
-            getattr(ingress, "dispatch", None)
+        if not isinstance(ingress, ForegroundWorkerOperationIngress) and (
+            not callable(getattr(ingress, "dispatch", None))
+            or not callable(getattr(ingress, "cancel_if_inflight", None))
         ):
-            raise ValueError("ingress must provide dispatch()")
+            raise ValueError("ingress must provide dispatch() and cancel_if_inflight()")
         if not callable(consumer_factory) or not callable(clock):
             raise ValueError("consumer_factory and clock must be callable")
+        if event_preparer is not None and not callable(event_preparer):
+            raise ValueError("event_preparer must be callable or None")
         self._manifest = manifest
         self._registry = registry
         self._ingress = ingress
         self._consumer_factory = consumer_factory
+        self._event_preparer = event_preparer
         self._clock = clock
         self._consumers: dict[tuple[int, int], ExtensionEventConsumerSource] = {}
         self._closed = False
@@ -173,7 +190,9 @@ class ExactExtensionEventRouter:
             for event in events:
                 outcome = self._route_event(client, event)
                 if outcome == "retry":
-                    issues.append(f"{client.instance_id}: worker dispatch unavailable")
+                    issues.append(
+                        f"{client.instance_id}: event preparation or worker dispatch unavailable"
+                    )
                     break
                 try:
                     consumer.acknowledge(event)
@@ -236,10 +255,11 @@ class ExactExtensionEventRouter:
             "require_foreground": False,
         }
         try:
-            self._ingress.dispatch(
-                WorkerOperationKind.STOP,
-                f"extension-map-stop:{event.sequence}",
-                operation_id=_operation_id(event, "stop"),
+            if self._event_preparer is not None:
+                self._event_preparer(client, event)
+            self._ingress.cancel_if_inflight(
+                f"extension-map-cancel:{event.sequence}",
+                operation_id=_operation_id(event, "cancel"),
                 **common,
             )
             self._ingress.dispatch(

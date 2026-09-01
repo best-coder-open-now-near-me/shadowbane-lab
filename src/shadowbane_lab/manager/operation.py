@@ -81,6 +81,7 @@ class WorkerOperationLedgerError(WorkerOperationError):
 class WorkerOperationKind(StrEnum):
     TRAVEL = "travel"
     PVE = "pve"
+    CANCEL = "cancel"
     STOP = "stop"
 
 
@@ -239,7 +240,9 @@ class WorkerOperation:
 
     @property
     def priority(self) -> int:
-        return 100 if self.kind is WorkerOperationKind.STOP else 0
+        if self.kind is WorkerOperationKind.STOP:
+            return 200
+        return 100 if self.kind is WorkerOperationKind.CANCEL else 0
 
     def target_identity(self) -> tuple[object, ...]:
         return (

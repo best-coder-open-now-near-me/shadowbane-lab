@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
 import hmac
 import json
 import math
@@ -27,6 +29,18 @@ _GLOBAL_ACTIONS = frozenset({"add-client", "start-all", "refresh", "tile-all"})
 _CLIENT_ACTIONS_WITHOUT_INSTANCE = frozenset({"start"})
 _CLIENT_ACTIONS_WITH_INSTANCE = frozenset({"attach", "tile", "pause", "resume", "detach", "close"})
 _ALL_ACTIONS = _GLOBAL_ACTIONS | _CLIENT_ACTIONS_WITHOUT_INSTANCE | _CLIENT_ACTIONS_WITH_INSTANCE
+
+
+def _require_authorization_token(value: str) -> str:
+    if not isinstance(value, str) or re.fullmatch(r"[A-Za-z0-9_-]+", value) is None:
+        raise ValueError("authorization_token must be URL-safe base64 without padding")
+    try:
+        decoded = base64.urlsafe_b64decode(value + ("=" * (-len(value) % 4)))
+    except (binascii.Error, ValueError) as exc:
+        raise ValueError("authorization_token must be valid URL-safe base64") from exc
+    if len(decoded) < 32:
+        raise ValueError("authorization_token must contain at least 256 bits of entropy")
+    return value
 
 
 class DashboardError(RuntimeError):
@@ -629,6 +643,7 @@ class DashboardServer:
         service: DashboardService,
         *,
         port: int = 0,
+        authorization_token: str | None = None,
         max_concurrent_requests: int = DEFAULT_MAX_CONCURRENT_REQUESTS,
         header_timeout_seconds: float = DEFAULT_HEADER_TIMEOUT_SECONDS,
         body_timeout_seconds: float = DEFAULT_BODY_TIMEOUT_SECONDS,
@@ -645,7 +660,11 @@ class DashboardServer:
             raise ValueError("max_concurrent_requests must be a positive integer")
         header_timeout = _require_timeout(header_timeout_seconds, "header_timeout_seconds")
         body_timeout = _require_timeout(body_timeout_seconds, "body_timeout_seconds")
-        token = secrets.token_urlsafe(32)
+        token = _require_authorization_token(
+            secrets.token_urlsafe(32)
+            if authorization_token is None
+            else authorization_token
+        )
         context = _DashboardContext(
             service=service,
             authorization_token=token,

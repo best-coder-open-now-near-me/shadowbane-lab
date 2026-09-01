@@ -75,6 +75,8 @@ class FakeScanningProcess:
         *,
         object_addresses: tuple[int, ...] = (0x300000,),
         hidden: int = 0,
+        hidden_addresses: tuple[int, ...] = (),
+        rectangles: Mapping[int, tuple[int, int, int, int]] | None = None,
         zoom: float = 1.0,
         horizontal_pan: int = 0,
         vertical_pan: int = 0,
@@ -100,8 +102,11 @@ class FakeScanningProcess:
                 self.base_address + profile.object_vtable_rva,
                 self.base_address + profile.control_vtable_rva,
             )
-            struct.pack_into("<iiii", payload, profile.rectangle_offset, 324, 0, 1597, 955)
-            payload[profile.hidden_offset] = hidden
+            rectangle = (324, 0, 1597, 955)
+            if rectangles is not None:
+                rectangle = rectangles.get(address, rectangle)
+            struct.pack_into("<iiii", payload, profile.rectangle_offset, *rectangle)
+            payload[profile.hidden_offset] = 1 if address in hidden_addresses else hidden
             for offset, value in zip(
                 (
                     profile.left_padding_offset,
@@ -225,13 +230,49 @@ class NativeWorldMapReaderTests(unittest.TestCase):
         with self.assertRaisesRegex(NativeWorldMapReadError, "outside the projected world"):
             visible.resolve_screen_point(visible.left, visible.top)
 
-    def test_ambiguous_native_objects_fail_closed(self) -> None:
+    def test_unique_active_native_object_wins_over_inactive_duplicate(self) -> None:
+        profile = _profile()
+        reader = NativeWorldMapReader(
+            profile,
+            FakeScanningProcess(
+                profile,
+                object_addresses=(0x300000, 0x310000),
+                hidden_addresses=(0x310000,),
+            ),
+        )
+
+        reader.attach()
+
+        self.assertEqual(0x300000, reader._object_address)
+        self.assertTrue(reader.observe().is_open)
+
+    def test_largest_native_object_wins_over_active_minimap(self) -> None:
+        profile = _profile()
+        reader = NativeWorldMapReader(
+            profile,
+            FakeScanningProcess(
+                profile,
+                object_addresses=(0x300000, 0x310000),
+                hidden_addresses=(0x300000,),
+                rectangles={0x310000: (1700, 20, 1900, 220)},
+            ),
+        )
+
+        reader.attach()
+
+        self.assertEqual(0x300000, reader._object_address)
+        self.assertFalse(reader.observe().is_open)
+
+    def test_multiple_active_native_objects_fail_closed(self) -> None:
         profile = _profile()
         reader = NativeWorldMapReader(
             profile,
             FakeScanningProcess(profile, object_addresses=(0x300000, 0x310000)),
         )
-        with self.assertRaisesRegex(NativeWorldMapReadError, "found 2"):
+        with self.assertRaisesRegex(
+            NativeWorldMapReadError,
+            r"found 2.*\(2 largest, 2 active-largest\)",
+        ):
             reader.attach()
 
     def test_bundled_profile_matches_verified_wonderbane_layout(self) -> None:
