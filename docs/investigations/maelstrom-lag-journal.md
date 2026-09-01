@@ -914,6 +914,37 @@ These are inferences, ordered by present fit rather than certainty.
 5. Extend required camera telemetry beyond forward direction to enough reviewed projection state
    to reconstruct the actual visible frustum when mappings become available.
 
+## 2026-09-01 — Four-direction movement pins the hotspot to the camp center
+
+### Corrected operator observation
+
+- The camera could not be moved independently of the character in this test. The earlier proposed
+  stationary camera-only interpretation does not apply.
+- The operator moved the character in all four directions around the candidate area. Across those
+  approaches, the same central camp world position crossed out of view at the response boundary.
+- Lag cleared when that central position left the view and returned when it re-entered, consistently
+  across the four movement directions.
+- Nothing visually obvious occupies the central position; no visible prop has been identified.
+
+### Updated interpretation
+
+- **Strongly supported:** The immediate active cost follows a stable world-space camp-center point
+  or tightly colocated scene cluster rather than a single compass heading.
+- **Weakened:** A direction-only renderer defect unrelated to world contents.
+- **Important confound:** Character movement also changes camera position, distance, LOD, streaming,
+  occlusion, and frustum membership, so the exact activating mechanism is not yet isolated.
+- **Leading candidates:** A hidden or buried node, bad world-space bounds, invisible emitter, terrain
+  or vegetation batch, portal/cell, or tightly colocated object cluster at the camp center.
+
+### Next evidence boundary
+
+1. Record exact player LT, LG, and altitude at each lag-on/lag-off transition point.
+2. Sample camera position, forward vector, zoom, and projection on the same monotonic clock as the
+   player position and process metrics.
+3. Reconstruct the four view boundaries to triangulate the shared world-space candidate region.
+4. Inspect static scene and cache records intersecting that region for hidden nodes, bad bounds,
+   emitters, terrain batches, or duplicated placements.
+
 ## Journal maintenance rule
 
 After every live test, append one entry containing:
