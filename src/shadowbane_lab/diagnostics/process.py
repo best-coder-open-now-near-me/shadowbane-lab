@@ -68,6 +68,7 @@ class WindowsProcessProbe:
 
     _PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
     _PROCESS_VM_READ = 0x0010
+    _SYNCHRONIZE = 0x00100000
     _WAIT_OBJECT_0 = 0
     _WAIT_TIMEOUT = 0x102
 
@@ -160,7 +161,9 @@ class WindowsProcessProbe:
         wintypes = self._wintypes
         kernel32 = self._kernel32
         handle = kernel32.OpenProcess(
-            self._PROCESS_QUERY_LIMITED_INFORMATION | self._PROCESS_VM_READ,
+            self._PROCESS_QUERY_LIMITED_INFORMATION
+            | self._PROCESS_VM_READ
+            | self._SYNCHRONIZE,
             False,
             process_id,
         )
