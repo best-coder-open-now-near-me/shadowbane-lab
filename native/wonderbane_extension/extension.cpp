@@ -1,6 +1,8 @@
 #include "cel_shading.h"
 #include "extension_api.h"
+#include "event_channel.h"
 #include "graphics_status.h"
+#include "world_map_capture.h"
 
 #include <KnownFolders.h>
 #include <ShlObj.h>
@@ -23,6 +25,7 @@ constexpr wchar_t kClientExecutableName[] = L"sb.exe";
 volatile LONG g_state = static_cast<LONG>(WonderBaneExtensionState::uninitialized);
 volatile LONG g_initialization_result = ERROR_SUCCESS;
 wchar_t g_heartbeat_path[kPathCapacity]{};
+HMODULE g_extension_module = nullptr;
 
 DWORD HResultToWin32(const HRESULT result) noexcept {
     if (HRESULT_FACILITY(result) == FACILITY_WIN32) {
@@ -128,7 +131,57 @@ DWORD IsClientExecutable(bool* const is_client) noexcept {
     return ERROR_SUCCESS;
 }
 
-DWORD WriteHeartbeat() noexcept {
+DWORD ReadProcessIdentity(
+    wonderbane::extension::ProcessIdentity* const identity
+) noexcept {
+    if (identity == nullptr) {
+        return ERROR_INVALID_PARAMETER;
+    }
+    FILETIME creation_time{};
+    FILETIME exit_time{};
+    FILETIME kernel_time{};
+    FILETIME user_time{};
+    if (GetProcessTimes(
+            GetCurrentProcess(),
+            &creation_time,
+            &exit_time,
+            &kernel_time,
+            &user_time
+        ) == FALSE) {
+        return GetLastError();
+    }
+    identity->process_id = GetCurrentProcessId();
+    identity->creation_filetime_utc = FileTimeValue(creation_time);
+    if (identity->process_id == 0U || identity->creation_filetime_utc == 0U) {
+        return ERROR_INVALID_DATA;
+    }
+    return ERROR_SUCCESS;
+}
+
+DWORD PinExtensionModule() noexcept {
+    if (g_extension_module == nullptr) {
+        return ERROR_INVALID_HANDLE;
+    }
+    HMODULE pinned_module = nullptr;
+    const DWORD flags = (
+        GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS
+        | GET_MODULE_HANDLE_EX_FLAG_PIN
+    );
+    if (GetModuleHandleExW(
+            flags,
+            reinterpret_cast<LPCWSTR>(g_extension_module),
+            &pinned_module
+        ) == FALSE) {
+        return GetLastError();
+    }
+    return pinned_module == g_extension_module
+        ? ERROR_SUCCESS
+        : ERROR_INVALID_HANDLE;
+}
+
+DWORD WriteHeartbeat(
+    const wonderbane::extension::ProcessIdentity& identity
+) noexcept {
     PWSTR local_app_data = nullptr;
     const HRESULT known_folder_result = SHGetKnownFolderPath(
         FOLDERID_LocalAppData,
@@ -173,23 +226,8 @@ DWORD WriteHeartbeat() noexcept {
         return result;
     }
 
-    FILETIME creation_time{};
-    FILETIME exit_time{};
-    FILETIME kernel_time{};
-    FILETIME user_time{};
-    if (GetProcessTimes(
-            GetCurrentProcess(),
-            &creation_time,
-            &exit_time,
-            &kernel_time,
-            &user_time
-        ) == FALSE) {
-        return GetLastError();
-    }
     FILETIME initialized_time{};
     GetSystemTimeAsFileTime(&initialized_time);
-    const DWORD process_id = GetCurrentProcessId();
-    const std::uint64_t creation_value = FileTimeValue(creation_time);
     const std::uint64_t initialized_value = FileTimeValue(initialized_time);
 
     HRESULT format_result = StringCchPrintfW(
@@ -197,8 +235,8 @@ DWORD WriteHeartbeat() noexcept {
         kPathCapacity,
         L"%s\\heartbeat-%lu-%llu.json",
         extension_directory,
-        static_cast<unsigned long>(process_id),
-        static_cast<unsigned long long>(creation_value)
+        static_cast<unsigned long>(identity.process_id),
+        static_cast<unsigned long long>(identity.creation_filetime_utc)
     );
     if (FAILED(format_result)) {
         return HResultToWin32(format_result);
@@ -208,7 +246,7 @@ DWORD WriteHeartbeat() noexcept {
         kPathCapacity,
         L"%s\\.heartbeat-%lu-%lu-%llu.tmp",
         extension_directory,
-        static_cast<unsigned long>(process_id),
+        static_cast<unsigned long>(identity.process_id),
         static_cast<unsigned long>(GetCurrentThreadId()),
         static_cast<unsigned long long>(GetTickCount64())
     );
@@ -225,8 +263,8 @@ DWORD WriteHeartbeat() noexcept {
         "\"process_creation_filetime_utc\":%llu,"
         "\"initialized_at_filetime_utc\":%llu,\"status\":\"initialized\"}\n",
         kExtensionVersion,
-        static_cast<unsigned long>(process_id),
-        static_cast<unsigned long long>(creation_value),
+        static_cast<unsigned long>(identity.process_id),
+        static_cast<unsigned long long>(identity.creation_filetime_utc),
         static_cast<unsigned long long>(initialized_value)
     );
     if (FAILED(format_result)) {
@@ -279,26 +317,67 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
         static_cast<LONG>(WonderBaneExtensionState::uninitialized)
     );
     if (previous == static_cast<LONG>(WonderBaneExtensionState::uninitialized)) {
+        wonderbane::extension::ProcessIdentity identity{};
+        DWORD result = ReadProcessIdentity(&identity);
         bool is_client = false;
-        DWORD result = IsClientExecutable(&is_client);
-        bool renderer_started = false;
+        if (result == ERROR_SUCCESS) {
+            result = IsClientExecutable(&is_client);
+        }
+        const bool world_map_supported = (
+            result == ERROR_SUCCESS
+            && is_client
+            && wonderbane::extension::IsReviewedWorldMapClient()
+        );
+        bool event_channel_started = false;
+        bool world_map_started = false;
         bool graphics_status_started = false;
+        bool renderer_started = false;
+        if (result == ERROR_SUCCESS) {
+            result = wonderbane::extension::InitializeEventChannel(
+                identity,
+                world_map_supported
+                    ? (
+                        wonderbane::extension::kWorldMapDestinationCapability
+                        | wonderbane::extension::kTaggedTestInputCapability
+                    )
+                    : 0U
+            );
+            event_channel_started = result == ERROR_SUCCESS;
+        }
+        if (result == ERROR_SUCCESS) {
+            result = PinExtensionModule();
+        }
+        if (result == ERROR_SUCCESS && world_map_supported) {
+            result = wonderbane::extension::StartWorldMapCapture(
+                g_extension_module,
+                identity
+            );
+            world_map_started = result == ERROR_SUCCESS;
+        }
         if (result == ERROR_SUCCESS && is_client) {
             result = wonderbane::extension::StartGraphicsStatusPublication();
             graphics_status_started = result == ERROR_SUCCESS;
-            if (result == ERROR_SUCCESS) {
-                result = wonderbane::extension::StartStrongCelShading();
-                renderer_started = result == ERROR_SUCCESS;
-            }
+        }
+        if (result == ERROR_SUCCESS && is_client) {
+            result = wonderbane::extension::StartStrongCelShading();
+            renderer_started = result == ERROR_SUCCESS;
         }
         if (result == ERROR_SUCCESS) {
-            result = WriteHeartbeat();
+            result = WriteHeartbeat(identity);
         }
-        if (result != ERROR_SUCCESS && renderer_started) {
-            wonderbane::extension::StopStrongCelShading();
-        }
-        if (result != ERROR_SUCCESS && graphics_status_started) {
-            wonderbane::extension::StopGraphicsStatusPublication();
+        if (result != ERROR_SUCCESS) {
+            if (renderer_started) {
+                wonderbane::extension::StopStrongCelShading();
+            }
+            if (graphics_status_started) {
+                wonderbane::extension::StopGraphicsStatusPublication();
+            }
+            if (world_map_started) {
+                wonderbane::extension::StopWorldMapCapture();
+            }
+            if (event_channel_started) {
+                wonderbane::extension::ShutdownEventChannel();
+            }
         }
         InterlockedExchange(&g_initialization_result, static_cast<LONG>(result));
         InterlockedExchange(
@@ -357,6 +436,14 @@ extern "C" DWORD WINAPI WonderBaneExtensionGetStatus(
     return ERROR_SUCCESS;
 }
 
-BOOL APIENTRY DllMain(HMODULE, DWORD, LPVOID) noexcept {
+BOOL APIENTRY DllMain(
+    const HMODULE module,
+    const DWORD reason,
+    LPVOID
+) noexcept {
+    if (reason == DLL_PROCESS_ATTACH) {
+        g_extension_module = module;
+        DisableThreadLibraryCalls(module);
+    }
     return TRUE;
 }

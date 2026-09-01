@@ -10,7 +10,7 @@ import stat
 import tempfile
 import uuid
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -32,6 +32,12 @@ from shadowbane_lab.client_extension.texture_patch import (
     build_texture_patch_evidence,
     build_texture_patch_plan,
 )
+from shadowbane_lab.integrity import (
+    canonical_json_sha256,
+    canonical_timestamp,
+    create_only_json,
+)
+from shadowbane_lab.integrity import tree_sha256 as common_tree_sha256
 
 PATCH_PACKAGE_SCHEMA_VERSION = 1
 PACKAGE_DRIFT_SCHEMA_VERSION = 1
@@ -668,7 +674,9 @@ def discard_runtime_drifted_client_copy(
     if drift.actual_working_tree_sha256 != actual_working_tree_sha256:
         raise ClientPatchPackageError("patched client copy changed after its reviewed drift audit")
     if drift.matches:
-        raise ClientPatchPackageError("patched client copy has no runtime drift; use verified discard")
+        raise ClientPatchPackageError(
+            "patched client copy has no runtime drift; use verified discard"
+        )
     if drift.added:
         raise ClientPatchPackageError("runtime-drift retirement does not allow added files")
     unexpected_changed = tuple(
@@ -946,26 +954,11 @@ def _unique_record(records: tuple[BaselineFile, ...], relative_path: str) -> Bas
 
 
 def _tree_sha256(records: tuple[BaselineFile, ...]) -> str:
-    digest = hashlib.sha256()
-    for record in records:
-        digest.update(record.relative_path.encode("utf-8"))
-        digest.update(b"\0")
-        digest.update(str(record.size).encode("ascii"))
-        digest.update(b"\0")
-        digest.update(record.sha256.encode("ascii"))
-        digest.update(b"\n")
-    return digest.hexdigest()
+    return common_tree_sha256(records)  # type: ignore[arg-type]
 
 
 def _manifest_sha256(manifest: PatchManifest) -> str:
-    data = json.dumps(
-        manifest.as_dict(),
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=True,
-        allow_nan=False,
-    ).encode("ascii")
-    return hashlib.sha256(data).hexdigest()
+    return canonical_json_sha256(manifest.as_dict())
 
 
 def _load_json(path: Path) -> dict[str, object]:
@@ -1076,16 +1069,14 @@ def _require_count(value: object, expected: int, field_name: str) -> None:
 
 
 def _canonical_timestamp(value: datetime | None) -> str:
-    current = datetime.now(UTC) if value is None else value
-    if current.tzinfo is None:
-        raise ClientPatchPackageError("timestamp must include a timezone")
-    return current.astimezone(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    try:
+        return canonical_timestamp(value)
+    except ValueError as exc:
+        raise ClientPatchPackageError("timestamp must include a timezone") from exc
 
 
 def _write_new_json(path: Path, payload: dict[str, Any]) -> None:
-    text = _json_text(payload)
-    with path.open("x", encoding="utf-8", newline="\n") as stream:
-        stream.write(text)
+    create_only_json(path, payload)
 
 
 def _write_temporary_json(parent: Path, payload: dict[str, object]) -> Path:

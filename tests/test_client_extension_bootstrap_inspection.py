@@ -10,6 +10,7 @@ from shadowbane_lab.client_extension.bootstrap_inspection import (
     BootstrapInspectionError,
     inspect_bootstrap_candidate,
     inspect_bootstrap_file,
+    inspect_pe_imports,
 )
 from tests.client_alignment_fixture import build_pe
 
@@ -47,6 +48,15 @@ def _bootstrap_pe(*, include_get_proc_address: bool = True) -> bytes:
 
 
 class BootstrapInspectionTests(unittest.TestCase):
+    def test_import_inspection_does_not_require_bootstrap_site_review(self) -> None:
+        report = inspect_pe_imports(_bootstrap_pe())
+
+        self.assertEqual("evidence_only_no_runtime_route_authority", report["authorization"])
+        self.assertEqual(
+            ["LoadLibraryA", "GetProcAddress"],
+            [item["symbol"] for item in report["imports"]],
+        )
+
     def test_reports_import_slots_entry_boundary_and_only_trailing_raw_padding(self) -> None:
         report = inspect_bootstrap_candidate(_bootstrap_pe())
 

@@ -438,7 +438,10 @@ class ClientExtensionPackageTests(unittest.TestCase):
             self.assertTrue(receipt_path.is_file())
             self.assertEqual("PREF=runtime\n", (archive / "Config" / "ArcanePref.cfg").read_text())
             self.assertEqual(drift.actual_working_tree_sha256, receipt.actual_working_tree_sha256)
-            self.assertEqual(["Logs/debug.txt"], [item.relative_path for item in receipt.missing_files])
+            self.assertEqual(
+                ["Logs/debug.txt"],
+                [item.relative_path for item in receipt.missing_files],
+            )
 
     def test_runtime_drifted_discard_rejects_unreviewed_or_stale_drift(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

@@ -3,17 +3,23 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import os
 import shutil
-import stat
 import tempfile
 from dataclasses import dataclass
-from datetime import UTC, datetime
-from pathlib import Path, PurePosixPath
+from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from shadowbane_lab.client_alignment import PeImage, inspect_pe_bytes
+from shadowbane_lab.integrity import (
+    canonical_timestamp,
+    create_only_json,
+    is_reparse_point,
+    tree_sha256,
+    validate_relative_path,
+    validate_sha256,
+)
 
 CLIENT_BASELINE_SCHEMA_VERSION = 1
 _BASELINE_FILE_NAME = "client-baseline.json"
@@ -201,25 +207,11 @@ def freeze_client_baseline(
 
 
 def _validate_relative_path(value: str) -> str:
-    if not isinstance(value, str) or not value or "\\" in value or "\0" in value:
-        raise ValueError("relative path must be a non-empty POSIX-style path")
-    path = PurePosixPath(value)
-    if path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts):
-        raise ValueError("relative path must remain beneath the client root")
-    canonical = path.as_posix()
-    if canonical != value:
-        raise ValueError("relative path must be canonical POSIX form")
-    return canonical
+    return validate_relative_path(value)
 
 
 def _validate_sha256(value: str, field_name: str) -> None:
-    if (
-        not isinstance(value, str)
-        or len(value) != 64
-        or value != value.casefold()
-        or any(character not in "0123456789abcdef" for character in value)
-    ):
-        raise ValueError(f"{field_name} must be lowercase hexadecimal SHA-256")
+    validate_sha256(value, field_name)
 
 
 def _validate_limits(*, max_files: int, max_total_bytes: int) -> None:
@@ -265,11 +257,7 @@ def _inventory_paths(root: Path, *, max_files: int, max_total_bytes: int) -> tup
 
 
 def _is_reparse_point(path: Path) -> bool:
-    if path.is_symlink():
-        return True
-    attributes = getattr(path.stat(follow_symlinks=False), "st_file_attributes", 0)
-    reparse = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
-    return bool(attributes & reparse)
+    return is_reparse_point(path)
 
 
 def _copy_inventory(source: Path, destination: Path, files: tuple[Path, ...]) -> tuple[Path, ...]:
@@ -304,35 +292,15 @@ def _hash_inventory(root: Path, files: tuple[Path, ...]) -> tuple[BaselineFile, 
 
 
 def _tree_sha256(files: tuple[BaselineFile, ...]) -> str:
-    digest = hashlib.sha256()
-    for item in files:
-        digest.update(item.relative_path.encode("utf-8"))
-        digest.update(b"\0")
-        digest.update(str(item.size).encode("ascii"))
-        digest.update(b"\0")
-        digest.update(item.sha256.encode("ascii"))
-        digest.update(b"\n")
-    return digest.hexdigest()
+    return tree_sha256(files)  # type: ignore[arg-type]
 
 
 def _canonical_timestamp(value: datetime | None) -> str:
-    current = datetime.now(UTC) if value is None else value
-    if current.tzinfo is None:
-        raise ValueError("captured_at must include a timezone")
-    return current.astimezone(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    return canonical_timestamp(value)
 
 
 def _write_new_json(path: Path, payload: dict[str, Any]) -> None:
-    text = json.dumps(
-        payload,
-        sort_keys=True,
-        indent=2,
-        ensure_ascii=True,
-        allow_nan=False,
-    )
-    with path.open("x", encoding="utf-8", newline="\n") as stream:
-        stream.write(text)
-        stream.write("\n")
+    create_only_json(path, payload)
 
 
 __all__ = [

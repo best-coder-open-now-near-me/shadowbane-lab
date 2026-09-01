@@ -214,10 +214,26 @@ inherits the package verifier's exact frozen-directory binding, inventory, hash,
 
 The v1 x86 DLL exports `WonderBaneExtensionInitialize` and
 `WonderBaneExtensionGetStatus`. Initialization is idempotent and publishes one process-lifetime
-heartbeat atomically beneath `%LOCALAPPDATA%\ShadowbaneLab\client-extension`; it does not read or
-write game state. The status ABI reports the same heartbeat path, ABI/version, process ID,
-initialization state, and Win32 result. `verify-heartbeat <heartbeat.json>` strictly checks the
-schema and binds the file name to the PID plus process-creation FILETIME.
+heartbeat atomically beneath `%LOCALAPPDATA%\ShadowbaneLab\client-extension`. It pins the extension
+module before starting any process-lifetime hook so those hooks cannot outlive their DLL code. The
+status ABI reports the same heartbeat path, ABI/version, process ID, initialization state, and Win32
+result. `verify-heartbeat <heartbeat.json>` strictly checks the schema and binds the file name to the
+PID plus process-creation FILETIME.
+
+On the exact reviewed WonderBane build, initialization also observes a uniquely identified open
+world map and exposes a bounded process-lifetime event channel. A fresh, exclusive consumer lease is
+required before the hook suppresses a qualifying click and publishes its projected LT/LG
+destination. Ordinary injected input, lower-integrity injected input, stale map snapshots,
+background windows, ambiguous map objects, and absent consumers pass through without publication or
+suppression. The watched acceptance path uses one dedicated tagged `SendInput` right-click; the tag
+is an admission marker, not proof of success. The harness requires one exact native event and
+acknowledges it only after every identity, pixel, button, snapshot, and coordinate field matches.
+
+This event milestone stops at destination capture. It suppresses the captured down/up pair instead
+of forwarding it to the original map handler, and no extension code accepts a route or moves the
+character. The manager listener validates the exact process lifetime and window before submitting
+deterministic stop/travel operations to the existing worker. If the listener is absent, stale, or
+cannot renew its lease, physical clicks pass through to the original client.
 
 ## Renderer-boundary diagnostic
 

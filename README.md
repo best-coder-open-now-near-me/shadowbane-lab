@@ -49,6 +49,7 @@ without relying on producer-specific IDs. The input adapter compiles the same se
 decisions into calibrated plans and keeps live PyAutoGUI input locked behind window guards,
 an emergency stop, and explicit profile confirmation. See [the architecture](docs/architecture.md),
 [client-input runbook](docs/client-input-harness.md),
+[bounded client-action harness](docs/client-action-harness.md),
 [persistent client extension](docs/client-extension.md),
 [local multi-client manager](docs/client-manager.md),
 [read-only character snapshot runbook](docs/character-snapshot.md),
@@ -58,7 +59,12 @@ an emergency stop, and explicit profile confirmation. See [the architecture](doc
 [PvP data catalog and capture guide](docs/pvp-data.md),
 [automated VM setup](docs/vm-setup.md),
 [simulation rollout guide](docs/simulation-rollouts.md),
-[differential-validation contract](docs/differential-validation.md), and
+[differential-validation contract](docs/differential-validation.md),
+[produced-build runtime consistency gate](docs/runtime-consistency.md),
+[capture-once diagnostic runbook](docs/diagnostic-capture.md),
+[evidence-spine architecture](docs/evidence-spine.md),
+[evidence-spine delivery plan](docs/evidence-spine-delivery-plan.md),
+[tool ownership map](docs/tooling-map.md), and
 [development plan](docs/plan.md).
 
 ## Local validation

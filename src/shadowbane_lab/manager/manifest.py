@@ -599,6 +599,143 @@ def expand_manager_slots(
     return ManagerManifest(node_id=manifest.node_id, clients=tuple(tiled))
 
 
+def retarget_manager_clients(
+    manifest: ManagerManifest,
+    game_directory: str | PureWindowsPath,
+    *,
+    executable_name: str = "sb.exe",
+) -> ManagerManifest:
+    """Retarget every slot to one reviewed build without changing slot ownership."""
+
+    if not isinstance(manifest, ManagerManifest):
+        raise ValueError("manifest must be ManagerManifest")
+    directory = _parse_absolute_windows_path(
+        str(game_directory),
+        location="game_directory",
+    )
+    (validated_name,) = _parse_executable_names(
+        [executable_name],
+        location="executable_name",
+    )
+    executable = directory / validated_name
+    clients = tuple(
+        replace(
+            client,
+            launch=replace(
+                client.launch,
+                executable=executable,
+                working_directory=directory,
+            ),
+            expected_process_directory=directory,
+            expected_executable_names=(validated_name,),
+        )
+        for client in manifest.clients
+    )
+    return ManagerManifest(node_id=manifest.node_id, clients=clients)
+
+
+def retarget_manager_client_directories(
+    manifest: ManagerManifest,
+    game_directories: Mapping[str, str | PureWindowsPath],
+    *,
+    executable_name: str = "sb.exe",
+    resolution_width: int = 1920,
+    resolution_height: int = 955,
+) -> ManagerManifest:
+    """Retarget every slot to its own client tree and calibrated render size.
+
+    Multi-client runtime trees contain mutable configuration, logs, middleware
+    state, and caches.  This operation therefore requires exactly one distinct
+    directory for every existing ``client_id``.  Window tiles are removed on
+    purpose: Shadowbane retains its launch-time render surface when its outer
+    window is resized, so tiling would clip a full-size calibrated client.
+    """
+
+    if not isinstance(manifest, ManagerManifest):
+        raise ValueError("manifest must be ManagerManifest")
+    if not isinstance(game_directories, Mapping):
+        raise ManagerManifestError("game_directories must map client IDs to directories")
+    if any(not isinstance(key, str) for key in game_directories):
+        raise ManagerManifestError("game_directories keys must be client ID strings")
+
+    expected_ids = {client.client_id.casefold(): client.client_id for client in manifest.clients}
+    supplied_ids: dict[str, str] = {}
+    for key in game_directories:
+        canonical = key.casefold()
+        if canonical in supplied_ids:
+            raise ManagerManifestError(
+                "game_directories client IDs must be unique (case-insensitive)"
+            )
+        supplied_ids[canonical] = key
+    missing = expected_ids.keys() - supplied_ids.keys()
+    unknown = supplied_ids.keys() - expected_ids.keys()
+    if missing or unknown:
+        details: list[str] = []
+        if missing:
+            details.append(
+                "missing " + ", ".join(expected_ids[client_id] for client_id in sorted(missing))
+            )
+        if unknown:
+            details.append(
+                "unknown " + ", ".join(supplied_ids[client_id] for client_id in sorted(unknown))
+            )
+        raise ManagerManifestError(
+            "game_directories must cover every manager slot exactly (" + "; ".join(details) + ")"
+        )
+
+    for value, field_name in (
+        (resolution_width, "resolution_width"),
+        (resolution_height, "resolution_height"),
+    ):
+        if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+            raise ManagerManifestError(f"{field_name} must be a positive integer")
+        if value > _MAX_DISPLAY_DIMENSION:
+            raise ManagerManifestError(f"{field_name} must not exceed {_MAX_DISPLAY_DIMENSION}")
+    resolution = f"{resolution_width}x{resolution_height}"
+    _parse_display_resolution(resolution, location="runtime resolution")
+    (validated_name,) = _parse_executable_names(
+        [executable_name],
+        location="executable_name",
+    )
+
+    parsed_directories: dict[str, PureWindowsPath] = {}
+    seen_directories: dict[str, str] = {}
+    for client_id, original_id in expected_ids.items():
+        supplied_id = supplied_ids[client_id]
+        directory = _parse_absolute_windows_path(
+            str(game_directories[supplied_id]),
+            location=f"game_directories[{original_id!r}]",
+        )
+        canonical_directory = str(directory).casefold()
+        if canonical_directory in seen_directories:
+            raise ManagerManifestError(
+                "manager client runtime directories must be unique; "
+                f"{original_id} and {seen_directories[canonical_directory]} share {directory}"
+            )
+        seen_directories[canonical_directory] = original_id
+        parsed_directories[client_id] = directory
+
+    clients: list[ManagedClientConfig] = []
+    for client in manifest.clients:
+        directory = parsed_directories[client.client_id.casefold()]
+        launcher_client = ("--client",) if "--client" in client.launch.arguments else ()
+        clients.append(
+            replace(
+                client,
+                launch=replace(
+                    client.launch,
+                    executable=directory / validated_name,
+                    arguments=("-windowed", "-resolution", resolution, *launcher_client),
+                    working_directory=directory,
+                ),
+                expected_process_directory=directory,
+                expected_executable_names=(validated_name,),
+                window_tile=None,
+            )
+        )
+    return ManagerManifest(node_id=manifest.node_id, clients=tuple(clients))
+
+
 def parse_manager_manifest(payload: object) -> ManagerManifest:
     """Validate an already-decoded JSON-compatible manager manifest."""
 
@@ -672,4 +809,6 @@ __all__ = [
     "load_manager_manifest",
     "loads_manager_manifest",
     "parse_manager_manifest",
+    "retarget_manager_client_directories",
+    "retarget_manager_clients",
 ]

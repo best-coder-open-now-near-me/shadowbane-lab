@@ -14,6 +14,7 @@ from shadowbane_lab.client_alignment.model import PeImage, PeSection
 from shadowbane_lab.client_alignment.pe import PeInspectionError, inspect_pe_bytes
 
 BOOTSTRAP_INSPECTION_SCHEMA_VERSION = 1
+PE_IMPORT_INSPECTION_SCHEMA_VERSION = 1
 _IMAGE_DIRECTORY_ENTRY_IMPORT = 1
 _IMAGE_SCN_MEM_EXECUTE = 0x20000000
 _MAX_IMPORT_DESCRIPTORS = 4096
@@ -31,11 +32,40 @@ class BootstrapInspectionError(ValueError):
 def inspect_bootstrap_candidate(executable: bytes) -> dict[str, Any]:
     """Inspect one PE without asserting that any observed site is safe to patch."""
 
+    image, layout, imports = _inspect_pe_imports(executable)
+    return _inspect_bootstrap_with_imports(executable, image, layout, imports)
+
+
+def inspect_pe_imports(executable: bytes) -> dict[str, Any]:
+    """Inspect one PE import table without assigning runtime call-path authority."""
+
+    image, layout, imports = _inspect_pe_imports(executable)
+    return {
+        "schema_version": PE_IMPORT_INSPECTION_SCHEMA_VERSION,
+        "authorization": "evidence_only_no_runtime_route_authority",
+        "executable": image.as_dict(),
+        "pe_layout": layout,
+        "imports": list(imports),
+    }
+
+
+def _inspect_pe_imports(
+    executable: bytes,
+) -> tuple[PeImage, dict[str, Any], tuple[dict[str, Any], ...]]:
     try:
         image = inspect_pe_bytes(executable, path="sb.exe")
     except PeInspectionError as exc:
         raise BootstrapInspectionError(f"candidate is not a supported PE image: {exc}") from exc
     layout = _pe_layout(executable, image)
+    return image, layout, _parse_imports(executable, image, layout)
+
+
+def _inspect_bootstrap_with_imports(
+    executable: bytes,
+    image: PeImage,
+    layout: dict[str, Any],
+    imports: tuple[dict[str, Any], ...],
+) -> dict[str, Any]:
     entry_section = _section_for_rva(image, image.entry_point_rva, 1)
     if entry_section is None:
         raise BootstrapInspectionError("entry point is not backed by a raw PE section")
@@ -48,7 +78,6 @@ def inspect_bootstrap_candidate(executable: bytes) -> dict[str, Any]:
     )
     entry_bytes = executable[entry_offset : entry_offset + entry_available]
     disassembly = _disassemble_entry(image, entry_bytes)
-    imports = _parse_imports(executable, image, layout)
     bootstrap_imports = tuple(
         item
         for item in imports
@@ -462,7 +491,9 @@ def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
 
 __all__ = [
     "BOOTSTRAP_INSPECTION_SCHEMA_VERSION",
+    "PE_IMPORT_INSPECTION_SCHEMA_VERSION",
     "BootstrapInspectionError",
     "inspect_bootstrap_candidate",
     "inspect_bootstrap_file",
+    "inspect_pe_imports",
 ]

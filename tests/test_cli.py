@@ -8,7 +8,13 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from shadowbane_lab.cli import _listen_for_go_commands, _run_pve, _run_travel, main
+from shadowbane_lab.cli import (
+    _listen_for_go_commands,
+    _print_go_listener_event,
+    _run_pve,
+    _run_travel,
+    main,
+)
 from shadowbane_lab.client_input import (
     EventEmergencyStop,
     RecordingInputBackend,
@@ -32,6 +38,29 @@ from tests.test_client_input_executor import _valid_snapshot
 
 
 class ClientCliTests(unittest.TestCase):
+    def test_go_listener_emits_extension_router_diagnostics_as_json(self) -> None:
+        output = io.StringIO()
+        diagnostics = {
+            "connected_clients": 0,
+            "dispatched_events": 0,
+            "rejected_events": 0,
+            "pending_events": 0,
+            "dispatched_process_ids": [],
+            "issues": ["client-01: channel unavailable (OSError)"],
+        }
+
+        with redirect_stdout(output):
+            _print_go_listener_event(
+                "extension_router",
+                as_json=True,
+                extension_router_diagnostics=diagnostics,
+            )
+
+        payload = json.loads(output.getvalue())
+        self.assertTrue(payload["ok"])
+        self.assertEqual("extension_router", payload["event"])
+        self.assertEqual(diagnostics, payload["extension_router_diagnostics"])
+
     def test_character_layout_template_validates_and_remains_live_locked(self) -> None:
         output = io.StringIO()
         template = (
@@ -576,7 +605,15 @@ class ClientCliTests(unittest.TestCase):
         captured: dict[str, object] = {}
 
         class OneCommandListener:
-            def __init__(self, _guard, *, on_command, on_interaction, on_pointer) -> None:
+            def __init__(
+                self,
+                _guard,
+                *,
+                on_command,
+                on_interaction,
+                on_pointer,
+                pointer_claims_interaction,
+            ) -> None:
                 self.on_command = on_command
 
             def __enter__(self):
@@ -603,6 +640,15 @@ class ClientCliTests(unittest.TestCase):
 
         emergency_stop = MagicMock()
         emergency_stop.__enter__.return_value = service_stop
+        extension_router = MagicMock()
+        extension_router.poll_once.return_value = SimpleNamespace(
+            connected_clients=0,
+            dispatched_events=0,
+            rejected_events=0,
+            pending_events=0,
+            dispatched_process_ids=(),
+            issues=(),
+        )
         output = io.StringIO()
         with (
             tempfile.TemporaryDirectory() as directory,
@@ -631,6 +677,10 @@ class ClientCliTests(unittest.TestCase):
             patch(
                 "shadowbane_lab.cli.ForegroundWorkerOperationIngress",
                 return_value=ExactIngress(),
+            ),
+            patch(
+                "shadowbane_lab.cli.ExactExtensionEventRouter",
+                return_value=extension_router,
             ),
             patch("shadowbane_lab.cli._run_pve") as run_pve,
             redirect_stdout(output),
@@ -666,6 +716,8 @@ class ClientCliTests(unittest.TestCase):
         self.assertEqual(WorkerOperationKind.PVE, captured["kind"])
         self.assertEqual("/pve", captured["command"])
         self.assertEqual(4320, captured["expected_process_id"])
+        extension_router.poll_once.assert_called()
+        extension_router.close.assert_called_once_with()
         run_pve.assert_not_called()
         events = [json.loads(line) for line in output.getvalue().splitlines()]
         self.assertEqual("accepted", events[1]["event"])

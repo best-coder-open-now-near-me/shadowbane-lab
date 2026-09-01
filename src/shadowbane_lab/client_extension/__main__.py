@@ -35,6 +35,11 @@ from shadowbane_lab.client_extension.package import (
     verify_frozen_client_baseline,
     verify_patched_client_copy,
 )
+from shadowbane_lab.client_extension.patch_diff import (
+    ClientPatchDiffError,
+    compare_frozen_client_baselines,
+    write_client_patch_diff,
+)
 from shadowbane_lab.client_extension.resolver import (
     PatchResolutionError,
     align_patch_sites,
@@ -81,6 +86,17 @@ def _parser() -> argparse.ArgumentParser:
     freeze.add_argument("--executable", default="sb.exe")
     freeze.add_argument("--repository-revision", required=True)
     freeze.add_argument("--pretty", action="store_true")
+    diff = commands.add_parser(
+        "diff-baselines",
+        help="compare two verified official-client baselines without copying payload bytes",
+    )
+    diff.add_argument("source_directory", type=Path)
+    diff.add_argument("target_directory", type=Path)
+    diff.add_argument("--patch-id", required=True)
+    diff.add_argument("--output", type=Path)
+    diff.add_argument("--profile-directory", type=Path)
+    diff.add_argument("--no-cache-analysis", action="store_true")
+    diff.add_argument("--pretty", action="store_true")
     identify = commands.add_parser(
         "identify-baseline",
         help="verify a frozen client and report its content-derived build identity",
@@ -182,6 +198,21 @@ def main(argv: Sequence[str] | None = None) -> int:
                 executable_relative_path=arguments.executable,
                 repository_revision=arguments.repository_revision,
             ).as_dict()
+        elif arguments.command == "diff-baselines":
+            report = compare_frozen_client_baselines(
+                arguments.source_directory,
+                arguments.target_directory,
+                patch_id=arguments.patch_id,
+                analyze_caches=not arguments.no_cache_analysis,
+                profile_directory=arguments.profile_directory,
+            )
+            if arguments.output is not None:
+                write_client_patch_diff(
+                    arguments.output,
+                    report,
+                    pretty=arguments.pretty,
+                )
+            payload = report.as_dict()
         elif arguments.command == "identify-baseline":
             baseline = verify_frozen_client_baseline(arguments.frozen_directory)
             payload = {
@@ -264,11 +295,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
             arguments.output_manifest.parent.mkdir(parents=True, exist_ok=True)
             try:
-                with arguments.output_manifest.open(
-                    "x",
-                    encoding="utf-8",
-                    newline="\n",
-                ) as stream:
+                with arguments.output_manifest.open("x", encoding="utf-8", newline="\n") as stream:
                     stream.write(
                         json.dumps(
                             texture_manifest.as_dict(),
@@ -288,6 +315,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             raise AssertionError(f"unhandled command: {arguments.command}")
     except (
         ClientBaselineError,
+        ClientPatchDiffError,
         ClientPatchPackageError,
         BootstrapInspectionError,
         BootstrapAuthoringError,
