@@ -389,6 +389,30 @@ These are inferences, ordered by present fit rather than certainty.
   count on each side, and whether the recurrence is immediate on crossing or delayed until models
   appear.
 
+### Different-camp control result
+
+**Operator observation**
+
+- Without relogging the Warlock/client, the operator moved to a different camp.
+- The different camp was quite smooth, with no comparable lag.
+- The comparison camp's creature type and turtle presence have not yet been recorded.
+
+**Supported or strengthened**
+
+- The expensive state is activated by the original turtle camp or its particular loaded/visible
+  set, not by a continuously global process slowdown.
+- The accumulated client/session can still render another camp smoothly, which further narrows the
+  candidate boundary toward original-camp entities, density, resources, scene-cell streaming, or
+  region-scoped replication.
+
+**Interpretation branch awaiting one fact**
+
+- If the smooth camp also contains turtles, generic turtle species/animation cost is strongly
+  weakened and the original camp instance, composition, density, asset set, or scene cell becomes
+  the lead.
+- If the smooth camp contains different creatures, the result confirms locality but does not yet
+  distinguish turtle-specific handling from the original camp's environmental state.
+
 ### Observations to record during this run
 
 1. Approximate completed turtle fights from this point.
@@ -397,6 +421,133 @@ These are inferences, ordered by present fit rather than certainty.
    ability/effect.
 4. Whether leaving turtle visual range clears the active cost without relogging.
 5. Do not relog after the first symptom until a degraded capture and PID identity are recorded.
+
+## 2026-09-01 — Sealed Warlock degraded capture and paired offline comparison
+
+### Capture provenance
+
+**Instrumented evidence**
+
+- The copied guest-local capture verified successfully and is complete, with no omissions,
+  warnings, channel failures, identity changes, producer drops, or reported sequence gaps.
+- Run ID: `diag-0ba7023f655f4179834957388926cf5c`.
+- Manifest ID:
+  `sha256:be6872b43f520a7e0c622ae0c4397c68683434f10a39be8ce3ef33c74d75213d`.
+- Fingerprint ID:
+  `sha256:5fe737dd2a809b4d68c9347be0a4f0c1e2c434ddc62550a3301101ceaeb177e5`.
+- Capture-stream artifact ID:
+  `sha256:9f3ba5b36316800211d62bafa566996f7302dab7b5feb9d0c7b4bdfe7d4bb551`.
+- Offline analysis report ID:
+  `sha256:80ae081ca903f3c1a1a2bef112762637a5a70c511d7cadb8da33a4f63921e48b`.
+- Capture interval: `2026-09-01T03:31:08.050Z` through
+  `2026-09-01T03:31:46.965Z`; 144 samples over 43.968 seconds.
+- Manual marker time: approximately `2026-09-01T03:31:18Z`, about ten seconds after capture
+  began. Lag was already active; the marker was a confirmed-degraded point, not symptom onset.
+- Target process: PID `3184`, creation FILETIME `134326944408808988`, exact executable SHA-256
+  `55fbad5f0110cd99b4085af72d1e8fddb782ccdec1491478492c18158f5c61bc`.
+
+### Corrected raw-sample findings
+
+**Instrumented evidence**
+
+- The known stale first-sample interval was excluded from every rate below. Samples 2 through 144
+  cover 43.593 seconds.
+- The Warlock accumulated 302,556 page faults, or 6,940.47 faults/second. The Windows process
+  counter includes soft faults, so this is page/working-set churn evidence rather than proof of
+  disk paging.
+- Mean process CPU consumption was 1.479 user plus 0.328 kernel core-equivalents. Process reads
+  averaged only 7,939.62 bytes/second and 0.321 read operations/second.
+- Private bytes fell by 7,462,912 and working set fell by 7,602,176 bytes. The capture therefore
+  does not support a simple monotonic memory leak during this degraded window.
+- Before the marker, aggregate fault rate was 5,846.14/second; after it, 7,348.67/second, a 25.7%
+  increase. Interval median rose from 6,758.7 to 9,774.4/second, or 44.6%. Post-marker p95 was
+  14,744/second and maximum was 18,079.9/second.
+- The largest fault bursts coincided with rapid private-byte and working-set swings of roughly
+  13–26 MB while process read-byte deltas were zero. This is consistent with intense allocation,
+  touch/release, resource-residency, or already-cached scene/resource churn inside the client; it
+  does not establish which subsystem owns the work.
+
+### Comparison with the earlier degraded capture
+
+**Instrumented evidence**
+
+- Raw-sample comparison report ID:
+  `sha256:0a896aa5d1fa12b037def4a2e8b7692a430fe595685310e08a90b13aaafdd167`.
+- The earlier PID `7492` degraded capture, also corrected by excluding its stale first sample, had
+  an aggregate fault rate of 558.69/second. Its post-marker median interval rate was 310.4/second.
+- Warlock fault churn was about 12.4 times the earlier capture overall, and its post-marker median
+  was about 31.5 times higher. The Warlock used less CPU and performed fewer reads, so its signature
+  is not ordinary file streaming or greater total CPU alone.
+- The earlier capture contained one isolated process-read burst. The Warlock's largest fault and
+  memory-oscillation bursts had no accompanying process reads.
+- Both captures used the exact same `sb.exe` and matching PE section hashes. Their client-directory
+  tree fingerprints differed by 22,889 total bytes despite identical file counts. Mutable runtime
+  files are a likely explanation, but the sealed inventory is not file-granular, so exact tree
+  equality cannot be claimed and the drift remains a comparison confound.
+
+**Interpretation**
+
+- The two degraded sessions do not share one simple sampled-counter signature. They may represent
+  different stages or manifestations of one scene/resource lifecycle defect, or distinct pressure
+  paths that process totals cannot separate.
+- The Warlock evidence strongly supports severe client-local page and memory-residency churn. It
+  fits the whole-world stutter and click-starvation report better than a turtle-animation-only
+  explanation, but it is not yet a root-cause identification.
+- Combined with immediate recurrence on re-entering the original turtle camp, relief outside that
+  camp even with one turtle engaged, and a smooth different-camp control, the best current model
+  remains two-part: session/client state accumulates, then the original camp's loaded or visible
+  entity/resource set activates expensive repeated work.
+
+### Analyzer defect exposed by the paired comparison
+
+**Tooling defect**
+
+- The built-in analyzer currently includes the stale initial sample. On this Warlock run it
+  produced an impossible first interval: 9.23 user CPU seconds and 2.44 kernel CPU seconds were
+  attributed to only 0.297 elapsed seconds because fingerprinting occurred between sampling and
+  timestamping.
+- That interval also changed the apparent memory result from a corrected net decline to misleading
+  positive growth. Until fixed, all first-interval rates and whole-window deltas require raw-sample
+  correction.
+
+### Next discriminating instrumentation
+
+1. Add exact renderer-present timestamps with a bounded producer ring, producer clock anchors,
+   sequence/gap accounting, and continuous capture-side draining.
+2. Report frame-time median, p95, p99, maximum, and explicit hitch counts/timestamps so observed
+   stutter can be correlated directly with process fault/memory oscillation.
+3. Fix the stale first-sample timestamp boundary, then add thread-level CPU/wait and allocation or
+   resource-lifecycle evidence to identify the owner of the churn.
+
+## 2026-09-01 — Frame timing completed and stale first-sample defect fixed
+
+### Tooling resolution
+
+**Reviewed repository evidence**
+
+- Integration commit `32765bb` adds extension `1.5.5`: the exact
+  `GDI32.dll!SwapBuffers` hook now records a bounded 1,024-present sequence/QPC ring and publishes
+  producer clock anchors and timing-query health from the background status writer.
+- Integration commit `b1504af` continuously drains that ring during diagnostic capture, binds
+  every poll to PID, creation FILETIME, executable path/hash, and exact PE present candidates, and
+  seals raw timing as a required `frame-timing` channel. Ring overwrite, QPC failure, poll failure,
+  or capture-side sample loss makes the channel explicitly incomplete.
+- Offline analysis now derives average FPS, frame-time median/p95/p99/maximum, and hitch records at
+  33.3, 50, 100, and 250 milliseconds. Each hitch retains its present sequence, exact QPC interval,
+  and a clock-anchor-derived UTC estimate. Before/after comparison rereads both sealed timing
+  artifacts.
+- Integration commit `acb09b8` removes the stale first-sample defect. Process discovery and
+  fingerprinting use an unrecorded discovery probe; after setup, a fresh identity-validated process
+  sample becomes sample 1 and the capture clock origin.
+- Focused validation passed: all six native extension tests, six graphics/frame-timing tests, nine
+  core diagnostic capture/analysis tests, Ruff checks, and the two package-pin tests.
+
+### Interpretation boundary
+
+- The two existing Maelstrom captures remain immutable and still require the documented raw-sample
+  correction; the fix applies only to captures made with the new collector revision.
+- Renderer timing has been implemented and pushed but has not yet been deployed into a new regular-
+  VM gameplay run. No historical FPS or hitch values are inferred from the old process-only captures.
 
 ## Journal maintenance rule
 
