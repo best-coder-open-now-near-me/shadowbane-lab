@@ -750,6 +750,44 @@ These are inferences, ordered by present fit rather than certainty.
 - Keep future movement-correction findings there. Append here only when a result directly connects
   the movement case to Maelstrom turtle-camp performance degradation.
 
+## 2026-09-01 — Camera direction modulates buildup symptoms but not mature state
+
+### Operator observation
+
+- At the same camp position during the buildup phase, turning the camera away from the turtle camp
+  can raise PID `5416`'s frame rate into a fairly normal range. No departure or geographic unload is
+  required for this early relief.
+- It is not known whether the camp must remain visible for degradation to accumulate. During the
+  natural buildup it happened to be in view most or all of the time, so no controlled off-screen
+  dwell has isolated visibility as the accumulator.
+- Once the severe state has fully built up, it remains active even when the client looks away. The
+  camera intervention is no longer sufficient to restore frame rate at that stage.
+- The persistent mature state can still improve after actually leaving the camp, and relogging has
+  previously cleared it completely. Looking away, departing, and relogging are distinct boundaries.
+- Marker `shadowbane-lag-trigger-maelstrom-turtles-c06ea3d-02.marker` was created during buildup,
+  before the planned late-arrival summon. Classify that run as an early-build capture.
+
+### Updated interpretation
+
+- **Strengthened:** The visible camp or turtle set activates substantial work during the early or
+  intermediate phase because camera direction changes frame-rate severity without changing location.
+- **Not established:** Visibility causes the state to accumulate. Accumulation could instead follow
+  elapsed locality, combat, entity lifecycle, streaming, or another exposure variable while
+  visibility only gates how expensive the not-yet-mature state is to present.
+- **Strengthened:** The fully mature client-local degraded state has a persistent cost that no longer
+  requires the camp to remain in view.
+- **Weakened:** A model in which current camera direction alone determines all lag severity. It
+  explains early modulation but not persistence after full buildup.
+
+### Next controlled capture
+
+1. Preserve both live processes and allow the early-build capture to seal.
+2. During a newly armed run, keep PID `5416` stationary while degradation continues to build.
+3. Alternate matched facing-camp and looking-away intervals during buildup to test whether off-screen
+   dwell slows accumulation, rather than inferring that from immediate frame-rate relief.
+4. Confirm whether looking away still fails to clear the mature state without leaving the camp.
+5. Summon PID `8856`, mark its first rendering of the camp, and hold both clients afterward.
+
 ## Journal maintenance rule
 
 After every live test, append one entry containing:
