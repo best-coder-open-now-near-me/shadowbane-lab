@@ -27,6 +27,11 @@ std::uint32_t* FindImportAddressSlot(
 
 bool IsPerspectiveProjectionMatrix(const float* matrix, std::size_t count) noexcept;
 bool IsLocalOutlineModelViewMatrix(const float* matrix, std::size_t count) noexcept;
+bool IsPlanarQuadGeometry(
+    const OutlineBounds* bounds,
+    std::size_t vertex_count,
+    std::size_t primitive_count
+) noexcept;
 float PerspectiveOutlineLineWidth(
     const float* projection,
     std::size_t projection_count,

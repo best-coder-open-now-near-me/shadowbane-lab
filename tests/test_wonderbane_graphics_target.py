@@ -41,6 +41,9 @@ def test_restrained_cel_target_is_pinned_end_to_end() -> None:
         assert _sha256(ROOT / sample["atlas_path"]) == sample["atlas_sha256"]
 
     runtime = target["runtime_translation"]
+    assert runtime["extension_version"] == "1.5.7"
+    assert runtime["depth_edge_radius_pixels"] == 1.0
+    assert "inverse-eye-depth curvature" in runtime["depth_edge_source"]
     manifest_path = ROOT / runtime["texture_manifest_path"]
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert manifest["patch_id"] == runtime["texture_patch_id"]
@@ -55,9 +58,11 @@ def test_restrained_cel_target_is_pinned_end_to_end() -> None:
         ROOT / "native" / "wonderbane_extension" / "banded_lighting.cpp"
     ).read_text(encoding="utf-8")
     for token in (
-        "if (intensity < 0.22)",
-        "if (intensity < 0.43)",
-        "if (intensity < 0.66)",
+        "fwidth(intensity)",
+        "smoothstep(0.22 - transitionWidth",
+        "smoothstep(0.43 - transitionWidth",
+        "smoothstep(0.66 - transitionWidth",
+        "distantAlias * 0.45",
         "vec3(0.20, 0.20, 0.20)",
         "vec3(0.48, 0.53, 0.61)",
         "vec3(0.72, 0.76, 0.80)",
@@ -84,19 +89,19 @@ def test_graphics_publication_and_launch_pin_the_golden_package() -> None:
     launch = (ROOT / "scripts" / "launch-wonderbane-graphics-baseline.ps1").read_text(
         encoding="utf-8"
     )
-    assert 'ExtensionVersion = "1.5.6"' in publish
-    assert "wonderbane-extension-1.5.6.dll" in publish
+    assert 'ExtensionVersion = "1.5.7"' in publish
+    assert "wonderbane-extension-1.5.7.dll" in publish
     assert r"\build\wonderbane-client-extension\Release" in publish
-    assert "67dbc424e9c37c84060f93c8b841b7f39f77f48789f10043086d68b32350cb77" in publish
+    assert "67a10b2b414c4fb94f6d40aa916ea1610f5daa7e24e3accdfb4bf917bbb8c936" in publish
     assert "$extensionSha256 -cne $ExpectedExtensionSha256" in publish
     assert "--texture-patch-manifest $TexturePatchManifest" in publish
     assert "--texture-artifact-directory $TextureArtifactDirectory" in publish
     assert "texture_patch_manifest_sha256" in publish
-    assert 'ExtensionVersion = "1.5.6"' in launch
-    assert "67dbc424e9c37c84060f93c8b841b7f39f77f48789f10043086d68b32350cb77" in launch
-    assert '$expectedExtensionRelativePath = "wonderbane-extension-1.5.6.dll"' in launch
+    assert 'ExtensionVersion = "1.5.7"' in launch
+    assert "67a10b2b414c4fb94f6d40aa916ea1610f5daa7e24e3accdfb4bf917bbb8c936" in launch
+    assert '$expectedExtensionRelativePath = "wonderbane-extension-1.5.7.dll"' in launch
     assert 'Properties["extension_relative_path"]' in launch
-    assert "4fb6477f82edd58f0ec9307b03e89c6f7368294b6429499260606eeb480faed3" in launch
+    assert "a8b2693fb3e11332b95d0ef6dd02bf418f133a10f505be642c3623180d41896f" in launch
     assert 'Properties["result_executable_sha256"]' in launch
     assert "verify-copy" in launch
     assert manifest_sha256 in launch

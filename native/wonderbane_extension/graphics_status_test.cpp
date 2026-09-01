@@ -86,7 +86,9 @@ int wmain() {
         || json.find("\"executable_sha256\":\"") == std::string::npos
         || json.find("\"context_observed\":false") == std::string::npos
         || json.find("\"composite_count\":1") == std::string::npos
-        || json.find("\"radius_pixels\":1.0") == std::string::npos) {
+        || json.find("\"radius_pixels\":1.0") == std::string::npos
+        || json.find("\"edge_metric\":\"inverse-depth-curvature\"")
+            == std::string::npos) {
         ::fprintf(stderr, "status JSON: %s\n", json.c_str());
         return Fail(L"published status JSON");
     }

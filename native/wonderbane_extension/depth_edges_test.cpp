@@ -12,6 +12,19 @@ int Fail(const wchar_t* const operation) noexcept {
     return 1;
 }
 
+float WindowDepthForEyeDistance(
+    const float eye_distance,
+    const float projection_10,
+    const float projection_11,
+    const float projection_14
+) noexcept {
+    const float eye_z = -eye_distance;
+    const float ndc = (
+        projection_10 * eye_z + projection_14
+    ) / (projection_11 * eye_z);
+    return (ndc + 1.0F) * 0.5F;
+}
+
 }  // namespace
 
 int wmain() {
@@ -29,9 +42,31 @@ int wmain() {
         return Fail(L"perspective depth reconstruction");
     }
 
-    constexpr std::array<float, 8U> continuous{
-        0.9909910F, 0.9909920F, 0.9909900F, 0.9909915F,
-        0.9909905F, 0.9909912F, 0.9909908F, 0.9909911F,
+    const std::array<float, 8U> continuous{
+        WindowDepthForEyeDistance(
+            1.0F / 0.099F, projection_10, projection_11, projection_14
+        ),
+        WindowDepthForEyeDistance(
+            1.0F / 0.101F, projection_10, projection_11, projection_14
+        ),
+        WindowDepthForEyeDistance(
+            1.0F / 0.098F, projection_10, projection_11, projection_14
+        ),
+        WindowDepthForEyeDistance(
+            1.0F / 0.102F, projection_10, projection_11, projection_14
+        ),
+        WindowDepthForEyeDistance(
+            1.0F / 0.097F, projection_10, projection_11, projection_14
+        ),
+        WindowDepthForEyeDistance(
+            1.0F / 0.096F, projection_10, projection_11, projection_14
+        ),
+        WindowDepthForEyeDistance(
+            1.0F / 0.104F, projection_10, projection_11, projection_14
+        ),
+        WindowDepthForEyeDistance(
+            1.0F / 0.103F, projection_10, projection_11, projection_14
+        ),
     };
     if (IsForegroundDepthDiscontinuity(
             0.99099099F,
@@ -69,7 +104,8 @@ int wmain() {
     const char* const fragment = DepthEdgeFragmentSource();
     if (fragment == nullptr
         || std::strstr(fragment, "wbTexelSize") == nullptr
-        || std::strstr(fragment, "center * 0.0125") == nullptr
+        || std::strstr(fragment, "wbPairCurvature") == nullptr
+        || std::strstr(fragment, "response <= 0.055") == nullptr
         || std::strstr(fragment, "discard") == nullptr) {
         return Fail(L"fixed-pixel depth shader contract");
     }

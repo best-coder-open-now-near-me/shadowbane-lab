@@ -212,6 +212,7 @@ struct CapturedDisplayListBounds {
         bool has_tex_coords = false;
     };
     std::vector<FeatureEdge> feature_edges{};
+    bool planar_overlay_candidate = false;
     bool valid = false;
 };
 
@@ -804,6 +805,17 @@ void EndDisplayListCapture() noexcept {
             g_display_list_bounds[g_active_display_list_capture.list]
         );
         captured.bounds = g_active_display_list_capture.bounds;
+        const bool exact_textured_quad = (
+            g_active_display_list_capture.primitives.size() == 1U
+            && g_active_display_list_capture.primitives[0].mode == kGlQuads
+            && g_active_display_list_capture.primitives[0].count == 4U
+        );
+        captured.planar_overlay_candidate = exact_textured_quad
+            && IsPlanarQuadGeometry(
+                &captured.bounds,
+                g_active_display_list_capture.vertices.size(),
+                g_active_display_list_capture.primitives.size()
+            );
         try {
             captured.feature_edges = BuildFeatureEdges(g_active_display_list_capture);
         } catch (...) {
@@ -902,6 +914,17 @@ bool HasOutlineHull(const OutlineHullTransform& hull) noexcept {
         }
     }
     return false;
+}
+
+bool IsPlanarOverlayCandidate(const unsigned int list) noexcept {
+    if (list >= g_display_list_bounds.size()) {
+        return false;
+    }
+    AcquireSRWLockShared(&g_display_list_lock);
+    const bool candidate = g_display_list_bounds[list].valid
+        && g_display_list_bounds[list].planar_overlay_candidate;
+    ReleaseSRWLockShared(&g_display_list_lock);
+    return candidate;
 }
 
 bool IsFilledPrimitiveMode(const unsigned int mode) noexcept {
@@ -1033,7 +1056,7 @@ void DrawDisplayListFeatureEdges(
     }
     AcquireSRWLockShared(&g_display_list_lock);
     const CapturedDisplayListBounds& captured = g_display_list_bounds[list];
-    if (captured.valid) {
+    if (captured.valid && !captured.planar_overlay_candidate) {
         DrawFeatureEdgeSegments(
             captured.feature_edges, api, outline_width, preserve_alpha_test
         );
@@ -1053,6 +1076,8 @@ void DrawWithSilhouette(
     std::array<int, 4U> viewport{};
     unsigned char depth_writes = FALSE;
     unsigned char alpha_test_enabled = FALSE;
+    unsigned char blend_enabled = FALSE;
+    unsigned char texture_enabled = FALSE;
     if (!LoadOutlineApi(&api)) {
         draw();
         return;
@@ -1067,7 +1092,17 @@ void DrawWithSilhouette(
     };
     api.get_booleanv(kGlDepthWriteMask, &depth_writes);
     api.get_booleanv(kGlAlphaTest, &alpha_test_enabled);
+    api.get_booleanv(kGlBlend, &blend_enabled);
+    api.get_booleanv(kGlTexture2D, &texture_enabled);
     if (!IsPerspectiveProjectionMatrix(projection.data(), projection.size())) {
+        CompositeDepthEdgesBeforeUi();
+        draw();
+        return;
+    }
+    const bool planar_overlay_candidate = feature_list != UINT32_MAX
+        && IsPlanarOverlayCandidate(feature_list);
+    if (planar_overlay_candidate && texture_enabled != FALSE
+        && (alpha_test_enabled != FALSE || blend_enabled != FALSE)) {
         CompositeDepthEdgesBeforeUi();
         draw();
         return;
@@ -1800,6 +1835,27 @@ bool IsOutlinePrimitive(const unsigned int mode, const int count) noexcept {
         return false;
     }
     return IsFilledPrimitiveMode(mode);
+}
+
+bool IsPlanarQuadGeometry(
+    const OutlineBounds* const bounds,
+    const std::size_t vertex_count,
+    const std::size_t primitive_count
+) noexcept {
+    if (bounds == nullptr || vertex_count != 4U || primitive_count != 1U) {
+        return false;
+    }
+    std::array<float, 3U> extents{};
+    for (std::size_t axis = 0U; axis < extents.size(); ++axis) {
+        extents[axis] = bounds->maximum[axis] - bounds->minimum[axis];
+        if (!std::isfinite(extents[axis]) || extents[axis] < 0.0F) {
+            return false;
+        }
+    }
+    const float maximum = *std::max_element(extents.begin(), extents.end());
+    const float minimum = *std::min_element(extents.begin(), extents.end());
+    return maximum > 0.0001F
+        && minimum <= maximum * 0.0001F + 0.00001F;
 }
 
 std::uint32_t* FindImportAddressSlot(

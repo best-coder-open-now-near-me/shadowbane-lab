@@ -72,7 +72,11 @@ int main() {
         || std::strstr(fragment_source, "wbTextureEnvMode == 8449") == nullptr
         || std::strstr(fragment_source, "gl_FogFragCoord") == nullptr
         || std::strstr(fragment_source, "wbFogMode == 2048") == nullptr
-        || std::strstr(fragment_source, "wbFogMode == 2049") == nullptr) {
+        || std::strstr(fragment_source, "wbFogMode == 2049") == nullptr
+        || std::strstr(fragment_source, "fwidth(intensity)") == nullptr
+        || std::strstr(fragment_source, "distantAlias * 0.45") == nullptr
+        || std::strstr(fragment_source, "smoothstep(0.66 - transitionWidth")
+            == nullptr) {
         return Fail("normal-driven compatibility contract");
     }
     return 0;

@@ -243,6 +243,27 @@ int wmain() {
     ) {
         return Fail(L"local model-view outline policy");
     }
+    constexpr wonderbane::extension::OutlineBounds glyph_bounds{
+        {0.0F, 0.0F, 0.0F},
+        {16.0F, 24.0F, 0.0F},
+    };
+    constexpr wonderbane::extension::OutlineBounds volume_bounds{
+        {0.0F, 0.0F, 0.0F},
+        {16.0F, 24.0F, 8.0F},
+    };
+    if (
+        !wonderbane::extension::IsPlanarQuadGeometry(
+            &glyph_bounds, 4U, 1U
+        )
+        || wonderbane::extension::IsPlanarQuadGeometry(
+            &volume_bounds, 4U, 1U
+        )
+        || wonderbane::extension::IsPlanarQuadGeometry(
+            &glyph_bounds, 6U, 1U
+        )
+    ) {
+        return Fail(L"planar overlay exclusion policy");
+    }
     constexpr std::array<int, 4U> viewport{0, 0, 1200, 800};
     std::array<float, 16U> near_model_view = local_model_view;
     near_model_view[14] = -50.0F;

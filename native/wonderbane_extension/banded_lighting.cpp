@@ -144,10 +144,30 @@ uniform int wbFogMode;
 varying float wbIntensity;
 
 vec3 wbBand(float intensity) {
-    if (intensity < 0.22) return vec3(0.20, 0.20, 0.20);
-    if (intensity < 0.43) return vec3(0.48, 0.53, 0.61);
-    if (intensity < 0.66) return vec3(0.72, 0.76, 0.80);
-    return vec3(1.00, 0.98, 0.92);
+    float pixelVariation = fwidth(intensity);
+    float transitionWidth = clamp(pixelVariation * 1.25, 0.004, 0.06);
+    float distantAlias = smoothstep(0.025, 0.10, pixelVariation);
+    vec3 brightest = mix(
+        vec3(1.00, 0.98, 0.92),
+        vec3(0.72, 0.76, 0.80),
+        distantAlias * 0.45
+    );
+    vec3 color = vec3(0.20, 0.20, 0.20);
+    color = mix(
+        color,
+        vec3(0.48, 0.53, 0.61),
+        smoothstep(0.22 - transitionWidth, 0.22 + transitionWidth, intensity)
+    );
+    color = mix(
+        color,
+        vec3(0.72, 0.76, 0.80),
+        smoothstep(0.43 - transitionWidth, 0.43 + transitionWidth, intensity)
+    );
+    return mix(
+        color,
+        brightest,
+        smoothstep(0.66 - transitionWidth, 0.66 + transitionWidth, intensity)
+    );
 }
 
 void main() {

@@ -384,3 +384,13 @@ distance cannot thicken, suppress, or pop the line. The previous enlarged-mesh s
 retired; the one-pixel geometry crease/open-boundary accents remain for texture-aligned internal
 detail. The pass restores program, texture, matrix, and fixed-function state before the client draws
 its UI, and publishes armed, active, or failed runtime status from the background status producer.
+
+Extension 1.5.7 replaces the first-order eye-depth threshold with opposite-neighbour
+inverse-eye-depth curvature. Inverse depth is linear across a perspective projection of a planar
+surface, so a ground plane approaching the horizon no longer becomes a thick, tearing false edge;
+true silhouettes and contact discontinuities still produce a localized response. Exact planar
+textured quads rendered with alpha testing or blending establish an early overlay boundary and are
+excluded from geometry accents, keeping text out of both outline layers. The cel fragment program
+also uses pixel derivatives to antialias band transitions and compress the brightest band only when
+its variation is subpixel, preventing distant characters from collapsing into an amplified bright
+center while retaining crisp close-up bands.
