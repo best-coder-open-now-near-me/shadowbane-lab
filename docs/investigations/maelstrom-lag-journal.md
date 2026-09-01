@@ -741,6 +741,15 @@ These are inferences, ordered by present fit rather than certainty.
 4. Add repeatable event markers plus read-only position and network-summary producers before
    claiming the direction or size of client/server divergence.
 
+## 2026-09-01 — Movement-desync case split into a dedicated journal
+
+- The intermittent long-path snap/translocation case now has its own canonical journal at
+  `docs/investigations/translocation-desync-journal.md`.
+- The dedicated record consolidates the observations already reported multiple times, the exact
+  paired-capture provenance, current hypotheses, evidence gaps, and controlled reproduction matrix.
+- Keep future movement-correction findings there. Append here only when a result directly connects
+  the movement case to Maelstrom turtle-camp performance degradation.
+
 ## Journal maintenance rule
 
 After every live test, append one entry containing:
