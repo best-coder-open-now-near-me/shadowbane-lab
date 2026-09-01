@@ -2,6 +2,7 @@ import struct
 import unittest
 
 from shadowbane_lab.client_extension.performance import (
+    PERFORMANCE_AGGREGATE_CAPABILITY,
     PERFORMANCE_FRAME_CAPABILITY,
     PERFORMANCE_STDIO_IO_FLAG,
     PERFORMANCE_SUCCESS_FLAG,
@@ -104,8 +105,42 @@ class PerformanceTelemetryContractTests(unittest.TestCase):
             performance_telemetry_mapping_name(42, 1000),
         )
 
-    def test_accepts_frame_only_profile_with_one_active_hook(self) -> None:
-        payload = self._mapping(capability_flags=PERFORMANCE_FRAME_CAPABILITY, active_hooks=1)
+    def test_parses_one_bounded_summary_for_every_aggregate_frame(self) -> None:
+        payload = self._mapping(
+            write_sequence=2,
+            frame_count=2,
+            slow_frames=1,
+            capability_flags=PERFORMANCE_AGGREGATE_CAPABILITY,
+        )
+        self._slot(
+            payload,
+            1,
+            kind=5,
+            flags=1,
+            byte_count=1_048_576,
+            arg0=3,
+            arg1=250,
+            arg2=2,
+            pipeline=400,
+            reserved=2_097_152,
+        )
+        self._slot(payload, 2, kind=5, flags=1, interval=50_000)
+
+        converted = parse_performance_telemetry(
+            payload,
+            expected_process_id=42,
+            expected_process_creation_filetime_utc=1000,
+        ).as_dict()
+
+        self.assertIsNone(converted["records"][0]["frame_time_ms"])
+        self.assertEqual(50.0, converted["records"][1]["frame_time_ms"])
+        self.assertEqual(3, converted["records"][0]["cache_reads"]["count"])
+        self.assertEqual(0.25, converted["records"][0]["cache_reads"]["total_time_ms"])
+        self.assertEqual(2_097_152, converted["records"][0]["texture_uploads"]["bytes"])
+        self.assertEqual("aggregate", converted["header"]["profile"])
+
+    def test_accepts_frame_only_profile_with_no_owned_hooks(self) -> None:
+        payload = self._mapping(capability_flags=PERFORMANCE_FRAME_CAPABILITY, active_hooks=0)
 
         snapshot = parse_performance_telemetry(
             payload,
@@ -123,7 +158,7 @@ class PerformanceTelemetryContractTests(unittest.TestCase):
         frame_count: int = 0,
         slow_frames: int = 0,
         capability_flags: int = 0x7,
-        active_hooks: int = 21,
+        active_hooks: int = 20,
     ) -> bytearray:
         payload = bytearray(PERFORMANCE_TELEMETRY_SIZE)
         struct.pack_into(
@@ -167,6 +202,8 @@ class PerformanceTelemetryContractTests(unittest.TestCase):
         duration: int = 0,
         interval: int = 0,
         pipeline: int = 0,
+        arg2: int = 0,
+        reserved: int = 0,
     ) -> None:
         index = (sequence - 1) % PERFORMANCE_TELEMETRY_CAPACITY
         offset = PERFORMANCE_TELEMETRY_HEADER_SIZE + index * PERFORMANCE_TELEMETRY_SLOT_SIZE
@@ -184,10 +221,10 @@ class PerformanceTelemetryContractTests(unittest.TestCase):
             byte_count,
             arg0,
             arg1,
-            0,
+            arg2,
             interval,
             pipeline,
-            0,
+            reserved,
         )
 
 

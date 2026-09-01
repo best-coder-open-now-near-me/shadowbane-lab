@@ -6,8 +6,8 @@ import struct
 from dataclasses import dataclass
 from enum import IntEnum, StrEnum
 
-PERFORMANCE_TELEMETRY_SCHEMA_VERSION = 1
-PERFORMANCE_TELEMETRY_MAGIC = b"WBPERF1\0"
+PERFORMANCE_TELEMETRY_SCHEMA_VERSION = 2
+PERFORMANCE_TELEMETRY_MAGIC = b"WBPERF2\0"
 PERFORMANCE_TELEMETRY_HEADER_SIZE = 128
 PERFORMANCE_TELEMETRY_SLOT_SIZE = 96
 PERFORMANCE_TELEMETRY_CAPACITY = 8192
@@ -15,15 +15,19 @@ PERFORMANCE_TELEMETRY_SIZE = (
     PERFORMANCE_TELEMETRY_HEADER_SIZE
     + PERFORMANCE_TELEMETRY_SLOT_SIZE * PERFORMANCE_TELEMETRY_CAPACITY
 )
-PERFORMANCE_TELEMETRY_HOOK_COUNT = 21
-PERFORMANCE_FRAME_HOOK_COUNT = 1
+PERFORMANCE_TELEMETRY_HOOK_COUNT = 20
+PERFORMANCE_FRAME_HOOK_COUNT = 0
 PERFORMANCE_FRAME_CAPABILITY = 1 << 0
 PERFORMANCE_CACHE_READ_CAPABILITY = 1 << 1
 PERFORMANCE_TEXTURE_UPLOAD_CAPABILITY = 1 << 2
+PERFORMANCE_AGGREGATE_FLAG = 1 << 3
 PERFORMANCE_FULL_CAPABILITY = (
     PERFORMANCE_FRAME_CAPABILITY
     | PERFORMANCE_CACHE_READ_CAPABILITY
     | PERFORMANCE_TEXTURE_UPLOAD_CAPABILITY
+)
+PERFORMANCE_AGGREGATE_CAPABILITY = (
+    PERFORMANCE_FULL_CAPABILITY | PERFORMANCE_AGGREGATE_FLAG
 )
 PERFORMANCE_SUCCESS_FLAG = 1 << 0
 PERFORMANCE_WIN32_IO_FLAG = 1 << 1
@@ -50,7 +54,7 @@ class PerformanceRecordKind(StrEnum):
     CACHE_READ = "cache_read"
     TEXTURE_IMAGE = "texture_image"
     TEXTURE_SUB_IMAGE = "texture_sub_image"
-
+    FRAME_SUMMARY = "frame_summary"
 
 class CacheArchive(StrEnum):
     NONE = "none"
@@ -69,13 +73,14 @@ class _PerformanceRecordCode(IntEnum):
     CACHE_READ = 2
     TEXTURE_IMAGE = 3
     TEXTURE_SUB_IMAGE = 4
-
+    FRAME_SUMMARY = 5
 
 _RECORD_KIND = {
     _PerformanceRecordCode.FRAME_GAP: PerformanceRecordKind.FRAME_GAP,
     _PerformanceRecordCode.CACHE_READ: PerformanceRecordKind.CACHE_READ,
     _PerformanceRecordCode.TEXTURE_IMAGE: PerformanceRecordKind.TEXTURE_IMAGE,
     _PerformanceRecordCode.TEXTURE_SUB_IMAGE: PerformanceRecordKind.TEXTURE_SUB_IMAGE,
+    _PerformanceRecordCode.FRAME_SUMMARY: PerformanceRecordKind.FRAME_SUMMARY,
 }
 _ARCHIVE_KIND = {
     0: CacheArchive.NONE,
@@ -137,11 +142,13 @@ class PerformanceTelemetryHeader:
         if self.capability_flags not in {
             PERFORMANCE_FRAME_CAPABILITY,
             PERFORMANCE_FULL_CAPABILITY,
+            PERFORMANCE_AGGREGATE_CAPABILITY,
         }:
             raise PerformanceTelemetryError("capability flags do not identify a reviewed profile")
         maximum_hooks = (
             PERFORMANCE_TELEMETRY_HOOK_COUNT
-            if self.capability_flags == PERFORMANCE_FULL_CAPABILITY
+            if self.capability_flags
+            in {PERFORMANCE_FULL_CAPABILITY, PERFORMANCE_AGGREGATE_CAPABILITY}
             else PERFORMANCE_FRAME_HOOK_COUNT
         )
         if self.active_hook_count > maximum_hooks:
@@ -155,9 +162,11 @@ class PerformanceTelemetryHeader:
             "process_id": self.process_id,
             "capability_flags": self.capability_flags,
             "profile": (
-                "full"
-                if self.capability_flags == PERFORMANCE_FULL_CAPABILITY
-                else "frame"
+                "aggregate"
+                if self.capability_flags == PERFORMANCE_AGGREGATE_CAPABILITY
+                else "full"
+                    if self.capability_flags == PERFORMANCE_FULL_CAPABILITY
+                    else "frame"
             ),
             "process_creation_filetime_utc": self.process_creation_filetime_utc,
             "qpc_frequency": self.qpc_frequency,
@@ -190,6 +199,7 @@ class PerformanceRecord:
     argument2: int
     frame_interval_qpc: int
     pipeline_gap_qpc: int
+    reserved: int
 
     @property
     def succeeded(self) -> bool:
@@ -209,6 +219,31 @@ class PerformanceRecord:
                 self.frame_interval_qpc
             )
             result["present_ms"] = header.ticks_to_milliseconds(self.duration_qpc)
+        elif self.kind is PerformanceRecordKind.FRAME_SUMMARY:
+            frame_time_ms = (
+                None
+                if self.frame_interval_qpc == 0
+                else header.ticks_to_milliseconds(self.frame_interval_qpc)
+            )
+            result.update(
+                {
+                    "frame_time_ms": frame_time_ms,
+                    "frame_interval_ms": frame_time_ms,
+                    "present_ms": header.ticks_to_milliseconds(self.duration_qpc),
+                    "cache_reads": {
+                        "count": self.argument0,
+                        "bytes": self.byte_count,
+                        "total_time_ms": header.ticks_to_milliseconds(self.argument1),
+                    },
+                    "texture_uploads": {
+                        "count": self.argument2,
+                        "bytes": self.reserved,
+                        "total_time_ms": header.ticks_to_milliseconds(
+                            self.pipeline_gap_qpc
+                        ),
+                    },
+                }
+            )
         elif self.kind is PerformanceRecordKind.CACHE_READ:
             result.update(
                 {
@@ -259,7 +294,11 @@ class PerformanceTelemetrySnapshot:
         converted = tuple(record.as_dict(self.header) for record in self.records)
 
         def maximum(field: str) -> float:
-            values = [float(record[field]) for record in converted if field in record]
+            values = [
+                float(record[field])
+                for record in converted
+                if field in record and record[field] is not None
+            ]
             return max(values, default=0.0)
 
         return {
@@ -350,7 +389,11 @@ def parse_performance_telemetry(
         or slot_size != PERFORMANCE_TELEMETRY_SLOT_SIZE
         or capacity != PERFORMANCE_TELEMETRY_CAPACITY
         or capability_flags
-            not in {PERFORMANCE_FRAME_CAPABILITY, PERFORMANCE_FULL_CAPABILITY}
+            not in {
+                PERFORMANCE_FRAME_CAPABILITY,
+                PERFORMANCE_FULL_CAPABILITY,
+                PERFORMANCE_AGGREGATE_CAPABILITY,
+            }
     ):
         raise PerformanceTelemetryError("performance telemetry layout is unsupported")
     header = PerformanceTelemetryHeader(
@@ -414,7 +457,7 @@ def _parse_record(
         archive = _ARCHIVE_KIND[archive_code]
     except (KeyError, ValueError) as exc:
         raise PerformanceTelemetryError("performance record kind is unknown") from exc
-    if flags & ~PERFORMANCE_KNOWN_FLAGS or reserved != 0:
+    if flags & ~PERFORMANCE_KNOWN_FLAGS:
         raise PerformanceTelemetryError("performance record contains unsupported flags")
     if started_qpc < header.started_qpc or thread_id == 0:
         raise PerformanceTelemetryError("performance record timing is invalid")
@@ -424,6 +467,25 @@ def _parse_record(
         archive is not CacheArchive.NONE or frame_interval_qpc == 0
     ):
         raise PerformanceTelemetryError("frame gap record is inconsistent")
+    if kind is PerformanceRecordKind.FRAME_SUMMARY:
+        if (
+            header.capability_flags != PERFORMANCE_AGGREGATE_CAPABILITY
+            or archive is not CacheArchive.NONE
+            or flags & ~PERFORMANCE_SUCCESS_FLAG
+        ):
+            raise PerformanceTelemetryError("frame summary record is inconsistent")
+    elif reserved != 0:
+        raise PerformanceTelemetryError("performance record reserved field is nonzero")
+    if (
+        header.capability_flags == PERFORMANCE_AGGREGATE_CAPABILITY
+        and kind is not PerformanceRecordKind.FRAME_SUMMARY
+    ):
+        raise PerformanceTelemetryError("aggregate profile contains a detailed event")
+    if (
+        header.capability_flags != PERFORMANCE_AGGREGATE_CAPABILITY
+        and kind is PerformanceRecordKind.FRAME_SUMMARY
+    ):
+        raise PerformanceTelemetryError("detailed profile contains a frame summary")
     return PerformanceRecord(
         sequence=sequence,
         kind=kind,
@@ -438,6 +500,7 @@ def _parse_record(
         argument2=argument2,
         frame_interval_qpc=frame_interval_qpc,
         pipeline_gap_qpc=pipeline_gap_qpc,
+        reserved=reserved,
     )
 
 
@@ -448,6 +511,8 @@ def _bounded_positive(value: object, field_name: str, maximum: int) -> None:
 
 __all__ = [
     "CacheArchive",
+    "PERFORMANCE_AGGREGATE_CAPABILITY",
+    "PERFORMANCE_AGGREGATE_FLAG",
     "PERFORMANCE_CACHE_READ_CAPABILITY",
     "PERFORMANCE_FRAME_CAPABILITY",
     "PERFORMANCE_FRAME_HOOK_COUNT",

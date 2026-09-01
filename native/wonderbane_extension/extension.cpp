@@ -22,7 +22,7 @@ constexpr std::size_t kPathCapacity = WONDERBANE_EXTENSION_HEARTBEAT_PATH_CAPACI
 constexpr std::size_t kJsonCapacity = 768;
 constexpr LONG kMaximumInitializationPolls = 500;
 constexpr DWORD kInitializationPollMilliseconds = 10;
-constexpr char kExtensionVersion[] = "1.6.2";
+constexpr char kExtensionVersion[] = "1.6.3";
 constexpr wchar_t kClientExecutableName[] = L"sb.exe";
 constexpr wchar_t kPerformanceProfileEnvironment[] = L"WONDERBANE_PERFORMANCE_PROFILE";
 constexpr std::size_t kPerformanceProfileCapacity = 16U;
@@ -417,13 +417,12 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
             result = wonderbane::extension::StartPassiveCameraObservation();
             camera_observation_started = result == ERROR_SUCCESS;
         }
-        if (result == ERROR_SUCCESS && is_client && !kDiagnosticsOnly) {
+        if (result == ERROR_SUCCESS && is_client) {
             result = ReadPerformanceTelemetryProfile(&performance_profile);
         }
         if (
             result == ERROR_SUCCESS
             && is_client
-            && !kDiagnosticsOnly
             && performance_profile
                 != wonderbane::extension::PerformanceTelemetryProfile::disabled
         ) {

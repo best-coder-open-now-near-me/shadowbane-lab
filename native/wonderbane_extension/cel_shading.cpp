@@ -4,6 +4,7 @@
 #include "graphics_control.h"
 #include "graphics_status.h"
 #include "import_hook.h"
+#include "performance_telemetry.h"
 
 #include <Windows.h>
 
@@ -1503,11 +1504,13 @@ void APIENTRY StrongDrawElements(
 }
 
 BOOL WINAPI StrongSwapBuffers(const HDC device_context) noexcept {
+    const std::uint64_t performance_started_qpc = BeginPerformancePresent();
     ApplyPendingGraphicsControl();
     ObserveGraphicsPresent();
     const auto original = LoadFunction<GdiSwapBuffers>(&g_original_swap_buffers);
     const BOOL result = original != nullptr ? original(device_context) : FALSE;
     EndDepthEdgeFrame();
+    ObservePerformancePresent(performance_started_qpc, result != FALSE);
     return result;
 }
 

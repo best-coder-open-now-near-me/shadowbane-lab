@@ -20,7 +20,6 @@ constexpr std::uint64_t kUnknownOffset = std::numeric_limits<std::uint64_t>::max
 constexpr std::uint64_t kSlowFrameMicroseconds = 40'000U;
 constexpr std::uint64_t kMaximumPipelineGapSeconds = 5U;
 
-using SwapBuffersFunction = BOOL(WINAPI*)(HDC device_context);
 using CreateFileAFunction = HANDLE(WINAPI*)(
     LPCSTR file_name,
     DWORD desired_access,
@@ -94,6 +93,15 @@ struct LoaderContext {
     CacheArchiveKind archive;
 };
 
+struct FrameTotals {
+    std::uint64_t cache_read_count;
+    std::uint64_t cache_read_bytes;
+    std::uint64_t cache_read_duration_qpc;
+    std::uint64_t texture_upload_count;
+    std::uint64_t texture_upload_bytes;
+    std::uint64_t texture_upload_duration_qpc;
+};
+
 struct HookPlan {
     const wchar_t* image_module_name;
     const char* import_library_name;
@@ -111,12 +119,15 @@ HANDLE g_mapping = nullptr;
 PerformanceTelemetryStorage* g_storage = nullptr;
 SRWLOCK g_publish_lock = SRWLOCK_INIT;
 SRWLOCK g_stream_lock = SRWLOCK_INIT;
+SRWLOCK g_aggregate_lock = SRWLOCK_INIT;
 std::array<TrackedHandle, kTrackedStreamCapacity> g_handles{};
 std::array<TrackedFile, kTrackedStreamCapacity> g_files{};
-thread_local std::uint64_t g_previous_present_qpc = 0U;
+std::uint64_t g_previous_present_qpc = 0U;
+FrameTotals g_frame_totals{};
+FrameTotals g_pending_frame_totals{};
+volatile LONG g_profile = static_cast<LONG>(PerformanceTelemetryProfile::disabled);
 thread_local LoaderContext g_loader_context{};
 
-PVOID volatile g_original_swap_buffers = nullptr;
 PVOID volatile g_original_create_file_a = nullptr;
 PVOID volatile g_original_read_file = nullptr;
 PVOID volatile g_original_set_file_pointer = nullptr;
@@ -129,7 +140,7 @@ PVOID volatile g_original_fclose = nullptr;
 PVOID volatile g_original_tex_image_2d = nullptr;
 PVOID volatile g_original_tex_sub_image_2d = nullptr;
 
-std::array<std::uint32_t*, kPerformanceHookCount> g_hook_slots{};
+std::array<std::uint32_t*, kPerformanceHookCount + 1U> g_hook_slots{};
 
 template <typename Function>
 Function LoadFunction(PVOID volatile* const storage) noexcept {
@@ -390,6 +401,51 @@ std::uint64_t SaturatingProduct(
         : std::numeric_limits<std::uint64_t>::max();
 }
 
+std::uint64_t SaturatingAdd(
+    const std::uint64_t left,
+    const std::uint64_t right
+) noexcept {
+    return right <= std::numeric_limits<std::uint64_t>::max() - left
+        ? left + right
+        : std::numeric_limits<std::uint64_t>::max();
+}
+
+bool AggregateProfileSelected() noexcept {
+    return InterlockedCompareExchange(&g_profile, 0, 0)
+        == static_cast<LONG>(PerformanceTelemetryProfile::aggregate);
+}
+
+void AddAggregateCacheRead(
+    const std::uint64_t bytes,
+    const std::uint64_t duration_qpc
+) noexcept {
+    AcquireSRWLockExclusive(&g_aggregate_lock);
+    g_frame_totals.cache_read_count = SaturatingAdd(g_frame_totals.cache_read_count, 1U);
+    g_frame_totals.cache_read_bytes = SaturatingAdd(g_frame_totals.cache_read_bytes, bytes);
+    g_frame_totals.cache_read_duration_qpc = SaturatingAdd(
+        g_frame_totals.cache_read_duration_qpc,
+        duration_qpc
+    );
+    ReleaseSRWLockExclusive(&g_aggregate_lock);
+}
+
+void AddAggregateTextureUpload(
+    const std::uint64_t bytes,
+    const std::uint64_t duration_qpc
+) noexcept {
+    AcquireSRWLockExclusive(&g_aggregate_lock);
+    g_frame_totals.texture_upload_count = SaturatingAdd(
+        g_frame_totals.texture_upload_count,
+        1U
+    );
+    g_frame_totals.texture_upload_bytes = SaturatingAdd(g_frame_totals.texture_upload_bytes, bytes);
+    g_frame_totals.texture_upload_duration_qpc = SaturatingAdd(
+        g_frame_totals.texture_upload_duration_qpc,
+        duration_qpc
+    );
+    ReleaseSRWLockExclusive(&g_aggregate_lock);
+}
+
 std::uint64_t EstimateTextureBytes(
     const int width,
     const int height,
@@ -462,7 +518,8 @@ void Publish(
     const std::uint64_t argument1,
     const std::uint64_t argument2,
     const std::uint64_t frame_interval_qpc,
-    const std::uint64_t pipeline_gap_qpc
+    const std::uint64_t pipeline_gap_qpc,
+    const std::uint64_t reserved = 0U
 ) noexcept {
     if (g_storage == nullptr) {
         return;
@@ -496,7 +553,7 @@ void Publish(
     slot.argument2 = argument2;
     slot.frame_interval_qpc = frame_interval_qpc;
     slot.pipeline_gap_qpc = pipeline_gap_qpc;
-    slot.reserved = 0U;
+    slot.reserved = reserved;
     MemoryBarrier();
     InterlockedExchange64(&slot.committed_sequence, sequence);
     InterlockedExchange64(&g_storage->header.write_sequence, sequence);
@@ -508,46 +565,6 @@ void Publish(
     );
     InterlockedExchange(&g_storage->header.producer_error, ERROR_SUCCESS);
     ReleaseSRWLockExclusive(&g_publish_lock);
-}
-
-BOOL WINAPI TelemetrySwapBuffers(const HDC device_context) noexcept {
-    const auto original = LoadFunction<SwapBuffersFunction>(&g_original_swap_buffers);
-    if (original == nullptr) {
-        SetLastError(ERROR_INVALID_FUNCTION);
-        return FALSE;
-    }
-    const std::uint64_t started = QueryCounter();
-    const std::uint64_t interval = g_previous_present_qpc != 0U && started >= g_previous_present_qpc
-        ? started - g_previous_present_qpc
-        : 0U;
-    g_previous_present_qpc = started;
-    const BOOL result = original(device_context);
-    const DWORD last_error = GetLastError();
-    const std::uint64_t completed = QueryCounter();
-    const std::uint64_t duration = completed >= started ? completed - started : 0U;
-    InterlockedIncrement64(&g_storage->header.frame_count);
-    const std::uint64_t frequency = g_storage->header.qpc_frequency;
-    if (
-        frequency > 0U
-        && interval >= SaturatingProduct(frequency, kSlowFrameMicroseconds) / 1'000'000U
-    ) {
-        InterlockedIncrement64(&g_storage->header.slow_frame_count);
-        Publish(
-            kPerformanceFrameGapKind,
-            result != FALSE ? kPerformanceSuccessFlag : 0U,
-            started,
-            duration,
-            CacheArchiveKind::none,
-            0U,
-            reinterpret_cast<std::uintptr_t>(device_context),
-            0U,
-            0U,
-            interval,
-            0U
-        );
-    }
-    SetLastError(last_error);
-    return result;
 }
 
 HANDLE WINAPI TelemetryCreateFileA(
@@ -613,19 +630,24 @@ BOOL WINAPI TelemetryReadFile(
         }
         InterlockedIncrement64(&g_storage->header.cache_read_count);
         InterlockedAdd64(&g_storage->header.cache_read_bytes, bytes);
-        Publish(
-            kPerformanceCacheReadKind,
-            kPerformanceWin32IoFlag | (result != FALSE ? kPerformanceSuccessFlag : 0U),
-            started,
-            completed >= started ? completed - started : 0U,
-            archive,
-            bytes,
-            offset,
-            requested_bytes,
-            result != FALSE ? ERROR_SUCCESS : last_error,
-            0U,
-            0U
-        );
+        const std::uint64_t duration = completed >= started ? completed - started : 0U;
+        if (AggregateProfileSelected()) {
+            AddAggregateCacheRead(bytes, duration);
+        } else {
+            Publish(
+                kPerformanceCacheReadKind,
+                kPerformanceWin32IoFlag | (result != FALSE ? kPerformanceSuccessFlag : 0U),
+                started,
+                duration,
+                archive,
+                bytes,
+                offset,
+                requested_bytes,
+                result != FALSE ? ERROR_SUCCESS : last_error,
+                0U,
+                0U
+            );
+        }
         g_loader_context = {completed, archive};
     }
     SetLastError(last_error);
@@ -740,19 +762,24 @@ std::size_t __cdecl TelemetryFread(
                 ? std::numeric_limits<LONG64>::max()
                 : bytes)
         );
-        Publish(
-            kPerformanceCacheReadKind,
-            kPerformanceStdioIoFlag | (result == element_count ? kPerformanceSuccessFlag : 0U),
-            started,
-            completed >= started ? completed - started : 0U,
-            archive,
-            bytes,
-            offset,
-            requested,
-            result == element_count ? ERROR_SUCCESS : ERROR_READ_FAULT,
-            0U,
-            0U
-        );
+        const std::uint64_t duration = completed >= started ? completed - started : 0U;
+        if (AggregateProfileSelected()) {
+            AddAggregateCacheRead(bytes, duration);
+        } else {
+            Publish(
+                kPerformanceCacheReadKind,
+                kPerformanceStdioIoFlag | (result == element_count ? kPerformanceSuccessFlag : 0U),
+                started,
+                duration,
+                archive,
+                bytes,
+                offset,
+                requested,
+                result == element_count ? ERROR_SUCCESS : ERROR_READ_FAULT,
+                0U,
+                0U
+            );
+        }
         g_loader_context = {completed, archive};
     }
     errno = saved_errno;
@@ -838,6 +865,12 @@ void PublishTexture(
             ? std::numeric_limits<LONG64>::max()
             : bytes)
     );
+    const std::uint64_t duration = completed >= started ? completed - started : 0U;
+    if (AggregateProfileSelected()) {
+        g_loader_context = {};
+        AddAggregateTextureUpload(bytes, duration);
+        return;
+    }
     const std::uint64_t dimensions = static_cast<std::uint32_t>(width)
         | static_cast<std::uint64_t>(static_cast<std::uint32_t>(height)) << 32U;
     const std::uint64_t formats = static_cast<std::uint32_t>(internal_format)
@@ -849,7 +882,7 @@ void PublishTexture(
         kind,
         kPerformanceSuccessFlag | (pixels != nullptr ? kPerformancePixelsPresentFlag : 0U),
         started,
-        completed >= started ? completed - started : 0U,
+        duration,
         archive,
         bytes,
         dimensions,
@@ -950,7 +983,6 @@ bool RestoreHook(HookPlan& plan) noexcept {
 }
 
 void ClearOriginalFunctions() noexcept {
-    InterlockedExchangePointer(&g_original_swap_buffers, nullptr);
     InterlockedExchangePointer(&g_original_create_file_a, nullptr);
     InterlockedExchangePointer(&g_original_read_file, nullptr);
     InterlockedExchangePointer(&g_original_set_file_pointer, nullptr);
@@ -966,7 +998,6 @@ void ClearOriginalFunctions() noexcept {
 
 std::array<HookPlan, kPerformanceHookCount> HookPlans() noexcept {
     return {{
-        {nullptr, "GDI32.dll", L"GDI32.dll", "SwapBuffers", reinterpret_cast<PVOID>(&TelemetrySwapBuffers), nullptr, nullptr, &g_original_swap_buffers, &g_hook_slots[0], kPerformanceFrameCapability},
         {nullptr, "KERNEL32.dll", L"KERNEL32.dll", "CreateFileA", reinterpret_cast<PVOID>(&TelemetryCreateFileA), nullptr, nullptr, &g_original_create_file_a, &g_hook_slots[1], kPerformanceCacheReadCapability},
         {nullptr, "KERNEL32.dll", L"KERNEL32.dll", "ReadFile", reinterpret_cast<PVOID>(&TelemetryReadFile), nullptr, nullptr, &g_original_read_file, &g_hook_slots[2], kPerformanceCacheReadCapability},
         {nullptr, "KERNEL32.dll", L"KERNEL32.dll", "SetFilePointer", reinterpret_cast<PVOID>(&TelemetrySetFilePointer), nullptr, nullptr, &g_original_set_file_pointer, &g_hook_slots[3], kPerformanceCacheReadCapability},
@@ -1135,6 +1166,10 @@ DWORD SelectPerformanceTelemetryProfile(
         *profile = PerformanceTelemetryProfile::full;
         return ERROR_SUCCESS;
     }
+    if (lstrcmpW(configured_value, L"aggregate") == 0) {
+        *profile = PerformanceTelemetryProfile::aggregate;
+        return ERROR_SUCCESS;
+    }
     return ERROR_INVALID_DATA;
 }
 
@@ -1168,6 +1203,7 @@ DWORD StartPerformanceTelemetry(
         || (
             profile != PerformanceTelemetryProfile::frame
             && profile != PerformanceTelemetryProfile::full
+            && profile != PerformanceTelemetryProfile::aggregate
         )
         || g_mapping != nullptr
         || g_storage != nullptr
@@ -1234,19 +1270,103 @@ DWORD StartPerformanceTelemetry(
     g_storage->header.slot_size = kPerformanceTelemetrySlotSize;
     g_storage->header.capacity = kPerformanceTelemetryCapacity;
     g_storage->header.process_id = identity.process_id;
-    const std::uint32_t capability_flags = profile == PerformanceTelemetryProfile::full
-        ? kPerformanceFullCapability
-        : kPerformanceFrameCapability;
+    const std::uint32_t capability_flags = profile == PerformanceTelemetryProfile::aggregate
+        ? kPerformanceAggregateCapability
+        : profile == PerformanceTelemetryProfile::full
+            ? kPerformanceFullCapability
+            : kPerformanceFrameCapability;
     g_storage->header.capability_flags = capability_flags;
     g_storage->header.process_creation_filetime_utc = identity.creation_filetime_utc;
     g_storage->header.qpc_frequency = static_cast<std::uint64_t>(frequency.QuadPart);
     g_storage->header.started_qpc = static_cast<std::uint64_t>(started.QuadPart);
+    g_previous_present_qpc = 0U;
+    InterlockedExchange(&g_profile, static_cast<LONG>(profile));
     MemoryBarrier();
     result = InstallHooks(capability_flags);
     if (result != ERROR_SUCCESS) {
         StopPerformanceTelemetry();
     }
     return result;
+}
+
+std::uint64_t BeginPerformancePresent() noexcept {
+    if (g_storage == nullptr) {
+        return 0U;
+    }
+    const std::uint64_t started_qpc = QueryCounter();
+    if (started_qpc == 0U) {
+        return 0U;
+    }
+    if (AggregateProfileSelected()) {
+        AcquireSRWLockExclusive(&g_aggregate_lock);
+        g_pending_frame_totals = g_frame_totals;
+        g_frame_totals = {};
+        ReleaseSRWLockExclusive(&g_aggregate_lock);
+    }
+    return started_qpc;
+}
+
+void ObservePerformancePresent(
+    const std::uint64_t started_qpc,
+    const bool succeeded
+) noexcept {
+    if (g_storage == nullptr || started_qpc == 0U) {
+        return;
+    }
+    const std::uint64_t completed_qpc = QueryCounter();
+    const std::uint64_t duration_qpc = completed_qpc >= started_qpc
+        ? completed_qpc - started_qpc
+        : 0U;
+    const std::uint64_t frame_interval_qpc = g_previous_present_qpc != 0U
+        && started_qpc >= g_previous_present_qpc
+            ? started_qpc - g_previous_present_qpc
+            : 0U;
+    g_previous_present_qpc = started_qpc;
+    InterlockedIncrement64(&g_storage->header.frame_count);
+    const std::uint64_t frequency = g_storage->header.qpc_frequency;
+    const bool slow = frequency > 0U
+        && frame_interval_qpc >= SaturatingProduct(
+            frequency,
+            kSlowFrameMicroseconds
+        ) / 1'000'000U;
+    if (slow) {
+        InterlockedIncrement64(&g_storage->header.slow_frame_count);
+    }
+    if (AggregateProfileSelected()) {
+        FrameTotals totals{};
+        AcquireSRWLockExclusive(&g_aggregate_lock);
+        totals = g_pending_frame_totals;
+        g_pending_frame_totals = {};
+        ReleaseSRWLockExclusive(&g_aggregate_lock);
+        Publish(
+            kPerformanceFrameSummaryKind,
+            succeeded ? kPerformanceSuccessFlag : 0U,
+            started_qpc,
+            duration_qpc,
+            CacheArchiveKind::none,
+            totals.cache_read_bytes,
+            totals.cache_read_count,
+            totals.cache_read_duration_qpc,
+            totals.texture_upload_count,
+            frame_interval_qpc,
+            totals.texture_upload_duration_qpc,
+            totals.texture_upload_bytes
+        );
+    } else if (slow) {
+        Publish(
+            kPerformanceFrameGapKind,
+            succeeded ? kPerformanceSuccessFlag : 0U,
+            started_qpc,
+            duration_qpc,
+            CacheArchiveKind::none,
+            0U,
+            0U,
+            0U,
+            0U,
+            frame_interval_qpc,
+            0U
+        );
+    }
 }
 
 void StopPerformanceTelemetry() noexcept {
@@ -1271,6 +1391,12 @@ void StopPerformanceTelemetry() noexcept {
     g_handles = {};
     g_files = {};
     ReleaseSRWLockExclusive(&g_stream_lock);
+    AcquireSRWLockExclusive(&g_aggregate_lock);
+    g_frame_totals = {};
+    g_pending_frame_totals = {};
+    ReleaseSRWLockExclusive(&g_aggregate_lock);
+    g_previous_present_qpc = 0U;
+    InterlockedExchange(&g_profile, static_cast<LONG>(PerformanceTelemetryProfile::disabled));
     CleanupMapping();
 }
 

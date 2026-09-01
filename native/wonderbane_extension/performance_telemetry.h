@@ -9,8 +9,8 @@
 
 namespace wonderbane::extension {
 
-constexpr char kPerformanceTelemetryMagic[8] = {'W', 'B', 'P', 'E', 'R', 'F', '1', '\0'};
-constexpr std::uint32_t kPerformanceTelemetrySchemaVersion = 1U;
+constexpr char kPerformanceTelemetryMagic[8] = {'W', 'B', 'P', 'E', 'R', 'F', '2', '\0'};
+constexpr std::uint32_t kPerformanceTelemetrySchemaVersion = 2U;
 constexpr std::uint32_t kPerformanceTelemetryHeaderSize = 128U;
 constexpr std::uint32_t kPerformanceTelemetrySlotSize = 96U;
 constexpr std::uint32_t kPerformanceTelemetryCapacity = 8192U;
@@ -18,19 +18,24 @@ constexpr std::uint32_t kPerformanceFrameGapKind = 1U;
 constexpr std::uint32_t kPerformanceCacheReadKind = 2U;
 constexpr std::uint32_t kPerformanceTextureImageKind = 3U;
 constexpr std::uint32_t kPerformanceTextureSubImageKind = 4U;
+constexpr std::uint32_t kPerformanceFrameSummaryKind = 5U;
 constexpr std::uint32_t kPerformanceFrameCapability = 1U << 0U;
 constexpr std::uint32_t kPerformanceCacheReadCapability = 1U << 1U;
 constexpr std::uint32_t kPerformanceTextureUploadCapability = 1U << 2U;
+constexpr std::uint32_t kPerformanceAggregateFlag = 1U << 3U;
 constexpr std::uint32_t kPerformanceFullCapability = (
     kPerformanceFrameCapability
     | kPerformanceCacheReadCapability
     | kPerformanceTextureUploadCapability
 );
+constexpr std::uint32_t kPerformanceAggregateCapability = (
+    kPerformanceFullCapability | kPerformanceAggregateFlag
+);
 constexpr std::uint32_t kPerformanceSuccessFlag = 1U << 0U;
 constexpr std::uint32_t kPerformanceWin32IoFlag = 1U << 1U;
 constexpr std::uint32_t kPerformanceStdioIoFlag = 1U << 2U;
 constexpr std::uint32_t kPerformancePixelsPresentFlag = 1U << 3U;
-constexpr std::uint32_t kPerformanceHookCount = 21U;
+constexpr std::uint32_t kPerformanceHookCount = 20U;
 constexpr std::size_t kPerformanceTelemetrySize =
     kPerformanceTelemetryHeaderSize
     + kPerformanceTelemetrySlotSize * kPerformanceTelemetryCapacity;
@@ -51,6 +56,7 @@ enum class PerformanceTelemetryProfile : std::uint32_t {
     disabled = 0U,
     frame = 1U,
     full = 2U,
+    aggregate = 3U,
 };
 
 #pragma pack(push, 1)
@@ -126,6 +132,11 @@ DWORD SelectPerformanceTelemetryProfile(
 DWORD StartPerformanceTelemetry(
     const ProcessIdentity& identity,
     PerformanceTelemetryProfile profile
+) noexcept;
+std::uint64_t BeginPerformancePresent() noexcept;
+void ObservePerformancePresent(
+    std::uint64_t started_qpc,
+    bool succeeded
 ) noexcept;
 void StopPerformanceTelemetry() noexcept;
 

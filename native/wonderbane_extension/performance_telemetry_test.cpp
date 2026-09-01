@@ -67,6 +67,8 @@ int main() {
         || profile != PerformanceTelemetryProfile::disabled
         || SelectPerformanceTelemetryProfile(L"full", &profile) != ERROR_SUCCESS
         || profile != PerformanceTelemetryProfile::full
+        || SelectPerformanceTelemetryProfile(L"aggregate", &profile) != ERROR_SUCCESS
+        || profile != PerformanceTelemetryProfile::aggregate
         || SelectPerformanceTelemetryProfile(L"FULL", &profile) != ERROR_INVALID_DATA
         || SelectPerformanceTelemetryProfile(L"frame", nullptr) != ERROR_INVALID_PARAMETER
     ) {
