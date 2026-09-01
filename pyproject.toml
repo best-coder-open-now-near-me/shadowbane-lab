@@ -43,6 +43,7 @@ where = ["src"]
 "shadowbane_lab.client_observation" = ["data/*.json"]
 "shadowbane_lab.manager" = ["static/*.html"]
 "shadowbane_lab.progression" = ["data/*.json"]
+"shadowbane_lab.equipment" = ["data/*.json"]
 
 [tool.ruff]
 line-length = 100
