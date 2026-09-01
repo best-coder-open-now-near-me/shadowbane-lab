@@ -1,5 +1,6 @@
 #include "depth_edges.h"
 
+#include "graphics_control.h"
 #include "graphics_status.h"
 
 #include <Windows.h>
@@ -35,6 +36,7 @@ constexpr unsigned int kGlModelView = 0x1700U;
 constexpr unsigned int kGlNearest = 0x2600U;
 constexpr unsigned int kGlNoError = 0U;
 constexpr unsigned int kGlOneMinusSrcAlpha = 0x0303U;
+constexpr unsigned int kGlOneMinusDstColor = 0x0307U;
 constexpr unsigned int kGlProjection = 0x1701U;
 constexpr unsigned int kGlQuads = 0x0007U;
 constexpr unsigned int kGlScissorTest = 0x0C11U;
@@ -138,6 +140,7 @@ using GlTexParameteri = void(APIENTRY*)(
     int value
 );
 using GlUniform1i = void(APIENTRY*)(int location, int value);
+using GlUniform1f = void(APIENTRY*)(int location, float value);
 using GlUniform2f = void(APIENTRY*)(int location, float first, float second);
 using GlUniform3f = void(APIENTRY*)(
     int location,
@@ -188,6 +191,7 @@ struct DepthEdgeApi {
     GlTexImage2D tex_image_2d = nullptr;
     GlTexParameteri tex_parameter_i = nullptr;
     GlUniform1i uniform_1i = nullptr;
+    GlUniform1f uniform_1f = nullptr;
     GlUniform2f uniform_2f = nullptr;
     GlUniform3f uniform_3f = nullptr;
     GlUseProgram use_program = nullptr;
@@ -204,6 +208,11 @@ struct DepthEdgeRuntime {
     int sampler_location = -1;
     int texel_size_location = -1;
     int projection_location = -1;
+    int adaptive_outline_location = -1;
+    int dark_scene_outline_location = -1;
+    int dark_scene_outline_strength_location = -1;
+    int bright_scene_ink_alpha_location = -1;
+    int edge_threshold_location = -1;
     int texture_width = 0;
     int texture_height = 0;
     LONG generation = 0;
@@ -234,6 +243,11 @@ const char kFragmentSource[] = R"glsl(#version 120
 uniform sampler2D wbDepthTexture;
 uniform vec2 wbTexelSize;
 uniform vec3 wbProjection;
+uniform int wbAdaptiveOutlineEnabled;
+uniform vec3 wbDarkSceneOutline;
+uniform float wbDarkSceneOutlineStrength;
+uniform float wbBrightSceneInkAlpha;
+uniform float wbEdgeThreshold;
 varying vec2 wbDepthUv;
 
 float wbInverseEyeDepth(float windowDepth) {
@@ -259,8 +273,10 @@ void main() {
     float down  = wbInverseEyeDepth(texture2D(wbDepthTexture, wbDepthUv + vec2(0.0, -wbTexelSize.y)).r);
     float response = wbForegroundPairCurvature(right, left, center);
     response = max(response, wbForegroundPairCurvature(up, down, center));
-    if (response <= 0.055) discard;
-    gl_FragColor = vec4(0.012, 0.010, 0.016, 0.86);
+    if (response <= wbEdgeThreshold) discard;
+    gl_FragColor = wbAdaptiveOutlineEnabled != 0
+        ? vec4(wbDarkSceneOutline * wbDarkSceneOutlineStrength, wbBrightSceneInkAlpha)
+        : vec4(0.012, 0.010, 0.016, 0.86);
 }
 )glsl";
 
@@ -348,6 +364,7 @@ bool ResolveApi(DepthEdgeApi* const api) noexcept {
     WB_RESOLVE(tex_image_2d, GlTexImage2D, "glTexImage2D");
     WB_RESOLVE(tex_parameter_i, GlTexParameteri, "glTexParameteri");
     WB_RESOLVE(uniform_1i, GlUniform1i, "glUniform1i");
+    WB_RESOLVE(uniform_1f, GlUniform1f, "glUniform1f");
     WB_RESOLVE(uniform_2f, GlUniform2f, "glUniform2f");
     WB_RESOLVE(uniform_3f, GlUniform3f, "glUniform3f");
     WB_RESOLVE(use_program, GlUseProgram, "glUseProgram");
@@ -370,7 +387,8 @@ bool ResolveApi(DepthEdgeApi* const api) noexcept {
         && api->push_attrib != nullptr && api->push_matrix != nullptr
         && api->shader_source != nullptr && api->tex_coord_2f != nullptr
         && api->tex_image_2d != nullptr && api->tex_parameter_i != nullptr
-        && api->uniform_1i != nullptr && api->uniform_2f != nullptr
+        && api->uniform_1i != nullptr && api->uniform_1f != nullptr
+        && api->uniform_2f != nullptr
         && api->uniform_3f != nullptr && api->use_program != nullptr
         && api->vertex_2f != nullptr && api->get_current_context != nullptr;
 }
@@ -456,8 +474,28 @@ bool BuildResources(DepthEdgeRuntime* const runtime) noexcept {
     runtime->sampler_location = api.get_uniform_location(program, "wbDepthTexture");
     runtime->texel_size_location = api.get_uniform_location(program, "wbTexelSize");
     runtime->projection_location = api.get_uniform_location(program, "wbProjection");
+    runtime->adaptive_outline_location = api.get_uniform_location(
+        program, "wbAdaptiveOutlineEnabled"
+    );
+    runtime->dark_scene_outline_location = api.get_uniform_location(
+        program, "wbDarkSceneOutline"
+    );
+    runtime->dark_scene_outline_strength_location = api.get_uniform_location(
+        program, "wbDarkSceneOutlineStrength"
+    );
+    runtime->bright_scene_ink_alpha_location = api.get_uniform_location(
+        program, "wbBrightSceneInkAlpha"
+    );
+    runtime->edge_threshold_location = api.get_uniform_location(
+        program, "wbEdgeThreshold"
+    );
     if (runtime->sampler_location < 0 || runtime->texel_size_location < 0
-        || runtime->projection_location < 0) {
+        || runtime->projection_location < 0
+        || runtime->adaptive_outline_location < 0
+        || runtime->dark_scene_outline_location < 0
+        || runtime->dark_scene_outline_strength_location < 0
+        || runtime->bright_scene_ink_alpha_location < 0
+        || runtime->edge_threshold_location < 0) {
         api.delete_program(program);
         return false;
     }
@@ -573,6 +611,7 @@ bool CompositeDepthEdges(const DepthEdgeFrame& frame) noexcept {
         return false;
     }
     DepthEdgeApi& api = g_runtime.api;
+    const GraphicsParameters parameters = CurrentGraphicsParameters();
     int previous_program = 0;
     int previous_active_texture = 0;
     int previous_matrix_mode = 0;
@@ -605,7 +644,12 @@ bool CompositeDepthEdges(const DepthEdgeFrame& frame) noexcept {
     api.disable(kGlStencilTest);
     api.enable(kGlBlend);
     api.enable(kGlTexture2D);
-    api.blend_func(kGlSrcAlpha, kGlOneMinusSrcAlpha);
+    api.blend_func(
+        (parameters.flags & kGraphicsControlAdaptiveOutlines) != 0U
+            ? kGlOneMinusDstColor
+            : kGlSrcAlpha,
+        kGlOneMinusSrcAlpha
+    );
     api.color_mask(TRUE, TRUE, TRUE, TRUE);
     api.depth_mask(FALSE);
     api.use_program(g_runtime.program);
@@ -621,6 +665,25 @@ bool CompositeDepthEdges(const DepthEdgeFrame& frame) noexcept {
         frame.projection[11],
         frame.projection[14]
     );
+    api.uniform_1i(
+        g_runtime.adaptive_outline_location,
+        (parameters.flags & kGraphicsControlAdaptiveOutlines) != 0U ? 1 : 0
+    );
+    api.uniform_3f(
+        g_runtime.dark_scene_outline_location,
+        parameters.dark_scene_outline[0],
+        parameters.dark_scene_outline[1],
+        parameters.dark_scene_outline[2]
+    );
+    api.uniform_1f(
+        g_runtime.dark_scene_outline_strength_location,
+        parameters.dark_scene_outline_strength
+    );
+    api.uniform_1f(
+        g_runtime.bright_scene_ink_alpha_location,
+        parameters.bright_scene_ink_alpha
+    );
+    api.uniform_1f(g_runtime.edge_threshold_location, parameters.depth_edge_threshold);
 
     api.matrix_mode(kGlProjection);
     api.push_matrix();
@@ -729,7 +792,8 @@ void MarkDepthEdgeSceneDraw(
     const int* const viewport,
     const std::size_t viewport_count
 ) noexcept {
-    if (projection == nullptr || projection_count != g_frame.projection.size()
+    if ((CurrentGraphicsParameters().flags & kGraphicsControlDepthContours) == 0U
+        || projection == nullptr || projection_count != g_frame.projection.size()
         || viewport == nullptr || viewport_count != g_frame.viewport.size()
         || viewport[2] <= 0 || viewport[3] <= 0 || g_frame.composited) {
         return;
@@ -741,6 +805,11 @@ void MarkDepthEdgeSceneDraw(
 
 void CompositeDepthEdgesBeforeUi() noexcept {
     if (!g_frame.pending || g_frame.composited) {
+        return;
+    }
+    if ((CurrentGraphicsParameters().flags & kGraphicsControlDepthContours) == 0U) {
+        g_frame.pending = false;
+        g_frame.composited = true;
         return;
     }
     const DepthEdgeFrame frame = g_frame;

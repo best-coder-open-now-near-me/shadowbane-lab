@@ -74,13 +74,14 @@ int main() {
         || std::strstr(fragment_source, "wbFogMode == 2048") == nullptr
         || std::strstr(fragment_source, "wbFogMode == 2049") == nullptr
         || std::strstr(fragment_source, "fwidth(intensity)") == nullptr
+        || std::strstr(fragment_source, "wbVertexTintGamma") == nullptr
         || std::strstr(
             fragment_source,
-            "pow(clamp(gl_Color.rgb, 0.0, 1.0), vec3(0.78))"
+            "distantAlias * wbDistantHighlightCompression"
         ) == nullptr
-        || std::strstr(fragment_source, "distantAlias * 0.45") == nullptr
-        || std::strstr(fragment_source, "smoothstep(0.66 - transitionWidth")
-            == nullptr) {
+        || std::strstr(fragment_source, "wbBandThresholds.z - transitionWidth")
+            == nullptr
+        || std::strstr(fragment_source, "wbBandColor3") == nullptr) {
         return Fail("normal-driven compatibility contract");
     }
     return 0;

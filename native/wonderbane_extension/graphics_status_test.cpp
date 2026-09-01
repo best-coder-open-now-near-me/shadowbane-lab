@@ -1,4 +1,5 @@
 #include "graphics_status.h"
+#include "graphics_control.h"
 
 #include <Windows.h>
 
@@ -25,7 +26,9 @@ int wmain() {
     using wonderbane::extension::IsGraphicsVersionAtLeast;
     using wonderbane::extension::ObserveGraphicsPresent;
     using wonderbane::extension::ReportDepthEdgePassComposite;
+    using wonderbane::extension::StartGraphicsControl;
     using wonderbane::extension::StartGraphicsStatusPublication;
+    using wonderbane::extension::StopGraphicsControl;
     using wonderbane::extension::StopGraphicsStatusPublication;
 
     constexpr char extensions[] =
@@ -46,8 +49,14 @@ int wmain() {
     if (result != ERROR_SUCCESS) {
         return Fail(L"status publisher startup");
     }
+    result = StartGraphicsControl();
+    if (result != ERROR_SUCCESS) {
+        StopGraphicsStatusPublication();
+        return Fail(L"graphics control startup");
+    }
     result = ConfigureGraphicsPresentEntry("GDI32.dll", "SwapBuffers", 23'789'964U);
     if (result != ERROR_SUCCESS) {
+        StopGraphicsControl();
         StopGraphicsStatusPublication();
         return Fail(L"present entry configuration");
     }
@@ -56,6 +65,7 @@ int wmain() {
     std::array<wchar_t, 1024U> path{};
     result = GetGraphicsStatusPath(path.data(), path.size());
     if (result != ERROR_SUCCESS || path[0] == L'\0') {
+        StopGraphicsControl();
         StopGraphicsStatusPublication();
         return Fail(L"status path");
     }
@@ -77,6 +87,7 @@ int wmain() {
         }
         Sleep(20U);
     }
+    StopGraphicsControl();
     StopGraphicsStatusPublication();
     DeleteFileW(path.data());
     if (!observed
@@ -90,6 +101,12 @@ int wmain() {
         || json.find("\"edge_metric\":\"single-owner-inverse-depth-curvature\"")
             == std::string::npos
         || json.find("\"sample_kernel\":\"cardinal-five-sample\"")
+            == std::string::npos
+        || json.find("\"live_controls\":{\"available\":true")
+            == std::string::npos
+        || json.find("\"mapping_name\":\"Local\\\\WonderBaneGraphicsControl-")
+            == std::string::npos
+        || json.find("\"desired_sequence\":2,\"applied_sequence\":2")
             == std::string::npos) {
         ::fprintf(stderr, "status JSON: %s\n", json.c_str());
         return Fail(L"published status JSON");

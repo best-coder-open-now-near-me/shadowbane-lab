@@ -134,7 +134,10 @@ int wmain() {
         || std::strstr(fragment, "wbForegroundPairCurvature") == nullptr
         || std::strstr(fragment, "center <= (first + second) * 0.5") == nullptr
         || std::strstr(fragment, "upRight") != nullptr
-        || std::strstr(fragment, "response <= 0.055") == nullptr
+        || std::strstr(fragment, "response <= wbEdgeThreshold") == nullptr
+        || std::strstr(fragment, "wbAdaptiveOutlineEnabled") == nullptr
+        || std::strstr(fragment, "wbDarkSceneOutline * wbDarkSceneOutlineStrength")
+            == nullptr
         || std::strstr(fragment, "discard") == nullptr) {
         return Fail(L"fixed-pixel depth shader contract");
     }

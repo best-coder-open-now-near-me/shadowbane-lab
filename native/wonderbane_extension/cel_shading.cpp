@@ -1,6 +1,7 @@
 #include "cel_shading.h"
 #include "banded_lighting.h"
 #include "depth_edges.h"
+#include "graphics_control.h"
 #include "graphics_status.h"
 
 #include <Windows.h>
@@ -1133,7 +1134,10 @@ void DrawWithSilhouette(
         draw();
         return;
     }
-    const bool outline_enabled = IsFeatureAccentDrawState(
+    const GraphicsParameters graphics_parameters = CurrentGraphicsParameters();
+    const bool outline_enabled = (
+        graphics_parameters.flags & kGraphicsControlFeatureAccents
+    ) != 0U && IsFeatureAccentDrawState(
         IsLocalOutlineModelViewMatrix(model_view.data(), model_view.size()),
         depth_writes != FALSE,
         blend_enabled != FALSE,
@@ -1167,7 +1171,9 @@ void DrawWithSilhouette(
         return;
     }
 
-    const float outline_width = outline_enabled ? kTargetOutlinePixels : 0.0F;
+    const float outline_width = outline_enabled
+        ? graphics_parameters.feature_outline_width
+        : 0.0F;
 
     DrawWithBandedLighting(draw);
     if (outline_enabled && feature_list != UINT32_MAX) {
@@ -1508,6 +1514,7 @@ void APIENTRY StrongDrawElements(
 }
 
 BOOL WINAPI StrongSwapBuffers(const HDC device_context) noexcept {
+    ApplyPendingGraphicsControl();
     ObserveGraphicsPresent();
     const auto original = LoadFunction<GdiSwapBuffers>(&g_original_swap_buffers);
     const BOOL result = original != nullptr ? original(device_context) : FALSE;

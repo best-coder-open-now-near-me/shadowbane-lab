@@ -1,5 +1,6 @@
 #include "cel_shading.h"
 #include "extension_api.h"
+#include "graphics_control.h"
 #include "graphics_status.h"
 
 #include <KnownFolders.h>
@@ -282,10 +283,15 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
         bool is_client = false;
         DWORD result = IsClientExecutable(&is_client);
         bool renderer_started = false;
+        bool graphics_control_started = false;
         bool graphics_status_started = false;
         if (result == ERROR_SUCCESS && is_client) {
             result = wonderbane::extension::StartGraphicsStatusPublication();
             graphics_status_started = result == ERROR_SUCCESS;
+            if (result == ERROR_SUCCESS) {
+                result = wonderbane::extension::StartGraphicsControl();
+                graphics_control_started = result == ERROR_SUCCESS;
+            }
             if (result == ERROR_SUCCESS) {
                 result = wonderbane::extension::StartStrongCelShading();
                 renderer_started = result == ERROR_SUCCESS;
@@ -296,6 +302,9 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
         }
         if (result != ERROR_SUCCESS && renderer_started) {
             wonderbane::extension::StopStrongCelShading();
+        }
+        if (result != ERROR_SUCCESS && graphics_control_started) {
+            wonderbane::extension::StopGraphicsControl();
         }
         if (result != ERROR_SUCCESS && graphics_status_started) {
             wonderbane::extension::StopGraphicsStatusPublication();

@@ -1,6 +1,7 @@
 #include "graphics_status.h"
 
 #include "extension_api.h"
+#include "graphics_control.h"
 
 #include <KnownFolders.h>
 #include <ShlObj.h>
@@ -29,6 +30,8 @@ constexpr std::size_t kEscapedDriverStringCapacity = kDriverStringCapacity * 2U 
 constexpr std::size_t kDepthEdgeReasonCapacity = 128U;
 constexpr std::size_t kEscapedDepthEdgeReasonCapacity =
     kDepthEdgeReasonCapacity * 2U + 3U;
+constexpr std::size_t kControlNameUtf8Capacity = 512U;
+constexpr std::size_t kEscapedControlNameCapacity = kControlNameUtf8Capacity * 2U + 3U;
 constexpr std::size_t kJsonCapacity = 24U * 1024U;
 constexpr DWORD kPublishIntervalMilliseconds = 2'000U;
 constexpr DWORD kWorkerStopTimeoutMilliseconds = 5'000U;
@@ -602,6 +605,47 @@ DWORD PublishSnapshot(const PublisherSnapshot& snapshot) noexcept {
     if (FAILED(result)) {
         return HResultToWin32(result);
     }
+    const GraphicsControlStatus control = GetGraphicsControlStatus();
+    std::array<char, 1024U> control_json{};
+    if (control.available) {
+        std::array<char, kControlNameUtf8Capacity> control_name_utf8{};
+        std::array<char, kEscapedControlNameCapacity> control_name_json{};
+        if (!Utf8Path(
+                control.mapping_name,
+                control_name_utf8.data(),
+                control_name_utf8.size()
+            ) || !JsonString(
+                control_name_utf8.data(),
+                control_name_json.data(),
+                control_name_json.size()
+            )) {
+            return ERROR_INSUFFICIENT_BUFFER;
+        }
+        result = StringCchPrintfA(
+            control_json.data(),
+            control_json.size(),
+            "{\"available\":true,\"schema_version\":%lu,\"mapping_name\":%s,"
+            "\"desired_sequence\":%ld,\"applied_sequence\":%ld,"
+            "\"rejected_sequence\":%ld,\"last_error\":%lu}",
+            static_cast<unsigned long>(kGraphicsControlSchemaVersion),
+            control_name_json.data(),
+            static_cast<long>(control.desired_sequence),
+            static_cast<long>(control.applied_sequence),
+            static_cast<long>(control.rejected_sequence),
+            static_cast<unsigned long>(control.last_error)
+        );
+    } else {
+        result = StringCchCopyA(
+            control_json.data(),
+            control_json.size(),
+            "{\"available\":false,\"schema_version\":1,\"mapping_name\":null,"
+            "\"desired_sequence\":null,\"applied_sequence\":null,"
+            "\"rejected_sequence\":null,\"last_error\":null}"
+        );
+    }
+    if (FAILED(result)) {
+        return HResultToWin32(result);
+    }
     std::array<char, kJsonCapacity> json{};
     result = StringCchPrintfA(
         json.data(),
@@ -611,7 +655,8 @@ DWORD PublishSnapshot(const PublisherSnapshot& snapshot) noexcept {
         "\"process_id\":%lu,\"process_creation_filetime_utc\":%llu,"
         "\"executable_path\":%s},\"executable_sha256\":\"%s\","
         "\"present_entries\":%s,\"active_present_entry\":%s,"
-        "\"graphics_context\":%s,\"depth_edge_pass\":%s}\n",
+        "\"graphics_context\":%s,\"depth_edge_pass\":%s,"
+        "\"live_controls\":%s}\n",
         kProducerId,
         kExtensionVersion,
         static_cast<unsigned long>(snapshot.process_id),
@@ -621,7 +666,8 @@ DWORD PublishSnapshot(const PublisherSnapshot& snapshot) noexcept {
         entries_json.data(),
         active_json.data(),
         context_json.data(),
-        depth_edge_json.data()
+        depth_edge_json.data(),
+        control_json.data()
     );
     if (FAILED(result)) {
         return HResultToWin32(result);
