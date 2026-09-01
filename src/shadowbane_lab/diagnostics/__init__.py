@@ -1,5 +1,6 @@
 """Capture-once, analyze-repeatedly diagnostic tooling."""
 
+from .analysis import analyze_diagnostic_capture, compare_diagnostic_captures
 from .model import (
     DiagnosticError,
     DiagnosticProfile,
@@ -32,5 +33,7 @@ __all__ = [
     "TriggerOperator",
     "TriggerRule",
     "WindowsProcessProbe",
+    "analyze_diagnostic_capture",
+    "compare_diagnostic_captures",
     "run_diagnostic_capture",
 ]

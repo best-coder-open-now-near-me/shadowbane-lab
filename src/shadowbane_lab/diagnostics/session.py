@@ -25,6 +25,8 @@ from shadowbane_lab.evidence import (
     ArtifactStore,
     EvidenceManifest,
     ManifestTerminalState,
+    Redaction,
+    RedactionState,
     save_contract,
 )
 from shadowbane_lab.fingerprints import FingerprintCaptureInputs, capture_fingerprint
@@ -414,7 +416,12 @@ def run_diagnostic_capture(
         )
         if sleep_seconds <= 0:
             break
-        session_clock.sleep(sleep_seconds)
+        try:
+            session_clock.sleep(sleep_seconds)
+        except KeyboardInterrupt:
+            stop_reason = "operator-cancelled"
+            warnings.add("capture was cancelled by the operator")
+            break
         current_sample = None
 
     ended_ns = session_clock.monotonic_ns()
@@ -462,6 +469,7 @@ def run_diagnostic_capture(
             producer_id=_PRODUCER_ID,
             producer_version=_PRODUCER_VERSION,
             captured_at_utc=ended_utc,
+            redaction=_diagnostic_redaction(),
             metadata=(
                 ("channel_id", channel.channel_id),
                 ("chunk_count", len(chunks)),
@@ -494,6 +502,7 @@ def run_diagnostic_capture(
             producer_id=_PRODUCER_ID,
             producer_version=_PRODUCER_VERSION,
             captured_at_utc=ended_utc,
+            redaction=_diagnostic_redaction(),
             metadata=(
                 ("channel_id", "screenshots"),
                 ("height", capture.height),
@@ -687,6 +696,7 @@ def _capture_snapshot_channels(
                 producer_id=_PRODUCER_ID,
                 producer_version=_PRODUCER_VERSION,
                 captured_at_utc=captured_at_utc,
+                redaction=_diagnostic_redaction(),
                 metadata=(("channel_id", channel.channel_id), ("phase", phase)),
             )
             descriptors.append(descriptor)
@@ -775,7 +785,15 @@ def _ingest_json(
         producer_id=_PRODUCER_ID,
         producer_version=_PRODUCER_VERSION,
         captured_at_utc=captured_at_utc,
+        redaction=_diagnostic_redaction(),
         metadata=metadata,
+    )
+
+
+def _diagnostic_redaction() -> Redaction:
+    return Redaction(
+        RedactionState.PENDING,
+        policy_id="diagnostic-sensitive-v1",
     )
 
 

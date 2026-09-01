@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import io
 import json
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from client_alignment_fixture import build_pe
+from shadowbane_lab.cli import main
 from shadowbane_lab.diagnostics import (
     DiagnosticProfile,
     DiagnosticRequest,
@@ -17,11 +20,14 @@ from shadowbane_lab.diagnostics import (
     ProcessSample,
     TriggerOperator,
     TriggerRule,
+    analyze_diagnostic_capture,
+    compare_diagnostic_captures,
     run_diagnostic_capture,
 )
 from shadowbane_lab.evidence import (
     ArtifactKind,
     ManifestTerminalState,
+    RedactionState,
     VerificationStatus,
     verify_manifest,
 )
@@ -53,10 +59,12 @@ class _FakeProbe:
         executable: Path,
         *,
         change_identity_at: int | None = None,
+        private_growth: int = 10,
     ) -> None:
         self.executable = executable
         self.samples = 0
         self.change_identity_at = change_identity_at
+        self.private_growth = private_growth
 
     def sample(self, process_id: int) -> ProcessSample:
         self.samples += 1
@@ -68,7 +76,9 @@ class _FakeProbe:
             "cpu_kernel_seconds": float(self.samples),
             "cpu_user_seconds": float(self.samples * 2),
             "process_handle_count": float(50 + self.samples),
-            "process_private_bytes": float(100 + (self.samples - 1) * 10),
+            "process_private_bytes": float(
+                100 + (self.samples - 1) * self.private_growth
+            ),
             "process_working_set_bytes": float(80 + self.samples),
         }
         return ProcessSample(identity, tuple(sorted(metrics.items())))
@@ -108,6 +118,12 @@ class DiagnosticSessionTests(unittest.TestCase):
             self.assertEqual(
                 VerificationStatus.PASS,
                 verify_manifest(result.store, result.manifest).status,
+            )
+            self.assertTrue(
+                all(
+                    item.redaction.state is RedactionState.PENDING
+                    for item in result.manifest.artifacts
+                )
             )
             stream = json.loads(_artifact_payload(result, "capture-stream"))
             metrics = [
@@ -245,6 +261,108 @@ class DiagnosticSessionTests(unittest.TestCase):
             self.assertFalse(interpretation["automatic_compatibility_promotion"])
             self.assertTrue(
                 interpretation["unresolved_mapping_blocks_dependent_decoders"]
+            )
+
+    def test_analysis_is_stable_and_reuses_sealed_raw_samples(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            executable = Path(sys.executable)
+            result = run_diagnostic_capture(
+                DiagnosticRequest(
+                    output_directory=root / "capture",
+                    process_id=47,
+                    duration_seconds=0.2,
+                    sample_interval_seconds=0.1,
+                    client_executable=executable,
+                ),
+                process_probe=_FakeProbe(executable),
+                clock=_FakeClock(),
+            )
+            first = analyze_diagnostic_capture(result.store, result.manifest)
+            second = analyze_diagnostic_capture(result.store, result.manifest)
+            self.assertEqual(first, second)
+            self.assertEqual(
+                20.0,
+                first["metrics"]["process_private_bytes"]["delta"],
+            )
+            self.assertEqual(result.manifest.manifest_id, first["source_manifest_id"])
+
+    def test_comparison_uses_raw_samples_from_both_captures(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            executable = Path(sys.executable)
+            request = dict(
+                process_id=48,
+                duration_seconds=0.2,
+                sample_interval_seconds=0.1,
+                client_executable=executable,
+            )
+            baseline = run_diagnostic_capture(
+                DiagnosticRequest(
+                    output_directory=root / "baseline",
+                    **request,
+                ),
+                process_probe=_FakeProbe(executable, private_growth=10),
+                clock=_FakeClock(),
+            )
+            candidate = run_diagnostic_capture(
+                DiagnosticRequest(
+                    output_directory=root / "candidate",
+                    **request,
+                ),
+                process_probe=_FakeProbe(executable, private_growth=20),
+                clock=_FakeClock(),
+            )
+            comparison = compare_diagnostic_captures(
+                baseline.store,
+                baseline.manifest,
+                candidate.store,
+                candidate.manifest,
+            )
+            private = comparison["metrics"]["process_private_bytes"]
+            self.assertEqual(10.0, private["mean_delta"])
+            self.assertEqual(20.0, private["net_change_delta"])
+            self.assertFalse(comparison["review_required"])
+
+            analysis_output = root / "analysis.json"
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "diagnose",
+                        "analyze",
+                        str(baseline.store.root),
+                        str(baseline.manifest_path),
+                        "--output",
+                        str(analysis_output),
+                        "--json",
+                    ]
+                )
+            self.assertEqual(0, exit_code)
+            self.assertEqual(
+                json.loads(analysis_output.read_text(encoding="utf-8")),
+                json.loads(stdout.getvalue()),
+            )
+
+            comparison_output = root / "comparison.json"
+            with redirect_stdout(io.StringIO()):
+                exit_code = main(
+                    [
+                        "diagnose",
+                        "compare",
+                        str(baseline.store.root),
+                        str(baseline.manifest_path),
+                        str(candidate.store.root),
+                        str(candidate.manifest_path),
+                        "--output",
+                        str(comparison_output),
+                        "--json",
+                    ]
+                )
+            self.assertEqual(0, exit_code)
+            self.assertIn(
+                "comparison_id",
+                json.loads(comparison_output.read_text(encoding="utf-8")),
             )
 
 

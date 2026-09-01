@@ -15,7 +15,7 @@
         "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
         "size_bytes": {"type": "integer", "minimum": 0},
         "media_type": {"type": "string", "minLength": 1, "maxLength": 256},
-        "artifact_kind": {"enum": ["client_tree_manifest", "pe_inspection", "build_diff", "runtime_snapshot", "character_snapshot", "service_snapshot", "environment_snapshot", "native_event_stream", "semantic_trace", "input_audit", "client_log", "screenshot", "video", "packet_capture", "packet_summary", "process_metrics", "simulation_result", "differential_report", "source_snapshot", "asset_extract", "coverage_report", "impact_report", "other_reviewed"]},
+        "artifact_kind": {"enum": ["client_tree_manifest", "pe_inspection", "build_diff", "runtime_snapshot", "character_snapshot", "service_snapshot", "environment_snapshot", "native_event_stream", "semantic_trace", "input_audit", "client_log", "screenshot", "video", "packet_capture", "packet_summary", "process_metrics", "etw_trace", "process_dump", "simulation_result", "differential_report", "source_snapshot", "asset_extract", "coverage_report", "impact_report", "other_reviewed"]},
         "logical_name": {"type": "string", "minLength": 1, "maxLength": 1024},
         "producer_id": {"type": "string", "minLength": 1, "maxLength": 256},
         "producer_version": {"type": "string", "minLength": 1, "maxLength": 256},

@@ -37,6 +37,7 @@ from shadowbane_lab.cli_commands import client_pve as _client_pve_commands
 from shadowbane_lab.cli_commands import client_runtime as _client_runtime_commands
 from shadowbane_lab.cli_commands import client_travel as _client_travel_commands
 from shadowbane_lab.cli_commands import common as _common_commands
+from shadowbane_lab.cli_commands import diagnostics as _diagnostic_commands
 from shadowbane_lab.cli_commands import evidence as _evidence_commands
 from shadowbane_lab.cli_commands import fingerprint as _fingerprint_commands
 from shadowbane_lab.cli_commands import manager as _manager_commands
@@ -479,6 +480,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _case_commands.handle_case(arguments)
     if arguments.command == "experiment":
         return _case_commands.handle_experiment(arguments)
+    if arguments.command == "diagnose":
+        return _diagnostic_commands.handle(arguments)
     if arguments.command == "character" and arguments.character_command == "validate-layout":
         return _validate_character_layout(arguments.layout, as_json=arguments.json)
     if arguments.command == "character" and arguments.character_command == "inspect-process":

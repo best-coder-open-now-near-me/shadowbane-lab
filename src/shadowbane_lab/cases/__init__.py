@@ -15,6 +15,7 @@ from .capture import (
     ProducerHealth,
     completed_capture_channels,
     load_capture_records,
+    parse_capture_record,
     producer_health,
     save_capture_records,
 )
@@ -95,6 +96,7 @@ __all__ = [
     "load_case",
     "load_experiment",
     "parse_case",
+    "parse_capture_record",
     "parse_experiment",
     "review_case",
     "load_capture_records",

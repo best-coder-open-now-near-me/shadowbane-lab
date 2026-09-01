@@ -174,6 +174,84 @@ def _parser() -> argparse.ArgumentParser:
     fingerprint_diff.add_argument("--output", type=Path)
     fingerprint_diff.add_argument("--json", action="store_true")
 
+    diagnose = commands.add_parser(
+        "diagnose",
+        help="capture once, then analyze or compare sealed live diagnostics",
+    )
+    diagnose_commands = diagnose.add_subparsers(
+        dest="diagnose_command",
+        required=True,
+    )
+    diagnose_capture = diagnose_commands.add_parser(
+        "capture",
+        help="capture one bounded standard, full, or triggered session",
+    )
+    diagnose_capture.add_argument("output_directory", type=Path)
+    diagnose_capture.add_argument("--pid", type=int, required=True)
+    diagnose_capture.add_argument(
+        "--profile",
+        choices=("standard", "full", "triggered"),
+        default="standard",
+    )
+    diagnose_capture.add_argument("--duration", type=float)
+    diagnose_capture.add_argument("--interval", type=float)
+    diagnose_capture.add_argument("--pre-trigger", type=float)
+    diagnose_capture.add_argument("--post-trigger", type=float)
+    diagnose_capture.add_argument("--client-executable", type=Path)
+    diagnose_capture.add_argument("--client-directory", type=Path)
+    diagnose_capture.add_argument("--reference-executable", type=Path)
+    diagnose_capture.add_argument("--alignment-profile-directory", type=Path)
+    diagnose_capture.add_argument("--repository", type=Path)
+    diagnose_capture.add_argument("--log", type=Path, action="append", default=[])
+    diagnose_capture.add_argument("--extension-events", type=Path)
+    diagnose_capture.add_argument("--network-summary", type=Path)
+    diagnose_capture.add_argument("--packet-capture", type=Path)
+    diagnose_capture.add_argument("--etw-trace", type=Path)
+    diagnose_capture.add_argument("--process-dump", type=Path)
+    diagnose_capture.add_argument("--snapshot", type=Path, action="append", default=[])
+    diagnose_capture.add_argument(
+        "--channel-file",
+        action="append",
+        default=[],
+        metavar="CHANNEL=KIND=MODE=MEDIA=PATH",
+        help="attach or tail any additional named evidence channel",
+    )
+    diagnose_capture.add_argument(
+        "--trigger",
+        action="append",
+        default=[],
+        metavar="METRIC:OP:THRESHOLD[:COUNT[:delta]]",
+    )
+    diagnose_capture.add_argument("--manual-trigger-file", type=Path)
+    diagnose_capture.add_argument(
+        "--screenshot-region",
+        metavar="LEFT,TOP,WIDTH,HEIGHT",
+    )
+    diagnose_capture.add_argument("--screenshot-interval", type=float, default=5.0)
+    diagnose_capture.add_argument("--initial-log-mib", type=float, default=1.0)
+    diagnose_capture.add_argument("--max-channel-mib", type=float, default=64.0)
+    diagnose_capture.add_argument("--json", action="store_true")
+
+    diagnose_analyze = diagnose_commands.add_parser(
+        "analyze",
+        help="reanalyze one sealed capture without recollecting",
+    )
+    diagnose_analyze.add_argument("store", type=Path)
+    diagnose_analyze.add_argument("manifest", type=Path)
+    diagnose_analyze.add_argument("--output", type=Path)
+    diagnose_analyze.add_argument("--json", action="store_true")
+
+    diagnose_compare = diagnose_commands.add_parser(
+        "compare",
+        help="compare raw metric samples from two sealed captures",
+    )
+    diagnose_compare.add_argument("baseline_store", type=Path)
+    diagnose_compare.add_argument("baseline_manifest", type=Path)
+    diagnose_compare.add_argument("candidate_store", type=Path)
+    diagnose_compare.add_argument("candidate_manifest", type=Path)
+    diagnose_compare.add_argument("--output", type=Path)
+    diagnose_compare.add_argument("--json", action="store_true")
+
     case = commands.add_parser(
         "case", help="create, run, verify, and review research cases"
     )

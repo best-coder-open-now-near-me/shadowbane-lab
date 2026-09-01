@@ -40,6 +40,8 @@ class ArtifactKind(StrEnum):
     PACKET_CAPTURE = "packet_capture"
     PACKET_SUMMARY = "packet_summary"
     PROCESS_METRICS = "process_metrics"
+    ETW_TRACE = "etw_trace"
+    PROCESS_DUMP = "process_dump"
     SIMULATION_RESULT = "simulation_result"
     DIFFERENTIAL_REPORT = "differential_report"
     SOURCE_SNAPSHOT = "source_snapshot"
