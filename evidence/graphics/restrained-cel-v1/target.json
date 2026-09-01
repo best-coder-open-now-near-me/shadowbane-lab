@@ -76,7 +76,7 @@
     "depth_edge_composite_boundary": "first orthographic or recognized unlit planar overlay draw after perspective depth-writing scene geometry",
     "depth_edge_radius_pixels": 1.0,
     "depth_edge_source": "five-sample default-framebuffer inverse-eye-depth curvature; planar perspective slopes and the farther side of finite-depth discontinuities are rejected while nearer-side silhouettes and contact seams remain",
-    "extension_version": "1.6.0",
+    "extension_version": "1.6.1",
     "fog_modes_preserved": ["linear", "exp", "exp2"],
     "fragment_program": "GLSL 1.20 compatibility fragment program preserving texture environment and fog",
     "live_controls": "a versioned 256-byte per-process shared-memory control block is consumed atomically at SwapBuffers; PID plus process creation time binds every update to one exact client, malformed or partial snapshots are rejected, and desired/applied/rejected sequences are published in graphics status",

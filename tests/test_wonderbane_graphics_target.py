@@ -41,7 +41,7 @@ def test_restrained_cel_target_is_pinned_end_to_end() -> None:
         assert _sha256(ROOT / sample["atlas_path"]) == sample["atlas_sha256"]
 
     runtime = target["runtime_translation"]
-    assert runtime["extension_version"] == "1.6.0"
+    assert runtime["extension_version"] == "1.6.1"
     assert runtime["depth_edge_radius_pixels"] == 1.0
     assert "inverse-eye-depth curvature" in runtime["depth_edge_source"]
     manifest_path = ROOT / runtime["texture_manifest_path"]
@@ -100,22 +100,22 @@ def test_graphics_publication_and_launch_pin_the_golden_package() -> None:
     launch = (ROOT / "scripts" / "launch-wonderbane-graphics-baseline.ps1").read_text(
         encoding="utf-8"
     )
-    assert 'ExtensionVersion = "1.6.0"' in publish
-    assert "wonderbane-extension-1.6.0.dll" in publish
+    assert 'ExtensionVersion = "1.6.1"' in publish
+    assert "wonderbane-extension-1.6.1.dll" in publish
     assert r"\build\wonderbane-client-extension\Release" in publish
-    assert "fdeecbb2d5453dfb476a050dd58e988218933749fdaea1733cbae0c33cc1d410" in publish
-    assert "5a66b7cae5399f4c67ec4a2f4d8919f9bff50f14048a0b25b6bc8ff23f7cb061" in publish
+    assert "408ffb9aea64420dd201f11eb259ab3e8417b4a7e67fa05a0cbbd65f5a3c5e53" in publish
+    assert "621ad78f17ed9e1be2dce6cf95e3a09d2f8b991d8c2169b6c8e5e26f5ab527a6" in publish
     assert "$extensionSha256 -cne $ExpectedExtensionSha256" in publish
     assert "$resultExecutableSha256 -cne $ExpectedExecutableSha256" in publish
     assert "patched_executable_sha256" in publish
     assert "--texture-patch-manifest $TexturePatchManifest" in publish
     assert "--texture-artifact-directory $TextureArtifactDirectory" in publish
     assert "texture_patch_manifest_sha256" in publish
-    assert 'ExtensionVersion = "1.6.0"' in launch
-    assert "fdeecbb2d5453dfb476a050dd58e988218933749fdaea1733cbae0c33cc1d410" in launch
-    assert '$expectedExtensionRelativePath = "wonderbane-extension-1.6.0.dll"' in launch
+    assert 'ExtensionVersion = "1.6.1"' in launch
+    assert "408ffb9aea64420dd201f11eb259ab3e8417b4a7e67fa05a0cbbd65f5a3c5e53" in launch
+    assert '$expectedExtensionRelativePath = "wonderbane-extension-1.6.1.dll"' in launch
     assert 'Properties["extension_relative_path"]' in launch
-    assert "5a66b7cae5399f4c67ec4a2f4d8919f9bff50f14048a0b25b6bc8ff23f7cb061" in launch
+    assert "621ad78f17ed9e1be2dce6cf95e3a09d2f8b991d8c2169b6c8e5e26f5ab527a6" in launch
     assert 'Properties["result_executable_sha256"]' in launch
     assert "verify-runtime-copy" in launch
     assert manifest_sha256 in launch
@@ -136,13 +136,13 @@ def test_extension_version_is_consistent_across_every_runtime_surface() -> None:
     graphics_status = (native / "graphics_status.cpp").read_text(encoding="utf-8")
     api = (native / "extension_api.h").read_text(encoding="utf-8")
     resource = (native / "extension.rc").read_text(encoding="utf-8")
-    assert "project(wonderbane_extension VERSION 1.6.0" in cmake
-    assert 'kExtensionVersion[] = "1.6.0"' in extension
-    assert 'kExtensionVersion[] = "1.6.0"' in graphics_status
+    assert "project(wonderbane_extension VERSION 1.6.1" in cmake
+    assert 'kExtensionVersion[] = "1.6.1"' in extension
+    assert 'kExtensionVersion[] = "1.6.1"' in graphics_status
     assert "WONDERBANE_EXTENSION_VERSION_MAJOR 1U" in api
     assert "WONDERBANE_EXTENSION_VERSION_MINOR 6U" in api
-    assert "WONDERBANE_EXTENSION_VERSION_PATCH 0U" in api
-    assert "FILEVERSION 1,6,0,0" in resource
-    assert "PRODUCTVERSION 1,6,0,0" in resource
-    assert 'VALUE "FileVersion", "1.6.0.0\\0"' in resource
-    assert 'VALUE "ProductVersion", "1.6.0.0\\0"' in resource
+    assert "WONDERBANE_EXTENSION_VERSION_PATCH 1U" in api
+    assert "FILEVERSION 1,6,1,0" in resource
+    assert "PRODUCTVERSION 1,6,1,0" in resource
+    assert 'VALUE "FileVersion", "1.6.1.0\\0"' in resource
+    assert 'VALUE "ProductVersion", "1.6.1.0\\0"' in resource
