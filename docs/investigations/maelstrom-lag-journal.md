@@ -945,6 +945,40 @@ These are inferences, ordered by present fit rather than certainty.
 4. Inspect static scene and cache records intersecting that region for hidden nodes, bad bounds,
    emitters, terrain batches, or duplicated placements.
 
+## 2026-09-01 — Notification banner stalls during hotspot-visible degradation
+
+### Corrected operator observation
+
+- While the camp-center hotspot remained in view and the client was already degraded, a
+  notification-system banner visibly stalled or blinked with the rest of the rendered scene.
+- This was one qualitative observation. No matched banner transition was observed after the hotspot
+  left view, so banner behavior has not independently reproduced the visibility boundary.
+
+### Updated interpretation
+
+- **Strengthened:** During the active condition, the slowdown reaches shared client frame production
+  or presentation; it is not confined to turtle skeletal animation or creature movement.
+- **Weakened:** A defect that slows only turtle animation while leaving the overlay UI independently
+  smooth.
+- **Not separated:** CPU-side scene traversal or submission, GPU execution, driver synchronization,
+  and present blocking can all make the rendered world and UI overlays stutter together.
+- **Not implied:** The notification system is causal or separately sensitive to hotspot visibility.
+  Its banner is currently only a witness of the already-active shared stall.
+
+### Highest-value test available before camera telemetry
+
+1. Put the degraded target and late-arrival control at the same position, heading, zoom, and graphics
+   settings with the camp-center hotspot in view.
+2. Compare world motion, a naturally occurring UI transition if available, input response, and
+   approximate frame rate; then turn the hotspot out of view without otherwise changing the setup.
+3. If both clients degrade immediately, favor an instantaneous hotspot-dependent scene cost.
+4. If the target is substantially worse but both respond to visibility, favor a hotspot cost with
+   accumulated per-client amplification or retained state.
+5. If only the target degrades, favor retained per-client state as a required condition while
+   keeping hotspot visibility as its immediate activator.
+6. Repeat after relogging only the degraded target; recovery would strengthen the retained-state
+   branch without disturbing the late-arrival control.
+
 ## Journal maintenance rule
 
 After every live test, append one entry containing:
