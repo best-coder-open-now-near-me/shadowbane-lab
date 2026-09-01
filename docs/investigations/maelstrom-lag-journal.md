@@ -206,6 +206,59 @@ These are inferences, ordered by present fit rather than certainty.
 6. Run the water/travel-stance translocation experiment separately with movement-state and
    client/server position markers.
 
+## 2026-08-31 — Relog completely clears the degraded state
+
+### Intervention and result
+
+**Operator observation**
+
+- After the complete degraded-state capture, the affected character/client was relogged.
+- The severe turtle-area lag cleared completely after the relog.
+- No post-relog instrumented capture has been collected yet.
+- It is not yet recorded whether this was a character logout/login within the same `sb.exe`
+  process or a full client restart. That distinction controls whether the demonstrated reset
+  boundary is character/world-session scoped or only process scoped.
+
+### Updated interpretation
+
+**Supported or strengthened**
+
+- The bad state is resettable and accumulated rather than an unavoidable baseline cost of loading
+  Maelstrom or initially seeing the turtles.
+- A per-character, per-world-session, or per-process collection of turtle-related animation,
+  render, effect, combat, visibility, or replicated objects is now the leading model.
+- The smoother later-arriving character/client is consistent with less accumulated exposure rather
+  than a universally slow turtle scene.
+
+**Ruled out or weakened**
+
+- Static turtle geometry or animation cost alone cannot explain the full symptom: the same content
+  is smooth again immediately after a reset boundary.
+- A persistent VM-wide degradation is strongly weakened because relogging one affected
+  character/client clears its symptoms.
+- Permanent client-file corruption and an always-bad Maelstrom zone state are weakened.
+
+**Still unresolved**
+
+- A relog may destroy many systems at once. This result does not yet identify animation, rendering,
+  effects, combat objects, network replication, or another owner.
+- The result does not contradict the flat degraded-window resource counters. Accumulated state can
+  remain at a stable high-water count or impose per-frame work without continuing to grow during
+  the captured minute.
+- The exact reset granularity remains unknown until the post-relog PID and process creation time
+  are compared with degraded PID `7492`.
+
+### Immediate next experiment
+
+1. Record the current `sb.exe` PID and process creation time before further turtle combat.
+2. Capture a clean control window in the same location and viewpoint with turtles visible but no
+   combat.
+3. Apply a bounded exposure ladder: one turtle fight at a time, with a marker and symptom rating
+   after each fight, stopping as soon as degradation returns.
+4. Capture the first degraded step and compare its raw counters with the clean control.
+5. Relog again without restarting the process if possible, then repeat the same view to determine
+   whether character/world-session teardown alone clears the state.
+
 ## Journal maintenance rule
 
 After every live test, append one entry containing:
