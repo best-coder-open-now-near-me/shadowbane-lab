@@ -1,0 +1,87 @@
+{
+  "approved_source": {
+    "generator": {
+      "byte_length": 10817,
+      "original_path": "artifacts/tools/render_cel_candidates.py",
+      "sha256": "ffc6df568cd7993c79285e1d7ccb392c8597487a8d5add40a48c4a42cec00795"
+    },
+    "label": "RESTRAINED CEL",
+    "report": {
+      "byte_length": 12977,
+      "original_path": "artifacts/mesh-candidates/cel-renders/cel-candidates-report.json",
+      "sha256": "3ccea5994d37786ae1e2d3b11c3390d2d5aef81cb9b9d4311d1c9df4c7c32091"
+    },
+    "variant": "cel_subtle",
+    "visual_reference": {
+      "path": "evidence/graphics/restrained-cel-v1/target-comparison.png",
+      "sha256": "d15dbc488030a17b2d55aec19a4c61d101e277171989099e466f55292d490d27"
+    }
+  },
+  "render_reference": {
+    "color_bands": [
+      {
+        "color": [0.2, 0.2, 0.2],
+        "upper_bound_exclusive": 0.22
+      },
+      {
+        "color": [0.48, 0.53, 0.61],
+        "upper_bound_exclusive": 0.43
+      },
+      {
+        "color": [0.72, 0.76, 0.8],
+        "upper_bound_exclusive": 0.66
+      },
+      {
+        "color": [1.0, 0.98, 0.92],
+        "upper_bound_exclusive": null
+      }
+    ],
+    "light": {
+      "angle_radians": 0.14,
+      "energy": 1.15,
+      "type": "sun"
+    },
+    "outline": {
+      "color": [0.0, 0.0, 0.0],
+      "edge_types": [
+        "silhouette",
+        "border",
+        "crease",
+        "contour",
+        "external_contour"
+      ],
+      "material_boundary": false,
+      "suggestive_contour": false,
+      "thickness_pixels": 1.35
+    },
+    "samples": [
+      {
+        "atlas_path": "assets/wonderbane_graphics/restrained-cel-v1/shadowbane-beast-1706016-basecolor-hand-grade-sigmoid-claws.png",
+        "atlas_sha256": "9ee9e5f01b97ea41c31062c0b094940a2aa1ca454a0fce2796b158e3300ac59c",
+        "mesh_resource_id": 1706016,
+        "preview_exposure_ev": 2.0,
+        "texture_resource_id": 1706002
+      },
+      {
+        "atlas_path": "assets/wonderbane_graphics/restrained-cel-v1/13306_5000191-accent-final.png",
+        "atlas_sha256": "6dbddd6ee597e1da276dcacb52f9ae72908c053c5f8e5b658f7de453e915c61a",
+        "mesh_resource_id": 5000191,
+        "preview_exposure_ev": 1.0,
+        "texture_resource_id": 5000190
+      }
+    ]
+  },
+  "runtime_translation": {
+    "band_source": "client fixed-function vertex lighting interpolated from original normals",
+    "extension_version": "1.5.0",
+    "fog_modes_preserved": ["linear", "exp", "exp2"],
+    "fragment_program": "GLSL 1.20 fragment-only compatibility program",
+    "per_model_preview_exposure": "reference-only; not applied at runtime",
+    "texture_manifest_path": "assets/wonderbane_graphics/restrained-cel-v1/texture-patches.json",
+    "texture_patch_id": "wonderbane-1.0.5-55fbad5f.restrained-cel-v1",
+    "unsupported_state_behavior": "preserve the client's original fill",
+    "vertex_processing": "client fixed-function pipeline remains active"
+  },
+  "schema_version": 1,
+  "target_id": "wonderbane-55fb-restrained-cel-v1"
+}

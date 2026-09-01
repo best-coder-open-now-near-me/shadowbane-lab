@@ -37,7 +37,9 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
 ```
 
 The wrapper sets `PYTHONPATH` to the `codexgfx` share and never starts the control center, listener,
-manager, map capture, movement, combat, or automation paths.
+manager, map capture, movement, combat, or automation paths. Graphics package 1.5.0 also applies the
+hash-pinned restrained-cel atlas manifest while the copy is still unpublished; the patched cache and
+its texture evidence are included in the package inventory before atomic publication.
 
 After publication succeeds, launch that exact verified package for graphics testing with:
 
@@ -117,6 +119,8 @@ The package command first supports a no-write dry run:
 ```powershell
 python -m shadowbane_lab.client_extension prepare-copy `
   <frozen-client> <new-working-copy> <reviewed-manifest.json> <versioned-extension.dll> `
+  --texture-patch-manifest <reviewed-textures.json> `
+  --texture-artifact-directory <reviewed-atlases> `
   --dry-run --pretty
 ```
 
@@ -126,6 +130,13 @@ inventory. `verify-copy <new-working-copy>` repeats that check. The explicit
 `discard-copy <new-working-copy> <receipt.json>` command refuses a changed copy, verifies the
 frozen baseline again, deletes only the marker-bound disposable directory, and publishes a
 rollback receipt outside it.
+
+Texture overlays are optional for the generic command but fail closed as a pair: a manifest requires
+an artifact directory and vice versa. The manifest pins the complete source cache, every source
+resource payload, every PNG, dimensions/depth, and every encoded result payload. A write plan is
+built against the frozen cache before copying. Overlays are applied only inside the unpublished
+temporary package, post-write resources are reread, and `texture-patches.json` becomes part of the
+ordinary package inventory. An already-published client is never modified in place.
 
 After a disposable client has run, `audit-copy` reports exact added, missing, and changed paths
 against its signed package inventory. `discard-runtime-drifted-copy` accepts only a caller-reviewed
@@ -317,8 +328,31 @@ already passed the perspective, local-model, visible-width, and depth-write gate
 with `GL_FLAT`, after which the exact source shade model is restored. Scenery that cannot receive the
 complete cel treatment retains its original lighting depth instead of becoming uniformly flat.
 
+Extension 1.5.0 replaces that diagnostic `GL_FLAT` fill with the recovered `RESTRAINED CEL`
+lighting target. A fragment-only GLSL 1.20 compatibility program leaves the client's fixed-function
+vertex path active, preserving animated transforms, original normals, and smooth interpolated
+lighting. It quantizes lighting into the target's exact four bands at `0.22`, `0.43`, and `0.66`,
+modulates the existing texture/alpha, and explicitly reproduces linear, exponential, and squared
+exponential fog. The program is limited to the already-reviewed contour-eligible draw boundary and
+requires fixed-function lighting, texture unit zero, a modulate texture environment, and no
+preexisting shader program. Unsupported or failed shader state receives the client's untouched
+original fill rather than a degraded approximation.
+
+The package pairs that lighting with the two reviewed target atlases for texture resources
+`1706002` and `5000190`. Their source cache, source payloads, PNGs, encoded results, and final cache
+are verified by the immutable texture-patch path described above. The Blender reference's per-model
+preview exposure is intentionally not reproduced in gameplay; it was presentation setup rather than
+a material or lighting primitive. The golden target, source-generator/report hashes, palette,
+outline settings, sample identities, and runtime translation live in
+`evidence/graphics/restrained-cel-v1/target.json`.
+
+The fragment-only behavior follows the fixed-function/program interaction defined by the
+[OpenGL 2.0 specification](https://registry.khronos.org/OpenGL/specs/gl/glspec20.pdf) and the
+compatibility built-ins defined by the
+[GLSL 1.20 specification](https://registry.khronos.org/OpenGL/specs/gl/GLSLangSpec.1.20.pdf).
+
 Orthographic UI/map rendering, points, lines, and array draws outside the reviewed element-count
-bound remain single-pass. Immediate-mode geometry remains filled and flat-shaded because replaying
+bound remain single-pass. Immediate-mode geometry retains the client's original fill because replaying
 an arbitrary `glBegin`/`glEnd` stream would require intercepting every vertex and state mutation.
 Any missing or ambiguous required import or OpenGL helper still rejects initialization before the
 first IAT mutation; partial hook installation retains the existing rollback behavior.
