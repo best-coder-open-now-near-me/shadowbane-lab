@@ -578,6 +578,33 @@ These are inferences, ordered by present fit rather than certainty.
   the temporary full baseline payload is removed after verified publication, and its manifest is
   retained for provenance.
 
+## 2026-09-01 01:31 EDT / 05:31 UTC — Passive client launched
+
+### Exact launch identity
+
+- VM: regular shadowbane VM, not shadowbane-testing.
+- Process: PID 3196, creation FILETIME UTC 134327142791034606
+  (2026-09-01T05:31:19.1034606Z).
+- Package:
+  C:\Users\admin\Wonderbane-diagnostics-wb-55fbad5f-present-1.5.6.
+- Runtime profile: diagnostics-only, confirmed from the identity-bound live status document.
+- Extension SHA-256:
+  94a4f4043d429ad63775bb4bf77ecd31a29ffc7a01146fb919bfb25cc5c7cdcb.
+- Renderer status:
+  C:\Users\admin\AppData\Local\ShadowbaneLab\client-extension\graphics-status-3196-134327142791034606.json.
+- Publication verified the copied package and removed the temporary full baseline payload. The
+  reviewed source client remained untouched.
+
+### Observation boundary
+
+- Character, zone, turtle visibility, combat exposure, and symptom state had not yet been assessed
+  at launch.
+- This process is the first instrumented comparison cohort. Any result from it must remain labeled
+  diagnostics-only and compared explicitly with, rather than merged into, the historical vanilla
+  captures.
+- Next test: enter Maelstrom near the original turtle camp, establish a smooth/lag state, then run a
+  triggered capture that continuously drains exact present timing alongside process metrics.
+
 ## Journal maintenance rule
 
 After every live test, append one entry containing:
