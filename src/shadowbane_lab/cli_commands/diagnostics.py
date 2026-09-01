@@ -13,11 +13,13 @@ from shadowbane_lab.diagnostics import (
     DiagnosticRequest,
     FileCaptureMode,
     FileChannel,
+    ObservationPhase,
     TriggerOperator,
     TriggerRule,
     analyze_diagnostic_capture,
     compare_diagnostic_captures,
     run_diagnostic_capture,
+    submit_observation_marker,
 )
 from shadowbane_lab.evidence import (
     ArtifactKind,
@@ -36,6 +38,8 @@ def handle(arguments: Namespace) -> int:
     try:
         if arguments.diagnose_command == "capture":
             return _capture(arguments, as_json=as_json)
+        if arguments.diagnose_command == "mark":
+            return _mark(arguments, as_json=as_json)
         if arguments.diagnose_command == "analyze":
             store = ArtifactStore(arguments.store)
             report = analyze_diagnostic_capture(
@@ -119,6 +123,7 @@ def _capture(arguments: Namespace, *, as_json: bool) -> int:
             ),
             graphics_runtime_status=arguments.graphics_runtime_status,
             capture_native_position=arguments.native_position,
+            capture_performance_telemetry=arguments.performance_telemetry,
             capture_camera_state=arguments.camera_state,
             file_channels=channels,
             trigger_rules=trigger_rules,
@@ -134,6 +139,7 @@ def _capture(arguments: Namespace, *, as_json: bool) -> int:
         "manifest_id": result.manifest.manifest_id,
         "manifest": str(result.manifest_path),
         "store": str(result.store.root),
+        "timeline": str(result.timeline_path) if result.timeline_path is not None else None,
         "completed_channels": list(result.manifest.completed_channels),
         "omissions": list(result.manifest.omissions),
         "summary": result.summary,
@@ -147,6 +153,7 @@ def _capture(arguments: Namespace, *, as_json: bool) -> int:
             "manifest_id",
             "manifest",
             "store",
+            "timeline",
         ):
             print(f"{name}: {payload[name]}")
         if result.manifest.omissions:
@@ -154,6 +161,26 @@ def _capture(arguments: Namespace, *, as_json: bool) -> int:
             for omission in result.manifest.omissions:
                 print(f"  - {omission}")
     return 0 if payload["ok"] else 1
+
+
+def _mark(arguments: Namespace, *, as_json: bool) -> int:
+    marker = submit_observation_marker(
+        arguments.output_directory,
+        arguments.label,
+        phase=(
+            ObservationPhase(arguments.phase)
+            if arguments.phase is not None
+            else None
+        ),
+        finish=arguments.finish,
+    )
+    payload = {"ok": True, **marker.as_dict()}
+    if as_json:
+        print(json.dumps(payload, allow_nan=False, sort_keys=True))
+    else:
+        for name in ("marker_id", "label", "phase", "finish"):
+            print(f"{name}: {payload[name]}")
+    return 0
 
 
 def _file_channels(

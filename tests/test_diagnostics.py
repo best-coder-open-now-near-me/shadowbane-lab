@@ -13,6 +13,14 @@ from pathlib import Path
 from client_alignment_fixture import build_pe
 
 from shadowbane_lab.cli import main
+from shadowbane_lab.client_extension.performance import (
+    PERFORMANCE_AGGREGATE_CAPABILITY,
+    CacheArchive,
+    PerformanceRecord,
+    PerformanceRecordKind,
+    PerformanceTelemetryHeader,
+    PerformanceTelemetrySnapshot,
+)
 from shadowbane_lab.client_observation.native_position import (
     NativePlayerPositionObservation,
 )
@@ -116,6 +124,61 @@ class _FakeNativePositionSource:
         self.closed = True
 
 
+class _FakePerformanceSource:
+    def __init__(self, identity: ProcessIdentity) -> None:
+        self.identity = identity
+        self.calls = 0
+
+    def snapshot(self) -> PerformanceTelemetrySnapshot:
+        sequence = self.calls
+        self.calls += 1
+        header = PerformanceTelemetryHeader(
+            process_id=self.identity.process_id,
+            capability_flags=PERFORMANCE_AGGREGATE_CAPABILITY,
+            process_creation_filetime_utc=(
+                self.identity.process_creation_filetime_utc
+            ),
+            qpc_frequency=10_000,
+            started_qpc=1,
+            write_sequence=sequence,
+            overwritten_record_count=0,
+            frame_count=sequence,
+            slow_frame_count=sequence,
+            cache_read_count=0,
+            cache_read_bytes=0,
+            texture_upload_count=0,
+            texture_upload_bytes=0,
+            producer_error=0,
+            active_hook_count=20,
+        )
+        records = (
+            (
+                PerformanceRecord(
+                    sequence=sequence,
+                    kind=PerformanceRecordKind.FRAME_SUMMARY,
+                    flags=1,
+                    started_qpc=10_000 + sequence * 1_000,
+                    duration_qpc=10,
+                    thread_id=7,
+                    archive=CacheArchive.NONE,
+                    byte_count=0,
+                    argument0=0,
+                    argument1=0,
+                    argument2=0,
+                    frame_interval_qpc=1_000,
+                    pipeline_gap_qpc=0,
+                    reserved=0,
+                ),
+            )
+            if sequence
+            else ()
+        )
+        return PerformanceTelemetrySnapshot(
+            header=header,
+            records=records,
+        )
+
+
 def _artifact_payload(result, channel_id: str) -> bytes:
     descriptors = [
         item
@@ -129,6 +192,47 @@ def _artifact_payload(result, channel_id: str) -> bytes:
 
 
 class DiagnosticSessionTests(unittest.TestCase):
+    def test_aggregate_performance_capture_seals_one_correlated_timeline(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            executable = Path(sys.executable)
+            source_instances: list[_FakePerformanceSource] = []
+
+            def source_factory(identity: ProcessIdentity) -> _FakePerformanceSource:
+                source = _FakePerformanceSource(identity)
+                source_instances.append(source)
+                return source
+
+            result = run_diagnostic_capture(
+                DiagnosticRequest(
+                    output_directory=root / "capture",
+                    process_id=41,
+                    duration_seconds=0.2,
+                    sample_interval_seconds=0.1,
+                    client_executable=executable,
+                    capture_performance_telemetry=True,
+                ),
+                process_probe=_FakeProbe(executable),
+                performance_source_factory=source_factory,
+                clock=_FakeClock(),
+            )
+
+            self.assertIs(result.manifest.terminal_state, ManifestTerminalState.COMPLETE)
+            self.assertIsNotNone(result.timeline_path)
+            self.assertTrue(result.timeline_path.is_file())
+            self.assertEqual(1, len(source_instances))
+            timeline = json.loads(result.timeline_path.read_bytes())
+            sealed_timeline = json.loads(_artifact_payload(result, "diagnostic-timeline"))
+            self.assertEqual(timeline, sealed_timeline)
+            self.assertGreaterEqual(timeline["summary"]["frame_count"], 2)
+            self.assertEqual(41, timeline["process_identity"]["process_id"])
+            self.assertFalse(timeline["summary"]["phase_protocol_complete"])
+            self.assertIn("diagnostic-timeline", result.manifest.completed_channels)
+            self.assertIn("observation-markers", result.manifest.completed_channels)
+            self.assertFalse(
+                (root / "capture" / "control" / "active-marker-session.json").exists()
+            )
+
     def test_requested_graphics_present_channel_seals_exact_import_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

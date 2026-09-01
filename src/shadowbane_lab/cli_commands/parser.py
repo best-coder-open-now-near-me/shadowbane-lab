@@ -214,6 +214,11 @@ def _parser() -> argparse.ArgumentParser:
         help="sample reviewed exact-process player LT, LG, and altitude",
     )
     diagnose_capture.add_argument(
+        "--performance-telemetry",
+        action="store_true",
+        help="drain exact-process aggregate frame/read/upload telemetry",
+    )
+    diagnose_capture.add_argument(
         "--camera-state",
         action="store_true",
         help="require identity-bound renderer camera/view/projection telemetry",
@@ -247,6 +252,24 @@ def _parser() -> argparse.ArgumentParser:
     diagnose_capture.add_argument("--initial-log-mib", type=float, default=1.0)
     diagnose_capture.add_argument("--max-channel-mib", type=float, default=64.0)
     diagnose_capture.add_argument("--json", action="store_true")
+
+    diagnose_mark = diagnose_commands.add_parser(
+        "mark",
+        help="submit a create-only observation marker to an active capture",
+    )
+    diagnose_mark.add_argument("output_directory", type=Path)
+    diagnose_mark.add_argument("label")
+    diagnose_mark.add_argument(
+        "--phase",
+        choices=(
+            "cold-approach",
+            "stationary",
+            "warm-return",
+            "complete",
+        ),
+    )
+    diagnose_mark.add_argument("--finish", action="store_true")
+    diagnose_mark.add_argument("--json", action="store_true")
 
     diagnose_analyze = diagnose_commands.add_parser(
         "analyze",

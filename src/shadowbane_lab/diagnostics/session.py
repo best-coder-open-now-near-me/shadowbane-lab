@@ -36,14 +36,25 @@ from shadowbane_lab.evidence import (
     save_contract,
 )
 from shadowbane_lab.fingerprints import FingerprintCaptureInputs, capture_fingerprint
-from shadowbane_lab.integrity import canonical_json_bytes, canonical_timestamp
+from shadowbane_lab.integrity import (
+    canonical_json_bytes,
+    canonical_timestamp,
+    create_only_json,
+)
 
 from .camera import CameraStateCollector
 from .collectors import FileChunk, ScreenshotCapture, ScreenshotCollector, TailFileCollector
 from .frame_timing import FrameTimingCollector
 from .graphics import collect_graphics_present_evidence
+from .markers import ObservationMarker, ObservationMarkerInbox
 from .model import DiagnosticError, DiagnosticProfile, DiagnosticRequest, FileCaptureMode
+from .performance import (
+    PerformanceFrameCollector,
+    PerformanceSnapshotSource,
+    open_performance_snapshot_source,
+)
 from .process import ProcessIdentity, ProcessProbe, ProcessSample, WindowsProcessProbe
+from .timeline import build_diagnostic_timeline
 
 _PRODUCER_ID = "shadowbane-lab.diagnostics"
 _PRODUCER_VERSION = "1"
@@ -96,6 +107,7 @@ class DiagnosticCaptureResult:
     output_directory: Path
     store: ArtifactStore
     manifest_path: Path
+    timeline_path: Path | None
     manifest: EvidenceManifest
     summary: dict[str, object]
 
@@ -121,6 +133,8 @@ def run_diagnostic_capture(
     screenshot_factory: Callable[[tuple[int, int, int, int], float], ScreenshotCollector]
     | None = None,
     native_position_factory: Callable[[int], NativePositionSource]
+    | None = None,
+    performance_source_factory: Callable[[ProcessIdentity], PerformanceSnapshotSource]
     | None = None,
 ) -> DiagnosticCaptureResult:
     """Capture one bounded session and seal every retained artifact in one manifest."""
@@ -169,7 +183,15 @@ def run_diagnostic_capture(
     started_utc = session_clock.utc_timestamp()
     deadline_ns = started_ns + int(request.effective_duration_seconds * 1_000_000_000)
 
+    marker_inbox = ObservationMarkerInbox(
+        output,
+        run_id,
+        initial_sample.identity,
+    )
+    observation_markers: list[ObservationMarker] = []
+
     native_position_source: NativePositionSource | None = None
+    native_position_samples: list[dict[str, object]] = []
     native_position_sample_count = 0
     native_position_failure_count = 0
     if request.capture_native_position:
@@ -196,6 +218,26 @@ def run_diagnostic_capture(
                     )
                 native_position_source = None
             channel_failures["native-position"] = f"{type(exc).__name__}: {exc}"
+
+    performance_collector: PerformanceFrameCollector | None = None
+    if request.capture_performance_telemetry:
+        try:
+            performance_source = (
+                open_performance_snapshot_source(initial_sample.identity)
+                if performance_source_factory is None
+                else performance_source_factory(initial_sample.identity)
+            )
+            performance_collector = PerformanceFrameCollector(
+                initial_sample.identity,
+                performance_source,
+            )
+            try:
+                performance_collector.poll(started_ns, started_utc)
+            except Exception as exc:
+                failure = f"{type(exc).__name__}: {exc}"
+                channel_failures["performance-telemetry"] = failure
+        except Exception as exc:
+            channel_failures["performance-telemetry"] = f"{type(exc).__name__}: {exc}"
 
     identity_descriptor = _ingest_json(
         store,
@@ -462,23 +504,23 @@ def run_diagnostic_capture(
             try:
                 position = native_position_source.observe()
                 native_position_sample_count += 1
+                position_sample: dict[str, object] = {
+                    "altitude": position.altitude,
+                    "captured_at_utc": now_utc,
+                    "lg": position.lg,
+                    "lt": position.lt,
+                    "monotonic_ns": now_ns,
+                    "profile_id": native_position_source.profile_id,
+                    "sample_index": native_position_sample_count,
+                }
+                native_position_samples.append(position_sample)
                 pending.append(
                     _PendingRecord(
                         channel_id="native-position",
                         monotonic_ns=now_ns,
                         captured_at_utc=now_utc,
                         kind=CaptureRecordKind.OBSERVATION,
-                        payload=tuple(
-                            sorted(
-                                {
-                                    "altitude": position.altitude,
-                                    "lg": position.lg,
-                                    "lt": position.lt,
-                                    "profile_id": native_position_source.profile_id,
-                                    "sample_index": native_position_sample_count,
-                                }.items()
-                            )
-                        ),
+                        payload=tuple(sorted(position_sample.items())),
                     )
                 )
             except Exception as exc:
@@ -509,6 +551,16 @@ def run_diagnostic_capture(
                 failure = f"{type(exc).__name__}: {exc}"
                 camera_state_collector.record_poll_failure(now_ns, failure)
                 channel_failures.setdefault("camera-state", failure)
+        if performance_collector is not None:
+            try:
+                performance_collector.poll(now_ns, now_utc)
+            except Exception as exc:
+                failure = f"{type(exc).__name__}: {exc}"
+                if performance_collector.initialized:
+                    performance_collector.record_poll_failure(now_ns, failure)
+                channel_failures.setdefault("performance-telemetry", failure)
+            else:
+                channel_failures.pop("performance-telemetry", None)
         for channel_id, collector in tuple(tail_collectors.items()):
             try:
                 for chunk in collector.poll(now_ns):
@@ -576,6 +628,17 @@ def run_diagnostic_capture(
             except Exception as exc:
                 channel_failures["screenshots"] = f"{type(exc).__name__}: {exc}"
                 screenshot_collector = None
+        try:
+            observation_finished = _poll_observation_markers(
+                marker_inbox,
+                observation_markers,
+                pending,
+            )
+        except Exception as exc:
+            observation_finished = False
+            channel_failures.setdefault(
+                "observation-markers", f"{type(exc).__name__}: {exc}"
+            )
         if trigger_ns is None:
             trigger_reason = _trigger_reason(
                 request,
@@ -596,6 +659,9 @@ def run_diagnostic_capture(
                         correlation_id="diagnostic-trigger",
                     )
                 )
+        if observation_finished:
+            stop_reason = "observation-complete"
+            break
         if trigger_ns is not None and request.profile is DiagnosticProfile.TRIGGERED:
             post_ns = int(request.effective_post_trigger_seconds * 1_000_000_000)
             if now_ns - trigger_ns >= post_ns:
@@ -619,6 +685,25 @@ def run_diagnostic_capture(
 
     ended_ns = session_clock.monotonic_ns()
     ended_utc = session_clock.utc_timestamp()
+    try:
+        _poll_observation_markers(
+            marker_inbox,
+            observation_markers,
+            pending,
+        )
+    except Exception as exc:
+        channel_failures.setdefault(
+            "observation-markers", f"{type(exc).__name__}: {exc}"
+        )
+    try:
+        marker_inbox.close()
+    except Exception as exc:
+        channel_failures.setdefault(
+            "observation-markers",
+            f"marker inbox close failed: {type(exc).__name__}: {exc}",
+        )
+    if "observation-markers" not in channel_failures:
+        completed.add("observation-markers")
     if native_position_source is not None:
         try:
             native_position_source.close()
@@ -641,6 +726,16 @@ def run_diagnostic_capture(
             failure = f"{type(exc).__name__}: {exc}"
             camera_state_collector.record_poll_failure(ended_ns, failure)
             channel_failures.setdefault("camera-state", failure)
+    if performance_collector is not None:
+        try:
+            performance_collector.poll(ended_ns, ended_utc)
+        except Exception as exc:
+            failure = f"{type(exc).__name__}: {exc}"
+            if performance_collector.initialized:
+                performance_collector.record_poll_failure(ended_ns, failure)
+            channel_failures.setdefault("performance-telemetry", failure)
+        else:
+            channel_failures.pop("performance-telemetry", None)
     _capture_snapshot_channels(
         request,
         phase="end",
@@ -659,6 +754,50 @@ def run_diagnostic_capture(
             started_ns,
             anchor_ns - int(request.effective_pre_trigger_seconds * 1_000_000_000),
         )
+
+    performance_report: dict[str, object] | None = None
+    if performance_collector is not None:
+        try:
+            performance_report = performance_collector.as_report(
+                started_monotonic_ns=started_ns,
+                started_at_utc=started_utc,
+                ended_monotonic_ns=ended_ns,
+                ended_at_utc=ended_utc,
+                retained_cutoff_monotonic_ns=retained_cutoff_ns,
+            )
+            descriptor = _ingest_json(
+                store,
+                performance_report,
+                kind=ArtifactKind.NATIVE_EVENT_STREAM,
+                logical_name=f"{run_id}.performance-telemetry.json",
+                captured_at_utc=ended_utc,
+                metadata=(("channel_id", "performance-telemetry"),),
+            )
+            descriptors.append(descriptor)
+            pending.append(
+                _PendingRecord(
+                    channel_id="performance-telemetry",
+                    monotonic_ns=ended_ns,
+                    captured_at_utc=ended_utc,
+                    kind=CaptureRecordKind.ARTIFACT_REFERENCE,
+                    artifact_id=descriptor.artifact_id,
+                    quality=(
+                        ()
+                        if performance_report["complete"]
+                        else (CaptureQuality.DROPPED,)
+                    ),
+                )
+            )
+            if performance_report["complete"]:
+                completed.add("performance-telemetry")
+                channel_failures.pop("performance-telemetry", None)
+            else:
+                channel_failures.setdefault(
+                    "performance-telemetry",
+                    "performance telemetry contains producer or capture gaps",
+                )
+        except Exception as exc:
+            channel_failures["performance-telemetry"] = f"{type(exc).__name__}: {exc}"
 
     if frame_timing_collector is not None:
         try:
@@ -698,6 +837,7 @@ def run_diagnostic_capture(
         except Exception as exc:
             channel_failures["frame-timing"] = f"{type(exc).__name__}: {exc}"
 
+    camera_state_report: dict[str, object] | None = None
     if camera_state_collector is not None:
         try:
             camera_state = camera_state_collector.as_report(
@@ -707,6 +847,7 @@ def run_diagnostic_capture(
                 ended_at_utc=ended_utc,
                 retained_cutoff_monotonic_ns=retained_cutoff_ns,
             )
+            camera_state_report = camera_state
             descriptor = _ingest_json(
                 store,
                 camera_state,
@@ -738,6 +879,60 @@ def run_diagnostic_capture(
         except Exception as exc:
             channel_failures.setdefault(
                 "camera-state", f"{type(exc).__name__}: {exc}"
+            )
+
+    timeline_path: Path | None = None
+    timeline_report: dict[str, object] | None = None
+    if performance_report is not None:
+        try:
+            timeline_report = build_diagnostic_timeline(
+                run_id=run_id,
+                identity=initial_sample.identity,
+                started_monotonic_ns=started_ns,
+                started_at_utc=started_utc,
+                ended_monotonic_ns=ended_ns,
+                ended_at_utc=ended_utc,
+                performance_report=performance_report,
+                player_samples=native_position_samples,
+                camera_report=camera_state_report,
+                observation_markers=observation_markers,
+            )
+            descriptor = _ingest_json(
+                store,
+                timeline_report,
+                kind=ArtifactKind.SEMANTIC_TRACE,
+                logical_name=f"{run_id}.diagnostic-timeline.json",
+                captured_at_utc=ended_utc,
+                metadata=(("channel_id", "diagnostic-timeline"),),
+            )
+            descriptors.append(descriptor)
+            pending.append(
+                _PendingRecord(
+                    channel_id="diagnostic-timeline",
+                    monotonic_ns=ended_ns,
+                    captured_at_utc=ended_utc,
+                    kind=CaptureRecordKind.ARTIFACT_REFERENCE,
+                    artifact_id=descriptor.artifact_id,
+                    quality=(
+                        ()
+                        if timeline_report["complete"]
+                        else (CaptureQuality.DROPPED,)
+                    ),
+                )
+            )
+            timeline_path = output / f"{run_id}.timeline.json"
+            create_only_json(timeline_path, timeline_report)
+            if timeline_report["complete"]:
+                completed.add("diagnostic-timeline")
+                channel_failures.pop("diagnostic-timeline", None)
+            else:
+                channel_failures.setdefault(
+                    "diagnostic-timeline",
+                    "timeline contains performance telemetry gaps",
+                )
+        except Exception as exc:
+            channel_failures["diagnostic-timeline"] = (
+                f"{type(exc).__name__}: {exc}"
             )
 
     retained_binary_keys: set[tuple[object, ...]] = set()
@@ -889,6 +1084,14 @@ def run_diagnostic_capture(
             required.add("frame-timing")
     if request.capture_camera_state:
         required.add("camera-state")
+    if request.capture_performance_telemetry:
+        required.update(
+            {
+                "diagnostic-timeline",
+                "observation-markers",
+                "performance-telemetry",
+            }
+        )
     if request.capture_native_position:
         required.add("native-position")
         if native_position_sample_count and not native_position_failure_count:
@@ -900,7 +1103,11 @@ def run_diagnostic_capture(
         required.add("trigger")
         if trigger_ns is None:
             channel_failures["trigger"] = "no trigger was observed before the duration limit"
-    if stop_reason in {"duration-complete", "post-trigger-complete"}:
+    if stop_reason in {
+        "duration-complete",
+        "observation-complete",
+        "post-trigger-complete",
+    }:
         completed.add("capture-window")
     else:
         channel_failures["capture-window"] = f"requested capture window ended early: {stop_reason}"
@@ -925,6 +1132,16 @@ def run_diagnostic_capture(
         "sample_count": sample_count,
         "native_position_sample_count": native_position_sample_count,
         "native_position_failure_count": native_position_failure_count,
+        "observation_marker_count": len(observation_markers),
+        "performance_frame_count": (
+            int(performance_report["frame_count"])
+            if performance_report is not None
+            else 0
+        ),
+        "timeline_path": str(timeline_path) if timeline_path is not None else None,
+        "timeline_summary": (
+            timeline_report["summary"] if timeline_report is not None else None
+        ),
         "triggered": trigger_ns is not None,
         "trigger_reason": trigger_reason,
         "retained_pre_trigger_cutoff_monotonic_ns": retained_cutoff_ns,
@@ -972,9 +1189,44 @@ def run_diagnostic_capture(
         output_directory=output,
         store=store,
         manifest_path=manifest_path,
+        timeline_path=timeline_path,
         manifest=manifest,
         summary=summary,
     )
+
+
+def _poll_observation_markers(
+    inbox: ObservationMarkerInbox,
+    retained: list[ObservationMarker],
+    pending: list[_PendingRecord],
+) -> bool:
+    finished = False
+    for marker in inbox.poll():
+        retained.append(marker)
+        pending.append(
+            _PendingRecord(
+                channel_id="observation-markers",
+                monotonic_ns=marker.monotonic_ns,
+                captured_at_utc=marker.captured_at_utc,
+                kind=CaptureRecordKind.MARKER,
+                payload=tuple(
+                    sorted(
+                        {
+                            "finish": marker.finish,
+                            "label": marker.label,
+                            "phase": (
+                                marker.phase.value
+                                if marker.phase is not None
+                                else None
+                            ),
+                        }.items()
+                    )
+                ),
+                correlation_id=marker.marker_id,
+            )
+        )
+        finished = finished or marker.finish
+    return finished
 
 
 def _capture_snapshot_channels(

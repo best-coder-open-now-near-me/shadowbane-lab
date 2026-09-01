@@ -144,6 +144,7 @@ class DiagnosticRequest:
     capture_graphics_present: bool = False
     graphics_runtime_status: Path | None = None
     capture_native_position: bool = False
+    capture_performance_telemetry: bool = False
     capture_camera_state: bool = False
     file_channels: tuple[FileChannel, ...] = ()
     trigger_rules: tuple[TriggerRule, ...] = ()
@@ -170,6 +171,8 @@ class DiagnosticRequest:
             )
         if not isinstance(self.capture_native_position, bool):
             raise ValueError("capture_native_position must be boolean")
+        if not isinstance(self.capture_performance_telemetry, bool):
+            raise ValueError("capture_performance_telemetry must be boolean")
         if not isinstance(self.capture_camera_state, bool):
             raise ValueError("capture_camera_state must be boolean")
         if self.capture_camera_state and self.graphics_runtime_status is None:
