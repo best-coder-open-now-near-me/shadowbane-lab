@@ -7,10 +7,10 @@ import json
 import re
 import sys
 from collections import defaultdict, deque
+from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from math import cos, radians, sin
 from pathlib import Path
-from typing import Sequence
 
 from shadowbane_lab.travel import (
     WorldDestinationCatalog,
