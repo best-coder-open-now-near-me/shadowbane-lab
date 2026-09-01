@@ -143,6 +143,8 @@ class DiagnosticRequest:
     repository_directory: Path | None = None
     capture_graphics_present: bool = False
     graphics_runtime_status: Path | None = None
+    capture_native_position: bool = False
+    capture_camera_state: bool = False
     file_channels: tuple[FileChannel, ...] = ()
     trigger_rules: tuple[TriggerRule, ...] = ()
     manual_trigger_file: Path | None = None
@@ -165,6 +167,18 @@ class DiagnosticRequest:
         if self.graphics_runtime_status is not None and not self.capture_graphics_present:
             raise ValueError(
                 "graphics_runtime_status requires capture_graphics_present"
+            )
+        if not isinstance(self.capture_native_position, bool):
+            raise ValueError("capture_native_position must be boolean")
+        if not isinstance(self.capture_camera_state, bool):
+            raise ValueError("capture_camera_state must be boolean")
+        if self.capture_camera_state and self.graphics_runtime_status is None:
+            raise ValueError(
+                "capture_camera_state requires identity-bound graphics_runtime_status"
+            )
+        if self.capture_camera_state and not self.capture_graphics_present:
+            raise ValueError(
+                "capture_camera_state requires capture_graphics_present"
             )
         for value, name, maximum in (
             (self.effective_duration_seconds, "duration_seconds", 86_400.0),

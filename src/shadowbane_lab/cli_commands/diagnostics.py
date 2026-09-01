@@ -118,6 +118,8 @@ def _capture(arguments: Namespace, *, as_json: bool) -> int:
                 or arguments.graphics_runtime_status is not None
             ),
             graphics_runtime_status=arguments.graphics_runtime_status,
+            capture_native_position=arguments.native_position,
+            capture_camera_state=arguments.camera_state,
             file_channels=channels,
             trigger_rules=trigger_rules,
             manual_trigger_file=arguments.manual_trigger_file,

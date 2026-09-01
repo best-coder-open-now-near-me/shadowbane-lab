@@ -39,7 +39,7 @@ The scripts are deployment adapters, not additional domain APIs:
 | Start/stop | `start-wonderbane-control-center.ps1`, `start-wonderbane-go-listener.ps1`, `stop-wonderbane-go-listener.ps1` | manager app and listener process lifecycle |
 | Extension evidence | `build-wonderbane-client-extension.ps1`, `freeze-wonderbane-client-baseline.ps1`, `collect-wonderbane-client-extension-evidence.ps1`, `prepare-wonderbane-client-extension-copy.ps1` | client-extension maintenance commands |
 | Live evidence | `run-wonderbane-pve-evidence.ps1`, `export-wonderbane-sim-observation.ps1`, `trace-wonderbane-vendor-dialog.ps1` | bounded client observations and runs |
-| Capture-once diagnostics | `capture-shadowbane-diagnostics.ps1` | exact process identity, bounded metrics/log/screenshot capture, patched-client alignment, graphics-present evidence, and offline reanalysis |
+| Capture-once diagnostics | `capture-shadowbane-diagnostics.ps1` | exact process identity, reviewed player position, bounded metrics/log/screenshot capture, patched-client alignment, graphics present/timing/camera rings, and offline spatial/resource reanalysis |
 | Network evidence | `start-wonderbane-incoming-capture.ps1`, `stop-wonderbane-incoming-capture.ps1` | Windows Packet Monitor session lifecycle |
 
 The similarly named control-center scripts are sequential layers rather than substitutes:
@@ -91,12 +91,12 @@ priorities:
    policy. A wrapper that merely renames a Python command should not be added.
 4. Standardize operator documentation on the installed `shadowbane-lab` command. Reserve
    `python -m ...` spellings for maintenance modules without console entry points.
-5. Make read-only camera-state telemetry a required capture-once diagnostic channel. Bind every
-   sample to exact PID, creation time, executable fingerprint, and reviewed build mapping; record
-   the normalized forward vector on the process-metric monotonic clock; seal omissions and mapping
-   failures instead of guessing; and correlate direction or angular changes with resource and frame
-   spikes offline. Provide an explicit mapping discovery and review workflow for new executable
-   builds rather than promoting heuristic candidates automatically.
+5. Keep read-only camera-state telemetry as a required capture-once diagnostic channel whenever an
+   identity-bound graphics producer is supplied. The non-render consumer, sealing, gap accounting,
+   process-clock alignment, and offline resource/frame correlation are complete. The renderer still
+   owes passive production of the documented bounded ring. Player position uses reviewed native
+   layout compatibility; camera state uses runtime-observed fixed-function authority. Neither path
+   promotes heuristic client-alignment candidates automatically.
 6. Establish the shared integrity package, content-addressed evidence manifests, complete
    fingerprint envelope, and research-case runner before adding deeper binary, asset, network, or
    memory-discovery commands.

@@ -208,6 +208,16 @@ def _parser() -> argparse.ArgumentParser:
         help="seal exact frame-present imports and optional identity-bound runtime status",
     )
     diagnose_capture.add_argument("--graphics-runtime-status", type=Path)
+    diagnose_capture.add_argument(
+        "--native-position",
+        action="store_true",
+        help="sample reviewed exact-process player LT, LG, and altitude",
+    )
+    diagnose_capture.add_argument(
+        "--camera-state",
+        action="store_true",
+        help="require identity-bound renderer camera/view/projection telemetry",
+    )
     diagnose_capture.add_argument("--log", type=Path, action="append", default=[])
     diagnose_capture.add_argument("--extension-events", type=Path)
     diagnose_capture.add_argument("--network-summary", type=Path)

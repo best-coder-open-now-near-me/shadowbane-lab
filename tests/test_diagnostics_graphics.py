@@ -19,6 +19,7 @@ from shadowbane_lab.diagnostics import (
     compare_diagnostic_captures,
     run_diagnostic_capture,
 )
+from shadowbane_lab.diagnostics.camera import CameraStateCollector
 from shadowbane_lab.diagnostics.frame_timing import FrameTimingCollector
 from shadowbane_lab.evidence import ManifestTerminalState
 
@@ -84,6 +85,39 @@ def _status(
             "timing_query_failure_count": 0,
             "samples": [
                 [sequence, 10_000_000 + sequence * 16_667]
+                for sequence in range(
+                    max(1, latest_sequence - sample_capacity + 1),
+                    latest_sequence + 1,
+                )
+            ],
+        },
+        "camera_state": {
+            "schema_version": 1,
+            "clock": "windows-query-performance-counter",
+            "counter_frequency_hz": 1_000_000,
+            "source": "first-perspective-depth-writing-world-draw",
+            "mapping_authority": "runtime-observed-fixed-function-state",
+            "latest_sample_sequence": latest_sequence,
+            "oldest_available_sequence": (
+                max(1, latest_sequence - sample_capacity + 1) if latest_sequence else 0
+            ),
+            "sample_capacity": sample_capacity,
+            "sample_count": min(latest_sequence, sample_capacity),
+            "producer_drop_count": 0,
+            "samples": [
+                {
+                    "sequence": sequence,
+                    "present_sequence": sequence,
+                    "counter": 10_000_000 + sequence * 16_667,
+                    "position": [float(sequence), 20.0, 30.0],
+                    "forward": [0.0, 0.0, -1.0],
+                    "up": [0.0, 1.0, 0.0],
+                    "zoom": 1.0,
+                    "vertical_fov_degrees": 60.0,
+                    "view_matrix": [1.0, 0.0, 0.0, 0.0] * 4,
+                    "projection_matrix": [1.0, 0.0, 0.0, 0.0] * 4,
+                    "viewport": [0, 0, 800, 600],
+                }
                 for sequence in range(
                     max(1, latest_sequence - sample_capacity + 1),
                     latest_sequence + 1,
@@ -171,6 +205,8 @@ class GraphicsPresentEvidenceTests(unittest.TestCase):
         self.assertIn("evidence `\n        bundle `", launcher)
         self.assertIn("bundle_sha256 = $exportedBundleSha256", launcher)
         self.assertIn("status = 'verified_export'", launcher)
+        self.assertIn("'--native-position'", launcher)
+        self.assertIn("$arguments.Add('--camera-state')", launcher)
 
     def test_static_import_is_exact_but_active_route_remains_unresolved(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -337,6 +373,139 @@ class GraphicsPresentEvidenceTests(unittest.TestCase):
                 1.0,
                 comparison["frame_timing"]["metrics"]["average_fps"]["ratio"],
             )
+
+    def test_camera_collector_drains_only_new_samples_on_session_clock(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            executable = root / "sb.exe"
+            executable.write_bytes(_present_pe())
+            identity = ProcessIdentity(145, 123456, str(executable))
+            status = root / "graphics-status.json"
+            status.write_text(
+                json.dumps(_status(executable, identity, latest_sequence=10)),
+                encoding="utf-8",
+            )
+            collector = CameraStateCollector(
+                status,
+                identity,
+                hashlib.sha256(executable.read_bytes()).hexdigest(),
+                (
+                    {
+                        "candidate_id": "gdi32-swap-buffers",
+                        "library": "GDI32.dll",
+                        "symbol": "SwapBuffers",
+                        "iat_rva": 0x2050,
+                        "ordinal": None,
+                    },
+                ),
+            )
+            collector.poll(1_000_000_000, "2026-09-01T03:30:00.000Z")
+            status.write_text(
+                json.dumps(_status(executable, identity, latest_sequence=12)),
+                encoding="utf-8",
+            )
+            collector.poll(2_000_000_000, "2026-09-01T03:30:01.000Z")
+            report = collector.as_report(
+                started_monotonic_ns=1_000_000_000,
+                started_at_utc="2026-09-01T03:30:00.000Z",
+                ended_monotonic_ns=2_000_000_000,
+                ended_at_utc="2026-09-01T03:30:01.000Z",
+                retained_cutoff_monotonic_ns=1_000_000_000,
+            )
+
+            self.assertTrue(report["complete"])
+            self.assertEqual([11, 12], [item["sequence"] for item in report["samples"]])
+            self.assertEqual(
+                [2_000_000_000, 2_000_000_000],
+                [item["observed_monotonic_ns"] for item in report["samples"]],
+            )
+
+    def test_capture_seals_required_camera_state_with_present_timing(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            executable = root / "sb.exe"
+            executable.write_bytes(_present_pe())
+            identity = ProcessIdentity(146, 123456, str(executable))
+            status = root / "graphics-status.json"
+            latest = 10
+
+            def publish() -> None:
+                nonlocal latest
+                latest += 2
+                status.write_text(
+                    json.dumps(_status(executable, identity, latest_sequence=latest)),
+                    encoding="utf-8",
+                )
+
+            status.write_text(
+                json.dumps(_status(executable, identity, latest_sequence=latest)),
+                encoding="utf-8",
+            )
+            result = run_diagnostic_capture(
+                DiagnosticRequest(
+                    output_directory=root / "capture",
+                    process_id=identity.process_id,
+                    duration_seconds=0.2,
+                    sample_interval_seconds=0.1,
+                    client_executable=executable,
+                    capture_graphics_present=True,
+                    graphics_runtime_status=status,
+                    capture_camera_state=True,
+                ),
+                process_probe=_FakeProbe(identity),
+                clock=_FakeClock(publish),
+            )
+
+            self.assertIs(result.manifest.terminal_state, ManifestTerminalState.COMPLETE)
+            self.assertIn("camera-state", result.manifest.completed_channels)
+            camera = json.loads(_artifact_payload(result, "camera-state"))
+            self.assertTrue(camera["complete"])
+            self.assertEqual([11, 12, 13, 14], [item["sequence"] for item in camera["samples"]])
+            analysis = analyze_diagnostic_capture(result.store, result.manifest)
+            camera_summary = analysis["spatial"]["camera_state"]
+            self.assertEqual(4, camera_summary["sample_count"])
+            self.assertEqual(60.0, camera_summary["vertical_fov_degrees"]["median"])
+            self.assertEqual(
+                "runtime-observed-fixed-function-state",
+                camera_summary["mapping_authority"],
+            )
+
+    def test_requested_missing_camera_producer_is_an_explicit_omission(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            executable = root / "sb.exe"
+            executable.write_bytes(_present_pe())
+            identity = ProcessIdentity(147, 123456, str(executable))
+            status = root / "graphics-status.json"
+            payload = _status(executable, identity)
+            del payload["camera_state"]
+            status.write_text(json.dumps(payload), encoding="utf-8")
+
+            result = run_diagnostic_capture(
+                DiagnosticRequest(
+                    output_directory=root / "capture",
+                    process_id=identity.process_id,
+                    duration_seconds=0.1,
+                    sample_interval_seconds=0.1,
+                    client_executable=executable,
+                    capture_graphics_present=True,
+                    graphics_runtime_status=status,
+                    capture_camera_state=True,
+                ),
+                process_probe=_FakeProbe(identity),
+                clock=_FakeClock(),
+            )
+
+            self.assertIs(result.manifest.terminal_state, ManifestTerminalState.INCOMPLETE)
+            self.assertNotIn("camera-state", result.manifest.completed_channels)
+            self.assertTrue(
+                any(
+                    omission.startswith("camera-state:")
+                    and "camera_state must be an object" in omission
+                    for omission in result.manifest.omissions
+                )
+            )
+            self.assertIn("process-metrics", result.manifest.completed_channels)
 
     def test_runtime_status_with_wrong_creation_identity_is_retained_as_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

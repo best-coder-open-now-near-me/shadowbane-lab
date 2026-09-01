@@ -19,6 +19,12 @@ from shadowbane_lab.cases import (
     producer_health,
 )
 from shadowbane_lab.client_alignment import compare_client_builds
+from shadowbane_lab.client_observation.native_position import (
+    NativePlayerPositionObservation,
+    NativePlayerPositionReader,
+    load_bundled_native_position_profile,
+    open_windows_native_player_position_reader,
+)
 from shadowbane_lab.evidence import (
     ArtifactDescriptor,
     ArtifactKind,
@@ -32,6 +38,7 @@ from shadowbane_lab.evidence import (
 from shadowbane_lab.fingerprints import FingerprintCaptureInputs, capture_fingerprint
 from shadowbane_lab.integrity import canonical_json_bytes, canonical_timestamp
 
+from .camera import CameraStateCollector
 from .collectors import FileChunk, ScreenshotCapture, ScreenshotCollector, TailFileCollector
 from .frame_timing import FrameTimingCollector
 from .graphics import collect_graphics_present_evidence
@@ -60,6 +67,27 @@ class SystemSessionClock:
 
     def sleep(self, seconds: float) -> None:
         time.sleep(seconds)
+
+
+class NativePositionSource(Protocol):
+    @property
+    def process_id(self) -> int: ...
+
+    @property
+    def process_creation_filetime_utc(self) -> int | None: ...
+
+    @property
+    def executable_path(self) -> Path: ...
+
+    @property
+    def executable_sha256(self) -> str: ...
+
+    @property
+    def profile_id(self) -> str: ...
+
+    def observe(self) -> NativePlayerPositionObservation: ...
+
+    def close(self) -> None: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,6 +119,8 @@ def run_diagnostic_capture(
     process_probe: ProcessProbe | None = None,
     clock: SessionClock | None = None,
     screenshot_factory: Callable[[tuple[int, int, int, int], float], ScreenshotCollector]
+    | None = None,
+    native_position_factory: Callable[[int], NativePositionSource]
     | None = None,
 ) -> DiagnosticCaptureResult:
     """Capture one bounded session and seal every retained artifact in one manifest."""
@@ -139,6 +169,34 @@ def run_diagnostic_capture(
     started_utc = session_clock.utc_timestamp()
     deadline_ns = started_ns + int(request.effective_duration_seconds * 1_000_000_000)
 
+    native_position_source: NativePositionSource | None = None
+    native_position_sample_count = 0
+    native_position_failure_count = 0
+    if request.capture_native_position:
+        try:
+            native_position_source = (
+                _open_default_native_position_source(request.process_id)
+                if native_position_factory is None
+                else native_position_factory(request.process_id)
+            )
+            _validate_native_position_source(
+                native_position_source,
+                initial_sample.identity,
+                hashlib.sha256(live_executable.read_bytes()).hexdigest(),
+            )
+        except Exception as exc:
+            native_position_failure_count += 1
+            if native_position_source is not None:
+                try:
+                    native_position_source.close()
+                except Exception as close_exc:
+                    warnings.add(
+                        "native position setup cleanup failed: "
+                        f"{type(close_exc).__name__}: {close_exc}"
+                    )
+                native_position_source = None
+            channel_failures["native-position"] = f"{type(exc).__name__}: {exc}"
+
     identity_descriptor = _ingest_json(
         store,
         initial_sample.identity.as_dict(),
@@ -179,6 +237,7 @@ def run_diagnostic_capture(
     )
 
     frame_timing_collector: FrameTimingCollector | None = None
+    camera_state_collector: CameraStateCollector | None = None
     if request.capture_graphics_present:
         try:
             graphics = collect_graphics_present_evidence(
@@ -234,6 +293,23 @@ def run_diagnostic_capture(
                     failure = f"{type(exc).__name__}: {exc}"
                     frame_timing_collector.record_poll_failure(started_ns, failure)
                     channel_failures["frame-timing"] = failure
+                if request.capture_camera_state:
+                    camera_state_collector = CameraStateCollector(
+                        request.graphics_runtime_status,
+                        initial_sample.identity,
+                        executable_evidence["sha256"],
+                        tuple(
+                            dict(item)
+                            for item in present_candidates
+                            if isinstance(item, dict)
+                        ),
+                    )
+                    try:
+                        camera_state_collector.poll(started_ns, started_utc)
+                    except Exception as exc:
+                        failure = f"{type(exc).__name__}: {exc}"
+                        camera_state_collector.record_poll_failure(started_ns, failure)
+                        channel_failures["camera-state"] = failure
             if graphics.complete:
                 completed.add("graphics-present")
             else:
@@ -242,6 +318,12 @@ def run_diagnostic_capture(
                 )
         except Exception as exc:
             channel_failures["graphics-present"] = f"{type(exc).__name__}: {exc}"
+
+    if request.capture_camera_state and camera_state_collector is None:
+        channel_failures.setdefault(
+            "camera-state",
+            "identity-bound graphics runtime status did not expose an accepted camera producer",
+        )
 
     if request.reference_executable is not None:
         try:
@@ -376,6 +458,43 @@ def run_diagnostic_capture(
             )
         )
         completed.add("process-metrics")
+        if native_position_source is not None:
+            try:
+                position = native_position_source.observe()
+                native_position_sample_count += 1
+                pending.append(
+                    _PendingRecord(
+                        channel_id="native-position",
+                        monotonic_ns=now_ns,
+                        captured_at_utc=now_utc,
+                        kind=CaptureRecordKind.OBSERVATION,
+                        payload=tuple(
+                            sorted(
+                                {
+                                    "altitude": position.altitude,
+                                    "lg": position.lg,
+                                    "lt": position.lt,
+                                    "profile_id": native_position_source.profile_id,
+                                    "sample_index": native_position_sample_count,
+                                }.items()
+                            )
+                        ),
+                    )
+                )
+            except Exception as exc:
+                native_position_failure_count += 1
+                failure = f"{type(exc).__name__}: {exc}"
+                channel_failures.setdefault("native-position", failure)
+                pending.append(
+                    _PendingRecord(
+                        channel_id="native-position",
+                        monotonic_ns=now_ns,
+                        captured_at_utc=now_utc,
+                        kind=CaptureRecordKind.EVENT,
+                        payload=(("failure", failure[:2048]),),
+                        quality=(CaptureQuality.DROPPED,),
+                    )
+                )
         if frame_timing_collector is not None:
             try:
                 frame_timing_collector.poll(now_ns, now_utc)
@@ -383,6 +502,13 @@ def run_diagnostic_capture(
                 failure = f"{type(exc).__name__}: {exc}"
                 frame_timing_collector.record_poll_failure(now_ns, failure)
                 channel_failures.setdefault("frame-timing", failure)
+        if camera_state_collector is not None:
+            try:
+                camera_state_collector.poll(now_ns, now_utc)
+            except Exception as exc:
+                failure = f"{type(exc).__name__}: {exc}"
+                camera_state_collector.record_poll_failure(now_ns, failure)
+                channel_failures.setdefault("camera-state", failure)
         for channel_id, collector in tuple(tail_collectors.items()):
             try:
                 for chunk in collector.poll(now_ns):
@@ -493,6 +619,14 @@ def run_diagnostic_capture(
 
     ended_ns = session_clock.monotonic_ns()
     ended_utc = session_clock.utc_timestamp()
+    if native_position_source is not None:
+        try:
+            native_position_source.close()
+        except Exception as exc:
+            native_position_failure_count += 1
+            channel_failures.setdefault(
+                "native-position", f"native position close failed: {type(exc).__name__}: {exc}"
+            )
     if frame_timing_collector is not None:
         try:
             frame_timing_collector.poll(ended_ns, ended_utc)
@@ -500,6 +634,13 @@ def run_diagnostic_capture(
             failure = f"{type(exc).__name__}: {exc}"
             frame_timing_collector.record_poll_failure(ended_ns, failure)
             channel_failures.setdefault("frame-timing", failure)
+    if camera_state_collector is not None:
+        try:
+            camera_state_collector.poll(ended_ns, ended_utc)
+        except Exception as exc:
+            failure = f"{type(exc).__name__}: {exc}"
+            camera_state_collector.record_poll_failure(ended_ns, failure)
+            channel_failures.setdefault("camera-state", failure)
     _capture_snapshot_channels(
         request,
         phase="end",
@@ -556,6 +697,48 @@ def run_diagnostic_capture(
                 )
         except Exception as exc:
             channel_failures["frame-timing"] = f"{type(exc).__name__}: {exc}"
+
+    if camera_state_collector is not None:
+        try:
+            camera_state = camera_state_collector.as_report(
+                started_monotonic_ns=started_ns,
+                started_at_utc=started_utc,
+                ended_monotonic_ns=ended_ns,
+                ended_at_utc=ended_utc,
+                retained_cutoff_monotonic_ns=retained_cutoff_ns,
+            )
+            descriptor = _ingest_json(
+                store,
+                camera_state,
+                kind=ArtifactKind.NATIVE_EVENT_STREAM,
+                logical_name=f"{run_id}.camera-state.json",
+                captured_at_utc=ended_utc,
+                metadata=(("channel_id", "camera-state"),),
+            )
+            descriptors.append(descriptor)
+            pending.append(
+                _PendingRecord(
+                    channel_id="camera-state",
+                    monotonic_ns=ended_ns,
+                    captured_at_utc=ended_utc,
+                    kind=CaptureRecordKind.ARTIFACT_REFERENCE,
+                    artifact_id=descriptor.artifact_id,
+                    quality=(
+                        () if camera_state["complete"] else (CaptureQuality.DROPPED,)
+                    ),
+                )
+            )
+            if camera_state["complete"] and "camera-state" not in channel_failures:
+                completed.add("camera-state")
+            else:
+                channel_failures.setdefault(
+                    "camera-state",
+                    "camera state contains producer or capture gaps",
+                )
+        except Exception as exc:
+            channel_failures.setdefault(
+                "camera-state", f"{type(exc).__name__}: {exc}"
+            )
 
     retained_binary_keys: set[tuple[object, ...]] = set()
     for channel in request.file_channels:
@@ -704,6 +887,12 @@ def run_diagnostic_capture(
         required.add("graphics-present")
         if request.graphics_runtime_status is not None:
             required.add("frame-timing")
+    if request.capture_camera_state:
+        required.add("camera-state")
+    if request.capture_native_position:
+        required.add("native-position")
+        if native_position_sample_count and not native_position_failure_count:
+            completed.add("native-position")
     required.update(item.channel_id for item in request.file_channels)
     if request.screenshot_region is not None:
         required.add("screenshots")
@@ -734,6 +923,8 @@ def run_diagnostic_capture(
         "process_identity": initial_sample.identity.as_dict(),
         "fingerprint_id": fingerprint.fingerprint_id,
         "sample_count": sample_count,
+        "native_position_sample_count": native_position_sample_count,
+        "native_position_failure_count": native_position_failure_count,
         "triggered": trigger_ns is not None,
         "trigger_reason": trigger_reason,
         "retained_pre_trigger_cutoff_monotonic_ns": retained_cutoff_ns,
@@ -936,6 +1127,33 @@ def _validate_capture_start_identity(
         raise DiagnosticError("process executable changed between fingerprinting and capture start")
 
 
+def _open_default_native_position_source(process_id: int) -> NativePlayerPositionReader:
+    return open_windows_native_player_position_reader(
+        load_bundled_native_position_profile(),
+        process_id=process_id,
+    )
+
+
+def _validate_native_position_source(
+    source: NativePositionSource,
+    identity: ProcessIdentity,
+    executable_sha256: str,
+) -> None:
+    if source.process_id != identity.process_id:
+        raise DiagnosticError("native position source process ID does not match capture")
+    if source.process_creation_filetime_utc != identity.process_creation_filetime_utc:
+        raise DiagnosticError("native position source creation identity does not match capture")
+    if _normalized_path(source.executable_path) != _normalized_path(identity.executable_path):
+        raise DiagnosticError("native position source executable path does not match capture")
+    digest = source.executable_sha256.casefold()
+    if len(digest) != 64 or any(value not in "0123456789abcdef" for value in digest):
+        raise DiagnosticError("native position source executable hash is invalid")
+    if digest != executable_sha256.casefold():
+        raise DiagnosticError("native position source executable hash does not match capture")
+    if not source.profile_id.strip():
+        raise DiagnosticError("native position source profile ID is empty")
+
+
 def _normalized_path(value: str | Path) -> str:
     return os.path.normcase(str(Path(value).resolve(strict=False)))
 
@@ -961,6 +1179,7 @@ def _screenshot_key(capture: ScreenshotCapture) -> tuple[object, ...]:
 
 __all__ = [
     "DiagnosticCaptureResult",
+    "NativePositionSource",
     "SessionClock",
     "SystemSessionClock",
     "run_diagnostic_capture",

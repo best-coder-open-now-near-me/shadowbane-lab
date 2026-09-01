@@ -22,7 +22,7 @@ recovery refs, not parallel product bases.
 | Surface | Rendering slice owns | Non-render slice owns | Shared integration seam |
 | --- | --- | --- | --- |
 | Native draw path | draw classification, fixed-function mirror, cel lighting, depth/normal/class targets, scene composite, UI exclusion | none | status fields may be consumed read-only by diagnostics |
-| Graphics diagnostics | per-present timing, graphics context, depth/composite counters, graphics-control state | capture, sealing, correlation, reporting, and exact-process validation | versioned status schema and process identity |
+| Graphics diagnostics | per-present timing, graphics context, depth/composite counters, graphics-control state, and passive camera/view/projection samples | capture, bounded ring drainage, sealing, spatial correlation, reporting, and exact-process validation | additive `camera_state` producer schema under versioned graphics status |
 | Native client services | no travel, manager, or action policy | event transport, world-map capture, performance records, native snapshot inputs | `extension.cpp` startup/rollback and `extension_api.h` |
 | Runtime control | graphics presets and render-thread application | launcher selection and observation only | versioned graphics-control mapping |
 | Package and launch | renderer DLL/version and reviewed graphics evidence | immutable/runtime-drift policy, publication, cleanup, launch orchestration | CMake, resource/version files, package manifest, launch/publish scripts |
@@ -65,6 +65,12 @@ The non-render slice implements the ownership checkpoints as follows:
    rollout search remains in `rollouts/open_builds.py`, and bracket construction now belongs to
    `rollouts/builds.py`. Scenario-coupled policies remain with their scenario runner. Existing
    `rollouts` and `rollouts.duel` imports and CLI commands remain compatible.
+6. Capture-once diagnostics samples reviewed native LT/LG/altitude on the process-metric monotonic
+   clock and seals renderer camera rings through `diagnostics/camera.py`. Diagnostics owns exact
+   identity validation, retention, gap accounting, and offline correlation. The renderer owns only
+   passive production of the documented `camera_state` object. Until that producer lands, a run
+   with identity-bound graphics status is honestly incomplete for camera state rather than silently
+   falling back to guessed memory addresses.
 
 This is intentionally distributed ownership, not one launch god-object: exact identity, package
 retirement, status validation, and evidence sealing have different failure and authority models.
@@ -73,6 +79,9 @@ retirement, status validation, and evidence sealing have different failure and a
 
 - Renderer code may add versioned diagnostic fields; it must not own capture retention, report
   sealing, or manager decisions.
+- The renderer camera producer must declare how it selects the stable world view, emit normalized
+  forward vectors and complete matrices, and preserve monotonic sequence/drop accounting. The
+  diagnostics consumer must not reinterpret heuristic alignment as camera mapping authority.
 - Non-render code may read renderer evidence; it must not install draw hooks, copy framebuffers, or
   mutate OpenGL state.
 - Diagnostics-only builds must remain passive. A new service is full-profile-only unless its entire

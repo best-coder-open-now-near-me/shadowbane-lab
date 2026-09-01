@@ -1,6 +1,11 @@
 """Capture-once, analyze-repeatedly diagnostic tooling."""
 
 from .analysis import analyze_diagnostic_capture, compare_diagnostic_captures
+from .camera import (
+    CAMERA_STATE_EVIDENCE_SCHEMA_VERSION,
+    CAMERA_STATE_PRODUCER_SCHEMA_VERSION,
+    CameraStateCollector,
+)
 from .graphics import (
     GRAPHICS_PRESENT_EVIDENCE_SCHEMA_VERSION,
     GRAPHICS_RUNTIME_STATUS_SCHEMA_VERSION,
@@ -25,6 +30,9 @@ from .session import (
 )
 
 __all__ = [
+    "CAMERA_STATE_EVIDENCE_SCHEMA_VERSION",
+    "CAMERA_STATE_PRODUCER_SCHEMA_VERSION",
+    "CameraStateCollector",
     "DiagnosticCaptureResult",
     "DiagnosticError",
     "DiagnosticProfile",

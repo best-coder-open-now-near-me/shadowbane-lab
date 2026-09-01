@@ -234,6 +234,7 @@ foreach ($value in @(
     '--repository',
     $repositoryRoot,
     '--graphics-present',
+    '--native-position',
     '--screenshot-interval',
     "$ScreenshotIntervalSeconds",
     '--initial-log-mib',
@@ -271,6 +272,9 @@ if ($PostTriggerSeconds -gt 0) {
 Add-Option -Name '--reference-executable' -Value $ReferenceExecutable
 Add-Option -Name '--alignment-profile-directory' -Value $AlignmentProfileDirectory
 Add-Option -Name '--graphics-runtime-status' -Value $GraphicsRuntimeStatus
+if ($GraphicsRuntimeStatus) {
+    $arguments.Add('--camera-state')
+}
 Add-Option -Name '--extension-events' -Value $ExtensionEvents
 Add-Option -Name '--network-summary' -Value $NetworkSummary
 Add-Option -Name '--packet-capture' -Value $PacketCapture

@@ -219,6 +219,23 @@ class NativePlayerPositionReader:
     def process_id(self) -> int:
         return self._process.pid
 
+    @property
+    def process_creation_filetime_utc(self) -> int | None:
+        value = getattr(self._process, "process_creation_filetime_utc", None)
+        return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+    @property
+    def executable_path(self) -> Path:
+        return self._process.executable_path
+
+    @property
+    def executable_sha256(self) -> str:
+        return self._process.executable_sha256
+
+    @property
+    def profile_id(self) -> str:
+        return self._profile.profile_id
+
     def observe(self) -> NativePlayerPositionObservation:
         if self._closed:
             raise NativePlayerPositionReadError("native player-position reader is closed")

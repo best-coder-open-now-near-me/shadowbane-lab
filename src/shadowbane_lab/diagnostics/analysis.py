@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime, timedelta
+from math import acos, degrees, dist, isfinite, sqrt
 from statistics import fmean, median
-from typing import Any
+from typing import Any, cast
 
 from shadowbane_lab.cases import CaptureRecord, parse_capture_record, producer_health
 from shadowbane_lab.differential.statistics import summarize_samples
@@ -22,8 +23,10 @@ from .model import DiagnosticError
 
 _ANALYSIS_SCHEMA_VERSION = 1
 _ANALYZER_ID = "shadowbane-lab.diagnostic-analysis"
-_ANALYZER_VERSION = "2"
+_ANALYZER_VERSION = "3"
 _MAX_HITCH_RECORDS_PER_THRESHOLD = 10_000
+_MAX_SPATIAL_CHANGE_RECORDS = 100
+_MAX_CAMERA_SAMPLES = 250_000
 _FILETIME_EPOCH = datetime(1601, 1, 1, tzinfo=UTC)
 
 
@@ -53,6 +56,18 @@ def analyze_diagnostic_capture(
             **frame_timing,
         }
     alignment = _optional_json_channel(store, manifest, "client-alignment")
+    native_position = _summarize_native_position(records)
+    camera_payload = _optional_json_channel(store, manifest, "camera-state")
+    camera_state = _summarize_camera_state(
+        camera_payload,
+        records=records,
+        frame_timing_payload=frame_timing_payload,
+    )
+    if camera_state is not None:
+        camera_state = {
+            "source_artifact_id": _single_channel(manifest, "camera-state").artifact_id,
+            **camera_state,
+        }
     content: dict[str, object] = {
         "schema_version": _ANALYSIS_SCHEMA_VERSION,
         "analyzer_id": _ANALYZER_ID,
@@ -80,6 +95,10 @@ def analyze_diagnostic_capture(
         "producer_health": list(health),
         "capture_summary": source_summary,
         "frame_timing": frame_timing,
+        "spatial": {
+            "native_position": native_position,
+            "camera_state": camera_state,
+        },
         "client_alignment": _alignment_summary(alignment),
         "limitations": [
             "sampled counters establish timing and correlation, not root-cause causation",
@@ -188,6 +207,326 @@ def compare_diagnostic_captures(
         "comparison_id": f"sha256:{canonical_json_sha256(content)}",
         **content,
     }
+
+
+def _summarize_native_position(
+    records: tuple[CaptureRecord, ...],
+) -> dict[str, object] | None:
+    samples: list[tuple[int, float, float, float, str]] = []
+    for record in records:
+        if record.channel_id != "native-position" or record.kind.value != "observation":
+            continue
+        payload = dict(record.payload)
+        lt = _finite_number(payload.get("lt"), "native position LT")
+        lg = _finite_number(payload.get("lg"), "native position LG")
+        altitude = _finite_number(payload.get("altitude"), "native position altitude")
+        profile_id = payload.get("profile_id")
+        if not isinstance(profile_id, str) or not profile_id:
+            raise DiagnosticError("native position profile ID is invalid")
+        samples.append((record.monotonic_ns, lt, lg, altitude, profile_id))
+    if not samples:
+        return None
+    profile_ids = sorted({item[4] for item in samples})
+    transitions: list[dict[str, object]] = []
+    total_distance = 0.0
+    for previous, current in zip(samples, samples[1:], strict=False):
+        distance = dist(previous[1:4], current[1:4])
+        total_distance += distance
+        transitions.append(
+            {
+                "from_monotonic_ns": previous[0],
+                "to_monotonic_ns": current[0],
+                "distance": distance,
+                "delta_lt": current[1] - previous[1],
+                "delta_lg": current[2] - previous[2],
+                "delta_altitude": current[3] - previous[3],
+                "to": {"lt": current[1], "lg": current[2], "altitude": current[3]},
+            }
+        )
+    largest = sorted(
+        transitions,
+        key=lambda item: float(item["distance"]),
+        reverse=True,
+    )[:_MAX_SPATIAL_CHANGE_RECORDS]
+    return {
+        "sample_count": len(samples),
+        "profile_ids": profile_ids,
+        "first": {"lt": samples[0][1], "lg": samples[0][2], "altitude": samples[0][3]},
+        "last": {"lt": samples[-1][1], "lg": samples[-1][2], "altitude": samples[-1][3]},
+        "bounds": {
+            "minimum_lt": min(item[1] for item in samples),
+            "maximum_lt": max(item[1] for item in samples),
+            "minimum_lg": min(item[2] for item in samples),
+            "maximum_lg": max(item[2] for item in samples),
+            "minimum_altitude": min(item[3] for item in samples),
+            "maximum_altitude": max(item[3] for item in samples),
+        },
+        "total_sampled_distance": total_distance,
+        "largest_transitions": largest,
+        "transition_record_drop_count": max(
+            0, len(transitions) - _MAX_SPATIAL_CHANGE_RECORDS
+        ),
+    }
+
+
+def _summarize_camera_state(
+    payload: object | None,
+    *,
+    records: tuple[CaptureRecord, ...],
+    frame_timing_payload: object | None,
+) -> dict[str, object] | None:
+    if payload is None:
+        return None
+    value = _mapping(payload, "camera state artifact")
+    if value.get("schema_version") != 1:
+        raise DiagnosticError("camera state artifact schema is unsupported")
+    if value.get("producer_id") != "wonderbane-extension.graphics":
+        raise DiagnosticError("camera state artifact producer is unsupported")
+    if value.get("mapping_authority") != "runtime-observed-fixed-function-state":
+        raise DiagnosticError("camera state mapping authority is unsupported")
+    clock = _mapping(value.get("clock"), "camera state clock")
+    if clock.get("domain") != "windows-query-performance-counter":
+        raise DiagnosticError("camera state clock domain is unsupported")
+    frequency = _positive_integer(
+        clock.get("counter_frequency_hz"), "camera state counter frequency"
+    )
+    raw_samples = value.get("samples")
+    if not isinstance(raw_samples, list) or len(raw_samples) > _MAX_CAMERA_SAMPLES:
+        raise DiagnosticError("camera state samples must be a bounded list")
+    if value.get("sample_count") != len(raw_samples):
+        raise DiagnosticError("camera state sample_count does not match samples")
+    samples: list[dict[str, object]] = []
+    previous_sequence = 0
+    for raw in raw_samples:
+        sample = _mapping(raw, "camera state sample")
+        sequence = _positive_integer(sample.get("sequence"), "camera state sequence")
+        if sequence <= previous_sequence:
+            raise DiagnosticError("camera state samples are not strictly ordered")
+        present_sequence = _positive_integer(
+            sample.get("present_sequence"), "camera state present sequence"
+        )
+        counter = _positive_integer(sample.get("counter"), "camera state counter")
+        observed_ns = _nonnegative_integer(
+            sample.get("observed_monotonic_ns"), "camera state observation time"
+        )
+        position = _finite_vector(sample.get("position"), 3, "camera position")
+        forward = _finite_vector(sample.get("forward"), 3, "camera forward")
+        norm = sqrt(sum(component * component for component in forward))
+        if not 0.999 <= norm <= 1.001:
+            raise DiagnosticError("camera state forward vector is not normalized")
+        up = _finite_vector(sample.get("up"), 3, "camera up")
+        up_norm = sqrt(sum(component * component for component in up))
+        if not 0.999 <= up_norm <= 1.001:
+            raise DiagnosticError("camera state up vector is not normalized")
+        if abs(sum(left * right for left, right in zip(forward, up, strict=True))) > 0.001:
+            raise DiagnosticError("camera state forward and up vectors are not orthogonal")
+        zoom = _finite_number(sample.get("zoom"), "camera zoom")
+        if zoom <= 0:
+            raise DiagnosticError("camera zoom must be positive")
+        vertical_fov = _finite_number(sample.get("vertical_fov_degrees"), "camera vertical FOV")
+        if not 0 < vertical_fov < 180:
+            raise DiagnosticError("camera vertical FOV must be in 0-180 degrees")
+        samples.append(
+            {
+                "sequence": sequence,
+                "present_sequence": present_sequence,
+                "counter": counter,
+                "observed_monotonic_ns": observed_ns,
+                "position": position,
+                "forward": forward,
+                "up": up,
+                "zoom": zoom,
+                "vertical_fov_degrees": vertical_fov,
+            }
+        )
+        previous_sequence = sequence
+    frame_times = _frame_times_by_present_sequence(frame_timing_payload, frequency)
+    changes: list[dict[str, object]] = []
+    angular_by_observation: dict[int, float] = {}
+    for previous, current in zip(samples, samples[1:], strict=False):
+        if int(current["sequence"]) != int(previous["sequence"]) + 1:
+            continue
+        previous_forward = cast(list[float], previous["forward"])
+        current_forward = cast(list[float], current["forward"])
+        dot = sum(
+            left * right
+            for left, right in zip(previous_forward, current_forward, strict=True)
+        )
+        angular_change = degrees(acos(max(-1.0, min(1.0, dot))))
+        previous_position = cast(list[float], previous["position"])
+        current_position = cast(list[float], current["position"])
+        observed_ns = int(current["observed_monotonic_ns"])
+        angular_by_observation[observed_ns] = (
+            angular_by_observation.get(observed_ns, 0.0) + angular_change
+        )
+        present_sequence = int(current["present_sequence"])
+        changes.append(
+            {
+                "sequence": current["sequence"],
+                "present_sequence": present_sequence,
+                "observed_monotonic_ns": observed_ns,
+                "angular_change_degrees": angular_change,
+                "position_change": dist(previous_position, current_position),
+                "zoom_change": float(current["zoom"]) - float(previous["zoom"]),
+                "vertical_fov_change_degrees": (
+                    float(current["vertical_fov_degrees"])
+                    - float(previous["vertical_fov_degrees"])
+                ),
+                "frame_time_ms": frame_times.get(present_sequence),
+            }
+        )
+    angular_values = tuple(float(item["angular_change_degrees"]) for item in changes)
+    position_values = tuple(float(item["position_change"]) for item in changes)
+    fov_values = tuple(float(item["vertical_fov_degrees"]) for item in samples)
+    frame_pairs = [
+        (float(item["angular_change_degrees"]), float(item["frame_time_ms"]))
+        for item in changes
+        if isinstance(item["frame_time_ms"], int | float)
+    ]
+    largest = sorted(
+        changes,
+        key=lambda item: float(item["angular_change_degrees"]),
+        reverse=True,
+    )[:_MAX_SPATIAL_CHANGE_RECORDS]
+    gaps = value.get("gaps")
+    if not isinstance(gaps, list):
+        raise DiagnosticError("camera state gaps must be a list")
+    if not isinstance(value.get("complete"), bool):
+        raise DiagnosticError("camera state complete flag must be boolean")
+    return {
+        "complete": value["complete"],
+        "source": value.get("source"),
+        "mapping_authority": value["mapping_authority"],
+        "sample_count": len(samples),
+        "gap_count": len(gaps),
+        "angular_change_degrees": _sample_distribution(angular_values),
+        "position_change": _sample_distribution(position_values),
+        "vertical_fov_degrees": _sample_distribution(fov_values),
+        "angular_change_to_frame_time_pearson": _pearson(frame_pairs),
+        "angular_change_to_process_metric_delta_pearson": (
+            _camera_metric_delta_correlations(records, angular_by_observation)
+        ),
+        "largest_angular_changes": largest,
+        "change_record_drop_count": max(0, len(changes) - _MAX_SPATIAL_CHANGE_RECORDS),
+        "limitations": [
+            "camera correlations are descriptive and do not establish rendering causation",
+            "camera samples use the renderer's declared scene-view selection policy",
+        ],
+    }
+
+
+def _frame_times_by_present_sequence(
+    payload: object | None,
+    camera_frequency_hz: int,
+) -> dict[int, float]:
+    if payload is None:
+        return {}
+    value = _mapping(payload, "frame timing artifact")
+    clock = _mapping(value.get("clock"), "frame timing clock")
+    frequency = _positive_integer(
+        clock.get("counter_frequency_hz"), "frame timing counter frequency"
+    )
+    if frequency != camera_frequency_hz:
+        raise DiagnosticError("camera and frame timing counter frequencies differ")
+    raw_samples = value.get("samples")
+    if not isinstance(raw_samples, list):
+        raise DiagnosticError("frame timing samples must be a list")
+    samples: list[tuple[int, int]] = []
+    for raw in raw_samples:
+        if (
+            not isinstance(raw, list)
+            or len(raw) != 3
+            or any(isinstance(item, bool) or not isinstance(item, int) for item in raw)
+        ):
+            raise DiagnosticError("frame timing samples must be integer triples")
+        samples.append((raw[0], raw[1]))
+    result: dict[int, float] = {}
+    for previous, current in zip(samples, samples[1:], strict=False):
+        if current[0] == previous[0] + 1 and current[1] > previous[1]:
+            result[current[0]] = (current[1] - previous[1]) * 1000.0 / frequency
+    return result
+
+
+def _camera_metric_delta_correlations(
+    records: tuple[CaptureRecord, ...],
+    angular_by_observation: dict[int, float],
+) -> dict[str, float | None]:
+    rows = [item for item in records if item.channel_id == "process-metrics"]
+    if len(rows) < 2:
+        return {}
+    names = sorted(
+        set.intersection(
+            *(
+                {
+                    name
+                    for name, value in row.payload
+                    if name != "sample_index"
+                    and isinstance(value, int | float)
+                    and not isinstance(value, bool)
+                }
+                for row in rows
+            )
+        )
+    )
+    pairs: dict[str, list[tuple[float, float]]] = {name: [] for name in names}
+    for previous, current in zip(rows, rows[1:], strict=False):
+        angle = sum(
+            value
+            for observed_ns, value in angular_by_observation.items()
+            if previous.monotonic_ns < observed_ns <= current.monotonic_ns
+        )
+        previous_payload = dict(previous.payload)
+        current_payload = dict(current.payload)
+        for name in names:
+            pairs[name].append(
+                (
+                    angle,
+                    float(current_payload[name]) - float(previous_payload[name]),
+                )
+            )
+    return {name: _pearson(values) for name, values in pairs.items()}
+
+
+def _sample_distribution(values: tuple[float, ...]) -> dict[str, object] | None:
+    if not values:
+        return None
+    return {
+        "count": len(values),
+        "minimum": min(values),
+        "median": median(values),
+        "p95": _nearest_rank(values, 0.95),
+        "maximum": max(values),
+        "mean": fmean(values),
+    }
+
+
+def _pearson(pairs: list[tuple[float, float]]) -> float | None:
+    if len(pairs) < 3:
+        return None
+    left = tuple(item[0] for item in pairs)
+    right = tuple(item[1] for item in pairs)
+    left_mean = fmean(left)
+    right_mean = fmean(right)
+    numerator = sum(
+        (left_value - left_mean) * (right_value - right_mean)
+        for left_value, right_value in pairs
+    )
+    left_sum = sum((value - left_mean) ** 2 for value in left)
+    right_sum = sum((value - right_mean) ** 2 for value in right)
+    denominator = sqrt(left_sum * right_sum)
+    return numerator / denominator if denominator > 0 else None
+
+
+def _finite_number(value: object, name: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, int | float) or not isfinite(value):
+        raise DiagnosticError(f"{name} must be finite")
+    return float(value)
+
+
+def _finite_vector(value: object, length: int, name: str) -> list[float]:
+    if not isinstance(value, list) or len(value) != length:
+        raise DiagnosticError(f"{name} must contain exactly {length} values")
+    return [_finite_number(item, name) for item in value]
 
 
 def _summarize_frame_timing(payload: object | None) -> dict[str, object] | None:

@@ -160,6 +160,62 @@ sequence and QPC interval plus an estimated UTC presentation time derived from t
 QPC/FILETIME anchor. The raw timing artifact remains authoritative and can be reanalyzed without
 repeating gameplay.
 
+## World position and camera state
+
+The local launcher also requests reviewed native player position. Every successful observation
+records LT, LG, and altitude on the exact same session-monotonic timestamp as its process-counter
+sample. The reader is bound to PID, creation FILETIME, executable path and SHA-256, and a reviewed
+native-layout profile. A patch without a reviewed compatible mapping produces a named
+`native-position` omission; client-alignment candidates are never promoted into read authority.
+Offline analysis retains the first and last position, sampled bounds and distance, and the largest
+world-space transitions. The raw capture stream remains available for reconstructing a different
+region or transition policy later.
+
+When identity-bound graphics runtime status is available, the launcher also requires the
+`camera-state` channel. This is a deliberately narrow producer/consumer seam:
+
+- the renderer observes scene-view state without changing it and publishes a bounded ring;
+- diagnostics validates exact process and executable identity, drains new sequences, stamps the
+  samples on the process-metric monotonic clock, records every producer/capture gap, and seals the
+  retained ring; and
+- offline analysis derives camera movement and angular change, matches camera samples to present
+  frame times, and calculates descriptive correlations with process-counter deltas.
+
+The producer object is additive under graphics runtime status schema 2 and uses this contract:
+
+    "camera_state": {
+      "schema_version": 1,
+      "clock": "windows-query-performance-counter",
+      "counter_frequency_hz": 10000000,
+      "source": "first-perspective-depth-writing-world-draw",
+      "mapping_authority": "runtime-observed-fixed-function-state",
+      "latest_sample_sequence": 42,
+      "oldest_available_sequence": 1,
+      "sample_capacity": 1024,
+      "sample_count": 42,
+      "producer_drop_count": 0,
+      "samples": [{
+        "sequence": 42,
+        "present_sequence": 733,
+        "counter": 123456789,
+        "position": [1.0, 2.0, 3.0],
+        "forward": [0.0, 0.0, -1.0],
+        "up": [0.0, 1.0, 0.0],
+        "zoom": 1.0,
+        "vertical_fov_degrees": 60.0,
+        "view_matrix": [16 finite column-major values],
+        "projection_matrix": [16 finite column-major values],
+        "viewport": [0, 0, 1280, 720]
+      }]
+    }
+
+Sequences and QPC counters increase, `forward` and `up` are normalized and orthogonal, FOV is in
+degrees, and the ring bounds and counts must
+agree. The producer selection policy is named rather than inferred by diagnostics. A missing,
+malformed, identity-mismatched, overwritten, or dropped camera stream leaves all other evidence
+intact but makes the requested channel explicitly incomplete. Current renderer work owns production
+of this object; non-render code must not install GL hooks or guess camera addresses to satisfy it.
+
 The depth-edge prerequisite assessment is deliberately conservative. It becomes ready only after
 runtime evidence observes an active present entry, an active graphics context, a nonzero depth
 buffer, depth-texture support, and GLSL support. Framebuffer-object support is recorded separately;

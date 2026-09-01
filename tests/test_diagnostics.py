@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import sys
@@ -12,6 +13,9 @@ from pathlib import Path
 from client_alignment_fixture import build_pe
 
 from shadowbane_lab.cli import main
+from shadowbane_lab.client_observation.native_position import (
+    NativePlayerPositionObservation,
+)
 from shadowbane_lab.diagnostics import (
     DiagnosticError,
     DiagnosticProfile,
@@ -82,6 +86,34 @@ class _FakeProbe:
             "process_working_set_bytes": float(80 + self.samples),
         }
         return ProcessSample(identity, tuple(sorted(metrics.items())))
+
+
+class _FakeNativePositionSource:
+    def __init__(
+        self,
+        executable: Path,
+        *,
+        process_id: int,
+        process_creation_filetime_utc: int = 123_456,
+    ) -> None:
+        self.process_id = process_id
+        self.process_creation_filetime_utc = process_creation_filetime_utc
+        self.executable_path = executable
+        self.executable_sha256 = hashlib.sha256(executable.read_bytes()).hexdigest()
+        self.profile_id = "fixture-native-position-v1"
+        self.samples = 0
+        self.closed = False
+
+    def observe(self) -> NativePlayerPositionObservation:
+        self.samples += 1
+        return NativePlayerPositionObservation(
+            lt=100.0 + self.samples,
+            lg=200.0 + self.samples,
+            altitude=25.0,
+        )
+
+    def close(self) -> None:
+        self.closed = True
 
 
 def _artifact_payload(result, channel_id: str) -> bytes:
@@ -168,6 +200,91 @@ class DiagnosticSessionTests(unittest.TestCase):
             )
             self.assertEqual(
                 123_456, result.summary["process_identity"]["process_creation_filetime_utc"]
+            )
+
+    def test_native_position_uses_process_metric_clock_and_exact_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            executable = Path(sys.executable)
+            source: _FakeNativePositionSource | None = None
+
+            def factory(process_id: int) -> _FakeNativePositionSource:
+                nonlocal source
+                source = _FakeNativePositionSource(executable, process_id=process_id)
+                return source
+
+            result = run_diagnostic_capture(
+                DiagnosticRequest(
+                    output_directory=root / "capture",
+                    process_id=142,
+                    duration_seconds=0.2,
+                    sample_interval_seconds=0.1,
+                    client_executable=executable,
+                    capture_native_position=True,
+                ),
+                process_probe=_FakeProbe(executable),
+                native_position_factory=factory,
+                clock=_FakeClock(),
+            )
+
+            self.assertIs(result.manifest.terminal_state, ManifestTerminalState.COMPLETE)
+            self.assertIn("native-position", result.manifest.completed_channels)
+            self.assertEqual(3, result.summary["native_position_sample_count"])
+            self.assertEqual(0, result.summary["native_position_failure_count"])
+            self.assertIsNotNone(source)
+            self.assertTrue(source.closed)
+            stream = json.loads(_artifact_payload(result, "capture-stream"))
+            process_rows = [
+                item for item in stream["records"] if item["channel_id"] == "process-metrics"
+            ]
+            position_rows = [
+                item for item in stream["records"] if item["channel_id"] == "native-position"
+            ]
+            self.assertEqual(
+                [item["monotonic_ns"] for item in process_rows],
+                [item["monotonic_ns"] for item in position_rows],
+            )
+            self.assertEqual(101.0, position_rows[0]["payload"]["lt"])
+            self.assertEqual(201.0, position_rows[0]["payload"]["lg"])
+            self.assertEqual(25.0, position_rows[0]["payload"]["altitude"])
+            analysis = analyze_diagnostic_capture(result.store, result.manifest)
+            position_summary = analysis["spatial"]["native_position"]
+            self.assertEqual(3, position_summary["sample_count"])
+            self.assertEqual(101.0, position_summary["first"]["lt"])
+            self.assertEqual(103.0, position_summary["last"]["lt"])
+            self.assertGreater(position_summary["total_sampled_distance"], 0.0)
+
+    def test_native_position_identity_mismatch_is_sealed_as_omission(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            executable = Path(sys.executable)
+            source = _FakeNativePositionSource(
+                executable,
+                process_id=143,
+                process_creation_filetime_utc=123_457,
+            )
+            result = run_diagnostic_capture(
+                DiagnosticRequest(
+                    output_directory=root / "capture",
+                    process_id=143,
+                    duration_seconds=0.1,
+                    sample_interval_seconds=0.1,
+                    client_executable=executable,
+                    capture_native_position=True,
+                ),
+                process_probe=_FakeProbe(executable),
+                native_position_factory=lambda _: source,
+                clock=_FakeClock(),
+            )
+
+            self.assertIs(result.manifest.terminal_state, ManifestTerminalState.INCOMPLETE)
+            self.assertTrue(source.closed)
+            self.assertTrue(
+                any(
+                    omission.startswith("native-position:")
+                    and "creation identity" in omission
+                    for omission in result.manifest.omissions
+                )
             )
 
     def test_triggered_capture_retains_only_configured_binary_pre_window(self) -> None:
