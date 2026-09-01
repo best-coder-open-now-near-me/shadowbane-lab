@@ -76,7 +76,10 @@ class IntegrityPathTests(unittest.TestCase):
     def test_resolve_within_root(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            self.assertEqual(resolve_within_root(root, "a/b.json"), root / "a" / "b.json")
+            self.assertEqual(
+                resolve_within_root(root, "a/b.json"),
+                root.resolve(strict=True) / "a" / "b.json",
+            )
             with self.assertRaises(ValueError):
                 resolve_within_root(root, "../outside")
 
