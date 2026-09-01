@@ -13,7 +13,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-$expectedExtensionSha256 = "8d0a72e395a2596f719affc946a7bfc5a5106741a8c6371c487c04b27b0a4d60"
+$expectedExtensionSha256 = "83c7b83d37a7bf0382d2c234ba12049acaa9c5264fa9cde31741e87c949eaad2"
 $expectedExecutableSha256 = "a9a59004b36f9331bb85f85e7853a02a5d5f07bda9acb9ea4a8affbf169a54b8"
 $expectedTexturePatchId = "wonderbane-1.0.5-55fbad5f.restrained-cel-v1"
 $expectedTexturePatchManifestSha256 = (

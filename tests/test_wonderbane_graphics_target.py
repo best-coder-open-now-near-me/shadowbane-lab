@@ -89,5 +89,6 @@ def test_graphics_publication_and_launch_pin_the_golden_package() -> None:
     assert "--texture-artifact-directory $TextureArtifactDirectory" in publish
     assert "texture_patch_manifest_sha256" in publish
     assert 'ExtensionVersion = "1.5.4"' in launch
+    assert "83c7b83d37a7bf0382d2c234ba12049acaa9c5264fa9cde31741e87c949eaad2" in launch
     assert manifest_sha256 in launch
     assert "wonderbane-1.0.5-55fbad5f.restrained-cel-v1" in launch
