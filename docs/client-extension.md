@@ -144,6 +144,11 @@ actual tree digest, rejects every added file and every non-runtime changed or mi
 the surviving runtime-written files with their hashes, records recognized runtime deletions in a
 schema-v2 receipt, reverifies the frozen baseline, and only then retires the disposable directory.
 
+Immutable verification and runtime verification now consume the same single-pass package audit.
+The reviewed runtime-mutable path policy lives separately from package inventory and retirement,
+so adding a client-written file requires an explicit policy review instead of another verifier.
+`verify-launchable-copy` remains a compatibility alias for canonical `verify-runtime-copy`.
+
 ## Loader boundary
 
 The extension DLL's `DllMain` remains minimal. Initialization and heartbeat work happen through
@@ -415,7 +420,18 @@ reviewed source client into a separate package, verifies the package and extensi
 removes its transient full baseline payload while retaining the baseline manifest. The known-good
 source directory is never patched in place. The diagnostics launcher uses the normal inherited
 graphics environment and waits for an identity-bound diagnostics-only status before reporting a
-successful launch.
+successful launch. The bounded wait is owned by the client-extension command rather than by
+PowerShell polling:
+
+```powershell
+python -m shadowbane_lab.client_extension wait-graphics-status <status-directory> `
+  --process-id <pid> --process-creation-filetime-utc <filetime> `
+  --executable <sb.exe> --executable-sha256 <sha256> `
+  --runtime-profile diagnostics-only --timeout-seconds 20
+```
+
+It rechecks the live PID/creation-time pair on every poll and accepts only the derived status
+filename, schema, producer, profile, executable path, and executable SHA-256.
 
 Extension 1.6.1 converges the passive diagnostic producer with the live graphics laboratory. The
 full profile owns the reviewed event channel, world-map capture, live graphics-control mapping,

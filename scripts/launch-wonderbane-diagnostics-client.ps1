@@ -140,34 +140,33 @@ $game = Start-Process @startArguments
 $creationFiletimeUtc = $game.StartTime.ToUniversalTime().ToFileTimeUtc()
 $statusDirectory = Join-Path $env:LOCALAPPDATA "ShadowbaneLab\client-extension"
 $statusPath = Join-Path $statusDirectory "graphics-status-$($game.Id)-$creationFiletimeUtc.json"
-$deadline = [DateTime]::UtcNow.AddSeconds($StatusTimeoutSeconds)
-$status = $null
-while ([DateTime]::UtcNow -lt $deadline) {
-    if ($game.HasExited) {
-        throw "Diagnostics client exited before publishing renderer status"
-    }
-    if (Test-Path -LiteralPath $statusPath -PathType Leaf) {
-        try {
-            $candidate = Get-Content -LiteralPath $statusPath -Raw | ConvertFrom-Json
-            if (
-                [string] $candidate.runtime_profile -eq "diagnostics-only" -and
-                [int] $candidate.process_identity.process_id -eq $game.Id -and
-                [int64] $candidate.process_identity.process_creation_filetime_utc -eq
-                    $creationFiletimeUtc
-            ) {
-                $status = $candidate
-                break
-            }
-        }
-        catch {
-            # Retry only while the bounded status startup window remains open.
-        }
-    }
-    Start-Sleep -Milliseconds 100
+$inheritedPythonPath = $env:PYTHONPATH
+$env:PYTHONPATH = if ([string]::IsNullOrWhiteSpace($inheritedPythonPath)) {
+    $repositorySource
 }
-if ($null -eq $status) {
-    throw "Diagnostics client did not publish an identity-bound passive renderer status in time"
+else {
+    "$repositorySource$([IO.Path]::PathSeparator)$inheritedPythonPath"
 }
+try {
+    $statusArguments = @(
+        "-m", "shadowbane_lab.client_extension", "wait-graphics-status", $statusDirectory,
+        "--process-id", [string] $game.Id,
+        "--process-creation-filetime-utc", [string] $creationFiletimeUtc,
+        "--executable", $gameExecutable,
+        "--executable-sha256", [string] $receipt.result_executable_sha256,
+        "--runtime-profile", "diagnostics-only",
+        "--timeout-seconds", [string] $StatusTimeoutSeconds
+    )
+    $statusOutput = @(& $PythonExecutable @statusArguments)
+    $statusExitCode = $LASTEXITCODE
+}
+finally {
+    $env:PYTHONPATH = $inheritedPythonPath
+}
+if ($statusExitCode -ne 0) {
+    throw "Diagnostics client status verification failed with exit code $statusExitCode"
+}
+$status = ($statusOutput -join [Environment]::NewLine) | ConvertFrom-Json
 
 Write-Output "Launched WonderBane diagnostics-only client (PID $($game.Id))"
 Write-Output "Instance: $InstanceId"

@@ -25,6 +25,11 @@ from shadowbane_lab.client_extension.bootstrap_inspection import (
     BootstrapInspectionError,
     inspect_bootstrap_file,
 )
+from shadowbane_lab.client_extension.graphics_status_wait import (
+    GraphicsRuntimeStatusExpectation,
+    GraphicsRuntimeStatusWaitError,
+    wait_for_graphics_runtime_status,
+)
 from shadowbane_lab.client_extension.heartbeat import (
     ExtensionHeartbeatError,
     load_extension_heartbeat,
@@ -174,6 +179,26 @@ def _parser() -> argparse.ArgumentParser:
     discard_runtime_drift.add_argument("archive_directory", type=Path)
     discard_runtime_drift.add_argument("--actual-working-tree-sha256", required=True)
     discard_runtime_drift.add_argument("--pretty", action="store_true")
+    wait_status = commands.add_parser(
+        "wait-graphics-status",
+        help="wait for an identity-bound graphics status from one live process lifetime",
+    )
+    wait_status.add_argument("status_directory", type=Path)
+    wait_status.add_argument("--process-id", type=int, required=True)
+    wait_status.add_argument(
+        "--process-creation-filetime-utc",
+        type=int,
+        required=True,
+    )
+    wait_status.add_argument("--executable", type=Path, required=True)
+    wait_status.add_argument("--executable-sha256", required=True)
+    wait_status.add_argument(
+        "--runtime-profile",
+        choices=("diagnostics-only", "full-renderer"),
+        required=True,
+    )
+    wait_status.add_argument("--timeout-seconds", type=float, default=20.0)
+    wait_status.add_argument("--pretty", action="store_true")
     heartbeat = commands.add_parser(
         "verify-heartbeat",
         help="strictly parse native no-op initialization evidence",
@@ -306,6 +331,20 @@ def main(argv: Sequence[str] | None = None) -> int:
                 arguments.archive_directory,
                 actual_working_tree_sha256=arguments.actual_working_tree_sha256,
             ).as_dict()
+        elif arguments.command == "wait-graphics-status":
+            payload = wait_for_graphics_runtime_status(
+                GraphicsRuntimeStatusExpectation(
+                    status_directory=arguments.status_directory,
+                    process_id=arguments.process_id,
+                    process_creation_filetime_utc=(
+                        arguments.process_creation_filetime_utc
+                    ),
+                    executable_path=arguments.executable,
+                    executable_sha256=arguments.executable_sha256,
+                    runtime_profile=arguments.runtime_profile,
+                ),
+                timeout_seconds=arguments.timeout_seconds,
+            )
         elif arguments.command == "verify-heartbeat":
             payload = load_extension_heartbeat(arguments.heartbeat).as_dict()
         elif arguments.command == "snapshot-performance":
@@ -367,6 +406,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         BootstrapInspectionError,
         BootstrapAuthoringError,
         ExtensionHeartbeatError,
+        GraphicsRuntimeStatusWaitError,
         PatchManifestError,
         PatchResolutionError,
         PerformanceTelemetryError,

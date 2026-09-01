@@ -47,16 +47,24 @@ timestamp, and snapshot token. The current three-command PowerShell collection r
 compatibility aliases, but the exporter should consume the atomic snapshot so a report cannot mix
 states from different client moments or a reused PID.
 
-After that snapshot exists, refactor in these checkpoints:
+The non-render slice implements the ownership checkpoints as follows:
 
-1. Manager orchestration: separate worker lifecycle and permit/retry ownership from character,
-   progression, and travel operations while preserving cancellation and physical-input rules.
-2. Integrity and packaging: make immutable publication verification and reviewed runtime drift two
-   policies over one inventory/audit engine; keep old command names as compatibility aliases.
-3. Launch/runtime cleanup: centralize exact process selection, runtime-copy cleanup, status waits,
-   and evidence sealing without changing the renderer hook lifecycle.
-4. Simulator: merge the preserved simulator line only after product convergence, then modularize
-   policy/build/search ownership behind existing public imports and CLI commands.
+1. Exact-process observation is composed in `client_observation/native_snapshot.py`; focused
+   observation commands remain compatibility surfaces.
+2. Manager wire schemas and public imports remain in their existing owners, while durable
+   heartbeat, permit, stop, and receipt replacement is owned by `manager/record_store.py`.
+3. Package evidence is loaded and the disposable tree inventoried once per audit. Immutable
+   publication and reviewed runtime drift are policies over that result; the mutable-path allowlist
+   is owned by `client_extension/runtime_drift.py`.
+4. Exact process selection remains in diagnostics/manager process inspectors, package cleanup
+   remains in the verified package transaction, and the bounded graphics startup wait is owned by
+   `client_extension/graphics_status_wait.py`. Evidence capture and sealing remain in diagnostics
+   and evidence modules. None of these services owns renderer hooks or state.
+5. The preserved simulator line is merged only at product convergence. Further simulator
+   modularization stays behind existing public imports and CLI commands.
+
+This is intentionally distributed ownership, not one launch god-object: exact identity, package
+retirement, status validation, and evidence sealing have different failure and authority models.
 
 ## Merge and validation rules
 

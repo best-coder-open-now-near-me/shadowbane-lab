@@ -70,6 +70,12 @@ from .events import (
     extension_event_signal_name,
     parse_extension_event_channel,
 )
+from .graphics_status_wait import (
+    GRAPHICS_RUNTIME_STATUS_SCHEMA_VERSION,
+    GraphicsRuntimeStatusExpectation,
+    GraphicsRuntimeStatusWaitError,
+    wait_for_graphics_runtime_status,
+)
 from .heartbeat import (
     EXTENSION_ABI_VERSION,
     EXTENSION_HEARTBEAT_SCHEMA_VERSION,
@@ -199,6 +205,7 @@ __all__ = [
     "EXTENSION_ABI_VERSION",
     "EXTENSION_HEARTBEAT_SCHEMA_VERSION",
     "EXTENSION_RUNTIME_STATUS_SCHEMA_VERSION",
+    "GRAPHICS_RUNTIME_STATUS_SCHEMA_VERSION",
     "PATCH_MANIFEST_SCHEMA_VERSION",
     "PACKAGE_DRIFT_SCHEMA_VERSION",
     "PATCH_PACKAGE_SCHEMA_VERSION",
@@ -247,6 +254,8 @@ __all__ = [
     "ExtensionRuntimeSnapshot",
     "ExtensionRuntimeState",
     "ExtensionWorldMapDestinationEvent",
+    "GraphicsRuntimeStatusExpectation",
+    "GraphicsRuntimeStatusWaitError",
     "extension_event_consumer_mutex_name",
     "WindowsExtensionEventTransport",
     "FileFingerprint",
@@ -325,6 +334,7 @@ __all__ = [
     "verify_launchable_patched_client_copy",
     "verify_patched_client_copy",
     "verify_runtime_patched_client_copy",
+    "wait_for_graphics_runtime_status",
     "write_client_patch_diff",
     "apply_texture_patch_plan",
     "author_texture_patch_manifest",
