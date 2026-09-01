@@ -54,6 +54,9 @@ int wmain() {
     }
 
     SceneFrameState frame{};
+    if (frame.fixed_function_refresh_count != 0U) {
+        return Fail(L"new frame has fixed-function refreshes");
+    }
     const DrawClassification world{
         DrawLayer::world_opaque,
         DrawClassificationReason::depth_writing_opaque,

@@ -138,6 +138,7 @@ int wmain() {
     classified_frame.reason_counts[3] = 3U;
     classified_frame.boundary_count = 1U;
     classified_frame.late_world_draw_count = 1U;
+    classified_frame.fixed_function_refresh_count = 1U;
     ReportSceneFrameClassification(classified_frame);
     std::array<wchar_t, 1024U> path{};
     result = GetGraphicsStatusPath(path.data(), path.size());
@@ -245,6 +246,12 @@ int wmain() {
         || json.find("\"latest\":{\"phase\":\"ui\"") == std::string::npos
         || json.find("\"world_opaque\":3") == std::string::npos
         || json.find("\"orthographic_projection\":2") == std::string::npos
+        || json.find("\"fixed_function_refresh_count\":1")
+            == std::string::npos
+        || json.find("\"fixed_function_state\":\"cached-with-transition-hooks\"")
+            == std::string::npos
+        || json.find("\"maximum_ordinary_frame_refreshes\":1")
+            == std::string::npos
         || json.find("\"late_world_after_ui\":\"excluded-and-counted\"")
             == std::string::npos
         || json.find("\"live_controls\":{\"available\":true")

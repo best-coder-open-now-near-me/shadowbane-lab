@@ -104,10 +104,10 @@ def test_graphics_publication_and_launch_pin_the_golden_package() -> None:
         encoding="utf-8"
     )
     assert 'RepositoryShare = "\\\\VBOXSVR\\codexrepo"' in publish
-    assert 'ExtensionVersion = "1.6.4"' in publish
+    assert 'ExtensionVersion = "1.6.5"' in publish
     assert "wonderbane-extension.dll" in publish
     assert r"\build\wonderbane-client-extension\Release" in publish
-    assert "10deb5396f2061ac647d9c4ef42220baa88e3b9477f3e4d4383d663a004348e2" in publish
+    assert "e397f9f661032253f1dc0a433f8f64bc62f6548e5c57873ecabc822f20b4d228" in publish
     assert "a9a59004b36f9331bb85f85e7853a02a5d5f07bda9acb9ea4a8affbf169a54b8" in publish
     assert "$extensionSha256 -cne $ExpectedExtensionSha256" in publish
     assert "$resultExecutableSha256 -cne $ExpectedExecutableSha256" in publish
@@ -116,8 +116,8 @@ def test_graphics_publication_and_launch_pin_the_golden_package() -> None:
     assert "--texture-artifact-directory $TextureArtifactDirectory" in publish
     assert "texture_patch_manifest_sha256" in publish
     assert 'RepositoryShare = "\\\\VBOXSVR\\codexrepo"' in launch
-    assert 'ExtensionVersion = "1.6.4"' in launch
-    assert "10deb5396f2061ac647d9c4ef42220baa88e3b9477f3e4d4383d663a004348e2" in launch
+    assert 'ExtensionVersion = "1.6.5"' in launch
+    assert "e397f9f661032253f1dc0a433f8f64bc62f6548e5c57873ecabc822f20b4d228" in launch
     assert '$expectedExtensionRelativePath = "wonderbane-extension.dll"' in launch
     assert 'Properties["extension_relative_path"]' in launch
     assert "a9a59004b36f9331bb85f85e7853a02a5d5f07bda9acb9ea4a8affbf169a54b8" in launch
@@ -135,6 +135,16 @@ def test_graphics_publication_and_launch_pin_the_golden_package() -> None:
     ).read_text(encoding="utf-8")
     assert "IsFeatureAccentDrawState" in cel_shading
     assert "array_planar_overlay_candidate" in cel_shading
+    immediate_path = cel_shading.split(
+        "void APIENTRY StrongBegin", 1
+    )[1].split("void APIENTRY StrongEnd", 1)[0]
+    assert "get_booleanv" not in immediate_path
+    assert "g_fixed_function_state.depth_writes" in immediate_path
+    assert "std::array<ImportHookPlan, 19U>" in cel_shading
+    assert '"glEnable"' in cel_shading
+    assert '"glDisable"' in cel_shading
+    assert '"glDepthMask"' in cel_shading
+    assert "InvalidateFixedFunctionState(&g_fixed_function_state)" in cel_shading
 
 
 def test_extension_version_is_consistent_across_every_runtime_surface() -> None:
@@ -144,13 +154,13 @@ def test_extension_version_is_consistent_across_every_runtime_surface() -> None:
     graphics_status = (native / "graphics_status.cpp").read_text(encoding="utf-8")
     api = (native / "extension_api.h").read_text(encoding="utf-8")
     resource = (native / "extension.rc").read_text(encoding="utf-8")
-    assert "project(wonderbane_extension VERSION 1.6.4" in cmake
-    assert 'kExtensionVersion[] = "1.6.4"' in extension
-    assert 'kExtensionVersion[] = "1.6.4"' in graphics_status
+    assert "project(wonderbane_extension VERSION 1.6.5" in cmake
+    assert 'kExtensionVersion[] = "1.6.5"' in extension
+    assert 'kExtensionVersion[] = "1.6.5"' in graphics_status
     assert "WONDERBANE_EXTENSION_VERSION_MAJOR 1U" in api
     assert "WONDERBANE_EXTENSION_VERSION_MINOR 6U" in api
-    assert "WONDERBANE_EXTENSION_VERSION_PATCH 4U" in api
-    assert "FILEVERSION 1,6,4,0" in resource
-    assert "PRODUCTVERSION 1,6,4,0" in resource
-    assert 'VALUE "FileVersion", "1.6.4.0\\0"' in resource
-    assert 'VALUE "ProductVersion", "1.6.4.0\\0"' in resource
+    assert "WONDERBANE_EXTENSION_VERSION_PATCH 5U" in api
+    assert "FILEVERSION 1,6,5,0" in resource
+    assert "PRODUCTVERSION 1,6,5,0" in resource
+    assert 'VALUE "FileVersion", "1.6.5.0\\0"' in resource
+    assert 'VALUE "ProductVersion", "1.6.5.0\\0"' in resource

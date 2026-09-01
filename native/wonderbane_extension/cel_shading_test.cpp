@@ -12,16 +12,13 @@
 
 namespace {
 
-constexpr std::size_t kImageSize = 0x800U;
+constexpr std::size_t kImageSize = 0x1000U;
 constexpr std::uint32_t kNtRva = 0x80U;
 constexpr std::uint32_t kImportRva = 0x200U;
 constexpr std::uint32_t kLibraryRva = 0x300U;
 constexpr std::uint32_t kNamesRva = 0x340U;
-constexpr std::uint32_t kAddressesRva = 0x380U;
-constexpr std::array<std::uint32_t, 16U> kImportNameRvas{
-    0x3C0U,
-    0x3E0U,
-    0x400U,
+constexpr std::uint32_t kAddressesRva = 0x3A0U;
+constexpr std::array<std::uint32_t, 19U> kImportNameRvas{
     0x420U,
     0x440U,
     0x460U,
@@ -35,8 +32,14 @@ constexpr std::array<std::uint32_t, 16U> kImportNameRvas{
     0x560U,
     0x580U,
     0x5A0U,
+    0x5C0U,
+    0x5E0U,
+    0x600U,
+    0x620U,
+    0x640U,
+    0x660U,
 };
-constexpr std::array<const char*, 16U> kImportNames{
+constexpr std::array<const char*, 19U> kImportNames{
     "glShadeModel",
     "glBegin",
     "glCallList",
@@ -53,8 +56,11 @@ constexpr std::array<const char*, 16U> kImportNames{
     "glDisableClientState",
     "glTexCoordPointer",
     "glEnd",
+    "glEnable",
+    "glDisable",
+    "glDepthMask",
 };
-constexpr std::array<std::uint32_t, 16U> kImportAddresses{
+constexpr std::array<std::uint32_t, 19U> kImportAddresses{
     0x12345678U,
     0x23456789U,
     0x3456789AU,
@@ -71,6 +77,9 @@ constexpr std::array<std::uint32_t, 16U> kImportAddresses{
     0xEF012345U,
     0xF0123456U,
     0x10234567U,
+    0x21345678U,
+    0x32345678U,
+    0x42345678U,
 };
 
 int Fail(const wchar_t* const operation) noexcept {

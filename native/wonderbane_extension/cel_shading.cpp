@@ -1,6 +1,7 @@
 #include "cel_shading.h"
 #include "banded_lighting.h"
 #include "depth_edges.h"
+#include "fixed_function_state.h"
 #include "graphics_control.h"
 #include "graphics_status.h"
 #include "import_hook.h"
@@ -182,6 +183,9 @@ std::uint32_t* g_vertex_pointer_slot = nullptr;
 std::uint32_t* g_tex_coord_pointer_slot = nullptr;
 std::uint32_t* g_enable_client_state_slot = nullptr;
 std::uint32_t* g_disable_client_state_slot = nullptr;
+std::uint32_t* g_enable_slot = nullptr;
+std::uint32_t* g_disable_slot = nullptr;
+std::uint32_t* g_depth_mask_slot = nullptr;
 std::uint32_t* g_swap_buffers_slot = nullptr;
 volatile LONG g_viewport_x = 0;
 volatile LONG g_viewport_y = 0;
@@ -205,6 +209,7 @@ thread_local bool g_immediate_depth_scene_draw = false;
 thread_local std::array<float, 16U> g_immediate_scene_projection{};
 thread_local std::array<int, 4U> g_immediate_scene_viewport{};
 thread_local SceneFrameState g_scene_frame{};
+thread_local FixedFunctionStateMirror g_fixed_function_state{};
 
 struct CapturedVertex {
     std::array<float, 3U> position{};
@@ -917,7 +922,6 @@ void ClearDisplayListBounds() noexcept {
 
 struct OutlineApi {
     GlGetFloatv get_floatv;
-    GlGetBooleanv get_booleanv;
     GlPushAttrib push_attrib;
     GlPopAttrib pop_attrib;
     GlPushMatrix push_matrix;
@@ -997,7 +1001,6 @@ bool LoadOutlineApi(OutlineApi* const api) noexcept {
     }
     *api = {
         LoadFunction<GlGetFloatv>(&g_get_floatv),
-        LoadFunction<GlGetBooleanv>(&g_get_booleanv),
         LoadFunction<GlPushAttrib>(&g_push_attrib),
         LoadFunction<GlPopAttrib>(&g_pop_attrib),
         LoadFunction<GlPushMatrix>(&g_push_matrix),
@@ -1015,7 +1018,6 @@ bool LoadOutlineApi(OutlineApi* const api) noexcept {
         LoadFunction<GlPolygonOffset>(&g_polygon_offset),
     };
     return api->get_floatv != nullptr
-        && api->get_booleanv != nullptr
         && api->push_attrib != nullptr
         && api->pop_attrib != nullptr
         && api->push_matrix != nullptr
@@ -1102,6 +1104,94 @@ void DrawDisplayListFeatureEdges(
     ReleaseSRWLockShared(&g_display_list_lock);
 }
 
+bool RefreshFixedFunctionState() noexcept {
+    if (g_fixed_function_state.valid) {
+        return true;
+    }
+    const auto get_booleanv = LoadFunction<GlGetBooleanv>(&g_get_booleanv);
+    if (get_booleanv == nullptr) {
+        return false;
+    }
+    unsigned char depth_writes = FALSE;
+    unsigned char depth_test_enabled = FALSE;
+    unsigned char texture_enabled = FALSE;
+    unsigned char alpha_test_enabled = FALSE;
+    unsigned char blend_enabled = FALSE;
+    unsigned char lighting_enabled = FALSE;
+    unsigned char fog_enabled = FALSE;
+    get_booleanv(kGlDepthWriteMask, &depth_writes);
+    get_booleanv(kGlDepthTest, &depth_test_enabled);
+    get_booleanv(kGlTexture2D, &texture_enabled);
+    get_booleanv(kGlAlphaTest, &alpha_test_enabled);
+    get_booleanv(kGlBlend, &blend_enabled);
+    get_booleanv(kGlLighting, &lighting_enabled);
+    get_booleanv(kGlFog, &fog_enabled);
+    AdoptFixedFunctionState(
+        &g_fixed_function_state,
+        depth_writes != FALSE,
+        depth_test_enabled != FALSE,
+        texture_enabled != FALSE,
+        alpha_test_enabled != FALSE,
+        blend_enabled != FALSE,
+        lighting_enabled != FALSE,
+        fog_enabled != FALSE
+    );
+    ++g_scene_frame.fixed_function_refresh_count;
+    return true;
+}
+
+void MirrorCapabilityState(
+    const unsigned int capability,
+    const bool enabled
+) noexcept {
+    switch (capability) {
+        case kGlDepthTest:
+            SetFixedFunctionCapability(
+                &g_fixed_function_state,
+                FixedFunctionCapability::depth_test,
+                enabled
+            );
+            return;
+        case kGlTexture2D:
+            SetFixedFunctionCapability(
+                &g_fixed_function_state,
+                FixedFunctionCapability::texture_2d,
+                enabled
+            );
+            return;
+        case kGlAlphaTest:
+            SetFixedFunctionCapability(
+                &g_fixed_function_state,
+                FixedFunctionCapability::alpha_test,
+                enabled
+            );
+            return;
+        case kGlBlend:
+            SetFixedFunctionCapability(
+                &g_fixed_function_state,
+                FixedFunctionCapability::blend,
+                enabled
+            );
+            return;
+        case kGlLighting:
+            SetFixedFunctionCapability(
+                &g_fixed_function_state,
+                FixedFunctionCapability::lighting,
+                enabled
+            );
+            return;
+        case kGlFog:
+            SetFixedFunctionCapability(
+                &g_fixed_function_state,
+                FixedFunctionCapability::fog,
+                enabled
+            );
+            return;
+        default:
+            return;
+    }
+}
+
 SceneFrameDecision ObserveClassifiedDraw(
     const DrawSubmission submission,
     const bool perspective,
@@ -1141,34 +1231,18 @@ SceneFrameDecision ObserveCurrentDraw(
     const bool perspective,
     const bool planar_overlay_candidate = false
 ) noexcept {
-    const auto get_booleanv = LoadFunction<GlGetBooleanv>(&g_get_booleanv);
-    unsigned char depth_writes = FALSE;
-    unsigned char depth_test_enabled = FALSE;
-    unsigned char texture_enabled = FALSE;
-    unsigned char alpha_test_enabled = FALSE;
-    unsigned char blend_enabled = FALSE;
-    unsigned char lighting_enabled = FALSE;
-    unsigned char fog_enabled = FALSE;
-    if (get_booleanv != nullptr) {
-        get_booleanv(kGlDepthWriteMask, &depth_writes);
-        get_booleanv(kGlDepthTest, &depth_test_enabled);
-        get_booleanv(kGlTexture2D, &texture_enabled);
-        get_booleanv(kGlAlphaTest, &alpha_test_enabled);
-        get_booleanv(kGlBlend, &blend_enabled);
-        get_booleanv(kGlLighting, &lighting_enabled);
-        get_booleanv(kGlFog, &fog_enabled);
-    }
+    RefreshFixedFunctionState();
     return ObserveClassifiedDraw(
         submission,
         perspective,
         planar_overlay_candidate,
-        depth_writes != FALSE,
-        depth_test_enabled != FALSE,
-        texture_enabled != FALSE,
-        alpha_test_enabled != FALSE,
-        blend_enabled != FALSE,
-        lighting_enabled != FALSE,
-        fog_enabled != FALSE
+        g_fixed_function_state.depth_writes,
+        g_fixed_function_state.depth_test_enabled,
+        g_fixed_function_state.texture_enabled,
+        g_fixed_function_state.alpha_test_enabled,
+        g_fixed_function_state.blend_enabled,
+        g_fixed_function_state.lighting_enabled,
+        g_fixed_function_state.fog_enabled
     );
 }
 
@@ -1183,13 +1257,6 @@ void DrawWithSilhouette(
     std::array<float, 16U> projection{};
     std::array<float, 16U> model_view{};
     std::array<int, 4U> viewport{};
-    unsigned char depth_writes = FALSE;
-    unsigned char depth_test_enabled = FALSE;
-    unsigned char alpha_test_enabled = FALSE;
-    unsigned char blend_enabled = FALSE;
-    unsigned char texture_enabled = FALSE;
-    unsigned char lighting_enabled = FALSE;
-    unsigned char fog_enabled = FALSE;
     if (!LoadOutlineApi(&api)) {
         draw();
         return;
@@ -1202,13 +1269,7 @@ void DrawWithSilhouette(
         static_cast<int>(InterlockedCompareExchange(&g_viewport_width, 0, 0)),
         static_cast<int>(InterlockedCompareExchange(&g_viewport_height, 0, 0)),
     };
-    api.get_booleanv(kGlDepthWriteMask, &depth_writes);
-    api.get_booleanv(kGlDepthTest, &depth_test_enabled);
-    api.get_booleanv(kGlAlphaTest, &alpha_test_enabled);
-    api.get_booleanv(kGlBlend, &blend_enabled);
-    api.get_booleanv(kGlTexture2D, &texture_enabled);
-    api.get_booleanv(kGlLighting, &lighting_enabled);
-    api.get_booleanv(kGlFog, &fog_enabled);
+    RefreshFixedFunctionState();
     const bool perspective = IsPerspectiveProjectionMatrix(
         projection.data(), projection.size()
     );
@@ -1217,9 +1278,9 @@ void DrawWithSilhouette(
         graphics_parameters.flags & kGraphicsControlFeatureAccents
     ) != 0U && IsFeatureAccentDrawState(
         IsLocalOutlineModelViewMatrix(model_view.data(), model_view.size()),
-        depth_writes != FALSE,
-        blend_enabled != FALSE,
-        lighting_enabled != FALSE
+        g_fixed_function_state.depth_writes,
+        g_fixed_function_state.blend_enabled,
+        g_fixed_function_state.lighting_enabled
     );
     bool array_planar_overlay_candidate = false;
     auto feature_edges = array_features == nullptr
@@ -1240,13 +1301,13 @@ void DrawWithSilhouette(
         submission,
         perspective,
         planar_overlay_candidate,
-        depth_writes != FALSE,
-        depth_test_enabled != FALSE,
-        texture_enabled != FALSE,
-        alpha_test_enabled != FALSE,
-        blend_enabled != FALSE,
-        lighting_enabled != FALSE,
-        fog_enabled != FALSE
+        g_fixed_function_state.depth_writes,
+        g_fixed_function_state.depth_test_enabled,
+        g_fixed_function_state.texture_enabled,
+        g_fixed_function_state.alpha_test_enabled,
+        g_fixed_function_state.blend_enabled,
+        g_fixed_function_state.lighting_enabled,
+        g_fixed_function_state.fog_enabled
     );
     if (!frame_decision.contributes_to_scene) {
         draw();
@@ -1260,14 +1321,16 @@ void DrawWithSilhouette(
     DrawWithBandedLighting(draw);
     if (outline_enabled && feature_list != UINT32_MAX) {
         DrawDisplayListFeatureEdges(
-            feature_list, api, outline_width, alpha_test_enabled != FALSE
+            feature_list, api, outline_width,
+            g_fixed_function_state.alpha_test_enabled
         );
     } else if (outline_enabled && !feature_edges.empty()) {
         DrawFeatureEdgeSegments(
-            feature_edges, api, outline_width, alpha_test_enabled != FALSE
+            feature_edges, api, outline_width,
+            g_fixed_function_state.alpha_test_enabled
         );
     }
-    if (depth_writes != FALSE) {
+    if (g_fixed_function_state.depth_writes) {
         const auto get_integerv = LoadFunction<GlGetIntegerv>(&g_get_integerv);
         int model_view_stack_depth = 0;
         if (get_integerv != nullptr) {
@@ -1338,12 +1401,7 @@ void APIENTRY StrongBegin(const unsigned int mode) noexcept {
             && frame_decision.contributes_to_scene
             && IsFilledPrimitiveMode(mode)) {
             BeginBandedLightingDraw(&g_immediate_banded_draw);
-            const auto get_booleanv = LoadFunction<GlGetBooleanv>(&g_get_booleanv);
-            unsigned char depth_writes = FALSE;
-            if (get_booleanv != nullptr) {
-                get_booleanv(kGlDepthWriteMask, &depth_writes);
-            }
-            if (depth_writes != FALSE) {
+            if (g_fixed_function_state.depth_writes) {
                 g_immediate_depth_scene_draw = true;
                 g_immediate_scene_projection = projection;
                 g_immediate_scene_viewport = {
@@ -1568,6 +1626,7 @@ BOOL WINAPI StrongSwapBuffers(const HDC device_context) noexcept {
     const BOOL result = original != nullptr ? original(device_context) : FALSE;
     EndDepthEdgeFrame();
     g_scene_frame = {};
+    InvalidateFixedFunctionState(&g_fixed_function_state);
     ObservePerformancePresent(performance_started_qpc, result != FALSE);
     return result;
 }
@@ -1824,6 +1883,38 @@ void APIENTRY StrongTexCoordPointer(
         g_tex_coord_array_state.size = size;
         g_tex_coord_array_state.type = type;
         g_tex_coord_array_state.stride = stride;
+    }
+}
+
+void APIENTRY StrongEnable(const unsigned int capability) noexcept {
+    const auto original = LoadFunction<GlEnable>(&g_enable);
+    if (original != nullptr) {
+        original(capability);
+        if (!IsCompilingDisplayListOnCurrentThread()) {
+            MirrorCapabilityState(capability, true);
+        }
+    }
+}
+
+void APIENTRY StrongDisable(const unsigned int capability) noexcept {
+    const auto original = LoadFunction<GlDisable>(&g_disable);
+    if (original != nullptr) {
+        original(capability);
+        if (!IsCompilingDisplayListOnCurrentThread()) {
+            MirrorCapabilityState(capability, false);
+        }
+    }
+}
+
+void APIENTRY StrongDepthMask(const unsigned char flag) noexcept {
+    const auto original = LoadFunction<GlDepthMask>(&g_depth_mask);
+    if (original != nullptr) {
+        original(flag);
+        if (!IsCompilingDisplayListOnCurrentThread()) {
+            SetFixedFunctionDepthWrites(
+                &g_fixed_function_state, flag != FALSE
+            );
+        }
     }
 }
 
@@ -2129,6 +2220,9 @@ DWORD StartStrongCelShading() noexcept {
         || g_tex_coord_pointer_slot != nullptr
         || g_enable_client_state_slot != nullptr
         || g_disable_client_state_slot != nullptr
+        || g_enable_slot != nullptr
+        || g_disable_slot != nullptr
+        || g_depth_mask_slot != nullptr
         || g_swap_buffers_slot != nullptr
         || g_original_shade_model != nullptr
         || g_original_begin != nullptr
@@ -2185,7 +2279,7 @@ DWORD StartStrongCelShading() noexcept {
     ) {
         return ERROR_BAD_EXE_FORMAT;
     }
-    std::array<ImportHookPlan, 16U> plans{{
+    std::array<ImportHookPlan, 19U> plans{{
         {
             "glShadeModel",
             reinterpret_cast<PVOID>(&StrongShadeModel),
@@ -2314,6 +2408,30 @@ DWORD StartStrongCelShading() noexcept {
             &g_original_draw_elements,
             &g_draw_elements_slot,
         },
+        {
+            "glEnable",
+            reinterpret_cast<PVOID>(&StrongEnable),
+            nullptr,
+            nullptr,
+            &g_enable,
+            &g_enable_slot,
+        },
+        {
+            "glDisable",
+            reinterpret_cast<PVOID>(&StrongDisable),
+            nullptr,
+            nullptr,
+            &g_disable,
+            &g_disable_slot,
+        },
+        {
+            "glDepthMask",
+            reinterpret_cast<PVOID>(&StrongDepthMask),
+            nullptr,
+            nullptr,
+            &g_depth_mask,
+            &g_depth_mask_slot,
+        },
     }};
     auto* const image = reinterpret_cast<std::uint8_t*>(executable);
     for (ImportHookPlan& plan : plans) {
@@ -2346,7 +2464,7 @@ DWORD StartStrongCelShading() noexcept {
             }
         }
     }
-    std::array<HelperFunctionPlan, 19U> helpers{{
+    std::array<HelperFunctionPlan, 16U> helpers{{
         {"glTexCoord2f", &g_tex_coord_2f, nullptr},
         {"glGetFloatv", &g_get_floatv, nullptr},
         {"glGetIntegerv", &g_get_integerv, nullptr},
@@ -2357,13 +2475,10 @@ DWORD StartStrongCelShading() noexcept {
         {"glPopMatrix", &g_pop_matrix, nullptr},
         {"glTranslatef", &g_translatef, nullptr},
         {"glScalef", &g_scalef, nullptr},
-        {"glEnable", &g_enable, nullptr},
-        {"glDisable", &g_disable, nullptr},
         {"glCullFace", &g_cull_face, nullptr},
         {"glPolygonMode", &g_polygon_mode, nullptr},
         {"glLineWidth", &g_line_width, nullptr},
         {"glLogicOp", &g_logic_op, nullptr},
-        {"glDepthMask", &g_depth_mask, nullptr},
         {"glDepthFunc", &g_depth_func, nullptr},
         {"glPolygonOffset", &g_polygon_offset, nullptr},
     }};
@@ -2390,6 +2505,7 @@ DWORD StartStrongCelShading() noexcept {
     g_immediate_scene_projection = {};
     g_immediate_scene_viewport = {};
     g_scene_frame = {};
+    g_fixed_function_state = {};
     ResetBandedLighting();
     ResetDepthEdges();
     for (ImportHookPlan& plan : plans) {
@@ -2431,6 +2547,27 @@ void StopStrongCelShading() noexcept {
             &g_swap_buffers_slot,
             &g_original_swap_buffers,
             reinterpret_cast<PVOID>(&StrongSwapBuffers)
+        )) {
+        restored = false;
+    }
+    if (!RestoreHook(
+            &g_depth_mask_slot,
+            &g_depth_mask,
+            reinterpret_cast<PVOID>(&StrongDepthMask)
+        )) {
+        restored = false;
+    }
+    if (!RestoreHook(
+            &g_disable_slot,
+            &g_disable,
+            reinterpret_cast<PVOID>(&StrongDisable)
+        )) {
+        restored = false;
+    }
+    if (!RestoreHook(
+            &g_enable_slot,
+            &g_enable,
+            reinterpret_cast<PVOID>(&StrongEnable)
         )) {
         restored = false;
     }
@@ -2561,6 +2698,7 @@ void StopStrongCelShading() noexcept {
         g_immediate_scene_projection = {};
         g_immediate_scene_viewport = {};
         g_scene_frame = {};
+        g_fixed_function_state = {};
         ResetBandedLighting();
         ResetDepthEdges();
         InterlockedExchangePointer(&g_tex_coord_2f, nullptr);

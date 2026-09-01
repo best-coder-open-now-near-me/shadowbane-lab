@@ -106,6 +106,12 @@ def collect_graphics_present_evidence(
         and isinstance(draw_classification.get("classified_frame_count"), int)
         and draw_classification["classified_frame_count"] > 0
     )
+    fixed_function_refresh_bounded = bool(
+        world_ui_separation_observed
+        and isinstance(draw_classification.get("latest"), dict)
+        and draw_classification["latest"].get("fixed_function_refresh_count")
+        in {0, 1}
+    )
     report: dict[str, object] = {
         "schema_version": GRAPHICS_PRESENT_EVIDENCE_SCHEMA_VERSION,
         "authorization": "evidence_only_no_hook_or_patch_authority",
@@ -134,6 +140,7 @@ def collect_graphics_present_evidence(
             "depth_edge_prerequisites_observed": depth_edge_ready,
             "scene_color_capture_observed": scene_color_ready,
             "world_ui_separation_observed": world_ui_separation_observed,
+            "fixed_function_refresh_bounded": fixed_function_refresh_bounded,
             "unresolved_mapping_blocks_dependent_renderer_work": not depth_edge_ready,
         },
     }
@@ -351,6 +358,12 @@ def _validate_draw_classification(value: object) -> None:
         raise ValueError("draw_classification boundary policy is unsupported")
     if policy.get("late_world_after_ui") != "excluded-and-counted":
         raise ValueError("draw_classification late-world policy is unsupported")
+    if policy.get("fixed_function_state") != "cached-with-transition-hooks":
+        raise ValueError("draw_classification fixed-function policy is unsupported")
+    if policy.get("maximum_ordinary_frame_refreshes") != 1:
+        raise ValueError("draw_classification refresh budget is unsupported")
+    if latest.get("fixed_function_refresh_count") > 1:
+        raise ValueError("draw_classification exceeded its per-frame refresh budget")
 
 
 def _validate_classification_counts(value: dict[str, Any], field_name: str) -> None:
@@ -368,6 +381,10 @@ def _validate_classification_counts(value: dict[str, Any], field_name: str) -> N
     _non_negative_counter(
         value.get("late_world_draw_count"),
         f"{field_name}.late_world_draw_count",
+    )
+    _non_negative_counter(
+        value.get("fixed_function_refresh_count"),
+        f"{field_name}.fixed_function_refresh_count",
     )
 
 

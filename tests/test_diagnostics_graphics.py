@@ -160,6 +160,7 @@ def _status(
                 },
                 "boundary_count": 1,
                 "late_world_draw_count": 0,
+                "fixed_function_refresh_count": 1,
             },
             "totals": {
                 "layers": {
@@ -181,10 +182,13 @@ def _status(
                 },
                 "boundary_count": latest_sequence,
                 "late_world_draw_count": 0,
+                "fixed_function_refresh_count": latest_sequence,
             },
             "policy": {
                 "single_world_to_ui_boundary": True,
                 "late_world_after_ui": "excluded-and-counted",
+                "fixed_function_state": "cached-with-transition-hooks",
+                "maximum_ordinary_frame_refreshes": 1,
             },
         },
     }
@@ -320,6 +324,7 @@ class GraphicsPresentEvidenceTests(unittest.TestCase):
             self.assertTrue(result.report["assessment"]["depth_edge_prerequisites_observed"])
             self.assertTrue(result.report["assessment"]["scene_color_capture_observed"])
             self.assertTrue(result.report["assessment"]["world_ui_separation_observed"])
+            self.assertTrue(result.report["assessment"]["fixed_function_refresh_bounded"])
             self.assertEqual(
                 "gpu-to-gpu",
                 result.report["runtime_status"]["scene_color_capture"]["transport"],
@@ -638,6 +643,28 @@ class GraphicsPresentEvidenceTests(unittest.TestCase):
 
             self.assertFalse(result.complete)
             self.assertIn("unsupported shape", result.failure or "")
+
+    def test_runtime_status_rejects_per_draw_state_refresh_regression(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            executable = root / "sb.exe"
+            executable.write_bytes(_present_pe())
+            identity = ProcessIdentity(50, 123456, str(executable))
+            payload = _status(executable, identity)
+            payload["draw_classification"]["latest"][
+                "fixed_function_refresh_count"
+            ] = 2
+            status = root / "graphics-status.json"
+            status.write_text(json.dumps(payload), encoding="utf-8")
+
+            result = collect_graphics_present_evidence(
+                executable,
+                identity,
+                runtime_status_path=status,
+            )
+
+            self.assertFalse(result.complete)
+            self.assertIn("exceeded its per-frame refresh budget", result.failure or "")
 
 
 if __name__ == "__main__":

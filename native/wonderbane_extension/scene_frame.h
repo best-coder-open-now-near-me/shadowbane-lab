@@ -76,6 +76,7 @@ struct SceneFrameState {
     std::array<std::uint64_t, kDrawClassificationReasonCount> reason_counts{};
     std::uint64_t boundary_count = 0U;
     std::uint64_t late_world_draw_count = 0U;
+    std::uint64_t fixed_function_refresh_count = 0U;
     bool composite_requested = false;
 };
 

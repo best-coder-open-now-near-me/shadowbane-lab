@@ -491,6 +491,16 @@ Semantic actor, terrain, building, water, and particle identities are deliberate
 the current fixed-function state. The 1.6.4 classes are reliable rendering-policy layers; the next
 renderer ownership slice will bind bounded texture/display-list provenance to semantic class masks,
 using these diagnostics to review the mapping before normals, AO, or material-specific effects rely
-on it. The 1.6.4 graphics publication scripts are sealed to the probed full-renderer artifact
-and the patched executable derived from the frozen 55fb baseline. Publication creates a fresh
-1.6.4 package and receipt before the launcher will execute it.
+on it.
+
+Extension 1.6.5 removes synchronous Boolean-state queries from the immediate, display-list, and
+array draw hot paths. The renderer takes one fixed-function snapshot at the first classified draw
+of an ordinary frame, then mirrors the reviewed client imports for `glEnable`, `glDisable`, and
+`glDepthMask`. Renderer-owned transient state changes continue to call the original OpenGL
+functions directly and therefore cannot corrupt the client mirror. The frame diagnostics expose
+the refresh count and reject more than one ordinary-frame refresh, making a return to per-draw
+driver synchronization observable before another live release.
+
+The 1.6.5 graphics publication scripts are sealed to the probed full-renderer artifact and the
+patched executable derived from the frozen 55fb baseline. Publication creates a fresh 1.6.5
+package and receipt before the launcher will execute it.

@@ -23,7 +23,7 @@ namespace {
 constexpr wchar_t kProductDirectory[] = L"ShadowbaneLab";
 constexpr wchar_t kExtensionDirectory[] = L"client-extension";
 constexpr char kProducerId[] = "wonderbane-extension.graphics";
-constexpr char kExtensionVersion[] = "1.6.4";
+constexpr char kExtensionVersion[] = "1.6.5";
 constexpr std::size_t kPathCapacity = WONDERBANE_EXTENSION_HEARTBEAT_PATH_CAPACITY;
 constexpr std::size_t kExecutablePathUtf8Capacity = kPathCapacity * 4U;
 constexpr std::size_t kEscapedPathCapacity = kExecutablePathUtf8Capacity * 2U + 3U;
@@ -108,6 +108,7 @@ struct GraphicsStatusState {
         classification_reason_counts{};
     std::uint64_t scene_boundary_count = 0U;
     std::uint64_t late_world_draw_count = 0U;
+    std::uint64_t fixed_function_refresh_count = 0U;
 };
 
 struct PublisherSnapshot {
@@ -1005,7 +1006,8 @@ DWORD PublishSnapshot(const PublisherSnapshot& snapshot) noexcept {
         "\"planar_overlay_state\":%llu,\"depth_writing_opaque\":%llu,"
         "\"depth_writing_alpha_tested\":%llu,\"blended_perspective\":%llu,"
         "\"depthless_perspective\":%llu},\"boundary_count\":%llu,"
-        "\"late_world_draw_count\":%llu},\"totals\":{\"layers\":{"
+        "\"late_world_draw_count\":%llu,"
+        "\"fixed_function_refresh_count\":%llu},\"totals\":{\"layers\":{"
         "\"unknown\":%llu,\"world_opaque\":%llu,"
         "\"world_alpha_tested\":%llu,\"world_translucent\":%llu,"
         "\"world_overlay\":%llu,\"ui_overlay\":%llu},\"reasons\":{"
@@ -1013,9 +1015,12 @@ DWORD PublishSnapshot(const PublisherSnapshot& snapshot) noexcept {
         "\"planar_overlay_state\":%llu,\"depth_writing_opaque\":%llu,"
         "\"depth_writing_alpha_tested\":%llu,\"blended_perspective\":%llu,"
         "\"depthless_perspective\":%llu},\"boundary_count\":%llu,"
-        "\"late_world_draw_count\":%llu},\"policy\":{"
+        "\"late_world_draw_count\":%llu,"
+        "\"fixed_function_refresh_count\":%llu},\"policy\":{"
         "\"single_world_to_ui_boundary\":true,"
-        "\"late_world_after_ui\":\"excluded-and-counted\"}}",
+        "\"late_world_after_ui\":\"excluded-and-counted\","
+        "\"fixed_function_state\":\"cached-with-transition-hooks\","
+        "\"maximum_ordinary_frame_refreshes\":1}}",
         scene_frame_state,
         static_cast<unsigned long long>(snapshot.status.classified_frame_count),
         scene_frame_phase,
@@ -1038,6 +1043,9 @@ DWORD PublishSnapshot(const PublisherSnapshot& snapshot) noexcept {
         static_cast<unsigned long long>(
             snapshot.status.latest_scene_frame.late_world_draw_count
         ),
+        static_cast<unsigned long long>(
+            snapshot.status.latest_scene_frame.fixed_function_refresh_count
+        ),
         static_cast<unsigned long long>(total_layers[0]),
         static_cast<unsigned long long>(total_layers[1]),
         static_cast<unsigned long long>(total_layers[2]),
@@ -1052,7 +1060,10 @@ DWORD PublishSnapshot(const PublisherSnapshot& snapshot) noexcept {
         static_cast<unsigned long long>(total_reasons[5]),
         static_cast<unsigned long long>(total_reasons[6]),
         static_cast<unsigned long long>(snapshot.status.scene_boundary_count),
-        static_cast<unsigned long long>(snapshot.status.late_world_draw_count)
+        static_cast<unsigned long long>(snapshot.status.late_world_draw_count),
+        static_cast<unsigned long long>(
+            snapshot.status.fixed_function_refresh_count
+        )
     );
     if (FAILED(result)) {
         return HResultToWin32(result);
@@ -1882,7 +1893,8 @@ void ReportSceneFrameClassification(const SceneFrameState& frame) noexcept {
     bool publish = false;
     AcquireSRWLockExclusive(&g_state_lock);
     publish = g_status.classified_frame_count == 0U
-        || frame.late_world_draw_count > 0U;
+        || frame.late_world_draw_count > 0U
+        || frame.fixed_function_refresh_count > 1U;
     SaturatingAdd(&g_status.classified_frame_count, 1U);
     g_status.latest_scene_frame = frame;
     for (std::size_t index = 0U; index < frame.draw_counts.size(); ++index) {
@@ -1901,6 +1913,10 @@ void ReportSceneFrameClassification(const SceneFrameState& frame) noexcept {
     SaturatingAdd(
         &g_status.late_world_draw_count,
         frame.late_world_draw_count
+    );
+    SaturatingAdd(
+        &g_status.fixed_function_refresh_count,
+        frame.fixed_function_refresh_count
     );
     ReleaseSRWLockExclusive(&g_state_lock);
     if (publish) {

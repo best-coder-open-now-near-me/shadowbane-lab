@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(wonderbane_extension VERSION 1.6.4 LANGUAGES CXX RC)
+project(wonderbane_extension VERSION 1.6.5 LANGUAGES CXX RC)
 
 set(WONDERBANE_EXTENSION_PROFILE "full" CACHE STRING "Extension runtime profile")
 set_property(
@@ -31,6 +31,7 @@ add_library(
   depth_edges.cpp
   event_channel.cpp
   extension.cpp
+  fixed_function_state.cpp
   graphics_control.cpp
   graphics_status.cpp
   import_hook.cpp
@@ -153,11 +154,60 @@ if(BUILD_TESTING)
   )
 
   add_executable(
+    wonderbane_extension_fixed_function_state_test
+    fixed_function_state.cpp
+    fixed_function_state_test.cpp
+  )
+  target_compile_features(
+    wonderbane_extension_fixed_function_state_test
+    PRIVATE
+    cxx_std_20
+  )
+  target_compile_definitions(
+    wonderbane_extension_fixed_function_state_test
+    PRIVATE
+    UNICODE
+    _UNICODE
+    WIN32_LEAN_AND_MEAN
+    NOMINMAX
+    STRICT
+  )
+  target_compile_options(
+    wonderbane_extension_fixed_function_state_test
+    PRIVATE
+    /W4
+    /WX
+    /permissive-
+    /sdl
+    /GS
+    /guard:cf
+    /Zc:__cplusplus
+    /utf-8
+  )
+  target_link_options(
+    wonderbane_extension_fixed_function_state_test
+    PRIVATE
+    /DYNAMICBASE
+    /NXCOMPAT
+    /guard:cf
+    /INCREMENTAL:NO
+  )
+  set_property(
+    TARGET wonderbane_extension_fixed_function_state_test
+    PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded"
+  )
+  add_test(
+    NAME wonderbane_extension_fixed_function_state
+    COMMAND wonderbane_extension_fixed_function_state_test
+  )
+
+  add_executable(
     wonderbane_extension_cel_shading_test
     banded_lighting.cpp
     cel_shading.cpp
     cel_shading_test.cpp
     depth_edges.cpp
+    fixed_function_state.cpp
     graphics_control.cpp
     graphics_status.cpp
     import_hook.cpp
@@ -520,6 +570,7 @@ if(BUILD_TESTING)
     banded_lighting.cpp
     cel_shading.cpp
     depth_edges.cpp
+    fixed_function_state.cpp
     graphics_control.cpp
     graphics_status.cpp
     import_hook.cpp
