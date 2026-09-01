@@ -33,6 +33,7 @@ from shadowbane_lab.fingerprints import FingerprintCaptureInputs, capture_finger
 from shadowbane_lab.integrity import canonical_json_bytes, canonical_timestamp
 
 from .collectors import FileChunk, ScreenshotCapture, ScreenshotCollector, TailFileCollector
+from .frame_timing import FrameTimingCollector
 from .graphics import collect_graphics_present_evidence
 from .model import DiagnosticError, DiagnosticProfile, DiagnosticRequest, FileCaptureMode
 from .process import ProcessIdentity, ProcessProbe, ProcessSample, WindowsProcessProbe
@@ -89,9 +90,7 @@ def run_diagnostic_capture(
     *,
     process_probe: ProcessProbe | None = None,
     clock: SessionClock | None = None,
-    screenshot_factory: Callable[
-        [tuple[int, int, int, int], float], ScreenshotCollector
-    ]
+    screenshot_factory: Callable[[tuple[int, int, int, int], float], ScreenshotCollector]
     | None = None,
 ) -> DiagnosticCaptureResult:
     """Capture one bounded session and seal every retained artifact in one manifest."""
@@ -174,6 +173,7 @@ def run_diagnostic_capture(
         )
     )
 
+    frame_timing_collector: FrameTimingCollector | None = None
     if request.capture_graphics_present:
         try:
             graphics = collect_graphics_present_evidence(
@@ -200,6 +200,30 @@ def run_diagnostic_capture(
                 )
             )
             warnings.update(graphics.warnings)
+            runtime = graphics.report.get("runtime_status")
+            executable_evidence = graphics.report.get("executable")
+            present_candidates = graphics.report.get("present_candidates")
+            if (
+                graphics.complete
+                and request.graphics_runtime_status is not None
+                and isinstance(runtime, dict)
+                and runtime.get("state") == "accepted"
+                and isinstance(executable_evidence, dict)
+                and isinstance(executable_evidence.get("sha256"), str)
+                and isinstance(present_candidates, list)
+            ):
+                frame_timing_collector = FrameTimingCollector(
+                    request.graphics_runtime_status,
+                    initial_sample.identity,
+                    executable_evidence["sha256"],
+                    tuple(dict(item) for item in present_candidates if isinstance(item, dict)),
+                )
+                try:
+                    frame_timing_collector.poll(started_ns, started_utc)
+                except Exception as exc:
+                    failure = f"{type(exc).__name__}: {exc}"
+                    frame_timing_collector.record_poll_failure(started_ns, failure)
+                    channel_failures["frame-timing"] = failure
             if graphics.complete:
                 completed.add("graphics-present")
             else:
@@ -219,9 +243,7 @@ def run_diagnostic_capture(
             alignment_payload = alignment.as_dict()
             alignment_payload["diagnostic_interpretation"] = {
                 "address_mapping_authority": (
-                    "exact-build"
-                    if alignment.exact_file_match
-                    else "candidate-evidence-only"
+                    "exact-build" if alignment.exact_file_match else "candidate-evidence-only"
                 ),
                 "automatic_compatibility_promotion": False,
                 "unresolved_mapping_blocks_dependent_decoders": not alignment.exact_file_match,
@@ -249,9 +271,7 @@ def run_diagnostic_capture(
                 )
             )
             if not alignment.exact_file_match:
-                warnings.add(
-                    "client alignment is heuristic candidate evidence and requires review"
-                )
+                warnings.add("client alignment is heuristic candidate evidence and requires review")
         except Exception as exc:
             channel_failures["client-alignment"] = f"{type(exc).__name__}: {exc}"
 
@@ -260,9 +280,7 @@ def run_diagnostic_capture(
         for channel in request.file_channels
         if channel.mode is FileCaptureMode.TAIL
     }
-    tail_chunks: dict[str, list[FileChunk]] = {
-        channel_id: [] for channel_id in tail_collectors
-    }
+    tail_chunks: dict[str, list[FileChunk]] = {channel_id: [] for channel_id in tail_collectors}
     screenshot_collector: ScreenshotCollector | None = None
     screenshots: list[ScreenshotCapture] = []
     screenshot_bytes = 0
@@ -348,6 +366,13 @@ def run_diagnostic_capture(
             )
         )
         completed.add("process-metrics")
+        if frame_timing_collector is not None:
+            try:
+                frame_timing_collector.poll(now_ns, now_utc)
+            except Exception as exc:
+                failure = f"{type(exc).__name__}: {exc}"
+                frame_timing_collector.record_poll_failure(now_ns, failure)
+                channel_failures.setdefault("frame-timing", failure)
         for channel_id, collector in tuple(tail_collectors.items()):
             try:
                 for chunk in collector.poll(now_ns):
@@ -372,9 +397,7 @@ def run_diagnostic_capture(
                                         "captured_length": len(chunk.payload),
                                         "dropped_bytes": chunk.dropped_bytes,
                                         "initial_context": chunk.initial_context,
-                                        "payload_sha256": hashlib.sha256(
-                                            chunk.payload
-                                        ).hexdigest(),
+                                        "payload_sha256": hashlib.sha256(chunk.payload).hexdigest(),
                                         "source_generation": chunk.source_generation,
                                         "source_offset": chunk.source_offset,
                                     }.items()
@@ -411,9 +434,7 @@ def run_diagnostic_capture(
                         )
                     )
                     if screenshot_bytes > _MAX_SCREENSHOT_BUFFER_BYTES:
-                        channel_failures["screenshots"] = (
-                            "screenshot buffer exceeded 256 MiB"
-                        )
+                        channel_failures["screenshots"] = "screenshot buffer exceeded 256 MiB"
                         screenshot_collector = None
                         break
             except Exception as exc:
@@ -462,6 +483,13 @@ def run_diagnostic_capture(
 
     ended_ns = session_clock.monotonic_ns()
     ended_utc = session_clock.utc_timestamp()
+    if frame_timing_collector is not None:
+        try:
+            frame_timing_collector.poll(ended_ns, ended_utc)
+        except Exception as exc:
+            failure = f"{type(exc).__name__}: {exc}"
+            frame_timing_collector.record_poll_failure(ended_ns, failure)
+            channel_failures.setdefault("frame-timing", failure)
     _capture_snapshot_channels(
         request,
         phase="end",
@@ -480,6 +508,45 @@ def run_diagnostic_capture(
             started_ns,
             anchor_ns - int(request.effective_pre_trigger_seconds * 1_000_000_000),
         )
+
+    if frame_timing_collector is not None:
+        try:
+            frame_timing = frame_timing_collector.as_report(
+                started_monotonic_ns=started_ns,
+                started_at_utc=started_utc,
+                ended_monotonic_ns=ended_ns,
+                ended_at_utc=ended_utc,
+                retained_cutoff_monotonic_ns=retained_cutoff_ns,
+            )
+            descriptor = _ingest_json(
+                store,
+                frame_timing,
+                kind=ArtifactKind.NATIVE_EVENT_STREAM,
+                logical_name=f"{run_id}.frame-timing.json",
+                captured_at_utc=ended_utc,
+                metadata=(("channel_id", "frame-timing"),),
+            )
+            descriptors.append(descriptor)
+            pending.append(
+                _PendingRecord(
+                    channel_id="frame-timing",
+                    monotonic_ns=ended_ns,
+                    captured_at_utc=ended_utc,
+                    kind=CaptureRecordKind.ARTIFACT_REFERENCE,
+                    artifact_id=descriptor.artifact_id,
+                    quality=(() if frame_timing["complete"] else (CaptureQuality.DROPPED,)),
+                )
+            )
+            if frame_timing["complete"] and "frame-timing" not in channel_failures:
+                completed.add("frame-timing")
+            else:
+                channel_failures.setdefault(
+                    "frame-timing",
+                    "frame timing contains producer or capture gaps",
+                )
+        except Exception as exc:
+            channel_failures["frame-timing"] = f"{type(exc).__name__}: {exc}"
+
     retained_binary_keys: set[tuple[object, ...]] = set()
     for channel in request.file_channels:
         if channel.mode is not FileCaptureMode.TAIL:
@@ -490,8 +557,10 @@ def run_diagnostic_capture(
             for item in tail_chunks.get(channel.channel_id, [])
             if item.captured_monotonic_ns >= retained_cutoff_ns
         ]
-        source_seen = bool(chunks) or channel.path.exists() or (
-            collector is not None and collector.source_seen
+        source_seen = (
+            bool(chunks)
+            or channel.path.exists()
+            or (collector is not None and collector.source_seen)
         )
         if not source_seen:
             channel_failures.setdefault(channel.channel_id, f"source not found: {channel.path}")
@@ -623,6 +692,8 @@ def run_diagnostic_capture(
         required.add("client-alignment")
     if request.capture_graphics_present:
         required.add("graphics-present")
+        if request.graphics_runtime_status is not None:
+            required.add("frame-timing")
     required.update(item.channel_id for item in request.file_channels)
     if request.screenshot_region is not None:
         required.add("screenshots")
@@ -633,9 +704,7 @@ def run_diagnostic_capture(
     if stop_reason in {"duration-complete", "post-trigger-complete"}:
         completed.add("capture-window")
     else:
-        channel_failures["capture-window"] = (
-            f"requested capture window ended early: {stop_reason}"
-        )
+        channel_failures["capture-window"] = f"requested capture window ended early: {stop_reason}"
     completed.intersection_update(required)
     missing = sorted(required - completed)
     omissions = tuple(

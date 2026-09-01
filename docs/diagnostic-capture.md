@@ -93,11 +93,30 @@ relocated evidence:
 
     .\scripts\capture-shadowbane-diagnostics.ps1 -Profile full -GraphicsRuntimeStatus 'C:\ShadowbaneLab\graphics-status.json'
 
-Runtime status must use schema version 1 and producer ID `wonderbane-extension.graphics`. It must
+Runtime status must use schema version 2 and producer ID `wonderbane-extension.graphics`. It must
 match the captured PID, process creation FILETIME, executable path, and executable SHA-256. Its
 active entry must match an exact PE import and have a positive observed call count. A mismatched,
 stale, malformed, or missing requested status file is retained as rejected evidence and makes the
 capture incomplete rather than silently promoting a candidate.
+
+Schema version 2 also makes renderer timing a required `frame-timing` channel whenever runtime
+status is requested. The collector continuously polls the identity-bound status, establishes the
+first accepted present sequence as its baseline, and drains only later QPC-stamped presents. It
+deduplicates by sequence and seals the raw sequence, QPC counter, observation time, producer clock
+anchors, query-failure delta, capture-side drops, and every missing range.
+
+The extension retains only its newest 1,024 presents; capture therefore polls continuously rather
+than reading status once at the end. If the producer ring overtakes the next expected sequence, a
+timing query fails, a status poll fails, or the bounded two-million-sample capture limit is reached,
+the artifact remains available but the required channel and manifest are explicitly incomplete.
+Triggered capture retains timing first observed in its configured pre/post window plus the nearest
+preceding clock anchor.
+
+Offline analysis derives average FPS, frame-time minimum/median/p95/p99/maximum, and explicit hitch
+counts at 33.3, 50, 100, and 250 milliseconds. Each retained hitch includes its exact present
+sequence and QPC interval plus an estimated UTC presentation time derived from the nearest sealed
+QPC/FILETIME anchor. The raw timing artifact remains authoritative and can be reanalyzed without
+repeating gameplay.
 
 The depth-edge prerequisite assessment is deliberately conservative. It becomes ready only after
 runtime evidence observes an active present entry, an active graphics context, a nonzero depth
@@ -149,9 +168,10 @@ Compare a known-good run with a candidate:
 
 Analysis verifies the source manifest first, reads the immutable raw stream, and derives per-counter
 minimum, maximum, mean, median, p95, p99, net delta, delta rate, and least-squares slope. It reports
-sample gaps, producer health, explicit growth candidates, capture omissions, and client-alignment
-authority. Before/after comparison rereads both raw streams and includes descriptive effect sizes
-and fingerprint-confounder warnings.
+sample gaps, producer health, explicit growth candidates, frame-time and hitch distributions when
+present, capture omissions, and client-alignment authority. Before/after comparison rereads both
+raw streams and includes descriptive counter/frame-timing differences, effect sizes, and
+fingerprint-confounder warnings.
 
 Derived reports contain stable content IDs and source manifest/artifact IDs. They do not mutate the
 raw store.

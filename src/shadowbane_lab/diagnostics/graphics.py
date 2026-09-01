@@ -14,7 +14,7 @@ from .model import DiagnosticError
 from .process import ProcessIdentity
 
 GRAPHICS_PRESENT_EVIDENCE_SCHEMA_VERSION = 1
-GRAPHICS_RUNTIME_STATUS_SCHEMA_VERSION = 1
+GRAPHICS_RUNTIME_STATUS_SCHEMA_VERSION = 2
 
 _PRESENT_ENTRY_POINTS = {
     ("gdi32.dll", "SwapBuffers"): "gdi32-swap-buffers",
@@ -148,8 +148,7 @@ def _runtime_evidence(
         failure = f"runtime graphics status source not found: {path}"
         return _rejected_runtime(path, failure), False, failure, ()
     try:
-        payload = _mapping(load_strict_json(path), "runtime graphics status")
-        _validate_runtime_status(payload, identity, executable_sha256, candidates)
+        payload = load_graphics_runtime_status(path, identity, executable_sha256, candidates)
     except (OSError, TypeError, ValueError) as exc:
         failure = f"runtime graphics status rejected: {exc}"
         return _rejected_runtime(path, failure), False, failure, ()
@@ -158,6 +157,7 @@ def _runtime_evidence(
             "state": "accepted",
             "source_path": str(path),
             "producer_id": payload["producer_id"],
+            "frame_timing": payload["frame_timing"],
             "extension_version": payload["extension_version"],
             "active_present_entry": payload["active_present_entry"],
             "present_entries": payload["present_entries"],
@@ -251,6 +251,82 @@ def _validate_runtime_status(
         raise ValueError("graphics_context.viewport must be null or x,y,width,height")
     _mapping(payload.get("depth_edge_pass"), "depth_edge_pass")
 
+    _validate_frame_timing(payload.get("frame_timing"), observed_counts)
+
+
+def load_graphics_runtime_status(
+    path: Path,
+    identity: ProcessIdentity,
+    executable_sha256: str,
+    candidates: tuple[dict[str, object], ...],
+) -> dict[str, Any]:
+    """Load one exact-process graphics status snapshot and reject any identity drift."""
+
+    payload = _mapping(load_strict_json(path), "runtime graphics status")
+    _validate_runtime_status(payload, identity, executable_sha256, candidates)
+    return payload
+
+
+def _validate_frame_timing(
+    value: object,
+    observed_counts: dict[tuple[str, object, object], int],
+) -> None:
+    timing = _mapping(value, "frame_timing")
+    if timing.get("clock") != "windows-query-performance-counter":
+        raise ValueError("frame_timing clock is unsupported")
+    frequency = timing.get("counter_frequency_hz")
+    if (
+        isinstance(frequency, bool)
+        or not isinstance(frequency, int)
+        or not 1 <= frequency <= 1_000_000_000_000
+    ):
+        raise ValueError("frame_timing counter frequency must be a bounded positive integer")
+    for name in (
+        "snapshot_counter",
+        "snapshot_filetime_utc",
+        "latest_present_sequence",
+        "oldest_available_sequence",
+        "sample_capacity",
+        "sample_count",
+        "timing_query_failure_count",
+    ):
+        item = timing.get(name)
+        if isinstance(item, bool) or not isinstance(item, int) or item < 0:
+            raise ValueError(f"frame_timing {name} must be a non-negative integer")
+    if timing["snapshot_counter"] <= 0 or timing["snapshot_filetime_utc"] <= 0:
+        raise ValueError("frame_timing snapshot clock anchors must be positive")
+    capacity = timing["sample_capacity"]
+    if not 1 <= capacity <= 1_000_000:
+        raise ValueError("frame_timing sample capacity is outside the bounded range")
+    latest = timing["latest_present_sequence"]
+    if latest != max(observed_counts.values(), default=0):
+        raise ValueError("frame_timing latest sequence does not match present call count")
+    samples = timing.get("samples")
+    if not isinstance(samples, list) or len(samples) > capacity:
+        raise ValueError("frame_timing samples must be a capacity-bounded list")
+    if timing["sample_count"] != len(samples):
+        raise ValueError("frame_timing sample_count does not match samples")
+    previous_sequence = 0
+    oldest = timing["oldest_available_sequence"]
+    for item in samples:
+        if (
+            not isinstance(item, list)
+            or len(item) != 2
+            or any(isinstance(part, bool) or not isinstance(part, int) for part in item)
+        ):
+            raise ValueError("frame_timing samples must be [sequence,counter] integer pairs")
+        sequence, counter = item
+        if sequence <= previous_sequence or counter <= 0:
+            raise ValueError("frame_timing sample sequences and counters must increase")
+        if sequence > latest:
+            raise ValueError("frame_timing sample sequence exceeds latest present")
+        previous_sequence = sequence
+    if samples:
+        if oldest != samples[0][0]:
+            raise ValueError("frame_timing oldest sequence does not match samples")
+    elif oldest != 0:
+        raise ValueError("frame_timing oldest sequence must be zero without samples")
+
 
 def _rejected_runtime(path: Path, failure: str) -> dict[str, object]:
     return {
@@ -294,4 +370,5 @@ __all__ = [
     "GRAPHICS_RUNTIME_STATUS_SCHEMA_VERSION",
     "GraphicsPresentCollection",
     "collect_graphics_present_evidence",
+    "load_graphics_runtime_status",
 ]
