@@ -15,6 +15,28 @@ changes PowerShell execution policy. It resolves exactly one running process who
 matches -ClientExecutable, creates a unique local output directory, runs the repository CLI, and
 reanalyzes the sealed capture.
 
+The normal workflow attaches to a client that is already running. It does not restart the game,
+patch the executable, inject a DLL, or write process memory. When several clients use the same
+executable path, select one exact live process explicitly:
+
+    Get-CimInstance Win32_Process -Filter "Name='sb.exe'" |
+        Select-Object ProcessId, CreationDate, ExecutablePath
+
+    .\scripts\capture-shadowbane-diagnostics.ps1 -Profile triggered -ProcessId 6888
+
+The wrapper verifies that the selected PID still belongs to the exact requested executable path.
+The collector then binds every sample to PID, process creation FILETIME, and executable identity;
+restart, PID reuse, or path drift fails closed while preserving the partial evidence.
+
+To attach to every live client using the exact executable path, run:
+
+    .\scripts\capture-shadowbane-diagnostics.ps1 -Profile triggered -AllMatchingProcesses
+
+The wrapper snapshots the matching processes, reports each PID and creation FILETIME, and starts one
+concurrent capture per process. Each subcapture has its own PID-tagged directory, manifest, process
+identity, and immutable store. Triggered subcaptures can share one manual marker, which makes their
+pre-trigger and post-trigger windows comparable without merging their evidence.
+
 ## Profiles
 
 | Profile | Default window | Process interval | Heavy-channel retention | Completion condition |
@@ -112,6 +134,12 @@ match the captured PID, process creation FILETIME, executable path, and executab
 active entry must match an exact PE import and have a positive observed call count. A mismatched,
 stale, malformed, or missing requested status file is retained as rejected evidence and makes the
 capture incomplete rather than silently promoting a candidate.
+
+Attaching to an ordinary uninstrumented client therefore keeps process, identity, static-present,
+log, screenshot, and explicitly supplied channels, but does not invent renderer timing. The
+capture summary warns that frame-timing was omitted because no identity-bound runtime producer was
+supplied. An external PID-bound producer can fill that channel in the future without changing the
+live-attachment contract.
 
 Schema version 2 also makes renderer timing a required `frame-timing` channel whenever runtime
 status is requested. The collector continuously polls the identity-bound status, establishes the

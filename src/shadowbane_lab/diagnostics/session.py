@@ -205,6 +205,11 @@ def run_diagnostic_capture(
                 )
             )
             warnings.update(graphics.warnings)
+            if request.graphics_runtime_status is None:
+                warnings.add(
+                    "frame-timing omitted: no identity-bound runtime producer was supplied; "
+                    "graphics-present contains static import evidence only"
+                )
             runtime = graphics.report.get("runtime_status")
             executable_evidence = graphics.report.get("executable")
             present_candidates = graphics.report.get("present_candidates")

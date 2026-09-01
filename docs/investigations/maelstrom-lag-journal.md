@@ -668,6 +668,43 @@ These are inferences, ordered by present fit rather than certainty.
 - Next action: retry the named \`summoner\` launcher. If the process still exits, collect that
   startup failure independently of normal runtime-file drift.
 
+## 2026-09-01 02:18 EDT / 06:18 UTC — Startup finding corrected; live attach selected
+
+### Corrected instrumented-start evidence
+
+- The earlier statement that the brief Summoner start exited before renderer status was incorrect.
+  PID 1268 published identity-bound schema-2 status before exiting: diagnostics-only profile,
+  patched executable SHA-256 a9a59004b36f9331bb85f85e7853a02a5d5f07bda9acb9ea4a8affbf169a54b8,
+  one observed GDI32.dll!SwapBuffers call, and one QPC-stamped present.
+- Its observed context was OpenGL 4.6 Compatibility Profile, Mesa 26.1.7, renderer
+  D3D12 Microsoft Basic Render Driver, 24 depth bits, and a 1920 by 955 viewport.
+- The game log reached Finished InitGL. DoubleFusion logged Engine shutdown (on exit) complete.
+  The bounded Windows Application Error query found no sb.exe or extension crash event, and no
+  sb.exe remained afterward.
+- The independently published primary package showed the same one- or two-frame exit. This weakens
+  a package-local mutable-state explanation. Source inspection found no extension self-exit,
+  process-termination, close-window, or quit-message path.
+- The common boundary is the startup-patched diagnostics bootstrap and first present observation,
+  but the current evidence does not distinguish hook transparency, external termination, or
+  another handled game shutdown. These short starts are tooling evidence only and are not valid
+  Maelstrom performance cohorts.
+
+### Restart-free diagnostics contract
+
+- Future ordinary diagnostics should attach read-only to already-running clients. Restarting or
+  republishing a client is not a prerequisite for process, identity, static present-import, log,
+  screenshot, network, ETW-ingestion, or other external producer channels.
+- The wrapper now supports selecting one exact PID when several processes share an executable path,
+  and an all-matching mode snapshots every applicable process and launches concurrent subcaptures.
+  Each subcapture retains its own PID, creation FILETIME, executable path/hash, directory, manifest,
+  and immutable store. A shared manual marker aligns the triggered windows without merging evidence.
+- An ordinary vanilla attachment does not claim exact frame timing. Its summary explicitly warns
+  that frame-timing is omitted without an identity-bound runtime producer. External PID-bound
+  present observation is the remaining tooling task; DLL injection or process-memory writes are
+  not silently introduced as a substitute.
+- Next action: launch the two vanilla clients normally, map their PIDs to Summoner exposure and
+  late-arrival control roles, then start one all-matching triggered capture before turtle exposure.
+
 ## Journal maintenance rule
 
 After every live test, append one entry containing:

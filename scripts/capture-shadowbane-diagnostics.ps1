@@ -2,6 +2,9 @@
 param(
     [ValidateSet('standard', 'full', 'triggered')]
     [string]$Profile = 'standard',
+    [ValidateRange(0, 2147483647)]
+    [int]$ProcessId = 0,
+    [switch]$AllMatchingProcesses,
     [string]$ClientExecutable =
         "$env:USERPROFILE\Downloads\WonderbaneClient\Wonderbane\sb.exe",
     [string]$ClientDirectory = '',
@@ -98,13 +101,84 @@ $matchingProcesses = @(
             )
         }
 )
-if ($matchingProcesses.Count -ne 1) {
+if ($AllMatchingProcesses) {
+    if ($ProcessId -gt 0) {
+        throw 'ProcessId and AllMatchingProcesses cannot be used together.'
+    }
+    if ($matchingProcesses.Count -eq 0) {
+        throw "No running process matched the exact executable $resolvedClient."
+    }
+
+    $commonParameters = @{}
+    foreach ($entry in $PSBoundParameters.GetEnumerator()) {
+        $commonParameters[$entry.Key] = $entry.Value
+    }
+    [void]$commonParameters.Remove('AllMatchingProcesses')
+    $captureScript = $MyInvocation.MyCommand.Path
+    $jobs = @()
+    try {
+        foreach ($targetProcess in @($matchingProcesses | Sort-Object Id)) {
+            $targetParameters = @{}
+            foreach ($entry in $commonParameters.GetEnumerator()) {
+                $targetParameters[$entry.Key] = $entry.Value
+            }
+            $targetParameters['ProcessId'] = $targetProcess.Id
+            $targetCreationFiletimeUtc = (
+                $targetProcess.StartTime.ToUniversalTime().ToFileTimeUtc()
+            )
+            Write-Host (
+                "Attaching diagnostics to PID $($targetProcess.Id), creation FILETIME " +
+                "$targetCreationFiletimeUtc, executable $resolvedClient"
+            )
+            $jobs += Start-Job -Name "shadowbane-diagnostics-$($targetProcess.Id)" -ScriptBlock {
+                param(
+                    [string]$ScriptPath,
+                    [hashtable]$Parameters
+                )
+                & $ScriptPath @Parameters
+            } -ArgumentList $captureScript, $targetParameters
+        }
+        Receive-Job -Job $jobs -Wait
+        $failedJobs = @($jobs | Where-Object { $_.State -ne 'Completed' })
+        if ($failedJobs.Count -gt 0) {
+            $failedNames = ($failedJobs.Name | Sort-Object) -join ', '
+            throw "One or more per-process captures failed: $failedNames"
+        }
+    }
+    finally {
+        $runningJobs = @($jobs | Where-Object { $_.State -eq 'Running' })
+        if ($runningJobs.Count -gt 0) {
+            Stop-Job -Job $runningJobs
+        }
+        if ($jobs.Count -gt 0) {
+            Remove-Job -Job $jobs -Force
+        }
+    }
+    return
+}
+if ($ProcessId -gt 0) {
+    $selectedProcesses = @(
+        $matchingProcesses | Where-Object { $_.Id -eq $ProcessId }
+    )
+    if ($selectedProcesses.Count -ne 1) {
+        throw (
+            "Requested PID $ProcessId is not one running process for the exact executable " +
+            "$resolvedClient."
+        )
+    }
+    $clientProcess = $selectedProcesses[0]
+}
+elseif ($matchingProcesses.Count -ne 1) {
+    $candidateProcessIds = ($matchingProcesses.Id | Sort-Object) -join ', '
     throw (
         "Expected exactly one running process for $resolvedClient; " +
-        "found $($matchingProcesses.Count)."
+        "found $($matchingProcesses.Count). " +
+        "Pass -ProcessId to select an exact live instance. Candidate PIDs: $candidateProcessIds"
     )
 }
-$clientProcess = $matchingProcesses[0]
+else {
+    $clientProcess = $matchingProcesses[0]
+}
 
 $processCreationFiletimeUtc = $clientProcess.StartTime.ToUniversalTime().ToFileTimeUtc()
 if (-not $GraphicsRuntimeStatus) {

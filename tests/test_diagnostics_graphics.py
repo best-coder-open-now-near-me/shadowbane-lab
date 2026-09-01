@@ -159,6 +159,13 @@ class GraphicsPresentEvidenceTests(unittest.TestCase):
             "Test-Path -LiteralPath $expectedGraphicsRuntimeStatus -PathType Leaf",
             launcher,
         )
+        self.assertIn("[int]$ProcessId = 0", launcher)
+        self.assertIn("[switch]$AllMatchingProcesses", launcher)
+        self.assertIn("Where-Object { $_.Id -eq $ProcessId }", launcher)
+        self.assertIn("Pass -ProcessId to select an exact live instance", launcher)
+        self.assertIn("Receive-Job -Job $jobs -Wait", launcher)
+        self.assertIn("$targetParameters['ProcessId'] = $targetProcess.Id", launcher)
+        self.assertIn("creation FILETIME", launcher)
         self.assertIn("$OutputRoot.StartsWith('\\\\')", launcher)
         self.assertIn("shadowbane-lab\\diagnostic-staging", launcher)
         self.assertIn("evidence `\n        bundle `", launcher)

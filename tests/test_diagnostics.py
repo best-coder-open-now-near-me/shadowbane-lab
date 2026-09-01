@@ -123,6 +123,11 @@ class DiagnosticSessionTests(unittest.TestCase):
             )
             self.assertEqual("none", graphics["assessment"]["candidate_status"])
             self.assertEqual("unresolved", graphics["assessment"]["active_route_authority"])
+            self.assertIn(
+                "frame-timing omitted: no identity-bound runtime producer was supplied; "
+                "graphics-present contains static import evidence only",
+                result.summary["warnings"],
+            )
 
     def test_standard_capture_seals_reusable_metrics_and_identity(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
