@@ -7,9 +7,12 @@ param(
         "\\VBOXSVR\codexdiag\client-baselines\wonderbane-20260831T023921516Z"
     ),
     [string] $ExpectedContentBuildId = "wb-55fbad5f-4b602995",
-    [string] $ExtensionVersion = "1.5.4",
+    [string] $ExpectedExtensionSha256 = (
+        "06030ef64ce35cd363306de4367cf0b2d5014a5b642c318810d7bf97323bf161"
+    ),
+    [string] $ExtensionVersion = "1.5.5",
     [string] $ExtensionArtifact = (
-        "\\VBOXSVR\codexgfx\build\wonderbane-graphics-baseline\Release\wonderbane-extension.dll"
+        "\\VBOXSVR\codexgfx\build\wonderbane-graphics-baseline\Release\wonderbane-extension-1.5.5.dll"
     ),
     [string] $TexturePatchManifest = (
         "\\VBOXSVR\codexgfx\assets\wonderbane_graphics\restrained-cel-v1\texture-patches.json"
@@ -18,7 +21,7 @@ param(
         "\\VBOXSVR\codexgfx\assets\wonderbane_graphics\restrained-cel-v1"
     ),
     [string] $DestinationDirectory = (
-        "S:\Wonderbane-graphics-wb-55fbad5f-4b602995-cel-1.5.4"
+        "S:\Wonderbane-graphics-wb-55fbad5f-4b602995-cel-1.5.5"
     ),
     [switch] $DryRunOnly
 )
@@ -47,6 +50,18 @@ foreach ($required in @(
 }
 if (Test-Path -LiteralPath $DestinationDirectory) {
     throw "Graphics package destination already exists: $DestinationDirectory"
+}
+$extensionSha256 = (
+    Get-FileHash -LiteralPath $ExtensionArtifact -Algorithm SHA256
+).Hash.ToLowerInvariant()
+if ($ExpectedExtensionSha256 -notmatch "^[0-9a-f]{64}$") {
+    throw "Expected graphics extension SHA-256 is not a lowercase SHA-256"
+}
+if ($extensionSha256 -cne $ExpectedExtensionSha256) {
+    throw (
+        "Graphics extension identity mismatch: expected $ExpectedExtensionSha256, " +
+        "found $extensionSha256"
+    )
 }
 
 $baselineManifest = Join-Path $BaselineDirectory "client-baseline.json"
@@ -109,9 +124,6 @@ if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
 if ($LASTEXITCODE -ne 0) {
     throw "Graphics package dry run failed with exit code $LASTEXITCODE"
 }
-$extensionSha256 = (
-    Get-FileHash -LiteralPath $ExtensionArtifact -Algorithm SHA256
-).Hash.ToLowerInvariant()
 $texturePatch = Get-Content -LiteralPath $TexturePatchManifest -Raw | ConvertFrom-Json
 $texturePatchId = [string] $texturePatch.patch_id
 $texturePatchManifestSha256 = (

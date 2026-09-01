@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(wonderbane_extension VERSION 1.5.4 LANGUAGES CXX RC)
+project(wonderbane_extension VERSION 1.5.5 LANGUAGES CXX RC)
 
 include(CTest)
 
@@ -66,6 +66,15 @@ set_target_properties(
   PROPERTIES
   OUTPUT_NAME "wonderbane-extension"
   PREFIX ""
+)
+add_custom_command(
+  TARGET wonderbane_extension
+  POST_BUILD
+  COMMAND
+    "${CMAKE_COMMAND}" -E copy_if_different
+    "$<TARGET_FILE:wonderbane_extension>"
+    "$<TARGET_FILE_DIR:wonderbane_extension>/wonderbane-extension-${PROJECT_VERSION}.dll"
+  VERBATIM
 )
 
 if(BUILD_TESTING)

@@ -73,7 +73,7 @@
   },
   "runtime_translation": {
     "band_source": "compatibility vertex program using the client's original mesh normals",
-    "extension_version": "1.5.4",
+    "extension_version": "1.5.5",
     "fog_modes_preserved": ["linear", "exp", "exp2"],
     "fragment_program": "GLSL 1.20 compatibility fragment program preserving texture environment and fog",
     "outline_translation": "centered per-axis bounds expansion targets 1.35 screen pixels without radius-dependent activation delays",

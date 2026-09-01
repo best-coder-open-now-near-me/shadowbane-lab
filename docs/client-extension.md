@@ -370,3 +370,8 @@ and GLSL versions, depth-buffer precision, viewport, depth-texture capability, a
 capability. A screen-space depth-edge pass remains explicitly `not-implemented` until a live capture
 confirms those prerequisites. Missing, mismatched, or stale runtime evidence therefore blocks the
 dependent decoder instead of silently selecting an unverified rendering path.
+
+Extension 1.5.5 makes that renderer artifact immutable at the publication boundary. The native build
+emits a versioned DLL filename, and the graphics publisher verifies its pinned SHA-256 before
+authoring a bootstrap manifest, package, or receipt. This prevents a shared-folder cache or stale
+unversioned build output from being mislabeled as a newer extension release.
