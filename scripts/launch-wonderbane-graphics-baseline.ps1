@@ -15,7 +15,7 @@ $ErrorActionPreference = "Stop"
 
 $expectedExtensionSha256 = "1550724038d38344178be79721bb1204d3e65838ef49fd31b092d89f03dd1898"
 $expectedExtensionRelativePath = "wonderbane-extension-1.5.8.dll"
-$expectedExecutableSha256 = "a8b2693fb3e11332b95d0ef6dd02bf418f133a10f505be642c3623180d41896f"
+$expectedExecutableSha256 = "a86feb1a3a35a40a64df9c87de590cf8f37ce29e5649a92626de68489150754a"
 $expectedTexturePatchId = "wonderbane-1.0.5-55fbad5f.restrained-cel-v1"
 $expectedTexturePatchManifestSha256 = (
     "1128d1c82463805b6acfb5841d46c608362170963535b9db39be0f5e9079197c"
@@ -57,6 +57,18 @@ foreach ($field in $receiptChecks.Keys) {
     if ($null -eq $property -or [string] $property.Value -cne [string] $receiptChecks[$field]) {
         throw "Graphics publication receipt does not match field '$field': $publicationReceipt"
     }
+}
+$receiptExecutableProperty = (
+    $receipt.PSObject.Properties["result_executable_sha256"]
+)
+if (
+    $null -ne $receiptExecutableProperty -and
+    [string] $receiptExecutableProperty.Value -cne $expectedExecutableSha256
+) {
+    throw (
+        "Graphics publication receipt does not match field " +
+        "'result_executable_sha256': $publicationReceipt"
+    )
 }
 
 $env:PYTHONPATH = Join-Path $RepositoryShare "src"

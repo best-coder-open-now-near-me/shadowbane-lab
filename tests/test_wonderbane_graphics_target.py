@@ -93,7 +93,10 @@ def test_graphics_publication_and_launch_pin_the_golden_package() -> None:
     assert "wonderbane-extension-1.5.8.dll" in publish
     assert r"\build\wonderbane-client-extension\Release" in publish
     assert "1550724038d38344178be79721bb1204d3e65838ef49fd31b092d89f03dd1898" in publish
+    assert "a86feb1a3a35a40a64df9c87de590cf8f37ce29e5649a92626de68489150754a" in publish
     assert "$extensionSha256 -cne $ExpectedExtensionSha256" in publish
+    assert "$resultExecutableSha256 -cne $ExpectedExecutableSha256" in publish
+    assert "patched_executable_sha256" in publish
     assert "--texture-patch-manifest $TexturePatchManifest" in publish
     assert "--texture-artifact-directory $TextureArtifactDirectory" in publish
     assert "texture_patch_manifest_sha256" in publish
@@ -101,7 +104,7 @@ def test_graphics_publication_and_launch_pin_the_golden_package() -> None:
     assert "1550724038d38344178be79721bb1204d3e65838ef49fd31b092d89f03dd1898" in launch
     assert '$expectedExtensionRelativePath = "wonderbane-extension-1.5.8.dll"' in launch
     assert 'Properties["extension_relative_path"]' in launch
-    assert "a8b2693fb3e11332b95d0ef6dd02bf418f133a10f505be642c3623180d41896f" in launch
+    assert "a86feb1a3a35a40a64df9c87de590cf8f37ce29e5649a92626de68489150754a" in launch
     assert 'Properties["result_executable_sha256"]' in launch
     assert "verify-copy" in launch
     assert manifest_sha256 in launch

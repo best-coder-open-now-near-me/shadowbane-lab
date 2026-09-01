@@ -10,6 +10,9 @@ param(
     [string] $ExpectedExtensionSha256 = (
         "1550724038d38344178be79721bb1204d3e65838ef49fd31b092d89f03dd1898"
     ),
+    [string] $ExpectedExecutableSha256 = (
+        "a86feb1a3a35a40a64df9c87de590cf8f37ce29e5649a92626de68489150754a"
+    ),
     [string] $ExtensionVersion = "1.5.8",
     [string] $ExtensionArtifact = (
         "\\VBOXSVR\codexgfx\build\wonderbane-client-extension\Release\wonderbane-extension-1.5.8.dll"
@@ -63,6 +66,9 @@ if ($extensionSha256 -cne $ExpectedExtensionSha256) {
         "found $extensionSha256"
     )
 }
+if ($ExpectedExecutableSha256 -notmatch "^[0-9a-f]{64}$") {
+    throw "Expected patched executable SHA-256 is not a lowercase SHA-256"
+}
 
 $baselineManifest = Join-Path $BaselineDirectory "client-baseline.json"
 if (-not (Test-Path -LiteralPath $baselineManifest -PathType Leaf)) {
@@ -110,6 +116,14 @@ if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
         throw "55fb bootstrap manifest authoring failed with exit code $LASTEXITCODE"
     }
 }
+$bootstrapManifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+$resultExecutableSha256 = [string] $bootstrapManifest.patched_executable_sha256
+if ($resultExecutableSha256 -cne $ExpectedExecutableSha256) {
+    throw (
+        "Patched executable identity mismatch: expected $ExpectedExecutableSha256, " +
+        "manifest produces $resultExecutableSha256"
+    )
+}
 
 & $PythonExecutable -m shadowbane_lab.client_extension `
     prepare-copy `
@@ -136,6 +150,7 @@ $expectedDryRun = [ordered]@{
     baseline_tree_sha256 = $treeSha256
     extension_version = $ExtensionVersion
     extension_sha256 = $extensionSha256
+    result_executable_sha256 = $resultExecutableSha256
     texture_patch_id = $texturePatchId
     texture_patch_manifest_sha256 = $texturePatchManifestSha256
     destination = $DestinationDirectory
@@ -160,6 +175,7 @@ else {
         baseline_tree_sha256 = $expectedDryRun.baseline_tree_sha256
         extension_version = $expectedDryRun.extension_version
         extension_sha256 = $expectedDryRun.extension_sha256
+        result_executable_sha256 = $expectedDryRun.result_executable_sha256
         texture_patch_id = $expectedDryRun.texture_patch_id
         texture_patch_manifest_sha256 = $expectedDryRun.texture_patch_manifest_sha256
         destination = $expectedDryRun.destination
@@ -245,6 +261,7 @@ $published = [ordered]@{
     baseline_tree_sha256 = $treeSha256
     extension_version = $ExtensionVersion
     extension_sha256 = $extensionSha256
+    result_executable_sha256 = $resultExecutableSha256
     texture_patch_id = $texturePatchId
     texture_patch_manifest_sha256 = $texturePatchManifestSha256
     destination = $DestinationDirectory

@@ -403,3 +403,8 @@ lists and requires an unlit, unfogged alpha-textured planar state, excluding Sha
 glyph lists without suppressing lit or fogged world foliage. The darker lighting bands are lifted
 and client vertex-light intensity is gamma-compressed so ordinary terrain approaches the preferred
 lit palette while real shadows and dynamic light variation remain visible.
+
+Because the bootstrap embeds the versioned extension filename, each extension release also has a
+distinct patched-executable identity. The 1.5.8 publisher pins and verifies that deterministic
+result before copying the client, records it in new dry-run and publication receipts, and the
+launcher checks the sealed package plus the actual executable against the same reviewed SHA-256.
