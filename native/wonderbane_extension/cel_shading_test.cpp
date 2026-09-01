@@ -252,17 +252,39 @@ int wmain() {
         {16.0F, 24.0F, 8.0F},
     };
     if (
-        !wonderbane::extension::IsPlanarQuadGeometry(
+        !wonderbane::extension::IsPlanarOverlayGeometry(
             &glyph_bounds, 4U, 1U
         )
-        || wonderbane::extension::IsPlanarQuadGeometry(
+        || !wonderbane::extension::IsPlanarOverlayGeometry(
+            &glyph_bounds, 6U, 1U
+        )
+        || wonderbane::extension::IsPlanarOverlayGeometry(
             &volume_bounds, 4U, 1U
         )
-        || wonderbane::extension::IsPlanarQuadGeometry(
-            &glyph_bounds, 6U, 1U
+        || wonderbane::extension::IsPlanarOverlayGeometry(
+            &glyph_bounds, 8193U, 1U
         )
     ) {
         return Fail(L"planar overlay exclusion policy");
+    }
+    if (
+        !wonderbane::extension::IsPlanarOverlayDrawState(
+            true, true, true, false, false, false
+        )
+        || !wonderbane::extension::IsPlanarOverlayDrawState(
+            true, true, false, true, false, false
+        )
+        || wonderbane::extension::IsPlanarOverlayDrawState(
+            true, true, true, false, true, false
+        )
+        || wonderbane::extension::IsPlanarOverlayDrawState(
+            true, true, true, false, false, true
+        )
+        || wonderbane::extension::IsPlanarOverlayDrawState(
+            false, true, true, false, false, false
+        )
+    ) {
+        return Fail(L"planar overlay render-state policy");
     }
     constexpr std::array<int, 4U> viewport{0, 0, 1200, 800};
     std::array<float, 16U> near_model_view = local_model_view;

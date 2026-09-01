@@ -244,7 +244,8 @@ float wbInverseEyeDepth(float windowDepth) {
     return abs(denominator / wbProjection.z);
 }
 
-float wbPairCurvature(float first, float second, float center) {
+float wbForegroundPairCurvature(float first, float second, float center) {
+    if (center <= (first + second) * 0.5) return 0.0;
     return abs(first + second - 2.0 * center) / max(center, 0.000001);
 }
 
@@ -256,14 +257,8 @@ void main() {
     float left  = wbInverseEyeDepth(texture2D(wbDepthTexture, wbDepthUv + vec2(-wbTexelSize.x, 0.0)).r);
     float up    = wbInverseEyeDepth(texture2D(wbDepthTexture, wbDepthUv + vec2(0.0,  wbTexelSize.y)).r);
     float down  = wbInverseEyeDepth(texture2D(wbDepthTexture, wbDepthUv + vec2(0.0, -wbTexelSize.y)).r);
-    float upRight   = wbInverseEyeDepth(texture2D(wbDepthTexture, wbDepthUv + vec2( wbTexelSize.x,  wbTexelSize.y)).r);
-    float upLeft    = wbInverseEyeDepth(texture2D(wbDepthTexture, wbDepthUv + vec2(-wbTexelSize.x,  wbTexelSize.y)).r);
-    float downRight = wbInverseEyeDepth(texture2D(wbDepthTexture, wbDepthUv + vec2( wbTexelSize.x, -wbTexelSize.y)).r);
-    float downLeft  = wbInverseEyeDepth(texture2D(wbDepthTexture, wbDepthUv + vec2(-wbTexelSize.x, -wbTexelSize.y)).r);
-    float response = wbPairCurvature(right, left, center);
-    response = max(response, wbPairCurvature(up, down, center));
-    response = max(response, wbPairCurvature(upRight, downLeft, center));
-    response = max(response, wbPairCurvature(upLeft, downRight, center));
+    float response = wbForegroundPairCurvature(right, left, center);
+    response = max(response, wbForegroundPairCurvature(up, down, center));
     if (response <= 0.055) discard;
     gl_FragColor = vec4(0.012, 0.010, 0.016, 0.86);
 }
@@ -695,11 +690,11 @@ bool IsForegroundDepthDiscontinuity(
     const float center_depth_value = ReconstructPerspectiveEyeDepth(
         center_depth, projection_10, projection_11, projection_14
     );
-    if (!std::isfinite(center_depth_value) || neighbour_count < 8U) {
+    if (!std::isfinite(center_depth_value) || neighbour_count < 4U) {
         return false;
     }
     const float center = 1.0F / center_depth_value;
-    std::array<float, 8U> inverse_depths{};
+    std::array<float, 4U> inverse_depths{};
     for (std::size_t index = 0U; index < inverse_depths.size(); ++index) {
         const float depth = ReconstructPerspectiveEyeDepth(
             neighbour_depths[index], projection_10, projection_11, projection_14
@@ -707,14 +702,15 @@ bool IsForegroundDepthDiscontinuity(
         inverse_depths[index] = std::isfinite(depth) ? 1.0F / depth : 0.0F;
     }
     const auto curvature = [center](const float first, const float second) noexcept {
+        if (center <= (first + second) * 0.5F) {
+            return 0.0F;
+        }
         return std::fabs(first + second - 2.0F * center)
             / std::max(center, 0.000001F);
     };
     const float response = std::max({
         curvature(inverse_depths[0], inverse_depths[1]),
         curvature(inverse_depths[2], inverse_depths[3]),
-        curvature(inverse_depths[4], inverse_depths[7]),
-        curvature(inverse_depths[5], inverse_depths[6]),
     });
     return response > 0.055F;
 }

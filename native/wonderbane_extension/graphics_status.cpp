@@ -20,7 +20,7 @@ namespace {
 constexpr wchar_t kProductDirectory[] = L"ShadowbaneLab";
 constexpr wchar_t kExtensionDirectory[] = L"client-extension";
 constexpr char kProducerId[] = "wonderbane-extension.graphics";
-constexpr char kExtensionVersion[] = "1.5.7";
+constexpr char kExtensionVersion[] = "1.5.8";
 constexpr std::size_t kPathCapacity = WONDERBANE_EXTENSION_HEARTBEAT_PATH_CAPACITY;
 constexpr std::size_t kExecutablePathUtf8Capacity = kPathCapacity * 4U;
 constexpr std::size_t kEscapedPathCapacity = kExecutablePathUtf8Capacity * 2U + 3U;
@@ -568,13 +568,13 @@ DWORD PublishSnapshot(const PublisherSnapshot& snapshot) noexcept {
         return HResultToWin32(result);
     }
     const char* depth_edge_state = "armed";
-    const char* depth_edge_reason = "awaiting-perspective-to-orthographic-boundary";
+    const char* depth_edge_reason = "awaiting-perspective-to-overlay-boundary";
     if (snapshot.status.depth_edge_failed) {
         depth_edge_state = "failed";
         depth_edge_reason = snapshot.status.depth_edge_failure_reason;
     } else if (snapshot.status.depth_edge_composite_count > 0U) {
         depth_edge_state = "active";
-        depth_edge_reason = "fixed-pixel-inverse-depth-curvature";
+        depth_edge_reason = "fixed-pixel-single-owner-inverse-depth-curvature";
     }
     std::array<char, kEscapedDepthEdgeReasonCapacity> depth_edge_reason_json{};
     if (!JsonString(
@@ -590,8 +590,9 @@ DWORD PublishSnapshot(const PublisherSnapshot& snapshot) noexcept {
         depth_edge_json.size(),
         "{\"state\":\"%s\",\"reason\":%s,\"composite_count\":%llu,"
         "\"radius_pixels\":1.0,"
-        "\"edge_metric\":\"inverse-depth-curvature\","
-        "\"composite_boundary\":\"perspective-to-orthographic\"}",
+        "\"edge_metric\":\"single-owner-inverse-depth-curvature\","
+        "\"sample_kernel\":\"cardinal-five-sample\","
+        "\"composite_boundary\":\"perspective-to-overlay\"}",
         depth_edge_state,
         depth_edge_reason_json.data(),
         static_cast<unsigned long long>(

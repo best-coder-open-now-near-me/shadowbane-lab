@@ -100,11 +100,40 @@ int wmain() {
         )) {
         return Fail(L"background-side edge rejection");
     }
+    const float finite_background_center = WindowDepthForEyeDistance(
+        20.0F, projection_10, projection_11, projection_14
+    );
+    std::array<float, 8U> finite_background{
+        WindowDepthForEyeDistance(
+            10.0F, projection_10, projection_11, projection_14
+        ),
+        WindowDepthForEyeDistance(
+            20.2F, projection_10, projection_11, projection_14
+        ),
+        finite_background_center,
+        finite_background_center,
+        finite_background_center,
+        finite_background_center,
+        finite_background_center,
+        finite_background_center,
+    };
+    if (IsForegroundDepthDiscontinuity(
+            finite_background_center,
+            finite_background.data(),
+            finite_background.size(),
+            projection_10,
+            projection_11,
+            projection_14
+        )) {
+        return Fail(L"finite background-side edge rejection");
+    }
 
     const char* const fragment = DepthEdgeFragmentSource();
     if (fragment == nullptr
         || std::strstr(fragment, "wbTexelSize") == nullptr
-        || std::strstr(fragment, "wbPairCurvature") == nullptr
+        || std::strstr(fragment, "wbForegroundPairCurvature") == nullptr
+        || std::strstr(fragment, "center <= (first + second) * 0.5") == nullptr
+        || std::strstr(fragment, "upRight") != nullptr
         || std::strstr(fragment, "response <= 0.055") == nullptr
         || std::strstr(fragment, "discard") == nullptr) {
         return Fail(L"fixed-pixel depth shader contract");

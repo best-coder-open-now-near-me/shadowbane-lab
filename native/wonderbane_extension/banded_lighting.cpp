@@ -30,10 +30,10 @@ constexpr unsigned int kGlVertexShader = 0x8B31U;
 
 constexpr std::array<float, 3U> kThresholds{0.22F, 0.43F, 0.66F};
 constexpr std::array<CelBandColor, 4U> kBandColors{{
-    {0.20F, 0.20F, 0.20F},
-    {0.48F, 0.53F, 0.61F},
-    {0.72F, 0.76F, 0.80F},
-    {1.00F, 0.98F, 0.92F},
+    {0.23F, 0.24F, 0.26F},
+    {0.54F, 0.58F, 0.65F},
+    {0.78F, 0.81F, 0.84F},
+    {1.00F, 0.99F, 0.95F},
 }};
 
 using GlAttachShader = void(APIENTRY*)(unsigned int program, unsigned int shader);
@@ -148,19 +148,19 @@ vec3 wbBand(float intensity) {
     float transitionWidth = clamp(pixelVariation * 1.25, 0.004, 0.06);
     float distantAlias = smoothstep(0.025, 0.10, pixelVariation);
     vec3 brightest = mix(
-        vec3(1.00, 0.98, 0.92),
-        vec3(0.72, 0.76, 0.80),
+        vec3(1.00, 0.99, 0.95),
+        vec3(0.78, 0.81, 0.84),
         distantAlias * 0.45
     );
-    vec3 color = vec3(0.20, 0.20, 0.20);
+    vec3 color = vec3(0.23, 0.24, 0.26);
     color = mix(
         color,
-        vec3(0.48, 0.53, 0.61),
+        vec3(0.54, 0.58, 0.65),
         smoothstep(0.22 - transitionWidth, 0.22 + transitionWidth, intensity)
     );
     color = mix(
         color,
-        vec3(0.72, 0.76, 0.80),
+        vec3(0.78, 0.81, 0.84),
         smoothstep(0.43 - transitionWidth, 0.43 + transitionWidth, intensity)
     );
     return mix(
@@ -171,7 +171,7 @@ vec3 wbBand(float intensity) {
 }
 
 void main() {
-    vec3 vertexTint = clamp(gl_Color.rgb, 0.0, 1.0);
+    vec3 vertexTint = pow(clamp(gl_Color.rgb, 0.0, 1.0), vec3(0.78));
     vec4 texel = wbTextureEnabled != 0
         ? texture2D(wbTexture, gl_TexCoord[0].st)
         : vec4(1.0);

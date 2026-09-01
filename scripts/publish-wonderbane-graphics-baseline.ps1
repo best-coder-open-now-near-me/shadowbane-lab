@@ -8,11 +8,11 @@ param(
     ),
     [string] $ExpectedContentBuildId = "wb-55fbad5f-4b602995",
     [string] $ExpectedExtensionSha256 = (
-        "67a10b2b414c4fb94f6d40aa916ea1610f5daa7e24e3accdfb4bf917bbb8c936"
+        "1550724038d38344178be79721bb1204d3e65838ef49fd31b092d89f03dd1898"
     ),
-    [string] $ExtensionVersion = "1.5.7",
+    [string] $ExtensionVersion = "1.5.8",
     [string] $ExtensionArtifact = (
-        "\\VBOXSVR\codexgfx\build\wonderbane-client-extension\Release\wonderbane-extension-1.5.7.dll"
+        "\\VBOXSVR\codexgfx\build\wonderbane-client-extension\Release\wonderbane-extension-1.5.8.dll"
     ),
     [string] $TexturePatchManifest = (
         "\\VBOXSVR\codexgfx\assets\wonderbane_graphics\restrained-cel-v1\texture-patches.json"
@@ -21,7 +21,7 @@ param(
         "\\VBOXSVR\codexgfx\assets\wonderbane_graphics\restrained-cel-v1"
     ),
     [string] $DestinationDirectory = (
-        "S:\Wonderbane-graphics-wb-55fbad5f-4b602995-cel-1.5.7"
+        "S:\Wonderbane-graphics-wb-55fbad5f-4b602995-cel-1.5.8"
     ),
     [switch] $DryRunOnly
 )

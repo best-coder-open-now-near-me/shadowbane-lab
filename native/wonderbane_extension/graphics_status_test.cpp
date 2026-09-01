@@ -87,7 +87,9 @@ int wmain() {
         || json.find("\"context_observed\":false") == std::string::npos
         || json.find("\"composite_count\":1") == std::string::npos
         || json.find("\"radius_pixels\":1.0") == std::string::npos
-        || json.find("\"edge_metric\":\"inverse-depth-curvature\"")
+        || json.find("\"edge_metric\":\"single-owner-inverse-depth-curvature\"")
+            == std::string::npos
+        || json.find("\"sample_kernel\":\"cardinal-five-sample\"")
             == std::string::npos) {
         ::fprintf(stderr, "status JSON: %s\n", json.c_str());
         return Fail(L"published status JSON");

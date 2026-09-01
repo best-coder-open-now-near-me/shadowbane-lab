@@ -30,10 +30,10 @@ def test_restrained_cel_target_is_pinned_end_to_end() -> None:
         None,
     ]
     assert [item["color"] for item in bands] == [
-        [0.2, 0.2, 0.2],
-        [0.48, 0.53, 0.61],
-        [0.72, 0.76, 0.8],
-        [1.0, 0.98, 0.92],
+        [0.23, 0.24, 0.26],
+        [0.54, 0.58, 0.65],
+        [0.78, 0.81, 0.84],
+        [1.0, 0.99, 0.95],
     ]
 
     samples = target["render_reference"]["samples"]
@@ -41,7 +41,7 @@ def test_restrained_cel_target_is_pinned_end_to_end() -> None:
         assert _sha256(ROOT / sample["atlas_path"]) == sample["atlas_sha256"]
 
     runtime = target["runtime_translation"]
-    assert runtime["extension_version"] == "1.5.7"
+    assert runtime["extension_version"] == "1.5.8"
     assert runtime["depth_edge_radius_pixels"] == 1.0
     assert "inverse-eye-depth curvature" in runtime["depth_edge_source"]
     manifest_path = ROOT / runtime["texture_manifest_path"]
@@ -63,10 +63,10 @@ def test_restrained_cel_target_is_pinned_end_to_end() -> None:
         "smoothstep(0.43 - transitionWidth",
         "smoothstep(0.66 - transitionWidth",
         "distantAlias * 0.45",
-        "vec3(0.20, 0.20, 0.20)",
-        "vec3(0.48, 0.53, 0.61)",
-        "vec3(0.72, 0.76, 0.80)",
-        "vec3(1.00, 0.98, 0.92)",
+        "vec3(0.23, 0.24, 0.26)",
+        "vec3(0.54, 0.58, 0.65)",
+        "vec3(0.78, 0.81, 0.84)",
+        "vec3(1.00, 0.99, 0.95)",
         "gl_Color.rgb",
         "gl_NormalMatrix * gl_Normal",
         "gl_FogFragCoord",
@@ -89,17 +89,17 @@ def test_graphics_publication_and_launch_pin_the_golden_package() -> None:
     launch = (ROOT / "scripts" / "launch-wonderbane-graphics-baseline.ps1").read_text(
         encoding="utf-8"
     )
-    assert 'ExtensionVersion = "1.5.7"' in publish
-    assert "wonderbane-extension-1.5.7.dll" in publish
+    assert 'ExtensionVersion = "1.5.8"' in publish
+    assert "wonderbane-extension-1.5.8.dll" in publish
     assert r"\build\wonderbane-client-extension\Release" in publish
-    assert "67a10b2b414c4fb94f6d40aa916ea1610f5daa7e24e3accdfb4bf917bbb8c936" in publish
+    assert "1550724038d38344178be79721bb1204d3e65838ef49fd31b092d89f03dd1898" in publish
     assert "$extensionSha256 -cne $ExpectedExtensionSha256" in publish
     assert "--texture-patch-manifest $TexturePatchManifest" in publish
     assert "--texture-artifact-directory $TextureArtifactDirectory" in publish
     assert "texture_patch_manifest_sha256" in publish
-    assert 'ExtensionVersion = "1.5.7"' in launch
-    assert "67a10b2b414c4fb94f6d40aa916ea1610f5daa7e24e3accdfb4bf917bbb8c936" in launch
-    assert '$expectedExtensionRelativePath = "wonderbane-extension-1.5.7.dll"' in launch
+    assert 'ExtensionVersion = "1.5.8"' in launch
+    assert "1550724038d38344178be79721bb1204d3e65838ef49fd31b092d89f03dd1898" in launch
+    assert '$expectedExtensionRelativePath = "wonderbane-extension-1.5.8.dll"' in launch
     assert 'Properties["extension_relative_path"]' in launch
     assert "a8b2693fb3e11332b95d0ef6dd02bf418f133a10f505be642c3623180d41896f" in launch
     assert 'Properties["result_executable_sha256"]' in launch

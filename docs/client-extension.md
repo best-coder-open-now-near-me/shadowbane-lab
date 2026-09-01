@@ -394,3 +394,12 @@ excluded from geometry accents, keeping text out of both outline layers. The cel
 also uses pixel derivatives to antialias band transitions and compress the brightest band only when
 its variation is subpixel, preventing distant characters from collapsing into an amplified bright
 center while retaining crisp close-up bands.
+
+Extension 1.5.8 gives every finite-depth discontinuity one nearer-surface owner, preventing
+tree/ground and object/terrain contacts from inking both sides of the same edge. Its cardinal
+five-sample kernel removes diagonal corner fattening and reduces the full-screen depth sampling
+cost from nine reads per pixel to five. Overlay identity now propagates through nested display
+lists and requires an unlit, unfogged alpha-textured planar state, excluding Shadowbane's nested
+glyph lists without suppressing lit or fogged world foliage. The darker lighting bands are lifted
+and client vertex-light intensity is gamma-compressed so ordinary terrain approaches the preferred
+lit palette while real shadows and dynamic light variation remain visible.

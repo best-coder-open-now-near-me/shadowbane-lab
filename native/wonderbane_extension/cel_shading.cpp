@@ -69,6 +69,8 @@ constexpr float kMaximumOutlineHullScale = 1.25F;
 constexpr std::size_t kCapturedDisplayListCapacity = 65536U;
 constexpr std::size_t kMaximumCapturedVerticesPerList = 65536U;
 constexpr std::size_t kMaximumFeatureEdgesPerList = 4096U;
+constexpr std::size_t kMaximumOverlayVerticesPerList = 8192U;
+constexpr std::size_t kMaximumNestedDisplayListsPerList = 4096U;
 constexpr std::uint32_t kReviewedSwapBuffersIatRva = 23'789'964U;
 
 using GlShadeModel = void(APIENTRY*)(unsigned int mode);
@@ -231,11 +233,14 @@ struct ActiveDisplayListCapture {
     bool primitive_open = false;
     std::vector<CapturedVertex> vertices{};
     std::vector<CapturedPrimitiveRange> primitives{};
+    std::vector<unsigned int> nested_lists{};
 };
 
 SRWLOCK g_display_list_lock = SRWLOCK_INIT;
 std::array<CapturedDisplayListBounds, kCapturedDisplayListCapacity> g_display_list_bounds{};
 thread_local ActiveDisplayListCapture g_active_display_list_capture{};
+
+bool IsFilledPrimitiveMode(unsigned int mode) noexcept;
 
 template <typename Function>
 Function LoadFunction(PVOID volatile* const storage) noexcept {
@@ -794,30 +799,56 @@ void CaptureDisplayListVertex(const float x, const float y, const float z) noexc
 
 void EndDisplayListCapture() noexcept {
     CloseCapturedPrimitive();
+    bool nested_overlay_candidate = false;
+    if (g_active_display_list_capture.active
+        && !g_active_display_list_capture.nested_lists.empty()
+        && !g_active_display_list_capture.invalid) {
+        nested_overlay_candidate = true;
+        AcquireSRWLockShared(&g_display_list_lock);
+        for (const unsigned int list : g_active_display_list_capture.nested_lists) {
+            if (list >= g_display_list_bounds.size()
+                || !g_display_list_bounds[list].valid
+                || !g_display_list_bounds[list].planar_overlay_candidate) {
+                nested_overlay_candidate = false;
+                break;
+            }
+        }
+        ReleaseSRWLockShared(&g_display_list_lock);
+    }
     if (
         g_active_display_list_capture.active
         && g_active_display_list_capture.list < g_display_list_bounds.size()
-        && g_active_display_list_capture.has_vertex
         && !g_active_display_list_capture.invalid
+        && (g_active_display_list_capture.has_vertex || nested_overlay_candidate)
     ) {
         AcquireSRWLockExclusive(&g_display_list_lock);
         CapturedDisplayListBounds& captured = (
             g_display_list_bounds[g_active_display_list_capture.list]
         );
-        captured.bounds = g_active_display_list_capture.bounds;
-        const bool exact_textured_quad = (
-            g_active_display_list_capture.primitives.size() == 1U
-            && g_active_display_list_capture.primitives[0].mode == kGlQuads
-            && g_active_display_list_capture.primitives[0].count == 4U
+        if (g_active_display_list_capture.has_vertex) {
+            captured.bounds = g_active_display_list_capture.bounds;
+        }
+        bool only_filled_primitives = (
+            !g_active_display_list_capture.primitives.empty()
         );
-        captured.planar_overlay_candidate = exact_textured_quad
-            && IsPlanarQuadGeometry(
+        for (const CapturedPrimitiveRange& primitive
+             : g_active_display_list_capture.primitives) {
+            only_filled_primitives = only_filled_primitives
+                && IsFilledPrimitiveMode(primitive.mode);
+        }
+        const bool direct_overlay_candidate = only_filled_primitives
+            && IsPlanarOverlayGeometry(
                 &captured.bounds,
                 g_active_display_list_capture.vertices.size(),
                 g_active_display_list_capture.primitives.size()
             );
+        captured.planar_overlay_candidate = direct_overlay_candidate
+            || (!g_active_display_list_capture.has_vertex
+                && nested_overlay_candidate);
         try {
-            captured.feature_edges = BuildFeatureEdges(g_active_display_list_capture);
+            captured.feature_edges = g_active_display_list_capture.has_vertex
+                ? BuildFeatureEdges(g_active_display_list_capture)
+                : std::vector<CapturedDisplayListBounds::FeatureEdge>{};
         } catch (...) {
             captured.feature_edges.clear();
         }
@@ -1078,6 +1109,8 @@ void DrawWithSilhouette(
     unsigned char alpha_test_enabled = FALSE;
     unsigned char blend_enabled = FALSE;
     unsigned char texture_enabled = FALSE;
+    unsigned char lighting_enabled = FALSE;
+    unsigned char fog_enabled = FALSE;
     if (!LoadOutlineApi(&api)) {
         draw();
         return;
@@ -1094,6 +1127,8 @@ void DrawWithSilhouette(
     api.get_booleanv(kGlAlphaTest, &alpha_test_enabled);
     api.get_booleanv(kGlBlend, &blend_enabled);
     api.get_booleanv(kGlTexture2D, &texture_enabled);
+    api.get_booleanv(kGlLighting, &lighting_enabled);
+    api.get_booleanv(kGlFog, &fog_enabled);
     if (!IsPerspectiveProjectionMatrix(projection.data(), projection.size())) {
         CompositeDepthEdgesBeforeUi();
         draw();
@@ -1101,8 +1136,14 @@ void DrawWithSilhouette(
     }
     const bool planar_overlay_candidate = feature_list != UINT32_MAX
         && IsPlanarOverlayCandidate(feature_list);
-    if (planar_overlay_candidate && texture_enabled != FALSE
-        && (alpha_test_enabled != FALSE || blend_enabled != FALSE)) {
+    if (IsPlanarOverlayDrawState(
+            planar_overlay_candidate,
+            texture_enabled != FALSE,
+            alpha_test_enabled != FALSE,
+            blend_enabled != FALSE,
+            lighting_enabled != FALSE,
+            fog_enabled != FALSE
+        )) {
         CompositeDepthEdgesBeforeUi();
         draw();
         return;
@@ -1348,6 +1389,16 @@ void APIENTRY StrongCallList(const unsigned int list) noexcept {
     const auto original = LoadFunction<GlCallList>(&g_original_call_list);
     if (original != nullptr) {
         if (IsCompilingDisplayListOnCurrentThread()) {
+            if (g_active_display_list_capture.nested_lists.size()
+                == kMaximumNestedDisplayListsPerList) {
+                g_active_display_list_capture.invalid = true;
+            } else {
+                try {
+                    g_active_display_list_capture.nested_lists.push_back(list);
+                } catch (...) {
+                    g_active_display_list_capture.invalid = true;
+                }
+            }
             original(list);
             return;
         }
@@ -1837,12 +1888,15 @@ bool IsOutlinePrimitive(const unsigned int mode, const int count) noexcept {
     return IsFilledPrimitiveMode(mode);
 }
 
-bool IsPlanarQuadGeometry(
+bool IsPlanarOverlayGeometry(
     const OutlineBounds* const bounds,
     const std::size_t vertex_count,
     const std::size_t primitive_count
 ) noexcept {
-    if (bounds == nullptr || vertex_count != 4U || primitive_count != 1U) {
+    if (bounds == nullptr || vertex_count < 3U
+        || vertex_count > kMaximumOverlayVerticesPerList
+        || primitive_count == 0U
+        || primitive_count > vertex_count / 3U + 1U) {
         return false;
     }
     std::array<float, 3U> extents{};
@@ -1856,6 +1910,21 @@ bool IsPlanarQuadGeometry(
     const float minimum = *std::min_element(extents.begin(), extents.end());
     return maximum > 0.0001F
         && minimum <= maximum * 0.0001F + 0.00001F;
+}
+
+bool IsPlanarOverlayDrawState(
+    const bool planar_candidate,
+    const bool texture_enabled,
+    const bool alpha_test_enabled,
+    const bool blend_enabled,
+    const bool lighting_enabled,
+    const bool fog_enabled
+) noexcept {
+    return planar_candidate
+        && texture_enabled
+        && (alpha_test_enabled || blend_enabled)
+        && !lighting_enabled
+        && !fog_enabled;
 }
 
 std::uint32_t* FindImportAddressSlot(
