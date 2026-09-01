@@ -7,12 +7,18 @@ param(
         "\\VBOXSVR\codexdiag\client-baselines\wonderbane-20260831T023921516Z"
     ),
     [string] $ExpectedContentBuildId = "wb-55fbad5f-4b602995",
-    [string] $ExtensionVersion = "1.4.11",
+    [string] $ExtensionVersion = "1.5.0",
     [string] $ExtensionArtifact = (
         "\\VBOXSVR\codexgfx\build\wonderbane-graphics-baseline\Release\wonderbane-extension.dll"
     ),
+    [string] $TexturePatchManifest = (
+        "\\VBOXSVR\codexgfx\assets\wonderbane_graphics\restrained-cel-v1\texture-patches.json"
+    ),
+    [string] $TextureArtifactDirectory = (
+        "\\VBOXSVR\codexgfx\assets\wonderbane_graphics\restrained-cel-v1"
+    ),
     [string] $DestinationDirectory = (
-        "S:\Wonderbane-graphics-wb-55fbad5f-4b602995-cel-1.4.11"
+        "S:\Wonderbane-graphics-wb-55fbad5f-4b602995-cel-1.5.0"
     ),
     [switch] $DryRunOnly
 )
@@ -25,7 +31,15 @@ foreach ($required in @(
     @{ Path = $DiagnosticsShare; Description = "diagnostics share" },
     @{ Path = $PythonExecutable; Description = "guest Python environment" },
     @{ Path = $BaselineDirectory; Description = "frozen official client baseline" },
-    @{ Path = $ExtensionArtifact; Description = "validated graphics extension artifact" }
+    @{ Path = $ExtensionArtifact; Description = "validated graphics extension artifact" },
+    @{
+        Path = $TexturePatchManifest
+        Description = "reviewed restrained-cel texture manifest"
+    },
+    @{
+        Path = $TextureArtifactDirectory
+        Description = "reviewed restrained-cel texture artifacts"
+    }
 )) {
     if (-not (Test-Path -LiteralPath $required.Path)) {
         throw "$($required.Description) was not found: $($required.Path)"
@@ -88,6 +102,8 @@ if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
     $DestinationDirectory `
     $manifestPath `
     $ExtensionArtifact `
+    --texture-patch-manifest $TexturePatchManifest `
+    --texture-artifact-directory $TextureArtifactDirectory `
     --dry-run `
     --pretty
 if ($LASTEXITCODE -ne 0) {
@@ -96,6 +112,11 @@ if ($LASTEXITCODE -ne 0) {
 $extensionSha256 = (
     Get-FileHash -LiteralPath $ExtensionArtifact -Algorithm SHA256
 ).Hash.ToLowerInvariant()
+$texturePatch = Get-Content -LiteralPath $TexturePatchManifest -Raw | ConvertFrom-Json
+$texturePatchId = [string] $texturePatch.patch_id
+$texturePatchManifestSha256 = (
+    Get-FileHash -LiteralPath $TexturePatchManifest -Algorithm SHA256
+).Hash.ToLowerInvariant()
 $expectedDryRun = [ordered]@{
     schema_version = 1
     status = "passed"
@@ -103,6 +124,8 @@ $expectedDryRun = [ordered]@{
     baseline_tree_sha256 = $treeSha256
     extension_version = $ExtensionVersion
     extension_sha256 = $extensionSha256
+    texture_patch_id = $texturePatchId
+    texture_patch_manifest_sha256 = $texturePatchManifestSha256
     destination = $DestinationDirectory
 }
 $utf8 = [Text.UTF8Encoding]::new($false)
@@ -125,6 +148,8 @@ else {
         baseline_tree_sha256 = $expectedDryRun.baseline_tree_sha256
         extension_version = $expectedDryRun.extension_version
         extension_sha256 = $expectedDryRun.extension_sha256
+        texture_patch_id = $expectedDryRun.texture_patch_id
+        texture_patch_manifest_sha256 = $expectedDryRun.texture_patch_manifest_sha256
         destination = $expectedDryRun.destination
     } | ConvertTo-Json
     [IO.File]::WriteAllText($dryRunReceipt, "$newDryRun`n", $utf8)
@@ -186,6 +211,8 @@ if ([int64] $drive.Free -lt $requiredFreeBytes) {
     $DestinationDirectory `
     $manifestPath `
     $ExtensionArtifact `
+    --texture-patch-manifest $TexturePatchManifest `
+    --texture-artifact-directory $TextureArtifactDirectory `
     --pretty
 if ($LASTEXITCODE -ne 0) {
     throw "Graphics package publication failed with exit code $LASTEXITCODE"
@@ -206,6 +233,8 @@ $published = [ordered]@{
     baseline_tree_sha256 = $treeSha256
     extension_version = $ExtensionVersion
     extension_sha256 = $extensionSha256
+    texture_patch_id = $texturePatchId
+    texture_patch_manifest_sha256 = $texturePatchManifestSha256
     destination = $DestinationDirectory
 } | ConvertTo-Json
 [IO.File]::WriteAllText($publicationReceipt, "$published`n", $utf8)
@@ -213,3 +242,4 @@ $published = [ordered]@{
 Write-Output "Graphics-only client published and verified: $DestinationDirectory"
 Write-Output "WonderBane content build: $contentBuildId"
 Write-Output "Graphics extension SHA-256: $extensionSha256"
+Write-Output "Texture overlay: $texturePatchId"

@@ -24,6 +24,14 @@ from shadowbane_lab.client_extension.resolver import (
     apply_patch_plan,
     build_patch_plan,
 )
+from shadowbane_lab.client_extension.texture_patch import (
+    TexturePatchError,
+    TexturePatchManifest,
+    TexturePatchPlan,
+    apply_texture_patch_plan,
+    build_texture_patch_evidence,
+    build_texture_patch_plan,
+)
 
 PATCH_PACKAGE_SCHEMA_VERSION = 1
 PACKAGE_DRIFT_SCHEMA_VERSION = 1
@@ -32,6 +40,7 @@ RUNTIME_DRIFT_ROLLBACK_RECEIPT_SCHEMA_VERSION = 2
 _BASELINE_FILE_NAME = "client-baseline.json"
 _EVIDENCE_DIRECTORY_NAME = ".wonderbane-extension"
 _PACKAGE_FILE_NAME = "package.json"
+_TEXTURE_PATCH_FILE_NAME = "texture-patches.json"
 _DEFAULT_MAX_FILES = 100_000
 _DEFAULT_MAX_TOTAL_BYTES = 16 * 1024 * 1024 * 1024
 _MAX_EVIDENCE_BYTES = 16 * 1024 * 1024
@@ -128,6 +137,7 @@ class PatchPackageResult:
     dry_run: bool
     destination_published: bool
     plan: PatchPlan
+    texture_plan: TexturePatchPlan | None
     evidence: PatchPackageEvidence | None
 
     def as_dict(self) -> dict[str, Any]:
@@ -135,6 +145,9 @@ class PatchPackageResult:
             "dry_run": self.dry_run,
             "destination_published": self.destination_published,
             "plan": self.plan.as_dict(),
+            "texture_plan": (
+                None if self.texture_plan is None else self.texture_plan.as_dict()
+            ),
             "evidence": None if self.evidence is None else self.evidence.as_dict(),
         }
 
@@ -325,6 +338,8 @@ def prepare_patched_client_copy(
     manifest: PatchManifest,
     extension_artifact: str | Path,
     *,
+    texture_patch_manifest: TexturePatchManifest | None = None,
+    texture_artifact_directory: str | Path | None = None,
     dry_run: bool = False,
     created_at: datetime | None = None,
 ) -> PatchPackageResult:
@@ -358,6 +373,27 @@ def prepare_patched_client_copy(
     except PatchResolutionError as exc:
         raise ClientPatchPackageError(f"patch plan was rejected: {exc}") from exc
 
+    texture_plan = None
+    if texture_patch_manifest is None:
+        if texture_artifact_directory is not None:
+            raise ClientPatchPackageError(
+                "texture_artifact_directory requires texture_patch_manifest"
+            )
+    else:
+        if texture_artifact_directory is None:
+            raise ClientPatchPackageError(
+                "texture_patch_manifest requires texture_artifact_directory"
+            )
+        texture_cache = baseline_root / Path(texture_patch_manifest.cache_relative_path)
+        try:
+            texture_plan = build_texture_patch_plan(
+                texture_cache,
+                texture_patch_manifest,
+                texture_artifact_directory,
+            )
+        except (OSError, RuntimeError, ValueError) as exc:
+            raise ClientPatchPackageError(f"texture patch plan was rejected: {exc}") from exc
+
     extension_relative = (
         PurePosixPath(baseline.executable_relative_path).parent / manifest.extension.file_name
     ).as_posix()
@@ -381,6 +417,7 @@ def prepare_patched_client_copy(
             dry_run=True,
             destination_published=False,
             plan=plan,
+            texture_plan=texture_plan,
             evidence=None,
         )
 
@@ -408,6 +445,21 @@ def prepare_patched_client_copy(
         with temporary_extension.open("xb") as stream:
             stream.write(extension_data)
 
+        evidence_directory = temporary / _EVIDENCE_DIRECTORY_NAME
+        if texture_plan is not None and texture_patch_manifest is not None:
+            temporary_cache = temporary / Path(texture_plan.cache_relative_path)
+            apply_texture_patch_plan(temporary_cache, texture_plan)
+            texture_evidence = build_texture_patch_evidence(
+                texture_patch_manifest,
+                texture_plan,
+                temporary_cache,
+            )
+            evidence_directory.mkdir()
+            _write_new_json(
+                evidence_directory / _TEXTURE_PATCH_FILE_NAME,
+                texture_evidence.as_dict(),
+            )
+
         working_files = _inventory(
             temporary,
             max_files=_DEFAULT_MAX_FILES,
@@ -431,8 +483,7 @@ def prepare_patched_client_copy(
             working_tree_sha256=working_tree_sha256,
             files=working_files,
         )
-        evidence_directory = temporary / _EVIDENCE_DIRECTORY_NAME
-        evidence_directory.mkdir()
+        evidence_directory.mkdir(exist_ok=True)
         _write_new_json(evidence_directory / _PACKAGE_FILE_NAME, evidence.as_dict())
         os.replace(temporary, destination)
         published = True
@@ -445,6 +496,7 @@ def prepare_patched_client_copy(
             dry_run=False,
             destination_published=True,
             plan=plan,
+            texture_plan=texture_plan,
             evidence=evidence,
         )
     except ClientPatchPackageError as exc:
@@ -455,7 +507,7 @@ def prepare_patched_client_copy(
                     f"invalid new package could not be removed: {destination}"
                 ) from exc
         raise
-    except (OSError, ValueError) as exc:
+    except (OSError, TexturePatchError, ValueError) as exc:
         if published:
             shutil.rmtree(destination, ignore_errors=True)
             if destination.exists():

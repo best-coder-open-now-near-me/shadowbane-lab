@@ -3,6 +3,8 @@ param(
     [string] $EvidenceDirectory = "\\VBOXSVR\codexdiag\client-extension-evidence\wonderbane-20260830T141558722Z",
     [string] $DestinationDirectory = "\\VBOXSVR\codexdiag\client-extension-working\wonderbane-1.0.5-extension-v1",
     [string] $ExtensionArtifact = "\\VBOXSVR\codexrepo\build\wonderbane-client-extension-final\Release\wonderbane-extension.dll",
+    [string] $TexturePatchManifest = "",
+    [string] $TextureArtifactDirectory = "",
     [string] $PythonExecutable = "$env:USERPROFILE\shadowbane-lab\.venv\Scripts\python.exe",
     [switch] $DryRunOnly
 )
@@ -13,6 +15,12 @@ Set-StrictMode -Version Latest
 $baselineDirectory = Join-Path $EvidenceDirectory "client-baseline"
 $sourceExecutable = Join-Path $baselineDirectory "sb.exe"
 $manifestPath = Join-Path $EvidenceDirectory "wonderbane-1.0.5-extension-v1.manifest.json"
+if (
+    [string]::IsNullOrWhiteSpace($TexturePatchManifest) -xor
+    [string]::IsNullOrWhiteSpace($TextureArtifactDirectory)
+) {
+    throw "TexturePatchManifest and TextureArtifactDirectory must be supplied together."
+}
 
 $requiredFiles = @(
     @{ Path = $PythonExecutable; Description = "guest Python environment" },
@@ -24,6 +32,18 @@ foreach ($required in $requiredFiles) {
     if (-not (Test-Path -LiteralPath $required.Path -PathType Leaf)) {
         throw "$($required.Description) was not found: $($required.Path)"
     }
+}
+if (
+    $TexturePatchManifest -and
+    -not (Test-Path -LiteralPath $TexturePatchManifest -PathType Leaf)
+) {
+    throw "Reviewed texture-patch manifest was not found: $TexturePatchManifest"
+}
+if (
+    $TextureArtifactDirectory -and
+    -not (Test-Path -LiteralPath $TextureArtifactDirectory -PathType Container)
+) {
+    throw "Texture artifact directory was not found: $TextureArtifactDirectory"
 }
 if (Test-Path -LiteralPath $DestinationDirectory) {
     throw "Disposable destination already exists: $DestinationDirectory"
@@ -40,6 +60,13 @@ if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
         throw "Bootstrap manifest authoring failed with exit code $LASTEXITCODE"
     }
 }
+$textureArguments = @()
+if ($TexturePatchManifest) {
+    $textureArguments = @(
+        "--texture-patch-manifest", $TexturePatchManifest,
+        "--texture-artifact-directory", $TextureArtifactDirectory
+    )
+}
 
 & $PythonExecutable -m shadowbane_lab.client_extension `
     prepare-copy `
@@ -47,6 +74,7 @@ if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
     $DestinationDirectory `
     $manifestPath `
     $ExtensionArtifact `
+    @textureArguments `
     --dry-run `
     --pretty
 if ($LASTEXITCODE -ne 0) {
@@ -76,6 +104,7 @@ if ($DryRunOnly) {
     $DestinationDirectory `
     $manifestPath `
     $ExtensionArtifact `
+    @textureArguments `
     --pretty
 if ($LASTEXITCODE -ne 0) {
     throw "Disposable client publication failed with exit code $LASTEXITCODE"
