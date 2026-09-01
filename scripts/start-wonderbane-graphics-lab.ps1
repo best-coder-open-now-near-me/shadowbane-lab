@@ -25,6 +25,14 @@ $pythonw = Join-Path $pythonDirectory "pythonw.exe"
 if (-not (Test-Path -LiteralPath $pythonw -PathType Leaf)) {
     $pythonw = $PythonExecutable
 }
+$existing = Get-CimInstance Win32_Process | Where-Object {
+    ($_.Name -eq "python.exe" -or $_.Name -eq "pythonw.exe") -and
+    $_.CommandLine -like "*shadowbane_lab.graphics_lab*"
+} | Select-Object -First 1
+if ($null -ne $existing) {
+    Write-Output "WonderBane Graphics Lab is already running (PID $($existing.ProcessId))."
+    return
+}
 $previousPythonPath = [Environment]::GetEnvironmentVariable("PYTHONPATH", "Process")
 try {
     [Environment]::SetEnvironmentVariable(

@@ -236,7 +236,7 @@ class GraphicsLabApp:
         ttk.Separator(parent).pack(fill="x", pady=18)
         ttk.Button(
             parent,
-            text="Reset to reviewed 1.5.9 defaults",
+            text="Reset to reviewed visual baseline",
             command=lambda: self._set_parameters(DEFAULT_PARAMETERS, apply=True),
         ).pack(anchor="w")
         self._refresh_presets()
@@ -450,6 +450,8 @@ class GraphicsLabApp:
 
     def _poll_acknowledgement(self) -> None:
         self._poll_count += 1
+        if self.client is None and self._poll_count % 5 == 0:
+            self.refresh_targets()
         if self.client is not None:
             try:
                 if self._poll_count % 5 == 0 and not target_process_is_alive(
