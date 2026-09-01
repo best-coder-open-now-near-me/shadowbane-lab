@@ -252,7 +252,12 @@ int wmain() {
             == std::string::npos
         || json.find("\"maximum_ordinary_frame_refreshes\":1")
             == std::string::npos
-        || json.find("\"late_world_after_ui\":\"excluded-and-counted\"")
+        || json.find(
+            "\"planar_overlay\":\"excluded-without-sealing-scene\""
+        ) == std::string::npos
+        || json.find(
+            "\"late_world_after_ui\":\"effect-eligible-and-counted\""
+        )
             == std::string::npos
         || json.find("\"live_controls\":{\"available\":true")
             == std::string::npos

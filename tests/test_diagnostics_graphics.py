@@ -186,7 +186,8 @@ def _status(
             },
             "policy": {
                 "single_world_to_ui_boundary": True,
-                "late_world_after_ui": "excluded-and-counted",
+                "planar_overlay": "excluded-without-sealing-scene",
+                "late_world_after_ui": "effect-eligible-and-counted",
                 "fixed_function_state": "cached-with-transition-hooks",
                 "maximum_ordinary_frame_refreshes": 1,
             },
@@ -725,6 +726,28 @@ class GraphicsPresentEvidenceTests(unittest.TestCase):
 
             self.assertFalse(result.complete)
             self.assertIn("exceeded its per-frame refresh budget", result.failure or "")
+
+    def test_late_world_draws_do_not_claim_world_ui_separation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            executable = root / "sb.exe"
+            executable.write_bytes(_present_pe())
+            identity = ProcessIdentity(51, 123456, str(executable))
+            payload = _status(executable, identity)
+            payload["draw_classification"]["latest"]["late_world_draw_count"] = 1104
+            status = root / "graphics-status.json"
+            status.write_text(json.dumps(payload), encoding="utf-8")
+
+            result = collect_graphics_present_evidence(
+                executable,
+                identity,
+                runtime_status_path=status,
+            )
+
+            self.assertTrue(result.complete)
+            self.assertFalse(
+                result.report["assessment"]["world_ui_separation_observed"]
+            )
 
 
 if __name__ == "__main__":

@@ -41,9 +41,9 @@ int wmain() {
     state.lighting_enabled = false;
     state.fog_enabled = false;
     const DrawClassification planar = ClassifyFixedFunctionDraw(state);
-    if (planar.layer != DrawLayer::ui_overlay
+    if (planar.layer != DrawLayer::world_overlay
         || planar.reason != DrawClassificationReason::planar_overlay_state) {
-        return Fail(L"perspective planar UI classification");
+        return Fail(L"perspective planar scene-overlay classification");
     }
     state.planar_overlay_candidate = false;
     state.blend_enabled = false;
@@ -76,6 +76,12 @@ int wmain() {
         || frame.phase != SceneFramePhase::world) {
         return Fail(L"world frame transition");
     }
+    decision = AdvanceSceneFrame(&frame, planar);
+    if (decision.contributes_to_scene || decision.composite_before_draw
+        || frame.phase != SceneFramePhase::world
+        || frame.boundary_count != 0U) {
+        return Fail(L"planar overlay does not seal scene");
+    }
     decision = AdvanceSceneFrame(&frame, ui);
     if (decision.contributes_to_scene || !decision.composite_before_draw
         || frame.phase != SceneFramePhase::ui
@@ -92,6 +98,7 @@ int wmain() {
         return Fail(L"late world draw remains effect eligible");
     }
     if (frame.draw_counts[static_cast<std::size_t>(DrawLayer::world_opaque)] != 2U
+        || frame.draw_counts[static_cast<std::size_t>(DrawLayer::world_overlay)] != 1U
         || frame.draw_counts[static_cast<std::size_t>(DrawLayer::ui_overlay)] != 3U) {
         return Fail(L"bounded layer counters");
     }

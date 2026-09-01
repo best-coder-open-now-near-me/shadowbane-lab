@@ -105,6 +105,9 @@ def collect_graphics_present_evidence(
         and draw_classification.get("state") == "active"
         and isinstance(draw_classification.get("classified_frame_count"), int)
         and draw_classification["classified_frame_count"] > 0
+        and isinstance(draw_classification.get("latest"), dict)
+        and draw_classification["latest"].get("boundary_count") == 1
+        and draw_classification["latest"].get("late_world_draw_count") == 0
     )
     fixed_function_refresh_bounded = bool(
         world_ui_separation_observed
@@ -356,8 +359,14 @@ def _validate_draw_classification(value: object) -> None:
     policy = _mapping(classification.get("policy"), "draw_classification.policy")
     if policy.get("single_world_to_ui_boundary") is not True:
         raise ValueError("draw_classification boundary policy is unsupported")
-    if policy.get("late_world_after_ui") != "excluded-and-counted":
+    if policy.get("late_world_after_ui") not in {
+        "excluded-and-counted",
+        "effect-eligible-and-counted",
+    }:
         raise ValueError("draw_classification late-world policy is unsupported")
+    planar_overlay_policy = policy.get("planar_overlay")
+    if planar_overlay_policy not in {None, "excluded-without-sealing-scene"}:
+        raise ValueError("draw_classification planar-overlay policy is unsupported")
     if policy.get("fixed_function_state") != "cached-with-transition-hooks":
         raise ValueError("draw_classification fixed-function policy is unsupported")
     if policy.get("maximum_ordinary_frame_refreshes") != 1:

@@ -23,7 +23,7 @@ DrawClassification ClassifyFixedFunctionDraw(
         && !state.lighting_enabled
         && !state.fog_enabled) {
         return {
-            DrawLayer::ui_overlay,
+            DrawLayer::world_overlay,
             DrawClassificationReason::planar_overlay_state,
         };
     }
@@ -124,6 +124,12 @@ SceneFrameDecision AdvanceSceneFrame(
     );
     if (reason_index < frame->reason_counts.size()) {
         ++frame->reason_counts[reason_index];
+    }
+    if (classification.reason == DrawClassificationReason::planar_overlay_state) {
+        // Perspective planar overlays are excluded from cel processing, but live
+        // WonderBane frames place one before the body of the world. It is not a
+        // trustworthy world-to-UI boundary; the later orthographic transition is.
+        return decision;
     }
     if (IsWorldLayer(classification.layer)) {
         decision.contributes_to_scene = true;

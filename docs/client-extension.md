@@ -512,3 +512,11 @@ remain eligible for per-draw cel lighting and feature accents even when they occ
 observed UI boundary; the late ordering remains counted diagnostically and does not request a
 second scene composite. This preserves original UI draws while preventing an early orthographic
 submission from disabling world effects for the entire frame.
+
+Extension 1.6.7 corrects the remaining premature-boundary case observed in the live 1.6.6 frame
+diagnostics. A single perspective planar overlay appeared before 1,104 subsequent world draws and
+was incorrectly allowed to seal the scene, so the depth-edge composite contained almost no world
+geometry even though its counters reported success. Planar overlays are now excluded from cel
+processing without changing the scene phase; the later orthographic transition owns the one
+pre-UI composite. Diagnostics require exactly one boundary and zero late-world draws before they
+claim that world/UI separation was observed.

@@ -23,7 +23,7 @@ namespace {
 constexpr wchar_t kProductDirectory[] = L"ShadowbaneLab";
 constexpr wchar_t kExtensionDirectory[] = L"client-extension";
 constexpr char kProducerId[] = "wonderbane-extension.graphics";
-constexpr char kExtensionVersion[] = "1.6.6";
+constexpr char kExtensionVersion[] = "1.6.7";
 constexpr std::size_t kPathCapacity = WONDERBANE_EXTENSION_HEARTBEAT_PATH_CAPACITY;
 constexpr std::size_t kExecutablePathUtf8Capacity = kPathCapacity * 4U;
 constexpr std::size_t kEscapedPathCapacity = kExecutablePathUtf8Capacity * 2U + 3U;
@@ -1018,7 +1018,8 @@ DWORD PublishSnapshot(const PublisherSnapshot& snapshot) noexcept {
         "\"late_world_draw_count\":%llu,"
         "\"fixed_function_refresh_count\":%llu},\"policy\":{"
         "\"single_world_to_ui_boundary\":true,"
-        "\"late_world_after_ui\":\"excluded-and-counted\","
+        "\"planar_overlay\":\"excluded-without-sealing-scene\","
+        "\"late_world_after_ui\":\"effect-eligible-and-counted\","
         "\"fixed_function_state\":\"cached-with-transition-hooks\","
         "\"maximum_ordinary_frame_refreshes\":1}}",
         scene_frame_state,
