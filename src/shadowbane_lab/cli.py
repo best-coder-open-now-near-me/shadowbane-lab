@@ -100,6 +100,8 @@ from shadowbane_lab.client_observation import (
     NativeMessageHudProfileLoadError,
     NativePlayerPositionError,
     NativePlayerProgressionCoreError,
+    NativePlayerSnapshotError,
+    NativePlayerSnapshotProfiles,
     NativePlayerTrainingError,
     NativePlayerVitalsError,
     NativePositionProfileLoadError,
@@ -127,6 +129,7 @@ from shadowbane_lab.client_observation import (
     load_bundled_native_group_profile,
     load_bundled_native_health_profile,
     load_bundled_native_message_hud_profile,
+    load_bundled_native_player_snapshot_profiles,
     load_bundled_native_position_profile,
     load_bundled_native_progression_core_profile,
     load_bundled_native_runegate_registry_profile,
@@ -160,6 +163,7 @@ from shadowbane_lab.client_observation import (
     open_windows_native_message_hud_reader,
     open_windows_native_player_position_reader,
     open_windows_native_player_progression_core_reader,
+    open_windows_native_player_snapshot_reader,
     open_windows_native_player_training_reader,
     open_windows_native_player_vitals_reader,
     open_windows_native_runegate_registry_reader,
@@ -320,6 +324,7 @@ _DOMAIN_EXPORTS = {
         "_observe_native_runegates",
         "_observe_native_world_map",
         "_test_world_map_click",
+        "_observe_native_snapshot",
         "_observe_native_player",
         "_observe_native_position",
         "_observe_native_zone",
@@ -434,6 +439,9 @@ _observe_native_population = _domain_facade(
 _observe_native_runegates = _domain_facade(_client_inspection_commands, "_observe_native_runegates")
 _observe_native_world_map = _domain_facade(_client_inspection_commands, "_observe_native_world_map")
 _test_world_map_click = _domain_facade(_client_inspection_commands, "_test_world_map_click")
+_observe_native_snapshot = _domain_facade(
+    _client_inspection_commands, "_observe_native_snapshot"
+)
 _observe_native_player = _domain_facade(_client_inspection_commands, "_observe_native_player")
 _observe_native_position = _domain_facade(_client_inspection_commands, "_observe_native_position")
 _observe_native_zone = _domain_facade(_client_inspection_commands, "_observe_native_zone")
@@ -679,6 +687,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             timeout_seconds=arguments.timeout_seconds,
             evidence_output_path=arguments.evidence_output,
             live=arguments.live,
+            as_json=arguments.json,
+        )
+    if arguments.command == "client" and arguments.client_command == "observe-native-snapshot":
+        return _observe_native_snapshot(
+            arguments.progression_profile,
+            arguments.training_profile,
+            arguments.vitals_profile,
+            process_id=arguments.process_id,
             as_json=arguments.json,
         )
     if arguments.command == "client" and arguments.client_command == "observe-native-player":

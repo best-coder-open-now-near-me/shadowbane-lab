@@ -403,6 +403,14 @@ class _WindowsApi:
         self.kernel32.Module32FirstW.restype = wintypes.BOOL
         self.kernel32.OpenProcess.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
         self.kernel32.OpenProcess.restype = wintypes.HANDLE
+        self.kernel32.GetProcessTimes.argtypes = (
+            wintypes.HANDLE,
+            ctypes.POINTER(wintypes.FILETIME),
+            ctypes.POINTER(wintypes.FILETIME),
+            ctypes.POINTER(wintypes.FILETIME),
+            ctypes.POINTER(wintypes.FILETIME),
+        )
+        self.kernel32.GetProcessTimes.restype = wintypes.BOOL
         self.kernel32.ReadProcessMemory.argtypes = (
             wintypes.HANDLE,
             wintypes.LPCVOID,
@@ -440,12 +448,35 @@ class WindowsReadOnlyProcessMemory:
         handle = api.kernel32.OpenProcess(access, False, pid)
         if not handle:
             raise NativeTargetHealthReadError(_windows_error("OpenProcess failed"))
+        creation = wintypes.FILETIME()
+        exit_time = wintypes.FILETIME()
+        kernel_time = wintypes.FILETIME()
+        user_time = wintypes.FILETIME()
+        if not api.kernel32.GetProcessTimes(
+            handle,
+            ctypes.byref(creation),
+            ctypes.byref(exit_time),
+            ctypes.byref(kernel_time),
+            ctypes.byref(user_time),
+        ):
+            api.kernel32.CloseHandle(handle)
+            raise NativeTargetHealthReadError(_windows_error("GetProcessTimes failed"))
+        creation_value = (creation.dwHighDateTime << 32) | creation.dwLowDateTime
+        if creation_value <= 0:
+            api.kernel32.CloseHandle(handle)
+            raise NativeTargetHealthReadError("process creation FILETIME is invalid")
+        try:
+            executable_sha256 = _sha256(executable_path)
+        except Exception:
+            api.kernel32.CloseHandle(handle)
+            raise
         self._api = api
         self._handle = handle
         self.pid = pid
+        self.process_creation_filetime_utc = creation_value
         self.executable_name = executable_name
         self.executable_path = executable_path
-        self.executable_sha256 = _sha256(executable_path)
+        self.executable_sha256 = executable_sha256
         self.base_address = base_address
 
     @classmethod

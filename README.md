@@ -81,6 +81,7 @@ python -m shadowbane_lab.rollouts --scenario irekei-proc --level 59 --json
 python -m shadowbane_lab.rollouts --scenario verified-duel --left-profile .\assassin.json --right-profile .\warlock.json --episodes 1000 --accept-source-revision --accept-ruleset-overrides --json
 python -m shadowbane_lab.rollouts --scenario wonderbane-guide-duel --matrix --distances 6,15,40,100 --episodes 1000 --assassin-stealthed --max-ticks 2400 --json
 python -m shadowbane_lab.rollouts --scenario wonderbane-druid-duels --matrix --distances 6,15,40,100 --episodes 1000 --max-ticks 2400 --json
+python -m shadowbane_lab.cli client observe-native-snapshot --json
 python -m shadowbane_lab.cli client observe-native-progression --json
 python -m shadowbane_lab.cli client observe-native-training --json
 python -m shadowbane_lab.cli client advise-irekei-proc --json

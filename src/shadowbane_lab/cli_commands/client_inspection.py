@@ -45,6 +45,8 @@ from shadowbane_lab.client_observation import (
     NativeHealthProfileLoadError,
     NativePlayerPositionError,
     NativePlayerProgressionCoreError,
+    NativePlayerSnapshotError,
+    NativePlayerSnapshotProfiles,
     NativePlayerTrainingError,
     NativePlayerVitalsError,
     NativePositionProfileLoadError,
@@ -68,6 +70,7 @@ from shadowbane_lab.client_observation import (
     load_bundled_native_character_population_profile,
     load_bundled_native_group_profile,
     load_bundled_native_health_profile,
+    load_bundled_native_player_snapshot_profiles,
     load_bundled_native_position_profile,
     load_bundled_native_progression_core_profile,
     load_bundled_native_runegate_registry_profile,
@@ -97,6 +100,7 @@ from shadowbane_lab.client_observation import (
     open_windows_native_group_reader,
     open_windows_native_player_position_reader,
     open_windows_native_player_progression_core_reader,
+    open_windows_native_player_snapshot_reader,
     open_windows_native_player_training_reader,
     open_windows_native_player_vitals_reader,
     open_windows_native_runegate_registry_reader,
@@ -913,6 +917,67 @@ def _test_world_map_click(
         if evidence_output_path is not None:
             print(f"Evidence: {evidence_output_path}")
     return 0 if result.succeeded else 2
+
+
+def _observe_native_snapshot(
+    progression_profile_path: Path | None,
+    training_profile_path: Path | None,
+    vitals_profile_path: Path | None,
+    *,
+    process_id: int | None,
+    as_json: bool,
+) -> int:
+    try:
+        bundled = load_bundled_native_player_snapshot_profiles()
+        profiles = NativePlayerSnapshotProfiles(
+            progression=(
+                load_native_progression_core_profile(progression_profile_path)
+                if progression_profile_path is not None
+                else bundled.progression
+            ),
+            training=(
+                load_native_training_profile(training_profile_path)
+                if training_profile_path is not None
+                else bundled.training
+            ),
+            vitals=(
+                load_native_vitals_profile(vitals_profile_path)
+                if vitals_profile_path is not None
+                else bundled.vitals
+            ),
+        )
+        with open_windows_native_player_snapshot_reader(
+            profiles,
+            process_id=process_id,
+        ) as reader:
+            snapshot = reader.observe()
+    except (
+        NativePlayerProgressionCoreError,
+        NativePlayerSnapshotError,
+        NativePlayerTrainingError,
+        NativePlayerVitalsError,
+        NativeProgressionCoreProfileLoadError,
+        NativeTrainingProfileLoadError,
+        NativeVitalsProfileLoadError,
+        OSError,
+        ValueError,
+    ) as exc:
+        return _error(f"native player snapshot failed: {exc}", as_json=as_json)
+    payload = snapshot.as_dict()
+    if as_json:
+        print(json.dumps(payload, allow_nan=False, sort_keys=True))
+    else:
+        identity = snapshot.exact_process_identity
+        print(f"Process: {identity[0]} created {identity[1]}")
+        print(f"Snapshot: {snapshot.snapshot_token}")
+        print(f"Captured: {payload['captured_at_utc']}")
+        print(f"Level: {snapshot.progression.level}")
+        print(f"Skills/Powers: {len(snapshot.training.skills)}/{len(snapshot.training.powers)}")
+        print(
+            f"Health: {snapshot.vitals.current_health:g}/"
+            f"{snapshot.vitals.maximum_health:g}"
+        )
+    return 0
 
 
 def _observe_native_player(profile_path: Path | None, *, as_json: bool) -> int:

@@ -70,11 +70,11 @@ new top-level executables:
 | Multi-client release gate | `freeze-baseline` -> `author-bootstrap` -> `manager provision-runtimes` -> `manager preflight` -> manager app/workers -> `runtime-consistency gate` | Composed by the isolated-runtime installer and runtime gate. Baseline promotion remains a separate reviewed action so a candidate cannot approve itself. |
 | Live PvE calibration feedback | `validate-profile` + `inspect-hotbar` -> `run-pve` evidence -> `calibrate-pve` -> `rollouts --scenario smart-camp --pve-calibration ...` | Strong artifact pipeline that links guarded live evidence to deterministic simulation. It needs a runbook, not another command surface. |
 | Character-layout forensics | `inspect-process` -> analyst-directed `scan-text` / `scan-pointer` -> `validate-layout` -> `snapshot` | Deliberately interactive. Candidate addresses and layouts require review, so automatic chaining would weaken the safety boundary. |
-| Native simulator observation | `observe-native-progression` + `observe-native-training` + `observe-native-player` -> simulator observation JSON | Useful but not yet coherent. The current PowerShell exporter performs three separately guarded reads; replace it with one Python snapshot command bound to one exact process and timestamp, then keep the focused observations as compatibility aliases. |
+| Native simulator observation | `observe-native-snapshot` -> versioned simulator observation JSON | Complete. One process handle binds progression, training, and vitals to PID, creation FILETIME, executable identity, capture window, and snapshot token. Focused observations remain compatibility aliases. |
 
-The last row is the highest-value new composition. It removes a temporal-consistency gap and one
-thin PowerShell wrapper while reducing command sprawl. Patch qualification should reuse the first
-three rows rather than introducing a second diff, packaging, or release-gate system.
+The final row closes the temporal-consistency gap without adding another wrapper or memory backend.
+Patch qualification should reuse the first three rows rather than introducing a second diff,
+packaging, or release-gate system.
 
 ## Consolidation backlog
 
@@ -83,8 +83,8 @@ wrappers. The original 5,600-line `shadowbane_lab.cli` implementation has been s
 boundaries above without changing its executable or syntax. Remaining work should follow these
 priorities:
 
-1. Introduce one composable native client snapshot command before adding more `observe-native-*`
-   commands; retain the focused commands as compatibility aliases until scripts and runbooks move.
+1. Keep `observe-native-snapshot` as the simulator export boundary; new native fields compose into
+   its versioned payload instead of creating more separately invoked snapshot commands.
 2. Centralize immutable tree inventory, path, hash, and strict-JSON validation now duplicated across
    baseline capture, package verification, and patch-diff evidence.
 3. Keep PowerShell only where it adds Windows process, privilege, shortcut, VM-share, or fixed-path

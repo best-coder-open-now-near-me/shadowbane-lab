@@ -617,6 +617,36 @@ def _parser() -> argparse.ArgumentParser:
         "--json", action="store_true", help="emit machine-readable lifecycle evidence"
     )
 
+    observe_native_snapshot = client_commands.add_parser(
+        "observe-native-snapshot",
+        help="read progression, training, and vitals from one exact client process",
+    )
+    observe_native_snapshot.add_argument(
+        "--progression-profile",
+        type=Path,
+        help="native progression profile; defaults to the verified bundled build",
+    )
+    observe_native_snapshot.add_argument(
+        "--training-profile",
+        type=Path,
+        help="native training profile; defaults to the verified bundled build",
+    )
+    observe_native_snapshot.add_argument(
+        "--vitals-profile",
+        type=Path,
+        help="native vitals profile; defaults to the verified bundled build",
+    )
+    observe_native_snapshot.add_argument(
+        "--process-id",
+        type=int,
+        help="specific sb.exe process id; defaults to the unique running process",
+    )
+    observe_native_snapshot.add_argument(
+        "--json",
+        action="store_true",
+        help="emit the versioned exact-process snapshot as machine-readable JSON",
+    )
+
     observe_native_player = client_commands.add_parser(
         "observe-native-player",
         help="read exact local-player health, mana, and stamina from a calibrated build",
