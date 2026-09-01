@@ -1923,6 +1923,119 @@ std::uint32_t* FindImportAddressSlot(
     return terminated ? found : nullptr;
 }
 
+DWORD InstallGraphicsPresentHook(
+    std::uint8_t* const image,
+    const std::size_t image_size,
+    const char* const runtime_profile
+) noexcept {
+    if (
+        image == nullptr
+        || image_size == 0U
+        || runtime_profile == nullptr
+        || runtime_profile[0] == '\0'
+    ) {
+        return ERROR_INVALID_PARAMETER;
+    }
+    if (g_swap_buffers_slot != nullptr || g_original_swap_buffers != nullptr) {
+        return ERROR_ALREADY_INITIALIZED;
+    }
+    const HMODULE gdi = GetModuleHandleW(L"GDI32.dll");
+    if (gdi == nullptr) {
+        return ERROR_MOD_NOT_FOUND;
+    }
+    auto* const slot = FindImportAddressSlot(
+        image,
+        image_size,
+        "GDI32.dll",
+        "SwapBuffers"
+    );
+    const auto original = reinterpret_cast<PVOID>(GetProcAddress(gdi, "SwapBuffers"));
+    if (slot == nullptr || original == nullptr) {
+        return ERROR_PROC_NOT_FOUND;
+    }
+    const std::uintptr_t original_address = reinterpret_cast<std::uintptr_t>(original);
+    const std::uintptr_t replacement_address = reinterpret_cast<std::uintptr_t>(
+        &StrongSwapBuffers
+    );
+    const std::uintptr_t iat_rva = reinterpret_cast<std::uint8_t*>(slot) - image;
+    if (
+        original_address > UINT32_MAX
+        || replacement_address > UINT32_MAX
+        || iat_rva != kReviewedSwapBuffersIatRva
+        || *slot != static_cast<std::uint32_t>(original_address)
+    ) {
+        return ERROR_REVISION_MISMATCH;
+    }
+    const DWORD status_result = ConfigureGraphicsPresentEntry(
+        "GDI32.dll",
+        "SwapBuffers",
+        static_cast<std::uint32_t>(iat_rva),
+        runtime_profile
+    );
+    if (status_result != ERROR_SUCCESS) {
+        return status_result;
+    }
+    InterlockedExchangePointer(&g_original_swap_buffers, original);
+    const DWORD hook_result = ReplaceImportSlot(
+        slot,
+        static_cast<std::uint32_t>(original_address),
+        static_cast<std::uint32_t>(replacement_address)
+    );
+    if (hook_result != ERROR_SUCCESS) {
+        if (*slot == static_cast<std::uint32_t>(replacement_address)) {
+            g_swap_buffers_slot = slot;
+        } else {
+            InterlockedExchangePointer(&g_original_swap_buffers, nullptr);
+        }
+        StopGraphicsPresentObservation();
+        return hook_result;
+    }
+    g_swap_buffers_slot = slot;
+    return ERROR_SUCCESS;
+}
+
+DWORD StartGraphicsPresentObservation() noexcept {
+    static_assert(sizeof(void*) == sizeof(std::uint32_t));
+    if (
+        g_shade_model_slot != nullptr
+        || g_original_shade_model != nullptr
+        || g_swap_buffers_slot != nullptr
+        || g_original_swap_buffers != nullptr
+    ) {
+        return ERROR_ALREADY_INITIALIZED;
+    }
+    const HMODULE executable = GetModuleHandleW(nullptr);
+    if (executable == nullptr) {
+        return ERROR_MOD_NOT_FOUND;
+    }
+    const auto* const dos = reinterpret_cast<const IMAGE_DOS_HEADER*>(executable);
+    if (dos->e_magic != IMAGE_DOS_SIGNATURE || dos->e_lfanew <= 0) {
+        return ERROR_BAD_EXE_FORMAT;
+    }
+    const auto* const nt = reinterpret_cast<const IMAGE_NT_HEADERS32*>(
+        reinterpret_cast<const std::uint8_t*>(executable) + dos->e_lfanew
+    );
+    if (
+        nt->Signature != IMAGE_NT_SIGNATURE
+        || nt->OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR32_MAGIC
+    ) {
+        return ERROR_BAD_EXE_FORMAT;
+    }
+    return InstallGraphicsPresentHook(
+        reinterpret_cast<std::uint8_t*>(executable),
+        nt->OptionalHeader.SizeOfImage,
+        "diagnostics-only"
+    );
+}
+
+void StopGraphicsPresentObservation() noexcept {
+    RestoreHook(
+        &g_swap_buffers_slot,
+        &g_original_swap_buffers,
+        reinterpret_cast<PVOID>(&StrongSwapBuffers)
+    );
+}
+
 DWORD StartStrongCelShading() noexcept {
     static_assert(sizeof(void*) == sizeof(std::uint32_t));
     if (
@@ -1982,8 +2095,7 @@ DWORD StartStrongCelShading() noexcept {
     }
     const HMODULE executable = GetModuleHandleW(nullptr);
     const HMODULE opengl = GetModuleHandleW(L"OPENGL32.dll");
-    const HMODULE gdi = GetModuleHandleW(L"GDI32.dll");
-    if (executable == nullptr || opengl == nullptr || gdi == nullptr) {
+    if (executable == nullptr || opengl == nullptr) {
         return ERROR_MOD_NOT_FOUND;
     }
     const auto* const dos = reinterpret_cast<const IMAGE_DOS_HEADER*>(executable);
@@ -2160,53 +2272,6 @@ DWORD StartStrongCelShading() noexcept {
             }
         }
     }
-    ImportHookPlan present_plan{
-        "SwapBuffers",
-        reinterpret_cast<PVOID>(&StrongSwapBuffers),
-        reinterpret_cast<PVOID>(GetProcAddress(gdi, "SwapBuffers")),
-        FindImportAddressSlot(
-            image,
-            nt->OptionalHeader.SizeOfImage,
-            "GDI32.dll",
-            "SwapBuffers"
-        ),
-        &g_original_swap_buffers,
-        &g_swap_buffers_slot,
-    };
-    if (present_plan.slot == nullptr || present_plan.original == nullptr) {
-        return ERROR_PROC_NOT_FOUND;
-    }
-    const std::uintptr_t present_original_address = reinterpret_cast<std::uintptr_t>(
-        present_plan.original
-    );
-    const std::uintptr_t present_replacement_address = reinterpret_cast<std::uintptr_t>(
-        present_plan.replacement
-    );
-    const std::uintptr_t present_iat_rva = reinterpret_cast<std::uint8_t*>(
-        present_plan.slot
-    ) - image;
-    if (
-        present_original_address > UINT32_MAX
-        || present_replacement_address > UINT32_MAX
-        || present_iat_rva != kReviewedSwapBuffersIatRva
-        || *present_plan.slot != static_cast<std::uint32_t>(present_original_address)
-    ) {
-        return ERROR_REVISION_MISMATCH;
-    }
-    for (const ImportHookPlan& plan : plans) {
-        if (plan.slot == present_plan.slot) {
-            return ERROR_INVALID_DATA;
-        }
-    }
-    const DWORD status_result = ConfigureGraphicsPresentEntry(
-        "GDI32.dll",
-        present_plan.symbol_name,
-        static_cast<std::uint32_t>(present_iat_rva)
-    );
-    if (status_result != ERROR_SUCCESS) {
-        return status_result;
-    }
-
     std::array<HelperFunctionPlan, 18U> helpers{{
         {"glTexCoord2f", &g_tex_coord_2f, nullptr},
         {"glGetFloatv", &g_get_floatv, nullptr},
@@ -2268,22 +2333,15 @@ DWORD StartStrongCelShading() noexcept {
         }
         *plan.slot_storage = plan.slot;
     }
-    InterlockedExchangePointer(present_plan.original_storage, present_plan.original);
-    const DWORD present_result = ReplaceImportSlot(
-        present_plan.slot,
-        static_cast<std::uint32_t>(present_original_address),
-        static_cast<std::uint32_t>(present_replacement_address)
+    const DWORD present_result = InstallGraphicsPresentHook(
+        image,
+        nt->OptionalHeader.SizeOfImage,
+        "full-renderer"
     );
     if (present_result != ERROR_SUCCESS) {
-        if (*present_plan.slot == static_cast<std::uint32_t>(present_replacement_address)) {
-            *present_plan.slot_storage = present_plan.slot;
-        } else {
-            InterlockedExchangePointer(present_plan.original_storage, nullptr);
-        }
         StopStrongCelShading();
         return present_result;
     }
-    *present_plan.slot_storage = present_plan.slot;
     return ERROR_SUCCESS;
 }
 

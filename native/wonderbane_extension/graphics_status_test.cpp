@@ -45,7 +45,12 @@ int wmain() {
     if (result != ERROR_SUCCESS) {
         return Fail(L"status publisher startup");
     }
-    result = ConfigureGraphicsPresentEntry("GDI32.dll", "SwapBuffers", 23'789'964U);
+    result = ConfigureGraphicsPresentEntry(
+        "GDI32.dll",
+        "SwapBuffers",
+        23'789'964U,
+        "diagnostics-only"
+    );
     if (result != ERROR_SUCCESS) {
         StopGraphicsStatusPublication();
         return Fail(L"present entry configuration");
@@ -93,6 +98,8 @@ int wmain() {
         || json.find("\"producer_id\":\"wonderbane-extension.graphics\"")
             == std::string::npos
         || json.find("\"schema_version\":2") == std::string::npos
+        || json.find("\"runtime_profile\":\"diagnostics-only\"")
+            == std::string::npos
         || json.find("\"call_count\":3") == std::string::npos
         || json.find("\"clock\":\"windows-query-performance-counter\"")
             == std::string::npos

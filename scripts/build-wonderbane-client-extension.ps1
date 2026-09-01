@@ -4,6 +4,8 @@ param(
     [string]$BuildDirectory = "",
     [ValidateSet("Debug", "Release")]
     [string]$Configuration = "Release",
+    [ValidateSet("full", "diagnostics-only")]
+    [string]$Profile = "full",
     [switch]$RunProbe
 )
 
@@ -22,7 +24,8 @@ if (-not (Test-Path -LiteralPath (Join-Path $sourceDirectory "CMakeLists.txt") -
 }
 
 $cmake = (Get-Command cmake.exe -ErrorAction Stop).Source
-& $cmake -G "Visual Studio 17 2022" -S $sourceDirectory -B $BuildDirectory -A Win32
+& $cmake -G "Visual Studio 17 2022" -S $sourceDirectory -B $BuildDirectory -A Win32 `
+    "-DWONDERBANE_EXTENSION_PROFILE=$Profile"
 if ($LASTEXITCODE -ne 0) {
     throw "CMake configuration failed with exit code $LASTEXITCODE"
 }
@@ -47,5 +50,6 @@ $hash = (Get-FileHash -LiteralPath $artifact -Algorithm SHA256).Hash.ToLowerInva
     Artifact = $artifact
     Configuration = $Configuration
     Machine = "x86"
+    Profile = $Profile
     Sha256 = $hash
 }

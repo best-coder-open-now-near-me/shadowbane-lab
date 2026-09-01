@@ -55,7 +55,8 @@ def _status(
     return {
         "schema_version": 2,
         "producer_id": "wonderbane-extension.graphics",
-        "extension_version": "1.5.5",
+        "extension_version": "1.5.6",
+        "runtime_profile": "diagnostics-only",
         "process_identity": identity.as_dict(),
         "executable_sha256": hashlib.sha256(executable.read_bytes()).hexdigest(),
         "present_entries": [{**entry, "call_count": latest_sequence}],
@@ -199,6 +200,10 @@ class GraphicsPresentEvidenceTests(unittest.TestCase):
 
             self.assertTrue(result.complete)
             self.assertEqual("accepted", result.report["runtime_status"]["state"])
+            self.assertEqual(
+                "diagnostics-only",
+                result.report["runtime_status"]["runtime_profile"],
+            )
             self.assertEqual(
                 "runtime-observed-exact-process",
                 result.report["assessment"]["active_route_authority"],

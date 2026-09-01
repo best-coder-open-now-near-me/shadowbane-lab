@@ -401,3 +401,18 @@ by the consumer. This allows captures longer than the ring's residence window wi
 hook retain unbounded history. Exact per-present records, producer overwrite gaps, query failures,
 and clock anchors must be sealed before offline FPS, percentile frame-time, and hitch analysis is
 considered complete.
+
+Extension 1.5.6 makes passive renderer diagnostics a compile-time profile instead of a side effect
+of the cel renderer. A diagnostics-only artifact starts the atomic graphics-status publisher and
+installs only the reviewed GDI32.dll!SwapBuffers observer. It does not initialize the extension
+event channel, world-map capture, draw-call hooks, banded lighting, outline replay, texture
+replacement, or a software-renderer override. The native probe requires the profile's event mapping
+to be absent.
+
+The status document records runtime_profile as either diagnostics-only or full-renderer, and the
+capture consumer rejects missing or unrecognized values. Diagnostics publication copies the
+reviewed source client into a separate package, verifies the package and extension identities, then
+removes its transient full baseline payload while retaining the baseline manifest. The known-good
+source directory is never patched in place. The diagnostics launcher uses the normal inherited
+graphics environment and waits for an identity-bound diagnostics-only status before reporting a
+successful launch.

@@ -50,5 +50,7 @@ bool IsOutlinePrimitive(unsigned int mode, int count) noexcept;
 
 DWORD StartStrongCelShading() noexcept;
 void StopStrongCelShading() noexcept;
+DWORD StartGraphicsPresentObservation() noexcept;
+void StopGraphicsPresentObservation() noexcept;
 
 }  // namespace wonderbane::extension

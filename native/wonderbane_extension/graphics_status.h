@@ -21,7 +21,8 @@ DWORD StartGraphicsStatusPublication() noexcept;
 DWORD ConfigureGraphicsPresentEntry(
     const char* library_name,
     const char* symbol_name,
-    std::uint32_t iat_rva
+    std::uint32_t iat_rva,
+    const char* runtime_profile
 ) noexcept;
 void ObserveGraphicsPresent() noexcept;
 void StopGraphicsStatusPublication() noexcept;

@@ -19,8 +19,13 @@ constexpr std::size_t kPathCapacity = WONDERBANE_EXTENSION_HEARTBEAT_PATH_CAPACI
 constexpr std::size_t kJsonCapacity = 768;
 constexpr LONG kMaximumInitializationPolls = 500;
 constexpr DWORD kInitializationPollMilliseconds = 10;
-constexpr char kExtensionVersion[] = "1.5.5";
+constexpr char kExtensionVersion[] = "1.5.6";
 constexpr wchar_t kClientExecutableName[] = L"sb.exe";
+#if defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+constexpr bool kDiagnosticsOnly = true;
+#else
+constexpr bool kDiagnosticsOnly = false;
+#endif
 
 volatile LONG g_state = static_cast<LONG>(WonderBaneExtensionState::uninitialized);
 volatile LONG g_initialization_result = ERROR_SUCCESS;
@@ -326,13 +331,14 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
         const bool world_map_supported = (
             result == ERROR_SUCCESS
             && is_client
+            && !kDiagnosticsOnly
             && wonderbane::extension::IsReviewedWorldMapClient()
         );
         bool event_channel_started = false;
         bool world_map_started = false;
         bool graphics_status_started = false;
         bool renderer_started = false;
-        if (result == ERROR_SUCCESS) {
+        if (result == ERROR_SUCCESS && !kDiagnosticsOnly) {
             result = wonderbane::extension::InitializeEventChannel(
                 identity,
                 world_map_supported
@@ -359,7 +365,11 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
             graphics_status_started = result == ERROR_SUCCESS;
         }
         if (result == ERROR_SUCCESS && is_client) {
+#if defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+            result = wonderbane::extension::StartGraphicsPresentObservation();
+#else
             result = wonderbane::extension::StartStrongCelShading();
+#endif
             renderer_started = result == ERROR_SUCCESS;
         }
         if (result == ERROR_SUCCESS) {
@@ -367,7 +377,11 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
         }
         if (result != ERROR_SUCCESS) {
             if (renderer_started) {
+#if defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+                wonderbane::extension::StopGraphicsPresentObservation();
+#else
                 wonderbane::extension::StopStrongCelShading();
+#endif
             }
             if (graphics_status_started) {
                 wonderbane::extension::StopGraphicsStatusPublication();

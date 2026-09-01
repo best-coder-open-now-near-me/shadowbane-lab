@@ -1,6 +1,16 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(wonderbane_extension VERSION 1.5.5 LANGUAGES CXX RC)
+project(wonderbane_extension VERSION 1.5.6 LANGUAGES CXX RC)
+
+set(WONDERBANE_EXTENSION_PROFILE "full" CACHE STRING "Extension runtime profile")
+set_property(
+  CACHE WONDERBANE_EXTENSION_PROFILE
+  PROPERTY STRINGS full diagnostics-only
+)
+if(NOT WONDERBANE_EXTENSION_PROFILE STREQUAL "full"
+   AND NOT WONDERBANE_EXTENSION_PROFILE STREQUAL "diagnostics-only")
+  message(FATAL_ERROR "Unsupported WonderBane extension profile")
+endif()
 
 include(CTest)
 
@@ -36,6 +46,13 @@ target_compile_definitions(
   NOMINMAX
   STRICT
 )
+if(WONDERBANE_EXTENSION_PROFILE STREQUAL "diagnostics-only")
+  target_compile_definitions(
+    wonderbane_extension
+    PRIVATE
+    WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY=1
+  )
+endif()
 target_compile_options(
   wonderbane_extension
   PRIVATE
@@ -327,6 +344,13 @@ if(BUILD_TESTING)
   )
 
   add_executable(wonderbane_extension_probe event_channel.cpp probe.cpp)
+  if(WONDERBANE_EXTENSION_PROFILE STREQUAL "diagnostics-only")
+    target_compile_definitions(
+      wonderbane_extension_probe
+      PRIVATE
+      WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY=1
+    )
+  endif()
   target_compile_features(wonderbane_extension_probe PRIVATE cxx_std_20)
   target_compile_definitions(
     wonderbane_extension_probe

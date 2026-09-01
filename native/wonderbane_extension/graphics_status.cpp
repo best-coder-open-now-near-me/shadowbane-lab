@@ -20,7 +20,7 @@ namespace {
 constexpr wchar_t kProductDirectory[] = L"ShadowbaneLab";
 constexpr wchar_t kExtensionDirectory[] = L"client-extension";
 constexpr char kProducerId[] = "wonderbane-extension.graphics";
-constexpr char kExtensionVersion[] = "1.5.5";
+constexpr char kExtensionVersion[] = "1.5.6";
 constexpr std::size_t kPathCapacity = WONDERBANE_EXTENSION_HEARTBEAT_PATH_CAPACITY;
 constexpr std::size_t kExecutablePathUtf8Capacity = kPathCapacity * 4U;
 constexpr std::size_t kEscapedPathCapacity = kExecutablePathUtf8Capacity * 2U + 3U;
@@ -61,6 +61,7 @@ struct FrameTimingSample {
 
 struct GraphicsStatusState {
     bool configured = false;
+    char runtime_profile[32U]{};
     char library_name[64U]{};
     char symbol_name[128U]{};
     std::uint32_t iat_rva = 0U;
@@ -684,6 +685,7 @@ DWORD PublishSnapshot(const PublisherSnapshot& snapshot) noexcept {
         "\"extension_version\":\"%s\",\"process_identity\":{"
         "\"process_id\":%lu,\"process_creation_filetime_utc\":%llu,"
         "\"executable_path\":%s},\"executable_sha256\":\"%s\","
+        "\"runtime_profile\":\"%s\","
         "\"present_entries\":%s,\"active_present_entry\":%s,"
         "\"graphics_context\":%s,\"frame_timing\":%s,"
         "\"depth_edge_pass\":{"
@@ -695,6 +697,7 @@ DWORD PublishSnapshot(const PublisherSnapshot& snapshot) noexcept {
         static_cast<unsigned long long>(snapshot.process_creation_filetime_utc),
         executable_json.data(),
         snapshot.executable_sha256,
+        snapshot.status.runtime_profile,
         entries_json.data(),
         active_json.data(),
         context_json.data(),
@@ -1055,19 +1058,28 @@ DWORD StartGraphicsStatusPublication() noexcept {
 DWORD ConfigureGraphicsPresentEntry(
     const char* const library_name,
     const char* const symbol_name,
-    const std::uint32_t iat_rva
+    const std::uint32_t iat_rva,
+    const char* const runtime_profile
 ) noexcept {
     if (InterlockedCompareExchange(&g_started, 0, 0) == 0
         || library_name == nullptr || symbol_name == nullptr
-        || library_name[0] == '\0' || symbol_name[0] == '\0') {
+        || runtime_profile == nullptr || library_name[0] == '\0'
+        || symbol_name[0] == '\0' || runtime_profile[0] == '\0') {
         return ERROR_INVALID_STATE;
     }
     AcquireSRWLockExclusive(&g_state_lock);
     HRESULT result = StringCchCopyA(
-        g_status.library_name,
-        std::size(g_status.library_name),
-        library_name
+        g_status.runtime_profile,
+        std::size(g_status.runtime_profile),
+        runtime_profile
     );
+    if (SUCCEEDED(result)) {
+        result = StringCchCopyA(
+            g_status.library_name,
+            std::size(g_status.library_name),
+            library_name
+        );
+    }
     if (SUCCEEDED(result)) {
         result = StringCchCopyA(
             g_status.symbol_name,

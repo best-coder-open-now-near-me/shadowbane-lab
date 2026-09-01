@@ -52,6 +52,14 @@ DWORD VerifyEventChannel() noexcept {
         return result;
     }
     const HANDLE mapping = OpenFileMappingW(FILE_MAP_READ, FALSE, mapping_name);
+#if defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+    if (mapping == nullptr) {
+        const DWORD error = GetLastError();
+        return error == ERROR_FILE_NOT_FOUND ? ERROR_SUCCESS : error;
+    }
+    CloseHandle(mapping);
+    return ERROR_ALREADY_EXISTS;
+#else
     if (mapping == nullptr) {
         return GetLastError();
     }
@@ -88,6 +96,7 @@ DWORD VerifyEventChannel() noexcept {
     UnmapViewOfFile(storage);
     CloseHandle(mapping);
     return valid ? ERROR_SUCCESS : ERROR_INVALID_DATA;
+#endif
 }
 
 }  // namespace
@@ -148,7 +157,11 @@ int wmain(const int argument_count, wchar_t** arguments) {
     result = VerifyEventChannel();
     if (result != ERROR_SUCCESS) {
         FreeLibrary(module);
+#if defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+        return Fail(L"event channel absence validation", result);
+#else
         return Fail(L"event channel validation", result);
+#endif
     }
     const DWORD heartbeat_attributes = GetFileAttributesW(status.heartbeat_path);
     if (

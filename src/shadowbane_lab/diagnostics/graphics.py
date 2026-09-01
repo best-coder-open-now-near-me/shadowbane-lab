@@ -15,6 +15,7 @@ from .process import ProcessIdentity
 
 GRAPHICS_PRESENT_EVIDENCE_SCHEMA_VERSION = 1
 GRAPHICS_RUNTIME_STATUS_SCHEMA_VERSION = 2
+_RUNTIME_PROFILES = frozenset({"diagnostics-only", "full-renderer"})
 
 _PRESENT_ENTRY_POINTS = {
     ("gdi32.dll", "SwapBuffers"): "gdi32-swap-buffers",
@@ -157,6 +158,7 @@ def _runtime_evidence(
             "state": "accepted",
             "source_path": str(path),
             "producer_id": payload["producer_id"],
+            "runtime_profile": payload["runtime_profile"],
             "frame_timing": payload["frame_timing"],
             "extension_version": payload["extension_version"],
             "active_present_entry": payload["active_present_entry"],
@@ -183,6 +185,8 @@ def _validate_runtime_status(
         raise ValueError("unexpected runtime graphics status producer")
     if not _bounded_text(payload.get("extension_version"), 128):
         raise ValueError("runtime extension_version must be bounded non-empty text")
+    if payload.get("runtime_profile") not in _RUNTIME_PROFILES:
+        raise ValueError("runtime_profile is not a recognized bounded instrumentation profile")
     observed_identity = _mapping(payload.get("process_identity"), "runtime process_identity")
     if observed_identity.get("process_id") != identity.process_id:
         raise ValueError("runtime status process ID does not match the captured process")
