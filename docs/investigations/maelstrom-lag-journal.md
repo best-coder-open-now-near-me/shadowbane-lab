@@ -549,6 +549,35 @@ These are inferences, ordered by present fit rather than certainty.
 - Renderer timing has been implemented and pushed but has not yet been deployed into a new regular-
   VM gameplay run. No historical FPS or hitch values are inferred from the old process-only captures.
 
+## 2026-09-01 — Passive instrumentation boundary authorized
+
+### Provenance correction
+
+- Every reported Maelstrom/turtle-camp symptom and both completed process-metric captures occurred
+  before any graphics-development share was attached to the regular shadowbane VM.
+- A transient read-only codexgfx share was later attached to the regular VM by mistake. The graphics
+  publisher failed on its first missing-baseline prerequisite before copying, patching, or launching
+  a client. The transient share was then removed. This event cannot have caused or contaminated the
+  earlier lag observations.
+- The user subsequently authorized an explicitly instrumented client for future captures, with the
+  understanding that tool-induced functional or performance changes become defects to measure and
+  fix rather than grounds to pretend the client remains vanilla.
+
+### Tooling boundary
+
+- Extension 1.5.5 tied present timing to unconditional strong-cel renderer initialization. Its
+  graphics package also carried texture overlays and a Mesa llvmpipe launch profile, so it was not
+  suitable for Maelstrom performance diagnosis.
+- Extension 1.5.6 adds a compile-time diagnostics-only profile. It publishes graphics status and
+  observes only the exact GDI32.dll!SwapBuffers import. It does not start draw-call hooks, cel or
+  outline rendering, texture replacement, Mesa overrides, world-map capture, or the extension event
+  channel.
+- The future instrumented capture must record runtime_profile: diagnostics-only. It is a new
+  comparison cohort and must not be silently pooled with the two historical vanilla captures.
+- Publication uses a separate copied client package. The reviewed source client remains untouched,
+  the temporary full baseline payload is removed after verified publication, and its manifest is
+  retained for provenance.
+
 ## Journal maintenance rule
 
 After every live test, append one entry containing:
