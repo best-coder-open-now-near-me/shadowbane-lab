@@ -45,8 +45,18 @@ class DiagnosticsClientBoundaryTests(unittest.TestCase):
         self.assertIn("verify-copy", launch)
         self.assertIn('runtime_profile -eq "diagnostics-only"', launch)
         self.assertIn("Start-Process @startArguments", launch)
-        self.assertIn('$env:USERPROFILE\\Wonderbane-diagnostics-', publish)
+        self.assertIn("Join-Path $env:USERPROFILE", publish)
+        self.assertIn('"Wonderbane-diagnostics-wb-', publish)
         self.assertNotIn('"S:\\Wonderbane-diagnostics-', publish)
+        self.assertIn('[string] $InstanceId = "primary"', publish)
+        self.assertIn('[string] $InstanceId = "primary"', launch)
+        self.assertIn("current-$InstanceId.json", publish)
+        self.assertIn("current-$InstanceId.json", launch)
+        self.assertIn("instance_id = $InstanceId", publish)
+        self.assertIn("[string] $receipt.instance_id -ne $InstanceId", launch)
+        self.assertIn("[IO.Path]::GetFullPath($runningPath)", launch)
+        self.assertIn("[StringComparison]::OrdinalIgnoreCase", launch)
+        self.assertNotIn('if (Get-Process -Name "sb"', combined)
         for forbidden in (
             "TexturePatchManifest",
             "TextureArtifactDirectory",

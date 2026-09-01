@@ -2,13 +2,34 @@
 param(
     [string] $RepositoryShare = "\\VBOXSVR\codexdiagtools",
     [string] $PythonExecutable = "$env:USERPROFILE\shadowbane-lab\.venv\Scripts\python.exe",
-    [string] $CurrentReceipt = "$env:LOCALAPPDATA\ShadowbaneLab\diagnostics-client\current.json",
+    [ValidatePattern("(?-i)^[a-z0-9][a-z0-9-]{0,31}$")]
+    [string] $InstanceId = "primary",
+    [string] $CurrentReceipt = "",
     [ValidateRange(1, 60)]
     [int] $StatusTimeoutSeconds = 20
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+
+if ([string]::IsNullOrWhiteSpace($CurrentReceipt)) {
+    $instanceReceipt = Join-Path $env:LOCALAPPDATA (
+        "ShadowbaneLab\diagnostics-client\current-$InstanceId.json"
+    )
+    $legacyReceipt = Join-Path $env:LOCALAPPDATA (
+        "ShadowbaneLab\diagnostics-client\current.json"
+    )
+    if (
+        $InstanceId -eq "primary" -and
+        -not (Test-Path -LiteralPath $instanceReceipt -PathType Leaf) -and
+        (Test-Path -LiteralPath $legacyReceipt -PathType Leaf)
+    ) {
+        $CurrentReceipt = $legacyReceipt
+    }
+    else {
+        $CurrentReceipt = $instanceReceipt
+    }
+}
 
 foreach ($required in @(
     @{ Path = $RepositoryShare; Kind = "Container"; Description = "diagnostics repository share" },
@@ -19,10 +40,6 @@ foreach ($required in @(
         throw "$($required.Description) was not found: $($required.Path)"
     }
 }
-if (Get-Process -Name "sb" -ErrorAction SilentlyContinue) {
-    throw "Close every sb.exe before launching the isolated diagnostics client"
-}
-
 $receipt = Get-Content -LiteralPath $CurrentReceipt -Raw | ConvertFrom-Json
 if (
     [int] $receipt.schema_version -ne 1 -or
@@ -31,6 +48,15 @@ if (
     [bool] $receipt.baseline_payload_retained
 ) {
     throw "Diagnostics publication receipt does not describe a passive verified package"
+}
+$receiptHasInstanceId = $receipt.PSObject.Properties.Name -contains "instance_id"
+if ($receiptHasInstanceId) {
+    if ([string] $receipt.instance_id -ne $InstanceId) {
+        throw "Diagnostics publication receipt belongs to instance '$($receipt.instance_id)', not '$InstanceId'"
+    }
+}
+elseif ($InstanceId -ne "primary") {
+    throw "Legacy diagnostics publication receipts may be used only for the primary instance"
 }
 $packageDirectory = [string] $receipt.package_directory
 if (-not (Test-Path -LiteralPath $packageDirectory -PathType Container)) {
@@ -83,6 +109,28 @@ if ($actualExtensionSha256 -ne [string] $receipt.extension_sha256) {
     throw "Diagnostics extension no longer matches its publication identity"
 }
 
+$resolvedGameExecutable = [IO.Path]::GetFullPath(
+    (Resolve-Path -LiteralPath $gameExecutable).Path
+)
+foreach ($runningClient in @(Get-Process -Name "sb" -ErrorAction SilentlyContinue)) {
+    try {
+        $runningPath = $runningClient.Path
+    }
+    catch {
+        throw "Could not inspect existing sb.exe PID $($runningClient.Id); refusing an ambiguous concurrent launch"
+    }
+    if (-not $runningPath) {
+        throw "Existing sb.exe PID $($runningClient.Id) has no inspectable executable path; refusing an ambiguous concurrent launch"
+    }
+    if ([string]::Equals(
+        [IO.Path]::GetFullPath($runningPath),
+        $resolvedGameExecutable,
+        [StringComparison]::OrdinalIgnoreCase
+    )) {
+        throw "Diagnostics instance '$InstanceId' is already running from this verified package (PID $($runningClient.Id))"
+    }
+}
+
 $startArguments = @{
     FilePath = $gameExecutable
     WorkingDirectory = $packageDirectory
@@ -122,6 +170,7 @@ if ($null -eq $status) {
 }
 
 Write-Output "Launched WonderBane diagnostics-only client (PID $($game.Id))"
+Write-Output "Instance: $InstanceId"
 Write-Output "Runtime profile: $($status.runtime_profile)"
 Write-Output "Package: $packageDirectory"
 Write-Output "Renderer status: $statusPath"

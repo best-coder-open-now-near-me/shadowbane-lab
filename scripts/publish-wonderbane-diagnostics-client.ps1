@@ -8,12 +8,25 @@ param(
     [string] $ExtensionVersion = "1.5.6",
     [string] $ExpectedExtensionSha256 = "94a4f4043d429ad63775bb4bf77ecd31a29ffc7a01146fb919bfb25cc5c7cdcb",
     [string] $ExtensionArtifact = "\\VBOXSVR\codexdiagtools\build\wonderbane-diagnostics-extension\Release\wonderbane-extension.dll",
-    [string] $DestinationDirectory = "$env:USERPROFILE\Wonderbane-diagnostics-wb-55fbad5f-present-1.5.6",
-    [string] $CurrentReceipt = "$env:LOCALAPPDATA\ShadowbaneLab\diagnostics-client\current.json"
+    [ValidatePattern("(?-i)^[a-z0-9][a-z0-9-]{0,31}$")]
+    [string] $InstanceId = "primary",
+    [string] $DestinationDirectory = "",
+    [string] $CurrentReceipt = ""
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+
+if ([string]::IsNullOrWhiteSpace($DestinationDirectory)) {
+    $DestinationDirectory = Join-Path $env:USERPROFILE (
+        "Wonderbane-diagnostics-wb-55fbad5f-present-$ExtensionVersion-$InstanceId"
+    )
+}
+if ([string]::IsNullOrWhiteSpace($CurrentReceipt)) {
+    $CurrentReceipt = Join-Path $env:LOCALAPPDATA (
+        "ShadowbaneLab\diagnostics-client\current-$InstanceId.json"
+    )
+}
 
 function Remove-ExactTransientBaseline {
     param(
@@ -52,16 +65,38 @@ foreach ($required in @(
         throw "$($required.Description) was not found: $($required.Path)"
     }
 }
-if (Get-Process -Name "sb" -ErrorAction SilentlyContinue) {
-    throw "Close every sb.exe before publishing the isolated diagnostics client"
-}
-if (Test-Path -LiteralPath $DestinationDirectory) {
-    throw "Diagnostics client destination already exists: $DestinationDirectory"
-}
-
 $sourceExecutable = Join-Path $ClientDirectory "sb.exe"
 if (-not (Test-Path -LiteralPath $sourceExecutable -PathType Leaf)) {
     throw "Source client executable was not found: $sourceExecutable"
+}
+$resolvedSourceExecutable = [IO.Path]::GetFullPath(
+    (Resolve-Path -LiteralPath $sourceExecutable).Path
+)
+$runningSourceClients = @()
+foreach ($runningClient in @(Get-Process -Name "sb" -ErrorAction SilentlyContinue)) {
+    try {
+        $candidatePath = $runningClient.Path
+    }
+    catch {
+        throw "Could not inspect existing sb.exe PID $($runningClient.Id); refusing publication from an ambiguous source state"
+    }
+    if (-not $candidatePath) {
+        throw "Existing sb.exe PID $($runningClient.Id) has no inspectable executable path; refusing publication from an ambiguous source state"
+    }
+    if ([string]::Equals(
+        [IO.Path]::GetFullPath($candidatePath),
+        $resolvedSourceExecutable,
+        [StringComparison]::OrdinalIgnoreCase
+    )) {
+        $runningSourceClients += $runningClient
+    }
+}
+if ($runningSourceClients.Count -gt 0) {
+    $sourceProcessIds = ($runningSourceClients.Id | Sort-Object) -join ", "
+    throw "Close the source vanilla sb.exe before publication (PID: $sourceProcessIds). Existing diagnostics-package clients may remain open."
+}
+if (Test-Path -LiteralPath $DestinationDirectory) {
+    throw "Diagnostics client destination already exists: $DestinationDirectory"
 }
 $actualVanillaExecutableSha256 = (Get-FileHash -LiteralPath $sourceExecutable -Algorithm SHA256).Hash.ToLowerInvariant()
 if ($actualVanillaExecutableSha256 -ne $ExpectedVanillaExecutableSha256) {
@@ -106,7 +141,9 @@ if (-not $destinationDrive) {
 $transientRoot = Join-Path $DiagnosticsShare "transient-client-baselines"
 $transientName = "wbdiag-$([guid]::NewGuid().ToString('N'))"
 $transientBaseline = Join-Path $transientRoot $transientName
-$evidenceDirectory = Join-Path (Join-Path $DiagnosticsShare "diagnostics-client-packages") "wb-55fbad5f-present-$ExtensionVersion"
+$evidenceDirectory = Join-Path (
+    Join-Path $DiagnosticsShare "diagnostics-client-packages"
+) "wb-55fbad5f-present-$ExtensionVersion-$InstanceId"
 $manifestPath = Join-Path $evidenceDirectory "bootstrap.manifest.json"
 $baselineEvidencePath = Join-Path $evidenceDirectory "source-baseline.manifest.json"
 $publicationReceipt = Join-Path $evidenceDirectory "publication.json"
@@ -200,6 +237,7 @@ try {
         status = "published_and_verified"
         completed_at_utc = [DateTime]::UtcNow.ToString("o")
         repository_revision = $repositoryRevision
+        instance_id = $InstanceId
         runtime_profile = "diagnostics-only"
         extension_version = $ExtensionVersion
         extension_sha256 = $ExpectedExtensionSha256
@@ -235,6 +273,7 @@ finally {
 }
 
 Write-Output "Diagnostics-only client published and verified: $DestinationDirectory"
+Write-Output "Instance: $InstanceId"
 Write-Output "Runtime profile: diagnostics-only"
 Write-Output "Extension SHA-256: $ExpectedExtensionSha256"
 Write-Output "The temporary full client snapshot was removed after publication."

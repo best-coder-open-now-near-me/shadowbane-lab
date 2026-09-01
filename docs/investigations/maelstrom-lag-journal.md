@@ -605,6 +605,41 @@ These are inferences, ordered by present fit rather than certainty.
 - Next test: enter Maelstrom near the original turtle camp, establish a smooth/lag state, then run a
   triggered capture that continuously drains exact present timing alongside process metrics.
 
+## 2026-09-01 — Paired-process late-arrival experiment armed
+
+### Experimental design
+
+- Keep diagnostics-only PID 3196 logged in as the previously observed smoother late-arrival
+  character, outside the turtle-camp exposure until the comparison point.
+- Publish and launch a second diagnostics-only package with instance ID \`summoner\`. The package,
+  current receipt, publication evidence, renderer status, PID, and creation time remain distinct
+  from PID 3196. The launcher refuses a duplicate executable path while permitting another verified
+  package path.
+- Take the Summoner to the original turtle camp and deliberately build the familiar whole-world
+  stutter and click starvation. Once degraded, summon the held-back character into the same local
+  scene and capture both processes over the same wall-clock interval.
+- Record exact present timing and process metrics for both PIDs. The comparison is within one VM
+  session, so server state, turtle-camp population, and host load are substantially shared. The two
+  simultaneous clients still add host contention and focus/background-window state as explicit
+  confounds.
+
+### Discriminating outcomes
+
+- Degraded Summoner plus smooth late arrival in the same camp supports client-process-local
+  accumulated state activated by the original camp.
+- Immediate comparable degradation in the late arrival weakens the accumulated-exposure model and
+  raises location/server/host-wide work.
+- A difference that tracks character or class across repeated role swaps raises a character,
+  ability, animation, or resource-set interaction; one paired run cannot establish that.
+
+### Pending identities
+
+- Late-arrival control: PID 3196, creation FILETIME UTC 134327142791034606, diagnostics-only
+  package and extension identity recorded in the preceding entry.
+- Summoner exposure client: pending publication and launch from named package instance \`summoner\`.
+- Next action: publish and launch \`summoner\` without stopping PID 3196, then record its exact PID,
+  creation time, and renderer-status path before movement.
+
 ## Journal maintenance rule
 
 After every live test, append one entry containing:
