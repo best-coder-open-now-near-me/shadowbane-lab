@@ -883,6 +883,37 @@ These are inferences, ordered by present fit rather than certainty.
 3. If repeatable, split the northern view into west/east and near/far coverage without moving.
 4. Record the smallest view that activates lag before naming a specific prop or asset.
 
+## 2026-09-01 — Northern candidate narrows to an empty-looking view hotspot
+
+### Operator observation
+
+- During further northern-sector isolation, the severe frame-rate response appeared tied to a very
+  specific camera aim or world spot rather than the whole northern side.
+- Nothing visually obvious appeared to occupy the hotspot. No visible prop has therefore been
+  identified as the owner.
+- Exact camera position, forward vector, zoom, field of view, and frustum membership were not
+  captured for this observation.
+
+### Updated interpretation
+
+- **Candidate:** A hidden or buried scene node, oversized or corrupt bounding volume, invisible
+  emitter, terrain or vegetation batch, portal/cell, or wrongly admitted off-screen object.
+- **Also possible:** The apparent center hotspot is only the camera orientation at which another
+  object crosses a frustum, LOD, or occlusion boundary elsewhere on screen.
+- **Important boundary:** An empty screen-center location does not establish an empty visible set;
+  assigning a world object requires camera and projection telemetry plus repeatable angular bounds.
+
+### Smallest next separation
+
+1. Hold character position and zoom fixed.
+2. Nudge left/right and up/down around the hotspot to map the smallest activating view cone.
+3. After mapping that cone, move laterally and aim at the same world location to test whether the
+   lag follows a world-space target or only a compass direction or frustum composition.
+4. Record whether vertical tilt changes the result; a ground-locked response raises terrain or a
+   buried node, while a horizon-locked response raises distant geometry or culling.
+5. Extend required camera telemetry beyond forward direction to enough reviewed projection state
+   to reconstruct the actual visible frustum when mappings become available.
+
 ## Journal maintenance rule
 
 After every live test, append one entry containing:
