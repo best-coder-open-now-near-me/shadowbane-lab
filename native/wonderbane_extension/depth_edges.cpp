@@ -987,19 +987,20 @@ void MarkDepthEdgeSceneDraw(
     g_frame.pending = true;
 }
 
-void CompositeDepthEdgesBeforeUi() noexcept {
+bool CompositeDepthEdgesBeforeUi() noexcept {
     if (!g_frame.pending || g_frame.composited) {
-        return;
+        return false;
     }
     if ((CurrentGraphicsParameters().flags & kGraphicsControlDepthContours) == 0U) {
         g_frame.pending = false;
         g_frame.composited = true;
-        return;
+        return true;
     }
     const DepthEdgeFrame frame = g_frame;
     g_frame.pending = false;
     g_frame.composited = true;
     CompositeDepthEdges(frame);
+    return true;
 }
 
 void EndDepthEdgeFrame() noexcept {

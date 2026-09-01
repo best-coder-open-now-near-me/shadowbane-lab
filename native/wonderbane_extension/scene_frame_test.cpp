@@ -66,10 +66,16 @@ int wmain() {
         DrawClassificationReason::orthographic_projection,
     };
     SceneFrameDecision decision = AdvanceSceneFrame(&frame, ui);
-    if (decision.contributes_to_scene || decision.composite_before_draw
+    if (decision.contributes_to_scene || !decision.composite_before_draw
         || frame.phase != SceneFramePhase::awaiting_world
         || frame.boundary_count != 0U) {
-        return Fail(L"pre-world UI does not seal frame");
+        return Fail(L"pre-world UI remains a retryable candidate");
+    }
+    ResolveSceneCompositeAttempt(&frame, false);
+    if (frame.composite_candidate_count != 1U
+        || frame.rejected_composite_candidate_count != 1U
+        || frame.phase != SceneFramePhase::awaiting_world) {
+        return Fail(L"unarmed pre-world candidate rejection");
     }
     decision = AdvanceSceneFrame(&frame, world);
     if (!decision.contributes_to_scene || decision.composite_before_draw
@@ -77,37 +83,59 @@ int wmain() {
         return Fail(L"world frame transition");
     }
     decision = AdvanceSceneFrame(&frame, planar);
-    if (decision.contributes_to_scene || decision.composite_before_draw
+    if (decision.contributes_to_scene || !decision.composite_before_draw
         || frame.phase != SceneFramePhase::world
         || frame.boundary_count != 0U) {
-        return Fail(L"planar overlay does not seal scene");
+        return Fail(L"planar overlay remains a retryable candidate");
     }
+    ResolveSceneCompositeAttempt(&frame, false);
     decision = AdvanceSceneFrame(&frame, ui);
     if (decision.contributes_to_scene || !decision.composite_before_draw
-        || frame.phase != SceneFramePhase::ui
-        || frame.boundary_count != 1U) {
-        return Fail(L"single pre-UI boundary");
+        || frame.phase != SceneFramePhase::world
+        || frame.boundary_count != 0U) {
+        return Fail(L"false orthographic boundary remains retryable");
+    }
+    ResolveSceneCompositeAttempt(&frame, false);
+    decision = AdvanceSceneFrame(&frame, world);
+    if (!decision.contributes_to_scene || frame.late_world_draw_count != 0U
+        || frame.phase != SceneFramePhase::world) {
+        return Fail(L"world resumes after rejected UI candidate");
     }
     decision = AdvanceSceneFrame(&frame, ui);
-    if (decision.composite_before_draw || frame.boundary_count != 1U) {
-        return Fail(L"duplicate UI boundary rejection");
+    ResolveSceneCompositeAttempt(&frame, true);
+    if (!decision.composite_before_draw || frame.phase != SceneFramePhase::ui
+        || frame.boundary_count != 1U
+        || frame.accepted_boundary_draw_ordinal != frame.draw_count) {
+        return Fail(L"depth-owned pre-UI boundary acceptance");
+    }
+    const std::uint64_t candidates = frame.composite_candidate_count;
+    decision = AdvanceSceneFrame(&frame, ui);
+    ResolveSceneCompositeAttempt(&frame, false);
+    if (decision.composite_before_draw || frame.boundary_count != 1U
+        || frame.composite_candidate_count != candidates) {
+        return Fail(L"duplicate composite candidate rejection");
     }
     decision = AdvanceSceneFrame(&frame, world);
     if (!decision.contributes_to_scene || decision.composite_before_draw
-        || frame.late_world_draw_count != 1U) {
+        || frame.late_world_draw_count != 1U
+        || frame.first_late_world_draw_ordinal != frame.draw_count) {
         return Fail(L"late world draw remains effect eligible");
     }
-    if (frame.draw_counts[static_cast<std::size_t>(DrawLayer::world_opaque)] != 2U
+    if (frame.draw_counts[static_cast<std::size_t>(DrawLayer::world_opaque)] != 3U
         || frame.draw_counts[static_cast<std::size_t>(DrawLayer::world_overlay)] != 1U
-        || frame.draw_counts[static_cast<std::size_t>(DrawLayer::ui_overlay)] != 3U) {
+        || frame.draw_counts[static_cast<std::size_t>(DrawLayer::ui_overlay)] != 4U) {
         return Fail(L"bounded layer counters");
     }
     if (frame.reason_counts[static_cast<std::size_t>(
             DrawClassificationReason::depth_writing_opaque
-        )] != 2U
+        )] != 3U
         || frame.reason_counts[static_cast<std::size_t>(
             DrawClassificationReason::orthographic_projection
-        )] != 3U) {
+        )] != 4U
+        || frame.composite_candidate_count != 4U
+        || frame.rejected_composite_candidate_count != 3U
+        || frame.first_world_draw_ordinal != 2U
+        || frame.last_world_draw_ordinal != frame.draw_count) {
         return Fail(L"bounded reason counters");
     }
     if (std::strcmp(DrawLayerName(DrawLayer::world_opaque), "world-opaque") != 0

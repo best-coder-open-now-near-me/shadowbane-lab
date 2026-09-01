@@ -136,8 +136,17 @@ int wmain() {
     classified_frame.draw_counts[5] = 2U;
     classified_frame.reason_counts[1] = 2U;
     classified_frame.reason_counts[3] = 3U;
+    classified_frame.draw_count = 5U;
+    classified_frame.world_draw_count = 3U;
     classified_frame.boundary_count = 1U;
     classified_frame.late_world_draw_count = 1U;
+    classified_frame.composite_candidate_count = 2U;
+    classified_frame.rejected_composite_candidate_count = 1U;
+    classified_frame.first_world_draw_ordinal = 1U;
+    classified_frame.first_composite_candidate_draw_ordinal = 3U;
+    classified_frame.accepted_boundary_draw_ordinal = 4U;
+    classified_frame.first_late_world_draw_ordinal = 5U;
+    classified_frame.last_world_draw_ordinal = 5U;
     classified_frame.fixed_function_refresh_count = 1U;
     ReportSceneFrameClassification(classified_frame);
     std::array<wchar_t, 1024U> path{};
@@ -246,6 +255,22 @@ int wmain() {
         || json.find("\"latest\":{\"phase\":\"ui\"") == std::string::npos
         || json.find("\"world_opaque\":3") == std::string::npos
         || json.find("\"orthographic_projection\":2") == std::string::npos
+        || json.find("\"draw_count\":5") == std::string::npos
+        || json.find("\"world_draw_count\":3") == std::string::npos
+        || json.find("\"composite_candidate_count\":2")
+            == std::string::npos
+        || json.find("\"rejected_composite_candidate_count\":1")
+            == std::string::npos
+        || json.find("\"first_world_draw_ordinal\":1")
+            == std::string::npos
+        || json.find("\"first_composite_candidate_draw_ordinal\":3")
+            == std::string::npos
+        || json.find("\"accepted_boundary_draw_ordinal\":4")
+            == std::string::npos
+        || json.find("\"first_late_world_draw_ordinal\":5")
+            == std::string::npos
+        || json.find("\"last_world_draw_ordinal\":5")
+            == std::string::npos
         || json.find("\"fixed_function_refresh_count\":1")
             == std::string::npos
         || json.find("\"fixed_function_state\":\"cached-with-transition-hooks\"")
@@ -253,7 +278,14 @@ int wmain() {
         || json.find("\"maximum_ordinary_frame_refreshes\":1")
             == std::string::npos
         || json.find(
-            "\"planar_overlay\":\"excluded-without-sealing-scene\""
+            "\"boundary_ownership\":\"depth-pass-armed-idempotent\""
+        ) == std::string::npos
+        || json.find(
+            "\"candidate_retry\":\"until-depth-pass-accepts\""
+        ) == std::string::npos
+        || json.find(
+            "\"planar_overlay\":"
+            "\"excluded-and-retryable-composite-candidate\""
         ) == std::string::npos
         || json.find(
             "\"late_world_after_ui\":\"effect-eligible-and-counted\""

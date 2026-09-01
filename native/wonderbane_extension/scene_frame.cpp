@@ -62,6 +62,15 @@ bool IsUiLayer(const DrawLayer layer) noexcept {
     return layer == DrawLayer::ui_overlay;
 }
 
+bool IsSceneCompositeCandidate(
+    const DrawClassification& classification
+) noexcept {
+    return classification.reason
+            == DrawClassificationReason::orthographic_projection
+        || classification.reason
+            == DrawClassificationReason::planar_overlay_state;
+}
+
 const char* DrawLayerName(const DrawLayer layer) noexcept {
     switch (layer) {
         case DrawLayer::unknown:
@@ -115,6 +124,7 @@ SceneFrameDecision AdvanceSceneFrame(
     if (frame == nullptr) {
         return decision;
     }
+    ++frame->draw_count;
     const std::size_t layer_index = static_cast<std::size_t>(classification.layer);
     if (layer_index < frame->draw_counts.size()) {
         ++frame->draw_counts[layer_index];
@@ -125,34 +135,53 @@ SceneFrameDecision AdvanceSceneFrame(
     if (reason_index < frame->reason_counts.size()) {
         ++frame->reason_counts[reason_index];
     }
+    decision.composite_before_draw = IsSceneCompositeCandidate(classification)
+        && !frame->composite_requested;
     if (classification.reason == DrawClassificationReason::planar_overlay_state) {
-        // Perspective planar overlays are excluded from cel processing, but live
-        // WonderBane frames place one before the body of the world. It is not a
-        // trustworthy world-to-UI boundary; the later orthographic transition is.
+        // Planar overlays remain excluded from cel processing. They may ask the
+        // idempotent depth pass to composite, but only that pass can accept the
+        // boundary after perspective depth geometry has actually armed it.
         return decision;
     }
     if (IsWorldLayer(classification.layer)) {
         decision.contributes_to_scene = true;
+        ++frame->world_draw_count;
+        if (frame->first_world_draw_ordinal == 0U) {
+            frame->first_world_draw_ordinal = frame->draw_count;
+        }
+        frame->last_world_draw_ordinal = frame->draw_count;
         if (frame->phase == SceneFramePhase::ui) {
             ++frame->late_world_draw_count;
+            if (frame->first_late_world_draw_ordinal == 0U) {
+                frame->first_late_world_draw_ordinal = frame->draw_count;
+            }
             return decision;
         }
         frame->phase = SceneFramePhase::world;
         return decision;
     }
-    if (IsUiLayer(classification.layer)) {
-        if (frame->phase == SceneFramePhase::awaiting_world) {
-            return decision;
-        }
-        if (frame->phase == SceneFramePhase::world
-            && !frame->composite_requested) {
-            frame->composite_requested = true;
-            ++frame->boundary_count;
-            decision.composite_before_draw = true;
-        }
-        frame->phase = SceneFramePhase::ui;
-    }
     return decision;
+}
+
+void ResolveSceneCompositeAttempt(
+    SceneFrameState* const frame,
+    const bool accepted
+) noexcept {
+    if (frame == nullptr || frame->composite_requested) {
+        return;
+    }
+    ++frame->composite_candidate_count;
+    if (frame->first_composite_candidate_draw_ordinal == 0U) {
+        frame->first_composite_candidate_draw_ordinal = frame->draw_count;
+    }
+    if (!accepted) {
+        ++frame->rejected_composite_candidate_count;
+        return;
+    }
+    frame->composite_requested = true;
+    ++frame->boundary_count;
+    frame->accepted_boundary_draw_ordinal = frame->draw_count;
+    frame->phase = SceneFramePhase::ui;
 }
 
 }  // namespace wonderbane::extension

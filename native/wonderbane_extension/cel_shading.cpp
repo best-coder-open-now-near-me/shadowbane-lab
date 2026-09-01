@@ -1221,7 +1221,10 @@ SceneFrameDecision ObserveClassifiedDraw(
         ClassifyFixedFunctionDraw(state)
     );
     if (decision.composite_before_draw) {
-        CompositeDepthEdgesBeforeUi();
+        ResolveSceneCompositeAttempt(
+            &g_scene_frame,
+            CompositeDepthEdgesBeforeUi()
+        );
     }
     return decision;
 }

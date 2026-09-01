@@ -99,6 +99,37 @@ def collect_graphics_present_evidence(
         and isinstance(scene_color_capture.get("capture_count"), int)
         and scene_color_capture["capture_count"] > 0
     )
+    latest_classification = (
+        draw_classification.get("latest")
+        if isinstance(draw_classification, dict)
+        else None
+    )
+    classification_policy = (
+        draw_classification.get("policy")
+        if isinstance(draw_classification, dict)
+        else None
+    )
+    ordered_boundary_observed = True
+    if (
+        isinstance(latest_classification, dict)
+        and isinstance(classification_policy, dict)
+        and classification_policy.get("boundary_ownership")
+        == "depth-pass-armed-idempotent"
+    ):
+        first_world = latest_classification.get("first_world_draw_ordinal")
+        accepted_boundary = latest_classification.get(
+            "accepted_boundary_draw_ordinal"
+        )
+        last_world = latest_classification.get("last_world_draw_ordinal")
+        ordered_boundary_observed = bool(
+            isinstance(first_world, int)
+            and not isinstance(first_world, bool)
+            and isinstance(accepted_boundary, int)
+            and not isinstance(accepted_boundary, bool)
+            and isinstance(last_world, int)
+            and not isinstance(last_world, bool)
+            and 0 < first_world <= last_world < accepted_boundary
+        )
     world_ui_separation_observed = bool(
         runtime.get("state") == "accepted"
         and isinstance(draw_classification, dict)
@@ -108,6 +139,7 @@ def collect_graphics_present_evidence(
         and isinstance(draw_classification.get("latest"), dict)
         and draw_classification["latest"].get("boundary_count") == 1
         and draw_classification["latest"].get("late_world_draw_count") == 0
+        and ordered_boundary_observed
     )
     fixed_function_refresh_bounded = bool(
         world_ui_separation_observed
@@ -365,14 +397,109 @@ def _validate_draw_classification(value: object) -> None:
     }:
         raise ValueError("draw_classification late-world policy is unsupported")
     planar_overlay_policy = policy.get("planar_overlay")
-    if planar_overlay_policy not in {None, "excluded-without-sealing-scene"}:
+    if planar_overlay_policy not in {
+        None,
+        "excluded-without-sealing-scene",
+        "excluded-and-retryable-composite-candidate",
+    }:
         raise ValueError("draw_classification planar-overlay policy is unsupported")
+    boundary_ownership = policy.get("boundary_ownership")
+    if boundary_ownership not in {None, "depth-pass-armed-idempotent"}:
+        raise ValueError("draw_classification boundary ownership is unsupported")
+    candidate_retry = policy.get("candidate_retry")
+    if candidate_retry not in {None, "until-depth-pass-accepts"}:
+        raise ValueError("draw_classification candidate retry policy is unsupported")
+    if boundary_ownership == "depth-pass-armed-idempotent":
+        if candidate_retry != "until-depth-pass-accepts":
+            raise ValueError("draw_classification candidate retry policy is missing")
+        if planar_overlay_policy != "excluded-and-retryable-composite-candidate":
+            raise ValueError("draw_classification planar-overlay retry policy is missing")
+        _validate_composite_journal(latest)
     if policy.get("fixed_function_state") != "cached-with-transition-hooks":
         raise ValueError("draw_classification fixed-function policy is unsupported")
     if policy.get("maximum_ordinary_frame_refreshes") != 1:
         raise ValueError("draw_classification refresh budget is unsupported")
     if latest.get("fixed_function_refresh_count") > 1:
         raise ValueError("draw_classification exceeded its per-frame refresh budget")
+
+
+def _validate_composite_journal(latest: dict[str, Any]) -> None:
+    names = (
+        "draw_count",
+        "world_draw_count",
+        "composite_candidate_count",
+        "rejected_composite_candidate_count",
+        "first_world_draw_ordinal",
+        "first_composite_candidate_draw_ordinal",
+        "accepted_boundary_draw_ordinal",
+        "first_late_world_draw_ordinal",
+        "last_world_draw_ordinal",
+    )
+    journal = {
+        name: _non_negative_counter(
+            latest.get(name), f"draw_classification.latest.{name}"
+        )
+        for name in names
+    }
+    draw_count = journal["draw_count"]
+    world_draw_count = journal["world_draw_count"]
+    candidate_count = journal["composite_candidate_count"]
+    rejected_count = journal["rejected_composite_candidate_count"]
+    boundary_count = latest["boundary_count"]
+    late_world_count = latest["late_world_draw_count"]
+    layers = latest["layers"]
+    classified_draw_count = sum(layers.values())
+    classified_world_count = sum(
+        layers[name]
+        for name in (
+            "world_opaque",
+            "world_alpha_tested",
+            "world_translucent",
+            "world_overlay",
+        )
+    )
+    if draw_count != classified_draw_count or world_draw_count != classified_world_count:
+        raise ValueError("draw_classification composite journal layers disagree")
+    if (
+        world_draw_count > draw_count
+        or late_world_count > world_draw_count
+        or rejected_count > candidate_count
+    ):
+        raise ValueError("draw_classification composite journal counts disagree")
+    if boundary_count not in {0, 1} or candidate_count != rejected_count + boundary_count:
+        raise ValueError("draw_classification composite journal boundary disagrees")
+    if (world_draw_count > 0) != (journal["first_world_draw_ordinal"] > 0):
+        raise ValueError("draw_classification first world ordinal disagrees")
+    if (candidate_count > 0) != (
+        journal["first_composite_candidate_draw_ordinal"] > 0
+    ):
+        raise ValueError("draw_classification first candidate ordinal disagrees")
+    if (boundary_count > 0) != (journal["accepted_boundary_draw_ordinal"] > 0):
+        raise ValueError("draw_classification accepted boundary ordinal disagrees")
+    if (late_world_count > 0) != (journal["first_late_world_draw_ordinal"] > 0):
+        raise ValueError("draw_classification first late-world ordinal disagrees")
+    if (world_draw_count > 0) != (journal["last_world_draw_ordinal"] > 0):
+        raise ValueError("draw_classification last world ordinal disagrees")
+    for name in names[4:]:
+        if journal[name] > draw_count:
+            raise ValueError(f"draw_classification latest.{name} exceeds draw count")
+    first_world = journal["first_world_draw_ordinal"]
+    first_candidate = journal["first_composite_candidate_draw_ordinal"]
+    accepted_boundary = journal["accepted_boundary_draw_ordinal"]
+    first_late_world = journal["first_late_world_draw_ordinal"]
+    last_world = journal["last_world_draw_ordinal"]
+    if world_draw_count > 0 and first_world > last_world:
+        raise ValueError("draw_classification world ordinals disagree")
+    if candidate_count > 0 and boundary_count > 0 and first_candidate > accepted_boundary:
+        raise ValueError("draw_classification candidate ordinals disagree")
+    if boundary_count > 0 and world_draw_count == 0:
+        raise ValueError("draw_classification boundary precedes all world draws")
+    if late_world_count > 0 and not (
+        accepted_boundary < first_late_world <= last_world
+    ):
+        raise ValueError("draw_classification late-world ordinals disagree")
+    if late_world_count == 0 and boundary_count > 0 and last_world >= accepted_boundary:
+        raise ValueError("draw_classification accepted boundary precedes last world draw")
 
 
 def _validate_classification_counts(value: dict[str, Any], field_name: str) -> None:

@@ -23,7 +23,7 @@ namespace {
 constexpr wchar_t kProductDirectory[] = L"ShadowbaneLab";
 constexpr wchar_t kExtensionDirectory[] = L"client-extension";
 constexpr char kProducerId[] = "wonderbane-extension.graphics";
-constexpr char kExtensionVersion[] = "1.6.7";
+constexpr char kExtensionVersion[] = "1.6.8";
 constexpr std::size_t kPathCapacity = WONDERBANE_EXTENSION_HEARTBEAT_PATH_CAPACITY;
 constexpr std::size_t kExecutablePathUtf8Capacity = kPathCapacity * 4U;
 constexpr std::size_t kEscapedPathCapacity = kExecutablePathUtf8Capacity * 2U + 3U;
@@ -992,7 +992,7 @@ DWORD PublishSnapshot(const PublisherSnapshot& snapshot) noexcept {
     const auto& latest_reasons = snapshot.status.latest_scene_frame.reason_counts;
     const auto& total_layers = snapshot.status.classified_draw_counts;
     const auto& total_reasons = snapshot.status.classification_reason_counts;
-    std::array<char, 4096U> scene_frame_json{};
+    std::array<char, 6144U> scene_frame_json{};
     result = StringCchPrintfA(
         scene_frame_json.data(),
         scene_frame_json.size(),
@@ -1007,6 +1007,14 @@ DWORD PublishSnapshot(const PublisherSnapshot& snapshot) noexcept {
         "\"depth_writing_alpha_tested\":%llu,\"blended_perspective\":%llu,"
         "\"depthless_perspective\":%llu},\"boundary_count\":%llu,"
         "\"late_world_draw_count\":%llu,"
+        "\"draw_count\":%llu,\"world_draw_count\":%llu,"
+        "\"composite_candidate_count\":%llu,"
+        "\"rejected_composite_candidate_count\":%llu,"
+        "\"first_world_draw_ordinal\":%llu,"
+        "\"first_composite_candidate_draw_ordinal\":%llu,"
+        "\"accepted_boundary_draw_ordinal\":%llu,"
+        "\"first_late_world_draw_ordinal\":%llu,"
+        "\"last_world_draw_ordinal\":%llu,"
         "\"fixed_function_refresh_count\":%llu},\"totals\":{\"layers\":{"
         "\"unknown\":%llu,\"world_opaque\":%llu,"
         "\"world_alpha_tested\":%llu,\"world_translucent\":%llu,"
@@ -1018,7 +1026,9 @@ DWORD PublishSnapshot(const PublisherSnapshot& snapshot) noexcept {
         "\"late_world_draw_count\":%llu,"
         "\"fixed_function_refresh_count\":%llu},\"policy\":{"
         "\"single_world_to_ui_boundary\":true,"
-        "\"planar_overlay\":\"excluded-without-sealing-scene\","
+        "\"boundary_ownership\":\"depth-pass-armed-idempotent\","
+        "\"candidate_retry\":\"until-depth-pass-accepts\","
+        "\"planar_overlay\":\"excluded-and-retryable-composite-candidate\","
         "\"late_world_after_ui\":\"effect-eligible-and-counted\","
         "\"fixed_function_state\":\"cached-with-transition-hooks\","
         "\"maximum_ordinary_frame_refreshes\":1}}",
@@ -1043,6 +1053,34 @@ DWORD PublishSnapshot(const PublisherSnapshot& snapshot) noexcept {
         ),
         static_cast<unsigned long long>(
             snapshot.status.latest_scene_frame.late_world_draw_count
+        ),
+        static_cast<unsigned long long>(
+            snapshot.status.latest_scene_frame.draw_count
+        ),
+        static_cast<unsigned long long>(
+            snapshot.status.latest_scene_frame.world_draw_count
+        ),
+        static_cast<unsigned long long>(
+            snapshot.status.latest_scene_frame.composite_candidate_count
+        ),
+        static_cast<unsigned long long>(
+            snapshot.status.latest_scene_frame.rejected_composite_candidate_count
+        ),
+        static_cast<unsigned long long>(
+            snapshot.status.latest_scene_frame.first_world_draw_ordinal
+        ),
+        static_cast<unsigned long long>(
+            snapshot.status.latest_scene_frame
+                .first_composite_candidate_draw_ordinal
+        ),
+        static_cast<unsigned long long>(
+            snapshot.status.latest_scene_frame.accepted_boundary_draw_ordinal
+        ),
+        static_cast<unsigned long long>(
+            snapshot.status.latest_scene_frame.first_late_world_draw_ordinal
+        ),
+        static_cast<unsigned long long>(
+            snapshot.status.latest_scene_frame.last_world_draw_ordinal
         ),
         static_cast<unsigned long long>(
             snapshot.status.latest_scene_frame.fixed_function_refresh_count

@@ -27,7 +27,7 @@ void MarkDepthEdgeSceneDraw(
     const int* viewport,
     std::size_t viewport_count
 ) noexcept;
-void CompositeDepthEdgesBeforeUi() noexcept;
+bool CompositeDepthEdgesBeforeUi() noexcept;
 void EndDepthEdgeFrame() noexcept;
 void ResetDepthEdges() noexcept;
 
