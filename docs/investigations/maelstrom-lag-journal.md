@@ -259,6 +259,31 @@ These are inferences, ordered by present fit rather than certainty.
 5. Relog again without restarting the process if possible, then repeat the same view to determine
    whether character/world-session teardown alone clears the state.
 
+## 2026-08-31 — Warlock turtle-exposure test begins
+
+### Active procedure
+
+**Operator observation / experiment in progress**
+
+- The operator is deliberately fighting Maelstrom turtles on a Warlock to determine whether the
+  severe lag can be accumulated on another class after the relog reset.
+- The Warlock's exact PID, process creation time, starting symptom level, and completed turtle-fight
+  count have not yet been recorded. No class-specific conclusion is authorized until those
+  conditions and the outcome are known.
+- The working comparison is Druid versus Warlock. If comparable turtle exposure degrades both,
+  turtle/client-lifecycle state is favored. If the Druid reliably degrades and the Warlock remains
+  clean, Druid-specific forms, animation/effect combinations, powers, pets, or replicated combat
+  state become stronger candidates.
+
+### Observations to record during this run
+
+1. Approximate completed turtle fights from this point.
+2. First appearance of frame stutter, environment stutter, click starvation, or translocation.
+3. Whether severity increases per fight, with elapsed visibility, or only after a particular
+   ability/effect.
+4. Whether leaving turtle visual range clears the active cost without relogging.
+5. Do not relog after the first symptom until a degraded capture and PID identity are recorded.
+
 ## Journal maintenance rule
 
 After every live test, append one entry containing:
