@@ -15,17 +15,32 @@ class DiagnosticsClientBoundaryTests(unittest.TestCase):
         cmake = _text("native/wonderbane_extension/CMakeLists.txt")
         extension = _text("native/wonderbane_extension/extension.cpp")
         renderer = _text("native/wonderbane_extension/cel_shading.cpp")
+        camera = _text("native/wonderbane_extension/camera_observation.cpp")
         probe = _text("native/wonderbane_extension/probe.cpp")
 
         self.assertIn('WONDERBANE_EXTENSION_PROFILE "full"', cmake)
+        self.assertIn("camera_observation.cpp", cmake)
         self.assertIn("PROPERTY STRINGS full diagnostics-only", cmake)
         self.assertIn("WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY=1", cmake)
         self.assertIn("#if defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)", extension)
         self.assertIn("StartGraphicsPresentObservation()", extension)
+        self.assertIn("StartPassiveCameraObservation()", extension)
+        self.assertIn("StopPassiveCameraObservation()", extension)
         self.assertIn("StartStrongCelShading()", extension)
         self.assertIn("&& !kDiagnosticsOnly", extension)
         self.assertIn('"diagnostics-only"', renderer)
         self.assertIn('"full-renderer"', renderer)
+        for symbol in ("glBegin", "glCallList", "glDrawArrays", "glDrawElements"):
+            self.assertIn(f'"{symbol}"', camera)
+        self.assertIn("kGlModelViewStackDepth", camera)
+        self.assertIn("model_view_stack_depth != 1", camera)
+        self.assertIn("ObserveGraphicsCameraState(", camera)
+        self.assertIn("ReplaceImportAddressSlot(", camera)
+        for forbidden in (
+            "glEnable(", "glDisable(", "glDepthMask(", "glBindTexture(",
+            "glCopyTex", "glReadPixels(", "WriteProcessMemory(",
+        ):
+            self.assertNotIn(forbidden, camera)
         self.assertIn("event channel absence validation", probe)
 
     def test_publication_has_no_graphics_experiment_or_listener_path(self) -> None:
@@ -33,9 +48,9 @@ class DiagnosticsClientBoundaryTests(unittest.TestCase):
         launch = _text("scripts/launch-wonderbane-diagnostics-client.ps1")
         combined = publish + launch
 
-        self.assertIn('ExtensionVersion = "1.5.6"', publish)
+        self.assertIn('ExtensionVersion = "1.6.2"', publish)
         self.assertIn(
-            "94a4f4043d429ad63775bb4bf77ecd31a29ffc7a01146fb919bfb25cc5c7cdcb",
+            "d281a9ab7af2286d7353186ee0f67af2b3d35d4bd9adadeaf58f4121dd9b54fe",
             publish,
         )
         self.assertIn('runtime_profile = "diagnostics-only"', publish)

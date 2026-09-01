@@ -10,6 +10,7 @@
 
 #include <array>
 #include <cctype>
+#include <cmath>
 #include <climits>
 #include <cstddef>
 #include <cstdint>
@@ -21,7 +22,7 @@ namespace {
 constexpr wchar_t kProductDirectory[] = L"ShadowbaneLab";
 constexpr wchar_t kExtensionDirectory[] = L"client-extension";
 constexpr char kProducerId[] = "wonderbane-extension.graphics";
-constexpr char kExtensionVersion[] = "1.6.1";
+constexpr char kExtensionVersion[] = "1.6.2";
 constexpr std::size_t kPathCapacity = WONDERBANE_EXTENSION_HEARTBEAT_PATH_CAPACITY;
 constexpr std::size_t kExecutablePathUtf8Capacity = kPathCapacity * 4U;
 constexpr std::size_t kEscapedPathCapacity = kExecutablePathUtf8Capacity * 2U + 3U;
@@ -29,7 +30,9 @@ constexpr std::size_t kDriverStringCapacity = 256U;
 constexpr std::size_t kEscapedDriverStringCapacity = kDriverStringCapacity * 2U + 3U;
 constexpr std::size_t kFrameTimingSampleCapacity = 1024U;
 constexpr std::size_t kFrameTimingJsonCapacity = 64U * 1024U;
-constexpr std::size_t kJsonCapacity = 96U * 1024U;
+constexpr std::size_t kCameraStateSampleCapacity = 256U;
+constexpr std::size_t kCameraStateJsonCapacity = 256U * 1024U;
+constexpr std::size_t kJsonCapacity = 384U * 1024U;
 constexpr std::size_t kDepthEdgeReasonCapacity = 128U;
 constexpr std::size_t kEscapedDepthEdgeReasonCapacity =
     kDepthEdgeReasonCapacity * 2U + 3U;
@@ -65,6 +68,13 @@ struct FrameTimingSample {
     std::int64_t counter = 0;
 };
 
+struct CameraStateSample {
+    std::uint64_t sequence = 0U;
+    std::uint64_t present_sequence = 0U;
+    std::int64_t counter = 0;
+    GraphicsCameraState state{};
+};
+
 struct GraphicsStatusState {
     bool configured = false;
     char runtime_profile[32U]{};
@@ -76,6 +86,13 @@ struct GraphicsStatusState {
     std::int64_t performance_counter_frequency = 0;
     std::uint64_t timing_query_failure_count = 0U;
     std::array<FrameTimingSample, kFrameTimingSampleCapacity> frame_timing_samples{};
+    std::uint64_t camera_sample_sequence = 0U;
+    std::uint64_t camera_producer_drop_count = 0U;
+    std::array<CameraStateSample, kCameraStateSampleCapacity> camera_state_samples{};
+    bool pending_camera_valid = false;
+    bool pending_camera_ambiguous = false;
+    std::uint64_t pending_camera_present_sequence = 0U;
+    CameraStateSample pending_camera{};
     GraphicsContextSnapshot graphics_context{};
     std::uint64_t depth_edge_composite_count = 0U;
     bool depth_edge_failed = false;
@@ -586,6 +603,180 @@ DWORD FormatFrameTiming(
     return SUCCEEDED(result) ? ERROR_SUCCESS : HResultToWin32(result);
 }
 
+DWORD FormatFloatArray(
+    const float* const values,
+    const std::size_t count,
+    char* const destination,
+    const std::size_t destination_capacity
+) noexcept {
+    if (values == nullptr || count == 0U || destination == nullptr
+        || destination_capacity < 3U) {
+        return ERROR_INVALID_PARAMETER;
+    }
+    char* cursor = destination;
+    std::size_t remaining = destination_capacity;
+    HRESULT result = StringCchCopyExA(
+        cursor, remaining, "[", &cursor, &remaining, 0U
+    );
+    if (FAILED(result)) {
+        return HResultToWin32(result);
+    }
+    for (std::size_t index = 0U; index < count; ++index) {
+        if (!std::isfinite(values[index])) {
+            return ERROR_INVALID_DATA;
+        }
+        result = StringCchPrintfExA(
+            cursor,
+            remaining,
+            &cursor,
+            &remaining,
+            0U,
+            "%s%.9g",
+            index == 0U ? "" : ",",
+            static_cast<double>(values[index])
+        );
+        if (FAILED(result)) {
+            return HResultToWin32(result);
+        }
+    }
+    result = StringCchCopyA(cursor, remaining, "]");
+    return SUCCEEDED(result) ? ERROR_SUCCESS : HResultToWin32(result);
+}
+
+DWORD FormatCameraState(
+    const PublisherSnapshot& snapshot,
+    char* const destination,
+    const std::size_t destination_capacity
+) noexcept {
+    if (destination == nullptr || destination_capacity == 0U) {
+        return ERROR_INVALID_PARAMETER;
+    }
+    const std::uint64_t latest_sequence = snapshot.status.camera_sample_sequence;
+    const std::uint64_t first_candidate = (
+        latest_sequence > kCameraStateSampleCapacity
+            ? latest_sequence - kCameraStateSampleCapacity + 1U
+            : 1U
+    );
+    std::uint64_t oldest_sequence = 0U;
+    std::size_t sample_count = 0U;
+    for (std::uint64_t sequence = first_candidate;
+         sequence <= latest_sequence;
+         ++sequence) {
+        const CameraStateSample& sample = snapshot.status.camera_state_samples[
+            static_cast<std::size_t>((sequence - 1U) % kCameraStateSampleCapacity)
+        ];
+        if (sample.sequence == sequence) {
+            if (oldest_sequence == 0U) {
+                oldest_sequence = sequence;
+            }
+            ++sample_count;
+        }
+    }
+    char* cursor = destination;
+    std::size_t remaining = destination_capacity;
+    HRESULT result = StringCchPrintfExA(
+        cursor,
+        remaining,
+        &cursor,
+        &remaining,
+        0U,
+        "{\"schema_version\":1,\"clock\":\"windows-query-performance-counter\","
+        "\"counter_frequency_hz\":%lld,"
+        "\"source\":\"unique-base-model-view-per-present\","
+        "\"mapping_authority\":\"runtime-observed-fixed-function-state\","
+        "\"latest_sample_sequence\":%llu,\"oldest_available_sequence\":%llu,"
+        "\"sample_capacity\":%llu,\"sample_count\":%llu,"
+        "\"producer_drop_count\":%llu,\"samples\":[",
+        static_cast<long long>(snapshot.status.performance_counter_frequency),
+        static_cast<unsigned long long>(latest_sequence),
+        static_cast<unsigned long long>(oldest_sequence),
+        static_cast<unsigned long long>(kCameraStateSampleCapacity),
+        static_cast<unsigned long long>(sample_count),
+        static_cast<unsigned long long>(snapshot.status.camera_producer_drop_count)
+    );
+    if (FAILED(result)) {
+        return HResultToWin32(result);
+    }
+    bool first_sample = true;
+    for (std::uint64_t sequence = first_candidate;
+         sequence <= latest_sequence;
+         ++sequence) {
+        const CameraStateSample& sample = snapshot.status.camera_state_samples[
+            static_cast<std::size_t>((sequence - 1U) % kCameraStateSampleCapacity)
+        ];
+        if (sample.sequence != sequence) {
+            continue;
+        }
+        std::array<char, 128U> position{};
+        std::array<char, 128U> forward{};
+        std::array<char, 128U> up{};
+        std::array<char, 512U> view{};
+        std::array<char, 512U> projection{};
+        DWORD format_result = FormatFloatArray(
+            sample.state.position, 3U, position.data(), position.size()
+        );
+        if (format_result == ERROR_SUCCESS) {
+            format_result = FormatFloatArray(
+                sample.state.forward, 3U, forward.data(), forward.size()
+            );
+        }
+        if (format_result == ERROR_SUCCESS) {
+            format_result = FormatFloatArray(
+                sample.state.up, 3U, up.data(), up.size()
+            );
+        }
+        if (format_result == ERROR_SUCCESS) {
+            format_result = FormatFloatArray(
+                sample.state.view_matrix, 16U, view.data(), view.size()
+            );
+        }
+        if (format_result == ERROR_SUCCESS) {
+            format_result = FormatFloatArray(
+                sample.state.projection_matrix,
+                16U,
+                projection.data(),
+                projection.size()
+            );
+        }
+        if (format_result != ERROR_SUCCESS) {
+            return format_result;
+        }
+        result = StringCchPrintfExA(
+            cursor,
+            remaining,
+            &cursor,
+            &remaining,
+            0U,
+            "%s{\"sequence\":%llu,\"present_sequence\":%llu,\"counter\":%lld,"
+            "\"position\":%s,\"forward\":%s,\"up\":%s,"
+            "\"zoom\":%.9g,\"vertical_fov_degrees\":%.9g,"
+            "\"view_matrix\":%s,\"projection_matrix\":%s,"
+            "\"viewport\":[%d,%d,%d,%d]}",
+            first_sample ? "" : ",",
+            static_cast<unsigned long long>(sample.sequence),
+            static_cast<unsigned long long>(sample.present_sequence),
+            static_cast<long long>(sample.counter),
+            position.data(),
+            forward.data(),
+            up.data(),
+            static_cast<double>(sample.state.zoom),
+            static_cast<double>(sample.state.vertical_fov_degrees),
+            view.data(),
+            projection.data(),
+            sample.state.viewport[0],
+            sample.state.viewport[1],
+            sample.state.viewport[2],
+            sample.state.viewport[3]
+        );
+        if (FAILED(result)) {
+            return HResultToWin32(result);
+        }
+        first_sample = false;
+    }
+    result = StringCchCopyA(cursor, remaining, "]}");
+    return SUCCEEDED(result) ? ERROR_SUCCESS : HResultToWin32(result);
+}
+
 DWORD PublishSnapshot(const PublisherSnapshot& snapshot) noexcept {
     std::array<char, kExecutablePathUtf8Capacity> executable_utf8{};
     std::array<char, kEscapedPathCapacity> executable_json{};
@@ -686,6 +877,15 @@ DWORD PublishSnapshot(const PublisherSnapshot& snapshot) noexcept {
     if (timing_result != ERROR_SUCCESS) {
         return timing_result;
     }
+    std::array<char, kCameraStateJsonCapacity> camera_state_json{};
+    const DWORD camera_result = FormatCameraState(
+        snapshot,
+        camera_state_json.data(),
+        camera_state_json.size()
+    );
+    if (camera_result != ERROR_SUCCESS) {
+        return camera_result;
+    }
     const char* depth_edge_state = "armed";
     const char* depth_edge_reason = "awaiting-perspective-to-overlay-boundary";
     if (snapshot.status.depth_edge_failed) {
@@ -773,7 +973,7 @@ DWORD PublishSnapshot(const PublisherSnapshot& snapshot) noexcept {
         "\"runtime_profile\":\"%s\","
         "\"present_entries\":%s,\"active_present_entry\":%s,"
         "\"graphics_context\":%s,\"frame_timing\":%s,"
-        "\"depth_edge_pass\":%s,"
+        "\"camera_state\":%s,\"depth_edge_pass\":%s,"
         "\"live_controls\":%s}\n",
         kProducerId,
         kExtensionVersion,
@@ -786,6 +986,7 @@ DWORD PublishSnapshot(const PublisherSnapshot& snapshot) noexcept {
         active_json.data(),
         context_json.data(),
         frame_timing_json.data(),
+        camera_state_json.data(),
         depth_edge_json.data(),
         control_json.data()
     );
@@ -950,6 +1151,206 @@ bool IsGraphicsVersionAtLeast(
     }
     return major > required_major
         || (major == required_major && minor >= required_minor);
+}
+
+bool BuildGraphicsCameraState(
+    const float* const view_matrix,
+    const std::size_t view_matrix_count,
+    const float* const projection_matrix,
+    const std::size_t projection_matrix_count,
+    const int* const viewport,
+    const std::size_t viewport_count,
+    GraphicsCameraState* const state
+) noexcept {
+    if (view_matrix == nullptr || view_matrix_count != 16U
+        || projection_matrix == nullptr || projection_matrix_count != 16U
+        || viewport == nullptr || viewport_count != 4U || state == nullptr
+        || viewport[2] <= 0 || viewport[3] <= 0) {
+        return false;
+    }
+    for (std::size_t index = 0U; index < 16U; ++index) {
+        if (!std::isfinite(view_matrix[index])
+            || !std::isfinite(projection_matrix[index])
+            || std::fabs(view_matrix[index]) > 1.0e9F
+            || std::fabs(projection_matrix[index]) > 1.0e9F) {
+            return false;
+        }
+    }
+    if (std::fabs(view_matrix[3]) > 0.001F
+        || std::fabs(view_matrix[7]) > 0.001F
+        || std::fabs(view_matrix[11]) > 0.001F
+        || std::fabs(view_matrix[15] - 1.0F) > 0.001F
+        || std::fabs(projection_matrix[15]) > 0.001F
+        || std::fabs(projection_matrix[11]) <= 0.25F) {
+        return false;
+    }
+    const double right[3U]{
+        view_matrix[0], view_matrix[4], view_matrix[8]
+    };
+    const double camera_up[3U]{
+        view_matrix[1], view_matrix[5], view_matrix[9]
+    };
+    const double backward[3U]{
+        view_matrix[2], view_matrix[6], view_matrix[10]
+    };
+    const auto length = [](const double* const vector) noexcept {
+        return std::sqrt(
+            vector[0] * vector[0]
+            + vector[1] * vector[1]
+            + vector[2] * vector[2]
+        );
+    };
+    const auto dot = [](const double* const left, const double* const right_value) noexcept {
+        return left[0] * right_value[0]
+            + left[1] * right_value[1]
+            + left[2] * right_value[2];
+    };
+    const double right_length = length(right);
+    const double up_length = length(camera_up);
+    const double backward_length = length(backward);
+    if (!std::isfinite(right_length) || !std::isfinite(up_length)
+        || !std::isfinite(backward_length)
+        || std::fabs(right_length - 1.0) > 0.001
+        || std::fabs(up_length - 1.0) > 0.001
+        || std::fabs(backward_length - 1.0) > 0.001
+        || std::fabs(dot(right, camera_up)) > 0.001
+        || std::fabs(dot(right, backward)) > 0.001
+        || std::fabs(dot(camera_up, backward)) > 0.001) {
+        return false;
+    }
+    const double cross_up_backward[3U]{
+        camera_up[1] * backward[2] - camera_up[2] * backward[1],
+        camera_up[2] * backward[0] - camera_up[0] * backward[2],
+        camera_up[0] * backward[1] - camera_up[1] * backward[0],
+    };
+    if (std::fabs(dot(right, cross_up_backward) - 1.0) > 0.001) {
+        return false;
+    }
+    const double vertical_scale = std::fabs(
+        static_cast<double>(projection_matrix[5])
+    );
+    if (!std::isfinite(vertical_scale) || vertical_scale <= 0.000001
+        || vertical_scale > 1.0e6) {
+        return false;
+    }
+    constexpr double kRadiansToDegrees = 57.2957795130823208768;
+    const double vertical_fov = 2.0 * std::atan(1.0 / vertical_scale)
+        * kRadiansToDegrees;
+    if (!std::isfinite(vertical_fov) || vertical_fov <= 0.0
+        || vertical_fov >= 180.0) {
+        return false;
+    }
+    GraphicsCameraState candidate{};
+    candidate.position[0] = static_cast<float>(-(
+        right[0] * view_matrix[12]
+        + camera_up[0] * view_matrix[13]
+        + backward[0] * view_matrix[14]
+    ));
+    candidate.position[1] = static_cast<float>(-(
+        right[1] * view_matrix[12]
+        + camera_up[1] * view_matrix[13]
+        + backward[1] * view_matrix[14]
+    ));
+    candidate.position[2] = static_cast<float>(-(
+        right[2] * view_matrix[12]
+        + camera_up[2] * view_matrix[13]
+        + backward[2] * view_matrix[14]
+    ));
+    for (std::size_t axis = 0U; axis < 3U; ++axis) {
+        if (!std::isfinite(candidate.position[axis])
+            || std::fabs(candidate.position[axis]) > 1.0e9F) {
+            return false;
+        }
+        candidate.forward[axis] = static_cast<float>(-backward[axis]);
+        candidate.up[axis] = static_cast<float>(camera_up[axis]);
+    }
+    candidate.zoom = static_cast<float>(vertical_scale);
+    candidate.vertical_fov_degrees = static_cast<float>(vertical_fov);
+    for (std::size_t index = 0U; index < 16U; ++index) {
+        candidate.view_matrix[index] = view_matrix[index];
+        candidate.projection_matrix[index] = projection_matrix[index];
+    }
+    for (std::size_t index = 0U; index < 4U; ++index) {
+        candidate.viewport[index] = viewport[index];
+    }
+    *state = candidate;
+    return true;
+}
+
+bool NeedsGraphicsCameraStateObservation() noexcept {
+    if (InterlockedCompareExchange(&g_started, 0, 0) == 0) {
+        return false;
+    }
+    AcquireSRWLockShared(&g_state_lock);
+    const bool needed = g_status.configured
+        && g_status.call_count != UINT64_MAX
+        && (!g_status.pending_camera_valid
+            || g_status.pending_camera_present_sequence != g_status.call_count + 1U
+            || !g_status.pending_camera_ambiguous);
+    ReleaseSRWLockShared(&g_state_lock);
+    return needed;
+}
+
+void ObserveGraphicsCameraState(
+    const float* const view_matrix,
+    const std::size_t view_matrix_count,
+    const float* const projection_matrix,
+    const std::size_t projection_matrix_count,
+    const int* const viewport,
+    const std::size_t viewport_count,
+    const int model_view_stack_depth
+) noexcept {
+    if (model_view_stack_depth != 1 || !NeedsGraphicsCameraStateObservation()) {
+        return;
+    }
+    GraphicsCameraState camera{};
+    if (!BuildGraphicsCameraState(
+            view_matrix,
+            view_matrix_count,
+            projection_matrix,
+            projection_matrix_count,
+            viewport,
+            viewport_count,
+            &camera
+        )) {
+        return;
+    }
+    LARGE_INTEGER counter{};
+    const bool counter_observed = QueryPerformanceCounter(&counter) != FALSE
+        && counter.QuadPart > 0;
+    AcquireSRWLockExclusive(&g_state_lock);
+    if (g_status.configured && g_status.call_count != UINT64_MAX) {
+        const std::uint64_t present_sequence = g_status.call_count + 1U;
+        if (!g_status.pending_camera_valid
+            || g_status.pending_camera_present_sequence != present_sequence) {
+            if (counter_observed) {
+                g_status.pending_camera_valid = true;
+                g_status.pending_camera_ambiguous = false;
+                g_status.pending_camera_present_sequence = present_sequence;
+                g_status.pending_camera = {0U, present_sequence, counter.QuadPart, camera};
+            } else {
+                ++g_status.camera_producer_drop_count;
+            }
+        } else if (!g_status.pending_camera_ambiguous
+                   && (std::memcmp(
+                           g_status.pending_camera.state.view_matrix,
+                           camera.view_matrix,
+                           sizeof(camera.view_matrix)
+                       ) != 0
+                       || std::memcmp(
+                           g_status.pending_camera.state.projection_matrix,
+                           camera.projection_matrix,
+                           sizeof(camera.projection_matrix)
+                       ) != 0
+                       || std::memcmp(
+                           g_status.pending_camera.state.viewport,
+                           camera.viewport,
+                           sizeof(camera.viewport)
+                       ) != 0)) {
+            g_status.pending_camera_ambiguous = true;
+        }
+    }
+    ReleaseSRWLockExclusive(&g_state_lock);
 }
 
 DWORD StartGraphicsStatusPublication() noexcept {
@@ -1214,6 +1615,26 @@ void ObserveGraphicsPresent() noexcept {
     AcquireSRWLockExclusive(&g_state_lock);
     if (g_status.configured) {
         ++g_status.call_count;
+        if (g_status.pending_camera_valid) {
+            if (g_status.pending_camera_present_sequence == g_status.call_count
+                && g_status.camera_sample_sequence != UINT64_MAX
+                && !g_status.pending_camera_ambiguous) {
+                ++g_status.camera_sample_sequence;
+                CameraStateSample sample = g_status.pending_camera;
+                sample.sequence = g_status.camera_sample_sequence;
+                sample.present_sequence = g_status.call_count;
+                const std::size_t camera_index = static_cast<std::size_t>(
+                    (sample.sequence - 1U) % kCameraStateSampleCapacity
+                );
+                g_status.camera_state_samples[camera_index] = sample;
+            } else {
+                ++g_status.camera_producer_drop_count;
+            }
+            g_status.pending_camera_valid = false;
+            g_status.pending_camera_ambiguous = false;
+            g_status.pending_camera_present_sequence = 0U;
+            g_status.pending_camera = {};
+        }
         if (timing_observed) {
             const std::size_t timing_index = static_cast<std::size_t>(
                 (g_status.call_count - 1U) % kFrameTimingSampleCapacity

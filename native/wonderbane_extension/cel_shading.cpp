@@ -3,6 +3,7 @@
 #include "depth_edges.h"
 #include "graphics_control.h"
 #include "graphics_status.h"
+#include "import_hook.h"
 
 #include <Windows.h>
 
@@ -30,6 +31,7 @@ constexpr unsigned int kGlQuadStrip = 0x0008U;
 constexpr unsigned int kGlPolygon = 0x0009U;
 constexpr unsigned int kGlModelViewMatrix = 0x0BA6U;
 constexpr unsigned int kGlProjectionMatrix = 0x0BA7U;
+constexpr unsigned int kGlModelViewStackDepth = 0x0BA3U;
 constexpr unsigned int kGlDepthWriteMask = 0x0B72U;
 constexpr unsigned int kGlTexture2D = 0x0DE1U;
 constexpr unsigned int kGlLighting = 0x0B50U;
@@ -107,6 +109,7 @@ using GlTexCoord2f = void(APIENTRY*)(float s, float t);
 using GlEnableClientState = void(APIENTRY*)(unsigned int array);
 using GlDisableClientState = void(APIENTRY*)(unsigned int array);
 using GlGetFloatv = void(APIENTRY*)(unsigned int name, float* values);
+using GlGetIntegerv = void(APIENTRY*)(unsigned int name, int* values);
 using GlGetBooleanv = void(APIENTRY*)(unsigned int name, unsigned char* values);
 using GlPushAttrib = void(APIENTRY*)(unsigned int mask);
 using GlPopAttrib = void(APIENTRY*)();
@@ -143,6 +146,7 @@ PVOID volatile g_tex_coord_2f = nullptr;
 PVOID volatile g_original_enable_client_state = nullptr;
 PVOID volatile g_original_disable_client_state = nullptr;
 PVOID volatile g_get_floatv = nullptr;
+PVOID volatile g_get_integerv = nullptr;
 PVOID volatile g_get_booleanv = nullptr;
 PVOID volatile g_push_attrib = nullptr;
 PVOID volatile g_pop_attrib = nullptr;
@@ -1186,62 +1190,26 @@ void DrawWithSilhouette(
         );
     }
     if (depth_writes != FALSE) {
+        const auto get_integerv = LoadFunction<GlGetIntegerv>(&g_get_integerv);
+        int model_view_stack_depth = 0;
+        if (get_integerv != nullptr) {
+            get_integerv(kGlModelViewStackDepth, &model_view_stack_depth);
+            ObserveGraphicsCameraState(
+                model_view.data(),
+                model_view.size(),
+                projection.data(),
+                projection.size(),
+                viewport.data(),
+                viewport.size(),
+                model_view_stack_depth
+            );
+        }
         MarkDepthEdgeSceneDraw(
             projection.data(),
             projection.size(),
             viewport.data(),
             viewport.size()
         );
-    }
-}
-
-template <typename Value>
-Value* ImageValue(
-    std::uint8_t* const image,
-    const std::size_t image_size,
-    const std::uint32_t rva,
-    const std::size_t count = 1U
-) noexcept {
-    if (
-        image == nullptr
-        || count == 0U
-        || count > image_size / sizeof(Value)
-        || rva > image_size
-        || count * sizeof(Value) > image_size - rva
-    ) {
-        return nullptr;
-    }
-    return reinterpret_cast<Value*>(image + rva);
-}
-
-bool EqualAsciiInsensitive(
-    const std::uint8_t* const image,
-    const std::size_t image_size,
-    const std::uint32_t rva,
-    const char* const expected
-) noexcept {
-    if (image == nullptr || expected == nullptr || rva >= image_size) {
-        return false;
-    }
-    std::size_t offset = rva;
-    for (std::size_t index = 0U; ; ++index) {
-        if (offset >= image_size) {
-            return false;
-        }
-        const unsigned char actual = image[offset++];
-        const unsigned char wanted = static_cast<unsigned char>(expected[index]);
-        const auto fold = [](const unsigned char value) noexcept {
-            return value >= static_cast<unsigned char>('A')
-                    && value <= static_cast<unsigned char>('Z')
-                ? static_cast<unsigned char>(value + ('a' - 'A'))
-                : value;
-        };
-        if (fold(actual) != fold(wanted)) {
-            return false;
-        }
-        if (actual == 0U) {
-            return true;
-        }
     }
 }
 
@@ -1307,6 +1275,27 @@ void APIENTRY StrongBegin(const unsigned int mode) noexcept {
                         &g_viewport_height, 0, 0
                     )),
                 };
+                if (NeedsGraphicsCameraStateObservation()) {
+                    const auto get_floatv = LoadFunction<GlGetFloatv>(
+                        &g_get_floatv
+                    );
+                    const auto get_integerv = LoadFunction<GlGetIntegerv>(
+                        &g_get_integerv
+                    );
+                    std::array<float, 16U> view{};
+                    int model_view_stack_depth = 0;
+                    if (get_floatv != nullptr && get_integerv != nullptr) {
+                        get_floatv(kGlModelViewMatrix, view.data());
+                        get_integerv(kGlModelViewStackDepth, &model_view_stack_depth);
+                        ObserveGraphicsCameraState(
+                            view.data(), view.size(),
+                            projection.data(), projection.size(),
+                            g_immediate_scene_viewport.data(),
+                            g_immediate_scene_viewport.size(),
+                            model_view_stack_depth
+                        );
+                    }
+                }
             }
         }
         original(mode);
@@ -1947,150 +1936,6 @@ bool IsFeatureAccentDrawState(
         && (depth_writes || (!blend_enabled && lighting_enabled));
 }
 
-std::uint32_t* FindImportAddressSlot(
-    std::uint8_t* const image,
-    const std::size_t image_size,
-    const char* const library_name,
-    const char* const symbol_name
-) noexcept {
-    if (
-        image == nullptr
-        || library_name == nullptr
-        || symbol_name == nullptr
-        || library_name[0] == '\0'
-        || symbol_name[0] == '\0'
-        || image_size < sizeof(IMAGE_DOS_HEADER)
-    ) {
-        return nullptr;
-    }
-    const auto* const dos = reinterpret_cast<const IMAGE_DOS_HEADER*>(image);
-    if (dos->e_magic != IMAGE_DOS_SIGNATURE || dos->e_lfanew <= 0) {
-        return nullptr;
-    }
-    const std::size_t nt_offset = static_cast<std::size_t>(dos->e_lfanew);
-    if (nt_offset > image_size || sizeof(IMAGE_NT_HEADERS32) > image_size - nt_offset) {
-        return nullptr;
-    }
-    const auto* const nt = reinterpret_cast<const IMAGE_NT_HEADERS32*>(image + nt_offset);
-    if (
-        nt->Signature != IMAGE_NT_SIGNATURE
-        || nt->FileHeader.Machine != IMAGE_FILE_MACHINE_I386
-        || nt->OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR32_MAGIC
-        || nt->OptionalHeader.SizeOfImage != image_size
-        || nt->OptionalHeader.NumberOfRvaAndSizes <= IMAGE_DIRECTORY_ENTRY_IMPORT
-    ) {
-        return nullptr;
-    }
-    const IMAGE_DATA_DIRECTORY imports = (
-        nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT]
-    );
-    if (
-        imports.VirtualAddress == 0U
-        || imports.Size < sizeof(IMAGE_IMPORT_DESCRIPTOR)
-        || imports.VirtualAddress > image_size
-        || imports.Size > image_size - imports.VirtualAddress
-    ) {
-        return nullptr;
-    }
-
-    const std::size_t descriptor_count = imports.Size / sizeof(IMAGE_IMPORT_DESCRIPTOR);
-    auto* const descriptors = ImageValue<IMAGE_IMPORT_DESCRIPTOR>(
-        image,
-        image_size,
-        imports.VirtualAddress,
-        descriptor_count
-    );
-    if (descriptors == nullptr) {
-        return nullptr;
-    }
-    std::uint32_t* found = nullptr;
-    bool terminated = false;
-    for (std::size_t descriptor_index = 0U; descriptor_index < descriptor_count; ++descriptor_index) {
-        const IMAGE_IMPORT_DESCRIPTOR& descriptor = descriptors[descriptor_index];
-        if (
-            descriptor.Name == 0U
-            && descriptor.FirstThunk == 0U
-            && descriptor.OriginalFirstThunk == 0U
-            && descriptor.TimeDateStamp == 0U
-            && descriptor.ForwarderChain == 0U
-        ) {
-            terminated = true;
-            break;
-        }
-        if (!EqualAsciiInsensitive(image, image_size, descriptor.Name, library_name)) {
-            continue;
-        }
-        const std::uint32_t names_rva = descriptor.OriginalFirstThunk != 0U
-            ? descriptor.OriginalFirstThunk
-            : descriptor.FirstThunk;
-        if (
-            names_rva == 0U
-            || names_rva >= image_size
-            || descriptor.FirstThunk == 0U
-            || descriptor.FirstThunk >= image_size
-        ) {
-            return nullptr;
-        }
-        const std::size_t name_capacity = (image_size - names_rva) / sizeof(IMAGE_THUNK_DATA32);
-        const std::size_t address_capacity = (
-            image_size - descriptor.FirstThunk
-        ) / sizeof(IMAGE_THUNK_DATA32);
-        const std::size_t thunk_count = name_capacity < address_capacity
-            ? name_capacity
-            : address_capacity;
-        auto* const names = ImageValue<IMAGE_THUNK_DATA32>(
-            image,
-            image_size,
-            names_rva,
-            thunk_count
-        );
-        auto* const addresses = ImageValue<IMAGE_THUNK_DATA32>(
-            image,
-            image_size,
-            descriptor.FirstThunk,
-            thunk_count
-        );
-        if (names == nullptr || addresses == nullptr) {
-            return nullptr;
-        }
-        bool thunk_terminated = false;
-        for (std::size_t thunk_index = 0U; thunk_index < thunk_count; ++thunk_index) {
-            const std::uint32_t name_rva = names[thunk_index].u1.AddressOfData;
-            if (name_rva == 0U) {
-                thunk_terminated = true;
-                break;
-            }
-            if ((name_rva & IMAGE_ORDINAL_FLAG32) != 0U) {
-                continue;
-            }
-            constexpr std::uint32_t kImportHintSize = sizeof(std::uint16_t);
-            if (
-                name_rva > image_size
-                || kImportHintSize > image_size - name_rva
-                || !EqualAsciiInsensitive(
-                    image,
-                    image_size,
-                    name_rva + kImportHintSize,
-                    symbol_name
-                )
-            ) {
-                continue;
-            }
-            auto* const candidate = reinterpret_cast<std::uint32_t*>(
-                &addresses[thunk_index].u1.Function
-            );
-            if (found != nullptr) {
-                return nullptr;
-            }
-            found = candidate;
-        }
-        if (!thunk_terminated) {
-            return nullptr;
-        }
-    }
-    return terminated ? found : nullptr;
-}
-
 DWORD InstallGraphicsPresentHook(
     std::uint8_t* const image,
     const std::size_t image_size,
@@ -2440,9 +2285,10 @@ DWORD StartStrongCelShading() noexcept {
             }
         }
     }
-    std::array<HelperFunctionPlan, 18U> helpers{{
+    std::array<HelperFunctionPlan, 19U> helpers{{
         {"glTexCoord2f", &g_tex_coord_2f, nullptr},
         {"glGetFloatv", &g_get_floatv, nullptr},
+        {"glGetIntegerv", &g_get_integerv, nullptr},
         {"glGetBooleanv", &g_get_booleanv, nullptr},
         {"glPushAttrib", &g_push_attrib, nullptr},
         {"glPopAttrib", &g_pop_attrib, nullptr},
@@ -2672,6 +2518,7 @@ void StopStrongCelShading() noexcept {
         InterlockedExchangePointer(&g_push_attrib, nullptr);
         InterlockedExchangePointer(&g_get_booleanv, nullptr);
         InterlockedExchangePointer(&g_get_floatv, nullptr);
+        InterlockedExchangePointer(&g_get_integerv, nullptr);
     }
 }
 

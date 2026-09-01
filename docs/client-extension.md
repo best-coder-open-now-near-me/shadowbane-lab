@@ -446,6 +446,19 @@ frame at the perspective-to-overlay boundary so UI and text remain outside the c
 changes cross the process boundary through the versioned shared mapping and are applied by the
 render thread at a reviewed frame boundary.
 
+Extension 1.6.2 adds the bounded camera-state producer without giving diagnostics ownership of
+rendering. The full profile publishes from its existing classified world-draw path. The
+diagnostics-only profile starts a separate pass-through observer for the exact `glBegin`,
+`glCallList`, `glDrawArrays`, and `glDrawElements` imports. Candidate state must be perspective,
+depth-writing, affine and orthonormal, and observed at base model-view stack depth; every candidate
+within one present must agree or that frame is counted as a producer drop. Both paths stage one
+accepted sample against the next present sequence and publish QPC time, position, normalized
+forward/up, projection zoom, vertical FOV, complete view/projection matrices, and viewport.
+
+The passive observer does not alter OpenGL state or write client data. It installs only validated
+IAT redirections whose original targets match the reviewed OpenGL exports, rolls them back
+transactionally on failure, and uses no guessed client offsets.
+
 Startup remains transactional. Exact process identity and client executable checks precede native
 services; failure unwinds performance telemetry, renderer or passive observation, graphics control,
 status publication, world-map capture, and the event channel in reverse ownership order. Both full

@@ -4,6 +4,7 @@
 #include <Windows.h>
 
 #include <array>
+#include <cmath>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
@@ -20,10 +21,13 @@ int Fail(const wchar_t* const operation) noexcept {
 }  // namespace
 
 int wmain() {
+    using wonderbane::extension::BuildGraphicsCameraState;
     using wonderbane::extension::ConfigureGraphicsPresentEntry;
     using wonderbane::extension::GetGraphicsStatusPath;
+    using wonderbane::extension::GraphicsCameraState;
     using wonderbane::extension::HasGraphicsExtensionToken;
     using wonderbane::extension::IsGraphicsVersionAtLeast;
+    using wonderbane::extension::ObserveGraphicsCameraState;
     using wonderbane::extension::ObserveGraphicsPresent;
     using wonderbane::extension::ReportDepthEdgePassComposite;
     using wonderbane::extension::StartGraphicsControl;
@@ -65,6 +69,59 @@ int wmain() {
         StopGraphicsStatusPublication();
         return Fail(L"present entry configuration");
     }
+    constexpr std::array<float, 16U> view{
+        1.0F, 0.0F, 0.0F, 0.0F,
+        0.0F, 1.0F, 0.0F, 0.0F,
+        0.0F, 0.0F, 1.0F, 0.0F,
+        -1.0F, -2.0F, -3.0F, 1.0F,
+    };
+    constexpr std::array<float, 16U> projection{
+        1.0F, 0.0F, 0.0F, 0.0F,
+        0.0F, 1.0F, 0.0F, 0.0F,
+        0.0F, 0.0F, -1.0F, -1.0F,
+        0.0F, 0.0F, -0.2F, 0.0F,
+    };
+    constexpr std::array<int, 4U> viewport{0, 0, 1280, 720};
+    GraphicsCameraState camera{};
+    if (!BuildGraphicsCameraState(
+            view.data(),
+            view.size(),
+            projection.data(),
+            projection.size(),
+            viewport.data(),
+            viewport.size(),
+            &camera
+        )
+        || std::fabs(camera.position[0] - 1.0F) > 0.001F
+        || std::fabs(camera.position[1] - 2.0F) > 0.001F
+        || std::fabs(camera.position[2] - 3.0F) > 0.001F
+        || std::fabs(camera.forward[2] + 1.0F) > 0.001F
+        || std::fabs(camera.up[1] - 1.0F) > 0.001F
+        || std::fabs(camera.zoom - 1.0F) > 0.001F
+        || std::fabs(camera.vertical_fov_degrees - 90.0F) > 0.001F) {
+        StopGraphicsControl();
+        StopGraphicsStatusPublication();
+        return Fail(L"camera state derivation");
+    }
+    std::array<float, 16U> invalid_view = view;
+    invalid_view[0] = 2.0F;
+    if (BuildGraphicsCameraState(
+            invalid_view.data(), invalid_view.size(),
+            projection.data(), projection.size(),
+            viewport.data(), viewport.size(), &camera
+        )) {
+        StopGraphicsControl();
+        StopGraphicsStatusPublication();
+        return Fail(L"invalid camera state rejection");
+    }
+    ObserveGraphicsCameraState(
+        view.data(), view.size(), projection.data(), projection.size(),
+        viewport.data(), viewport.size(), 2
+    );
+    ObserveGraphicsCameraState(
+        view.data(), view.size(), projection.data(), projection.size(),
+        viewport.data(), viewport.size(), 1
+    );
     ObserveGraphicsPresent();
     ReportDepthEdgePassComposite();
     std::array<wchar_t, 1024U> path{};
@@ -92,9 +149,28 @@ int wmain() {
         }
         Sleep(20U);
     }
+    ObserveGraphicsCameraState(
+        view.data(), view.size(), projection.data(), projection.size(),
+        viewport.data(), viewport.size(), 1
+    );
     Sleep(2U);
     ObserveGraphicsPresent();
+    ObserveGraphicsCameraState(
+        view.data(), view.size(), projection.data(), projection.size(),
+        viewport.data(), viewport.size(), 1
+    );
     Sleep(2U);
+    ObserveGraphicsPresent();
+    std::array<float, 16U> conflicting_view = view;
+    conflicting_view[12] = -9.0F;
+    ObserveGraphicsCameraState(
+        view.data(), view.size(), projection.data(), projection.size(),
+        viewport.data(), viewport.size(), 1
+    );
+    ObserveGraphicsCameraState(
+        conflicting_view.data(), conflicting_view.size(),
+        projection.data(), projection.size(), viewport.data(), viewport.size(), 1
+    );
     ObserveGraphicsPresent();
     StopGraphicsStatusPublication();
     StopGraphicsControl();
@@ -114,11 +190,25 @@ int wmain() {
         || json.find("\"schema_version\":2") == std::string::npos
         || json.find("\"runtime_profile\":\"diagnostics-only\"")
             == std::string::npos
-        || json.find("\"call_count\":3") == std::string::npos
+        || json.find("\"call_count\":4") == std::string::npos
         || json.find("\"clock\":\"windows-query-performance-counter\"")
             == std::string::npos
         || json.find("\"sample_count\":3") == std::string::npos
         || json.find("\"samples\":[[1,") == std::string::npos
+        || json.find("\"camera_state\":{\"schema_version\":1")
+            == std::string::npos
+        || json.find("\"source\":\"first-perspective-depth-writing-world-draw\"")
+            != std::string::npos
+        || json.find(
+            "\"source\":\"unique-base-model-view-per-present\""
+        ) == std::string::npos
+        || json.find("\"mapping_authority\":"
+            "\"runtime-observed-fixed-function-state\"") == std::string::npos
+        || json.find("\"latest_sample_sequence\":3") == std::string::npos
+        || json.find("\"producer_drop_count\":1") == std::string::npos
+        || json.find("\"position\":[1,2,3]") == std::string::npos
+        || json.find("\"vertical_fov_degrees\":90") == std::string::npos
+        || json.find("\"viewport\":[0,0,1280,720]") == std::string::npos
         || json.find("\"iat_rva\":23789964") == std::string::npos
         || json.find("\"executable_sha256\":\"") == std::string::npos
         || json.find("\"context_observed\":false") == std::string::npos

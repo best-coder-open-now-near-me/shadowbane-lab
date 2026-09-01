@@ -1,4 +1,5 @@
 #include "cel_shading.h"
+#include "import_hook.h"
 
 #include <Windows.h>
 

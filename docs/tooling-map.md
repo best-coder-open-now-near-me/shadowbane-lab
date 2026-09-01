@@ -93,10 +93,11 @@ priorities:
    `python -m ...` spellings for maintenance modules without console entry points.
 5. Keep read-only camera-state telemetry as a required capture-once diagnostic channel whenever an
    identity-bound graphics producer is supplied. The non-render consumer, sealing, gap accounting,
-   process-clock alignment, and offline resource/frame correlation are complete. The renderer still
-   owes passive production of the documented bounded ring. Player position uses reviewed native
-   layout compatibility; camera state uses runtime-observed fixed-function authority. Neither path
-   promotes heuristic client-alignment candidates automatically.
+   process-clock alignment, and offline resource/frame correlation are complete. Extension 1.6.2
+   supplies the passive bounded ring from unique base-stack fixed-function state and rejects
+   same-present ambiguity. Player position uses reviewed native layout compatibility; camera state
+   uses runtime-observed fixed-function authority. Neither path promotes heuristic client-alignment
+   candidates automatically.
 6. Establish the shared integrity package, content-addressed evidence manifests, complete
    fingerprint envelope, and research-case runner before adding deeper binary, asset, network, or
    memory-discovery commands.

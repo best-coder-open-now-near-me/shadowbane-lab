@@ -1,3 +1,4 @@
+#include "camera_observation.h"
 #include "cel_shading.h"
 #include "extension_api.h"
 #include "event_channel.h"
@@ -21,7 +22,7 @@ constexpr std::size_t kPathCapacity = WONDERBANE_EXTENSION_HEARTBEAT_PATH_CAPACI
 constexpr std::size_t kJsonCapacity = 768;
 constexpr LONG kMaximumInitializationPolls = 500;
 constexpr DWORD kInitializationPollMilliseconds = 10;
-constexpr char kExtensionVersion[] = "1.6.1";
+constexpr char kExtensionVersion[] = "1.6.2";
 constexpr wchar_t kClientExecutableName[] = L"sb.exe";
 constexpr wchar_t kPerformanceProfileEnvironment[] = L"WONDERBANE_PERFORMANCE_PROFILE";
 constexpr std::size_t kPerformanceProfileCapacity = 16U;
@@ -372,6 +373,7 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
         bool graphics_control_started = false;
         bool graphics_status_started = false;
         bool renderer_started = false;
+        bool camera_observation_started = false;
         bool performance_telemetry_started = false;
         if (result == ERROR_SUCCESS && !kDiagnosticsOnly) {
             result = wonderbane::extension::InitializeEventChannel(
@@ -411,6 +413,10 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
 #endif
             renderer_started = result == ERROR_SUCCESS;
         }
+        if (result == ERROR_SUCCESS && is_client && kDiagnosticsOnly) {
+            result = wonderbane::extension::StartPassiveCameraObservation();
+            camera_observation_started = result == ERROR_SUCCESS;
+        }
         if (result == ERROR_SUCCESS && is_client && !kDiagnosticsOnly) {
             result = ReadPerformanceTelemetryProfile(&performance_profile);
         }
@@ -433,6 +439,9 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
         if (result != ERROR_SUCCESS) {
             if (performance_telemetry_started) {
                 wonderbane::extension::StopPerformanceTelemetry();
+            }
+            if (camera_observation_started) {
+                wonderbane::extension::StopPassiveCameraObservation();
             }
             if (renderer_started) {
 #if defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)

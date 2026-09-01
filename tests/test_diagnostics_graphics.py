@@ -95,7 +95,7 @@ def _status(
             "schema_version": 1,
             "clock": "windows-query-performance-counter",
             "counter_frequency_hz": 1_000_000,
-            "source": "first-perspective-depth-writing-world-draw",
+            "source": "unique-base-model-view-per-present",
             "mapping_authority": "runtime-observed-fixed-function-state",
             "latest_sample_sequence": latest_sequence,
             "oldest_available_sequence": (

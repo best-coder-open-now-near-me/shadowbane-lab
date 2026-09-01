@@ -174,7 +174,7 @@ region or transition policy later.
 When identity-bound graphics runtime status is available, the launcher also requires the
 `camera-state` channel. This is a deliberately narrow producer/consumer seam:
 
-- the renderer observes scene-view state without changing it and publishes a bounded ring;
+- the native extension observes fixed-function scene-view state without changing it and publishes a bounded ring;
 - diagnostics validates exact process and executable identity, drains new sequences, stamps the
   samples on the process-metric monotonic clock, records every producer/capture gap, and seals the
   retained ring; and
@@ -187,11 +187,11 @@ The producer object is additive under graphics runtime status schema 2 and uses 
       "schema_version": 1,
       "clock": "windows-query-performance-counter",
       "counter_frequency_hz": 10000000,
-      "source": "first-perspective-depth-writing-world-draw",
+      "source": "unique-base-model-view-per-present",
       "mapping_authority": "runtime-observed-fixed-function-state",
       "latest_sample_sequence": 42,
       "oldest_available_sequence": 1,
-      "sample_capacity": 1024,
+      "sample_capacity": 256,
       "sample_count": 42,
       "producer_drop_count": 0,
       "samples": [{
@@ -215,6 +215,16 @@ agree. The producer selection policy is named rather than inferred by diagnostic
 malformed, identity-mismatched, overwritten, or dropped camera stream leaves all other evidence
 intact but makes the requested channel explicitly incomplete. Current renderer work owns production
 of this object; non-render code must not install GL hooks or guess camera addresses to satisfy it.
+
+Extension 1.6.2 implements that producer in both native profiles. It considers only filled,
+perspective, depth-writing draws observed at model-view stack depth one. Every qualifying view,
+projection, and viewport in a present must be byte-identical; a conflict rejects the whole camera
+sample and increments `producer_drop_count`. `zoom` is the absolute vertical projection scale and
+vertical FOV is derived as `2 * atan(1 / zoom)`. The full profile calls the same status API from its
+existing classified scene path. The diagnostics-only profile uses a separate pass-through module
+that redirects four exact, reviewed OpenGL imports and always invokes the original function without
+changing OpenGL state. It performs no game-data memory writes and uses no client offsets or
+alignment guesses; validated IAT redirection is its only in-process instrumentation.
 
 The depth-edge prerequisite assessment is deliberately conservative. It becomes ready only after
 runtime evidence observes an active present entry, an active graphics context, a nonzero depth

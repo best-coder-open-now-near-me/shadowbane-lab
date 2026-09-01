@@ -68,9 +68,9 @@ The non-render slice implements the ownership checkpoints as follows:
 6. Capture-once diagnostics samples reviewed native LT/LG/altitude on the process-metric monotonic
    clock and seals renderer camera rings through `diagnostics/camera.py`. Diagnostics owns exact
    identity validation, retention, gap accounting, and offline correlation. The renderer owns only
-   passive production of the documented `camera_state` object. Until that producer lands, a run
-   with identity-bound graphics status is honestly incomplete for camera state rather than silently
-   falling back to guessed memory addresses.
+   passive production of the documented `camera_state` object. Extension 1.6.2 supplies it from
+   unique base-stack fixed-function state per present; ambiguous frames fail closed as producer
+   drops rather than falling back to guessed memory addresses.
 
 This is intentionally distributed ownership, not one launch god-object: exact identity, package
 retirement, status validation, and evidence sealing have different failure and authority models.

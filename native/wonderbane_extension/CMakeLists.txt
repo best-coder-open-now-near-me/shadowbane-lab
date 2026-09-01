@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(wonderbane_extension VERSION 1.6.1 LANGUAGES CXX RC)
+project(wonderbane_extension VERSION 1.6.2 LANGUAGES CXX RC)
 
 set(WONDERBANE_EXTENSION_PROFILE "full" CACHE STRING "Extension runtime profile")
 set_property(
@@ -26,6 +26,7 @@ add_library(
   wonderbane_extension
   SHARED
   banded_lighting.cpp
+  camera_observation.cpp
   cel_shading.cpp
   depth_edges.cpp
   event_channel.cpp
@@ -110,6 +111,7 @@ if(BUILD_TESTING)
     depth_edges.cpp
     graphics_control.cpp
     graphics_status.cpp
+    import_hook.cpp
   )
   target_compile_features(
     wonderbane_extension_cel_shading_test
