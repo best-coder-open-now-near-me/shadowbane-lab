@@ -705,6 +705,42 @@ These are inferences, ordered by present fit rather than certainty.
 - Next action: launch the two vanilla clients normally, map their PIDs to Summoner exposure and
   late-arrival control roles, then start one all-matching triggered capture before turtle exposure.
 
+## 2026-09-01 — Long-path translocation trigger refined
+
+### Operator observation
+
+- The Druid/Summoner translocation is intermittent rather than tied to every zone-load batch.
+- The reproducible precursor is one long click-to-move instruction covering roughly a full minimap
+  distance without reclicking. The character eventually snaps to a corrected position; some snaps
+  also show the translocation transition screen.
+- Reclicking during the route appears to reset or bound the behavior. The correction can occur while
+  the client is already loading another environment batch, so a completely settled-load condition
+  may not exist during a sufficiently long traversal.
+- The paired vanilla capture marker was created immediately after one such event on Summoner
+  PID 5416. That capture records process counters around the observation but has no authoritative
+  client/server position, movement-command, packet, or exact present-timing channel.
+
+### Current interpretation boundary
+
+- The strongest behavioral model is accumulated client path or movement prediction diverging from
+  authoritative position until a correction threshold is crossed. A fresh click may reset the local
+  path target or movement state before the threshold is reached.
+- Environment streaming can lengthen a client update stall or delay collision/path processing and
+  thereby amplify the divergence. This does not yet prove that streaming initiates the mismatch.
+- Travel stance and water changing base speed remain plausible mismatch inputs. The current event
+  does not isolate stance, water, path length, and streaming batch state from one another.
+- A translocation transition screen is evidence that the correction path can cross a larger client
+  presentation threshold; it is not by itself proof that the server issued a teleport operation.
+
+### Smallest controlled reproduction
+
+1. Use the same route, character, stance, and surface for a long-click trial with no reclick.
+2. Repeat with short segmented clicks or a reclick every few seconds.
+3. Compare event incidence and counter windows, then repeat the pair on land, in water, and across
+   the travel-stance speed change.
+4. Add repeatable event markers plus read-only position and network-summary producers before
+   claiming the direction or size of client/server divergence.
+
 ## Journal maintenance rule
 
 After every live test, append one entry containing:
