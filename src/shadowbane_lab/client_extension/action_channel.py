@@ -1,8 +1,8 @@
 """Versioned host-to-client commands for the injected WonderBane extension.
 
 This transport is independent of the desktop-input subsystem. A command is accepted only after
-injected code reports native-client submission; there is no keyboard, hotbar, mouse,
-``SendInput``, or ``PostMessage`` fallback.
+injected code reports native-client submission; there is no keyboard, mouse, ``SendInput``, or
+``PostMessage`` fallback.
 """
 
 from __future__ import annotations
@@ -75,6 +75,32 @@ _EVENT_MODIFY_STATE = 0x0002
 _SYNCHRONIZE = 0x00100000
 _WAIT_OBJECT_0 = 0x00000000
 _WAIT_TIMEOUT = 0x00000102
+
+
+def _non_empty_text(value: str, field_name: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{field_name} must be a non-empty string")
+    return value
+
+
+def _ascii_text(
+    value: str,
+    field_name: str,
+    *,
+    capacity: int,
+    allow_empty: bool,
+) -> bytes:
+    if not isinstance(value, str) or (not allow_empty and not value):
+        raise ValueError(f"{field_name} must be a string")
+    try:
+        encoded = value.encode("ascii")
+    except UnicodeEncodeError as exc:
+        raise ValueError(f"{field_name} must be ASCII") from exc
+    if len(encoded) > capacity:
+        raise ValueError(f"{field_name} exceeds its native ABI capacity")
+    if any(byte < 0x20 or byte > 0x7E for byte in encoded):
+        raise ValueError(f"{field_name} must contain printable ASCII")
+    return encoded
 
 
 class NativeActionChannelError(RuntimeError):
@@ -407,6 +433,136 @@ class NativeActionCommandTransport(Protocol):
     ) -> NativeActionResult: ...
 
 
+class _WindowsKernel:
+    def __init__(self) -> None:
+        kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+        self._kernel = kernel
+        handle = ctypes.c_void_p
+        dword = ctypes.c_uint32
+        bool_type = ctypes.c_int
+        long_type = ctypes.c_long
+        longlong = ctypes.c_longlong
+
+        kernel.OpenFileMappingW.argtypes = [dword, bool_type, ctypes.c_wchar_p]
+        kernel.OpenFileMappingW.restype = handle
+        kernel.MapViewOfFile.argtypes = [handle, dword, dword, dword, ctypes.c_size_t]
+        kernel.MapViewOfFile.restype = handle
+        kernel.OpenEventW.argtypes = [dword, bool_type, ctypes.c_wchar_p]
+        kernel.OpenEventW.restype = handle
+        kernel.SetEvent.argtypes = [handle]
+        kernel.SetEvent.restype = bool_type
+        kernel.WaitForSingleObject.argtypes = [handle, dword]
+        kernel.WaitForSingleObject.restype = dword
+        kernel.UnmapViewOfFile.argtypes = [handle]
+        kernel.UnmapViewOfFile.restype = bool_type
+        kernel.CloseHandle.argtypes = [handle]
+        kernel.CloseHandle.restype = bool_type
+        kernel.GetTickCount64.argtypes = []
+        kernel.GetTickCount64.restype = ctypes.c_uint64
+        kernel.GetCurrentProcessId.argtypes = []
+        kernel.GetCurrentProcessId.restype = dword
+        kernel.InterlockedCompareExchange64.argtypes = [
+            ctypes.POINTER(longlong),
+            longlong,
+            longlong,
+        ]
+        kernel.InterlockedCompareExchange64.restype = longlong
+        kernel.InterlockedExchange64.argtypes = [ctypes.POINTER(longlong), longlong]
+        kernel.InterlockedExchange64.restype = longlong
+        kernel.InterlockedCompareExchange.argtypes = [
+            ctypes.POINTER(long_type),
+            long_type,
+            long_type,
+        ]
+        kernel.InterlockedCompareExchange.restype = long_type
+        kernel.InterlockedExchange.argtypes = [ctypes.POINTER(long_type), long_type]
+        kernel.InterlockedExchange.restype = long_type
+        kernel.InterlockedIncrement.argtypes = [ctypes.POINTER(long_type)]
+        kernel.InterlockedIncrement.restype = long_type
+
+    def open_file_mapping(self, name: str) -> int:
+        handle = self._kernel.OpenFileMappingW(
+            _FILE_MAP_READ | _FILE_MAP_WRITE,
+            False,
+            name,
+        )
+        return self._checked_handle(handle, "OpenFileMappingW")
+
+    def map_view(self, mapping: int, size: int) -> int:
+        view = self._kernel.MapViewOfFile(
+            ctypes.c_void_p(mapping),
+            _FILE_MAP_READ | _FILE_MAP_WRITE,
+            0,
+            0,
+            size,
+        )
+        return self._checked_handle(view, "MapViewOfFile")
+
+    def open_event(self, name: str) -> int:
+        handle = self._kernel.OpenEventW(
+            _EVENT_MODIFY_STATE | _SYNCHRONIZE,
+            False,
+            name,
+        )
+        return self._checked_handle(handle, "OpenEventW")
+
+    def set_event(self, handle: int) -> None:
+        if not self._kernel.SetEvent(ctypes.c_void_p(handle)):
+            self._raise_last_error("SetEvent")
+
+    def wait(self, handle: int, timeout_ms: int) -> int:
+        return int(
+            self._kernel.WaitForSingleObject(
+                ctypes.c_void_p(handle),
+                ctypes.c_uint32(timeout_ms),
+            )
+        )
+
+    def unmap_view(self, view: int) -> None:
+        self._kernel.UnmapViewOfFile(ctypes.c_void_p(view))
+
+    def close_handle(self, handle: int) -> None:
+        self._kernel.CloseHandle(ctypes.c_void_p(handle))
+
+    def tick_count(self) -> int:
+        return int(self._kernel.GetTickCount64())
+
+    def process_id(self) -> int:
+        return int(self._kernel.GetCurrentProcessId())
+
+    def read_i64(self, address: int) -> int:
+        pointer = ctypes.cast(address, ctypes.POINTER(ctypes.c_longlong))
+        return int(self._kernel.InterlockedCompareExchange64(pointer, 0, 0))
+
+    def exchange_i64(self, address: int, value: int) -> int:
+        pointer = ctypes.cast(address, ctypes.POINTER(ctypes.c_longlong))
+        return int(self._kernel.InterlockedExchange64(pointer, value))
+
+    def read_i32(self, address: int) -> int:
+        pointer = ctypes.cast(address, ctypes.POINTER(ctypes.c_long))
+        return int(self._kernel.InterlockedCompareExchange(pointer, 0, 0))
+
+    def exchange_i32(self, address: int, value: int) -> int:
+        pointer = ctypes.cast(address, ctypes.POINTER(ctypes.c_long))
+        return int(self._kernel.InterlockedExchange(pointer, value))
+
+    def increment_i32(self, address: int) -> int:
+        pointer = ctypes.cast(address, ctypes.POINTER(ctypes.c_long))
+        return int(self._kernel.InterlockedIncrement(pointer))
+
+    @staticmethod
+    def _checked_handle(value: object, operation: str) -> int:
+        numeric = int(value) if value else 0
+        if numeric == 0:
+            _WindowsKernel._raise_last_error(operation)
+        return numeric
+
+    @staticmethod
+    def _raise_last_error(operation: str) -> None:
+        error = ctypes.get_last_error()
+        raise NativeActionChannelUnavailable(f"{operation} failed with Win32 error {error}")
+
+
 class WindowsNativeActionCommandTransport:
     """Single-producer Windows shared-memory transport into the injected extension."""
 
@@ -470,7 +626,6 @@ class WindowsNativeActionCommandTransport:
             raise ValueError("timeout_ms must be positive")
         with self._lock:
             self._renew_host_lease()
-            view = self._require_view()
             write_sequence = self._read_i64(_COMMAND_WRITE_SEQUENCE_OFFSET)
             read_sequence = self._read_i64(_COMMAND_READ_SEQUENCE_OFFSET)
             if (
@@ -496,6 +651,7 @@ class WindowsNativeActionCommandTransport:
                 created_tick=created_tick,
                 deadline_tick=deadline_tick,
             )
+            view = self._require_view()
             self._exchange_i64(slot_offset, 0)
             ctypes.memmove(view + slot_offset, encoded, len(encoded))
             self._exchange_i64(slot_offset, sequence)
@@ -608,7 +764,6 @@ class WindowsNativeActionCommandTransport:
         command_id: int,
         command_sequence: int,
     ) -> NativeActionResult | None:
-        view = self._require_view()
         write_sequence = self._read_i64(_RESULT_WRITE_SEQUENCE_OFFSET)
         read_sequence = self._read_i64(_RESULT_READ_SEQUENCE_OFFSET)
         if (
@@ -619,6 +774,7 @@ class WindowsNativeActionCommandTransport:
         ):
             raise NativeActionChannelError("native action result sequences are invalid")
         matched = None
+        view = self._require_view()
         while read_sequence < write_sequence:
             expected_sequence = read_sequence + 1
             slot_offset = (
@@ -834,159 +990,3 @@ class NativeExtensionActionDispatcher:
             accepted=False,
             reason=reason,
         )
-
-
-class _WindowsKernel:
-    def __init__(self) -> None:
-        kernel = ctypes.WinDLL("kernel32", use_last_error=True)
-        self._kernel = kernel
-        handle = ctypes.c_void_p
-        dword = ctypes.c_uint32
-        bool_type = ctypes.c_int
-        long_type = ctypes.c_long
-        longlong = ctypes.c_longlong
-
-        kernel.OpenFileMappingW.argtypes = [dword, bool_type, ctypes.c_wchar_p]
-        kernel.OpenFileMappingW.restype = handle
-        kernel.MapViewOfFile.argtypes = [handle, dword, dword, dword, ctypes.c_size_t]
-        kernel.MapViewOfFile.restype = handle
-        kernel.OpenEventW.argtypes = [dword, bool_type, ctypes.c_wchar_p]
-        kernel.OpenEventW.restype = handle
-        kernel.SetEvent.argtypes = [handle]
-        kernel.SetEvent.restype = bool_type
-        kernel.WaitForSingleObject.argtypes = [handle, dword]
-        kernel.WaitForSingleObject.restype = dword
-        kernel.UnmapViewOfFile.argtypes = [handle]
-        kernel.UnmapViewOfFile.restype = bool_type
-        kernel.CloseHandle.argtypes = [handle]
-        kernel.CloseHandle.restype = bool_type
-        kernel.GetTickCount64.argtypes = []
-        kernel.GetTickCount64.restype = ctypes.c_uint64
-        kernel.GetCurrentProcessId.argtypes = []
-        kernel.GetCurrentProcessId.restype = dword
-        kernel.InterlockedCompareExchange64.argtypes = [
-            ctypes.POINTER(longlong),
-            longlong,
-            longlong,
-        ]
-        kernel.InterlockedCompareExchange64.restype = longlong
-        kernel.InterlockedExchange64.argtypes = [ctypes.POINTER(longlong), longlong]
-        kernel.InterlockedExchange64.restype = longlong
-        kernel.InterlockedCompareExchange.argtypes = [
-            ctypes.POINTER(long_type),
-            long_type,
-            long_type,
-        ]
-        kernel.InterlockedCompareExchange.restype = long_type
-        kernel.InterlockedExchange.argtypes = [ctypes.POINTER(long_type), long_type]
-        kernel.InterlockedExchange.restype = long_type
-        kernel.InterlockedIncrement.argtypes = [ctypes.POINTER(long_type)]
-        kernel.InterlockedIncrement.restype = long_type
-
-    def open_file_mapping(self, name: str) -> int:
-        handle = self._kernel.OpenFileMappingW(
-            _FILE_MAP_READ | _FILE_MAP_WRITE,
-            False,
-            name,
-        )
-        return self._checked_handle(handle, "OpenFileMappingW")
-
-    def map_view(self, mapping: int, size: int) -> int:
-        view = self._kernel.MapViewOfFile(
-            ctypes.c_void_p(mapping),
-            _FILE_MAP_READ | _FILE_MAP_WRITE,
-            0,
-            0,
-            size,
-        )
-        return self._checked_handle(view, "MapViewOfFile")
-
-    def open_event(self, name: str) -> int:
-        handle = self._kernel.OpenEventW(
-            _EVENT_MODIFY_STATE | _SYNCHRONIZE,
-            False,
-            name,
-        )
-        return self._checked_handle(handle, "OpenEventW")
-
-    def set_event(self, handle: int) -> None:
-        if not self._kernel.SetEvent(ctypes.c_void_p(handle)):
-            self._raise_last_error("SetEvent")
-
-    def wait(self, handle: int, timeout_ms: int) -> int:
-        return int(
-            self._kernel.WaitForSingleObject(
-                ctypes.c_void_p(handle),
-                ctypes.c_uint32(timeout_ms),
-            )
-        )
-
-    def unmap_view(self, view: int) -> None:
-        self._kernel.UnmapViewOfFile(ctypes.c_void_p(view))
-
-    def close_handle(self, handle: int) -> None:
-        self._kernel.CloseHandle(ctypes.c_void_p(handle))
-
-    def tick_count(self) -> int:
-        return int(self._kernel.GetTickCount64())
-
-    def process_id(self) -> int:
-        return int(self._kernel.GetCurrentProcessId())
-
-    def read_i64(self, address: int) -> int:
-        pointer = ctypes.cast(address, ctypes.POINTER(ctypes.c_longlong))
-        return int(self._kernel.InterlockedCompareExchange64(pointer, 0, 0))
-
-    def exchange_i64(self, address: int, value: int) -> int:
-        pointer = ctypes.cast(address, ctypes.POINTER(ctypes.c_longlong))
-        return int(self._kernel.InterlockedExchange64(pointer, value))
-
-    def read_i32(self, address: int) -> int:
-        pointer = ctypes.cast(address, ctypes.POINTER(ctypes.c_long))
-        return int(self._kernel.InterlockedCompareExchange(pointer, 0, 0))
-
-    def exchange_i32(self, address: int, value: int) -> int:
-        pointer = ctypes.cast(address, ctypes.POINTER(ctypes.c_long))
-        return int(self._kernel.InterlockedExchange(pointer, value))
-
-    def increment_i32(self, address: int) -> int:
-        pointer = ctypes.cast(address, ctypes.POINTER(ctypes.c_long))
-        return int(self._kernel.InterlockedIncrement(pointer))
-
-    @staticmethod
-    def _checked_handle(value: object, operation: str) -> int:
-        numeric = int(value) if value else 0
-        if numeric == 0:
-            _WindowsKernel._raise_last_error(operation)
-        return numeric
-
-    @staticmethod
-    def _raise_last_error(operation: str) -> None:
-        error = ctypes.get_last_error()
-        raise NativeActionChannelUnavailable(f"{operation} failed with Win32 error {error}")
-
-
-def _non_empty_text(value: str, field_name: str) -> str:
-    if not isinstance(value, str) or not value.strip():
-        raise ValueError(f"{field_name} must be a non-empty string")
-    return value
-
-
-def _ascii_text(
-    value: str,
-    field_name: str,
-    *,
-    capacity: int,
-    allow_empty: bool,
-) -> bytes:
-    if not isinstance(value, str) or (not allow_empty and not value):
-        raise ValueError(f"{field_name} must be a string")
-    try:
-        encoded = value.encode("ascii")
-    except UnicodeEncodeError as exc:
-        raise ValueError(f"{field_name} must be ASCII") from exc
-    if len(encoded) > capacity:
-        raise ValueError(f"{field_name} exceeds its native ABI capacity")
-    if any(byte < 0x20 or byte > 0x7E for byte in encoded):
-        raise ValueError(f"{field_name} must contain printable ASCII")
-    return encoded
