@@ -1,5 +1,6 @@
 #include "event_channel.h"
 
+#include "client_action_trace.h"
 #include "command_channel.h"
 
 #include <strsafe.h>
@@ -206,10 +207,17 @@ DWORD InitializeEventChannel(
         CloseEventChannelObjects();
         return result;
     }
+    result = StartClientActionTraceChannel(identity);
+    if (result != ERROR_SUCCESS) {
+        StopClientActionCommandChannel();
+        CloseEventChannelObjects();
+        return result;
+    }
     return ERROR_SUCCESS;
 }
 
 void ShutdownEventChannel() noexcept {
+    StopClientActionTraceChannel();
     StopClientActionCommandChannel();
     CloseEventChannelObjects();
 }
