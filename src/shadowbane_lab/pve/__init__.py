@@ -8,8 +8,8 @@ from shadowbane_lab.pve.approach import (
 )
 from shadowbane_lab.pve.authority import (
     PvETargetAuthorityDecision,
-    PvETargetAuthorityEvidence,
     PvETargetAuthorityEvaluator,
+    PvETargetAuthorityEvidence,
     PvETargetAuthorityExclusion,
     PvETargetCharacterKind,
     StaticPvETargetAuthorityEvaluator,
