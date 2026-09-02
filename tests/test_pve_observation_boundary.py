@@ -20,6 +20,7 @@ from shadowbane_lab.pve import (
     PvERunner,
 )
 from shadowbane_lab.pve.approach import PvEApproachController
+from shadowbane_lab.pve.runtime import PvERunner as CanonicalPvERunner
 
 
 def _absent() -> NativeTargetHealthObservation:
@@ -270,6 +271,9 @@ class NativePvEObservationSourceTests(unittest.TestCase):
 
 
 class GuardedPvERunnerTests(unittest.TestCase):
+    def test_public_runner_reuses_canonical_dispatch_loop(self) -> None:
+        self.assertIs(CanonicalPvERunner.run, PvERunner.run)
+
     def test_coherence_failures_retry_then_stop_without_input(self) -> None:
         health = ProcessSequenceHealthSource(
             (
