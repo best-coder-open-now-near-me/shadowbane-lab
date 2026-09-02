@@ -98,6 +98,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
     try:
         if options.self_test:
             return _run_self_test(package_root, options.self_test_result)
+        verify_package(package_root)
         identities = WindowsProcessDiscovery().find("sb.exe")
         world_def = resolve_world_definition(options.world_def, identities)
         forwarded = ["--world-def", str(world_def), "--limit", str(options.limit)]
