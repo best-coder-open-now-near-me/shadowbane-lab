@@ -16,6 +16,13 @@ folder to a normal writable location, start one vanilla `sb.exe`, and run
 starts and gracefully seals captures, adds hotspot markers, and creates a shareable evidence ZIP.
 All evidence stays beneath the extracted application's `evidence` folder.
 
+
+The ZIP also carries two optional, separately owned utilities: a frozen name-based location lookup
+that auto-discovers `WorldDef.cfg` beside one running client, and the reviewed Druid AoE PowerShell
+macro bundle. The location utility is read-only. The macro deliberately sends keyboard input and is
+not part of the diagnostics collector; leave it stopped during manual stutter captures unless its
+automation is intentionally under test. The current location catalog includes named map placements
+and configured runegates, but no rune-name-to-dropper/location dataset.
 The executable is intentionally self-verifying but is not commercially code-signed. Windows may
 show an unrecognized-app warning. Do not disable Defender or SmartScreen globally; proceed only
 after the downloaded ZIP matches the checksum attached to the official GitHub Release.

@@ -81,4 +81,4 @@ jobs:
           gh release create $env:GITHUB_REF_NAME @assets `
             --verify-tag `
             --title "Shadowbane Vanilla Diagnostics ${{ steps.release.outputs.version }}" `
-            --notes "Portable read-only diagnostics for an isolated vanilla Shadowbane client. Download the Windows ZIP and its SHA-256 sidecar, verify the ZIP, extract it, and run ShadowbaneVanillaDiagnostics.exe. No Python, Git checkout, VM, or installer is required. The executable is not commercially code-signed, so Windows may show an unrecognized-app warning."
+            --notes "Portable read-only diagnostics for an isolated vanilla Shadowbane client, with a standalone name-based location lookup and the reviewed Druid AoE macro bundle. Download the Windows ZIP and its SHA-256 sidecar, verify the ZIP, and extract it. No Python, Git checkout, VM, or installer is required. The executables are not commercially code-signed, so Windows may show an unrecognized-app warning."

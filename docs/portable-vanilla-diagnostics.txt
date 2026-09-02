@@ -25,6 +25,30 @@ USING THE APP
 - Use the marker buttons when useful: Baseline SDR, Departed SDR, First Stutter, and Turtles Center.
 - Stop & Seal ends early without discarding the collected evidence.
 
+OPTIONAL TOOLS
+
+LOCATION LOOKUP
+
+- Run ShadowbaneLocationLookup.exe while exactly one sb.exe is running.
+- It finds Config\WorldDef.cfg beside that client and opens a name-search prompt. It does not need
+  Python or the repository.
+- The Location Lookup folder also contains Find-Shadowbane-Location.ps1 for advanced PowerShell use.
+- The current catalog searches named map placements and included confirmed destinations, including
+  runegates represented there. It does not yet map rune names to rune droppers or camp locations.
+
+DRUID AOE MACRO
+
+- Open the Druid AoE Macro folder and read its README before use.
+- Run install-druid-aoe.ps1 to install the reviewed macro and create its desktop shortcut.
+- The macro is input automation: it sends the documented F1-F6, C, and End keys only while sb.exe is
+  the foreground window. F8 toggles it, F9 runs one rotation, and F10 stops it.
+- Do not leave the macro running during a manual stutter capture unless automated input is an
+  intentional part of that test. Its log is written beneath %LOCALAPPDATA%\ShadowbaneLab\macros.
+
+Neither optional tool loads a DLL into Shadowbane or modifies sb.exe. The location lookup is
+read-only. The Druid macro deliberately sends keyboard input, so it is kept separate from the
+diagnostics executable and its use will be visible as activity timing in a capture.
+
 OUTPUT
 
 Evidence is written only beneath the extracted app folder in .\evidence. A completed capture creates

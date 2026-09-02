@@ -62,10 +62,20 @@ if ($pyInstallerVersion[0].Trim() -ne '6.22.2') {
 }
 
 $entryPoint = Join-Path $sourceRoot 'scripts\run_vanilla_diagnostics_app.py'
+$locationEntryPoint = Join-Path $sourceRoot 'scripts\run_shadowbane_location_lookup.py'
 $readmeSource = Join-Path $sourceRoot 'docs\portable-vanilla-diagnostics.txt'
-foreach ($required in @($entryPoint, $readmeSource)) {
+$druidSource = Join-Path $sourceRoot 'utilities\druid-aoe'
+$locationUtilitySource = Join-Path $sourceRoot 'utilities\location-lookup'
+$locationOverridesSource = Join-Path $sourceRoot 'configs\wonderbane-named-destinations.json'
+$requiredFiles = @($entryPoint, $locationEntryPoint, $readmeSource, $locationOverridesSource)
+foreach ($required in $requiredFiles) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
         throw "Portable build input was not found: $required"
+    }
+}
+foreach ($required in @($druidSource, $locationUtilitySource)) {
+    if (-not (Test-Path -LiteralPath $required -PathType Container)) {
+        throw "Portable utility source was not found: $required"
     }
 }
 
@@ -85,7 +95,8 @@ $packageRoot = Join-Path $buildRoot $packageName
 $distRoot = Join-Path $buildRoot 'pyinstaller-dist'
 $workRoot = Join-Path $buildRoot 'pyinstaller-work'
 $specRoot = Join-Path $buildRoot 'pyinstaller-spec'
-$selfTestResult = Join-Path $buildRoot 'self-test.json'
+$diagnosticsSelfTestResult = Join-Path $buildRoot 'diagnostics-self-test.json'
+$locationSelfTestResult = Join-Path $buildRoot 'location-self-test.json'
 $archiveStaging = Join-Path $buildRoot "$packageName.zip"
 $checksumStaging = "$archiveStaging.sha256"
 
@@ -103,15 +114,39 @@ try {
         --specpath $specRoot `
         $entryPoint
     if ($LASTEXITCODE -ne 0) {
-        throw "PyInstaller failed with exit code $LASTEXITCODE."
+        throw "Diagnostics PyInstaller build failed with exit code $LASTEXITCODE."
     }
 
-    $executableSource = Join-Path $distRoot 'ShadowbaneVanillaDiagnostics.exe'
-    if (-not (Test-Path -LiteralPath $executableSource -PathType Leaf)) {
-        throw "PyInstaller did not produce the expected executable: $executableSource"
+    & $PythonPath -m PyInstaller `
+        --noconfirm `
+        --clean `
+        --onefile `
+        --console `
+        --name 'ShadowbaneLocationLookup' `
+        --paths (Join-Path $sourceRoot 'src') `
+        --distpath $distRoot `
+        --workpath $workRoot `
+        --specpath $specRoot `
+        $locationEntryPoint
+    if ($LASTEXITCODE -ne 0) {
+        throw "Location lookup PyInstaller build failed with exit code $LASTEXITCODE."
     }
-    Copy-Item -LiteralPath $executableSource -Destination $packageRoot
+
+    $diagnosticsExecutableSource = Join-Path $distRoot 'ShadowbaneVanillaDiagnostics.exe'
+    $locationExecutableSource = Join-Path $distRoot 'ShadowbaneLocationLookup.exe'
+    foreach ($expected in @($diagnosticsExecutableSource, $locationExecutableSource)) {
+        if (-not (Test-Path -LiteralPath $expected -PathType Leaf)) {
+            throw "PyInstaller did not produce the expected executable: $expected"
+        }
+    }
+    Copy-Item -LiteralPath $diagnosticsExecutableSource -Destination $packageRoot
+    Copy-Item -LiteralPath $locationExecutableSource -Destination $packageRoot
     Copy-Item -LiteralPath $readmeSource -Destination (Join-Path $packageRoot 'README.txt')
+    Copy-Item -LiteralPath $druidSource -Destination (Join-Path $packageRoot 'Druid AoE Macro') -Recurse
+    $locationData = Join-Path $packageRoot 'Location Data'
+    New-Item -ItemType Directory -Path $locationData | Out-Null
+    Copy-Item -LiteralPath $locationUtilitySource -Destination (Join-Path $packageRoot 'Location Lookup') -Recurse
+    Copy-Item -LiteralPath $locationOverridesSource -Destination $locationData
 
     $inventory = @(
         Get-ChildItem -LiteralPath $packageRoot -File -Recurse |
@@ -148,22 +183,40 @@ try {
         [Text.UTF8Encoding]::new($false)
     )
 
-    $selfTestArguments = @(
+    $diagnosticsSelfTestArguments = @(
         '--self-test'
         '--self-test-result'
-        ('"{0}"' -f $selfTestResult)
+        ('"{0}"' -f $diagnosticsSelfTestResult)
     )
-    $selfTestProcess = Start-Process `
+    $diagnosticsSelfTestProcess = Start-Process `
         -FilePath (Join-Path $packageRoot 'ShadowbaneVanillaDiagnostics.exe') `
-        -ArgumentList $selfTestArguments `
+        -ArgumentList $diagnosticsSelfTestArguments `
         -Wait `
         -PassThru
-    if ($selfTestProcess.ExitCode -ne 0) {
-        throw "Packaged executable self-test failed with exit code $($selfTestProcess.ExitCode)."
+    if ($diagnosticsSelfTestProcess.ExitCode -ne 0) {
+        throw "Packaged diagnostics self-test failed: $($diagnosticsSelfTestProcess.ExitCode)."
     }
-    $selfTest = Get-Content -LiteralPath $selfTestResult -Raw | ConvertFrom-Json
-    if ($selfTest.ok -ne $true) {
-        throw "Packaged executable self-test did not report success: $selfTestResult"
+    $diagnosticsSelfTest = Get-Content -LiteralPath $diagnosticsSelfTestResult -Raw | ConvertFrom-Json
+    if ($diagnosticsSelfTest.ok -ne $true) {
+        throw "Packaged diagnostics self-test did not report success: $diagnosticsSelfTestResult"
+    }
+
+    $locationSelfTestArguments = @(
+        '--self-test'
+        '--self-test-result'
+        ('"{0}"' -f $locationSelfTestResult)
+    )
+    $locationSelfTestProcess = Start-Process `
+        -FilePath (Join-Path $packageRoot 'ShadowbaneLocationLookup.exe') `
+        -ArgumentList $locationSelfTestArguments `
+        -Wait `
+        -PassThru
+    if ($locationSelfTestProcess.ExitCode -ne 0) {
+        throw "Packaged location self-test failed: $($locationSelfTestProcess.ExitCode)."
+    }
+    $locationSelfTest = Get-Content -LiteralPath $locationSelfTestResult -Raw | ConvertFrom-Json
+    if ($locationSelfTest.ok -ne $true) {
+        throw "Packaged location self-test did not report success: $locationSelfTestResult"
     }
 
     Compress-Archive `
