@@ -1,40 +1,43 @@
-"""Coherent PvE observation assembly and fail-closed runtime stage boundaries."""
+"""Coherent PvE observation assembly over the canonical runtime dispatch loop."""
 
 from __future__ import annotations
 
-from collections import deque
+import time
 from dataclasses import replace
 from typing import Protocol, runtime_checkable
 
+from shadowbane_lab.client_input import StopSignal
 from shadowbane_lab.client_observation import (
     NativeCombatEventParser,
+    NativeCombatLogEntry,
     NativeTargetActionObservation,
     NativeTargetHealthObservation,
     NativeTargetIdentityObservation,
     NativeTargetIdentityReadError,
     NativeTargetPositionObservation,
 )
-from shadowbane_lab.pve.approach import PvEApproachStatus
-from shadowbane_lab.pve.model import (
-    PvEObservation,
-    PvEPhase,
-    PvERunResult,
-    PvERunTraceStep,
+from shadowbane_lab.pve.approach import (
+    PvEApproachController,
+    PvEApproachStatus,
+    PvEApproachUpdate,
 )
+from shadowbane_lab.pve.controller import PvEController as _BasePvEController
+from shadowbane_lab.pve.model import PvEObservation
 from shadowbane_lab.pve.runtime import (
     CharacterPopulationSource,
     CombatLogSource,
     PlayerActionSource,
     PlayerPositionSource,
     PlayerVitalsSource,
+    PvEIntentDispatcher,
+    PvERunner as _BasePvERunner,
     TargetActionSource,
     TargetHealthSource,
     TargetIdentitySource,
     TargetPositionSource,
 )
-from shadowbane_lab.pve.runtime import (
-    PvERunner as _BasePvERunner,
-)
+from shadowbane_lab.travel import TravelDecision, TravelPhase
+from shadowbane_lab.travel.runtime import TravelDecisionDispatcher
 
 
 class PvEObservationCoherenceError(RuntimeError):
@@ -286,306 +289,341 @@ class NativePvEObservationSource:
         return value
 
 
-class PvERunner(_BasePvERunner):
-    """Run PvE with coherent observations and explicit failure-stage taxonomy."""
+class _ObservationFrameBridge:
+    """Present one fully validated observation through the legacy reader protocols."""
 
-    def run(self) -> PvERunResult:
-        trace: list[PvERunTraceStep] | deque[PvERunTraceStep]
-        if self._maximum_retained_trace_steps is None:
-            trace = []
-        else:
-            trace = deque(maxlen=self._maximum_retained_trace_steps)
-        total_steps = 0
+    def __init__(
+        self,
+        source: NativePvEObservationSource,
+        controller: _BasePvEController,
+    ) -> None:
+        self._source = source
+        self._controller = controller
+        self._frame: PvEObservation | None = None
 
-        def record(step: PvERunTraceStep) -> None:
-            nonlocal total_steps
-            trace.append(step)
-            total_steps += 1
-            if self._trace_sink is not None:
-                self._trace_sink(step)
-
-        observation_source = NativePvEObservationSource(
-            health_reader=self._health_reader,
-            player_vitals_reader=self._player_vitals_reader,
-            player_position_reader=self._player_position_reader,
-            target_position_reader=self._target_position_reader,
-            target_action_reader=self._target_action_reader,
-            player_action_reader=self._player_action_reader,
-            target_identity_reader=self._target_identity_reader,
-            population_reader=self._population_reader,
-            combat_log_reader=self._combat_log_reader,
+    def begin_frame(self) -> PvEObservation:
+        self._frame = self._source.observe(
+            now_ms=0,
+            target_action_active=self._controller.target_action_observation_active,
+            player_action_active=self._controller.player_action_observation_active,
         )
+        return self._frame
 
-        started_at = self._clock()
-        terminal = None
-        last_observation: PvEObservation | None = None
-        consecutive_observation_failures = 0
-        while terminal is None:
-            now_ms = round((self._clock() - started_at) * 1000)
-            if self._stop_signal.is_set():
-                terminal = self._controller.stop("emergency_stop", now_ms=now_ms)
-                record(self._trace(terminal, observation=None))
-                break
+    def require_frame(self) -> PvEObservation:
+        if self._frame is None:
+            raise RuntimeError("PvE observation frame was requested before target health")
+        return self._frame
 
-            try:
-                observation = observation_source.observe(
-                    now_ms=now_ms,
-                    target_action_active=self._controller.target_action_observation_active,
-                    player_action_active=self._controller.player_action_observation_active,
-                )
-            except Exception as exc:
-                consecutive_observation_failures += 1
-                if (
-                    consecutive_observation_failures
-                    < self._maximum_consecutive_observation_failures
-                ):
-                    self._sleeper(self._poll_interval_seconds)
-                    continue
-                prefix = (
-                    "observation_coherence_failure"
-                    if isinstance(exc, PvEObservationCoherenceError)
-                    else "observation_failure"
-                )
-                terminal = self._controller.stop(
-                    self._failure_reason(prefix, exc),
-                    now_ms=now_ms,
-                )
-                record(self._trace(terminal, observation=None))
-                break
-
-            consecutive_observation_failures = 0
-            last_observation = observation
-            try:
-                decision = self._controller.step(observation)
-            except Exception as exc:
-                terminal = self._controller.stop(
-                    self._failure_reason("decision_failure", exc),
-                    now_ms=now_ms,
-                )
-                record(self._trace(terminal, observation=observation))
-                break
-
-            try:
-                approach = (
-                    None
-                    if self._approach_controller is None
-                    else self._approach_controller.step(
-                        observation,
-                        phase=decision.phase,
-                        reposition_requested=decision.reposition_requested,
-                        camp=decision.camp,
-                        return_to_camp=decision.return_to_camp,
-                    )
-                )
-            except Exception as exc:
-                record(self._trace(decision, observation=observation))
-                terminal = self._controller.stop(
-                    self._failure_reason("approach_failure", exc),
-                    now_ms=now_ms,
-                )
-                record(self._trace(terminal, observation=observation))
-                break
-
-            accepted = None
-            reason = None
-            approach_accepted = None
-            approach_reason = None
-            movement_stop_accepted = None
-            movement_stop_reason = None
-            approach_decision = None if approach is None else approach.decision
-            if approach_decision is not None and approach_decision.minimap_direction is not None:
-                assert self._movement_dispatcher is not None
-                try:
-                    approach_result = self._movement_dispatcher.dispatch(approach_decision)
-                except Exception as exc:
-                    approach_reason = f"input_failure:{type(exc).__name__}"
-                    record(
-                        self._trace(
-                            decision,
-                            observation=observation,
-                            approach=approach,
-                            approach_input_accepted=False,
-                            approach_input_reason=approach_reason,
-                        )
-                    )
-                    terminal = self._controller.stop(approach_reason, now_ms=now_ms)
-                    record(self._trace(terminal, observation=observation))
-                    break
-                approach_accepted = approach_result.accepted
-                approach_reason = approach_result.reason
-                if not approach_result.accepted:
-                    record(
-                        self._trace(
-                            decision,
-                            observation=observation,
-                            approach=approach,
-                            approach_input_accepted=False,
-                            approach_input_reason=approach_reason,
-                        )
-                    )
-                    stop_reason = (
-                        "emergency_stop"
-                        if self._stop_signal.is_set()
-                        else "guarded_movement_input_rejected"
-                    )
-                    terminal = self._controller.stop(stop_reason, now_ms=now_ms)
-                    record(self._trace(terminal, observation=observation))
-                    break
-            if approach_decision is not None and approach_decision.terminal:
-                assert self._movement_dispatcher is not None
-                if approach_decision.click_count > 0:
-                    try:
-                        stop_result = self._movement_dispatcher.stop_movement(
-                            approach_decision
-                        )
-                    except Exception as exc:
-                        movement_stop_accepted = False
-                        movement_stop_reason = f"input_failure:{type(exc).__name__}"
-                    else:
-                        movement_stop_accepted = stop_result.accepted
-                        movement_stop_reason = stop_result.reason
-                    if movement_stop_accepted is False:
-                        record(
-                            self._trace(
-                                decision,
-                                observation=observation,
-                                approach=approach,
-                                approach_input_accepted=approach_accepted,
-                                approach_input_reason=approach_reason,
-                                movement_stop_accepted=False,
-                                movement_stop_reason=movement_stop_reason,
-                            )
-                        )
-                        stop_reason = (
-                            "emergency_stop"
-                            if self._stop_signal.is_set()
-                            else "movement_stop_rejected"
-                        )
-                        terminal = self._controller.stop(stop_reason, now_ms=now_ms)
-                        record(self._trace(terminal, observation=observation))
-                        break
-            if approach is not None and approach.status is PvEApproachStatus.FAILED:
-                assert approach_decision is not None
-                terminal_reason = approach_decision.terminal_reason or "unknown"
-                record(
-                    self._trace(
-                        decision,
-                        observation=observation,
-                        approach=approach,
-                        approach_input_accepted=approach_accepted,
-                        approach_input_reason=approach_reason,
-                        movement_stop_accepted=movement_stop_accepted,
-                        movement_stop_reason=movement_stop_reason,
-                    )
-                )
-                recovery = self._controller.recover_from_approach_failure(
-                    observation,
-                    terminal_reason,
-                )
-                record(self._trace(recovery, observation=observation))
-                if recovery.terminal:
-                    terminal = recovery
-                    break
-                self._sleeper(self._poll_interval_seconds)
-                continue
-            if decision.intent is not None:
-                try:
-                    result = self._dispatcher.dispatch(
-                        decision.intent,
-                        sequence=decision.decision_id,
-                    )
-                except Exception as exc:
-                    reason = f"input_failure:{type(exc).__name__}"
-                    record(
-                        self._trace(
-                            decision,
-                            observation=observation,
-                            input_accepted=False,
-                            input_reason=reason,
-                        )
-                    )
-                    terminal = self._controller.stop(reason, now_ms=now_ms)
-                    record(self._trace(terminal, observation=observation))
-                    break
-                accepted = result.accepted
-                reason = result.reason
-                if not result.accepted:
-                    record(
-                        self._trace(
-                            decision,
-                            observation=observation,
-                            input_accepted=False,
-                            input_reason=reason,
-                        )
-                    )
-                    stop_reason = (
-                        "emergency_stop"
-                        if self._stop_signal.is_set()
-                        else "guarded_input_rejected"
-                    )
-                    terminal = self._controller.stop(stop_reason, now_ms=now_ms)
-                    record(self._trace(terminal, observation=observation))
-                    break
-            record(
-                self._trace(
-                    decision,
-                    observation=observation,
-                    input_accepted=accepted,
-                    input_reason=reason,
-                    approach=approach,
-                    approach_input_accepted=approach_accepted,
-                    approach_input_reason=approach_reason,
-                    movement_stop_accepted=movement_stop_accepted,
-                    movement_stop_reason=movement_stop_reason,
-                )
+    def take_combat_entries(self) -> tuple[NativeCombatLogEntry, ...]:
+        frame = self.require_frame()
+        self._frame = None
+        return tuple(
+            NativeCombatLogEntry(
+                sequence=event.sequence,
+                timestamp=event.timestamp,
+                message=event.message,
             )
-            if decision.terminal:
-                terminal = decision
-                break
-            self._sleeper(self._poll_interval_seconds)
-
-        assert terminal is not None
-        assert terminal.terminal_reason is not None
-        final_phase = terminal.phase
-        terminal_reason = terminal.terminal_reason
-        if self._approach_controller is not None:
-            cleanup = self._approach_controller.cancel("pve_run_terminal")
-            cleanup_decision = cleanup.decision
-            if cleanup_decision is not None and cleanup_decision.click_count > 0:
-                assert self._movement_dispatcher is not None
-                try:
-                    cleanup_result = self._movement_dispatcher.stop_movement(
-                        cleanup_decision
-                    )
-                except Exception as exc:
-                    cleanup_accepted = False
-                    cleanup_reason = f"input_failure:{type(exc).__name__}"
-                else:
-                    cleanup_accepted = cleanup_result.accepted
-                    cleanup_reason = cleanup_result.reason
-                record(
-                    self._trace(
-                        terminal,
-                        observation=last_observation,
-                        approach=cleanup,
-                        movement_stop_accepted=cleanup_accepted,
-                        movement_stop_reason=cleanup_reason,
-                    )
-                )
-                if not cleanup_accepted and not self._stop_signal.is_set():
-                    final_phase = PvEPhase.STOPPED
-                    terminal_reason = "movement_stop_rejected"
-        return PvERunResult(
-            final_phase=final_phase,
-            terminal_reason=terminal_reason,
-            kills=terminal.kills,
-            trace=tuple(trace),
-            total_steps=total_steps,
-            trace_truncated=total_steps > len(trace),
+            for event in frame.combat_events
         )
 
-    @staticmethod
-    def _failure_reason(prefix: str, exc: Exception) -> str:
-        message = " ".join(str(exc).split())
-        detail = f":{message[:160]}" if message else ""
-        return f"{prefix}:{type(exc).__name__}{detail}"
+
+class _FrameTargetHealthSource:
+    def __init__(self, bridge: _ObservationFrameBridge) -> None:
+        self._bridge = bridge
+
+    def observe(self):
+        return self._bridge.begin_frame().target
+
+
+class _FramePlayerVitalsSource:
+    def __init__(self, bridge: _ObservationFrameBridge) -> None:
+        self._bridge = bridge
+
+    def observe(self):
+        return self._bridge.require_frame().player
+
+
+class _FramePlayerPositionSource:
+    def __init__(self, bridge: _ObservationFrameBridge) -> None:
+        self._bridge = bridge
+
+    def observe(self):
+        value = self._bridge.require_frame().player_position
+        if value is None:
+            raise RuntimeError("coherent PvE frame is missing player position")
+        return value
+
+
+class _FrameTargetPositionSource:
+    def __init__(self, bridge: _ObservationFrameBridge) -> None:
+        self._bridge = bridge
+
+    def observe(self):
+        value = self._bridge.require_frame().target_position
+        if value is None:
+            raise RuntimeError("coherent PvE frame is missing target position")
+        return value
+
+
+class _FrameTargetActionSource:
+    def __init__(self, bridge: _ObservationFrameBridge) -> None:
+        self._bridge = bridge
+
+    def observe(self):
+        value = self._bridge.require_frame().target_action
+        if value is None:
+            raise RuntimeError("coherent PvE frame is missing target action")
+        return value
+
+
+class _FramePlayerActionSource:
+    def __init__(self, bridge: _ObservationFrameBridge) -> None:
+        self._bridge = bridge
+
+    def observe_player(self):
+        value = self._bridge.require_frame().player_action
+        if value is None:
+            raise RuntimeError("coherent PvE frame is missing player action")
+        return value
+
+
+class _FrameTargetIdentitySource:
+    def __init__(self, bridge: _ObservationFrameBridge) -> None:
+        self._bridge = bridge
+
+    def observe(self):
+        value = self._bridge.require_frame().target_identity
+        if value is None:
+            raise RuntimeError("coherent PvE frame is missing target identity")
+        return value
+
+
+class _FrameCharacterPopulationSource:
+    def __init__(self, bridge: _ObservationFrameBridge) -> None:
+        self._bridge = bridge
+
+    def observe(self):
+        value = self._bridge.require_frame().population
+        if value is None:
+            raise RuntimeError("coherent PvE frame is missing character population")
+        return value
+
+
+class _FrameCombatLogSource:
+    def __init__(self, bridge: _ObservationFrameBridge) -> None:
+        self._bridge = bridge
+
+    def read_new_entries(self) -> tuple[NativeCombatLogEntry, ...]:
+        return self._bridge.take_combat_entries()
+
+
+def _failure_reason(prefix: str, exc: Exception) -> str:
+    message = " ".join(str(exc).split())
+    detail = f":{message[:160]}" if message else ""
+    return f"{prefix}:{type(exc).__name__}{detail}"
+
+
+class _FailClosedController(_BasePvEController):
+    """Translate decision/approach exceptions into terminal controller decisions."""
+
+    def __init__(self, delegate: _BasePvEController) -> None:
+        self._delegate = delegate
+
+    @property
+    def requires_target_action(self) -> bool:
+        return self._delegate.requires_target_action
+
+    @property
+    def requires_target_identity(self) -> bool:
+        return self._delegate.requires_target_identity
+
+    @property
+    def requires_population(self) -> bool:
+        return self._delegate.requires_population
+
+    @property
+    def continuous(self) -> bool:
+        return self._delegate.continuous
+
+    @property
+    def terminal(self) -> bool:
+        return self._delegate.terminal
+
+    @property
+    def target_action_observation_active(self) -> bool:
+        return self._delegate.target_action_observation_active
+
+    @property
+    def player_action_observation_active(self) -> bool:
+        return self._delegate.player_action_observation_active
+
+    def step(self, observation: PvEObservation):
+        try:
+            return self._delegate.step(observation)
+        except Exception as exc:
+            return self._delegate.stop(
+                _failure_reason("decision_failure", exc),
+                now_ms=observation.now_ms,
+            )
+
+    def stop(self, reason: str, *, now_ms: int | None = None):
+        coherence_prefix = "observation_failure:PvEObservationCoherenceError"
+        if reason.startswith(coherence_prefix):
+            reason = reason.replace(
+                "observation_failure:",
+                "observation_coherence_failure:",
+                1,
+            )
+        return self._delegate.stop(reason, now_ms=now_ms)
+
+    def recover_from_approach_failure(
+        self,
+        observation: PvEObservation,
+        reason: str,
+    ):
+        if reason.startswith("runtime_exception:"):
+            return self._delegate.stop(
+                f"approach_failure:{reason.removeprefix('runtime_exception:')}",
+                now_ms=observation.now_ms,
+            )
+        return self._delegate.recover_from_approach_failure(observation, reason)
+
+    def __getattr__(self, name: str):
+        return getattr(self._delegate, name)
+
+
+class _FailClosedApproach(PvEApproachController):
+    """Represent an unexpected approach exception as a non-dispatchable failure."""
+
+    def __init__(self, delegate: PvEApproachController) -> None:
+        self._delegate = delegate
+
+    @property
+    def config(self):
+        return self._delegate.config
+
+    def step(self, observation: PvEObservation, **kwargs) -> PvEApproachUpdate:
+        try:
+            return self._delegate.step(observation, **kwargs)
+        except Exception as exc:
+            distance = observation.target_planar_distance or 0.0
+            return PvEApproachUpdate(
+                PvEApproachStatus.FAILED,
+                TravelDecision(
+                    decision_id=0,
+                    now_ms=observation.now_ms,
+                    phase=TravelPhase.STOPPED,
+                    waypoint_index=0,
+                    distance_remaining=distance,
+                    click_count=0,
+                    terminal_reason=_failure_reason("runtime_exception", exc),
+                ),
+            )
+
+    def cancel(self, reason: str) -> PvEApproachUpdate:
+        return self._delegate.cancel(reason)
+
+    def __getattr__(self, name: str):
+        return getattr(self._delegate, name)
+
+
+class PvERunner(_BasePvERunner):
+    """Use coherent frames and fail-closed stage proxies with one dispatch loop."""
+
+    def __init__(
+        self,
+        *,
+        controller: _BasePvEController,
+        health_reader: TargetHealthSource,
+        player_vitals_reader: PlayerVitalsSource,
+        player_position_reader: PlayerPositionSource | None = None,
+        target_position_reader: TargetPositionSource | None = None,
+        target_action_reader: TargetActionSource | None = None,
+        player_action_reader: PlayerActionSource | None = None,
+        target_identity_reader: TargetIdentitySource | None = None,
+        population_reader: CharacterPopulationSource | None = None,
+        combat_log_reader: CombatLogSource,
+        dispatcher: PvEIntentDispatcher,
+        approach_controller: PvEApproachController | None = None,
+        movement_dispatcher: TravelDecisionDispatcher | None = None,
+        stop_signal: StopSignal,
+        poll_interval_ms: int = 100,
+        maximum_consecutive_observation_failures: int = 3,
+        maximum_retained_trace_steps: int | None = None,
+        trace_sink=None,
+        clock=time.monotonic,
+        sleeper=time.sleep,
+    ) -> None:
+        if not isinstance(controller, _BasePvEController):
+            raise ValueError("controller must be PvEController")
+        source = NativePvEObservationSource(
+            health_reader=health_reader,
+            player_vitals_reader=player_vitals_reader,
+            player_position_reader=player_position_reader,
+            target_position_reader=target_position_reader,
+            target_action_reader=target_action_reader,
+            player_action_reader=player_action_reader,
+            target_identity_reader=target_identity_reader,
+            population_reader=population_reader,
+            combat_log_reader=combat_log_reader,
+        )
+        bridge = _ObservationFrameBridge(source, controller)
+        guarded_controller = _FailClosedController(controller)
+        guarded_approach = (
+            None
+            if approach_controller is None
+            else _FailClosedApproach(approach_controller)
+        )
+        super().__init__(
+            controller=guarded_controller,
+            health_reader=_FrameTargetHealthSource(bridge),
+            player_vitals_reader=_FramePlayerVitalsSource(bridge),
+            player_position_reader=(
+                None
+                if player_position_reader is None
+                else _FramePlayerPositionSource(bridge)
+            ),
+            target_position_reader=(
+                None
+                if target_position_reader is None
+                else _FrameTargetPositionSource(bridge)
+            ),
+            target_action_reader=(
+                None
+                if target_action_reader is None
+                else _FrameTargetActionSource(bridge)
+            ),
+            player_action_reader=(
+                None
+                if player_action_reader is None
+                else _FramePlayerActionSource(bridge)
+            ),
+            target_identity_reader=(
+                None
+                if target_identity_reader is None
+                else _FrameTargetIdentitySource(bridge)
+            ),
+            population_reader=(
+                None
+                if population_reader is None
+                else _FrameCharacterPopulationSource(bridge)
+            ),
+            combat_log_reader=_FrameCombatLogSource(bridge),
+            dispatcher=dispatcher,
+            approach_controller=guarded_approach,
+            movement_dispatcher=movement_dispatcher,
+            stop_signal=stop_signal,
+            poll_interval_ms=poll_interval_ms,
+            maximum_consecutive_observation_failures=(
+                maximum_consecutive_observation_failures
+            ),
+            maximum_retained_trace_steps=maximum_retained_trace_steps,
+            trace_sink=trace_sink,
+            clock=clock,
+            sleeper=sleeper,
+        )
+        self._native_observation_source = source
+
+    @property
+    def observation_source(self) -> NativePvEObservationSource:
+        return self._native_observation_source
