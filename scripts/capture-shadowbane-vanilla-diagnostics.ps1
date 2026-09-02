@@ -1,9 +1,11 @@
 [CmdletBinding(DefaultParameterSetName = 'Capture')]
 param(
     [Parameter(ParameterSetName = 'Capture')]
+    [Parameter(ParameterSetName = 'Preflight')]
     [ValidateRange(0, 2147483647)]
     [int] $ProcessId = 0,
     [Parameter(ParameterSetName = 'Capture')]
+    [Parameter(ParameterSetName = 'Preflight')]
     [string] $ClientExecutable = (
         "$env:USERPROFILE\Downloads\WonderbaneClient\Wonderbane\sb.exe"
     ),
@@ -13,6 +15,9 @@ param(
     [Parameter(ParameterSetName = 'Capture')]
     [ValidateRange(0.1, 0.2)]
     [double] $IntervalSeconds = 0.125,
+    [Parameter(Mandatory, ParameterSetName = 'Preflight')]
+    [switch] $PreflightOnly,
+
     [Parameter(Mandatory, ParameterSetName = 'Marker')]
     [ValidatePattern('^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$')]
     [string] $Marker,
@@ -149,6 +154,24 @@ if ($matchingProcesses.Count -ne 1) {
     )
 }
 $game = $matchingProcesses[0]
+if ($PSCmdlet.ParameterSetName -eq 'Preflight') {
+    Write-Host "Preflighting exact vanilla sb.exe PID $($game.Id) without starting capture."
+    Write-Host "No extension telemetry will be loaded or read."
+    Write-Host "Evidence boundary: $outputRoot"
+    & $PythonPath @(
+        '-E', '-s', '-B', $runner, 'preflight',
+        '--package-root', $packageRoot,
+        '--output-root', $outputRoot,
+        '--pid', $game.Id,
+        '--client-executable', $resolvedClient
+    )
+    if ($LASTEXITCODE -ne 0) {
+        throw "Vanilla diagnostics preflight failed with exit code $LASTEXITCODE."
+    }
+    Write-Host 'Preflight accepted. No timed capture was started.'
+    return
+}
+
 
 Write-Host "Capturing OS-only vanilla diagnostics for exact sb.exe PID $($game.Id)."
 Write-Host "No extension telemetry will be loaded or read."

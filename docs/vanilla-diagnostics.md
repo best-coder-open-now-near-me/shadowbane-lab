@@ -53,7 +53,16 @@ It refuses dirty source and existing destinations.
 1. Use the plain VM and its unmodified client. Do not launch a graphics, cel, diagnostics-extension,
    or testing client.
 2. Launch the intended `sb.exe`, log in, and reach the starting position.
-3. Open PowerShell. Run the capture from the exact published package directory. The command blocks
+3. Run the non-capturing preflight first. It writes a small result to `codexdiag`, reports whether
+   the exact process is accepted, and explicitly does not start the timed sampler.
+
+```powershell
+& '\\VBOXSVR\codexdiag\vanilla-diagnostics\packages\<exact-package>\capture-shadowbane-vanilla-diagnostics.ps1' `
+    -ClientExecutable "$env:USERPROFILE\Downloads\WonderbaneClient\Wonderbane\sb.exe" `
+    -PreflightOnly
+```
+
+4. Run the capture from the same exact published package directory. The command blocks
    while the capture is active, so leave that PowerShell window open and return to the game.
 
 ```powershell
@@ -62,7 +71,7 @@ It refuses dirty source and existing destinations.
     -DurationSeconds 900
 ```
 
-4. Optional: open a second PowerShell window before returning to the game and use it for phase
+5. Optional: open a second PowerShell window before returning to the game and use it for phase
    markers. Each invocation finds the sole active vanilla capture and writes one marker.
 
 ```powershell
@@ -72,9 +81,9 @@ It refuses dirty source and existing destinations.
 & '\\VBOXSVR\codexdiag\vanilla-diagnostics\packages\<exact-package>\capture-shadowbane-vanilla-diagnostics.ps1' -Marker turtles_center
 ```
 
-5. Let the timer finish. `capture-complete.json` is written last. Closing the game early seals the
+6. Let the timer finish. `capture-complete.json` is written last. Closing the game early seals the
    session as `target_exited`; pressing Ctrl+C seals it as `operator_interrupted`.
-6. Do not rerun after a preflight rejection until the named residue or executable mismatch is
+7. Do not rerun after a preflight rejection until the named residue or executable mismatch is
    understood. The rejected run directory contains `preflight.json` with the exact reason.
 
 The capture never starts, closes, focuses, or sends input to the game. It also does not close the

@@ -15,6 +15,7 @@ from .capture import (
     run_capture,
 )
 from .package import PackageVerificationError, verify_package
+from .preflight import PreflightConfig, run_preflight
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -29,6 +30,11 @@ def _parser() -> argparse.ArgumentParser:
     capture.add_argument("--client-executable", type=Path, required=True)
     capture.add_argument("--duration", type=float, default=600.0)
     capture.add_argument("--interval", type=float, default=0.125)
+    preflight = commands.add_parser("preflight")
+    preflight.add_argument("--package-root", type=Path, required=True)
+    preflight.add_argument("--output-root", type=Path, required=True)
+    preflight.add_argument("--pid", type=int, required=True)
+    preflight.add_argument("--client-executable", type=Path, required=True)
     marker = commands.add_parser("mark")
     marker.add_argument("--package-root", type=Path, required=True)
     marker.add_argument("--output-root", type=Path, required=True)
@@ -51,6 +57,21 @@ def main(arguments: list[str] | None = None) -> int:
                         "source_revision": package["source_revision"],
                     },
                     sort_keys=True,
+                )
+            )
+            return 0
+        if options.command == "preflight":
+            result = run_preflight(
+                PreflightConfig(
+                    package_root=options.package_root,
+                    output_root=options.output_root,
+                    process_id=options.pid,
+                    client_executable=options.client_executable,
+                )
+            )
+            print(
+                json.dumps(
+                    {"ok": True, "preflight_directory": str(result)}, sort_keys=True
                 )
             )
             return 0
