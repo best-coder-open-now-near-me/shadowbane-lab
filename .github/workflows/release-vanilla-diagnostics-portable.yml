@@ -1,0 +1,84 @@
+name: Release portable vanilla diagnostics
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Semantic version for the build
+        required: true
+        default: 1.0.0
+  push:
+    tags:
+      - vanilla-diagnostics-portable-v*
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@v4
+
+      - name: Set up 64-bit Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.11.9
+          architecture: x64
+          cache: pip
+          cache-dependency-path: requirements/vanilla-diagnostics-portable-build.txt
+
+      - name: Install locked build tools
+        shell: pwsh
+        run: python -m pip install --requirement requirements/vanilla-diagnostics-portable-build.txt
+
+      - name: Resolve release version
+        id: release
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF_TYPE -eq 'tag') {
+            $prefix = 'vanilla-diagnostics-portable-v'
+            if (-not $env:GITHUB_REF_NAME.StartsWith($prefix)) {
+              throw "Unexpected tag: $env:GITHUB_REF_NAME"
+            }
+            $version = $env:GITHUB_REF_NAME.Substring($prefix.Length)
+          } else {
+            $version = '${{ inputs.version }}'
+          }
+          if ($version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$') {
+            throw "Version is not semantic x.y.z: $version"
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Build and self-test portable app
+        shell: pwsh
+        run: |
+          & .\scripts\build-shadowbane-vanilla-diagnostics-portable.ps1 `
+            -Version '${{ steps.release.outputs.version }}' `
+            -OutputDirectory .\artifacts `
+            -PythonPath (Get-Command python.exe).Source
+
+      - name: Upload verified build
+        uses: actions/upload-artifact@v4
+        with:
+          name: ShadowbaneVanillaDiagnostics-${{ steps.release.outputs.version }}-win-x64
+          path: |
+            artifacts/*.zip
+            artifacts/*.zip.sha256
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        if: github.ref_type == 'tag'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $assets = @(Get-ChildItem -LiteralPath .\artifacts -File | Select-Object -ExpandProperty FullName)
+          if ($assets.Count -ne 2) {
+            throw "Expected one ZIP and one checksum, found $($assets.Count) files."
+          }
+          gh release create $env:GITHUB_REF_NAME @assets `
+            --verify-tag `
+            --title "Shadowbane Vanilla Diagnostics ${{ steps.release.outputs.version }}" `
+            --notes "Portable read-only diagnostics for an isolated vanilla Shadowbane client. Download the Windows ZIP and its SHA-256 sidecar, verify the ZIP, extract it, and run ShadowbaneVanillaDiagnostics.exe. No Python, Git checkout, VM, or installer is required. The executable is not commercially code-signed, so Windows may show an unrecognized-app warning."

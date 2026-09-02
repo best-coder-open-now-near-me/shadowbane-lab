@@ -1,0 +1,45 @@
+SHADOWBANE VANILLA DIAGNOSTICS - PORTABLE WINDOWS APP
+
+This download is for an isolated, unmodified Shadowbane installation on 64-bit Windows 10 or 11.
+It does not require Python, Git, a repository checkout, a VM, or an installer.
+
+SETUP
+
+1. Download both the Windows ZIP and its .sha256 file from the GitHub Release.
+2. In PowerShell, verify the ZIP before opening it:
+
+   Get-FileHash .\ShadowbaneVanillaDiagnostics-<version>-win-x64.zip -Algorithm SHA256
+
+   The result must match the hash written in the downloaded .sha256 file.
+3. Extract the whole ZIP to a normal writable folder. Do not run the app from inside the ZIP.
+4. Start the vanilla Shadowbane client and log in.
+5. Run ShadowbaneVanillaDiagnostics.exe.
+
+USING THE APP
+
+- The app automatically selects exactly one running sb.exe. If none or more than one are running,
+  correct that and click Refresh.
+- Click Verify Vanilla Client. A rejected client is not captured; read the status message and do not
+  bypass it.
+- Choose a capture length and click Start Capture. Return to Shadowbane and reproduce the stutter.
+- Use the marker buttons when useful: Baseline SDR, Departed SDR, First Stutter, and Turtles Center.
+- Stop & Seal ends early without discarding the collected evidence.
+
+OUTPUT
+
+Evidence is written only beneath the extracted app folder in .\evidence. A completed capture creates
+both its evidence directory and a shareable .zip with a .zip.sha256 checksum. Send the capture ZIP,
+not the application ZIP, for analysis.
+
+SAFETY AND PRIVACY
+
+The app accepts only reviewed vanilla sb.exe hashes and rejects known WonderBane extension residue,
+identity-bound extension status, and a loaded extension module. It records process resource counters,
+window state, input timing without key/message content, visible-surface hashes without retained
+pixels, optional DWM counters, and exact-process network endpoints without packet payloads.
+
+The release executable is not commercially code-signed, so Windows SmartScreen may show an
+unrecognized-app warning. Proceed only when the ZIP hash matches the official GitHub Release. Never
+disable Defender or SmartScreen globally. The app normally does not need administrator access; if the
+game was deliberately started as administrator, the collector may need the same elevation to inspect
+that exact process.

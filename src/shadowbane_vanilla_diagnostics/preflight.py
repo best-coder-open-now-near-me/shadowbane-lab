@@ -37,7 +37,11 @@ def run_preflight(config: PreflightConfig) -> Path:
     """Verify package, exact process, reviewed executable, modules, and residue only."""
 
     package = verify_package(config.package_root)
-    assert_required_output_root(config.output_root, str(package["required_output_root"]))
+    assert_required_output_root(
+        config.output_root,
+        str(package["required_output_root"]),
+        package_root=config.package_root,
+    )
     config.output_root.mkdir(parents=True, exist_ok=True)
     process_probe = WindowsProcessProbe()
     first = process_probe.sample(config.process_id)

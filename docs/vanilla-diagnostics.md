@@ -1,8 +1,24 @@
 # Vanilla Shadowbane diagnostics release
 
 This release is the plain-client boundary for streaming and stutter captures. It is published from
-`codex/vanilla-diagnostics-release` and must not be replaced with the testing checkout's general
-diagnostics package.
+`codex/portable-vanilla-diagnostics` as a portable Windows application and must not be replaced
+with the testing checkout's general diagnostics package.
+
+## Portable physical-PC release
+
+The supported end-user package is the GitHub Release ZIP named
+`ShadowbaneVanillaDiagnostics-<version>-win-x64.zip`. Its only runtime requirement is 64-bit Windows
+10 or 11. It does not require Python, Git, a repository checkout, a VM, or an installer.
+
+Download the ZIP and its `.zip.sha256` sidecar, verify the ZIP with `Get-FileHash`, extract the whole
+folder to a normal writable location, start one vanilla `sb.exe`, and run
+`ShadowbaneVanillaDiagnostics.exe`. The native window performs the non-capturing vanilla check,
+starts and gracefully seals captures, adds hotspot markers, and creates a shareable evidence ZIP.
+All evidence stays beneath the extracted application's `evidence` folder.
+
+The executable is intentionally self-verifying but is not commercially code-signed. Windows may
+show an unrecognized-app warning. Do not disable Defender or SmartScreen globally; proceed only
+after the downloaded ZIP matches the checksum attached to the official GitHub Release.
 
 ## Safety contract
 
@@ -14,9 +30,8 @@ inventory, or the extension DLL in the target's loaded modules.
 
 The published runtime is standard-library-only and does not import `shadowbane_lab`, graphics
 runtime code, client-extension code, camera telemetry, native-position readers, or renderer timing
-producers. Final evidence and marker writes are pinned to
-`\\VBOXSVR\codexdiag\vanilla-diagnostics`. Samples remain in the collector's memory until sealing,
-so the VirtualBox share is not written every frame.
+producers. Final evidence and marker writes are pinned beneath the verified portable package.
+Samples remain in the collector's memory until sealing, so the disk is not written every frame.
 
 Captured channels are:
 
@@ -33,11 +48,29 @@ moving. It is useful frame-change evidence, but it is not an exact application-p
 counters are also monitor/compositor scope. Exact `SwapBuffers` timing is intentionally excluded
 because obtaining it from the client would cross the vanilla boundary.
 
-## Publish from the host
+## Build and publish
 
-Publish only from a clean committed checkout of the release branch. The output directory must be the
-host folder that backs the plain VM's `codexdiag` share, beneath
-`vanilla-diagnostics\packages`:
+The release workflow is `.github/workflows/release-vanilla-diagnostics-portable.yml`. A tag named
+`vanilla-diagnostics-portable-v<version>` builds on a 64-bit Windows runner with locked packaging
+tools, runs the packaged executable's self-test, and publishes the ZIP plus checksum to GitHub
+Releases. The local equivalent is:
+
+```powershell
+python -m pip install -r .\requirements\vanilla-diagnostics-portable-build.txt
+& .\scripts\build-shadowbane-vanilla-diagnostics-portable.ps1 `
+    -Version '<version>' `
+    -OutputDirectory '<artifact-directory>'
+```
+
+The build refuses a dirty checkout or an existing output, inventories the executable and README,
+embeds the exact source revision, and runs the frozen app's read-only self-test before producing the
+ZIP.
+
+## Legacy VM package
+
+The earlier source package remains available for the previous plain-VM workflow. Publish it only
+from a clean committed checkout. The output directory must be the host folder that backs the plain
+VM's `codexdiag` share, beneath `vanilla-diagnostics\packages`:
 
 ```powershell
 & .\scripts\publish-shadowbane-vanilla-diagnostics.ps1 `

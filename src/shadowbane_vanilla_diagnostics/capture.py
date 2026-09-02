@@ -8,6 +8,7 @@ import os
 import re
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -81,9 +82,27 @@ def _same_windows_path(left: str | Path, right: str | Path) -> bool:
     )
 
 
-def assert_required_output_root(actual: Path, required: str) -> None:
+def assert_required_output_root(
+    actual: Path,
+    required: str,
+    *,
+    package_root: Path | None = None,
+) -> None:
+    package_prefix = "{PACKAGE_ROOT}\\"
+    if required.startswith(package_prefix):
+        if package_root is None:
+            raise CaptureError("portable output policy requires the verified package root")
+        relative = Path(required[len(package_prefix) :])
+        if relative.is_absolute() or ".." in relative.parts:
+            raise CaptureError("portable output policy contains an unsafe relative path")
+        expected = package_root.resolve(strict=True) / relative
+        if not _same_windows_path(actual, expected):
+            raise CaptureError(
+                f"output root must be exactly the portable evidence path: {expected}"
+            )
+        return
     if not required.startswith("\\\\VBOXSVR\\codexdiag\\"):
-        raise CaptureError("package required_output_root is outside the isolated codexdiag share")
+        raise CaptureError("package required_output_root has an unsupported boundary")
     if not _same_windows_path(actual, required):
         raise CaptureError(f"output root must be exactly the packaged codexdiag path: {required}")
 
@@ -182,11 +201,32 @@ def _close_and_read_markers(run_directory: Path) -> list[dict[str, object]]:
     return markers
 
 
-def run_capture(config: CaptureConfig) -> Path:
+def _notify_progress(
+    callback: Callable[[dict[str, object]], None] | None,
+    payload: dict[str, object],
+) -> None:
+    if callback is None:
+        return
+    try:
+        callback(payload)
+    except Exception:
+        return
+
+
+def run_capture(
+    config: CaptureConfig,
+    *,
+    stop_requested: Callable[[], bool] | None = None,
+    progress_callback: Callable[[dict[str, object]], None] | None = None,
+) -> Path:
     """Capture one exact process without importing or reading extension telemetry."""
 
     package = verify_package(config.package_root)
-    assert_required_output_root(config.output_root, str(package["required_output_root"]))
+    assert_required_output_root(
+        config.output_root,
+        str(package["required_output_root"]),
+        package_root=config.package_root,
+    )
     config.output_root.mkdir(parents=True, exist_ok=True)
 
     process_probe = WindowsProcessProbe()
@@ -265,6 +305,14 @@ def run_capture(config: CaptureConfig) -> Path:
             "marker_directory": str(marker_directory),
         },
     )
+    _notify_progress(
+        progress_callback,
+        {
+            "event": "started",
+            "run_id": run_id,
+            "duration_seconds": config.duration_seconds,
+        },
+    )
 
     samples: list[dict[str, object]] = []
     network_samples: list[dict[str, object]] = []
@@ -278,9 +326,14 @@ def run_capture(config: CaptureConfig) -> Path:
     next_network_ns = started_ns
     logical_processors = os.cpu_count() or 1
     sample_index = 0
+    progress_stride = max(1, round(1.0 / config.interval_seconds))
     try:
         while True:
             captured_ns = time.perf_counter_ns()
+            if sample_index > 0 and stop_requested is not None and stop_requested():
+                terminal_state = "operator_stopped"
+                break
+
             if captured_ns > deadline_ns and sample_index > 0:
                 break
             captured_at_utc = utc_timestamp()
@@ -375,6 +428,15 @@ def run_capture(config: CaptureConfig) -> Path:
             next_sample_ns = started_ns + int(
                 sample_index * config.interval_seconds * 1_000_000_000
             )
+            if sample_index % progress_stride == 0:
+                _notify_progress(
+                    progress_callback,
+                    {
+                        "event": "progress",
+                        "elapsed_seconds": (captured_ns - started_ns) / 1_000_000_000,
+                        "sample_count": sample_index,
+                    },
+                )
             remaining = next_sample_ns - time.perf_counter_ns()
             if remaining > 0:
                 time.sleep(remaining / 1_000_000_000)
@@ -444,6 +506,16 @@ def run_capture(config: CaptureConfig) -> Path:
             "marker_count": len(markers),
             "channel_failures": channel_failures,
             "evidence_manifest_sha256": _sha256(manifest_path),
+        },
+    )
+    _notify_progress(
+        progress_callback,
+        {
+            "event": "completed",
+            "terminal_state": terminal_state,
+            "sample_count": len(samples),
+            "marker_count": len(markers),
+            "run_directory": str(run_directory),
         },
     )
     if terminal_state == "collector_failed":

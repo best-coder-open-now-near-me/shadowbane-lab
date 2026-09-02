@@ -146,6 +146,22 @@ class CaptureContractTests(unittest.TestCase):
         with self.assertRaisesRegex(Exception, "exactly"):
             assert_required_output_root(Path(r"\\VBOXSVR\codexrepo"), required)
 
+
+    def test_portable_output_is_pinned_beneath_verified_package(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            package_root = Path(directory)
+            evidence = package_root / "evidence"
+            assert_required_output_root(
+                evidence,
+                r"{PACKAGE_ROOT}\evidence",
+                package_root=package_root,
+            )
+            with self.assertRaisesRegex(Exception, "portable evidence"):
+                assert_required_output_root(
+                    package_root / "elsewhere",
+                    r"{PACKAGE_ROOT}\evidence",
+                    package_root=package_root,
+                )
     def test_cpu_rates_keep_one_core_and_capacity_interpretations_separate(self) -> None:
         identity = ProcessIdentity(10, 20, r"C:\game\sb.exe")
         previous = ProcessSample(

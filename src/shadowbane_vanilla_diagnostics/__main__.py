@@ -89,7 +89,11 @@ def main(arguments: list[str] | None = None) -> int:
             print(json.dumps({"ok": True, "capture_directory": str(result)}, sort_keys=True))
             return 0
         package = verify_package(options.package_root)
-        assert_required_output_root(options.output_root, str(package["required_output_root"]))
+        assert_required_output_root(
+            options.output_root,
+            str(package["required_output_root"]),
+            package_root=options.package_root,
+        )
         marker_path = mark_active_capture(options.output_root, options.label, options.note)
         print(json.dumps({"ok": True, "marker": str(marker_path)}, sort_keys=True))
         return 0
