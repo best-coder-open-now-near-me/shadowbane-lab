@@ -6,6 +6,7 @@ from shadowbane_lab.client_observation import (
     NativePlayerPositionObservation,
     NativePlayerVitalsObservation,
     NativeTargetHealthObservation,
+    NativeTargetIdentityObservation,
     NativeTargetPositionObservation,
 )
 from shadowbane_lab.protocol import DispatchResult
@@ -90,6 +91,20 @@ class ConstantPlayerPositionSource:
 class ConstantAbsentTargetPositionSource:
     def observe(self) -> NativeTargetPositionObservation:
         return NativeTargetPositionObservation(target_present=False)
+
+
+class MismatchedTargetIdentitySource:
+    def observe(self) -> NativeTargetIdentityObservation:
+        return NativeTargetIdentityObservation(
+            target_present=True,
+            arc_character=True,
+            merchant=False,
+            shopkeeper=False,
+            banker=False,
+            trainer=False,
+            minion=False,
+            target_token="other-target",
+        )
 
 
 class CountingCombatLogSource:
@@ -184,6 +199,28 @@ class NativePvEObservationSourceTests(unittest.TestCase):
 
         self.assertTrue(source.selection_boundary_enabled)
         self.assertEqual(2, health.calls)
+        self.assertEqual(0, combat.calls)
+
+    def test_cross_channel_target_mismatch_rejects_before_consuming_events(self) -> None:
+        health = ProcessSequenceHealthSource((_target("mob"), _target("mob")))
+        combat = CountingCombatLogSource()
+        source = NativePvEObservationSource(
+            health_reader=health,
+            player_vitals_reader=ConstantVitalsSource(_player(), process_id=4321),
+            target_identity_reader=MismatchedTargetIdentitySource(),
+            combat_log_reader=combat,
+        )
+
+        with self.assertRaisesRegex(
+            PvEObservationCoherenceError,
+            "target health and identity resolved different targets",
+        ):
+            source.observe(
+                now_ms=0,
+                target_action_active=False,
+                player_action_active=False,
+            )
+
         self.assertEqual(0, combat.calls)
 
     def test_process_backed_frame_uses_latest_health_for_stable_selection(self) -> None:

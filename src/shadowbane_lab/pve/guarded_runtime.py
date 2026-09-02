@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import deque
+from dataclasses import replace
 from typing import Protocol, runtime_checkable
 
 from shadowbane_lab.client_observation import (
@@ -197,22 +198,31 @@ class NativePvEObservationSource:
             target_action = self._absent_target_action(target_action)
             target_identity = self._absent_target_identity(target_identity)
 
+        try:
+            observation = PvEObservation(
+                now_ms=now_ms,
+                target=target,
+                player=player,
+                player_position=player_position,
+                target_position=target_position,
+                target_action=target_action,
+                player_action=player_action,
+                target_identity=target_identity,
+                population=population,
+            )
+        except ValueError as exc:
+            message = str(exc)
+            if "disagree" in message or "resolved different" in message:
+                raise PvEObservationCoherenceError(message) from exc
+            raise
+
         events = tuple(
             self._parser.parse(entry)
             for entry in self._combat_log_reader.read_new_entries()
         )
-        return PvEObservation(
-            now_ms=now_ms,
-            target=target,
-            player=player,
-            combat_events=events,
-            player_position=player_position,
-            target_position=target_position,
-            target_action=target_action,
-            player_action=player_action,
-            target_identity=target_identity,
-            population=population,
-        )
+        if not events:
+            return observation
+        return replace(observation, combat_events=events)
 
     def _observe_target_identity(
         self,
