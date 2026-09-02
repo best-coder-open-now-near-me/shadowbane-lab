@@ -8,7 +8,7 @@ import tempfile
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from shadowbane_lab.client_extension.texture_cache import (
     CacheResourceDigest,
@@ -50,38 +50,26 @@ class TextureProfileReceipt:
 
     def __post_init__(self) -> None:
         if self.schema_version != TEXTURE_PROFILE_SCHEMA_VERSION:
-            raise ValueError(
-                "unsupported texture-profile receipt schema version"
-            )
+            raise ValueError("unsupported texture-profile receipt schema version")
         if not isinstance(self.created_at_utc, str) or not self.created_at_utc:
             raise ValueError("created_at_utc must be non-empty text")
         if not Path(self.destination_directory).is_absolute():
             raise ValueError("destination_directory must be absolute")
-        validate_relative_path(
-            self.cache_relative_path,
-            "cache_relative_path",
-        )
+        validate_relative_path(self.cache_relative_path, "cache_relative_path")
         validate_sha256(self.profile_sha256, "profile_sha256")
-        validate_sha256(
-            self.result_cache_sha256,
-            "result_cache_sha256",
-        )
+        validate_sha256(self.result_cache_sha256, "result_cache_sha256")
         if (
             isinstance(self.result_cache_size, bool)
             or not isinstance(self.result_cache_size, int)
             or self.result_cache_size <= 0
         ):
-            raise ValueError(
-                "result_cache_size must be a positive integer"
-            )
+            raise ValueError("result_cache_size must be a positive integer")
         if not isinstance(self.plan, TextureProfilePlan):
-            raise ValueError(
-                "receipt plan must be a TextureProfilePlan"
-            )
+            raise ValueError("receipt plan must be a TextureProfilePlan")
         if self.plan.profile_sha256 != self.profile_sha256:
-            raise ValueError(
-                "receipt profile digest differs from its plan"
-            )
+            raise ValueError("receipt profile digest differs from its plan")
+        if self.plan.cache_relative_path != self.cache_relative_path:
+            raise ValueError("receipt cache path differs from its plan")
 
     def as_dict(self) -> dict[str, object]:
         return {
@@ -102,22 +90,16 @@ def materialize_texture_profile(
     *,
     created_at: datetime | None = None,
 ) -> TextureProfileReceipt:
-    """Build, verify, and atomically publish a texture profile directory."""
+    """Build, verify, and atomically publish a create-only texture profile directory."""
 
     if not isinstance(plan, TextureProfilePlan):
-        raise TextureProfileError(
-            "plan must be a TextureProfilePlan"
-        )
+        raise TextureProfileError("plan must be a TextureProfilePlan")
     source_cache = Path(plan.source_cache_path).resolve()
     destination = Path(destination_directory).resolve()
     if destination.exists():
-        raise TextureProfileError(
-            f"texture-profile destination already exists: {destination}"
-        )
+        raise TextureProfileError(f"texture-profile destination already exists: {destination}")
     if sha256_file(source_cache) != plan.source_cache_sha256:
-        raise TextureProfileError(
-            "source cache changed after the texture profile was compiled"
-        )
+        raise TextureProfileError("source cache changed after the texture profile was compiled")
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary = Path(
         tempfile.mkdtemp(
@@ -127,7 +109,8 @@ def materialize_texture_profile(
     )
     published = False
     try:
-        candidate_cache = temporary / source_cache.name
+        relative_parts = PurePosixPath(plan.cache_relative_path).parts
+        candidate_cache = temporary.joinpath(*relative_parts)
         copy_file_exact(
             source_cache,
             candidate_cache,
@@ -140,14 +123,11 @@ def materialize_texture_profile(
             plan.targeted_keys,
         )
         validation = validate_cache(candidate_cache)
-        _verify_selected_results(
-            validation.resources,
-            plan.selected,
-        )
+        _verify_selected_results(validation.resources, plan.selected)
         receipt = TextureProfileReceipt(
             created_at_utc=canonical_timestamp(created_at),
             destination_directory=str(destination),
-            cache_relative_path=source_cache.name,
+            cache_relative_path=plan.cache_relative_path,
             profile_sha256=plan.profile_sha256,
             result_cache_sha256=validation.cache_sha256,
             result_cache_size=validation.cache_size,
@@ -159,12 +139,11 @@ def materialize_texture_profile(
         )
         if destination.exists():
             raise TextureProfileError(
-                "texture-profile destination appeared during publication: "
-                f"{destination}"
+                f"texture-profile destination appeared during publication: {destination}"
             )
         os.replace(temporary, destination)
         published = True
-        published_cache = destination / source_cache.name
+        published_cache = destination.joinpath(*relative_parts)
         if (
             sha256_file(published_cache) != receipt.result_cache_sha256
             or published_cache.stat().st_size != receipt.result_cache_size
@@ -195,17 +174,11 @@ def _verify_selected_results(
     indexed = {item.key: item for item in resources}
     for provider in selected:
         result = indexed.get(provider.key)
-        if (
-            result is None
-            or result.payload_sha256 != provider.result_payload_sha256
-        ):
+        if result is None or result.payload_sha256 != provider.result_payload_sha256:
             raise TextureProfileError(
                 f"materialized payload differs for "
                 f"{provider.group_id}:{provider.resource_id}"
             )
 
 
-__all__ = [
-    "TextureProfileReceipt",
-    "materialize_texture_profile",
-]
+__all__ = ["TextureProfileReceipt", "materialize_texture_profile"]
