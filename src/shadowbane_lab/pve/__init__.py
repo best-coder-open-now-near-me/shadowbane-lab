@@ -15,6 +15,11 @@ from shadowbane_lab.pve.authority import (
     StaticPvETargetAuthorityEvaluator,
     evaluate_pve_target_authority,
 )
+from shadowbane_lab.pve.authority_snapshot import (
+    PvEAuthorityCharacterRecord,
+    PvETargetAuthoritySnapshot,
+    SnapshotPvETargetAuthorityEvaluator,
+)
 from shadowbane_lab.pve.calibration import (
     PVE_COMBAT_CALIBRATION_SCHEMA_VERSION,
     ObservedSampleSummary,
@@ -84,6 +89,7 @@ __all__ = [
     "PvEApproachController",
     "PvEApproachStatus",
     "PvEApproachUpdate",
+    "PvEAuthorityCharacterRecord",
     "PvECampLease",
     "PvECombatCalibration",
     "PvECombatCalibrationError",
@@ -104,11 +110,13 @@ __all__ = [
     "PvETargetAuthorityEvidence",
     "PvETargetAuthorityEvaluator",
     "PvETargetAuthorityExclusion",
+    "PvETargetAuthoritySnapshot",
     "PvETargetCharacterKind",
     "PvETargetRejection",
     "PvETargetRejectionReason",
     "PvETraceEvidenceError",
     "PvETraceJournal",
+    "SnapshotPvETargetAuthorityEvaluator",
     "StaticPvETargetAuthorityEvaluator",
     "TargetActionSource",
     "TargetHealthSource",

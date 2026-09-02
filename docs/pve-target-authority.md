@@ -20,16 +20,33 @@ following:
   character;
 - the resolved relation is `ENEMY`;
 - exact party membership is known false;
-- friendly ownership is known false; and
-- native attackability is known true.
+- friendly ownership is known false;
+- native attackability is known true; and
+- the evidence carries explicit provenance.
 
 Missing data is rejection, not permission. `PvETargetAuthorityDecision` preserves every exclusion
 rather than collapsing failures into one boolean. Population candidate quarantine also records the
 authority exclusions that caused the skip.
 
-A replay or test can use `StaticPvETargetAuthorityEvaluator`. Runtime integrations should implement
-`PvETargetAuthorityEvaluator` over a coherent, revisioned native snapshot; the evaluator is read-only
-and never dispatches client input.
+A replay or focused unit test can use `StaticPvETargetAuthorityEvaluator`. Runtime integrations
+should implement `PvETargetAuthorityEvaluator` over a coherent, revisioned native snapshot; the
+evaluator is read-only and never dispatches client input.
+
+## Exact identity and affiliation adapter
+
+`PvETargetAuthoritySnapshot` connects the strict gate to the repository's existing
+`NativeEntityIdentityMap`, `AffiliationSnapshot`, `RelationResolver`, and ruleset-owned
+`RelationPolicy`. `PvEAuthorityCharacterRecord` supplies the separately proven token-to-object,
+player/NPC category, and attackability facts.
+
+The snapshot declares party, ownership, and relation completeness independently. A missing entity
+binding or a false completeness declaration produces `unknown`, not a negative affiliation claim.
+For example, an incomplete party snapshot yields `party_status_unavailable`; it never defaults to
+"not grouped." `SnapshotPvETargetAuthorityEvaluator` then materializes the exact authority evidence
+and runs the same strict decision function used by replay fixtures.
+
+This avoids a second PvE-only relation implementation and prevents pointer, display-name, health,
+position, or roster-order heuristics from entering combat admission.
 
 ## Current live limitation
 
@@ -52,7 +69,8 @@ The remaining live bridge should be added in this order:
 2. Calibrate a structural player/NPC discriminator and retain unknown values explicitly.
 3. Project the exact party roster and ownership graph through `NativeEntityIdentityMap`.
 4. Calibrate the client field or protocol state that proves attackability and hostile relation.
-5. Materialize one revisioned authority snapshot inside the coherent PvE observation boundary.
+5. Materialize one revisioned `PvETargetAuthoritySnapshot` inside the coherent PvE observation
+   boundary.
 6. Enable strict authority in passive observation and plan-only traces before allowing live combat
    input.
 

@@ -26,6 +26,7 @@ class PvETargetAuthorityExclusion(StrEnum):
 
     TARGET_NOT_PRESENT = "target_not_present"
     AUTHORITY_EVIDENCE_UNAVAILABLE = "authority_evidence_unavailable"
+    EVIDENCE_PROVENANCE_UNAVAILABLE = "evidence_provenance_unavailable"
     TARGET_TOKEN_MISMATCH = "target_token_mismatch"
     TARGET_NOT_ALIVE = "target_not_alive"
     IDENTITY_CLASSIFICATION_UNAVAILABLE = "identity_classification_unavailable"
@@ -334,6 +335,10 @@ def evaluate_pve_target_authority(
             exclusions=tuple(dict.fromkeys(exclusions)),
         )
 
+    if not evidence.evidence_sources:
+        exclusions.append(
+            PvETargetAuthorityExclusion.EVIDENCE_PROVENANCE_UNAVAILABLE
+        )
     if evidence.target_token != target.target_token:
         exclusions.append(PvETargetAuthorityExclusion.TARGET_TOKEN_MISMATCH)
     if evidence.target_object_key is None:
