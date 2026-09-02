@@ -5,15 +5,22 @@ from shadowbane_lab.client_observation import (
     NativeTargetHealthObservation,
     NativeTargetIdentityObservation,
 )
-from shadowbane_lab.client_observation.native_object import NativeObjectKey
+from shadowbane_lab.client_observation.native_object import (
+    NativeEntityBinding,
+    NativeEntityIdentityMap,
+    NativeObjectKey,
+)
 from shadowbane_lab.protocol import Relation
 from shadowbane_lab.pve import (
+    PvEAuthorityCharacterRecord,
     PvEObservation,
     PvETargetAuthorityEvidence,
     PvETargetAuthorityExclusion,
+    PvETargetAuthoritySnapshot,
     PvETargetCharacterKind,
     evaluate_pve_target_authority,
 )
+from shadowbane_lab.sim.affiliations import AffiliationSnapshot
 
 
 class PvETargetAuthorityProvenanceTests(unittest.TestCase):
@@ -65,6 +72,52 @@ class PvETargetAuthorityProvenanceTests(unittest.TestCase):
             PvETargetAuthorityExclusion.EVIDENCE_PROVENANCE_UNAVAILABLE,
             decision.exclusions,
         )
+
+    def test_character_record_requires_native_evidence_provenance(self) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "character evidence sources must not be empty",
+        ):
+            PvEAuthorityCharacterRecord(
+                target_token="mob",
+                object_key=NativeObjectKey(10, 100),
+                character_kind=PvETargetCharacterKind.NPC,
+                attackable=True,
+                evidence_sources=(),
+            )
+
+    def test_snapshot_requires_native_evidence_provenance(self) -> None:
+        player_key = NativeObjectKey(10, 200)
+        target_key = NativeObjectKey(10, 100)
+        record = PvEAuthorityCharacterRecord(
+            target_token="mob",
+            object_key=target_key,
+            character_kind=PvETargetCharacterKind.NPC,
+            attackable=True,
+            evidence_sources=("native_character_record",),
+        )
+        identities = NativeEntityIdentityMap(
+            (
+                NativeEntityBinding(player_key, "player"),
+                NativeEntityBinding(target_key, "mob"),
+            )
+        )
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "snapshot evidence sources must not be empty",
+        ):
+            PvETargetAuthoritySnapshot(
+                revision=1,
+                local_player_object_key=player_key,
+                identities=identities,
+                affiliations=AffiliationSnapshot(revision=1),
+                characters=(record,),
+                party_complete=False,
+                ownership_complete=False,
+                relation_complete=False,
+                evidence_sources=(),
+            )
 
 
 if __name__ == "__main__":
