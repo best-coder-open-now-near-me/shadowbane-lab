@@ -59,6 +59,7 @@ from shadowbane_lab.pve.model import (
     PvERunResult,
     PvERunTraceStep,
 )
+from shadowbane_lab.pve.native_actuator import NativeExtensionPvEIntentDispatcher
 from shadowbane_lab.pve.runtime import (
     ClientPvEIntentDispatcher,
     CombatLogSource,
@@ -82,6 +83,7 @@ __all__ = [
     "ClientPvEIntentDispatcher",
     "CombatLogSource",
     "EmptyCombatLogSource",
+    "NativeExtensionPvEIntentDispatcher",
     "NativePvEObservationSource",
     "ObservedSampleSummary",
     "PVE_COMBAT_CALIBRATION_SCHEMA_VERSION",
