@@ -38,6 +38,8 @@ def _non_null_key(value: NativeObjectKey, field_name: str) -> None:
 def _sources(values: tuple[str, ...], field_name: str) -> None:
     if not isinstance(values, tuple):
         raise ValueError(f"{field_name} must be a tuple")
+    if not values:
+        raise ValueError(f"{field_name} must not be empty")
     if len(values) != len(set(values)):
         raise ValueError(f"{field_name} must not contain duplicates")
     for value in values:
