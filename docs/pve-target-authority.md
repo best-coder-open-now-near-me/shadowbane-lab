@@ -48,6 +48,26 @@ and runs the same strict decision function used by replay fixtures.
 This avoids a second PvE-only relation implementation and prevents pointer, display-name, health,
 position, or roster-order heuristics from entering combat admission.
 
+## Durable authority evidence
+
+When an authority evaluator is configured, every controller decision carries the authority result
+that was evaluated from that same observation. Population candidates quarantined during the step
+also carry their typed rejection and the exact authority exclusions that caused it.
+
+The public `PvERunner` still inherits the canonical runtime dispatch loop. It enriches only trace
+construction, producing a `PvEAuthorityRunTraceStep` when authority or same-step target rejections
+exist. Its serialized payload adds:
+
+- `target_authority` — the complete accepted/rejected authority decision, exact object identities,
+  revision, provenance, relation, party/ownership/attackability facts, and exclusions; and
+- `target_rejections` — every candidate quarantined by that controller step, including validation
+  wait, population generation, selected token, and authority exclusions.
+
+The ordinary final evidence array and the continuous JSONL journal both call the same
+`step.as_dict()` path, so these fields survive either evidence mode. Steps with neither authority
+nor target rejection remain ordinary `PvERunTraceStep` instances and preserve the existing payload
+shape. The trace addition is optional and additive; it does not reinterpret older evidence.
+
 ## Current live limitation
 
 The current WonderBane population reader proves living `ArcCharacter` state, exact position,
