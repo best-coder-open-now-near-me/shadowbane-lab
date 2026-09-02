@@ -15,6 +15,7 @@ from .package import (
     AssetModPackage,
     AssetModPackageError,
     load_asset_mod_package,
+    verify_asset_mod_package,
 )
 from .texture_compile import compile_texture_profile
 from .texture_materialize import (
@@ -54,4 +55,5 @@ __all__ = [
     "load_asset_mod_package",
     "materialize_texture_profile",
     "parse_asset_mod_manifest",
+    "verify_asset_mod_package",
 ]
