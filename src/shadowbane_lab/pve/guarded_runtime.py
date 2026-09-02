@@ -30,11 +30,13 @@ from shadowbane_lab.pve.runtime import (
     PlayerPositionSource,
     PlayerVitalsSource,
     PvEIntentDispatcher,
-    PvERunner as _BasePvERunner,
     TargetActionSource,
     TargetHealthSource,
     TargetIdentitySource,
     TargetPositionSource,
+)
+from shadowbane_lab.pve.runtime import (
+    PvERunner as _BasePvERunner,
 )
 from shadowbane_lab.travel import TravelDecision, TravelPhase
 from shadowbane_lab.travel.runtime import TravelDecisionDispatcher
