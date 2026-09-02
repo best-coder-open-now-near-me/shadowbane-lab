@@ -24,7 +24,11 @@ from shadowbane_lab.integrity import (
     validate_identifier,
 )
 
-from .package import AssetModPackage
+from .package import (
+    AssetModPackage,
+    AssetModPackageError,
+    verify_asset_mod_package,
+)
 from .texture_model import (
     TextureConflict,
     TextureProfileConflictError,
@@ -49,12 +53,22 @@ def compile_texture_profile(
     source_cache = Path(source_cache_path).resolve()
     if not source_cache.is_file() or source_cache.name.casefold() != "textures.cache":
         raise TextureProfileError("source_cache_path must name an existing Textures.cache")
+    if is_reparse_point(source_cache):
+        raise TextureProfileError("source_cache_path must not be a link or reparse point")
     raw_packages = tuple(packages)
     if not raw_packages:
         raise TextureProfileError("at least one asset-mod package is required")
     if any(not isinstance(item, AssetModPackage) for item in raw_packages):
         raise TextureProfileError("packages contain an unsupported value")
-    canonical_packages = tuple(sorted(raw_packages, key=lambda item: item.identity))
+    try:
+        current_packages = tuple(
+            verify_asset_mod_package(item) for item in raw_packages
+        )
+    except AssetModPackageError as exc:
+        raise TextureProfileError(str(exc)) from exc
+    canonical_packages = tuple(
+        sorted(current_packages, key=lambda item: item.identity)
+    )
     mod_ids = tuple(item.manifest.mod_id for item in canonical_packages)
     if len(mod_ids) != len(set(mod_ids)):
         raise TextureProfileError("only one selected version of each mod is permitted")
@@ -117,8 +131,10 @@ def _collect_package_providers(
             )
         patch_path = resolve_within_root(root, variant.texture_patch_manifest)
         artifact_root = resolve_within_root(root, variant.artifact_root)
-        if not patch_path.is_file():
-            raise TextureProfileError(f"texture patch manifest does not exist: {patch_path}")
+        if not patch_path.is_file() or is_reparse_point(patch_path):
+            raise TextureProfileError(
+                f"texture patch manifest is not an ordinary file: {patch_path}"
+            )
         if not artifact_root.is_dir() or is_reparse_point(artifact_root):
             raise TextureProfileError(f"texture artifact root is not a directory: {artifact_root}")
         patch_manifest = load_texture_patch_manifest(patch_path)
