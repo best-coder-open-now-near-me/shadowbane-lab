@@ -14,9 +14,7 @@ from shadowbane_lab.client_extension.texture_cache import (
     compare_untargeted_payloads,
     validate_cache,
 )
-from shadowbane_lab.client_extension.texture_patch import (
-    author_texture_patch_manifest,
-)
+from shadowbane_lab.client_extension.texture_patch import author_texture_patch_manifest
 from shadowbane_lab.integrity import load_strict_json, pretty_json_text
 from shadowbane_lab.mods import (
     AssetModManifestError,
@@ -24,8 +22,8 @@ from shadowbane_lab.mods import (
     TextureProfileConflictError,
     TextureProfileError,
     compile_texture_profile,
-    load_asset_mod_package,
     load_asset_mod_manifest,
+    load_asset_mod_package,
     materialize_texture_profile,
 )
 
@@ -34,21 +32,13 @@ def _payload(image: Image.Image, channels: int) -> bytes:
     mode = {1: "L", 3: "RGB", 4: "RGBA"}[channels]
     converted = image.convert(mode)
     return (
-        struct.pack(
-            "<III",
-            converted.width,
-            converted.height,
-            channels,
-        )
+        struct.pack("<III", converted.width, converted.height, channels)
         + bytes(14)
         + converted.transpose(Image.Transpose.FLIP_TOP_BOTTOM).tobytes()
     )
 
 
-def _write_cache(
-    path: Path,
-    resources: list[tuple[int, int, bytes, bool]],
-) -> None:
+def _write_cache(path: Path, resources: list[tuple[int, int, bytes, bool]]) -> None:
     data_offset = 16 + len(resources) * 20
     records: list[bytes] = []
     stored_values: list[bytes] = []
@@ -69,13 +59,7 @@ def _write_cache(
         cursor += len(stored)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(
-        struct.pack(
-            "<IIII",
-            len(resources),
-            data_offset,
-            cursor,
-            0xFFFFFFFF,
-        )
+        struct.pack("<IIII", len(resources), data_offset, cursor, 0xFFFFFFFF)
         + b"".join(records)
         + b"".join(stored_values)
     )
@@ -103,14 +87,9 @@ def _write_package(
         artifacts,
         patch_id=f"{mod_id}.textures-v1",
     )
-    patch_relative = (
-        f"compiled/{content_build_id}/texture-patch.json"
-    )
+    patch_relative = f"compiled/{content_build_id}/texture-patch.json"
     patch_path = root / patch_relative
-    patch_path.write_text(
-        pretty_json_text(patch.as_dict()),
-        encoding="utf-8",
-    )
+    patch_path.write_text(pretty_json_text(patch.as_dict()), encoding="utf-8")
     manifest = {
         "schema_version": 1,
         "mod_id": mod_id,
@@ -135,10 +114,7 @@ def _write_package(
         ],
     }
     root.mkdir(parents=True, exist_ok=True)
-    (root / "mod.json").write_text(
-        pretty_json_text(manifest),
-        encoding="utf-8",
-    )
+    (root / "mod.json").write_text(pretty_json_text(manifest), encoding="utf-8")
     return load_asset_mod_package(root)
 
 
@@ -146,11 +122,9 @@ class AssetModFacadeTests(unittest.TestCase):
     def test_public_schema_accepts_the_canonical_manifest(self) -> None:
         repository = Path(__file__).parents[1]
         schema = json.loads(
-            (
-                repository
-                / "schemas"
-                / "asset-mod-v1.schema.json"
-            ).read_text(encoding="utf-8")
+            (repository / "schemas" / "asset-mod-v1.schema.json").read_text(
+                encoding="utf-8"
+            )
         )
         manifest = {
             "schema_version": 1,
@@ -166,9 +140,7 @@ class AssetModFacadeTests(unittest.TestCase):
                     "variants": [
                         {
                             "content_build_id": "wb-test",
-                            "texture_patch_manifest": (
-                                "compiled/patch.json"
-                            ),
+                            "texture_patch_manifest": "compiled/patch.json",
                             "artifact_root": "compiled/textures",
                         }
                     ],
@@ -185,33 +157,9 @@ class AssetModFacadeTests(unittest.TestCase):
             _write_cache(
                 cache,
                 [
-                    (
-                        0,
-                        101,
-                        _payload(
-                            Image.new("RGB", (8, 8), (1, 2, 3)),
-                            3,
-                        ),
-                        True,
-                    ),
-                    (
-                        0,
-                        202,
-                        _payload(
-                            Image.new("RGB", (4, 4), (4, 5, 6)),
-                            3,
-                        ),
-                        False,
-                    ),
-                    (
-                        0,
-                        303,
-                        _payload(
-                            Image.new("RGB", (8, 8), (7, 8, 9)),
-                            3,
-                        ),
-                        True,
-                    ),
+                    (0, 101, _payload(Image.new("RGB", (8, 8), (1, 2, 3)), 3), True),
+                    (0, 202, _payload(Image.new("RGB", (4, 4), (4, 5, 6)), 3), False),
+                    (0, 303, _payload(Image.new("RGB", (8, 8), (7, 8, 9)), 3), True),
                 ],
             )
             first = _write_package(
@@ -236,47 +184,21 @@ class AssetModFacadeTests(unittest.TestCase):
                 profile_id="visual",
             )
             destination = root / "profiles" / "visual"
-            receipt = materialize_texture_profile(
-                plan,
-                destination,
-            )
+            receipt = materialize_texture_profile(plan, destination)
 
             self.assertEqual(2, len(plan.selected))
             self.assertEqual(
                 ["org.example.first", "org.example.second"],
-                [
-                    item.manifest.mod_id
-                    for item in plan.packages
-                ],
+                [item.manifest.mod_id for item in plan.packages],
             )
-            self.assertEqual(
-                plan.profile_sha256,
-                receipt.profile_sha256,
-            )
-            self.assertTrue(
-                (destination / "texture-profile.json").is_file()
-            )
+            self.assertEqual(plan.profile_sha256, receipt.profile_sha256)
+            self.assertTrue((destination / "texture-profile.json").is_file())
             result_cache = destination / "Textures.cache"
-            self.assertEqual(
-                receipt.result_cache_sha256,
-                validate_cache(result_cache).cache_sha256,
-            )
-            compare_untargeted_payloads(
-                cache,
-                result_cache,
-                plan.targeted_keys,
-            )
-            durable = load_strict_json(
-                destination / "texture-profile.json"
-            )
-            self.assertEqual(
-                "visual",
-                durable["profile"]["profile_id"],
-            )
-            self.assertEqual(
-                2,
-                len(durable["profile"]["selected_resources"]),
-            )
+            self.assertEqual(receipt.result_cache_sha256, validate_cache(result_cache).cache_sha256)
+            compare_untargeted_payloads(cache, result_cache, plan.targeted_keys)
+            durable = load_strict_json(destination / "texture-profile.json")
+            self.assertEqual("visual", durable["profile"]["profile_id"])
+            self.assertEqual(2, len(durable["profile"]["selected_resources"]))
 
     def test_conflict_requires_an_explicit_provider(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -284,17 +206,7 @@ class AssetModFacadeTests(unittest.TestCase):
             cache = root / "Textures.cache"
             _write_cache(
                 cache,
-                [
-                    (
-                        0,
-                        101,
-                        _payload(
-                            Image.new("RGB", (8, 8), (1, 2, 3)),
-                            3,
-                        ),
-                        True,
-                    )
-                ],
+                [(0, 101, _payload(Image.new("RGB", (8, 8), (1, 2, 3)), 3), True)],
             )
             red = _write_package(
                 root / "red",
@@ -311,33 +223,23 @@ class AssetModFacadeTests(unittest.TestCase):
                 replacements={(0, 101): (10, 10, 200)},
             )
 
-            with self.assertRaises(
-                TextureProfileConflictError
-            ) as raised:
+            with self.assertRaises(TextureProfileConflictError) as raised:
                 compile_texture_profile(
                     cache,
                     (red, blue),
                     content_build_id="wb-test",
                     profile_id="visual",
                 )
-            self.assertEqual(
-                (0, 101),
-                raised.exception.conflicts[0].providers[0].key,
-            )
+            self.assertEqual((0, 101), raised.exception.conflicts[0].providers[0].key)
 
             plan = compile_texture_profile(
                 cache,
                 (red, blue),
                 content_build_id="wb-test",
                 profile_id="visual",
-                resolutions={
-                    (0, 101): "org.example.blue:textures"
-                },
+                resolutions={(0, 101): "org.example.blue:textures"},
             )
-            self.assertEqual(
-                "org.example.blue",
-                plan.selected[0].mod_id,
-            )
+            self.assertEqual("org.example.blue", plan.selected[0].mod_id)
 
     def test_identical_results_deduplicate_without_load_order(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -345,17 +247,7 @@ class AssetModFacadeTests(unittest.TestCase):
             cache = root / "Textures.cache"
             _write_cache(
                 cache,
-                [
-                    (
-                        0,
-                        101,
-                        _payload(
-                            Image.new("RGB", (8, 8), (1, 2, 3)),
-                            3,
-                        ),
-                        True,
-                    )
-                ],
+                [(0, 101, _payload(Image.new("RGB", (8, 8), (1, 2, 3)), 3), True)],
             )
             first = _write_package(
                 root / "first",
@@ -380,10 +272,7 @@ class AssetModFacadeTests(unittest.TestCase):
             )
 
             self.assertEqual(1, len(plan.selected))
-            self.assertEqual(
-                "org.example.a:textures",
-                plan.selected[0].provider_id,
-            )
+            self.assertEqual("org.example.a:textures", plan.selected[0].provider_id)
 
     def test_build_mismatch_and_changed_source_fail_closed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -391,17 +280,7 @@ class AssetModFacadeTests(unittest.TestCase):
             cache = root / "Textures.cache"
             _write_cache(
                 cache,
-                [
-                    (
-                        0,
-                        101,
-                        _payload(
-                            Image.new("RGB", (8, 8), (1, 2, 3)),
-                            3,
-                        ),
-                        True,
-                    )
-                ],
+                [(0, 101, _payload(Image.new("RGB", (8, 8), (1, 2, 3)), 3), True)],
             )
             package = _write_package(
                 root / "package",
@@ -410,10 +289,7 @@ class AssetModFacadeTests(unittest.TestCase):
                 content_build_id="wb-a",
                 replacements={(0, 101): (20, 30, 40)},
             )
-            with self.assertRaisesRegex(
-                TextureProfileError,
-                "does not support",
-            ):
+            with self.assertRaisesRegex(TextureProfileError, "does not support"):
                 compile_texture_profile(
                     cache,
                     (package,),
@@ -429,10 +305,7 @@ class AssetModFacadeTests(unittest.TestCase):
             )
             cache.write_bytes(cache.read_bytes() + b"changed")
             destination = root / "profile"
-            with self.assertRaisesRegex(
-                TextureProfileError,
-                "changed after",
-            ):
+            with self.assertRaisesRegex(TextureProfileError, "changed after"):
                 materialize_texture_profile(plan, destination)
             self.assertFalse(destination.exists())
 
@@ -453,9 +326,7 @@ class AssetModFacadeTests(unittest.TestCase):
                         "variants": [
                             {
                                 "content_build_id": "wb-test",
-                                "texture_patch_manifest": (
-                                    "../escape.json"
-                                ),
+                                "texture_patch_manifest": "../escape.json",
                                 "artifact_root": "textures",
                             }
                         ],
@@ -463,10 +334,7 @@ class AssetModFacadeTests(unittest.TestCase):
                 ],
             }
             path = root / "mod.json"
-            path.write_text(
-                json.dumps(manifest),
-                encoding="utf-8",
-            )
+            path.write_text(json.dumps(manifest), encoding="utf-8")
             with self.assertRaises(AssetModManifestError):
                 load_asset_mod_manifest(path)
 
@@ -474,14 +342,8 @@ class AssetModFacadeTests(unittest.TestCase):
                 "texture_patch_manifest"
             ] = "texture-patch.json"
             manifest["unexpected"] = True
-            path.write_text(
-                json.dumps(manifest),
-                encoding="utf-8",
-            )
-            with self.assertRaisesRegex(
-                AssetModManifestError,
-                "fields differ",
-            ):
+            path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaisesRegex(AssetModManifestError, "fields differ"):
                 load_asset_mod_manifest(path)
 
 
