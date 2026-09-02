@@ -73,8 +73,25 @@ def load_asset_mod_package(root: str | Path) -> AssetModPackage:
         ) from exc
 
 
+def verify_asset_mod_package(package: AssetModPackage) -> AssetModPackage:
+    """Reread a package manifest and require its selected identity to remain unchanged."""
+
+    if not isinstance(package, AssetModPackage):
+        raise AssetModPackageError("package must be an AssetModPackage")
+    current = load_asset_mod_package(package.root)
+    if (
+        current.manifest != package.manifest
+        or current.manifest_sha256 != package.manifest_sha256
+    ):
+        raise AssetModPackageError(
+            f"asset-mod package changed after selection: {package.identity}"
+        )
+    return current
+
+
 __all__ = [
     "AssetModPackage",
     "AssetModPackageError",
     "load_asset_mod_package",
+    "verify_asset_mod_package",
 ]
