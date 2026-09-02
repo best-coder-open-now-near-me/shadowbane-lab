@@ -1,4 +1,10 @@
-"""Bounded target validation for native-population PvE acquisition."""
+"""Bound native-population target validation without claiming hostile relation proof.
+
+The current native observations prove living ArcCharacter state and protected service roles,
+but not yet an exact player/NPC or hostile/friendly relation. This layer closes acquisition
+liveness gaps and records why candidates were rejected while that stronger identity bridge is
+calibrated.
+"""
 
 from __future__ import annotations
 
@@ -52,6 +58,16 @@ class PvETargetRejection:
                 raise ValueError(f"{field_name} must be a non-negative integer")
         if self.selected_target_token is not None and not self.selected_target_token.strip():
             raise ValueError("selected_target_token must be non-empty when present")
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "target_token": self.target_token,
+            "reason": self.reason.value,
+            "at_ms": self.at_ms,
+            "validation_wait_ms": self.validation_wait_ms,
+            "population_generation": self.population_generation,
+            "selected_target_token": self.selected_target_token,
+        }
 
 
 class PvEController(_BasePvEController):

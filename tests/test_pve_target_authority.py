@@ -256,6 +256,101 @@ class PvETargetAuthorityTests(unittest.TestCase):
             controller.target_rejections[-1].reason,
         )
 
+    def test_transient_missing_snapshot_recovers_before_validation_deadline(self) -> None:
+        controller = self._controller()
+        mob = _character("mob", lt=105.0)
+
+        waiting = controller.step(
+            _observation(
+                0,
+                selected="mob",
+                target_token=None,
+                characters=(mob,),
+            )
+        )
+        engaged = controller.step(
+            _observation(
+                200,
+                selected="mob",
+                target_token="mob",
+                characters=(mob,),
+            )
+        )
+
+        self.assertIsNone(waiting.intent)
+        self.assertEqual(PvEPhase.ENGAGED, engaged.phase)
+        self.assertEqual(PvEIntent.ATTACK_SELECTED_TARGET, engaged.intent)
+        self.assertEqual((), controller.target_rejections)
+
+    def test_continuous_missing_snapshot_enters_camp_idle_after_quarantine(self) -> None:
+        controller = self._controller(continuous=True)
+        mob = _character("mob", lt=105.0)
+
+        controller.step(
+            _observation(
+                0,
+                selected="mob",
+                target_token=None,
+                characters=(mob,),
+            )
+        )
+        decision = controller.step(
+            _observation(
+                300,
+                selected="mob",
+                target_token=None,
+                characters=(mob,),
+            )
+        )
+
+        self.assertEqual(PvEPhase.CAMP_IDLE, decision.phase)
+        self.assertFalse(decision.terminal)
+        self.assertEqual(
+            PvETargetRejectionReason.TARGET_SNAPSHOT_UNAVAILABLE,
+            controller.target_rejections[-1].reason,
+        )
+
+    def test_wrapped_target_cycle_records_reason_and_advances_candidate(self) -> None:
+        controller = self._controller()
+        first = _character("first", lt=105.0)
+        second = _character("second", lt=110.0)
+        characters = (first, second)
+
+        controller.step(
+            _observation(
+                0,
+                selected=None,
+                target_token=None,
+                characters=characters,
+            )
+        )
+        controller.step(
+            _observation(
+                100,
+                selected="second",
+                target_token="second",
+                characters=characters,
+            )
+        )
+        decision = controller.step(
+            _observation(
+                200,
+                selected=None,
+                target_token=None,
+                characters=characters,
+            )
+        )
+
+        self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB, decision.intent)
+        self.assertEqual("second", decision.acquisition_target_token)
+        rejection = controller.target_rejections[-1]
+        self.assertEqual("first", rejection.target_token)
+        self.assertEqual(
+            PvETargetRejectionReason.TARGET_CYCLE_WRAPPED,
+            rejection.reason,
+        )
+        self.assertEqual("target_cycle_wrapped", rejection.as_dict()["reason"])
+
 
 if __name__ == "__main__":
     unittest.main()
