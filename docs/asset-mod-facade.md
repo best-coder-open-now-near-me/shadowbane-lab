@@ -78,10 +78,11 @@ receipt = materialize_texture_profile(
 )
 ```
 
-Materialization creates a new directory containing `Textures.cache` and
+Materialization creates a new directory containing `cache/Textures.cache` and
 `texture-profile.json`. It never modifies the pristine source cache. The candidate is published only
 after the full cache parses, every selected result hash matches, and all untargeted resource payloads
-remain byte-identical to the source.
+remain byte-identical to the source. Every selected component must agree on the same reviewed
+client-relative cache path, and the supplied pristine source must end at that path.
 
 The resulting directory is not automatically installed into a client yet. A later sandbox-session
 coordinator will bind it to one verified disposable client, prove that client is closed, switch the
@@ -110,4 +111,5 @@ Unknown, stale, or unnecessary resolutions are rejected rather than ignored.
 
 Public mods may describe components and build variants. They cannot provide archive offsets,
 compressed cache records, arbitrary write bytes, native hooks, or in-process code. The internal
-`client_extension.texture_cache` engine remains the sole owner of binary cache mutation.
+`client_extension.texture_cache` engine remains the sole owner of binary cache mutation. Package
+texture artifacts must be ordinary files; links and reparse points are rejected before compilation.
