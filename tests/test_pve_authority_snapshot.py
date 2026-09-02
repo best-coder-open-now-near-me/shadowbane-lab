@@ -29,7 +29,6 @@ from shadowbane_lab.sim.affiliations import (
     OwnershipEdge,
 )
 
-
 _PLAYER_KEY = NativeObjectKey(10, 42)
 _MOB_KEY = NativeObjectKey(20, 7001)
 
