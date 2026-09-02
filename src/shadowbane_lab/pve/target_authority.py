@@ -1,10 +1,4 @@
-"""Bound native-population target validation without claiming hostile relation proof.
-
-The current native observations prove living ArcCharacter state and protected service roles,
-but not yet an exact player/NPC or hostile/friendly relation. This layer closes acquisition
-liveness gaps and records why candidates were rejected while that stronger identity bridge is
-calibrated.
-"""
+"""Bound target validation and optional positive hostile-NPC authority."""
 
 from __future__ import annotations
 
@@ -12,6 +6,10 @@ from collections import deque
 from dataclasses import dataclass
 from enum import StrEnum
 
+from shadowbane_lab.pve.authority import (
+    PvETargetAuthorityDecision,
+    PvETargetAuthorityEvaluator,
+)
 from shadowbane_lab.pve.controller import PvEController as _BasePvEController
 from shadowbane_lab.pve.model import (
     PvEControllerConfig,
@@ -31,6 +29,8 @@ class PvETargetRejectionReason(StrEnum):
     TARGET_DEAD = "target_dead"
     TARGET_OUTSIDE_CAMP = "target_outside_camp"
     TARGET_NOT_ATTACK_ELIGIBLE = "target_not_attack_eligible"
+    TARGET_AUTHORITY_UNAVAILABLE = "target_authority_unavailable"
+    TARGET_AUTHORITY_REJECTED = "target_authority_rejected"
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,6 +43,7 @@ class PvETargetRejection:
     validation_wait_ms: int
     population_generation: int
     selected_target_token: str | None
+    authority_exclusions: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if not isinstance(self.target_token, str) or not self.target_token.strip():
@@ -58,6 +59,15 @@ class PvETargetRejection:
                 raise ValueError(f"{field_name} must be a non-negative integer")
         if self.selected_target_token is not None and not self.selected_target_token.strip():
             raise ValueError("selected_target_token must be non-empty when present")
+        if not isinstance(self.authority_exclusions, tuple):
+            raise ValueError("authority_exclusions must be a tuple")
+        if len(self.authority_exclusions) != len(set(self.authority_exclusions)):
+            raise ValueError("authority_exclusions must not contain duplicates")
+        if any(
+            not isinstance(value, str) or not value.strip()
+            for value in self.authority_exclusions
+        ):
+            raise ValueError("authority_exclusions must contain non-empty strings")
 
     def as_dict(self) -> dict[str, object]:
         return {
@@ -67,19 +77,46 @@ class PvETargetRejection:
             "validation_wait_ms": self.validation_wait_ms,
             "population_generation": self.population_generation,
             "selected_target_token": self.selected_target_token,
+            "authority_exclusions": list(self.authority_exclusions),
         }
 
 
 class PvEController(_BasePvEController):
-    """Adds bounded selected-candidate validation to the core PvE state machine."""
+    """Bounds candidate validation and can require verified hostile-NPC proof."""
 
     _MAXIMUM_RETAINED_TARGET_REJECTIONS = 256
+    _MAXIMUM_RETAINED_AUTHORITY_DECISIONS = 256
 
-    def __init__(self, config: PvEControllerConfig) -> None:
+    def __init__(
+        self,
+        config: PvEControllerConfig,
+        *,
+        target_authority_evaluator: PvETargetAuthorityEvaluator | None = None,
+        require_verified_target_authority: bool = False,
+    ) -> None:
+        if not isinstance(require_verified_target_authority, bool):
+            raise ValueError("require_verified_target_authority must be boolean")
+        if target_authority_evaluator is not None and not isinstance(
+            target_authority_evaluator,
+            PvETargetAuthorityEvaluator,
+        ):
+            raise ValueError(
+                "target_authority_evaluator must implement PvETargetAuthorityEvaluator"
+            )
+        if require_verified_target_authority and target_authority_evaluator is None:
+            raise ValueError(
+                "verified target authority requires a target_authority_evaluator"
+            )
         super().__init__(config)
         self._population_candidate_selected_at: int | None = None
         self._target_rejections: deque[PvETargetRejection] = deque(
             maxlen=self._MAXIMUM_RETAINED_TARGET_REJECTIONS
+        )
+        self._target_authority_evaluator = target_authority_evaluator
+        self._require_verified_target_authority = require_verified_target_authority
+        self._active_target_authority: PvETargetAuthorityDecision | None = None
+        self._target_authority_history: deque[PvETargetAuthorityDecision] = deque(
+            maxlen=self._MAXIMUM_RETAINED_AUTHORITY_DECISIONS
         )
 
     @property
@@ -99,6 +136,45 @@ class PvEController(_BasePvEController):
         """Return the bounded ordered tail of candidate rejections."""
 
         return tuple(self._target_rejections)
+
+    @property
+    def require_verified_target_authority(self) -> bool:
+        return self._require_verified_target_authority
+
+    @property
+    def target_authority_history(self) -> tuple[PvETargetAuthorityDecision, ...]:
+        """Return the bounded ordered authority decisions evaluated by this controller."""
+
+        return tuple(self._target_authority_history)
+
+    @property
+    def latest_target_authority(self) -> PvETargetAuthorityDecision | None:
+        return (
+            None
+            if not self._target_authority_history
+            else self._target_authority_history[-1]
+        )
+
+    def step(self, observation: PvEObservation) -> PvEControllerDecision:
+        if not isinstance(observation, PvEObservation):
+            raise ValueError("observation must be PvEObservation")
+        authority = None
+        if self._target_authority_evaluator is not None:
+            authority = self._target_authority_evaluator.evaluate(observation)
+            if not isinstance(authority, PvETargetAuthorityDecision):
+                raise ValueError(
+                    "target authority evaluator must return PvETargetAuthorityDecision"
+                )
+            if authority.observed_at_ms != observation.now_ms:
+                raise ValueError("target authority decision time does not match observation")
+            if authority.target_token != observation.target.target_token:
+                raise ValueError("target authority decision token does not match observation")
+            self._target_authority_history.append(authority)
+        self._active_target_authority = authority
+        try:
+            return super().step(observation)
+        finally:
+            self._active_target_authority = None
 
     def _enter(self, phase: PvEPhase, now_ms: int) -> None:
         super()._enter(phase, now_ms)
@@ -208,13 +284,26 @@ class PvEController(_BasePvEController):
         if self._target_inside_camp(observation) is False:
             return PvETargetRejectionReason.TARGET_OUTSIDE_CAMP
         identity = observation.target_identity
-        if identity is None:
-            return None
-        if not identity.classification_available:
-            return PvETargetRejectionReason.TARGET_IDENTITY_UNAVAILABLE
-        if not identity.attack_eligible:
-            return PvETargetRejectionReason.TARGET_NOT_ATTACK_ELIGIBLE
+        if identity is not None:
+            if not identity.classification_available:
+                return PvETargetRejectionReason.TARGET_IDENTITY_UNAVAILABLE
+            if not identity.attack_eligible:
+                return PvETargetRejectionReason.TARGET_NOT_ATTACK_ELIGIBLE
+        if self._require_verified_target_authority:
+            authority = self._active_target_authority
+            if authority is None:
+                return PvETargetRejectionReason.TARGET_AUTHORITY_UNAVAILABLE
+            if not authority.accepted:
+                return PvETargetRejectionReason.TARGET_AUTHORITY_REJECTED
         return None
+
+    def _target_attack_eligible(self, observation: PvEObservation) -> bool:
+        if not super()._target_attack_eligible(observation):
+            return False
+        if not self._require_verified_target_authority:
+            return True
+        authority = self._active_target_authority
+        return authority is not None and authority.accepted
 
     def _quarantine_population_candidate(
         self,
@@ -228,6 +317,12 @@ class PvEController(_BasePvEController):
         validation_wait_ms = (
             0 if selected_at is None else max(0, observation.now_ms - selected_at)
         )
+        authority = self._active_target_authority
+        authority_exclusions = (
+            ()
+            if authority is None or authority.target_token != target_token
+            else tuple(value.value for value in authority.exclusions)
+        )
         self._target_rejections.append(
             PvETargetRejection(
                 target_token=target_token,
@@ -236,6 +331,7 @@ class PvEController(_BasePvEController):
                 validation_wait_ms=validation_wait_ms,
                 population_generation=population.scan_generation,
                 selected_target_token=population.selected_target_token,
+                authority_exclusions=authority_exclusions,
             )
         )
         self._failed_target_tokens[target_token] = observation.now_ms
