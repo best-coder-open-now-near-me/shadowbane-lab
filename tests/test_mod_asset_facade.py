@@ -153,7 +153,7 @@ class AssetModFacadeTests(unittest.TestCase):
     def test_two_texture_mods_compile_from_one_pristine_cache(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            cache = root / "Textures.cache"
+            cache = root / "cache" / "Textures.cache"
             _write_cache(
                 cache,
                 [
@@ -192,8 +192,9 @@ class AssetModFacadeTests(unittest.TestCase):
                 [item.manifest.mod_id for item in plan.packages],
             )
             self.assertEqual(plan.profile_sha256, receipt.profile_sha256)
+            self.assertEqual("cache/Textures.cache", receipt.cache_relative_path)
             self.assertTrue((destination / "texture-profile.json").is_file())
-            result_cache = destination / "Textures.cache"
+            result_cache = destination / "cache" / "Textures.cache"
             self.assertEqual(receipt.result_cache_sha256, validate_cache(result_cache).cache_sha256)
             compare_untargeted_payloads(cache, result_cache, plan.targeted_keys)
             durable = load_strict_json(destination / "texture-profile.json")
@@ -203,7 +204,7 @@ class AssetModFacadeTests(unittest.TestCase):
     def test_conflict_requires_an_explicit_provider(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            cache = root / "Textures.cache"
+            cache = root / "cache" / "Textures.cache"
             _write_cache(
                 cache,
                 [(0, 101, _payload(Image.new("RGB", (8, 8), (1, 2, 3)), 3), True)],
@@ -244,7 +245,7 @@ class AssetModFacadeTests(unittest.TestCase):
     def test_identical_results_deduplicate_without_load_order(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            cache = root / "Textures.cache"
+            cache = root / "cache" / "Textures.cache"
             _write_cache(
                 cache,
                 [(0, 101, _payload(Image.new("RGB", (8, 8), (1, 2, 3)), 3), True)],
@@ -277,7 +278,7 @@ class AssetModFacadeTests(unittest.TestCase):
     def test_build_mismatch_and_changed_source_fail_closed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            cache = root / "Textures.cache"
+            cache = root / "cache" / "Textures.cache"
             _write_cache(
                 cache,
                 [(0, 101, _payload(Image.new("RGB", (8, 8), (1, 2, 3)), 3), True)],
