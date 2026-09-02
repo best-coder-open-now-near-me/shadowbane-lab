@@ -58,7 +58,7 @@ class PvEAuthorityRunTraceStep(PvERunTraceStep):
         )
 
     def as_dict(self) -> dict[str, object]:
-        payload = super().as_dict()
+        payload = PvERunTraceStep.as_dict(self)
         payload["target_authority"] = (
             None if self.target_authority is None else self.target_authority.as_dict()
         )

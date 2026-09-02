@@ -277,6 +277,7 @@ class PvETargetAuthorityTraceTests(unittest.TestCase):
                 require_target_identity=True,
                 use_native_population=True,
                 acquisition_retry_ms=100,
+                stale_selection_cycle_delay_ms=100,
                 target_sample_interval_ms=100,
                 acquisition_timeout_ms=100,
             ),
