@@ -16,7 +16,6 @@ from shadowbane_lab.pve.calibration import (
     load_pve_combat_calibration,
     save_pve_combat_calibration,
 )
-from shadowbane_lab.pve.controller import PvEController
 from shadowbane_lab.pve.evidence import (
     PVE_TRACE_JOURNAL_SCHEMA_VERSION,
     PVE_TRACE_SCHEMA_VERSION,
@@ -50,6 +49,11 @@ from shadowbane_lab.pve.runtime import (
     TargetIdentitySource,
     TargetPositionSource,
 )
+from shadowbane_lab.pve.target_authority import (
+    PvEController,
+    PvETargetRejection,
+    PvETargetRejectionReason,
+)
 
 __all__ = [
     "ClientPvEIntentDispatcher",
@@ -76,6 +80,8 @@ __all__ = [
     "PlayerVitalsSource",
     "PvEObservation",
     "PvEPhase",
+    "PvETargetRejection",
+    "PvETargetRejectionReason",
     "PvETraceEvidenceError",
     "PvETraceJournal",
     "PvERunResult",
