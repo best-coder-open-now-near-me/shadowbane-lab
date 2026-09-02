@@ -58,12 +58,12 @@ class TextureProvider:
     channels: int
 
     def __post_init__(self) -> None:
-        for value, name in (
-            (self.provider_id, "provider_id"),
-            (self.mod_id, "mod_id"),
-            (self.component_id, "component_id"),
-        ):
-            validate_identifier(value, name)
+        validate_identifier(self.mod_id, "mod_id")
+        validate_identifier(self.component_id, "component_id")
+        if self.provider_id != f"{self.mod_id}:{self.component_id}":
+            raise ValueError(
+                "provider_id must be the exact mod_id:component_id identity"
+            )
         for value, name in (
             (self.patch_manifest_sha256, "patch_manifest_sha256"),
             (self.source_payload_sha256, "source_payload_sha256"),
