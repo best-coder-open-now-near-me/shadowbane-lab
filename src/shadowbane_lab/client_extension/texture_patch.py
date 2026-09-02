@@ -2,22 +2,26 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
-import os
 import re
-import struct
-import zlib
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from shadowbane_lab.world_data.cache import CacheArchive, CacheResourceEntry
+from shadowbane_lab.client_extension.texture_cache import (
+    TextureCacheError,
+    TextureCacheWrite,
+    apply_texture_cache_writes,
+    build_texture_cache_plan,
+    entries_by_key,
+    read_stored_bytes,
+    sha256_bytes,
+    sha256_file,
+)
+from shadowbane_lab.world_data.cache import CacheArchive
 
 TEXTURE_PATCH_SCHEMA_VERSION = 1
 TEXTURE_PATCH_EVIDENCE_SCHEMA_VERSION = 1
-_HEADER = struct.Struct("<IIII")
-_DIRECTORY_ENTRY = struct.Struct("<IIIII")
 _IDENTIFIER = re.compile(r"[a-z0-9][a-z0-9._-]{0,127}\Z")
 _MAX_MANIFEST_BYTES = 1024 * 1024
 _MAX_REPLACEMENTS = 256
@@ -235,35 +239,28 @@ def author_texture_patch_manifest(
     patch_id: str,
     cache_relative_path: str = "cache/Textures.cache",
 ) -> TexturePatchManifest:
-    cache = Path(cache_path).resolve()
-    with CacheArchive(cache) as archive:
-        entries_by_key = _entries_by_key(archive)
-        replacements = []
-        for key, artifact_value in sorted(artifacts.items()):
-            entry = entries_by_key.get(key)
-            if entry is None:
-                raise TexturePatchError(f"cache has no texture resource {key[0]}:{key[1]}")
-            source_payload = archive.read_resource(entry)
-            artifact = Path(artifact_value).resolve()
-            result_payload, width, height, depth = _encode_png(artifact, source_payload)
-            replacements.append(
-                TextureReplacement(
-                    group_id=key[0],
-                    resource_id=key[1],
-                    artifact_file_name=artifact.name,
-                    artifact_sha256=_sha256_file(artifact),
-                    source_payload_sha256=_sha256_bytes(source_payload),
-                    result_payload_sha256=_sha256_bytes(result_payload),
-                    width=width,
-                    height=height,
-                    depth=depth,
-                )
-            )
+    try:
+        low_level = build_texture_cache_plan(cache_path, artifacts)
+    except TextureCacheError as exc:
+        raise TexturePatchError(str(exc)) from exc
     return TexturePatchManifest(
         patch_id=patch_id,
         cache_relative_path=cache_relative_path,
-        source_cache_sha256=_sha256_file(cache),
-        replacements=tuple(replacements),
+        source_cache_sha256=low_level.source_cache_sha256,
+        replacements=tuple(
+            TextureReplacement(
+                group_id=write.group_id,
+                resource_id=write.resource_id,
+                artifact_file_name=Path(write.artifact_path).name,
+                artifact_sha256=write.artifact_sha256,
+                source_payload_sha256=write.source_payload_sha256,
+                result_payload_sha256=write.result_payload_sha256,
+                width=write.width,
+                height=write.height,
+                depth=write.channels,
+            )
+            for write in low_level.writes
+        ),
     )
 
 
@@ -274,51 +271,56 @@ def build_texture_patch_plan(
 ) -> TexturePatchPlan:
     cache = Path(cache_path).resolve()
     artifacts = Path(artifact_directory).resolve()
-    if _sha256_file(cache) != manifest.source_cache_sha256:
-        raise TexturePatchError("texture cache SHA-256 differs from the reviewed manifest")
-    writes = []
-    with CacheArchive(cache) as archive:
-        entries = _entries_by_key(archive)
+    try:
+        if sha256_file(cache) != manifest.source_cache_sha256:
+            raise TexturePatchError("texture cache SHA-256 differs from the reviewed manifest")
+        artifact_mapping: dict[tuple[int, int], Path] = {}
         for replacement in manifest.replacements:
-            entry = entries.get(replacement.key)
-            if entry is None:
-                key_text = f"{replacement.group_id}:{replacement.resource_id}"
-                raise TexturePatchError(f"cache has no texture resource {key_text}")
-            source_payload = archive.read_resource(entry)
-            if _sha256_bytes(source_payload) != replacement.source_payload_sha256:
-                raise TexturePatchError(
-                    f"source payload differs for {replacement.group_id}:{replacement.resource_id}"
-                )
             artifact = artifacts / replacement.artifact_file_name
-            if not artifact.is_file() or _sha256_file(artifact) != replacement.artifact_sha256:
+            if not artifact.is_file() or sha256_file(artifact) != replacement.artifact_sha256:
                 raise TexturePatchError(
                     f"texture artifact differs from the manifest: {replacement.artifact_file_name}"
                 )
-            result_payload, width, height, depth = _encode_png(artifact, source_payload)
-            if (width, height, depth) != (
-                replacement.width,
-                replacement.height,
-                replacement.depth,
-            ):
-                raise TexturePatchError("texture dimensions or depth differ from the manifest")
-            if _sha256_bytes(result_payload) != replacement.result_payload_sha256:
-                raise TexturePatchError(
-                    f"result payload differs for {replacement.group_id}:{replacement.resource_id}"
-                )
-            result_stored = (
-                zlib.compress(result_payload, level=9) if entry.is_compressed else result_payload
+            artifact_mapping[replacement.key] = artifact
+        low_level = build_texture_cache_plan(cache, artifact_mapping)
+    except TexturePatchError:
+        raise
+    except TextureCacheError as exc:
+        raise TexturePatchError(str(exc)) from exc
+
+    expected = {item.key: item for item in manifest.replacements}
+    writes: list[TexturePatchWrite] = []
+    for write in low_level.writes:
+        replacement = expected[write.key]
+        if write.source_payload_sha256 != replacement.source_payload_sha256:
+            raise TexturePatchError(
+                f"source payload differs for {replacement.group_id}:{replacement.resource_id}"
             )
-            writes.append(
-                TexturePatchWrite(
-                    replacement=replacement,
-                    entry_index=entry.index,
-                    original_data_offset=entry.data_offset,
-                    original_stored_size=entry.stored_size,
-                    result_payload=result_payload,
-                    result_stored=result_stored,
-                    append_required=len(result_stored) > entry.stored_size,
-                )
+        if write.artifact_sha256 != replacement.artifact_sha256:
+            raise TexturePatchError(
+                f"texture artifact differs from the manifest: {replacement.artifact_file_name}"
             )
+        if (write.width, write.height, write.channels) != (
+            replacement.width,
+            replacement.height,
+            replacement.depth,
+        ):
+            raise TexturePatchError("texture dimensions or depth differ from the manifest")
+        if write.result_payload_sha256 != replacement.result_payload_sha256:
+            raise TexturePatchError(
+                f"result payload differs for {replacement.group_id}:{replacement.resource_id}"
+            )
+        writes.append(
+            TexturePatchWrite(
+                replacement=replacement,
+                entry_index=write.entry_index,
+                original_data_offset=write.original_data_offset,
+                original_stored_size=write.original_stored_size,
+                result_payload=write.result_payload,
+                result_stored=write.result_stored,
+                append_required=write.append_required,
+            )
+        )
     return TexturePatchPlan(
         patch_id=manifest.patch_id,
         cache_relative_path=manifest.cache_relative_path,
@@ -329,46 +331,48 @@ def build_texture_patch_plan(
 
 def apply_texture_patch_plan(cache_path: str | Path, plan: TexturePatchPlan) -> None:
     cache = Path(cache_path).resolve()
-    if _sha256_file(cache) != plan.source_cache_sha256:
-        raise TexturePatchError("texture cache changed after its patch plan was built")
-    with cache.open("r+b") as stream:
-        header_data = stream.read(_HEADER.size)
-        if len(header_data) != _HEADER.size:
-            raise TexturePatchError("texture cache header is truncated")
-        resource_count, data_offset, file_size, marker = _HEADER.unpack(header_data)
-        for write in plan.writes:
-            target_offset = file_size if write.append_required else write.original_data_offset
-            stream.seek(target_offset)
-            stream.write(write.result_stored)
-            if write.append_required:
-                file_size += len(write.result_stored)
-            stream.seek(_HEADER.size + write.entry_index * _DIRECTORY_ENTRY.size)
-            stream.write(
-                _DIRECTORY_ENTRY.pack(
-                    write.replacement.group_id,
-                    write.replacement.resource_id,
-                    target_offset,
-                    len(write.result_payload),
-                    len(write.result_stored),
+    try:
+        with CacheArchive(cache) as archive:
+            indexed = entries_by_key(archive)
+            shared_writes: list[TextureCacheWrite] = []
+            for write in plan.writes:
+                replacement = write.replacement
+                entry = indexed.get(replacement.key)
+                if entry is None:
+                    raise TexturePatchError(
+                        f"cache has no texture resource {replacement.group_id}:"
+                        f"{replacement.resource_id}"
+                    )
+                shared_writes.append(
+                    TextureCacheWrite(
+                        group_id=replacement.group_id,
+                        resource_id=replacement.resource_id,
+                        entry_index=write.entry_index,
+                        original_data_offset=write.original_data_offset,
+                        original_raw_size=entry.uncompressed_size,
+                        original_stored_size=write.original_stored_size,
+                        original_stored=read_stored_bytes(cache, entry),
+                        source_payload_sha256=replacement.source_payload_sha256,
+                        artifact_path=replacement.artifact_file_name,
+                        artifact_sha256=replacement.artifact_sha256,
+                        result_payload=write.result_payload,
+                        result_payload_sha256=replacement.result_payload_sha256,
+                        result_stored=write.result_stored,
+                        width=replacement.width,
+                        height=replacement.height,
+                        channels=replacement.depth,
+                        append_required=write.append_required,
+                    )
                 )
-            )
-        stream.seek(0)
-        stream.write(_HEADER.pack(resource_count, data_offset, file_size, marker))
-        stream.truncate(file_size)
-        stream.flush()
-        os.fsync(stream.fileno())
-
-    with CacheArchive(cache) as archive:
-        entries = _entries_by_key(archive)
-        for write in plan.writes:
-            entry = entries[write.replacement.key]
-            if _sha256_bytes(archive.read_resource(entry)) != (
-                write.replacement.result_payload_sha256
-            ):
-                raise TexturePatchError(
-                    f"post-write validation failed for {write.replacement.group_id}:"
-                    f"{write.replacement.resource_id}"
-                )
+        apply_texture_cache_writes(
+            cache,
+            source_cache_sha256=plan.source_cache_sha256,
+            writes=tuple(shared_writes),
+        )
+    except TexturePatchError:
+        raise
+    except TextureCacheError as exc:
+        raise TexturePatchError(str(exc)) from exc
 
 
 def build_texture_patch_evidence(
@@ -379,7 +383,7 @@ def build_texture_patch_evidence(
     cache = Path(result_cache_path)
     return TexturePatchEvidence(
         manifest_sha256=texture_patch_manifest_sha256(manifest),
-        result_cache_sha256=_sha256_file(cache),
+        result_cache_sha256=sha256_file(cache),
         result_cache_size=cache.stat().st_size,
         plan=plan,
     )
@@ -393,39 +397,7 @@ def texture_patch_manifest_sha256(manifest: TexturePatchManifest) -> str:
         ensure_ascii=True,
         allow_nan=False,
     ).encode("ascii")
-    return _sha256_bytes(data)
-
-
-def _encode_png(path: Path, source_payload: bytes) -> tuple[bytes, int, int, int]:
-    if len(source_payload) < 26:
-        raise TexturePatchError("texture payload is smaller than its 26-byte header")
-    width, height, depth = struct.unpack_from("<III", source_payload, 0)
-    if depth not in {1, 3, 4} or len(source_payload) != 26 + width * height * depth:
-        raise TexturePatchError("texture payload dimensions are inconsistent")
-    try:
-        from PIL import Image
-    except ImportError as exc:
-        raise TexturePatchError("Pillow is required for PNG texture overlays") from exc
-    with Image.open(path) as source:
-        if source.size != (width, height):
-            raise TexturePatchError(
-                f"{path.name} is {source.width}x{source.height}; expected {width}x{height}"
-            )
-        mode = {1: "L", 3: "RGB", 4: "RGBA"}[depth]
-        pixels = source.convert(mode).transpose(Image.Transpose.FLIP_TOP_BOTTOM).tobytes()
-    return source_payload[:26] + pixels, width, height, depth
-
-
-def _sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
-def _sha256_bytes(value: bytes) -> str:
-    return hashlib.sha256(value).hexdigest()
+    return sha256_bytes(data)
 
 
 def _strict_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
@@ -444,9 +416,7 @@ def _reject_constant(value: str) -> Any:
 def _exact_object(value: object, expected: set[str], context: str) -> dict[str, object]:
     if not isinstance(value, dict) or any(not isinstance(key, str) for key in value):
         raise ValueError(f"{context} must be an object")
-    missing = expected - value.keys()
-    unknown = value.keys() - expected
-    if missing or unknown:
+    if value.keys() != expected:
         raise ValueError(f"{context} fields differ from the schema")
     return value
 
@@ -482,16 +452,6 @@ def _relative_path(value: object) -> None:
         or any(part in {"", ".", ".."} for part in path.parts)
     ):
         raise ValueError("cache_relative_path must remain beneath the client root")
-
-
-def _entries_by_key(archive: CacheArchive) -> dict[tuple[int, int], CacheResourceEntry]:
-    result: dict[tuple[int, int], CacheResourceEntry] = {}
-    for entry in archive.entries:
-        key = entry.group_id, entry.resource_id
-        if key in result:
-            raise TexturePatchError(f"cache has ambiguous texture resource {key[0]}:{key[1]}")
-        result[key] = entry
-    return result
 
 
 def _unsigned_integer(value: object, name: str) -> None:
