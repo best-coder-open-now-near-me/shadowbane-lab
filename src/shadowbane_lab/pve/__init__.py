@@ -20,6 +20,10 @@ from shadowbane_lab.pve.authority_snapshot import (
     PvETargetAuthoritySnapshot,
     SnapshotPvETargetAuthorityEvaluator,
 )
+from shadowbane_lab.pve.authority_trace import (
+    PvEAuthorityRunTraceStep,
+    PvERunner,
+)
 from shadowbane_lab.pve.calibration import (
     PVE_COMBAT_CALIBRATION_SCHEMA_VERSION,
     ObservedSampleSummary,
@@ -43,7 +47,6 @@ from shadowbane_lab.pve.guarded_runtime import (
     NativePvEObservationSource,
     PvEObservationCoherenceError,
     PvEObservationSource,
-    PvERunner,
 )
 from shadowbane_lab.pve.model import (
     PvECampLease,
@@ -70,6 +73,7 @@ from shadowbane_lab.pve.runtime import (
 )
 from shadowbane_lab.pve.target_authority import (
     PvEController,
+    PvETargetAuthorityControllerDecision,
     PvETargetRejection,
     PvETargetRejectionReason,
 )
@@ -90,6 +94,7 @@ __all__ = [
     "PvEApproachStatus",
     "PvEApproachUpdate",
     "PvEAuthorityCharacterRecord",
+    "PvEAuthorityRunTraceStep",
     "PvECampLease",
     "PvECombatCalibration",
     "PvECombatCalibrationError",
@@ -106,6 +111,7 @@ __all__ = [
     "PvERunResult",
     "PvERunTraceStep",
     "PvERunner",
+    "PvETargetAuthorityControllerDecision",
     "PvETargetAuthorityDecision",
     "PvETargetAuthorityEvidence",
     "PvETargetAuthorityEvaluator",

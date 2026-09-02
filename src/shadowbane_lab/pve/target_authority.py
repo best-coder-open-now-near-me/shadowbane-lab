@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import deque
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from enum import StrEnum
 
 from shadowbane_lab.pve.authority import (
@@ -15,6 +15,7 @@ from shadowbane_lab.pve.model import (
     PvEControllerConfig,
     PvEControllerDecision,
     PvEIntent,
+    PvEKillConfirmation,
     PvEObservation,
     PvEPhase,
 )
@@ -81,6 +82,51 @@ class PvETargetRejection:
         }
 
 
+@dataclass(frozen=True, slots=True)
+class PvETargetAuthorityControllerDecision(PvEControllerDecision):
+    """Controller decision carrying authority evidence from the same observation."""
+
+    target_authority: PvETargetAuthorityDecision | None = None
+    target_rejections: tuple[PvETargetRejection, ...] = ()
+
+    def __post_init__(self) -> None:
+        PvEControllerDecision.__post_init__(self)
+        if self.target_authority is not None:
+            if not isinstance(self.target_authority, PvETargetAuthorityDecision):
+                raise ValueError("target_authority must be PvETargetAuthorityDecision")
+            if self.target_authority.observed_at_ms != self.now_ms:
+                raise ValueError("target authority time must match controller decision time")
+        if not isinstance(self.target_rejections, tuple):
+            raise ValueError("target_rejections must be a tuple")
+        if any(
+            not isinstance(value, PvETargetRejection)
+            for value in self.target_rejections
+        ):
+            raise ValueError("target_rejections must contain PvETargetRejection values")
+        if any(value.at_ms != self.now_ms for value in self.target_rejections):
+            raise ValueError("target rejection time must match controller decision time")
+
+    @classmethod
+    def from_decision(
+        cls,
+        decision: PvEControllerDecision,
+        *,
+        target_authority: PvETargetAuthorityDecision | None,
+        target_rejections: tuple[PvETargetRejection, ...],
+    ) -> PvETargetAuthorityControllerDecision:
+        if not isinstance(decision, PvEControllerDecision):
+            raise ValueError("decision must be PvEControllerDecision")
+        values = {
+            field.name: getattr(decision, field.name)
+            for field in fields(PvEControllerDecision)
+        }
+        return cls(
+            **values,
+            target_authority=target_authority,
+            target_rejections=target_rejections,
+        )
+
+
 class PvEController(_BasePvEController):
     """Bounds candidate validation and can require verified hostile-NPC proof."""
 
@@ -115,6 +161,7 @@ class PvEController(_BasePvEController):
         self._target_authority_evaluator = target_authority_evaluator
         self._require_verified_target_authority = require_verified_target_authority
         self._active_target_authority: PvETargetAuthorityDecision | None = None
+        self._active_step_target_rejections: list[PvETargetRejection] = []
         self._target_authority_history: deque[PvETargetAuthorityDecision] = deque(
             maxlen=self._MAXIMUM_RETAINED_AUTHORITY_DECISIONS
         )
@@ -158,6 +205,7 @@ class PvEController(_BasePvEController):
     def step(self, observation: PvEObservation) -> PvEControllerDecision:
         if not isinstance(observation, PvEObservation):
             raise ValueError("observation must be PvEObservation")
+        self._active_step_target_rejections.clear()
         authority = None
         if self._target_authority_evaluator is not None:
             authority = self._target_authority_evaluator.evaluate(observation)
@@ -175,6 +223,7 @@ class PvEController(_BasePvEController):
             return super().step(observation)
         finally:
             self._active_target_authority = None
+            self._active_step_target_rejections.clear()
 
     def _enter(self, phase: PvEPhase, now_ms: int) -> None:
         super()._enter(phase, now_ms)
@@ -323,18 +372,42 @@ class PvEController(_BasePvEController):
             if authority is None or authority.target_token != target_token
             else tuple(value.value for value in authority.exclusions)
         )
-        self._target_rejections.append(
-            PvETargetRejection(
-                target_token=target_token,
-                reason=reason,
-                at_ms=observation.now_ms,
-                validation_wait_ms=validation_wait_ms,
-                population_generation=population.scan_generation,
-                selected_target_token=population.selected_target_token,
-                authority_exclusions=authority_exclusions,
-            )
+        rejection = PvETargetRejection(
+            target_token=target_token,
+            reason=reason,
+            at_ms=observation.now_ms,
+            validation_wait_ms=validation_wait_ms,
+            population_generation=population.scan_generation,
+            selected_target_token=population.selected_target_token,
+            authority_exclusions=authority_exclusions,
         )
+        self._target_rejections.append(rejection)
+        self._active_step_target_rejections.append(rejection)
         self._failed_target_tokens[target_token] = observation.now_ms
         self._population_desired_target_token = None
         self._population_cycle_seen.clear()
         self._population_candidate_selected_at = None
+
+    def _emit(
+        self,
+        now_ms: int,
+        intent: PvEIntent | None = None,
+        *,
+        terminal_reason: str | None = None,
+        kill_confirmation: PvEKillConfirmation | None = None,
+        reposition_requested: bool = False,
+        return_to_camp: bool = False,
+    ) -> PvEControllerDecision:
+        decision = super()._emit(
+            now_ms,
+            intent,
+            terminal_reason=terminal_reason,
+            kill_confirmation=kill_confirmation,
+            reposition_requested=reposition_requested,
+            return_to_camp=return_to_camp,
+        )
+        return PvETargetAuthorityControllerDecision.from_decision(
+            decision,
+            target_authority=self._active_target_authority,
+            target_rejections=tuple(self._active_step_target_rejections),
+        )
