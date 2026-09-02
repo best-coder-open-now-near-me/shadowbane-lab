@@ -26,11 +26,13 @@ from shadowbane_lab.pve.runtime import (
     PlayerActionSource,
     PlayerPositionSource,
     PlayerVitalsSource,
-    PvERunner as _BasePvERunner,
     TargetActionSource,
     TargetHealthSource,
     TargetIdentitySource,
     TargetPositionSource,
+)
+from shadowbane_lab.pve.runtime import (
+    PvERunner as _BasePvERunner,
 )
 
 
