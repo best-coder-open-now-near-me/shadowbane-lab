@@ -27,6 +27,7 @@ from shadowbane_lab.sim.affiliations import (
     GroupKind,
     GroupMembership,
     OwnershipEdge,
+    legacy_team_affiliations,
 )
 
 _PLAYER_KEY = NativeObjectKey(10, 42)
@@ -95,19 +96,14 @@ def _record(
 
 
 def _opposing_sides(*extra: GroupMembership) -> AffiliationSnapshot:
-    return AffiliationSnapshot(
+    base = legacy_team_affiliations(
+        {"player": "players", "mob": "monsters"},
         revision=11,
-        memberships=(
-            GroupMembership(
-                "player",
-                GroupKey(GroupKind.SCENARIO_SIDE, "players"),
-            ),
-            GroupMembership(
-                "mob",
-                GroupKey(GroupKind.SCENARIO_SIDE, "monsters"),
-            ),
-            *extra,
-        ),
+    )
+    return AffiliationSnapshot(
+        revision=base.revision,
+        memberships=(*base.memberships, *extra),
+        relation_overrides=base.relation_overrides,
     )
 
 
@@ -147,7 +143,7 @@ class SnapshotPvETargetAuthorityTests(unittest.TestCase):
             decision.evidence_sources,
         )
 
-    def test_same_party_is_rejected_even_when_scenario_sides_oppose(self) -> None:
+    def test_same_party_is_rejected_even_when_relation_override_is_enemy(self) -> None:
         party = GroupKey(GroupKind.PARTY, "party-1")
         affiliations = _opposing_sides(
             GroupMembership("player", party),
@@ -161,10 +157,7 @@ class SnapshotPvETargetAuthorityTests(unittest.TestCase):
 
         self.assertFalse(decision.accepted)
         self.assertIn(PvETargetAuthorityExclusion.PARTY_MEMBER, decision.exclusions)
-        self.assertIn(
-            PvETargetAuthorityExclusion.RELATION_NOT_ENEMY,
-            decision.exclusions,
-        )
+        self.assertEqual("enemy", decision.relation.value)
 
     def test_incomplete_party_snapshot_never_defaults_to_not_grouped(self) -> None:
         evaluator = SnapshotPvETargetAuthorityEvaluator(
