@@ -195,7 +195,10 @@ class AssetModFacadeTests(unittest.TestCase):
             self.assertEqual("cache/Textures.cache", receipt.cache_relative_path)
             self.assertTrue((destination / "texture-profile.json").is_file())
             result_cache = destination / "cache" / "Textures.cache"
-            self.assertEqual(receipt.result_cache_sha256, validate_cache(result_cache).cache_sha256)
+            self.assertEqual(
+                receipt.result_cache_sha256,
+                validate_cache(result_cache).cache_sha256,
+            )
             compare_untargeted_payloads(cache, result_cache, plan.targeted_keys)
             durable = load_strict_json(destination / "texture-profile.json")
             self.assertEqual("visual", durable["profile"]["profile_id"])
@@ -309,6 +312,37 @@ class AssetModFacadeTests(unittest.TestCase):
             with self.assertRaisesRegex(TextureProfileError, "changed after"):
                 materialize_texture_profile(plan, destination)
             self.assertFalse(destination.exists())
+
+    def test_changed_package_manifest_fails_before_compilation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            cache = root / "cache" / "Textures.cache"
+            _write_cache(
+                cache,
+                [(0, 101, _payload(Image.new("RGB", (8, 8), (1, 2, 3)), 3), True)],
+            )
+            package = _write_package(
+                root / "package",
+                cache,
+                mod_id="org.example.mod",
+                content_build_id="wb-test",
+                replacements={(0, 101): (20, 30, 40)},
+            )
+            manifest_path = Path(package.root) / "mod.json"
+            payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+            payload["description"] = "changed after selection"
+            manifest_path.write_text(pretty_json_text(payload), encoding="utf-8")
+
+            with self.assertRaisesRegex(
+                TextureProfileError,
+                "changed after selection",
+            ):
+                compile_texture_profile(
+                    cache,
+                    (package,),
+                    content_build_id="wb-test",
+                    profile_id="visual",
+                )
 
     def test_manifest_rejects_path_escape_and_unknown_fields(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
