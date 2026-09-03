@@ -26,6 +26,7 @@ from shadowbane_lab.client_input import (
     load_arcane_hotbar,
     load_calibration,
 )
+from shadowbane_lab.client_input.character_config import open_active_character_config
 from shadowbane_lab.client_observation import (
     NativeCharacterPopulationError,
     NativeCharacterPopulationProfileLoadError,
@@ -234,7 +235,7 @@ def _run_pve(
             raise ValueError(
                 f"client profile is missing PvE mappings: {', '.join(sorted(missing_actions))}"
             )
-        if policy == "proc-assassin":
+        if policy == "proc-assassin" and hotbar_config_path is not None:
             _verify_hotbar_power_mapping(
                 client_profile.actions,
                 hotbar_config_path,
@@ -323,6 +324,33 @@ def _run_pve(
         if client_process_id is not None:
             _wait_for_guarded_client(guard, wait_seconds=wait_for_client_seconds)
         with ExitStack() as stack:
+            character_session = None
+            character_config_payload = None
+            if policy == "proc-assassin":
+                character_session = stack.enter_context(
+                    open_active_character_config(
+                        process_id=process_id,
+                        explicit_path=hotbar_config_path,
+                    )
+                )
+                hotbar_config_path = character_session.binding.config_path
+                _verify_hotbar_power_mapping(
+                    client_profile.actions,
+                    hotbar_config_path,
+                    action_key=PvEIntent.CAST_SHADOW_TOUCH.value,
+                    power_name=ArcaneClientPower.SHADOW_TOUCH,
+                )
+                character_session.require_current()
+                character_config_payload = character_session.binding.as_dict()
+                guard = ForegroundWindowGuard(
+                    client_profile,
+                    inspector,
+                    expected_process_id=process_id,
+                    expected_process_started_at_100ns=(
+                        character_session.binding.process_creation_filetime_utc
+                    ),
+                )
+                guard.require_target()
             health_reader = stack.enter_context(
                 open_windows_native_target_health_reader(
                     health_profile,
@@ -462,6 +490,9 @@ def _run_pve(
                 guard=guard,
                 backend=PyAutoGuiBackend(),
                 stop_signal=active_stop_signal,
+                input_precondition=(
+                    None if character_session is None else character_session.require_current
+                ),
             )
             adapter = ClientInputAdapter(
                 DecisionInputCompiler(client_profile, StaticBindingPointResolver()),
@@ -481,6 +512,7 @@ def _run_pve(
                             "camp_radius": camp_radius,
                             "poll_ms": poll_ms,
                             "terrain_navigation": terrain_navigation_payload,
+                            "character_config": character_config_payload,
                         },
                     )
                 )
@@ -624,6 +656,7 @@ def _run_pve(
             ),
         },
         "terrain_navigation": terrain_navigation_payload,
+        "character_config": character_config_payload,
         "trace": [step.as_dict() for step in result.trace],
     }
     if evidence_output_path is not None:

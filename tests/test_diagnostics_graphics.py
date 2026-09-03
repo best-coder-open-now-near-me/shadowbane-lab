@@ -146,8 +146,8 @@ def _status(
                     "world_opaque": 40,
                     "world_alpha_tested": 8,
                     "world_translucent": 12,
-                    "world_overlay": 2,
-                    "ui_overlay": 15,
+                    "world_overlay": 4,
+                    "ui_overlay": 13,
                 },
                 "reasons": {
                     "projection_unavailable": 0,
@@ -160,6 +160,15 @@ def _status(
                 },
                 "boundary_count": 1,
                 "late_world_draw_count": 0,
+                "draw_count": 77,
+                "world_draw_count": 62,
+                "composite_candidate_count": 3,
+                "rejected_composite_candidate_count": 2,
+                "first_world_draw_ordinal": 1,
+                "first_composite_candidate_draw_ordinal": 20,
+                "accepted_boundary_draw_ordinal": 63,
+                "first_late_world_draw_ordinal": 0,
+                "last_world_draw_ordinal": 62,
                 "fixed_function_refresh_count": 1,
             },
             "totals": {
@@ -168,8 +177,8 @@ def _status(
                     "world_opaque": 400,
                     "world_alpha_tested": 80,
                     "world_translucent": 120,
-                    "world_overlay": 20,
-                    "ui_overlay": 150,
+                    "world_overlay": 40,
+                    "ui_overlay": 130,
                 },
                 "reasons": {
                     "projection_unavailable": 0,
@@ -186,7 +195,10 @@ def _status(
             },
             "policy": {
                 "single_world_to_ui_boundary": True,
-                "late_world_after_ui": "excluded-and-counted",
+                "boundary_ownership": "depth-pass-armed-idempotent",
+                "candidate_retry": "until-depth-pass-accepts",
+                "planar_overlay": "excluded-and-retryable-composite-candidate",
+                "late_world_after_ui": "effect-eligible-and-counted",
                 "fixed_function_state": "cached-with-transition-hooks",
                 "maximum_ordinary_frame_refreshes": 1,
             },
@@ -725,6 +737,95 @@ class GraphicsPresentEvidenceTests(unittest.TestCase):
 
             self.assertFalse(result.complete)
             self.assertIn("exceeded its per-frame refresh budget", result.failure or "")
+
+    def test_late_world_draws_do_not_claim_world_ui_separation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            executable = root / "sb.exe"
+            executable.write_bytes(_present_pe())
+            identity = ProcessIdentity(51, 123456, str(executable))
+            payload = _status(executable, identity)
+            latest = payload["draw_classification"]["latest"]
+            latest["layers"]["world_opaque"] += 1104
+            latest["late_world_draw_count"] = 1104
+            latest["draw_count"] += 1104
+            latest["world_draw_count"] += 1104
+            latest["first_late_world_draw_ordinal"] = 64
+            latest["last_world_draw_ordinal"] = latest["draw_count"]
+            status = root / "graphics-status.json"
+            status.write_text(json.dumps(payload), encoding="utf-8")
+
+            result = collect_graphics_present_evidence(
+                executable,
+                identity,
+                runtime_status_path=status,
+            )
+
+            self.assertTrue(result.complete)
+            self.assertFalse(
+                result.report["assessment"]["world_ui_separation_observed"]
+            )
+
+    def test_depth_owned_journal_rejects_unaccounted_candidate(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            executable = root / "sb.exe"
+            executable.write_bytes(_present_pe())
+            identity = ProcessIdentity(52, 123456, str(executable))
+            payload = _status(executable, identity)
+            payload["draw_classification"]["latest"][
+                "rejected_composite_candidate_count"
+            ] = 1
+            status = root / "graphics-status.json"
+            status.write_text(json.dumps(payload), encoding="utf-8")
+
+            result = collect_graphics_present_evidence(
+                executable,
+                identity,
+                runtime_status_path=status,
+            )
+
+            self.assertFalse(result.complete)
+            self.assertIn("journal boundary disagrees", result.failure or "")
+
+    def test_legacy_classification_capture_remains_supported(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            executable = root / "sb.exe"
+            executable.write_bytes(_present_pe())
+            identity = ProcessIdentity(53, 123456, str(executable))
+            payload = _status(executable, identity)
+            classification = payload["draw_classification"]
+            latest = classification["latest"]
+            for name in (
+                "draw_count",
+                "world_draw_count",
+                "composite_candidate_count",
+                "rejected_composite_candidate_count",
+                "first_world_draw_ordinal",
+                "first_composite_candidate_draw_ordinal",
+                "accepted_boundary_draw_ordinal",
+                "first_late_world_draw_ordinal",
+                "last_world_draw_ordinal",
+            ):
+                del latest[name]
+            policy = classification["policy"]
+            del policy["boundary_ownership"]
+            del policy["candidate_retry"]
+            policy["planar_overlay"] = "excluded-without-sealing-scene"
+            status = root / "graphics-status.json"
+            status.write_text(json.dumps(payload), encoding="utf-8")
+
+            result = collect_graphics_present_evidence(
+                executable,
+                identity,
+                runtime_status_path=status,
+            )
+
+            self.assertTrue(result.complete)
+            self.assertTrue(
+                result.report["assessment"]["world_ui_separation_observed"]
+            )
 
 
 if __name__ == "__main__":

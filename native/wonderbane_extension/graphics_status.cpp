@@ -23,7 +23,7 @@ namespace {
 constexpr wchar_t kProductDirectory[] = L"ShadowbaneLab";
 constexpr wchar_t kExtensionDirectory[] = L"client-extension";
 constexpr char kProducerId[] = "wonderbane-extension.graphics";
-constexpr char kExtensionVersion[] = "1.6.6";
+constexpr char kExtensionVersion[] = "1.6.9";
 constexpr std::size_t kPathCapacity = WONDERBANE_EXTENSION_HEARTBEAT_PATH_CAPACITY;
 constexpr std::size_t kExecutablePathUtf8Capacity = kPathCapacity * 4U;
 constexpr std::size_t kEscapedPathCapacity = kExecutablePathUtf8Capacity * 2U + 3U;
@@ -911,7 +911,7 @@ DWORD PublishSnapshot(const PublisherSnapshot& snapshot) noexcept {
         return camera_result;
     }
     const char* depth_edge_state = "armed";
-    const char* depth_edge_reason = "awaiting-perspective-to-overlay-boundary";
+    const char* depth_edge_reason = "awaiting-reviewed-client-pre-ui-boundary";
     if (snapshot.status.depth_edge_failed) {
         depth_edge_state = "failed";
         depth_edge_reason = snapshot.status.depth_edge_failure_reason;
@@ -935,7 +935,7 @@ DWORD PublishSnapshot(const PublisherSnapshot& snapshot) noexcept {
         "\"radius_pixels\":1.0,"
         "\"edge_metric\":\"single-owner-inverse-depth-curvature\","
         "\"sample_kernel\":\"cardinal-five-sample\","
-        "\"composite_boundary\":\"perspective-to-overlay\"}",
+        "\"composite_boundary\":\"reviewed-client-done3d\"}",
         depth_edge_state,
         depth_edge_reason_json.data(),
         static_cast<unsigned long long>(
@@ -992,7 +992,7 @@ DWORD PublishSnapshot(const PublisherSnapshot& snapshot) noexcept {
     const auto& latest_reasons = snapshot.status.latest_scene_frame.reason_counts;
     const auto& total_layers = snapshot.status.classified_draw_counts;
     const auto& total_reasons = snapshot.status.classification_reason_counts;
-    std::array<char, 4096U> scene_frame_json{};
+    std::array<char, 6144U> scene_frame_json{};
     result = StringCchPrintfA(
         scene_frame_json.data(),
         scene_frame_json.size(),
@@ -1007,7 +1007,18 @@ DWORD PublishSnapshot(const PublisherSnapshot& snapshot) noexcept {
         "\"depth_writing_alpha_tested\":%llu,\"blended_perspective\":%llu,"
         "\"depthless_perspective\":%llu},\"boundary_count\":%llu,"
         "\"late_world_draw_count\":%llu,"
-        "\"fixed_function_refresh_count\":%llu},\"totals\":{\"layers\":{"
+        "\"draw_count\":%llu,\"world_draw_count\":%llu,"
+        "\"composite_candidate_count\":%llu,"
+        "\"rejected_composite_candidate_count\":%llu,"
+        "\"first_world_draw_ordinal\":%llu,"
+        "\"first_composite_candidate_draw_ordinal\":%llu,"
+        "\"accepted_boundary_draw_ordinal\":%llu,"
+        "\"first_late_world_draw_ordinal\":%llu,"
+        "\"last_world_draw_ordinal\":%llu,"
+        "\"fixed_function_refresh_count\":%llu,"
+        "\"main_scene_start_count\":%llu,\"main_scene_world_draw_count\":%llu,"
+        "\"boundary_mapping_verified\":%s,\"main_scene_invalidated\":%s,"
+        "\"composite_succeeded\":%s},\"totals\":{\"layers\":{"
         "\"unknown\":%llu,\"world_opaque\":%llu,"
         "\"world_alpha_tested\":%llu,\"world_translucent\":%llu,"
         "\"world_overlay\":%llu,\"ui_overlay\":%llu},\"reasons\":{"
@@ -1018,6 +1029,9 @@ DWORD PublishSnapshot(const PublisherSnapshot& snapshot) noexcept {
         "\"late_world_draw_count\":%llu,"
         "\"fixed_function_refresh_count\":%llu},\"policy\":{"
         "\"single_world_to_ui_boundary\":true,"
+        "\"boundary_ownership\":\"reviewed-client-done3d\","
+        "\"candidate_retry\":\"never-from-draw-state\","
+        "\"planar_overlay\":\"excluded-without-sealing-scene\","
         "\"late_world_after_ui\":\"excluded-and-counted\","
         "\"fixed_function_state\":\"cached-with-transition-hooks\","
         "\"maximum_ordinary_frame_refreshes\":1}}",
@@ -1044,8 +1058,41 @@ DWORD PublishSnapshot(const PublisherSnapshot& snapshot) noexcept {
             snapshot.status.latest_scene_frame.late_world_draw_count
         ),
         static_cast<unsigned long long>(
+            snapshot.status.latest_scene_frame.draw_count
+        ),
+        static_cast<unsigned long long>(
+            snapshot.status.latest_scene_frame.world_draw_count
+        ),
+        static_cast<unsigned long long>(
+            snapshot.status.latest_scene_frame.composite_candidate_count
+        ),
+        static_cast<unsigned long long>(
+            snapshot.status.latest_scene_frame.rejected_composite_candidate_count
+        ),
+        static_cast<unsigned long long>(
+            snapshot.status.latest_scene_frame.first_world_draw_ordinal
+        ),
+        static_cast<unsigned long long>(
+            snapshot.status.latest_scene_frame
+                .first_composite_candidate_draw_ordinal
+        ),
+        static_cast<unsigned long long>(
+            snapshot.status.latest_scene_frame.accepted_boundary_draw_ordinal
+        ),
+        static_cast<unsigned long long>(
+            snapshot.status.latest_scene_frame.first_late_world_draw_ordinal
+        ),
+        static_cast<unsigned long long>(
+            snapshot.status.latest_scene_frame.last_world_draw_ordinal
+        ),
+        static_cast<unsigned long long>(
             snapshot.status.latest_scene_frame.fixed_function_refresh_count
         ),
+        static_cast<unsigned long long>(snapshot.status.latest_scene_frame.main_scene_start_count),
+        static_cast<unsigned long long>(snapshot.status.latest_scene_frame.main_scene_world_draw_count),
+        snapshot.status.latest_scene_frame.boundary_mapping_verified ? "true" : "false",
+        snapshot.status.latest_scene_frame.main_scene_invalidated ? "true" : "false",
+        snapshot.status.latest_scene_frame.composite_succeeded ? "true" : "false",
         static_cast<unsigned long long>(total_layers[0]),
         static_cast<unsigned long long>(total_layers[1]),
         static_cast<unsigned long long>(total_layers[2]),
@@ -1734,6 +1781,15 @@ DWORD ConfigureGraphicsPresentEntry(
     }
     SetEvent(g_wake_event);
     return ERROR_SUCCESS;
+}
+
+bool GraphicsExecutableSha256Matches(const char* const sha256) noexcept {
+    if (sha256 == nullptr) { return false; }
+    AcquireSRWLockShared(&g_state_lock);
+    const bool matches = g_executable_sha256[0] != '\0'
+        && std::strcmp(g_executable_sha256, sha256) == 0;
+    ReleaseSRWLockShared(&g_state_lock);
+    return matches;
 }
 
 void ObserveGraphicsPresent() noexcept {

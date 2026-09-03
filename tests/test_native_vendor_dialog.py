@@ -73,6 +73,7 @@ class FakeVendorDialogDebugBackend:
         self.attached: dict[str, int] | None = None
         self.continued: list[str] = []
         self.closed = False
+        self.elapsed_seconds = 0.0
         for breakpoint in profile.breakpoints:
             self.memory[self.base_address + breakpoint.rva] = breakpoint.signature
 
@@ -89,9 +90,11 @@ class FakeVendorDialogDebugBackend:
     def attach(self, breakpoints: dict[str, int]) -> None:
         self.attached = dict(breakpoints)
 
-    def wait_for_hit(self, _timeout_ms: int) -> NativeVendorDialogDebugHit | None:
+    def wait_for_hit(self, timeout_ms: int) -> NativeVendorDialogDebugHit | None:
         if not self.hits:
+            self.elapsed_seconds += timeout_ms / 1000
             return None
+        self.elapsed_seconds += 0.001
         hit, mutations = self.hits.pop(0)
         self.memory.update(mutations)
         return hit
@@ -196,7 +199,13 @@ class NativeVendorDialogTracerTests(unittest.TestCase):
         ]
         tracer = NativeVendorDialogTracer(profile, backend)
 
-        with tempfile.TemporaryDirectory() as temporary_directory:
+        with (
+            tempfile.TemporaryDirectory() as temporary_directory,
+            patch(
+                "shadowbane_lab.client_observation.native_vendor_dialog.time",
+                SimpleNamespace(monotonic=lambda: backend.elapsed_seconds),
+            ),
+        ):
             path = Path(temporary_directory) / "pelt.jsonl"
             summary = tracer.trace(
                 path,
@@ -208,6 +217,8 @@ class NativeVendorDialogTracerTests(unittest.TestCase):
 
         self.assertEqual(4, summary.hit_count)
         self.assertEqual(2, summary.complete_message_count)
+        self.assertGreaterEqual(summary.elapsed_seconds, 0.01)
+        self.assertLess(summary.elapsed_seconds, 0.1)
         self.assertEqual(
             ["outbound_entry", "outbound_complete", "inbound_entry", "inbound_complete"],
             backend.continued,
@@ -225,6 +236,29 @@ class NativeVendorDialogTracerTests(unittest.TestCase):
         self.assertEqual(1, reply_record["decoded_message"]["option_count"])
         self.assertEqual(0, reply_record["decoded_message"]["options"][0]["option_id"])
         self.assertFalse(records[0]["client_code_modified"])
+
+    def test_timeout_without_events_uses_backend_wait_clock(self) -> None:
+        profile = _profile()
+        backend = FakeVendorDialogDebugBackend(profile)
+        tracer = NativeVendorDialogTracer(profile, backend)
+        with (
+            tempfile.TemporaryDirectory() as temporary_directory,
+            patch(
+                "shadowbane_lab.client_observation.native_vendor_dialog.time",
+                SimpleNamespace(monotonic=lambda: backend.elapsed_seconds),
+            ),
+        ):
+            summary = tracer.trace(
+                Path(temporary_directory) / "timeout.jsonl",
+                label="no-events",
+                timeout_seconds=0.1,
+                settle_seconds=0.01,
+            )
+        self.assertTrue(summary.timed_out_without_events)
+        self.assertEqual(0, summary.hit_count)
+        self.assertGreaterEqual(summary.elapsed_seconds, 0.1)
+        self.assertLessEqual(summary.elapsed_seconds, 0.101)
+        self.assertTrue(backend.closed)
 
     def test_executable_hash_mismatch_fails_before_attach(self) -> None:
         profile = _profile()

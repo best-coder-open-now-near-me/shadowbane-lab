@@ -41,9 +41,9 @@ int wmain() {
     state.lighting_enabled = false;
     state.fog_enabled = false;
     const DrawClassification planar = ClassifyFixedFunctionDraw(state);
-    if (planar.layer != DrawLayer::ui_overlay
+    if (planar.layer != DrawLayer::world_overlay
         || planar.reason != DrawClassificationReason::planar_overlay_state) {
-        return Fail(L"perspective planar UI classification");
+        return Fail(L"perspective planar scene-overlay classification");
     }
     state.planar_overlay_candidate = false;
     state.blend_enabled = false;
@@ -65,43 +65,80 @@ int wmain() {
         DrawLayer::ui_overlay,
         DrawClassificationReason::orthographic_projection,
     };
-    SceneFrameDecision decision = AdvanceSceneFrame(&frame, ui);
-    if (decision.contributes_to_scene || decision.composite_before_draw
-        || frame.phase != SceneFramePhase::awaiting_world
-        || frame.boundary_count != 0U) {
-        return Fail(L"pre-world UI does not seal frame");
+    // Preliminary world and overlays must not consume the final scene.
+    AdvanceSceneFrame(&frame, world);
+    for (const auto candidate : {ui, planar, ui}) {
+        const auto decision = AdvanceSceneFrame(&frame, candidate);
+        if (decision.composite_before_draw || decision.contributes_to_scene
+            || frame.boundary_count != 0U) {
+            return Fail(L"draw-state candidates cannot authorize capture");
+        }
     }
-    decision = AdvanceSceneFrame(&frame, world);
-    if (!decision.contributes_to_scene || decision.composite_before_draw
-        || frame.phase != SceneFramePhase::world) {
-        return Fail(L"world frame transition");
+    if (BeginReviewedSceneUiBoundary(&frame)) {
+        return Fail(L"unreviewed or pre-clear boundary rejected");
     }
-    decision = AdvanceSceneFrame(&frame, ui);
-    if (decision.contributes_to_scene || !decision.composite_before_draw
-        || frame.phase != SceneFramePhase::ui
+    frame.boundary_mapping_verified = true;
+    if (BeginReviewedSceneUiBoundary(&frame)) {
+        return Fail(L"preliminary world cannot arm main scene");
+    }
+    ObserveMainSceneClear(&frame);
+    if (BeginReviewedSceneUiBoundary(&frame)) {
+        return Fail(L"empty main scene rejected");
+    }
+    for (unsigned int draw = 0U; draw < 3417U; ++draw) {
+        if (!AdvanceSceneFrame(&frame, world).contributes_to_scene) {
+            return Fail(L"main-world draws remain eligible before boundary");
+        }
+        if (draw % 100U == 0U) {
+            const auto decision = AdvanceSceneFrame(&frame, ui);
+            if (decision.composite_before_draw || frame.boundary_count != 0U) {
+                return Fail(L"mid-world orthographic draw cannot seal scene");
+            }
+        }
+    }
+    if (frame.main_scene_world_draw_count != 3417U
+        || frame.world_draw_count != 3418U
+        || frame.late_world_draw_count != 0U
+        || !BeginReviewedSceneUiBoundary(&frame)
+        || frame.accepted_boundary_draw_ordinal != frame.draw_count + 1U
+        || frame.accepted_boundary_draw_ordinal <= frame.last_world_draw_ordinal
+        || frame.composite_succeeded) {
+        return Fail(L"complete main-world boundary independent of GPU outcome");
+    }
+    const auto candidates = frame.composite_candidate_count;
+    AdvanceSceneFrame(&frame, ui);
+    if (BeginReviewedSceneUiBoundary(&frame)
+        || frame.composite_candidate_count != candidates
         || frame.boundary_count != 1U) {
-        return Fail(L"single pre-UI boundary");
+        return Fail(L"no retry after UI starts even if composite failed");
     }
-    decision = AdvanceSceneFrame(&frame, ui);
-    if (decision.composite_before_draw || frame.boundary_count != 1U) {
-        return Fail(L"duplicate UI boundary rejection");
+    const auto late = AdvanceSceneFrame(&frame, world);
+    if (late.contributes_to_scene || frame.late_world_draw_count != 1U
+        || frame.first_late_world_draw_ordinal != frame.draw_count) {
+        return Fail(L"late geometry remains unmodified and counted");
     }
-    decision = AdvanceSceneFrame(&frame, world);
-    if (!decision.contributes_to_scene || decision.composite_before_draw
-        || frame.late_world_draw_count != 1U) {
-        return Fail(L"late world draw remains effect eligible");
+    if (frame.composite_candidate_count != frame.rejected_composite_candidate_count + 1U) {
+        return Fail(L"bounded candidate journal");
     }
-    if (frame.draw_counts[static_cast<std::size_t>(DrawLayer::world_opaque)] != 2U
-        || frame.draw_counts[static_cast<std::size_t>(DrawLayer::ui_overlay)] != 3U) {
-        return Fail(L"bounded layer counters");
+    frame = {};
+    frame.boundary_mapping_verified = true;
+    ObserveMainSceneClear(&frame);
+    AdvanceSceneFrame(&frame, world);
+    ObserveMainSceneClear(&frame);
+    AdvanceSceneFrame(&frame, world);
+    if (BeginReviewedSceneUiBoundary(&frame) || !frame.main_scene_invalidated) {
+        return Fail(L"multiple main clears fail closed");
     }
-    if (frame.reason_counts[static_cast<std::size_t>(
-            DrawClassificationReason::depth_writing_opaque
-        )] != 2U
-        || frame.reason_counts[static_cast<std::size_t>(
-            DrawClassificationReason::orthographic_projection
-        )] != 3U) {
-        return Fail(L"bounded reason counters");
+    frame = {};
+    frame.boundary_mapping_verified = true;
+    ObserveMainSceneClear(&frame);
+    AdvanceSceneFrame(&frame, world);
+    frame.main_scene_invalidated = true;
+    if (BeginReviewedSceneUiBoundary(&frame)) {
+        return Fail(L"context change or intervening depth clear fails closed");
+    }
+    if (BeginReviewedSceneUiBoundary(nullptr)) {
+        return Fail(L"null boundary rejected");
     }
     if (std::strcmp(DrawLayerName(DrawLayer::world_opaque), "world-opaque") != 0
         || std::strcmp(

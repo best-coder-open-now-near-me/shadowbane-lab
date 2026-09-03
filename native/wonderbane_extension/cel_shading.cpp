@@ -7,8 +7,10 @@
 #include "import_hook.h"
 #include "performance_telemetry.h"
 #include "scene_frame.h"
+#include "reviewed_scene_boundary.h"
 
 #include <Windows.h>
+#include <intrin.h>
 
 #include <array>
 #include <cmath>
@@ -89,6 +91,8 @@ using GlVertex3f = void(APIENTRY*)(float x, float y, float z);
 using GlDeleteLists = void(APIENTRY*)(unsigned int list, int range);
 using GlViewport = void(APIENTRY*)(int x, int y, int width, int height);
 using GlMatrixMode = void(APIENTRY*)(unsigned int mode);
+using GlClearBuffers = void(APIENTRY*)(unsigned int mask);
+using WglGetCurrentContext = HGLRC(WINAPI*)();
 using GlDrawArrays = void(APIENTRY*)(unsigned int mode, int first, int count);
 using GlDrawElements = void(APIENTRY*)(
     unsigned int mode,
@@ -141,6 +145,10 @@ PVOID volatile g_original_vertex_3f = nullptr;
 PVOID volatile g_original_delete_lists = nullptr;
 PVOID volatile g_original_viewport = nullptr;
 PVOID volatile g_original_matrix_mode = nullptr;
+PVOID volatile g_original_clear = nullptr;
+PVOID volatile g_get_current_context = nullptr;
+std::uintptr_t g_scene_image_base = 0U;
+bool g_scene_mapping_verified = false;
 PVOID volatile g_original_draw_arrays = nullptr;
 PVOID volatile g_original_draw_elements = nullptr;
 PVOID volatile g_original_vertex_pointer = nullptr;
@@ -177,6 +185,7 @@ std::uint32_t* g_vertex_3f_slot = nullptr;
 std::uint32_t* g_delete_lists_slot = nullptr;
 std::uint32_t* g_viewport_slot = nullptr;
 std::uint32_t* g_matrix_mode_slot = nullptr;
+std::uint32_t* g_clear_slot = nullptr;
 std::uint32_t* g_draw_arrays_slot = nullptr;
 std::uint32_t* g_draw_elements_slot = nullptr;
 std::uint32_t* g_vertex_pointer_slot = nullptr;
@@ -209,6 +218,7 @@ thread_local bool g_immediate_depth_scene_draw = false;
 thread_local std::array<float, 16U> g_immediate_scene_projection{};
 thread_local std::array<int, 4U> g_immediate_scene_viewport{};
 thread_local SceneFrameState g_scene_frame{};
+thread_local HGLRC g_main_scene_context = nullptr;
 thread_local FixedFunctionStateMirror g_fixed_function_state{};
 
 struct CapturedVertex {
@@ -1216,12 +1226,13 @@ SceneFrameDecision ObserveClassifiedDraw(
         lighting_enabled,
         fog_enabled,
     };
-    const SceneFrameDecision decision = AdvanceSceneFrame(
+    SceneFrameDecision decision = AdvanceSceneFrame(
         &g_scene_frame,
         ClassifyFixedFunctionDraw(state)
     );
-    if (decision.composite_before_draw) {
-        CompositeDepthEdgesBeforeUi();
+    if (!g_scene_mapping_verified) {
+        // An unknown build keeps its original rendering, not a heuristic phase.
+        decision.contributes_to_scene = false;
     }
     return decision;
 }
@@ -1345,12 +1356,7 @@ void DrawWithSilhouette(
                 model_view_stack_depth
             );
         }
-        MarkDepthEdgeSceneDraw(
-            projection.data(),
-            projection.size(),
-            viewport.data(),
-            viewport.size()
-        );
+        MarkDepthEdgeSceneDraw();
     }
 }
 
@@ -1454,12 +1460,7 @@ void APIENTRY StrongEnd() noexcept {
     if (g_immediate_primitive_open) {
         EndBandedLightingDraw(&g_immediate_banded_draw);
         if (g_immediate_depth_scene_draw) {
-            MarkDepthEdgeSceneDraw(
-                g_immediate_scene_projection.data(),
-                g_immediate_scene_projection.size(),
-                g_immediate_scene_viewport.data(),
-                g_immediate_scene_viewport.size()
-            );
+            MarkDepthEdgeSceneDraw();
         }
         g_immediate_depth_scene_draw = false;
         g_immediate_primitive_open = false;
@@ -1516,7 +1517,54 @@ void APIENTRY StrongViewport(
     }
 }
 
-void APIENTRY StrongMatrixMode(const unsigned int mode) noexcept {
+__declspec(noinline) void APIENTRY StrongClear(const unsigned int mask) noexcept {
+    const auto caller = reinterpret_cast<std::uintptr_t>(_ReturnAddress());
+    const auto original = LoadFunction<GlClearBuffers>(&g_original_clear);
+    if (original == nullptr) { return; }
+    original(mask);
+    if (IsCompilingDisplayListOnCurrentThread()) { return; }
+    if ((mask & 0x100U) != 0U) {
+        DiscardPendingDepthEdgeScene();
+        if (g_scene_frame.main_scene_start_count > 0U) {
+            g_scene_frame.main_scene_invalidated = true;
+        }
+    }
+    if (g_scene_mapping_verified && (mask == 0x4100U || mask == 0x4500U)
+        && IsReviewedSceneCall(caller, g_scene_image_base, kSceneClearReturnRva)) {
+        const auto current_context = LoadFunction<WglGetCurrentContext>(&g_get_current_context);
+        g_main_scene_context = current_context != nullptr ? current_context() : nullptr;
+        g_scene_frame.boundary_mapping_verified = true;
+        ObserveMainSceneClear(&g_scene_frame);
+        std::array<float, 16U> projection{};
+        std::array<int, 4U> viewport{};
+        bool perspective = false;
+        const auto get_integerv = LoadFunction<GlGetIntegerv>(&g_get_integerv);
+        if (get_integerv != nullptr) { get_integerv(0x0BA2U, viewport.data()); }
+        if (!CurrentProjection(&projection, &perspective) || !perspective
+            || !BeginMainDepthEdgeScene(projection.data(), projection.size(),
+                viewport.data(), viewport.size())) {
+            g_scene_frame.main_scene_invalidated = true;
+        }
+    }
+}
+
+__declspec(noinline) void APIENTRY StrongMatrixMode(const unsigned int mode) noexcept {
+    const auto caller = reinterpret_cast<std::uintptr_t>(_ReturnAddress());
+    if (mode == 0x1701U && g_scene_mapping_verified
+        && !IsCompilingDisplayListOnCurrentThread() && !g_immediate_primitive_open
+        && IsReviewedSceneCall(caller, g_scene_image_base, kSceneUiReturnRva)) {
+        const auto current_context = LoadFunction<WglGetCurrentContext>(&g_get_current_context);
+        if (current_context == nullptr || g_main_scene_context == nullptr
+            || current_context() != g_main_scene_context) {
+            g_scene_frame.main_scene_invalidated = true;
+        }
+        if (BeginReviewedSceneUiBoundary(&g_scene_frame)) {
+            g_scene_frame.composite_succeeded = CompositeDepthEdgesBeforeUi();
+        }
+        // Even when capture is unavailable, this verified call marks UI
+        // ownership. Never start modifying perspective UI widgets afterward.
+        g_scene_frame.phase = SceneFramePhase::ui;
+    }
     const auto original = LoadFunction<GlMatrixMode>(&g_original_matrix_mode);
     if (original != nullptr) {
         original(mode);
@@ -1626,6 +1674,8 @@ BOOL WINAPI StrongSwapBuffers(const HDC device_context) noexcept {
     const BOOL result = original != nullptr ? original(device_context) : FALSE;
     EndDepthEdgeFrame();
     g_scene_frame = {};
+    g_scene_frame.boundary_mapping_verified = g_scene_mapping_verified;
+    g_main_scene_context = nullptr;
     InvalidateFixedFunctionState(&g_fixed_function_state);
     ObservePerformancePresent(performance_started_qpc, result != FALSE);
     return result;
@@ -2214,6 +2264,7 @@ DWORD StartStrongCelShading() noexcept {
         || g_delete_lists_slot != nullptr
         || g_viewport_slot != nullptr
         || g_matrix_mode_slot != nullptr
+        || g_clear_slot != nullptr
         || g_draw_arrays_slot != nullptr
         || g_draw_elements_slot != nullptr
         || g_vertex_pointer_slot != nullptr
@@ -2234,6 +2285,7 @@ DWORD StartStrongCelShading() noexcept {
         || g_original_delete_lists != nullptr
         || g_original_viewport != nullptr
         || g_original_matrix_mode != nullptr
+        || g_original_clear != nullptr
         || g_original_draw_arrays != nullptr
         || g_original_draw_elements != nullptr
         || g_original_vertex_pointer != nullptr
@@ -2279,7 +2331,12 @@ DWORD StartStrongCelShading() noexcept {
     ) {
         return ERROR_BAD_EXE_FORMAT;
     }
-    std::array<ImportHookPlan, 19U> plans{{
+    std::array<ImportHookPlan, 20U> plans{{
+        {
+            "glClear",
+            reinterpret_cast<PVOID>(&StrongClear),
+            nullptr, nullptr, &g_original_clear, &g_clear_slot,
+        },
         {
             "glShadeModel",
             reinterpret_cast<PVOID>(&StrongShadeModel),
@@ -2434,6 +2491,16 @@ DWORD StartStrongCelShading() noexcept {
         },
     }};
     auto* const image = reinterpret_cast<std::uint8_t*>(executable);
+    const auto image_base = reinterpret_cast<std::uintptr_t>(image);
+    const bool reviewed_executable = GraphicsExecutableSha256Matches(
+        "55fbad5f0110cd99b4085af72d1e8fddb782ccdec1491478492c18158f5c61bc")
+        || GraphicsExecutableSha256Matches(
+            "a9a59004b36f9331bb85f85e7853a02a5d5f07bda9acb9ea4a8affbf169a54b8");
+    const bool reviewed_code = reviewed_executable
+        && nt->OptionalHeader.SizeOfImage >= kSceneDisplayRva + kSceneDisplaySize
+        && IsReadableMemoryRange(image + kSceneDisplayRva, kSceneDisplaySize)
+        && IsReviewedSceneDisplayCode(image + kSceneDisplayRva, kSceneDisplaySize,
+            static_cast<std::uint32_t>(image_base));
     for (ImportHookPlan& plan : plans) {
         plan.slot = FindImportAddressSlot(
             image,
@@ -2444,6 +2511,13 @@ DWORD StartStrongCelShading() noexcept {
         plan.original = reinterpret_cast<PVOID>(GetProcAddress(opengl, plan.symbol_name));
         if (plan.slot == nullptr || plan.original == nullptr) {
             return ERROR_PROC_NOT_FOUND;
+        }
+        if (reviewed_code
+            && ((std::strcmp(plan.symbol_name, "glClear") == 0
+                    && reinterpret_cast<std::uint8_t*>(plan.slot) - image != kSceneClearIatRva)
+                || (std::strcmp(plan.symbol_name, "glMatrixMode") == 0
+                    && reinterpret_cast<std::uint8_t*>(plan.slot) - image != kSceneMatrixModeIatRva))) {
+            return ERROR_INVALID_ADDRESS;
         }
         const std::uintptr_t original_address = reinterpret_cast<std::uintptr_t>(plan.original);
         const std::uintptr_t replacement_address = reinterpret_cast<std::uintptr_t>(
@@ -2491,6 +2565,10 @@ DWORD StartStrongCelShading() noexcept {
     for (HelperFunctionPlan& helper : helpers) {
         InterlockedExchangePointer(helper.storage, helper.resolved);
     }
+    InterlockedExchangePointer(&g_get_current_context,
+        reinterpret_cast<PVOID>(GetProcAddress(opengl, "wglGetCurrentContext")));
+    g_scene_mapping_verified = reviewed_code && g_get_current_context != nullptr;
+    g_scene_image_base = image_base;
     ClearDisplayListBounds();
     InterlockedExchange(&g_viewport_x, 0);
     InterlockedExchange(&g_viewport_y, 0);
@@ -2505,9 +2583,14 @@ DWORD StartStrongCelShading() noexcept {
     g_immediate_scene_projection = {};
     g_immediate_scene_viewport = {};
     g_scene_frame = {};
+    g_scene_frame.boundary_mapping_verified = g_scene_mapping_verified;
+    g_main_scene_context = nullptr;
     g_fixed_function_state = {};
     ResetBandedLighting();
     ResetDepthEdges();
+    if (!g_scene_mapping_verified) {
+        ReportDepthEdgePassFailure("unreviewed-client-scene-boundary");
+    }
     for (ImportHookPlan& plan : plans) {
         InterlockedExchangePointer(plan.original_storage, plan.original);
         const DWORD result = ReplaceImportSlot(
@@ -2543,6 +2626,10 @@ DWORD StartStrongCelShading() noexcept {
 
 void StopStrongCelShading() noexcept {
     bool restored = true;
+    if (!RestoreHook(&g_clear_slot, &g_original_clear,
+            reinterpret_cast<PVOID>(&StrongClear))) {
+        restored = false;
+    }
     if (!RestoreHook(
             &g_swap_buffers_slot,
             &g_original_swap_buffers,
@@ -2684,6 +2771,10 @@ void StopStrongCelShading() noexcept {
         restored = false;
     }
     if (restored) {
+        g_scene_mapping_verified = false;
+        g_scene_image_base = 0U;
+        g_main_scene_context = nullptr;
+        InterlockedExchangePointer(&g_get_current_context, nullptr);
         ClearDisplayListBounds();
         InterlockedExchange(&g_viewport_height, 0);
         InterlockedExchange(&g_viewport_width, 0);

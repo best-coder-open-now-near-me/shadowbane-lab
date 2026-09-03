@@ -74,9 +74,23 @@ struct SceneFrameState {
     SceneFramePhase phase = SceneFramePhase::awaiting_world;
     std::array<std::uint64_t, kDrawLayerCount> draw_counts{};
     std::array<std::uint64_t, kDrawClassificationReasonCount> reason_counts{};
+    std::uint64_t draw_count = 0U;
+    std::uint64_t world_draw_count = 0U;
     std::uint64_t boundary_count = 0U;
     std::uint64_t late_world_draw_count = 0U;
+    std::uint64_t composite_candidate_count = 0U;
+    std::uint64_t rejected_composite_candidate_count = 0U;
+    std::uint64_t first_world_draw_ordinal = 0U;
+    std::uint64_t first_composite_candidate_draw_ordinal = 0U;
+    std::uint64_t accepted_boundary_draw_ordinal = 0U;
+    std::uint64_t first_late_world_draw_ordinal = 0U;
+    std::uint64_t last_world_draw_ordinal = 0U;
     std::uint64_t fixed_function_refresh_count = 0U;
+    std::uint64_t main_scene_start_count = 0U;
+    std::uint64_t main_scene_world_draw_count = 0U;
+    bool boundary_mapping_verified = false;
+    bool main_scene_invalidated = false;
+    bool composite_succeeded = false;
     bool composite_requested = false;
 };
 
@@ -91,6 +105,9 @@ DrawClassification ClassifyFixedFunctionDraw(
 ) noexcept;
 bool IsWorldLayer(DrawLayer layer) noexcept;
 bool IsUiLayer(DrawLayer layer) noexcept;
+bool IsSceneCompositeCandidate(
+    const DrawClassification& classification
+) noexcept;
 const char* DrawLayerName(DrawLayer layer) noexcept;
 const char* DrawClassificationReasonName(
     DrawClassificationReason reason
@@ -99,5 +116,8 @@ SceneFrameDecision AdvanceSceneFrame(
     SceneFrameState* frame,
     const DrawClassification& classification
 ) noexcept;
+// Called only by the exact reviewed main-clear / pre-UI import call sites.
+void ObserveMainSceneClear(SceneFrameState* frame) noexcept;
+bool BeginReviewedSceneUiBoundary(SceneFrameState* frame) noexcept;
 
 }  // namespace wonderbane::extension

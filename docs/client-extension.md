@@ -512,3 +512,45 @@ remain eligible for per-draw cel lighting and feature accents even when they occ
 observed UI boundary; the late ordering remains counted diagnostically and does not request a
 second scene composite. This preserves original UI draws while preventing an early orthographic
 submission from disabling world effects for the entire frame.
+
+Extension 1.6.7 corrects the remaining premature-boundary case observed in the live 1.6.6 frame
+diagnostics. A single perspective planar overlay appeared before 1,104 subsequent world draws and
+was incorrectly allowed to seal the scene, so the depth-edge composite contained almost no world
+geometry even though its counters reported success. Planar overlays are now excluded from cel
+processing without changing the scene phase; the later orthographic transition owns the one
+pre-UI composite. Diagnostics require exactly one boundary and zero late-world draws before they
+claim that world/UI separation was observed.
+
+Extension 1.6.8 restores the composite ownership that produced the known-good 1.5.6 through 1.6.1
+screen-space contours. The earlier scaling defect was not a texture-atlas defect: the old exterior
+pass enlarged each mesh, converted a desired pixel width into world-space scale, and suppressed the
+result below an estimated 0.75-pixel threshold. Commit `78a5942` replaced that path with a true
+one-screen-pixel depth discontinuity, and that fixed-pixel implementation remains intact.
+
+The later scene-classifier refactor regressed when that intact depth pass ran. It let the first
+UI-shaped classification permanently own the frame boundary even when the depth pass had no pending
+world geometry. Live 1.6.7 evidence then disproved the remaining assumption that the first
+orthographic draw was a trustworthy boundary. In 1.6.8 orthographic and planar draws are retryable
+composite candidates, while the idempotent depth pass alone accepts and seals the boundary after a
+world draw has armed it. A rejected candidate leaves the scene in its current phase so later world
+draws remain part of the capture; an accepted attempt consumes the sole composite for that frame.
+
+The status document now preserves a bounded ordered journal for every completed frame: total and
+world draw counts, candidate and rejected-candidate counts, and the ordinals of the first world,
+first candidate, accepted boundary, first late world, and last world draws. The diagnostics consumer
+reconciles those milestones with the layer totals and refuses to claim world/UI separation unless
+the last world draw precedes the accepted boundary. This records the ordering evidence that the
+1.6.6 and 1.6.7 aggregate counters could not preserve.
+
+### 1.6.9: reviewed main-scene boundary recovery
+
+Live 1.6.8 ordering evidence disproved the armed-depth heuristic: preliminary
+geometry and early overlays could still consume the scene before the main clear.
+The renderer now uses the reviewed client's main-clear and `done3D` UI setup
+call sites, guarded by exact executable identity and a relocation-normalized hash
+of the complete owning routine. It keeps one GPU-only capture/composite before
+UI, preserves the main projection, and reports latest-frame composite success.
+Unknown mappings keep original rendering; no guessed boundary is substituted.
+
+The durable evidence, mapping, regression cases, artifact pins and outstanding
+live acceptance are in [the recovery journal](investigations/renderer-scene-boundary.md).

@@ -21,13 +21,15 @@ bool IsForegroundDepthDiscontinuity(
 const char* DepthEdgeFragmentSource() noexcept;
 const char* DepthEdgeVertexSource() noexcept;
 
-void MarkDepthEdgeSceneDraw(
+bool BeginMainDepthEdgeScene(
     const float* projection,
     std::size_t projection_count,
     const int* viewport,
     std::size_t viewport_count
 ) noexcept;
-void CompositeDepthEdgesBeforeUi() noexcept;
+void MarkDepthEdgeSceneDraw() noexcept;
+bool CompositeDepthEdgesBeforeUi() noexcept;
+void DiscardPendingDepthEdgeScene() noexcept;
 void EndDepthEdgeFrame() noexcept;
 void ResetDepthEdges() noexcept;
 

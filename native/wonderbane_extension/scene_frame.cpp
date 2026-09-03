@@ -23,7 +23,7 @@ DrawClassification ClassifyFixedFunctionDraw(
         && !state.lighting_enabled
         && !state.fog_enabled) {
         return {
-            DrawLayer::ui_overlay,
+            DrawLayer::world_overlay,
             DrawClassificationReason::planar_overlay_state,
         };
     }
@@ -60,6 +60,15 @@ bool IsWorldLayer(const DrawLayer layer) noexcept {
 
 bool IsUiLayer(const DrawLayer layer) noexcept {
     return layer == DrawLayer::ui_overlay;
+}
+
+bool IsSceneCompositeCandidate(
+    const DrawClassification& classification
+) noexcept {
+    return classification.reason
+            == DrawClassificationReason::orthographic_projection
+        || classification.reason
+            == DrawClassificationReason::planar_overlay_state;
 }
 
 const char* DrawLayerName(const DrawLayer layer) noexcept {
@@ -115,6 +124,7 @@ SceneFrameDecision AdvanceSceneFrame(
     if (frame == nullptr) {
         return decision;
     }
+    ++frame->draw_count;
     const std::size_t layer_index = static_cast<std::size_t>(classification.layer);
     if (layer_index < frame->draw_counts.size()) {
         ++frame->draw_counts[layer_index];
@@ -125,28 +135,70 @@ SceneFrameDecision AdvanceSceneFrame(
     if (reason_index < frame->reason_counts.size()) {
         ++frame->reason_counts[reason_index];
     }
+    if (IsSceneCompositeCandidate(classification) && !frame->composite_requested) {
+        // Shape/state candidates are diagnostic only. Even an armed depth pass
+        // cannot prove that the main world has finished (1.6.8 regression).
+        ++frame->composite_candidate_count;
+        ++frame->rejected_composite_candidate_count;
+        if (frame->first_composite_candidate_draw_ordinal == 0U) {
+            frame->first_composite_candidate_draw_ordinal = frame->draw_count;
+        }
+    }
+    if (classification.reason == DrawClassificationReason::planar_overlay_state) {
+        // Preserve the separate planar-overlay effect policy, not phase authority.
+        return decision;
+    }
     if (IsWorldLayer(classification.layer)) {
-        decision.contributes_to_scene = true;
+        ++frame->world_draw_count;
+        if (frame->first_world_draw_ordinal == 0U) {
+            frame->first_world_draw_ordinal = frame->draw_count;
+        }
+        frame->last_world_draw_ordinal = frame->draw_count;
         if (frame->phase == SceneFramePhase::ui) {
             ++frame->late_world_draw_count;
+            if (frame->first_late_world_draw_ordinal == 0U) {
+                frame->first_late_world_draw_ordinal = frame->draw_count;
+            }
             return decision;
+        }
+        decision.contributes_to_scene = true;
+        if (frame->main_scene_start_count == 1U) {
+            ++frame->main_scene_world_draw_count;
         }
         frame->phase = SceneFramePhase::world;
         return decision;
     }
-    if (IsUiLayer(classification.layer)) {
-        if (frame->phase == SceneFramePhase::awaiting_world) {
-            return decision;
-        }
-        if (frame->phase == SceneFramePhase::world
-            && !frame->composite_requested) {
-            frame->composite_requested = true;
-            ++frame->boundary_count;
-            decision.composite_before_draw = true;
-        }
-        frame->phase = SceneFramePhase::ui;
-    }
     return decision;
+}
+
+void ObserveMainSceneClear(SceneFrameState* const frame) noexcept {
+    if (frame == nullptr) {
+        return;
+    }
+    ++frame->main_scene_start_count;
+    frame->main_scene_world_draw_count = 0U;
+    if (frame->composite_requested || frame->main_scene_start_count != 1U) {
+        frame->main_scene_invalidated = true;
+    }
+}
+
+bool BeginReviewedSceneUiBoundary(SceneFrameState* const frame) noexcept {
+    if (frame == nullptr || !frame->boundary_mapping_verified
+        || frame->composite_requested || frame->main_scene_invalidated
+        || frame->main_scene_start_count != 1U
+        || frame->main_scene_world_draw_count == 0U) {
+        return false;
+    }
+    ++frame->composite_candidate_count;
+    if (frame->first_composite_candidate_draw_ordinal == 0U) {
+        frame->first_composite_candidate_draw_ordinal = frame->draw_count + 1U;
+    }
+    frame->composite_requested = true;
+    ++frame->boundary_count;
+    // Signal occurs between draws: identify the next draw, even for a hidden UI.
+    frame->accepted_boundary_draw_ordinal = frame->draw_count + 1U;
+    frame->phase = SceneFramePhase::ui;
+    return true;
 }
 
 }  // namespace wonderbane::extension
