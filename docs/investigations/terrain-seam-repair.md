@@ -125,7 +125,7 @@ Release DLL identities:
 - Full: `39ee563be8e32353d60c6f9e3ebb801b8db1bffddb6dcb734fbd4f66b2285114`.
 - Diagnostics-only: `e6a46c13f951e0e5b2f910be498c4bf99dd15e34a00888a33441631b6717cf2d`.
 
-Current remaining sequence:
+Sequence at the release checkpoint (superseded by the live result below):
 
 1. COMPLETE: implement and validate the bounded observer and local collector.
 2. ACTIVE: prepare the frozen 1.6.12 bundle, then publish/launch on testing after
@@ -136,3 +136,52 @@ Current remaining sequence:
 
 The working source and build artifacts are local; push remains held by the
 earlier approval restriction. The old published 1.6.11 package is retained.
+
+## Live attribution checkpoint — 2026-09-03
+
+The frozen 1.6.12 package was published and launched on testing after normal
+client exit. Preferences were backed up and restored; the plain VM and prior
+packages remain untouched. One exact PID/creation-time-bound trace was captured
+after the user positioned the view. The source trace remains guest-local; it was
+not copied or uploaded. Subsequent user authorization allowed screen inspection.
+
+The reviewed interval completed: 1,506 submissions observed, 1,505 retained,
+303 unit/binding pairs. One unsafe submission was skipped and units 4–7 were
+outside the four-unit observer. There were no capacity or query-budget skips.
+The 3.5223 ms query total is observer accounting, not a frame-performance result.
+All retained entries reported successful active-unit restoration.
+
+Exact patched executable SHA-256:
+`a9a59004b36f9331bb85f85e7853a02a5d5f07bda9acb9ea4a8affbf169a54b8`.
+Within the statically identified terrain draw method, return RVAs `0x4f1772`
+and `0x4f1864` attribute 25 base passes and 29 masked layer passes respectively.
+They use the indexed-triangle submitter at RVA `0x1a0765`. The additive,
+depth-write-disabled strip family was separately inspected and ruled out.
+
+All 29 layer masks were enabled on texture unit 1, used edge clamping on both
+axes, and used linear magnification. Their sampled matrices were identity.
+Mask dimensions were 64×64 or 128×128, paired with 256×256 color textures.
+The observed seam therefore does not justify a blanket wrap-mode override.
+
+The user reported one disturbed water frame during collection and then confirmed
+that it immediately cleared. Live-control sequence remained 2/2, with no rejected
+updates or control errors. Record this as a transient observer concern; active-unit
+restoration alone does not prove absence of all rendering disturbance. No second
+capture was requested.
+
+The repeatable, offline [terrain trace analyzer](../diagnostics/terrain-trace-analysis.md)
+now packages the reviewed attribution and state grouping. It consumes saved data,
+rejects unknown executable profiles and contradictory evidence, and never treats
+context-local texture names as cache IDs or permission to alter resources.
+
+Current remaining sequence:
+
+1. COMPLETE: frozen package launch, settings preservation, and one local capture.
+2. COMPLETE: identify the actual terrain pass family and its observed mask state.
+3. ACTIVE: connect those terrain bindings to reviewed cache/archive records and
+   determine the neighboring-mask sampling convention without another capture.
+4. Implement the evidence-supported seam repair, validate the complete package
+   and frame cost, then let the user judge its appearance.
+
+No seam repair or visual acceptance is claimed yet. Working evidence and commits
+remain local; the earlier push/export restriction remains in force.
