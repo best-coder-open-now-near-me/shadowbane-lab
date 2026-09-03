@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from math import isfinite
 from statistics import fmean
 
@@ -292,15 +292,22 @@ class UtilityPolicyLeagueEvaluator:
             raise ValueError("controlled and opponent mechanics must differ")
         if len(opponent_digests) != len(set(opponent_digests)):
             raise ValueError("opponent mechanics must be distinct")
-        if controlled.loadout_id in {item.loadout_id for item in opponents}:
-            raise ValueError("controlled and opponent loadout ids must differ")
-        if len(tuple(item.loadout_id for item in opponents)) != len(
-            {item.loadout_id for item in opponents}
-        ):
-            raise ValueError("opponent loadout ids must be unique")
         self._ruleset = ruleset
-        self._controlled = controlled
-        self._opponents = opponents
+        self._controlled = replace(
+            controlled,
+            loadout_id=f"controlled.{controlled_digest[:20]}",
+            display_name="Controlled policy build",
+        )
+        self._opponents = tuple(
+            replace(
+                item,
+                loadout_id=f"opponent.{index:03d}.{digest[:20]}",
+                display_name=f"Policy opponent {index:03d}",
+            )
+            for index, (item, digest) in enumerate(
+                zip(opponents, opponent_digests, strict=True)
+            )
+        )
         self._scenarios = scenarios
         self._seeds = tuple(sorted(seeds))
         self._opponent_weights = opponent_weights
