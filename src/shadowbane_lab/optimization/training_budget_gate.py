@@ -30,7 +30,7 @@ class TrainingCatalogLegalityAudit(CatalogLegalityAudit):
             raise LegalBuildCompileError("training_allocation has the wrong type")
 
     def as_dict(self) -> dict[str, object]:
-        payload = super().as_dict()
+        payload = CatalogLegalityAudit.as_dict(self)
         payload["training_allocation"] = self.training_allocation.as_dict()
         payload["power_budget_scope"] = (
             "source-pinned earned budget with conservative rank-cost lower bounds"
