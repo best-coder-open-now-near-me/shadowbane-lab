@@ -971,3 +971,49 @@ Completed: archive-byte identity, shared material/height role audit, and the
 tile-center ownership lookup review. ACTIVE todo: establish how this region's
 material-map coverage meets its ownership boundary, then choose a scoped repair.
 No VM settings, renderer code, client archives or builds changed in this step.
+
+## Preserve location context with future material captures
+
+The existing `NativeCurrentZoneReader` already supplies the exact player-selected
+zone's parent chain, template/instance keys, runtime bounds, quaternion, centers
+and radii. Its reviewed layout family includes the current a9a5 client; no new
+region-tree probe or guessed offsets are needed for this location check.
+
+Terrain material polling now offers `--include-world-context`, reusing that
+reader and `NativePlayerPositionReader` on the same read-only, creation-time-bound
+handle. A zone/position/zone sandwich is retained before and after the polling
+interval with UTC and monotonic timestamps. A changed zone is labeled, missing
+context has no invented values, and an identity change aborts publication. The
+helper borrows but never closes the caller's handle. Context has its own schema
+version inside the additive schema-4 material report and is not part of source
+fingerprints. Poll duration excludes endpoint work.
+
+This is location context, **not** atomic per-draw ownership. An active player zone
+can differ from the owner of a visible tile; equal endpoints do not rule out
+intervening travel. Runtime keys can be joined to existing offline archives.
+No cache reads or runtime mutations are introduced by the option.
+
+Additional static review resolves primary RTTI vtables 0x154b958 for
+ArcEllipticalGameZone and 0x154b9ec for ArcRectangularGameZone. Slot +0x3c reaches
+0x65c9e0 and 0x65d6e0 respectively. The rectangle predicate transforms the point
+and uses strict inequalities against its radii; the ellipse uses a strict
+sum-of-distances test. The transform import is Math.dll Quaternion::Rotate.
+None of this proves that the current seam is an off-by-one defect: the relevant
+instance's actual placement still has to be read. These remain offline findings,
+not authority to patch the predicates or change zone ownership globally.
+
+At 20:52 UTC a read-only VM screenshot showed Snow Orc Village, not the earlier
+Sea Dog's Rest capture location. No input was sent there. The user was asked to
+return when convenient for the existing current-zone check; no restart is needed.
+Do not attach a later location's context to the saved PID 960 terrain frame as
+if it were contemporaneous. New context must retain its own timestamps.
+
+Validation: 74 focused context/material/analysis tests passed; full Python suite
+1,584 passed, 7 skipped, 211 subtests passed. Focused Ruff and diff checks passed.
+The native renderer and tested VM package are unchanged. This tool addition has
+not yet been staged or exercised on the VM. All checkpoints remain local; no push.
+
+Completed: reusable context capture and static containment review.
+ACTIVE todo: read the exact zone context after return to the original seam, then
+compare tile-center coverage with the preserved material discontinuities. Scoped
+repair selection and visual seam acceptance remain open; no visual fix is claimed.

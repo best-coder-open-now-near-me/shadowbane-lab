@@ -575,3 +575,57 @@ def test_staged_ownership_still_rejects_root_change_during_association(tmp_path,
     result = _capture(backend, tmp_path, profile, staged_ownership=True)
     assert result["snapshots"] == []
     assert "terrain shader owner changed during the sample" in result["warnings"]
+
+
+def test_world_context_is_opt_in(tmp_path, alpha_scene, monkeypatch):
+    import shadowbane_lab.diagnostics.terrain_material_poll as module
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("context reader should not run without opt-in")
+
+    monkeypatch.setattr(module, "observe_terrain_world_context", forbidden)
+    backend, profile, _ = alpha_scene
+    result = _capture(backend, tmp_path, profile)
+    assert "world_context" not in result
+    assert result["scope"]["world_context_requested"] is False
+
+
+def test_world_context_brackets_poll_on_same_handle(tmp_path, alpha_scene, monkeypatch):
+    import shadowbane_lab.diagnostics.terrain_material_poll as module
+
+    backend, profile, _ = alpha_scene
+    calls = []
+
+    def observe(process, *, expected_creation_filetime):
+        assert process is backend
+        assert expected_creation_filetime == backend.process_creation_filetime_utc
+        calls.append(len(calls))
+        return {"status": "captured", "sample": len(calls)}
+
+    monkeypatch.setattr(module, "observe_terrain_world_context", observe)
+    result = _capture(backend, tmp_path, profile, include_world_context=True)
+    assert calls == [0, 1]
+    assert result["world_context"]["before_poll"]["sample"] == 1
+    assert result["world_context"]["after_poll"]["sample"] == 2
+    assert result["scope"]["world_context_requested"] is True
+    assert result["unique_source_count"] == 1
+
+
+def test_world_context_identity_failure_does_not_publish(tmp_path, alpha_scene, monkeypatch):
+    import shadowbane_lab.diagnostics.terrain_material_poll as module
+    from shadowbane_lab.diagnostics.terrain_world_context import TerrainWorldContextIdentityError
+
+    backend, profile, _ = alpha_scene
+    calls = 0
+
+    def observe(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise TerrainWorldContextIdentityError("lifetime changed")
+        return {"status": "captured"}
+
+    monkeypatch.setattr(module, "observe_terrain_world_context", observe)
+    with pytest.raises(TerrainWorldContextIdentityError):
+        _capture(backend, tmp_path, profile, include_world_context=True)
+    assert not (tmp_path / "material-poll.json").exists()

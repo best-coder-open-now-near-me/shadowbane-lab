@@ -34,6 +34,24 @@ textures, color layers, source alpha masks, and GPU-facing mask copies. Generate
 or unattributed zero tokens remain labeled as such. The result does not identify
 a screen pixel or authorize a cache edit.
 
+## Optional position and zone context
+
+For terrain seam investigations, also add `--include-world-context`. This records
+player LT/LG/altitude and the active zone's complete parent chain, template/instance
+keys, bounds, centers, radii and rotation before and after the material poll.
+It reuses the existing build-guarded position/zone readers on the **same** process
+handle; no new offsets, scans, hooks or game input are introduced. Each endpoint
+has UTC and monotonic timestamps and brackets the position with two zone reads.
+Changes and unavailable context remain explicit. A process-lifetime mismatch
+aborts publication. No cache contents are read by this option.
+
+This additive schema-4 `world_context` field has its own schema version. It is
+not per-frame telemetry or an atomic capture, cannot rule out intervening travel,
+and does not mean the player's zone owns all visible terrain. Compare both
+endpoints, then join the exact template keys to offline archives. The reported
+poll duration excludes these endpoint reads. Existing captures without this
+option cannot retroactively supply that context.
+
 ## Optional resident alpha evidence
 
 Add `--include-resident-alpha` to capture already-resident CPU bytes for source

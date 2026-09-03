@@ -36,6 +36,7 @@ from shadowbane_lab.diagnostics.terrain_mesh_snapshot import (
     TerrainMeshCaptureError,
     capture_mesh_snapshot,
 )
+from shadowbane_lab.diagnostics.terrain_world_context import observe_terrain_world_context
 
 SCHEMA_VERSION = 4
 MINIMUM_USER_ADDRESS = 0x10000
@@ -511,6 +512,7 @@ def capture_terrain_material_poll(
     include_mesh: bool = False,
     profile: TerrainMaterialProfile = PROFILE,
     staged_ownership: bool = False,
+    include_world_context: bool = False,
     monotonic: Callable[[], float] = time.monotonic,
     sleep: Callable[[float], None] = time.sleep,
 ) -> dict[str, object]:
@@ -523,6 +525,13 @@ def capture_terrain_material_poll(
         raise FileExistsError(f"refusing to replace existing capture: {output_path}")
     signatures_before = _validate_snapshot_target(
         backend, profile, expected_creation_filetime, include_resident_alpha, include_mesh
+    )
+    context_before = (
+        observe_terrain_world_context(
+            backend, expected_creation_filetime=expected_creation_filetime
+        )
+        if include_world_context
+        else None
     )
     alpha_budget = _AlphaReadBudget() if include_resident_alpha else None
     mesh_budget = MeshReadBudget() if include_mesh else None
@@ -559,6 +568,14 @@ def capture_terrain_material_poll(
                 snapshot["observed_elapsed_ms"] = round((monotonic() - started) * 1000, 3)
                 snapshots.append(snapshot)
         sleep(poll_interval_seconds)
+    poll_finished = monotonic()
+    context_after = (
+        observe_terrain_world_context(
+            backend, expected_creation_filetime=expected_creation_filetime
+        )
+        if include_world_context
+        else None
+    )
     signatures_after = _validate_snapshot_target(
         backend, profile, expected_creation_filetime, include_resident_alpha, include_mesh
     )
@@ -568,7 +585,7 @@ def capture_terrain_material_poll(
         "profile_id": profile.profile_id,
         "started_at_utc": started_utc,
         "completed_at_utc": _utc_now(),
-        "elapsed_seconds": round(monotonic() - started, 3),
+        "elapsed_seconds": round(poll_finished - started, 3),
         "process_id": backend.pid,
         "process_creation_filetime_utc": backend.process_creation_filetime_utc,
         "executable_path": str(backend.executable_path),
@@ -605,6 +622,7 @@ def capture_terrain_material_poll(
             "resident_alpha_requested": include_resident_alpha,
             "mesh_requested": include_mesh,
             "staged_ownership": staged_ownership,
+            "world_context_requested": include_world_context,
             "pixels_read": bool(alpha_budget and alpha_budget.bytes_reserved),
             "texture_bytes_read": bool(alpha_budget and alpha_budget.bytes_reserved),
             "gpu_readback": False,
@@ -626,6 +644,18 @@ def capture_terrain_material_poll(
             "Neither mode pins object lifetimes or excludes every ABA change."
         ),
     }
+    if include_world_context:
+        result["world_context"] = {
+            "schema_version": 1,
+            "before_poll": context_before,
+            "after_poll": context_after,
+            "interpretation": (
+                "Player position and active zone/parent-chain geometry bracket the polling "
+                "interval on the same process handle. These are not per-frame samples, an "
+                "atomic snapshot, proof of no intervening travel, or ownership attribution "
+                "for every visible tile. Compare both endpoints before applying context."
+            ),
+        }
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("x", encoding="utf-8") as destination:
         json.dump(result, destination, indent=2, sort_keys=True, allow_nan=False)
@@ -643,6 +673,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--include-resident-alpha", action="store_true")
     parser.add_argument("--include-mesh", action="store_true")
     parser.add_argument("--staged-ownership", action="store_true")
+    parser.add_argument("--include-world-context", action="store_true")
     options = parser.parse_args(argv)
     process = None
     try:
@@ -656,6 +687,7 @@ def main(argv: list[str] | None = None) -> int:
             include_resident_alpha=options.include_resident_alpha,
             include_mesh=options.include_mesh,
             staged_ownership=options.staged_ownership,
+            include_world_context=options.include_world_context,
         )
     except (OSError, RuntimeError, ValueError) as error:
         print(str(error))
