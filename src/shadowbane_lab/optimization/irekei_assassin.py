@@ -42,11 +42,8 @@ from .map_elites import (
     run_map_elites,
 )
 from .strict_training import StrictLegalBuildLeagueEvaluator
-from .training import (
-    CatalogBackedLegalityGate,
-    DuelScenario,
-    genome_mechanical_digest,
-)
+from .training import DuelScenario, genome_mechanical_digest
+from .training_budget_gate import TrainingBudgetBackedLegalityGate
 
 
 @dataclass(frozen=True, slots=True)
@@ -162,7 +159,7 @@ def run_irekei_assassin_search(
         ruleset=ruleset,
         policy=policy,
     )
-    gate = CatalogBackedLegalityGate(calculator, equipment)
+    gate = TrainingBudgetBackedLegalityGate(calculator, equipment)
     allocation_space = CalculatorAllocationSpace(calculator)
 
     powers = assassin_preset.build.power_ranks
@@ -276,12 +273,13 @@ def run_irekei_assassin_search(
         caveats=(
             "The archive is candidate-grade because current equipment values are "
             "historical candidates and selected action rows use reviewed overrides.",
+            "The non-Human Rogue earned-training schedule is source-pinned, but power "
+            "rank cost is still a conservative one-point-per-rank lower bound and "
+            "displayed skill training costs remain unresolved.",
             "Named item skill requirements and two-handed conflicts are enforced; "
-            "opaque requirement tokens and general skill-train costs remain unresolved.",
-            "Attribute mutations and rune-cost repairs now execute only through the "
+            "opaque requirement tokens remain unresolved.",
+            "Attribute mutations and rune-cost repairs execute only through the "
             "reviewed WonderBane calculator allocation space.",
-            "Power-rank points are checked only as a necessary lower bound against the "
-            "sourced Rogue pool.",
             "The readable reference simulator remains the correctness oracle; this "
             "experiment is not yet the high-throughput NumPy/Numba backend.",
             "Results compare the current legal-build adapter against deterministic "
