@@ -216,7 +216,6 @@ if(BUILD_TESTING)
   add_executable(
     wonderbane_extension_cel_shading_test
     banded_lighting.cpp
-    cel_shading.cpp
     cel_shading_test.cpp
     depth_edges.cpp
     fixed_function_state.cpp

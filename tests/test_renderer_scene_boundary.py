@@ -46,6 +46,32 @@ def test_current_frame_not_lifetime_success_controls_separation(tmp_path, succes
     assert result.report["assessment"]["world_ui_separation_observed"] is success
 
 
+@pytest.mark.parametrize("refreshes,invalidations,accepted", [
+    (1, 0, True), (2, 1, True), (4, 3, True), (2, 0, False), (4, 2, False),
+    (2, True, False), (2, -1, False), (2, None, False),
+])
+def test_state_boundary_refreshes_require_counted_invalidations(
+    tmp_path, refreshes, invalidations, accepted
+):
+    executable, identity, payload = reviewed_status(tmp_path)
+    classification = payload["draw_classification"]
+    classification["policy"]["state_boundary_refreshes"] = "counted-invalidations"
+    classification["latest"]["fixed_function_refresh_count"] = refreshes
+    classification["latest"]["fixed_function_state_invalidation_count"] = invalidations
+    result = assess(tmp_path, executable, identity, payload)
+    assert result.complete is accepted, result.failure
+    if accepted:
+        assert result.report["assessment"]["fixed_function_refresh_bounded"] is True
+
+
+def test_legacy_policy_cannot_claim_unaccounted_extra_refreshes(tmp_path):
+    executable, identity, payload = reviewed_status(tmp_path)
+    payload["draw_classification"]["latest"].update(
+        fixed_function_refresh_count=2, fixed_function_state_invalidation_count=10
+    )
+    assert not assess(tmp_path, executable, identity, payload).complete
+
+
 @pytest.mark.parametrize("field,value", [
     ("boundary_mapping_verified", False),
     ("boundary_mapping_verified", 1),

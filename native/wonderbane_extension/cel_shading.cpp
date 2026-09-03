@@ -195,6 +195,7 @@ std::uint32_t* g_disable_client_state_slot = nullptr;
 std::uint32_t* g_enable_slot = nullptr;
 std::uint32_t* g_disable_slot = nullptr;
 std::uint32_t* g_depth_mask_slot = nullptr;
+std::uint32_t* g_pop_attrib_slot = nullptr;
 std::uint32_t* g_swap_buffers_slot = nullptr;
 volatile LONG g_viewport_x = 0;
 volatile LONG g_viewport_y = 0;
@@ -220,6 +221,7 @@ thread_local std::array<int, 4U> g_immediate_scene_viewport{};
 thread_local SceneFrameState g_scene_frame{};
 thread_local HGLRC g_main_scene_context = nullptr;
 thread_local FixedFunctionStateMirror g_fixed_function_state{};
+thread_local HGLRC g_fixed_function_context = nullptr;
 
 struct CapturedVertex {
     std::array<float, 3U> position{};
@@ -1114,7 +1116,26 @@ void DrawDisplayListFeatureEdges(
     ReleaseSRWLockShared(&g_display_list_lock);
 }
 
+void InvalidateObservedFixedFunctionState() noexcept {
+    if (g_fixed_function_state.valid) {
+        ++g_scene_frame.fixed_function_state_invalidation_count;
+    }
+    InvalidateFixedFunctionState(&g_fixed_function_state);
+}
+
 bool RefreshFixedFunctionState() noexcept {
+    // A thread may render more than one context between presents. A valid
+    // snapshot belongs to its context, not merely to the calling thread.
+    const auto current_context = LoadFunction<WglGetCurrentContext>(&g_get_current_context);
+    const HGLRC context = current_context != nullptr ? current_context() : nullptr;
+    if (context != g_fixed_function_context) {
+        InvalidateObservedFixedFunctionState();
+        g_fixed_function_context = context;
+    }
+    // Never issue glGet between glBegin/glEnd or while recording a list.
+    if (g_immediate_primitive_open || IsCompilingDisplayListOnCurrentThread()) {
+        return false;
+    }
     if (g_fixed_function_state.valid) {
         return true;
     }
@@ -1480,6 +1501,9 @@ void APIENTRY StrongEndList() noexcept {
     if (original != nullptr) {
         original();
         EndDisplayListCapture();
+        // GL_COMPILE_AND_EXECUTE changes real state while our draw hooks are
+        // intentionally dormant. Refresh once at the next legal observation.
+        InvalidateObservedFixedFunctionState();
     }
 }
 
@@ -1591,8 +1615,18 @@ void APIENTRY StrongCallList(const unsigned int list) noexcept {
             original(list);
             return;
         }
+        const auto draw = [original, list]() noexcept {
+            original(list);
+            // Playback executes inside OpenGL and does not re-enter the
+            // executable's glEnable/glDisable/glDepthMask import hooks.
+            InvalidateObservedFixedFunctionState();
+        };
+        if (g_immediate_primitive_open) {
+            draw();
+            return;
+        }
         DrawWithSilhouette(
-            [original, list]() noexcept { original(list); },
+            draw,
             list,
             nullptr,
             DrawSubmission::display_list
@@ -1968,6 +2002,18 @@ void APIENTRY StrongDepthMask(const unsigned char flag) noexcept {
     }
 }
 
+void APIENTRY StrongPopAttrib() noexcept {
+    const auto original = LoadFunction<GlPopAttrib>(&g_pop_attrib);
+    if (original != nullptr) {
+        original();
+        if (!IsCompilingDisplayListOnCurrentThread()) {
+            // Restored enables/depth writes bypass their individual setters.
+            // Invalidation is safe even if OpenGL rejected the pop.
+            InvalidateObservedFixedFunctionState();
+        }
+    }
+}
+
 void APIENTRY StrongEnableClientState(const unsigned int array) noexcept {
     const auto original = LoadFunction<GlEnableClientState>(
         &g_original_enable_client_state
@@ -2274,6 +2320,7 @@ DWORD StartStrongCelShading() noexcept {
         || g_enable_slot != nullptr
         || g_disable_slot != nullptr
         || g_depth_mask_slot != nullptr
+        || g_pop_attrib_slot != nullptr
         || g_swap_buffers_slot != nullptr
         || g_original_shade_model != nullptr
         || g_original_begin != nullptr
@@ -2331,7 +2378,12 @@ DWORD StartStrongCelShading() noexcept {
     ) {
         return ERROR_BAD_EXE_FORMAT;
     }
-    std::array<ImportHookPlan, 20U> plans{{
+    std::array<ImportHookPlan, 21U> plans{{
+        {
+            "glPopAttrib",
+            reinterpret_cast<PVOID>(&StrongPopAttrib),
+            nullptr, nullptr, &g_pop_attrib, &g_pop_attrib_slot,
+        },
         {
             "glClear",
             reinterpret_cast<PVOID>(&StrongClear),
@@ -2538,13 +2590,12 @@ DWORD StartStrongCelShading() noexcept {
             }
         }
     }
-    std::array<HelperFunctionPlan, 16U> helpers{{
+    std::array<HelperFunctionPlan, 15U> helpers{{
         {"glTexCoord2f", &g_tex_coord_2f, nullptr},
         {"glGetFloatv", &g_get_floatv, nullptr},
         {"glGetIntegerv", &g_get_integerv, nullptr},
         {"glGetBooleanv", &g_get_booleanv, nullptr},
         {"glPushAttrib", &g_push_attrib, nullptr},
-        {"glPopAttrib", &g_pop_attrib, nullptr},
         {"glPushMatrix", &g_push_matrix, nullptr},
         {"glPopMatrix", &g_pop_matrix, nullptr},
         {"glTranslatef", &g_translatef, nullptr},
@@ -2586,6 +2637,7 @@ DWORD StartStrongCelShading() noexcept {
     g_scene_frame.boundary_mapping_verified = g_scene_mapping_verified;
     g_main_scene_context = nullptr;
     g_fixed_function_state = {};
+    g_fixed_function_context = nullptr;
     ResetBandedLighting();
     ResetDepthEdges();
     if (!g_scene_mapping_verified) {
@@ -2626,6 +2678,10 @@ DWORD StartStrongCelShading() noexcept {
 
 void StopStrongCelShading() noexcept {
     bool restored = true;
+    if (!RestoreHook(&g_pop_attrib_slot, &g_pop_attrib,
+            reinterpret_cast<PVOID>(&StrongPopAttrib))) {
+        restored = false;
+    }
     if (!RestoreHook(&g_clear_slot, &g_original_clear,
             reinterpret_cast<PVOID>(&StrongClear))) {
         restored = false;
@@ -2790,6 +2846,7 @@ void StopStrongCelShading() noexcept {
         g_immediate_scene_viewport = {};
         g_scene_frame = {};
         g_fixed_function_state = {};
+        g_fixed_function_context = nullptr;
         ResetBandedLighting();
         ResetDepthEdges();
         InterlockedExchangePointer(&g_tex_coord_2f, nullptr);

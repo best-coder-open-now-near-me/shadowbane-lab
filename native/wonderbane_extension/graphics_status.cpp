@@ -1016,6 +1016,7 @@ DWORD PublishSnapshot(const PublisherSnapshot& snapshot) noexcept {
         "\"first_late_world_draw_ordinal\":%llu,"
         "\"last_world_draw_ordinal\":%llu,"
         "\"fixed_function_refresh_count\":%llu,"
+        "\"fixed_function_state_invalidation_count\":%llu,"
         "\"main_scene_start_count\":%llu,\"main_scene_world_draw_count\":%llu,"
         "\"boundary_mapping_verified\":%s,\"main_scene_invalidated\":%s,"
         "\"composite_succeeded\":%s},\"totals\":{\"layers\":{"
@@ -1034,6 +1035,7 @@ DWORD PublishSnapshot(const PublisherSnapshot& snapshot) noexcept {
         "\"planar_overlay\":\"excluded-without-sealing-scene\","
         "\"late_world_after_ui\":\"excluded-and-counted\","
         "\"fixed_function_state\":\"cached-with-transition-hooks\","
+        "\"state_boundary_refreshes\":\"counted-invalidations\","
         "\"maximum_ordinary_frame_refreshes\":1}}",
         scene_frame_state,
         static_cast<unsigned long long>(snapshot.status.classified_frame_count),
@@ -1087,6 +1089,9 @@ DWORD PublishSnapshot(const PublisherSnapshot& snapshot) noexcept {
         ),
         static_cast<unsigned long long>(
             snapshot.status.latest_scene_frame.fixed_function_refresh_count
+        ),
+        static_cast<unsigned long long>(
+            snapshot.status.latest_scene_frame.fixed_function_state_invalidation_count
         ),
         static_cast<unsigned long long>(snapshot.status.latest_scene_frame.main_scene_start_count),
         static_cast<unsigned long long>(snapshot.status.latest_scene_frame.main_scene_world_draw_count),
@@ -1973,7 +1978,9 @@ void ReportSceneFrameClassification(const SceneFrameState& frame) noexcept {
     AcquireSRWLockExclusive(&g_state_lock);
     publish = g_status.classified_frame_count == 0U
         || frame.late_world_draw_count > 0U
-        || frame.fixed_function_refresh_count > 1U;
+        || (frame.fixed_function_refresh_count > 1U
+            && frame.fixed_function_refresh_count - 1U
+                > frame.fixed_function_state_invalidation_count);
     SaturatingAdd(&g_status.classified_frame_count, 1U);
     g_status.latest_scene_frame = frame;
     for (std::size_t index = 0U; index < frame.draw_counts.size(); ++index) {

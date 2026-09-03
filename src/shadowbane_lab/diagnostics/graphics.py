@@ -152,7 +152,7 @@ def collect_graphics_present_evidence(
         world_ui_separation_observed
         and isinstance(draw_classification.get("latest"), dict)
         and draw_classification["latest"].get("fixed_function_refresh_count")
-        in {0, 1}
+        <= _fixed_function_refresh_limit(draw_classification)
     )
     report: dict[str, object] = {
         "schema_version": GRAPHICS_PRESENT_EVIDENCE_SCHEMA_VERSION,
@@ -436,8 +436,21 @@ def _validate_draw_classification(value: object) -> None:
         raise ValueError("draw_classification fixed-function policy is unsupported")
     if policy.get("maximum_ordinary_frame_refreshes") != 1:
         raise ValueError("draw_classification refresh budget is unsupported")
-    if latest.get("fixed_function_refresh_count") > 1:
+    if latest.get("fixed_function_refresh_count") > _fixed_function_refresh_limit(value):
         raise ValueError("draw_classification exceeded its per-frame refresh budget")
+
+
+def _fixed_function_refresh_limit(classification: dict[str, Any]) -> int:
+    policy = classification["policy"]
+    boundary_policy = policy.get("state_boundary_refreshes")
+    if boundary_policy not in {None, "counted-invalidations"}:
+        raise ValueError("draw_classification state-boundary policy is unsupported")
+    if boundary_policy is None:
+        return 1
+    return 1 + _non_negative_counter(
+        classification["latest"].get("fixed_function_state_invalidation_count"),
+        "draw_classification.latest.fixed_function_state_invalidation_count",
+    )
 
 
 def _validate_composite_journal(

@@ -148,6 +148,7 @@ int wmain() {
     classified_frame.first_late_world_draw_ordinal = 5U;
     classified_frame.last_world_draw_ordinal = 5U;
     classified_frame.fixed_function_refresh_count = 1U;
+    classified_frame.fixed_function_state_invalidation_count = 2U;
     classified_frame.main_scene_start_count = 1U;
     classified_frame.main_scene_world_draw_count = 2U;
     classified_frame.boundary_mapping_verified = true;
@@ -282,6 +283,9 @@ int wmain() {
         || json.find("\"boundary_mapping_verified\":true") == std::string::npos
         || json.find("\"main_scene_invalidated\":false") == std::string::npos
         || json.find("\"composite_succeeded\":true") == std::string::npos
+        || json.find("\"fixed_function_state_invalidation_count\":2") == std::string::npos
+        || json.find("\"state_boundary_refreshes\":\"counted-invalidations\"")
+            == std::string::npos
         || json.find("\"fixed_function_state\":\"cached-with-transition-hooks\"")
             == std::string::npos
         || json.find("\"maximum_ordinary_frame_refreshes\":1")

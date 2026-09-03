@@ -1,6 +1,10 @@
 #include "cel_shading.h"
 #include "import_hook.h"
 
+// Exercise the actual private import-hook adapters without exposing a test API
+// in the production DLL or patching any process import table.
+#include "cel_shading.cpp"
+
 #include <Windows.h>
 
 #include <array>
@@ -139,9 +143,82 @@ std::vector<std::uint8_t> Fixture() {
     return image;
 }
 
+bool test_alpha_enabled = false;
+unsigned int test_query_count = 0U;
+std::uintptr_t test_context = 1U;
+
+void APIENTRY FakeStateQuery(const unsigned int name, unsigned char* const value) {
+    ++test_query_count;
+    *value = name == 0x0BC0U && test_alpha_enabled ? TRUE : FALSE;
+}
+
+HGLRC WINAPI FakeCurrentContext() {
+    return reinterpret_cast<HGLRC>(test_context);
+}
+
+void APIENTRY FakeRestoreAttributes() { test_alpha_enabled = true; }
+void APIENTRY FakeExecuteList(unsigned int) { test_alpha_enabled = true; }
+void APIENTRY FakeFinishList() {}
+
+bool CheckStateRestoreRegressions() {
+    using namespace wonderbane::extension;
+    g_get_booleanv = reinterpret_cast<PVOID>(&FakeStateQuery);
+    g_get_current_context = reinterpret_cast<PVOID>(&FakeCurrentContext);
+    g_pop_attrib = reinterpret_cast<PVOID>(&FakeRestoreAttributes);
+    g_original_call_list = reinterpret_cast<PVOID>(&FakeExecuteList);
+    g_original_end_list = reinterpret_cast<PVOID>(&FakeFinishList);
+    g_fixed_function_state = {};
+    g_fixed_function_context = nullptr;
+    test_alpha_enabled = false;
+    test_query_count = 0U;
+    bool ok = RefreshFixedFunctionState() && !g_fixed_function_state.alpha_test_enabled;
+    const auto initial_queries = test_query_count;
+    ok = ok && RefreshFixedFunctionState() && test_query_count == initial_queries;
+
+    StrongPopAttrib();
+    ok = ok && !g_fixed_function_state.valid && RefreshFixedFunctionState()
+        && g_fixed_function_state.alpha_test_enabled;
+    test_alpha_enabled = false;
+    InvalidateFixedFunctionState(&g_fixed_function_state);
+    ok = ok && RefreshFixedFunctionState() && !g_fixed_function_state.alpha_test_enabled;
+    StrongCallList(42U);  // Missing outline API deliberately takes original draw path.
+    ok = ok && !g_fixed_function_state.valid && RefreshFixedFunctionState()
+        && g_fixed_function_state.alpha_test_enabled;
+
+    BeginDisplayListCapture(43U);
+    test_alpha_enabled = false;  // A compile-and-execute list changed real state.
+    const auto before_compile_query = test_query_count;
+    ok = ok && !RefreshFixedFunctionState() && test_query_count == before_compile_query;
+    StrongEndList();
+    ok = ok && !g_fixed_function_state.valid && RefreshFixedFunctionState()
+        && !g_fixed_function_state.alpha_test_enabled;
+
+    g_immediate_primitive_open = true;
+    const auto before_immediate_query = test_query_count;
+    StrongCallList(44U);
+    ok = ok && !RefreshFixedFunctionState() && test_query_count == before_immediate_query;
+    g_immediate_primitive_open = false;
+    ok = ok && RefreshFixedFunctionState() && g_fixed_function_state.alpha_test_enabled;
+
+    ++test_context;
+    test_alpha_enabled = false;
+    ok = ok && RefreshFixedFunctionState() && !g_fixed_function_state.alpha_test_enabled;
+    g_get_booleanv = nullptr;
+    g_get_current_context = nullptr;
+    g_pop_attrib = nullptr;
+    g_original_call_list = nullptr;
+    g_original_end_list = nullptr;
+    g_fixed_function_state = {};
+    g_fixed_function_context = nullptr;
+    return ok;
+}
+
 }  // namespace
 
 int wmain() {
+    if (!CheckStateRestoreRegressions()) {
+        return Fail(L"restored/display-list/context state coherence");
+    }
     std::vector<std::uint8_t> image = Fixture();
     for (std::size_t index = 0U; index < kImportNames.size(); ++index) {
         std::uint32_t* const slot = wonderbane::extension::FindImportAddressSlot(
