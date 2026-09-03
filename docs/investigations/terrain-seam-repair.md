@@ -1,5 +1,10 @@
 # Stock terrain seam repair investigation
 
+Latest checkpoint: resident-alpha capture succeeded (see final section). Six
+source masks retained; four archive-backed masks match the archive exactly.
+No visual seam fix is claimed. Next: attribute the visible boundary to mask
+coordinates and final layer composition, using the saved evidence first.
+
 ## Request and current outcome — 2026-09-03
 
 The user reports that the visible tile seams remain a stock terrain issue, not
@@ -589,3 +594,65 @@ Validation: 1,510 tests and 211 subtests passed, 7 skipped; focused Ruff passed.
 Completed: bounded alpha option and local validation. ACTIVE todo: one five-second
 alpha capture at the unchanged seam view, then compare CPU source/copy/archive
 bytes. No renderer behavior or live-client package change is part of this slice.
+
+## Resident-alpha live result — 2026-09-03T19:30:32Z
+
+Frozen diagnostic commit `7e54949` was deployed without replacing/restarting the
+client. Its source archive hash was checked after copying locally in the guest:
+`64c3448b98570c8d1d4c75bfd233d88229bc8f52c467eeedc9a85e882aa2a670`.
+The exact PID 2252 / creation FILETIME 134329332816298963 survived the capture;
+all required signatures matched before and after. The console was closed and
+both temporary VM shares removed after the bounded result was copied and its
+hash verified. No game input, settings change, debugger, GPU readback, process
+write, client restart, or plain-VM change occurred.
+
+Artifact SHA-256:
+`a4019df3675be4470fe6b038d23afc3c63c67b4a4fdc2923ae7e4f3309e40fe6`.
+Host path:
+`E:/Projects/shadowbane/.tmp/terrain-alpha-evidence-2252/terrain-alpha-2252-7e54949-1.json`.
+Guest path: `LocalAppData/ShadowbaneLab/client-extension/terrain-alpha-2252-7e54949-1.json`.
+
+The five-second run made 918 polls: 65 stable, 27 idle, 826 discarded. It retained
+**3 unique snapshots from 3 sources**, not 23 (the initial console OCR misread the
+separator next to 3). Alpha read reservations were 3,342,336 bytes, below the
+16,777,216-byte cap. Six resident source masks were retained. All six GPU-facing
+mask backings had null resident CPU pixel pointers; none was forced to load.
+
+| Source | Layers | Direction bits | Dirty | Resident alpha result |
+| --- | --- | --- | --- | --- |
+| `0x3de678a8` | 1 | 4 | 0 | generated beige mask, 64x64, range 0..216 |
+| `0x3de67350` | 0 | 0 | 0 | base-only source; no alpha layers to invent |
+| `0x3dfa1d98` | 5 | 1 | 0 | generated beige mask plus four archive-backed masks |
+
+Exact byte comparisons against preserved TerrainAlpha.cache found zero
+differences for all four attributed source masks:
+
+| Archive key | Resident/archive pixel SHA-256 |
+| --- | --- |
+| `13936188:16779218` | `dc441322f281e826b123b16ab9e55d69b49c9a316d79dd1b510ce1277f566ddd` |
+| `4101:2432698322` | `ae99e8aa9e239903dd278dee3d9be7a334c5c2a4f667f3d6ec2afd7eca3605c2` |
+| `4101:2449475538` | `b4e9231698bade44e6826309aeff46b4f5c5b4b14ac211b0aefa5507a197be94` |
+| `4101:2466252754` | `1e30ba1e0d5620704ed3c930fc5849f88c497e329b52f4e39bd59e4c23123602` |
+
+The two generated mask hashes are
+`35b66151f61ebc768269adbe783f35e3a0fb689c0f22dfa0f799490de03ac4d3` and
+`f4194a691de2b97f620a471ddc7aab153f302ea708bdb1a1f52a4e2212b85120`.
+The first mask's last stored row equals the second mask's first stored row
+byte-for-byte (64 samples, range 43..77). This is continuity evidence for that
+raw border, not proof that these are the adjacent screen tiles at the visible
+seam. The second generated mask ranges 0..88 overall.
+
+Interpretation: these source buffers are neither missing nor silently changed
+from their attributed archive records. One generated border also agrees. This
+does not establish mask UV orientation, mesh adjacency, GPU contents, or final
+pixel blending. In particular, a missing CPU copy is not a zero mask, and dirty=0
+is not an upload-completion measurement. Further identical polling cannot recover
+already-discarded CPU copies without changing the diagnostic boundary.
+
+Completed: safe material/alpha capture and exact offline source/archive checks.
+ACTIVE todo: review mask coordinates and final layer composition for the visible
+boundary, using the retained draw trace and mesh/source ownership first. If new
+evidence is needed, use a bounded in-process observation of already-submitted
+coordinates/upload inputs, not a debugger or GPU readback. Then implement the
+evidence-supported visual repair and validate both native profiles and frame
+cost before another live release. The visual seam acceptance remains open.
