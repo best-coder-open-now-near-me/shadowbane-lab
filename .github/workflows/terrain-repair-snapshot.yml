@@ -1,0 +1,25 @@
+name: Terrain repair workspace snapshot
+
+on:
+  push:
+    branches:
+      - codex/terrain-repair-snapshot
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Upload source snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: shadowbane-lab-e5c6703
+          path: |
+            .
+            !.git/**
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 1
