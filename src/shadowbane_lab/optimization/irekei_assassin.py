@@ -37,11 +37,11 @@ from .map_elites import (
     MapElitesRun,
     run_map_elites,
 )
+from .strict_training import StrictLegalBuildLeagueEvaluator
 from .training import (
     CatalogBackedLegalityGate,
     CompilerBackedGenomeMutator,
     DuelScenario,
-    LegalBuildLeagueEvaluator,
     genome_mechanical_digest,
 )
 
@@ -209,7 +209,7 @@ def run_irekei_assassin_search(
         )
         for distance in config.starting_distances
     )
-    evaluator = LegalBuildLeagueEvaluator(
+    evaluator = StrictLegalBuildLeagueEvaluator(
         compiler,
         ruleset,
         opponents,
