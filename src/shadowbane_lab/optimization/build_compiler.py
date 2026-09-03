@@ -43,6 +43,8 @@ from .build_model import (
     canonical_digest,
 )
 
+_DEFAULT_POLICY = LegalBuildCompilePolicy()
+
 
 class LegalBuildCompiler:
     """Validate a genome while keeping every unproven mechanic explicit."""
@@ -53,7 +55,7 @@ class LegalBuildCompiler:
         equipment: EquipmentCatalog,
         *,
         ruleset: CompiledRuleset | None = None,
-        policy: LegalBuildCompilePolicy = LegalBuildCompilePolicy(),
+        policy: LegalBuildCompilePolicy = _DEFAULT_POLICY,
     ) -> None:
         if not isinstance(calculator, WonderbaneCalculatorCatalog):
             raise LegalBuildCompileError("calculator has the wrong type")
@@ -79,7 +81,7 @@ class LegalBuildCompiler:
         cls,
         *,
         ruleset: CompiledRuleset | None = None,
-        policy: LegalBuildCompilePolicy = LegalBuildCompilePolicy(),
+        policy: LegalBuildCompilePolicy = _DEFAULT_POLICY,
     ) -> LegalBuildCompiler:
         return cls(
             load_bundled_wonderbane_calculator_catalog(),
