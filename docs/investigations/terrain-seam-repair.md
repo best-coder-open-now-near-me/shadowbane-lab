@@ -836,3 +836,86 @@ including verified identity/idle state and the restored splash screen.
 Completed: verified trace-enabled relaunch of the unchanged testing package.
 ACTIVE todo: user login and positioning at the seam, then one bounded terrain
 draw-state capture against this new exact lifetime. Visual repair remains open.
+
+## Current in-world frame and corroborated material discontinuities
+
+The user logged in and confirmed the view was ready. One bounded frame and one
+five-second staged material/mesh/alpha poll were collected against PID 960 /
+134329406441965396. No gameplay input or effect-setting changes were sent.
+Both create-only guest JSONs were copied to the empty transient evidence share,
+with matching source/destination SHA-256 checks. The share was removed and the
+diagnostic console closed; focus returned to the same surviving game process.
+
+Host evidence directory: `E:/Projects/shadowbane/.tmp/terrain-trace-evidence-960/`.
+
+| File | SHA-256 |
+| --- | --- |
+| terrain-trace-960-134329406441965396-1.json | c1fb44bd853204a093570cee326ff76a1544f5832c6a7f7474c1a5778f540e1a |
+| terrain-material-960-60905bd-1.json | 524de5f85e80e241fab7a784ea25abf1770bf8391b3575a53968ebb59bb4719b |
+| material-boundary-corroborated-v1.json | 4ef04a6ab0d91aa52c28689465eb56318c8f3f3fd595bdfbb7d44d6916f99884 |
+
+Frame: 538 observed / 537 retained submissions, reviewed world interval complete,
+19 base terrain draws and 21 masked layers, zero attribution conflicts. Observer
+query time was 1.1993 ms, NOT total observer overhead or a frame-time benchmark.
+Limits remain explicit: one unsafe query skipped and four texture units omitted;
+no capacity/query-budget skips, context/thread mismatch or extra depth clear.
+
+All base draws use binding 1139. Masked passes use paired unit-0 color and unit-1
+alpha bindings, source-alpha / one-minus-source-alpha blending, scale 14 on unit
+0 and identity unit-1 matrix. Masks are ALPHA8, 64 or 128 square, clamp-to-edge,
+linear magnification and **trilinear mipmapped minification**. The source-weight
+analysis models level zero; it does not prove active mip contents/LOD, actual
+vertex-array bindings, lighting or resulting framebuffer color.
+
+Poll: 1,024 attempts, 14 stable, 28 idle, 982 discarded; 8 retained snapshots
+from 7 source addresses. Reservations: 1,523,712 alpha bytes and 322,080 mesh
+bytes. Every GPU-facing CPU alpha backing was absent; none was forced to decode.
+
+### A real source/mesh association mismatch was caught
+
+Snapshot 6 pairs source 0x481d3208 and masks 1169..1173 with a 1,002-index mesh
+at X 89088..89344 / Z -44800..-44544. The actual frame uses those masks only with
+the 3,174-index mesh in snapshot 2, at X 88576..88832 / Z -45312..-45056. Its
+1,002-index terrain sequence instead uses generated beige mask 1189. Treat
+snapshot 6 as uncorroborated, not a usable source/mesh pairing or an LOD claim.
+Repeated stable reads of mutable shader fields do not guarantee atomic pairing.
+
+The offline analyzer now optionally requires a same-lifetime draw trace. It
+matches an entire base-plus-ordered-layer binding/count sequence uniquely and
+rejects contradictory snapshots assigned to the same observed sequence. Seven
+snapshots pass; snapshot 6 does not. No boundary below depends on snapshot 6.
+Raw inputs and the original uncorroborated report are preserved.
+
+| Snapshot | Source | Index count | Corroborating draw ordinals |
+| --- | --- | ---: | --- |
+| 1 | 0x4679f330 | 1812 | 16..17 |
+| 2 | 0x481d3208 | 3174 | 27..32 |
+| 3 | 0x481d3928 | 1674 | 36..41 |
+| 4 | 0x4679f888 | 1974 | 18..19 |
+| 5 | 0x481d3af0 | 951 | 21..22 |
+| 7 | 0x481d43d8 | 24 | 23..26 |
+| 8 | 0x46273438 | 495 | 13 |
+
+The corroborated source model covers six complete 256-unit boundaries with
+1,453 samples and no rejected height fragments. Maximum / length-weighted mean
+material-weight distances: 1/4 0/0; 1/7 0.701622/0.583591;
+2/4 0.519231/0.208184; 2/7 0.176471/0.025524;
+3/7 0.121569/0.034314; 5/7 0.596078/0.477152.
+
+At the largest sample, (88576,26.25,-45035), snapshot 1 has modeled rock 0.770588
+and beige 0.229412; snapshot 7 has rock 0.298378, light green 0.129073 and cobble
+0.572549. These newly captured boundaries show substantial source-material steps
+that were absent from the previous four-edge sample. This narrows the diagnosis
+toward material-mask continuity, but does not authorize arbitrary cache blurring
+or establish which step dominates the user's screen.
+
+Validation: 50 focused material/trace analysis tests passed. Full suite: 1,568
+tests and 211 subtests passed, 7 skipped; focused Ruff/diff checks passed. Native
+artifacts are unchanged. All code/evidence checkpoints remain local; no push.
+
+Completed: current frame capture, same-lifetime material correlation, and a
+tested guard against unsupported source/mesh associations.
+ACTIVE todo: attribute the large steps to the exact authored material map edges
+and inspect their intended neighbor/blend behavior before choosing a repair.
+Keep source-level, mip/upload, and visible-pixel claims separate. Seam acceptance
+and the eventual visual repair remain open.

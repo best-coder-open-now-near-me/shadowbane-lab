@@ -212,3 +212,77 @@ def test_cli_output_is_create_only_and_includes_input_digest(tmp_path):
     assert json.loads(original)["input_sha256"] == hashlib.sha256(path.read_bytes()).hexdigest()
     assert main(args) == 1
     assert output.read_bytes() == original
+
+
+def joined_capture():
+    from test_terrain_trace_analysis import _draw, _payload
+
+    left, right = tile(), tile(2, x=1)
+    trace = _payload()
+    trace["extension_version"] = "1.6.13"
+    trace["draws"] = []
+    for i, snapshot in enumerate((left, right)):
+        source = snapshot["source"]
+        source["base"]["backing"] = {"binding": 1243}
+        source["layers"][0]["color"]["backing"] = {"binding": 1243}
+        source["layers"][0]["gpu_mask"] = {"backing": {"binding": 1284 + i}}
+        fingerprint(snapshot)
+        base = _draw(i * 2 + 1, 0x4F1772, blend=0, mask=0)
+        mask = _draw(i * 2 + 2, 0x4F1864, blend=1, mask=1)
+        base["count"] = mask["count"] = 6
+        mask["textures"][1]["binding"] = 1284 + i
+        trace["draws"].extend((base, mask))
+    trace["retained_submissions"] = trace["observed_submissions"] = 4
+    return capture(left, right), trace
+
+
+def test_complete_unique_draw_sequences_corroborate_both_tiles():
+    payload, trace = joined_capture()
+    result = analyze_material_boundaries(payload, draw_trace=trace)
+    assert len(result["boundaries"]) == 1
+    assert not result["skipped_snapshots"]
+    assert result["draw_corroboration"]["snapshots"][2]["draw_ordinals"] == [3, 4]
+
+
+@pytest.mark.parametrize("field", ["process_id", "process_creation_filetime_utc"])
+def test_reused_names_cannot_join_different_lifetimes(field):
+    payload, trace = joined_capture()
+    trace[field] += 1
+    with pytest.raises(ValueError, match="different client lifetime"):
+        analyze_material_boundaries(payload, draw_trace=trace)
+
+
+def test_same_count_with_other_materials_does_not_corroborate():
+    payload, trace = joined_capture()
+    trace["draws"][3]["textures"][1]["binding"] = 9999
+    result = analyze_material_boundaries(payload, draw_trace=trace)
+    assert result["skipped_snapshots"][0]["ordinal"] == 2
+    assert not result["boundaries"]
+
+
+def test_extra_layer_does_not_match_incomplete_source_list():
+    payload, trace = joined_capture()
+    extra = copy.deepcopy(trace["draws"][-1])
+    extra["ordinal"] = 5
+    extra["qpc"] = 115
+    trace["draws"].append(extra)
+    trace["retained_submissions"] = trace["observed_submissions"] = 5
+    result = analyze_material_boundaries(payload, draw_trace=trace)
+    assert result["skipped_snapshots"][0]["ordinal"] == 2
+
+
+def test_conflicting_geometry_cannot_share_one_observed_draw():
+    payload, trace = joined_capture()
+    alternate = tile(3, x=8)
+    alternate["source"] = copy.deepcopy(payload["snapshots"][0]["source"])
+    alternate["source_pointer"] = alternate["source"]["address"]
+    payload["snapshots"].append(fingerprint(alternate))
+    result = analyze_material_boundaries(payload, draw_trace=trace)
+    assert [s["ordinal"] for s in result["skipped_snapshots"]] == [1, 3]
+
+
+def test_unreviewed_draw_state_is_not_used_for_corroboration():
+    payload, trace = joined_capture()
+    trace["draws"][1]["state"][5] = 0
+    with pytest.raises(ValueError, match="reviewed interval"):
+        analyze_material_boundaries(payload, draw_trace=trace)

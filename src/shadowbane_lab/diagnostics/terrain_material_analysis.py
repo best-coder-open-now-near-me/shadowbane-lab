@@ -15,6 +15,7 @@ from pathlib import Path
 
 from .terrain_material_poll import PROFILE
 from .terrain_mesh_snapshot import LAYOUT_SIGNATURES, MAXIMUM_INDICES, MAXIMUM_VERTICES
+from .terrain_trace_analysis import analyze_terrain_trace
 
 MAX_INPUT_BYTES = 64 * 1024 * 1024
 MAX_SAMPLES = 200_000
@@ -233,9 +234,63 @@ def _validate_capture(payload: dict) -> None:
              "invalid snapshot list")
 
 
-def analyze_material_boundaries(payload: dict) -> dict:
+def corroborate_draws(payload: dict, trace: dict) -> tuple[dict, dict]:
+    """Match complete base/layer sequences, not isolated reused GL names or counts."""
+    assessment = analyze_terrain_trace(trace)
+    _require(assessment["status"] == "terrain_draws_attributed"
+             and trace["reviewed_interval_complete"], "draw trace is not a reviewed interval")
+    _require(trace["extension_version"] == "1.6.13", "draw trace renderer version mismatch")
+    for key in ("process_id", "process_creation_filetime_utc", "executable_sha256"):
+        _require(payload[key] == trace[key], "draw trace belongs to a different client lifetime")
+    sequences = []
+    for draw in trace["draws"]:
+        stack = draw["client_stack_rvas"]
+        if 0x4F1772 in stack:
+            sequences.append([draw])
+        elif 0x4F1864 in stack:
+            _require(bool(sequences), "masked draw has no preceding terrain base")
+            sequences[-1].append(draw)
+
+    def binding(draw: dict, unit: int) -> int | None:
+        values = [t["binding"] for t in draw["textures"] if t["unit"] == unit and t["enabled"]]
+        return values[0] if len(values) == 1 else None
+
+    matches = {}
+    for snapshot in payload["snapshots"]:
+        try:
+            count = snapshot["mesh"]["index_count"]
+            source = snapshot["source"]
+            base = source["base"]["backing"]["binding"]
+            layers = [(r["color"]["backing"]["binding"], r["gpu_mask"]["backing"]["binding"])
+                      for r in source["layers"]]
+            candidates = [seq for seq in sequences if seq[0]["count"] == count
+                          and binding(seq[0], 0) == base
+                          and all(d["count"] == count for d in seq)
+                          and [(binding(d, 0), binding(d, 1)) for d in seq[1:]] == layers]
+            matches[snapshot["ordinal"]] = {
+                "state": "corroborated" if len(candidates) == 1 else "not_uniquely_corroborated",
+                "candidate_count": len(candidates),
+                "draw_ordinals": [d["ordinal"] for d in candidates[0]] if len(candidates) == 1
+                else [],
+            }
+        except (KeyError, TypeError):
+            matches[snapshot["ordinal"]] = {"state": "binding_evidence_unavailable"}
+    owners = {}
+    for snapshot in payload["snapshots"]:
+        match = matches[snapshot["ordinal"]]
+        if match["state"] == "corroborated":
+            owners.setdefault(match["draw_ordinals"][0], set()).add(snapshot["fingerprint_sha256"])
+    for match in matches.values():
+        if match["state"] == "corroborated" and len(owners[match["draw_ordinals"][0]]) != 1:
+            match["state"] = "conflicting_snapshots_for_draw"
+    return matches, assessment["trace_assessment"]
+
+
+def analyze_material_boundaries(payload: dict, *, draw_trace: dict | None = None) -> dict:
     _validate_capture(payload)
     tiles, skipped = [], []
+    matches, trace_assessment = (corroborate_draws(payload, draw_trace) if draw_trace is not None
+                                 else ({}, None))
     ordinals = set()
     for snapshot in payload["snapshots"]:
         ordinal = snapshot["ordinal"]
@@ -249,6 +304,9 @@ def analyze_material_boundaries(payload: dict) -> dict:
         digest = hashlib.sha256(json.dumps(identity, sort_keys=True,
                                           separators=(",", ":")).encode()).hexdigest()
         _require(digest == snapshot["fingerprint_sha256"], "snapshot fingerprint mismatch")
+        if draw_trace is not None and matches[ordinal]["state"] != "corroborated":
+            skipped.append({"ordinal": ordinal, "reason": "no unique complete draw-sequence match"})
+            continue
         try:
             tiles.append(_tile(snapshot))
         except (ValueError, KeyError, TypeError) as error:
@@ -311,6 +369,9 @@ def analyze_material_boundaries(payload: dict) -> dict:
         "process_creation_filetime_utc": payload["process_creation_filetime_utc"],
         "input_snapshot_count": len(payload["snapshots"]), "analyzed_tiles": len(tiles),
         "skipped_snapshots": skipped, "sample_count": sample_count, "boundaries": results,
+        "draw_corroboration": {"requested": draw_trace is not None,
+                               "trace_assessment": trace_assessment,
+                               "snapshots": matches},
         "model": "source-alpha8-linear-clamp-to-edge-ordered-source-alpha-composition",
         "scope": {"live_process_access": False, "gpu_readback": False, "cache_writes": False,
                   "atomic_frame": False, "framebuffer_color": False},
@@ -320,8 +381,11 @@ def analyze_material_boundaries(payload: dict) -> dict:
             "Plane coordinates match exactly; interpolated heights allow 0.0001 world units.",
             "Half-texel or finer spacing per UV axis; sampled maxima are not analytic bounds.",
             "Source masks and assumed pass state, not observed GPU pixels or array bindings.",
+            "Level-zero alpha model; actual minification may use unobserved mip levels.",
             "RGB texture phase, lighting, fog and current screen projection are not measured.",
             "Snapshots are separate non-atomic observations; absent neighbors remain unobserved.",
+            "Draw corroboration checks bindings/counts/order, not pointers "
+            "or simultaneous ownership.",
         ],
     }
 
@@ -330,13 +394,24 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("capture", type=Path)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--draw-trace", type=Path,
+                        help="require unique same-lifetime base/layer draw-sequence corroboration")
     args = parser.parse_args(argv)
     try:
         with args.capture.open("rb") as stream:
             raw = stream.read(MAX_INPUT_BYTES + 1)
         _require(len(raw) <= MAX_INPUT_BYTES, "capture exceeds 64 MiB")
-        result = analyze_material_boundaries(json.loads(raw))
+        trace_raw = None
+        if args.draw_trace is not None:
+            with args.draw_trace.open("rb") as stream:
+                trace_raw = stream.read(MAX_INPUT_BYTES + 1)
+            _require(len(trace_raw) <= MAX_INPUT_BYTES, "draw trace exceeds 64 MiB")
+        result = analyze_material_boundaries(
+            json.loads(raw), draw_trace=json.loads(trace_raw) if trace_raw is not None else None,
+        )
         result["input_sha256"] = hashlib.sha256(raw).hexdigest()
+        if trace_raw is not None:
+            result["draw_trace_sha256"] = hashlib.sha256(trace_raw).hexdigest()
         with args.output.open("x", encoding="utf-8") as stream:
             json.dump(result, stream, indent=2, allow_nan=False)
         print(json.dumps({"output": str(args.output), "boundaries": len(result["boundaries"]),

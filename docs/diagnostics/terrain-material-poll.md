@@ -129,3 +129,26 @@ projection remain outside its claims. Snapshot hashes verify consistency, not
 authenticity, and staged samples remain non-atomic. Existing archive-wide seam
 audits remain separate: shared raw mask borders are not enough to prove live
 mesh adjacency or final material continuity.
+
+### Corroborate source/mesh associations against a draw recording
+
+When a same-lifetime trace is available, add `--draw-trace terrain-trace.json`.
+This is strongly recommended before using inferred adjacency to choose a repair.
+The analyzer validates the trace and exact PID/creation time/executable identity,
+then requires a unique complete base-plus-layer sequence with the same index
+count, base binding, and ordered color/mask pairs. Extra or missing layers,
+ambiguous sequences, and conflicting snapshots assigned to one draw are excluded
+and reported. The trace hash, assessment limits and matching draw ordinals are
+retained in the create-only report.
+
+This gate caught a real polling sample whose repeated source graph was associated
+with a different mesh than the observed draws. Double-reading stable headers
+does not make a shared shader's mutable source/mesh association atomic, in either
+polling mode. Without this gate, boundary results remain uncorroborated source-data
+models; even with it, matching bindings/counts/order is not simultaneous ownership
+proof or observation of the actual GL vertex pointers.
+
+The source-weight model is explicitly level zero. The live pass uses linear
+magnification but can use trilinear mipmapped minification; unobserved mip levels,
+upload contents and projected derivatives can affect the visible result. Do not
+call the model an exact simulation of the observed framebuffer.
