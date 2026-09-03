@@ -11,7 +11,7 @@ from typing import Any
 
 from shadowbane_lab.graphics_lab.control import GraphicsControlTarget
 
-from .terrain_trace import TRACE_VERSION, assess_trace, read_local_trace
+from .terrain_trace import TRACE_VERSIONS, assess_trace, read_local_trace
 
 PROFILE_ID = "wonderbane-55fbad5f-custom-textured-terrain-v1"
 PROFILE_EXECUTABLE_SHA256 = (
@@ -176,7 +176,7 @@ def analyze_terrain_trace(payload: object) -> dict[str, Any]:
     assessment = _trace_assessment(payload)
     if payload.get("executable_sha256") != PROFILE_EXECUTABLE_SHA256:
         raise TerrainTraceAnalysisError("no exact reviewed terrain profile for this executable")
-    if payload.get("extension_version") != TRACE_VERSION:
+    if payload.get("extension_version") not in TRACE_VERSIONS:
         raise TerrainTraceAnalysisError(
             "trace extension does not match the reviewed terrain profile"
         )

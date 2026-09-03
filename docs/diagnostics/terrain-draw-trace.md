@@ -29,12 +29,20 @@ the whole-function-verified main clear and done3d calls already used by the rend
   reparse directories, and caller-supplied output destinations are refused.
   Failed publication is never a complete `.json`; a `.partial` may remain.
 
-## Operator workflow (1.6.12)
+## Operator workflow (1.6.12 and 1.6.13)
 
-Publish the separately verified 1.6.12 graphics package, preserving the older
+Publish the separately verified graphics package, preserving the older
 package. Use the normal launch script with the explicit `-EnableTerrainTrace`
 switch; it scopes the opt-in to the child client and restores the parent
 environment. An ordinary launch explicitly clears this opt-in.
+
+The 1.6.13 collector and analyzer also accept saved 1.6.12 schema-1 traces;
+unknown versions remain rejected. A live request is additionally bound to the
+exact extension version read from that process's status, not merely either
+supported version. Upgrading tools must not invalidate the retained capture.
+The 1.6.13 mask-refresh correction does not change this draw schema or attribute
+resource IDs. Its installation state is separately reported in graphics status
+as terrain_mask_refresh; effect toggles do not uninstall it.
 
 After the user has logged in and put the affected terrain in view, run
 `scripts/capture-wonderbane-terrain-trace.ps1` locally in that VM, pointing

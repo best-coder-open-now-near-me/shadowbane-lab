@@ -150,3 +150,22 @@ def test_original_payload_is_not_modified(payload, target):
     original = copy.deepcopy(payload)
     trace.assess_trace(payload, target, 100)
     assert payload == original
+
+
+@pytest.mark.parametrize("version", trace.TRACE_VERSIONS)
+def test_saved_reviewed_versions_remain_readable(payload, target, version):
+    payload["extension_version"] = version
+    assert trace.assess_trace(payload, target, 100)["status"] == "captured"
+
+
+def test_live_request_rejects_other_reviewed_version(payload, target):
+    payload["extension_version"] = "1.6.12"
+    with pytest.raises(ValueError, match="extension_version"):
+        trace.assess_trace(payload, target, 100, expected_version="1.6.13")
+
+
+@pytest.mark.parametrize("version", [None, True, [], "1.6.14"])
+def test_unknown_trace_version_remains_closed(payload, target, version):
+    payload["extension_version"] = version
+    with pytest.raises(ValueError, match="extension_version"):
+        trace.assess_trace(payload, target, 100)

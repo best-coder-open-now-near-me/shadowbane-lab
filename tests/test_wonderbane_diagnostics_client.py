@@ -48,9 +48,9 @@ class DiagnosticsClientBoundaryTests(unittest.TestCase):
         launch = _text("scripts/launch-wonderbane-diagnostics-client.ps1")
         combined = publish + launch
 
-        self.assertIn('ExtensionVersion = "1.6.12"', publish)
+        self.assertIn('ExtensionVersion = "1.6.13"', publish)
         self.assertIn(
-            "e6a46c13f951e0e5b2f910be498c4bf99dd15e34a00888a33441631b6717cf2d",
+            "f51119f8584d482fe40d73c183f6ebacdeb75f962688e2d6200483a7e16e740c",
             publish,
         )
         self.assertIn('runtime_profile = "diagnostics-only"', publish)

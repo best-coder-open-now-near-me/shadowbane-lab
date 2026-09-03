@@ -4,9 +4,9 @@ param(
     [string] $DiagnosticsShare = "\\VBOXSVR\codexdiag",
     [string] $PythonExecutable = "$env:USERPROFILE\shadowbane-lab\.venv\Scripts\python.exe",
     [string] $ContentBuildId = "wb-55fbad5f-4b602995",
-    [string] $ExtensionVersion = "1.6.12",
+    [string] $ExtensionVersion = "1.6.13",
     [string] $PackageDirectory = (
-        "S:\Wonderbane-graphics-wb-55fbad5f-4b602995-cel-1.6.12"
+        "S:\Wonderbane-graphics-wb-55fbad5f-4b602995-cel-1.6.13"
     ),
     [bool] $StartGraphicsLab = $true,
     [switch] $EnableTerrainTrace

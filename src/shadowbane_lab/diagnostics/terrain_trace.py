@@ -19,7 +19,8 @@ from shadowbane_lab.graphics_lab.control import (
     verify_target_identity,
 )
 
-TRACE_VERSION = "1.6.12"
+TRACE_VERSION = "1.6.13"
+TRACE_VERSIONS = ("1.6.12", TRACE_VERSION)
 MAX_TRACE_BYTES = 64 * 1024 * 1024
 
 
@@ -30,13 +31,19 @@ def _integer(payload: dict, key: str, minimum: int = 0) -> int:
     return value
 
 
-def assess_trace(payload: object, target: GraphicsControlTarget, requested_qpc: int) -> dict:
+def assess_trace(
+    payload: object, target: GraphicsControlTarget, requested_qpc: int,
+    *, expected_version: str | None = None,
+) -> dict:
     """Validate provenance and distinguish interval continuity from data coverage."""
     if not isinstance(payload, dict):
         raise ValueError("trace is not an object")
+    version = payload.get("extension_version")
+    if (not isinstance(version, str) or version not in TRACE_VERSIONS
+            or (expected_version is not None and version != expected_version)):
+        raise ValueError("trace identity/schema mismatch: extension_version")
     expected = {
         "schema_version": 1,
-        "extension_version": TRACE_VERSION,
         "process_id": target.process_id,
         "process_creation_filetime_utc": target.process_creation_filetime_utc,
         "executable_sha256": target.executable_sha256,
@@ -137,6 +144,7 @@ def wait_for_trace(
     timeout: float,
     *,
     alive: Callable[[GraphicsControlTarget], bool] = target_process_is_alive,
+    expected_version: str | None = None,
 ) -> tuple[Path, dict]:
     prefix = f"terrain-trace-{target.process_id}-{target.process_creation_filetime_utc}-"
     deadline = time.monotonic() + timeout
@@ -148,7 +156,9 @@ def wait_for_trace(
             raise RuntimeError("multiple new traces; refusing ambiguous attribution")
         if candidates:
             path = candidates.pop()
-            return path, assess_trace(read_local_trace(path), target, requested_qpc)
+            return path, assess_trace(
+                read_local_trace(path), target, requested_qpc, expected_version=expected_version,
+            )
         time.sleep(0.1)
     raise TimeoutError(
         "no complete local trace arrived; do not treat this as a successful capture. "
@@ -173,7 +183,7 @@ def request_trace(target: GraphicsControlTarget, timeout: float = 30) -> tuple[P
         if getattr(parent.lstat(), "st_file_attributes", 0) & 0x400:
             raise ValueError("trace directory contains a reparse point")
     status = json.loads(target.status_path.read_text(encoding="utf-8"))
-    if (status.get("extension_version") != TRACE_VERSION
+    if (status.get("extension_version") not in TRACE_VERSIONS
             or status.get("runtime_profile") != "full-renderer"
             or not verify_target_identity(target)):
         raise ValueError("client build/profile/lifetime is not the reviewed trace target")
@@ -202,7 +212,7 @@ def request_trace(target: GraphicsControlTarget, timeout: float = 30) -> tuple[P
         event = kernel.OpenEventW(0x0002, False, name)
         idle = kernel.OpenEventW(0x100002, False, f"{name}-idle")
         if not event or not idle:
-            raise RuntimeError("tracing is unavailable; launch the trace-enabled 1.6.12 package")
+            raise RuntimeError("tracing is unavailable; launch a reviewed trace-enabled package")
         if kernel.WaitForSingleObject(idle, 0) != 0:
             raise RuntimeError("a trace is pending; refusing a second request")
         existing = set(directory.glob("terrain-trace-*.json"))
@@ -215,7 +225,9 @@ def request_trace(target: GraphicsControlTarget, timeout: float = 30) -> tuple[P
         if not kernel.SetEvent(event):
             kernel.SetEvent(idle)
             raise OSError("could not signal the trace request")
-        return wait_for_trace(target, existing, now.value, timeout)
+        return wait_for_trace(
+            target, existing, now.value, timeout, expected_version=status["extension_version"],
+        )
     finally:
         for handle in (event, idle):
             if handle:

@@ -254,3 +254,32 @@ rollback retry, inaccessible memory, and restored page permissions.
 Current next item: release versioning and Python/package compatibility checks.
 The source implementation is complete; no release publication, new capture,
 live performance result, or visual acceptance is claimed.
+
+## Versioned test release: 1.6.13
+
+Release identity and launcher pins are updated together. Full DLL SHA-256:
+01e4297798c3c2ca4212d997f0793b8a4af0bb98d429f31d9e07a9dc029f42a4.
+Diagnostics-only SHA-256:
+f51119f8584d482fe40d73c183f6ebacdeb75f962688e2d6200483a7e16e740c.
+Both embed version 1.6.13.0. The ordinary bootstrap still produces the same
+reviewed a9a59004 executable; terrain repair changes only the running full
+renderer process, not the packaged executable's bytes.
+
+Validation: **1,483 Python tests and 211 subtests passed**, seven skipped;
+repository Ruff passed. Both versioned native profiles passed **16/16 CTests**.
+The actual frozen-code integration passed in full and disabled test variants.
+Saved 1.6.12 traces remain analyzable; 1.6.13 is also explicitly supported.
+New live requests require the exact running version, not either version blindly.
+
+The host-side package dry run correctly refused the baseline because its
+recorded root is the guest UNC path. The baseline has not been rebound or
+modified; that remaining package check must run in the guest.
+
+Current todo state:
+
+1. COMPLETE: reviewed edge-refresh implementation and rollback/isolation tests.
+2. COMPLETE: 1.6.13 version/hash pins and complete source/native validation.
+3. ACTIVE: freeze the local bundle and run the path-bound package dry run in
+   testing, without closing the game or starting another diagnostic capture.
+4. PENDING: preserve settings, normal client restart into the isolated package,
+   and visual/streaming-cost acceptance. Keep old packages and the plain VM intact.

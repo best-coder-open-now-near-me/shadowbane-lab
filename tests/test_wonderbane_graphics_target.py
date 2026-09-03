@@ -105,10 +105,10 @@ def test_graphics_publication_and_launch_pin_the_golden_package() -> None:
         encoding="utf-8"
     )
     assert 'RepositoryShare = "\\\\VBOXSVR\\codexrepo"' in publish
-    assert 'ExtensionVersion = "1.6.12"' in publish
+    assert 'ExtensionVersion = "1.6.13"' in publish
     assert "wonderbane-extension.dll" in publish
     assert r"\build\wonderbane-client-extension\Release" in publish
-    assert "39ee563be8e32353d60c6f9e3ebb801b8db1bffddb6dcb734fbd4f66b2285114" in publish
+    assert "01e4297798c3c2ca4212d997f0793b8a4af0bb98d429f31d9e07a9dc029f42a4" in publish
     assert "a9a59004b36f9331bb85f85e7853a02a5d5f07bda9acb9ea4a8affbf169a54b8" in publish
     assert "$extensionSha256 -cne $ExpectedExtensionSha256" in publish
     assert "$resultExecutableSha256 -cne $ExpectedExecutableSha256" in publish
@@ -117,7 +117,7 @@ def test_graphics_publication_and_launch_pin_the_golden_package() -> None:
     assert "--texture-artifact-directory $TextureArtifactDirectory" in publish
     assert "texture_patch_manifest_sha256" in publish
     assert 'RepositoryShare = "\\\\VBOXSVR\\codexrepo"' in launch
-    assert 'ExtensionVersion = "1.6.12"' in launch
+    assert 'ExtensionVersion = "1.6.13"' in launch
     assert "39ee563be8e32353d60c6f9e3ebb801b8db1bffddb6dcb734fbd4f66b2285114" in launch
     assert '$expectedExtensionRelativePath = "wonderbane-extension.dll"' in launch
     assert 'Properties["extension_relative_path"]' in launch
@@ -187,13 +187,13 @@ def test_extension_version_is_consistent_across_every_runtime_surface() -> None:
     graphics_status = (native / "graphics_status.cpp").read_text(encoding="utf-8")
     api = (native / "extension_api.h").read_text(encoding="utf-8")
     resource = (native / "extension.rc").read_text(encoding="utf-8")
-    assert "project(wonderbane_extension VERSION 1.6.12" in cmake
-    assert 'kExtensionVersion[] = "1.6.12"' in extension
-    assert 'kExtensionVersion[] = "1.6.12"' in graphics_status
+    assert "project(wonderbane_extension VERSION 1.6.13" in cmake
+    assert 'kExtensionVersion[] = "1.6.13"' in extension
+    assert 'kExtensionVersion[] = "1.6.13"' in graphics_status
     assert "WONDERBANE_EXTENSION_VERSION_MAJOR 1U" in api
     assert "WONDERBANE_EXTENSION_VERSION_MINOR 6U" in api
-    assert "WONDERBANE_EXTENSION_VERSION_PATCH 12U" in api
-    assert "FILEVERSION 1,6,12,0" in resource
-    assert "PRODUCTVERSION 1,6,12,0" in resource
-    assert 'VALUE "FileVersion", "1.6.12.0\\0"' in resource
-    assert 'VALUE "ProductVersion", "1.6.12.0\\0"' in resource
+    assert "WONDERBANE_EXTENSION_VERSION_PATCH 13U" in api
+    assert "FILEVERSION 1,6,13,0" in resource
+    assert "PRODUCTVERSION 1,6,13,0" in resource
+    assert 'VALUE "FileVersion", "1.6.13.0\\0"' in resource
+    assert 'VALUE "ProductVersion", "1.6.13.0\\0"' in resource

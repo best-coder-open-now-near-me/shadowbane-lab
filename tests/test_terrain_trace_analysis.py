@@ -86,8 +86,11 @@ def _payload() -> dict:
     }
 
 
-def test_analyzer_attributes_reviewed_terrain_roles_without_claiming_asset_ids():
-    result = analysis.analyze_terrain_trace(_payload())
+@pytest.mark.parametrize("version", ["1.6.12", "1.6.13"])
+def test_analyzer_attributes_reviewed_terrain_roles_without_claiming_asset_ids(version):
+    payload = _payload()
+    payload["extension_version"] = version
+    result = analysis.analyze_terrain_trace(payload)
     assert result["status"] == "terrain_draws_attributed"
     assert result["terrain_draw_count"] == 2
     assert result["unmatched_draw_count"] == 1
