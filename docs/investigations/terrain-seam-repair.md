@@ -451,3 +451,32 @@ to chase this image.
 ACTIVE todo: trace the visible boundary through the terrain layer/material
 composition path, beginning with the already reviewed source vectors,
 ArcShaderCustomTexturedTerrain population, and masked-layer draw sequence.
+
+## Rejected terrain material snapshot probe
+
+A follow-up external debugger probe attempted to capture the terrain shader
+source pointer at the reviewed draw entry. It was pinned to the exact running
+1.6.13 client (PID 5240, creation FILETIME 134329293478567243), used bounded
+reads, and was designed to publish only after post-detach verification. During
+its first live run, however, the debugger worker reported that sb.exe exited.
+A separate process check confirmed that the exact client was no longer running.
+No final JSON result was published, so the partial observation is invalid.
+
+The failed design assigned all four hardware execution breakpoints to the same
+entry address in order to reuse the existing four-slot debugger transport. That
+approach is rejected: regardless of whether duplicate breakpoint addresses were
+the direct cause, a diagnostic that can terminate the test client is not an
+acceptable evidence path. The command-line entry point, module, focused tests,
+and operator documentation are removed in the following commit. Do not rerun
+the frozen da14bad archive from the guest-local terrain-material-da14bad folder.
+
+The exact sealed 1.6.13 client was subsequently relaunched through the frozen
+8f5bf8e verifier and its matching guest-local publication receipt. It attached
+the graphics panel as PID 2252. The retained draw trace and the minimal four-site
+terrain lifecycle repair were not changed.
+
+ACTIVE todo: continue material-boundary diagnosis without an external debugger.
+Prefer an in-process, opt-in extension observation with a fixed per-frame budget,
+or use a controlled renderer A/B that cannot mutate client memory or input. The
+visible seam remains attributed to the masked terrain layer/material stack, not
+to differing base texture bindings or base texture-matrix scale.
