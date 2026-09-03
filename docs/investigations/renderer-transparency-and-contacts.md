@@ -134,7 +134,8 @@ The host can validate bootstrap authoring but cannot complete this frozen client
 package dry-run: its baseline manifest is bound to the guest UNC path. The path
 identity check rejected the host-local alias; no manifest was rewritten to bypass
 it. Guest publication must run its normal dry-run before creating a new isolated
-runtime. Neither the running client nor the plain VM has been changed.
+runtime. At this host-validation checkpoint, neither the running client nor the
+plain VM had been changed. The subsequent testing-only publication is recorded below.
 
 Final host validation: 1,437 Python tests passed, 7 privilege-dependent skips,
 211 subtests; Ruff passed; all changed PowerShell scripts parsed; full and
@@ -143,18 +144,95 @@ Bootstrap authoring retains the expected patched executable identity. These
 checks include package-boundary tests, not a claim of guest publication or visual
 acceptance.
 
+## Testing-VM retest: 2026-09-03
+
+Frozen source `a1f8a77` passed the normal guest dry-run and publication checks.
+The testing VM launched an isolated 1.6.11 runtime under
+`S:\ShadowbaneLab-Guided\20260903-a1f8a77`, preserving the older runtime and
+the user's character preferences. Full-renderer DLL and patched executable
+hashes match the release identities above. The exact new client is PID 3948,
+creation FILETIME `134329033543494036`. The saved red-rim parameters were
+restored and acknowledged at sequence 4. The plain VM was not modified.
+
+The user reports that the lines crossing the affected transparent object are
+resolved. Record this as visual acceptance of that tested case, not proof that
+all transparent materials are covered or attribution of the old offending draw.
+The user still reports weak/missing boot edging and no foot-to-ground seam.
+
+With explicit input handoff, a six-view no-game-input comparison captured normal,
+accents-off, depth-off, both-outlines-off, all-live-effects-off, and raw-depth-response
+views. All-off still uses patched textures, not a pristine renderer baseline.
+Exact process/DLL identity, foreground ownership, settings acknowledgement and
+window bounds were checked; settings were restored in `finally`, acknowledged
+at sequence 16. The full graphics panel was not running during comparison.
+
+Private evidence directory:
+`E:\virtual-machines\shadowbane-testing\diagnostics\renderer-retest-1.6.11-20260903\contacts-20260903T101943213389Z`.
+All 46 files listed in `sha256.json` were verified on the host. That manifest's
+SHA-256 is `3a1525a1aee2f3dbd2c12e8a449c9c372fa26a27425641fffee51008dd8e1f95`.
+All 19 saved graphics snapshots passed the existing classification, scene-capture,
+and frame-timing validators. Original screenshots remain unmodified; magnified
+pixel crops were used only for inspection. Animation varies between stages.
+
+Observed results:
+
+- The normal screenshot has some faint, discontinuous red boot edging. Do not
+  generalize the user's observation into all boot/body outlines being absent.
+  The raw-response view shows strong upper-leg edges but a much weaker lower-leg,
+  boot, and ground-contact response. This supports a weak-response explanation;
+  it is not a raw depth-buffer dump or proof of a missing semantic/class boundary.
+- Every sampled frame has a verified done3d boundary immediately after its last
+  world draw and zero late-world draws. The old early-composite bug is not reproduced.
+- The normal middle sample has 219 state refreshes and 219 counted invalidations,
+  within the declared allowance; this is not evidence that refresh cost is negligible.
+  It records 2 accent draws, 127 blended-draw skips, zero source-state skips, and
+  9,263 skipped missing/ambiguous-UV segments. The depth-off middle sample records
+  9,073 UV skips. These are scene totals, not boot-specific draw attribution.
+  The conservative coverage tradeoff needs investigation; do not remove transparency
+  guards merely to recover lines.
+- Camera telemetry is advertised but has zero samples in the saved snapshots.
+  Camera tooling cannot be called live-complete for this scene. These files also
+  do not provide per-object draw/material/UV identity or per-frame cache/upload totals.
+- Merging all saved timing rings (including the restored snapshot) gives 1,338
+  unique frame timestamps. Stage-only status files can lag and must not be treated
+  as an exhaustive stage window. Restricting the union to each measured stage's
+  QPC bounds gives 22/22/21/21/24/19 consecutive frame intervals respectively,
+  with frame times typically around 0.1 second. CPU observations span only
+  2.6-2.8 seconds per stage, about 190-215% of one core. This is a slow, short,
+  sequential animated scene with screenshot overhead, not a controlled performance
+  benchmark or evidence of improvement over 1.6.10.
+
+### Diagnostic completeness follow-up
+
+The user requests the existing broader diagnostic package rather than relying
+only on screenshots. Source inspection confirms that `full` primarily changes
+sampling defaults; it is not an automatic collection of every supported channel.
+Frame/present status, approved native position, camera and performance telemetry
+must be enabled; alignment needs a reference build; packet/ETW/dump/log channels
+require supplied inputs. Draw/class counters do not supply object-level attribution.
+
+A wrapper was prepared around the unchanged frozen collector, targeting the exact
+client, full profile, 20 seconds at 8 Hz, performance telemetry, the frozen baseline
+for alignment, and the sealed six-view evidence as snapshots. Launch was blocked
+by the permission reviewer because its payload (screenshots, process details and
+fingerprints) would be exported to the host diagnostics share. It was **not run**
+or rerouted. The unused Run dialog was dismissed and input returned to the user.
+Explicit approval of that payload and local host destination is the next prerequisite.
+The existing screenshot comparison and settings restoration were already complete.
+
 ## Acceptance queue
 
 1. COMPLETE: state-coherence tests and both native profiles; checkpoint pushed.
 2. COMPLETE: source-owned transparency/feature replay policy and truthful accent controls.
 3. COMPLETE: host Python/native/package-boundary/source checks; version 1.6.11.
-4. ACTIVE: guest publication/dry-run and testing-VM-only retest after explicit
-   keyboard/mouse handoff. Preserve current
-   settings, capture exact process identity, pass toggles and per-frame evidence,
-   and restore settings afterward. User controls login, movement and the camera.
-5. Inspect the affected transparent object and foot-contact response separately.
-   Compare against normal settings without replacing global edge thresholds.
+4. COMPLETE: guest dry-run/publication, exact-client six-view comparison, restored
+   settings, and user confirmation of the tested transparent-object improvement.
+5. ACTIVE: obtain approval for the broader diagnostic bundle; audit actual channel
+   completeness, especially empty camera output and missing object attribution.
+6. Investigate weak boot/contact response separately from interior-accent UV skips.
+   Preserve the transparency fix, attach conclusions to evidence, and validate any
+   renderer change before another live package. Performance acceptance remains open.
 
-The plain VM remains untouched. No performance improvement or live visual fix is
-claimed before the corresponding capture. Keep source checkpoints, VM release
+The plain VM remains untouched. No general transparency/contact fix or performance
+improvement is claimed by this limited retest. Keep source checkpoints, VM release
 identity, observed results, and remaining work distinct in every update.
