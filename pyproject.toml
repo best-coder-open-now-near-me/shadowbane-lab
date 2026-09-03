@@ -14,6 +14,7 @@ dependencies = []
 shadowbane-lab = "shadowbane_lab.cli:main"
 shadowbane-runtime-consistency = "shadowbane_lab.runtime_consistency.__main__:main"
 shadowbane-terrain-audit = "shadowbane_lab.world_data.terrain_seam_cli:main"
+wonderbane-texture-export = "shadowbane_lab.client_extension.texture_export:main"
 
 [project.optional-dependencies]
 simulation = [
@@ -62,6 +63,10 @@ select = ["E", "F", "I", "UP", "B"]
 # exception to its two existing line-wrap findings while the asset facade remains fully linted.
 "src/shadowbane_lab/client_extension/texture_cache.py" = ["E501"]
 "tests/test_texture_cache_engine.py" = ["E501"]
+# The exporter deliberately catches broad cache-format ValueError subclasses as anonymous
+# nontexture skip records. Keep that compatibility tuple explicit and local to this module.
+"src/shadowbane_lab/client_extension/texture_export.py" = ["B014", "E501"]
+"tests/test_texture_export.py" = ["E501"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src", "tests"]
