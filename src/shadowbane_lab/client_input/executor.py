@@ -65,6 +65,7 @@ class GuardedInputExecutor:
         guard: ForegroundWindowGuard,
         backend: InputBackend,
         stop_signal: StopSignal,
+        input_precondition: Callable[[], None] | None = None,
         minimum_input_interval_ms: int = 25,
         clock: Callable[[], float] = time.monotonic,
         sleeper: Callable[[float], None] = time.sleep,
@@ -75,6 +76,8 @@ class GuardedInputExecutor:
             raise ValueError("backend must implement InputBackend")
         if not isinstance(stop_signal, StopSignal):
             raise ValueError("stop_signal must implement StopSignal")
+        if input_precondition is not None and not callable(input_precondition):
+            raise ValueError("input_precondition must be callable when present")
         if (
             isinstance(minimum_input_interval_ms, bool)
             or not isinstance(minimum_input_interval_ms, int)
@@ -84,6 +87,7 @@ class GuardedInputExecutor:
         self._guard = guard
         self._backend = backend
         self._stop_signal = stop_signal
+        self._input_precondition = input_precondition
         self._minimum_interval_seconds = minimum_input_interval_ms / 1000.0
         self._clock = clock
         self._sleeper = sleeper
@@ -112,6 +116,13 @@ class GuardedInputExecutor:
                     else:
                         self._wait_for_rate_limit()
                         self._require_running()
+                        if self._input_precondition is not None:
+                            try:
+                                self._input_precondition()
+                            except Exception as exc:
+                                raise InputExecutionError(
+                                    f"input precondition failed: {exc}"
+                                ) from exc
                         snapshot = self._guard.require_target()
                         self._invoke(command, snapshot.client_bounds)
                         self._last_input_at = self._clock()
