@@ -102,6 +102,56 @@ class WeightedUtilityPolicyTests(unittest.TestCase):
         self.assertEqual(baseline.left, weighted.left)
         self.assertEqual(baseline.right, weighted.right)
 
+    def test_strict_open_duel_does_not_grant_missing_action_requirements(self) -> None:
+        backstab = PrimitiveLoadout(
+            loadout_id="unproven-backstab",
+            display_name="Unproven Backstab",
+            action_keys=("shadowbane.assassin.backstab",),
+            health=500.0,
+            mana=300.0,
+            stamina=200.0,
+            move_speed=20.0,
+        )
+        opponent = warlock_loadout()
+
+        strict = run_open_duel_with_policies(
+            self.ruleset,
+            backstab,
+            opponent,
+            starting_distance=6.0,
+            max_ticks=2,
+            seed=1,
+            auto_satisfy_action_requirements=False,
+        )
+        permissive = run_open_duel_with_policies(
+            self.ruleset,
+            backstab,
+            opponent,
+            starting_distance=6.0,
+            max_ticks=2,
+            seed=1,
+            auto_satisfy_action_requirements=True,
+        )
+
+        self.assertEqual(
+            (
+                "equipment.melee_weapon",
+                "power.stalk",
+                "visibility.invisible",
+            ),
+            strict.left.unsatisfied_requirement_tags,
+        )
+        self.assertEqual((), strict.left.auto_added_tags)
+        self.assertEqual((), permissive.left.unsatisfied_requirement_tags)
+        self.assertEqual(
+            (
+                "equipment.melee_weapon",
+                "power.stalk",
+                "visibility.invisible",
+            ),
+            permissive.left.auto_added_tags,
+        )
+
     def test_policy_evaluator_is_deterministic_and_evidence_bound(self) -> None:
         evaluator = UtilityPolicyLeagueEvaluator(
             self.ruleset,
