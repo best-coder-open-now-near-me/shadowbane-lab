@@ -17,6 +17,19 @@ jobs:
           fetch-depth: 1
       - name: Archive exact source tree
         run: git archive --format=zip --output=terrain-repair-workspace.zip HEAD
+      - name: Fetch public WonderBane patch manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p public-patch-manifest
+          curl --fail --location --retry 4 --retry-delay 2 \
+            --user-agent 'WonderBanePatcher/1.0' \
+            --output public-patch-manifest/manifest.json \
+            'http://87.99.132.84/manifest.json'
+          python -m json.tool public-patch-manifest/manifest.json \
+            > public-patch-manifest/manifest.pretty.json
+          sha256sum public-patch-manifest/manifest.json \
+            > public-patch-manifest/manifest.sha256
       - name: Upload source workspace
         uses: actions/upload-artifact@v4
         with:
@@ -24,4 +37,11 @@ jobs:
           path: terrain-repair-workspace.zip
           if-no-files-found: error
           compression-level: 0
+          retention-days: 1
+      - name: Upload public patch manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: wonderbane-public-patch-manifest
+          path: public-patch-manifest
+          if-no-files-found: error
           retention-days: 1
