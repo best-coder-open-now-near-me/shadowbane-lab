@@ -712,3 +712,47 @@ focused Ruff and diff checks passed. Tests distinguish a root that changes befor
 association is validated (discarded) from one that advances after the association
 while its source graph remains consistent (retained and explicitly labeled).
 ACTIVE todo: bounded staged capture, followed by offline edge comparison.
+
+## Staged neighboring geometry and preliminary shared-vertex comparison
+
+The staged capture from `60905bd` completed at 2026-09-03T19:52:39.984146Z
+against PID 2252, creation FILETIME 134329332816298963. Artifact:
+`E:/Projects/shadowbane/.tmp/terrain-staged-evidence-2252/terrain-staged-2252-60905bd-1.json`,
+SHA-256 `2c6e5967d381cef79e6a3b5642acbb32912150444d5faed5a5c175592d25c9d8`.
+Five seconds, 921 polls, 13 stable, 71 idle, 837 discarded retained 7 sources
+and 7 meshes. Alpha/mesh read reservations were 1,024,000 / 314,828 bytes.
+All signatures passed, the same process survived, and copied evidence hashes
+agreed. The diagnostic console and temporary shares were removed afterward.
+
+The camera was observed at a different angle before this capture. No movement
+command was sent, but this is a new view, not a claimed fixed-camera comparison.
+When a desktop shortcut did not visibly open a window, no command was typed;
+Task Manager restored desktop access before Run and PowerShell were verified.
+
+All seven meshes have 0..1 UV bounds and zero mask rotation. Retained vertices
+agree with u=(X-minX)/256 and v=(maxZ-Z)/256. An exploratory offline calculation
+compared material weights only at shared referenced vertices (positions rounded
+to four decimal places), using source alpha, linear clamp-to-edge sampling, and
+successive source-alpha composition in layer order. Total-variation distance
+between the resulting material-token weights was:
+
+| Sources | Shared vertices | Maximum / mean weight distance |
+| --- | ---: | --- |
+| `0x3dfa1d98` / `0x3dfa2848` | 37 | 0.077278 / 0.024906 |
+| `0x3dfa1bd0` / `0x3dfa1678` | 33 | 0.027451 / 0.000832 |
+| `0x3de65fb8` / `0x3de66348` | 20 | 0.002953 / 0.000261 |
+| `0x3dfa2848` / `0x3dfa1678` | 15 | 0 / 0 |
+
+The largest difference is at (89088,26.25,-45056): modeled rock weight changes
+from 0.703114 to 0.780392, beige from 0.292964 to 0.219608, and dark green from
+0.003922 to zero. This is source-data evidence, NOT measured framebuffer color
+or actual GPU mask content. It does not sample entire connected boundary
+segments, include RGB texture phase/lighting/fog, or prove which edge dominates
+the visible seam. The earlier equal raw mask row must not be treated as geometric
+adjacency; mesh attribution is required.
+
+Completed: bounded staged capture and preliminary shared-vertex comparison.
+ACTIVE todo: inspect current final draw state and close the GPU/coordinate/lighting
+evidence gap before selecting a visual repair. Full connected-edge analysis may
+also be needed. No source-cache mutation or visual fix is justified by these
+vertex-only differences alone. Visual seam acceptance remains open.
