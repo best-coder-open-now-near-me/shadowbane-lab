@@ -1,5 +1,8 @@
 #include "event_channel.h"
 
+#include "client_action_trace.h"
+#include "command_channel.h"
+
 #include <strsafe.h>
 
 #include <cmath>
@@ -71,6 +74,21 @@ bool ConsumerLeaseIsActive() noexcept {
     return now >= static_cast<ULONGLONG>(heartbeat_tick)
         && now - static_cast<ULONGLONG>(heartbeat_tick)
             <= kMaximumConsumerAgeMilliseconds;
+}
+
+void CloseEventChannelObjects() noexcept {
+    if (g_signal != nullptr) {
+        CloseHandle(g_signal);
+        g_signal = nullptr;
+    }
+    if (g_storage != nullptr) {
+        UnmapViewOfFile(g_storage);
+        g_storage = nullptr;
+    }
+    if (g_mapping != nullptr) {
+        CloseHandle(g_mapping);
+        g_mapping = nullptr;
+    }
 }
 
 }  // namespace
@@ -169,14 +187,7 @@ DWORD InitializeEventChannel(
     g_signal = CreateEventW(nullptr, FALSE, FALSE, signal_name);
     if (g_signal == nullptr || GetLastError() == ERROR_ALREADY_EXISTS) {
         result = g_signal == nullptr ? GetLastError() : ERROR_ALREADY_EXISTS;
-        if (g_signal != nullptr) {
-            CloseHandle(g_signal);
-            g_signal = nullptr;
-        }
-        UnmapViewOfFile(g_storage);
-        g_storage = nullptr;
-        CloseHandle(g_mapping);
-        g_mapping = nullptr;
+        CloseEventChannelObjects();
         return result;
     }
 
@@ -190,22 +201,25 @@ DWORD InitializeEventChannel(
     g_storage->header.capability_flags = capability_flags;
     g_storage->header.process_creation_filetime_utc = identity.creation_filetime_utc;
     MemoryBarrier();
+
+    result = StartClientActionCommandChannel(identity);
+    if (result != ERROR_SUCCESS) {
+        CloseEventChannelObjects();
+        return result;
+    }
+    result = StartClientActionTraceChannel(identity);
+    if (result != ERROR_SUCCESS) {
+        StopClientActionCommandChannel();
+        CloseEventChannelObjects();
+        return result;
+    }
     return ERROR_SUCCESS;
 }
 
 void ShutdownEventChannel() noexcept {
-    if (g_signal != nullptr) {
-        CloseHandle(g_signal);
-        g_signal = nullptr;
-    }
-    if (g_storage != nullptr) {
-        UnmapViewOfFile(g_storage);
-        g_storage = nullptr;
-    }
-    if (g_mapping != nullptr) {
-        CloseHandle(g_mapping);
-        g_mapping = nullptr;
-    }
+    StopClientActionTraceChannel();
+    StopClientActionCommandChannel();
+    CloseEventChannelObjects();
 }
 
 bool TryPublishWorldMapDestination(

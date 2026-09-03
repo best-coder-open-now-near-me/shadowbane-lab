@@ -235,6 +235,7 @@ struct DepthEdgeRuntime {
 struct DepthEdgeFrame {
     std::array<float, 16U> projection{};
     std::array<int, 4U> viewport{};
+    bool main_scene = false;
     bool pending = false;
     bool composited = false;
 };
@@ -970,21 +971,34 @@ const char* DepthEdgeVertexSource() noexcept {
     return kVertexSource;
 }
 
-void MarkDepthEdgeSceneDraw(
+bool BeginMainDepthEdgeScene(
     const float* const projection,
     const std::size_t projection_count,
     const int* const viewport,
     const std::size_t viewport_count
 ) noexcept {
-    if ((CurrentGraphicsParameters().flags & kGraphicsControlDepthContours) == 0U
-        || projection == nullptr || projection_count != g_frame.projection.size()
+    DiscardPendingDepthEdgeScene();
+    if (projection == nullptr || projection_count != g_frame.projection.size()
         || viewport == nullptr || viewport_count != g_frame.viewport.size()
         || viewport[2] <= 0 || viewport[3] <= 0 || g_frame.composited) {
-        return;
+        return false;
     }
+    for (std::size_t index = 0U; index < projection_count; ++index) {
+        if (!std::isfinite(projection[index])) { return false; }
+    }
+    if (std::fabs(projection[11]) < 0.000001F
+        || std::fabs(projection[15]) > 0.000001F) { return false; }
     std::copy_n(projection, g_frame.projection.size(), g_frame.projection.begin());
     std::copy_n(viewport, g_frame.viewport.size(), g_frame.viewport.begin());
-    g_frame.pending = true;
+    g_frame.main_scene = true;
+    return true;
+}
+
+void MarkDepthEdgeSceneDraw() noexcept {
+    if (g_frame.main_scene && !g_frame.composited
+        && (CurrentGraphicsParameters().flags & kGraphicsControlDepthContours) != 0U) {
+        g_frame.pending = true;
+    }
 }
 
 bool CompositeDepthEdgesBeforeUi() noexcept {
@@ -994,13 +1008,19 @@ bool CompositeDepthEdgesBeforeUi() noexcept {
     if ((CurrentGraphicsParameters().flags & kGraphicsControlDepthContours) == 0U) {
         g_frame.pending = false;
         g_frame.composited = true;
-        return true;
+        return false;
     }
     const DepthEdgeFrame frame = g_frame;
     g_frame.pending = false;
     g_frame.composited = true;
-    CompositeDepthEdges(frame);
-    return true;
+    return CompositeDepthEdges(frame);
+}
+
+void DiscardPendingDepthEdgeScene() noexcept {
+    // A framebuffer clear invalidates the armed snapshot but must never allow a
+    // second composite in the same present interval.
+    g_frame.pending = false;
+    g_frame.main_scene = false;
 }
 
 void EndDepthEdgeFrame() noexcept {

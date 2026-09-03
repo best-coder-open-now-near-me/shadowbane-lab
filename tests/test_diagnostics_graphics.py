@@ -146,8 +146,8 @@ def _status(
                     "world_opaque": 40,
                     "world_alpha_tested": 8,
                     "world_translucent": 12,
-                    "world_overlay": 2,
-                    "ui_overlay": 15,
+                    "world_overlay": 4,
+                    "ui_overlay": 13,
                 },
                 "reasons": {
                     "projection_unavailable": 0,
@@ -177,8 +177,8 @@ def _status(
                     "world_opaque": 400,
                     "world_alpha_tested": 80,
                     "world_translucent": 120,
-                    "world_overlay": 20,
-                    "ui_overlay": 150,
+                    "world_overlay": 40,
+                    "ui_overlay": 130,
                 },
                 "reasons": {
                     "projection_unavailable": 0,

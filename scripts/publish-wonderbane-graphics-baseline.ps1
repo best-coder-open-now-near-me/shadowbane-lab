@@ -8,12 +8,12 @@ param(
     ),
     [string] $ExpectedContentBuildId = "wb-55fbad5f-4b602995",
     [string] $ExpectedExtensionSha256 = (
-        "9a6a6e8b90c96d8be37e8bf4add906b979c22363be1542cac104aa7fa0a2b4d4"
+        "51fa86429fa65f1a1bbef7d384acd455bd06fcbad9b264bca453d504f01d9327"
     ),
     [string] $ExpectedExecutableSha256 = (
         "a9a59004b36f9331bb85f85e7853a02a5d5f07bda9acb9ea4a8affbf169a54b8"
     ),
-    [string] $ExtensionVersion = "1.6.8",
+    [string] $ExtensionVersion = "1.6.9",
     [string] $ExtensionArtifact = (
         "\\VBOXSVR\codexrepo\build\wonderbane-client-extension\Release\wonderbane-extension.dll"
     ),
@@ -24,7 +24,7 @@ param(
         "\\VBOXSVR\codexrepo\assets\wonderbane_graphics\restrained-cel-v1"
     ),
     [string] $DestinationDirectory = (
-        "S:\Wonderbane-graphics-wb-55fbad5f-4b602995-cel-1.6.8"
+        "S:\Wonderbane-graphics-wb-55fbad5f-4b602995-cel-1.6.9"
     ),
     [switch] $DryRunOnly
 )

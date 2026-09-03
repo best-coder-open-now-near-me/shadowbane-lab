@@ -880,23 +880,12 @@ class _ExactWorkerEngineExecutor:
         )
 
     def _execute_pve(self, *, stop_signal: StopSignal) -> WorkerOperationExecution:
-        hotbar_path = self._pve_hotbar_config_path
-        if hotbar_path is None:
-            candidates = tuple(
-                sorted(
-                    (Path.home() / "Downloads" / "WonderbaneClient" / "Wonderbane" / "Config").glob(
-                        "SCREEN_GAME_*_Wonderbane.cfg"
-                    )
-                )
-            )
-            if len(candidates) == 1:
-                hotbar_path = candidates[0]
         self._pve_evidence_directory.mkdir(parents=True, exist_ok=True)
         evidence_output = _new_chat_pve_evidence_path(self._pve_evidence_directory)
         result = _run_pve(
             client_profile_path=self._pve_client_profile_path,
             combat_log_path=None,
-            hotbar_config_path=hotbar_path,
+            hotbar_config_path=self._pve_hotbar_config_path,
             native_health_profile_path=None,
             native_vitals_profile_path=self._native_vitals_profile_path,
             native_position_profile_path=self._native_position_profile_path,

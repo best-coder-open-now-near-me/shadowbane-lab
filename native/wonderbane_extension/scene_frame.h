@@ -86,6 +86,11 @@ struct SceneFrameState {
     std::uint64_t first_late_world_draw_ordinal = 0U;
     std::uint64_t last_world_draw_ordinal = 0U;
     std::uint64_t fixed_function_refresh_count = 0U;
+    std::uint64_t main_scene_start_count = 0U;
+    std::uint64_t main_scene_world_draw_count = 0U;
+    bool boundary_mapping_verified = false;
+    bool main_scene_invalidated = false;
+    bool composite_succeeded = false;
     bool composite_requested = false;
 };
 
@@ -111,9 +116,8 @@ SceneFrameDecision AdvanceSceneFrame(
     SceneFrameState* frame,
     const DrawClassification& classification
 ) noexcept;
-void ResolveSceneCompositeAttempt(
-    SceneFrameState* frame,
-    bool accepted
-) noexcept;
+// Called only by the exact reviewed main-clear / pre-UI import call sites.
+void ObserveMainSceneClear(SceneFrameState* frame) noexcept;
+bool BeginReviewedSceneUiBoundary(SceneFrameState* frame) noexcept;
 
 }  // namespace wonderbane::extension

@@ -52,17 +52,6 @@ if (-not (Test-Path -LiteralPath $ManagerManifest -PathType Leaf)) {
 if (-not (Test-Path -LiteralPath $WorkerStateDirectory -PathType Container)) {
     New-Item -ItemType Directory -Path $WorkerStateDirectory -Force | Out-Null
 }
-if (-not $PveHotbarConfig) {
-    $hotbars = @(
-        Get-ChildItem `
-            "$env:USERPROFILE\Downloads\WonderbaneClient\Wonderbane\Config\SCREEN_GAME_*_Wonderbane.cfg" `
-            -File `
-            -ErrorAction SilentlyContinue
-    )
-    if ($hotbars.Count -eq 1) {
-        $PveHotbarConfig = $hotbars[0].FullName
-    }
-}
 if ($PveHotbarConfig -and -not (Test-Path -LiteralPath $PveHotbarConfig -PathType Leaf)) {
     throw "WonderBane character hotbar was not found: $PveHotbarConfig"
 }

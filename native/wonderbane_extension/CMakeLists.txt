@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(wonderbane_extension VERSION 1.6.8 LANGUAGES CXX RC)
+project(wonderbane_extension VERSION 1.6.9 LANGUAGES CXX RC)
 
 set(WONDERBANE_EXTENSION_PROFILE "full" CACHE STRING "Extension runtime profile")
 set_property(
@@ -105,6 +105,18 @@ add_custom_command(
 )
 
 if(BUILD_TESTING)
+  add_executable(wonderbane_extension_scene_boundary_test reviewed_scene_boundary_test.cpp)
+  target_compile_features(wonderbane_extension_scene_boundary_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_scene_boundary_test PRIVATE
+    UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_scene_boundary_test PRIVATE
+    /W4 /WX /permissive- /sdl /GS /guard:cf /utf-8)
+  target_link_libraries(wonderbane_extension_scene_boundary_test PRIVATE bcrypt)
+  target_link_options(wonderbane_extension_scene_boundary_test PRIVATE /DYNAMICBASE /NXCOMPAT)
+  set_property(TARGET wonderbane_extension_scene_boundary_test
+    PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded")
+  add_test(NAME wonderbane_extension_scene_boundary COMMAND wonderbane_extension_scene_boundary_test)
+
   add_executable(
     wonderbane_extension_scene_frame_test
     scene_frame.cpp

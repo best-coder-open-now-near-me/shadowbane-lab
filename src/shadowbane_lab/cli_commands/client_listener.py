@@ -13,8 +13,6 @@ from pathlib import Path
 from shadowbane_lab.client_extension import ExtensionWorldMapDestinationEvent
 from shadowbane_lab.client_input import (
     AnyStopSignal,
-    ArcaneClientPower,
-    ArcaneHotbarLoadError,
     CalibrationLoadError,
     ClientInputAdapter,
     DecisionInputCompiler,
@@ -60,9 +58,6 @@ from shadowbane_lab.manager import (
     WorkerTravelDestination,
     load_manager_manifest,
 )
-from shadowbane_lab.pve import (
-    PvEIntent,
-)
 from shadowbane_lab.travel import (
     PhysicalPointerInteraction,
     SparseNavigationMap,
@@ -82,7 +77,6 @@ from shadowbane_lab.travel import (
 
 from .client_pve import (
     _run_pve,
-    _verify_hotbar_power_mapping,
 )
 from .client_runtime import _require_window_process_id
 from .client_travel import _catalog_with_live_runegates, _run_travel
@@ -233,7 +227,6 @@ def _listen_for_go_commands(
             )
         )
     except (
-        ArcaneHotbarLoadError,
         CalibrationLoadError,
         OSError,
         RuntimeError,
@@ -620,21 +613,6 @@ def _listen_for_go_commands(
                             as_json=as_json,
                             command=command,
                             reason="the listener was started without a PvE profile",
-                        )
-                        continue
-                    try:
-                        _verify_hotbar_power_mapping(
-                            pve_profile.actions,
-                            pve_hotbar_config_path,
-                            action_key=PvEIntent.CAST_SHADOW_TOUCH.value,
-                            power_name=ArcaneClientPower.SHADOW_TOUCH,
-                        )
-                    except (ArcaneHotbarLoadError, OSError, ValueError) as exc:
-                        _print_go_listener_event(
-                            "rejected",
-                            as_json=as_json,
-                            command=command,
-                            reason=str(exc),
                         )
                         continue
                     operation_stop = EventEmergencyStop()

@@ -298,6 +298,34 @@ def _inspect_arcane_hotkeys(path: Path, *, as_json: bool) -> int:
     return 0
 
 
+def _inspect_active_character_config(*, process_id: int | None, as_json: bool) -> int:
+    from shadowbane_lab.client_input.character_config import open_active_character_config
+
+    try:
+        with open_active_character_config(process_id=process_id) as session:
+            table = load_arcane_hotbar(session.binding.config_path)
+            session.require_current()
+            payload = {
+                "ok": True,
+                **session.binding.as_dict(),
+                "current_set_index": table.current_set_index,
+                "active_slots": [
+                    {"key": slot.activation_key, "power": slot.power_name}
+                    for slot in table.current_set.slots if slot.occupied
+                ],
+            }
+    except (OSError, RuntimeError, ValueError) as exc:
+        return _error(f"active profile inspection failed: {exc}", as_json=as_json)
+    if as_json:
+        print(json.dumps(payload, sort_keys=True))
+    else:
+        print(f"Character: {payload['character_name']} ({payload['server_name']})")
+        print(f"Profile: {payload['config_path']}")
+        for slot in payload["active_slots"]:
+            print(f"{slot['key'].upper()}: {slot['power']}")
+    return 0
+
+
 def _inspect_arcane_hotbar(path: Path, *, as_json: bool) -> int:
     try:
         table = load_arcane_hotbar(path)
