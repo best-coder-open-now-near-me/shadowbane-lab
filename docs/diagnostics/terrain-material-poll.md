@@ -92,3 +92,40 @@ draw meanwhile. Output labels this `staged-root-and-graph`; it never claims the
 root is still current, that object lifetimes were pinned, or that an atomic frame
 was captured. Concurrent ABA changes remain possible, as in default mode. This
 is an explicit evidence-contract choice, not silently relaxed default validation.
+
+## Offline connected-edge material analysis
+
+After a combined schema-4 mesh/alpha capture, run this on the host; it does not
+access a client process or any cache archive:
+
+```powershell
+python -m shadowbane_lab.diagnostics.terrain_material_analysis capture.json `
+  --output material-boundaries.json
+```
+
+The create-only report retains the input SHA-256 and process lifetime. It checks
+the recorded exact build/signatures, snapshot fingerprints and buffer hashes,
+then reconstructs boundaries from actual triangle edges. It compares only
+opposite outer X/Z planes, intersects differently subdivided edge intervals,
+and rejects interpolated height disagreement above 0.0001 world units. Shared
+corners alone, nearby-but-distinct planes, two observations of the same source,
+nonmanifold edges, ambiguous UV seams and unsupported/missing data cannot become
+apparently continuous boundaries. Skipped snapshots and rejected heights remain
+visible in the report.
+
+The material model uses source alpha8 masks, the reviewed mask rotation, linear
+clamp-to-edge filtering, and ordered source-alpha composition. It groups weights
+by color material token, including repeated tokens. Every compared fragment has
+at most half a mask texel per UV axis between samples. The report gives a sampled maximum,
+a projected-length-weighted trapezoidal mean, and the worst sampled position,
+UVs and weights. These are not analytic extrema or framebuffer color differences.
+The input is capped at 64 MiB / 64 snapshots and analysis at 200,000 samples;
+budget failure produces no output report rather than silently partial results.
+
+This closes a source-data comparison gap, not the GPU evidence gap. The modeled
+sampler/blend state is assumed from the reviewed pass, not measured in this file.
+RGB texture phase, lighting, fog, actual GL arrays, uploaded bytes, and screen
+projection remain outside its claims. Snapshot hashes verify consistency, not
+authenticity, and staged samples remain non-atomic. Existing archive-wide seam
+audits remain separate: shared raw mask borders are not enough to prove live
+mesh adjacency or final material continuity.

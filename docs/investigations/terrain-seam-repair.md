@@ -756,3 +756,51 @@ ACTIVE todo: inspect current final draw state and close the GPU/coordinate/light
 evidence gap before selecting a visual repair. Full connected-edge analysis may
 also be needed. No source-cache mutation or visual fix is justified by these
 vertex-only differences alone. Visual seam acceptance remains open.
+
+## Connected-edge analysis and live trace availability
+
+The existing one-frame recorder was requested against PID 2252 and the same
+creation time using the frozen local `60905bd` package. It safely returned
+`not_captured: tracing is unavailable; launch a reviewed trace-enabled package`.
+No event was signaled, no trace was claimed, and the verified PowerShell window
+was closed afterward. The running 1.6.13 launch did not expose the opt-in trace
+channel. Live entry-state evidence therefore needs a trace-enabled relaunch.
+
+Added a reusable offline source-material analyzer rather than relying on the
+exploratory shared-vertex calculation. It verifies the capture contract/digests,
+reconstructs actual boundary triangle edges, intersects opposite X/Z boundary
+segments (including unequal subdivisions), rejects height gaps, and samples
+ordered source-alpha material weights at half-mask-texel spacing or finer.
+It never opens the process, reads the GPU, or modifies archives.
+
+Final report: `E:/Projects/shadowbane/.tmp/terrain-staged-evidence-2252/material-boundary-analysis-v2.json`.
+SHA-256 `773e4b0bc8ca23675a65820716b1d478d5dc233077c69797e1ef97c6a636f732`.
+The v1 report is retained; v2 clarifies the stated sampling/authentication limits
+without changing numerical results.
+All 7 meshes were usable. 869 samples covered 101 matched fragments across four
+complete 256-world-unit boundaries, with no rejected height fragments.
+
+| Sources | Maximum sampled weight distance | Length-weighted mean |
+| --- | ---: | ---: |
+| `0x3dfa1d98` / `0x3dfa2848` | 0.078662 | 0.016514 |
+| `0x3dfa1bd0` / `0x3dfa1678` | 0.027451 | 0.000429 |
+| `0x3de65fb8` / `0x3de66348` | 0.004198 | 0.000382 |
+| `0x3dfa2848` / `0x3dfa1678` | 0 | 0 |
+
+The new maximum is slightly inside the first edge at (89088,26.25,-45054), not
+at a vertex: rock weights 0.701730 versus 0.780392. The finer comparison does
+not uncover a large previously missed step on these four edges. It does not
+identify all visible boundaries, establish actual uploaded alpha or lighting,
+or exclude an interior mask gradient. No renderer repair is claimed.
+
+Completed: repeatable connected-edge source analysis and bounded trace attempt.
+ACTIVE todo: trace-enabled relaunch and one current terrain draw-state capture,
+then correlate its bindings with source/mesh evidence and choose a supported
+visual repair. No broad export or GitHub push; plain VM remains untouched.
+
+Validation: 26 focused analyzer tests passed, including a between-vertex mask
+peak that vertex-only comparison misses. The full Python suite passed 1,561
+tests and 211 subtests, with 7 skipped; focused Ruff and diff checks passed.
+The native DLL was not changed or rebuilt: the previously sealed 1.6.13 full
+and diagnostics artifacts retain their recorded 16/16 native-suite evidence.
+This checkpoint adds no live renderer work or per-frame cost.
