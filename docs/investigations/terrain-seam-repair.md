@@ -346,3 +346,32 @@ that old test copy, keeping 1.6.11 and the current 1.6.12 fallback. Afterward,
 resume from verified local staging, publish, launch, restore live controls, and
 verify the four-site repair status. Visual and streaming-cost acceptance remain
 pending. No new capture, diagnostic export, push, or plain-VM change occurred.
+
+## Installed test checkpoint and disposable-build policy
+
+Per user direction, generated VM test builds are disposable artifacts, not
+rollback backups. Git history plus the frozen official client baseline are the
+authoritative inputs for rebuilding an older renderer when continued diagnosis
+requires it. Transfer the active user's reviewed configuration into a new test
+build when needed, but do not retain whole client copies merely for rollback.
+
+After an exact, read-only package preflight passed, the user explicitly approved
+permanent removal—with no backups—of the four superseded testing builds: 1.6.8,
+1.6.10, 1.6.11, and 1.6.12. Each target was proven to be a sealed disposable
+WonderBane package, had matching recorded executable/extension hashes, contained
+no reparse points or .git directory, and was resolved to its exact S: path before
+removal. All four removals completed; a subsequent exact-path check found zero
+remaining. S: free space increased to 7.65 GiB.
+
+The 1.6.13 package was then published and verified at:
+S:\ShadowbaneLab-Guided\20260903-ed9aa5b\Wonderbane-graphics-wb-55fbad5f-4b602995-cel-1.6.13.
+It launched as PID 5240, creation FILETIME 134329293478567243. Saved graphics
+parameters were applied only to that exact process and acknowledged at sequence
+4. Final status reports terrain_mask_refresh=active with patched_sites=4. No
+terrain trace or other diagnostic capture was requested. The plain VM and frozen
+official baseline remain untouched.
+
+ACTIVE todo: user login and visual evaluation at the selected terrain seams,
+followed by a separate streaming-cost check if appearance is improved. The live
+status proves the reviewed repair installed; it does not by itself prove every
+visible seam is resolved.
