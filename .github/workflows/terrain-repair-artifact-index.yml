@@ -1,0 +1,41 @@
+name: Terrain repair artifact index
+
+on:
+  push:
+    branches:
+      - codex/terrain-material-repair-workspace
+    paths:
+      - .github/workflows/terrain-repair-artifact-index.yml
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  index:
+    runs-on: ubuntu-latest
+    steps:
+      - name: List retained repository artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          : > artifacts.jsonl
+          page=1
+          while :; do
+            response="$(gh api -H 'Accept: application/vnd.github+json' \
+              "/repos/${GITHUB_REPOSITORY}/actions/artifacts?per_page=100&page=${page}")"
+            count="$(jq '.artifacts | length' <<<"$response")"
+            jq -c '.artifacts[] | {id,name,size_in_bytes,expired,created_at,expires_at,workflow_run,digest}' \
+              <<<"$response" >> artifacts.jsonl
+            if [ "$count" -lt 100 ]; then break; fi
+            page=$((page + 1))
+          done
+          wc -l artifacts.jsonl
+      - uses: actions/upload-artifact@v4
+        with:
+          name: terrain-repair-artifact-index
+          path: artifacts.jsonl
+          if-no-files-found: error
+          retention-days: 1
