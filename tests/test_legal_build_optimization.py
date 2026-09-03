@@ -57,7 +57,7 @@ class LegalBuildCompilerTests(unittest.TestCase):
     def compiler(
         self,
         *,
-        policy: LegalBuildCompilePolicy = LegalBuildCompilePolicy(),
+        policy: LegalBuildCompilePolicy | None = None,
         with_ruleset: bool = False,
     ) -> LegalBuildCompiler:
         ruleset = (
@@ -69,7 +69,7 @@ class LegalBuildCompilerTests(unittest.TestCase):
             self.calculator,
             self.equipment,
             ruleset=ruleset,
-            policy=policy,
+            policy=LegalBuildCompilePolicy() if policy is None else policy,
         )
 
     def test_calculator_legal_chassis_compiles_without_mechanics_guessing(self) -> None:
