@@ -59,6 +59,20 @@ from .training import (
 from .training import (
     LegalBuildLeagueEvaluator as PermissiveLegalBuildLeagueEvaluator,
 )
+from .training_budget import (
+    TrainingAllocationAudit,
+    TrainingBudgetCatalog,
+    TrainingBudgetProfile,
+    TrainingCostEvidence,
+    TrainingLevelBand,
+    TrainingPopulationScope,
+    TrainingSelectionCost,
+    load_bundled_training_budget_catalog,
+)
+from .training_budget_gate import (
+    TrainingBudgetBackedLegalityGate,
+    TrainingCatalogLegalityAudit,
+)
 from .utility_policy import (
     POLICY_WEIGHT_FIELDS,
     DuelPolicy,
@@ -110,6 +124,15 @@ __all__ = [
     "PolicyFactory",
     "SelectedAffix",
     "StrictLegalBuildLeagueEvaluator",
+    "TrainingAllocationAudit",
+    "TrainingBudgetBackedLegalityGate",
+    "TrainingBudgetCatalog",
+    "TrainingBudgetProfile",
+    "TrainingCatalogLegalityAudit",
+    "TrainingCostEvidence",
+    "TrainingLevelBand",
+    "TrainingPopulationScope",
+    "TrainingSelectionCost",
     "UtilityPolicyEvaluation",
     "UtilityPolicyLeagueEvaluator",
     "UtilityPolicyWeights",
@@ -118,6 +141,7 @@ __all__ = [
     "evaluation_digest",
     "genome_mechanical_digest",
     "genome_mechanical_payload",
+    "load_bundled_training_budget_catalog",
     "load_legal_build_genome",
     "load_legal_build_genome_text",
     "primitive_loadout_mechanical_digest",
