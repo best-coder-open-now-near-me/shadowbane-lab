@@ -6,16 +6,20 @@ import struct
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from shadowbane_lab.client_observation.native_health import NativeMemoryRegion
 from shadowbane_lab.client_observation.native_vendor_dialog import (
     NativeVendorDialogDebugHit,
+    NativeVendorDialogDetachError,
 )
 from shadowbane_lab.diagnostics.terrain_branch_hits import (
     TERRAIN_OBJECT_SIZE,
     TerrainBranchCompatibilityError,
     TerrainBranchProfile,
     TerrainEdgeBranch,
+    _supervised_capture,
     capture_terrain_branch_hits,
 )
 
@@ -64,6 +68,7 @@ class FakeBackend:
         self.attached: dict[str, int] | None = None
         self.continued: list[tuple[str, bool]] = []
         self.closed = False
+        self.detach_error = False
 
     def read_block(self, address: int, size: int) -> bytes:
         for start, value in self.memory.items():
@@ -95,6 +100,10 @@ class FakeBackend:
 
     def close(self) -> None:
         self.closed = True
+        if self.detach_error:
+            raise NativeVendorDialogDetachError(
+                "DebugActiveProcessStop failed: access denied"
+            )
 
 
 def _hit(
@@ -244,3 +253,95 @@ class TerrainBranchHitTests(unittest.TestCase):
 
             self.assertEqual("preserve", output.read_text(encoding="utf-8"))
         self.assertIsNone(backend.attached)
+
+    def test_worker_can_defer_only_explicit_detach_verification_to_parent(self) -> None:
+        extension = b"reviewed extension"
+        profile = _profile(extension)
+        clock = Clock()
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            (root / "wonderbane-extension.dll").write_bytes(extension)
+            backend = FakeBackend(root, profile, clock)
+            backend.detach_error = True
+            output = root / "worker.json"
+
+            result = capture_terrain_branch_hits(
+                backend,
+                output,
+                expected_creation_filetime=backend.process_creation_filetime_utc,
+                timeout_seconds=1,
+                profile=profile,
+                monotonic=clock,
+                allow_process_exit_detach=True,
+            )
+
+        self.assertFalse(result["cleanup"]["explicit_detach_succeeded"])
+        self.assertTrue(result["cleanup"]["process_exit_detach_required"])
+        self.assertTrue(result["cleanup"]["debug_register_clear_completed"])
+
+    def test_supervisor_publishes_only_after_post_exit_verification(self) -> None:
+        extension = b"reviewed extension"
+        profile = _profile(extension)
+        clock = Clock()
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            (root / "wonderbane-extension.dll").write_bytes(extension)
+            process = FakeBackend(root, profile, clock)
+            output = root / "final.json"
+
+            def run_worker(command: list[str], **_kwargs: object) -> SimpleNamespace:
+                pending = Path(command[command.index("--output") + 1])
+                pending.write_text(
+                    json.dumps({
+                        "schema_version": 1,
+                        "status": "captured_no_branch_activity",
+                        "process_id": process.pid,
+                        "process_creation_filetime_utc": (
+                            process.process_creation_filetime_utc
+                        ),
+                        "unique_branch_count": 0,
+                        "hit_event_count": 0,
+                        "cleanup": {
+                            "debug_register_clear_completed": True,
+                            "explicit_detach_succeeded": False,
+                            "process_exit_detach_required": True,
+                        },
+                    }),
+                    encoding="utf-8",
+                )
+                return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+            with (
+                patch(
+                    "shadowbane_lab.diagnostics.terrain_branch_hits.PROFILE",
+                    profile,
+                ),
+                patch(
+                    "shadowbane_lab.diagnostics.terrain_branch_hits.subprocess.run",
+                    side_effect=run_worker,
+                ),
+                patch(
+                    "shadowbane_lab.diagnostics.terrain_branch_hits."
+                    "WindowsReadOnlyProcessMemory.open_for_process",
+                    return_value=process,
+                ),
+                patch(
+                    "shadowbane_lab.diagnostics.terrain_branch_hits."
+                    "_remote_debugger_present",
+                    return_value=False,
+                ),
+            ):
+                result = _supervised_capture(
+                    process_id=process.pid,
+                    creation_filetime=process.process_creation_filetime_utc,
+                    output_path=output,
+                    timeout_seconds=1,
+                    input_mode="none",
+                )
+
+            saved = json.loads(output.read_text(encoding="utf-8"))
+            pending_files = tuple(root.glob("*.debugger-worker"))
+
+        self.assertTrue(result["cleanup"]["debugger_worker_exited"])
+        self.assertFalse(saved["cleanup"]["post_exit_debugger_present"])
+        self.assertEqual({}, {path.name: path for path in pending_files})

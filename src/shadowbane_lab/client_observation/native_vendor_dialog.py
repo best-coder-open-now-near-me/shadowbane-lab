@@ -78,6 +78,10 @@ class NativeVendorDialogCaptureError(NativeVendorDialogError):
     """Raised when a debugger event or bounded memory capture fails."""
 
 
+class NativeVendorDialogDetachError(NativeVendorDialogCaptureError):
+    """Raised after debug registers clear when explicit process detach fails."""
+
+
 class NativeVendorDialogProfileLoadError(ValueError):
     """Raised when a native vendor-dialog profile is malformed."""
 
@@ -1139,8 +1143,8 @@ class WindowsVendorDialogDebugBackend:
                 self._clear_breakpoints_from_threads()
             except NativeVendorDialogCaptureError as exc:
                 close_error = exc
-            if not self._api.kernel32.DebugActiveProcessStop(self.pid):
-                close_error = NativeVendorDialogCaptureError(
+            if not self._api.kernel32.DebugActiveProcessStop(self.pid) and close_error is None:
+                close_error = NativeVendorDialogDetachError(
                     _windows_error("DebugActiveProcessStop failed")
                 )
             self._attached = False

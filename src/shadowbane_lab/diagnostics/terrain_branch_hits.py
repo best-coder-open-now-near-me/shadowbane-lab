@@ -3,20 +3,28 @@
 from __future__ import annotations
 
 import argparse
+import ctypes
 import hashlib
 import json
 import os
 import struct
+import subprocess
+import sys
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol
+from uuid import uuid4
 
-from shadowbane_lab.client_observation.native_health import NativeMemoryRegion
+from shadowbane_lab.client_observation.native_health import (
+    NativeMemoryRegion,
+    WindowsReadOnlyProcessMemory,
+)
 from shadowbane_lab.client_observation.native_vendor_dialog import (
     NativeVendorDialogDebugHit,
+    NativeVendorDialogDetachError,
     WindowsVendorDialogDebugBackend,
 )
 
@@ -254,6 +262,7 @@ def capture_terrain_branch_hits(
     input_mode: str = "none",
     profile: TerrainBranchProfile = PROFILE,
     monotonic: Callable[[], float] = time.monotonic,
+    allow_process_exit_detach: bool = False,
 ) -> dict[str, object]:
     """Capture at most one retained observation per repaired edge-copy branch."""
     if not 1 <= timeout_seconds <= 30:
@@ -273,6 +282,7 @@ def capture_terrain_branch_hits(
     event_count = 0
     signatures_after: dict[str, str] = {}
     capture_error: BaseException | None = None
+    explicit_detach_error: str | None = None
     try:
         backend.attach(breakpoint_addresses)
         deadline = started + timeout_seconds
@@ -322,6 +332,11 @@ def capture_terrain_branch_hits(
     finally:
         try:
             backend.close()
+        except NativeVendorDialogDetachError as error:
+            if capture_error is None and allow_process_exit_detach:
+                explicit_detach_error = str(error)
+            elif capture_error is None:
+                raise
         except BaseException:
             if capture_error is None:
                 raise
@@ -355,6 +370,12 @@ def capture_terrain_branch_hits(
         "observations": ordered,
         "repaired_signatures_before": signatures_before,
         "repaired_signatures_while_attached": signatures_after,
+        "cleanup": {
+            "debug_register_clear_completed": True,
+            "explicit_detach_succeeded": explicit_detach_error is None,
+            "process_exit_detach_required": explicit_detach_error is not None,
+            "explicit_detach_error": explicit_detach_error,
+        },
         "scope": {
             "client_code_writes": False,
             "client_data_writes": False,
@@ -378,6 +399,116 @@ def capture_terrain_branch_hits(
     return result
 
 
+def _remote_debugger_present(process_id: int) -> bool:
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.OpenProcess.argtypes = (ctypes.c_ulong, ctypes.c_int, ctypes.c_ulong)
+    kernel32.OpenProcess.restype = ctypes.c_void_p
+    kernel32.CheckRemoteDebuggerPresent.argtypes = (
+        ctypes.c_void_p,
+        ctypes.POINTER(ctypes.c_int),
+    )
+    kernel32.CheckRemoteDebuggerPresent.restype = ctypes.c_int
+    kernel32.CloseHandle.argtypes = (ctypes.c_void_p,)
+    kernel32.CloseHandle.restype = ctypes.c_int
+    handle = kernel32.OpenProcess(0x0400, False, process_id)
+    if not handle:
+        raise OSError(ctypes.get_last_error(), "OpenProcess failed after debugger worker exit")
+    present = ctypes.c_int()
+    try:
+        if not kernel32.CheckRemoteDebuggerPresent(handle, ctypes.byref(present)):
+            raise OSError(
+                ctypes.get_last_error(),
+                "CheckRemoteDebuggerPresent failed after debugger worker exit",
+            )
+        return bool(present.value)
+    finally:
+        kernel32.CloseHandle(handle)
+
+
+def _read_worker_result(path: Path) -> dict[str, object]:
+    if not path.is_file() or path.stat().st_size > 128 * 1024:
+        raise TerrainBranchCaptureError("debugger worker result is missing or oversized")
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict) or payload.get("schema_version") != SCHEMA_VERSION:
+        raise TerrainBranchCaptureError("debugger worker result has the wrong schema")
+    return payload
+
+
+def _supervised_capture(
+    *,
+    process_id: int,
+    creation_filetime: int,
+    output_path: Path,
+    timeout_seconds: float,
+    input_mode: str,
+) -> dict[str, object]:
+    if output_path.exists():
+        raise FileExistsError(f"refusing to replace existing capture: {output_path}")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    pending = output_path.with_name(
+        f".{output_path.name}.{uuid4().hex}.debugger-worker"
+    )
+    command = [
+        sys.executable,
+        "-m",
+        "shadowbane_lab.diagnostics.terrain_branch_hits",
+        "--worker",
+        "--pid",
+        str(process_id),
+        "--creation-filetime",
+        str(creation_filetime),
+        "--output",
+        str(pending),
+        "--timeout",
+        str(timeout_seconds),
+        "--input-mode",
+        input_mode,
+    ]
+    try:
+        worker = subprocess.run(
+            command,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds + 20,
+        )
+        if worker.returncode != 0:
+            detail = worker.stdout.strip() or worker.stderr.strip() or "no worker detail"
+            raise TerrainBranchCaptureError(f"debugger worker failed: {detail}")
+        result = _read_worker_result(pending)
+        if (
+            result.get("process_id") != process_id
+            or result.get("process_creation_filetime_utc") != creation_filetime
+        ):
+            raise TerrainBranchCaptureError("debugger worker result lifetime does not match")
+        process = WindowsReadOnlyProcessMemory.open_for_process("sb.exe", process_id)
+        try:
+            post_exit_signatures = _validate_target(
+                process, PROFILE, creation_filetime
+            )
+            if _remote_debugger_present(process_id):
+                raise TerrainBranchCaptureError(
+                    "debugger remained attached after its worker exited"
+                )
+        finally:
+            process.close()
+        cleanup = result.get("cleanup")
+        if (
+            not isinstance(cleanup, dict)
+            or cleanup.get("debug_register_clear_completed") is not True
+        ):
+            raise TerrainBranchCaptureError("debugger worker did not confirm register cleanup")
+        cleanup["debugger_worker_exited"] = True
+        cleanup["post_exit_debugger_present"] = False
+        cleanup["post_exit_repaired_signatures"] = post_exit_signatures
+        with output_path.open("x", encoding="utf-8") as destination:
+            json.dump(result, destination, indent=2, sort_keys=True, allow_nan=False)
+            destination.write("\n")
+        return result
+    finally:
+        pending.unlink(missing_ok=True)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--pid", type=int, required=True)
@@ -387,11 +518,27 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--input-mode", choices=("none", "operator-keyboard"), default="none"
     )
+    parser.add_argument("--worker", action="store_true", help=argparse.SUPPRESS)
     arguments = parser.parse_args(argv)
     backend: WindowsVendorDialogDebugBackend | None = None
     try:
         if os.name != "nt":
             raise RuntimeError("terrain branch capture must run inside the Windows client VM")
+        if not arguments.worker:
+            result = _supervised_capture(
+                process_id=arguments.pid,
+                creation_filetime=arguments.creation_filetime,
+                output_path=arguments.output,
+                timeout_seconds=arguments.timeout,
+                input_mode=arguments.input_mode,
+            )
+            print(json.dumps({
+                "status": result["status"],
+                "output": str(arguments.output),
+                "unique_branch_count": result["unique_branch_count"],
+                "hit_event_count": result["hit_event_count"],
+            }, allow_nan=False))
+            return 0
         backend = WindowsVendorDialogDebugBackend.open_unique(
             "sb.exe", process_id=arguments.pid
         )
@@ -401,13 +548,8 @@ def main(argv: list[str] | None = None) -> int:
             expected_creation_filetime=arguments.creation_filetime,
             timeout_seconds=arguments.timeout,
             input_mode=arguments.input_mode,
+            allow_process_exit_detach=True,
         )
-        print(json.dumps({
-            "status": result["status"],
-            "output": str(arguments.output),
-            "unique_branch_count": result["unique_branch_count"],
-            "hit_event_count": result["hit_event_count"],
-        }, allow_nan=False))
         return 0
     except (OSError, RuntimeError, ValueError) as error:
         if backend is not None:

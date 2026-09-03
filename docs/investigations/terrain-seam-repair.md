@@ -405,7 +405,12 @@ role is retained. At each hit, the collector reads the already-reviewed
 bounds, base reference, direction-completion byte, and dirty byte. It performs
 no process-memory writes, scans, pixel reads, texture reads, client calls, or
 input injection. The diagnostic transport temporarily changes thread debug
-registers and clears them on detach.
+registers and clears them before detach. On the testing VM, Windows accepted
+attachment but returned access denied for the explicit detach call. A separate
+read-only check after the debugger process exited confirmed that the exact game
+process remained alive and no debugger was attached. The collector therefore
+uses a short-lived worker and publishes its JSON only after a parent repeats
+that post-exit lifetime/debugger/signature verification.
 
 Focused tests cover exact-identity refusal, create-only JSON, bounded terrain
 state, no-activity semantics, and legacy vendor-dialog tracer compatibility.

@@ -20,7 +20,13 @@ The collector fails closed unless all of the following match:
 - the 32-bit image layout.
 
 It uses the existing Win32 debugger transport and four hardware execution
-breakpoints. It does not write client code or data, scan memory, read pixels,
+breakpoints. The debugger runs in a short-lived worker. Before publishing the
+JSON, its parent proves that the worker exited, the exact client lifetime
+survived, no debugger remains attached, and all four repaired instructions are
+unchanged. This also safely covers Windows hosts where the explicit detach call
+is denied but process-exit detach succeeds.
+
+The collector does not write client code or data, scan memory, read pixels,
 read texture bytes, invoke client functions, or inject game input. A role is
 disabled on the thread that hits it, and only the first observation per role is
 retained. The entire run is bounded to 30 seconds and 128 hit events.
