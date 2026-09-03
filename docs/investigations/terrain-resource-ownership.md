@@ -165,3 +165,15 @@ bytes. An external read-only diagnostic must never invoke either method.
 Reading resident bytes directly requires exact backing-class/layout validation,
 bounded alpha-only dimensions, and repeated pointer/header/data checks; missing
 resident data must be reported without triggering a load or decode.
+
+The generated-mask backing factory at `0x58d340` (thunk `0x424b36`) installs
+vtable `0x015490f0`; its complete-object locator `0x01592f18` resolves to RTTI
+`ArcImage`. The edge routine sets width/height, channels 1, GL_ALPHA, and
+GL_TEXTURE_2D, then calls setter `0x58db10` through `0x4174ef`. That setter writes
+the supplied resident buffer pointer to backing `+0x5c`.
+
+The opt-in alpha poll maps only this exact backing class and reviewed dimensions.
+It additionally checks all 40 bytes of `0x58d920` before and after capture:
+`568bf18b465c85c0750f8b860401000085c07405e80d95e8ff8b465cc786f4000000ffffffff5ec3`.
+This is a read-only layout gate, not authority to invoke the accessor or mutate
+the backing. Existing complete-graph consistency checks are unchanged.

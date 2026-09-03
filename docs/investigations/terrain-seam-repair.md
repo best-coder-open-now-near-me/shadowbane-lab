@@ -574,3 +574,18 @@ compare source masks with GPU-facing CPU copies and archive records. Do not call
 the client's lazy pixel accessor or use GPU readback. Screen-neighbor attribution
 and visual seam acceptance remain pending. Local checkpoint only; push remains
 held and the temporary bounded-result VM share was removed after transfer.
+
+## Resident-alpha evidence option validated
+
+The existing poller now offers `--include-resident-alpha`. It preserves the
+complete-graph consistency checks and adds exact ArcImage/accessor gates,
+alpha-only 64/128-square dimensions, repeated resident-buffer reads, and a
+16-MiB total read reservation cap including discarded attempts. Missing resident
+data is labeled; no accessor, decoder, debugger, or GPU readback is used. Raw
+bounded alpha bytes plus SHA-256 are retained for offline comparison. A GPU-facing
+texture's CPU backing must not be described as an observation of GPU storage.
+
+Validation: 1,510 tests and 211 subtests passed, 7 skipped; focused Ruff passed.
+Completed: bounded alpha option and local validation. ACTIVE todo: one five-second
+alpha capture at the unchanged seam view, then compare CPU source/copy/archive
+bytes. No renderer behavior or live-client package change is part of this slice.

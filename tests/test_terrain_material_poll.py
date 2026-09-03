@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import struct
@@ -56,6 +57,9 @@ def _profile(extension: bytes) -> TerrainMaterialProfile:
         shader_global_rva=0x3000,
         shader_vtable_rva=0x4000,
         texture_vtable_rva=0x5000,
+        backing_vtable_rva=0x6000,
+        pixel_accessor_rva=0x7000,
+        pixel_accessor_signature=b"reviewed accessor",
     )
 
 
@@ -74,6 +78,9 @@ class FakeBackend:
             for branch in profile.branch_profile.branches
         }
         self.memory[self.base_address + profile.draw_rva] = profile.draw_signature
+        self.memory[self.base_address + profile.pixel_accessor_rva] = (
+            profile.pixel_accessor_signature
+        )
         self.closed = False
 
     def read_block(self, address: int, size: int) -> bytes:
@@ -246,7 +253,9 @@ def test_existing_output_is_never_replaced() -> None:
         assert output.read_text(encoding="utf-8") == "keep"
 
 
-def _capture(backend: FakeBackend, root: Path, profile: TerrainMaterialProfile) -> dict:
+def _capture(
+    backend: FakeBackend, root: Path, profile: TerrainMaterialProfile, **options: object
+) -> dict:
     clock = Clock()
     return capture_terrain_material_poll(
         backend,
@@ -257,6 +266,7 @@ def _capture(backend: FakeBackend, root: Path, profile: TerrainMaterialProfile) 
         profile=profile,
         monotonic=clock,
         sleep=clock.sleep,
+        **options,
     )
 
 
@@ -354,3 +364,129 @@ def test_post_capture_signature_drift_prevents_publication(tmp_path: Path) -> No
             sleep=drift_after_sample,
         )
     assert not output.exists()
+
+
+def _install_alpha(backend: FakeBackend, profile: TerrainMaterialProfile) -> bytes:
+    pixels = bytes(range(256)) * 16
+    for backing, pointer in ((0x722000, 0x800000), (0x723000, 0x810000)):
+        raw = bytearray(backend.memory[backing])
+        struct.pack_into("<I", raw, 0, backend.base_address + profile.backing_vtable_rva)
+        struct.pack_into("<I", raw, 0x40, 1)
+        struct.pack_into("<I", raw, 0x5C, pointer)
+        backend.memory[backing] = bytes(raw)
+        backend.memory[pointer] = pixels
+    return pixels
+
+
+@pytest.fixture
+def alpha_scene(tmp_path: Path) -> tuple[FakeBackend, TerrainMaterialProfile, bytes]:
+    extension = b"reviewed extension"
+    profile = _profile(extension)
+    (tmp_path / "wonderbane-extension.dll").write_bytes(extension)
+    backend = FakeBackend(tmp_path, profile)
+    _install_scene(backend, profile)
+    return backend, profile, _install_alpha(backend, profile)
+
+
+def test_resident_alpha_is_opt_in_and_never_reads_color_bytes(tmp_path, alpha_scene):
+    backend, profile, pixels = alpha_scene
+    result = _capture(backend, tmp_path, profile, include_resident_alpha=True)
+    source = result["snapshots"][0]["source"]
+    for role in ("source_mask", "gpu_mask"):
+        alpha = source["layers"][0][role]["resident_alpha"]
+        assert alpha["state"] == "captured"
+        assert base64.b64decode(alpha["bytes_base64"]) == pixels
+        assert alpha["sha256"] == hashlib.sha256(pixels).hexdigest()
+        assert alpha["byte_count"] == 4096
+    assert "resident_alpha" not in source["base"]
+    assert "resident_alpha" not in source["layers"][0]["color"]
+    assert result["scope"]["gpu_readback"] is False
+    assert result["scope"]["color_texture_bytes_read"] is False
+    assert result["scope"]["pixels_read"] is True
+    assert result["signatures_after"]["pixel_accessor"] == profile.pixel_accessor_signature.hex()
+
+
+def test_default_does_not_read_resident_alpha(tmp_path, alpha_scene):
+    backend, profile, _ = alpha_scene
+    del backend.memory[0x800000]
+    del backend.memory[0x810000]
+    result = _capture(backend, tmp_path, profile)
+    assert result["unique_snapshot_count"] == 1
+    assert result["scope"]["pixels_read"] is False
+    assert result["limits"]["alpha_read_bytes_reserved"] == 0
+    mask = result["snapshots"][0]["source"]["layers"][0]["source_mask"]
+    assert "resident_alpha" not in mask
+
+
+@pytest.mark.parametrize(
+    ("offset", "value", "state"),
+    [
+        (0, 0x499999, "unreviewed_backing_class"),
+        (0x38, 256, "unsupported_alpha_layout"),
+        (0x3C, 128, "unsupported_alpha_layout"),
+        (0x40, 4, "unsupported_alpha_layout"),
+        (0xFC, 0, "unsupported_alpha_layout"),
+        (0x100, 0x1907, "unsupported_alpha_layout"),
+        (0x5C, 0, "not_resident"),
+    ],
+)
+def test_unsupported_or_absent_alpha_is_not_read(tmp_path, alpha_scene, offset, value, state):
+    backend, profile, _ = alpha_scene
+    raw = bytearray(backend.memory[0x722000])
+    struct.pack_into("<I", raw, offset, value)
+    backend.memory[0x722000] = bytes(raw)
+    del backend.memory[0x800000]  # Any pixel dereference would discard the sample.
+    result = _capture(backend, tmp_path, profile, include_resident_alpha=True)
+    alpha = result["snapshots"][0]["source"]["layers"][0]["source_mask"]["resident_alpha"]
+    assert alpha["state"] == state
+    assert "bytes_base64" not in alpha
+
+
+def test_alpha_byte_budget_includes_repeated_polls(tmp_path, alpha_scene, monkeypatch):
+    import shadowbane_lab.diagnostics.terrain_material_poll as module
+
+    backend, profile, _ = alpha_scene
+    monkeypatch.setattr(module, "MAXIMUM_ALPHA_READ_BYTES", 8192)
+    result = _capture(backend, tmp_path, profile, include_resident_alpha=True)
+    assert result["limits"]["alpha_read_bytes_reserved"] == 8192
+    layers = result["snapshots"][0]["source"]["layers"]
+    assert layers[0]["source_mask"]["resident_alpha"]["state"] == "captured"
+    assert layers[0]["gpu_mask"]["resident_alpha"]["state"] == "capture_byte_budget_exhausted"
+
+
+def test_unstable_pixels_are_discarded_and_still_consume_budget(
+    tmp_path, alpha_scene, monkeypatch
+):
+    import shadowbane_lab.diagnostics.terrain_material_poll as module
+
+    backend, profile, _ = alpha_scene
+    read = backend.read_block
+    calls = 0
+
+    def changing_pixels(address, size):
+        nonlocal calls
+        raw = read(address, size)
+        if address == 0x800000:
+            calls += 1
+            return bytes([calls % 2]) + raw[1:]
+        return raw
+
+    backend.read_block = changing_pixels
+    monkeypatch.setattr(module, "MAXIMUM_ALPHA_READ_BYTES", 8192)
+    result = _capture(backend, tmp_path, profile, include_resident_alpha=True)
+    assert result["discarded_unstable_poll_count"] == 1
+    assert result["limits"]["alpha_read_bytes_reserved"] == 8192
+    assert "resident alpha pixels changed during the sample" in result["warnings"]
+    for snapshot in result["snapshots"]:
+        alpha = snapshot["source"]["layers"][0]["source_mask"]["resident_alpha"]
+        assert alpha["state"] == "capture_byte_budget_exhausted"
+
+
+def test_resident_alpha_signature_drift_refuses_publication(tmp_path, alpha_scene):
+    backend, profile, _ = alpha_scene
+    backend.memory[backend.base_address + profile.pixel_accessor_rva] = b"x" * len(
+        profile.pixel_accessor_signature
+    )
+    with pytest.raises(TerrainMaterialCompatibilityError, match="alpha accessor"):
+        _capture(backend, tmp_path, profile, include_resident_alpha=True)
+    assert not (tmp_path / "material-poll.json").exists()

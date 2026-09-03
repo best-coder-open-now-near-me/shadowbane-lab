@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import hashlib
 import json
 import struct
@@ -26,7 +27,7 @@ from shadowbane_lab.diagnostics.terrain_branch_hits import (
     _validate_target,
 )
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 MINIMUM_USER_ADDRESS = 0x10000
 MAXIMUM_USER_ADDRESS = 0x7FFEFFFF
 SHADER_SIZE = 0x34
@@ -37,6 +38,7 @@ TEXTURE_BACKING_SIZE = 0x104
 MAXIMUM_LAYERS = 32
 MAXIMUM_SNAPSHOTS = 64
 MAXIMUM_POLLS = 20_000
+MAXIMUM_ALPHA_READ_BYTES = 16 * 1024 * 1024
 
 
 class TerrainMaterialCompatibilityError(RuntimeError):
@@ -64,6 +66,9 @@ class TerrainMaterialProfile:
     shader_global_rva: int
     shader_vtable_rva: int
     texture_vtable_rva: int
+    backing_vtable_rva: int
+    pixel_accessor_rva: int
+    pixel_accessor_signature: bytes
 
     def __post_init__(self) -> None:
         if not self.profile_id.strip():
@@ -73,10 +78,12 @@ class TerrainMaterialProfile:
             self.shader_global_rva,
             self.shader_vtable_rva,
             self.texture_vtable_rva,
+            self.backing_vtable_rva,
+            self.pixel_accessor_rva,
         ) <= 0:
             raise ValueError("reviewed terrain RVAs must be positive")
-        if not self.draw_signature:
-            raise ValueError("draw_signature must not be empty")
+        if not self.draw_signature or not self.pixel_accessor_signature:
+            raise ValueError("reviewed code signatures must not be empty")
 
 
 PROFILE = TerrainMaterialProfile(
@@ -87,7 +94,25 @@ PROFILE = TerrainMaterialProfile(
     shader_global_rva=0x1388228,
     shader_vtable_rva=0x11625A4,
     texture_vtable_rva=0x114A39C,
+    backing_vtable_rva=0x11490F0,
+    pixel_accessor_rva=0x18D920,
+    pixel_accessor_signature=bytes.fromhex(
+        "568bf18b465c85c0750f8b860401000085c07405e80d95e8ff"
+        "8b465cc786f4000000ffffffff5ec3"
+    ),
 )
+
+
+@dataclass(slots=True)
+class _AlphaReadBudget:
+    bytes_reserved: int = 0
+
+    def reserve_pair(self, size: int) -> bool:
+        if self.bytes_reserved + 2 * size > MAXIMUM_ALPHA_READ_BYTES:
+            return False
+        # Failed/concurrently changing reads still consume their reservation.
+        self.bytes_reserved += 2 * size
+        return True
 
 
 class TerrainMaterialBackend(Protocol):
@@ -173,10 +198,52 @@ def _read_pointer_vector(
     return pointers, result, entries
 
 
+def _resident_alpha_snapshot(
+    backend: TerrainMaterialBackend,
+    backing_raw: bytes,
+    profile: TerrainMaterialProfile,
+    budget: _AlphaReadBudget,
+) -> dict[str, object]:
+    vtable = struct.unpack_from("<I", backing_raw, 0)[0]
+    if vtable != backend.base_address + profile.backing_vtable_rva:
+        return {"state": "unreviewed_backing_class", "vtable": _hex32(vtable)}
+    width, height, channels = struct.unpack_from("<III", backing_raw, 0x38)
+    target, format_value = struct.unpack_from("<II", backing_raw, 0xFC)
+    if (
+        width not in (64, 128)
+        or height != width
+        or channels != 1
+        or target != 0x0DE1
+        or format_value != 0x1906
+    ):
+        return {"state": "unsupported_alpha_layout"}
+    pointer = struct.unpack_from("<I", backing_raw, 0x5C)[0]
+    if not pointer:
+        return {"state": "not_resident"}
+    size = width * height
+    if not budget.reserve_pair(size):
+        return {"state": "capture_byte_budget_exhausted"}
+    raw = _read_exact(backend, pointer, size, "resident alpha pixels")
+    if _read_exact(backend, pointer, size, "resident alpha pixels") != raw:
+        raise _UnstableSample("resident alpha pixels changed during the sample")
+    return {
+        "state": "captured",
+        "storage": "resident_cpu_alpha8",
+        "pointer": _hex32(pointer),
+        "width": width,
+        "height": height,
+        "byte_count": size,
+        "sha256": hashlib.sha256(raw).hexdigest(),
+        "bytes_base64": base64.b64encode(raw).decode("ascii"),
+        "orientation": "raw_memory_order_not_screen_axes",
+    }
+
+
 def _texture_snapshot(
     backend: TerrainMaterialBackend,
     address: int,
     profile: TerrainMaterialProfile,
+    alpha_budget: _AlphaReadBudget | None = None,
 ) -> dict[str, object] | None:
     if not address:
         return None
@@ -217,8 +284,14 @@ def _texture_snapshot(
             "target": _hex32(struct.unpack_from("<I", backing_raw, 0xFC)[0]),
             "format": _hex32(struct.unpack_from("<I", backing_raw, 0x100)[0]),
         }
+        if alpha_budget is not None:
+            result["resident_alpha"] = _resident_alpha_snapshot(
+                backend, backing_raw, profile, alpha_budget
+            )
     else:
         result["backing"] = None
+        if alpha_budget is not None:
+            result["resident_alpha"] = {"state": "backing_not_resident"}
     if _read_exact(backend, address, TEXTURE_OBJECT_SIZE, "texture object") != raw:
         raise _UnstableSample("texture object changed during the sample")
     if backing and _read_exact(
@@ -232,6 +305,7 @@ def _source_snapshot(
     backend: TerrainMaterialBackend,
     address: int,
     profile: TerrainMaterialProfile,
+    alpha_budget: _AlphaReadBudget | None = None,
 ) -> dict[str, object]:
     raw = _read_exact(backend, address, TERRAIN_OBJECT_SIZE, "terrain source")
     vectors = (
@@ -251,8 +325,12 @@ def _source_snapshot(
             {
                 "index": index,
                 "color": _texture_snapshot(backend, color_pointers[index], profile),
-                "source_mask": _texture_snapshot(backend, source_pointers[index], profile),
-                "gpu_mask": _texture_snapshot(backend, gpu_pointers[index], profile),
+                "source_mask": _texture_snapshot(
+                    backend, source_pointers[index], profile, alpha_budget
+                ),
+                "gpu_mask": _texture_snapshot(
+                    backend, gpu_pointers[index], profile, alpha_budget
+                ),
             }
         )
     base_reference = struct.unpack_from("<I", raw, 0x1A4)[0]
@@ -280,6 +358,7 @@ def _source_snapshot(
 def _shader_snapshot(
     backend: TerrainMaterialBackend,
     profile: TerrainMaterialProfile,
+    alpha_budget: _AlphaReadBudget | None = None,
 ) -> dict[str, object]:
     address = backend.base_address + profile.shader_global_rva
     raw = _read_exact(backend, address, SHADER_SIZE, "terrain shader")
@@ -294,7 +373,7 @@ def _shader_snapshot(
     source_pointer = struct.unpack_from("<I", owner_raw, 0x10)[0]
     if not source_pointer:
         raise _IdleSample("terrain shader owner has no current source")
-    source = _source_snapshot(backend, source_pointer, profile)
+    source = _source_snapshot(backend, source_pointer, profile, alpha_budget)
     if _read_exact(backend, owner_pointer, OWNER_SIZE, "shader owner") != owner_raw:
         raise _UnstableSample("terrain shader owner changed during the sample")
     if _read_exact(backend, address, SHADER_SIZE, "terrain shader") != raw:
@@ -313,6 +392,7 @@ def _validate_snapshot_target(
     backend: TerrainMaterialBackend,
     profile: TerrainMaterialProfile,
     expected_creation_filetime: int,
+    include_resident_alpha: bool = False,
 ) -> dict[str, object]:
     repaired = _validate_target(backend, profile.branch_profile, expected_creation_filetime)
     actual = backend.read_block(
@@ -331,11 +411,22 @@ def _validate_snapshot_target(
     vtable = struct.unpack_from("<I", shader_raw, 0)[0]
     if vtable != backend.base_address + profile.shader_vtable_rva:
         raise TerrainMaterialCompatibilityError("terrain shader global is not reviewed")
-    return {
+    result = {
         "draw_entry": actual.hex(),
         "shader_vtable": _hex32(vtable),
         "repaired_branches": repaired,
     }
+    if include_resident_alpha:
+        actual_accessor = backend.read_block(
+            backend.base_address + profile.pixel_accessor_rva,
+            len(profile.pixel_accessor_signature),
+        )
+        if actual_accessor != profile.pixel_accessor_signature:
+            raise TerrainMaterialCompatibilityError(
+                "resident alpha accessor does not match the reviewed build"
+            )
+        result["pixel_accessor"] = actual_accessor.hex()
+    return result
 
 
 def capture_terrain_material_poll(
@@ -345,6 +436,7 @@ def capture_terrain_material_poll(
     expected_creation_filetime: int,
     duration_seconds: float = 5.0,
     poll_interval_seconds: float = 0.002,
+    include_resident_alpha: bool = False,
     profile: TerrainMaterialProfile = PROFILE,
     monotonic: Callable[[], float] = time.monotonic,
     sleep: Callable[[float], None] = time.sleep,
@@ -357,8 +449,9 @@ def capture_terrain_material_poll(
     if output_path.exists():
         raise FileExistsError(f"refusing to replace existing capture: {output_path}")
     signatures_before = _validate_snapshot_target(
-        backend, profile, expected_creation_filetime
+        backend, profile, expected_creation_filetime, include_resident_alpha
     )
+    alpha_budget = _AlphaReadBudget() if include_resident_alpha else None
     started = monotonic()
     started_utc = _utc_now()
     snapshots: list[dict[str, object]] = []
@@ -369,7 +462,7 @@ def capture_terrain_material_poll(
     while monotonic() < deadline and polls < MAXIMUM_POLLS and len(snapshots) < MAXIMUM_SNAPSHOTS:
         polls += 1
         try:
-            snapshot = _shader_snapshot(backend, profile)
+            snapshot = _shader_snapshot(backend, profile, alpha_budget)
         except _IdleSample:
             idle += 1
         except (TerrainMaterialCaptureError, _UnstableSample) as error:
@@ -388,7 +481,7 @@ def capture_terrain_material_poll(
                 snapshots.append(snapshot)
         sleep(poll_interval_seconds)
     signatures_after = _validate_snapshot_target(
-        backend, profile, expected_creation_filetime
+        backend, profile, expected_creation_filetime, include_resident_alpha
     )
     result: dict[str, object] = {
         "schema_version": SCHEMA_VERSION,
@@ -418,6 +511,8 @@ def capture_terrain_material_poll(
             "requested_poll_interval_seconds": poll_interval_seconds,
             "poll_limit_reached": polls == MAXIMUM_POLLS,
             "snapshot_limit_reached": len(snapshots) == MAXIMUM_SNAPSHOTS,
+            "alpha_read_bytes_reserved": alpha_budget.bytes_reserved if alpha_budget else 0,
+            "maximum_alpha_read_bytes": MAXIMUM_ALPHA_READ_BYTES,
         },
         "scope": {
             "process_memory_reads": True,
@@ -426,8 +521,11 @@ def capture_terrain_material_poll(
             "debugger_attached": False,
             "thread_suspend_or_debug_register_changes": False,
             "client_functions_called": False,
-            "pixels_read": False,
-            "texture_bytes_read": False,
+            "resident_alpha_requested": include_resident_alpha,
+            "pixels_read": bool(alpha_budget and alpha_budget.bytes_reserved),
+            "texture_bytes_read": bool(alpha_budget and alpha_budget.bytes_reserved),
+            "gpu_readback": False,
+            "color_texture_bytes_read": False,
             "game_input": False,
             "maximum_polls": MAXIMUM_POLLS,
             "maximum_unique_snapshots": MAXIMUM_SNAPSHOTS,
@@ -437,7 +535,9 @@ def capture_terrain_material_poll(
             "Stable double-checked snapshots link the reviewed terrain shader source graph to "
             "base, layer, source-mask, and generated-mask texture identities. They do not "
             "identify a screen pixel, prove complete frame coverage, exclude all concurrent "
-            "ABA changes, or authorize cache mutation."
+            "ABA changes, or authorize cache mutation. Optional alpha bytes are only "
+            "already-resident CPU masks, including CPU copies belonging to GPU-facing "
+            "textures; they do not verify GPU storage or prove an upload happened."
         ),
     }
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -454,6 +554,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--duration", type=float, default=5.0)
     parser.add_argument("--interval-ms", type=float, default=2.0)
+    parser.add_argument("--include-resident-alpha", action="store_true")
     options = parser.parse_args(argv)
     process = None
     try:
@@ -464,6 +565,7 @@ def main(argv: list[str] | None = None) -> int:
             expected_creation_filetime=options.creation_filetime,
             duration_seconds=options.duration,
             poll_interval_seconds=options.interval_ms / 1000,
+            include_resident_alpha=options.include_resident_alpha,
         )
     except (OSError, RuntimeError, ValueError) as error:
         print(str(error))
