@@ -13,6 +13,7 @@ dependencies = []
 [project.scripts]
 shadowbane-lab = "shadowbane_lab.cli:main"
 shadowbane-runtime-consistency = "shadowbane_lab.runtime_consistency.__main__:main"
+shadowbane-terrain-audit = "shadowbane_lab.world_data.terrain_seam_cli:main"
 
 [project.optional-dependencies]
 simulation = [
