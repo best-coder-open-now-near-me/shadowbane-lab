@@ -919,3 +919,55 @@ ACTIVE todo: attribute the large steps to the exact authored material map edges
 and inspect their intended neighbor/blend behavior before choosing a repair.
 Keep source-level, mip/upload, and visible-pixel claims separate. Seam acceptance
 and the eventual visual repair remain open.
+
+## Archive identity, shared roles, and tile-center selection
+
+Offline follow-up uses the preserved `wonderbane-20260831T023921516Z` client
+baseline, not another live capture. All 11 distinct archive-backed alpha buffers
+in the corroborated PID 960 snapshots match their exact TerrainAlpha records
+byte-for-byte. Generated beige masks are not attributed to archive records.
+
+Maps 4101:145, 4101:146 and 4101:147 are complete 3x3 material maps. The CZone
+index associates each with 90 templates. Map 13936188:1 is likewise 3x3 but is
+the **height layer** in those 90 templates, despite also appearing as a live
+rock-overlay mask. Do not modify that archive map as a texture-only repair.
+The templates include Sea Dog's Rest variants 0:10400, 0:10401 and 0:10421;
+their radii are 384, terrain type 7, and terrain image key 0:1006300. These are
+template properties, not proof of the current instance's origin or extents.
+
+There is nonzero archived coverage beyond some abrupt live material changes:
+for cobble map 147, tile (1,1)'s left border ranges 106..152 while tile (0,1)'s
+right border ranges 89..151. Its top neighbor (1,0) also has nonzero coverage
+on the adjoining border. The corroborated live western/northern neighbors have
+only generated beige layers, not those cobble layers. This suggests reviewing
+region selection/placement and boundary handoff before any image-level blur.
+It does not yet prove that those archived neighbor tiles belong on these live
+meshes, or exclude pruning, instance overrides, rotation or upload differences.
+
+The exact vanilla executable's tile lookup is now statically traced:
+
+- Builder 0x69e2d0 decodes a terrain key via 0x692d00 and calls 0x60b630.
+- 0x60b630 forms `(256*(tile_x+0.5), 0, -256*(tile_y+0.5))` using verified
+  float constants 0.5, 256 and -256, then queries the region tree via 0x60adc0.
+- 0x659050 transforms that point into the current region's coordinates and
+  descends its child lookup, falling back to the parent when none matches.
+- 0x69ee60 appends archive-backed materials using a per-region token-vector
+  lookup at 0x69f5a0, keyed by the already selected terrain token. A missing key
+  creates an empty vector; that lookup itself does not compute world bounds.
+
+These are offline preferred-image VAs for executable SHA-256
+55fbad5f0110cd99b4085af72d1e8fddb782ccdec1491478492c18158f5c61bc,
+not new approved live offsets or hook sites. The baseline WorldDef.txt/.cfg
+contain no Sea Dog's Rest template placement; they cannot establish this
+runtime instance's boundaries. Tile-center selection is confirmed behavior,
+not yet a demonstrated off-by-one defect.
+
+Projecting the six corroborated worst boundary samples with their matching
+draw matrices places them inside the retained 1920x955 viewport frustum.
+That only establishes frustum membership; occlusion, active mip LOD and final
+pixel attribution remain unmeasured. No new framebuffer/GPU readback occurred.
+
+Completed: archive-byte identity, shared material/height role audit, and the
+tile-center ownership lookup review. ACTIVE todo: establish how this region's
+material-map coverage meets its ownership boundary, then choose a scoped repair.
+No VM settings, renderer code, client archives or builds changed in this step.
