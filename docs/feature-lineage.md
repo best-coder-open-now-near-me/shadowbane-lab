@@ -1,5 +1,9 @@
 # Feature lineage and preservation registry
 
+For the current integration queue and verified branch/deployment snapshot, see
+[the project recovery ledger](project-recovery-status.md). The dated entries below
+preserve history and must not be read as the latest completion status.
+
 This registry records capabilities that remain outside `main`, the exact history that owns each
 one, and the conditions for integrating or retiring its branch. It exists to preserve behavior and
 design intent without treating every historical branch as an independent product surface.

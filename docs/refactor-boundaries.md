@@ -1,5 +1,9 @@
 # Client convergence ownership boundaries
 
+For current branch tips, validation blockers, deployment state and the integration
+queue, start with [the project recovery ledger](project-recovery-status.md). This
+document defines ownership; its historical checkpoint is not a current release claim.
+
 This is the working merge contract for development after the 2026-09-01 client convergence. It is
 an ownership map, not a new framework or a pair of product branches. Its purpose is to keep one
 continuously integrated client while preventing renderer and non-render code from taking ownership
