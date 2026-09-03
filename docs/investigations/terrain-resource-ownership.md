@@ -72,11 +72,75 @@ calculation before requesting a one-by-one terrain region. This is useful tiling
 evidence, but does not yet prove archive word order, map/layer encoding, mask
 orientation, gutter convention, or the live trace's exact archive entries.
 
+## Token and mask lifecycle follow-up
+
+The token serialization boundary is now verified: `0x00511940` /
+`0x00511ac0` read the first serialized word into token `+4`, then the second
+into `+0`. `0x005119f0` writes in the same serialized order. The underlying
+reader at `0x007e1700` reads a raw little-endian u32. Archive `(group, resource)`
+therefore corresponds to in-memory `(resource, group)`, not the same word order.
+The complete group word must be preserved; the low-52-bit accessor is not an
+archive-key decoder.
+
+The source render object distinguishes three paired vectors:
+
+- `+0x150`: color textures.
+- `+0x168`: source alpha masks, appended with the colors by `0x005ce130`.
+- `+0x15c`: separate GPU-facing mask copies created/refreshed by `0x005ce640`.
+
+The last routine copies exactly N*N alpha bytes and clears source `+0x1ad`.
+The consumer at `0x008ae6b0` calls it only when that flag is set. Original and
+generated mask backings are separate. Clone `0x005df2d0` calls `0x005dc670`,
+which preserves the token through the verified two-word copy `0x00511ba0`.
+This does **not** prove every mask has an archive identity: `0x0069ee60`
+assigns archive-backed mask tokens, while `0x00608ea0` and the directional
+seam routines also synthesize masks using the `0x005df460` texture factory.
+Record absent/generated identity explicitly; never interpret a zero token as
+an attributed archive record.
+
+`0x005ce2b0` removes all-zero masks with their paired colors, and removes
+occluded lower layers after an all-255 mask. The checks at `0x0058dbb0` and
+`0x0058dc20` inspect width*height bytes. Retained layer indices therefore are
+not stable CZone layer indices. Pixel access helper `0x0058d920` can lazily
+decode data; invoking it is not read-only diagnostics.
+
+## Confirmed edge-refresh control-flow gap
+
+The client already implements four-direction edge copying and blend ramps in
+`0x008aaea0`, `0x008ab560`, `0x008abc40`, and `0x008ac360`. It matches layers
+by color texture token, checks texture flag `0x10`, and can resample stored
+neighbor edges when their resolutions differ. Do not add global blurring or
+assume there is no neighbor handling.
+
+In all four routines, the completed matching-material edge-copy loop jumps
+past the existing `mov byte ptr [ebx+0x1ad],1`. The blend-ramp paths execute
+that store. Thus an edge copy can leave an already-generated GPU mask stale
+when the incoming dirty flag is clear. This is a code-path defect; whether it
+explains the user's entire visible seam remains a live acceptance question.
+
+The minimal correction is to land each completed-copy jump on the existing
+dirty-flag store, **not** on the preceding directional-completion-bit update.
+That preserves repeatable neighbor copying and does not mark the edge finished.
+The store changes no registers or arithmetic flags and then rejoins the same
+layer-loop continuation. Only one displacement byte changes at each site:
+
+| Jump VA | Original | Corrected | New target VA |
+| --- | --- | --- | --- |
+| `0x008ab14a` | `eb6f` | `eb68` | `0x008ab1b4` |
+| `0x008ab80e` | `e981000000` | `e97a000000` | `0x008ab88d` |
+| `0x008abe59` | `e916010000` | `e90f010000` | `0x008abf6d` |
+| `0x008ac60c` | `e98b000000` | `e984000000` | `0x008ac695` |
+
+Implementation must verify the exact executable plus all four complete edge
+routines, the complete mask-copy routine, and the dirty-gated consumer, with
+reviewed PE relocations normalized. Unknown/drifted code must stay unmodified.
+This is a full-renderer correction only; no disk/client archive edits, no new
+game input, and no per-frame scanning, framebuffer copying, or readback.
+
 ## Next review gate
 
-Decode and verify token construction/serialization and the terrain-mask image
-population/sampling path against the existing archive decoder. Preserve the
-distinction between static ownership evidence and actual instance attribution.
+Implement and test the scoped edge-refresh correction. Preserve the distinction
+between this verified lifecycle defect and actual instance attribution.
 The saved trace can be reanalyzed without recapture, but cannot retroactively
 supply resource tokens it did not record. If live instance attribution remains
 necessary, define that narrow reviewed data path before collecting anything

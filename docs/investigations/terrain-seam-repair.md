@@ -195,3 +195,27 @@ identities remain unverified. These findings are not new approved runtime offset
 Analyzer checkpoint validation: **38 focused tests passed**, including collector
 tests, plus Ruff and diff checks. Native source is unchanged; no new native build
 or seam-fix performance/visual acceptance is claimed.
+
+## Edge-refresh correction selected — 2026-09-03
+
+Further offline review verified token serialization and located the client's
+existing four-direction seam handling. It also found a narrower actionable
+defect: successful matching-material edge copies bypass the GPU-mask dirty
+flag, unlike the blend-ramp paths. See the exact control flow and proposed
+single-byte branch corrections in [the ownership review](terrain-resource-ownership.md).
+Some source masks are synthesized, so direct archive attribution is not a
+universal prerequisite or a safe assumption.
+
+The active sequence is updated accordingly:
+
+1. COMPLETE: verify source/generated mask ownership, token order, and the
+   existing neighboring-edge copy/refresh path offline.
+2. ACTIVE: implement the whole-function-verified, full-renderer-only refresh
+   correction; test drift rejection, restoration, and both native profiles.
+3. Validate Python/package boundaries and prepare a separately verified test
+   release. No new capture, VM changes, or upload are authorized by this step.
+4. Test appearance and frame/streaming cost before claiming live acceptance;
+   further visible seams may need separate attribution.
+
+This selection does not assume that the four-byte correction fixes all terrain
+seams. Archives, live VM state, and frozen release artifacts remain unchanged.
