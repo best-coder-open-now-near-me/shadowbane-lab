@@ -34,6 +34,8 @@ from .training import (
     EquipmentSkillRequirement,
     LegalBuildLeagueEvaluator,
     evaluation_digest,
+    genome_mechanical_digest,
+    genome_mechanical_payload,
 )
 
 __all__ = [
@@ -64,6 +66,8 @@ __all__ = [
     "MapElitesRun",
     "SelectedAffix",
     "evaluation_digest",
+    "genome_mechanical_digest",
+    "genome_mechanical_payload",
     "load_legal_build_genome",
     "load_legal_build_genome_text",
     "run_map_elites",
