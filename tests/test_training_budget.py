@@ -94,6 +94,21 @@ class TrainingBudgetTests(unittest.TestCase):
         self.assertIsNone(audit.lower_bound_remaining)
         self.assertFalse(audit.evidence_complete)
 
+    def test_schedule_is_not_extrapolated_past_its_verified_level(self) -> None:
+        race = self.calculator.race(self.irekei_id)
+
+        audit = self.budgets.audit(
+            race_family=race.family,
+            base_class_name="Rogue",
+            level=76,
+            skill_ranks=(),
+            power_ranks=(("power.example", 40),),
+        )
+
+        self.assertIsNone(audit.budget_profile_id)
+        self.assertIsNone(audit.budget_points)
+        self.assertIsNone(audit.lower_bound_remaining)
+
     def test_cost_audit_distinguishes_power_lower_bound_from_skill_unknown(self) -> None:
         race = self.calculator.race(self.irekei_id)
         audit = self.budgets.audit(
