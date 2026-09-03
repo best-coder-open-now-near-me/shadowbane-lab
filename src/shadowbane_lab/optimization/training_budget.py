@@ -176,8 +176,13 @@ class TrainingSelectionCost:
             raise LegalBuildCompileError("training cost evidence has the wrong type")
         if self.evidence is TrainingCostEvidence.EXACT and self.exact_points is None:
             raise LegalBuildCompileError("exact training cost evidence requires exact_points")
-        if self.evidence is not TrainingCostEvidence.EXACT and self.exact_points is not None:
-            raise LegalBuildCompileError("non-exact training cost evidence cannot claim exact_points")
+        if (
+            self.evidence is not TrainingCostEvidence.EXACT
+            and self.exact_points is not None
+        ):
+            raise LegalBuildCompileError(
+                "non-exact training cost evidence cannot claim exact_points"
+            )
 
     def as_dict(self) -> dict[str, object]:
         return {
@@ -372,6 +377,8 @@ class TrainingBudgetCatalog:
             race_family=race_family,
             base_class_name=base_class_name,
         )
+        if profile is not None and level > profile.maximum_level:
+            profile = None
         selections = tuple(
             sorted(
                 (
