@@ -17,11 +17,11 @@ jobs:
           fetch-depth: 1
       - name: Archive exact source tree
         run: git archive --format=zip --output=terrain-repair-workspace.zip HEAD
-      - name: Fetch public WonderBane patch manifest
+      - name: Fetch public WonderBane patch manifest and pinned client
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p public-patch-manifest
+          mkdir -p public-patch-manifest pinned-client
           curl --fail --location --retry 4 --retry-delay 2 \
             --user-agent 'WonderBanePatcher/1.0' \
             --output public-patch-manifest/manifest.json \
@@ -30,6 +30,15 @@ jobs:
             > public-patch-manifest/manifest.pretty.json
           sha256sum public-patch-manifest/manifest.json \
             > public-patch-manifest/manifest.sha256
+          curl --fail --location --retry 4 --retry-delay 2 \
+            --user-agent 'WonderBanePatcher/1.0' \
+            --output pinned-client/sb.exe \
+            'http://87.99.132.84/client/sb.exe'
+          echo '55fbad5f0110cd99b4085af72d1e8fddb782ccdec1491478492c18158f5c61bc  pinned-client/sb.exe' \
+            | sha256sum --check --strict
+          test "$(stat --format=%s pinned-client/sb.exe)" = '21143613'
+          sha256sum pinned-client/sb.exe > pinned-client/sb.exe.sha256
+          file pinned-client/sb.exe > pinned-client/sb.exe.file-type.txt
       - name: Upload source workspace
         uses: actions/upload-artifact@v4
         with:
@@ -44,4 +53,12 @@ jobs:
           name: wonderbane-public-patch-manifest
           path: public-patch-manifest
           if-no-files-found: error
+          retention-days: 1
+      - name: Upload pinned client executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: wonderbane-sb-55fbad5f
+          path: pinned-client
+          if-no-files-found: error
+          compression-level: 0
           retention-days: 1
