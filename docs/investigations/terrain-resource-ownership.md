@@ -210,3 +210,9 @@ The geometry option preserves exact executable/lifetime and existing graph
 checks, additionally gates four non-relocated instruction spans, and bounds
 resident geometry reads. It never invokes a method, obtains GPU data, or treats
 source-array coordinates as already projected screen coordinates.
+
+ArcTerrainRenderObject's primary vtable is `0x01549f88`: complete-object locator
+`0x015946a8` has subobject offset zero and type descriptor `0x016d77d0`.
+Other vtables for this class have nonzero subobject offsets and are not accepted
+as the source layout. Staged polling gates this primary class and brackets root
+association separately from the longer, independently checked source/mesh read.

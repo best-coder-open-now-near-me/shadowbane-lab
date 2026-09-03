@@ -517,3 +517,61 @@ def test_mesh_signature_drift_refuses_publication(tmp_path, alpha_scene):
     with pytest.raises(TerrainMaterialCompatibilityError, match="mesh layout"):
         _capture(backend, tmp_path, profile, include_mesh=True)
     assert not (tmp_path / "material-poll.json").exists()
+
+
+def test_staged_ownership_allows_root_advance_only_after_association(tmp_path, alpha_scene):
+    from shadowbane_lab.diagnostics.terrain_material_poll import TERRAIN_SOURCE_VTABLE_RVA
+
+    backend, profile, _ = alpha_scene
+    raw = bytearray(backend.memory[0x602000])
+    struct.pack_into("<I", raw, 0, backend.base_address + TERRAIN_SOURCE_VTABLE_RVA)
+    backend.memory[0x602000] = bytes(raw)
+    read = backend.read_block
+    source_reads = 0
+
+    def advance_after_anchor(address, size):
+        nonlocal source_reads
+        if address == 0x602000:
+            source_reads += 1
+            if source_reads == 2:
+                owner = bytearray(backend.memory[0x601000])
+                struct.pack_into("<I", owner, 0x10, 0)
+                backend.memory[0x601000] = bytes(owner)
+        return read(address, size)
+
+    backend.read_block = advance_after_anchor
+    result = _capture(backend, tmp_path, profile, staged_ownership=True)
+    assert result["unique_source_count"] == 1
+    assert result["snapshots"][0]["ownership_consistency"] == "staged-root-and-graph"
+    assert result["scope"]["frame_complete"] is False
+    assert result["idle_poll_count"] > 0
+
+
+def test_staged_ownership_refuses_unreviewed_source(tmp_path, alpha_scene):
+    backend, profile, _ = alpha_scene
+    result = _capture(backend, tmp_path, profile, staged_ownership=True)
+    assert result["snapshots"] == []
+    assert "unreviewed staged terrain source class" in result["warnings"]
+
+
+def test_staged_ownership_still_rejects_root_change_during_association(tmp_path, alpha_scene):
+    from shadowbane_lab.diagnostics.terrain_material_poll import TERRAIN_SOURCE_VTABLE_RVA
+
+    backend, profile, _ = alpha_scene
+    raw = bytearray(backend.memory[0x602000])
+    struct.pack_into("<I", raw, 0, backend.base_address + TERRAIN_SOURCE_VTABLE_RVA)
+    backend.memory[0x602000] = bytes(raw)
+    read = backend.read_block
+
+    def changing_root(address, size):
+        result = read(address, size)
+        if address == 0x602000:
+            owner = bytearray(backend.memory[0x601000])
+            owner[0] ^= 1
+            backend.memory[0x601000] = bytes(owner)
+        return result
+
+    backend.read_block = changing_root
+    result = _capture(backend, tmp_path, profile, staged_ownership=True)
+    assert result["snapshots"] == []
+    assert "terrain shader owner changed during the sample" in result["warnings"]

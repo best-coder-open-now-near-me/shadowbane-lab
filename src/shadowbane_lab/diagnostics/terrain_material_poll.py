@@ -30,12 +30,14 @@ from shadowbane_lab.diagnostics.terrain_branch_hits import (
 from shadowbane_lab.diagnostics.terrain_mesh_snapshot import (
     LAYOUT_SIGNATURES,
     MAXIMUM_MESH_READ_BYTES,
+    WRAPPER_SIZE,
+    WRAPPER_VTABLE_RVA,
     MeshReadBudget,
     TerrainMeshCaptureError,
     capture_mesh_snapshot,
 )
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 MINIMUM_USER_ADDRESS = 0x10000
 MAXIMUM_USER_ADDRESS = 0x7FFEFFFF
 SHADER_SIZE = 0x34
@@ -47,6 +49,7 @@ MAXIMUM_LAYERS = 32
 MAXIMUM_SNAPSHOTS = 64
 MAXIMUM_POLLS = 20_000
 MAXIMUM_ALPHA_READ_BYTES = 16 * 1024 * 1024
+TERRAIN_SOURCE_VTABLE_RVA = 0x1149F88
 
 
 class TerrainMaterialCompatibilityError(RuntimeError):
@@ -372,6 +375,7 @@ def _shader_snapshot(
     profile: TerrainMaterialProfile,
     alpha_budget: _AlphaReadBudget | None = None,
     mesh_budget: MeshReadBudget | None = None,
+    staged_ownership: bool = False,
 ) -> dict[str, object]:
     address = backend.base_address + profile.shader_global_rva
     raw = _read_exact(backend, address, SHADER_SIZE, "terrain shader")
@@ -386,6 +390,33 @@ def _shader_snapshot(
     source_pointer = struct.unpack_from("<I", owner_raw, 0x10)[0]
     if not source_pointer:
         raise _IdleSample("terrain shader owner has no current source")
+
+    def validate_root() -> None:
+        if _read_exact(backend, owner_pointer, OWNER_SIZE, "shader owner") != owner_raw:
+            raise _UnstableSample("terrain shader owner changed during the sample")
+        if _read_exact(backend, address, SHADER_SIZE, "terrain shader") != raw:
+            raise _UnstableSample("terrain shader changed during the sample")
+
+    source_anchor = wrapper_anchor = b""
+    if staged_ownership:
+        # Bracket the association while it is current, then bracket its data
+        # separately. This does not pin objects or assert current draw ownership.
+        source_anchor = _read_exact(
+            backend, source_pointer, TERRAIN_OBJECT_SIZE, "terrain source anchor"
+        )
+        if struct.unpack_from("<I", source_anchor)[0] != (
+            backend.base_address + TERRAIN_SOURCE_VTABLE_RVA
+        ):
+            raise TerrainMaterialCaptureError("unreviewed staged terrain source class")
+        if mesh_budget is not None and mesh_pointer:
+            wrapper_anchor = _read_exact(backend, mesh_pointer, 4, "mesh wrapper anchor")
+            if struct.unpack("<I", wrapper_anchor)[0] == (
+                backend.base_address + WRAPPER_VTABLE_RVA
+            ):
+                wrapper_anchor = _read_exact(
+                    backend, mesh_pointer, WRAPPER_SIZE, "mesh wrapper anchor"
+                )
+        validate_root()
     source = _source_snapshot(backend, source_pointer, profile, alpha_budget)
     mesh = None
     if mesh_budget is not None:
@@ -395,10 +426,17 @@ def _shader_snapshot(
             backend.base_address,
             mesh_budget,
         )
-    if _read_exact(backend, owner_pointer, OWNER_SIZE, "shader owner") != owner_raw:
-        raise _UnstableSample("terrain shader owner changed during the sample")
-    if _read_exact(backend, address, SHADER_SIZE, "terrain shader") != raw:
-        raise _UnstableSample("terrain shader changed during the sample")
+    if staged_ownership:
+        if _read_exact(
+            backend, source_pointer, TERRAIN_OBJECT_SIZE, "terrain source anchor"
+        ) != source_anchor:
+            raise _UnstableSample("terrain source changed after root association")
+        if wrapper_anchor and _read_exact(
+            backend, mesh_pointer, len(wrapper_anchor), "mesh wrapper anchor"
+        ) != wrapper_anchor:
+            raise _UnstableSample("terrain mesh wrapper changed after root association")
+    else:
+        validate_root()
     result = {
         "shader_address": _hex32(address),
         "vtable": _hex32(vtable),
@@ -406,6 +444,7 @@ def _shader_snapshot(
         "owner_pointer": _hex32(owner_pointer),
         "source_pointer": _hex32(source_pointer),
         "source": source,
+        "ownership_consistency": "staged-root-and-graph" if staged_ownership else "whole-read",
     }
     if mesh is not None:
         result["mesh"] = mesh
@@ -471,6 +510,7 @@ def capture_terrain_material_poll(
     include_resident_alpha: bool = False,
     include_mesh: bool = False,
     profile: TerrainMaterialProfile = PROFILE,
+    staged_ownership: bool = False,
     monotonic: Callable[[], float] = time.monotonic,
     sleep: Callable[[float], None] = time.sleep,
 ) -> dict[str, object]:
@@ -496,7 +536,9 @@ def capture_terrain_material_poll(
     while monotonic() < deadline and polls < MAXIMUM_POLLS and len(snapshots) < MAXIMUM_SNAPSHOTS:
         polls += 1
         try:
-            snapshot = _shader_snapshot(backend, profile, alpha_budget, mesh_budget)
+            snapshot = _shader_snapshot(
+                backend, profile, alpha_budget, mesh_budget, staged_ownership
+            )
         except _IdleSample:
             idle += 1
         except (TerrainMaterialCaptureError, TerrainMeshCaptureError, _UnstableSample) as error:
@@ -562,6 +604,7 @@ def capture_terrain_material_poll(
             "client_functions_called": False,
             "resident_alpha_requested": include_resident_alpha,
             "mesh_requested": include_mesh,
+            "staged_ownership": staged_ownership,
             "pixels_read": bool(alpha_budget and alpha_budget.bytes_reserved),
             "texture_bytes_read": bool(alpha_budget and alpha_budget.bytes_reserved),
             "gpu_readback": False,
@@ -578,6 +621,9 @@ def capture_terrain_material_poll(
             "ABA changes, or authorize cache mutation. Optional alpha bytes are only "
             "already-resident CPU masks, including CPU copies belonging to GPU-facing "
             "textures; they do not verify GPU storage or prove an upload happened."
+            " Staged ownership brackets the root association before the graph read; "
+            "that root may advance to another draw before data collection completes. "
+            "Neither mode pins object lifetimes or excludes every ABA change."
         ),
     }
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -596,6 +642,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--interval-ms", type=float, default=2.0)
     parser.add_argument("--include-resident-alpha", action="store_true")
     parser.add_argument("--include-mesh", action="store_true")
+    parser.add_argument("--staged-ownership", action="store_true")
     options = parser.parse_args(argv)
     process = None
     try:
@@ -608,6 +655,7 @@ def main(argv: list[str] | None = None) -> int:
             poll_interval_seconds=options.interval_ms / 1000,
             include_resident_alpha=options.include_resident_alpha,
             include_mesh=options.include_mesh,
+            staged_ownership=options.staged_ownership,
         )
     except (OSError, RuntimeError, ValueError) as error:
         print(str(error))

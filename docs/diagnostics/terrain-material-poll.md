@@ -77,3 +77,18 @@ These are resident source arrays, not a measurement of current GL array bindings
 or proof of screen projection. The exact reviewed draw requests flags `0x1b`:
 both color and mask use the same two-component UV vector before their different
 texture matrices. Do not apply this interpretation to an unreviewed draw path.
+
+## Explicit staged ownership mode
+
+Schema 4 adds optional `--staged-ownership`. The default still requires the same
+shader/owner contents at both ends of the entire graph read. That strong timing
+condition can bias long geometry captures toward only the smallest terrain meshes.
+
+Staged mode instead brackets the root association first, with an additional exact
+ArcTerrainRenderObject vtable gate and source/wrapper header anchors. It then
+double-checks the independently read material/mesh graph and requires those same
+source/wrapper anchors at completion. The renderer may have advanced to another
+draw meanwhile. Output labels this `staged-root-and-graph`; it never claims the
+root is still current, that object lifetimes were pinned, or that an atomic frame
+was captured. Concurrent ABA changes remain possible, as in default mode. This
+is an explicit evidence-contract choice, not silently relaxed default validation.

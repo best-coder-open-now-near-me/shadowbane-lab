@@ -678,3 +678,37 @@ Completed: offline coordinate-layout review and bounded geometry option.
 ACTIVE todo: one combined mesh/alpha capture, then test actual shared geometric
 edges and material weights offline before deciding whether another live observer
 or renderer repair is necessary.
+
+## Strict combined capture and staged evidence contract
+
+Combined capture from `4fd8c87` completed at 2026-09-03T19:44:36.758144Z against
+the same verified PID/lifetime without game input or restart. All signatures
+passed, the process survived, and the console/temporary shares were removed.
+Artifact: `E:/Projects/shadowbane/.tmp/terrain-mesh-evidence-2252/terrain-mesh-2252-4fd8c87-1.json`,
+SHA-256 `236d0cbd4ccc148d57d4be5d5493b1f43c695c2ebed1cccfdb40f39841e46c23`.
+
+5.015 seconds, 1,011 polls, 69 stable, 37 idle, 905 discarded; only one unique
+source/mesh was retained. Source `0x3de678a8` uses wrapper `0x4c94dab0`, mesh
+`0x4d162aa8`, 21 vertices and 60 indices. Position bounds are X 89600..89856,
+Y -355..-352.9305419921875, Z -44544..-44288; UV bounds 0..1 on both axes,
+mask rotation zero, and one generated beige mask. Read reservations were
+3,342,336 alpha bytes and 604,488 geometry bytes. One tile cannot establish
+cross-tile adjacency. Repeating the same long whole-draw ownership requirement
+is likely to retain only short/simple graphs again, not improve coverage reliably.
+
+A separately opt-in staged ownership contract was therefore implemented. It
+first brackets the root/source/wrapper association with exact primary source
+class validation, then double-checks the independent graph and its original
+header anchors. It allows the shader to move to another draw only after the
+association check; it does not claim concurrent root ownership or pin lifetimes.
+Default whole-read checking remains unchanged. This is a documented change in
+the evidence contract, not permission to call a partial capture frame-complete.
+
+ACTIVE todo: validate and use the staged mode to recover neighboring geometry,
+then compare material weights only where actual mesh edges establish adjacency.
+
+Staged-mode validation completed: 1,535 tests and 211 subtests passed, 7 skipped;
+focused Ruff and diff checks passed. Tests distinguish a root that changes before
+association is validated (discarded) from one that advances after the association
+while its source graph remains consistent (retained and explicitly labeled).
+ACTIVE todo: bounded staged capture, followed by offline edge comparison.
