@@ -475,6 +475,13 @@ def _parser() -> argparse.ArgumentParser:
     inspect_hotbar.add_argument("character_config", type=Path)
     inspect_hotbar.add_argument("--json", action="store_true", help="emit machine-readable JSON")
 
+    inspect_active_profile = client_commands.add_parser(
+        "inspect-active-profile",
+        help="read the active character and select its saved CFG without sending input",
+    )
+    inspect_active_profile.add_argument("--process-id", type=int)
+    inspect_active_profile.add_argument("--json", action="store_true")
+
     inspect_world_data = client_commands.add_parser(
         "inspect-world-data",
         help="inspect local world, terrain, mesh, and collision cache indexes",
@@ -837,7 +844,7 @@ def _parser() -> argparse.ArgumentParser:
     run_pve.add_argument(
         "--hotbar-config",
         type=Path,
-        help="character SCREEN_GAME config; required by policies that activate hotbar powers",
+        help="optional override; otherwise resolve the logged-in character's CFG automatically",
     )
     run_pve.add_argument("--native-health-profile", type=Path)
     run_pve.add_argument("--native-message-hud-profile", type=Path)
@@ -990,7 +997,7 @@ def _parser() -> argparse.ArgumentParser:
     listen_go.add_argument(
         "--pve-hotbar-config",
         type=Path,
-        help="current character SCREEN_GAME config used to verify Shadow Touch",
+        help="optional override; each PvE initialization otherwise resolves its active character",
     )
     listen_go.add_argument(
         "--pve-evidence-directory",

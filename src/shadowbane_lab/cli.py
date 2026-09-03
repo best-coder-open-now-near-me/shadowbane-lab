@@ -86,6 +86,7 @@ from shadowbane_lab.client_input import (
     load_arcane_hotkeys,
     load_calibration,
 )
+from shadowbane_lab.client_input.character_config import open_active_character_config
 from shadowbane_lab.client_observation import (
     ClientTargetObserver,
     NativeCharacterPopulationError,
@@ -314,6 +315,7 @@ _DOMAIN_EXPORTS = {
         "_validate_profile",
         "_inspect_arcane_hotkeys",
         "_inspect_arcane_hotbar",
+        "_inspect_active_character_config",
         "_inspect_world_data",
         "_observe_target",
         "_read_combat_log",
@@ -423,6 +425,9 @@ _discover_client = _domain_facade(_client_inspection_commands, "_discover_client
 _validate_profile = _domain_facade(_client_inspection_commands, "_validate_profile")
 _inspect_arcane_hotkeys = _domain_facade(_client_inspection_commands, "_inspect_arcane_hotkeys")
 _inspect_arcane_hotbar = _domain_facade(_client_inspection_commands, "_inspect_arcane_hotbar")
+_inspect_active_character_config = _domain_facade(
+    _client_inspection_commands, "_inspect_active_character_config"
+)
 _inspect_world_data = _domain_facade(_client_inspection_commands, "_inspect_world_data")
 _observe_target = _domain_facade(_client_inspection_commands, "_observe_target")
 _read_combat_log = _domain_facade(_client_inspection_commands, "_read_combat_log")
@@ -640,6 +645,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _inspect_arcane_hotkeys(arguments.preferences, as_json=arguments.json)
     if arguments.command == "client" and arguments.client_command == "inspect-hotbar":
         return _inspect_arcane_hotbar(arguments.character_config, as_json=arguments.json)
+    if arguments.command == "client" and arguments.client_command == "inspect-active-profile":
+        return _inspect_active_character_config(
+            process_id=arguments.process_id, as_json=arguments.json
+        )
     if arguments.command == "client" and arguments.client_command == "inspect-world-data":
         return _inspect_world_data(
             arguments.cache_directory,

@@ -587,7 +587,7 @@ class ClientCliTests(unittest.TestCase):
                 world_def_path=None,
                 named_destination_overrides_path=None,
                 pve_client_profile_path=Path(directory) / "pve.json",
-                pve_hotbar_config_path=Path(directory) / "hotbar.cfg",
+                pve_hotbar_config_path=None,
                 pve_evidence_directory=evidence_directory,
                 navigation_cache_directory=Path(directory) / "cache",
                 pve_max_kills=3,
@@ -616,7 +616,8 @@ class ClientCliTests(unittest.TestCase):
         self.assertEqual(1_500, captured["retained_trace_steps"])
         self.assertEqual(Path(directory) / "cache", captured["navigation_cache_directory"])
         self.assertTrue(captured["stop_signal"].is_set())
-        verify_hotbar.assert_called_once()
+        verify_hotbar.assert_not_called()
+        self.assertIsNone(captured["hotbar_config_path"])
         evidence_path = captured["evidence_output_path"]
         self.assertIsInstance(evidence_path, Path)
         self.assertEqual(evidence_directory, evidence_path.parent)
@@ -1257,6 +1258,19 @@ class ClientCliTests(unittest.TestCase):
         self.assertEqual(0.5, planner.config.waypoint_radius_fraction)
 
     def test_pve_binds_every_native_reader_to_the_guarded_client_process(self) -> None:
+        self._assert_pve_process_binding(policy="basic")
+
+    def test_pve_auto_resolves_character_and_records_binding_before_starting(self) -> None:
+        self._assert_pve_process_binding(policy="proc-assassin")
+
+    def _assert_pve_process_binding(self, *, policy: str) -> None:
+        from shadowbane_lab.client_input.character_config import CharacterConfigSession
+        from shadowbane_lab.client_observation.native_character_config import (
+            NativeCharacterConfigReader,
+        )
+        from tests.test_active_character_config import CharacterMemory, write_profile
+        from tests.test_arcane_hotbar import _CAPTURED_HOTBAR
+
         template = Path(__file__).parents[1] / "configs" / "wonderbane-pve.template.json"
         profile = replace(load_calibration(template), live_input_enabled=True)
         snapshot = WindowSnapshot(
@@ -1273,6 +1287,7 @@ class ClientCliTests(unittest.TestCase):
             is_visible=True,
             process_id=4320,
         )
+        snapshot = replace(snapshot, process_started_at_100ns=134327529709130522)
         native_profiles = tuple(
             SimpleNamespace(executable_sha256="ab" * 32, profile_id=f"profile-{index}")
             for index in range(9)
@@ -1336,6 +1351,11 @@ class ClientCliTests(unittest.TestCase):
         open_zone = MagicMock(return_value=readers[8])
         load_terrain = MagicMock(return_value=terrain_navigation)
         with tempfile.TemporaryDirectory() as directory:
+            character_memory = CharacterMemory(Path(directory))
+            write_profile(character_memory, content=_CAPTURED_HOTBAR.encode())
+            character_session = CharacterConfigSession(
+                NativeCharacterConfigReader(character_memory)
+            )
             evidence_output = Path(directory) / "evidence" / "pve.json"
             navigation_cache = Path(directory) / "cache"
             navigation_cache.mkdir()
@@ -1382,6 +1402,10 @@ class ClientCliTests(unittest.TestCase):
                 ),
                 patch("shadowbane_lab.cli.WindowsHotkeyEmergencyStop") as emergency_stop,
                 patch(
+                    "shadowbane_lab.cli.open_active_character_config",
+                    return_value=character_session,
+                ) as open_character,
+                patch(
                     "shadowbane_lab.cli.PyAutoGuiBackend",
                     return_value=RecordingInputBackend(),
                 ),
@@ -1404,7 +1428,7 @@ class ClientCliTests(unittest.TestCase):
                     max_seconds=30,
                     wait_for_client_seconds=0,
                     poll_ms=100,
-                    policy="basic",
+                    policy=policy,
                     live=True,
                     as_json=True,
                     evidence_output_path=evidence_output,
@@ -1412,6 +1436,29 @@ class ClientCliTests(unittest.TestCase):
                     client_process_id=4320,
                 )
                 saved_evidence = json.loads(evidence_output.read_text(encoding="utf-8"))
+
+                if policy == "proc-assassin":
+                    open_character.assert_called_once_with(process_id=4320, explicit_path=None)
+                    self.assertEqual(
+                        "testercle", saved_evidence["character_config"]["character_name"]
+                    )
+                    self.assertEqual(
+                        character_memory.process_creation_filetime_utc,
+                        saved_evidence["character_config"]["process_creation_filetime_utc"],
+                    )
+                    self.assertTrue(character_memory.closed)
+                    dispatcher = pve_runner.call_args.kwargs["dispatcher"]
+                    executor = dispatcher._adapter._executor
+                    self.assertEqual(
+                        character_session.require_current, executor._input_precondition
+                    )
+                    self.assertEqual(
+                        character_memory.process_creation_filetime_utc,
+                        executor._guard._expected_process_started_at_100ns,
+                    )
+                else:
+                    open_character.assert_not_called()
+                    self.assertIsNone(saved_evidence["character_config"])
 
         self.assertEqual(0, result)
         self.assertEqual(1, saved_evidence["trace_schema_version"])

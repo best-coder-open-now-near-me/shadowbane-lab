@@ -53,7 +53,32 @@ fields. A patched executable needs its own review before adding it to
 
 ## Validation status
 
+Inside the testing VM, with a character logged in (PowerShell may stay foreground):
+
+```powershell
+$env:PYTHONPATH = '\\VBOXSVR\codexrepo\src'
+& "$env:USERPROFILE\shadowbane-lab\.venv\Scripts\python.exe" -m shadowbane_lab.cli client inspect-active-profile --json
+```
+
+With multiple clients, add `--process-id` with the intended client's PID. Inspection sends
+no input. Compare `character_name`, `server_name`, and `config_path` with the active client.
+`active_slots` reports the saved hotbar's assigned powers.
+
+`run-pve`, the `/pve` listener route, and manager workers resolve the CFG during each PvE
+initialization. Omit `-HotbarConfig` / `--hotbar-config`; an explicit override must still match.
+The selection appears as `character_config` in final evidence and continuous journal metadata.
+The basic policy does not use hotbar powers and does not require a character CFG.
+
 Synthetic-memory tests cover five saved profiles, exact character/server/client-root matching,
 process-lifetime metadata, missing files, wrong builds, corrupt/torn strings, relogging, and
 revocation before input. A live testing-VM read remains required to confirm the mapping against
 the visible logged-in character; offline analysis is not represented as live validation.
+
+Combined checkpoint validation (including upstream PvE work through `9553531`):
+
+- Python: 1,318 passed, 6 skipped; 211 subtests passed.
+- Ruff: clean (also corrected an import-order-only error in the merged action-trace test).
+- Native full and diagnostics-only: Win32 Release builds succeeded; 11/11 CTest checks each.
+- Both changed PowerShell launchers parsed successfully without execution.
+- Python wheel built successfully with isolated declared build dependencies.
+- No native DLL deployment, game launch, memory write, or character CFG edit was performed.

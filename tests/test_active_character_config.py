@@ -1,11 +1,15 @@
 import hashlib
+import io
+import json
 import struct
+from contextlib import redirect_stdout
 from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
+from shadowbane_lab.cli import main
 from shadowbane_lab.client_input.character_config import (
     CharacterConfigSession,
     open_active_character_config,
@@ -265,3 +269,101 @@ def test_factory_uses_unique_process_only_for_read_only_inspection(tmp_path):
             assert session.binding.process_id == 4320
         factory.open_unique.assert_called_once_with("sb.exe")
     assert memory.closed
+
+
+def test_read_only_cli_reports_selected_character_and_saved_hotbar(tmp_path):
+    from tests.test_arcane_hotbar import _CAPTURED_HOTBAR
+
+    memory = CharacterMemory(tmp_path)
+    path = write_profile(memory, content=_CAPTURED_HOTBAR.encode())
+    output = io.StringIO()
+    with (
+        patch(
+            "shadowbane_lab.client_input.character_config.WindowsReadOnlyProcessMemory"
+        ) as factory,
+        patch("shadowbane_lab.cli.PyAutoGuiBackend") as backend,
+        redirect_stdout(output),
+    ):
+        factory.open_for_process.return_value = memory
+        result = main(("client", "inspect-active-profile", "--process-id", "4320", "--json"))
+    payload = json.loads(output.getvalue())
+    assert result == 0
+    assert payload["character_name"] == "testercle"
+    assert payload["server_name"] == "Wonderbane"
+    assert Path(payload["config_path"]) == path
+    assert {"key": "f2", "power": "ASS-013"} in payload["active_slots"]
+    backend.assert_not_called()
+    assert memory.closed
+
+
+def test_read_only_cli_reports_closed_client_without_input():
+    output = io.StringIO()
+    with (
+        patch(
+            "shadowbane_lab.client_input.character_config.WindowsReadOnlyProcessMemory"
+        ) as factory,
+        patch("shadowbane_lab.cli.PyAutoGuiBackend") as backend,
+        redirect_stdout(output),
+    ):
+        factory.open_unique.side_effect = ActiveCharacterError("no running process named sb.exe")
+        result = main(("client", "inspect-active-profile", "--json"))
+    assert result == 2
+    assert "no running process" in json.loads(output.getvalue())["error"]
+    backend.assert_not_called()
+
+
+def test_pve_ambiguous_or_unavailable_identity_never_opens_input_backend():
+    from shadowbane_lab.client_input import (
+        StaticWindowInspector,
+        WindowBounds,
+        WindowSnapshot,
+        load_calibration,
+    )
+
+    template = Path(__file__).parents[1] / "configs" / "wonderbane-pve.template.json"
+    calibration = replace(load_calibration(template), live_input_enabled=True)
+    snapshot = WindowSnapshot(
+        executable_name="sb.exe",
+        title="Shadowbane",
+        client_bounds=WindowBounds(
+            0, 0, calibration.target.reference_width, calibration.target.reference_height
+        ),
+        dpi_scale=calibration.target.dpi_scale,
+        is_foreground=True,
+        is_visible=True,
+        process_id=4320,
+    )
+    output = io.StringIO()
+    with (
+        patch("shadowbane_lab.cli.load_calibration", return_value=calibration),
+        patch(
+            "shadowbane_lab.cli.WindowsForegroundWindowInspector",
+            return_value=StaticWindowInspector(snapshot),
+        ),
+        patch(
+            "shadowbane_lab.cli.open_active_character_config",
+            side_effect=ActiveCharacterError("active character changed"),
+        ) as resolve,
+        patch("shadowbane_lab.cli.PyAutoGuiBackend") as backend,
+        patch("shadowbane_lab.cli.PvERunner") as runner,
+        redirect_stdout(output),
+    ):
+        result = main(
+            (
+                "client",
+                "run-pve",
+                "--client-profile",
+                str(template),
+                "--policy",
+                "proc-assassin",
+                "--wait-for-client-seconds",
+                "0",
+                "--live",
+                "--json",
+            )
+        )
+    assert result == 2
+    assert "active character changed" in json.loads(output.getvalue())["error"]
+    resolve.assert_called_once_with(process_id=4320, explicit_path=None)
+    backend.assert_not_called()
+    runner.assert_not_called()
