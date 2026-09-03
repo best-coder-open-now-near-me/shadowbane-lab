@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import replace
 from statistics import fmean
 
-from shadowbane_lab.composition.adapters import primitive_loadout_from_build_view
 from shadowbane_lab.rollouts.duel import TerminationReason
 
 from .build_model import (
@@ -262,7 +261,6 @@ class StrictLegalBuildLeagueEvaluator(LegalBuildLeagueEvaluator):
         role: str,
     ):
         derived = super()._loadout(compilation, role=role)
-        proven = primitive_loadout_from_build_view(compilation.view)
         projection = project_static_capabilities(compilation)
         metadata = dict(derived.metadata)
         metadata["action_prerequisite_mode"] = "strict_fail_closed"
