@@ -118,7 +118,7 @@ def test_graphics_publication_and_launch_pin_the_golden_package() -> None:
     assert "texture_patch_manifest_sha256" in publish
     assert 'RepositoryShare = "\\\\VBOXSVR\\codexrepo"' in launch
     assert 'ExtensionVersion = "1.6.13"' in launch
-    assert "39ee563be8e32353d60c6f9e3ebb801b8db1bffddb6dcb734fbd4f66b2285114" in launch
+    assert "01e4297798c3c2ca4212d997f0793b8a4af0bb98d429f31d9e07a9dc029f42a4" in launch
     assert '$expectedExtensionRelativePath = "wonderbane-extension.dll"' in launch
     assert 'Properties["extension_relative_path"]' in launch
     assert "a9a59004b36f9331bb85f85e7853a02a5d5f07bda9acb9ea4a8affbf169a54b8" in launch
@@ -149,6 +149,23 @@ def test_graphics_publication_and_launch_pin_the_golden_package() -> None:
     assert '"glDisable"' in cel_shading
     assert '"glDepthMask"' in cel_shading
     assert "InvalidateFixedFunctionState(&g_fixed_function_state)" in cel_shading
+
+
+def test_publisher_and_launcher_require_the_same_extension_identity() -> None:
+    identities = []
+    for script in (
+        "publish-wonderbane-graphics-baseline.ps1",
+        "launch-wonderbane-graphics-baseline.ps1",
+    ):
+        source = (ROOT / "scripts" / script).read_text(encoding="utf-8")
+        matches = re.findall(
+            r'\$expectedExtensionSha256\s*=\s*\(?\s*"([0-9a-f]{64})"',
+            source,
+            flags=re.IGNORECASE,
+        )
+        assert len(matches) == 1, script
+        identities.append(matches[0])
+    assert identities[0] == identities[1]
 
 
 def test_required_renderer_imports_exist_in_reviewed_client() -> None:
