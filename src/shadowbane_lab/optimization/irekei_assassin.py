@@ -42,6 +42,7 @@ from .training import (
     CompilerBackedGenomeMutator,
     DuelScenario,
     LegalBuildLeagueEvaluator,
+    genome_mechanical_digest,
 )
 
 
@@ -250,7 +251,7 @@ def run_irekei_assassin_search(
         archive=archive,
         iterations=config.iterations,
         seed=config.mutation_seed,
-        candidate_digest=lambda genome: genome.genome_digest,
+        candidate_digest=genome_mechanical_digest,
         evaluate=evaluator,
         mutate=mutator,
     )
@@ -270,7 +271,9 @@ def run_irekei_assassin_search(
             "The readable reference simulator remains the correctness oracle; this "
             "experiment is not yet the high-throughput NumPy/Numba backend.",
             "Results compare the current legal-build adapter against deterministic "
-            "calculator-legal Deflock and Elf Druid baselines, not the whole live metagame.",
+            "Shade Fighter Deflock and Elf Healer Druid identities, not the whole live "
+            "metagame; when a guide omits sex, the lowest reviewed sex-specific record "
+            "is selected deterministically.",
         ),
     )
 
@@ -401,6 +404,8 @@ def _first_legal_profession_genome(
 ) -> LegalBuildGenome:
     profession = preset.profession
     level = preset.level
+    race_key = _single_profile_tag(preset, "race.")
+    base_key = _single_profile_tag(preset, "base.")
     promotions = tuple(
         item
         for item in calculator.promotions
@@ -410,46 +415,77 @@ def _first_legal_profession_genome(
         raise LegalBuildCompileError(
             f"expected one calculator promotion named {profession}"
         )
-    promotion = promotions[0]
-    for base in sorted(calculator.base_classes, key=lambda item: item.record_id):
-        if base.name not in promotion.allowed_base_classes:
-            continue
-        for race in sorted(calculator.races, key=lambda item: item.record_id):
-            try:
-                calculator.calculate(
-                    race_id=race.record_id,
-                    base_class_id=base.record_id,
-                    promotion_id=promotion.record_id,
-                    level=level,
-                )
-            except WonderbaneCalculatorImportError:
-                continue
-            modifiers = _fully_allocate(
-                calculator,
-                race_id=race.record_id,
-                base_class_id=base.record_id,
-                promotion_id=promotion.record_id,
-                level=level,
-                rune_ids=(),
-                priority=priority,
-            )
-            return LegalBuildGenome(
-                genome_id=f"baseline-{_key(race.family)}-{profession}-{level}",
-                display_name=(
-                    f"{race.family} {base.name} {promotion.name} baseline"
-                ),
-                race_id=race.record_id,
-                base_class_id=base.record_id,
-                promotion_id=promotion.record_id,
-                level=level,
-                move_speed=preset.move_speed,
-                trained_modifiers=modifiers,
-                skill_ranks=tuple(sorted(preset.skill_ranks)),
-                power_ranks=tuple(sorted(preset.build.power_ranks)),
-            )
-    raise LegalBuildCompileError(
-        f"no calculator-legal identity found for {profession}"
+    bases = tuple(
+        item for item in calculator.base_classes if _key(item.name) == base_key
     )
+    if len(bases) != 1:
+        raise LegalBuildCompileError(
+            f"expected one calculator base class tagged {base_key}"
+        )
+    races = tuple(
+        item for item in calculator.races if _key(item.family) == race_key
+    )
+    if not races:
+        raise LegalBuildCompileError(
+            f"expected at least one calculator race record tagged {race_key}"
+        )
+    promotion = promotions[0]
+    base = bases[0]
+    if base.name not in promotion.allowed_base_classes:
+        raise LegalBuildCompileError(
+            f"guide identity {race_key}/{base_key}/{profession} is not calculator-legal"
+        )
+    for race in sorted(races, key=lambda item: item.record_id):
+        try:
+            calculator.calculate(
+                race_id=race.record_id,
+                base_class_id=base.record_id,
+                promotion_id=promotion.record_id,
+                level=level,
+            )
+        except WonderbaneCalculatorImportError:
+            continue
+        modifiers = _fully_allocate(
+            calculator,
+            race_id=race.record_id,
+            base_class_id=base.record_id,
+            promotion_id=promotion.record_id,
+            level=level,
+            rune_ids=(),
+            priority=priority,
+        )
+        return LegalBuildGenome(
+            genome_id=(
+                f"baseline-{race_key}-{base_key}-{profession}-{level}"
+            ),
+            display_name=(
+                f"{race.family} {base.name} {promotion.name} baseline"
+            ),
+            race_id=race.record_id,
+            base_class_id=base.record_id,
+            promotion_id=promotion.record_id,
+            level=level,
+            move_speed=preset.move_speed,
+            trained_modifiers=modifiers,
+            skill_ranks=tuple(sorted(preset.skill_ranks)),
+            power_ranks=tuple(sorted(preset.build.power_ranks)),
+        )
+    raise LegalBuildCompileError(
+        f"no calculator-legal sex record found for {race_key}/{base_key}/{profession}"
+    )
+
+
+def _single_profile_tag(preset: CombatantPreset, prefix: str) -> str:
+    values = {
+        tag.removeprefix(prefix)
+        for tag in (*preset.tags, *preset.combat_sheet.tags)
+        if tag.startswith(prefix)
+    }
+    if len(values) != 1:
+        raise LegalBuildCompileError(
+            f"{preset.preset_id} must expose exactly one {prefix} profile tag"
+        )
+    return next(iter(values))
 
 
 def _unarmed_weapon_ids(
