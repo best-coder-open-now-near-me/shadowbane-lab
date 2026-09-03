@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from dataclasses import replace
 
 from shadowbane_lab.optimization.policy_rollout import (
     UtilityPolicyLeagueEvaluator,
@@ -118,6 +119,36 @@ class WeightedUtilityPolicyTests(unittest.TestCase):
         self.assertEqual(2, first.rollout_count)
         self.assertEqual(weights.policy_digest, first.weights.policy_digest)
         self.assertEqual(64, len(first.evidence_digest))
+
+    def test_policy_evidence_ignores_loadout_labels(self) -> None:
+        controlled = assassin_loadout()
+        opponent = warlock_loadout()
+        first = UtilityPolicyLeagueEvaluator(
+            self.ruleset,
+            controlled,
+            (opponent,),
+            (DuelScenario("policy-duel", 15.0, max_ticks=20),),
+            (7,),
+        )(UtilityPolicyWeights())
+        second = UtilityPolicyLeagueEvaluator(
+            self.ruleset,
+            replace(
+                controlled,
+                loadout_id="renamed-controlled",
+                display_name="Renamed Controlled",
+            ),
+            (
+                replace(
+                    opponent,
+                    loadout_id="renamed-opponent",
+                    display_name="Renamed Opponent",
+                ),
+            ),
+            (DuelScenario("policy-duel", 15.0, max_ticks=20),),
+            (7,),
+        )(UtilityPolicyWeights())
+
+        self.assertEqual(first, second)
 
     def test_diagonal_search_is_reproducible_and_keeps_baseline_candidate(self) -> None:
         evaluator = UtilityPolicyLeagueEvaluator(
