@@ -1,0 +1,38 @@
+name: Terrain repair client executable
+
+on:
+  push:
+    branches:
+      - codex/terrain-material-repair-workspace
+    paths:
+      - .github/workflows/terrain-repair-client-executable.yml
+
+permissions:
+  contents: read
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download public WonderBane client
+        run: curl --fail --location --retry 4 --retry-delay 3 --output WonderbaneClient.zip https://wonderbane.com/WonderbaneClient.zip
+      - name: Extract executable only
+        shell: bash
+        run: |
+          set -euo pipefail
+          candidate="$(unzip -Z1 WonderbaneClient.zip | awk 'BEGIN{IGNORECASE=1} /(^|\/)sb\.exe$/ {print; exit}')"
+          test -n "$candidate"
+          mkdir -p executable
+          unzip -p WonderbaneClient.zip "$candidate" > executable/sb.exe
+          test -s executable/sb.exe
+          sha256sum executable/sb.exe | tee executable/sha256.txt
+      - name: Upload exact executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: wonderbane-sb-executable
+          path: executable
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
