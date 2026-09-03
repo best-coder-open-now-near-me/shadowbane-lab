@@ -179,9 +179,19 @@ Current remaining sequence:
 1. COMPLETE: frozen package launch, settings preservation, and one local capture.
 2. COMPLETE: identify the actual terrain pass family and its observed mask state.
 3. ACTIVE: connect those terrain bindings to reviewed cache/archive records and
-   determine the neighboring-mask sampling convention without another capture.
+   determine the neighboring-mask sampling convention. Continue offline review
+   first; the existing trace cannot supply resource tokens it did not record.
 4. Implement the evidence-supported seam repair, validate the complete package
    and frame cost, then let the user judge its appearance.
 
 No seam repair or visual acceptance is claimed yet. Working evidence and commits
 remain local; the earlier push/export restriction remains in force.
+
+The subsequent [offline ownership review](terrain-resource-ownership.md) located
+the paired shader/source texture vectors and an RTTI-backed texture-to-GL-binding
+path. Internal token-to-archive decoding and the live instances' exact resource
+identities remain unverified. These findings are not new approved runtime offsets.
+
+Analyzer checkpoint validation: **38 focused tests passed**, including collector
+tests, plus Ruff and diff checks. Native source is unchanged; no new native build
+or seam-fix performance/visual acceptance is claimed.
