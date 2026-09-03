@@ -23,7 +23,7 @@ namespace {
 constexpr wchar_t kProductDirectory[] = L"ShadowbaneLab";
 constexpr wchar_t kExtensionDirectory[] = L"client-extension";
 constexpr char kProducerId[] = "wonderbane-extension.graphics";
-constexpr char kExtensionVersion[] = "1.6.8";
+constexpr char kExtensionVersion[] = "1.6.9";
 constexpr std::size_t kPathCapacity = WONDERBANE_EXTENSION_HEARTBEAT_PATH_CAPACITY;
 constexpr std::size_t kExecutablePathUtf8Capacity = kPathCapacity * 4U;
 constexpr std::size_t kEscapedPathCapacity = kExecutablePathUtf8Capacity * 2U + 3U;
@@ -1108,7 +1108,7 @@ DWORD PublishSnapshot(const PublisherSnapshot& snapshot) noexcept {
         return HResultToWin32(result);
     }
     const GraphicsControlStatus control = GetGraphicsControlStatus();
-    std::array<char, 1024U> control_json{};
+    std::array<char, 1536U> control_json{};
     if (control.available) {
         std::array<char, kControlNameUtf8Capacity> control_name_utf8{};
         std::array<char, kEscapedControlNameCapacity> control_name_json{};
@@ -1123,26 +1123,49 @@ DWORD PublishSnapshot(const PublisherSnapshot& snapshot) noexcept {
             )) {
             return ERROR_INSUFFICIENT_BUFFER;
         }
+        const GraphicsParametersSnapshot parameter_snapshot =
+            SnapshotGraphicsParameters();
+        const GraphicsParameters& parameters = parameter_snapshot.parameters;
         result = StringCchPrintfA(
             control_json.data(),
             control_json.size(),
             "{\"available\":true,\"schema_version\":%lu,\"mapping_name\":%s,"
             "\"desired_sequence\":%ld,\"applied_sequence\":%ld,"
-            "\"rejected_sequence\":%ld,\"last_error\":%lu}",
+            "\"rejected_sequence\":%ld,\"last_error\":%lu,"
+            "\"parameters_revision\":%lu,\"depth_contours_enabled\":%s,"
+            "\"depth_contour_mode\":\"%s\","
+            "\"depth_contour_debug_mode\":\"%s\","
+            "\"depth_edge_threshold\":%.9f,"
+            "\"sustained_edge_threshold\":%.9f}",
             static_cast<unsigned long>(kGraphicsControlSchemaVersion),
             control_name_json.data(),
             static_cast<long>(control.desired_sequence),
             static_cast<long>(control.applied_sequence),
             static_cast<long>(control.rejected_sequence),
-            static_cast<unsigned long>(control.last_error)
+            static_cast<unsigned long>(control.last_error),
+            static_cast<unsigned long>(parameter_snapshot.revision),
+            (parameters.flags & kGraphicsControlDepthContours) != 0U
+                ? "true"
+                : "false",
+            DepthContourModeName(parameters.depth_contour_mode),
+            DepthContourDebugModeName(parameters.depth_contour_debug_mode),
+            static_cast<double>(parameters.depth_edge_threshold),
+            static_cast<double>(parameters.sustained_edge_threshold)
         );
     } else {
-        result = StringCchCopyA(
+        result = StringCchPrintfA(
             control_json.data(),
             control_json.size(),
-            "{\"available\":false,\"schema_version\":1,\"mapping_name\":null,"
-            "\"desired_sequence\":null,\"applied_sequence\":null,"
-            "\"rejected_sequence\":null,\"last_error\":null}"
+            "{\"available\":false,\"schema_version\":%lu,"
+            "\"mapping_name\":null,\"desired_sequence\":null,"
+            "\"applied_sequence\":null,\"rejected_sequence\":null,"
+            "\"last_error\":null,\"parameters_revision\":null,"
+            "\"depth_contours_enabled\":null,"
+            "\"depth_contour_mode\":null,"
+            "\"depth_contour_debug_mode\":null,"
+            "\"depth_edge_threshold\":null,"
+            "\"sustained_edge_threshold\":null}",
+            static_cast<unsigned long>(kGraphicsControlSchemaVersion)
         );
     }
     if (FAILED(result)) {

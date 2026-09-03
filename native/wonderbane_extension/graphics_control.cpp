@@ -16,7 +16,7 @@ constexpr wchar_t kControlNameFormat[] =
 constexpr std::size_t kControlNameCapacity = 128U;
 
 HANDLE g_mapping = nullptr;
-GraphicsControlBlockV1* g_control = nullptr;
+GraphicsControlBlockV2* g_control = nullptr;
 wchar_t g_control_name[kControlNameCapacity]{};
 std::array<GraphicsParameters, 2U> g_parameter_snapshots{{
     DefaultGraphicsParameters(),
@@ -24,6 +24,7 @@ std::array<GraphicsParameters, 2U> g_parameter_snapshots{{
 }};
 volatile LONG g_active_parameter_snapshot = 0;
 volatile LONG g_parameter_revision = 1;
+volatile LONG g_parameter_publish_sequence = 0;
 
 std::uint64_t FileTimeValue(const FILETIME value) noexcept {
     ULARGE_INTEGER combined{};
@@ -43,15 +44,56 @@ bool IsColor(const std::array<float, 3U>& color) noexcept {
 }
 
 void PublishParameters(const GraphicsParameters& parameters) noexcept {
+    InterlockedIncrement(&g_parameter_publish_sequence);
     const LONG active = InterlockedCompareExchange(&g_active_parameter_snapshot, 0, 0);
     const LONG inactive = active == 0 ? 1 : 0;
     g_parameter_snapshots[static_cast<std::size_t>(inactive)] = parameters;
     MemoryBarrier();
     InterlockedExchange(&g_active_parameter_snapshot, inactive);
     InterlockedIncrement(&g_parameter_revision);
+    MemoryBarrier();
+    InterlockedIncrement(&g_parameter_publish_sequence);
+}
+
+void ResetParameterSnapshots(const GraphicsParameters& parameters) noexcept {
+    InterlockedIncrement(&g_parameter_publish_sequence);
+    g_parameter_snapshots = {parameters, parameters};
+    MemoryBarrier();
+    InterlockedExchange(&g_active_parameter_snapshot, 0);
+    InterlockedIncrement(&g_parameter_revision);
+    MemoryBarrier();
+    InterlockedIncrement(&g_parameter_publish_sequence);
 }
 
 }  // namespace
+
+const char* DepthContourModeName(const DepthContourMode mode) noexcept {
+    switch (mode) {
+        case DepthContourMode::legacy:
+            return "legacy";
+        case DepthContourMode::sustained:
+            return "sustained";
+    }
+    return "invalid";
+}
+
+const char* DepthContourDebugModeName(
+    const DepthContourDebugMode mode
+) noexcept {
+    switch (mode) {
+        case DepthContourDebugMode::none:
+            return "none";
+        case DepthContourDebugMode::response:
+            return "response";
+        case DepthContourDebugMode::sustained_response:
+            return "sustained-response";
+        case DepthContourDebugMode::support:
+            return "support";
+        case DepthContourDebugMode::rejected:
+            return "rejected";
+    }
+    return "invalid";
+}
 
 GraphicsParameters DefaultGraphicsParameters() noexcept {
     GraphicsParameters parameters{};
@@ -73,6 +115,9 @@ GraphicsParameters DefaultGraphicsParameters() noexcept {
     parameters.vertex_tint_gamma = 0.78F;
     parameters.distant_highlight_compression = 0.45F;
     parameters.feature_outline_width = 1.35F;
+    parameters.sustained_edge_threshold = 0.055F;
+    parameters.depth_contour_mode = DepthContourMode::legacy;
+    parameters.depth_contour_debug_mode = DepthContourDebugMode::none;
     return parameters;
 }
 
@@ -84,7 +129,16 @@ bool ValidateGraphicsParameters(const GraphicsParameters& parameters) noexcept {
         || !IsFiniteRange(parameters.depth_edge_threshold, 0.005F, 0.5F)
         || !IsFiniteRange(parameters.vertex_tint_gamma, 0.25F, 2.5F)
         || !IsFiniteRange(parameters.distant_highlight_compression, 0.0F, 1.0F)
-        || !IsFiniteRange(parameters.feature_outline_width, 0.5F, 3.0F)) {
+        || !IsFiniteRange(parameters.feature_outline_width, 0.5F, 3.0F)
+        || !IsFiniteRange(parameters.sustained_edge_threshold, 0.005F, 0.5F)
+        || (parameters.depth_contour_mode != DepthContourMode::legacy
+            && parameters.depth_contour_mode != DepthContourMode::sustained)
+        || (parameters.depth_contour_debug_mode != DepthContourDebugMode::none
+            && parameters.depth_contour_debug_mode != DepthContourDebugMode::response
+            && parameters.depth_contour_debug_mode
+                != DepthContourDebugMode::sustained_response
+            && parameters.depth_contour_debug_mode != DepthContourDebugMode::support
+            && parameters.depth_contour_debug_mode != DepthContourDebugMode::rejected)) {
         return false;
     }
     if (!(parameters.band_thresholds[0] > 0.0F
@@ -101,7 +155,7 @@ bool ValidateGraphicsParameters(const GraphicsParameters& parameters) noexcept {
 }
 
 GraphicsParameters GraphicsParametersFromControlBlock(
-    const GraphicsControlBlockV1& block
+    const GraphicsControlBlockV2& block
 ) noexcept {
     GraphicsParameters parameters{};
     parameters.flags = block.flags;
@@ -127,11 +181,18 @@ GraphicsParameters GraphicsParametersFromControlBlock(
     parameters.vertex_tint_gamma = block.vertex_tint_gamma;
     parameters.distant_highlight_compression = block.distant_highlight_compression;
     parameters.feature_outline_width = block.feature_outline_width;
+    parameters.sustained_edge_threshold = block.sustained_edge_threshold;
+    parameters.depth_contour_mode = static_cast<DepthContourMode>(
+        block.depth_contour_mode
+    );
+    parameters.depth_contour_debug_mode = static_cast<DepthContourDebugMode>(
+        block.depth_contour_debug_mode
+    );
     return parameters;
 }
 
 void PopulateGraphicsControlBlock(
-    GraphicsControlBlockV1* const block,
+    GraphicsControlBlockV2* const block,
     const GraphicsParameters& parameters,
     const DWORD process_id,
     const std::uint64_t process_creation_filetime_utc
@@ -142,7 +203,7 @@ void PopulateGraphicsControlBlock(
     *block = {};
     block->magic = kGraphicsControlMagic;
     block->schema_version = kGraphicsControlSchemaVersion;
-    block->structure_size = sizeof(GraphicsControlBlockV1);
+    block->structure_size = sizeof(GraphicsControlBlockV2);
     block->process_id = process_id;
     block->process_creation_filetime_low = static_cast<std::uint32_t>(
         process_creation_filetime_utc & 0xFFFFFFFFULL
@@ -175,6 +236,13 @@ void PopulateGraphicsControlBlock(
     block->vertex_tint_gamma = parameters.vertex_tint_gamma;
     block->distant_highlight_compression = parameters.distant_highlight_compression;
     block->feature_outline_width = parameters.feature_outline_width;
+    block->sustained_edge_threshold = parameters.sustained_edge_threshold;
+    block->depth_contour_mode = static_cast<std::uint32_t>(
+        parameters.depth_contour_mode
+    );
+    block->depth_contour_debug_mode = static_cast<std::uint32_t>(
+        parameters.depth_contour_debug_mode
+    );
     block->desired_sequence = 2;
     block->applied_sequence = 2;
     block->rejected_sequence = 0;
@@ -216,7 +284,7 @@ DWORD StartGraphicsControl() noexcept {
         nullptr,
         PAGE_READWRITE,
         0U,
-        sizeof(GraphicsControlBlockV1),
+        sizeof(GraphicsControlBlockV2),
         g_control_name
     );
     if (g_mapping == nullptr) {
@@ -230,12 +298,12 @@ DWORD StartGraphicsControl() noexcept {
         g_control_name[0] = L'\0';
         return ERROR_ALREADY_EXISTS;
     }
-    g_control = static_cast<GraphicsControlBlockV1*>(MapViewOfFile(
+    g_control = static_cast<GraphicsControlBlockV2*>(MapViewOfFile(
         g_mapping,
         FILE_MAP_ALL_ACCESS,
         0U,
         0U,
-        sizeof(GraphicsControlBlockV1)
+        sizeof(GraphicsControlBlockV2)
     ));
     if (g_control == nullptr) {
         const DWORD result = GetLastError();
@@ -245,15 +313,13 @@ DWORD StartGraphicsControl() noexcept {
         return result;
     }
     const GraphicsParameters defaults = DefaultGraphicsParameters();
-    g_parameter_snapshots = {defaults, defaults};
-    InterlockedExchange(&g_active_parameter_snapshot, 0);
-    InterlockedIncrement(&g_parameter_revision);
+    ResetParameterSnapshots(defaults);
     PopulateGraphicsControlBlock(g_control, defaults, process_id, creation_value);
     return ERROR_SUCCESS;
 }
 
 void ApplyPendingGraphicsControl() noexcept {
-    GraphicsControlBlockV1* const block = g_control;
+    GraphicsControlBlockV2* const block = g_control;
     if (block == nullptr) {
         return;
     }
@@ -264,7 +330,7 @@ void ApplyPendingGraphicsControl() noexcept {
         return;
     }
     MemoryBarrier();
-    const GraphicsControlBlockV1 snapshot = *block;
+    const GraphicsControlBlockV2 snapshot = *block;
     MemoryBarrier();
     if (sequence != InterlockedCompareExchange(&block->desired_sequence, 0, 0)) {
         return;
@@ -279,7 +345,7 @@ void ApplyPendingGraphicsControl() noexcept {
     DWORD error = ERROR_SUCCESS;
     if (snapshot.magic != kGraphicsControlMagic
         || snapshot.schema_version != kGraphicsControlSchemaVersion
-        || snapshot.structure_size != sizeof(GraphicsControlBlockV1)
+        || snapshot.structure_size != sizeof(GraphicsControlBlockV2)
         || snapshot.process_id != GetCurrentProcessId()
         || GetProcessTimes(
             GetCurrentProcess(),
@@ -305,9 +371,37 @@ void ApplyPendingGraphicsControl() noexcept {
     InterlockedExchange(&block->applied_sequence, sequence);
 }
 
+GraphicsParametersSnapshot SnapshotGraphicsParameters() noexcept {
+    GraphicsParametersSnapshot snapshot{};
+    for (;;) {
+        const LONG sequence_before = InterlockedCompareExchange(
+            &g_parameter_publish_sequence, 0, 0
+        );
+        if ((sequence_before & 1) != 0) {
+            continue;
+        }
+        MemoryBarrier();
+        const LONG active = InterlockedCompareExchange(
+            &g_active_parameter_snapshot, 0, 0
+        );
+        snapshot.parameters = g_parameter_snapshots[
+            static_cast<std::size_t>(active == 0 ? 0 : 1)
+        ];
+        snapshot.revision = static_cast<std::uint32_t>(
+            InterlockedCompareExchange(&g_parameter_revision, 0, 0)
+        );
+        MemoryBarrier();
+        const LONG sequence_after = InterlockedCompareExchange(
+            &g_parameter_publish_sequence, 0, 0
+        );
+        if (sequence_before == sequence_after && (sequence_after & 1) == 0) {
+            return snapshot;
+        }
+    }
+}
+
 GraphicsParameters CurrentGraphicsParameters() noexcept {
-    const LONG active = InterlockedCompareExchange(&g_active_parameter_snapshot, 0, 0);
-    return g_parameter_snapshots[static_cast<std::size_t>(active == 0 ? 0 : 1)];
+    return SnapshotGraphicsParameters().parameters;
 }
 
 std::uint32_t CurrentGraphicsParametersRevision() noexcept {
@@ -317,7 +411,7 @@ std::uint32_t CurrentGraphicsParametersRevision() noexcept {
 }
 
 void StopGraphicsControl() noexcept {
-    GraphicsControlBlockV1* const block = g_control;
+    GraphicsControlBlockV2* const block = g_control;
     g_control = nullptr;
     if (block != nullptr) {
         UnmapViewOfFile(block);
@@ -329,9 +423,7 @@ void StopGraphicsControl() noexcept {
     }
     g_control_name[0] = L'\0';
     const GraphicsParameters defaults = DefaultGraphicsParameters();
-    g_parameter_snapshots = {defaults, defaults};
-    InterlockedExchange(&g_active_parameter_snapshot, 0);
-    InterlockedIncrement(&g_parameter_revision);
+    ResetParameterSnapshots(defaults);
 }
 
 DWORD GetGraphicsControlName(
@@ -351,7 +443,7 @@ DWORD GetGraphicsControlName(
 
 GraphicsControlStatus GetGraphicsControlStatus() noexcept {
     GraphicsControlStatus status{};
-    GraphicsControlBlockV1* const block = g_control;
+    GraphicsControlBlockV2* const block = g_control;
     if (block == nullptr || g_mapping == nullptr || g_control_name[0] == L'\0') {
         return status;
     }
