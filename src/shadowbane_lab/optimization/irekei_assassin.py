@@ -137,7 +137,17 @@ def run_irekei_assassin_search(
         raise LegalBuildCompileError("config must be IrekeiAssassinSearchConfig")
     calculator = calculator or load_bundled_wonderbane_calculator_catalog()
     equipment = equipment or load_bundled_equipment_catalog()
-    ruleset = ruleset or load_wonderbane_guide_duel_ruleset()
+    assassin_preset = wonderbane_sundancer_proc_assassin()
+    deflock_preset = wonderbane_deflock()
+    druid_preset = wonderbane_elf_healer_druid()
+    if ruleset is None:
+        ruleset = load_wonderbane_guide_duel_ruleset(
+            rank_overrides=_rank_overrides(
+                assassin_preset,
+                deflock_preset,
+                druid_preset,
+            )
+        )
     policy = LegalBuildCompilePolicy(
         allow_ruleset_overrides=True,
         apply_candidate_equipment_values=True,
@@ -150,7 +160,6 @@ def run_irekei_assassin_search(
     )
     gate = CatalogBackedLegalityGate(calculator, equipment)
 
-    assassin_preset = wonderbane_sundancer_proc_assassin()
     powers = assassin_preset.build.power_ranks
     assassin_skills = dict(assassin_preset.skill_ranks)
     selected_runes = _rune_ids(calculator, ("Sun Dancer", "Saboteur"))
@@ -177,12 +186,12 @@ def run_irekei_assassin_search(
     opponents = (
         _first_legal_profession_genome(
             calculator,
-            wonderbane_deflock(),
+            deflock_preset,
             priority=(3, 2, 1, 4, 0),
         ),
         _first_legal_profession_genome(
             calculator,
-            wonderbane_elf_healer_druid(),
+            druid_preset,
             priority=(3, 2, 4, 1, 0),
         ),
     )
@@ -264,6 +273,19 @@ def run_irekei_assassin_search(
             "calculator-legal Deflock and Elf Druid baselines, not the whole live metagame.",
         ),
     )
+
+
+def _rank_overrides(*presets: CombatantPreset) -> dict[str, int]:
+    overrides: dict[str, int] = {}
+    for preset in presets:
+        for action_key, rank in preset.build.power_ranks:
+            current = overrides.get(action_key)
+            if current is not None and current != rank:
+                raise LegalBuildCompileError(
+                    f"conflicting requested ranks for {action_key}: {current} and {rank}"
+                )
+            overrides[action_key] = rank
+    return overrides
 
 
 def _rune_ids(
