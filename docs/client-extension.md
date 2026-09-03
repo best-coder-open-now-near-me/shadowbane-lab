@@ -554,3 +554,24 @@ Unknown mappings keep original rendering; no guessed boundary is substituted.
 
 The durable evidence, mapping, regression cases, artifact pins and outstanding
 live acceptance are in [the recovery journal](investigations/renderer-scene-boundary.md).
+
+### 1.6.10: integrated recovery and sustained contours
+
+Extension 1.6.10 retains the exact reviewed main-scene boundary above and adds an optional
+sustained depth-contour experiment without changing the reviewed
+legacy default. The original five-sample foreground-curvature algorithm remains selectable;
+the sustained mode samples the second cardinal ring and requires the depth drop to continue in the
+same dominant direction that produced the first-ring response. Perpendicular or opposite-side
+support cannot rescue a transient one-pixel crack. Separate response, sustained-response,
+support, and rejected-candidate diagnostic views make the decision visible without assigning
+terrain semantics.
+
+Graphics Control schema 2 keeps the mapping at 256 bytes and preserves the existing parameter
+offsets while consuming reserved space for the sustained threshold, contour mode, and diagnostic
+mode. Schema-1 live mappings fail closed, while schema-1 saved Graphics Lab presets load under the
+legacy contour policy. Graphics status now publishes the active contour policy and thresholds beside
+its frame timing so A/B performance evidence can be attributed to the exact mode. The combined
+DLL and Graphics Lab must be deployed together: old live schema-1 clients will not appear as
+compatible targets. Publication and launch scripts pin a distinct 1.6.10 artifact; earlier
+1.6.8/1.6.9 artifacts remain unchanged. VM deployment and live visual/performance acceptance are
+separate from local build and regression validation.

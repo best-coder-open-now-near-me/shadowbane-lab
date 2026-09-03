@@ -11,7 +11,7 @@ from pathlib import Path
 
 from .control import GraphicsParameters
 
-PRESET_SCHEMA_VERSION = 1
+PRESET_SCHEMA_VERSION = 2
 _SAFE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 _.-]{0,63}$")
 
 
@@ -74,10 +74,16 @@ class GraphicsPresetStore:
     @staticmethod
     def _read(path: Path) -> tuple[str, GraphicsParameters]:
         payload = json.loads(path.read_text(encoding="utf-8"))
-        if not isinstance(payload, dict) or payload.get("schema_version") != 1:
+        if not isinstance(payload, dict):
+            raise ValueError("graphics preset must be an object")
+        schema_version = payload.get("schema_version")
+        if schema_version not in {1, PRESET_SCHEMA_VERSION}:
             raise ValueError("unsupported graphics preset schema")
         name = _validate_name(payload.get("name"))
-        parameters = GraphicsParameters.from_json(payload.get("parameters"))
+        parameters = GraphicsParameters.from_json(
+            payload.get("parameters"),
+            allow_legacy_contour_defaults=schema_version == 1,
+        )
         return name, parameters
 
 

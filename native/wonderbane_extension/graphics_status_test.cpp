@@ -300,11 +300,22 @@ int wmain() {
             "\"late_world_after_ui\":\"excluded-and-counted\""
         )
             == std::string::npos
-        || json.find("\"live_controls\":{\"available\":true")
+        || json.find("\"live_controls\":{\"available\":true,"
+            "\"schema_version\":2")
             == std::string::npos
         || json.find("\"mapping_name\":\"Local\\\\WonderBaneGraphicsControl-")
             == std::string::npos
         || json.find("\"desired_sequence\":2,\"applied_sequence\":2")
+            == std::string::npos
+        || json.find("\"depth_contours_enabled\":true")
+            == std::string::npos
+        || json.find("\"depth_contour_mode\":\"legacy\"")
+            == std::string::npos
+        || json.find("\"depth_contour_debug_mode\":\"none\"")
+            == std::string::npos
+        || json.find("\"depth_edge_threshold\":0.055000000")
+            == std::string::npos
+        || json.find("\"sustained_edge_threshold\":0.055000000")
             == std::string::npos) {
         ::fprintf(stderr, "status JSON: %s\n", json.c_str());
         return Fail(L"published status JSON");

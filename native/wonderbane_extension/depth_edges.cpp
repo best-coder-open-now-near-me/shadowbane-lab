@@ -223,6 +223,9 @@ struct DepthEdgeRuntime {
     int dark_scene_outline_strength_location = -1;
     int bright_scene_ink_alpha_location = -1;
     int edge_threshold_location = -1;
+    int sustained_edge_threshold_location = -1;
+    int depth_contour_mode_location = -1;
+    int depth_contour_debug_mode_location = -1;
     int depth_texture_width = 0;
     int depth_texture_height = 0;
     int scene_color_texture_width = 0;
@@ -264,6 +267,9 @@ uniform vec3 wbDarkSceneOutline;
 uniform float wbDarkSceneOutlineStrength;
 uniform float wbBrightSceneInkAlpha;
 uniform float wbEdgeThreshold;
+uniform float wbSustainedEdgeThreshold;
+uniform int wbDepthContourMode;
+uniform int wbDepthContourDebugMode;
 varying vec2 wbDepthUv;
 
 float wbInverseEyeDepth(float windowDepth) {
@@ -277,6 +283,15 @@ float wbInverseEyeDepth(float windowDepth) {
 float wbForegroundPairCurvature(float first, float second, float center) {
     if (center <= (first + second) * 0.5) return 0.0;
     return abs(first + second - 2.0 * center) / max(center, 0.000001);
+}
+
+float wbRelativeDrop(float center, float sampleDepth) {
+    return max(center - sampleDepth, 0.0) / max(center, 0.000001);
+}
+
+vec3 wbResponseHeat(float value, float threshold) {
+    float ratio = clamp(value / max(threshold, 0.000001), 0.0, 2.0) * 0.5;
+    return vec3(ratio, 0.18 + 0.42 * (1.0 - abs(ratio * 2.0 - 1.0)), 1.0 - ratio);
 }
 
 vec4 wbAdaptiveOutline(vec3 sceneColor) {
@@ -305,13 +320,102 @@ void main() {
     float centerSample = texture2D(wbDepthTexture, wbDepthUv).r;
     if (centerSample >= 0.999999) discard;
     float center = wbInverseEyeDepth(centerSample);
-    float right = wbInverseEyeDepth(texture2D(wbDepthTexture, wbDepthUv + vec2( wbTexelSize.x, 0.0)).r);
-    float left  = wbInverseEyeDepth(texture2D(wbDepthTexture, wbDepthUv + vec2(-wbTexelSize.x, 0.0)).r);
-    float up    = wbInverseEyeDepth(texture2D(wbDepthTexture, wbDepthUv + vec2(0.0,  wbTexelSize.y)).r);
-    float down  = wbInverseEyeDepth(texture2D(wbDepthTexture, wbDepthUv + vec2(0.0, -wbTexelSize.y)).r);
-    float response = wbForegroundPairCurvature(right, left, center);
-    response = max(response, wbForegroundPairCurvature(up, down, center));
-    if (response <= wbEdgeThreshold) discard;
+    float right1 = wbInverseEyeDepth(texture2D(
+        wbDepthTexture, wbDepthUv + vec2(wbTexelSize.x, 0.0)
+    ).r);
+    float left1 = wbInverseEyeDepth(texture2D(
+        wbDepthTexture, wbDepthUv + vec2(-wbTexelSize.x, 0.0)
+    ).r);
+    float up1 = wbInverseEyeDepth(texture2D(
+        wbDepthTexture, wbDepthUv + vec2(0.0, wbTexelSize.y)
+    ).r);
+    float down1 = wbInverseEyeDepth(texture2D(
+        wbDepthTexture, wbDepthUv + vec2(0.0, -wbTexelSize.y)
+    ).r);
+
+    float horizontalResponse = wbForegroundPairCurvature(right1, left1, center);
+    float verticalResponse = wbForegroundPairCurvature(up1, down1, center);
+    float response = max(horizontalResponse, verticalResponse);
+    bool rawCandidate = response > wbEdgeThreshold;
+
+    float horizontalSupport = 0.0;
+    float verticalSupport = 0.0;
+    bool needsSecondRing = wbDepthContourMode != 0
+        || wbDepthContourDebugMode == 2
+        || wbDepthContourDebugMode == 3
+        || wbDepthContourDebugMode == 4;
+    if (needsSecondRing) {
+        float right2 = wbInverseEyeDepth(texture2D(
+            wbDepthTexture, wbDepthUv + vec2(wbTexelSize.x * 2.0, 0.0)
+        ).r);
+        float left2 = wbInverseEyeDepth(texture2D(
+            wbDepthTexture, wbDepthUv + vec2(-wbTexelSize.x * 2.0, 0.0)
+        ).r);
+        float up2 = wbInverseEyeDepth(texture2D(
+            wbDepthTexture, wbDepthUv + vec2(0.0, wbTexelSize.y * 2.0)
+        ).r);
+        float down2 = wbInverseEyeDepth(texture2D(
+            wbDepthTexture, wbDepthUv + vec2(0.0, -wbTexelSize.y * 2.0)
+        ).r);
+        float rightDrop1 = wbRelativeDrop(center, right1);
+        float leftDrop1 = wbRelativeDrop(center, left1);
+        float upDrop1 = wbRelativeDrop(center, up1);
+        float downDrop1 = wbRelativeDrop(center, down1);
+        horizontalSupport = rightDrop1 >= leftDrop1
+            ? min(rightDrop1, wbRelativeDrop(center, right2))
+            : min(leftDrop1, wbRelativeDrop(center, left2));
+        verticalSupport = upDrop1 >= downDrop1
+            ? min(upDrop1, wbRelativeDrop(center, up2))
+            : min(downDrop1, wbRelativeDrop(center, down2));
+    }
+
+    bool sustainedCandidate = (
+        horizontalResponse > wbEdgeThreshold
+        && horizontalSupport > wbSustainedEdgeThreshold
+    ) || (
+        verticalResponse > wbEdgeThreshold
+        && verticalSupport > wbSustainedEdgeThreshold
+    );
+
+    if (wbDepthContourDebugMode == 1) {
+        gl_FragColor = vec4(wbResponseHeat(response, wbEdgeThreshold), 0.88);
+        return;
+    }
+    if (wbDepthContourDebugMode == 2) {
+        float sustainedResponse = max(
+            horizontalSupport > wbSustainedEdgeThreshold
+                ? horizontalResponse
+                : 0.0,
+            verticalSupport > wbSustainedEdgeThreshold
+                ? verticalResponse
+                : 0.0
+        );
+        gl_FragColor = vec4(
+            wbResponseHeat(sustainedResponse, wbEdgeThreshold),
+            0.88
+        );
+        return;
+    }
+    if (wbDepthContourDebugMode == 3) {
+        gl_FragColor = vec4(
+            wbResponseHeat(
+                max(horizontalSupport, verticalSupport),
+                wbSustainedEdgeThreshold
+            ),
+            0.88
+        );
+        return;
+    }
+    if (wbDepthContourDebugMode == 4) {
+        if (!rawCandidate || sustainedCandidate) discard;
+        gl_FragColor = vec4(1.0, 0.12, 0.76, 0.92);
+        return;
+    }
+
+    bool accepted = wbDepthContourMode == 0
+        ? rawCandidate
+        : sustainedCandidate;
+    if (!accepted) discard;
     if (wbAdaptiveOutlineEnabled != 0) {
         gl_FragColor = wbSceneColorAvailable != 0
             ? wbAdaptiveOutline(texture2D(wbSceneColorTexture, wbDepthUv).rgb)
@@ -544,6 +648,15 @@ bool BuildResources(DepthEdgeRuntime* const runtime) noexcept {
     runtime->edge_threshold_location = api.get_uniform_location(
         program, "wbEdgeThreshold"
     );
+    runtime->sustained_edge_threshold_location = api.get_uniform_location(
+        program, "wbSustainedEdgeThreshold"
+    );
+    runtime->depth_contour_mode_location = api.get_uniform_location(
+        program, "wbDepthContourMode"
+    );
+    runtime->depth_contour_debug_mode_location = api.get_uniform_location(
+        program, "wbDepthContourDebugMode"
+    );
     if (runtime->depth_sampler_location < 0
         || runtime->scene_color_sampler_location < 0
         || runtime->scene_color_available_location < 0
@@ -553,7 +666,10 @@ bool BuildResources(DepthEdgeRuntime* const runtime) noexcept {
         || runtime->dark_scene_outline_location < 0
         || runtime->dark_scene_outline_strength_location < 0
         || runtime->bright_scene_ink_alpha_location < 0
-        || runtime->edge_threshold_location < 0) {
+        || runtime->edge_threshold_location < 0
+        || runtime->sustained_edge_threshold_location < 0
+        || runtime->depth_contour_mode_location < 0
+        || runtime->depth_contour_debug_mode_location < 0) {
         api.delete_program(program);
         return false;
     }
@@ -860,6 +976,18 @@ bool CompositeDepthEdges(const DepthEdgeFrame& frame) noexcept {
         parameters.bright_scene_ink_alpha
     );
     api.uniform_1f(g_runtime.edge_threshold_location, parameters.depth_edge_threshold);
+    api.uniform_1f(
+        g_runtime.sustained_edge_threshold_location,
+        parameters.sustained_edge_threshold
+    );
+    api.uniform_1i(
+        g_runtime.depth_contour_mode_location,
+        static_cast<int>(parameters.depth_contour_mode)
+    );
+    api.uniform_1i(
+        g_runtime.depth_contour_debug_mode_location,
+        static_cast<int>(parameters.depth_contour_debug_mode)
+    );
 
     api.matrix_mode(kGlProjection);
     api.push_matrix();
@@ -924,30 +1052,42 @@ float ReconstructPerspectiveEyeDepth(
     return std::fabs(projection_14 / denominator);
 }
 
-bool IsForegroundDepthDiscontinuity(
+DepthContourEvaluation EvaluateDepthContour(
     const float center_depth,
     const float* const neighbour_depths,
     const std::size_t neighbour_count,
     const float projection_10,
     const float projection_11,
-    const float projection_14
+    const float projection_14,
+    const float edge_threshold,
+    const float sustained_edge_threshold,
+    const bool require_sustained_support
 ) noexcept {
-    if (neighbour_depths == nullptr || neighbour_count == 0U) {
-        return false;
+    DepthContourEvaluation evaluation{};
+    if (neighbour_depths == nullptr
+        || neighbour_count < (require_sustained_support ? 8U : 4U)
+        || !std::isfinite(edge_threshold)
+        || !std::isfinite(sustained_edge_threshold)
+        || edge_threshold <= 0.0F
+        || sustained_edge_threshold <= 0.0F) {
+        return evaluation;
     }
     const float center_depth_value = ReconstructPerspectiveEyeDepth(
         center_depth, projection_10, projection_11, projection_14
     );
-    if (!std::isfinite(center_depth_value) || neighbour_count < 4U) {
-        return false;
+    if (!std::isfinite(center_depth_value) || center_depth_value <= 0.0F) {
+        return evaluation;
     }
     const float center = 1.0F / center_depth_value;
-    std::array<float, 4U> inverse_depths{};
-    for (std::size_t index = 0U; index < inverse_depths.size(); ++index) {
+    std::array<float, 8U> inverse_depths{};
+    const std::size_t sample_count = require_sustained_support ? 8U : 4U;
+    for (std::size_t index = 0U; index < sample_count; ++index) {
         const float depth = ReconstructPerspectiveEyeDepth(
             neighbour_depths[index], projection_10, projection_11, projection_14
         );
-        inverse_depths[index] = std::isfinite(depth) ? 1.0F / depth : 0.0F;
+        inverse_depths[index] = std::isfinite(depth) && depth > 0.0F
+            ? 1.0F / depth
+            : 0.0F;
     }
     const auto curvature = [center](const float first, const float second) noexcept {
         if (center <= (first + second) * 0.5F) {
@@ -956,11 +1096,63 @@ bool IsForegroundDepthDiscontinuity(
         return std::fabs(first + second - 2.0F * center)
             / std::max(center, 0.000001F);
     };
-    const float response = std::max({
-        curvature(inverse_depths[0], inverse_depths[1]),
-        curvature(inverse_depths[2], inverse_depths[3]),
-    });
-    return response > 0.055F;
+    evaluation.horizontal_response = curvature(
+        inverse_depths[0], inverse_depths[1]
+    );
+    evaluation.vertical_response = curvature(
+        inverse_depths[2], inverse_depths[3]
+    );
+    evaluation.raw_candidate = std::max(
+        evaluation.horizontal_response,
+        evaluation.vertical_response
+    ) > edge_threshold;
+    if (!require_sustained_support) {
+        evaluation.accepted = evaluation.raw_candidate;
+        return evaluation;
+    }
+    const auto relative_drop = [center](const float sample) noexcept {
+        return std::max(center - sample, 0.0F)
+            / std::max(center, 0.000001F);
+    };
+    const float right_drop = relative_drop(inverse_depths[0]);
+    const float left_drop = relative_drop(inverse_depths[1]);
+    const float up_drop = relative_drop(inverse_depths[2]);
+    const float down_drop = relative_drop(inverse_depths[3]);
+    evaluation.horizontal_support = right_drop >= left_drop
+        ? std::min(right_drop, relative_drop(inverse_depths[4]))
+        : std::min(left_drop, relative_drop(inverse_depths[5]));
+    evaluation.vertical_support = up_drop >= down_drop
+        ? std::min(up_drop, relative_drop(inverse_depths[6]))
+        : std::min(down_drop, relative_drop(inverse_depths[7]));
+    evaluation.accepted = (
+        evaluation.horizontal_response > edge_threshold
+        && evaluation.horizontal_support > sustained_edge_threshold
+    ) || (
+        evaluation.vertical_response > edge_threshold
+        && evaluation.vertical_support > sustained_edge_threshold
+    );
+    return evaluation;
+}
+
+bool IsForegroundDepthDiscontinuity(
+    const float center_depth,
+    const float* const neighbour_depths,
+    const std::size_t neighbour_count,
+    const float projection_10,
+    const float projection_11,
+    const float projection_14
+) noexcept {
+    return EvaluateDepthContour(
+        center_depth,
+        neighbour_depths,
+        neighbour_count,
+        projection_10,
+        projection_11,
+        projection_14,
+        0.055F,
+        0.055F,
+        false
+    ).accepted;
 }
 
 const char* DepthEdgeFragmentSource() noexcept {

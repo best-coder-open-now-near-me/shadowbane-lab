@@ -9,6 +9,13 @@ from .control import (
     ADAPTIVE_OUTLINES,
     BANDED_LIGHTING,
     DEFAULT_PARAMETERS,
+    DEPTH_CONTOUR_DEBUG_NONE,
+    DEPTH_CONTOUR_DEBUG_REJECTED,
+    DEPTH_CONTOUR_DEBUG_RESPONSE,
+    DEPTH_CONTOUR_DEBUG_SUPPORT,
+    DEPTH_CONTOUR_DEBUG_SUSTAINED_RESPONSE,
+    DEPTH_CONTOUR_LEGACY,
+    DEPTH_CONTOUR_SUSTAINED,
     DEPTH_CONTOURS,
     FEATURE_ACCENTS,
     GraphicsControlClient,
@@ -26,13 +33,21 @@ _MUTED = "#9ca9bb"
 _ACCENT = "#a995d6"
 _ERROR = "#ff8d8d"
 
+_CONTOUR_DEBUG_LABELS = {
+    "Off": DEPTH_CONTOUR_DEBUG_NONE,
+    "Raw response": DEPTH_CONTOUR_DEBUG_RESPONSE,
+    "Sustained response": DEPTH_CONTOUR_DEBUG_SUSTAINED_RESPONSE,
+    "Sustained support": DEPTH_CONTOUR_DEBUG_SUPPORT,
+    "Rejected candidates": DEPTH_CONTOUR_DEBUG_REJECTED,
+}
+
 
 class GraphicsLabApp:
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
         self.root.title("WonderBane Graphics Lab")
-        self.root.geometry("640x720")
-        self.root.minsize(600, 650)
+        self.root.geometry("640x790")
+        self.root.minsize(600, 700)
         self.root.configure(background=_BACKGROUND)
         self.root.protocol("WM_DELETE_WINDOW", self.close)
         self.targets: tuple[GraphicsControlTarget, ...] = ()
@@ -92,6 +107,8 @@ class GraphicsLabApp:
         self.status_var = tk.StringVar(value="Looking for a live graphics client…")
         self.preset_name_var = tk.StringVar()
         self.preset_choice_var = tk.StringVar()
+        self.sustained_contours_var = tk.BooleanVar()
+        self.contour_debug_var = tk.StringVar(value="Off")
         self.flag_vars = {
             BANDED_LIGHTING: tk.BooleanVar(),
             DEPTH_CONTOURS: tk.BooleanVar(),
@@ -102,6 +119,7 @@ class GraphicsLabApp:
             "dark_scene_outline_strength": tk.DoubleVar(),
             "bright_scene_ink_alpha": tk.DoubleVar(),
             "depth_edge_threshold": tk.DoubleVar(),
+            "sustained_edge_threshold": tk.DoubleVar(),
             "feature_outline_width": tk.DoubleVar(),
             "band_threshold_0": tk.DoubleVar(),
             "band_threshold_1": tk.DoubleVar(),
@@ -109,7 +127,12 @@ class GraphicsLabApp:
             "vertex_tint_gamma": tk.DoubleVar(),
             "distant_highlight_compression": tk.DoubleVar(),
         }
-        for variable in [*self.flag_vars.values(), *self.numeric_vars.values()]:
+        for variable in [
+            *self.flag_vars.values(),
+            *self.numeric_vars.values(),
+            self.sustained_contours_var,
+            self.contour_debug_var,
+        ]:
             variable.trace_add("write", self._schedule_live_apply)
 
     def _build(self) -> None:
@@ -162,9 +185,14 @@ class GraphicsLabApp:
         ).pack(anchor="w")
         ttk.Checkbutton(
             parent,
+            text="Reject one-pixel depth cracks (experimental)",
+            variable=self.sustained_contours_var,
+        ).pack(anchor="w", pady=(4, 0))
+        ttk.Checkbutton(
+            parent,
             text="Interior creases and equipment accents",
             variable=self.flag_vars[FEATURE_ACCENTS],
-        ).pack(anchor="w", pady=(0, 16))
+        ).pack(anchor="w", pady=(4, 16))
         self._color_control(parent, "dark_scene_outline", "Dark-scene rim tint")
         self._slider(parent, "dark_scene_outline_strength", "Dark-scene rim strength", 0.0, 1.0, 2)
         self._slider(parent, "bright_scene_ink_alpha", "Bright-scene ink amount", 0.0, 1.0, 2)
@@ -176,7 +204,31 @@ class GraphicsLabApp:
             0.20,
             3,
         )
-        self._slider(parent, "feature_outline_width", "Interior accent width", 0.5, 3.0, 2)
+        self._slider(
+            parent,
+            "sustained_edge_threshold",
+            "Sustained support threshold",
+            0.005,
+            0.20,
+            3,
+        )
+        diagnostic_row = ttk.Frame(parent)
+        diagnostic_row.pack(fill="x", pady=5)
+        ttk.Label(diagnostic_row, text="Contour diagnostic view").pack(anchor="w")
+        ttk.Combobox(
+            diagnostic_row,
+            textvariable=self.contour_debug_var,
+            values=tuple(_CONTOUR_DEBUG_LABELS),
+            state="readonly",
+        ).pack(fill="x", pady=(3, 0))
+        self._slider(
+            parent,
+            "feature_outline_width",
+            "Interior accent width",
+            0.5,
+            3.0,
+            2,
+        )
 
     def _build_lighting_tab(self, parent: ttk.Frame) -> None:
         ttk.Checkbutton(
@@ -407,6 +459,17 @@ class GraphicsLabApp:
                 "distant_highlight_compression"
             ].get(),
             feature_outline_width=self.numeric_vars["feature_outline_width"].get(),
+            sustained_edge_threshold=self.numeric_vars[
+                "sustained_edge_threshold"
+            ].get(),
+            depth_contour_mode=(
+                DEPTH_CONTOUR_SUSTAINED
+                if self.sustained_contours_var.get()
+                else DEPTH_CONTOUR_LEGACY
+            ),
+            depth_contour_debug_mode=_CONTOUR_DEBUG_LABELS[
+                self.contour_debug_var.get()
+            ],
         )
         parameters.validate()
         return parameters
@@ -417,10 +480,23 @@ class GraphicsLabApp:
         try:
             for flag, variable in self.flag_vars.items():
                 variable.set(bool(parameters.flags & flag))
+            self.sustained_contours_var.set(
+                parameters.depth_contour_mode == DEPTH_CONTOUR_SUSTAINED
+            )
+            debug_label = next(
+                (
+                    label
+                    for label, mode in _CONTOUR_DEBUG_LABELS.items()
+                    if mode == parameters.depth_contour_debug_mode
+                ),
+                "Off",
+            )
+            self.contour_debug_var.set(debug_label)
             values = {
                 "dark_scene_outline_strength": parameters.dark_scene_outline_strength,
                 "bright_scene_ink_alpha": parameters.bright_scene_ink_alpha,
                 "depth_edge_threshold": parameters.depth_edge_threshold,
+                "sustained_edge_threshold": parameters.sustained_edge_threshold,
                 "feature_outline_width": parameters.feature_outline_width,
                 "band_threshold_0": parameters.band_thresholds[0],
                 "band_threshold_1": parameters.band_thresholds[1],
