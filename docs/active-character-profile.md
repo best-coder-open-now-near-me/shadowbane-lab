@@ -71,8 +71,10 @@ The basic policy does not use hotbar powers and does not require a character CFG
 
 Synthetic-memory tests cover five saved profiles, exact character/server/client-root matching,
 process-lifetime metadata, missing files, wrong builds, corrupt/torn strings, relogging, and
-revocation before input. A live testing-VM read remains required to confirm the mapping against
-the visible logged-in character; offline analysis is not represented as live validation.
+revocation before input. The operator has now reported a successful live read-only inspection:
+automatic selection returned success and the saved hotbar exposed the expected power binding.
+This records only a non-identifying success summary; machine-specific diagnostic output is not
+included. Live character switching and a completed PvE encounter have not yet been verified.
 
 Combined checkpoint validation (including upstream PvE work through `9553531`):
 
