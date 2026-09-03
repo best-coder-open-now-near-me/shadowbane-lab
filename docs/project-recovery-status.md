@@ -3,14 +3,15 @@
 ## Current integration: 2026-09-03 01:38 America/New_York
 
 The user authorized integrating the completed lanes now. They are combined on
-`codex/client-convergence-v2` at code checkpoint `fa2947c`. This section
+`codex/client-convergence-v2` at initial code checkpoint `fa2947c`, with the
+portable Windows path follow-up recorded below. This section
 supersedes every historical queue below; integration is no longer merely planned.
 No VM, installed game, previous release, topic ref, stash, or unrelated dirty
 worktree was changed.
 
 ### Integrated source checkpoints
 
-| Lane | Included source tip | Local integration commit |
+| Lane | Included source tip | Integration commit |
 | --- | --- | --- |
 | PvE / reviewed renderer boundary | `3a605e4` | `5877b78` |
 | Asset-mod facade / pristine texture engine | `ba95232` | `ba5d4da` |
@@ -44,9 +45,10 @@ not a wholesale replay of the older out-of-process listener.
   test clock. The live tracer's timeout behavior is unchanged.
 - Fixed slotted-dataclass parent serialization in the new simulator budget report
   and its line-wrap lint failure. No legality/budget gate was weakened.
-- Full local Python 3.11 suite: **1,408 passed, 6 skipped, 211 subtests passed**.
-  Ruff passes. Python 3.12/3.13 CI remains pending publication; only 3.11 is locally
-  available for this validation.
+- Full local Python 3.11 suite after the portable path correction:
+  **1,412 passed, 7 skipped, 211 subtests passed**. Ruff passes. The seven local
+  skips require symlink-creation privileges. The real Windows 8.3-alias regression
+  runs locally; Python 3.12/3.13 are covered by the shared CI matrix.
 - Win32 Release: **12/12 native tests in each profile**, full and diagnostics-only.
   Frozen-client routine validation passed both relocation directions and
   every-byte drift rejection without executing the game.
@@ -66,19 +68,31 @@ MSBuild path-length failures:
 | --- | --- | --- |
 | Full 1.6.10 DLL | `E:/Projects/shadowbane/build/convergence-20260903-full/Release/wonderbane-extension.dll` | `6ca02bafa7c74a7cb01e40edf1b3eee30c1ac5857b6f80da06502dd0fe8c196e` |
 | Diagnostics-only 1.6.10 DLL | `E:/Projects/shadowbane/build/convergence-20260903-diagnostics/Release/wonderbane-extension.dll` | `e89fe27fe02c07494add7265f530bd74c93ae1d9be19ad247d3b129235269c6b` |
-| Combined wheel | Integration worktree: `build/integration-wheel/shadowbane_lab-0.1.0-py3-none-any.whl` | `a38de7b75b820d45fb088e3fe647f0357659ea24f93142197885384c1bc90182` |
+| Combined wheel with portable path correction | Integration worktree: `build/integration-wheel-path-fix/shadowbane_lab-0.1.0-py3-none-any.whl` | `e5b0893e0d98cc34e3485726217ed412323871f38bbf246791e70447ba6a4daa` |
 
-The first checkpoint, `5877b78`, was pushed to the existing origin convergence
-branch. Security review then rejected uploading the asset checkpoint's source and
-project data to that GitHub destination without explicit upload approval.
-Subsequent integration commits remain local and ready to push; no alternate
-upload path was used. The combined branch's remote CI has therefore not run yet.
+The user explicitly approved publishing the remaining source/history, resolving
+the earlier upload blocker. The complete integration through `bd66e45` was pushed
+and its exact remote head verified on 2026-09-03.
+
+[The first combined CI run](https://github.com/best-coder-open-now-near-me/shadowbane-lab/actions/runs/33720047846)
+passed lint, PowerShell parsing and both native profiles, but all three Python
+versions exposed the same four portable path failures: runner temporary paths
+use an 8.3 alias while preflight/output checks used the expanded path. This
+follow-up shares filesystem-aware path comparison between capture and preflight,
+canonicalizes the location-lookup assertion, and rejects evidence-path redirects
+outside the package. Exact PID/creation time, executable hashes, module/residue
+checks and different-path rejection remain enforced.
+
+The corrected wheel was rebuilt and imported from an isolated installation.
+The 1.6.10 native artifacts are unchanged. Check the exact latest published tip's
+[shared CI results](https://github.com/best-coder-open-now-near-me/shadowbane-lab/actions/workflows/ci.yml?query=branch%3Acodex%2Fclient-convergence-v2)
+before deployment; local success alone does not certify the runner matrix.
 
 ### Next work
 
-1. Obtain approval to push the remaining convergence source/history to the existing
-   `best-coder-open-now-near-me/shadowbane-lab` GitHub repository, then run the shared
-   CI matrix. Local source integration and validation are complete.
+1. Use published convergence as the base for subsequent work and require green
+   shared CI for the exact release tip. Source integration and upload approval
+   are complete; do not restart from one of the older topic branches.
 2. Separately authorize a testing-VM release of the matched 1.6.10 DLL and panel.
    Verify a second launch, ordinary legacy outlines and pre-UI completeness first;
    then measure sustained-mode A/B visual and frame-cost evidence.

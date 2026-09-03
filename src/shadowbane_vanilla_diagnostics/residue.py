@@ -8,6 +8,7 @@ from collections.abc import Iterable
 from pathlib import Path
 
 from .model import ProcessIdentity
+from .paths import same_windows_path as _same_path
 
 _FORBIDDEN_FILE_NAMES = frozenset(
     {
@@ -32,10 +33,6 @@ def _is_reparse(path: Path) -> bool:
     attributes = getattr(stat, "st_file_attributes", 0)
     reparse = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
     return path.is_symlink() or bool(attributes & reparse)
-
-
-def _same_path(left: str | Path, right: str | Path) -> bool:
-    return os.path.normcase(os.path.abspath(left)) == os.path.normcase(os.path.abspath(right))
 
 
 def find_client_residue(client_directory: Path) -> list[str]:

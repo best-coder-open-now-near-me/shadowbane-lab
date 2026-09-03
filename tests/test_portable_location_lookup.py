@@ -17,7 +17,10 @@ class PortableLocationLookupTests(unittest.TestCase):
             world_def.write_text("world 1 Test\n", encoding="utf-8")
             identity = ProcessIdentity(42, 99, str(game / "sb.exe"))
 
-            self.assertEqual(world_def, resolve_world_definition(None, (identity,)))
+            self.assertEqual(
+                world_def.resolve(strict=True),
+                resolve_world_definition(None, (identity,)),
+            )
 
     def test_requires_one_client_when_path_is_not_explicit(self) -> None:
         with self.assertRaisesRegex(ValueError, "No running sb.exe"):

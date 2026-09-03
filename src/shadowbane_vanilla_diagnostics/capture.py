@@ -17,6 +17,7 @@ from typing import Any
 from .frame_surface import WindowsSurfaceFrameProbe
 from .model import CAPTURE_SCHEMA_VERSION, ProcessIdentity, ProcessSample
 from .package import verify_package
+from .paths import same_windows_path as _same_windows_path
 from .residue import build_vanilla_preflight
 from .windows import (
     WindowsDwmFrameProbe,
@@ -76,12 +77,6 @@ def _write_json_create_new(path: Path, value: object) -> None:
         os.close(descriptor)
 
 
-def _same_windows_path(left: str | Path, right: str | Path) -> bool:
-    return os.path.normcase(os.path.normpath(str(left))) == os.path.normcase(
-        os.path.normpath(str(right))
-    )
-
-
 def assert_required_output_root(
     actual: Path,
     required: str,
@@ -95,7 +90,10 @@ def assert_required_output_root(
         relative = Path(required[len(package_prefix) :])
         if relative.is_absolute() or ".." in relative.parts:
             raise CaptureError("portable output policy contains an unsafe relative path")
-        expected = package_root.resolve(strict=True) / relative
+        root = package_root.resolve(strict=True)
+        expected = root / relative
+        if not expected.resolve().is_relative_to(root):
+            raise CaptureError("portable evidence path escapes the verified package root")
         if not _same_windows_path(actual, expected):
             raise CaptureError(
                 f"output root must be exactly the portable evidence path: {expected}"
