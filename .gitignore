@@ -10,6 +10,7 @@ dist/
 
 # Local captures and generated training output
 artifacts/
+.artifacts/
 runs/
 captures/
 
