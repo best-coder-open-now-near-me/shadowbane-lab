@@ -4,17 +4,18 @@ param(
     [string] $DiagnosticsShare = "\\VBOXSVR\codexdiag",
     [string] $PythonExecutable = "$env:USERPROFILE\shadowbane-lab\.venv\Scripts\python.exe",
     [string] $ContentBuildId = "wb-55fbad5f-4b602995",
-    [string] $ExtensionVersion = "1.6.11",
+    [string] $ExtensionVersion = "1.6.12",
     [string] $PackageDirectory = (
-        "S:\Wonderbane-graphics-wb-55fbad5f-4b602995-cel-1.6.11"
+        "S:\Wonderbane-graphics-wb-55fbad5f-4b602995-cel-1.6.12"
     ),
-    [bool] $StartGraphicsLab = $true
+    [bool] $StartGraphicsLab = $true,
+    [switch] $EnableTerrainTrace
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-$expectedExtensionSha256 = "219f9eb64b87f09bfcd2985f58dd9cb0adaf7ea7ed74ee46fc4052acccfa2a97"
+$expectedExtensionSha256 = "39ee563be8e32353d60c6f9e3ebb801b8db1bffddb6dcb734fbd4f66b2285114"
 $expectedExtensionRelativePath = "wonderbane-extension.dll"
 $expectedExecutableSha256 = "a9a59004b36f9331bb85f85e7853a02a5d5f07bda9acb9ea4a8affbf169a54b8"
 $expectedTexturePatchId = "wonderbane-1.0.5-55fbad5f.restrained-cel-v1"
@@ -124,6 +125,7 @@ $graphicsEnvironment = [ordered]@{
     MESA_EXTENSION_MAX_YEAR = "2001"
     MESA_GL_VERSION_OVERRIDE = $null
     MESA_GLSL_VERSION_OVERRIDE = $null
+    WONDERBANE_TERRAIN_TRACE = $(if ($EnableTerrainTrace) { "1" } else { $null })
 }
 $previousEnvironment = @{}
 foreach ($name in $graphicsEnvironment.Keys) {

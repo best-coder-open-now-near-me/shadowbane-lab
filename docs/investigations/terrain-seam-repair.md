@@ -99,3 +99,40 @@ averaging, height mutation, or visual-fix claim is part of this checkpoint.
 Validation: terrain seam, world-data, and terrain-navigation tests: **29 passed**.
 Native source is unchanged, so this checkpoint does not claim a new native build
 or live visual/performance acceptance.
+
+## Follow-up authorization and tracing checkpoint — 2026-09-03
+
+The user subsequently approved the narrow prerequisite capture: one unattended
+local terrain draw/texture trace on the testing VM, with no game input,
+screenshots, or upload. This supersedes the earlier no-new-capture constraint for
+that specific observer only. It does not authorize the previously blocked full
+diagnostic export or GitHub push.
+
+The native observer landed locally at `bf2a87d`. The 1.6.12 release adds a
+PID/creation-time-bound local collector, idle/concurrency gate, and explicit
+launch-only opt-in. See [the trace contract](../diagnostics/terrain-draw-trace.md)
+for record limits, exact boundary ownership, state scope, and exclusions.
+No seam blending is implemented or claimed.
+
+Validation of the release source: 1,459 Python tests and 211 subtests passed;
+seven environment/privilege-related tests skipped; Ruff passed. Both full and
+diagnostics-only native builds passed all 14 CTests, including observer-off,
+unsafe-query, context/thread, missing-boundary, capacity/time/unit-limit,
+active-unit restoration, and JSON tests.
+
+Release DLL identities:
+
+- Full: `39ee563be8e32353d60c6f9e3ebb801b8db1bffddb6dcb734fbd4f66b2285114`.
+- Diagnostics-only: `e6a46c13f951e0e5b2f910be498c4bf99dd15e34a00888a33441631b6717cf2d`.
+
+Current remaining sequence:
+
+1. COMPLETE: implement and validate the bounded observer and local collector.
+2. ACTIVE: prepare the frozen 1.6.12 bundle, then publish/launch on testing after
+   a normal client exit and fresh user handoff. The plain VM stays untouched.
+3. Capture once after the user restores the affected view; inspect limitations
+   before attributing terrain ownership. No live trace or VM acceptance yet.
+4. Implement the evidence-supported seam repair and let the user judge it.
+
+The working source and build artifacts are local; push remains held by the
+earlier approval restriction. The old published 1.6.11 package is retained.

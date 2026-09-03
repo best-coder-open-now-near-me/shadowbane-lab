@@ -84,6 +84,7 @@ std::atomic<Phase> g_phase{Phase::disabled};
 TraceFrame* g_frame = nullptr;
 GlApi g_gl{};
 HANDLE g_request = nullptr;
+HANDLE g_idle = nullptr;
 std::uintptr_t g_image_base = 0;
 std::size_t g_image_size = 0;
 std::uint64_t g_creation = 0, g_frequency = 0, g_sequence = 0;
@@ -321,8 +322,8 @@ void WriteFrame(Json& json, const TraceFrame& frame) noexcept {
         for (unsigned int unit = 0; unit < frame.unit_count; ++unit) {
             const auto& texture = draw.textures[unit];
             if (unit != 0) { json.Print(","); }
-            json.Print("{\"unit\":%u,\"enabled\":%d,\"binding\":%d,\"level\":",
-                unit, texture.enabled, texture.binding);
+            json.Print("{\"unit\":%u,\"enabled\":%d,\"binding\":%u,\"level\":",
+                unit, texture.enabled, static_cast<unsigned int>(texture.binding));
             json.Array(texture.level);
             json.Print(",\"sampler\":"); json.Array(texture.sampler);
             json.Print(",\"env_mode\":%d,\"combine\":", texture.env_mode);
@@ -368,14 +369,25 @@ void StartTerrainTrace(const wchar_t* status_path, const std::uintptr_t image_ba
     if (GetLastError() == ERROR_ALREADY_EXISTS) {
         CloseHandle(g_request); g_request = nullptr; return;
     }
+    swprintf_s(event_name, L"Local\\WonderBaneTerrainTrace-%lu-%llu-idle", g_pid, g_creation);
+    g_idle = CreateEventW(nullptr, TRUE, FALSE, event_name);
+    const DWORD idle_error = GetLastError();
+    if (g_idle == nullptr || idle_error == ERROR_ALREADY_EXISTS) {
+        if (g_idle != nullptr) { CloseHandle(g_idle); g_idle = nullptr; }
+        CloseHandle(g_request); g_request = nullptr; return;
+    }
     g_frame = new (std::nothrow) TraceFrame{};
-    if (g_frame == nullptr) { CloseHandle(g_request); g_request = nullptr; return; }
+    if (g_frame == nullptr) {
+        CloseHandle(g_idle); g_idle = nullptr;
+        CloseHandle(g_request); g_request = nullptr; return;
+    }
     g_image_base = image_base;
     g_image_size = image_size;
     g_frequency = static_cast<std::uint64_t>(frequency.QuadPart);
     strcpy_s(g_executable_sha256, executable_sha256);
     LoadGl();
     g_phase.store(Phase::idle);
+    SetEvent(g_idle);
 #endif
 }
 void StopTerrainTrace() noexcept {
@@ -383,6 +395,7 @@ void StopTerrainTrace() noexcept {
     Exclusive lock;
     g_phase.store(Phase::disabled);
     if (g_request != nullptr) { CloseHandle(g_request); g_request = nullptr; }
+    if (g_idle != nullptr) { CloseHandle(g_idle); g_idle = nullptr; }
     delete g_frame; g_frame = nullptr;
 }
 void TerrainTraceClear(const bool reviewed, const unsigned int mask) noexcept {
@@ -450,6 +463,7 @@ bool TerrainTracePresent() noexcept {
     Exclusive lock;
     const Phase current = g_phase.load();
     if (current == Phase::idle && WaitForSingleObject(g_request, 0) == WAIT_OBJECT_0) {
+        ResetEvent(g_idle);
         // Reset only metadata; bounded record storage is overwritten lazily.
         g_frame->sequence = ++g_sequence;
         g_frame->requested_qpc = Counter();
@@ -493,6 +507,7 @@ void PublishPendingTerrainTrace() noexcept {
         }
     }
     g_phase.store(Phase::idle);
+    if (g_idle != nullptr) { SetEvent(g_idle); }
 }
 
 } // namespace wonderbane::extension

@@ -29,6 +29,28 @@ the whole-function-verified main clear and done3d calls already used by the rend
   reparse directories, and caller-supplied output destinations are refused.
   Failed publication is never a complete `.json`; a `.partial` may remain.
 
+## Operator workflow (1.6.12)
+
+Publish the separately verified 1.6.12 graphics package, preserving the older
+package. Use the normal launch script with the explicit `-EnableTerrainTrace`
+switch; it scopes the opt-in to the child client and restores the parent
+environment. An ordinary launch explicitly clears this opt-in.
+
+After the user has logged in and put the affected terrain in view, run
+`scripts/capture-wonderbane-terrain-trace.ps1` locally in that VM, pointing
+`-RepositoryShare` at the reviewed frozen source. Optional `-ProcessId` and
+`-ProcessCreationFiletimeUtc` narrow selection. Without them, exactly one verified
+client must exist. No game input or settings changes are used.
+
+The underlying module is `python -m shadowbane_lab.diagnostics.terrain_trace`.
+It verifies the running executable, PID/lifetime, renderer profile and version,
+reserves a lifetime-bound collector mutex and idle gate, signals one request, and
+waits for a new local atomic file. Busy/abandoned requests fail closed. A collector
+crash after reserving the gate can require a normal client restart; it never
+silently sends another request. Missing/incomplete data are reported separately.
+Exit codes: 0 captured within the declared scope; 2 saved with coverage limits;
+1 not captured or rejected. No trace files are copied or uploaded.
+
 ## Schema 1
 
 Top-level identity includes executable SHA-256, PID, creation FILETIME, sequence,
@@ -72,3 +94,6 @@ captured. Do not infer those values from defaults or from missing fields.
 Use this evidence to narrow the real texture/transform path before authorizing
 any terrain-specific repair. Preserve stock height, population, collision, UI,
 other materials, and the existing 1.6.11 transparency fixes.
+
+Combiner query tokens and capability gates follow the Khronos
+[texture environment combine specification](https://registry.khronos.org/OpenGL/extensions/EXT/EXT_texture_env_combine.txt).

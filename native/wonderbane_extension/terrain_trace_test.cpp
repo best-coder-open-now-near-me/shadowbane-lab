@@ -40,6 +40,7 @@ int Fail(const char* reason) { std::fprintf(stderr, "%s\n", reason); return 1; }
 void FakeStart() {
     g_frame = new TraceFrame{};
     g_request = CreateEventW(nullptr, FALSE, FALSE, nullptr);
+    g_idle = CreateEventW(nullptr, TRUE, TRUE, nullptr);
     g_gl = {Integer, Real, Parameter, Level, Environment, String, nullptr, Context, Proc};
     g_frequency = 1000000000U; // overriden for timing-limit test
     g_image_base = 0x400000U; g_image_size = 0x100000U;
@@ -74,6 +75,7 @@ int main() {
     Draw();
     if (calls != 0) { return Fail("idle observer queried GL"); }
     Arm();
+    if (WaitForSingleObject(g_idle, 0) != WAIT_TIMEOUT) { return Fail("busy channel stayed idle"); }
     TerrainTraceClear(false, 0x4100U); Draw();
     if (calls != 0 || g_phase.load() != Phase::armed) { return Fail("unreviewed clear armed capture"); }
     TerrainTraceClear(true, 0x4100U);
@@ -145,7 +147,8 @@ int main() {
         return Fail("legacy capability fallback");
     }
     StopTerrainTrace();
-    if (g_frame != nullptr || g_request != nullptr || g_phase.load() != Phase::disabled) {
+    if (g_frame != nullptr || g_request != nullptr || g_idle != nullptr
+        || g_phase.load() != Phase::disabled) {
         return Fail("shutdown");
     }
     return 0;
