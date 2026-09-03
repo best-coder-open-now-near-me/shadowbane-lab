@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://shadowbane-lab.invalid/schemas/asset-mod-v1.schema.json",
+  "title": "Shadowbane Lab asset mod manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "mod_id",
+    "name",
+    "version",
+    "description",
+    "components"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "mod_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$"
+    },
+    "name": {"type": "string", "minLength": 1, "maxLength": 128},
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+(\\.[0-9]+){0,3}([-+][A-Za-z0-9.-]+)?$"
+    },
+    "description": {"type": "string", "maxLength": 4096},
+    "components": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/textureSetComponent"}
+    }
+  },
+  "$defs": {
+    "canonicalIdentifier": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$"
+    },
+    "relativePath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*\\\\).+$"
+    },
+    "textureSetComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["component_id", "kind", "activation", "variants"],
+      "properties": {
+        "component_id": {"$ref": "#/$defs/canonicalIdentifier"},
+        "kind": {"const": "texture-set"},
+        "activation": {"const": "relaunch"},
+        "variants": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/textureSetVariant"}
+        }
+      }
+    },
+    "textureSetVariant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "content_build_id",
+        "texture_patch_manifest",
+        "artifact_root"
+      ],
+      "properties": {
+        "content_build_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$"
+        },
+        "texture_patch_manifest": {
+          "allOf": [
+            {"$ref": "#/$defs/relativePath"},
+            {"pattern": "\\.json$"}
+          ]
+        },
+        "artifact_root": {"$ref": "#/$defs/relativePath"}
+      }
+    }
+  }
+}
