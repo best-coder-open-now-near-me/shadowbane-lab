@@ -44,6 +44,11 @@ from .policy_search import (
     DiagonalPolicySearchResult,
     run_diagonal_policy_search,
 )
+from .static_capabilities import (
+    StaticCapabilityGrant,
+    StaticCapabilityProjection,
+    project_static_capabilities,
+)
 from .strict_training import StrictLegalBuildLeagueEvaluator
 from .training import (
     CatalogBackedLegalityGate,
@@ -123,6 +128,8 @@ __all__ = [
     "PermissiveLegalBuildLeagueEvaluator",
     "PolicyFactory",
     "SelectedAffix",
+    "StaticCapabilityGrant",
+    "StaticCapabilityProjection",
     "StrictLegalBuildLeagueEvaluator",
     "TrainingAllocationAudit",
     "TrainingBudgetBackedLegalityGate",
@@ -146,6 +153,7 @@ __all__ = [
     "load_legal_build_genome_text",
     "primitive_loadout_mechanical_digest",
     "primitive_loadout_mechanical_payload",
+    "project_static_capabilities",
     "run_diagonal_policy_search",
     "run_map_elites",
     "run_open_duel_with_policies",
