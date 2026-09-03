@@ -375,3 +375,21 @@ ACTIVE todo: user login and visual evaluation at the selected terrain seams,
 followed by a separate streaming-cost check if appearance is improved. The live
 status proves the reviewed repair installed; it does not by itself prove every
 visible seam is resolved.
+
+## Live visual result: installed but no seam change
+
+With the user positioned at the same obvious cobblestone/ground boundaries, the
+visible seams were unchanged. A fresh read of the running process's own status
+file at 2026-09-03T17:22:09.9166869Z confirmed PID 5240, version 1.6.13,
+full-renderer, terrain_mask_refresh=active, reason=matched-edge-dirty-flag, and
+patched_sites=4. Scene color and depth passes were also active; phase was ui.
+
+Therefore this result is not a deployment/profile failure. The repair is
+installed, but it is not sufficient to change the observed seams. The current
+one-byte branch corrections deliberately have no execution counters, so this
+status cannot distinguish (a) the visible seam never traversing those matched-
+edge copy branches from (b) those branches running while the refreshed generated
+mask is not the visual source of the boundary. Do not tune this correction based
+on appearance. ACTIVE todo is now to attribute the visible boundary to its actual
+terrain layer/material transition, or add narrowly scoped branch-hit evidence,
+before proposing another renderer change. No new capture was taken for this check.
