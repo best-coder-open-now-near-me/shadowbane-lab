@@ -16,6 +16,7 @@ shadowbane-runtime-consistency = "shadowbane_lab.runtime_consistency.__main__:ma
 shadowbane-terrain-audit = "shadowbane_lab.world_data.terrain_seam_cli:main"
 shadowbane-terrain-trace-analysis = "shadowbane_lab.diagnostics.terrain_trace_analysis:main"
 shadowbane-terrain-branch-hits = "shadowbane_lab.diagnostics.terrain_branch_hits:main"
+shadowbane-terrain-material-poll = "shadowbane_lab.diagnostics.terrain_material_poll:main"
 
 [project.optional-dependencies]
 simulation = [

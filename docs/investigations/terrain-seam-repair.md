@@ -480,3 +480,23 @@ Prefer an in-process, opt-in extension observation with a fixed per-frame budget
 or use a controlled renderer A/B that cannot mutate client memory or input. The
 visible seam remains attributed to the masked terrain layer/material stack, not
 to differing base texture bindings or base texture-matrix scale.
+
+## Read-only polling replacement
+
+The reviewed global `ArcShaderCustomTexturedTerrain` instance supplies a safer
+ownership boundary than a draw-entry breakpoint. A new bounded poller reads that
+global, its current owner/source, and the already reviewed texture vectors using
+only `PROCESS_VM_READ` and query rights. Every accepted graph is stable across
+repeated shader, owner, source, vector-entry, texture-object, and backing-object
+reads. Concurrently changing samples are discarded rather than repaired or
+guessed.
+
+The poller keeps the exact executable, extension, repaired-instruction, draw-
+entry, creation-time, and vtable gates. It does not attach a debugger, suspend a
+thread, alter debug registers, call client methods, scan memory, read texture
+bytes/pixels, or inject input. Output is create-only and capped at 20,000 polls
+and 64 unique source graphs.
+
+ACTIVE todo: validate the replacement locally, then run one five-second poll
+while the user is at the visible seam. Correlate its GL bindings with the retained
+draw trace before considering a renderer or cache change.
