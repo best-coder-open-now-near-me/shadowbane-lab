@@ -18,21 +18,39 @@ jobs:
       - uses: actions/checkout@v4
       - name: Download public WonderBane client
         run: curl --fail --location --retry 4 --retry-delay 3 --output WonderbaneClient.zip https://wonderbane.com/WonderbaneClient.zip
-      - name: Extract executable only
+      - name: Extract and identify every executable
         shell: bash
         run: |
           set -euo pipefail
-          candidate="$(unzip -Z1 WonderbaneClient.zip | awk 'BEGIN{IGNORECASE=1} /(^|\/)sb\.exe$/ {print; exit}')"
-          test -n "$candidate"
-          mkdir -p executable
-          unzip -p WonderbaneClient.zip "$candidate" > executable/sb.exe
-          test -s executable/sb.exe
-          sha256sum executable/sb.exe | tee executable/sha256.txt
-      - name: Upload exact executable
+          python - <<'PY'
+          from pathlib import Path, PurePosixPath
+          from zipfile import ZipFile
+
+          destination = Path("executables")
+          destination.mkdir()
+          manifest = []
+          with ZipFile("WonderbaneClient.zip") as archive:
+              for info in archive.infolist():
+                  path = PurePosixPath(info.filename)
+                  if info.is_dir() or path.suffix.lower() != ".exe":
+                      continue
+                  if path.is_absolute() or ".." in path.parts:
+                      raise SystemExit(f"unsafe archive path: {info.filename}")
+                  output = destination.joinpath(*path.parts)
+                  output.parent.mkdir(parents=True, exist_ok=True)
+                  output.write_bytes(archive.read(info))
+                  manifest.append(info.filename)
+          if not manifest:
+              raise SystemExit("no executable found")
+          Path("executables/archive-paths.txt").write_text("\n".join(manifest) + "\n")
+          PY
+          find executables -type f -iname '*.exe' -print0 | sort -z | xargs -0 sha256sum | tee executables/sha256.txt
+          file $(find executables -type f -iname '*.exe' -print) | tee executables/file-types.txt
+      - name: Upload exact executables
         uses: actions/upload-artifact@v4
         with:
-          name: wonderbane-sb-executable
-          path: executable
+          name: wonderbane-client-executables
+          path: executables
           if-no-files-found: error
           compression-level: 0
           retention-days: 1
