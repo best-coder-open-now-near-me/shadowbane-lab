@@ -148,6 +148,10 @@ int wmain() {
     classified_frame.first_late_world_draw_ordinal = 5U;
     classified_frame.last_world_draw_ordinal = 5U;
     classified_frame.fixed_function_refresh_count = 1U;
+    classified_frame.main_scene_start_count = 1U;
+    classified_frame.main_scene_world_draw_count = 2U;
+    classified_frame.boundary_mapping_verified = true;
+    classified_frame.composite_succeeded = true;
     ReportSceneFrameClassification(classified_frame);
     std::array<wchar_t, 1024U> path{};
     result = GetGraphicsStatusPath(path.data(), path.size());
@@ -273,22 +277,27 @@ int wmain() {
             == std::string::npos
         || json.find("\"fixed_function_refresh_count\":1")
             == std::string::npos
+        || json.find("\"main_scene_start_count\":1") == std::string::npos
+        || json.find("\"main_scene_world_draw_count\":2") == std::string::npos
+        || json.find("\"boundary_mapping_verified\":true") == std::string::npos
+        || json.find("\"main_scene_invalidated\":false") == std::string::npos
+        || json.find("\"composite_succeeded\":true") == std::string::npos
         || json.find("\"fixed_function_state\":\"cached-with-transition-hooks\"")
             == std::string::npos
         || json.find("\"maximum_ordinary_frame_refreshes\":1")
             == std::string::npos
         || json.find(
-            "\"boundary_ownership\":\"depth-pass-armed-idempotent\""
+            "\"boundary_ownership\":\"reviewed-client-done3d\""
         ) == std::string::npos
         || json.find(
-            "\"candidate_retry\":\"until-depth-pass-accepts\""
+            "\"candidate_retry\":\"never-from-draw-state\""
         ) == std::string::npos
         || json.find(
             "\"planar_overlay\":"
-            "\"excluded-and-retryable-composite-candidate\""
+            "\"excluded-without-sealing-scene\""
         ) == std::string::npos
         || json.find(
-            "\"late_world_after_ui\":\"effect-eligible-and-counted\""
+            "\"late_world_after_ui\":\"excluded-and-counted\""
         )
             == std::string::npos
         || json.find("\"live_controls\":{\"available\":true")

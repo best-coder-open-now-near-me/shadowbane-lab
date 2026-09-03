@@ -135,16 +135,20 @@ SceneFrameDecision AdvanceSceneFrame(
     if (reason_index < frame->reason_counts.size()) {
         ++frame->reason_counts[reason_index];
     }
-    decision.composite_before_draw = IsSceneCompositeCandidate(classification)
-        && !frame->composite_requested;
+    if (IsSceneCompositeCandidate(classification) && !frame->composite_requested) {
+        // Shape/state candidates are diagnostic only. Even an armed depth pass
+        // cannot prove that the main world has finished (1.6.8 regression).
+        ++frame->composite_candidate_count;
+        ++frame->rejected_composite_candidate_count;
+        if (frame->first_composite_candidate_draw_ordinal == 0U) {
+            frame->first_composite_candidate_draw_ordinal = frame->draw_count;
+        }
+    }
     if (classification.reason == DrawClassificationReason::planar_overlay_state) {
-        // Planar overlays remain excluded from cel processing. They may ask the
-        // idempotent depth pass to composite, but only that pass can accept the
-        // boundary after perspective depth geometry has actually armed it.
+        // Preserve the separate planar-overlay effect policy, not phase authority.
         return decision;
     }
     if (IsWorldLayer(classification.layer)) {
-        decision.contributes_to_scene = true;
         ++frame->world_draw_count;
         if (frame->first_world_draw_ordinal == 0U) {
             frame->first_world_draw_ordinal = frame->draw_count;
@@ -157,31 +161,44 @@ SceneFrameDecision AdvanceSceneFrame(
             }
             return decision;
         }
+        decision.contributes_to_scene = true;
+        if (frame->main_scene_start_count == 1U) {
+            ++frame->main_scene_world_draw_count;
+        }
         frame->phase = SceneFramePhase::world;
         return decision;
     }
     return decision;
 }
 
-void ResolveSceneCompositeAttempt(
-    SceneFrameState* const frame,
-    const bool accepted
-) noexcept {
-    if (frame == nullptr || frame->composite_requested) {
+void ObserveMainSceneClear(SceneFrameState* const frame) noexcept {
+    if (frame == nullptr) {
         return;
+    }
+    ++frame->main_scene_start_count;
+    frame->main_scene_world_draw_count = 0U;
+    if (frame->composite_requested || frame->main_scene_start_count != 1U) {
+        frame->main_scene_invalidated = true;
+    }
+}
+
+bool BeginReviewedSceneUiBoundary(SceneFrameState* const frame) noexcept {
+    if (frame == nullptr || !frame->boundary_mapping_verified
+        || frame->composite_requested || frame->main_scene_invalidated
+        || frame->main_scene_start_count != 1U
+        || frame->main_scene_world_draw_count == 0U) {
+        return false;
     }
     ++frame->composite_candidate_count;
     if (frame->first_composite_candidate_draw_ordinal == 0U) {
-        frame->first_composite_candidate_draw_ordinal = frame->draw_count;
-    }
-    if (!accepted) {
-        ++frame->rejected_composite_candidate_count;
-        return;
+        frame->first_composite_candidate_draw_ordinal = frame->draw_count + 1U;
     }
     frame->composite_requested = true;
     ++frame->boundary_count;
-    frame->accepted_boundary_draw_ordinal = frame->draw_count;
+    // Signal occurs between draws: identify the next draw, even for a hidden UI.
+    frame->accepted_boundary_draw_ordinal = frame->draw_count + 1U;
     frame->phase = SceneFramePhase::ui;
+    return true;
 }
 
 }  // namespace wonderbane::extension

@@ -31,6 +31,7 @@ bool IsGraphicsVersionAtLeast(
 ) noexcept;
 
 DWORD StartGraphicsStatusPublication() noexcept;
+bool GraphicsExecutableSha256Matches(const char* sha256) noexcept;
 DWORD ConfigureGraphicsPresentEntry(
     const char* library_name,
     const char* symbol_name,

@@ -28,6 +28,44 @@ float WindowDepthForEyeDistance(
 }  // namespace
 
 int wmain() {
+    // No GL context is created by this test. An armed pass that cannot allocate
+    // resources must report failure, not the old unconditional acceptance.
+    using namespace wonderbane::extension;
+    constexpr std::array<float, 16U> frame_projection{
+        1.0F, 0.0F, 0.0F, 0.0F,
+        0.0F, 1.0F, 0.0F, 0.0F,
+        0.0F, 0.0F, -1.0F, -1.0F,
+        0.0F, 0.0F, -0.2F, 0.0F,
+    };
+    constexpr std::array<int, 4U> frame_viewport{0, 0, 800, 600};
+    MarkDepthEdgeSceneDraw();
+    if (CompositeDepthEdgesBeforeUi()) { return Fail(L"preliminary geometry cannot arm capture"); }
+    const auto begin_scene = [&]() {
+        return BeginMainDepthEdgeScene(frame_projection.data(), frame_projection.size(),
+            frame_viewport.data(), frame_viewport.size());
+    };
+    if (!begin_scene()) { return Fail(L"main depth scene initialization"); }
+    MarkDepthEdgeSceneDraw();
+    DiscardPendingDepthEdgeScene();
+    if (CompositeDepthEdgesBeforeUi()) { return Fail(L"cleared scene is not captured"); }
+    if (!begin_scene()) { return Fail(L"main scene after preliminary clear"); }
+    MarkDepthEdgeSceneDraw();
+    if (CompositeDepthEdgesBeforeUi()) { return Fail(L"failed GPU composite is not success"); }
+    DiscardPendingDepthEdgeScene();
+    if (begin_scene()) { return Fail(L"cannot reopen composited frame"); }
+    MarkDepthEdgeSceneDraw();
+    if (CompositeDepthEdgesBeforeUi()) { return Fail(L"no retry after failed composite"); }
+    EndDepthEdgeFrame();
+    if (!begin_scene()) { return Fail(L"next frame recovers scene ownership"); }
+    auto invalid_projection = frame_projection;
+    invalid_projection[15] = 1.0F;
+    if (BeginMainDepthEdgeScene(invalid_projection.data(), invalid_projection.size(),
+            frame_viewport.data(), frame_viewport.size())
+        || BeginMainDepthEdgeScene(nullptr, frame_projection.size(),
+            frame_viewport.data(), frame_viewport.size())) {
+        return Fail(L"invalid main projection fails closed");
+    }
+    ResetDepthEdges();
     using wonderbane::extension::DepthEdgeFragmentSource;
     using wonderbane::extension::IsForegroundDepthDiscontinuity;
     using wonderbane::extension::ReconstructPerspectiveEyeDepth;

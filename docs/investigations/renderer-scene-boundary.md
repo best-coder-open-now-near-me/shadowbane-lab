@@ -52,7 +52,28 @@ one-bit changes at every byte of the routine. The optional frozen-client probe
 reads bytes only; it never loads or executes the client. No client executable or
 machine-specific capture is committed.
 
-Next: wire main-clear and verified pre-UI signals into the renderer, extend the
-ordering/composite outcome journal and regression suite, then build both profiles.
+Implemented: the main clear owns projection/viewport and invalidates preliminary
+depth work. Only the exact reviewed pre-UI call can consume a scene. A second clear,
+missing main scene, invalid projection, changed context, or unknown code/build
+cannot trigger a guessed capture. Unknown builds keep original draw submission.
+After the verified UI signal, later perspective draws remain unmodified and are
+still counted, so diagnostics do not hide ordering failures. No extra framebuffer
+copy, readback, draw-count threshold, or per-draw phase query was introduced.
+
+`boundary_count` now records verified phase ownership, independently of GPU success.
+`composite_succeeded` is the latest-frame result, not a lifetime counter. The journal
+also reports `boundary_mapping_verified`, `main_scene_start_count`,
+`main_scene_world_draw_count`, and `main_scene_invalidated`. Boundary ordinals refer
+to the next draw because this signal is between draws (possibly draw_count + 1
+when UI is hidden). Existing capture policies remain readable. Planar overlays
+are subtracted from scene-world counts, matching the native producer.
+
+Implementation validation: both native profiles built and passed 12/12 tests each;
+the complete Python suite passed 1329 tests, with 6 skips and 211 subtests. Coverage
+includes the long early-overlay regression, duplicate/missing/invalidated main
+scenes, code drift, relocation, failed GPU composites, latest-frame success, and
+late draws immediately after the between-draw boundary.
+
+Next: seal the separately versioned release artifact and its launcher hash pins.
 Live VM verification and visual acceptance remain required before calling the
 renderer recovered. Neither VM has been changed by this work.

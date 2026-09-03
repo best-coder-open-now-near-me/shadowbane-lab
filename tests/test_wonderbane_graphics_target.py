@@ -140,7 +140,9 @@ def test_graphics_publication_and_launch_pin_the_golden_package() -> None:
     )[1].split("void APIENTRY StrongEnd", 1)[0]
     assert "get_booleanv" not in immediate_path
     assert "g_fixed_function_state.depth_writes" in immediate_path
-    assert "std::array<ImportHookPlan, 19U>" in cel_shading
+    assert "std::array<ImportHookPlan, 20U>" in cel_shading
+    assert '"glClear"' in cel_shading
+    assert "BeginReviewedSceneUiBoundary" in cel_shading
     assert '"glEnable"' in cel_shading
     assert '"glDisable"' in cel_shading
     assert '"glDepthMask"' in cel_shading

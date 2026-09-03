@@ -114,7 +114,7 @@ def collect_graphics_present_evidence(
         isinstance(latest_classification, dict)
         and isinstance(classification_policy, dict)
         and classification_policy.get("boundary_ownership")
-        == "depth-pass-armed-idempotent"
+        in {"depth-pass-armed-idempotent", "reviewed-client-done3d"}
     ):
         first_world = latest_classification.get("first_world_draw_ordinal")
         accepted_boundary = latest_classification.get(
@@ -130,6 +130,13 @@ def collect_graphics_present_evidence(
             and not isinstance(last_world, bool)
             and 0 < first_world <= last_world < accepted_boundary
         )
+        if classification_policy.get("boundary_ownership") == "reviewed-client-done3d":
+            ordered_boundary_observed = bool(
+                ordered_boundary_observed
+                and latest_classification.get("boundary_mapping_verified") is True
+                and latest_classification.get("main_scene_invalidated") is False
+                and latest_classification.get("composite_succeeded") is True
+            )
     world_ui_separation_observed = bool(
         runtime.get("state") == "accepted"
         and isinstance(draw_classification, dict)
@@ -404,10 +411,12 @@ def _validate_draw_classification(value: object) -> None:
     }:
         raise ValueError("draw_classification planar-overlay policy is unsupported")
     boundary_ownership = policy.get("boundary_ownership")
-    if boundary_ownership not in {None, "depth-pass-armed-idempotent"}:
+    if boundary_ownership not in {
+        None, "depth-pass-armed-idempotent", "reviewed-client-done3d"
+    }:
         raise ValueError("draw_classification boundary ownership is unsupported")
     candidate_retry = policy.get("candidate_retry")
-    if candidate_retry not in {None, "until-depth-pass-accepts"}:
+    if candidate_retry not in {None, "until-depth-pass-accepts", "never-from-draw-state"}:
         raise ValueError("draw_classification candidate retry policy is unsupported")
     if boundary_ownership == "depth-pass-armed-idempotent":
         if candidate_retry != "until-depth-pass-accepts":
@@ -415,6 +424,14 @@ def _validate_draw_classification(value: object) -> None:
         if planar_overlay_policy != "excluded-and-retryable-composite-candidate":
             raise ValueError("draw_classification planar-overlay retry policy is missing")
         _validate_composite_journal(latest)
+    if boundary_ownership == "reviewed-client-done3d":
+        if (
+            candidate_retry != "never-from-draw-state"
+            or planar_overlay_policy != "excluded-without-sealing-scene"
+            or policy.get("late_world_after_ui") != "excluded-and-counted"
+        ):
+            raise ValueError("draw_classification reviewed boundary policy disagrees")
+        _validate_composite_journal(latest, reviewed_boundary=True)
     if policy.get("fixed_function_state") != "cached-with-transition-hooks":
         raise ValueError("draw_classification fixed-function policy is unsupported")
     if policy.get("maximum_ordinary_frame_refreshes") != 1:
@@ -423,7 +440,9 @@ def _validate_draw_classification(value: object) -> None:
         raise ValueError("draw_classification exceeded its per-frame refresh budget")
 
 
-def _validate_composite_journal(latest: dict[str, Any]) -> None:
+def _validate_composite_journal(
+    latest: dict[str, Any], *, reviewed_boundary: bool = False
+) -> None:
     names = (
         "draw_count",
         "world_draw_count",
@@ -458,6 +477,9 @@ def _validate_composite_journal(latest: dict[str, Any]) -> None:
             "world_overlay",
         )
     )
+    # Planar overlays have a world_overlay layer but are intentionally excluded
+    # from scene ownership by the native producer (including 1.6.8).
+    classified_world_count -= latest["reasons"]["planar_overlay_state"]
     if draw_count != classified_draw_count or world_draw_count != classified_world_count:
         raise ValueError("draw_classification composite journal layers disagree")
     if (
@@ -481,7 +503,10 @@ def _validate_composite_journal(latest: dict[str, Any]) -> None:
     if (world_draw_count > 0) != (journal["last_world_draw_ordinal"] > 0):
         raise ValueError("draw_classification last world ordinal disagrees")
     for name in names[4:]:
-        if journal[name] > draw_count:
+        limit = draw_count + int(reviewed_boundary and name in {
+            "first_composite_candidate_draw_ordinal", "accepted_boundary_draw_ordinal"
+        })
+        if journal[name] > limit:
             raise ValueError(f"draw_classification latest.{name} exceeds draw count")
     first_world = journal["first_world_draw_ordinal"]
     first_candidate = journal["first_composite_candidate_draw_ordinal"]
@@ -494,12 +519,33 @@ def _validate_composite_journal(latest: dict[str, Any]) -> None:
         raise ValueError("draw_classification candidate ordinals disagree")
     if boundary_count > 0 and world_draw_count == 0:
         raise ValueError("draw_classification boundary precedes all world draws")
-    if late_world_count > 0 and not (
-        accepted_boundary < first_late_world <= last_world
-    ):
+    minimum_late = accepted_boundary + (0 if reviewed_boundary else 1)
+    if late_world_count > 0 and not (minimum_late <= first_late_world <= last_world):
         raise ValueError("draw_classification late-world ordinals disagree")
     if late_world_count == 0 and boundary_count > 0 and last_world >= accepted_boundary:
         raise ValueError("draw_classification accepted boundary precedes last world draw")
+    if reviewed_boundary:
+        starts = _non_negative_counter(
+            latest.get("main_scene_start_count"), "main_scene_start_count"
+        )
+        main_world = _non_negative_counter(
+            latest.get("main_scene_world_draw_count"), "main_scene_world_draw_count"
+        )
+        for name in ("boundary_mapping_verified", "main_scene_invalidated", "composite_succeeded"):
+            if not isinstance(latest.get(name), bool):
+                raise ValueError(f"draw_classification {name} must be boolean")
+        if main_world > world_draw_count or (starts == 0 and main_world > 0):
+            raise ValueError("draw_classification main scene counts disagree")
+        if boundary_count and (
+            not latest["boundary_mapping_verified"] or starts < 1
+        ):
+            raise ValueError("draw_classification boundary lacks reviewed main scene")
+        if latest["composite_succeeded"] and boundary_count != 1:
+            raise ValueError("draw_classification composite lacks boundary")
+        if boundary_count and not latest["main_scene_invalidated"] and (
+            starts != 1 or main_world == 0
+        ):
+            raise ValueError("draw_classification boundary has no unambiguous main world")
 
 
 def _validate_classification_counts(value: dict[str, Any], field_name: str) -> None:
