@@ -5,6 +5,7 @@
 #include "graphics_control.h"
 #include "graphics_status.h"
 #include "terrain_trace.h"
+#include "terrain_mask_refresh.h"
 #include "import_hook.h"
 #include "performance_telemetry.h"
 #include "scene_frame.h"
@@ -2816,6 +2817,11 @@ DWORD StartStrongCelShading() noexcept {
         return present_result;
     }
     if (g_scene_mapping_verified) {
+        StartTerrainMaskRefresh(image, nt->OptionalHeader.SizeOfImage,
+            GraphicsExecutableSha256Matches(
+                "55fbad5f0110cd99b4085af72d1e8fddb782ccdec1491478492c18158f5c61bc")
+                ? "55fbad5f0110cd99b4085af72d1e8fddb782ccdec1491478492c18158f5c61bc"
+                : "a9a59004b36f9331bb85f85e7853a02a5d5f07bda9acb9ea4a8affbf169a54b8");
         wchar_t status_path[MAX_PATH]{};
         if (GetGraphicsStatusPath(status_path, MAX_PATH) == ERROR_SUCCESS) {
             StartTerrainTrace(status_path, image_base, nt->OptionalHeader.SizeOfImage,
@@ -2829,6 +2835,7 @@ DWORD StartStrongCelShading() noexcept {
 }
 
 void StopStrongCelShading() noexcept {
+    StopTerrainMaskRefresh();
     StopTerrainTrace();
     bool restored = true;
 #define WB_RESTORE_LIST_STATE_HOOK(name, parameters, arguments) \

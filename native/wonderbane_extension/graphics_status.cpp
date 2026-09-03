@@ -1,5 +1,6 @@
 #include "graphics_status.h"
 #include "terrain_trace.h"
+#include "terrain_mask_refresh.h"
 
 #include "extension_api.h"
 #include "graphics_control.h"
@@ -1206,7 +1207,7 @@ DWORD PublishSnapshot(const PublisherSnapshot& snapshot) noexcept {
         "\"graphics_context\":%s,\"frame_timing\":%s,"
         "\"camera_state\":%s,\"depth_edge_pass\":%s,"
         "\"scene_color_capture\":%s,\"draw_classification\":%s,"
-        "\"live_controls\":%s}\n",
+        "\"live_controls\":%s,\"terrain_mask_refresh\":%s}\n",
         kProducerId,
         kExtensionVersion,
         static_cast<unsigned long>(snapshot.process_id),
@@ -1222,7 +1223,8 @@ DWORD PublishSnapshot(const PublisherSnapshot& snapshot) noexcept {
         depth_edge_json.data(),
         scene_color_json.data(),
         scene_frame_json.data(),
-        control_json.data()
+        control_json.data(),
+        TerrainMaskRefreshStatusJson()
     );
     if (FAILED(result)) {
         return HResultToWin32(result);

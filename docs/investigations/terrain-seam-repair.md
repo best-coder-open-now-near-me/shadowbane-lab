@@ -219,3 +219,38 @@ The active sequence is updated accordingly:
 
 This selection does not assume that the four-byte correction fixes all terrain
 seams. Archives, live VM state, and frozen release artifacts remain unchanged.
+
+## Implementation checkpoint
+
+The full renderer now installs the four single-byte corrections only after
+verifying all seven complete routines (four directions, mask-copy producer,
+dirty-gated consumer, and streaming-update caller). Fixed relocation lists
+normalize ASLR before SHA-256 verification. Every guard passes before any byte
+is changed. There is no signature search or inferred mapping fallback.
+
+The new branch targets execute only the existing dirty store; directional
+completion flags, blend ramps, material ordering, alpha data, and original
+continuations are unchanged. The streaming caller at 0x008aca80 returns early
+when its tracked coordinates/settings are unchanged. No observer or extra
+per-frame GL work is added, but refresh/upload cost during streaming still
+requires live measurement.
+
+Changes are process-local, not executable/cache-file writes. Installation uses
+single-byte compare/exchange, instruction-cache flush, and page-protection
+restoration. Partial installation rolls back owned bytes. Restoration refuses
+to overwrite an unrelated replacement and reports an incomplete rollback rather
+than claiming stock state. Diagnostics-only compiles out installation/restoration.
+Graphics status exposes terrain_mask_refresh independently of shading controls;
+the correction follows renderer startup/shutdown, not the live effect toggles.
+
+Both native profiles built and passed **16/16 CTests**. Additional read-only
+integration checks against the frozen executable passed for full and disabled
+repair variants: seven actual routine fingerprints, both relocation directions,
+every-byte drift rejection, exact dirty-only branch targets, public startup/stop
+on relocated copies, idempotence, and last-guard rejection before any writes.
+Unit tests cover partial-install rollback at each site, unrelated-byte ownership,
+rollback retry, inaccessible memory, and restored page permissions.
+
+Current next item: release versioning and Python/package compatibility checks.
+The source implementation is complete; no release publication, new capture,
+live performance result, or visual acceptance is claimed.

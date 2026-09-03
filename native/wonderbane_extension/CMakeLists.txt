@@ -35,6 +35,7 @@ add_library(
   graphics_control.cpp
   graphics_status.cpp
   terrain_trace.cpp
+  terrain_mask_refresh.cpp
   import_hook.cpp
   performance_telemetry.cpp
   scene_frame.cpp
@@ -106,6 +107,24 @@ add_custom_command(
 )
 
 if(BUILD_TESTING)
+  foreach(repair_profile full disabled)
+    add_executable(wonderbane_extension_terrain_refresh_${repair_profile}_test terrain_mask_refresh_test.cpp)
+    target_compile_features(wonderbane_extension_terrain_refresh_${repair_profile}_test PRIVATE cxx_std_20)
+    target_compile_definitions(wonderbane_extension_terrain_refresh_${repair_profile}_test PRIVATE
+      UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+    if(repair_profile STREQUAL "disabled")
+      target_compile_definitions(wonderbane_extension_terrain_refresh_${repair_profile}_test PRIVATE
+        WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY=1)
+    endif()
+    target_compile_options(wonderbane_extension_terrain_refresh_${repair_profile}_test PRIVATE
+      /W4 /WX /permissive- /sdl /GS /guard:cf /utf-8)
+    target_link_libraries(wonderbane_extension_terrain_refresh_${repair_profile}_test PRIVATE bcrypt)
+    target_link_options(wonderbane_extension_terrain_refresh_${repair_profile}_test PRIVATE /DYNAMICBASE /NXCOMPAT)
+    set_property(TARGET wonderbane_extension_terrain_refresh_${repair_profile}_test
+      PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded")
+    add_test(NAME wonderbane_extension_terrain_refresh_${repair_profile}
+      COMMAND wonderbane_extension_terrain_refresh_${repair_profile}_test)
+  endforeach()
   foreach(trace_profile full disabled)
     add_executable(wonderbane_extension_terrain_trace_${trace_profile}_test terrain_trace_test.cpp)
     target_compile_features(wonderbane_extension_terrain_trace_${trace_profile}_test PRIVATE cxx_std_20)
@@ -240,6 +259,7 @@ if(BUILD_TESTING)
     graphics_control.cpp
     graphics_status.cpp
     terrain_trace.cpp
+    terrain_mask_refresh.cpp
     import_hook.cpp
     performance_telemetry.cpp
     scene_frame.cpp
@@ -351,6 +371,7 @@ if(BUILD_TESTING)
     graphics_control.cpp
     graphics_status.cpp
     terrain_trace.cpp
+    terrain_mask_refresh.cpp
   )
   target_compile_features(wonderbane_extension_depth_edges_test PRIVATE cxx_std_20)
   target_compile_definitions(
@@ -452,6 +473,7 @@ if(BUILD_TESTING)
     graphics_control.cpp
     graphics_status.cpp
     terrain_trace.cpp
+    terrain_mask_refresh.cpp
     graphics_status_test.cpp
   )
   target_compile_features(
@@ -606,6 +628,7 @@ if(BUILD_TESTING)
     graphics_control.cpp
     graphics_status.cpp
     terrain_trace.cpp
+    terrain_mask_refresh.cpp
     import_hook.cpp
     performance_telemetry.cpp
     performance_telemetry_test.cpp

@@ -222,6 +222,8 @@ int wmain() {
         || json.find("\"producer_id\":\"wonderbane-extension.graphics\"")
             == std::string::npos
         || json.find("\"schema_version\":2") == std::string::npos
+        || json.find("\"terrain_mask_refresh\":{\"state\":") == std::string::npos
+        || json.find("\"patched_sites\":0") == std::string::npos
         || json.find("\"runtime_profile\":\"diagnostics-only\"")
             == std::string::npos
         || json.find("\"call_count\":4") == std::string::npos
