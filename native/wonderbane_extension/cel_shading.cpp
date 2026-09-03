@@ -164,6 +164,7 @@ PVOID volatile g_get_integerv = nullptr;
 PVOID volatile g_get_booleanv = nullptr;
 PVOID volatile g_push_attrib = nullptr;
 PVOID volatile g_pop_attrib = nullptr;
+PVOID volatile g_original_pop_attrib = nullptr;
 PVOID volatile g_push_matrix = nullptr;
 PVOID volatile g_pop_matrix = nullptr;
 PVOID volatile g_translatef = nullptr;
@@ -1452,6 +1453,7 @@ void DrawWithSilhouette(
 }
 
 void APIENTRY StrongShadeModel(const unsigned int mode) noexcept {
+    MarkCompiledListStateChange();
     const auto original = LoadFunction<GlShadeModel>(&g_original_shade_model);
     if (original != nullptr) {
         original(mode);
@@ -1868,6 +1870,18 @@ struct HelperFunctionPlan {
     PVOID resolved;
 };
 
+DWORD ValidateResolvedImportHookPlan(const ImportHookPlan& plan) noexcept {
+    if (plan.slot == nullptr) {
+        return plan.required ? ERROR_PROC_NOT_FOUND : ERROR_SUCCESS;
+    }
+    if (plan.original == nullptr) { return ERROR_PROC_NOT_FOUND; }
+    const auto original = reinterpret_cast<std::uintptr_t>(plan.original);
+    const auto replacement = reinterpret_cast<std::uintptr_t>(plan.replacement);
+    return original <= UINT32_MAX && replacement != 0U && replacement <= UINT32_MAX
+            && *plan.slot == static_cast<std::uint32_t>(original)
+        ? ERROR_SUCCESS : ERROR_INVALID_ADDRESS;
+}
+
 bool RestoreHook(
     std::uint32_t** const slot_storage,
     PVOID volatile* const original_storage,
@@ -2098,7 +2112,7 @@ void APIENTRY StrongDepthMask(const unsigned char flag) noexcept {
 
 void APIENTRY StrongPopAttrib() noexcept {
     MarkCompiledListStateChange();
-    const auto original = LoadFunction<GlPopAttrib>(&g_pop_attrib);
+    const auto original = LoadFunction<GlPopAttrib>(&g_original_pop_attrib);
     if (original != nullptr) {
         original();
         if (!IsCompilingDisplayListOnCurrentThread()) {
@@ -2447,6 +2461,7 @@ DWORD StartStrongCelShading() noexcept {
         || g_get_booleanv != nullptr
         || g_push_attrib != nullptr
         || g_pop_attrib != nullptr
+        || g_original_pop_attrib != nullptr
         || g_push_matrix != nullptr
         || g_pop_matrix != nullptr
         || g_translatef != nullptr
@@ -2494,7 +2509,7 @@ DWORD StartStrongCelShading() noexcept {
         {
             "glPopAttrib",
             reinterpret_cast<PVOID>(&StrongPopAttrib),
-            nullptr, nullptr, &g_pop_attrib, &g_pop_attrib_slot,
+            nullptr, nullptr, &g_original_pop_attrib, &g_pop_attrib_slot, false,
         },
         {
             "glClear",
@@ -2673,27 +2688,14 @@ DWORD StartStrongCelShading() noexcept {
             plan.symbol_name
         );
         plan.original = reinterpret_cast<PVOID>(GetProcAddress(opengl, plan.symbol_name));
-        // Optional commands not imported by this client have no slot to replace.
-        if (plan.slot == nullptr && !plan.required) { continue; }
-        if (plan.slot == nullptr || plan.original == nullptr) {
-            return ERROR_PROC_NOT_FOUND;
-        }
+        const DWORD validation = ValidateResolvedImportHookPlan(plan);
+        if (validation != ERROR_SUCCESS) { return validation; }
+        if (plan.slot == nullptr) { continue; }
         if (reviewed_code
             && ((std::strcmp(plan.symbol_name, "glClear") == 0
                     && reinterpret_cast<std::uint8_t*>(plan.slot) - image != kSceneClearIatRva)
                 || (std::strcmp(plan.symbol_name, "glMatrixMode") == 0
                     && reinterpret_cast<std::uint8_t*>(plan.slot) - image != kSceneMatrixModeIatRva))) {
-            return ERROR_INVALID_ADDRESS;
-        }
-        const std::uintptr_t original_address = reinterpret_cast<std::uintptr_t>(plan.original);
-        const std::uintptr_t replacement_address = reinterpret_cast<std::uintptr_t>(
-            plan.replacement
-        );
-        if (
-            original_address > UINT32_MAX
-            || replacement_address > UINT32_MAX
-            || *plan.slot != static_cast<std::uint32_t>(original_address)
-        ) {
             return ERROR_INVALID_ADDRESS;
         }
     }
@@ -2704,12 +2706,13 @@ DWORD StartStrongCelShading() noexcept {
             }
         }
     }
-    std::array<HelperFunctionPlan, 15U> helpers{{
+    std::array<HelperFunctionPlan, 16U> helpers{{
         {"glTexCoord2f", &g_tex_coord_2f, nullptr},
         {"glGetFloatv", &g_get_floatv, nullptr},
         {"glGetIntegerv", &g_get_integerv, nullptr},
         {"glGetBooleanv", &g_get_booleanv, nullptr},
         {"glPushAttrib", &g_push_attrib, nullptr},
+        {"glPopAttrib", &g_pop_attrib, nullptr},
         {"glPushMatrix", &g_push_matrix, nullptr},
         {"glPopMatrix", &g_pop_matrix, nullptr},
         {"glTranslatef", &g_translatef, nullptr},
@@ -2800,7 +2803,7 @@ void StopStrongCelShading() noexcept {
 #undef WB_RESTORE_LIST_STATE_HOOK
     if (!RestoreHook(&g_call_lists_slot, &g_original_call_lists,
             reinterpret_cast<PVOID>(&StrongCallLists))) { restored = false; }
-    if (!RestoreHook(&g_pop_attrib_slot, &g_pop_attrib,
+    if (!RestoreHook(&g_pop_attrib_slot, &g_original_pop_attrib,
             reinterpret_cast<PVOID>(&StrongPopAttrib))) {
         restored = false;
     }

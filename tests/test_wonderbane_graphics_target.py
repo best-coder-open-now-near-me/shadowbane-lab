@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -104,10 +105,10 @@ def test_graphics_publication_and_launch_pin_the_golden_package() -> None:
         encoding="utf-8"
     )
     assert 'RepositoryShare = "\\\\VBOXSVR\\codexrepo"' in publish
-    assert 'ExtensionVersion = "1.6.10"' in publish
+    assert 'ExtensionVersion = "1.6.11"' in publish
     assert "wonderbane-extension.dll" in publish
     assert r"\build\wonderbane-client-extension\Release" in publish
-    assert "6ca02bafa7c74a7cb01e40edf1b3eee30c1ac5857b6f80da06502dd0fe8c196e" in publish
+    assert "219f9eb64b87f09bfcd2985f58dd9cb0adaf7ea7ed74ee46fc4052acccfa2a97" in publish
     assert "a9a59004b36f9331bb85f85e7853a02a5d5f07bda9acb9ea4a8affbf169a54b8" in publish
     assert "$extensionSha256 -cne $ExpectedExtensionSha256" in publish
     assert "$resultExecutableSha256 -cne $ExpectedExecutableSha256" in publish
@@ -116,8 +117,8 @@ def test_graphics_publication_and_launch_pin_the_golden_package() -> None:
     assert "--texture-artifact-directory $TextureArtifactDirectory" in publish
     assert "texture_patch_manifest_sha256" in publish
     assert 'RepositoryShare = "\\\\VBOXSVR\\codexrepo"' in launch
-    assert 'ExtensionVersion = "1.6.10"' in launch
-    assert "6ca02bafa7c74a7cb01e40edf1b3eee30c1ac5857b6f80da06502dd0fe8c196e" in launch
+    assert 'ExtensionVersion = "1.6.11"' in launch
+    assert "219f9eb64b87f09bfcd2985f58dd9cb0adaf7ea7ed74ee46fc4052acccfa2a97" in launch
     assert '$expectedExtensionRelativePath = "wonderbane-extension.dll"' in launch
     assert 'Properties["extension_relative_path"]' in launch
     assert "a9a59004b36f9331bb85f85e7853a02a5d5f07bda9acb9ea4a8affbf169a54b8" in launch
@@ -150,6 +151,35 @@ def test_graphics_publication_and_launch_pin_the_golden_package() -> None:
     assert "InvalidateFixedFunctionState(&g_fixed_function_state)" in cel_shading
 
 
+def test_required_renderer_imports_exist_in_reviewed_client() -> None:
+    fixture = json.loads(
+        (ROOT / "tests/fixtures/renderer/wonderbane-55fb-opengl-imports.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert fixture["source_sha256"] == (
+        "55fbad5f0110cd99b4085af72d1e8fddb782ccdec1491478492c18158f5c61bc"
+    )
+    source = (ROOT / "native/wonderbane_extension/cel_shading.cpp").read_text(
+        encoding="utf-8"
+    )
+    plans = source.split("std::array<ImportHookPlan,", 1)[1].split(
+        "auto* const image =", 1
+    )[0]
+    entries = dict(re.findall(r'\{\s*"(gl\w+)"\s*,([^{}]*)\}', plans))
+    required = {name for name, fields in entries.items()
+                if not fields.rstrip().endswith("false,")}
+    assert len(required) == 20
+    assert required <= fixture["imports"].keys()
+    assert "glPopAttrib" not in fixture["imports"]
+    assert "glPopAttrib" in entries and "glPopAttrib" not in required
+    assert '{"glPopAttrib", &g_pop_attrib, nullptr}' in source
+    assert "&g_original_pop_attrib, &g_pop_attrib_slot, false" in plans
+    # Macro-generated guards are optional too; a missing client symbol is not a
+    # missing OpenGL helper or permission to replace an unexpected IAT target.
+    assert "&g_list_original_##name, &g_list_slot_##name, false" in plans
+
+
 def test_extension_version_is_consistent_across_every_runtime_surface() -> None:
     native = ROOT / "native" / "wonderbane_extension"
     cmake = (native / "CMakeLists.txt").read_text(encoding="utf-8")
@@ -157,13 +187,13 @@ def test_extension_version_is_consistent_across_every_runtime_surface() -> None:
     graphics_status = (native / "graphics_status.cpp").read_text(encoding="utf-8")
     api = (native / "extension_api.h").read_text(encoding="utf-8")
     resource = (native / "extension.rc").read_text(encoding="utf-8")
-    assert "project(wonderbane_extension VERSION 1.6.10" in cmake
-    assert 'kExtensionVersion[] = "1.6.10"' in extension
-    assert 'kExtensionVersion[] = "1.6.10"' in graphics_status
+    assert "project(wonderbane_extension VERSION 1.6.11" in cmake
+    assert 'kExtensionVersion[] = "1.6.11"' in extension
+    assert 'kExtensionVersion[] = "1.6.11"' in graphics_status
     assert "WONDERBANE_EXTENSION_VERSION_MAJOR 1U" in api
     assert "WONDERBANE_EXTENSION_VERSION_MINOR 6U" in api
-    assert "WONDERBANE_EXTENSION_VERSION_PATCH 10U" in api
-    assert "FILEVERSION 1,6,10,0" in resource
-    assert "PRODUCTVERSION 1,6,10,0" in resource
-    assert 'VALUE "FileVersion", "1.6.10.0\\0"' in resource
-    assert 'VALUE "ProductVersion", "1.6.10.0\\0"' in resource
+    assert "WONDERBANE_EXTENSION_VERSION_PATCH 11U" in api
+    assert "FILEVERSION 1,6,11,0" in resource
+    assert "PRODUCTVERSION 1,6,11,0" in resource
+    assert 'VALUE "FileVersion", "1.6.11.0\\0"' in resource
+    assert 'VALUE "ProductVersion", "1.6.11.0\\0"' in resource

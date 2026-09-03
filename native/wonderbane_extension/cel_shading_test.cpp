@@ -204,6 +204,17 @@ bool CheckDisplayListSourceOwnership() {
     EndDisplayListCapture();
     ok = ok && !IsDisplayListSourceStateStable(104U);
     ok = ok && !IsDisplayListSourceStateStable(105U);
+    const auto rejects_material_change = [](const auto& change) {
+        BeginDisplayListCapture(105U);
+        CaptureTestTriangle();
+        change();
+        EndDisplayListCapture();
+        return !IsDisplayListSourceStateStable(105U);
+    };
+    ok = ok && rejects_material_change([] { ListStateMaterialfv(0x0408U, 0x1201U, nullptr); });
+    ok = ok && rejects_material_change([] { ListStateTexGeni(0x2000U, 0x2500U, 0x2400); });
+    ok = ok && rejects_material_change([] { ListStateDepthFunc(0x0203U); });
+    ok = ok && rejects_material_change([] { ListStateRecti(0, 0, 1, 1); });
 
     CapturedEdgeMap edges{};
     CapturedVertex first{{0.0F, 0.0F, 0.0F}, {0.0F, 0.0F}, true};
@@ -222,7 +233,7 @@ bool CheckStateRestoreRegressions() {
     using namespace wonderbane::extension;
     g_get_booleanv = reinterpret_cast<PVOID>(&FakeStateQuery);
     g_get_current_context = reinterpret_cast<PVOID>(&FakeCurrentContext);
-    g_pop_attrib = reinterpret_cast<PVOID>(&FakeRestoreAttributes);
+    g_original_pop_attrib = reinterpret_cast<PVOID>(&FakeRestoreAttributes);
     g_original_call_list = reinterpret_cast<PVOID>(&FakeExecuteList);
     g_original_end_list = reinterpret_cast<PVOID>(&FakeFinishList);
     g_fixed_function_state = {};
@@ -263,7 +274,7 @@ bool CheckStateRestoreRegressions() {
     ok = ok && RefreshFixedFunctionState() && !g_fixed_function_state.alpha_test_enabled;
     g_get_booleanv = nullptr;
     g_get_current_context = nullptr;
-    g_pop_attrib = nullptr;
+    g_original_pop_attrib = nullptr;
     g_original_call_list = nullptr;
     g_original_end_list = nullptr;
     g_fixed_function_state = {};
@@ -271,9 +282,37 @@ bool CheckStateRestoreRegressions() {
     return ok;
 }
 
+bool CheckOptionalImportPlans() {
+    using namespace wonderbane::extension;
+    ImportHookPlan plan{"glPopAttrib", reinterpret_cast<PVOID>(2U),
+        reinterpret_cast<PVOID>(1U), nullptr, nullptr, nullptr, false};
+    bool ok = ValidateResolvedImportHookPlan(plan) == ERROR_SUCCESS;
+    plan.required = true;
+    ok = ok && ValidateResolvedImportHookPlan(plan) == ERROR_PROC_NOT_FOUND;
+    plan.required = false;
+    std::uint32_t slot = 1U;
+    plan.slot = &slot;
+    ok = ok && ValidateResolvedImportHookPlan(plan) == ERROR_SUCCESS;
+    slot = 3U;
+    ok = ok && ValidateResolvedImportHookPlan(plan) == ERROR_INVALID_ADDRESS;
+    plan.original = nullptr;
+    ok = ok && ValidateResolvedImportHookPlan(plan) == ERROR_PROC_NOT_FOUND;
+
+    // The extension still needs its own glPopAttrib helper when no client IAT
+    // slot exists. That helper must not look like a partially installed hook.
+    g_pop_attrib = reinterpret_cast<PVOID>(&FakeRestoreAttributes);
+    StopStrongCelShading();
+    ok = ok && g_pop_attrib == nullptr && g_original_pop_attrib == nullptr
+        && g_pop_attrib_slot == nullptr;
+    return ok;
+}
+
 }  // namespace
 
 int wmain() {
+    if (!CheckOptionalImportPlans()) {
+        return Fail(L"optional import validation and helper-only rollback");
+    }
     if (!CheckStateRestoreRegressions()) {
         return Fail(L"restored/display-list/context state coherence");
     }

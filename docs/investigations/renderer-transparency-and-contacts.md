@@ -86,12 +86,70 @@ continuing to read older captures. These counts support pass attribution; they
 are not semantic actor/material IDs and do not establish the observed object's
 cause before the next live capture.
 
+Material-ownership checkpoint `154c13a` is committed and pushed. Validation:
+1,426 Python tests passed, 7 privilege-dependent skips, 211 subtests; Ruff passed;
+12/12 native tests passed for both profiles. Live coverage and cost remain unmeasured.
+
+### Truthful accent controls
+
+The panel labels interior accents as black and fixed at one pixel and exposes
+their on/off switch, not the ineffective width slider. The rim-tint explanation
+distinguishes the depth pass from interior accents. Existing preset and live ABI
+versions remain supported. On panel load, legacy width values below one become
+an unchecked accent switch; all other widths become one pixel. This preserves
+effective appearance without rewriting preset files or automatically applying
+settings to a valid client. Re-enabling accents then works through the switch.
+
+Independent accent color and variable width are deferred, not claimed delivered.
+Color needs a separately validated alpha-preserving path, not simply removal of
+the existing black logic operation. The current release keeps that path intact
+so the transparency regression test does not also introduce new color behavior.
+
+### Pre-release import audit
+
+The exact frozen 55fb client has 96 OpenGL imports and does **not** directly
+import glPopAttrib. The initial checkpoint incorrectly made that new hook
+mandatory; pre-release validation caught this before a VM deployment. It is now
+optional, with separate storage for the renderer's required restore helper and
+the optional client's original function. Native tests cover absent optional
+imports, mismatched present targets, and helper-only rollback. A hash-attributed
+import-table fixture prevents adding mandatory hooks this reviewed client lacks.
+The audit also added guards for its material, texture-generation, depth, and
+other imported source-state setters. Texture-upload hooks remain telemetry-owned.
+
+This narrows the original causal claim: attribute restoration is a general
+cache-coherence hazard, but direct client glPopAttrib use is not evidenced on
+this build. Display-list execution and actual object/pass attribution remain
+the relevant live checks. Optional import hooks do not claim to intercept
+dynamically resolved functions or reconstruct arbitrary display-list programs.
+
+### Release 1.6.11 identities
+
+- Full-renderer DLL: `219f9eb64b87f09bfcd2985f58dd9cb0adaf7ea7ed74ee46fc4052acccfa2a97`.
+- Diagnostics-only DLL: `77a6383c3aa20219651ccf720aa2015b4bf01a61540783b5cf82b9472e03f0e2`.
+- Patched executable stays `a9a59004b36f9331bb85f85e7853a02a5d5f07bda9acb9ea4a8affbf169a54b8`.
+- The reviewed restrained-cel texture overlay is unchanged.
+
+The host can validate bootstrap authoring but cannot complete this frozen client's
+package dry-run: its baseline manifest is bound to the guest UNC path. The path
+identity check rejected the host-local alias; no manifest was rewritten to bypass
+it. Guest publication must run its normal dry-run before creating a new isolated
+runtime. Neither the running client nor the plain VM has been changed.
+
+Final host validation: 1,437 Python tests passed, 7 privilege-dependent skips,
+211 subtests; Ruff passed; all changed PowerShell scripts parsed; full and
+diagnostics-only Win32 Release builds and 12/12 CTest tests per profile passed.
+Bootstrap authoring retains the expected patched executable identity. These
+checks include package-boundary tests, not a claim of guest publication or visual
+acceptance.
+
 ## Acceptance queue
 
 1. COMPLETE: state-coherence tests and both native profiles; checkpoint pushed.
-2. ACTIVE: source-owned transparency/feature replay policy and truthful accent controls.
-3. Complete Python, native, package and source checks; distinct versioned release.
-4. Testing-VM-only retest after explicit keyboard/mouse handoff. Preserve current
+2. COMPLETE: source-owned transparency/feature replay policy and truthful accent controls.
+3. COMPLETE: host Python/native/package-boundary/source checks; version 1.6.11.
+4. ACTIVE: guest publication/dry-run and testing-VM-only retest after explicit
+   keyboard/mouse handoff. Preserve current
    settings, capture exact process identity, pass toggles and per-frame evidence,
    and restore settings afterward. User controls login, movement and the camera.
 5. Inspect the affected transparent object and foot-contact response separately.

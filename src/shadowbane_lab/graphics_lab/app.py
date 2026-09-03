@@ -22,6 +22,7 @@ from .control import (
     GraphicsControlTarget,
     GraphicsParameters,
     discover_graphics_targets,
+    normalize_fixed_accent_controls,
     target_process_is_alive,
 )
 from .presets import GraphicsPresetStore
@@ -120,7 +121,6 @@ class GraphicsLabApp:
             "bright_scene_ink_alpha": tk.DoubleVar(),
             "depth_edge_threshold": tk.DoubleVar(),
             "sustained_edge_threshold": tk.DoubleVar(),
-            "feature_outline_width": tk.DoubleVar(),
             "band_threshold_0": tk.DoubleVar(),
             "band_threshold_1": tk.DoubleVar(),
             "band_threshold_2": tk.DoubleVar(),
@@ -180,7 +180,7 @@ class GraphicsLabApp:
         ).pack(anchor="w", pady=(0, 8))
         ttk.Checkbutton(
             parent,
-            text="Fixed-pixel silhouettes and contact seams",
+            text="Depth-based silhouettes and seams",
             variable=self.flag_vars[DEPTH_CONTOURS],
         ).pack(anchor="w")
         ttk.Checkbutton(
@@ -190,7 +190,7 @@ class GraphicsLabApp:
         ).pack(anchor="w", pady=(4, 0))
         ttk.Checkbutton(
             parent,
-            text="Interior creases and equipment accents",
+            text="Interior accents · black, fixed 1 px",
             variable=self.flag_vars[FEATURE_ACCENTS],
         ).pack(anchor="w", pady=(4, 16))
         self._color_control(parent, "dark_scene_outline", "Dark-scene rim tint")
@@ -221,14 +221,14 @@ class GraphicsLabApp:
             values=tuple(_CONTOUR_DEBUG_LABELS),
             state="readonly",
         ).pack(fill="x", pady=(3, 0))
-        self._slider(
+        ttk.Label(
             parent,
-            "feature_outline_width",
-            "Interior accent width",
-            0.5,
-            3.0,
-            2,
-        )
+            text=(
+                "Rim tint affects dark-surface outer outlines, not interior accents.\n"
+                "Interior accents currently have an on/off control only."
+            ),
+            style="Muted.TLabel",
+        ).pack(anchor="w", pady=(12, 0))
 
     def _build_lighting_tab(self, parent: ttk.Frame) -> None:
         ttk.Checkbutton(
@@ -458,7 +458,7 @@ class GraphicsLabApp:
             distant_highlight_compression=self.numeric_vars[
                 "distant_highlight_compression"
             ].get(),
-            feature_outline_width=self.numeric_vars["feature_outline_width"].get(),
+            feature_outline_width=1.0,
             sustained_edge_threshold=self.numeric_vars[
                 "sustained_edge_threshold"
             ].get(),
@@ -475,7 +475,7 @@ class GraphicsLabApp:
         return parameters
 
     def _set_parameters(self, parameters: GraphicsParameters, *, apply: bool = False) -> None:
-        parameters.validate()
+        parameters = normalize_fixed_accent_controls(parameters)
         self._suspend_updates = True
         try:
             for flag, variable in self.flag_vars.items():
@@ -497,7 +497,6 @@ class GraphicsLabApp:
                 "bright_scene_ink_alpha": parameters.bright_scene_ink_alpha,
                 "depth_edge_threshold": parameters.depth_edge_threshold,
                 "sustained_edge_threshold": parameters.sustained_edge_threshold,
-                "feature_outline_width": parameters.feature_outline_width,
                 "band_threshold_0": parameters.band_thresholds[0],
                 "band_threshold_1": parameters.band_thresholds[1],
                 "band_threshold_2": parameters.band_thresholds[2],

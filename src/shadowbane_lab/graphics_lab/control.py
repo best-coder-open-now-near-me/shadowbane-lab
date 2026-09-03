@@ -9,7 +9,7 @@ import math
 import os
 import struct
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 CONTROL_MAGIC = 0x43474257
@@ -208,6 +208,20 @@ DEFAULT_PARAMETERS = GraphicsParameters(
     depth_contour_mode=DEPTH_CONTOUR_LEGACY,
     depth_contour_debug_mode=DEPTH_CONTOUR_DEBUG_NONE,
 )
+
+
+def normalize_fixed_accent_controls(parameters: GraphicsParameters) -> GraphicsParameters:
+    """Represent the existing renderer's effective accent state without a fake width knob.
+
+    Legacy widths below one suppress accents; every other accepted width draws
+    one pixel. Keep that appearance when a legacy preset enters the panel. This
+    does not rewrite preset files or publish a live update by itself.
+    """
+    parameters.validate()
+    flags = parameters.flags
+    if parameters.feature_outline_width < 1.0:
+        flags &= ~FEATURE_ACCENTS
+    return replace(parameters, flags=flags, feature_outline_width=1.0)
 
 
 @dataclass(frozen=True)

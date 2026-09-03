@@ -25,10 +25,12 @@ from shadowbane_lab.graphics_lab.control import (
     DEPTH_CONTOUR_DEBUG_SUSTAINED_RESPONSE,
     DEPTH_CONTOUR_LEGACY,
     DEPTH_CONTOUR_SUSTAINED,
+    FEATURE_ACCENTS,
     GraphicsControlClient,
     GraphicsControlTarget,
     GraphicsParameters,
     discover_graphics_targets,
+    normalize_fixed_accent_controls,
     pack_control_block,
     unpack_control_block,
 )
@@ -77,6 +79,25 @@ def _assert_parameters_close(
     assert (
         actual.depth_contour_debug_mode == expected.depth_contour_debug_mode
     )
+
+
+@pytest.mark.parametrize("width", [0.5, 0.9, 1.0, 1.35, 3.0])
+@pytest.mark.parametrize("enabled", [False, True])
+def test_panel_normalizes_legacy_width_without_changing_effective_accents(
+    width: float, enabled: bool
+) -> None:
+    original = replace(
+        DEFAULT_PARAMETERS,
+        flags=(DEFAULT_PARAMETERS.flags | FEATURE_ACCENTS)
+        if enabled else (DEFAULT_PARAMETERS.flags & ~FEATURE_ACCENTS),
+        feature_outline_width=width,
+    )
+    normalized = normalize_fixed_accent_controls(original)
+    assert normalized.feature_outline_width == 1.0
+    assert bool(normalized.flags & FEATURE_ACCENTS) == (enabled and width >= 1.0)
+    assert replace(normalized, flags=original.flags, feature_outline_width=width) == original
+    assert original.feature_outline_width == width
+    assert normalize_fixed_accent_controls(normalized) == normalized
 
 
 def test_control_abi_round_trips_exact_256_byte_layout() -> None:

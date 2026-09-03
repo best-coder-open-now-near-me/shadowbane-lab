@@ -39,4 +39,21 @@
     X(Vertex2f, (float x, float y), (x, y)) \
     X(Vertex2fv, (const float* values), (values)) \
     X(Vertex4f, (float x, float y, float z, float w), (x, y, z, w)) \
-    X(Vertex4fv, (const float* values), (values))
+    X(Vertex4fv, (const float* values), (values)) \
+    X(Materialfv, (unsigned int face, unsigned int name, const float* values), (face, name, values)) \
+    X(ColorMaterial, (unsigned int face, unsigned int mode), (face, mode)) \
+    X(TexGeni, (unsigned int coord, unsigned int name, int value), (coord, name, value)) \
+    X(TexGenfv, (unsigned int coord, unsigned int name, const float* values), (coord, name, values)) \
+    X(TexParameteri, (unsigned int target, unsigned int name, int value), (target, name, value)) \
+    X(TexParameterf, (unsigned int target, unsigned int name, float value), (target, name, value)) \
+    X(Recti, (int x1, int y1, int x2, int y2), (x1, y1, x2, y2)) \
+    X(DepthFunc, (unsigned int function), (function)) \
+    X(BlendFunc, (unsigned int source, unsigned int destination), (source, destination)) \
+    X(PolygonOffset, (float factor, float units), (factor, units)) \
+    X(ColorMask, (unsigned char r, unsigned char g, unsigned char b, unsigned char a), (r, g, b, a)) \
+    X(CullFace, (unsigned int face), (face)) \
+    X(FrontFace, (unsigned int mode), (mode)) \
+    X(Lightf, (unsigned int light, unsigned int name, float value), (light, name, value)) \
+    X(Lightfv, (unsigned int light, unsigned int name, const float* values), (light, name, values)) \
+    X(LightModeli, (unsigned int name, int value), (name, value)) \
+    X(LightModelfv, (unsigned int name, const float* values), (name, values))
