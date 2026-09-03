@@ -6,6 +6,7 @@ import argparse
 import base64
 import hashlib
 import json
+import math
 import struct
 import time
 from collections.abc import Callable
@@ -26,8 +27,15 @@ from shadowbane_lab.diagnostics.terrain_branch_hits import (
     _utc_now,
     _validate_target,
 )
+from shadowbane_lab.diagnostics.terrain_mesh_snapshot import (
+    LAYOUT_SIGNATURES,
+    MAXIMUM_MESH_READ_BYTES,
+    MeshReadBudget,
+    TerrainMeshCaptureError,
+    capture_mesh_snapshot,
+)
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 MINIMUM_USER_ADDRESS = 0x10000
 MAXIMUM_USER_ADDRESS = 0x7FFEFFFF
 SHADER_SIZE = 0x34
@@ -334,6 +342,9 @@ def _source_snapshot(
             }
         )
     base_reference = struct.unpack_from("<I", raw, 0x1A4)[0]
+    rotation = struct.unpack_from("<f", raw, 0x1A8)[0]
+    if not math.isfinite(rotation):
+        raise TerrainMaterialCaptureError("terrain mask rotation was non-finite")
     result = {
         "address": _hex32(address),
         "base": _texture_snapshot(backend, base_reference, profile),
@@ -344,6 +355,7 @@ def _source_snapshot(
         "layers": layers,
         "direction_completion_bits": raw[0x1AC],
         "dirty_flag": raw[0x1AD],
+        "mask_rotation_degrees": rotation,
     }
     if _read_exact(backend, address, TERRAIN_OBJECT_SIZE, "terrain source") != raw:
         raise _UnstableSample("terrain source changed during the sample")
@@ -359,6 +371,7 @@ def _shader_snapshot(
     backend: TerrainMaterialBackend,
     profile: TerrainMaterialProfile,
     alpha_budget: _AlphaReadBudget | None = None,
+    mesh_budget: MeshReadBudget | None = None,
 ) -> dict[str, object]:
     address = backend.base_address + profile.shader_global_rva
     raw = _read_exact(backend, address, SHADER_SIZE, "terrain shader")
@@ -374,11 +387,19 @@ def _shader_snapshot(
     if not source_pointer:
         raise _IdleSample("terrain shader owner has no current source")
     source = _source_snapshot(backend, source_pointer, profile, alpha_budget)
+    mesh = None
+    if mesh_budget is not None:
+        mesh = capture_mesh_snapshot(
+            lambda pointer, size, label: _read_exact(backend, pointer, size, label),
+            mesh_pointer,
+            backend.base_address,
+            mesh_budget,
+        )
     if _read_exact(backend, owner_pointer, OWNER_SIZE, "shader owner") != owner_raw:
         raise _UnstableSample("terrain shader owner changed during the sample")
     if _read_exact(backend, address, SHADER_SIZE, "terrain shader") != raw:
         raise _UnstableSample("terrain shader changed during the sample")
-    return {
+    result = {
         "shader_address": _hex32(address),
         "vtable": _hex32(vtable),
         "mesh_pointer": _hex32(mesh_pointer),
@@ -386,6 +407,9 @@ def _shader_snapshot(
         "source_pointer": _hex32(source_pointer),
         "source": source,
     }
+    if mesh is not None:
+        result["mesh"] = mesh
+    return result
 
 
 def _validate_snapshot_target(
@@ -393,6 +417,7 @@ def _validate_snapshot_target(
     profile: TerrainMaterialProfile,
     expected_creation_filetime: int,
     include_resident_alpha: bool = False,
+    include_mesh: bool = False,
 ) -> dict[str, object]:
     repaired = _validate_target(backend, profile.branch_profile, expected_creation_filetime)
     actual = backend.read_block(
@@ -426,6 +451,13 @@ def _validate_snapshot_target(
                 "resident alpha accessor does not match the reviewed build"
             )
         result["pixel_accessor"] = actual_accessor.hex()
+    if include_mesh:
+        for rva, signature in LAYOUT_SIGNATURES:
+            if backend.read_block(backend.base_address + rva, len(signature)) != signature:
+                raise TerrainMaterialCompatibilityError("terrain mesh layout signature changed")
+        result["mesh_layout_signatures"] = {
+            _hex32(rva): signature.hex() for rva, signature in LAYOUT_SIGNATURES
+        }
     return result
 
 
@@ -437,6 +469,7 @@ def capture_terrain_material_poll(
     duration_seconds: float = 5.0,
     poll_interval_seconds: float = 0.002,
     include_resident_alpha: bool = False,
+    include_mesh: bool = False,
     profile: TerrainMaterialProfile = PROFILE,
     monotonic: Callable[[], float] = time.monotonic,
     sleep: Callable[[float], None] = time.sleep,
@@ -449,9 +482,10 @@ def capture_terrain_material_poll(
     if output_path.exists():
         raise FileExistsError(f"refusing to replace existing capture: {output_path}")
     signatures_before = _validate_snapshot_target(
-        backend, profile, expected_creation_filetime, include_resident_alpha
+        backend, profile, expected_creation_filetime, include_resident_alpha, include_mesh
     )
     alpha_budget = _AlphaReadBudget() if include_resident_alpha else None
+    mesh_budget = MeshReadBudget() if include_mesh else None
     started = monotonic()
     started_utc = _utc_now()
     snapshots: list[dict[str, object]] = []
@@ -462,16 +496,19 @@ def capture_terrain_material_poll(
     while monotonic() < deadline and polls < MAXIMUM_POLLS and len(snapshots) < MAXIMUM_SNAPSHOTS:
         polls += 1
         try:
-            snapshot = _shader_snapshot(backend, profile, alpha_budget)
+            snapshot = _shader_snapshot(backend, profile, alpha_budget, mesh_budget)
         except _IdleSample:
             idle += 1
-        except (TerrainMaterialCaptureError, _UnstableSample) as error:
+        except (TerrainMaterialCaptureError, TerrainMeshCaptureError, _UnstableSample) as error:
             discarded += 1
             message = str(error)
             if message not in warnings and len(warnings) < 8:
                 warnings.append(message)
         else:
-            canonical = json.dumps(snapshot["source"], sort_keys=True, separators=(",", ":"))
+            identity = {"source": snapshot["source"]}
+            if include_mesh:
+                identity["mesh"] = snapshot["mesh"]
+            canonical = json.dumps(identity, sort_keys=True, separators=(",", ":"))
             fingerprint = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
             if fingerprint not in fingerprints:
                 fingerprints.add(fingerprint)
@@ -481,7 +518,7 @@ def capture_terrain_material_poll(
                 snapshots.append(snapshot)
         sleep(poll_interval_seconds)
     signatures_after = _validate_snapshot_target(
-        backend, profile, expected_creation_filetime, include_resident_alpha
+        backend, profile, expected_creation_filetime, include_resident_alpha, include_mesh
     )
     result: dict[str, object] = {
         "schema_version": SCHEMA_VERSION,
@@ -513,6 +550,8 @@ def capture_terrain_material_poll(
             "snapshot_limit_reached": len(snapshots) == MAXIMUM_SNAPSHOTS,
             "alpha_read_bytes_reserved": alpha_budget.bytes_reserved if alpha_budget else 0,
             "maximum_alpha_read_bytes": MAXIMUM_ALPHA_READ_BYTES,
+            "mesh_read_bytes_reserved": mesh_budget.bytes_reserved if mesh_budget else 0,
+            "maximum_mesh_read_bytes": MAXIMUM_MESH_READ_BYTES,
         },
         "scope": {
             "process_memory_reads": True,
@@ -522,6 +561,7 @@ def capture_terrain_material_poll(
             "thread_suspend_or_debug_register_changes": False,
             "client_functions_called": False,
             "resident_alpha_requested": include_resident_alpha,
+            "mesh_requested": include_mesh,
             "pixels_read": bool(alpha_budget and alpha_budget.bytes_reserved),
             "texture_bytes_read": bool(alpha_budget and alpha_budget.bytes_reserved),
             "gpu_readback": False,
@@ -555,6 +595,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--duration", type=float, default=5.0)
     parser.add_argument("--interval-ms", type=float, default=2.0)
     parser.add_argument("--include-resident-alpha", action="store_true")
+    parser.add_argument("--include-mesh", action="store_true")
     options = parser.parse_args(argv)
     process = None
     try:
@@ -566,6 +607,7 @@ def main(argv: list[str] | None = None) -> int:
             duration_seconds=options.duration,
             poll_interval_seconds=options.interval_ms / 1000,
             include_resident_alpha=options.include_resident_alpha,
+            include_mesh=options.include_mesh,
         )
     except (OSError, RuntimeError, ValueError) as error:
         print(str(error))

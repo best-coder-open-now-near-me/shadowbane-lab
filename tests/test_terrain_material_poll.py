@@ -490,3 +490,30 @@ def test_resident_alpha_signature_drift_refuses_publication(tmp_path, alpha_scen
     with pytest.raises(TerrainMaterialCompatibilityError, match="alpha accessor"):
         _capture(backend, tmp_path, profile, include_resident_alpha=True)
     assert not (tmp_path / "material-poll.json").exists()
+
+
+def test_mesh_option_preserves_root_checks_and_publishes_layout_gates(tmp_path, alpha_scene):
+    from shadowbane_lab.diagnostics.terrain_mesh_snapshot import LAYOUT_SIGNATURES
+
+    backend, profile, _ = alpha_scene
+    for rva, signature in LAYOUT_SIGNATURES:
+        backend.memory[backend.base_address + rva] = signature
+    backend.memory[0x603000] = struct.pack("<I", 0xDEAD)  # unreviewed mesh wrapper
+    result = _capture(backend, tmp_path, profile, include_mesh=True)
+    assert result["snapshots"][0]["mesh"]["state"] == "unreviewed_mesh_wrapper"
+    assert len(result["signatures_after"]["mesh_layout_signatures"]) == 4
+    assert result["scope"]["mesh_requested"] is True
+    assert result["limits"]["mesh_read_bytes_reserved"] == 0
+
+
+def test_mesh_signature_drift_refuses_publication(tmp_path, alpha_scene):
+    from shadowbane_lab.diagnostics.terrain_mesh_snapshot import LAYOUT_SIGNATURES
+
+    backend, profile, _ = alpha_scene
+    for rva, signature in LAYOUT_SIGNATURES:
+        backend.memory[backend.base_address + rva] = signature
+    rva, signature = LAYOUT_SIGNATURES[-1]
+    backend.memory[backend.base_address + rva] = b"x" * len(signature)
+    with pytest.raises(TerrainMaterialCompatibilityError, match="mesh layout"):
+        _capture(backend, tmp_path, profile, include_mesh=True)
+    assert not (tmp_path / "material-poll.json").exists()

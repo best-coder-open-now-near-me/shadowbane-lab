@@ -51,8 +51,29 @@ samples and both consistency reads, are capped at 16 MiB across the entire run.
 Once exhausted, later metadata can still be captured with a budget-exhausted
 label. This may yield few or no mask samples in a busy scene.
 
-Schema 2 includes raw-memory-order base64 bytes, dimensions, and SHA-256 per
+Schema 2 and later include raw-memory-order base64 bytes, dimensions, and SHA-256 per
 accepted resident mask. These can be compared offline without another game
 capture. Raw row/column axes are not established screen/world directions.
 Matching source/copy hashes prove agreement of those CPU observations only;
 they do not prove the GPU received matching bytes or that an upload occurred.
+
+## Optional terrain geometry
+
+Schema 3 adds `--include-mesh`, independently or together with resident alpha.
+It accepts only the reviewed ArcSinglePolyMesh -> ArcMesh -> RenderNormal
+triangle path. Cached draws and other classes/topologies remain explicitly
+unattributed. Four exact layout signatures are checked before and after capture.
+The already-reviewed source mask rotation is also recorded in degrees.
+
+Positions (three float32 components), UVs (two float32 components), and uint16
+triangle indices are retained losslessly as base64 plus hashes and bounds.
+Vectors, finite coordinates, matching attribute counts, index ranges, and
+repeated wrapper/header/action/buffer reads are checked. Limits are 4,096
+vertices, 24,576 indices, and a separate 16-MiB buffer-read reservation budget
+covering both reads and discarded attempts. Mesh contents participate in snapshot
+deduplication, so a changed mesh cannot disappear behind identical material data.
+
+These are resident source arrays, not a measurement of current GL array bindings
+or proof of screen projection. The exact reviewed draw requests flags `0x1b`:
+both color and mask use the same two-component UV vector before their different
+texture matrices. Do not apply this interpretation to an unreviewed draw path.

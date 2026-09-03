@@ -177,3 +177,36 @@ It additionally checks all 40 bytes of `0x58d920` before and after capture:
 `568bf18b465c85c0750f8b860401000085c07405e80d95e8ff8b465cc786f4000000ffffffff5ec3`.
 This is a read-only layout gate, not authority to invoke the accessor or mutate
 the backing. Existing complete-graph consistency checks are unchanged.
+
+## Terrain geometry and coordinate ownership
+
+The retained masked terrain stack is `0x5a0765 -> 0x8e9738 -> 0x5aab67 ->
+0x5b67b9 -> 0x8f1864`. Offline RTTI and virtual slots establish:
+
+- Shader `+4` is an ArcSinglePolyMesh wrapper, vtable `0x015498a0`.
+- Its draw slot `+0x2c` reaches `0x5b6790`. Wrapper `+0x10` selects a cached path;
+  only zero takes wrapper `+0x14` through the mesh's draw slot `+0x30`.
+- ArcMesh vtable is `0x0154965c`; its draw method is `0x5aab20`.
+- Mesh vector `+0x64` holds tightly packed float3 positions; `+0x70` holds float2
+  UVs. CacheCompiledVertexArrays vtable `0x015496b4` slots `+0x10/+0x14` lead to
+  `0x8e90e0/0x8e9180`, which pass those exact pointers to GL with zero stride.
+- Mesh vector `+0x94` holds uint16 indices. Mesh `+0xf8` chooses a draw action;
+  only RenderNormal vtable `0x015495a8` is attributed here. Its method `0x5a0740`
+  sends the entire index vector as triangles. Optimized/multidraw actions are not
+  interchangeable and are not cast to this topology by the poller.
+- `0x8e9430` with terrain flags `0x1b` configures units 0 and 1 using the same
+  float2 UV vector. The float3 alternate unit-1 path requires flag `0x800`, absent
+  from this terrain call. Array-cache state can still differ at runtime; reading
+  source arrays does not verify the actual GL bindings.
+- `0x8f1660` scales unit-0 texture coordinates by 14. Unit 1 rotates around
+  `(0.5,0.5)` using source float `+0x1a8`, with a negative Z rotation axis.
+
+The extension's BeginBandedLightingDraw rejects blend-enabled draws. The saved
+masked terrain draws have blending enabled, so the single-texture cel shader
+does not replace these mask-composition passes. This does not rule out differing
+lighting of the base pass or establish a full scene visual comparison.
+
+The geometry option preserves exact executable/lifetime and existing graph
+checks, additionally gates four non-relocated instruction spans, and bounds
+resident geometry reads. It never invokes a method, obtains GPU data, or treats
+source-array coordinates as already projected screen coordinates.

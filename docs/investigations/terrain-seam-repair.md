@@ -656,3 +656,25 @@ evidence is needed, use a bounded in-process observation of already-submitted
 coordinates/upload inputs, not a debugger or GPU readback. Then implement the
 evidence-supported visual repair and validate both native profiles and frame
 cost before another live release. The visual seam acceptance remains open.
+
+## Geometry ownership and combined capture prepared
+
+The saved terrain stack resolves to ArcSinglePolyMesh -> ArcMesh -> RenderNormal.
+Exact RTTI, virtual slots, vertex/UV/index offsets, topology, and per-unit matrix
+setup are documented in terrain-resource-ownership.md. The masked draws are
+blend-enabled and therefore rejected by BeginBandedLightingDraw; the extension's
+single-texture cel shader is not replacing those captured mask passes.
+
+The poller now offers `--include-mesh` alongside resident alpha. It records the
+reviewed un-cached triangle path only, keeps full ownership consistency checks,
+checks finite coordinates/indices/vector limits, and reserves at most 16 MiB
+for all geometry-buffer reads including discarded attempts. Unknown/cached paths
+are labeled, not guessed. Source mask rotation is retained as well. Geometry
+is part of snapshot identity; these arrays do not prove actual GL bindings.
+
+Validation: 1,532 Python tests plus 211 subtests passed; 7 skipped. Focused Ruff
+and diff checks passed. No native renderer or VM behavior change is included.
+Completed: offline coordinate-layout review and bounded geometry option.
+ACTIVE todo: one combined mesh/alpha capture, then test actual shared geometric
+edges and material weights offline before deciding whether another live observer
+or renderer repair is necessary.
