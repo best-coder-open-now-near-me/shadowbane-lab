@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from shadowbane_lab.equipment import EquipmentCatalog, load_bundled_equipment_catalog
@@ -30,6 +30,10 @@ from .build_model import (
     LegalBuildCompilePolicy,
     LegalBuildGenome,
 )
+from .calculator_allocation import (
+    CalculatorAllocationSpace,
+    CalculatorBackedGenomeMutator,
+)
 from .map_elites import (
     ArchiveAdmission,
     DescriptorAxis,
@@ -40,7 +44,6 @@ from .map_elites import (
 from .strict_training import StrictLegalBuildLeagueEvaluator
 from .training import (
     CatalogBackedLegalityGate,
-    CompilerBackedGenomeMutator,
     DuelScenario,
     genome_mechanical_digest,
 )
@@ -160,6 +163,7 @@ def run_irekei_assassin_search(
         policy=policy,
     )
     gate = CatalogBackedLegalityGate(calculator, equipment)
+    allocation_space = CalculatorAllocationSpace(calculator)
 
     powers = assassin_preset.build.power_ranks
     assassin_skills = dict(assassin_preset.skill_ranks)
@@ -168,21 +172,27 @@ def run_irekei_assassin_search(
         equipment,
         limit=config.equipment_pool_size,
     )
+    allocation_seed = _assassin_genome(
+        calculator,
+        genome_id="irekei-assassin-75-allocation-seed",
+        selected_runes=selected_runes,
+        skill_ranks=tuple(sorted(assassin_skills.items())),
+        power_ranks=powers,
+        priority=(3, 1, 2, 4, 0),
+        weapon_id=weapon_ids[0],
+    )
+    allocation_variants = allocation_space.distinct_variants(
+        allocation_seed,
+        count=3,
+        fully_allocated_only=True,
+    )
     initial_genomes = tuple(
-        _assassin_genome(
-            calculator,
-            genome_id=f"irekei-assassin-75-{label}",
-            selected_runes=selected_runes,
-            skill_ranks=tuple(sorted(assassin_skills.items())),
-            power_ranks=powers,
-            priority=priority,
-            weapon_id=weapon_ids[0],
+        replace(
+            genome,
+            genome_id=f"irekei-assassin-75-allocation-{index:03d}",
+            display_name=f"Irekei Assassin 75 allocation {index:03d}",
         )
-        for label, priority in (
-            ("int-dex-con", (3, 1, 2, 4, 0)),
-            ("dex-int-con", (1, 3, 2, 4, 0)),
-            ("con-int-dex", (2, 3, 1, 4, 0)),
-        )
+        for index, genome in enumerate(allocation_variants)
     )
     opponents = (
         _first_legal_profession_genome(
@@ -199,6 +209,7 @@ def run_irekei_assassin_search(
     for genome in (*initial_genomes, *opponents):
         gate.validate(genome)
         compiler.compile(genome)
+        allocation_space.evaluate(genome)
 
     scenarios = tuple(
         DuelScenario(
@@ -227,8 +238,9 @@ def run_irekei_assassin_search(
             trained_modifiers=initial_genomes[0].trained_modifiers,
         )
     )
-    mutator = CompilerBackedGenomeMutator(
+    mutator = CalculatorBackedGenomeMutator(
         compiler,
+        allocation_space,
         gate=gate,
         rune_ids=eligible_runes,
         equipment_options=(
@@ -266,6 +278,8 @@ def run_irekei_assassin_search(
             "historical candidates and selected action rows use reviewed overrides.",
             "Named item skill requirements and two-handed conflicts are enforced; "
             "opaque requirement tokens and general skill-train costs remain unresolved.",
+            "Attribute mutations and rune-cost repairs now execute only through the "
+            "reviewed WonderBane calculator allocation space.",
             "Power-rank points are checked only as a necessary lower bound against the "
             "sourced Rogue pool.",
             "The readable reference simulator remains the correctness oracle; this "
@@ -348,6 +362,15 @@ def _fully_allocate(
                     rune_ids=rune_ids,
                 )
             except WonderbaneCalculatorImportError:
+                continue
+            if any(
+                actual > maximum
+                for actual, maximum in zip(
+                    result.attributes.values(),
+                    result.attribute_caps.values(),
+                    strict=True,
+                )
+            ):
                 continue
             if result.available_points >= current.available_points:
                 continue
@@ -455,12 +478,8 @@ def _first_legal_profession_genome(
             priority=priority,
         )
         return LegalBuildGenome(
-            genome_id=(
-                f"baseline-{race_key}-{base_key}-{profession}-{level}"
-            ),
-            display_name=(
-                f"{race.family} {base.name} {promotion.name} baseline"
-            ),
+            genome_id=f"baseline-{race_key}-{base_key}-{profession}-{level}",
+            display_name=f"{race.family} {base.name} {promotion.name} baseline",
             race_id=race.record_id,
             base_class_id=base.record_id,
             promotion_id=promotion.record_id,
