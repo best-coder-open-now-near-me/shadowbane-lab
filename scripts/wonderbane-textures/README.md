@@ -1,8 +1,8 @@
 # WonderBane texture tools
 
 Deterministic, offline helpers for conservative Shadowbane/WonderBane texture experiments.
-They operate on extracted image files only. They **do not** open, modify, repack, or deploy
-Shadowbane `.cache` archives unless the separate, explicitly confirmed cache installer is used.
+The flare and sculpting tools operate on extracted image files only. Cache access is split between
+an explicitly confirmed mutation tool and a separate read-only original-texture exporter.
 
 ## Tools
 
@@ -59,6 +59,41 @@ Foliage output includes:
 - `*_black_key.png` — pure-black color key;
 - `*_mask.png` — hard monochrome mask.
 
+### `wonderbane_texture_export.py`
+
+Lists and losslessly exports original resources from `Textures.cache` without opening the source
+for writing. The exporter reuses the existing read-only `CacheArchive` and verified 26-byte texture
+payload parser. It checks the source size, SHA-256, and modification time before and after every
+operation.
+
+List valid texture resources and retain skip reasons for nontexture entries:
+
+```powershell
+py wonderbane_texture_export.py list C:\WonderBane\cache\Textures.cache `
+  --output .artifacts\texture-export\texture-index.json --pretty
+```
+
+Export one exact original texture plus its provenance sidecar:
+
+```powershell
+py wonderbane_texture_export.py export C:\WonderBane\cache\Textures.cache `
+  0:5000190 .artifacts\texture-export\0-5000190.png --pretty
+```
+
+Export a deterministic candidate set and labeled contact sheet:
+
+```powershell
+py wonderbane_texture_export.py samples C:\WonderBane\cache\Textures.cache `
+  .artifacts\texture-export\sample --limit 64 --min-width 128 --min-height 128 --pretty
+```
+
+Depths `1`, `3`, and `4` remain `L`, `RGB`, and `RGBA` respectively. Alpha is preserved exactly,
+and cache bottom-up pixels are flipped to normal top-down PNG orientation. Bulk output is local-only
+and ignored by Git. Anonymous cache entries are called texture candidates until visually reviewed;
+the exporter does not invent terrain, foliage, creature, armor, or building labels.
+
+See `docs/texture-cache-export.md` for the complete contract and output layout.
+
 ### `wonderbane_texture_cache.py`
 
 Safely installs same-dimension PNG replacements into selected `Textures.cache` resources.
@@ -109,7 +144,10 @@ py selftest.py
 ```
 
 The self-test checks deterministic output, dimension preservation, safety-mask isolation,
-alpha preservation, black-key preservation, and sculptor output modes/sizes.
+alpha preservation, black-key preservation, and sculptor output modes/sizes. The repository test
+suite separately covers lossless cache export, vertical orientation, source immutability, duplicate
+resource rejection, deterministic sampling, and the exported-PNG round trip through the existing
+cache importer.
 
 ## First live-test rule
 
