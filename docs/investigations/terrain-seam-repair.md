@@ -500,3 +500,77 @@ and 64 unique source graphs.
 ACTIVE todo: validate the replacement locally, then run one five-second poll
 while the user is at the visible seam. Correlate its GL bindings with the retained
 draw trace before considering a renderer or cache change.
+
+## Read-only material attribution at the visible seam
+
+Replacement `9d1c1ac` passed 1,498 Python tests, 211 subtests, and Ruff (7 tests
+skipped). A 0.1-second login-screen preflight recorded 26 idle polls and no
+invented terrain. After the user logged in, a five-second in-world poll completed
+against PID 2252, creation FILETIME 134329332816298963. The exact executable,
+1.6.13 extension, draw entry, shader class, and four repaired instructions
+matched before and after. The game remained alive. No renderer settings, camera,
+game input, debugger, process writes, or plain-VM changes were involved.
+
+The result retained 2 unique sources from 880 polls: 5 stable, 28 idle, and 847
+discarded concurrent/unreadable graphs. This is deliberately partial evidence,
+not frame coverage. The current shader owner was stack scratch address
+`0x001afd20`; a long nested read often outlives that owner's current contents.
+Do not weaken consistency checks merely to increase the sample count.
+
+Original bounded JSON (guest and host hashes matched):
+
+- Guest: `LocalAppData/ShadowbaneLab/client-extension/terrain-material-seam-2252-9d1c1ac-1.json`.
+- Host: `E:/Projects/shadowbane/.tmp/terrain-material-evidence-2252/terrain-material-seam-2252-9d1c1ac-1.json`.
+- SHA-256: `d5a76ebbf675411c99a9c1fca889f7ea630d035c4c841e1f745812f9d1dc601f`.
+- Capture start: `2026-09-03T19:14:14.444255Z`; measured elapsed 5.016 seconds.
+
+Both sources use base color token `0:100000` (binding 1145). Offline decoding of
+the preserved `Textures.cache` identifies it as dark rocky ground. Color tokens
+`0:100020`, `0:100030`, `0:100035`, and `0:100050` are respectively beige ground,
+dark green rocky grass, light green rocky grass, and gray cobblestone. All are
+256x256 RGB. These are archive identities, not names inferred from GL bindings.
+
+Source `0x3dfa1d98` retained five paired layers (direction bits 1, dirty 0):
+
+| Color token | Color binding | Source/GPU mask token | Mask size | Mask flags | GPU mask binding |
+| --- | --- | --- | --- | --- | --- |
+| `0:100020` | 1149 | zero/generated or unattributed | 64x64 | `0x13` | 1292 |
+| `0:100000` | 1145 | `13936188:16779218` | 128x128 | `0x03` | 1293 |
+| `0:100030` | 1165 | `4101:2432698322` | 128x128 | `0x03` | 1294 |
+| `0:100035` | 1160 | `4101:2449475538` | 128x128 | `0x03` | 1295 |
+| `0:100050` | 1161 | `4101:2466252754` | 128x128 | `0x03` | 1296 |
+
+Source `0x3dfa1678` retained only the beige-ground layer with a generated 64x64
+mask, flags `0x13`, GPU binding 1306, direction bits 0, and dirty 0. All interpreted
+texture objects matched the reviewed ArcColorTexture vtable. Archive mask keys
+decode to tile `(2,1)`, maps `13936188:1` and `4101:145/146/147`.
+
+GL names are process/context-local. The old trace's bindings 1243/1247/etc.
+cannot be equated directly with PID 2252's bindings. The old trace still proves
+14x unit-0 texture matrices and identity unit-1 mask matrices for its own draws;
+these new snapshots supply resource identity, not a retroactive pixel attribution.
+
+Offline inspection of the exact mask tiles and available neighboring tiles
+found nonuniform alpha data, including cobblestone values 0..153 at `(2,1)`.
+That is not evidence that all tile edges should be averaged: adjacent samples
+are not necessarily duplicate border texels, and generated masks are absent
+from the archive. No cache modification is justified by these statistics alone.
+
+Static follow-up at `0x8aaea0` confirms that the matching-copy path requires
+flag `0x10` on both source and neighbor masks; its unmatched-layer path also
+skips masks without that flag. The archive-backed masks captured above have
+flags `0x03`, whereas generated masks have `0x13`. Thus the repaired copy path
+does not cover every material mask in this scene. Removing the guard is not
+approved: ownership and shared-source mutation would need separate review.
+
+Clarification of earlier zero-hit evidence: the two captures exclude hits only
+during their recorded stationary/warm-movement intervals. They do not exclude
+edge processing during initial load or a larger streaming transition, and do
+not prove the repair is causally irrelevant to all visible terrain.
+
+Completed: safe live polling and offline material/flag attribution. ACTIVE todo:
+capture bounded, already-resident CPU alpha masks with reviewed layout gates;
+compare source masks with GPU-facing CPU copies and archive records. Do not call
+the client's lazy pixel accessor or use GPU readback. Screen-neighbor attribution
+and visual seam acceptance remain pending. Local checkpoint only; push remains
+held and the temporary bounded-result VM share was removed after transfer.

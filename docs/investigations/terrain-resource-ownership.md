@@ -147,3 +147,21 @@ necessary, define that narrow reviewed data path before collecting anything
 further; do not add a broad memory scan or guess offsets.
 
 No renderer behavior, client settings, live resources, or archives changed.
+
+## Resident mask access and token-comparison clarification
+
+Offline follow-up on the same SHA-256 distinguishes two token operations:
+thunk `0x412a3f` reaches `0x511bd0`, an unsigned lexicographic **less-than**
+comparison (group first, then resource). It is not equality or inequality.
+Thunk `0x42526b` reaches `0x511b20`, which tests both words for equality.
+The base-token decision in the first directional edge routine therefore uses
+token ordering. Do not describe its ramp decision as simply same/different base.
+
+Backing pixel accessor `0x58d920` returns backing `+0x5c`. If that pointer is
+null and backing `+0x104` is nonzero, it calls a decoder through `0x416e46`.
+It also writes backing `+0xf4` on every call. The zero-mask test `0x58dbb0`
+independently reads backing `+0x5c` and checks width `+0x38` times height `+0x3c`
+bytes. An external read-only diagnostic must never invoke either method.
+Reading resident bytes directly requires exact backing-class/layout validation,
+bounded alpha-only dimensions, and repeated pointer/header/data checks; missing
+resident data must be reported without triggering a load or decode.
