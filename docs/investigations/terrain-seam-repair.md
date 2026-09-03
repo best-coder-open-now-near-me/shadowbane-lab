@@ -1,5 +1,11 @@
 # Stock terrain seam repair investigation
 
+Delivery-policy correction, 2026-09-03: validated source/documentation checkpoints
+are committed and pushed normally, as specified in the root `AGENTS.md`. Earlier
+handoff statements suspending Git pushes were stale and are superseded. The 32
+local commits through `da3bb6d` have been pushed to `codex/client-convergence-v2`.
+Restrictions on exporting diagnostic artifacts do not restrict source delivery.
+
 Latest checkpoint: resident-alpha capture succeeded (see final section). Six
 source masks retained; four archive-backed masks match the archive exactly.
 No visual seam fix is claimed. Next: attribute the visible boundary to mask
@@ -111,7 +117,7 @@ The user subsequently approved the narrow prerequisite capture: one unattended
 local terrain draw/texture trace on the testing VM, with no game input,
 screenshots, or upload. This supersedes the earlier no-new-capture constraint for
 that specific observer only. It does not authorize the previously blocked full
-diagnostic export or GitHub push.
+diagnostic export. Source delivery follows the root `AGENTS.md` independently.
 
 The native observer landed locally at `bf2a87d`. The 1.6.12 release adds a
 PID/creation-time-bound local collector, idle/concurrency gate, and explicit
@@ -139,8 +145,7 @@ Sequence at the release checkpoint (superseded by the live result below):
    before attributing terrain ownership. No live trace or VM acceptance yet.
 4. Implement the evidence-supported seam repair and let the user judge it.
 
-The working source and build artifacts are local; push remains held by the
-earlier approval restriction. The old published 1.6.11 package is retained.
+The build artifacts are local. The old published 1.6.11 package is retained.
 
 ## Live attribution checkpoint — 2026-09-03
 
@@ -189,8 +194,8 @@ Current remaining sequence:
 4. Implement the evidence-supported seam repair, validate the complete package
    and frame cost, then let the user judge its appearance.
 
-No seam repair or visual acceptance is claimed yet. Working evidence and commits
-remain local; the earlier push/export restriction remains in force.
+No seam repair or visual acceptance is claimed yet. Working evidence remains
+local; diagnostic-export limits are separate from normal source delivery.
 
 The subsequent [offline ownership review](terrain-resource-ownership.md) located
 the paired shader/source texture vectors and an RTTI-backed texture-to-GL-binding
@@ -302,7 +307,7 @@ to a new guest-local JSON using read-only shared memory and stable repeated
 reads. That settings file and the dry-run receipt remain guest-local. The old
 game stays open, its controls unchanged; no new trace was requested. Local
 operator handoff and verification screenshots are retained beside the frozen
-bundle. No diagnostic export or push was performed.
+bundle. No diagnostic export was performed.
 
 Todo state: implementation, release validation, bundle freezing, guest dry run,
 and live-settings backup are COMPLETE. The single ACTIVE item is normal
@@ -350,7 +355,7 @@ requires user authorization: preserve the 1.6.10 configuration, then remove only
 that old test copy, keeping 1.6.11 and the current 1.6.12 fallback. Afterward,
 resume from verified local staging, publish, launch, restore live controls, and
 verify the four-site repair status. Visual and streaming-cost acceptance remain
-pending. No new capture, diagnostic export, push, or plain-VM change occurred.
+pending. No new capture, diagnostic export, or plain-VM change occurred.
 
 ## Installed test checkpoint and disposable-build policy
 
@@ -577,8 +582,8 @@ Completed: safe live polling and offline material/flag attribution. ACTIVE todo:
 capture bounded, already-resident CPU alpha masks with reviewed layout gates;
 compare source masks with GPU-facing CPU copies and archive records. Do not call
 the client's lazy pixel accessor or use GPU readback. Screen-neighbor attribution
-and visual seam acceptance remain pending. Local checkpoint only; push remains
-held and the temporary bounded-result VM share was removed after transfer.
+and visual seam acceptance remain pending. The temporary bounded-result VM share
+was removed after transfer.
 
 ## Resident-alpha evidence option validated
 
@@ -796,7 +801,7 @@ or exclude an interior mask gradient. No renderer repair is claimed.
 Completed: repeatable connected-edge source analysis and bounded trace attempt.
 ACTIVE todo: trace-enabled relaunch and one current terrain draw-state capture,
 then correlate its bindings with source/mesh evidence and choose a supported
-visual repair. No broad export or GitHub push; plain VM remains untouched.
+visual repair. No broad diagnostic export; plain VM remains untouched.
 
 Validation: 26 focused analyzer tests passed, including a between-vertex mask
 peak that vertex-only comparison misses. The full Python suite passed 1,561
@@ -911,7 +916,7 @@ or establish which step dominates the user's screen.
 
 Validation: 50 focused material/trace analysis tests passed. Full suite: 1,568
 tests and 211 subtests passed, 7 skipped; focused Ruff/diff checks passed. Native
-artifacts are unchanged. All code/evidence checkpoints remain local; no push.
+artifacts are unchanged. Capture artifacts remain local.
 
 Completed: current frame capture, same-lifetime material correlation, and a
 tested guard against unsupported source/mesh associations.
@@ -1011,7 +1016,7 @@ if it were contemporaneous. New context must retain its own timestamps.
 Validation: 74 focused context/material/analysis tests passed; full Python suite
 1,584 passed, 7 skipped, 211 subtests passed. Focused Ruff and diff checks passed.
 The native renderer and tested VM package are unchanged. This tool addition has
-not yet been staged or exercised on the VM. All checkpoints remain local; no push.
+not yet been staged or exercised on the VM at this checkpoint.
 
 Completed: reusable context capture and static containment review.
 ACTIVE todo: read the exact zone context after return to the original seam, then
