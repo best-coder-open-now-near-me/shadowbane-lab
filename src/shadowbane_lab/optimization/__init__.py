@@ -14,6 +14,12 @@ from .build_model import (
     LegalBuildGenome,
     SelectedAffix,
 )
+from .calculator_allocation import (
+    CalculatorAllocation,
+    CalculatorAllocationNeighbor,
+    CalculatorAllocationSpace,
+    CalculatorBackedGenomeMutator,
+)
 from .map_elites import (
     ArchiveAdmission,
     DescriptorAxis,
@@ -46,10 +52,12 @@ from .training import (
     CompilerBackedGenomeMutator,
     DuelScenario,
     EquipmentSkillRequirement,
-    LegalBuildLeagueEvaluator as PermissiveLegalBuildLeagueEvaluator,
     evaluation_digest,
     genome_mechanical_digest,
     genome_mechanical_payload,
+)
+from .training import (
+    LegalBuildLeagueEvaluator as PermissiveLegalBuildLeagueEvaluator,
 )
 from .utility_policy import (
     POLICY_WEIGHT_FIELDS,
@@ -70,6 +78,10 @@ __all__ = [
     "ArchiveAdmission",
     "BuildCompilationStatus",
     "BuildCoverageReport",
+    "CalculatorAllocation",
+    "CalculatorAllocationNeighbor",
+    "CalculatorAllocationSpace",
+    "CalculatorBackedGenomeMutator",
     "CatalogBackedLegalityGate",
     "CatalogLegalityAudit",
     "CompiledLegalBuild",
