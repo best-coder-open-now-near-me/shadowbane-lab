@@ -393,3 +393,25 @@ mask is not the visual source of the boundary. Do not tune this correction based
 on appearance. ACTIVE todo is now to attribute the visible boundary to its actual
 terrain layer/material transition, or add narrowly scoped branch-hit evidence,
 before proposing another renderer change. No new capture was taken for this check.
+
+## One-shot branch evidence prepared
+
+A bounded external collector now covers the four repaired completion
+instructions. It requires the exact 1.6.13 executable, extension DLL, PID,
+creation time, and repaired bytes before debugger attachment. Four hardware
+execution breakpoints replace event-heavy tracing; only one observation per
+role is retained. At each hit, the collector reads the already-reviewed
+430-byte terrain source object from EBX and records only the three vector
+bounds, base reference, direction-completion byte, and dirty byte. It performs
+no process-memory writes, scans, pixel reads, texture reads, client calls, or
+input injection. The diagnostic transport temporarily changes thread debug
+registers and clears them on detach.
+
+Focused tests cover exact-identity refusal, create-only JSON, bounded terrain
+state, no-activity semantics, and legacy vendor-dialog tracer compatibility.
+The complete Python gate passes with 1,488 tests, 211 subtests, and 7 skips.
+
+ACTIVE todo: run one stationary 15-second capture at the preserved seam view.
+If it records no hits, run one separately labeled movement capture across the
+boundary. Use those results to decide between the repaired matching-material
+path and an unreviewed layer/material-transition source.

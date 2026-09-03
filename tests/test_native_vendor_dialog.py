@@ -66,6 +66,7 @@ class FakeVendorDialogDebugBackend:
     executable_sha256 = "ab" * 32
     base_address = 0x400000
     pointer_size = 4
+    process_creation_filetime_utc = 123456
 
     def __init__(self, profile: NativeVendorDialogProfile) -> None:
         self.memory: dict[int, bytes] = {}
@@ -99,7 +100,12 @@ class FakeVendorDialogDebugBackend:
         self.memory.update(mutations)
         return hit
 
-    def continue_hit(self, hit: NativeVendorDialogDebugHit) -> None:
+    def continue_hit(
+        self,
+        hit: NativeVendorDialogDebugHit,
+        *,
+        disable_role: bool = False,
+    ) -> None:
         self.continued.append(hit.role)
 
     def close(self) -> None:
