@@ -45,6 +45,10 @@ the existing `run_open_duel` path. Windup, active and recovery phases, resource
 costs, cooldowns, delivery, interruption, effects, damage, death, and
 termination therefore remain owned by the reference simulator.
 
+Optimizer identity is derived only from normalized mechanical selections. Display
+labels and caller tuple order remain provenance, but cannot create a second archive
+candidate or change tie-breaking.
+
 Each archive evaluation records:
 
 - win, loss, draw, survival, health, timing, and rejected-action metrics;
@@ -78,10 +82,11 @@ calculator entries. The executable powers and training snapshots come from the
 checked-in proc-Assassin guide preset. Candidate unarmed weapons come from the
 equipment catalog, beginning with reviewed item `29390` (Rha'khanakar).
 
-The league uses calculator-legal builds carrying the checked-in Deflock and Elf
-Druid executable movesets as stable opponents. These are deterministic search
-baselines, not claims that their calculator allocation reproduces every live
-piece of the archived guide sheets.
+The league uses the guide presets' explicit identities: Shade Fighter Deflock
+and Elf Healer Druid. When a guide does not specify sex, the lowest reviewed
+sex-specific calculator record is selected deterministically. These are stable
+search baselines, not claims that their generated allocations reproduce every
+live piece of the archived guide sheets.
 
 Run a small search:
 
@@ -116,8 +121,12 @@ The next promotion steps are:
 1. decode and test the first item requirement/equip-flag families;
 2. compile typed affix effects and stacking rules;
 3. replace the lower-bound train audit with complete base-class training costs;
-4. add held-out opponents and PvE/resource-efficiency scenarios;
-5. implement a NumPy/Numba backend with differential parity to the reference
+4. add held-out opponent sets and PvE/resource-efficiency scenarios;
+5. add controlled build-policy co-evaluation while retaining separate attribution;
+6. implement a NumPy/Numba backend with differential parity to the reference
    environment;
-6. expose utility-policy weights and optimize them separately from build
-   choices.
+7. replace the current diagonal policy strategy with full covariance CMA-ES
+   only after the reference policy-training fixtures remain stable.
+
+The separate interpretable policy seam is documented in
+[utility-policy-training.md](utility-policy-training.md).
