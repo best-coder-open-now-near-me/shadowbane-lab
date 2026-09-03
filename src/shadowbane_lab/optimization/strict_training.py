@@ -17,6 +17,7 @@ from .build_model import (
 )
 from .map_elites import ArchiveAdmission, MapElitesEvaluation
 from .policy_rollout import run_open_duel_with_policies
+from .static_capabilities import project_static_capabilities
 from .training import LegalBuildLeagueEvaluator, genome_mechanical_digest
 
 
@@ -29,7 +30,7 @@ class StrictLegalBuildLeagueEvaluator(LegalBuildLeagueEvaluator):
     it only when the compiled build or runtime state actually supplies every requirement.
     """
 
-    EVALUATOR_VERSION = 2
+    EVALUATOR_VERSION = 3
 
     def __call__(self, genome: LegalBuildGenome) -> MapElitesEvaluation | None:
         try:
@@ -40,6 +41,7 @@ class StrictLegalBuildLeagueEvaluator(LegalBuildLeagueEvaluator):
         if not compilation.view.executable_action_keys:
             return None
 
+        candidate_projection = project_static_capabilities(compilation)
         candidate = self._strict_loadout(compilation, role="candidate")
         runs: list[dict[str, object]] = []
         scores: list[float] = []
@@ -51,6 +53,7 @@ class StrictLegalBuildLeagueEvaluator(LegalBuildLeagueEvaluator):
         unsatisfied_requirements: set[str] = set()
 
         for opponent in self._opponents:
+            opponent_projection = project_static_capabilities(opponent.compilation)
             opponent_loadout = self._strict_loadout(
                 opponent.compilation,
                 role=opponent.opponent_id,
@@ -133,6 +136,9 @@ class StrictLegalBuildLeagueEvaluator(LegalBuildLeagueEvaluator):
                         runs.append(
                             {
                                 "opponent_digest": opponent.opponent_digest,
+                                "opponent_static_capabilities": (
+                                    opponent_projection.projection_digest
+                                ),
                                 "scenario": scenario.as_dict(),
                                 "seed": seed,
                                 "candidate_left": candidate_left,
@@ -163,12 +169,16 @@ class StrictLegalBuildLeagueEvaluator(LegalBuildLeagueEvaluator):
                 "prerequisite_mode": "strict_fail_closed",
                 "candidate_compilation": compilation.compilation_digest,
                 "candidate_mechanical_digest": genome_mechanical_digest(genome),
+                "candidate_static_capabilities": candidate_projection.as_dict(),
                 "catalog_legality_audit": None if audit is None else audit.as_dict(),
                 "ruleset_id": self._ruleset.ruleset_id,
                 "opponents": [
                     {
                         "id": item.opponent_id,
                         "digest": item.opponent_digest,
+                        "static_capabilities": project_static_capabilities(
+                            item.compilation
+                        ).as_dict(),
                     }
                     for item in self._opponents
                 ],
@@ -193,6 +203,14 @@ class StrictLegalBuildLeagueEvaluator(LegalBuildLeagueEvaluator):
                     *(
                         f"accepted_assumption:{item}"
                         for item in compilation.coverage.accepted_assumptions
+                    ),
+                    *(
+                        f"static_capability:{item.tag}:{item.evidence_status}"
+                        for item in candidate_projection.grants
+                    ),
+                    *(
+                        f"unresolved_static_capability:{item}"
+                        for item in candidate_projection.unresolved
                     ),
                     *(
                         f"unsatisfied_action_requirement:{item}"
@@ -245,16 +263,28 @@ class StrictLegalBuildLeagueEvaluator(LegalBuildLeagueEvaluator):
     ):
         derived = super()._loadout(compilation, role=role)
         proven = primitive_loadout_from_build_view(compilation.view)
+        projection = project_static_capabilities(compilation)
         metadata = dict(derived.metadata)
         metadata["action_prerequisite_mode"] = "strict_fail_closed"
+        metadata["static_capability_projection"] = projection.projection_digest
         return replace(
             derived,
-            tags=tuple(sorted(proven.tags)),
+            tags=projection.tags,
             metadata=tuple(sorted(metadata.items())),
             notes=tuple(
                 dict.fromkeys(
                     (
                         *derived.notes,
+                        *(
+                            f"Static capability {item.tag} from "
+                            f"{item.source_kind}:{item.source_key} "
+                            f"({item.evidence_status})."
+                            for item in projection.grants
+                        ),
+                        *(
+                            f"Unresolved static capability: {item}."
+                            for item in projection.unresolved
+                        ),
                         "Required actor tags are supplied only by compiled build or runtime state.",
                     )
                 )
