@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from math import isfinite
 from statistics import fmean
-from typing import Protocol
+from typing import Protocol, cast
 
 from shadowbane_lab.protocol import Vector2
 from shadowbane_lab.rollouts.duel import (
@@ -60,14 +60,17 @@ def _validate_scenario(value: object) -> None:
     for field_name in ("scenario_id", "starting_distance", "max_ticks", "mirrored"):
         if not hasattr(value, field_name):
             raise ValueError("scenarios must implement the duel-scenario contract")
-    scenario_id = getattr(value, "scenario_id")
-    if not isinstance(scenario_id, str) or not scenario_id.strip():
+    scenario = cast(DuelScenarioLike, value)
+    if not isinstance(scenario.scenario_id, str) or not scenario.scenario_id.strip():
         raise ValueError("scenario_id must be non-empty text")
-    _positive(getattr(value, "starting_distance"), "scenario starting_distance")
-    max_ticks = getattr(value, "max_ticks")
-    if isinstance(max_ticks, bool) or not isinstance(max_ticks, int) or max_ticks < 1:
+    _positive(scenario.starting_distance, "scenario starting_distance")
+    if (
+        isinstance(scenario.max_ticks, bool)
+        or not isinstance(scenario.max_ticks, int)
+        or scenario.max_ticks < 1
+    ):
         raise ValueError("scenario max_ticks must be a positive integer")
-    if not isinstance(getattr(value, "mirrored"), bool):
+    if not isinstance(scenario.mirrored, bool):
         raise ValueError("scenario mirrored must be a boolean")
     if not callable(getattr(value, "as_dict", None)):
         raise ValueError("scenarios must expose as_dict()")
