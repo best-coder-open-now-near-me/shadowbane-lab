@@ -541,3 +541,19 @@ first candidate, accepted boundary, first late world, and last world draws. The 
 reconciles those milestones with the layer totals and refuses to claim world/UI separation unless
 the last world draw precedes the accepted boundary. This records the ordering evidence that the
 1.6.6 and 1.6.7 aggregate counters could not preserve.
+
+Extension 1.6.9 adds an optional sustained depth-contour experiment without changing the reviewed
+legacy default. The original five-sample foreground-curvature algorithm remains selectable;
+the sustained mode samples the second cardinal ring and requires the depth drop to continue in the
+same dominant direction that produced the first-ring response. Perpendicular or opposite-side
+support cannot rescue a transient one-pixel crack. Separate response, sustained-response,
+support, and rejected-candidate diagnostic views make the decision visible without assigning
+terrain semantics.
+
+Graphics Control schema 2 keeps the mapping at 256 bytes and preserves the existing parameter
+offsets while consuming reserved space for the sustained threshold, contour mode, and diagnostic
+mode. Schema-1 live mappings fail closed, while schema-1 saved Graphics Lab presets load under the
+legacy contour policy. Graphics status now publishes the active contour policy and thresholds beside
+its frame timing so A/B performance evidence can be attributed to the exact mode. The reviewed 1.6.8
+publication scripts remain hash-sealed; 1.6.9 is not a player-facing package until a new artifact is
+built, probed, live-reviewed, and pinned.

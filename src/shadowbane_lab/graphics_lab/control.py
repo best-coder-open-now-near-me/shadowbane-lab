@@ -13,11 +13,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 CONTROL_MAGIC = 0x43474257
-CONTROL_SCHEMA_VERSION = 1
+CONTROL_SCHEMA_VERSION = 2
 CONTROL_STRUCTURE_SIZE = 256
-CONTROL_HEADER = struct.Struct("<6I4iI24f29I")
+CONTROL_HEADER = struct.Struct("<6I4iI25f2I26I")
 CONTROL_PARAMETER_OFFSET = 40
-CONTROL_PARAMETER_END = 140
+CONTROL_PARAMETER_END = 152
 CONTROL_DESIRED_SEQUENCE_OFFSET = 24
 
 BANDED_LIGHTING = 1 << 0
@@ -25,6 +25,25 @@ DEPTH_CONTOURS = 1 << 1
 FEATURE_ACCENTS = 1 << 2
 ADAPTIVE_OUTLINES = 1 << 3
 KNOWN_FLAGS = BANDED_LIGHTING | DEPTH_CONTOURS | FEATURE_ACCENTS | ADAPTIVE_OUTLINES
+
+DEPTH_CONTOUR_LEGACY = 0
+DEPTH_CONTOUR_SUSTAINED = 1
+KNOWN_DEPTH_CONTOUR_MODES = {DEPTH_CONTOUR_LEGACY, DEPTH_CONTOUR_SUSTAINED}
+
+DEPTH_CONTOUR_DEBUG_NONE = 0
+DEPTH_CONTOUR_DEBUG_RESPONSE = 1
+DEPTH_CONTOUR_DEBUG_SUSTAINED_RESPONSE = 2
+DEPTH_CONTOUR_DEBUG_SUPPORT = 3
+DEPTH_CONTOUR_DEBUG_REJECTED = 4
+KNOWN_DEPTH_CONTOUR_DEBUG_MODES = {
+    DEPTH_CONTOUR_DEBUG_NONE,
+    DEPTH_CONTOUR_DEBUG_RESPONSE,
+    DEPTH_CONTOUR_DEBUG_SUSTAINED_RESPONSE,
+    DEPTH_CONTOUR_DEBUG_SUPPORT,
+    DEPTH_CONTOUR_DEBUG_REJECTED,
+}
+
+DEFAULT_SUSTAINED_EDGE_THRESHOLD = 0.055
 
 
 @dataclass(frozen=True)
@@ -44,6 +63,9 @@ class GraphicsParameters:
     vertex_tint_gamma: float
     distant_highlight_compression: float
     feature_outline_width: float
+    sustained_edge_threshold: float
+    depth_contour_mode: int
+    depth_contour_debug_mode: int
 
     def validate(self) -> None:
         if self.flags < 0 or self.flags & ~KNOWN_FLAGS:
@@ -80,6 +102,16 @@ class GraphicsParameters:
             "distant_highlight_compression",
         )
         _validate_range(self.feature_outline_width, 0.5, 3.0, "feature_outline_width")
+        _validate_range(
+            self.sustained_edge_threshold,
+            0.005,
+            0.5,
+            "sustained_edge_threshold",
+        )
+        if self.depth_contour_mode not in KNOWN_DEPTH_CONTOUR_MODES:
+            raise ValueError("depth_contour_mode is unsupported")
+        if self.depth_contour_debug_mode not in KNOWN_DEPTH_CONTOUR_DEBUG_MODES:
+            raise ValueError("depth_contour_debug_mode is unsupported")
 
     def to_json(self) -> dict[str, object]:
         self.validate()
@@ -94,10 +126,18 @@ class GraphicsParameters:
             "vertex_tint_gamma": self.vertex_tint_gamma,
             "distant_highlight_compression": self.distant_highlight_compression,
             "feature_outline_width": self.feature_outline_width,
+            "sustained_edge_threshold": self.sustained_edge_threshold,
+            "depth_contour_mode": self.depth_contour_mode,
+            "depth_contour_debug_mode": self.depth_contour_debug_mode,
         }
 
     @classmethod
-    def from_json(cls, value: object) -> GraphicsParameters:
+    def from_json(
+        cls,
+        value: object,
+        *,
+        allow_legacy_contour_defaults: bool = False,
+    ) -> GraphicsParameters:
         if not isinstance(value, dict):
             raise ValueError("graphics parameters must be an object")
         try:
@@ -116,6 +156,31 @@ class GraphicsParameters:
                     value, "distant_highlight_compression"
                 ),
                 feature_outline_width=_number(value, "feature_outline_width"),
+                sustained_edge_threshold=(
+                    _optional_number(
+                        value,
+                        "sustained_edge_threshold",
+                        DEFAULT_SUSTAINED_EDGE_THRESHOLD,
+                    )
+                    if allow_legacy_contour_defaults
+                    else _number(value, "sustained_edge_threshold")
+                ),
+                depth_contour_mode=(
+                    _optional_integer(
+                        value, "depth_contour_mode", DEPTH_CONTOUR_LEGACY
+                    )
+                    if allow_legacy_contour_defaults
+                    else _integer(value, "depth_contour_mode")
+                ),
+                depth_contour_debug_mode=(
+                    _optional_integer(
+                        value,
+                        "depth_contour_debug_mode",
+                        DEPTH_CONTOUR_DEBUG_NONE,
+                    )
+                    if allow_legacy_contour_defaults
+                    else _integer(value, "depth_contour_debug_mode")
+                ),
             )
         except KeyError as error:
             raise ValueError(f"missing graphics parameter {error.args[0]!r}") from error
@@ -139,6 +204,9 @@ DEFAULT_PARAMETERS = GraphicsParameters(
     vertex_tint_gamma=0.78,
     distant_highlight_compression=0.45,
     feature_outline_width=1.35,
+    sustained_edge_threshold=DEFAULT_SUSTAINED_EDGE_THRESHOLD,
+    depth_contour_mode=DEPTH_CONTOUR_LEGACY,
+    depth_contour_debug_mode=DEPTH_CONTOUR_DEBUG_NONE,
 )
 
 
@@ -211,6 +279,22 @@ def _integer(value: dict[str, object], key: str) -> int:
     return item
 
 
+def _optional_number(
+    value: dict[str, object], key: str, default: float
+) -> float:
+    if key not in value:
+        return default
+    return _number(value, key)
+
+
+def _optional_integer(
+    value: dict[str, object], key: str, default: int
+) -> int:
+    if key not in value:
+        return default
+    return _integer(value, key)
+
+
 def _triple(value: dict[str, object], key: str) -> tuple[float, float, float]:
     item = value[key]
     if not isinstance(item, list) or len(item) != 3:
@@ -252,6 +336,7 @@ def _parameter_floats(parameters: GraphicsParameters) -> tuple[float, ...]:
         parameters.vertex_tint_gamma,
         parameters.distant_highlight_compression,
         parameters.feature_outline_width,
+        parameters.sustained_edge_threshold,
     )
 
 
@@ -281,7 +366,9 @@ def pack_control_block(
         last_error,
         parameters.flags,
         *_parameter_floats(parameters),
-        *([0] * 29),
+        parameters.depth_contour_mode,
+        parameters.depth_contour_debug_mode,
+        *([0] * 26),
     )
 
 
@@ -289,7 +376,7 @@ def unpack_control_block(data: bytes, target: GraphicsControlTarget) -> Graphics
     values = _unpack_control_values(data, target)
     desired, applied, rejected, last_error = values[6:10]
     flags = values[10]
-    floats = values[11:35]
+    floats = values[11:36]
     parameters = GraphicsParameters(
         flags=flags,
         dark_scene_outline=(floats[0], floats[1], floats[2]),
@@ -311,6 +398,14 @@ def unpack_control_block(data: bytes, target: GraphicsControlTarget) -> Graphics
         vertex_tint_gamma=floats[21],
         distant_highlight_compression=floats[22],
         feature_outline_width=floats[23],
+        sustained_edge_threshold=_clamp_transport_range(
+            floats[24],
+            0.005,
+            0.5,
+            "sustained_edge_threshold",
+        ),
+        depth_contour_mode=int(values[36]),
+        depth_contour_debug_mode=int(values[37]),
     )
     parameters.validate()
     return GraphicsControlSnapshot(
@@ -367,7 +462,11 @@ def discover_graphics_targets(
                 continue
             mapping_name = controls.get("mapping_name")
             executable_sha256 = payload.get("executable_sha256")
-            if controls.get("available") is not True or not isinstance(mapping_name, str):
+            if (
+                controls.get("available") is not True
+                or controls.get("schema_version") != CONTROL_SCHEMA_VERSION
+                or not isinstance(mapping_name, str)
+            ):
                 continue
             if (
                 not isinstance(executable_sha256, str)
