@@ -1,0 +1,52 @@
+"""Legal build compilation and deterministic quality-diversity search."""
+
+from .build_compiler import LegalBuildCompiler
+from .build_io import load_legal_build_genome, load_legal_build_genome_text
+from .build_model import (
+    LEGAL_BUILD_COMPILER_VERSION,
+    LEGAL_BUILD_GENOME_SCHEMA_VERSION,
+    BuildCompilationStatus,
+    BuildCoverageReport,
+    CompiledLegalBuild,
+    EquipmentSelection,
+    LegalBuildCompileError,
+    LegalBuildCompilePolicy,
+    LegalBuildGenome,
+    SelectedAffix,
+)
+from .map_elites import (
+    ArchiveAdmission,
+    DescriptorAxis,
+    MapElitesArchive,
+    MapElitesCell,
+    MapElitesError,
+    MapElitesEvaluation,
+    MapElitesInsertStatus,
+    MapElitesRun,
+    run_map_elites,
+)
+
+__all__ = [
+    "LEGAL_BUILD_COMPILER_VERSION",
+    "LEGAL_BUILD_GENOME_SCHEMA_VERSION",
+    "ArchiveAdmission",
+    "BuildCompilationStatus",
+    "BuildCoverageReport",
+    "CompiledLegalBuild",
+    "DescriptorAxis",
+    "EquipmentSelection",
+    "LegalBuildCompileError",
+    "LegalBuildCompilePolicy",
+    "LegalBuildCompiler",
+    "LegalBuildGenome",
+    "MapElitesArchive",
+    "MapElitesCell",
+    "MapElitesError",
+    "MapElitesEvaluation",
+    "MapElitesInsertStatus",
+    "MapElitesRun",
+    "SelectedAffix",
+    "load_legal_build_genome",
+    "load_legal_build_genome_text",
+    "run_map_elites",
+]
