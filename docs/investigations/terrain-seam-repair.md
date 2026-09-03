@@ -1017,3 +1017,103 @@ Completed: reusable context capture and static containment review.
 ACTIVE todo: read the exact zone context after return to the original seam, then
 compare tile-center coverage with the preserved material discontinuities. Scoped
 repair selection and visual seam acceptance remain open; no visual fix is claimed.
+
+## Live region placement explains the missing material coverage
+
+After the user returned, the testing VM showed the sharp cobble/ground boundary
+beside the wreck at Sea Dog's Rest. The committed source at 17ca985 was archived,
+copied locally in the guest and SHA-256 checked before execution. Source ZIP:
+`ab9be8f8b597d209c19553511afb0b4c38e5db57aff713ac079526bd8b4e8032`.
+It remains staged at `%LOCALAPPDATA%/ShadowbaneLab/terrain-context-17ca985`.
+
+One 0.1-second metadata poll with `--include-world-context` ran against PID 960 /
+134329406441965396. Its position/zone endpoints both succeeded and agreed. The
+material sub-poll retained no stable source graph (one attempt); this does not
+invalidate the separate context observations and is not a new draw/mask capture.
+Context spans 2026-09-03T21:09:27.161383+00:00 through
+2026-09-03T21:09:27.344530+00:00. The underlying guest monotonic clock has coarse
+resolution; equal endpoint ticks must not be read as zero observation overhead.
+
+Host result:
+`E:/Projects/shadowbane/.tmp/terrain-context-17ca985/results/terrain-context-960.json`
+(15,542 bytes), SHA-256
+`4bee973926d4fdf9da3080127c26542441c4fcae4971ef4b5ae9ae687ca1646b`.
+Temporary source/result shares were removed. The console closed and focus
+returned to the same verified client; no game commands, settings, renderer
+changes or archive edits occurred. Screenshots are under the same `.tmp` area.
+
+The player is LT 88586.8203125, LG 45031.20703125, altitude 28.517858505249023.
+Active zone: template **0:10400**, instance **656:79**, Sea Dog's Rest.
+Its absolute center is **(88832, -45056)**, X/Z radii **384/384**, and quaternion
+identity. Parents are Vorringia (0:230, instance 101:79) and Seafloor (0:1,
+instance 100:79), also unrotated. Thus its axis bounds are X **88448..89216**,
+Z **-45440..-44672**. The archive template independently has zone_type 1 and
+the same radii. Factory 0x653ab0 selects ArcRectangularGameZone for its type
+field value 1 (call 0x653b09 -> 0x41af5a -> 0x65d7b0); value 0 selects the
+elliptical class. This supports the reviewed strict rectangular boundary path.
+
+Compare the earlier, draw-corroborated tile centers with this later placement:
+
+| Snapshot | Tile center X/Z | Offset from region center | Strict bounds | Retained layers |
+| --- | --- | --- | --- | --- |
+| 1 | 88448 / -44928 | -384 / +128 | excluded: equality on X minimum | generated beige only |
+| 4 | 88448 / -45184 | -384 / -128 | excluded: equality on X minimum | generated beige only |
+| 5 | 88704 / -44672 | -128 / +384 | excluded: equality on Z maximum | generated beige only |
+| 2 | 88704 / -45184 | -128 / -128 | inside | archived rock/grass/cobble |
+| 3 | 88960 / -44928 | +128 / +128 | inside | archived rock/grass/cobble |
+| 7 | 88704 / -44928 | -128 / +128 | inside | archived rock/grass/cobble |
+
+This explains the observed coverage pattern much more specifically than texture
+scale, outline thickness or GPU refresh. Three excluded tile centers coincide
+exactly with region bounds, yet their recorded meshes extend into the region and
+the corresponding archived masks contain nonzero adjoining coverage. The context
+is from a later visit, not an atomic witness of the earlier source-builder branch;
+do not describe it as a captured branch hit or proof of all world-zone behavior.
+
+### Offline coverage counterfactual, not a deployed fix
+
+The saved material/trace inputs were revalidated with the existing analyzer.
+For snapshots 1, 4 and 5 only, the in-memory model appended the archived layers
+for local mask tiles (0,1), (0,2), (1,0), in the observed source-2 order:
+13936188:1 -> rock 0:100000; 4101:145 -> grass 0:100030;
+4101:146 -> grass 0:100035; 4101:147 -> cobble 0:100050.
+Existing generated beige was retained underneath. No original evidence was
+rewritten, no synthetic source was published as live, and the height-map archive
+was **read only**, used solely for its already-observed rock-overlay mask role.
+
+| Boundary | Original mean material distance | Restored-coverage model mean | Model maximum |
+| --- | ---: | ---: | ---: |
+| 1/7 | 0.583591 | 0.013687 | 0.137255 |
+| 2/4 | 0.208184 | 0.009930 | 0.188235 |
+| 5/7 | 0.477152 | 0.025138 | 0.200000 |
+
+This is about 95..98 percent reduction in **modeled mean material distance**,
+not measured visual improvement. Existing 2/7 and 3/7 discrepancies remain
+unchanged; 1/4 changes from zero to mean 0.018095 / maximum 0.094118 as authored
+material is restored. Coverage recovery alone is therefore not complete seam
+blending. Level-zero sampling, mips, RGB phase, lighting, LOD and original source
+association limitations still apply. Snapshot 6 remains excluded.
+
+### Durable repair boundary
+
+The intended repair belongs to **terrain material construction**, using the
+region's registered material-map tile coverage, then per-tile blend/mip handling.
+Do not change global zone containment, player/navigation ownership, source height
+data, shared archived masks, or geometry. In particular, changing `<` to `<=`
+globally would affect unrelated region queries and still does not establish the
+correct map footprint or solve residual authored edge differences.
+
+The promising integration point is the terrain builder's material construction,
+before edge caches/GPU mask copies are finalized. Preserve current in-range layer
+order, append missing authored coverage only once, resolve parent/child priority,
+and reject ambiguous/unreviewed mappings. Any writable blend masks must be owned
+per tile; flag 0x10 is not permission to mutate a shared archive backing. No
+per-frame source polling, framebuffer readback or broad archive blur belongs in
+the repair. The exact builder interception and registration semantics still need
+review before implementation; no new runtime hook is approved by this record.
+
+Completed: live context tool verification, exact region/center comparison and
+offline coverage counterfactual. ACTIVE todo: finish the material-construction
+ownership/interception review and implement the scoped coverage-plus-edge repair.
+Native full/core/package validation and one visual acceptance pass remain after
+implementation. No new renderer build or visual fix was installed this turn.
