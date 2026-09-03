@@ -283,3 +283,23 @@ Current todo state:
    testing, without closing the game or starting another diagnostic capture.
 4. PENDING: preserve settings, normal client restart into the isolated package,
    and visual/streaming-cost acceptance. Keep old packages and the plain VM intact.
+
+## Guest package check and restart handoff
+
+Frozen source ed9aa5b and the full DLL were staged through a new read-only
+testing-only share. The checker and payloads were SHA-256 verified locally
+before execution. The package dry run then **passed** inside testing against
+the baseline's unchanged original UNC root. No game package was published.
+
+The old client's exact-lifetime live graphics settings were successfully saved
+to a new guest-local JSON using read-only shared memory and stable repeated
+reads. That settings file and the dry-run receipt remain guest-local. The old
+game stays open, its controls unchanged; no new trace was requested. Local
+operator handoff and verification screenshots are retained beside the frozen
+bundle. No diagnostic export or push was performed.
+
+Todo state: implementation, release validation, bundle freezing, guest dry run,
+and live-settings backup are COMPLETE. The single ACTIVE item is normal
+restart/publication into a new empty runtime parent, followed by restoring
+preferences and visual/streaming-cost acceptance. Await normal user exit;
+do not force-close or inject game input. The plain VM stays untouched.
