@@ -58,6 +58,7 @@ void ObserveGraphicsCameraState(
     int model_view_stack_depth
 ) noexcept;
 void ObserveGraphicsPresent() noexcept;
+void RequestGraphicsStatusPublish() noexcept;
 void ReportDepthEdgePassComposite() noexcept;
 void ReportDepthEdgePassFailure(const char* reason) noexcept;
 void ReportSceneColorCapture() noexcept;

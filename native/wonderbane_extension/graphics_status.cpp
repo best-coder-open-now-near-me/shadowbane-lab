@@ -1,4 +1,5 @@
 #include "graphics_status.h"
+#include "terrain_trace.h"
 
 #include "extension_api.h"
 #include "graphics_control.h"
@@ -1298,6 +1299,7 @@ DWORD WINAPI PublisherThread(LPVOID) noexcept {
     for (;;) {
         const DWORD wait = WaitForMultipleObjects(2U, events, FALSE, INFINITE);
         if (wait == WAIT_OBJECT_0) {
+            PublishPendingTerrainTrace();
             const DWORD publish_result = PublishWithRetry(SnapshotState());
             if (initial_publish_pending) {
                 InterlockedExchange(
@@ -1309,6 +1311,7 @@ DWORD WINAPI PublisherThread(LPVOID) noexcept {
             return ERROR_SUCCESS;
         }
         if (wait == WAIT_OBJECT_0 + 1U) {
+            PublishPendingTerrainTrace();
             const DWORD publish_result = PublishWithRetry(SnapshotState());
             if (initial_publish_pending) {
                 initial_publish_pending = false;
@@ -2066,6 +2069,12 @@ DWORD GetGraphicsStatusPath(
     );
     ReleaseSRWLockShared(&g_state_lock);
     return SUCCEEDED(result) ? ERROR_SUCCESS : HResultToWin32(result);
+}
+
+void RequestGraphicsStatusPublish() noexcept {
+    AcquireSRWLockShared(&g_state_lock);
+    if (g_wake_event != nullptr) { SetEvent(g_wake_event); }
+    ReleaseSRWLockShared(&g_state_lock);
 }
 
 }  // namespace wonderbane::extension

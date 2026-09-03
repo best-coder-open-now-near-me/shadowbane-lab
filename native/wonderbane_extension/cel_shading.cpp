@@ -4,6 +4,7 @@
 #include "fixed_function_state.h"
 #include "graphics_control.h"
 #include "graphics_status.h"
+#include "terrain_trace.h"
 #include "import_hook.h"
 #include "performance_telemetry.h"
 #include "scene_frame.h"
@@ -1480,6 +1481,9 @@ bool CurrentProjection(
 
 void APIENTRY StrongBegin(const unsigned int mode) noexcept {
     const bool compiling = IsCompilingDisplayListOnCurrentThread();
+    TerrainTraceDraw(TerrainSubmission::immediate,
+        reinterpret_cast<std::uintptr_t>(_ReturnAddress()), mode, 0, -1, 0U, 0U,
+        false, !compiling && !g_immediate_primitive_open);
     CaptureDisplayListBegin(mode);
     const auto original = LoadFunction<GlBegin>(&g_original_begin);
     if (original != nullptr) {
@@ -1620,6 +1624,9 @@ __declspec(noinline) void APIENTRY StrongClear(const unsigned int mask) noexcept
     if (original == nullptr) { return; }
     original(mask);
     if (IsCompilingDisplayListOnCurrentThread()) { return; }
+    TerrainTraceClear(g_scene_mapping_verified && !g_immediate_primitive_open
+        && (mask == 0x4100U || mask == 0x4500U)
+        && IsReviewedSceneCall(caller, g_scene_image_base, kSceneClearReturnRva), mask);
     if ((mask & 0x100U) != 0U) {
         DiscardPendingDepthEdgeScene();
         if (g_scene_frame.main_scene_start_count > 0U) {
@@ -1651,6 +1658,7 @@ __declspec(noinline) void APIENTRY StrongMatrixMode(const unsigned int mode) noe
     if (mode == 0x1701U && g_scene_mapping_verified
         && !IsCompilingDisplayListOnCurrentThread() && !g_immediate_primitive_open
         && IsReviewedSceneCall(caller, g_scene_image_base, kSceneUiReturnRva)) {
+        TerrainTraceDone3d();
         const auto current_context = LoadFunction<WglGetCurrentContext>(&g_get_current_context);
         if (current_context == nullptr || g_main_scene_context == nullptr
             || current_context() != g_main_scene_context) {
@@ -1676,6 +1684,9 @@ void APIENTRY StrongCallList(const unsigned int list) noexcept {
     const auto original = LoadFunction<GlCallList>(&g_original_call_list);
     if (original != nullptr) {
         if (IsCompilingDisplayListOnCurrentThread()) {
+            TerrainTraceDraw(TerrainSubmission::list,
+                reinterpret_cast<std::uintptr_t>(_ReturnAddress()), 0U, 0, -1, 0U, list,
+                false, false);
             MarkCompiledListStateChange();
             if (g_active_display_list_capture.nested_lists.size()
                 == kMaximumNestedDisplayListsPerList) {
@@ -1691,6 +1702,9 @@ void APIENTRY StrongCallList(const unsigned int list) noexcept {
             return;
         }
         const bool stable = IsDisplayListSourceStateStable(list);
+        TerrainTraceDraw(TerrainSubmission::list,
+            reinterpret_cast<std::uintptr_t>(_ReturnAddress()), 0U, 0, -1, 0U, list,
+            stable, !g_immediate_primitive_open);
         const auto draw = [original, list, stable]() noexcept {
             original(list);
             // Playback executes inside OpenGL and does not re-enter the
@@ -1714,6 +1728,9 @@ void APIENTRY StrongCallList(const unsigned int list) noexcept {
 void APIENTRY StrongCallLists(
     const int count, const unsigned int type, const void* const lists
 ) noexcept {
+    TerrainTraceDraw(TerrainSubmission::lists,
+        reinterpret_cast<std::uintptr_t>(_ReturnAddress()), 0U, 0, count, type, 0U,
+        false, !IsCompilingDisplayListOnCurrentThread() && !g_immediate_primitive_open);
     MarkCompiledListStateChange();
     const auto original = LoadFunction<GlCallLists>(&g_original_call_lists);
     if (original != nullptr) {
@@ -1731,6 +1748,9 @@ void APIENTRY StrongDrawArrays(
 ) noexcept {
     const auto original = LoadFunction<GlDrawArrays>(&g_original_draw_arrays);
     if (original != nullptr) {
+        TerrainTraceDraw(TerrainSubmission::arrays,
+            reinterpret_cast<std::uintptr_t>(_ReturnAddress()), mode, first, count, 0U, 0U,
+            true, !IsCompilingDisplayListOnCurrentThread() && !g_immediate_primitive_open);
         const auto draw = [original, mode, first, count]() noexcept {
             original(mode, first, count);
         };
@@ -1765,6 +1785,9 @@ void APIENTRY StrongDrawElements(
 ) noexcept {
     const auto original = LoadFunction<GlDrawElements>(&g_original_draw_elements);
     if (original != nullptr) {
+        TerrainTraceDraw(TerrainSubmission::elements,
+            reinterpret_cast<std::uintptr_t>(_ReturnAddress()), mode, 0, count, type, 0U,
+            true, !IsCompilingDisplayListOnCurrentThread() && !g_immediate_primitive_open);
         const auto draw = [original, mode, count, type, indices]() noexcept {
             original(mode, count, type, indices);
         };
@@ -1793,6 +1816,7 @@ void APIENTRY StrongDrawElements(
 
 BOOL WINAPI StrongSwapBuffers(const HDC device_context) noexcept {
     const std::uint64_t performance_started_qpc = BeginPerformancePresent();
+    if (TerrainTracePresent()) { RequestGraphicsStatusPublish(); }
     ApplyPendingGraphicsControl();
     ReportSceneFrameClassification(g_scene_frame);
     ObserveGraphicsPresent();
@@ -2791,10 +2815,21 @@ DWORD StartStrongCelShading() noexcept {
         StopStrongCelShading();
         return present_result;
     }
+    if (g_scene_mapping_verified) {
+        wchar_t status_path[MAX_PATH]{};
+        if (GetGraphicsStatusPath(status_path, MAX_PATH) == ERROR_SUCCESS) {
+            StartTerrainTrace(status_path, image_base, nt->OptionalHeader.SizeOfImage,
+                GraphicsExecutableSha256Matches(
+                    "55fbad5f0110cd99b4085af72d1e8fddb782ccdec1491478492c18158f5c61bc")
+                    ? "55fbad5f0110cd99b4085af72d1e8fddb782ccdec1491478492c18158f5c61bc"
+                    : "a9a59004b36f9331bb85f85e7853a02a5d5f07bda9acb9ea4a8affbf169a54b8");
+        }
+    }
     return ERROR_SUCCESS;
 }
 
 void StopStrongCelShading() noexcept {
+    StopTerrainTrace();
     bool restored = true;
 #define WB_RESTORE_LIST_STATE_HOOK(name, parameters, arguments) \
     if (!RestoreHook(&g_list_slot_##name, &g_list_original_##name, \
