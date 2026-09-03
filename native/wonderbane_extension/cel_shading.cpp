@@ -8,6 +8,7 @@
 #include "performance_telemetry.h"
 #include "scene_frame.h"
 #include "reviewed_scene_boundary.h"
+#include "display_list_state_commands.h"
 
 #include <Windows.h>
 #include <intrin.h>
@@ -85,6 +86,7 @@ using GlShadeModel = void(APIENTRY*)(unsigned int mode);
 using GlBegin = void(APIENTRY*)(unsigned int mode);
 using GlEnd = void(APIENTRY*)();
 using GlCallList = void(APIENTRY*)(unsigned int list);
+using GlCallLists = void(APIENTRY*)(int count, unsigned int type, const void* lists);
 using GlNewList = void(APIENTRY*)(unsigned int list, unsigned int mode);
 using GlEndList = void(APIENTRY*)();
 using GlVertex3f = void(APIENTRY*)(float x, float y, float z);
@@ -139,6 +141,7 @@ PVOID volatile g_original_shade_model = nullptr;
 PVOID volatile g_original_begin = nullptr;
 PVOID volatile g_original_end = nullptr;
 PVOID volatile g_original_call_list = nullptr;
+PVOID volatile g_original_call_lists = nullptr;
 PVOID volatile g_original_new_list = nullptr;
 PVOID volatile g_original_end_list = nullptr;
 PVOID volatile g_original_vertex_3f = nullptr;
@@ -179,6 +182,7 @@ std::uint32_t* g_shade_model_slot = nullptr;
 std::uint32_t* g_begin_slot = nullptr;
 std::uint32_t* g_end_slot = nullptr;
 std::uint32_t* g_call_list_slot = nullptr;
+std::uint32_t* g_call_lists_slot = nullptr;
 std::uint32_t* g_new_list_slot = nullptr;
 std::uint32_t* g_end_list_slot = nullptr;
 std::uint32_t* g_vertex_3f_slot = nullptr;
@@ -231,6 +235,7 @@ struct CapturedVertex {
 
 struct CapturedDisplayListBounds {
     OutlineBounds bounds{};
+    HGLRC owner_context = nullptr;
     struct FeatureEdge {
         std::array<float, 3U> first{};
         std::array<float, 3U> second{};
@@ -240,6 +245,7 @@ struct CapturedDisplayListBounds {
     };
     std::vector<FeatureEdge> feature_edges{};
     bool planar_overlay_candidate = false;
+    bool source_state_stable = false;
     bool valid = false;
 };
 
@@ -251,11 +257,13 @@ struct CapturedPrimitiveRange {
 
 struct ActiveDisplayListCapture {
     unsigned int list = 0U;
+    HGLRC owner_context = nullptr;
     OutlineBounds bounds{};
     bool active = false;
     bool has_vertex = false;
     bool invalid = false;
     bool primitive_open = false;
+    bool source_state_changed = false;
     std::vector<CapturedVertex> vertices{};
     std::vector<CapturedPrimitiveRange> primitives{};
     std::vector<unsigned int> nested_lists{};
@@ -275,6 +283,28 @@ Function LoadFunction(PVOID volatile* const storage) noexcept {
         nullptr
     ));
 }
+
+void MarkCompiledListStateChange() noexcept {
+    if (g_active_display_list_capture.active) {
+        g_active_display_list_capture.source_state_changed = true;
+    }
+}
+
+#define WB_DECLARE_LIST_STATE_HOOK(name, parameters, arguments) \
+    PVOID volatile g_list_original_##name = nullptr; \
+    std::uint32_t* g_list_slot_##name = nullptr; \
+    void APIENTRY ListState##name parameters noexcept { \
+        MarkCompiledListStateChange(); \
+        const auto original = LoadFunction<decltype(&ListState##name)>( \
+            &g_list_original_##name); \
+        if (original != nullptr) { original arguments; } \
+    }
+WB_LIST_STATE_COMMANDS(WB_DECLARE_LIST_STATE_HOOK)
+#undef WB_DECLARE_LIST_STATE_HOOK
+#define WB_COUNT_LIST_STATE_HOOK(name, parameters, arguments) + 1U
+constexpr std::size_t kListStateCommandCount = 0U
+    WB_LIST_STATE_COMMANDS(WB_COUNT_LIST_STATE_HOOK);
+#undef WB_COUNT_LIST_STATE_HOOK
 
 struct VertexKey {
     std::array<std::uint32_t, 3U> bits{};
@@ -380,6 +410,12 @@ void AddFaceEdge(
         faces.edge = edge;
         faces.first_normal = normal;
     } else {
+        // Do not borrow alpha coverage across a discontinuous UV seam.
+        if (!edge.has_tex_coords
+            || faces.edge.first_tex_coord != edge.first_tex_coord
+            || faces.edge.second_tex_coord != edge.second_tex_coord) {
+            faces.edge.has_tex_coords = false;
+        }
         const float cosine = (
             faces.first_normal[0] * normal[0]
             + faces.first_normal[1] * normal[1]
@@ -776,6 +812,9 @@ void CaptureDisplayListBegin(const unsigned int mode) noexcept {
 void BeginDisplayListCapture(const unsigned int list) noexcept {
     g_active_display_list_capture = {};
     g_active_display_list_capture.list = list;
+    const auto current_context = LoadFunction<WglGetCurrentContext>(&g_get_current_context);
+    g_active_display_list_capture.owner_context = current_context != nullptr
+        ? current_context() : nullptr;
     g_active_display_list_capture.active = true;
     if (list < g_display_list_bounds.size()) {
         AcquireSRWLockExclusive(&g_display_list_lock);
@@ -876,6 +915,9 @@ void EndDisplayListCapture() noexcept {
         } catch (...) {
             captured.feature_edges.clear();
         }
+        captured.source_state_stable = !g_active_display_list_capture.source_state_changed
+            && g_active_display_list_capture.nested_lists.empty();
+        captured.owner_context = g_active_display_list_capture.owner_context;
         captured.valid = true;
         ReleaseSRWLockExclusive(&g_display_list_lock);
     }
@@ -981,6 +1023,19 @@ bool IsPlanarOverlayCandidate(const unsigned int list) noexcept {
     return candidate;
 }
 
+bool IsDisplayListSourceStateStable(const unsigned int list) noexcept {
+    if (list >= g_display_list_bounds.size()) { return false; }
+    const auto current_context = LoadFunction<WglGetCurrentContext>(&g_get_current_context);
+    const HGLRC context = current_context != nullptr ? current_context() : nullptr;
+    if (context == nullptr) { return false; }
+    AcquireSRWLockShared(&g_display_list_lock);
+    const bool stable = g_display_list_bounds[list].valid
+        && g_display_list_bounds[list].source_state_stable
+        && g_display_list_bounds[list].owner_context == context;
+    ReleaseSRWLockShared(&g_display_list_lock);
+    return stable;
+}
+
 bool IsFilledPrimitiveMode(const unsigned int mode) noexcept {
     switch (mode) {
         case kGlTriangles:
@@ -1080,8 +1135,10 @@ void DrawFeatureEdgeSegments(
     api.disable(kGlCullFace);
     api.line_width(contour_width);
     begin(kGlLines);
+    bool emitted = false;
     for (const CapturedDisplayListBounds::FeatureEdge& edge : edges) {
         if (preserve_alpha_test && (!edge.has_tex_coords || tex_coord == nullptr)) {
+            ++g_scene_frame.feature_accent_skipped_uv_segment_count;
             continue;
         }
         if (preserve_alpha_test) {
@@ -1092,9 +1149,11 @@ void DrawFeatureEdgeSegments(
             tex_coord(edge.second_tex_coord[0], edge.second_tex_coord[1]);
         }
         vertex(edge.second[0], edge.second[1], edge.second[2]);
+        emitted = true;
     }
     end();
     api.pop_attrib();
+    if (emitted) { ++g_scene_frame.feature_accent_draw_count; }
 }
 
 void DrawDisplayListFeatureEdges(
@@ -1108,7 +1167,7 @@ void DrawDisplayListFeatureEdges(
     }
     AcquireSRWLockShared(&g_display_list_lock);
     const CapturedDisplayListBounds& captured = g_display_list_bounds[list];
-    if (captured.valid && !captured.planar_overlay_candidate) {
+    if (captured.valid && !captured.planar_overlay_candidate && captured.source_state_stable) {
         DrawFeatureEdgeSegments(
             captured.feature_edges, api, outline_width, preserve_alpha_test
         );
@@ -1283,7 +1342,8 @@ void DrawWithSilhouette(
     const Draw& draw,
     const unsigned int feature_list = UINT32_MAX,
     const ArrayFeatureRequest* const array_features = nullptr,
-    const DrawSubmission submission = DrawSubmission::display_list
+    const DrawSubmission submission = DrawSubmission::display_list,
+    const bool source_state_stable = true
 ) noexcept {
     OutlineApi api{};
     std::array<float, 16U> projection{};
@@ -1301,19 +1361,22 @@ void DrawWithSilhouette(
         static_cast<int>(InterlockedCompareExchange(&g_viewport_width, 0, 0)),
         static_cast<int>(InterlockedCompareExchange(&g_viewport_height, 0, 0)),
     };
-    RefreshFixedFunctionState();
+    if (!RefreshFixedFunctionState()) {
+        draw();
+        return;
+    }
+    const FixedFunctionStateMirror source_state = g_fixed_function_state;
     const bool perspective = IsPerspectiveProjectionMatrix(
         projection.data(), projection.size()
     );
     const GraphicsParameters graphics_parameters = CurrentGraphicsParameters();
-    const bool outline_enabled = (
+    const bool feature_requested = (
         graphics_parameters.flags & kGraphicsControlFeatureAccents
-    ) != 0U && IsFeatureAccentDrawState(
-        IsLocalOutlineModelViewMatrix(model_view.data(), model_view.size()),
-        g_fixed_function_state.depth_writes,
-        g_fixed_function_state.blend_enabled,
-        g_fixed_function_state.lighting_enabled
-    );
+    ) != 0U && IsLocalOutlineModelViewMatrix(model_view.data(), model_view.size());
+    const bool outline_enabled = feature_requested && source_state_stable
+        && source_state.depth_test_enabled && IsFeatureAccentDrawState(
+            true, source_state.depth_writes, source_state.blend_enabled,
+            source_state.lighting_enabled);
     bool array_planar_overlay_candidate = false;
     auto feature_edges = array_features == nullptr
         ? std::vector<CapturedDisplayListBounds::FeatureEdge>{}
@@ -1346,23 +1409,30 @@ void DrawWithSilhouette(
         return;
     }
 
+    if (feature_requested && !source_state_stable) {
+        ++g_scene_frame.feature_accent_skipped_source_state_count;
+    } else if (feature_requested && source_state.blend_enabled) {
+        ++g_scene_frame.feature_accent_skipped_blend_count;
+    }
     const float outline_width = outline_enabled
         ? graphics_parameters.feature_outline_width
         : 0.0F;
 
-    DrawWithBandedLighting(draw);
+    // Mixed-state lists own their internal material/transform sequence.
+    if (source_state_stable) { DrawWithBandedLighting(draw); }
+    else { draw(); }
     if (outline_enabled && feature_list != UINT32_MAX) {
         DrawDisplayListFeatureEdges(
             feature_list, api, outline_width,
-            g_fixed_function_state.alpha_test_enabled
+            source_state.alpha_test_enabled
         );
     } else if (outline_enabled && !feature_edges.empty()) {
         DrawFeatureEdgeSegments(
             feature_edges, api, outline_width,
-            g_fixed_function_state.alpha_test_enabled
+            source_state.alpha_test_enabled
         );
     }
-    if (g_fixed_function_state.depth_writes) {
+    if (source_state.depth_writes) {
         const auto get_integerv = LoadFunction<GlGetIntegerv>(&g_get_integerv);
         int model_view_stack_depth = 0;
         if (get_integerv != nullptr) {
@@ -1529,6 +1599,7 @@ void APIENTRY StrongViewport(
     const int width,
     const int height
 ) noexcept {
+    MarkCompiledListStateChange();
     const auto original = LoadFunction<GlViewport>(&g_original_viewport);
     if (original != nullptr) {
         original(x, y, width, height);
@@ -1573,6 +1644,7 @@ __declspec(noinline) void APIENTRY StrongClear(const unsigned int mask) noexcept
 }
 
 __declspec(noinline) void APIENTRY StrongMatrixMode(const unsigned int mode) noexcept {
+    MarkCompiledListStateChange();
     const auto caller = reinterpret_cast<std::uintptr_t>(_ReturnAddress());
     if (mode == 0x1701U && g_scene_mapping_verified
         && !IsCompilingDisplayListOnCurrentThread() && !g_immediate_primitive_open
@@ -1602,6 +1674,7 @@ void APIENTRY StrongCallList(const unsigned int list) noexcept {
     const auto original = LoadFunction<GlCallList>(&g_original_call_list);
     if (original != nullptr) {
         if (IsCompilingDisplayListOnCurrentThread()) {
+            MarkCompiledListStateChange();
             if (g_active_display_list_capture.nested_lists.size()
                 == kMaximumNestedDisplayListsPerList) {
                 g_active_display_list_capture.invalid = true;
@@ -1615,11 +1688,12 @@ void APIENTRY StrongCallList(const unsigned int list) noexcept {
             original(list);
             return;
         }
-        const auto draw = [original, list]() noexcept {
+        const bool stable = IsDisplayListSourceStateStable(list);
+        const auto draw = [original, list, stable]() noexcept {
             original(list);
             // Playback executes inside OpenGL and does not re-enter the
             // executable's glEnable/glDisable/glDepthMask import hooks.
-            InvalidateObservedFixedFunctionState();
+            if (!stable) { InvalidateObservedFixedFunctionState(); }
         };
         if (g_immediate_primitive_open) {
             draw();
@@ -1629,8 +1703,22 @@ void APIENTRY StrongCallList(const unsigned int list) noexcept {
             draw,
             list,
             nullptr,
-            DrawSubmission::display_list
+            DrawSubmission::display_list,
+            stable
         );
+    }
+}
+
+void APIENTRY StrongCallLists(
+    const int count, const unsigned int type, const void* const lists
+) noexcept {
+    MarkCompiledListStateChange();
+    const auto original = LoadFunction<GlCallLists>(&g_original_call_lists);
+    if (original != nullptr) {
+        original(count, type, lists);
+        if (!IsCompilingDisplayListOnCurrentThread()) {
+            InvalidateObservedFixedFunctionState();
+        }
     }
 }
 
@@ -1645,6 +1733,7 @@ void APIENTRY StrongDrawArrays(
             original(mode, first, count);
         };
         if (IsCompilingDisplayListOnCurrentThread()) {
+            MarkCompiledListStateChange();
             draw();
         } else if (IsOutlinePrimitive(mode, count)) {
             const ArrayFeatureRequest request{mode, first, count, 0U, nullptr};
@@ -1678,6 +1767,7 @@ void APIENTRY StrongDrawElements(
             original(mode, count, type, indices);
         };
         if (IsCompilingDisplayListOnCurrentThread()) {
+            MarkCompiledListStateChange();
             draw();
         } else if (IsOutlinePrimitive(mode, count)) {
             const ArrayFeatureRequest request{mode, 0, count, type, indices};
@@ -1769,6 +1859,7 @@ struct ImportHookPlan {
     std::uint32_t* slot;
     PVOID volatile* original_storage;
     std::uint32_t** slot_storage;
+    bool required = true;
 };
 
 struct HelperFunctionPlan {
@@ -1971,6 +2062,7 @@ void APIENTRY StrongTexCoordPointer(
 }
 
 void APIENTRY StrongEnable(const unsigned int capability) noexcept {
+    MarkCompiledListStateChange();
     const auto original = LoadFunction<GlEnable>(&g_enable);
     if (original != nullptr) {
         original(capability);
@@ -1981,6 +2073,7 @@ void APIENTRY StrongEnable(const unsigned int capability) noexcept {
 }
 
 void APIENTRY StrongDisable(const unsigned int capability) noexcept {
+    MarkCompiledListStateChange();
     const auto original = LoadFunction<GlDisable>(&g_disable);
     if (original != nullptr) {
         original(capability);
@@ -1991,6 +2084,7 @@ void APIENTRY StrongDisable(const unsigned int capability) noexcept {
 }
 
 void APIENTRY StrongDepthMask(const unsigned char flag) noexcept {
+    MarkCompiledListStateChange();
     const auto original = LoadFunction<GlDepthMask>(&g_depth_mask);
     if (original != nullptr) {
         original(flag);
@@ -2003,6 +2097,7 @@ void APIENTRY StrongDepthMask(const unsigned char flag) noexcept {
 }
 
 void APIENTRY StrongPopAttrib() noexcept {
+    MarkCompiledListStateChange();
     const auto original = LoadFunction<GlPopAttrib>(&g_pop_attrib);
     if (original != nullptr) {
         original();
@@ -2181,7 +2276,7 @@ bool IsFeatureAccentDrawState(
     const bool lighting_enabled
 ) noexcept {
     return local_model
-        && (depth_writes || (!blend_enabled && lighting_enabled));
+        && !blend_enabled && (depth_writes || lighting_enabled);
 }
 
 DWORD InstallGraphicsPresentHook(
@@ -2299,11 +2394,18 @@ void StopGraphicsPresentObservation() noexcept {
 
 DWORD StartStrongCelShading() noexcept {
     static_assert(sizeof(void*) == sizeof(std::uint32_t));
+#define WB_CHECK_LIST_STATE_HOOK(name, parameters, arguments) \
+    if (g_list_slot_##name != nullptr || g_list_original_##name != nullptr) { \
+        return ERROR_ALREADY_INITIALIZED; \
+    }
+    WB_LIST_STATE_COMMANDS(WB_CHECK_LIST_STATE_HOOK)
+#undef WB_CHECK_LIST_STATE_HOOK
     if (
         g_shade_model_slot != nullptr
         || g_begin_slot != nullptr
         || g_end_slot != nullptr
         || g_call_list_slot != nullptr
+        || g_call_lists_slot != nullptr
         || g_new_list_slot != nullptr
         || g_end_list_slot != nullptr
         || g_vertex_3f_slot != nullptr
@@ -2326,6 +2428,7 @@ DWORD StartStrongCelShading() noexcept {
         || g_original_begin != nullptr
         || g_original_end != nullptr
         || g_original_call_list != nullptr
+        || g_original_call_lists != nullptr
         || g_original_new_list != nullptr
         || g_original_end_list != nullptr
         || g_original_vertex_3f != nullptr
@@ -2378,7 +2481,16 @@ DWORD StartStrongCelShading() noexcept {
     ) {
         return ERROR_BAD_EXE_FORMAT;
     }
-    std::array<ImportHookPlan, 21U> plans{{
+    std::array<ImportHookPlan, 22U + kListStateCommandCount> plans{{
+#define WB_PLAN_LIST_STATE_HOOK(name, parameters, arguments) \
+        {"gl" #name, reinterpret_cast<PVOID>(&ListState##name), nullptr, nullptr, \
+            &g_list_original_##name, &g_list_slot_##name, false},
+        WB_LIST_STATE_COMMANDS(WB_PLAN_LIST_STATE_HOOK)
+#undef WB_PLAN_LIST_STATE_HOOK
+        {
+            "glCallLists", reinterpret_cast<PVOID>(&StrongCallLists),
+            nullptr, nullptr, &g_original_call_lists, &g_call_lists_slot, false,
+        },
         {
             "glPopAttrib",
             reinterpret_cast<PVOID>(&StrongPopAttrib),
@@ -2561,6 +2673,8 @@ DWORD StartStrongCelShading() noexcept {
             plan.symbol_name
         );
         plan.original = reinterpret_cast<PVOID>(GetProcAddress(opengl, plan.symbol_name));
+        // Optional commands not imported by this client have no slot to replace.
+        if (plan.slot == nullptr && !plan.required) { continue; }
         if (plan.slot == nullptr || plan.original == nullptr) {
             return ERROR_PROC_NOT_FOUND;
         }
@@ -2585,7 +2699,7 @@ DWORD StartStrongCelShading() noexcept {
     }
     for (std::size_t left = 0U; left < plans.size(); ++left) {
         for (std::size_t right = left + 1U; right < plans.size(); ++right) {
-            if (plans[left].slot == plans[right].slot) {
+            if (plans[left].slot != nullptr && plans[left].slot == plans[right].slot) {
                 return ERROR_INVALID_DATA;
             }
         }
@@ -2644,6 +2758,7 @@ DWORD StartStrongCelShading() noexcept {
         ReportDepthEdgePassFailure("unreviewed-client-scene-boundary");
     }
     for (ImportHookPlan& plan : plans) {
+        if (plan.slot == nullptr) { continue; }
         InterlockedExchangePointer(plan.original_storage, plan.original);
         const DWORD result = ReplaceImportSlot(
             plan.slot,
@@ -2678,6 +2793,13 @@ DWORD StartStrongCelShading() noexcept {
 
 void StopStrongCelShading() noexcept {
     bool restored = true;
+#define WB_RESTORE_LIST_STATE_HOOK(name, parameters, arguments) \
+    if (!RestoreHook(&g_list_slot_##name, &g_list_original_##name, \
+            reinterpret_cast<PVOID>(&ListState##name))) { restored = false; }
+    WB_LIST_STATE_COMMANDS(WB_RESTORE_LIST_STATE_HOOK)
+#undef WB_RESTORE_LIST_STATE_HOOK
+    if (!RestoreHook(&g_call_lists_slot, &g_original_call_lists,
+            reinterpret_cast<PVOID>(&StrongCallLists))) { restored = false; }
     if (!RestoreHook(&g_pop_attrib_slot, &g_pop_attrib,
             reinterpret_cast<PVOID>(&StrongPopAttrib))) {
         restored = false;

@@ -160,6 +160,64 @@ void APIENTRY FakeRestoreAttributes() { test_alpha_enabled = true; }
 void APIENTRY FakeExecuteList(unsigned int) { test_alpha_enabled = true; }
 void APIENTRY FakeFinishList() {}
 
+void CaptureTestTriangle() {
+    using namespace wonderbane::extension;
+    CaptureDisplayListBegin(0x0004U);
+    CaptureDisplayListVertex(0.0F, 0.0F, 0.0F);
+    CaptureDisplayListVertex(1.0F, 0.0F, 0.0F);
+    CaptureDisplayListVertex(0.0F, 1.0F, 0.0F);
+    CloseCapturedPrimitive();
+}
+
+bool CheckDisplayListSourceOwnership() {
+    using namespace wonderbane::extension;
+    g_get_current_context = reinterpret_cast<PVOID>(&FakeCurrentContext);
+    BeginDisplayListCapture(101U);
+    CaptureTestTriangle();
+    EndDisplayListCapture();
+    bool ok = IsDisplayListSourceStateStable(101U);
+    ++test_context;
+    ok = ok && !IsDisplayListSourceStateStable(101U);
+    --test_context;
+    BeginDisplayListCapture(101U);  // Redefinition must retire old provenance.
+    CaptureTestTriangle();
+    ListStateBindTexture(0x0DE1U, 22U);
+    ListStateBindTexture(0x0DE1U, 1U);  // Even restored state remains unsafe.
+    EndDisplayListCapture();
+    ok = ok && !IsDisplayListSourceStateStable(101U);
+
+    BeginDisplayListCapture(102U);
+    CaptureTestTriangle();
+    ListStateAlphaFunc(0x0204U, 0.5F);
+    EndDisplayListCapture();
+    ok = ok && !IsDisplayListSourceStateStable(102U);
+    BeginDisplayListCapture(103U);
+    CaptureTestTriangle();
+    ListStatePushMatrix();
+    ListStateTranslatef(1.0F, 0.0F, 0.0F);
+    ListStatePopMatrix();
+    EndDisplayListCapture();
+    ok = ok && !IsDisplayListSourceStateStable(103U);
+    BeginDisplayListCapture(104U);
+    CaptureTestTriangle();
+    g_active_display_list_capture.nested_lists.push_back(101U);
+    EndDisplayListCapture();
+    ok = ok && !IsDisplayListSourceStateStable(104U);
+    ok = ok && !IsDisplayListSourceStateStable(105U);
+
+    CapturedEdgeMap edges{};
+    CapturedVertex first{{0.0F, 0.0F, 0.0F}, {0.0F, 0.0F}, true};
+    CapturedVertex second{{1.0F, 0.0F, 0.0F}, {1.0F, 0.0F}, true};
+    AddFaceEdge(&edges, first, second, {0.0F, 0.0F, 1.0F});
+    ok = ok && edges.begin()->second.edge.has_tex_coords;
+    first.tex_coord = {0.5F, 0.5F};
+    AddFaceEdge(&edges, first, second, {0.0F, 1.0F, 0.0F});
+    ok = ok && !edges.begin()->second.edge.has_tex_coords;
+    ClearDisplayListBounds();
+    g_get_current_context = nullptr;
+    return ok;
+}
+
 bool CheckStateRestoreRegressions() {
     using namespace wonderbane::extension;
     g_get_booleanv = reinterpret_cast<PVOID>(&FakeStateQuery);
@@ -218,6 +276,9 @@ bool CheckStateRestoreRegressions() {
 int wmain() {
     if (!CheckStateRestoreRegressions()) {
         return Fail(L"restored/display-list/context state coherence");
+    }
+    if (!CheckDisplayListSourceOwnership()) {
+        return Fail(L"display-list and cutout UV source ownership");
     }
     std::vector<std::uint8_t> image = Fixture();
     for (std::size_t index = 0U; index < kImportNames.size(); ++index) {
@@ -382,6 +443,9 @@ int wmain() {
         )
         || wonderbane::extension::IsFeatureAccentDrawState(
             true, false, true, true
+        )
+        || wonderbane::extension::IsFeatureAccentDrawState(
+            true, true, true, true
         )
         || wonderbane::extension::IsFeatureAccentDrawState(
             true, false, false, false

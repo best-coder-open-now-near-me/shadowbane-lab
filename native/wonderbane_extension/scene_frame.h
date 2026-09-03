@@ -87,6 +87,10 @@ struct SceneFrameState {
     std::uint64_t last_world_draw_ordinal = 0U;
     std::uint64_t fixed_function_refresh_count = 0U;
     std::uint64_t fixed_function_state_invalidation_count = 0U;
+    std::uint64_t feature_accent_draw_count = 0U;
+    std::uint64_t feature_accent_skipped_blend_count = 0U;
+    std::uint64_t feature_accent_skipped_source_state_count = 0U;
+    std::uint64_t feature_accent_skipped_uv_segment_count = 0U;
     std::uint64_t main_scene_start_count = 0U;
     std::uint64_t main_scene_world_draw_count = 0U;
     bool boundary_mapping_verified = false;

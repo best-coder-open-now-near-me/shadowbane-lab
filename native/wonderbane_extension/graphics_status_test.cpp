@@ -149,6 +149,10 @@ int wmain() {
     classified_frame.last_world_draw_ordinal = 5U;
     classified_frame.fixed_function_refresh_count = 1U;
     classified_frame.fixed_function_state_invalidation_count = 2U;
+    classified_frame.feature_accent_draw_count = 3U;
+    classified_frame.feature_accent_skipped_blend_count = 4U;
+    classified_frame.feature_accent_skipped_source_state_count = 5U;
+    classified_frame.feature_accent_skipped_uv_segment_count = 6U;
     classified_frame.main_scene_start_count = 1U;
     classified_frame.main_scene_world_draw_count = 2U;
     classified_frame.boundary_mapping_verified = true;
@@ -284,6 +288,10 @@ int wmain() {
         || json.find("\"main_scene_invalidated\":false") == std::string::npos
         || json.find("\"composite_succeeded\":true") == std::string::npos
         || json.find("\"fixed_function_state_invalidation_count\":2") == std::string::npos
+        || json.find("\"feature_accent_draw_count\":3") == std::string::npos
+        || json.find("\"feature_accent_skipped_blend_count\":4") == std::string::npos
+        || json.find("\"feature_accent_skipped_source_state_count\":5") == std::string::npos
+        || json.find("\"feature_accent_skipped_uv_segment_count\":6") == std::string::npos
         || json.find("\"state_boundary_refreshes\":\"counted-invalidations\"")
             == std::string::npos
         || json.find("\"fixed_function_state\":\"cached-with-transition-hooks\"")

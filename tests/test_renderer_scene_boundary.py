@@ -72,6 +72,19 @@ def test_legacy_policy_cannot_claim_unaccounted_extra_refreshes(tmp_path):
     assert not assess(tmp_path, executable, identity, payload).complete
 
 
+@pytest.mark.parametrize("counter", [0, 12, True, -1, None])
+def test_optional_feature_counters_are_complete_and_typed(tmp_path, counter):
+    executable, identity, payload = reviewed_status(tmp_path)
+    payload["draw_classification"]["latest"].update(
+        feature_accent_draw_count=2,
+        feature_accent_skipped_blend_count=3,
+        feature_accent_skipped_source_state_count=4,
+        feature_accent_skipped_uv_segment_count=counter,
+    )
+    result = assess(tmp_path, executable, identity, payload)
+    assert result.complete is (type(counter) is int and counter >= 0)
+
+
 @pytest.mark.parametrize("field,value", [
     ("boundary_mapping_verified", False),
     ("boundary_mapping_verified", 1),

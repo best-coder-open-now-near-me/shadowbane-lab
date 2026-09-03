@@ -59,10 +59,37 @@ features for a list that changes and restores state around individual geometry:
 that needs a source-state ownership policy, not a post-list snapshot guess.
 No test package is released from this checkpoint alone.
 
+State-coherence checkpoint `52f6606` is committed and pushed. Validation:
+1,421 Python tests passed, 7 local privilege-dependent skips, 211 subtests;
+Ruff passed; 12/12 native tests passed for full and diagnostics-only profiles.
+
+### Material ownership
+
+Feature replay now requires a captured list with stable source state belonging
+to the current OpenGL context. Recorded texture/alpha/color/transform commands,
+nested list calls, unsupported captured vertex submissions, and array submissions
+inside lists invalidate that proof. The original draw remains intact; opaque
+interior ink and the inherited-lighting wrapper are not applied to mixed-state
+lists. This deliberately trades unsupported accent coverage for correct material
+ownership; it is not a claim that all display-list materials are reconstructed.
+The exact pre-UI depth composite is unchanged.
+
+Opaque interior accents no longer force their way onto blended materials,
+including depth-writing translucent draws. Cutout edges require unambiguous
+endpoint UVs; a shared geometric edge with conflicting face UVs is not replayed
+using one face's coverage. Neutral known lists avoid unnecessary state refreshes.
+
+Four additive per-frame counters report accent draws, skipped blended draws,
+skipped unowned-source draws, and skipped missing/ambiguous-UV segments. The
+diagnostics consumer validates these as a complete group when present, while
+continuing to read older captures. These counts support pass attribution; they
+are not semantic actor/material IDs and do not establish the observed object's
+cause before the next live capture.
+
 ## Acceptance queue
 
-1. State-coherence tests and both native profiles.
-2. Source-owned transparency/feature replay policy and truthful accent controls.
+1. COMPLETE: state-coherence tests and both native profiles; checkpoint pushed.
+2. ACTIVE: source-owned transparency/feature replay policy and truthful accent controls.
 3. Complete Python, native, package and source checks; distinct versioned release.
 4. Testing-VM-only retest after explicit keyboard/mouse handoff. Preserve current
    settings, capture exact process identity, pass toggles and per-frame evidence,

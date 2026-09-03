@@ -1017,6 +1017,10 @@ DWORD PublishSnapshot(const PublisherSnapshot& snapshot) noexcept {
         "\"last_world_draw_ordinal\":%llu,"
         "\"fixed_function_refresh_count\":%llu,"
         "\"fixed_function_state_invalidation_count\":%llu,"
+        "\"feature_accent_draw_count\":%llu,"
+        "\"feature_accent_skipped_blend_count\":%llu,"
+        "\"feature_accent_skipped_source_state_count\":%llu,"
+        "\"feature_accent_skipped_uv_segment_count\":%llu,"
         "\"main_scene_start_count\":%llu,\"main_scene_world_draw_count\":%llu,"
         "\"boundary_mapping_verified\":%s,\"main_scene_invalidated\":%s,"
         "\"composite_succeeded\":%s},\"totals\":{\"layers\":{"
@@ -1093,6 +1097,10 @@ DWORD PublishSnapshot(const PublisherSnapshot& snapshot) noexcept {
         static_cast<unsigned long long>(
             snapshot.status.latest_scene_frame.fixed_function_state_invalidation_count
         ),
+        static_cast<unsigned long long>(snapshot.status.latest_scene_frame.feature_accent_draw_count),
+        static_cast<unsigned long long>(snapshot.status.latest_scene_frame.feature_accent_skipped_blend_count),
+        static_cast<unsigned long long>(snapshot.status.latest_scene_frame.feature_accent_skipped_source_state_count),
+        static_cast<unsigned long long>(snapshot.status.latest_scene_frame.feature_accent_skipped_uv_segment_count),
         static_cast<unsigned long long>(snapshot.status.latest_scene_frame.main_scene_start_count),
         static_cast<unsigned long long>(snapshot.status.latest_scene_frame.main_scene_world_draw_count),
         snapshot.status.latest_scene_frame.boundary_mapping_verified ? "true" : "false",

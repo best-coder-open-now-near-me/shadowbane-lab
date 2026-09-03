@@ -562,6 +562,13 @@ def _validate_composite_journal(
 
 
 def _validate_classification_counts(value: dict[str, Any], field_name: str) -> None:
+    feature_counters = (
+        "feature_accent_draw_count", "feature_accent_skipped_blend_count",
+        "feature_accent_skipped_source_state_count", "feature_accent_skipped_uv_segment_count",
+    )
+    if any(name in value for name in feature_counters):
+        for name in feature_counters:
+            _non_negative_counter(value.get(name), f"{field_name}.{name}")
     layers = _mapping(value.get("layers"), f"{field_name}.layers")
     reasons = _mapping(value.get("reasons"), f"{field_name}.reasons")
     if set(layers) != set(_DRAW_LAYER_NAMES):
