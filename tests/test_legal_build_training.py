@@ -8,6 +8,7 @@ from shadowbane_lab.optimization import (
     EquipmentSelection,
     LegalBuildCompileError,
     LegalBuildGenome,
+    genome_mechanical_digest,
 )
 from shadowbane_lab.optimization.irekei_assassin import (
     IrekeiAssassinSearchConfig,
@@ -57,6 +58,28 @@ class CatalogBackedLegalityGateTests(unittest.TestCase):
         self.assertEqual("unarmed_combat", requirement.semantic_skill_key)
         self.assertEqual(110, requirement.observed_rank)
         self.assertGreaterEqual(audit.opaque_item_requirement_count, 1)
+
+    def test_optimizer_identity_ignores_labels_and_input_order(self) -> None:
+        first = self.genome(
+            genome_id="first-label",
+            display_name="First Label",
+            rune_ids=(22, 11),
+            skill_ranks=(("unarmed", 110), ("dodge", 50)),
+            power_ranks=(("power.two", 2), ("power.one", 1)),
+        )
+        second = self.genome(
+            genome_id="second-label",
+            display_name="Second Label",
+            rune_ids=(11, 22),
+            skill_ranks=(("dodge", 50), ("unarmed", 110)),
+            power_ranks=(("power.one", 1), ("power.two", 2)),
+        )
+
+        self.assertNotEqual(first.genome_digest, second.genome_digest)
+        self.assertEqual(
+            genome_mechanical_digest(first),
+            genome_mechanical_digest(second),
+        )
 
     def test_power_rank_lower_bound_cannot_exceed_rogue_pool(self) -> None:
         with self.assertRaisesRegex(
@@ -117,7 +140,7 @@ class IrekeiAssassinTrainingTests(unittest.TestCase):
         assert best is not None
         self.assertEqual(
             best.evaluation.candidate_digest,
-            best.candidate.genome_digest,
+            genome_mechanical_digest(best.candidate),
         )
 
     def test_report_keeps_candidate_evidence_boundary_explicit(self) -> None:
