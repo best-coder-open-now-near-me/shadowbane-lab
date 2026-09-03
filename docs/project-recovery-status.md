@@ -1,5 +1,98 @@
 # Project recovery ledger
 
+## Current reassessment: 2026-09-03 01:04 America/New_York
+
+This section supersedes the September 2 status/queue below. The earlier audit is
+retained as dated evidence. The user reports the parallel slices mostly finished,
+with simulator work still active; the inspected renderer/terrain handoffs agree.
+
+### Completed source versus unfinished acceptance
+
+| Lane | Pinned tip | Current disposition |
+| --- | --- | --- |
+| PvE / reviewed scene-boundary recovery | `pve-target-authority@3a605e4` | Unchanged; recovery 1.6.9 built/pushed, live acceptance still pending |
+| Asset facade | `mod-asset-facade@ba95232` | Completed offline compiler/materializer; no activation coordinator |
+| Terrain seam audit | `terrain-seam-audit@8df7694` | Implemented, pushed, all seven CI jobs passed; real-cache audit not yet performed |
+| Sustained contours | `renderer-sustained-contours@bc076d7` | Implemented, pushed, push/PR CI passed; draft PR #24, live/performance validation and packaging pending |
+| Portable diagnostics | `portable-vanilla-diagnostics@f6c1980` | Unchanged released tool; still outside shared convergence source |
+| Simulator | `legal-build-map-elites-foundation@7bac704` | Active work; latest inspected push/PR checks failing. Hold out of this non-simulator integration batch |
+| Sandbox session coordinator | No implementation ref found | Still planned, despite completion of the other parallel slices |
+
+Terrain now supplies read-only border/gradient/corner analysis, fail-closed CZone
+role correlation, source hashes, per-map JSON, deterministic heatmaps, schemas and
+a CLI. It does not repair terrain. Its completed handoff explicitly leaves the
+first real WonderBane archive run pending.
+[Terrain CI](https://github.com/best-coder-open-now-near-me/shadowbane-lab/actions/runs/33713371438).
+
+Contours now supplies optional same-direction second-ring support, independent
+thresholds, four diagnostic views, Graphics Control schema 2, preset migration,
+parameter/revision evidence and native fixtures. Legacy contours remain the
+default. The previous source-export commits were replaced by one implementation
+commit directly above `ba95232`; this was a rewritten branch tip, not another
+implementation to merge separately.
+[Contour PR #24](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/24).
+[Contour push CI](https://github.com/best-coder-open-now-near-me/shadowbane-lab/actions/runs/33713745063).
+[Contour PR CI](https://github.com/best-coder-open-now-near-me/shadowbane-lab/actions/runs/33713748247).
+
+The inspected simulator tip has advanced well beyond the earlier rank repair.
+Its current failures include duplicate initial candidate digests and a strict
+action-prerequisite expectation, plus the quality gate. Do not treat the earlier
+`b65eb73` green checkpoint as evidence for this new tip, and do not interfere
+with the still-active simulator work to finish renderer integration.
+[Inspected simulator CI](https://github.com/best-coder-open-now-near-me/shadowbane-lab/actions/runs/33714554271).
+
+### New integration footguns
+
+1. Both renderer recovery and sustained contours independently use extension
+   version **1.6.9**, but only recovery includes the reviewed main-scene clear and
+   exact pre-UI boundary. Contours still inherits the old 1.6.8 scene logic.
+   Preserve recovery as the integration base; merge the contour implementation
+   into it, never deploy the contour branch wholesale as a replacement.
+2. The native contour DLL and Python panel must ship together: schema-1 saved
+   presets migrate, but schema-1 **live mappings** are rejected by the new panel.
+   Updating only the panel could again make an older running client disappear
+   from discovery. This is intentional protocol rejection, not lost shader settings.
+3. Contour publication/launch scripts deliberately remain pinned to the old 1.6.8
+   artifact. A combined source tree must receive a distinct release version,
+   freshly built hashes, matching launcher/publisher/package checks and a matching
+   panel. Preserve the existing recovery 1.6.9 artifact as a rollback reference.
+4. A non-mutating recovery + contour merge preview reports one textual conflict
+   in `docs/client-extension.md`. Native files auto-merge, but that is not a build
+   or semantic-validation result. Verify both scene ownership and new contour
+   uniforms/control fields in the combined runtime.
+5. Recovery + terrain and terrain + contours preview without textual conflicts.
+   Each includes the asset-facade ancestry, so merge that shared history once.
+   Recovery + portable diagnostics also previews cleanly.
+
+### Revised next-work queue
+
+1. Integrate the finished **non-simulator** slices into
+   `codex/client-convergence-v2`: recovery/PvE -> asset facade -> terrain audit ->
+   sustained contours -> portable diagnostics. Use small validated checkpoints;
+   do not wait for simulator completion or fold in its moving tip.
+2. Stabilize the shared timing-sensitive vendor-dialog fixture as needed for the
+   combined gate. Run the full Python matrix, lint, both Win32 profiles/CTest,
+   PowerShell parsing, package boundaries and focused terrain/contour/control tests.
+   The tests from each original branch do not certify their union.
+3. Seal the integrated renderer under a distinct version with a matching panel.
+   Then use an authorized testing-VM release to check ordinary legacy rendering
+   first, followed by sustained/diagnostic A/B evidence at the same camera, zone,
+   resolution, content profile and backend. Keep the plain VM untouched.
+4. Run the read-only terrain audit against the pristine frozen archives and retain
+   its source identities; do not use whichever modified cache happens to be installed.
+5. Build the missing verified sandbox coordinator. Surface provenance, world
+   targets, normal/class buffers and repair remain later work.
+6. Integrate a pinned, validated simulator checkpoint when that work is ready.
+
+The main checkout's six tracked formatting edits, 229 untracked entries, the old
+streaming worktree's eight edits plus reject file, and the old stash are still
+preserved. The testing share remains at `d00af62` with its existing 22 untracked
+files. No runtime source, client package or VM was changed by this reassessment.
+The earlier documentation checkpoint `d02c060` was still local at reassessment
+start; publishing the ledger is not a feature integration or deployment.
+
+## Archived audit: 2026-09-02
+
 Snapshot: 2026-09-02 23:42 America/New_York (2026-09-03 UTC).
 This is a branch/evidence inventory, not a claim that all listed features are
 integrated, deployed, or live-verified. Re-fetch before acting: two remote tips
