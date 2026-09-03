@@ -541,3 +541,16 @@ first candidate, accepted boundary, first late world, and last world draws. The 
 reconciles those milestones with the layer totals and refuses to claim world/UI separation unless
 the last world draw precedes the accepted boundary. This records the ordering evidence that the
 1.6.6 and 1.6.7 aggregate counters could not preserve.
+
+### 1.6.9: reviewed main-scene boundary recovery
+
+Live 1.6.8 ordering evidence disproved the armed-depth heuristic: preliminary
+geometry and early overlays could still consume the scene before the main clear.
+The renderer now uses the reviewed client's main-clear and `done3D` UI setup
+call sites, guarded by exact executable identity and a relocation-normalized hash
+of the complete owning routine. It keeps one GPU-only capture/composite before
+UI, preserves the main projection, and reports latest-frame composite success.
+Unknown mappings keep original rendering; no guessed boundary is substituted.
+
+The durable evidence, mapping, regression cases, artifact pins and outstanding
+live acceptance are in [the recovery journal](investigations/renderer-scene-boundary.md).

@@ -74,6 +74,30 @@ includes the long early-overlay regression, duplicate/missing/invalidated main
 scenes, code drift, relocation, failed GPU composites, latest-frame success, and
 late draws immediately after the between-draw boundary.
 
-Next: seal the separately versioned release artifact and its launcher hash pins.
+Release artifacts: native version 1.6.9.0, built with MSVC Win32 Release.
+The graphics publish/launch scripts pin the full artifact; the diagnostics
+publisher pins the separate diagnostics-only artifact. These pins are verified
+against the built files, not copied from an earlier release.
+
+- Full renderer: 281088 bytes, SHA-256
+  `51fa86429fa65f1a1bbef7d384acd455bd06fcbad9b264bca453d504f01d9327`.
+- Diagnostics only: 204288 bytes, SHA-256
+  `0290a809e5a550af863d64348b144b677009b2f9ee60fea6f6866822887518d5`.
+- Renderer implementation checkpoint: `37218ca`.
+
+Release validation repeated both 12-test native profiles and the full Python
+suite (1329 passed, 6 skipped, 211 subtests), plus lint and Python wheel packaging.
+All three publication/launch scripts parse without execution and match their
+built DLL hashes. Offline bootstrap authoring with the new DLL reproduces the
+expected `a9a59004` executable and leaves the reviewed scene routine unchanged.
+
+Next: publish 1.6.9 to the testing VM only when authorized, then visually verify
+the affected scene (including a second launch and a revisit). Required journal:
+`boundary_mapping_verified=true`, `main_scene_start_count=1`,
+`main_scene_invalidated=false`, `boundary_count=1`,
+`composite_succeeded=true`, `late_world_draw_count=0`, and
+`last_world_draw_ordinal < accepted_boundary_draw_ordinal`.
+Check character/prop outlines and ground seams, untouched text/UI, live baseline
+reset, and frame timings. Success counters alone are not acceptance.
 Live VM verification and visual acceptance remain required before calling the
 renderer recovered. Neither VM has been changed by this work.
