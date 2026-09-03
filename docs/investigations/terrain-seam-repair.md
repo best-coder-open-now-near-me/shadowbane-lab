@@ -257,7 +257,8 @@ live performance result, or visual acceptance is claimed.
 
 ## Versioned test release: 1.6.13
 
-Release identity and launcher pins are updated together. Full DLL SHA-256:
+Release identity was updated to 1.6.13. A stale launcher pin was subsequently
+caught and corrected during restart preflight (see below). Full DLL SHA-256:
 01e4297798c3c2ca4212d997f0793b8a4af0bb98d429f31d9e07a9dc029f42a4.
 Diagnostics-only SHA-256:
 f51119f8584d482fe40d73c183f6ebacdeb75f962688e2d6200483a7e16e740c.
@@ -303,3 +304,45 @@ and live-settings backup are COMPLETE. The single ACTIVE item is normal
 restart/publication into a new empty runtime parent, followed by restoring
 preferences and visual/streaming-cost acceptance. Await normal user exit;
 do not force-close or inject game input. The plain VM stays untouched.
+
+## Restart preflight: launch pin corrected; installation stopped for space
+
+After the user confirmed normal exit, a read-only guest process check found no
+sb.exe. The saved client identity was PID 6420, creation FILETIME
+134329234815817786, in the 1.6.12 runtime under
+S:\ShadowbaneLab-Guided\20260903-1016421. Six allowed configuration files
+(ArcanePref.cfg and character SCREEN_GAME profiles) were copied and individually
+SHA-256 verified into a new guest-local backup; original files stayed untouched.
+
+The preflight found that the launch script still required the 1.6.12 DLL hash,
+despite its version having advanced to 1.6.13. The previous golden test asserted
+that stale hash independently of the publisher. Commit 8f5bf8e corrects the pin
+and adds a publisher-versus-launcher identity equality test. A complete rerun
+passed **1,484 Python tests and 211 subtests**, seven skipped. Focused Ruff passed.
+The native artifact is unchanged; its previous two 16/16 native results apply.
+
+The corrected source archive (8f5bf8e) was frozen separately and hash-verified
+before guest extraction. SHA-256:
+c50d431a09d4d1f02e419835a89004269ba0c053e4181adf20937eaef5197915.
+The original ed9aa5b bundle and receipts remain intact. The publisher repeated
+its dry run and reused the matching receipt, then stopped at the free-space
+check BEFORE prepare-copy: required 2,920,748,059 bytes; S: had 1,054,076,928.
+C: also has only about 1.22 GiB free. No new game package or client was launched.
+
+Read-only inventory found these older guided packages, each about 2.22 GiB:
+
+- 1.6.10: S:\ShadowbaneLab-Guided\20260903-920ba0f\Wonderbane-graphics-wb-55fbad5f-4b602995-cel-1.6.10
+- 1.6.11: S:\ShadowbaneLab-Guided\20260903-a1f8a77\Wonderbane-graphics-wb-55fbad5f-4b602995-cel-1.6.11
+- 1.6.12: S:\ShadowbaneLab-Guided\20260903-1016421\Wonderbane-graphics-wb-55fbad5f-4b602995-cel-1.6.12
+
+No old packages were deleted or moved. The new 20260903-ed9aa5b parent exists
+but is empty. Guest-local source-8f5bf8e, preferences-backup.json,
+closed-client-preferences, and install-1.6.13.log preserve the checkpoint.
+The installer deliberately refuses a blind rerun because staging now exists.
+
+ACTIVE todo: obtain space for the isolated installation. Proposed narrow cleanup
+requires user authorization: preserve the 1.6.10 configuration, then remove only
+that old test copy, keeping 1.6.11 and the current 1.6.12 fallback. Afterward,
+resume from verified local staging, publish, launch, restore live controls, and
+verify the four-site repair status. Visual and streaming-cost acceptance remain
+pending. No new capture, diagnostic export, push, or plain-VM change occurred.
