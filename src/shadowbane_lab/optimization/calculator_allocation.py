@@ -364,7 +364,11 @@ class CalculatorAllocationSpace:
             current = self.evaluate(genome)
             race = self._calculator.race(genome.race_id)
             base = self._calculator.base_class(genome.base_class_id)
-        except (KeyError, LegalBuildCompileError):
+        except (
+            KeyError,
+            LegalBuildCompileError,
+            WonderbaneCalculatorImportError,
+        ):
             return None
 
         base_values = tuple(
@@ -404,7 +408,10 @@ class CalculatorAllocationSpace:
             )
             for index in range(5)
         )
-        if any(minimum > maximum for minimum, maximum in zip(minimums, maximums, strict=True)):
+        if any(
+            minimum > maximum
+            for minimum, maximum in zip(minimums, maximums, strict=True)
+        ):
             return None
 
         rune_cost = sum(rune.cost for rune in runes)
@@ -576,7 +583,7 @@ class CalculatorBackedGenomeMutator(CompilerBackedGenomeMutator):
         candidate = self._allocation_space.mutate(parent, random)
         if candidate is None:
             return None
-        return self._replace(
+        return _replace_allocation_mutation(
             parent,
             trained_modifiers=candidate.trained_modifiers,
         )
@@ -608,11 +615,31 @@ class CalculatorBackedGenomeMutator(CompilerBackedGenomeMutator):
         )
         if repaired is None:
             return None
-        return self._replace(
+        return _replace_allocation_mutation(
             parent,
             rune_ids=repaired.rune_ids,
             trained_modifiers=repaired.trained_modifiers,
         )
+
+
+def _replace_allocation_mutation(
+    parent: LegalBuildGenome,
+    **changes: object,
+) -> LegalBuildGenome:
+    payload = {
+        "parent": genome_mechanical_digest(parent),
+        "changes": {
+            key: value.as_dict() if isinstance(value, StatLine) else value
+            for key, value in sorted(changes.items())
+        },
+    }
+    suffix = canonical_digest(payload)[:16]
+    return replace(
+        parent,
+        genome_id=f"{parent.genome_id}.m.{suffix}",
+        display_name=f"{parent.display_name} mutation {suffix[:8]}",
+        **changes,
+    )
 
 
 __all__ = [
