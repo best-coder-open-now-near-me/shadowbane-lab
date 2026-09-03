@@ -27,9 +27,10 @@ The former v2 workstream names are frozen recovery aliases at their shared pre-p
 Do not advance or delete those aliases. Retire them only after Git confirms that convergence
 contains their complete histories and the containing convergence tip is published.
 
-All runtime variants build from convergence. In particular, the plain VM uses the compile-time
-`diagnostics-only` profile from the same source as the testing VM; it does not require a separate
-diagnostics product branch.
+All runtime variants build from convergence. The compile-time `diagnostics-only` extension
+profile shares source with the full renderer; it does not require a separate product branch.
+The standalone vanilla diagnostics tool is distinct: it does not require installing that
+extension. Source integration does not select or deploy either option to the plain VM.
 
 Do not base new slices directly on `codex/graphics-diagnostics-client`,
 `codex/graphics-banded-lighting`, or the older preserved-feature branch. Those remain evidence and

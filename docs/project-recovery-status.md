@@ -1,6 +1,100 @@
 # Project recovery ledger
 
-## Current reassessment: 2026-09-03 01:04 America/New_York
+## Current integration: 2026-09-03 01:38 America/New_York
+
+The user authorized integrating the completed lanes now. They are combined on
+`codex/client-convergence-v2` at code checkpoint `fa2947c`. This section
+supersedes every historical queue below; integration is no longer merely planned.
+No VM, installed game, previous release, topic ref, stash, or unrelated dirty
+worktree was changed.
+
+### Integrated source checkpoints
+
+| Lane | Included source tip | Local integration commit |
+| --- | --- | --- |
+| PvE / reviewed renderer boundary | `3a605e4` | `5877b78` |
+| Asset-mod facade / pristine texture engine | `ba95232` | `ba5d4da` |
+| Read-only terrain seam auditor | `8df7694` | `729d308` |
+| Sustained contours / Graphics Lab schema 2 | `bc076d7` | `605d11c` |
+| Portable vanilla diagnostics / standalone utilities | `f6c1980` | `4aa172f` |
+| Legal-build simulator / calculator allocation / typed budgets | `b8543a2` | `fa2947c` |
+
+All six source tips are ancestors of the combined checkpoint. The simulator was
+pinned from the latest fetched committed tip at 01:31; its separate task may
+continue producing later work. Do not mistake this checkpoint for completion of
+every future simulator feature.
+
+Older preservation `43be8c9`, PvP data `d035f74`, streaming `5b3e1ec`, cel
+`de9367f`, replayed SDR `db7dd16`, and replayed Druid `be4fac0` are also
+confirmed ancestors. The old independent prototype and policy-ablation workflows
+remain history, not newly enabled runtime code. Older exact-map refs are retained;
+current native capture plus exact event/worker routing remain the production path,
+not a wholesale replay of the older out-of-process listener.
+
+### Integration repairs and validation
+
+- Preserved recovery's exact main-clear / done3D ownership when merging contours.
+  The sole text conflict was resolved by retaining both renderer journals.
+- Assigned the union a distinct extension version **1.6.10**. Native version
+  surfaces, launcher/publisher defaults, hashes, and version tests agree.
+- Graphics Lab and DLL use live-control schema 2 together. Saved schema-1 presets
+  migrate; old schema-1 live clients are intentionally incompatible. Legacy
+  five-sample contours remain the default; sustained filtering is opt-in.
+- Replaced wall-clock timing in the vendor-dialog fake backend with a deterministic
+  test clock. The live tracer's timeout behavior is unchanged.
+- Fixed slotted-dataclass parent serialization in the new simulator budget report
+  and its line-wrap lint failure. No legality/budget gate was weakened.
+- Full local Python 3.11 suite: **1,408 passed, 6 skipped, 211 subtests passed**.
+  Ruff passes. Python 3.12/3.13 CI remains pending publication; only 3.11 is locally
+  available for this validation.
+- Win32 Release: **12/12 native tests in each profile**, full and diagnostics-only.
+  Frozen-client routine validation passed both relocation directions and
+  every-byte drift rejection without executing the game.
+- All 34 tracked PowerShell files parse. The wheel builds and installs into an
+  isolated package directory; asset, terrain, panel, portable, optimization and
+  bundled calculator/equipment/training resources load from that installation.
+- Bounded offline Assassin search completed (2 mutations, seed 7, rollout seed 1,
+  distance 6, 60 ticks, equipment pool 2); this is workflow smoke evidence, not a
+  balance or gameplay-performance claim.
+
+### Local artifacts and publishing state
+
+Built with MSVC 19.51 / Win32 Release using short output paths to avoid Windows
+MSBuild path-length failures:
+
+| Artifact | Path | SHA-256 |
+| --- | --- | --- |
+| Full 1.6.10 DLL | `E:/Projects/shadowbane/build/convergence-20260903-full/Release/wonderbane-extension.dll` | `6ca02bafa7c74a7cb01e40edf1b3eee30c1ac5857b6f80da06502dd0fe8c196e` |
+| Diagnostics-only 1.6.10 DLL | `E:/Projects/shadowbane/build/convergence-20260903-diagnostics/Release/wonderbane-extension.dll` | `e89fe27fe02c07494add7265f530bd74c93ae1d9be19ad247d3b129235269c6b` |
+| Combined wheel | Integration worktree: `build/integration-wheel/shadowbane_lab-0.1.0-py3-none-any.whl` | `a38de7b75b820d45fb088e3fe647f0357659ea24f93142197885384c1bc90182` |
+
+The first checkpoint, `5877b78`, was pushed to the existing origin convergence
+branch. Security review then rejected uploading the asset checkpoint's source and
+project data to that GitHub destination without explicit upload approval.
+Subsequent integration commits remain local and ready to push; no alternate
+upload path was used. The combined branch's remote CI has therefore not run yet.
+
+### Next work
+
+1. Obtain approval to push the remaining convergence source/history to the existing
+   `best-coder-open-now-near-me/shadowbane-lab` GitHub repository, then run the shared
+   CI matrix. Local source integration and validation are complete.
+2. Separately authorize a testing-VM release of the matched 1.6.10 DLL and panel.
+   Verify a second launch, ordinary legacy outlines and pre-UI completeness first;
+   then measure sustained-mode A/B visual and frame-cost evidence.
+3. Keep the plain VM unchanged. Portable vanilla diagnostics and the extension's
+   diagnostics-only profile are distinct choices, not implicit deployment steps.
+4. Collect the pristine-cache terrain report and outstanding hotspot/warm-revisit
+   evidence when resuming those investigations.
+5. The sandbox session/asset activation coordinator is still unimplemented;
+   integrating the asset compiler does not supply that planned UI/workflow.
+   Normal/class buffers and later renderer stages likewise remain future work.
+
+The original main-checkout formatting edits/untracked evidence, old broken streaming
+draft and reject file, stash, and testing-share files remain preserved. The unsafe
+untracked network residency launcher was neither executed nor incorporated.
+
+## Archived reassessment: 2026-09-03 01:04 America/New_York
 
 This section supersedes the September 2 status/queue below. The earlier audit is
 retained as dated evidence. The user reports the parallel slices mostly finished,
