@@ -25,6 +25,19 @@ from .map_elites import (
     MapElitesRun,
     run_map_elites,
 )
+from .policy_rollout import (
+    UtilityPolicyEvaluation,
+    UtilityPolicyLeagueEvaluator,
+    primitive_loadout_mechanical_digest,
+    primitive_loadout_mechanical_payload,
+    run_open_duel_with_policies,
+)
+from .policy_search import (
+    DiagonalPolicySearchConfig,
+    DiagonalPolicySearchGeneration,
+    DiagonalPolicySearchResult,
+    run_diagonal_policy_search,
+)
 from .training import (
     CatalogBackedLegalityGate,
     CatalogLegalityAudit,
@@ -37,10 +50,20 @@ from .training import (
     genome_mechanical_digest,
     genome_mechanical_payload,
 )
+from .utility_policy import (
+    POLICY_WEIGHT_FIELDS,
+    DuelPolicy,
+    PolicyFactory,
+    UtilityPolicyWeights,
+    WeightedUtilityDuelPolicy,
+    baseline_policy_factory,
+    weighted_policy_factory,
+)
 
 __all__ = [
     "LEGAL_BUILD_COMPILER_VERSION",
     "LEGAL_BUILD_GENOME_SCHEMA_VERSION",
+    "POLICY_WEIGHT_FIELDS",
     "ArchiveAdmission",
     "BuildCompilationStatus",
     "BuildCoverageReport",
@@ -50,6 +73,10 @@ __all__ = [
     "CompiledOpponent",
     "CompilerBackedGenomeMutator",
     "DescriptorAxis",
+    "DiagonalPolicySearchConfig",
+    "DiagonalPolicySearchGeneration",
+    "DiagonalPolicySearchResult",
+    "DuelPolicy",
     "DuelScenario",
     "EquipmentSelection",
     "EquipmentSkillRequirement",
@@ -64,11 +91,22 @@ __all__ = [
     "MapElitesEvaluation",
     "MapElitesInsertStatus",
     "MapElitesRun",
+    "PolicyFactory",
     "SelectedAffix",
+    "UtilityPolicyEvaluation",
+    "UtilityPolicyLeagueEvaluator",
+    "UtilityPolicyWeights",
+    "WeightedUtilityDuelPolicy",
+    "baseline_policy_factory",
     "evaluation_digest",
     "genome_mechanical_digest",
     "genome_mechanical_payload",
     "load_legal_build_genome",
     "load_legal_build_genome_text",
+    "primitive_loadout_mechanical_digest",
+    "primitive_loadout_mechanical_payload",
+    "run_diagonal_policy_search",
     "run_map_elites",
+    "run_open_duel_with_policies",
+    "weighted_policy_factory",
 ]
