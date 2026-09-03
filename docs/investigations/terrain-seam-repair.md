@@ -804,3 +804,35 @@ tests and 211 subtests, with 7 skipped; focused Ruff and diff checks passed.
 The native DLL was not changed or rebuilt: the previously sealed 1.6.13 full
 and diagnostics artifacts retain their recorded 16/16 native-suite evidence.
 This checkpoint adds no live renderer work or per-frame cost.
+
+## Trace-enabled relaunch verified
+
+The user confirmed normal exit and clarified that operating the testing VM,
+including commands in verified PowerShell windows, is authorized; the earlier
+capture restriction on keyboard injection is not a ban on VM administration.
+No game input, credentials, or character movement was sent.
+
+Read-only preflight found zero sb.exe processes. The guest-local launcher from
+source-8f5bf8e matched the launcher bytes in the frozen archive (launcher SHA-256):
+`fbb06947c2a9fd55a4b68549fe989cd63b14d5948db5bb5a548884510e3b4234`.
+Its source matches the current launcher after normalizing checkout line endings.
+The same sealed 1.6.13 runtime was launched with EnableTerrainTrace using its
+existing local publication receipt; no build, texture, or settings update was made.
+
+New client: PID **960**, creation FILETIME **134329406441965396**. The live
+status identifies 1.6.13 / full-renderer, terrain_mask_refresh active with all
+4 sites. The exact lifetime-bound terrain recorder idle event opened with
+synchronize-only access and was signaled. This verifies availability without
+requesting a trace, resetting an event, or consuming a recording slot.
+
+The game initially displayed black despite Responding=True and a latest frame
+with 112 UI draws, no world composite, and no scene capture. One normal OS
+minimize/restore of the exact game window restored the visible WonderBane splash
+without a process restart. This is an observed display recovery, not proof of
+the underlying cause or a renderer fix. No debug view or live control was changed.
+Screenshots are retained under E:/Projects/shadowbane/.tmp/terrain-trace-relaunch-*,
+including verified identity/idle state and the restored splash screen.
+
+Completed: verified trace-enabled relaunch of the unchanged testing package.
+ACTIVE todo: user login and positioning at the seam, then one bounded terrain
+draw-state capture against this new exact lifetime. Visual repair remains open.
