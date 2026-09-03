@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "genome_id": "irekei-rogue-assassin-59-chassis",
+  "display_name": "Irekei Rogue Assassin level 59 chassis",
+  "race_id": 2013,
+  "base_class_id": 2502,
+  "promotion_id": 2504,
+  "level": 59,
+  "move_speed": 15.0,
+  "trained_modifiers": {
+    "strength": 0,
+    "dexterity": 0,
+    "constitution": 0,
+    "intelligence": 0,
+    "spirit": 0
+  },
+  "rune_ids": [],
+  "skill_ranks": {},
+  "power_ranks": {},
+  "equipment": []
+}
