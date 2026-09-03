@@ -1,0 +1,27 @@
+name: Terrain repair workspace export
+
+on:
+  push:
+    branches:
+      - codex/terrain-material-repair-workspace
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Archive exact source tree
+        run: git archive --format=zip --output=terrain-repair-workspace.zip HEAD
+      - name: Upload source workspace
+        uses: actions/upload-artifact@v4
+        with:
+          name: terrain-repair-workspace
+          path: terrain-repair-workspace.zip
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
