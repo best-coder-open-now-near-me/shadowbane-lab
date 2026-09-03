@@ -420,3 +420,34 @@ ACTIVE todo: run one stationary 15-second capture at the preserved seam view.
 If it records no hits, run one separately labeled movement capture across the
 boundary. Use those results to decide between the repaired matching-material
 path and an unreviewed layer/material-transition source.
+
+## Branch attribution result: repaired path not observed
+
+Both required captures completed against PID 5240, creation FILETIME
+134329293478567243, while the same visible cobblestone/ground seams remained
+on screen:
+
+- Stationary, 15.016 seconds: zero hit events and zero unique branches.
+  Original artifact SHA-256:
+  bbbfecaa7dae30232645e7ecc8fceaac0bcdf10cd478254a78ed3bc1e3a40627.
+- Forward boundary crossing, 15.047 seconds with three seconds of explicitly
+  recorded operator keyboard input: zero hit events and zero unique branches.
+  Original artifact SHA-256:
+  b442999cdebc3b8cacd59b427c6624dfa16afab3f8b3203efa8591032dbb5f6a.
+
+Both captures verified the exact executable and 1.6.13 extension. All four
+repaired instructions matched before attachment, while attached, and after
+the debugger worker exited. Debug-register clearing completed, the exact game
+lifetime survived, and the parent found no debugger attached. Neither capture
+performed client code/data writes, scans, pixel or texture reads, or unrecorded
+input.
+
+This rejects the repaired matching-material completion branches as the
+observed path for these seams during both stationary rendering and a warm
+crossing. It does not invalidate the stock lifecycle defect or prove a
+cardinal direction name. Keep the minimal repair, but do not extend or tune it
+to chase this image.
+
+ACTIVE todo: trace the visible boundary through the terrain layer/material
+composition path, beginning with the already reviewed source vectors,
+ArcShaderCustomTexturedTerrain population, and masked-layer draw sequence.
