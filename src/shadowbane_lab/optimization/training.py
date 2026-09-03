@@ -60,6 +60,33 @@ def _semantic_key(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", "_", value.casefold()).strip("_")
 
 
+def genome_mechanical_payload(genome: LegalBuildGenome) -> dict[str, object]:
+    """Return optimizer identity without labels or caller-controlled ordering."""
+
+    if not isinstance(genome, LegalBuildGenome):
+        raise LegalBuildCompileError("genome must be LegalBuildGenome")
+    return {
+        "schema_version": 1,
+        "race_id": genome.race_id,
+        "base_class_id": genome.base_class_id,
+        "promotion_id": genome.promotion_id,
+        "level": genome.level,
+        "move_speed": float(genome.move_speed),
+        "trained_modifiers": genome.trained_modifiers.as_dict(),
+        "rune_ids": sorted(genome.rune_ids),
+        "skill_ranks": dict(sorted(genome.skill_ranks)),
+        "power_ranks": dict(sorted(genome.power_ranks)),
+        "equipment": [
+            item.as_dict()
+            for item in sorted(genome.equipment, key=lambda value: value.slot_key)
+        ],
+    }
+
+
+def genome_mechanical_digest(genome: LegalBuildGenome) -> str:
+    return canonical_digest(genome_mechanical_payload(genome))
+
+
 @dataclass(frozen=True, slots=True)
 class EquipmentSkillRequirement:
     slot_key: str
@@ -453,6 +480,7 @@ class LegalBuildLeagueEvaluator:
             {
                 "evaluator_version": self.EVALUATOR_VERSION,
                 "candidate_compilation": compilation.compilation_digest,
+                "candidate_mechanical_digest": genome_mechanical_digest(genome),
                 "catalog_legality_audit": None if audit is None else audit.as_dict(),
                 "ruleset_id": self._ruleset.ruleset_id,
                 "opponents": [
@@ -491,7 +519,7 @@ class LegalBuildLeagueEvaluator:
             )
         )
         return MapElitesEvaluation(
-            candidate_digest=genome.genome_digest,
+            candidate_digest=genome_mechanical_digest(genome),
             quality=fmean(scores),
             admission=(
                 ArchiveAdmission.STRICT
@@ -676,7 +704,11 @@ class CompilerBackedGenomeMutator:
                 if operation == "equipment"
                 else self._mutate_power(parent, random)
             )
-            if candidate is None or candidate.genome_digest == parent.genome_digest:
+            if (
+                candidate is None
+                or genome_mechanical_digest(candidate)
+                == genome_mechanical_digest(parent)
+            ):
                 continue
             try:
                 if self._gate is not None:
@@ -699,7 +731,11 @@ class CompilerBackedGenomeMutator:
             random,
             maximum_attempts=8,
         )
-        return None if candidate.genome_digest == parent.genome_digest else candidate
+        return (
+            None
+            if genome_mechanical_digest(candidate) == genome_mechanical_digest(parent)
+            else candidate
+        )
 
     def _mutate_rune(
         self,
@@ -760,7 +796,7 @@ class CompilerBackedGenomeMutator:
     @staticmethod
     def _replace(parent: LegalBuildGenome, **changes) -> LegalBuildGenome:
         payload = {
-            "parent": parent.genome_digest,
+            "parent": genome_mechanical_digest(parent),
             "changes": _json_safe(changes),
         }
         suffix = canonical_digest(payload)[:16]
@@ -805,4 +841,6 @@ __all__ = [
     "EquipmentSkillRequirement",
     "LegalBuildLeagueEvaluator",
     "evaluation_digest",
+    "genome_mechanical_digest",
+    "genome_mechanical_payload",
 ]
