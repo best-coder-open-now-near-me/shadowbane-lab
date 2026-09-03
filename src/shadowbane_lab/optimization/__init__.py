@@ -38,6 +38,7 @@ from .policy_search import (
     DiagonalPolicySearchResult,
     run_diagonal_policy_search,
 )
+from .strict_training import StrictLegalBuildLeagueEvaluator
 from .training import (
     CatalogBackedLegalityGate,
     CatalogLegalityAudit,
@@ -50,7 +51,6 @@ from .training import (
     genome_mechanical_digest,
     genome_mechanical_payload,
 )
-from .strict_training import StrictLegalBuildLeagueEvaluator
 from .utility_policy import (
     POLICY_WEIGHT_FIELDS,
     DuelPolicy,
