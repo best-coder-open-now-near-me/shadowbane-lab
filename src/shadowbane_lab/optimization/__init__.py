@@ -45,11 +45,12 @@ from .training import (
     CompilerBackedGenomeMutator,
     DuelScenario,
     EquipmentSkillRequirement,
-    LegalBuildLeagueEvaluator,
+    LegalBuildLeagueEvaluator as PermissiveLegalBuildLeagueEvaluator,
     evaluation_digest,
     genome_mechanical_digest,
     genome_mechanical_payload,
 )
+from .strict_training import StrictLegalBuildLeagueEvaluator
 from .utility_policy import (
     POLICY_WEIGHT_FIELDS,
     DuelPolicy,
@@ -59,6 +60,8 @@ from .utility_policy import (
     baseline_policy_factory,
     weighted_policy_factory,
 )
+
+LegalBuildLeagueEvaluator = StrictLegalBuildLeagueEvaluator
 
 __all__ = [
     "LEGAL_BUILD_COMPILER_VERSION",
@@ -91,8 +94,10 @@ __all__ = [
     "MapElitesEvaluation",
     "MapElitesInsertStatus",
     "MapElitesRun",
+    "PermissiveLegalBuildLeagueEvaluator",
     "PolicyFactory",
     "SelectedAffix",
+    "StrictLegalBuildLeagueEvaluator",
     "UtilityPolicyEvaluation",
     "UtilityPolicyLeagueEvaluator",
     "UtilityPolicyWeights",
