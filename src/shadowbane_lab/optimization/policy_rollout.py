@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from math import isfinite
 from statistics import fmean
+from typing import Protocol
 
 from shadowbane_lab.protocol import Vector2
 from shadowbane_lab.rollouts.duel import (
@@ -34,7 +35,6 @@ from shadowbane_lab.sim import (
 )
 
 from .build_model import canonical_digest
-from .training import DuelScenario
 from .utility_policy import (
     PolicyFactory,
     UtilityPolicyWeights,
@@ -45,6 +45,32 @@ from .utility_policy import (
 _MELEE_RANGE = 3.0
 _OPEN_RANGE_MINIMUM = 30.0
 _OPEN_RANGE_MAXIMUM = 120.0
+
+
+class DuelScenarioLike(Protocol):
+    scenario_id: str
+    starting_distance: float
+    max_ticks: int
+    mirrored: bool
+
+    def as_dict(self) -> dict[str, object]: ...
+
+
+def _validate_scenario(value: object) -> None:
+    for field_name in ("scenario_id", "starting_distance", "max_ticks", "mirrored"):
+        if not hasattr(value, field_name):
+            raise ValueError("scenarios must implement the duel-scenario contract")
+    scenario_id = getattr(value, "scenario_id")
+    if not isinstance(scenario_id, str) or not scenario_id.strip():
+        raise ValueError("scenario_id must be non-empty text")
+    _positive(getattr(value, "starting_distance"), "scenario starting_distance")
+    max_ticks = getattr(value, "max_ticks")
+    if isinstance(max_ticks, bool) or not isinstance(max_ticks, int) or max_ticks < 1:
+        raise ValueError("scenario max_ticks must be a positive integer")
+    if not isinstance(getattr(value, "mirrored"), bool):
+        raise ValueError("scenario mirrored must be a boolean")
+    if not callable(getattr(value, "as_dict", None)):
+        raise ValueError("scenarios must expose as_dict()")
 
 
 def _positive(value: float, field_name: str) -> float:
@@ -95,6 +121,7 @@ def run_open_duel_with_policies(
     starting_distance: float = 15.0,
     max_ticks: int = 1_200,
     seed: int = 1,
+    auto_satisfy_action_requirements: bool = True,
 ) -> OpenDuelRun:
     """Run the ordinary semantic lifecycle with explicitly supplied policies.
 
@@ -115,9 +142,19 @@ def run_open_duel_with_policies(
         raise ValueError("max_ticks must be a positive integer")
     _non_negative_integer(seed, "seed")
     _positive(starting_distance, "starting_distance")
+    if not isinstance(auto_satisfy_action_requirements, bool):
+        raise ValueError("auto_satisfy_action_requirements must be a boolean")
 
-    resolved_left = resolve_primitive_loadout(left, ruleset)
-    resolved_right = resolve_primitive_loadout(right, ruleset)
+    resolved_left = resolve_primitive_loadout(
+        left,
+        ruleset,
+        auto_satisfy_action_requirements=auto_satisfy_action_requirements,
+    )
+    resolved_right = resolve_primitive_loadout(
+        right,
+        ruleset,
+        auto_satisfy_action_requirements=auto_satisfy_action_requirements,
+    )
     left_config = _combatant(resolved_left, left.loadout_id, "left")
     right_config = _combatant(resolved_right, right.loadout_id, "right")
     close = close_range_action(RangeBand(maximum=_MELEE_RANGE))
@@ -264,7 +301,7 @@ class UtilityPolicyLeagueEvaluator:
         ruleset: CompiledRuleset,
         controlled: PrimitiveLoadout,
         opponents: tuple[PrimitiveLoadout, ...],
-        scenarios: tuple[DuelScenario, ...],
+        scenarios: tuple[DuelScenarioLike, ...],
         seeds: tuple[int, ...],
         *,
         opponent_weights: UtilityPolicyWeights | None = None,
@@ -275,8 +312,10 @@ class UtilityPolicyLeagueEvaluator:
             raise ValueError("controlled must be PrimitiveLoadout")
         if not opponents or any(not isinstance(item, PrimitiveLoadout) for item in opponents):
             raise ValueError("opponents must contain PrimitiveLoadout values")
-        if not scenarios or any(not isinstance(item, DuelScenario) for item in scenarios):
-            raise ValueError("scenarios must contain DuelScenario values")
+        if not scenarios:
+            raise ValueError("scenarios must not be empty")
+        for scenario in scenarios:
+            _validate_scenario(scenario)
         if not seeds or len(seeds) != len(set(seeds)):
             raise ValueError("seeds must be non-empty and unique")
         for seed in seeds:
@@ -443,6 +482,7 @@ class UtilityPolicyLeagueEvaluator:
 
 
 __all__ = [
+    "DuelScenarioLike",
     "UtilityPolicyEvaluation",
     "UtilityPolicyLeagueEvaluator",
     "primitive_loadout_mechanical_digest",
