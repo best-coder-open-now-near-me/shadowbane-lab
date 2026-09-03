@@ -142,12 +142,14 @@ class WeightedUtilityPolicyTests(unittest.TestCase):
             strict.left.unsatisfied_requirement_tags,
         )
         self.assertEqual((), strict.left.auto_added_tags)
-        self.assertEqual((), permissive.left.unsatisfied_requirement_tags)
+        self.assertEqual(
+            ("visibility.invisible",),
+            permissive.left.unsatisfied_requirement_tags,
+        )
         self.assertEqual(
             (
                 "equipment.melee_weapon",
                 "power.stalk",
-                "visibility.invisible",
             ),
             permissive.left.auto_added_tags,
         )
