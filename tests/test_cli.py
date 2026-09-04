@@ -2,7 +2,7 @@ import io
 import json
 import tempfile
 import unittest
-from contextlib import redirect_stderr, redirect_stdout
+from contextlib import nullcontext, redirect_stderr, redirect_stdout
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
@@ -1048,6 +1048,7 @@ class ClientCliTests(unittest.TestCase):
         vitals_profile = SimpleNamespace(executable_sha256="ab" * 32)
         position_reader = MagicMock()
         position_reader.process_id = 4320
+        position_reader.executable_sha256 = "cd" * 32
         position_reader.__enter__.return_value = position_reader
         vitals_reader = MagicMock()
         vitals_reader.process_id = 4320
@@ -1090,6 +1091,10 @@ class ClientCliTests(unittest.TestCase):
                 return_value=RecordingInputBackend(),
             ),
             patch("shadowbane_lab.cli.TravelRunner") as travel_runner,
+            patch(
+                "shadowbane_lab.cli_commands.client_travel.optional_session",
+                return_value=nullcontext(None),
+            ) as inspector_session,
             redirect_stdout(output),
         ):
             travel_runner.return_value.run.return_value = completed_run
@@ -1111,6 +1116,7 @@ class ClientCliTests(unittest.TestCase):
                 client_process_id=4320,
             )
 
+        inspector_session.assert_called_once_with(position_reader)
         self.assertEqual(0, result)
         open_position.assert_called_once_with(position_profile, process_id=4320)
         open_vitals.assert_called_once_with(vitals_profile, process_id=4320)
@@ -1410,6 +1416,10 @@ class ClientCliTests(unittest.TestCase):
                     return_value=RecordingInputBackend(),
                 ),
                 patch("shadowbane_lab.cli.PvERunner") as pve_runner,
+                patch(
+                    "shadowbane_lab.cli_commands.client_pve.optional_session",
+                    return_value=nullcontext(None),
+                ) as inspector_session,
                 redirect_stdout(output),
             ):
                 emergency_stop.return_value.__enter__.return_value = EventEmergencyStop()
@@ -1434,6 +1444,9 @@ class ClientCliTests(unittest.TestCase):
                     evidence_output_path=evidence_output,
                     stop_signal=injected_stop,
                     client_process_id=4320,
+                )
+                inspector_session.assert_called_once_with(
+                    open_position.return_value.__enter__.return_value
                 )
                 saved_evidence = json.loads(evidence_output.read_text(encoding="utf-8"))
 

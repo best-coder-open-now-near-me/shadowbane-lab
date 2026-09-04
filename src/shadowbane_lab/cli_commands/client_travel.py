@@ -190,9 +190,7 @@ def _run_travel(
                 raise ValueError(
                     "native position and player-vitals readers resolved different processes"
                 )
-            navigation_observer = stack.enter_context(
-                optional_session(position_reader.process_id, position_profile.executable_sha256)
-            )
+            navigation_observer = stack.enter_context(optional_session(position_reader))
             if zone_profile is None:
                 controller = TravelController(plan, travel_config, observer=navigation_observer)
             else:

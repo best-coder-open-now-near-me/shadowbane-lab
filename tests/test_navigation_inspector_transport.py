@@ -253,3 +253,56 @@ def test_loaded_module_identity_uses_actual_target_and_rejects_recycled_pid(live
     assert loaded_module_sha256(identity) == "unavailable"
     recycled = replace(identity, process_creation_filetime_utc=1)
     assert loaded_module_sha256(recycled, pattern) == "unavailable"
+
+
+def test_armed_runtime_reader_attaches_and_immediate_close_publishes(live_mapping, monkeypatch):
+    import threading
+    from types import SimpleNamespace
+
+    from shadowbane_lab.navigation_inspector import session as module
+
+    target, _address, _api = live_mapping
+    reader = SimpleNamespace(
+        process_id=target.process_id, executable_sha256=target.executable_sha256
+    )
+    started, release = threading.Event(), threading.Event()
+    identity = SourceIdentity(
+        target.process_id,
+        target.process_creation_filetime_utc,
+        target.executable_sha256,
+        "unavailable",
+        "test",
+        "unavailable",
+    )
+
+    def delayed_identity(_target):
+        started.set()
+        assert release.wait(2)
+        return identity
+
+    def discover(*, identity_validator):
+        return (target,) if identity_validator(target) else ()
+
+    monkeypatch.setattr(module, "source_identity", delayed_identity)
+    monkeypatch.setattr(module, "discover_graphics_targets", discover)
+    with Channel(target, role="panel") as panel, Channel(target) as evidence:
+        panel.set_controls(Controls(2, 0))
+        context = module.optional_session(reader)
+        active = context.__enter__()
+        assert active is not None
+        assert started.wait(1)
+        active(ContextEvent("context", "quick-zone", "quick-map", "fixture"))
+        active(MotionEvent("motion", "failure", "quick", 0, reason="immediate terminal"))
+        closer = threading.Thread(target=lambda: context.__exit__(None, None, None))
+        try:
+            closer.start()
+            assert active._stop.wait(1)
+        finally:
+            release.set()
+            closer.join(3)
+        assert not closer.is_alive()
+        assert active.error is None
+        snapshot, _placement = evidence.read_evidence()
+        assert snapshot.frozen
+        assert snapshot.events[-1].value.reason == "immediate terminal"
+        assert snapshot.identity.executable_sha256 == target.executable_sha256

@@ -92,7 +92,7 @@ class Session:
                 control_sequence = 0
                 sequence = 0
                 last_zone_ms = 0
-                while not self._stop.is_set() and channel.alive:
+                while channel.alive:
                     if self._gap.is_set():
                         # Losing a context/plan invalidates placement. Drain the
                         # incomplete batch, then wait for new authoritative context.
@@ -147,6 +147,10 @@ class Session:
                         layers=settings.layers,
                     )
                     channel.publish(payload)
+                    # close() stops new callbacks, then the worker drains its
+                    # bounded queue and publishes the terminal evidence once.
+                    if self._stop.is_set() and self._queue.empty() and not self._gap.is_set():
+                        break
                     self._stop.wait(0.1)
         except Exception as error:
             self.error = f"{type(error).__name__}: {error}"
@@ -156,7 +160,7 @@ class Session:
 
 
 @contextmanager
-def optional_session(process_id: int, executable_sha256: str):
+def optional_session(position_reader):
     """A panel arms the exact client; an environment flag can also enable a session.
 
     The default path has no worker/observer when the inspector is unarmed. Missing
@@ -166,6 +170,10 @@ def optional_session(process_id: int, executable_sha256: str):
     forced = os.environ.get("SHADOWBANE_NAV_INSPECTOR") == "1"
     try:
         if os.name == "nt":
+            # The profile names original source bytes. The verified reader owns
+            # the actual loaded/patched process identity accepted by that profile.
+            process_id = position_reader.process_id
+            executable_sha256 = position_reader.executable_sha256
             targets = discover_graphics_targets(
                 identity_validator=lambda candidate: (
                     candidate.process_id == process_id

@@ -523,11 +523,7 @@ def _run_pve(
                     )
                 )
             )
-            navigation_observer = stack.enter_context(
-                optional_session(
-                    player_position_reader.process_id, position_profile.executable_sha256
-                )
-            )
+            navigation_observer = stack.enter_context(optional_session(player_position_reader))
             inspected_position_reader = player_position_reader
             if navigation_observer is not None:
                 inspected_position_reader = ObservedPositionSource(

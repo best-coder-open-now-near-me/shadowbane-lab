@@ -1,7 +1,9 @@
 # Navigation inspector acceptance package — 2026-09-04
 
-The local acceptance package is built and verified. Live acceptance is pending;
-nothing from this task has been installed into the testing VM or merged.
+The initial acceptance package is built and verified and was deployed into a new,
+isolated testing-VM runtime. Live acceptance is in progress; nothing is merged.
+The package and hashes below describe the initial e380e0f build. A Python publisher
+correction is being packaged after the first joint movement test.
 
 ## Source and review
 
@@ -11,7 +13,8 @@ nothing from this task has been installed into the testing VM or merged.
   targets codex/integrate-current-development while PR #25 is open.
 - Source includes the complete publisher, native overlay, desktop controls,
   saved-evidence replay and package builder. The separate terrain material repair
-  is absent. Later documentation commits do not change the tested executable code.
+  is absent. The runtime correction below changes Python publisher code after this
+  initial package; its replacement wheel must carry its own source identity.
 - The normal checkout is clean on main at 047147dfe468670458486a806d03b03284824dd1.
   Retain the inspector worktree for acceptance/review.
 
@@ -68,11 +71,34 @@ scripts/build_navigation_inspector_package.py and the prerequisites in
 [inspector usage](navigation-inspector.md). No game executables or private captures
 are part of this archive.
 
-## One remaining acceptance pass
+## First live findings and correction
+
+The prepared copy and actual loaded full DLL matched the receipt. The inspector
+panel armed the client. The first chat destination was inside the default 75-unit
+arrival radius and therefore produced no clicks. Repeating the bounded movement
+with an explicit 5-unit radius produced five accepted clicks, completed within
+roughly 4.4 seconds of dispatches, and was visually confirmed by the owner.
+
+The overlay did not receive evidence: attachment compared the observation
+profile's original executable hash with the actual prepared client's hash. The
+verified native position reader already owns the accepted runtime identity. Both
+travel and PvE now pass that reader to the optional inspector session. A second
+fix drains queued terminal evidence when an immediately completed run closes.
+Regression tests cover reader binding and a real Windows mapping with delayed
+startup and immediate session close.
+
+Next: validate and install the corrected wheel, restart only inspector helpers,
+and repeat the short route while capturing actual published evidence. Keep the
+verified game process and DLL running. Movement is confirmed; overlay rendering,
+alignment, replay and PvE acceptance remain pending. Private runtime identities,
+logs and captures stay in the local VM evidence directory.
+
+## Remaining acceptance pass
 
 Use the [developer/owner handoff](handoffs/navigation-inspector.md) for the exact
-sequence. Deploy this full DLL and acceptance wheel together through the existing
-prepared-client process; verify the loaded DLL hash in a new inspector capture.
+sequence. The initial DLL and wheel were deployed together through the existing
+prepared-client process. Verify the unchanged loaded DLL hash and replacement
+wheel source identity in a new inspector capture.
 
 1. Connect the exact testing client before /go; check open ground, slope and
    camera rotation. Confirm measured-trail alignment and ordinary/x-ray depth.
@@ -87,5 +113,5 @@ unavailable. Verify the measured LT/LG-to-world transform before accepting world
 alignment. If the separate terrain repair is added, it requires its own verified
 source and one combined boundary-tile check.
 
-Current active todo: coordinate this bounded live pass. After it passes, review
+Current active todo: deliver the publisher correction and resume this bounded live pass. After it passes, review
 and integrate PR #27, then retire the inspector worktree/branch when safe.
