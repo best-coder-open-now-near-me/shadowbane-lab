@@ -35,11 +35,25 @@ jobs:
           out.mkdir()
           executables = []
           selected = None
+          retained = {
+              'wonderbane/sb.exe': 'current-sb.exe',
+              'wonderbane/shadowbane.exe': 'current-shadowbane.exe',
+              'wonderbane/wonderbanepatcher.exe': 'current-patcher.exe',
+          }
           with ZipFile(archive) as zipped:
-              names = [name for name in zipped.namelist()
-                       if not name.endswith('/') and Path(name).suffix.lower() in {'.exe', '.dll'}]
+              infos = [info for info in zipped.infolist() if not info.is_dir()]
+              (out / 'package-entries.txt').write_text(
+                  ''.join(f'{info.file_size:12} {info.compress_size:12} {info.filename}\n'
+                          for info in infos),
+                  encoding='utf-8',
+              )
+              names = [info.filename for info in infos
+                       if Path(info.filename).suffix.lower() in {'.exe', '.dll'}]
               for name in names:
                   raw = zipped.read(name)
+                  retained_name = retained.get(name.lower())
+                  if retained_name is not None:
+                      (out / retained_name).write_bytes(raw)
                   record = {
                       'path': name,
                       'size': len(raw),
