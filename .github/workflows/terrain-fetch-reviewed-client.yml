@@ -1,0 +1,32 @@
+name: Terrain fetch reviewed client
+
+on:
+  push:
+    branches:
+      - codex/terrain-material-export-da109b0
+
+permissions:
+  contents: read
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch and verify reviewed executable
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p reviewed-client
+          curl --fail --location --retry 3 --retry-delay 2 \
+            http://87.99.132.84/client/sb.exe \
+            --output reviewed-client/reviewed-sb.exe
+          echo "55fbad5f0110cd99b4085af72d1e8fddb782ccdec1491478492c18158f5c61bc  reviewed-client/reviewed-sb.exe" | sha256sum --check --strict
+          sha256sum reviewed-client/reviewed-sb.exe > reviewed-client/SHA256.txt
+      - name: Upload reviewed executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: terrain-reviewed-client-55fb
+          path: reviewed-client/
+          if-no-files-found: error
+          retention-days: 1
