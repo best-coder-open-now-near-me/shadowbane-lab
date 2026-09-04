@@ -1,0 +1,51 @@
+name: Terrain repair generate fixed contracts
+
+on:
+  push:
+    branches:
+      - codex/terrain-material-repair-completion
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate exact-client contracts without full PE directory parsing
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check pefile==2024.8.26 capstone==5.0.9
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('tools/terrain_material_codegen.py')
+          text = path.read_text(encoding='utf-8')
+          old = 'pe = pefile.PE(data=raw, fast_load=False)'
+          if text.count(old) != 1:
+              raise SystemExit('unexpected PE parser construction')
+          path.write_text(text.replace(old, 'pe = pefile.PE(data=raw, fast_load=True)'), encoding='utf-8', newline='\n')
+          PY
+          python tools/terrain_material_codegen.py --repository .
+          sha256sum \
+            native/wonderbane_extension/terrain_client_profile.generated.h \
+            native/wonderbane_extension/terrain_append_abi.generated.h \
+            native/wonderbane_extension/terrain_append_bridge.generated.cpp \
+            native/wonderbane_extension/terrain_registration_abi.generated.h \
+            native/wonderbane_extension/terrain_registration_bridge.generated.cpp \
+            > first.sha256
+          python tools/terrain_material_codegen.py --repository .
+          sha256sum -c first.sha256
+      - name: Upload generated contracts
+        uses: actions/upload-artifact@v4
+        with:
+          name: terrain-repair-generated-contracts
+          path: |
+            native/wonderbane_extension/terrain_client_profile.generated.h
+            native/wonderbane_extension/terrain_append_abi.generated.h
+            native/wonderbane_extension/terrain_append_bridge.generated.cpp
+            native/wonderbane_extension/terrain_registration_abi.generated.h
+            native/wonderbane_extension/terrain_registration_bridge.generated.cpp
+            first.sha256
+          if-no-files-found: error
+          retention-days: 1
