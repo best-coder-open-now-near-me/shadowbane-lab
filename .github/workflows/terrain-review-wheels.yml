@@ -1,0 +1,25 @@
+name: Terrain review tool wheels
+
+on:
+  push:
+    branches:
+      - codex/terrain-material-export-da109b0
+
+permissions:
+  contents: read
+
+jobs:
+  wheels:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download binary wheels
+        run: |
+          mkdir wheels
+          python -m pip download --only-binary=:all: --dest wheels pefile capstone
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: terrain-review-wheels
+          path: wheels/
+          if-no-files-found: error
+          retention-days: 1
