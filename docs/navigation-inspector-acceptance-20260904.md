@@ -1,4 +1,4 @@
-# Navigation inspector acceptance package — 2026-09-04
+# Navigation inspector acceptance package â€” 2026-09-04
 
 The initial acceptance package is built and verified and was deployed into a new,
 isolated testing-VM runtime. Live acceptance is in progress; nothing is merged.
@@ -173,11 +173,21 @@ inspector or PvE behavior.
 
 The current graphics-status evidence contains zero accepted camera samples.
 World-trail placement therefore remains unavailable. Existing historical renderer
-traces were located, but automatic approval review blocked both copying their
-contents and reading aggregate matrix statistics; neither action ran. Their
-contents remain uninspected pending explicit local-data access approval. The
-current client was launched without the optional draw-trace flag, so a fresh
-matrix capture would need a separately coordinated normal relaunch.
+traces were inspected in place after the owner explicitly approved access.
+No historical trace files were copied. Their 537 and 1,505 draws contain 40 and
+54 attributed terrain submissions respectively, with one consistent terrain
+model-view per capture. Offline inspection of the exact frozen executable shows
+the world queue at RVA `0x79C730` pushes model-view before its submissions and
+restores it afterward (`0x79C738` / `0x79C7F1`). The old depth-one per-draw observer
+therefore cannot accept those nested terrain submissions. These historical traces
+explain the observer limitation; they are not current-client acceptance evidence.
+
+The correction captures the outer camera at the reviewed main clear and requires
+the identical restored camera at the reviewed pre-UI boundary. Context, projection,
+viewport, scene validity, and stack depth must all agree. Synthetic regressions
+cover nested object transforms and rejection of changed/invalid/expired scenes.
+The current running client still uses `18bcf6d`; the camera correction needs a
+new verified package and joint visual check before acceptance.
 
 All screenshots, the live capture, visibility observation and installed-panel
 replay result remain in the private local evidence locations recorded by the

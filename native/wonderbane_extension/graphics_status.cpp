@@ -708,12 +708,14 @@ DWORD FormatCameraState(
         0U,
         "{\"schema_version\":1,\"clock\":\"windows-query-performance-counter\","
         "\"counter_frequency_hz\":%lld,"
-        "\"source\":\"unique-base-model-view-per-present\","
+        "\"source\":\"%s\","
         "\"mapping_authority\":\"runtime-observed-fixed-function-state\","
         "\"latest_sample_sequence\":%llu,\"oldest_available_sequence\":%llu,"
         "\"sample_capacity\":%llu,\"sample_count\":%llu,"
         "\"producer_drop_count\":%llu,\"samples\":[",
         static_cast<long long>(snapshot.status.performance_counter_frequency),
+        std::strcmp(snapshot.status.runtime_profile, "full-renderer") == 0
+            ? "reviewed-main-scene-boundaries" : "unique-base-model-view-per-present",
         static_cast<unsigned long long>(latest_sequence),
         static_cast<unsigned long long>(oldest_sequence),
         static_cast<unsigned long long>(kCameraStateSampleCapacity),
