@@ -386,8 +386,9 @@ source and loaded DLL identities. Session: `4957602773149593471`; capture SHA-25
 Normal depth rendering was enabled and x-ray was off. Asked whether the cyan
 trail stayed on the ground and covered the route, the owner confirmed that it
 **looked good**. The recorded frame also shows the cyan trail in the game scene.
-This accepts this short, approximately level-ground arrival and normal trail
-check. It does not accept slope/camera rotation, x-ray occlusion or PvE behavior.
+This initially accepted the short arrival and visible-trail check. The later
+owner clarification below reopens ground-contact alignment on both flat and sloped
+surfaces; stationary arrival remains verified.
 
 Local evidence under `navigation-inspector-3534418/correction-8210ecf` includes
 `destination-walk-start.json`, `destination-walk.json`, `destination-post-arrival.json`,
@@ -398,6 +399,52 @@ Eight original screenshots and their UTC index are in the ignored worktree direc
 Next todo: move to a clear nearby slope with the owner and check trail alignment
 while rotating the camera. Then compare normal/x-ray against a known obstruction,
 exercise the bounded PvE scenarios and measure overlay cost/scene behavior.
+
+## Slope/camera test and revised height acceptance
+
+The owner restarted the session, then positioned the character on a hillside.
+The same verified wheel/DLL now runs as PID 3284, creation FILETIME
+134330094182597688; panel 9124, listener 6828 and recorder 2528 were reconnected.
+Runtime integrity and source/DLL identity passed without reinstalling or copying
+older preferences. New evidence is in `navigation-inspector-3534418/resume-20260904-1529`.
+
+A short northward route to LT 88755 / LG 44689 climbed from measured altitude
+8.825692 to 23.926771 (**15.101 units**). It confirmed stationary arrival 2.907
+units from the five-unit-radius target. Nine subsequent position samples over
+4.927 seconds varied only 0.00390625 horizontal units. Thirty-one camera samples
+show a 101.740-degree change in forward direction; camera sequences advanced
+2948..3012 with zero producer drops and verified, successful scene boundaries.
+
+The route crossed from Vorringia into Sea Dog's Rest. The inspector clears prior-zone
+history by contract, so the final capture contains nine positions and eight measured-height
+segments from the latter part of the climb. There are no omitted lines or dropped
+observations in that context. Session `2905256194675038123`; capture SHA-256:
+`127ab0cae61623a1cf3bd57c5654103be2caf1f2d0d5b8d355f9c9f13bf08435`.
+
+**Ground alignment is not accepted.** The owner found camera control difficult and
+reported that the line seemed to originate midway up the character rather than
+being attached to the hillside. They then clarified that the same height offset
+may have existed on the flat walk, where the viewing angle was less revealing.
+The earlier short walk still verifies arrival and visible trail coverage; it no
+longer supports ground-contact acceptance. Both flat and sloped grounding need
+verification after the height source is understood.
+
+Source tracing shows no added vertical lift in either Python geometry or native
+`WorldLines`: the renderer receives the player getter's Y unchanged. The exact
+getter thunk `0xa3d0` reaches `0xccd50`, which copies the vector at
+`[[player+0x4b0]+0]+0x20`. This proves canonical player-position data, not the
+semantic claim that Y is foot contact or terrain elevation. Actor-origin height
+is a hypothesis to verify, not a reason to subtract an arbitrary constant.
+
+Retained evidence includes `slope-walk.json`, `slope-walk-start.json`,
+`slope-post-arrival.json`, `slope-camera-samples.json`, `slope-walk-audit.json`
+and `slope-walk-capture-2905256194675038123.json` in the resumed diagnostics folder.
+Nine screenshots plus their index remain under ignored `live-20260904/slope-walk-*`.
+No additional movement or renderer-offset change has been made.
+
+Current active todo: establish the exact player/ground height semantics and durable
+surface-placement source, then repeat flat and slope alignment before proceeding
+to normal/x-ray occlusion, bounded PvE and overlay cost/scene checks.
 
 ## Remaining acceptance pass
 
@@ -419,6 +466,6 @@ unavailable. Verify the measured LT/LG-to-world transform before accepting world
 alignment. If the separate terrain repair is added, it requires its own verified
 source and one combined boundary-tile check.
 
-Current active todo: slope and camera-rotation alignment; then normal/x-ray
-occlusion, the bounded PvE scenarios and overlay cost/scene checks. After the remaining live pass, review
+Current active todo: resolve and validate ground-height placement on flat and
+sloped terrain; then normal/x-ray occlusion, bounded PvE and overlay cost/scene checks. After the remaining live pass, review
 and integrate PR #27, then retire the inspector worktree/branch when safe.

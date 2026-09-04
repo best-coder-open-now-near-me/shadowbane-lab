@@ -210,5 +210,12 @@ The short owner-assisted walk now passes: measured arrival was 0.409 units from
 the goal, with 5.243 seconds of stable post-arrival observations. All 17 measured
 trail segments were present and the owner confirmed the normal trail looked good.
 
-Next todo: a clear slope with camera rotation, followed by normal/x-ray occlusion,
-bounded PvE and overlay cost/scene checks. PR #27 remains draft and unmerged.
+The subsequent slope run verified a 15.101-unit climb, stationary arrival and
+camera rotation, but the owner reported a possible mid-body line origin and said
+the same offset could have been hidden by the flat-view angle. Ground-contact
+alignment is therefore unverified on both surfaces. Current geometry uses native
+player Y unchanged; its grounding semantics must be established before a correction.
+
+Next todo: verify the height source and durable ground-contact placement, then
+repeat flat/slope alignment. Normal/x-ray occlusion, bounded PvE and overlay
+cost/scene checks remain afterward. PR #27 stays draft and unmerged.

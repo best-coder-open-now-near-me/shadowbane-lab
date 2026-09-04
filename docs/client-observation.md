@@ -52,7 +52,9 @@ requires this observation and stops before further input when health reaches 50 
 The local-player position reader follows the player pointer through the canonical position
 component used by the object's virtual position getter: player `+0x4B0`, component `+0`, then
 the native `x/y/z` vector at `+0x20`. It maps that vector to `LT=x`, `LG=-z`, and
-`altitude=y`.
+`altitude=y`. This is canonical player-position Y; it has not been established as
+foot contact or terrain elevation. Navigation-inspector testing found a possible
+body-height trail origin, so ground placement must verify that semantic separately.
 
 ```powershell
 .\.venv\Scripts\python.exe -m shadowbane_lab.cli client observe-native-position --json

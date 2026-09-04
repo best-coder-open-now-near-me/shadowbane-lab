@@ -91,8 +91,8 @@ texture units. Its measured costs are synthetic, not live-game acceptance.
 - [x] Correct camera ownership and verify both packaged profiles (3534418).
 - [x] Current-client camera samples (3534418).
 - [x] Correct bounded destination execution, build and install source 8210ecf; verify the live minimap preflight.
-- [x] Short open-ground walk: measured stationary arrival and owner-confirmed normal trail coverage (8210ecf).
-- [ ] Active: slope and camera-rotation alignment.
+- [x] Short flat and slope walks: measured stationary arrival; flat trail coverage observed (8210ecf).
+- [ ] Active: verify the ground-height source and correct/validate placement on both flat and sloped terrain. The owner reports a possible body-height origin.
 - [ ] Normal/x-ray occlusion, bounded PvE and overlay cost/scene checks in the [developer/owner live pass](handoffs/navigation-inspector.md).
 
 Draft PR #27 is the integration destination; a push is not an accepted merge.
