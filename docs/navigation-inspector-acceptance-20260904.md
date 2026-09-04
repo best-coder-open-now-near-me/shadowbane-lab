@@ -1,4 +1,4 @@
-# Navigation inspector acceptance package â€” 2026-09-04
+# Navigation inspector acceptance package — 2026-09-04
 
 The initial acceptance package is built and verified and was deployed into a new,
 isolated testing-VM runtime. Live acceptance is in progress; nothing is merged.
@@ -6,7 +6,8 @@ The package and hashes below describe the initial e380e0f build. The Python publ
 correction below is installed. The native display correction below is installed and running after the owner
 closed the previous client. Its actual loaded DLL and installed source identities
 match the verified package. The renewed display check confirmed persistence,
-minimap clearance, hiding and reopening the actual saved failure.
+minimap clearance, hiding and reopening the actual saved failure. A separate
+verified camera-correction package is recorded below; its live check is pending.
 
 ## Source and review
 
@@ -194,6 +195,32 @@ replay result remain in the private local evidence locations recorded by the
 artifact registry. The inspector panel remains connected with Show in game off;
 the bounded command listener is available, with no active movement run.
 
+## Verified camera-correction package
+
+Source `35344185240b6de61ec24ab3b8460959bf78a575` is pushed on
+`codex/navigation-inspector` in draft PR #27. The complete package build passed:
+1,642 Python tests, seven skips, 211 subtests; Ruff; both VS2022 Win32 Release
+profiles with 18 native tests each; wheel from source distribution; fresh installed
+entry point and actual Tk panel. All 27 receipt entries were independently
+verified against both disk files and archive contents.
+
+Local package: `artifacts/navigation-inspector/b704181b/navigation-inspector-acceptance.zip`.
+ZIP SHA-256: `35a88dcc9d4dc295916c2bf0c439ad7eff8e48fe91712ad93ba62a724f6a52cf`.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| full/wonderbane-extension.dll | f08f99ea8dc8f8558971e3c00252b20df3ede58e00a723df012e4a14cd9071e7 |
+| diagnostics-only/wonderbane-extension.dll | 83752e380d34da5abf0b18e6f44dfa3b6db2ef7a8b3b12d258b73c424ff755e1 |
+| dist/shadowbane_lab-0.1.0-py3-none-any.whl | 758d93231a791e142cb6bb671138f4f8e0b751970a9b975b89c2feadc6e8683c |
+| dist/shadowbane_lab-0.1.0.tar.gz | 985206c909d51b7890c70d599bef638cec324e841aa6be949afe462500706dc7 |
+
+The owner authorized this update for the existing local testing VM. The separate
+`S:\ShadowbaneLab-Guided\20260904-inspector-3534418` runtime was prepared through
+the existing reviewed baseline/bootstrap path and passed runtime verification.
+The installed wheel source and prepared DLL match the package. The running
+`18bcf6d` client is preserved until the owner closes it. Actual loaded-module
+identity, current-client camera samples and visual alignment remain pending.
+
 ## Remaining acceptance pass
 
 Use the [developer/owner handoff](handoffs/navigation-inspector.md) for the exact
@@ -214,7 +241,8 @@ unavailable. Verify the measured LT/LG-to-world transform before accepting world
 alignment. If the separate terrain repair is added, it requires its own verified
 source and one combined boundary-tile check.
 
-Current active todo: resolve the missing camera observation using authorized
-evidence, then complete world-trail alignment, the bounded PvE scenarios and
+Current active todo: restart into the verified camera-correction package and
+verify actual loaded identity/camera samples, then complete world-trail alignment,
+the bounded PvE scenarios and
 overlay cost/scene checks. After the remaining live pass, review
 and integrate PR #27, then retire the inspector worktree/branch when safe.

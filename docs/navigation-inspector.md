@@ -88,7 +88,8 @@ texture units. Its measured costs are synthetic, not live-game acceptance.
 - [x] Loaded-module identity and reproducible acceptance-package builder.
 - [x] Build the committed source and verify the [acceptance package and receipts](navigation-inspector-acceptance-20260904.md).
 - [x] Live projected-map persistence, minimap clearance, hiding and real saved-failure replay.
-- [ ] Active: resolve camera observation and finish the [developer/owner live pass](handoffs/navigation-inspector.md).
+- [x] Correct camera ownership and verify both packaged profiles (3534418).
+- [ ] Active: restart into the verified camera package and finish the [developer/owner live pass](handoffs/navigation-inspector.md).
 
 Draft PR #27 is the integration destination; a push is not an accepted merge.
 Retain the task worktree until the live pass and integration are complete.
