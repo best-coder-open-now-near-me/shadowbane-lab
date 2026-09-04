@@ -1,0 +1,198 @@
+name: Generate terrain append ABI
+
+on:
+  push:
+    branches:
+      - codex/terrain-material-repair
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/terrain-material-repair
+          fetch-depth: 0
+      - name: Generate exact x86 append bridge
+        run: |
+          python -m pip install --disable-pip-version-check pefile capstone
+          python - <<'PY'
+          import hashlib
+          import json
+          import urllib.parse
+          import urllib.request
+          from pathlib import Path
+
+          import pefile
+          from capstone import (
+              Cs, CS_ARCH_X86, CS_MODE_32,
+              CS_GRP_CALL, CS_GRP_INT, CS_GRP_IRET, CS_GRP_JUMP, CS_GRP_RET,
+          )
+
+          target = '55fbad5f0110cd99b4085af72d1e8fddb782ccdec1491478492c18158f5c61bc'
+          root = 'http://87.99.132.84/'
+          request = urllib.request.Request(root + 'manifest.json', headers={'User-Agent': 'shadowbane-lab-review'})
+          with urllib.request.urlopen(request, timeout=60) as response:
+              manifest = json.loads(response.read().decode('utf-8-sig'))
+          base = urllib.parse.urljoin(root, str(manifest.get('baseUrl', '')).rstrip('/') + '/')
+          matches = [item for item in manifest.get('files', [])
+                     if isinstance(item, dict)
+                     and str(item.get('sha256', '')).lower() == target
+                     and isinstance(item.get('path'), str)]
+          if len(matches) != 1:
+              raise SystemExit(f'expected one reviewed executable, found {len(matches)}')
+          url = urllib.parse.urljoin(base, urllib.parse.quote(matches[0]['path'].replace('\\', '/')))
+          request = urllib.request.Request(url, headers={'User-Agent': 'shadowbane-lab-review'})
+          with urllib.request.urlopen(request, timeout=180) as response:
+              raw = response.read(128 * 1024 * 1024 + 1)
+          if len(raw) > 128 * 1024 * 1024 or hashlib.sha256(raw).hexdigest() != target:
+              raise SystemExit('reviewed executable download failed identity gate')
+
+          pe = pefile.PE(data=raw, fast_load=False)
+          image_base = int(pe.OPTIONAL_HEADER.ImageBase)
+          entry_va = 0x0069EE60
+          offset = pe.get_offset_from_rva(entry_va - image_base)
+          payload = raw[offset:offset + 0x900]
+          md = Cs(CS_ARCH_X86, CS_MODE_32)
+          md.detail = True
+          instructions = list(md.disasm(payload, entry_va))
+          if not instructions or instructions[0].address != entry_va:
+              raise SystemExit('could not decode material append entry')
+
+          cleanup_values = set()
+          for instruction in instructions:
+              if instruction.mnemonic == 'ret':
+                  cleanup_values.add(int(instruction.op_str, 0) if instruction.op_str else 0)
+          if len(cleanup_values) != 1:
+              raise SystemExit(f'append has ambiguous stack cleanup: {cleanup_values}')
+          stack_bytes = cleanup_values.pop()
+          if stack_bytes % 4 != 0 or stack_bytes > 48:
+              raise SystemExit(f'unsupported append stack cleanup: {stack_bytes}')
+          argument_count = stack_bytes // 4
+
+          patch_length = 0
+          stolen = []
+          forbidden = {CS_GRP_CALL, CS_GRP_INT, CS_GRP_IRET, CS_GRP_JUMP, CS_GRP_RET}
+          for instruction in instructions:
+              if any(group in forbidden for group in instruction.groups):
+                  raise SystemExit('relative/control-flow instruction occurs in append prologue')
+              stolen.append(instruction)
+              patch_length += instruction.size
+              if patch_length >= 5:
+                  break
+          if patch_length < 5 or patch_length > 16:
+              raise SystemExit(f'unsupported append patch length: {patch_length}')
+          prologue = payload[:patch_length]
+
+          generated_header = [
+              '#pragma once',
+              '',
+              '// Generated from the exact reviewed x86 client. Do not edit.',
+              '#include <array>',
+              '#include <cstddef>',
+              '#include <cstdint>',
+              '',
+              'namespace wonderbane::extension::terrain_material::append_abi {',
+              f'inline constexpr std::size_t kStackBytes = {stack_bytes}U;',
+              f'inline constexpr std::size_t kArgumentCount = {argument_count}U;',
+              f'inline constexpr std::size_t kPatchLength = {patch_length}U;',
+              f'inline constexpr std::array<std::uint8_t, {patch_length}> kPrologue{{',
+              '    ' + ', '.join(f'0x{value:02X}U' for value in prologue),
+              '};',
+              '}  // namespace wonderbane::extension::terrain_material::append_abi',
+              '',
+          ]
+          Path('native/wonderbane_extension/terrain_append_abi.generated.h').write_text(
+              '\n'.join(generated_header), encoding='utf-8', newline='\n')
+
+          arg_decl = ',\n    '.join(f'std::uint32_t argument{index}' for index in range(argument_count))
+          arg_names = ', '.join(f'argument{index}' for index in range(argument_count))
+          typed_args = ''.join(', std::uint32_t' for _ in range(argument_count))
+          call_args = ''.join(f', arguments[{index}]' for index in range(argument_count))
+          array_init = arg_names
+          hook_comma = ',\n    ' if argument_count else ''
+
+          source = f'''#include "terrain_append_bridge.h"
+
+#include "terrain_append_abi.generated.h"
+
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <span>
+
+namespace wonderbane::extension::terrain_material {{
+namespace {{
+
+#if defined(_MSC_VER) && defined(_M_IX86)
+using AppendFunction = std::uintptr_t (__thiscall*)(void*{typed_args});
+AppendFunction g_append_trampoline = nullptr;
+
+extern "C" std::uintptr_t __fastcall TerrainMaterialAppendHook(
+    void* this_pointer,
+    void*{hook_comma}{arg_decl}) noexcept {{
+    const std::array<std::uint32_t, append_abi::kArgumentCount> arguments{{{array_init}}};
+    RecordMaterialAppendEnter(this_pointer, arguments);
+    const auto original = g_append_trampoline;
+    const auto result = original == nullptr
+        ? 0U
+        : original(this_pointer{''.join(f', argument{i}' for i in range(argument_count))});
+    RecordMaterialAppendExit(result);
+    return result;
+}}
+#endif
+
+}}  // namespace
+
+void SetMaterialAppendTrampoline(void* trampoline) noexcept {{
+#if defined(_MSC_VER) && defined(_M_IX86)
+    g_append_trampoline = reinterpret_cast<AppendFunction>(trampoline);
+#else
+    (void)trampoline;
+#endif
+}}
+
+void* MaterialAppendHookAddress() noexcept {{
+#if defined(_MSC_VER) && defined(_M_IX86)
+    return reinterpret_cast<void*>(&TerrainMaterialAppendHook);
+#else
+    return nullptr;
+#endif
+}}
+
+std::uintptr_t InvokeMaterialAppend(
+    void* this_pointer,
+    const std::span<const std::uint32_t> arguments) noexcept {{
+#if defined(_MSC_VER) && defined(_M_IX86)
+    const auto original = g_append_trampoline;
+    if (original == nullptr || arguments.size() != append_abi::kArgumentCount) {{
+        return 0U;
+    }}
+    return original(this_pointer{call_args});
+#else
+    (void)this_pointer;
+    (void)arguments;
+    return 0U;
+#endif
+}}
+
+}}  // namespace wonderbane::extension::terrain_material
+'''
+          Path('native/wonderbane_extension/terrain_append_bridge.generated.cpp').write_text(
+              source, encoding='utf-8', newline='\n')
+          Path('.github/workflows/generate-terrain-append-abi.yml').unlink()
+          PY
+      - name: Commit generated append ABI
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add native/wonderbane_extension/terrain_append_abi.generated.h \
+            native/wonderbane_extension/terrain_append_bridge.generated.cpp \
+            .github/workflows/generate-terrain-append-abi.yml
+          git diff --cached --check
+          git commit -m "build: generate exact terrain append ABI bridge"
+          git push origin HEAD:codex/terrain-material-repair
