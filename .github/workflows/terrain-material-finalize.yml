@@ -1,0 +1,99 @@
+name: Finalize terrain material repair
+
+on:
+  push:
+    branches:
+      - codex/terrain-material-repair
+
+concurrency:
+  group: terrain-material-repair-finalize
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/terrain-material-repair
+          fetch-depth: 0
+      - name: Generate, integrate, validate, and publish one converged commit
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check pefile capstone
+
+          for attempt in 1 2 3 4 5; do
+            git fetch origin codex/terrain-material-repair
+            git reset --hard origin/codex/terrain-material-repair
+
+            python tools/terrain_material_codegen.py --repository .
+            first_hashes="$(sha256sum \
+              native/wonderbane_extension/terrain_client_profile.generated.h \
+              native/wonderbane_extension/terrain_append_abi.generated.h \
+              native/wonderbane_extension/terrain_append_bridge.generated.cpp \
+              native/wonderbane_extension/terrain_registration_abi.generated.h \
+              native/wonderbane_extension/terrain_registration_bridge.generated.cpp)"
+            python tools/terrain_material_codegen.py --repository .
+            second_hashes="$(sha256sum \
+              native/wonderbane_extension/terrain_client_profile.generated.h \
+              native/wonderbane_extension/terrain_append_abi.generated.h \
+              native/wonderbane_extension/terrain_append_bridge.generated.cpp \
+              native/wonderbane_extension/terrain_registration_abi.generated.h \
+              native/wonderbane_extension/terrain_registration_bridge.generated.cpp)"
+            test "$first_hashes" = "$second_hashes"
+
+            python tools/integrate_terrain_material_repair.py --repository .
+            rm -f .github/workflows/terrain-material-finalize.yml
+
+            python -m py_compile \
+              tools/terrain_material_codegen.py \
+              tools/integrate_terrain_material_repair.py
+
+            g++ -std=c++20 -O2 -Wall -Wextra -Wpedantic -Werror \
+              native/wonderbane_extension/terrain_material_plan.cpp \
+              native/wonderbane_extension/terrain_material_plan_test.cpp \
+              -o terrain_material_plan_test
+            ./terrain_material_plan_test
+
+            g++ -std=c++20 -O2 -Wall -Wextra -Wpedantic -Werror \
+              native/wonderbane_extension/terrain_material_plan.cpp \
+              native/wonderbane_extension/terrain_material_transaction.cpp \
+              native/wonderbane_extension/terrain_material_transaction_test.cpp \
+              -o terrain_material_transaction_test
+            ./terrain_material_transaction_test
+
+            g++ -std=c++20 -O2 -Wall -Wextra -Wpedantic -Werror \
+              native/wonderbane_extension/terrain_vtable_hook.cpp \
+              native/wonderbane_extension/terrain_vtable_hook_test.cpp \
+              -o terrain_vtable_hook_test
+            ./terrain_vtable_hook_test
+
+            g++ -std=c++20 -O2 -Wall -Wextra -Wpedantic -Werror \
+              native/wonderbane_extension/terrain_client_verification.cpp \
+              native/wonderbane_extension/terrain_client_verification_test.cpp \
+              -o terrain_client_verification_test
+            ./terrain_client_verification_test
+
+            git add -A
+            git diff --cached --check
+            if git diff --cached --quiet; then
+              exit 0
+            fi
+
+            git config user.name github-actions[bot]
+            git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+            git commit -m "feat: integrate exact-client terrain material repair"
+            if git push origin HEAD:codex/terrain-material-repair; then
+              exit 0
+            fi
+
+            git reset --hard HEAD~1
+            sleep $((attempt * 5))
+          done
+
+          echo 'could not publish converged terrain material repair after retries' >&2
+          exit 1
