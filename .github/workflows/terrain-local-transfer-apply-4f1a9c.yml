@@ -1,0 +1,96 @@
+name: Apply bounded terrain repair
+
+on:
+  push:
+    branches:
+      - codex/terrain-material-export-da109b0
+
+permissions:
+  contents: write
+
+concurrency:
+  group: terrain-local-transfer-apply-4f1a9c
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out authoritative terrain branch
+        uses: actions/checkout@v4
+        with:
+          ref: codex/client-convergence-v2
+          fetch-depth: 0
+
+      - name: Verify base and fetch bounded patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "da109b04bc80bdb9ac451846e936c75082635396"
+          curl --fail --location --retry 8 --retry-delay 3 \
+            -H 'bypass-tunnel-reminder: true' \
+            https://sbterrain-da109b0-4f1a9c.loca.lt/metadata.json \
+            --output /tmp/metadata.json
+          curl --fail --location --retry 8 --retry-delay 3 \
+            -H 'bypass-tunnel-reminder: true' \
+            https://sbterrain-da109b0-4f1a9c.loca.lt/terrain-repair.patch \
+            --output /tmp/terrain-repair.patch
+          python - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+
+          metadata = json.loads(Path('/tmp/metadata.json').read_text(encoding='utf-8'))
+          patch = Path('/tmp/terrain-repair.patch').read_bytes()
+          assert metadata['base'] == 'da109b04bc80bdb9ac451846e936c75082635396'
+          assert metadata['nonempty'] is True
+          assert metadata['size'] == len(patch)
+          assert metadata['sha256'] == hashlib.sha256(patch).hexdigest()
+          PY
+
+      - name: Apply patch and enforce product boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          git apply --index --whitespace=error-all /tmp/terrain-repair.patch
+          git diff --cached --check
+          mapfile -t changed < <(git diff --cached --name-only)
+          test "${#changed[@]}" -gt 0
+          for path in "${changed[@]}"; do
+            case "$path" in
+              native/wonderbane_extension/*|docs/investigations/terrain-seam-repair.md|docs/investigations/terrain-resource-ownership.md|docs/diagnostics/terrain-material-poll.md|tests/*|src/shadowbane_lab/*|pyproject.toml)
+                ;;
+              *)
+                echo "Disallowed transfer path: $path" >&2
+                exit 1
+                ;;
+            esac
+            case "$path" in
+              *.exe|*.dll|*.zip|*.7z|*.rar|*.bin|*.dmp|*.jsonl|*evidence*|*capture*)
+                echo "Binary/private evidence path rejected: $path" >&2
+                exit 1
+                ;;
+            esac
+          done
+          if git diff --cached --name-only | grep -q '^\.github/'; then
+            echo 'Workflow mutation rejected.' >&2
+            exit 1
+          fi
+
+      - name: Run portable validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check -e '.[dev]'
+          python -m pytest -q
+          python -m ruff check .
+          python -m ruff format --check .
+
+      - name: Commit and fast-forward authoritative branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'OpenAI'
+          git config user.email 'noreply@openai.com'
+          git commit -m 'Repair missing terrain material coverage transactionally'
+          git push origin HEAD:refs/heads/codex/client-convergence-v2
