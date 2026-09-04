@@ -219,14 +219,14 @@ def patch_integration(repository: Path) -> None:
 def normalize_codegen_quality(repository: Path) -> None:
     path = repository / "tools" / "terrain_material_codegen.py"
     source = path.read_text(encoding="utf-8")
-    old = "from typing import Iterable"
-    new = "from collections.abc import Iterable"
-    if old in source:
-        if source.count(old) != 1:
-            raise RuntimeError("unexpected terrain codegen Iterable import count")
-        source = source.replace(old, new)
-    elif new not in source:
-        raise RuntimeError("terrain codegen Iterable import is not recognized")
+    old = "from typing import Iterable\n"
+    new = "from collections.abc import Iterable\n"
+    source = source.replace(old, "")
+    source = source.replace(new, "")
+    anchor = "import urllib.request\n"
+    if source.count(anchor) != 1:
+        raise RuntimeError("terrain codegen import anchor is not unique")
+    source = source.replace(anchor, anchor + new)
     path.write_text(source, encoding="utf-8", newline="\n")
 
 
