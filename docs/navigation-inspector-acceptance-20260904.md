@@ -223,9 +223,37 @@ PID 8652 / creation FILETIME 134330013610671584. Its actual loaded DLL hash is
 source is `35344185240b6de61ec24ab3b8460959bf78a575`, and its inspector channel
 is available. The allowed HUD preferences were preserved and runtime integrity
 was rechecked before launch. Only the identified prior inspector/listener helpers
-were stopped; previous installations and saved captures remain intact. Login,
-current-client camera samples and visual alignment remain pending. The new
-movement listener and recorder will be connected after the owner enters the world.
+were stopped; previous installations and saved captures remain intact. The
+subsequent login, camera and trail findings are recorded below.
+
+## Live camera and first trail check
+
+The owner logged into the verified `3534418` client in Sea Dog's Rest. The full
+renderer reports `reviewed-main-scene-boundaries` camera evidence: its 256-sample
+ring was full, sequence advanced from 505 to 2,283, and producer drops stayed at
+zero. The sampled scene had one verified main scene/boundary, no invalidation,
+no late world draws, and a successful pre-UI composite.
+
+After the owner focused the game, `/go 88712 44857 --radius 5` completed using the
+production A* route: four clicks, no replans or direct fallback, and arrival within
+five units. The saved capture has 12 measured trail positions and 13 events. Its
+geometry contains all 11 world-height trail segments, with zero omitted lines,
+trail omissions or dropped observations. Capture SHA-256:
+`0185547c71dbf0cdf954af261ec9d080f22b4c4aa8bf3ffca06a930a24d7a8f7`.
+
+The screenshots show cyan world-trail portions on the road, but the owner reports
+that only the first short segment was visible. **Trail visibility is not accepted.**
+The next comparison enables the existing dashed x-ray layer on a return walk to
+separate missing capture/geometry from depth occlusion. No height or depth rule
+has been changed to conceal the finding. The projected capture remains available
+after the producer lease expires; stale evidence cannot draw world lines.
+
+Local evidence is retained under the current VM diagnostics folder: `short-test.json`,
+`short-walk-segment-audit.json`, `recordings/short-walk-4526109934204037937.json`,
+and `graphics-status-in-world.json`. Timed PNGs and their UTC index are in the
+worktree's ignored `artifacts/navigation-inspector/live-20260904/camera-walk-*`.
+The current helpers are panel 3316, listener 6312 and recorder 7696. No movement
+command remains active.
 
 ## Remaining acceptance pass
 
@@ -247,8 +275,7 @@ unavailable. Verify the measured LT/LG-to-world transform before accepting world
 alignment. If the separate terrain repair is added, it requires its own verified
 source and one combined boundary-tile check.
 
-Current active todo: after owner login, verify camera samples from the running
-3534418 package, then complete world-trail alignment,
-the bounded PvE scenarios and
-overlay cost/scene checks. After the remaining live pass, review
+Current active todo: compare normal/x-ray trail coverage, then complete slope
+and camera-rotation alignment, the bounded PvE scenarios and overlay cost/scene
+checks. After the remaining live pass, review
 and integrate PR #27, then retire the inspector worktree/branch when safe.

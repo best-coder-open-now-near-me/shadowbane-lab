@@ -89,7 +89,8 @@ texture units. Its measured costs are synthetic, not live-game acceptance.
 - [x] Build the committed source and verify the [acceptance package and receipts](navigation-inspector-acceptance-20260904.md).
 - [x] Live projected-map persistence, minimap clearance, hiding and real saved-failure replay.
 - [x] Correct camera ownership and verify both packaged profiles (3534418).
-- [ ] Active: verify camera samples after login into the verified replacement and finish the [developer/owner live pass](handoffs/navigation-inspector.md).
+- [x] Current-client camera samples and a complete A* short walk (3534418).
+- [ ] Active: resolve partial trail visibility and finish the [developer/owner live pass](handoffs/navigation-inspector.md).
 
 Draft PR #27 is the integration destination; a push is not an accepted merge.
 Retain the task worktree until the live pass and integration are complete.
