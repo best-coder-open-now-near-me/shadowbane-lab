@@ -86,14 +86,15 @@ manifests are also retained under
 ## Completed local cleanup
 
 After explicit approval, all **29 selected local branches** were deleted and
-**12 obsolete cache-only worktrees** were removed. Local branches decreased
-from **38 to 9**, and worktrees decreased from **30 to 18**.
+**12 obsolete cache-only worktrees** were removed. The owner then approved
+archiving and removing the nine obsolete artifact checkouts. Their 4,264
+non-cache local files were verified in one private ZIP before all nine folders
+were removed. Local branches decreased from **38 to 9**, and worktrees decreased
+from **30 to 9** (21 removed in total).
 
-The nine selected checkouts containing artifacts remain at their exact original
-commits with detached HEADs. Their tracked trees remain clean and their ignored
-file inventories are unchanged. The existing streaming draft and reject file
-were verified byte-for-byte against the preserved copies; they are unchanged.
-Every deleted local tip is retained by the archive tag and recorded below.
+Each removed checkout's exact source commit is retained by the archive tag and
+recorded below. The existing streaming draft and reject file were verified
+against the preserved copies; they are unchanged.
 
 The remaining local branches are `main`, `codex/integrate-current-development`,
 `codex/client-convergence-v2`, `codex/client-streaming-telemetry`,
@@ -114,6 +115,8 @@ Local tips can differ from the old remote tips above. Use this table when
 restoring a local branch. Original checkout paths and exact operation outcomes
 are saved privately in `branch-retirement/plan.json`, `worktree-results.json`,
 `local-deletion-results.json`, and `final-state.json` under the recovery directory.
+The later `artifact-consolidation/removed-checkouts.json` records the nine
+artifact checkout removals; its `final-state.json` supersedes the earlier counts.
 
 | Deleted local branch | Retained local commit | Worktree outcome |
 | --- | --- | --- |
@@ -122,27 +125,42 @@ are saved privately in `branch-retirement/plan.json`, `worktree-results.json`,
 | `codex/client-extension-bootstrap` | `e78f3ed1982631fd6945f262121516f07546ca2f` | No checked-out worktree |
 | `codex/client-extension-map-api` | `0670de6176826464470625047f2d0648a054d2d2` | No checked-out worktree |
 | `codex/client-streaming-diagnostics-v2` | `4b047c9333ee8a2c6a7580480a9e7e58f001e709` | Removed clean cache-only checkout |
-| `codex/convergence-integrity-gates` | `a7595444504ef4effa28efe4b97c65a4e8bf3839` | Kept artifact checkout detached at same commit |
+| `codex/convergence-integrity-gates` | `a7595444504ef4effa28efe4b97c65a4e8bf3839` | Archived local artifacts; removed checkout |
 | `codex/evidence-spine` | `8ee3d2c0d81b538d569d6bf95ddd930aed4f6ba3` | Removed clean cache-only checkout |
 | `codex/evidence-spine-outline` | `99fff9396c267874388650f9f8b752f6cec971f2` | Removed clean cache-only checkout |
-| `codex/graphics-banded-lighting` | `de9367f18a70231740f1f44adefa8458c7df795d` | Kept artifact checkout detached at same commit |
-| `codex/graphics-baseline-55fb` | `de9367f18a70231740f1f44adefa8458c7df795d` | Kept artifact checkout detached at same commit |
+| `codex/graphics-banded-lighting` | `de9367f18a70231740f1f44adefa8458c7df795d` | Archived local artifacts; removed checkout |
+| `codex/graphics-baseline-55fb` | `de9367f18a70231740f1f44adefa8458c7df795d` | Archived local artifacts; removed checkout |
 | `codex/graphics-diagnostics-client` | `89cefb0fc57f354ab089c4af374b797ceeeeac8e` | Removed clean cache-only checkout |
-| `codex/graphics-evidence-integration` | `d58221cacaf30af13d716cd988d3eb39fb06686e` | Kept artifact checkout detached at same commit |
-| `codex/integrate-preserved-features` | `43be8c9050faff57f5748b8eb74cfe255d22a12c` | Kept artifact checkout detached at same commit |
+| `codex/graphics-evidence-integration` | `d58221cacaf30af13d716cd988d3eb39fb06686e` | Archived local artifacts; removed checkout |
+| `codex/integrate-preserved-features` | `43be8c9050faff57f5748b8eb74cfe255d22a12c` | Archived local artifacts; removed checkout |
 | `codex/integrate-preserved-simulator` | `db7dd16dcd255305f60f53a49d1c1580db94383d` | Removed clean cache-only checkout |
 | `codex/integrate-pvp-current-client-data` | `0d55095deaf5fa2eecdd95493ef86168bc9285ce` | Removed clean cache-only checkout |
-| `codex/manager-permit-retry` | `015e099a81c2968b880ef7e19cc40c0b4c473677` | Kept artifact checkout detached at same commit |
+| `codex/manager-permit-retry` | `015e099a81c2968b880ef7e19cc40c0b4c473677` | Archived local artifacts; removed checkout |
 | `codex/modularize-cli` | `900955fb845606014e55b1e818c8c3a58811c6cf` | Removed clean cache-only checkout |
 | `codex/non-render-refactor` | `43be8c9050faff57f5748b8eb74cfe255d22a12c` | Removed clean cache-only checkout |
 | `codex/non-render-refactor-v2` | `4b047c9333ee8a2c6a7580480a9e7e58f001e709` | No checked-out worktree |
-| `codex/patch-align-55fb` | `d482d0feac9acf6dc1c0d5ffd44da8e5d8ffa8ec` | Kept artifact checkout detached at same commit |
+| `codex/patch-align-55fb` | `d482d0feac9acf6dc1c0d5ffd44da8e5d8ffa8ec` | Archived local artifacts; removed checkout |
 | `codex/portable-vanilla-diagnostics` | `f6c198018a7892194f92d251bf804757503c1430` | Removed clean cache-only checkout |
 | `codex/product-convergence` | `51d3917ff0df3f0111de832090c6f4cd31a82204` | No checked-out worktree |
-| `codex/pvp-current-client-data` | `d035f749a3763e92651b278aecfd6e37cfe206b3` | Kept artifact checkout detached at same commit |
+| `codex/pvp-current-client-data` | `d035f749a3763e92651b278aecfd6e37cfe206b3` | Archived local artifacts; removed checkout |
 | `codex/renderer-diagnostics-integration` | `1551a9be2d82fae73fea3ecd085d76698b652819` | Removed clean cache-only checkout |
 | `codex/vanilla-diagnostics-release` | `fff93812bd622dac14d4a7d9dc2b04ecc066a21e` | Removed clean cache-only checkout |
 | `codex/vendor-dialog-diagnostics` | `02d729808eb389a9565f2a83b93548974d5bbb08` | No checked-out worktree |
-| `codex/window-manager` | `ca71a53eb9e7d119c5c82248683ac985c2b6251d` | Kept artifact checkout detached at same commit |
+| `codex/window-manager` | `ca71a53eb9e7d119c5c82248683ac985c2b6251d` | Archived local artifacts; removed checkout |
 | `codex/worker-supervision` | `18efdbac1f62fb8cab1402d883fd568316507b3c` | Removed clean cache-only checkout |
 | `codex/wreck-texture-cache-swap` | `99b37c7f4140db1f465d834c089b9aa7b1bc761b` | No checked-out worktree |
+
+## Consolidated historical build archive
+
+The private archive is
+`artifacts/git-cleanup/20260904T062424Z/artifact-consolidation/retired-builds.zip`.
+It contains **4,264 files**, grouped by former branch, in **23,323,923 bytes**.
+Its SHA-256 is
+`2d753b052b494c9cfd7c174864b14de77921da57a25346c36863753d66657993`.
+
+The adjacent and embedded manifests record original paths, source commits, file
+sizes and hashes. Every archived file and ZIP CRC was verified; the source
+inventories and hashes were checked again immediately before checkout removal.
+Only disposable Ruff, pytest, and Python bytecode caches were omitted. Builds,
+package metadata, test outputs, and the graphics screenshot remain recoverable.
+The archive stays local and ignored. No client deployment or runtime code changed.

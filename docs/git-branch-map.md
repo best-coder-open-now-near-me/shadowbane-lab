@@ -13,10 +13,12 @@ The owner approved and completed deletion of **53 superseded remote branches**;
 and full SHAs, recovery commands, retained dependencies, and local outcomes.
 
 After explicit local approval, **29 obsolete local branches** and **12 cache-only
-worktrees** were also removed. **9 local branches and 18 worktrees remain**.
-The nine artifact-containing checkouts were kept at their exact original detached
-commits. The existing dirty streaming draft is unchanged. Consult the registry
-before restoring a retired name; routine fetches will not recreate deleted refs.
+worktrees** were removed. The owner then approved archiving the nine remaining
+obsolete artifact checkouts: their **4,264 non-cache files** were hash-verified
+in one private ZIP, and all nine checkout folders were removed. **9 local
+branches and 9 worktrees remain** (21 worktrees removed in total).
+The existing dirty streaming draft is unchanged. Consult the registry before
+restoring a retired name; routine fetches will not recreate deleted refs.
 
 ## Shared starting point
 
@@ -91,11 +93,14 @@ manifest and archive, and the exact new formatting-stash SHA. Preserve it until
 the owner decides that recovery copies are no longer needed.
 
 The old streaming worktree still contains eight modified files and one reject
-file. Its draft was backed up and left in place. There are now 18 worktrees and
+file. Its draft was backed up and left in place. There are now 9 worktrees and
 9 local branches. The retirement registry records the 53 retired remote names,
 29 local names and exact tips, including local tips that differed from origin.
-All retired commits remain under the archive tag. Artifact-containing checkouts
-were preserved; ignored containers do not mean every checkout is clean.
+All retired commits remain under the archive tag. Historical build artifacts
+from nine obsolete checkouts are consolidated in
+`artifact-consolidation/retired-builds.zip` under the recovery directory, with
+original paths and file hashes in its manifest. Those checkout folders have
+been removed; the retained streaming checkout still contains its unfinished work.
 
 The normal project checkout is returned to `main` after preparing the PR.
 Repository-local `fetch.prune=true` and `pull.ff=only` keep ref refresh and update
