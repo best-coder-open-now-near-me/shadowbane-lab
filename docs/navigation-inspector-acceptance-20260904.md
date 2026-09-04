@@ -286,6 +286,27 @@ Local evidence: `motion-before-xray.json`, `short-test.json`,
 `listener.stdout.jsonl`, and the original capture above. The read-only investigation
 and `before-stop-investigation.png` remain in the ignored live artifact directory.
 
+## Destination correction source checkpoint
+
+Read-only live evidence verified the minimap content center `(1815,119)`, zoom
+`2.078929901123047`, and the native 0.13 base scale. Source checkpoint `ab9b367`
+adds the guarded minimap reader. The following correction wires travel/PvE to
+bounded absolute LT/LG destinations, preserving distance and rejecting uncertain
+geometry or unusably coarse zoom. It removes the unverified center-click stop.
+
+Completion requires fresh positions inside the arrival radius and a 0.25-unit
+horizontal envelope for 600 ms, with a four-second settling deadline. The trace
+continues throughout that interval. PvE consumes coherent observation frames and
+preserves normal combat dispatch while checking settling; an opener followup on
+the first arrival-candidate tick has a dedicated regression. New approach input
+supersedes the pending check. Cancellation ends automation and reports that the
+last clicked destination may still complete.
+
+Focused regression checks pass. The previous full source run passed 1,667 tests
+with 7 skips and 211 subtests; exact final-source counts, native/profile gates and
+package receipts must come from the committed package build. No corrected wheel
+or DLL has been deployed yet, and the overshoot/visibility acceptance remains open.
+
 ## Remaining acceptance pass
 
 Use the [developer/owner handoff](handoffs/navigation-inspector.md) for the exact
@@ -306,7 +327,7 @@ unavailable. Verify the measured LT/LG-to-world transform before accepting world
 alignment. If the separate terrain repair is added, it requires its own verified
 source and one combined boundary-tile check.
 
-Current active todo: correct destination execution and verify stationary arrival;
+Current active todo: package and deploy the destination correction, then verify stationary arrival;
 then compare normal/x-ray trail coverage and complete slope
 and camera-rotation alignment, the bounded PvE scenarios and overlay cost/scene
 checks. After the remaining live pass, review

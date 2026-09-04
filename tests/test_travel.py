@@ -690,7 +690,7 @@ class TravelRunnerTests(unittest.TestCase):
                     _position(1000, 1000),
                     _position(1100, 1000),
                     _position(1200, 1000),
-                    _position(1300, 1000),
+                    *[_position(1300, 1000)] * 6,
                 ]
             ),
             player_vitals_reader=ConstantVitalsReader(),
@@ -707,8 +707,9 @@ class TravelRunnerTests(unittest.TestCase):
         self.assertEqual("destination_reached", result.terminal_reason)
         self.assertEqual(3, result.clicks)
         self.assertEqual(3, len(dispatcher.decisions))
-        self.assertEqual(1, len(dispatcher.stop_decisions))
-        self.assertTrue(result.stop_input_accepted)
+        self.assertEqual(0, len(dispatcher.stop_decisions))
+        self.assertIsNone(result.stop_input_accepted)
+        self.assertTrue(result.arrival_confirmed)
         self.assertEqual(1300, result.final_position.lt)
 
     def test_runner_stops_on_rejected_guarded_input(self) -> None:
@@ -738,37 +739,42 @@ class TravelRunnerTests(unittest.TestCase):
         self.assertEqual(TravelPhase.STOPPED, result.final_phase)
         self.assertEqual("guarded_input_rejected", result.terminal_reason)
 
-    def test_runner_fails_closed_when_terminal_stop_input_is_rejected(self) -> None:
-        class StopRejectingDispatcher(RecordingTravelDispatcher):
-            def stop_movement(self, decision):
-                self.stop_decisions.append(decision)
-                return DispatchResult(
-                    adapter_name="recording-travel",
-                    correlation_id=f"{decision.decision_id}:stop",
-                    accepted=False,
-                    reason="focus changed",
-                )
-
+    def test_runner_rejects_arrival_when_the_character_keeps_moving(self) -> None:
         clock = FakeClock()
-        dispatcher = StopRejectingDispatcher()
+        dispatcher = RecordingTravelDispatcher()
+        events = []
         result = TravelRunner(
-            controller=TravelController(
-                parse_go_command("go 1100 1000 25"),
-                TravelControllerConfig(click_interval_ms=200, minimum_progress=25),
+            controller=TravelController(parse_go_command("go 1100 1000 25")),
+            position_reader=SequencePositionReader(
+                [
+                    _position(1000, 1000),
+                    _position(1100, 1000),
+                    *[_position(1110 + index * 10, 1000) for index in range(30)],
+                ]
             ),
-            position_reader=SequencePositionReader([_position(1000, 1000), _position(1100, 1000)]),
             player_vitals_reader=ConstantVitalsReader(),
             dispatcher=dispatcher,
             stop_signal=EventEmergencyStop(),
-            poll_interval_ms=200,
             clock=clock,
             sleeper=clock.sleep,
+            observer=events.append,
         ).run()
-
         self.assertEqual(TravelPhase.STOPPED, result.final_phase)
-        self.assertEqual("movement_stop_rejected", result.terminal_reason)
-        self.assertFalse(result.stop_input_accepted)
-        self.assertEqual("focus changed", result.stop_input_reason)
+        self.assertEqual("arrival_not_settled", result.terminal_reason)
+        self.assertFalse(result.arrival_confirmed)
+        self.assertGreater(result.final_position.lt, 1200)
+        self.assertEqual([], dispatcher.stop_decisions)
+        self.assertFalse(any(event.event == "completion" for event in events))
+        self.assertTrue(
+            any(event.event == "observation" and event.position[0] > 1200 for event in events)
+        )
+
+    def test_click_destinations_preserve_short_distance_and_bound_long_distance(self) -> None:
+        for destination, expected in ((1045, 1045), (2000, 1050)):
+            controller = TravelController(parse_go_command(f"go {destination} 1000 5"))
+            decision = controller.step(_observation(0, 1000, 1000))
+            self.assertEqual(expected, decision.click_destination.x)
+            self.assertEqual(1000, decision.click_destination.y)
 
 
 if __name__ == "__main__":

@@ -192,5 +192,13 @@ The verified running `3534418` client has parent rectangle `(1710,14,1920,224)`,
 child rectangle `(3,3,207,207)`, center `(1815,119)`, and zoom
 `2.078929901123047`. A 45-unit waypoint projects about 12 pixels from that center,
 whereas the old actuator always selects its 82-pixel radius. The native minimap
-reader and its projection tests form the first correction checkpoint; travel/PvE
-wiring and measured completion are still required. This is not a deployed fix.
+reader and its projection tests were committed as `ab9b367`. The next source checkpoint
+wires both travel and PvE to bounded absolute destinations, verifies stationary arrival,
+and removes the assumed center-click stop. PvE observes settling on coherent frames
+without dropping combat actions. Regression tests cover pass-through overshoot, slow
+drift, changed/ambiguous geometry, coarse zoom, cancellation and action sequencing.
+This source is not yet a deployed or live-accepted fix.
+
+Next todo: build the exact committed correction, verify package/runtime identities,
+then repeat one short owner-assisted walk with post-arrival position evidence. Only
+then resume normal/x-ray, slope, obstacle and PvE acceptance.

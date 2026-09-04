@@ -153,7 +153,7 @@ def test_adaptive_replanning_keeps_the_same_observer_on_replacement_controller()
 
 
 def test_arrival_and_cancellation_emit_once_with_actual_position():
-    for finish, expected in (("arrive", "completion"), ("stop", "cancelled")):
+    for finish, expected in (("arrive", "arrival_candidate"), ("stop", "cancelled")):
         events = []
         controller = TravelController(
             TravelPlan("dynamic", (TravelDestination(95.0, 5.0, 5.0),)),

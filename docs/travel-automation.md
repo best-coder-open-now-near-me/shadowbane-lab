@@ -1,13 +1,11 @@
 # Closed-loop LT/LG travel
 
-> Live validation finding, 2026-09-04: destination completion and immediate stop
-> are not accepted. The current actuator discards waypoint distance, always clicks
-> the minimap outer radius, then assumes a center click cancels movement. The owner
-> confirmed that the client instead runs to a clicked destination and replaces it
-> on another click; one test continued about 301 units after reporting completion.
-> Historical stop/lease descriptions below are contradicted by that observation.
-> Destination-aware projection and measured arrival must be fixed before further
-> automated travel/PvE acceptance. See [the exact record](navigation-inspector-acceptance-20260904.md#owner-confirmed-destination-overshoot).
+> Source correction, 2026-09-04: travel/PvE destination clicks now use the verified
+> live minimap geometry and zoom, with measured arrival instead of an assumed stop.
+> The running `3534418` package still has the old actuator and is not accepted:
+> one test continued about 301 units after reporting completion. The correction
+> must pass packaging and a fresh owner-assisted walk before live acceptance.
+> See [the exact record](navigation-inspector-acceptance-20260904.md#owner-confirmed-destination-overshoot).
 
 Travel uses exact native player coordinates as feedback and guarded right-clicks on the
 minimap as the actuator. Start the foreground-scoped chat bridge once per client session:
@@ -89,14 +87,14 @@ window refreshes after 600 world units and whenever the native current-zone toke
 retaining sparse global costs learned earlier in the same listener session. Route smoothing
 preserves A*'s weighted-cost choice instead of shortcutting back across water or object-density
 cells. If exact position feedback shows
-two consecutive steering leases without progress, the controller marks the cell ahead as blocked
+two consecutive steering checkpoints without progress, the controller marks the cell ahead as blocked
 and replans around it before falling back to the bounded zig-zag escape sequence. Exact
 stall-learned cells are shared by `/go` and `/pve` and atomically persisted by the VM launcher in
 `codexdiag/learned-navigation-state.json`, so later routes and listener restarts plan around them
-before issuing their first movement lease. Derived terrain costs are rebuilt from client caches
+before issuing their first destination click. Derived terrain costs are rebuilt from client caches
 rather than copied into that state file. The final JSON
 event reports A* replan count, terrain refresh count, active zone, and navigation revision.
-Long-distance travel uses two-second steering leases and an eight-unit progress threshold. Learned
+Long-distance travel reevaluates steering every two seconds with an eight-unit progress threshold. Learned
 obstacles occupy their measured 20-unit cell without an additional clearance ring, while diagonal
 corner cutting remains forbidden; this keeps single-tree and mushroom detours local instead of
 turning them into 60-unit exclusion squares.
@@ -128,9 +126,9 @@ adds high traversal cost for explicit zone-local water, then layers stall-learne
 that static seed. It does not require the native message HUD to contain a current transcript. Each run writes a
 uniquely named final evidence artifact and an incrementally flushed JSONL journal beside the
 listener logs. The in-memory trace is a bounded tail rather than an ever-growing session log.
-Use `/stop` to
-cancel either an active battle or route and immediately clear Shadowbane's last click-to-move
-destination through the same guarded minimap-center input path. The listener observes keyboard
+Use `/stop` to cancel either an active battle or route and prevent further automated
+input. The client can continue toward its last clicked destination. There is no verified
+instantaneous movement-stop input; a new manual destination replaces the old one. The listener observes keyboard
 events only while the calibrated `sb.exe` window owns foreground focus, never suppresses the
 game's input, and retains only text that is still a possible `/go`, `/pve`, or `/stop` command.
 Opening chat cancels the bridge's active operation before more automated input is issued. A
@@ -185,9 +183,17 @@ The calibrated WonderBane build exposes the canonical position vector through th
 object's verified position component. The native reader follows that exact object path and
 maps native `x/y/z` to `LT/altitude/-LG`. It requests query/read rights only.
 
-At 1920x955, the minimap player center is `(1812, 107)`. A rightward minimap click increases
-LT; an upward click increases LG. The checked-in profile uses an 82-pixel radius within the
-minimap and remains live-locked. Copy it before live use and change only the local copy:
+The destination actuator reads the exact running client's minimap rectangle, content
+control and zoom. A rightward click increases LT; an upward click increases LG. Each
+world waypoint is capped at 50 units from the controller observation before pixel
+rounding, then projected using a fresh player position and the live minimap scale.
+Nearer waypoints retain their distance. The calibrated 82-pixel radii are maximum
+click envelopes, not distances that every click must use. A changed, hidden, ambiguous
+or unsupported minimap rejects input; zoom too coarse for five-unit pixel accuracy
+also rejects. The verified 1920x955 session used center `(1815,119)` and approximately
+0.27026 pixels per world unit, but those values are observed rather than hardcoded.
+
+The checked-in profile remains live-locked. Copy it before live use:
 
 ```powershell
 Copy-Item .\configs\wonderbane-travel.template.json `
@@ -197,20 +203,29 @@ Copy-Item .\configs\wonderbane-travel.template.json `
 Set `live_input_enabled` to `true` only after confirming the exact client size and minimap
 geometry. Do not commit the local profile.
 
-Each click is a short lease. The controller observes LT/LG again before issuing another one,
-recomputes direction toward the active waypoint, and verifies that distance decreased. It
-right-clicks the calibrated minimap center when a commanded run reaches a terminal state, which
-cancels the client's final click-to-move command instead of allowing an arrival overshoot. It
-stops on arrival, low player health, focus/profile rejection, emergency stop
-(`Ctrl+Shift+F12`), repeated observation failures, click-budget exhaustion, or the session
-deadline. Three no-progress checkpoints trigger a bounded reverse-zig-zag, lateral sweep,
-and forward bypass. Recovery phases use measured displacement rather than click counts
-alone: a blocked sub-leg changes strategy, a cleared bypass reacquires the destination
-early, and meaningful manual progress also returns control to direct travel. Each retry
-starts on the opposite side and widens its clearance target. The escape budget is finite;
-after it is exhausted the controller stops instead of blindly continuing into a wall.
-Sustained direct progress resets that budget so unrelated obstacles later in a long route
-do not inherit earlier recovery attempts.
+Each click sets a destination; it is not a timed movement lease. The controller observes
+LT/LG before issuing another one, recomputes the bounded destination toward its active
+waypoint, and checks progress. A sample inside the arrival radius is only an arrival
+candidate. Travel keeps recording fresh positions for up to four seconds and reports
+completion only after 600 ms within a 0.25-unit horizontal envelope inside that radius.
+Altitude animation is excluded from the stationary check. PvE uses the same arrival
+tracker on its normal coherent observation frames, preserving combat action dispatch,
+target/health observation and cancellation while settling is checked. A new approach
+supersedes the previous pending check. Input acceptance alone never proves arrival.
+
+Arrival, low health, focus/profile rejection, emergency stop (`Ctrl+Shift+F12`), repeated
+observation failures, exhausted click budgets and session deadlines end automation.
+They do not claim to halt the client instantly. The client may finish its last bounded
+clicked destination; rounding and movement between observation and input affect the
+exact remaining distance. Result fields distinguish confirmed arrival from an unsupported
+stop attempt and retain the reason automation ended.
+
+Three no-progress checkpoints trigger a bounded reverse-zig-zag, lateral sweep and
+forward bypass. Recovery uses measured displacement rather than click counts alone:
+a blocked sub-leg changes strategy, a cleared bypass reacquires the destination early,
+and meaningful manual progress returns control to direct travel. Each retry starts on
+the opposite side and widens its clearance target. The finite escape budget ends input
+when exhausted. Sustained direct progress resets it for later, unrelated obstacles.
 
 The client also ships a native character pathfinder and a `PATHFINDING` preference, currently
 disabled in the inspected WonderBane configuration. The historical `/path on` chat command is

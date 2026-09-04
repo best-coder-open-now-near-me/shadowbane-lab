@@ -267,6 +267,16 @@ def pve_trace_sink(journal, observer):
                             reason=reason,
                         )
                     )
+            if step.movement_arrival_confirmed is not None:
+                observer(
+                    MotionEvent(
+                        "motion",
+                        "arrival_confirmed" if step.movement_arrival_confirmed else "failure",
+                        "runtime",
+                        now,
+                        reason=None if step.movement_arrival_confirmed else "arrival_not_settled",
+                    )
+                )
             if step.decision.terminal:
                 reason = step.decision.terminal_reason
                 observer(

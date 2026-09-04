@@ -51,12 +51,19 @@ class DecisionInputCompiler:
         self,
         profile: CalibrationProfile,
         binding_resolver: BindingPointResolver,
+        *,
+        movement_resolver: BindingPointResolver | None = None,
     ) -> None:
         if not isinstance(profile, CalibrationProfile):
             raise ValueError("profile must be a CalibrationProfile")
         if not isinstance(binding_resolver, BindingPointResolver):
             raise ValueError("binding_resolver must implement BindingPointResolver")
         self._profile = profile
+        if movement_resolver is not None and not isinstance(
+            movement_resolver, BindingPointResolver
+        ):
+            raise ValueError("movement_resolver must implement BindingPointResolver")
+        self._movement_resolver = movement_resolver
         self._resolver = binding_resolver
         self._actions = {mapping.action_key: mapping for mapping in profile.actions}
 
@@ -109,15 +116,24 @@ class DecisionInputCompiler:
         )
 
     def compile_movement_stop(self, *, correlation_id: str) -> InputPlan:
-        """Compile the client's center-minimap movement cancellation command."""
-        movement = self._profile.movement
-        return InputPlan(
-            correlation_id=correlation_id,
-            action_key=f"{movement.action_key}.stop",
-            commands=(ClickCommand(point=movement.center, button=movement.button),),
+        """Click-to-move has no verified immediate-stop input."""
+        raise InputCompilationError(
+            "instant movement stop is unavailable; "
+            "the client may finish its last clicked destination"
         )
 
     def _compile_movement(self, decision: DecisionMessage) -> InputPlan:
+        if decision.binding.target_kind is TargetKind.POSITION:
+            if self._movement_resolver is None:
+                raise InputCompilationError("movement destination needs a verified live projection")
+            point = self._movement_resolver.resolve(decision)
+            if not isinstance(point, NormalizedPoint):
+                raise InputCompilationError("movement destination could not be projected")
+            return InputPlan(
+                correlation_id=decision.correlation_id,
+                action_key=decision.action_key,
+                commands=(ClickCommand(point=point, button=self._profile.movement.button),),
+            )
         if decision.binding.target_kind is not TargetKind.DIRECTION:
             raise InputCompilationError("movement requires a direction binding")
         direction = decision.binding.direction

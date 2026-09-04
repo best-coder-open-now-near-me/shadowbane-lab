@@ -35,6 +35,7 @@ from shadowbane_lab.pve.model import (
     PvERunResult,
     PvERunTraceStep,
 )
+from shadowbane_lab.travel.arrival import ArrivalTracker
 from shadowbane_lab.travel.runtime import TravelDecisionDispatcher
 
 
@@ -276,6 +277,8 @@ class PvERunner:
         terminal = None
         last_observation: PvEObservation | None = None
         consecutive_observation_failures = 0
+        arrival_pending = None
+        arrival_approach = None
         while terminal is None:
             now_ms = round((self._clock() - started_at) * 1000)
             if self._stop_signal.is_set():
@@ -386,6 +389,7 @@ class PvERunner:
             movement_stop_reason = None
             approach_decision = None if approach is None else approach.decision
             if approach_decision is not None and approach_decision.minimap_direction is not None:
+                arrival_pending = None
                 assert self._movement_dispatcher is not None
                 try:
                     approach_result = self._movement_dispatcher.dispatch(approach_decision)
@@ -423,7 +427,48 @@ class PvERunner:
                     terminal = self._controller.stop(stop_reason, now_ms=now_ms)
                     record(self._trace(terminal, observation=observation))
                     break
-            if approach_decision is not None and approach_decision.terminal:
+            if (
+                approach_decision is not None
+                and approach_decision.terminal
+                and approach_decision.phase.value == "complete"
+                and approach_decision.click_count > 0
+            ):
+                destination = approach_decision.arrival_destination
+                if destination is None:
+                    terminal = self._controller.stop(
+                        "arrival_destination_unavailable", now_ms=now_ms
+                    )
+                    record(self._trace(terminal, observation=observation))
+                    break
+                arrival_pending = ArrivalTracker(destination, self._clock())
+                arrival_approach = approach
+
+            if arrival_pending is not None and not decision.terminal:
+                arrival = arrival_pending.observe(observation.player_position, self._clock())
+                # Observe settling alongside normal combat decisions. Suppressing an
+                # emitted intent here would consume its controller state/cooldown
+                # without dispatching it (for example an opener's attack followup).
+                if arrival is not None:
+                    record(
+                        self._trace(
+                            decision,
+                            observation=observation,
+                            approach=arrival_approach,
+                            movement_arrival_confirmed=arrival.confirmed,
+                        )
+                    )
+                    arrival_pending = None
+                    if not arrival.confirmed:
+                        terminal = self._controller.stop(arrival.reason, now_ms=now_ms)
+                        record(self._trace(terminal, observation=observation))
+                        break
+            # Successful arrival requires no center click. Other terminal reasons
+            # still disclose that an instantaneous stop cannot be dispatched.
+            if (
+                approach_decision is not None
+                and approach_decision.terminal
+                and approach_decision.phase.value != "complete"
+            ):
                 assert self._movement_dispatcher is not None
                 if approach_decision.click_count > 0:
                     try:
@@ -582,6 +627,7 @@ class PvERunner:
         approach_input_reason: str | None = None,
         movement_stop_accepted: bool | None = None,
         movement_stop_reason: str | None = None,
+        movement_arrival_confirmed: bool | None = None,
     ) -> PvERunTraceStep:
         return PvERunTraceStep(
             decision=decision,
@@ -653,4 +699,5 @@ class PvERunner:
             approach_input_reason=approach_input_reason,
             movement_stop_accepted=movement_stop_accepted,
             movement_stop_reason=movement_stop_reason,
+            movement_arrival_confirmed=movement_arrival_confirmed,
         )

@@ -21,6 +21,7 @@ from shadowbane_lab.client_input import (
     WindowsHotkeyEmergencyStop,
     load_calibration,
 )
+from shadowbane_lab.client_input.minimap import MinimapDestinationResolver
 from shadowbane_lab.client_observation import (
     NativePlayerPositionError,
     NativePlayerVitalsError,
@@ -38,6 +39,7 @@ from shadowbane_lab.client_observation import (
     open_windows_native_player_vitals_reader,
     open_windows_native_runegate_registry_reader,
 )
+from shadowbane_lab.client_observation.native_minimap import open_windows_native_minimap_reader
 from shadowbane_lab.navigation_inspector.session import optional_session
 from shadowbane_lab.travel import (
     ActiveZoneTerrainNavigationSource,
@@ -228,13 +230,23 @@ def _run_travel(
                     plan_id=plan.plan_id,
                 )
                 controller = astar_controller
+            minimap_reader = stack.enter_context(
+                open_windows_native_minimap_reader(process_id=selected_process_id)
+            )
+            movement_resolver = MinimapDestinationResolver(
+                client_profile, minimap_reader, position_reader
+            )
             executor = GuardedInputExecutor(
                 guard=guard,
                 backend=PyAutoGuiBackend(),
                 stop_signal=active_stop_signal,
             )
             adapter = ClientInputAdapter(
-                DecisionInputCompiler(client_profile, StaticBindingPointResolver()),
+                DecisionInputCompiler(
+                    client_profile,
+                    StaticBindingPointResolver(),
+                    movement_resolver=movement_resolver,
+                ),
                 executor,
             )
             result = TravelRunner(
@@ -266,6 +278,12 @@ def _run_travel(
             "at_ms": step.decision.now_ms,
             "distance_remaining": step.decision.distance_remaining,
             "maneuver": step.decision.maneuver.value,
+            "click_destination": None
+            if step.decision.click_destination is None
+            else {
+                "lt": step.decision.click_destination.x,
+                "lg": step.decision.click_destination.y,
+            },
             "accepted": step.input_accepted,
             "reason": step.input_reason,
         }
@@ -287,6 +305,7 @@ def _run_travel(
             }
         ),
         "clicks": result.clicks,
+        "arrival_confirmed": result.arrival_confirmed,
         "stop_input_accepted": result.stop_input_accepted,
         "stop_input_reason": result.stop_input_reason,
         "steps": len(result.trace),

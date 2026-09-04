@@ -204,7 +204,7 @@ class PvEApproachController:
             self._debug_event("reposition", observation, destination)
         if distance <= arrival_radius:
             if self._travel is None or self._terminal_reported:
-                self._debug_event("completion", observation, destination)
+                self._debug_event("arrival_candidate", observation, destination)
                 self._forced_reposition = False
                 return PvEApproachUpdate(PvEApproachStatus.ARRIVED)
             self._travel.update_final_destination(destination)
@@ -265,7 +265,7 @@ class PvEApproachController:
         self._debug_event("camp_return", observation, destination)
         if distance <= camp.return_radius:
             if self._travel is None or self._terminal_reported:
-                self._debug_event("completion", observation, destination)
+                self._debug_event("arrival_candidate", observation, destination)
                 self._forced_reposition = False
                 return PvEApproachUpdate(PvEApproachStatus.ARRIVED)
             self._travel.update_final_destination(destination)
@@ -390,7 +390,9 @@ class PvEApproachController:
         if self._planner.observer is None:
             return
         try:
-            if event in ("native_chase", "camp_return", "reposition", "completion", "failure"):
+            if event in (
+                "native_chase", "camp_return", "reposition", "arrival_candidate", "failure"
+            ):
                 key = (event, reason, self._target_token)
                 if key == self._debug_phase:
                     return

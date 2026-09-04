@@ -27,6 +27,7 @@ from shadowbane_lab.client_input import (
     load_calibration,
 )
 from shadowbane_lab.client_input.character_config import open_active_character_config
+from shadowbane_lab.client_input.minimap import MinimapDestinationResolver
 from shadowbane_lab.client_observation import (
     NativeCharacterPopulationError,
     NativeCharacterPopulationProfileLoadError,
@@ -72,6 +73,7 @@ from shadowbane_lab.client_observation import (
     open_windows_native_target_identity_reader,
     open_windows_native_target_position_reader,
 )
+from shadowbane_lab.client_observation.native_minimap import open_windows_native_minimap_reader
 from shadowbane_lab.navigation_inspector.session import (
     ObservedPositionSource,
     optional_session,
@@ -492,6 +494,12 @@ def _run_pve(
                 reader_process_ids.add(zone_reader.process_id)
             if len(reader_process_ids) != 1:
                 raise ValueError("native PvE readers resolved different client processes")
+            minimap_reader = stack.enter_context(
+                open_windows_native_minimap_reader(process_id=process_id)
+            )
+            movement_resolver = MinimapDestinationResolver(
+                client_profile, minimap_reader, player_position_reader
+            )
             executor = GuardedInputExecutor(
                 guard=guard,
                 backend=PyAutoGuiBackend(),
@@ -501,7 +509,11 @@ def _run_pve(
                 ),
             )
             adapter = ClientInputAdapter(
-                DecisionInputCompiler(client_profile, StaticBindingPointResolver()),
+                DecisionInputCompiler(
+                    client_profile,
+                    StaticBindingPointResolver(),
+                    movement_resolver=movement_resolver,
+                ),
                 executor,
             )
             journal = (

@@ -222,6 +222,25 @@ class TravelController:
         direction: Vector2 | None = None,
         maneuver: TravelManeuver | None = None,
     ) -> TravelDecision:
+        click_destination = None
+        if direction is not None:
+            length = hypot(direction.x, direction.y)
+            if maneuver is TravelManeuver.DIRECT:
+                click_distance = min(length, self._config.maximum_click_distance)
+            else:
+                clearance = (
+                    self._config.escape_backup_clearance
+                    if self._escape_phase is _EscapePhase.BACKUP
+                    else self._escape_sweep_clearance()
+                    if self._escape_phase is _EscapePhase.SWEEP
+                    else self._config.escape_reacquire_progress
+                )
+                click_distance = min(clearance, self._config.maximum_click_distance)
+            if length:
+                click_destination = Vector2(
+                    observation.position.lt + direction.x / length * click_distance,
+                    observation.position.lg - direction.y / length * click_distance,
+                )
         decision = TravelDecision(
             decision_id=self._next_decision_id(),
             now_ms=observation.now_ms,
@@ -230,6 +249,7 @@ class TravelController:
             distance_remaining=distance,
             click_count=self._click_count,
             minimap_direction=direction,
+            click_destination=click_destination,
             maneuver=maneuver,
         )
 
@@ -535,8 +555,9 @@ class TravelController:
             distance_remaining=distance,
             click_count=self._click_count,
             terminal_reason="destination_reached",
+            arrival_destination=self._plan.destinations[-1],
         )
-        self._debug_event("completion", observation, self._terminal)
+        self._debug_event("arrival_candidate", observation, self._terminal)
         return self._terminal
 
     def _debug_route(self, observation: TravelObservation) -> None:
