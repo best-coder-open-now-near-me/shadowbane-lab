@@ -17,3 +17,18 @@ Only a new, explicit user instruction for the current work can change this polic
 Source delivery and diagnostic-data export are separate: push reviewed source and
 documentation normally; do not silently include private captures, client binaries,
 archives, credentials, or unrelated local artifacts.
+
+## Branch ownership and handoffs
+
+Read `docs/git-branch-map.md` before selecting a development base. Refresh origin
+before concluding that a commit or feature is missing. `main` is the shared merge
+destination; the map records any reviewed integration candidate still awaiting merge.
+Do not restart current product work from an old topic branch because it happens
+to be checked out in the local project.
+
+Use one task branch per independent change. When work needs a separate checkout,
+use a worktree and keep the normal project checkout on `main` after delivery when
+that is safe. Do not switch a checkout another active task is modifying.
+Publish the branch and provide its exact SHA, PR destination, validation, and
+remaining work. Before retiring a branch, verify reachability and preserve every
+dirty or untracked file; clean worktrees may still be referenced by other tasks.

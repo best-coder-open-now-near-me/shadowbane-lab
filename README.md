@@ -1,5 +1,17 @@
 # shadowbane-lab
 
+## Finding the current code
+
+The consolidated development history is proposed for `main` on
+[`codex/integrate-current-development`](https://github.com/best-coder-open-now-near-me/shadowbane-lab/compare/main...codex/integrate-current-development).
+It starts from `codex/client-convergence-v2` at `da109b0`. Until that review is
+merged, `main` remains the older release; checking out `main` alone will not show
+the current client, renderer, diagnostics, and simulator integration.
+
+Read the [branch map](docs/git-branch-map.md) before choosing a development base,
+and the [contributor workflow](CONTRIBUTING.md) before starting a new task.
+The branch map identifies later work that still needs separate integration.
+
 `shadowbane-lab` is a deterministic simulation and bot-policy laboratory. It treats
 Shadowbane as a data-driven ruleset and keeps deployment mechanisms outside the policy.
 
