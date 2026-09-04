@@ -3,8 +3,8 @@
 The initial acceptance package is built and verified and was deployed into a new,
 isolated testing-VM runtime. Live acceptance is in progress; nothing is merged.
 The package and hashes below describe the initial e380e0f build. The Python publisher
-correction below is installed. A native display correction is now being packaged
-after the owner confirmed the live overlay was obscured by the minimap.
+correction below is installed. The native display correction below is built, transferred and prepared for a
+client restart after the owner confirmed the minimap overlap and brief popup.
 
 ## Source and review
 
@@ -112,11 +112,40 @@ and layer controls even without a producer. Native tests cover this lifecycle,
 corrupt/torn controls, cross-language control bytes, actual OpenGL placement,
 stale x-ray suppression, preserved depth and restored graphics state.
 
-Next: finish the exact-source package, then restart the prepared client once to
-apply the native correction. Check persistence, minimap clearance and immediate
-hiding. World-camera ownership, alignment and PvE acceptance remain pending.
+Next: restart into the verified replacement client to apply the native correction.
+Check persistence, minimap clearance and immediate hiding. World-camera ownership,
+alignment and PvE acceptance remain pending.
 Private runtime identities, logs and captures stay in the local VM evidence
 folder; they are not published source.
+
+## Verified native display package
+
+The display correction is built from 18bcf6dc0606bb9086c88d7e3073a65a0f7fc091 on codex/navigation-inspector.
+The package is local at artifacts/navigation-inspector/6c7397e3/ and has been
+transferred, with all 27 receipt files rechecked, to the testing VM staging share.
+It changes the full DLL; it has not yet been loaded into the running game.
+
+Validation: full Python run 1,641 passed, eight skipped, 211 subtests passed.
+The extra skip was a Tk initialization failure in the replay/return-live test;
+that exact test passed on a focused rerun in the same exported source. The
+separate installed-wheel Tk panel gate also passed. Ruff, both VS2022 Win32
+Release profiles, all 18 native tests per profile, wheel from source distribution,
+installed entry point, and receipt verification passed.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| full/wonderbane-extension.dll | f8049ce56c749db68aaab7d728175e4a89fbfb2e5727a62e569e15a5d9c1eb3d |
+| diagnostics-only/wonderbane-extension.dll | 0e43b77d20954c7f84e5d9947cd93467dca2a14d4fd6557230809e8f5f4d8b7c |
+| dist/shadowbane_lab-0.1.0-py3-none-any.whl | 516491cf84e09bbd72e1d7f8984b886d3559b41dddc0f64f1ee1ff21b0b38d78 |
+| dist/shadowbane_lab-0.1.0.tar.gz | 1c2e140b07fb86ed4199b20e500016f73d0dcdf7ae8c06414615f462cade1a8d |
+
+Acceptance ZIP SHA-256: 398e388d670ac96163746e4136ba85d4ee6aa8792d59d1405e07c2e2e56615b4.
+
+The replacement isolated client passed the production prepared-copy and runtime
+verification gates in the testing VM. The running older client is preserved.
+The launch handoff copies only the allowed mutable preferences after logout,
+rechecks runtime integrity and the full DLL hash, then starts the new client.
+All current and replacement runtime evidence remains private.
 
 ## Remaining acceptance pass
 
@@ -138,5 +167,6 @@ unavailable. Verify the measured LT/LG-to-world transform before accepting world
 alignment. If the separate terrain repair is added, it requires its own verified
 source and one combined boundary-tile check.
 
-Current active todo: deliver the native display correction and resume this bounded live pass. After it passes, review
+Current active todo: restart into the verified display correction and check persistence,
+minimap clearance and hiding before continuing the remaining live pass. After it passes, review
 and integrate PR #27, then retire the inspector worktree/branch when safe.
