@@ -1,0 +1,51 @@
+name: Apply terrain material implementation
+
+on:
+  push:
+    branches:
+      - codex/terrain-material-export-da109b0
+    paths:
+      - .terrain-payload-v2/READY
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out payload branch
+        uses: actions/checkout@v4
+        with:
+          path: payload
+      - name: Decode reviewed patch
+        run: |
+          base64 --decode payload/.terrain-payload-v2/terrain-full.patch.xz.b64 \
+            > terrain-full.patch.xz
+          echo '85cb9388d30b00b78e63b02806a4b08b4be411c795bba88e25693e582c59b845  terrain-full.patch.xz' \
+            | sha256sum --check
+          xz --decompress --stdout terrain-full.patch.xz > terrain-full.patch
+      - name: Check out clean implementation branch
+        uses: actions/checkout@v4
+        with:
+          ref: codex/terrain-material-repair-implementation
+          path: work
+          fetch-depth: 0
+      - name: Apply and validate patch
+        working-directory: work
+        run: |
+          git apply --index ../terrain-full.patch
+          git diff --cached --check
+          g++ -std=c++20 -Wall -Wextra -Werror -pedantic \
+            native/wonderbane_extension/terrain_material_plan.cpp \
+            native/wonderbane_extension/terrain_material_plan_test.cpp \
+            -o terrain-material-plan-test
+          ./terrain-material-plan-test
+          rm terrain-material-plan-test
+      - name: Commit and push implementation
+        working-directory: work
+        run: |
+          git config user.name 'best-coder-open-now-near-me'
+          git config user.email 'best.coder.open.now.near.me@gmail.com'
+          git commit -m 'feat: restore registered terrain material coverage'
+          git push origin HEAD:codex/terrain-material-repair-implementation
