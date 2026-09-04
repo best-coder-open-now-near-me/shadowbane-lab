@@ -32,43 +32,43 @@ jobs:
 
           out = Path('terrain-patch-server-review')
           manifest = json.loads((out / 'manifest.json').read_text(encoding='utf-8-sig'))
-          candidates = []
-
-          def walk(value, trail=()):
-              if isinstance(value, dict):
-                  for key, item in value.items():
-                      walk(item, trail + (str(key),))
-              elif isinstance(value, list):
-                  for index, item in enumerate(value):
-                      walk(item, trail + (str(index),))
-              elif isinstance(value, str):
-                  lower = value.lower().replace('\\', '/')
-                  if lower.endswith('.exe') and ('sb' in lower or 'shadowbane' in lower):
-                      candidates.append({'trail': list(trail), 'value': value})
-
-          walk(manifest)
-          unique = []
-          seen = set()
-          for candidate in candidates:
-              value = candidate['value']
-              if value.lower() in seen:
-                  continue
-              seen.add(value.lower())
-              unique.append(candidate)
-
-          base = 'http://87.99.132.84/'
+          files = manifest.get('files')
+          if not isinstance(files, list):
+              raise SystemExit('manifest files is not a list')
+          server_root = 'http://87.99.132.84/'
+          base_url = manifest.get('baseUrl', '')
+          if not isinstance(base_url, str):
+              raise SystemExit('manifest baseUrl is not a string')
+          download_base = urllib.parse.urljoin(server_root, base_url.rstrip('/') + '/')
           results = []
-          for index, candidate in enumerate(unique):
-              value = candidate['value'].replace('\\', '/')
-              url = value if value.startswith(('http://', 'https://')) else urllib.parse.urljoin(base, urllib.parse.quote(value))
-              record = {**candidate, 'url': url}
+          seen = set()
+          for index, item in enumerate(files):
+              if not isinstance(item, dict):
+                  continue
+              value = item.get('path')
+              if not isinstance(value, str):
+                  continue
+              lower = value.lower().replace('\\', '/')
+              if not lower.endswith('.exe') or ('sb' not in lower and 'shadowbane' not in lower):
+                  continue
+              if lower in seen:
+                  continue
+              seen.add(lower)
+              url = urllib.parse.urljoin(download_base, urllib.parse.quote(value.replace('\\', '/')))
+              record = {'manifest_index': index, 'value': value, 'url': url}
               try:
-                  with urllib.request.urlopen(url, timeout=60) as response:
+                  with urllib.request.urlopen(url, timeout=120) as response:
                       data = response.read(64 * 1024 * 1024 + 1)
                   if len(data) > 64 * 1024 * 1024:
                       raise ValueError('candidate exceeds 64 MiB review cap')
                   digest = hashlib.sha256(data).hexdigest()
                   record.update({'state': 'downloaded', 'size': len(data), 'sha256': digest})
+                  expected_size = item.get('size')
+                  expected_digest = item.get('sha256')
+                  record['manifest_size_matches'] = expected_size == len(data)
+                  record['manifest_sha256_matches'] = expected_digest == digest
+                  if not record['manifest_size_matches'] or not record['manifest_sha256_matches']:
+                      raise ValueError('download identity disagrees with manifest')
                   if digest == '55fbad5f0110cd99b4085af72d1e8fddb782ccdec1491478492c18158f5c61bc':
                       (out / 'reviewed-sb.exe').write_bytes(data)
                   else:
