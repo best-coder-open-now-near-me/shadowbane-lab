@@ -124,7 +124,11 @@ elseif(NOT WONDERBANE_EXTENSION_PROFILE STREQUAL "diagnostics-only")
 endif()
 {END_MARKER}
 """
-    path.write_text(text.rstrip() + block + "\n", encoding="utf-8", newline="\n")
+    path.write_text(
+        text.rstrip() + block.rstrip() + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
 '''
 
 
