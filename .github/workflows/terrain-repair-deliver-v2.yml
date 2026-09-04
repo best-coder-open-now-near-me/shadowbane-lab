@@ -1,0 +1,218 @@
+name: Deliver exact-client terrain material repair v2
+
+on:
+  push:
+    branches:
+      - codex/terrain-material-repair-final-v2
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: terrain-material-repair-final-v2
+  cancel-in-progress: false
+
+jobs:
+  deliver:
+    if: github.actor != 'github-actions[bot]' || github.event_name == 'workflow_dispatch'
+    runs-on: windows-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/terrain-material-repair-final-v2
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Assemble clean convergence plus reviewed repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          helper_commit="$(git rev-parse HEAD)"
+          cp tools/terrain_delivery_finalize.py "$RUNNER_TEMP/terrain_delivery_finalize.py"
+          git fetch origin codex/client-convergence-v2 codex/terrain-material-repair
+          convergence_parent="$(git rev-parse origin/codex/client-convergence-v2)"
+          repair_parent="$(git rev-parse origin/codex/terrain-material-repair)"
+          printf '%s\n' "$helper_commit" > "$RUNNER_TEMP/helper-commit.txt"
+          printf '%s\n' "$convergence_parent" > "$RUNNER_TEMP/convergence-parent.txt"
+          printf '%s\n' "$repair_parent" > "$RUNNER_TEMP/repair-parent.txt"
+          git checkout -B terrain-product "$convergence_parent"
+          if git merge-base --is-ancestor "$repair_parent" HEAD; then
+            echo 'Reviewed repair is already in convergence; applying only missing product completion.'
+          else
+            git merge --no-commit --no-ff "$repair_parent"
+          fi
+          python "$RUNNER_TEMP/terrain_delivery_finalize.py" \
+            --repository . \
+            --convergence-parent "$convergence_parent" \
+            --repair-parent "$repair_parent" \
+            --run-id '${{ github.run_id }}'
+      - name: Generate exact executable contracts and integrate product wiring
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --upgrade pip
+          python -m pip install --disable-pip-version-check pefile==2024.8.26 capstone==5.0.9
+          python -m py_compile tools/terrain_material_codegen.py tools/integrate_terrain_material_repair.py
+          python tools/terrain_material_codegen.py --repository . 2>&1 | tee "$RUNNER_TEMP/codegen-first.log"
+          sha256sum \
+            native/wonderbane_extension/terrain_client_profile.generated.h \
+            native/wonderbane_extension/terrain_append_abi.generated.h \
+            native/wonderbane_extension/terrain_append_bridge.generated.cpp \
+            native/wonderbane_extension/terrain_registration_abi.generated.h \
+            native/wonderbane_extension/terrain_registration_bridge.generated.cpp \
+            > "$RUNNER_TEMP/contracts.sha256"
+          python tools/terrain_material_codegen.py --repository . 2>&1 | tee "$RUNNER_TEMP/codegen-second.log"
+          sha256sum -c "$RUNNER_TEMP/contracts.sha256"
+          python tools/integrate_terrain_material_repair.py --repository .
+          sha256sum native/wonderbane_extension/CMakeLists.txt native/wonderbane_extension/extension.cpp \
+            > "$RUNNER_TEMP/integration.sha256"
+          python tools/integrate_terrain_material_repair.py --repository .
+          sha256sum -c "$RUNNER_TEMP/integration.sha256"
+          grep -q 'if(WONDERBANE_EXTENSION_PROFILE STREQUAL "full")' native/wonderbane_extension/CMakeLists.txt
+          grep -q 'WB_ENABLE_TERRAIN_MATERIAL_REPAIR=1' native/wonderbane_extension/CMakeLists.txt
+          grep -q 'QueueTerrainMaterialRepairStartup' native/wonderbane_extension/extension.cpp
+          test ! -e native/wonderbane_extension/terrain_material_runtime_integrated.cpp
+          test -e native/wonderbane_extension/terrain_client_profile.generated.h
+          test -e native/wonderbane_extension/terrain_append_bridge.generated.cpp
+          test -e native/wonderbane_extension/terrain_registration_bridge.generated.cpp
+          git diff --check
+      - name: Commit the clean product change
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git diff --cached --check
+          git commit -m 'feat: integrate exact-client terrain material repair'
+          product_commit="$(git rev-parse HEAD)"
+          printf '%s\n' "$product_commit" > "$RUNNER_TEMP/product-commit.txt"
+          git rev-list --parents -n 1 HEAD | tee "$RUNNER_TEMP/product-parents.txt"
+          git merge-base --is-ancestor "$(cat "$RUNNER_TEMP/convergence-parent.txt")" HEAD
+          git merge-base --is-ancestor "$(cat "$RUNNER_TEMP/repair-parent.txt")" HEAD
+      - name: Install repository validation dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check -e . pytest ruff build
+      - name: Run Python, quality, and package gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pytest -q 2>&1 | tee "$RUNNER_TEMP/pytest.log"
+          python -m ruff check . 2>&1 | tee "$RUNNER_TEMP/ruff.log"
+          python -m build 2>&1 | tee "$RUNNER_TEMP/python-build.log"
+      - name: Configure full Win32 renderer
+        shell: pwsh
+        run: |
+          cmake -S native/wonderbane_extension -B build/full `
+            -G "Visual Studio 17 2022" -A Win32 `
+            -DWONDERBANE_EXTENSION_PROFILE=full -DBUILD_TESTING=ON
+          if ($LASTEXITCODE -ne 0) { throw 'Full Win32 configure failed' }
+      - name: Configure diagnostics-only Win32 renderer
+        shell: pwsh
+        run: |
+          cmake -S native/wonderbane_extension -B build/diagnostics `
+            -G "Visual Studio 17 2022" -A Win32 `
+            -DWONDERBANE_EXTENSION_PROFILE=diagnostics-only -DBUILD_TESTING=ON
+          if ($LASTEXITCODE -ne 0) { throw 'Diagnostics-only Win32 configure failed' }
+      - name: Prove full-only runtime ownership
+        shell: pwsh
+        run: |
+          $runtimeSources = @(
+            'terrain_client_verification.cpp',
+            'terrain_inline_hook.cpp',
+            'terrain_vtable_hook.cpp',
+            'terrain_material_client_adapter.cpp',
+            'terrain_material_runtime.cpp',
+            'terrain_material_bootstrap.cpp',
+            'terrain_append_bridge.generated.cpp',
+            'terrain_registration_bridge.generated.cpp'
+          )
+          $full = Get-Content -LiteralPath build/full/wonderbane_extension.vcxproj -Raw
+          $diagnostics = Get-Content -LiteralPath build/diagnostics/wonderbane_extension.vcxproj -Raw
+          foreach ($source in $runtimeSources) {
+            if ($full -notmatch [regex]::Escape($source)) { throw "Full renderer omits $source" }
+            if ($diagnostics -match [regex]::Escape($source)) { throw "Diagnostics-only renderer contains $source" }
+          }
+          if ($full -notmatch 'WB_ENABLE_TERRAIN_MATERIAL_REPAIR=1') {
+            throw 'Full renderer omits repair enable definition'
+          }
+          if ($diagnostics -match 'WB_ENABLE_TERRAIN_MATERIAL_REPAIR') {
+            throw 'Diagnostics-only renderer enables terrain repair'
+          }
+      - name: Build and test full Win32 renderer
+        shell: pwsh
+        run: |
+          cmake --build build/full --config Release --parallel 2>&1 | Tee-Object -FilePath "$env:RUNNER_TEMP/full-build.log"
+          if ($LASTEXITCODE -ne 0) { throw 'Full Win32 build failed' }
+          ctest --test-dir build/full -C Release --output-on-failure 2>&1 | Tee-Object -FilePath "$env:RUNNER_TEMP/full-ctest.log"
+          if ($LASTEXITCODE -ne 0) { throw 'Full Win32 native tests failed' }
+      - name: Build and test diagnostics-only Win32 renderer
+        shell: pwsh
+        run: |
+          cmake --build build/diagnostics --config Release --parallel 2>&1 | Tee-Object -FilePath "$env:RUNNER_TEMP/diagnostics-build.log"
+          if ($LASTEXITCODE -ne 0) { throw 'Diagnostics-only Win32 build failed' }
+          ctest --test-dir build/diagnostics -C Release --output-on-failure 2>&1 | Tee-Object -FilePath "$env:RUNNER_TEMP/diagnostics-ctest.log"
+          if ($LASTEXITCODE -ne 0) { throw 'Diagnostics-only Win32 native tests failed' }
+      - name: Create immutable acceptance package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path delivery -Force | Out-Null
+          $commit = (Get-Content -LiteralPath "$env:RUNNER_TEMP/product-commit.txt" -Raw).Trim()
+          foreach ($item in @(
+            @{ Profile = 'full'; Root = 'build/full' },
+            @{ Profile = 'diagnostics-only'; Root = 'build/diagnostics' }
+          )) {
+            $dll = Get-ChildItem -LiteralPath $item.Root -Recurse -File -Filter 'wonderbane-extension.dll' | Select-Object -First 1
+            if ($null -eq $dll) { throw "Missing $($item.Profile) extension DLL" }
+            $destination = "delivery/wonderbane-extension-$($item.Profile).dll"
+            Copy-Item -LiteralPath $dll.FullName -Destination $destination
+            [ordered]@{
+              schema = 'shadowbane-terrain-repair-build-receipt-v1'
+              source_commit = $commit
+              profile = $item.Profile
+              generator = 'Visual Studio 17 2022'
+              platform = 'Win32'
+              configuration = 'Release'
+              dll_size = (Get-Item -LiteralPath $destination).Length
+              dll_sha256 = (Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash.ToLowerInvariant()
+            } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath "delivery/$($item.Profile).json" -Encoding UTF8
+          }
+          Get-ChildItem -LiteralPath dist -File | Copy-Item -Destination delivery -Force
+          Copy-Item -LiteralPath "$env:RUNNER_TEMP/product-parents.txt" -Destination delivery/product-parents.txt
+          Copy-Item -LiteralPath "$env:RUNNER_TEMP/contracts.sha256" -Destination delivery/generated-contracts.sha256
+          git show --stat --oneline HEAD | Set-Content -LiteralPath delivery/source-commit.txt -Encoding UTF8
+          Get-ChildItem -LiteralPath delivery -File | ForEach-Object {
+            "{0}  {1}" -f (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant(), $_.Name
+          } | Set-Content -LiteralPath delivery/SHA256SUMS.txt -Encoding UTF8
+      - uses: actions/upload-artifact@v4
+        with:
+          name: terrain-material-repair-acceptance-${{ github.run_id }}
+          path: delivery/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Advance convergence after every gate and receipt succeeds
+        shell: bash
+        run: |
+          set -euo pipefail
+          product_commit="$(cat "$RUNNER_TEMP/product-commit.txt")"
+          convergence_parent="$(cat "$RUNNER_TEMP/convergence-parent.txt")"
+          repair_parent="$(cat "$RUNNER_TEMP/repair-parent.txt")"
+          helper_commit="$(cat "$RUNNER_TEMP/helper-commit.txt")"
+          test "$product_commit" = "$(git rev-parse HEAD)"
+          git merge-base --is-ancestor "$convergence_parent" HEAD
+          git merge-base --is-ancestor "$repair_parent" HEAD
+          git fetch origin codex/client-convergence-v2
+          test "$convergence_parent" = "$(git rev-parse origin/codex/client-convergence-v2)"
+          git push origin HEAD:codex/client-convergence-v2
+          git push --force-with-lease=refs/heads/codex/terrain-material-repair-final-v2:"$helper_commit" \
+            origin HEAD:codex/terrain-material-repair-final-v2
+          completion_remote="$(git ls-remote origin refs/heads/codex/terrain-material-repair-completion | awk '{print $1}')"
+          if [ -n "$completion_remote" ]; then
+            git push --force-with-lease=refs/heads/codex/terrain-material-repair-completion:"$completion_remote" \
+              origin HEAD:codex/terrain-material-repair-completion
+          fi
