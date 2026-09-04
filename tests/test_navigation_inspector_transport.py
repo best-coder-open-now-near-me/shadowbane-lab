@@ -34,6 +34,9 @@ def target():
 
 
 def test_control_identity_checksum_and_session():
+    golden_target = replace(target(), process_creation_filetime_utc=123456)
+    golden = Path(__file__).parent / "fixtures/navigation-inspector-controls-v1.hex"
+    assert Controls(2, 17).encode(golden_target) == bytes.fromhex(golden.read_text())
     settings = Controls(2, 17, xray=True, command=1)
     payload = settings.encode(target())
     assert Controls.decode(payload, target(), 17, 2) == settings

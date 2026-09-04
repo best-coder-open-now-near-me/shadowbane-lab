@@ -2,8 +2,9 @@
 
 The initial acceptance package is built and verified and was deployed into a new,
 isolated testing-VM runtime. Live acceptance is in progress; nothing is merged.
-The package and hashes below describe the initial e380e0f build. A Python publisher
-correction is being packaged after the first joint movement test.
+The package and hashes below describe the initial e380e0f build. The Python publisher
+correction below is installed. A native display correction is now being packaged
+after the owner confirmed the live overlay was obscured by the minimap.
 
 ## Source and review
 
@@ -87,11 +88,35 @@ fix drains queued terminal evidence when an immediately completed run closes.
 Regression tests cover reader binding and a real Windows mapping with delayed
 startup and immediate session close.
 
-Next: validate and install the corrected wheel, restart only inspector helpers,
-and repeat the short route while capturing actual published evidence. Keep the
-verified game process and DLL running. Movement is confirmed; overlay rendering,
-alignment, replay and PvE acceptance remain pending. Private runtime identities,
-logs and captures stay in the local VM evidence directory.
+The replacement wheel at bb8462b97c68b77fe5e990b77e4213a7f8092b7a passed all
+package gates: 1,642 Python tests, seven skips, 211 subtests, Ruff, both Win32
+profiles with 18 native tests each, source packaging and installed-panel checks.
+Its wheel SHA-256 is 686007917bcfb50186a1bc79ff0344682324b21666f9d9acd303e731db5fb6f5;
+package SHA-256 is cd55e49992a5a2f1b20a57ecc8364c3bc39c8539f09a44450ceb8999ca010980.
+Local evidence is under artifacts/navigation-inspector/1f6ad5a8/. Both rebuilt
+DLLs were byte-identical to the initial package, so only the wheel and helpers
+needed replacement; actual runtime identity was rechecked without restarting the
+client.
+
+The next bounded route found no A* route from the current terrain cell and issued
+zero clicks. This produced a real automatically frozen capture containing the
+blocker/cost map, failure, measured position and exact runtime identity. The owner
+and screenshots confirmed the in-game projected map appeared. It was obscured by
+the minimap and disappeared when the producer's two-second lease expired. The
+same capture reported WORLD CAMERA UNAVAILABLE; world alignment is not accepted.
+
+The native display correction centers the map and retains validated projected
+evidence after expiry. It keeps world placement disabled when stale or the zone
+is unknown/changed. The native reader applies identity-checked panel visibility
+and layer controls even without a producer. Native tests cover this lifecycle,
+corrupt/torn controls, cross-language control bytes, actual OpenGL placement,
+stale x-ray suppression, preserved depth and restored graphics state.
+
+Next: finish the exact-source package, then restart the prepared client once to
+apply the native correction. Check persistence, minimap clearance and immediate
+hiding. World-camera ownership, alignment and PvE acceptance remain pending.
+Private runtime identities, logs and captures stay in the local VM evidence
+folder; they are not published source.
 
 ## Remaining acceptance pass
 
@@ -113,5 +138,5 @@ unavailable. Verify the measured LT/LG-to-world transform before accepting world
 alignment. If the separate terrain repair is added, it requires its own verified
 source and one combined boundary-tile check.
 
-Current active todo: deliver the publisher correction and resume this bounded live pass. After it passes, review
+Current active todo: deliver the native display correction and resume this bounded live pass. After it passes, review
 and integrate PR #27, then retire the inspector worktree/branch when safe.

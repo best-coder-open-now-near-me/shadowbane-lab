@@ -63,7 +63,8 @@ void StopNavigationChannel() noexcept {
     ReleaseSRWLockExclusive(&g_lock);
 }
 
-bool ReadNavigationFrame(NavigationFrameBuffer* const buffer) noexcept {
+namespace {
+bool ReadFrame(NavigationFrameBuffer* const buffer, const bool evidence) noexcept {
     if (buffer == nullptr || !TryAcquireSRWLockShared(&g_lock)) return false;
     bool accepted = false;
     if (g_address != nullptr) {
@@ -78,13 +79,14 @@ bool ReadNavigationFrame(NavigationFrameBuffer* const buffer) noexcept {
                 && header.session_id == buffer->header.session_id) {
                 accepted = buffer->header.process_id == g_identity.process_id
                     && buffer->header.process_creation == g_identity.creation_filetime_utc
-                    && navigation::FrameLeaseValid(buffer->header, GetTickCount64());
+                    && (evidence || navigation::FramePlacementValid(buffer->header, GetTickCount64()));
             } else {
                 if (header.size >= sizeof(header) && header.size <= buffer->bytes.size()) {
                     std::memcpy(buffer->bytes.data(), g_address, header.size);
                     MemoryBarrier();
                     const auto after = static_cast<std::uint32_t>(InterlockedCompareExchange(sequence, 0, 0));
-                    if (before == after && navigation::ValidateFrame(buffer->bytes.data(), header.size,
+                    const auto validate = evidence ? navigation::ValidateEvidenceFrame : navigation::ValidateFrame;
+                    if (before == after && validate(buffer->bytes.data(), header.size,
                         after, g_identity.process_id, g_identity.creation_filetime_utc,
                         GetTickCount64()) == navigation::FrameError::none) {
                         std::memcpy(&buffer->header, buffer->bytes.data(), sizeof(header));
@@ -99,8 +101,41 @@ bool ReadNavigationFrame(NavigationFrameBuffer* const buffer) noexcept {
                 InterlockedCompareExchange(sequence, 0, 0));
         }
     }
+    buffer->live_placement = accepted
+        && navigation::FramePlacementValid(buffer->header, GetTickCount64());
+    buffer->presentation = buffer->header;
+    if (accepted && evidence) {
+        auto* controls_address = static_cast<unsigned char*>(g_address) + navigation::kMaximumFrameBytes;
+        auto* marker = reinterpret_cast<volatile LONG*>(controls_address + 12U);
+        const auto before = static_cast<std::uint32_t>(InterlockedCompareExchange(marker, 0, 0));
+        if (before == 0U) {
+            // A forced producer can draw live without a panel. Persistent evidence
+            // requires a panel so the owner always has an immediate hide control.
+            if (!buffer->live_placement) buffer->presentation.flags &= ~navigation::kEnabled;
+        } else {
+            navigation::ControlFrame controls{};
+            std::memcpy(&controls, controls_address, sizeof(controls));
+            MemoryBarrier();
+            const auto after = static_cast<std::uint32_t>(InterlockedCompareExchange(marker, 0, 0));
+            if (before != after || !navigation::ValidateControls(controls, after, buffer->header)) {
+                buffer->presentation.flags &= ~navigation::kEnabled;
+            } else {
+                buffer->presentation.flags &= ~(navigation::kEnabled | navigation::kXray);
+                if ((controls.flags & 1U) != 0U) buffer->presentation.flags |= navigation::kEnabled;
+                if ((controls.flags & 2U) != 0U) buffer->presentation.flags |= navigation::kXray;
+                buffer->presentation.layer_mask = controls.layer_mask;
+            }
+        }
+    }
     if (!accepted) buffer->accepted_sequence = 0U;
     ReleaseSRWLockShared(&g_lock);
     return accepted;
+}
+}  // namespace
+bool ReadNavigationFrame(NavigationFrameBuffer* const buffer) noexcept {
+    return ReadFrame(buffer, false);
+}
+bool ReadNavigationEvidence(NavigationFrameBuffer* const buffer) noexcept {
+    return ReadFrame(buffer, true);
 }
 }  // namespace wonderbane::extension

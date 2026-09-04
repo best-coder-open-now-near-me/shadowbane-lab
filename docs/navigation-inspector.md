@@ -37,8 +37,12 @@ alignment still requires the coordinated live check.
 Freeze captures the current evidence; terminal failure freezes automatically by
 default. Resume returns to live collection. Zone changes invalidate frozen live
 placement. Producer/zone leases expire after two seconds, including frozen data.
-Old evidence remains inspectable in the projected desktop panel, explicitly
-labeled stale. Opening a saved capture never publishes it into the game.
+The captured map remains inspectable in the desktop panel and near the top center
+of the game, clear of the minimap. Once placement expires it is explicitly labeled
+CAPTURE / PROJECTED ONLY and cannot draw any world trail, even with x-ray enabled.
+The panel's Show in game and layer controls continue working after the producer
+exits; closing or disconnecting the panel hides the in-game capture. Opening a
+saved capture never publishes it into the game.
 
 Save capture writes a bounded JSON file without overwriting an existing capture.
 Default storage is LocalAppData/ShadowbaneLab/diagnostics/navigation-inspector.

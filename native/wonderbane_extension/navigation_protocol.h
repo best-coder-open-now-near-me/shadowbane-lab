@@ -45,6 +45,13 @@ struct FrameHeader {
     float view_radius;
     float reserved;
 };
+struct ControlFrame {
+    std::uint32_t magic, version, size, sequence;
+    std::uint64_t process_creation, session_id;
+    std::uint32_t process_id, flags, layer_mask, command;
+    float character_radius, movement_uncertainty, margin;
+    std::uint32_t checksum;
+};
 struct Line {
     std::uint32_t layer;
     std::uint32_t flags;
@@ -56,6 +63,8 @@ static_assert(sizeof(FrameHeader) == 128U);
 static_assert(offsetof(FrameHeader, sequence) == 12U);
 static_assert(offsetof(FrameHeader, checksum) == 100U);
 static_assert(sizeof(Line) == 32U);
+static_assert(sizeof(ControlFrame) == 64U);
+static_assert(offsetof(ControlFrame, checksum) == 60U);
 constexpr std::size_t kMaximumFrameBytes = sizeof(FrameHeader)
     + kMaximumLines * sizeof(Line) + kMaximumCaptureBytes;
 // Reserved versioned panel control area; each writer owns its own sequence.
@@ -71,5 +80,13 @@ FrameError ValidateFrame(const void* data, std::size_t size,
                          std::uint32_t sequence_after, std::uint32_t process_id,
                          std::uint64_t process_creation, std::uint64_t now_ms) noexcept;
 bool FrameLeaseValid(const FrameHeader& frame, std::uint64_t now_ms) noexcept;
+bool FramePlacementValid(const FrameHeader& frame, std::uint64_t now_ms) noexcept;
+// Historical evidence still requires complete geometry, CRC and exact identity.
+// This does not authorize world placement or renew a producer/zone lease.
+FrameError ValidateEvidenceFrame(const void* data, std::size_t size,
+    std::uint32_t sequence_after, std::uint32_t process_id,
+    std::uint64_t process_creation, std::uint64_t now_ms) noexcept;
+bool ValidateControls(const ControlFrame& controls, std::uint32_t sequence_after,
+    const FrameHeader& frame) noexcept;
 
 }  // namespace wonderbane::extension::navigation

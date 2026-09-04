@@ -102,11 +102,13 @@ void WorldLines(const navigation::FrameHeader& frame, const navigation::Line* li
     glEnd();
 }
 void ProjectedView(const navigation::FrameHeader& frame, const navigation::Line* lines,
-                   const GLint* viewport, const bool camera_available) noexcept {
+                   const GLint* viewport, const bool camera_available,
+                   const bool live_placement) noexcept {
     const float width = static_cast<float>(viewport[2]);
     const float height = static_cast<float>(viewport[3]);
     const float side = (std::min)({320.0F, width * 0.34F, height - 150.0F});
-    const float left = width - side - 12.0F, top = 42.0F;
+    // Keep both HUD corners available, including the game's top-right minimap.
+    const float left = (width - side) / 2.0F, top = 42.0F;
     const float font = side >= 290.0F ? 2.0F : 1.0F;
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_LINE_STIPPLE);
@@ -115,7 +117,7 @@ void ProjectedView(const navigation::FrameHeader& frame, const navigation::Line*
     glColor4f(0.035F, 0.05F, 0.075F, 0.9F);
     glBegin(GL_QUADS); Quad(left - 6, 8, side + 12, side + 140); glEnd();
     glColor4f(0.9F, 0.93F, 1.0F, 1.0F);
-    Text(left, 16, font, "PROJECTED HEIGHT UNKNOWN");
+    Text(left, 16, font, live_placement ? "PROJECTED HEIGHT UNKNOWN" : "CAPTURE / PROJECTED ONLY");
     glColor4f(0.25F, 0.3F, 0.4F, 1.0F);
     glBegin(GL_LINE_LOOP);
     glVertex2f(left, top); glVertex2f(left + side, top);
@@ -146,8 +148,10 @@ void ProjectedView(const navigation::FrameHeader& frame, const navigation::Line*
              top + side + 8 + static_cast<float>(i / 2U) * 16, font, labels[i]);
     }
     glColor4f(1.0F, 0.85F, 0.5F, 1.0F);
-    Text(left, top + side + 88, 1, (frame.flags & navigation::kFrozen) ? "FROZEN / LT RIGHT LG UP" : "LIVE / LT RIGHT LG UP");
+    Text(left, top + side + 88, 1, !live_placement ? "CAPTURE / LT RIGHT LG UP" :
+         (frame.flags & navigation::kFrozen) ? "FROZEN / LT RIGHT LG UP" : "LIVE / LT RIGHT LG UP");
     Text(left, top + side + 100, 1,
+         !live_placement ? "WORLD PLACEMENT EXPIRED / SEE PANEL" :
          frame.omitted_lines || frame.status ? "TRUNCATED MODEL / SEE PANEL" :
          !camera_available ? "WORLD CAMERA UNAVAILABLE" :
          (frame.flags & navigation::kXray) ? "WORLD XRAY TRAIL IS DASHED" : "WORLD TRAIL USES SCENE DEPTH");
@@ -156,7 +160,8 @@ void ProjectedView(const navigation::FrameHeader& frame, const navigation::Line*
 
 bool RenderNavigationGeometry(const navigation::FrameHeader& frame,
                               const navigation::Line* const lines,
-                              const GraphicsCameraState* const camera) noexcept {
+                              const GraphicsCameraState* const camera,
+                              const bool live_placement) noexcept {
     if ((frame.flags & navigation::kEnabled) == 0U || lines == nullptr
         || frame.line_count > navigation::kMaximumLines || !std::isfinite(frame.view_radius)
         || frame.view_radius <= 0.0F || wglGetCurrentContext() == nullptr) return false;
@@ -195,7 +200,7 @@ bool RenderNavigationGeometry(const navigation::FrameHeader& frame,
     if (blend_equation) glGetIntegerv(0x8009U, &equation_rgb);
     if (blend_separate) glGetIntegerv(0x883DU, &equation_alpha);
     glGetIntegerv(GL_MATRIX_MODE, &matrix_mode);
-    const bool camera_available = camera != nullptr
+    const bool camera_available = live_placement && camera != nullptr
         && std::memcmp(camera->viewport, viewport, sizeof(viewport)) == 0;
     // Core OpenGL imports belong to this extension, not the game's hooked IAT.
     // Restoring the driver state keeps the existing fixed-function mirror coherent.
@@ -229,7 +234,7 @@ bool RenderNavigationGeometry(const navigation::FrameHeader& frame,
         glDisable(GL_LINE_STIPPLE); glEnable(GL_DEPTH_TEST); glDepthFunc(GL_LEQUAL);
         WorldLines(frame, lines, false);
     }
-    ProjectedView(frame, lines, viewport, camera_available);
+    ProjectedView(frame, lines, viewport, camera_available, live_placement);
     glMatrixMode(GL_MODELVIEW); glPopMatrix();
     glMatrixMode(GL_PROJECTION); glPopMatrix();
     glPopAttrib();

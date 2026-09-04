@@ -8,12 +8,12 @@ NavigationFrameBuffer g_frame;
 }
 void DrawNavigationInspector() noexcept {
     if (!TryAcquireSRWLockExclusive(&g_draw_lock)) return;
-    if (ReadNavigationFrame(&g_frame) && (g_frame.header.flags & navigation::kEnabled) != 0U) {
+    if (ReadNavigationEvidence(&g_frame) && (g_frame.presentation.flags & navigation::kEnabled) != 0U) {
         GraphicsCameraState camera{};
-        const bool available = ReadPendingGraphicsCameraState(&camera);
-        (void)RenderNavigationGeometry(g_frame.header,
+        const bool available = g_frame.live_placement && ReadPendingGraphicsCameraState(&camera);
+        (void)RenderNavigationGeometry(g_frame.presentation,
             reinterpret_cast<const navigation::Line*>(g_frame.bytes.data() + sizeof(navigation::FrameHeader)),
-            available ? &camera : nullptr);
+            available ? &camera : nullptr, g_frame.live_placement);
     }
     ReleaseSRWLockExclusive(&g_draw_lock);
 }

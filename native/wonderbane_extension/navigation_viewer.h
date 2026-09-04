@@ -9,5 +9,6 @@ void DrawNavigationInspector() noexcept;
 // current context; this restores every touched state and never writes depth.
 bool RenderNavigationGeometry(const navigation::FrameHeader& frame,
                               const navigation::Line* lines,
-                              const GraphicsCameraState* camera) noexcept;
+                              const GraphicsCameraState* camera,
+                              bool live_placement = true) noexcept;
 }  // namespace wonderbane::extension

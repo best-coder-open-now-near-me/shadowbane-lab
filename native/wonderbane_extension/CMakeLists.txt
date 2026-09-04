@@ -132,7 +132,8 @@ if(BUILD_TESTING)
   set_property(TARGET wonderbane_extension_navigation_test PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded")
   add_test(NAME wonderbane_extension_navigation
     COMMAND wonderbane_extension_navigation_test
-      "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/fixtures/navigation-inspector-v1.hex")
+      "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/fixtures/navigation-inspector-v1.hex"
+      "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/fixtures/navigation-inspector-controls-v1.hex")
   foreach(repair_profile full disabled)
     add_executable(wonderbane_extension_terrain_refresh_${repair_profile}_test terrain_mask_refresh_test.cpp)
     target_compile_features(wonderbane_extension_terrain_refresh_${repair_profile}_test PRIVATE cxx_std_20)

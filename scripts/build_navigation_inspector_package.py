@@ -174,6 +174,7 @@ def main() -> int:
         for relative in (
             "native/wonderbane_extension/navigation_draw.cpp",
             "tests/fixtures/navigation-inspector-v1.hex",
+            "tests/fixtures/navigation-inspector-controls-v1.hex",
             "src/shadowbane_lab/navigation_inspector/build_identity.json",
             "scripts/build_navigation_inspector_package.py",
         ):
@@ -207,6 +208,7 @@ def main() -> int:
             source / "src/shadowbane_lab/navigation_inspector/protocol.py",
             source / "native/wonderbane_extension/navigation_protocol.h",
             source / "tests/fixtures/navigation-inspector-v1.hex",
+            source / "tests/fixtures/navigation-inspector-controls-v1.hex",
         ]
     )
     artifacts.extend(sorted(logs.glob("*.log")))

@@ -69,8 +69,8 @@ void Same(const State& a, const State& b) {
         && std::memcmp(a.current,b.current,sizeof(a.current)) == 0, "matrices/current color restored");
 }
 unsigned ColoredPixels() {
-    std::array<unsigned char, 210U * 5U * 3U> pixels{};
-    glReadPixels(55, 237, 210, 5, GL_RGB, GL_UNSIGNED_BYTE, pixels.data());
+    std::array<unsigned char, 100U * 5U * 3U> pixels{};
+    glReadPixels(42, 237, 100, 5, GL_RGB, GL_UNSIGNED_BYTE, pixels.data());
     unsigned count = 0;
     for (std::size_t i = 0; i < pixels.size(); i += 3U) {
         if (pixels[i] || pixels[i+1] || pixels[i+2]) ++count;
@@ -141,7 +141,7 @@ int main(int argc, char** argv) {
     frame.flags = navigation::kEnabled | navigation::kUnknownHeight;
     frame.layer_mask = navigation::kAllLayers; frame.line_count = 1; frame.view_radius = 50;
     navigation::Line line{navigation::kTrailLayer, navigation::kWorldHeight,
-        {-0.8F,0.0F,0.2F}, {-0.2F,0.0F,0.2F}};
+        {-0.85F,0.0F,0.2F}, {-0.6F,0.0F,0.2F}};
     GraphicsCameraState camera{};
     for (unsigned i = 0; i < 16U; i += 5U) camera.view_matrix[i] = camera.projection_matrix[i] = 1;
     camera.viewport[2] = 640; camera.viewport[3] = 480;
@@ -154,7 +154,7 @@ int main(int argc, char** argv) {
     Check(RenderNavigationGeometry(frame, &line, &camera), "render distinct xray");
     glFinish(); Same(state, Capture());
     const auto xray = ColoredPixels();
-    Check(xray > 0 && xray < 190, "xray is visibly dashed behind depth");
+    Check(xray > 0 && xray < 90, "xray is visibly dashed behind depth");
     frame.flags &= ~navigation::kXray;
     line.start[2] = line.end[2] = -0.2F;
     Check(RenderNavigationGeometry(frame, &line, &camera), "render visible measured trail");
@@ -162,6 +162,19 @@ int main(int argc, char** argv) {
     Check(ColoredPixels() > xray, "visible trail is solid");
     glReadPixels(100,240,1,1,GL_DEPTH_COMPONENT,GL_FLOAT,&depth);
     Check(std::fabs(depth - 0.5F) < 0.0001F, "visible pass also preserves scene depth");
+    glPushAttrib(GL_ALL_ATTRIB_BITS);
+    glDisable(GL_SCISSOR_TEST); glColorMask(GL_TRUE,GL_TRUE,GL_TRUE,GL_TRUE);
+    glClear(GL_COLOR_BUFFER_BIT); glPopAttrib();
+    frame.flags |= navigation::kXray;
+    Check(RenderNavigationGeometry(frame, &line, &camera, false), "expired capture still draws projected map");
+    glFinish(); Same(state, Capture());
+    Check(ColoredPixels() == 0, "expired capture never draws world trail even with a camera and xray");
+    unsigned char center_pixel[3]{}, hud_pixel[3]{};
+    glReadPixels(320,450,1,1,GL_RGB,GL_UNSIGNED_BYTE,center_pixel);
+    glReadPixels(620,440,1,1,GL_RGB,GL_UNSIGNED_BYTE,hud_pixel);
+    Check(center_pixel[0] || center_pixel[1] || center_pixel[2], "projected capture persists near top center");
+    Check(!(hud_pixel[0] || hud_pixel[1] || hud_pixel[2]), "top-right minimap region remains clear");
+    frame.flags &= ~navigation::kXray;
     LARGE_INTEGER frequency{}, begin{}, end{};
     QueryPerformanceFrequency(&frequency); glFinish(); QueryPerformanceCounter(&begin);
     for (unsigned sample = 0; sample < 20U; ++sample) {
