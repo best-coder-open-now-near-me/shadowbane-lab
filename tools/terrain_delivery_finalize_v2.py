@@ -257,19 +257,29 @@ def patch_native_compile_issues(repository: Path) -> None:
     runtime_source = _replace_once(
         runtime_source,
         "void* __fastcall BuilderHook(\n",
-        "ClientRepairResult RepairBuiltTerrainGuarded(\n"
+        "ClientRepairResult RepairBuiltTerrainUnchecked(\n"
         "    void* terrain,\n"
-        "    const Token& key) noexcept {\n"
-        "    ClientRepairResult result = ClientRepairResult::failed;\n"
-        "    __try {\n"
-        "        result = RepairBuiltTerrain(terrain, key);\n"
-        "    } __except (EXCEPTION_EXECUTE_HANDLER) {\n"
-        "        AbortTerrainBuild();\n"
+        "    const std::uint32_t resource,\n"
+        "    const std::uint32_t group) noexcept {\n"
+        "    return RepairBuiltTerrain(terrain, Token{resource, group});\n"
+        "}\n\n"
+        "bool TryRepairBuiltTerrain(\n"
+        "    void* terrain,\n"
+        "    const std::uint32_t resource,\n"
+        "    const std::uint32_t group,\n"
+        "    ClientRepairResult* result) noexcept {\n"
+        "    if (result == nullptr) {\n"
+        "        return false;\n"
         "    }\n"
-        "    return result;\n"
+        "    __try {\n"
+        "        *result = RepairBuiltTerrainUnchecked(terrain, resource, group);\n"
+        "    } __except (EXCEPTION_EXECUTE_HANDLER) {\n"
+        "        return false;\n"
+        "    }\n"
+        "    return true;\n"
         "}\n\n"
         "void* __fastcall BuilderHook(\n",
-        "builder SEH helper insertion",
+        "object-free terrain SEH wrapper insertion",
     )
     runtime_source = _replace_once(
         runtime_source,
@@ -281,10 +291,15 @@ def patch_native_compile_issues(repository: Path) -> None:
         "            repair_result = ClientRepairResult::failed;\n"
         "        }\n"
         "    }\n",
-        "    } else {\n"
-        "        repair_result = RepairBuiltTerrainGuarded(*output_terrain, key);\n"
+        "    } else if (!TryRepairBuiltTerrain(\n"
+        "                   *output_terrain,\n"
+        "                   terrain_resource,\n"
+        "                   terrain_group,\n"
+        "                   &repair_result)) {\n"
+        "        AbortTerrainBuild();\n"
+        "        repair_result = ClientRepairResult::failed;\n"
         "    }\n",
-        "builder SEH call site",
+        "terrain SEH call site",
     )
     runtime_source = _replace_once(
         runtime_source,
