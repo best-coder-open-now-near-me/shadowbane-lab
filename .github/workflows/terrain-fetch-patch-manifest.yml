@@ -1,0 +1,61 @@
+name: Terrain fetch patch manifest
+
+on:
+  push:
+    branches:
+      - codex/terrain-material-export-da109b0
+
+permissions:
+  contents: read
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch manifest and locate reviewed client
+        run: |
+          set -euo pipefail
+          mkdir -p patch-manifest
+          curl --fail --location --retry 3 --retry-delay 2 \
+            http://87.99.132.84/manifest.json \
+            --output patch-manifest/manifest.json
+          python - <<'PY'
+          import hashlib
+          import json
+          import urllib.parse
+          import urllib.request
+          from pathlib import Path
+
+          root = Path('patch-manifest')
+          manifest = json.loads((root / 'manifest.json').read_text(encoding='utf-8'))
+          (root / 'manifest.pretty.json').write_text(
+              json.dumps(manifest, indent=2, sort_keys=True) + '\n', encoding='utf-8'
+          )
+          target = '55fbad5f0110cd99b4085af72d1e8fddb782ccdec1491478492c18158f5c61bc'
+          found = []
+          def walk(value, path=()):
+              if isinstance(value, dict):
+                  if any(str(v).lower() == target for v in value.values()):
+                      found.append((path, value))
+                  for key, item in value.items():
+                      walk(item, path + (str(key),))
+              elif isinstance(value, list):
+                  for index, item in enumerate(value):
+                      walk(item, path + (str(index),))
+          walk(manifest)
+          (root / 'target-records.json').write_text(
+              json.dumps([{'path': list(path), 'record': record} for path, record in found],
+                         indent=2, sort_keys=True) + '\n', encoding='utf-8'
+          )
+          print(f'target record count: {len(found)}')
+          for path, record in found:
+              print(path, record)
+          PY
+      - name: Upload patch manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: terrain-patch-manifest
+          path: patch-manifest/
+          if-no-files-found: error
+          retention-days: 1
