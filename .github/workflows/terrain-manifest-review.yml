@@ -1,0 +1,67 @@
+name: Terrain client manifest review
+
+on:
+  push:
+    branches:
+      - codex/terrain-material-export-da109b0
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch patch manifest and target binary when present
+        run: |
+          set -euo pipefail
+          mkdir terrain-manifest-review
+          curl --fail --location --retry 3 --retry-delay 2 \
+            http://87.99.132.84/manifest.json \
+            --output terrain-manifest-review/manifest.json
+          python - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+          from urllib.parse import quote, urljoin
+          from urllib.request import urlopen
+
+          base = 'http://87.99.132.84/'
+          target = '55fbad5f0110cd99b4085af72d1e8fddb782ccdec1491478492c18158f5c61bc'
+          root = Path('terrain-manifest-review')
+          data = json.loads((root / 'manifest.json').read_text(encoding='utf-8-sig'))
+          matches = []
+
+          def walk(value, path=()):
+              if isinstance(value, dict):
+                  lowered = {str(k).casefold(): v for k, v in value.items()}
+                  text = json.dumps(value, sort_keys=True, default=str).casefold()
+                  if target in text:
+                      matches.append({'path': list(path), 'value': value})
+                  for key, item in value.items():
+                      walk(item, path + (str(key),))
+              elif isinstance(value, list):
+                  for index, item in enumerate(value):
+                      walk(item, path + (str(index),))
+          walk(data)
+          (root / 'target-matches.json').write_text(
+              json.dumps(matches, indent=2, sort_keys=True, default=str) + '\n',
+              encoding='utf-8',
+          )
+          (root / 'manifest-summary.json').write_text(
+              json.dumps({
+                  'type': type(data).__name__,
+                  'top_level_keys': sorted(data) if isinstance(data, dict) else None,
+                  'target_match_count': len(matches),
+                  'manifest_sha256': hashlib.sha256((root / 'manifest.json').read_bytes()).hexdigest(),
+              }, indent=2, sort_keys=True) + '\n', encoding='utf-8'
+          )
+          PY
+      - name: Upload review
+        uses: actions/upload-artifact@v4
+        with:
+          name: terrain-manifest-review
+          path: terrain-manifest-review/
+          if-no-files-found: error
+          retention-days: 1
