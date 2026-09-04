@@ -1244,7 +1244,7 @@ class ClientCliTests(unittest.TestCase):
             payload["pathfinding"],
         )
         open_zone.assert_called_once_with(native_profile, process_id=4320)
-        terrain_factory.assert_called_once_with(cache, zone_reader)
+        terrain_factory.assert_called_once_with(cache, zone_reader, observer=None)
         self.assertIs(
             astar_controller,
             travel_runner.call_args.kwargs["controller"],

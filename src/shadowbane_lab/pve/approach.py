@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from math import isfinite
 
+from shadowbane_lab.navigation_inspector.events import MotionEvent, emit
 from shadowbane_lab.pve.model import PvECampLease, PvEObservation, PvEPhase
 from shadowbane_lab.travel import (
     AStarRouteNotFound,
@@ -135,6 +136,7 @@ class PvEApproachController:
         self._last_travel_observation: TravelObservation | None = None
         self._astar_replans = 0
         self._forced_reposition = False
+        self._debug_phase = None
 
     @property
     def config(self) -> PvEApproachConfig:
@@ -197,8 +199,12 @@ class PvEApproachController:
             else self._config.arrival_radius
         )
         destination = self._destination(observation, arrival_radius=arrival_radius)
+        self._debug_event("observation", observation, destination)
+        if self._forced_reposition:
+            self._debug_event("reposition", observation, destination)
         if distance <= arrival_radius:
             if self._travel is None or self._terminal_reported:
+                self._debug_event("completion", observation, destination)
                 self._forced_reposition = False
                 return PvEApproachUpdate(PvEApproachStatus.ARRIVED)
             self._travel.update_final_destination(destination)
@@ -228,6 +234,7 @@ class PvEApproachController:
                 < self._config.native_progress_grace_ms
             )
         ):
+            self._debug_event("native_chase", observation, destination)
             return PvEApproachUpdate(PvEApproachStatus.IDLE)
         return self._advance_travel(observation, destination)
 
@@ -254,8 +261,11 @@ class PvEApproachController:
                 forced_reposition=True,
             )
         destination = camp.return_destination
+        self._debug_event("observation", observation, destination)
+        self._debug_event("camp_return", observation, destination)
         if distance <= camp.return_radius:
             if self._travel is None or self._terminal_reported:
+                self._debug_event("completion", observation, destination)
                 self._forced_reposition = False
                 return PvEApproachUpdate(PvEApproachStatus.ARRIVED)
             self._travel.update_final_destination(destination)
@@ -285,6 +295,9 @@ class PvEApproachController:
                 self._terminal_reported = True
                 message = " ".join(str(exc).split())
                 detail = f":{message}" if message else ""
+                self._debug_event(
+                    "failure", observation, destination, reason=f"astar_route_not_found{detail}"
+                )
                 return PvEApproachUpdate(
                     PvEApproachStatus.FAILED,
                     TravelDecision(
@@ -330,6 +343,8 @@ class PvEApproachController:
         if not isinstance(reason, str) or not reason.strip():
             raise ValueError("approach cancellation reason must be non-empty")
         if self._travel is None or self._terminal_reported:
+            if self._target_token is not None and not self._terminal_reported:
+                self._debug_event("cancelled", reason=reason)
             self._reset()
             return PvEApproachUpdate(PvEApproachStatus.IDLE)
         decision = self._travel.stop(reason, self._last_travel_observation)
@@ -345,6 +360,8 @@ class PvEApproachController:
         forced_reposition: bool = False,
     ) -> None:
         self._target_token = target_token
+        self._debug_phase = None
+        self._debug_event("target_changed", reason=target_token)
         self._best_distance = distance
         self._last_native_progress_at = now_ms
         self._travel = None
@@ -362,12 +379,70 @@ class PvEApproachController:
         self._astar_replans = 0
         self._forced_reposition = False
 
+    def _debug_event(
+        self,
+        event: str,
+        observation: PvEObservation | None = None,
+        destination: TravelDestination | None = None,
+        *,
+        reason: str | None = None,
+    ) -> None:
+        if self._planner.observer is None:
+            return
+        try:
+            if event in ("native_chase", "camp_return", "reposition", "completion", "failure"):
+                key = (event, reason, self._target_token)
+                if key == self._debug_phase:
+                    return
+                self._debug_phase = key
+            sample = self._last_travel_observation
+            position = (
+                (None if sample is None else sample.position)
+                if observation is None
+                else observation.player_position
+            )
+            now = (
+                (0 if sample is None else sample.now_ms)
+                if observation is None
+                else observation.now_ms
+            )
+            if reason is not None and len(reason) > 512:
+                reason = reason[:498] + "...[truncated]"
+            emit(
+                self._planner.observer,
+                MotionEvent(
+                    "motion",
+                    event,
+                    f"pve:{self._target_token or 'none'}",
+                    now,
+                    position=None
+                    if position is None
+                    else (position.lt, position.lg, position.altitude),
+                    destination=None
+                    if destination is None
+                    else (destination.lt, destination.lg, destination.arrival_radius),
+                    reason=reason,
+                ),
+            )
+        except Exception:
+            pass
+
     def _plan_route(
         self,
         observation: PvEObservation,
         destination: TravelDestination,
     ) -> TravelController:
         assert observation.player_position is not None
+        self._debug_event(
+            "replan",
+            observation,
+            destination,
+            reason="learned_obstacle"
+            if self._travel is not None
+            else "forced_reposition"
+            if self._forced_reposition
+            else "native_chase_stalled",
+        )
         route = self._planner.plan(
             self._navigation_map,
             start_lt=observation.player_position.lt,

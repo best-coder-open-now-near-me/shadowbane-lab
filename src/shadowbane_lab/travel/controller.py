@@ -5,7 +5,13 @@ from __future__ import annotations
 from enum import StrEnum
 from math import hypot
 
-from shadowbane_lab.navigation_inspector.events import DiagnosticObserver, MotionEvent, emit
+from shadowbane_lab.navigation_inspector.events import (
+    MAX_ROUTE_POINTS,
+    DiagnosticObserver,
+    MotionEvent,
+    RouteEvent,
+    emit,
+)
 from shadowbane_lab.protocol import Vector2
 from shadowbane_lab.travel.model import (
     TravelControllerConfig,
@@ -37,6 +43,7 @@ class TravelController:
         if config is not None and not isinstance(config, TravelControllerConfig):
             raise ValueError("config must be TravelControllerConfig")
         self._observer = observer
+        self._debug_start = None
         self._plan = plan
         self._config = config or TravelControllerConfig()
         self._started_at_ms: int | None = None
@@ -103,6 +110,7 @@ class TravelController:
         distance = final.distance_from(observation.position)
         if distance > final.arrival_radius:
             raise ValueError("final destination has not been reached")
+        self._debug_route(observation)
         return self._complete(observation, distance)
 
     def step(self, observation: TravelObservation) -> TravelDecision:
@@ -110,6 +118,7 @@ class TravelController:
             raise ValueError("observation must be TravelObservation")
         if self._terminal is not None:
             return self._terminal
+        self._debug_route(observation)
         self._debug_event("observation", observation)
         if self._started_at_ms is None:
             self._started_at_ms = observation.now_ms
@@ -529,6 +538,28 @@ class TravelController:
         )
         self._debug_event("completion", observation, self._terminal)
         return self._terminal
+
+    def _debug_route(self, observation: TravelObservation) -> None:
+        if self._observer is None:
+            return
+        try:
+            if self._debug_start is None:
+                self._debug_start = (observation.position.lt, observation.position.lg)
+            emit(
+                self._observer,
+                RouteEvent(
+                    "route",
+                    self._plan.plan_id,
+                    self._debug_start,
+                    tuple(
+                        (p.lt, p.lg, p.arrival_radius)
+                        for p in self._plan.destinations[:MAX_ROUTE_POINTS]
+                    ),
+                    max(0, len(self._plan.destinations) - MAX_ROUTE_POINTS),
+                ),
+            )
+        except Exception:
+            pass
 
     def _debug_event(
         self,

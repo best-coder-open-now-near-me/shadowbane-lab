@@ -9,11 +9,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import IntFlag
+from functools import lru_cache
 from math import cos, hypot, pi, sin
 
 from .snapshot import Snapshot
 
 MAX_LINES = 16384
+MAX_LAYER_LINES = MAX_LINES // 9
 
 
 class Layer(IntFlag):
@@ -110,16 +112,15 @@ def swept_circle_overlaps_cell(
     return distance2 <= radius * radius
 
 
-def prepare_geometry(snapshot: Snapshot) -> Geometry:
+def _prepare_geometry(plan, clearance, active, trail, events, route=None) -> Geometry:
     """Worker-only; per-layer budgets keep large map captures from hiding routes."""
     buckets: dict[Layer, list[Line]] = {layer: [] for layer in Layer}
     omitted = 0
 
-    # Fair bounded work: each layer can occupy at most 4096 lines; final output
-    # reserves priority for the objective and route before background map evidence.
+    # Reserve a fair share for every layer; dense history cannot hide obstacles.
     def line(layer: Layer, start: tuple, end: tuple, flags: int = 0) -> None:
         nonlocal omitted
-        if len(buckets[layer]) == 4096:
+        if len(buckets[layer]) == MAX_LAYER_LINES:
             omitted += 1
             return
 
@@ -133,23 +134,31 @@ def prepare_geometry(snapshot: Snapshot) -> Geometry:
             line(layer, start, end, flags)
 
     def circle(layer: Layer, center: tuple, radius: float, flags: int = 0) -> None:
+        nonlocal omitted
+        if len(buckets[layer]) == MAX_LAYER_LINES:
+            omitted += 24
+            return
         points = tuple(
             (center[0] + radius * cos(i * pi / 12), center[1] + radius * sin(i * pi / 12))
             for i in range(25)
         )
         path(layer, points, flags)
 
-    plan = snapshot.plan
     physical_hits: list[int] = []
     learned_hits: list[int] = []
     truncated = False
+    execution = route
     if plan is not None:
         path(Layer.RAW, plan.raw_path)
         # The route begins at the real search start and uses the actual issued
         # destinations, including a non-cell-centered final destination.
-        route = (plan.start,) + tuple(p[:2] for p in plan.destinations)
+        route = (
+            (execution.start,) + tuple(p[:2] for p in execution.destinations)
+            if execution is not None
+            else (plan.start,) + tuple(p[:2] for p in plan.destinations)
+        )
         path(Layer.FINAL, route)
-        radius = snapshot.clearance.radius
+        radius = clearance.radius
         for index, (start, end) in enumerate(zip(route, route[1:], strict=False)):
             physical = any(
                 swept_circle_overlaps_cell(start, end, cell, plan.cell_size, radius)
@@ -187,14 +196,21 @@ def prepare_geometry(snapshot: Snapshot) -> Geometry:
                 x1, y1 = x0 + plan.cell_size, y0 + plan.cell_size
                 path(layer, ((x0, y0), (x1, y0), (x1, y1), (x0, y1), (x0, y0)))
         circle(Layer.OBJECTIVE, plan.destination, plan.destination[2])
-        truncated = bool(plan.omitted_map_cells or plan.omitted_route_points)
-    active = snapshot.active
+        truncated = bool(
+            plan.omitted_map_cells
+            or plan.omitted_route_points
+            or (execution is not None and execution.omitted_destinations)
+        )
+    elif execution is not None:
+        path(Layer.FINAL, (execution.start,) + tuple(p[:2] for p in execution.destinations))
+        circle(Layer.OBJECTIVE, execution.destinations[-1], execution.destinations[-1][2])
+        truncated = bool(execution.omitted_destinations)
     if active is not None and active.destination is not None:
         circle(Layer.OBJECTIVE, active.destination, active.destination[2])
         if active.position is not None:
             line(Layer.OBJECTIVE, active.position, active.destination)
-    path(Layer.TRAIL, snapshot.trail, WORLD_HEIGHT)
-    for event in snapshot.events:
+    path(Layer.TRAIL, trail, WORLD_HEIGHT)
+    for event in events:
         if event.value.position is not None and event.value.event in (
             "stall",
             "failure",
@@ -203,7 +219,7 @@ def prepare_geometry(snapshot: Snapshot) -> Geometry:
             "completion",
             "cancelled",
         ):
-            circle(Layer.EVENTS, event.value.position, max(2.0, snapshot.clearance.radius))
+            circle(Layer.EVENTS, event.value.position, max(2.0, clearance.radius))
     result: list[Line] = []
     for layer in (
         Layer.OBJECTIVE,
@@ -221,4 +237,24 @@ def prepare_geometry(snapshot: Snapshot) -> Geometry:
         omitted += max(0, len(buckets[layer]) - available)
     return Geometry(
         tuple(result), omitted, Audit(tuple(physical_hits), tuple(learned_hits), truncated)
+    )
+
+
+@lru_cache(maxsize=4)
+def _plan_geometry(plan, clearance, route) -> Geometry:
+    # Auditing map cells is plan work. Do it once per immutable plan/radius,
+    # not once for every position sample or camera frame.
+    return _prepare_geometry(plan, clearance, None, (), (), route)
+
+
+def prepare_geometry(snapshot: Snapshot) -> Geometry:
+    plan = _plan_geometry(snapshot.plan, snapshot.clearance, snapshot.route)
+    movement = _prepare_geometry(
+        None, snapshot.clearance, snapshot.active, snapshot.trail, snapshot.events
+    )
+    combined = movement.lines + plan.lines
+    return Geometry(
+        combined[:MAX_LINES],
+        plan.omitted_lines + movement.omitted_lines + max(0, len(combined) - MAX_LINES),
+        plan.audit,
     )

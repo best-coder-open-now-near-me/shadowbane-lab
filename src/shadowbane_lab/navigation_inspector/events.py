@@ -71,7 +71,18 @@ class ContextEvent:
     height_provenance: str = "unknown: final world elevation is not observed"
 
 
-DiagnosticEvent = PlanEvent | MotionEvent | ContextEvent
+@dataclass(frozen=True, slots=True)
+class RouteEvent:
+    """The route currently owned by movement, independent of the latest search."""
+
+    kind: Literal["route"]
+    plan_id: str
+    start: Point2
+    destinations: tuple[Destination, ...]
+    omitted_destinations: int = 0
+
+
+DiagnosticEvent = PlanEvent | MotionEvent | ContextEvent | RouteEvent
 DiagnosticObserver = Callable[[DiagnosticEvent], None]
 
 

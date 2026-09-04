@@ -162,3 +162,37 @@ def test_wrong_client_creation_and_channel_header_fail_closed(live_mapping):
     ctypes.c_uint32.from_address(address + 16).value = identity.process_id
     with Channel(identity, role="producer"):
         pass
+
+
+def test_real_session_worker_publishes_and_releases_ownership(live_mapping):
+    import time
+
+    from shadowbane_lab.navigation_inspector.session import Session
+
+    identity, _address, _api = live_mapping
+    session = Session(identity, Controls(2, 0))
+    try:
+        session(ContextEvent("context", "worker-zone", "worker-map", "synthetic fixture"))
+        session(MotionEvent("motion", "observation", "worker", 100, position=(3, 4, 5)))
+        session(MotionEvent("motion", "failure", "worker", 101, reason="fixture stall"))
+        with Channel(identity) as reader:
+            deadline = time.monotonic() + 3
+            snapshot = None
+            while time.monotonic() < deadline:
+                try:
+                    candidate = reader.snapshot(reader.read())
+                    if candidate.frozen and candidate.events[-1].value.reason == "fixture stall":
+                        snapshot = candidate
+                        break
+                except ValueError:
+                    pass
+                time.sleep(0.01)
+            assert session.error is None
+            assert snapshot is not None
+            assert snapshot.context.map_token == "worker-map"
+            assert snapshot.trail == ((3, 4, 5),)
+    finally:
+        session.close()
+    assert not session._worker.is_alive()
+    with Channel(identity, role="producer"):
+        pass

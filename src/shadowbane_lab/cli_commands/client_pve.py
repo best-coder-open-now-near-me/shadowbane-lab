@@ -72,6 +72,11 @@ from shadowbane_lab.client_observation import (
     open_windows_native_target_identity_reader,
     open_windows_native_target_position_reader,
 )
+from shadowbane_lab.navigation_inspector.session import (
+    ObservedPositionSource,
+    optional_session,
+    pve_trace_sink,
+)
 from shadowbane_lab.pve import (
     PVE_TRACE_SCHEMA_VERSION,
     ClientPvEIntentDispatcher,
@@ -91,6 +96,7 @@ from shadowbane_lab.pve import (
 from shadowbane_lab.travel import (
     ClientTravelDecisionDispatcher,
     SparseNavigationMap,
+    WeightedAStarPlanner,
     load_active_zone_terrain_navigation,
 )
 
@@ -517,11 +523,27 @@ def _run_pve(
                     )
                 )
             )
+            navigation_observer = stack.enter_context(
+                optional_session(
+                    player_position_reader.process_id, position_profile.executable_sha256
+                )
+            )
+            inspected_position_reader = player_position_reader
+            if navigation_observer is not None:
+                inspected_position_reader = ObservedPositionSource(
+                    player_position_reader,
+                    navigation_observer,
+                    zone_reader=zone_reader,
+                    map_zone=None if zone_reader is None else zone_observation.zone_token,
+                    provenance="sparse navigation cells; raster discontinuities; "
+                    "learned blockers; "
+                    "costs combine slope, water and uncertain object density",
+                )
             result = PvERunner(
                 controller=controller,
                 health_reader=health_reader,
                 player_vitals_reader=player_vitals_reader,
-                player_position_reader=player_position_reader,
+                player_position_reader=inspected_position_reader,
                 target_position_reader=target_position_reader,
                 target_action_reader=target_action_reader,
                 player_action_reader=target_action_reader,
@@ -531,14 +553,13 @@ def _run_pve(
                 dispatcher=ClientPvEIntentDispatcher(adapter),
                 approach_controller=PvEApproachController(
                     navigation_map=active_navigation_map,
+                    planner=WeightedAStarPlanner(observer=navigation_observer),
                 ),
                 movement_dispatcher=ClientTravelDecisionDispatcher(adapter),
                 stop_signal=active_stop_signal,
                 poll_interval_ms=poll_ms,
                 maximum_retained_trace_steps=(retained_trace_steps if continuous else None),
-                trace_sink=(
-                    None if journal is None else lambda step: journal.append_step(step.as_dict())
-                ),
+                trace_sink=pve_trace_sink(journal, navigation_observer),
             ).run()
             if journal is not None:
                 journal.finish(

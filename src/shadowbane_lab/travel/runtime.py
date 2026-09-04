@@ -11,6 +11,7 @@ from shadowbane_lab.client_observation import (
     NativePlayerPositionObservation,
     NativePlayerVitalsObservation,
 )
+from shadowbane_lab.navigation_inspector.events import DiagnosticObserver, MotionEvent, emit
 from shadowbane_lab.protocol import ActionBinding, DecisionMessage, DispatchResult, TargetKind
 from shadowbane_lab.travel.model import (
     TravelDecision,
@@ -112,6 +113,7 @@ class TravelRunner:
         maximum_consecutive_observation_failures: int = 3,
         clock: Callable[[], float] = time.monotonic,
         sleeper: Callable[[float], None] = time.sleep,
+        observer: DiagnosticObserver | None = None,
     ) -> None:
         if not isinstance(controller, TravelControl):
             raise ValueError("controller must implement TravelControl")
@@ -135,6 +137,7 @@ class TravelRunner:
             or maximum_consecutive_observation_failures <= 0
         ):
             raise ValueError("maximum_consecutive_observation_failures must be a positive integer")
+        self._observer = observer
         self._controller = controller
         self._position_reader = position_reader
         self._player_vitals_reader = player_vitals_reader
@@ -241,6 +244,13 @@ class TravelRunner:
         if stop_input_accepted is False:
             final_phase = TravelPhase.STOPPED
             terminal_reason = "movement_stop_rejected"
+            self._debug_result("failure", terminal.now_ms, terminal_reason)
+        if stop_input_accepted is not None:
+            self._debug_result(
+                "stop_accepted" if stop_input_accepted else "stop_rejected",
+                terminal.now_ms,
+                stop_input_reason,
+            )
         return TravelRunResult(
             final_phase=final_phase,
             terminal_reason=terminal_reason,
@@ -251,14 +261,30 @@ class TravelRunner:
             stop_input_reason=stop_input_reason,
         )
 
-    @staticmethod
     def _trace(
+        self,
         decision: TravelDecision,
         observation: TravelObservation | None,
         *,
         input_accepted: bool | None = None,
         input_reason: str | None = None,
     ) -> TravelRunTraceStep:
+        if input_accepted is not None:
+            self._debug_result(
+                "input_accepted" if input_accepted else "input_rejected",
+                decision.now_ms,
+                input_reason,
+            )
+        if decision.terminal:
+            self._debug_result(
+                "completion"
+                if decision.phase is TravelPhase.COMPLETE
+                else "cancelled"
+                if decision.terminal_reason == "emergency_stop"
+                else "failure",
+                decision.now_ms,
+                decision.terminal_reason,
+            )
         return TravelRunTraceStep(
             decision=decision,
             position=None if observation is None else observation.position,
@@ -266,3 +292,7 @@ class TravelRunner:
             input_accepted=input_accepted,
             input_reason=input_reason,
         )
+
+    def _debug_result(self, event: str, now_ms: int, reason: str | None) -> None:
+        if self._observer is not None:
+            emit(self._observer, MotionEvent("motion", event, "runtime", now_ms, reason=reason))

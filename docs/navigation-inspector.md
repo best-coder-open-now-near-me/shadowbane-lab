@@ -1,6 +1,7 @@
 # Navigation inspector implementation
 
 Implementation branch: `codex/navigation-inspector`.
+Draft review: [PR #27](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/27).
 Base: `f2a5ca137b6d524c52bc492cc83081ee55929c71` on
 `codex/integrate-current-development`; integration destination is that branch
 while PR #25 remains open. This work does not include the separate terrain repair.
@@ -36,11 +37,30 @@ at startup and releases it if startup fails. Diagnostics-only excludes these
 runtime sources. Readers reject corrupt, torn, expired, wrong-process and
 wrong-zone data; restarting a producer also replaces cached session data even
 if its sequence restarts. Panel controls are independently versioned and bound
-to the exact process and session. No navigation drawing or live command publisher
-is enabled yet; those are the active work.
+to the exact process and session.
 
-Validation: 154 focused inspector, pathfinding, adaptive travel, travel and PvE
-controller tests pass. Observer failure is tested against identical ordinary
+Checkpoint 4 wires optional live sessions into `/go` and `/pve`. A bounded worker
+owns mapping publication and geometry; movement callbacks enqueue immutable events.
+The panel may arm the next session for its exact client; the developer override is
+`SHADOWBANE_NAV_INSPECTOR=1`. With no armed inspector there is no worker. A missing
+channel or diagnostic failure does not stop movement. No drawing or panel UI is
+enabled yet; those are the active work.
+
+Search evidence and the route currently owned by movement are separate. Direct
+travel has an execution route without claiming A* ran. Moving targets update the
+actual final destination, and a failed replacement search preserves the route
+movement continues to own. PvE records native chase, reposition, camp return and
+actual input outcomes. Zone/map provenance comes from the navigation source; an
+outdated static PvE map is labeled unavailable after a zone change. Expired zone
+observations invalidate live placement, including frozen samples. Frozen evidence
+can remain inspectable separately from live placement.
+
+Clearance audits are cached per immutable plan, active route and radius; each
+layer has a bounded share of display geometry, so dense history cannot consume
+the entire obstacle display budget.
+
+Validation: 212 focused inspector, pathfinding, adaptive travel, travel and PvE
+controller, terrain and command tests pass. Observer failure is tested against identical ordinary
 route results and movement decisions. Real Windows mapping lifecycle tests pass.
 Both Visual Studio 2022 Win32 Release profiles build and pass all 17 native tests;
 the navigation test reads the Python-generated golden frame and exercises the
@@ -52,8 +72,9 @@ sources are present only in full. Full viewer and live acceptance are pending.
 - [x] Capture immutable raw/final plan and controller events; validate behavior isolation.
 - [x] Bound saved history/replay and clearance geometry; validate the versioned wire codec.
 - [x] Connect and validate Windows transport and full-profile native channel ownership.
-- [ ] Active: wire live/PvE publishers, native drawing and panel controls; verify
-  frame cost and complete terrain provenance.
+- [x] Wire live travel/PvE publishers, active-route ownership and map provenance.
+- [ ] Active: finish native drawing and panel controls, including saved-evidence
+  inspection, then measure frame cost and prepare the combined package.
 - [ ] Validate both native profiles and combined Python/package boundaries; record
   exact source and artifact hashes for the coordinated live acceptance package.
 - [ ] Complete the bounded live tests in the [developer/owner handoff](handoffs/navigation-inspector.md).

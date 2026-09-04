@@ -52,7 +52,11 @@ class Controls:
     clearance: Clearance = Clearance()
 
     def encode(self, target: GraphicsControlTarget) -> bytes:
-        if not 0 < self.sequence <= 0xFFFFFFFE or self.sequence % 2 or not self.session_id:
+        if (
+            not 0 < self.sequence <= 0xFFFFFFFE
+            or self.sequence % 2
+            or not 0 <= self.session_id < (1 << 64)
+        ):
             raise ValueError("invalid control sequence/session")
         if self.command not in (0, 1, 2) or self.layers < 0 or self.layers & ~ALL_LAYERS:
             raise ValueError("invalid inspector controls")
@@ -287,6 +291,13 @@ class Channel:
         if self.role != "panel":
             raise ValueError("only the panel may write controls")
         self._write(controls.encode(self.target), MAX_FRAME_BYTES)
+
+    def startup_controls(self) -> Controls | None:
+        """Read panel defaults for the next session; never apply its old freeze command."""
+        self._check_open()
+        payload = ctypes.string_at(self._address + MAX_FRAME_BYTES, CONTROL.size)
+        session = CONTROL.unpack(payload)[5]
+        return self.controls(session)
 
     def controls(self, session_id: int) -> Controls | None:
         self._check_open()

@@ -5,11 +5,11 @@ from __future__ import annotations
 import json
 import math
 from collections import deque
-from dataclasses import asdict, dataclass, fields
+from dataclasses import asdict, dataclass, fields, replace
 from pathlib import Path
 from typing import Any
 
-from .events import ContextEvent, DiagnosticEvent, MotionEvent, PlanEvent
+from .events import ContextEvent, DiagnosticEvent, MotionEvent, PlanEvent, RouteEvent
 
 SCHEMA_VERSION = 1
 MAX_CAPTURE_BYTES = 1_048_576
@@ -119,6 +119,7 @@ class Snapshot:
     map_revision: int
     route_revision: int
     plan: PlanEvent | None
+    route: RouteEvent | None
     active: MotionEvent | None
     events: tuple[RecordedEvent, ...]
     trail: tuple[tuple[float, float, float], ...]
@@ -185,6 +186,7 @@ class Snapshot:
         context = parse_context(data["context"])
         plan = parse_plan(data["plan"]) if data["plan"] is not None else None
         active = parse_motion(data["active"]) if data["active"] is not None else None
+        route = parse_route(data["route"]) if data["route"] is not None else None
         events = data["events"]
         if not isinstance(events, list) or len(events) > MAX_EVENTS:
             raise ValueError("event history exceeds capacity")
@@ -203,12 +205,29 @@ class Snapshot:
                 "clearance": clearance,
                 "context": context,
                 "plan": plan,
+                "route": route,
                 "active": active,
                 "events": tuple(recorded),
                 "trail": _points(data["trail"], 3, MAX_TRAIL, "trail"),
                 "coordinate_convention": _text(data["coordinate_convention"], "coordinates"),
             }
         )
+
+
+def parse_route(value: object) -> RouteEvent:
+    data = _record(value, RouteEvent)
+    if data["kind"] != "route":
+        raise ValueError("invalid route kind")
+    destinations = _points(data["destinations"], 3, 4096, "route destinations")
+    if not destinations or any(point[2] < 0 for point in destinations):
+        raise ValueError("invalid route destinations")
+    return RouteEvent(
+        "route",
+        _text(data["plan_id"], "plan_id"),
+        _points([data["start"]], 2, 1, "route start")[0],
+        destinations,
+        _integer(data["omitted_destinations"], "omitted destinations"),
+    )
 
 
 def parse_context(value: object) -> ContextEvent:
@@ -288,6 +307,7 @@ class Collector:
         self.clearance = clearance or Clearance()
         self.context = ContextEvent("context", None, "unavailable", "unavailable")
         self.plan: PlanEvent | None = None
+        self.route: RouteEvent | None = None
         self.active: MotionEvent | None = None
         self.events: deque[RecordedEvent] = deque(maxlen=MAX_EVENTS)
         self.trail: deque[tuple[float, float, float]] = deque(maxlen=MAX_TRAIL)
@@ -301,7 +321,7 @@ class Collector:
         if isinstance(event, ContextEvent):
             event = parse_context(asdict(event))
             if event.zone_token != self.context.zone_token:
-                self.plan = self.active = None
+                self.plan = self.route = self.active = None
                 self.events.clear()
                 self.trail.clear()
                 self.frozen = None
@@ -312,11 +332,33 @@ class Collector:
                 self.context = event
         elif isinstance(event, PlanEvent):
             self.plan = parse_plan(asdict(event))
-            self.active = None
             self.route_revision += 1
+        elif isinstance(event, RouteEvent):
+            route = parse_route(asdict(event))
+            if route != self.route:
+                self.route = route
+                self.route_revision += 1
         else:
             event = parse_motion(asdict(event))
-            self.active = event
+            if event.event == "target_changed":
+                self.route = self.plan = None
+                self.route_revision += 1
+            if event.position is not None or event.destination is not None:
+                previous = self.active
+                self.active = event
+                if previous is not None and (
+                    previous.plan_id == event.plan_id or event.plan_id == "runtime"
+                ):
+                    self.active = replace(
+                        event,
+                        plan_id=previous.plan_id if event.plan_id == "runtime" else event.plan_id,
+                        destination=event.destination or previous.destination,
+                        waypoint_index=(
+                            event.waypoint_index
+                            if event.waypoint_index is not None
+                            else previous.waypoint_index
+                        ),
+                    )
             if event.position is not None and (not self.trail or self.trail[-1] != event.position):
                 self.omitted_trail += int(len(self.trail) == MAX_TRAIL)
                 self.trail.append(event.position)
@@ -344,6 +386,7 @@ class Collector:
             self.map_revision,
             self.route_revision,
             self.plan,
+            self.route,
             self.active,
             tuple(self.events),
             tuple(self.trail),

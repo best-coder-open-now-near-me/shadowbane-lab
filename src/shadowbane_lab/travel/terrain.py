@@ -12,6 +12,7 @@ from shadowbane_lab.client_observation import (
     NativePlayerPositionObservation,
     NativeZoneGeometry,
 )
+from shadowbane_lab.navigation_inspector.events import ContextEvent, DiagnosticObserver, emit
 from shadowbane_lab.travel.pathfinding import (
     NavigationCell,
     NavigationMapSnapshot,
@@ -191,6 +192,7 @@ class ActiveZoneTerrainNavigationSource:
         *,
         refresh_distance_fraction: float = 0.5,
         navigation_map: SparseNavigationMap | None = None,
+        observer: DiagnosticObserver | None = None,
     ) -> None:
         if not isinstance(zone_reader, CurrentZoneSource):
             raise ValueError("zone_reader must implement CurrentZoneSource")
@@ -201,6 +203,7 @@ class ActiveZoneTerrainNavigationSource:
             or not 0 < refresh_distance_fraction <= 1
         ):
             raise ValueError("refresh_distance_fraction must be in (0, 1]")
+        self._observer = observer
         self._cache_directory = Path(cache_directory)
         self._zone_reader = zone_reader
         self._config = config or TerrainNavigationConfig()
@@ -238,6 +241,7 @@ class ActiveZoneTerrainNavigationSource:
         if not isinstance(position, NativePlayerPositionObservation):
             raise ValueError("position must be NativePlayerPositionObservation")
         zone = self._zone_reader.observe()
+        self._debug_context(zone)
         if self._snapshot is not None and not self._refresh_required(zone, position):
             return self._snapshot
         active = load_active_zone_terrain_navigation(
@@ -270,7 +274,38 @@ class ActiveZoneTerrainNavigationSource:
             navigation_map=active.navigation_map,
             planning_window=planning_window,
         )
+        self._debug_context(zone)
         return self._snapshot
+
+    def _debug_context(self, zone: NativeCurrentZoneObservation) -> None:
+        if self._observer is None:
+            return
+        try:
+            seed = self._last_seed
+            current = self._zone_token == zone.zone_token and self._snapshot is not None
+            provenance = (
+                "unavailable: terrain map refresh pending"
+                if not current
+                else (
+                    "sparse navigation cells; no terrain height layer"
+                    if seed is None
+                    else f"CZone {seed.template_group_id}:{seed.template_id}; "
+                    f"TerrainAlpha {seed.terrain_group_id}:{seed.terrain_map_id}; "
+                    "raster discontinuity blockers; costs combine slope, water "
+                    "and uncertain object density"
+                )
+            )
+            emit(
+                self._observer,
+                ContextEvent(
+                    "context",
+                    zone.zone_token,
+                    self._snapshot.token if current else "unavailable",
+                    provenance,
+                ),
+            )
+        except Exception:
+            pass
 
     def _refresh_required(
         self,

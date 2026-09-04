@@ -38,6 +38,7 @@ from shadowbane_lab.client_observation import (
     open_windows_native_player_vitals_reader,
     open_windows_native_runegate_registry_reader,
 )
+from shadowbane_lab.navigation_inspector.session import optional_session
 from shadowbane_lab.travel import (
     ActiveZoneTerrainNavigationSource,
     AStarTravelController,
@@ -189,8 +190,11 @@ def _run_travel(
                 raise ValueError(
                     "native position and player-vitals readers resolved different processes"
                 )
+            navigation_observer = stack.enter_context(
+                optional_session(position_reader.process_id, position_profile.executable_sha256)
+            )
             if zone_profile is None:
-                controller = TravelController(plan, travel_config)
+                controller = TravelController(plan, travel_config, observer=navigation_observer)
             else:
                 assert navigation_cache_directory is not None
                 zone_reader = stack.enter_context(
@@ -209,6 +213,7 @@ def _run_travel(
                 terrain_source = ActiveZoneTerrainNavigationSource(
                     navigation_cache_directory,
                     zone_reader,
+                    observer=navigation_observer,
                     **terrain_source_arguments,
                 )
                 astar_controller = AStarTravelController(
@@ -219,7 +224,8 @@ def _run_travel(
                         WeightedAStarConfig(
                             obstacle_clearance_cells=0,
                             waypoint_radius_fraction=0.5,
-                        )
+                        ),
+                        observer=navigation_observer,
                     ),
                     plan_id=plan.plan_id,
                 )
@@ -240,6 +246,7 @@ def _run_travel(
                 dispatcher=ClientTravelDecisionDispatcher(adapter),
                 stop_signal=active_stop_signal,
                 poll_interval_ms=poll_ms,
+                observer=navigation_observer,
             ).run()
     except (
         CalibrationLoadError,

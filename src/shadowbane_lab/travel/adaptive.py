@@ -7,6 +7,7 @@ from math import hypot, sqrt
 from typing import Protocol, runtime_checkable
 
 from shadowbane_lab.client_observation import NativePlayerPositionObservation
+from shadowbane_lab.navigation_inspector.events import MotionEvent, emit
 from shadowbane_lab.travel.controller import TravelController
 from shadowbane_lab.travel.model import (
     TravelControllerConfig,
@@ -196,6 +197,7 @@ class AStarTravelController:
         allow_partial_fallback: bool,
     ) -> tuple[TravelController, bool, str]:
         assert self._navigation is not None
+        self._debug_event("replan", observation, reason)
         planning_destination = self._planning_destination(observation)
         reaches_destination = planning_destination == self._destination
         try:
@@ -277,11 +279,40 @@ class AStarTravelController:
             arrival_radius=local_radius,
         )
 
+    def _debug_event(self, event: str, observation: TravelObservation | None, reason: str) -> None:
+        if self._planner.observer is None:
+            return
+        try:
+            position = None if observation is None else observation.position
+            emit(
+                self._planner.observer,
+                MotionEvent(
+                    "motion",
+                    event,
+                    self._plan_id,
+                    0 if observation is None else observation.now_ms,
+                    position=None
+                    if position is None
+                    else (position.lt, position.lg, position.altitude),
+                    destination=(
+                        self._destination.lt,
+                        self._destination.lg,
+                        self._destination.arrival_radius,
+                    ),
+                    reason=reason,
+                ),
+            )
+        except Exception:
+            pass
+
     def _stop(
         self,
         reason: str,
         observation: TravelObservation | None,
     ) -> TravelDecision:
+        self._debug_event(
+            "cancelled" if reason == "emergency_stop" else "failure", observation, reason
+        )
         if self._travel is not None:
             internal = self._travel.stop(reason, observation)
             if internal.phase is TravelPhase.STOPPED:

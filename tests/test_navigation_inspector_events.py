@@ -120,9 +120,9 @@ def test_controller_events_describe_real_stall_and_preserve_decisions():
     for sample in (observation(0), observation(100), observation(200)):
         decisions = [controller.step(sample) for controller in controllers]
         assert decisions[0] == decisions[1] == decisions[2]
-    names = [e.event for e in events]
+    names = [e.event for e in events if isinstance(e, MotionEvent)]
     assert "start" in names and "stall" in names and "escape_planned" in names
-    commands = [e for e in events if e.event == "command_requested"]
+    commands = [e for e in events if isinstance(e, MotionEvent) and e.event == "command_requested"]
     assert commands and all(e.position == (5.0, 5.0, 7.0) for e in commands)
     assert all(e.direction is not None for e in commands)
     assert all(e.destination == (95.0, 5.0, 5.0) for e in commands)
@@ -165,5 +165,119 @@ def test_arrival_and_cancellation_emit_once_with_actual_position():
         else:
             controller.stop("user_stop", sample)
         controller.step(sample)
-        assert [e.event for e in events] == [expected]
-        assert events[0].position == (95.0, 5.0, 7.0)
+        assert [e.event for e in events if isinstance(e, MotionEvent)] == [expected]
+        assert next(e for e in events if isinstance(e, MotionEvent)).position == (95.0, 5.0, 7.0)
+
+
+def test_actual_route_updates_without_inventing_another_search():
+    from shadowbane_lab.navigation_inspector.snapshot import Collector, SourceIdentity
+
+    collector = Collector(SourceIdentity(42, 123, "a" * 64, "b" * 40, "test", "unavailable"), 1)
+
+    def observe(event):
+        collector.observe(event, 100)
+
+    navigation = SparseNavigationMap(cell_size=10)
+    route = WeightedAStarPlanner(observer=observe).plan(
+        navigation, start_lt=5, start_lg=5, destination=TravelDestination(95, 5, 5)
+    )
+    control = TravelController(TravelPlan("moving-target", route.destinations), observer=observe)
+    control.step(observation(0))
+    original_search = collector.snapshot().plan
+    control.update_final_destination(TravelDestination(95, 25, 5))
+    control.step(observation(100))
+    saved = collector.snapshot()
+    assert saved.plan == original_search
+    assert saved.route.destinations[-1] == (95, 25, 5)
+    assert saved.route.start == (5, 5)
+    # A rejected replacement attempt must not erase the route movement still owns.
+    failing = WeightedAStarPlanner(WeightedAStarConfig(maximum_expansions=1), observer=observe)
+    with pytest.raises(AStarRouteNotFound):
+        failing.plan(navigation, start_lt=5, start_lg=5, destination=TravelDestination(995, 5, 5))
+    control.step(observation(200))
+    assert collector.snapshot().plan.mode == "failed"
+    assert collector.snapshot().route == saved.route
+
+
+def test_direct_travel_publishes_actual_route_without_search_claim():
+    from shadowbane_lab.navigation_inspector.snapshot import Collector, Snapshot, SourceIdentity
+
+    collector = Collector(SourceIdentity(42, 123, "a" * 64, "b" * 40, "test", "unavailable"), 1)
+    controller = TravelController(
+        TravelPlan("direct", (TravelDestination(95, 5, 5),)),
+        observer=lambda event: collector.observe(event, 100),
+    )
+    controller.step(observation())
+    saved = Snapshot.from_bytes(collector.snapshot().to_bytes())
+    assert saved.plan is None
+    assert saved.route.plan_id == "direct"
+    assert saved.route.destinations == ((95, 5, 5),)
+
+
+def test_pve_native_chase_and_camp_events_keep_identical_movement_results():
+    from test_pve_controller import (
+        _absent,
+        _observation,
+        _player_position,
+        _target,
+        _target_position,
+    )
+
+    from shadowbane_lab.pve import PvEApproachController, PvECampLease, PvEPhase
+
+    events = []
+    controls = [
+        PvEApproachController(planner=WeightedAStarPlanner(observer=sink))
+        for sink in (None, events.append, broken_observer)
+    ]
+    for time in (0, 3000):
+        sample = _observation(
+            time,
+            _target("mob"),
+            player_position=_player_position(5, 5),
+            target_position=_target_position("mob", 195, 5),
+        )
+        updates = [control.step(sample, phase=PvEPhase.ENGAGED) for control in controls]
+        assert updates[0] == updates[1] == updates[2]
+    assert "native_chase" in [event.event for event in events if isinstance(event, MotionEvent)]
+    assert "replan" in [event.event for event in events if isinstance(event, MotionEvent)]
+    camp_events = []
+    camp = PvECampLease(100, 200, radius=50, return_radius=12)
+    control = PvEApproachController(planner=WeightedAStarPlanner(observer=camp_events.append))
+    control.step(
+        _observation(
+            0,
+            _absent(),
+            player_position=_player_position(140, 200),
+            target_position=_target_position(None),
+        ),
+        phase=PvEPhase.CAMP_IDLE,
+        camp=camp,
+        return_to_camp=True,
+    )
+    assert any(
+        isinstance(event, MotionEvent)
+        and event.event == "camp_return"
+        and event.destination == (100, 200, 12)
+        for event in camp_events
+    )
+
+
+def test_zone_diagnostic_failure_does_not_replace_a_position_sample():
+    from shadowbane_lab.navigation_inspector.session import ObservedPositionSource
+
+    class Position:
+        calls = 0
+
+        def observe(self):
+            self.calls += 1
+            return observation().position
+
+    class BrokenZone:
+        def observe(self):
+            raise OSError("zone unavailable")
+
+    source = Position()
+    wrapped = ObservedPositionSource(source, broken_observer, zone_reader=BrokenZone())
+    assert wrapped.observe() == observation().position
+    assert source.calls == 1
