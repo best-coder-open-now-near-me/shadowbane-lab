@@ -1122,3 +1122,15 @@ offline coverage counterfactual. ACTIVE todo: finish the material-construction
 ownership/interception review and implement the scoped coverage-plus-edge repair.
 Native full/core/package validation and one visual acceptance pass remain after
 implementation. No new renderer build or visual fix was installed this turn.
+
+## Cloud handoff: unfinished coverage planner supplied
+
+The previously untracked `native/wonderbane_extension/terrain_material_plan.h`
+and `.cpp` are now included in source control for continuation. They are draft
+coverage-selection policy, not a deployed repair. They are not referenced by
+CMake or any runtime code. Behavioral tests and policy review remain outstanding;
+the native coverage/owned-alpha adapter, hook verification, and rollback handling
+are not implemented. Do not infer production readiness from their publication.
+
+ACTIVE: complete and test the coverage/ownership repair. Both native profiles,
+package validation, and testing-VM visual acceptance remain pending afterward.
