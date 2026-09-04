@@ -1,0 +1,68 @@
+name: Merge terrain material repair
+
+on:
+  push:
+    branches:
+      - codex/client-convergence-v2
+
+concurrency:
+  group: merge-terrain-material-repair
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  merge:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/client-convergence-v2
+          fetch-depth: 0
+      - name: Merge the validated repair branch
+        run: |
+          set -euo pipefail
+          git fetch origin codex/client-convergence-v2 codex/terrain-material-repair
+          git reset --hard origin/codex/client-convergence-v2
+          git merge-base --is-ancestor \
+            da109b04bc80bdb9ac451846e936c75082635396 \
+            origin/codex/terrain-material-repair
+
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git merge --no-ff origin/codex/terrain-material-repair \
+            -m "Merge exact-client terrain material repair"
+          rm .github/workflows/merge-terrain-material-repair.yml
+          git add -A
+          git commit --amend --no-edit
+
+          python -m pip install --disable-pip-version-check --quiet pefile capstone
+          python -m py_compile \
+            tools/terrain_material_codegen.py \
+            tools/integrate_terrain_material_repair.py
+
+          g++ -std=c++20 -O2 -Wall -Wextra -Wpedantic -Werror \
+            native/wonderbane_extension/terrain_material_plan.cpp \
+            native/wonderbane_extension/terrain_material_plan_test.cpp \
+            -o terrain_material_plan_test
+          ./terrain_material_plan_test
+
+          g++ -std=c++20 -O2 -Wall -Wextra -Wpedantic -Werror \
+            native/wonderbane_extension/terrain_material_plan.cpp \
+            native/wonderbane_extension/terrain_material_transaction.cpp \
+            native/wonderbane_extension/terrain_material_transaction_test.cpp \
+            -o terrain_material_transaction_test
+          ./terrain_material_transaction_test
+
+          rm -rf /tmp/terrain-merge-cmake
+          cmake -S native/wonderbane_extension \
+            -B /tmp/terrain-merge-cmake \
+            -DBUILD_TESTING=ON \
+            -DCMAKE_BUILD_TYPE=Release
+          cmake --build /tmp/terrain-merge-cmake --parallel 2
+          ctest --test-dir /tmp/terrain-merge-cmake --output-on-failure
+
+          git diff --check HEAD^ HEAD
+          git push origin HEAD:codex/client-convergence-v2
