@@ -1,0 +1,57 @@
+name: Terrain repair independent final gate
+
+on:
+  push:
+    branches:
+      - codex/terrain-material-export-da109b0
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for authoritative terrain repair CI
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          repo='best-coder-open-now-near-me/shadowbane-lab'
+          base='da109b04bc80bdb9ac451846e936c75082635396'
+          for attempt in $(seq 1 360); do
+            branch=$(gh api "repos/$repo/branches/codex/client-convergence-v2")
+            sha=$(jq -r '.commit.sha' <<<"$branch")
+            subject=$(jq -r '.commit.commit.message | split("\n")[0]' <<<"$branch")
+            if [ "$sha" = "$base" ]; then
+              sleep 10
+              continue
+            fi
+            case "$subject" in
+              'Repair missing terrain material coverage transactionally'|'Fix terrain repair CI'*|'Fix terrain repair after CI review'*) ;;
+              *) echo "Unexpected authoritative head $sha: $subject" >&2; exit 1 ;;
+            esac
+            runs=$(gh api "repos/$repo/actions/runs?head_sha=$sha&per_page=100")
+            count=$(jq '.workflow_runs | length' <<<"$runs")
+            pending=$(jq '[.workflow_runs[] | select(.status != "completed")] | length' <<<"$runs")
+            if [ "$count" -gt 0 ] && [ "$pending" -eq 0 ]; then
+              failed=$(jq '[.workflow_runs[] | select((.conclusion != "success") and (.conclusion != "skipped") and (.conclusion != "neutral"))] | length' <<<"$runs")
+              jq -n --arg sha "$sha" --arg subject "$subject" --argjson runs "$(jq '.workflow_runs | map({id,name,status,conclusion,html_url})' <<<"$runs")" \
+                '{schema:1, authoritative_commit:$sha, subject:$subject, workflow_runs:$runs}' \
+                > terrain-final-gate.json
+              test "$failed" -eq 0
+              exit 0
+            fi
+            sleep 15
+          done
+          echo 'Timed out waiting for authoritative repair CI.' >&2
+          exit 1
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: terrain-repair-final-gate
+          path: terrain-final-gate.json
+          if-no-files-found: error
+          retention-days: 7
