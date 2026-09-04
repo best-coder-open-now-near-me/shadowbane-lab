@@ -60,7 +60,18 @@ class MotionEvent:
     reason: str | None = None
 
 
-DiagnosticEvent = PlanEvent | MotionEvent
+@dataclass(frozen=True, slots=True)
+class ContextEvent:
+    """Observed zone and map identity; navigation evidence is not collision geometry."""
+
+    kind: Literal["context"]
+    zone_token: str | None
+    map_token: str
+    obstacle_provenance: str
+    height_provenance: str = "unknown: final world elevation is not observed"
+
+
+DiagnosticEvent = PlanEvent | MotionEvent | ContextEvent
 DiagnosticObserver = Callable[[DiagnosticEvent], None]
 
 

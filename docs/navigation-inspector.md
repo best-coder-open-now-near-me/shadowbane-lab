@@ -18,15 +18,29 @@ requests are not input acceptance or proof of movement. A* travel and PvE route
 controllers retain the planner's observer when routes are replaced. No live
 transport or native drawing is enabled by this checkpoint.
 
-Validation: 115 focused inspector, pathfinding, adaptive travel, travel and PvE
+Checkpoint 2 adds bounded immutable history, manual/failure freeze and strict
+saved-capture replay. Zone changes invalidate frozen live placement. The clearance
+audit compares the swept circle to original cells, including rounded end caps,
+and reports the operator-estimated character radius, uncertainty and margin.
+Only measured movement trail vertices have known world height. Planned paths
+remain explicitly projected until final world elevation can be verified.
+
+The versioned wire codec binds frames to PID, creation time, session and zone;
+checks size, sequence, complete-frame checksum, finite coordinates and producer
+lease; and distinguishes a frozen sample from an expired producer. This checkpoint
+defines and tests the codec. The Windows mapping, live publisher, native consumer
+and panel are still the next work; no viewer is enabled yet.
+
+Validation: 150 focused inspector, pathfinding, adaptive travel, travel and PvE
 controller tests pass. Observer failure is tested against identical ordinary
 route results and movement decisions. Full viewer and live acceptance are pending.
 
 ## Active todos
 
 - [x] Capture immutable raw/final plan and controller events; validate behavior isolation.
-- [ ] Active: complete process-bound transport, live/PvE session wiring, terrain
-  provenance, native viewer, controls and saved failure inspection.
+- [x] Bound saved history/replay and clearance geometry; validate the versioned wire codec.
+- [ ] Active: connect the Windows mapping and live/PvE publishers, then the native
+  viewer and panel controls. Verify frame cost and complete terrain provenance.
 - [ ] Validate both native profiles and combined Python/package boundaries; record
   exact source and artifact hashes for the coordinated live acceptance package.
 - [ ] Complete the bounded live tests in the [developer/owner handoff](handoffs/navigation-inspector.md).
