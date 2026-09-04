@@ -18,6 +18,7 @@ import tarfile
 import zipfile
 from datetime import UTC, datetime
 from pathlib import Path
+from uuid import uuid4
 
 
 def sha256(path: Path) -> str:
@@ -40,7 +41,7 @@ def main() -> int:
         parser.error("Commit the reviewed source first; the package must match a clean Git tree")
     revision = git("rev-parse", "HEAD")
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
-    output = repo / "artifacts" / "navigation-inspector" / f"package-{stamp}-{revision[:8]}"
+    output = repo / "artifacts" / "navigation-inspector" / uuid4().hex[:8]
     output.mkdir(parents=True, exist_ok=False)
     source = output / "source"
     logs = output / "logs"
@@ -104,7 +105,8 @@ def main() -> int:
     ]
     artifacts = [source_archive]
     for profile in ("full", "diagnostics-only"):
-        build = output / f"native-{profile}"
+        # MSBuild still imposes MAX_PATH on its long generated test tlog names.
+        build = output / ("nf" if profile == "full" else "nd")
         run(
             f"{profile}-configure",
             [
@@ -152,7 +154,7 @@ def main() -> int:
             raise RuntimeError("invalid DLL PE signature")
         if int.from_bytes(dll[pe + 4 : pe + 6], "little") != 0x14C:
             raise RuntimeError("DLL is not Win32/x86")
-        artifacts.extend([destination, project])
+        artifacts.extend([destination, project, build / "Testing/Temporary/LastTest.log"])
     # build produces the wheel from its own freshly built source distribution.
     run(
         "python-packages",
