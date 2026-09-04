@@ -216,6 +216,20 @@ def patch_integration(repository: Path) -> None:
     path.write_text(source, encoding="utf-8", newline="\n")
 
 
+def normalize_codegen_quality(repository: Path) -> None:
+    path = repository / "tools" / "terrain_material_codegen.py"
+    source = path.read_text(encoding="utf-8")
+    old = "from typing import Iterable"
+    new = "from collections.abc import Iterable"
+    if old in source:
+        if source.count(old) != 1:
+            raise RuntimeError("unexpected terrain codegen Iterable import count")
+        source = source.replace(old, new)
+    elif new not in source:
+        raise RuntimeError("terrain codegen Iterable import is not recognized")
+    path.write_text(source, encoding="utf-8", newline="\n")
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--repository", type=Path, required=True)
@@ -229,6 +243,7 @@ def main() -> int:
     args = parse_args()
     repository = args.repository.resolve()
     base.patch_codegen(repository)
+    normalize_codegen_quality(repository)
     patch_integration(repository)
     base.write_product_gate(repository)
     base.remove_one_shot_workflows(repository)
