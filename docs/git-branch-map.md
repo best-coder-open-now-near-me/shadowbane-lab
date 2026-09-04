@@ -1,7 +1,20 @@
 # Git branch map
 
-Snapshot: 2026-09-04, after fetching origin. This is a source and review map;
+Snapshot: 2026-09-04, updated after the approved remote branch retirement. This is a source and review map;
 it does not certify deployment or live gameplay acceptance.
+
+## Completed remote branch retirement
+
+The owner approved and completed deletion of **53 superseded remote branches**;
+**23 remote branches remain**. Every retired tip is contained in the published
+`archive/pre-branch-cleanup-20260904` tag at `151eebb`. The
+[retirement registry](retired-git-branches-20260904.md) records all original names
+and full SHAs, recovery commands, retained dependencies, and pending local work.
+
+The proposed 29 local branch deletions and 12 worktree removals were not executed:
+automatic approval review requires separate local authorization. All 38 local
+branches and 30 worktrees remain. Old local branches may therefore show their
+upstream as gone; consult the registry instead of republishing them automatically.
 
 ## Shared starting point
 
@@ -76,9 +89,10 @@ manifest and archive, and the exact new formatting-stash SHA. Preserve it until
 the owner decides that recovery copies are no longer needed.
 
 The old streaming worktree still contains eight modified files and one reject
-file. Its draft was backed up and left in place. All 30 registered worktrees and
-historical branches remain available; ignored worktree containers do not mean
-their own checkouts are clean or retired.
+file. Its draft was backed up and left in place. All 30 registered worktrees and 38 local branches remain available. The 53 retired
+remote branch names are recorded in the retirement registry; their commits are
+retained by the archive tag. Ignored worktree containers do not mean their own
+checkouts are clean or retired.
 
 The normal project checkout is returned to `main` after preparing the PR.
 Repository-local `fetch.prune=true` and `pull.ff=only` keep ref refresh and update
