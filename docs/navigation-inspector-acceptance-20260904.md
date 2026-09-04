@@ -3,8 +3,9 @@
 The initial acceptance package is built and verified and was deployed into a new,
 isolated testing-VM runtime. Live acceptance is in progress; nothing is merged.
 The package and hashes below describe the initial e380e0f build. The Python publisher
-correction below is installed. The native display correction below is built, transferred and prepared for a
-client restart after the owner confirmed the minimap overlap and brief popup.
+correction below is installed. The native display correction below is installed and running after the owner
+closed the previous client. Its actual loaded DLL and installed source identities
+match the verified package. The renewed visual check is pending login.
 
 ## Source and review
 
@@ -123,7 +124,10 @@ folder; they are not published source.
 The display correction is built from 18bcf6dc0606bb9086c88d7e3073a65a0f7fc091 on codex/navigation-inspector.
 The package is local at artifacts/navigation-inspector/6c7397e3/ and has been
 transferred, with all 27 receipt files rechecked, to the testing VM staging share.
-It changes the full DLL; it has not yet been loaded into the running game.
+The owner closed the previous client. Its test helpers were retired, allowed
+mutable preferences were preserved, and runtime integrity was checked again.
+The replacement is now running with this exact full DLL and installed source
+identity verified through its actual process/module channel.
 
 Validation: full Python run 1,641 passed, eight skipped, 211 subtests passed.
 The extra skip was a Tk initialization failure in the replay/return-live test;
@@ -142,10 +146,10 @@ installed entry point, and receipt verification passed.
 Acceptance ZIP SHA-256: 398e388d670ac96163746e4136ba85d4ee6aa8792d59d1405e07c2e2e56615b4.
 
 The replacement isolated client passed the production prepared-copy and runtime
-verification gates in the testing VM. The running older client is preserved.
-The launch handoff copies only the allowed mutable preferences after logout,
-rechecks runtime integrity and the full DLL hash, then starts the new client.
-All current and replacement runtime evidence remains private.
+verification gates in the testing VM. The older installation remains preserved.
+The launch copied only allowed mutable preferences after logout and verified
+the full DLL hash before starting. Loaded-module verification then confirmed
+the actual running DLL hash. All runtime evidence remains private.
 
 ## Remaining acceptance pass
 
@@ -167,6 +171,7 @@ unavailable. Verify the measured LT/LG-to-world transform before accepting world
 alignment. If the separate terrain repair is added, it requires its own verified
 source and one combined boundary-tile check.
 
-Current active todo: restart into the verified display correction and check persistence,
-minimap clearance and hiding before continuing the remaining live pass. After it passes, review
+Current active todo: complete login, reconnect the panel and bounded listener,
+then check persistence, minimap clearance and hiding before continuing the
+remaining live pass. After it passes, review
 and integrate PR #27, then retire the inspector worktree/branch when safe.
