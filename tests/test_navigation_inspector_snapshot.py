@@ -3,6 +3,7 @@
 import json
 import struct
 from dataclasses import replace
+from pathlib import Path
 
 import pytest
 
@@ -269,3 +270,15 @@ def test_oversized_and_odd_wire_frames_fail_before_geometry_read():
     struct.pack_into("<I", payload, 88, 16385)
     with pytest.raises(ValueError, match="capacity"):
         decode_frame(bytes(payload), process_id=42, process_creation=123456, now_ms=200)
+
+
+def test_cpp_golden_frame_matches_python_capture_and_geometry():
+    payload = bytes.fromhex(
+        (Path(__file__).parent / "fixtures/navigation-inspector-v1.hex").read_text()
+    )
+    frame = decode_frame(payload, process_id=42, process_creation=123456, now_ms=200)
+    saved = Snapshot.from_bytes(frame.capture)
+    assert frame.lines == prepare_geometry(saved).lines
+    assert frame.lines[0].start == (3, 5, -4)
+    assert saved.identity.process_id == frame.process_id
+    assert saved.session_id == frame.session_id == 17
