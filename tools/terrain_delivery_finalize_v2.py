@@ -128,10 +128,31 @@ endif()
 '''
 
 
+_DLLMAIN_CANDIDATES = r'''def _dllmain_candidates(native: Path) -> list[Path]:
+    definition = re.compile(
+        r'^\s*(?:extern\s+"C"\s+)?(?:BOOL|bool|int|DWORD)\s+'
+        r'(?:(?:APIENTRY|WINAPI|CALLBACK)\s+)?DllMain\s*\(',
+        re.MULTILINE,
+    )
+    candidates: list[Path] = []
+    for path in native.glob("*.cpp"):
+        text = path.read_text(encoding="utf-8", errors="replace")
+        if definition.search(text) is not None:
+            candidates.append(path)
+    return candidates
+'''
+
+
 def patch_integration(repository: Path) -> None:
     path = repository / "tools" / "integrate_terrain_material_repair.py"
     source = path.read_text(encoding="utf-8")
     source = _replace_function(source, "patch_cmake", _PATCH_CMAKE, "_dllmain_candidates")
+    source = _replace_function(
+        source,
+        "_dllmain_candidates",
+        _DLLMAIN_CANDIDATES,
+        "patch_dllmain",
+    )
     path.write_text(source, encoding="utf-8", newline="\n")
 
 
