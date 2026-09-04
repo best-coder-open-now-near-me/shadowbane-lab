@@ -1,0 +1,43 @@
+name: Terrain material repair
+
+on:
+  push:
+    branches:
+      - codex/terrain-material-repair
+  pull_request:
+    paths:
+      - native/wonderbane_extension/terrain_material_*.h
+      - native/wonderbane_extension/terrain_material_*.cpp
+      - .github/workflows/terrain-material-repair.yml
+
+permissions:
+  contents: read
+
+jobs:
+  policy-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile policy tests
+        run: |
+          g++ -std=c++20 -O2 -Wall -Wextra -Wpedantic -Werror \
+            native/wonderbane_extension/terrain_material_plan.cpp \
+            native/wonderbane_extension/terrain_material_plan_test.cpp \
+            -o terrain_material_plan_test
+      - name: Run policy tests
+        run: ./terrain_material_plan_test
+
+  policy-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile policy tests
+        shell: cmd
+        run: >-
+          cl /nologo /std:c++20 /EHsc /W4 /WX
+          native\wonderbane_extension\terrain_material_plan.cpp
+          native\wonderbane_extension\terrain_material_plan_test.cpp
+          /Feterrain_material_plan_test.exe
+      - name: Run policy tests
+        shell: cmd
+        run: terrain_material_plan_test.exe

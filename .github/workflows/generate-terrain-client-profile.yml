@@ -1,0 +1,169 @@
+name: Generate terrain client profile
+
+on:
+  push:
+    branches:
+      - codex/terrain-material-repair
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/terrain-material-repair
+          fetch-depth: 0
+      - name: Fetch exact reviewed client and generate immutable profile
+        run: |
+          python -m pip install --disable-pip-version-check pefile
+          python - <<'PY'
+          import hashlib
+          import json
+          import struct
+          import urllib.parse
+          import urllib.request
+          from pathlib import Path
+
+          target = '55fbad5f0110cd99b4085af72d1e8fddb782ccdec1491478492c18158f5c61bc'
+          server_root = 'http://87.99.132.84/'
+          with urllib.request.urlopen(server_root + 'manifest.json', timeout=60) as response:
+              manifest_bytes = response.read()
+          manifest = json.loads(manifest_bytes.decode('utf-8-sig'))
+          files = manifest.get('files')
+          if not isinstance(files, list):
+              raise SystemExit('manifest files is not a list')
+          base_url = manifest.get('baseUrl', '')
+          if not isinstance(base_url, str):
+              raise SystemExit('manifest baseUrl is not a string')
+          download_base = urllib.parse.urljoin(server_root, base_url.rstrip('/') + '/')
+
+          match = None
+          for item in files:
+              if not isinstance(item, dict):
+                  continue
+              digest = item.get('sha256')
+              path = item.get('path')
+              if isinstance(digest, str) and digest.lower() == target and isinstance(path, str):
+                  if match is not None:
+                      raise SystemExit('reviewed executable appears more than once in manifest')
+                  match = item
+          if match is None:
+              raise SystemExit('reviewed executable is absent from patch manifest')
+
+          url = urllib.parse.urljoin(
+              download_base,
+              urllib.parse.quote(match['path'].replace('\\', '/')),
+          )
+          with urllib.request.urlopen(url, timeout=180) as response:
+              raw = response.read(128 * 1024 * 1024 + 1)
+          if len(raw) > 128 * 1024 * 1024:
+              raise SystemExit('reviewed executable exceeds bounded download limit')
+          if hashlib.sha256(raw).hexdigest() != target:
+              raise SystemExit('downloaded executable hash mismatch')
+          if isinstance(match.get('size'), int) and match['size'] != len(raw):
+              raise SystemExit('downloaded executable size mismatch')
+
+          import pefile
+          pe = pefile.PE(data=raw, fast_load=False)
+          image_base = int(pe.OPTIONAL_HEADER.ImageBase)
+          if image_base != 0x00400000:
+              raise SystemExit(f'unexpected preferred image base: {image_base:#x}')
+
+          addresses = {
+              'ImageFactory': (0x0058D340, 32),
+              'ImageSetter': (0x0058DB10, 32),
+              'TextureAssignment': (0x005DDB60, 32),
+              'TextureClone': (0x005DF2D0, 32),
+              'MaterialRegistration': (0x006527B0, 32),
+              'TerrainFinalizer': (0x0069ABD0, 32),
+              'TerrainBuilder': (0x0069E2D0, 32),
+              'MaterialAppend': (0x0069EE60, 32),
+              'LookupInserting': (0x0069F5A0, 32),
+              'LookupLowerBound': (0x0069F7A0, 32),
+              'BuilderThunk': (0x004136D3, 16),
+              'FinalizerThunk': (0x00415294, 16),
+          }
+
+          def bytes_at(va, size):
+              rva = va - image_base
+              offset = pe.get_offset_from_rva(rva)
+              payload = raw[offset:offset + size]
+              if len(payload) != size:
+                  raise SystemExit(f'short signature at {va:#x}')
+              return payload
+
+          builder_slot_va = 0x015634B4
+          finalizer_slot_va = 0x0154C120
+          builder_slot = struct.unpack('<I', bytes_at(builder_slot_va, 4))[0]
+          finalizer_slot = struct.unpack('<I', bytes_at(finalizer_slot_va, 4))[0]
+          if builder_slot != 0x004136D3:
+              raise SystemExit(f'builder vtable slot mismatch: {builder_slot:#x}')
+          if finalizer_slot != 0x00415294:
+              raise SystemExit(f'finalizer vtable slot mismatch: {finalizer_slot:#x}')
+
+          sha_bytes = bytes.fromhex(target)
+          lines = [
+              '#pragma once',
+              '',
+              '// Generated from the exact patch-manifest executable. Do not edit.',
+              '// The executable itself is not retained in the repository.',
+              '',
+              '#include <array>',
+              '#include <cstddef>',
+              '#include <cstdint>',
+              '',
+              'namespace wonderbane::extension::terrain_material::client_profile {',
+              '',
+              f'inline constexpr std::uintptr_t kPreferredImageBase = 0x{image_base:08X}U;',
+              f'inline constexpr std::size_t kExpectedFileSize = {len(raw)}U;',
+              f'inline constexpr std::size_t kExpectedImageSize = {int(pe.OPTIONAL_HEADER.SizeOfImage)}U;',
+              'inline constexpr std::array<std::uint8_t, 32> kExpectedSha256{',
+              '    ' + ', '.join(f'0x{value:02X}U' for value in sha_bytes),
+              '};',
+              '',
+              'inline constexpr std::uintptr_t kBuilderVtableSlot = 0x015634B4U;',
+              'inline constexpr std::uintptr_t kBuilderThunk = 0x004136D3U;',
+              'inline constexpr std::uintptr_t kBuilderMethod = 0x0069E2D0U;',
+              'inline constexpr std::uintptr_t kFinalizerVtableSlot = 0x0154C120U;',
+              'inline constexpr std::uintptr_t kFinalizerThunk = 0x00415294U;',
+              'inline constexpr std::uintptr_t kFinalizerMethod = 0x0069ABD0U;',
+              'inline constexpr std::uintptr_t kMaterialRegistration = 0x006527B0U;',
+              'inline constexpr std::uintptr_t kMaterialAppend = 0x0069EE60U;',
+              'inline constexpr std::uintptr_t kLookupInserting = 0x0069F5A0U;',
+              'inline constexpr std::uintptr_t kLookupLowerBound = 0x0069F7A0U;',
+              'inline constexpr std::uintptr_t kImageFactory = 0x0058D340U;',
+              'inline constexpr std::uintptr_t kImageSetter = 0x0058DB10U;',
+              'inline constexpr std::uintptr_t kTextureAssignment = 0x005DDB60U;',
+              'inline constexpr std::uintptr_t kTextureClone = 0x005DF2D0U;',
+              '',
+          ]
+          for name, (va, size) in addresses.items():
+              payload = bytes_at(va, size)
+              lines.extend([
+                  f'inline constexpr std::uintptr_t k{name}SignatureAddress = 0x{va:08X}U;',
+                  f'inline constexpr std::array<std::uint8_t, {size}> k{name}Signature{{',
+                  '    ' + ', '.join(f'0x{value:02X}U' for value in payload),
+                  '};',
+                  '',
+              ])
+          lines.extend([
+              '}  // namespace wonderbane::extension::terrain_material::client_profile',
+              '',
+          ])
+          output = Path('native/wonderbane_extension/terrain_client_profile.generated.h')
+          output.write_text('\n'.join(lines), encoding='utf-8', newline='\n')
+          Path('.github/workflows/generate-terrain-client-profile.yml').unlink()
+          PY
+      - name: Commit exact client identity profile
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add native/wonderbane_extension/terrain_client_profile.generated.h \
+            .github/workflows/generate-terrain-client-profile.yml
+          git diff --cached --check
+          git commit -m "build: pin terrain repair to exact WonderBane client"
+          git push origin HEAD:codex/terrain-material-repair

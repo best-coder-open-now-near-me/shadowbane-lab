@@ -1,0 +1,76 @@
+name: Wire terrain material core
+
+on:
+  push:
+    branches:
+      - codex/terrain-material-repair
+
+permissions:
+  contents: write
+
+jobs:
+  wire:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/terrain-material-repair
+          fetch-depth: 0
+      - name: Add isolated native core and tests to CMake
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('native/wonderbane_extension/CMakeLists.txt')
+          text = path.read_text(encoding='utf-8')
+          marker = '# Terrain material coverage and transactional ownership core.'
+          if marker not in text:
+              block = r'''
+
+          # Terrain material coverage and transactional ownership core.
+          # This target is client-independent; the full-renderer adapter links it
+          # only after exact executable/profile verification has been configured.
+          add_library(wonderbane_terrain_material_core STATIC
+              terrain_material_plan.cpp
+              terrain_material_transaction.cpp
+          )
+          target_include_directories(wonderbane_terrain_material_core PUBLIC
+              ${CMAKE_CURRENT_SOURCE_DIR}
+          )
+          target_compile_features(wonderbane_terrain_material_core PUBLIC cxx_std_20)
+
+          if(BUILD_TESTING)
+              add_executable(wonderbane_terrain_material_plan_test
+                  terrain_material_plan_test.cpp
+              )
+              target_link_libraries(wonderbane_terrain_material_plan_test PRIVATE
+                  wonderbane_terrain_material_core
+              )
+              add_test(NAME wonderbane_terrain_material_plan_test
+                  COMMAND wonderbane_terrain_material_plan_test
+              )
+
+              add_executable(wonderbane_terrain_material_transaction_test
+                  terrain_material_transaction_test.cpp
+              )
+              target_link_libraries(wonderbane_terrain_material_transaction_test PRIVATE
+                  wonderbane_terrain_material_core
+              )
+              add_test(NAME wonderbane_terrain_material_transaction_test
+                  COMMAND wonderbane_terrain_material_transaction_test
+              )
+          endif()
+          '''
+              text = text.rstrip() + block + '\n'
+              path.write_text(text, encoding='utf-8', newline='\n')
+          Path('.github/workflows/wire-terrain-material-core.yml').unlink()
+          PY
+      - name: Commit build wiring
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add native/wonderbane_extension/CMakeLists.txt .github/workflows/wire-terrain-material-core.yml
+          git diff --cached --check
+          git commit -m "build: wire terrain material policy and transaction tests"
+          git push origin HEAD:codex/terrain-material-repair
