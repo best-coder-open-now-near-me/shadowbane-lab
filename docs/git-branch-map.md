@@ -4,6 +4,21 @@ Snapshot: 2026-09-04, updated after the approved remote and local retirement.
 This is a source and review map; it does not certify deployment or live gameplay
 acceptance.
 
+## Current handoffs and terrain follow-up
+
+The [navigation inspector handoff](handoffs/navigation-inspector.md) is the next
+movement-diagnostics slice for the developer and owner. It uses this integration
+review source while terrain delivery is reconciled separately.
+
+A later September 4 fetch found convergence at `031de7e` and the new terrain
+repair branch at `9287c9a` ([PR #26](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/26)).
+The convergence changes since `da109b0` are only a merge workflow and validation
+note; the terrain implementation has not landed there. Its generation, Windows
+terrain tests and merge workflow have failures, and product build/startup wiring
+is absent at the repair tip. See [the exact delivery check](handoffs/terrain-delivery-check-20260904.md)
+before selecting a terrain-enabled base or package. Earlier pinned snapshots
+below retain their historical meaning.
+
 ## Completed branch and worktree retirement
 
 The owner approved and completed deletion of **53 superseded remote branches**;
