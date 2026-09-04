@@ -16,8 +16,11 @@ The convergence changes since `da109b0` are only a merge workflow and validation
 note; the terrain implementation has not landed there. Its generation, Windows
 terrain tests and merge workflow have failures, and product build/startup wiring
 is absent at the repair tip. See [the exact delivery check](handoffs/terrain-delivery-check-20260904.md)
-before selecting a terrain-enabled base or package. Earlier pinned snapshots
-below retain their historical meaning.
+before selecting a terrain-enabled base or package. The staged correction branch
+`codex/terrain-material-repair-final-v2@3b344f0` adds a revised delivery path, but
+its first delivery run fails before assembly/validation with an unset Git committer
+identity and uploads no artifacts. Convergence is still `031de7e`.
+Earlier pinned snapshots below retain their historical meaning.
 
 ## Completed branch and worktree retirement
 

@@ -24,6 +24,8 @@ At this snapshot, `031de7e` adds merge-workflow/validation files to convergence,
 not the terrain repair itself. Do not treat it as a terrain-enabled base. The
 inspector can proceed independently; integrate the accepted terrain change
 through its own reviewed commit before combined visual acceptance.
+The staged v2 delivery correction at `3b344f0` still fails before generation or
+validation and has no uploaded artifacts; it does not change this starting point.
 
 The retired `codex/navigation-debug-overlay` ref pointed to `bc076d7`, an old
 renderer checkpoint. No dedicated inspector implementation is present in the
