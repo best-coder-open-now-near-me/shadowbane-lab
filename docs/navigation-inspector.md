@@ -87,7 +87,8 @@ texture units. Its measured costs are synthetic, not live-game acceptance.
 - [x] Native drawing, depth/state tests and desktop controls/replay.
 - [x] Loaded-module identity and reproducible acceptance-package builder.
 - [x] Build the committed source and verify the [acceptance package and receipts](navigation-inspector-acceptance-20260904.md).
-- [ ] Active: coordinate the single bounded [developer/owner live pass](handoffs/navigation-inspector.md).
+- [x] Live projected-map persistence, minimap clearance, hiding and real saved-failure replay.
+- [ ] Active: resolve camera observation and finish the [developer/owner live pass](handoffs/navigation-inspector.md).
 
 Draft PR #27 is the integration destination; a push is not an accepted merge.
 Retain the task worktree until the live pass and integration are complete.

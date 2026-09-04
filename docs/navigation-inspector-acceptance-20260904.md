@@ -5,7 +5,8 @@ isolated testing-VM runtime. Live acceptance is in progress; nothing is merged.
 The package and hashes below describe the initial e380e0f build. The Python publisher
 correction below is installed. The native display correction below is installed and running after the owner
 closed the previous client. Its actual loaded DLL and installed source identities
-match the verified package. The renewed visual check is pending login.
+match the verified package. The renewed display check confirmed persistence,
+minimap clearance, hiding and reopening the actual saved failure.
 
 ## Source and review
 
@@ -113,9 +114,9 @@ and layer controls even without a producer. Native tests cover this lifecycle,
 corrupt/torn controls, cross-language control bytes, actual OpenGL placement,
 stale x-ray suppression, preserved depth and restored graphics state.
 
-Next: restart into the verified replacement client to apply the native correction.
-Check persistence, minimap clearance and immediate hiding. World-camera ownership,
-alignment and PvE acceptance remain pending.
+The replacement client is now running. Persistence, minimap clearance and hiding
+passed the renewed live check below. World-camera ownership, alignment and PvE
+acceptance remain pending.
 Private runtime identities, logs and captures stay in the local VM evidence
 folder; they are not published source.
 
@@ -151,6 +152,38 @@ The launch copied only allowed mutable preferences after logout and verified
 the full DLL hash before starting. Loaded-module verification then confirmed
 the actual running DLL hash. All runtime evidence remains private.
 
+## Verified live display check
+
+The owner logged into the replacement client. Window/HUD geometry matched the
+previously verified local calibration. The exact client was armed, and a bounded
+15-second route attempt ran with a five-unit arrival radius. The planner rejected
+the route before input: zero clicks, one controller step, and a real frozen
+A* failure capture. The capture includes its blocker/cost map and exact source
+and loaded DLL identities. The starting cell and neighboring cells are marked as
+model blockers; this does not prove physical collision in the visible terrain.
+
+Screenshots through twelve seconds show CAPTURE / PROJECTED ONLY near the top
+center, clear of the minimap, after the producer lease expired. The owner then
+unchecked Show in game and confirmed the map disappeared. Read-only control
+inspection and a subsequent game screenshot independently confirmed it was hidden
+while the same frozen capture remained available. The actual saved failure was
+reopened through the installed wheel's Tk panel with no live channel or input
+adapter. These checks accept the display corrections, not the full navigation
+inspector or PvE behavior.
+
+The current graphics-status evidence contains zero accepted camera samples.
+World-trail placement therefore remains unavailable. Existing historical renderer
+traces were located, but automatic approval review blocked both copying their
+contents and reading aggregate matrix statistics; neither action ran. Their
+contents remain uninspected pending explicit local-data access approval. The
+current client was launched without the optional draw-trace flag, so a fresh
+matrix capture would need a separately coordinated normal relaunch.
+
+All screenshots, the live capture, visibility observation and installed-panel
+replay result remain in the private local evidence locations recorded by the
+artifact registry. The inspector panel remains connected with Show in game off;
+the bounded command listener is available, with no active movement run.
+
 ## Remaining acceptance pass
 
 Use the [developer/owner handoff](handoffs/navigation-inspector.md) for the exact
@@ -171,7 +204,7 @@ unavailable. Verify the measured LT/LG-to-world transform before accepting world
 alignment. If the separate terrain repair is added, it requires its own verified
 source and one combined boundary-tile check.
 
-Current active todo: complete login, reconnect the panel and bounded listener,
-then check persistence, minimap clearance and hiding before continuing the
-remaining live pass. After it passes, review
+Current active todo: resolve the missing camera observation using authorized
+evidence, then complete world-trail alignment, the bounded PvE scenarios and
+overlay cost/scene checks. After the remaining live pass, review
 and integrate PR #27, then retire the inspector worktree/branch when safe.
