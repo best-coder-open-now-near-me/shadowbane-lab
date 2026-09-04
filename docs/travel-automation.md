@@ -3,8 +3,9 @@
 > Current testing wheel, 2026-09-04: source `8210ecf` is installed and its live
 > minimap preflight passes. It uses verified geometry/zoom, bounded destinations
 > and measured arrival. The original `3534418` wheel overshot a reported arrival
-> by about 301 units; no corrected walk has run yet. Stationary arrival and trail
-> coverage remain pending owner-assisted validation.
+> by about 301 units. The corrected 45-unit walk settled 0.409 units from its goal,
+> remained stationary for over five seconds, and the owner confirmed the normal
+> trail looked good. Slope/camera, occlusion and PvE acceptance remain pending.
 > See [the exact record](navigation-inspector-acceptance-20260904.md#verified-destination-package-and-running-update).
 
 Travel uses exact native player coordinates as feedback and guarded right-clicks on the

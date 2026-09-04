@@ -206,5 +206,9 @@ package. Installed source, actual loaded DLL, process lifetime and the corrected
 live minimap reader all pass preflight; the panel/listener/recorder are reconnected.
 See the dated acceptance record for hashes and evidence locations.
 
-Next todo: repeat one short owner-assisted walk with post-arrival position evidence.
-Then resume normal/x-ray, slope, obstacle and PvE acceptance.
+The short owner-assisted walk now passes: measured arrival was 0.409 units from
+the goal, with 5.243 seconds of stable post-arrival observations. All 17 measured
+trail segments were present and the owner confirmed the normal trail looked good.
+
+Next todo: a clear slope with camera rotation, followed by normal/x-ray occlusion,
+bounded PvE and overlay cost/scene checks. PR #27 remains draft and unmerged.

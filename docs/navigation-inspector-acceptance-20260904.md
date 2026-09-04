@@ -359,11 +359,45 @@ Existing calibration files were verified and preserved rather than recreated.
 The reconnected helpers are panel 3744, listener 9880 and recorder 8580. Camera
 sequence reached 25,642 with 256 samples and zero drops. A read-only route check
 found the player at LT 89009.2578125 / LG 44857.0625 in Sea Dog's Rest and a
-45-unit westward candidate ending at LT 88964 / LG 44857. No corrected movement
-has run yet. Fresh owner focus and stationary-arrival/trail validation are next.
+45-unit westward candidate ending at LT 88964 / LG 44857. At that preflight no corrected movement
+had run yet; the subsequent owner-assisted result is recorded below.
 Evidence and update receipts are retained under the existing local VM diagnostics
 folder `navigation-inspector-3534418/correction-8210ecf`; earlier captures remain
 at their original locations. No captures or packages are included in Git.
+
+## Accepted short walk with measured arrival
+
+After the owner focused the game, installed source `8210ecf` ran one production
+A* route from LT 89009.25 / LG 44857.0234375 to LT 88964 / LG 44857 with a
+five-unit arrival radius. Four accepted inputs preserved that same absolute
+destination; there were no replans, partial routes or direct fallback. The runtime
+recorded an arrival candidate at 4,078 ms and confirmed settled arrival at 5,156 ms.
+It sent no synthetic stop click. Final position was LT 88963.59375 /
+LG 44857.046875, approximately **0.409 units from the target**.
+
+Nine subsequent read-only samples spanned **5.243 seconds**, with LT unchanged
+and only **0.015625 units** of horizontal variation. This run did not reproduce
+the prior continued movement after reported arrival. The saved capture has
+18 measured trail points and all 17 measured-height render segments, zero omitted
+lines/trail points and zero dropped observations. It records the actual installed
+source and loaded DLL identities. Session: `4957602773149593471`; capture SHA-256:
+`51bc1a23efc1ac362153914e05ecbebc291869e1ea1ba1be0f8e5fe2395a494f`.
+
+Normal depth rendering was enabled and x-ray was off. Asked whether the cyan
+trail stayed on the ground and covered the route, the owner confirmed that it
+**looked good**. The recorded frame also shows the cyan trail in the game scene.
+This accepts this short, approximately level-ground arrival and normal trail
+check. It does not accept slope/camera rotation, x-ray occlusion or PvE behavior.
+
+Local evidence under `navigation-inspector-3534418/correction-8210ecf` includes
+`destination-walk-start.json`, `destination-walk.json`, `destination-post-arrival.json`,
+`destination-walk-capture-4957602773149593471.json` and `destination-walk-audit.json`.
+Eight original screenshots and their UTC index are in the ignored worktree directory
+`artifacts/navigation-inspector/live-20260904/destination-walk-*`.
+
+Next todo: move to a clear nearby slope with the owner and check trail alignment
+while rotating the camera. Then compare normal/x-ray against a known obstruction,
+exercise the bounded PvE scenarios and measure overlay cost/scene behavior.
 
 ## Remaining acceptance pass
 
@@ -385,8 +419,6 @@ unavailable. Verify the measured LT/LG-to-world transform before accepting world
 alignment. If the separate terrain repair is added, it requires its own verified
 source and one combined boundary-tile check.
 
-Current active todo: verify stationary arrival with the installed destination correction;
-then compare normal/x-ray trail coverage and complete slope
-and camera-rotation alignment, the bounded PvE scenarios and overlay cost/scene
-checks. After the remaining live pass, review
+Current active todo: slope and camera-rotation alignment; then normal/x-ray
+occlusion, the bounded PvE scenarios and overlay cost/scene checks. After the remaining live pass, review
 and integrate PR #27, then retire the inspector worktree/branch when safe.
