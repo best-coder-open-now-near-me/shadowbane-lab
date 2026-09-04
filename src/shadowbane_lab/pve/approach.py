@@ -381,6 +381,7 @@ class PvEApproachController:
                 destinations=route.destinations,
             ),
             self._config.travel,
+            observer=self._planner.observer,
         )
 
     def _destination(

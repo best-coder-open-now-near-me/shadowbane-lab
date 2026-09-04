@@ -5,6 +5,7 @@ from __future__ import annotations
 from enum import StrEnum
 from math import hypot
 
+from shadowbane_lab.navigation_inspector.events import DiagnosticObserver, MotionEvent, emit
 from shadowbane_lab.protocol import Vector2
 from shadowbane_lab.travel.model import (
     TravelControllerConfig,
@@ -24,11 +25,18 @@ class _EscapePhase(StrEnum):
 
 
 class TravelController:
-    def __init__(self, plan: TravelPlan, config: TravelControllerConfig | None = None) -> None:
+    def __init__(
+        self,
+        plan: TravelPlan,
+        config: TravelControllerConfig | None = None,
+        *,
+        observer: DiagnosticObserver | None = None,
+    ) -> None:
         if not isinstance(plan, TravelPlan):
             raise ValueError("plan must be TravelPlan")
         if config is not None and not isinstance(config, TravelControllerConfig):
             raise ValueError("config must be TravelControllerConfig")
+        self._observer = observer
         self._plan = plan
         self._config = config or TravelControllerConfig()
         self._started_at_ms: int | None = None
@@ -102,8 +110,10 @@ class TravelController:
             raise ValueError("observation must be TravelObservation")
         if self._terminal is not None:
             return self._terminal
+        self._debug_event("observation", observation)
         if self._started_at_ms is None:
             self._started_at_ms = observation.now_ms
+            self._debug_event("start", observation)
         elapsed = observation.now_ms - self._started_at_ms
         if elapsed < 0:
             raise ValueError("observation time cannot move backwards")
@@ -118,6 +128,7 @@ class TravelController:
             if self._waypoint_index == len(self._plan.destinations) - 1:
                 return self._complete(observation, distance)
             self._waypoint_index += 1
+            self._debug_event("waypoint", observation)
             self._last_click_at_ms = None
             self._last_click_distance = None
             self._no_progress_clicks = 0
@@ -191,6 +202,7 @@ class TravelController:
             click_count=self._click_count,
             terminal_reason=reason,
         )
+        self._debug_event("cancelled", observation, self._terminal, reason=reason)
         return self._terminal
 
     def _decision(
@@ -201,7 +213,7 @@ class TravelController:
         direction: Vector2 | None = None,
         maneuver: TravelManeuver | None = None,
     ) -> TravelDecision:
-        return TravelDecision(
+        decision = TravelDecision(
             decision_id=self._next_decision_id(),
             now_ms=observation.now_ms,
             phase=TravelPhase.TRAVELING,
@@ -211,6 +223,15 @@ class TravelController:
             minimap_direction=direction,
             maneuver=maneuver,
         )
+
+        if direction is not None:
+            self._debug_event(
+                "command_requested",
+                observation,
+                decision,
+                reason=None if maneuver is None else maneuver.value,
+            )
+        return decision
 
     def _dispatch(
         self,
@@ -254,6 +275,7 @@ class TravelController:
         *,
         distance: float,
     ) -> None:
+        self._debug_event("stall", observation)
         destination = self._plan.destinations[self._waypoint_index]
         delta_lt = destination.lt - observation.position.lt
         screen_delta_lg = -(destination.lg - observation.position.lg)
@@ -268,6 +290,7 @@ class TravelController:
         self._escape_side_switches = 0
         self._reset_escape_phase_feedback(observation, distance=distance)
         self._escaping = True
+        self._debug_event("escape_planned", observation)
 
     def _dispatch_escape(
         self,
@@ -491,6 +514,7 @@ class TravelController:
             click_count=self._click_count,
             terminal_reason=reason,
         )
+        self._debug_event("failure", observation, self._terminal, reason=reason)
         return self._terminal
 
     def _complete(self, observation: TravelObservation, distance: float) -> TravelDecision:
@@ -503,7 +527,47 @@ class TravelController:
             click_count=self._click_count,
             terminal_reason="destination_reached",
         )
+        self._debug_event("completion", observation, self._terminal)
         return self._terminal
+
+    def _debug_event(
+        self,
+        event: str,
+        observation: TravelObservation | None,
+        decision: TravelDecision | None = None,
+        *,
+        reason: str | None = None,
+    ) -> None:
+        if self._observer is None:
+            return
+        try:
+            position = None if observation is None else observation.position
+            destination = self._plan.destinations[self._waypoint_index]
+            emit(
+                self._observer,
+                MotionEvent(
+                    kind="motion",
+                    event=event,
+                    plan_id=self._plan.plan_id,
+                    now_ms=(self._started_at_ms or 0)
+                    if observation is None
+                    else observation.now_ms,
+                    position=None
+                    if position is None
+                    else (position.lt, position.lg, position.altitude),
+                    waypoint_index=self._waypoint_index,
+                    destination=(destination.lt, destination.lg, destination.arrival_radius),
+                    direction=None
+                    if decision is None or decision.minimap_direction is None
+                    else (
+                        decision.minimap_direction.x,
+                        decision.minimap_direction.y,
+                    ),
+                    reason=reason,
+                ),
+            )
+        except Exception:
+            pass
 
     def _next_decision_id(self) -> int:
         decision_id = self._decision_id

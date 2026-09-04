@@ -6,8 +6,16 @@ import heapq
 from dataclasses import dataclass
 from itertools import pairwise
 from math import floor, hypot, isfinite, sqrt
+from typing import Literal
 
 from shadowbane_lab.client_observation import NativePlayerPositionObservation
+from shadowbane_lab.navigation_inspector.events import (
+    MAX_MAP_CELLS,
+    MAX_ROUTE_POINTS,
+    DiagnosticObserver,
+    PlanEvent,
+    emit,
+)
 from shadowbane_lab.travel.model import TravelDestination
 
 
@@ -339,10 +347,20 @@ class SparseNavigationMap:
 
 
 class WeightedAStarPlanner:
-    def __init__(self, config: WeightedAStarConfig | None = None) -> None:
+    def __init__(
+        self,
+        config: WeightedAStarConfig | None = None,
+        *,
+        observer: DiagnosticObserver | None = None,
+    ) -> None:
         if config is not None and not isinstance(config, WeightedAStarConfig):
             raise ValueError("config must be WeightedAStarConfig")
         self._config = config or WeightedAStarConfig()
+        self._observer = observer
+
+    @property
+    def observer(self) -> DiagnosticObserver | None:
+        return self._observer
 
     @property
     def config(self) -> WeightedAStarConfig:
@@ -363,7 +381,24 @@ class WeightedAStarPlanner:
         start = navigation_map.cell_for(start_lt, start_lg)
         goal = navigation_map.cell_for(destination.lt, destination.lg)
         grid = navigation_map.local_grid(start, goal, self._config)
-        cells, expanded, total_cost = self._search(grid, start, goal)
+        try:
+            cells, expanded, total_cost = self._search(grid, start, goal)
+        except AStarRouteNotFound as exc:
+            self._emit_plan(
+                navigation_map,
+                grid,
+                start_lt,
+                start_lg,
+                destination,
+                (),
+                (),
+                (),
+                0,
+                0.0,
+                "failed",
+                str(exc),
+            )
+            raise
         smoothed = self._smooth(grid, cells)
         waypoint_radius = max(5.0, grid.cell_size * self._config.waypoint_radius_fraction)
         destinations = [
@@ -371,6 +406,20 @@ class WeightedAStarPlanner:
             for cell in smoothed[1:-1]
         ]
         destinations.append(destination)
+        self._emit_plan(
+            navigation_map,
+            grid,
+            start_lt,
+            start_lg,
+            destination,
+            cells,
+            smoothed,
+            tuple(destinations),
+            expanded,
+            total_cost,
+            "complete",
+            None,
+        )
         return AStarRoute(
             cells=smoothed,
             destinations=tuple(destinations),
@@ -402,12 +451,29 @@ class WeightedAStarPlanner:
         start = navigation_map.cell_for(start_lt, start_lg)
         goal = navigation_map.cell_for(destination.lt, destination.lg)
         grid = navigation_map.local_grid(start, goal, self._config)
-        cells, expanded, total_cost = self._search(
-            grid,
-            start,
-            goal,
-            allow_partial=True,
-        )
+        try:
+            cells, expanded, total_cost = self._search(
+                grid,
+                start,
+                goal,
+                allow_partial=True,
+            )
+        except AStarRouteNotFound as exc:
+            self._emit_plan(
+                navigation_map,
+                grid,
+                start_lt,
+                start_lg,
+                destination,
+                (),
+                (),
+                (),
+                0,
+                0.0,
+                "failed",
+                str(exc),
+            )
+            raise
         smoothed = self._smooth(grid, cells)
         waypoint_radius = max(5.0, grid.cell_size * self._config.waypoint_radius_fraction)
         frontier = smoothed[-1]
@@ -424,12 +490,85 @@ class WeightedAStarPlanner:
             for cell in smoothed[1:-1]
         ]
         destinations.append(frontier_destination)
+        self._emit_plan(
+            navigation_map,
+            grid,
+            start_lt,
+            start_lg,
+            destination,
+            cells,
+            smoothed,
+            tuple(destinations),
+            expanded,
+            total_cost,
+            "complete" if frontier == goal else "frontier",
+            None,
+        )
         return AStarRoute(
             cells=smoothed,
             destinations=tuple(destinations),
             expanded_cells=expanded,
             total_cost=total_cost,
         )
+
+    def _emit_plan(
+        self,
+        navigation_map: SparseNavigationMap,
+        grid: NavigationCostGrid,
+        start_lt: float,
+        start_lg: float,
+        destination: TravelDestination,
+        cells: tuple[NavigationCell, ...],
+        smoothed: tuple[NavigationCell, ...],
+        destinations: tuple[TravelDestination, ...],
+        expanded: int,
+        total_cost: float,
+        mode: Literal["complete", "frontier", "failed"],
+        failure_reason: str | None,
+    ) -> None:
+        if self._observer is None:
+            return
+        try:
+            # Use physical cells, never the planner's clearance-expanded grid.
+            learned = navigation_map.learned_blocked
+            physical = tuple(
+                sorted(cell for cell in navigation_map.blocked - learned if grid.contains(cell))
+            )
+            learned = tuple(sorted(cell for cell in learned if grid.contains(cell)))
+            costs = grid.costs
+            emit(
+                self._observer,
+                PlanEvent(
+                    kind="plan",
+                    start=(start_lt, start_lg),
+                    destination=(destination.lt, destination.lg, destination.arrival_radius),
+                    cell_size=grid.cell_size,
+                    planner_clearance_cells=self._config.obstacle_clearance_cells,
+                    raw_path=tuple(grid.center(cell) for cell in cells[:MAX_ROUTE_POINTS]),
+                    smoothed_path=tuple(grid.center(cell) for cell in smoothed[:MAX_ROUTE_POINTS]),
+                    destinations=tuple(
+                        (item.lt, item.lg, item.arrival_radius)
+                        for item in destinations[:MAX_ROUTE_POINTS]
+                    ),
+                    physical_blocked=tuple((cell.x, cell.y) for cell in physical[:MAX_MAP_CELLS]),
+                    learned_blocked=tuple((cell.x, cell.y) for cell in learned[:MAX_MAP_CELLS]),
+                    costs=tuple((cell.x, cell.y, cost) for cell, cost in costs[:MAX_MAP_CELLS]),
+                    expanded_cells=expanded,
+                    total_cost=total_cost,
+                    mode=mode,
+                    failure_reason=failure_reason,
+                    omitted_route_points=sum(
+                        max(0, len(items) - MAX_ROUTE_POINTS)
+                        for items in (cells, smoothed, destinations)
+                    ),
+                    omitted_map_cells=sum(
+                        max(0, len(items) - MAX_MAP_CELLS) for items in (physical, learned, costs)
+                    ),
+                ),
+            )
+        except Exception:
+            # Preparing diagnostics also cannot change a successful route result.
+            pass
 
     def _search(
         self,
@@ -455,12 +594,9 @@ class WeightedAStarPlanner:
             _, _, current = heapq.heappop(frontier)
             expanded += 1
             current_heuristic = self._heuristic(current, goal)
-            if (
-                current_heuristic < closest_heuristic
-                or (
-                    current_heuristic == closest_heuristic
-                    and cost_so_far[current] < cost_so_far[closest]
-                )
+            if current_heuristic < closest_heuristic or (
+                current_heuristic == closest_heuristic
+                and cost_so_far[current] < cost_so_far[closest]
             ):
                 closest = current
                 closest_heuristic = current_heuristic
@@ -507,10 +643,10 @@ class WeightedAStarPlanner:
 
     @staticmethod
     def _is_boundary_cell(grid: NavigationCostGrid, cell: NavigationCell) -> bool:
-        return (
-            cell.x in {grid.minimum.x, grid.maximum.x}
-            or cell.y in {grid.minimum.y, grid.maximum.y}
-        )
+        return cell.x in {grid.minimum.x, grid.maximum.x} or cell.y in {
+            grid.minimum.y,
+            grid.maximum.y,
+        }
 
     @staticmethod
     def _reconstruct(

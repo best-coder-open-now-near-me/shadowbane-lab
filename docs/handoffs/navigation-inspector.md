@@ -1,8 +1,10 @@
 # Navigation inspector: developer and owner handoff
 
-Prepared 2026-09-04. Status: implementation brief; inspector not yet implemented
-or deployed by this handoff. The owner wants this surface before further
-pathfinding tuning, to support reliable `/go` and `/pve` movement.
+Prepared 2026-09-04. Implementation has started on `codex/navigation-inspector`;
+see the [current checkpoint and todos](../navigation-inspector.md). The complete
+viewer and live acceptance are pending. This brief records the intended delivery.
+The owner wants this surface before further pathfinding tuning, to support
+reliable `/go` and `/pve` movement.
 
 ## Objective and starting point
 

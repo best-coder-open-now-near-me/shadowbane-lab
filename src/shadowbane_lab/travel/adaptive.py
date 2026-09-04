@@ -222,12 +222,12 @@ class AStarTravelController:
             TravelController(
                 TravelPlan(
                     plan_id=(
-                        f"{self._plan_id}:{reason}:{self._replan_count}:"
-                        f"{self._navigation.token}"
+                        f"{self._plan_id}:{reason}:{self._replan_count}:{self._navigation.token}"
                     ),
                     destinations=route.destinations,
                 ),
                 self._config,
+                observer=self._planner.observer,
             ),
             reaches_destination,
             route_mode,
@@ -249,9 +249,7 @@ class AStarTravelController:
         direction_lg = delta_lg / distance
         offset_lt = observation.position.lt - window.center_lt
         offset_lg = observation.position.lg - window.center_lg
-        target_radius = window.refresh_distance + (
-            window.radius - window.refresh_distance
-        ) * 0.5
+        target_radius = window.refresh_distance + (window.radius - window.refresh_distance) * 0.5
         projection = offset_lt * direction_lt + offset_lg * direction_lg
         discriminant = (
             projection * projection
