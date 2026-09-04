@@ -1,0 +1,146 @@
+name: Terrain client static review
+
+on:
+  push:
+    branches:
+      - codex/terrain-material-export-da109b0
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download official WonderBane client
+        run: |
+          curl --fail --location --retry 3 --retry-delay 2 \
+            https://wonderbane.com/WonderbaneClient.zip \
+            --output WonderbaneClient.zip
+      - name: Extract client executable
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+
+          archive = Path('WonderbaneClient.zip')
+          with ZipFile(archive) as zipped:
+              matches = [name for name in zipped.namelist()
+                         if Path(name).name.lower() == 'sb.exe' and not name.endswith('/')]
+              if len(matches) != 1:
+                  raise SystemExit(f'expected one sb.exe, found {matches!r}')
+              with zipped.open(matches[0]) as source, Path('sb.exe').open('wb') as target:
+                  while chunk := source.read(1024 * 1024):
+                      target.write(chunk)
+          PY
+      - name: Build bounded static-review bundle
+        run: |
+          python -m pip install --disable-pip-version-check pefile capstone
+          python - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+
+          import pefile
+          from capstone import Cs, CS_ARCH_X86, CS_MODE_32
+
+          executable = Path('sb.exe')
+          raw = executable.read_bytes()
+          pe = pefile.PE(data=raw, fast_load=False)
+          image_base = int(pe.OPTIONAL_HEADER.ImageBase)
+          md = Cs(CS_ARCH_X86, CS_MODE_32)
+          md.detail = False
+
+          ranges = {
+              'image_factory_58d340': (0x0058D340, 0x300),
+              'image_setter_58db10': (0x0058DB10, 0x180),
+              'texture_assignment_5ddb60': (0x005DDB60, 0x200),
+              'texture_clone_5df2d0': (0x005DF2D0, 0x200),
+              'material_registration_6527b0': (0x006527B0, 0x1800),
+              'terrain_finalizer_69abd0': (0x0069ABD0, 0x1800),
+              'terrain_builder_69e2d0': (0x0069E2D0, 0xC00),
+              'material_append_69ee60': (0x0069EE60, 0x900),
+              'lookup_inserting_69f5a0': (0x0069F5A0, 0x300),
+              'lookup_lower_bound_69f7a0': (0x0069F7A0, 0x300),
+              'builder_thunk_4136d3': (0x004136D3, 0x40),
+              'finalizer_thunk_415294': (0x00415294, 0x40),
+              'builder_vtable_15634b0': (0x015634B0, 0x100),
+              'terrain_vtable_154c0bc': (0x0154C0BC, 0x140),
+          }
+
+          reloc_rvas = set()
+          if hasattr(pe, 'DIRECTORY_ENTRY_BASERELOC'):
+              for block in pe.DIRECTORY_ENTRY_BASERELOC:
+                  for entry in block.entries:
+                      if entry.type:
+                          reloc_rvas.add(int(entry.rva))
+
+          result = {
+              'source_url': 'https://wonderbane.com/WonderbaneClient.zip',
+              'sha256': hashlib.sha256(raw).hexdigest(),
+              'size': len(raw),
+              'image_base': image_base,
+              'size_of_image': int(pe.OPTIONAL_HEADER.SizeOfImage),
+              'entrypoint_rva': int(pe.OPTIONAL_HEADER.AddressOfEntryPoint),
+              'machine': int(pe.FILE_HEADER.Machine),
+              'sections': [],
+              'ranges': {},
+          }
+          for section in pe.sections:
+              result['sections'].append({
+                  'name': section.Name.rstrip(b'\0').decode('ascii', errors='replace'),
+                  'virtual_address': int(section.VirtualAddress),
+                  'virtual_size': int(section.Misc_VirtualSize),
+                  'raw_offset': int(section.PointerToRawData),
+                  'raw_size': int(section.SizeOfRawData),
+                  'characteristics': int(section.Characteristics),
+              })
+
+          out = Path('terrain-client-static-review')
+          out.mkdir()
+          for name, (va, size) in ranges.items():
+              rva = va - image_base
+              offset = pe.get_offset_from_rva(rva)
+              payload = raw[offset:offset + size]
+              relocs = sorted(value - rva for value in reloc_rvas if rva <= value < rva + size)
+              instructions = []
+              for insn in md.disasm(payload, va):
+                  instructions.append({
+                      'address': insn.address,
+                      'size': insn.size,
+                      'bytes': insn.bytes.hex(),
+                      'mnemonic': insn.mnemonic,
+                      'operands': insn.op_str,
+                  })
+              result['ranges'][name] = {
+                  'va': va,
+                  'rva': rva,
+                  'size': len(payload),
+                  'file_offset': offset,
+                  'sha256': hashlib.sha256(payload).hexdigest(),
+                  'relocation_offsets': relocs,
+                  'bytes_hex': payload.hex(),
+                  'instructions': instructions,
+              }
+              (out / f'{name}.bin').write_bytes(payload)
+              with (out / f'{name}.asm.txt').open('w', encoding='utf-8', newline='\n') as stream:
+                  for item in instructions:
+                      stream.write(
+                          f"{item['address']:08x}: {item['bytes']:<24} "
+                          f"{item['mnemonic']} {item['operands']}\n"
+                      )
+          (out / 'review.json').write_text(
+              json.dumps(result, sort_keys=True, indent=2) + '\n', encoding='utf-8'
+          )
+          (out / 'SHA256.txt').write_text(
+              f"{result['sha256']}  sb.exe\n", encoding='utf-8'
+          )
+          PY
+      - name: Upload bounded review bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: terrain-client-static-review
+          path: terrain-client-static-review/
+          if-no-files-found: error
+          retention-days: 1
