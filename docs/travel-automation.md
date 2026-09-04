@@ -1,11 +1,11 @@
 # Closed-loop LT/LG travel
 
-> Source correction, 2026-09-04: travel/PvE destination clicks now use the verified
-> live minimap geometry and zoom, with measured arrival instead of an assumed stop.
-> The running `3534418` package still has the old actuator and is not accepted:
-> one test continued about 301 units after reporting completion. The correction
-> must pass packaging and a fresh owner-assisted walk before live acceptance.
-> See [the exact record](navigation-inspector-acceptance-20260904.md#owner-confirmed-destination-overshoot).
+> Current testing wheel, 2026-09-04: source `8210ecf` is installed and its live
+> minimap preflight passes. It uses verified geometry/zoom, bounded destinations
+> and measured arrival. The original `3534418` wheel overshot a reported arrival
+> by about 301 units; no corrected walk has run yet. Stationary arrival and trail
+> coverage remain pending owner-assisted validation.
+> See [the exact record](navigation-inspector-acceptance-20260904.md#verified-destination-package-and-running-update).
 
 Travel uses exact native player coordinates as feedback and guarded right-clicks on the
 minimap as the actuator. Start the foreground-scoped chat bridge once per client session:

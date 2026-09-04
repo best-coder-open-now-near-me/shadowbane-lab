@@ -329,6 +329,42 @@ walk. The prior helper pair was stopped for the update, the recorder had expired
 and no game restart or further movement occurred. Local evidence remains in
 `navigation-inspector-3534418/correction-c9f3e16`, including the failure receipt.
 
+## Verified destination package and running update
+
+Current installed source: `8210ecf02b1a22c210c341ef0e41bfe710fb33ff`.
+The exact committed package passed 1,668 Python tests (8 environment skips,
+211 subtests), Ruff, VS2022 Win32 Release full and diagnostics-only builds,
+18 native tests in each profile, wheel/source-package gates, installed entry point
+and actual Tk panel. All 27 receipt entries matched disk and archive contents.
+
+Local package: `artifacts/navigation-inspector/6555aa2c/navigation-inspector-acceptance.zip`.
+ZIP SHA-256: `e88f7e937548f74d260384c6e85e0da1eb95b53f85fb0652cc69d607952ef9d7`.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| full/wonderbane-extension.dll | f08f99ea8dc8f8558971e3c00252b20df3ede58e00a723df012e4a14cd9071e7 |
+| diagnostics-only/wonderbane-extension.dll | 83752e380d34da5abf0b18e6f44dfa3b6db2ef7a8b3b12d258b73c424ff755e1 |
+| dist/shadowbane_lab-0.1.0-py3-none-any.whl | eb3897868be53b419cae1600328aeed4060ce2e13a02a3c9e971dd93ebd1ce19 |
+| dist/shadowbane_lab-0.1.0.tar.gz | 9345e9fe6144d895ec17c6906ea0cb72bc9cad95138194605ecbdfabe646d103 |
+
+Both native DLLs are byte-identical to the deployed camera package; the native
+source tree is also unchanged. The wheel was updated in the existing runtime
+`S:\ShadowbaneLab-Guided\20260904-inspector-3534418` without restarting the game.
+The actual loaded DLL hash, installed source, PID 8652, creation FILETIME
+134330013610671584 and native channel were verified after installation.
+The corrected installed minimap reader passes against content rectangle
+`(1713,17,1917,221)` and scale `0.27026087723288583` pixels per world unit.
+Existing calibration files were verified and preserved rather than recreated.
+
+The reconnected helpers are panel 3744, listener 9880 and recorder 8580. Camera
+sequence reached 25,642 with 256 samples and zero drops. A read-only route check
+found the player at LT 89009.2578125 / LG 44857.0625 in Sea Dog's Rest and a
+45-unit westward candidate ending at LT 88964 / LG 44857. No corrected movement
+has run yet. Fresh owner focus and stationary-arrival/trail validation are next.
+Evidence and update receipts are retained under the existing local VM diagnostics
+folder `navigation-inspector-3534418/correction-8210ecf`; earlier captures remain
+at their original locations. No captures or packages are included in Git.
+
 ## Remaining acceptance pass
 
 Use the [developer/owner handoff](handoffs/navigation-inspector.md) for the exact
@@ -349,7 +385,7 @@ unavailable. Verify the measured LT/LG-to-world transform before accepting world
 alignment. If the separate terrain repair is added, it requires its own verified
 source and one combined boundary-tile check.
 
-Current active todo: package and deploy the destination correction, then verify stationary arrival;
+Current active todo: verify stationary arrival with the installed destination correction;
 then compare normal/x-ray trail coverage and complete slope
 and camera-rotation alignment, the bounded PvE scenarios and overlay cost/scene
 checks. After the remaining live pass, review

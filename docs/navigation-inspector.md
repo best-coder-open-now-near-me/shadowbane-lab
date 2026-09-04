@@ -90,7 +90,8 @@ texture units. Its measured costs are synthetic, not live-game acceptance.
 - [x] Live projected-map persistence, minimap clearance, hiding and real saved-failure replay.
 - [x] Correct camera ownership and verify both packaged profiles (3534418).
 - [x] Current-client camera samples (3534418).
-- [ ] Active: correct destination execution and verify stationary arrival; the owner confirmed a 301-unit overshoot after reported completion.
+- [x] Correct bounded destination execution, build and install source 8210ecf; verify the live minimap preflight.
+- [ ] Active: verify stationary arrival and trail coverage in one short owner-assisted walk.
 - [ ] Reassess trail coverage and finish the [developer/owner live pass](handoffs/navigation-inspector.md).
 
 Draft PR #27 is the integration destination; a push is not an accepted merge.

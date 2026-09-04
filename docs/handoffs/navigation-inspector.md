@@ -198,8 +198,13 @@ wires both travel and PvE to bounded absolute destinations, verifies stationary 
 and removes the assumed center-click stop. PvE observes settling on coherent frames
 without dropping combat actions. Regression tests cover pass-through overshoot, slow
 drift, changed/ambiguous geometry, coarse zoom, cancellation and action sequencing.
-This source is not yet a deployed or live-accepted fix.
+That checkpoint was not yet deployed; the current installed state follows.
 
-Next todo: build the exact committed correction, verify package/runtime identities,
-then repeat one short owner-assisted walk with post-arrival position evidence. Only
-then resume normal/x-ray, slope, obstacle and PvE acceptance.
+The exact `8210ecf` package passed all local build/package gates and is installed
+in the existing testing runtime. Native DLLs are byte-identical to the camera
+package. Installed source, actual loaded DLL, process lifetime and the corrected
+live minimap reader all pass preflight; the panel/listener/recorder are reconnected.
+See the dated acceptance record for hashes and evidence locations.
+
+Next todo: repeat one short owner-assisted walk with post-arrival position evidence.
+Then resume normal/x-ray, slope, obstacle and PvE acceptance.
