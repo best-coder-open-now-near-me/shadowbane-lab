@@ -217,9 +217,15 @@ ZIP SHA-256: `35a88dcc9d4dc295916c2bf0c439ad7eff8e48fe91712ad93ba62a724f6a52cf`.
 The owner authorized this update for the existing local testing VM. The separate
 `S:\ShadowbaneLab-Guided\20260904-inspector-3534418` runtime was prepared through
 the existing reviewed baseline/bootstrap path and passed runtime verification.
-The installed wheel source and prepared DLL match the package. The running
-`18bcf6d` client is preserved until the owner closes it. Actual loaded-module
-identity, current-client camera samples and visual alignment remain pending.
+After the owner closed the previous game, the verified replacement launched as
+PID 8652 / creation FILETIME 134330013610671584. Its actual loaded DLL hash is
+`f08f99ea8dc8f8558971e3c00252b20df3ede58e00a723df012e4a14cd9071e7`, installed
+source is `35344185240b6de61ec24ab3b8460959bf78a575`, and its inspector channel
+is available. The allowed HUD preferences were preserved and runtime integrity
+was rechecked before launch. Only the identified prior inspector/listener helpers
+were stopped; previous installations and saved captures remain intact. Login,
+current-client camera samples and visual alignment remain pending. The new
+movement listener and recorder will be connected after the owner enters the world.
 
 ## Remaining acceptance pass
 
@@ -241,8 +247,8 @@ unavailable. Verify the measured LT/LG-to-world transform before accepting world
 alignment. If the separate terrain repair is added, it requires its own verified
 source and one combined boundary-tile check.
 
-Current active todo: restart into the verified camera-correction package and
-verify actual loaded identity/camera samples, then complete world-trail alignment,
+Current active todo: after owner login, verify camera samples from the running
+3534418 package, then complete world-trail alignment,
 the bounded PvE scenarios and
 overlay cost/scene checks. After the remaining live pass, review
 and integrate PR #27, then retire the inspector worktree/branch when safe.
