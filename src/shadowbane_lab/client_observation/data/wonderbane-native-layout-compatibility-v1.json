@@ -6,7 +6,10 @@
       "canonical_executable_sha256": "ef43784ba6ffa0de6c0c16c76569f864393ad1530e7149395bb560e5cca30f13",
       "compatible_executable_sha256s": [
         "2b186aef864ea1ce16d8ec959c450f1f2e301d1ba25d9daa3b14ab6c65d68c3d",
-        "e358237c458ddfe2fc7a86e478f165a8fd067655ab1a8ada5731f790c6995d96"
+        "e358237c458ddfe2fc7a86e478f165a8fd067655ab1a8ada5731f790c6995d96",
+        "b392d2a5265bbe674f74fe1f80a096992148dedeb33069cf63181dc22ca419cf",
+        "55fbad5f0110cd99b4085af72d1e8fddb782ccdec1491478492c18158f5c61bc",
+        "a9a59004b36f9331bb85f85e7853a02a5d5f07bda9acb9ea4a8affbf169a54b8"
       ],
       "validation": {
         "profile_field_comparison": {
@@ -34,6 +37,52 @@
           "changed_rva_start": 9400971,
           "changed_rva_end_exclusive": 9402325,
           "calibrated_rva_references_in_changed_range": 0
+        },
+        "bootstrap_patch_comparison": {
+          "source_executable_sha256": "e358237c458ddfe2fc7a86e478f165a8fd067655ab1a8ada5731f790c6995d96",
+          "patched_executable_sha256": "b392d2a5265bbe674f74fe1f80a096992148dedeb33069cf63181dc22ca419cf",
+          "patch_id": "wonderbane-1.0.5-e358237c.bootstrap-v1",
+          "reviewed_manifest_sha256": "8f4cba717f724ca0123587ac6696d07613bf069dd724ea1c5a0657bf5d5d4073",
+          "reviewed_patch_site_count": 7,
+          "applicable_profile_count": 16,
+          "calibrated_anchor_count": 47,
+          "file_backed_anchor_count": 22,
+          "zero_fill_anchor_count": 25,
+          "calibrated_anchor_mismatch_count": 0
+        },
+        "client_alignment_20260831": {
+          "baseline_executable_sha256": "e358237c458ddfe2fc7a86e478f165a8fd067655ab1a8ada5731f790c6995d96",
+          "candidate_executable_sha256": "55fbad5f0110cd99b4085af72d1e8fddb782ccdec1491478492c18158f5c61bc",
+          "reference_length": 21143613,
+          "candidate_length": 21143613,
+          "pe_header_layout_equal": true,
+          "section_layouts_equal": true,
+          "changed_sections": [
+            ".text",
+            ".data"
+          ],
+          "unchanged_sections": [
+            ".rdata",
+            ".idata",
+            ".rsrc",
+            ".reloc"
+          ],
+          "changed_byte_count": 544,
+          "changed_range_count": 29,
+          "applicable_profile_count": 16,
+          "calibrated_anchor_count": 47,
+          "calibrated_anchor_intersection_count": 0,
+          "recommendation": "candidate_for_reviewed_compatibility"
+        },
+        "bootstrap_patch_alignment_20260831": {
+          "source_executable_sha256": "55fbad5f0110cd99b4085af72d1e8fddb782ccdec1491478492c18158f5c61bc",
+          "patched_executable_sha256": "a9a59004b36f9331bb85f85e7853a02a5d5f07bda9acb9ea4a8affbf169a54b8",
+          "patch_id": "wonderbane-1.0.5-55fbad5f.bootstrap-v1",
+          "architecture_matches": true,
+          "all_sites_resolved": true,
+          "exact_site_count": 7,
+          "relocated_site_count": 0,
+          "missing_or_ambiguous_site_count": 0
         }
       }
     }

@@ -78,6 +78,10 @@ class NativeVendorDialogCaptureError(NativeVendorDialogError):
     """Raised when a debugger event or bounded memory capture fails."""
 
 
+class NativeVendorDialogDetachError(NativeVendorDialogCaptureError):
+    """Raised after debug registers clear when explicit process detach fails."""
+
+
 class NativeVendorDialogProfileLoadError(ValueError):
     """Raised when a native vendor-dialog profile is malformed."""
 
@@ -226,6 +230,7 @@ class NativeVendorDialogDebugBackend(Protocol):
     executable_sha256: str
     base_address: int
     pointer_size: int
+    process_creation_filetime_utc: int
 
     def read_block(self, address: int, size: int) -> bytes: ...
 
@@ -235,7 +240,12 @@ class NativeVendorDialogDebugBackend(Protocol):
 
     def wait_for_hit(self, timeout_ms: int) -> NativeVendorDialogDebugHit | None: ...
 
-    def continue_hit(self, hit: NativeVendorDialogDebugHit) -> None: ...
+    def continue_hit(
+        self,
+        hit: NativeVendorDialogDebugHit,
+        *,
+        disable_role: bool = False,
+    ) -> None: ...
 
     def close(self) -> None: ...
 
@@ -963,8 +973,10 @@ class WindowsVendorDialogDebugBackend:
         self.executable_path = process.executable_path
         self.executable_sha256 = process.executable_sha256
         self.base_address = process.base_address
+        self.process_creation_filetime_utc = process.process_creation_filetime_utc
         self._breakpoints: dict[str, int] = {}
         self._roles_by_slot: tuple[str, ...] = ()
+        self._disabled_roles: set[str] = set()
         self._attached = False
         self._closed = False
         self._pending: tuple[_DebugEvent, wintypes.HANDLE, _X86Context] | None = None
@@ -1085,13 +1097,20 @@ class WindowsVendorDialogDebugBackend:
             if time.monotonic() >= deadline:
                 return None
 
-    def continue_hit(self, hit: NativeVendorDialogDebugHit) -> None:
+    def continue_hit(
+        self,
+        hit: NativeVendorDialogDebugHit,
+        *,
+        disable_role: bool = False,
+    ) -> None:
         if self._pending is None:
             raise NativeVendorDialogCaptureError("no vendor-dialog debugger hit is pending")
         event, thread, context = self._pending
         if int(event.dwThreadId) != hit.thread_id:
             raise NativeVendorDialogCaptureError("pending debugger hit does not match the caller")
         try:
+            if disable_role:
+                self._disabled_roles.add(hit.role)
             context.EFlags = int(context.EFlags) | _RESUME_FLAG
             context.Dr6 = 0
             self._apply_breakpoint_registers(context)
@@ -1124,8 +1143,8 @@ class WindowsVendorDialogDebugBackend:
                 self._clear_breakpoints_from_threads()
             except NativeVendorDialogCaptureError as exc:
                 close_error = exc
-            if not self._api.kernel32.DebugActiveProcessStop(self.pid):
-                close_error = NativeVendorDialogCaptureError(
+            if not self._api.kernel32.DebugActiveProcessStop(self.pid) and close_error is None:
+                close_error = NativeVendorDialogDetachError(
                     _windows_error("DebugActiveProcessStop failed")
                 )
             self._attached = False
@@ -1203,9 +1222,16 @@ class WindowsVendorDialogDebugBackend:
         return context
 
     def _apply_breakpoint_registers(self, context: _X86Context) -> None:
-        addresses = [self._breakpoints[role] for role in self._roles_by_slot]
+        addresses = [
+            0 if role in self._disabled_roles else self._breakpoints[role]
+            for role in self._roles_by_slot
+        ]
         context.Dr0, context.Dr1, context.Dr2, context.Dr3 = addresses
-        context.Dr7 = 0x55
+        context.Dr7 = sum(
+            1 << (2 * index)
+            for index, role in enumerate(self._roles_by_slot)
+            if role not in self._disabled_roles
+        )
 
     @staticmethod
     def _clear_breakpoint_registers(context: _X86Context) -> None:

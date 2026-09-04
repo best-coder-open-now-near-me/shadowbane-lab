@@ -231,8 +231,7 @@ def resolve_primitive_loadout(
             continue
         executable.append(action_key)
         capability_tags.update(f"capability.{tag}" for tag in record.action.tags)
-        if auto_satisfy_action_requirements:
-            required_tags.update(record.action.required_actor_tags)
+        required_tags.update(record.action.required_actor_tags)
     provided_tags = set(loadout.tags)
     auto_satisfied_prefixes = (
         "capability.",
@@ -241,9 +240,15 @@ def resolve_primitive_loadout(
         "power.",
         "stance.",
     )
-    auto_added = {
-        tag for tag in required_tags - provided_tags if tag.startswith(auto_satisfied_prefixes)
-    }
+    auto_added = (
+        {
+            tag
+            for tag in required_tags - provided_tags
+            if tag.startswith(auto_satisfied_prefixes)
+        }
+        if auto_satisfy_action_requirements
+        else set()
+    )
     unsatisfied = required_tags - provided_tags - auto_added
     known_triggers = set(ruleset.catalog.trigger_keys)
     executable_persistent = tuple(

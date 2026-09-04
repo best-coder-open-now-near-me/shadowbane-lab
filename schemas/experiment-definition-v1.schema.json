@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://shadowbane-lab.invalid/schemas/experiment-definition-v1.schema.json",
+  "title": "Shadowbane Lab bounded experiment definition v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "experiment_id", "revision", "question_type", "hypothesis_ids", "preconditions", "variables", "steps", "capture", "repetition", "oracle", "safety", "outputs"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "experiment_id": {"$ref": "#/$defs/identifier"},
+    "revision": {"type": "integer", "minimum": 1, "maximum": 1000000},
+    "question_type": {"$ref": "#/$defs/identifier"},
+    "hypothesis_ids": {"$ref": "#/$defs/strings"},
+    "preconditions": {"type": "object", "maxProperties": 10000},
+    "variables": {
+      "type": "array", "maxItems": 10000,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["name", "values"],
+        "properties": {
+          "name": {"$ref": "#/$defs/identifier"},
+          "values": {"type": "array", "minItems": 1, "maxItems": 10000, "uniqueItems": true}
+        }
+      }
+    },
+    "steps": {
+      "type": "array", "minItems": 1, "maxItems": 10000,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["sequence", "kind", "parameters"],
+        "properties": {
+          "sequence": {"type": "integer", "minimum": 1, "maximum": 100000},
+          "kind": {"enum": ["assert_precondition", "capture_marker", "semantic_decision", "wait_for_observation", "wait_virtual_or_wall_duration", "repeat", "branch_on_observation", "record_annotation", "stop"]},
+          "parameters": {"type": "object", "maxProperties": 8}
+        }
+      }
+    },
+    "capture": {
+      "type": "object", "additionalProperties": false,
+      "required": ["required_channels", "optional_channels", "pre_window_ms", "post_window_ms"],
+      "properties": {
+        "required_channels": {"$ref": "#/$defs/strings"},
+        "optional_channels": {"$ref": "#/$defs/strings"},
+        "pre_window_ms": {"type": "integer", "minimum": 0, "maximum": 3600000},
+        "post_window_ms": {"type": "integer", "minimum": 0, "maximum": 3600000}
+      }
+    },
+    "repetition": {
+      "type": "object", "additionalProperties": false,
+      "required": ["repetitions", "seeds", "order", "ordering_seed"],
+      "properties": {
+        "repetitions": {"type": "integer", "minimum": 1, "maximum": 100000},
+        "seeds": {"type": "array", "minItems": 1, "maxItems": 100000, "uniqueItems": true, "items": {"type": "integer", "minimum": 0}},
+        "order": {"enum": ["canonical", "seeded_shuffle"]},
+        "ordering_seed": {"type": "integer", "minimum": 0}
+      }
+    },
+    "oracle": {
+      "type": "array", "maxItems": 10000,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["field", "operator", "expected", "absolute_tolerance", "severity"],
+        "properties": {
+          "field": {"type": "string", "minLength": 1, "maxLength": 512},
+          "operator": {"enum": ["eq", "ne", "lt", "le", "gt", "ge", "contains"]},
+          "expected": {},
+          "absolute_tolerance": {"type": "number", "minimum": 0},
+          "severity": {"enum": ["warning", "failure"]}
+        }
+      }
+    },
+    "safety": {
+      "type": "object", "additionalProperties": false,
+      "required": ["maximum_duration_seconds", "maximum_input_count", "maximum_input_rate_per_second", "maximum_resource_loss", "stop_conditions"],
+      "properties": {
+        "maximum_duration_seconds": {"type": "number", "exclusiveMinimum": 0, "maximum": 86400},
+        "maximum_input_count": {"type": "integer", "minimum": 0, "maximum": 1000000},
+        "maximum_input_rate_per_second": {"type": "number", "minimum": 0, "maximum": 10000},
+        "maximum_resource_loss": {"type": "number", "minimum": 0},
+        "stop_conditions": {"type": "array", "minItems": 1, "uniqueItems": true, "description": "Observation identifiers that stop execution when their value is literal JSON true.", "items": {"$ref": "#/$defs/identifier"}}
+      }
+    },
+    "outputs": {"$ref": "#/$defs/strings"}
+  },
+  "$defs": {
+    "identifier": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$"},
+    "strings": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 4096}}
+  }
+}

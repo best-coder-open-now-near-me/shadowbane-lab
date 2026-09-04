@@ -1,4 +1,4 @@
-"""Foreground-client ingress for immutable exact-worker operations."""
+"""Foreground or captured-client ingress for immutable exact-worker operations."""
 
 from __future__ import annotations
 
@@ -45,7 +45,7 @@ class WorkerOperationDispatch:
 
 
 class ForegroundWorkerOperationIngress:
-    """Resolve the foreground game lifetime to its current exact worker permit."""
+    """Resolve a guarded foreground or exact captured lifetime to its worker permit."""
 
     def __init__(
         self,
@@ -85,18 +85,124 @@ class ForegroundWorkerOperationIngress:
         *,
         destination: WorkerTravelDestination | None = None,
         expected_process_id: int | None = None,
+        expected_window_handle: int | None = None,
+        require_foreground: bool = True,
+        operation_id: str | None = None,
+        deduplication_id: str | None = None,
     ) -> WorkerOperationDispatch:
-        now = self._clock()
-        client = self._foreground_client(expected_process_id=expected_process_id)
-        permit = self._exact_permit(client, now=now)
-        operation = new_worker_operation(
-            permit,
-            kind,
-            command,
-            destination=destination,
-            now=now,
-            ttl_seconds=self._operation_ttl_seconds,
+        now, client, permit = self._resolve_target(
+            expected_process_id=expected_process_id,
+            expected_window_handle=expected_window_handle,
+            require_foreground=require_foreground,
         )
+        return self._submit(
+            client,
+            new_worker_operation(
+                permit,
+                kind,
+                command,
+                destination=destination,
+                now=now,
+                ttl_seconds=self._operation_ttl_seconds,
+                operation_id=operation_id,
+                deduplication_id=deduplication_id,
+            ),
+        )
+
+    def cancel_if_inflight(
+        self,
+        command: str,
+        *,
+        expected_process_id: int | None = None,
+        expected_window_handle: int | None = None,
+        require_foreground: bool = True,
+        operation_id: str | None = None,
+    ) -> WorkerOperationDispatch | None:
+        """Cancel exact in-flight automation without issuing client input.
+
+        Existing non-terminal cancellations are coalesced. Public ``/stop`` remains
+        a separate physical movement-stop operation.
+        """
+
+        now, client, permit = self._resolve_target(
+            expected_process_id=expected_process_id,
+            expected_window_handle=expected_window_handle,
+            require_foreground=require_foreground,
+        )
+        target_identity = (
+            permit.node_id,
+            permit.client_id,
+            permit.instance_id,
+            permit.worker_id,
+            permit.process_id,
+            permit.process_started_at_100ns,
+        )
+        has_inflight_automation = False
+        for snapshot in self._operations.inspect_slot(permit.client_id):
+            operation = snapshot.operation
+            if operation.target_identity() != target_identity:
+                continue
+            receipt = snapshot.receipt
+            if receipt is not None and receipt.state.terminal:
+                continue
+            if receipt is None and operation.expires_at <= now:
+                continue
+            if operation.kind is WorkerOperationKind.CANCEL:
+                return None
+            if operation.kind in {
+                WorkerOperationKind.TRAVEL,
+                WorkerOperationKind.PVE,
+            }:
+                has_inflight_automation = True
+        if not has_inflight_automation:
+            return None
+        return self._submit(
+            client,
+            new_worker_operation(
+                permit,
+                WorkerOperationKind.CANCEL,
+                command,
+                now=now,
+                ttl_seconds=self._operation_ttl_seconds,
+                operation_id=operation_id,
+            ),
+        )
+
+    def _resolve_target(
+        self,
+        *,
+        expected_process_id: int | None,
+        expected_window_handle: int | None,
+        require_foreground: bool,
+    ) -> tuple[float, ClientInstanceSnapshot, WorkerDispatchPermit]:
+        if not isinstance(require_foreground, bool):
+            raise ValueError("require_foreground must be a boolean")
+        for value, field_name in (
+            (expected_process_id, "expected_process_id"),
+            (expected_window_handle, "expected_window_handle"),
+        ):
+            if value is not None and (
+                isinstance(value, bool) or not isinstance(value, int) or value <= 0
+            ):
+                raise ValueError(f"{field_name} must be a positive integer or None")
+        if not require_foreground and (
+            expected_process_id is None or expected_window_handle is None
+        ):
+            raise ValueError("non-foreground dispatch requires exact process and window identities")
+        now = self._clock()
+        client = self._resolve_client(
+            expected_process_id=expected_process_id,
+            expected_window_handle=expected_window_handle,
+            require_foreground=require_foreground,
+        )
+        permit = self._exact_permit(client, now=now)
+        return now, client, permit
+
+    def _submit(
+        self,
+        client: ClientInstanceSnapshot,
+        operation: WorkerOperation,
+    ) -> WorkerOperationDispatch:
         submission = self._operations.submit(operation)
         acknowledgement = self._operations.wait_for_acknowledgement(
             submission.operation,
@@ -109,10 +215,12 @@ class ForegroundWorkerOperationIngress:
             duplicate=submission.duplicate,
         )
 
-    def _foreground_client(
+    def _resolve_client(
         self,
         *,
         expected_process_id: int | None,
+        expected_window_handle: int | None,
+        require_foreground: bool,
     ) -> ClientInstanceSnapshot:
         snapshot = self._registry.inspect()
         if not isinstance(snapshot, ClientRegistrySnapshot):
@@ -123,15 +231,19 @@ class ForegroundWorkerOperationIngress:
             client
             for client in snapshot.clients
             if client.is_visible
-            and client.is_foreground
+            and (client.is_foreground or not require_foreground)
             and (expected_process_id is None or client.process_id == expected_process_id)
+            and (expected_window_handle is None or client.window_handle == expected_window_handle)
         )
         if len(matches) != 1:
-            detail = (
-                "foreground managed client is not uniquely identifiable"
-                if expected_process_id is None
-                else "foreground managed client does not match the guarded process"
-            )
+            if require_foreground:
+                detail = (
+                    "foreground managed client is not uniquely identifiable"
+                    if expected_process_id is None
+                    else "foreground managed client does not match the guarded process"
+                )
+            else:
+                detail = "managed client does not match the captured process and window"
             raise WorkerOperationIngressError(detail)
         return matches[0]
 

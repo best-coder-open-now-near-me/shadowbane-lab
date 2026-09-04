@@ -112,6 +112,22 @@ def _client_adapter(
 
 
 class GuardedInputAdapterTests(unittest.TestCase):
+    def test_character_precondition_runs_before_each_input_and_preserves_rejection(self) -> None:
+        adapter, backend, inspector, clock = _client_adapter()
+        checks = []
+
+        def precondition():
+            checks.append(True)
+            if len(checks) == 2:
+                raise RuntimeError("active character changed")
+
+        adapter._executor._input_precondition = precondition
+        result = adapter.dispatch(protocol_exchange()[2])
+        self.assertFalse(result.accepted)
+        self.assertIn("active character changed", result.reason)
+        self.assertEqual(2, len(checks))
+        self.assertEqual(1, len(backend.invocations))
+
     def test_semantic_decision_executes_resolved_recording_plan(self) -> None:
         adapter, backend, inspector, clock = _client_adapter()
         decision = protocol_exchange()[2]

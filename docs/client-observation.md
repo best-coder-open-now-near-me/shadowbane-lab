@@ -8,6 +8,25 @@ independent selected-health cross-check.
 WonderBane exposes its structured state through the original Arcane HUD layer, native object
 model, message logging, client configuration, and world protocol/cache data.
 
+## Exact-process player snapshot
+
+Use the composite simulator-facing command when progression, training, and vitals must describe one
+client moment:
+
+```powershell
+.\.venv\Scripts\python.exe -m shadowbane_lab.cli client observe-native-snapshot --json
+```
+
+The command opens one read-only process handle, records PID and process-creation FILETIME from that
+same handle, and passes the backend through all three build-guarded readers. The versioned output
+retains the focused `progression`, `training`, and `vitals` payloads while adding executable path and
+SHA-256, capture start/end FILETIMEs, an ISO-8601 capture timestamp, and a content-derived snapshot
+token. Use `--process-id` when more than one reviewed client is running.
+
+`export-wonderbane-sim-observation.ps1` writes this payload directly. The focused commands below
+remain compatibility and troubleshooting surfaces, but they must not be combined into a claim of
+one temporally coherent snapshot.
+
 ## Native player vitals
 
 The build-guarded player reader follows the local-player pointer at image-relative

@@ -32,6 +32,32 @@ DecisionMessage
 EventBatchMessage
 ```
 
+The execution layers are surrounded by an orthogonal **evidence spine**. The spine does not
+participate in policy decisions or game-state mutation. It binds exact client, runtime, service,
+environment, character, simulator, policy, and scenario fingerprints to versioned research cases;
+seals raw capture artifacts; aligns them into semantic traces; and projects reviewed results into
+behavior claims, coverage, and build-change impact.
+
+```text
+Question + hypotheses + fingerprints
+                 |
+                 v
+       controlled research case
+                 |
+                 v
+ raw capture -> immutable evidence -> semantic trace
+                 |                         |
+                 +----------+--------------+
+                            v
+              claims, differential results,
+                coverage, and impact gates
+```
+
+The canonical JSON manifests are durable records. Large capture artifacts are addressed by
+SHA-256, and the local query index is disposable and rebuildable. See
+[the evidence-spine architecture](evidence-spine.md) and
+[delivery plan](evidence-spine-delivery-plan.md).
+
 ## Protocol invariant
 
 A policy selects a semantic, already-legal affordance. It does not select a packet, key,
@@ -71,6 +97,12 @@ differential recording consume identical observations without depending on the o
   live input requires an explicit per-profile confirmation bit.
 - Recorded or dry-run input adapters are used in automated tests; test execution must not
   generate desktop input.
+- A research-case definition may narrow capture and execution scope but cannot grant client-input,
+  memory-write, packet, credential, or server-administration authority.
+- Raw evidence is immutable. Normalization, redaction, conclusions, compatibility decisions, and
+  coverage reports are derived records that retain their exact parent artifact IDs.
+- A generated index, dashboard, similarity score, or candidate result cannot promote its own
+  compatibility or behavior claim.
 
 ## Versioning
 

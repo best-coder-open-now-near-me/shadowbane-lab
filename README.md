@@ -1,5 +1,17 @@
 # shadowbane-lab
 
+## Finding the current code
+
+The consolidated development history is proposed for `main` on
+[`codex/integrate-current-development`](https://github.com/best-coder-open-now-near-me/shadowbane-lab/compare/main...codex/integrate-current-development).
+It starts from `codex/client-convergence-v2` at `da109b0`. Until that review is
+merged, `main` remains the older release; checking out `main` alone will not show
+the current client, renderer, diagnostics, and simulator integration.
+
+Read the [branch map](docs/git-branch-map.md) before choosing a development base,
+and the [contributor workflow](CONTRIBUTING.md) before starting a new task.
+The branch map identifies later work that still needs separate integration.
+
 `shadowbane-lab` is a deterministic simulation and bot-policy laboratory. It treats
 Shadowbane as a data-driven ruleset and keeps deployment mechanisms outside the policy.
 
@@ -49,6 +61,8 @@ without relying on producer-specific IDs. The input adapter compiles the same se
 decisions into calibrated plans and keeps live PyAutoGUI input locked behind window guards,
 an emergency stop, and explicit profile confirmation. See [the architecture](docs/architecture.md),
 [client-input runbook](docs/client-input-harness.md),
+[bounded client-action harness](docs/client-action-harness.md),
+[persistent client extension](docs/client-extension.md),
 [local multi-client manager](docs/client-manager.md),
 [read-only character snapshot runbook](docs/character-snapshot.md),
 [camp-scoped PvE runbook](docs/pve-automation.md),
@@ -57,7 +71,13 @@ an emergency stop, and explicit profile confirmation. See [the architecture](doc
 [PvP data catalog and capture guide](docs/pvp-data.md),
 [automated VM setup](docs/vm-setup.md),
 [simulation rollout guide](docs/simulation-rollouts.md),
-[differential-validation contract](docs/differential-validation.md), and
+[differential-validation contract](docs/differential-validation.md),
+[produced-build runtime consistency gate](docs/runtime-consistency.md),
+[capture-once diagnostic runbook](docs/diagnostic-capture.md),
+[evidence-spine architecture](docs/evidence-spine.md),
+[evidence-spine delivery plan](docs/evidence-spine-delivery-plan.md),
+[tool ownership map](docs/tooling-map.md),
+[Elf Druid guide matchup](docs/wonderbane-elf-druid-presets.md), and
 [development plan](docs/plan.md).
 
 ## Local validation
@@ -72,6 +92,8 @@ python -m shadowbane_lab.rollouts --matrix --levels 10,42,75 --ranks 0,20,40 --d
 python -m shadowbane_lab.rollouts --scenario irekei-proc --level 59 --json
 python -m shadowbane_lab.rollouts --scenario verified-duel --left-profile .\assassin.json --right-profile .\warlock.json --episodes 1000 --accept-source-revision --accept-ruleset-overrides --json
 python -m shadowbane_lab.rollouts --scenario wonderbane-guide-duel --matrix --distances 6,15,40,100 --episodes 1000 --assassin-stealthed --max-ticks 2400 --json
+python -m shadowbane_lab.rollouts --scenario wonderbane-druid-duels --matrix --distances 6,15,40,100 --episodes 1000 --max-ticks 2400 --json
+python -m shadowbane_lab.cli client observe-native-snapshot --json
 python -m shadowbane_lab.cli client observe-native-progression --json
 python -m shadowbane_lab.cli client observe-native-training --json
 python -m shadowbane_lab.cli client advise-irekei-proc --json

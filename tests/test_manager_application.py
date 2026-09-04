@@ -1,5 +1,9 @@
 import unittest
 
+from shadowbane_lab.client_extension.runtime_status import (
+    ExtensionRuntimeSnapshot,
+    ExtensionRuntimeState,
+)
 from shadowbane_lab.client_input import WindowBounds
 from shadowbane_lab.manager.application import ManagerDashboardApplication
 from shadowbane_lab.manager.dashboard import DashboardError
@@ -248,12 +252,43 @@ class _StaticOperationStatus:
         return self.snapshots
 
 
+class _RecordingExtensionStatus:
+    def __init__(self) -> None:
+        self.inspections: list[tuple[int | None, int | None]] = []
+
+    def inspect(
+        self,
+        process_id: int | None,
+        process_creation_filetime_utc: int | None,
+    ) -> ExtensionRuntimeSnapshot:
+        self.inspections.append((process_id, process_creation_filetime_utc))
+        if process_id is None:
+            return ExtensionRuntimeSnapshot(
+                state=ExtensionRuntimeState.UNBOUND,
+                ready=False,
+            )
+        assert process_creation_filetime_utc is not None
+        return ExtensionRuntimeSnapshot(
+            state=ExtensionRuntimeState.INITIALIZED,
+            ready=True,
+            process_id=process_id,
+            process_creation_filetime_utc=process_creation_filetime_utc,
+            extension_version="1.0.0",
+            abi_version=1,
+            initialized_at_filetime_utc=process_creation_filetime_utc + 1,
+            heartbeat_file_name=(
+                f"heartbeat-{process_id}-{process_creation_filetime_utc}.json"
+            ),
+        )
+
+
 def _application(
     session: _RecordingSession,
     *clients: ClientInstanceSnapshot,
     worker_state: WorkerHealthState = WorkerHealthState.HEALTHY,
     worker_controller: _RecordingWorkerController | None = None,
     operation_status: _StaticOperationStatus | None = None,
+    extension_status: _RecordingExtensionStatus | None = None,
 ) -> tuple[ManagerDashboardApplication, _StaticRegistry]:
     registry = _StaticRegistry(
         ClientRegistrySnapshot(
@@ -283,6 +318,7 @@ def _application(
             worker_supervisor,
             worker_controller=worker_controller,
             operation_status=operation_status,
+            extension_status=extension_status,
             launch_timeout_seconds=12.0,
             poll_seconds=0.25,
         ),
@@ -291,6 +327,37 @@ def _application(
 
 
 class ManagerDashboardApplicationTests(unittest.TestCase):
+    def test_status_exposes_extension_health_for_exact_process_lifetime(self) -> None:
+        bound = _client("instance-101", 101)
+        session = _RecordingSession(
+            ManagerSessionSnapshot(
+                node_id=NODE_ID,
+                slots=(
+                    _slot("client-01", instance_id=bound.instance_id),
+                    _slot("client-02"),
+                ),
+            )
+        )
+        extension_status = _RecordingExtensionStatus()
+        application, _ = _application(
+            session,
+            bound,
+            extension_status=extension_status,
+        )
+
+        status = application.status()
+
+        self.assertEqual(1, status["extension_ready_count"])
+        self.assertEqual("initialized", status["slots"][0]["extension"]["state"])
+        self.assertEqual("unbound", status["slots"][1]["extension"]["state"])
+        self.assertEqual(
+            [
+                (bound.process_id, bound.process_started_at_100ns),
+                (None, None),
+            ],
+            extension_status.inspections,
+        )
+
     def test_reconciliation_adopts_each_safe_open_instance_once(self) -> None:
         first = _client("instance-101", 101)
         second = _client("instance-202", 202)

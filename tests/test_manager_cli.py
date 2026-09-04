@@ -74,6 +74,91 @@ def _manifest_client(
 
 
 class ManagerCliTests(unittest.TestCase):
+    def test_configure_build_is_explicit_atomic_and_preserves_slots(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path = root / "client-manager.json"
+            original = {
+                "schema_version": 1,
+                "node_id": "gaming-pc-east",
+                "clients": [
+                    _manifest_client(root / "old", client_id="client-01"),
+                ],
+            }
+            manifest_path.write_text(json.dumps(original), encoding="utf-8")
+            original_bytes = manifest_path.read_bytes()
+
+            with redirect_stderr(io.StringIO()):
+                refused = main(
+                    (
+                        "manager",
+                        "configure-build",
+                        str(manifest_path),
+                        r"C:\Reviewed\WonderBane-1.0.5",
+                    )
+                )
+            self.assertEqual(2, refused)
+            self.assertEqual(original_bytes, manifest_path.read_bytes())
+
+            output = io.StringIO()
+            with (
+                patch("shadowbane_lab.cli.Path.is_file", return_value=True),
+                redirect_stdout(output),
+            ):
+                configured = main(
+                    (
+                        "manager",
+                        "configure-build",
+                        str(manifest_path),
+                        r"C:\Reviewed\WonderBane-1.0.5",
+                        "--apply",
+                        "--json",
+                    )
+                )
+
+            payload = json.loads(output.getvalue())
+            manifest = load_manager_manifest(manifest_path)
+            self.assertEqual(0, configured)
+            self.assertEqual(1, payload["slot_count"])
+            self.assertEqual(
+                ("client-01",),
+                tuple(client.client_id for client in manifest.clients),
+            )
+            self.assertTrue(Path(payload["backup"]).is_file())
+            self.assertEqual(original_bytes, Path(payload["backup"]).read_bytes())
+
+    def test_configure_build_refuses_a_shared_runtime_for_multiple_slots(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path = root / "client-manager.json"
+            original = {
+                "schema_version": 1,
+                "node_id": "gaming-pc-east",
+                "clients": [
+                    _manifest_client(root / "old", client_id="client-01"),
+                    _manifest_client(root / "old", client_id="client-02", left=800),
+                ],
+            }
+            manifest_path.write_text(json.dumps(original), encoding="utf-8")
+            original_bytes = manifest_path.read_bytes()
+
+            with (
+                patch("shadowbane_lab.cli.Path.is_file", return_value=True),
+                redirect_stderr(io.StringIO()),
+            ):
+                result = main(
+                    (
+                        "manager",
+                        "configure-build",
+                        str(manifest_path),
+                        r"C:\Reviewed\WonderBane-1.0.5",
+                        "--apply",
+                    )
+                )
+
+            self.assertEqual(2, result)
+            self.assertEqual(original_bytes, manifest_path.read_bytes())
+
     def test_configure_slots_is_explicit_atomic_and_preserves_a_backup(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -132,6 +217,35 @@ class ManagerCliTests(unittest.TestCase):
             )
             self.assertTrue(backup_path.is_file())
             self.assertEqual(original_bytes, backup_path.read_bytes())
+
+    def test_configure_slots_refuses_to_clone_an_isolated_runtime(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path = root / "client-manager.json"
+            client = _manifest_client(root / "runtime")
+            del client["window_tile"]
+            original = {
+                "schema_version": 1,
+                "node_id": "gaming-pc-east",
+                "clients": [client],
+            }
+            manifest_path.write_text(json.dumps(original), encoding="utf-8")
+            original_bytes = manifest_path.read_bytes()
+
+            with redirect_stderr(io.StringIO()):
+                result = main(
+                    (
+                        "manager",
+                        "configure-slots",
+                        str(manifest_path),
+                        "--count",
+                        "2",
+                        "--apply",
+                    )
+                )
+
+            self.assertEqual(2, result)
+            self.assertEqual(original_bytes, manifest_path.read_bytes())
 
     def test_manager_worker_requires_explicit_live_authority(self) -> None:
         error = io.StringIO()
@@ -443,9 +557,16 @@ class ManagerCliTests(unittest.TestCase):
         created_servers: list[object] = []
 
         class FakeDashboardServer:
-            def __init__(self, service: object, *, port: int) -> None:
+            def __init__(
+                self,
+                service: object,
+                *,
+                port: int,
+                authorization_token: str,
+            ) -> None:
                 self.service = service
                 self.port = port
+                self.authorization_token = authorization_token
                 self.suggested_url = "http://127.0.0.1:12345/#token=test"
                 self.is_running = True
                 self.exited = False
@@ -459,6 +580,7 @@ class ManagerCliTests(unittest.TestCase):
 
         output = io.StringIO()
         permit_payload: dict[str, object] | None = None
+        dashboard_token_payload: str | None = None
         with tempfile.TemporaryDirectory() as directory:
             game_directory = Path(directory) / "Wonderbane"
             game_directory.mkdir()
@@ -476,6 +598,7 @@ class ManagerCliTests(unittest.TestCase):
             )
             worker_state_directory = Path(directory) / "workers"
             manager_pid_path = Path(directory) / "manager.pid"
+            dashboard_token_path = Path(directory) / "dashboard.token"
 
             def interrupt_after_pid_claim(_seconds: float) -> None:
                 self.assertEqual(
@@ -529,11 +652,15 @@ class ManagerCliTests(unittest.TestCase):
                     worker_state_directory / "gaming-pc-east" / "client-01" / "dispatch.permit"
                 ).read_text(encoding="utf-8")
             )
+            dashboard_token_payload = dashboard_token_path.read_text(
+                encoding="ascii"
+            ).strip()
             self.assertFalse(manager_pid_path.exists())
 
         self.assertEqual(0, result)
         self.assertEqual(1, len(created_servers))
         server = created_servers[0]
+        self.assertEqual(dashboard_token_payload, server.authorization_token)
         self.assertTrue(server.exited)
         self.assertEqual("gaming-pc-east", server.service.status()["node_id"])
         self.assertIn("managed clients will remain open", output.getvalue())

@@ -8,7 +8,8 @@ import os
 import re
 import time
 import uuid
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterator, Mapping
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from enum import StrEnum
 from math import isfinite
@@ -16,6 +17,7 @@ from pathlib import Path
 from typing import NoReturn
 
 from .manifest import ManagerManifest
+from .record_store import exclusive_record_lock, publish_atomic_record
 from .worker import WorkerDispatchPermit
 
 WORKER_OPERATION_SCHEMA_VERSION = 1
@@ -24,6 +26,7 @@ DEFAULT_WORKER_OPERATION_TTL_SECONDS = 8.0
 DEFAULT_WORKER_OPERATION_ACK_TIMEOUT_SECONDS = 2.0
 DEFAULT_MAX_WORKER_OPERATION_BYTES = 16_384
 DEFAULT_MAX_WORKER_OPERATIONS_PER_SLOT = 256
+DEFAULT_WORKER_OPERATION_TERMINAL_RETENTION_SECONDS = 7 * 24 * 60 * 60
 
 _IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
 _WORKER_ID = re.compile(r"worker-[0-9a-f]{32}\Z")
@@ -81,6 +84,7 @@ class WorkerOperationLedgerError(WorkerOperationError):
 class WorkerOperationKind(StrEnum):
     TRAVEL = "travel"
     PVE = "pve"
+    CANCEL = "cancel"
     STOP = "stop"
 
 
@@ -239,7 +243,9 @@ class WorkerOperation:
 
     @property
     def priority(self) -> int:
-        return 100 if self.kind is WorkerOperationKind.STOP else 0
+        if self.kind is WorkerOperationKind.STOP:
+            return 200
+        return 100 if self.kind is WorkerOperationKind.CANCEL else 0
 
     def target_identity(self) -> tuple[object, ...]:
         return (
@@ -585,7 +591,7 @@ def loads_worker_operation_receipt(source: str) -> WorkerOperationReceipt:
 
 
 class WorkerOperationLedger:
-    """Bounded atomic inbox and status store shared by ingress and exact workers."""
+    """Bounded transactional inbox and status store shared by ingress and workers."""
 
     def __init__(
         self,
@@ -594,6 +600,8 @@ class WorkerOperationLedger:
         *,
         max_record_bytes: int = DEFAULT_MAX_WORKER_OPERATION_BYTES,
         max_records_per_slot: int = DEFAULT_MAX_WORKER_OPERATIONS_PER_SLOT,
+        terminal_retention_seconds: float = (DEFAULT_WORKER_OPERATION_TERMINAL_RETENTION_SECONDS),
+        clock: Callable[[], float] = time.time,
     ) -> None:
         if not isinstance(manifest, ManagerManifest):
             raise ValueError("manifest must be ManagerManifest")
@@ -612,10 +620,20 @@ class WorkerOperationLedger:
             or max_records_per_slot <= 0
         ):
             raise ValueError("max_records_per_slot must be a positive integer")
+        retention = _finite_time(
+            terminal_retention_seconds,
+            "terminal_retention_seconds",
+        )
+        if retention <= 0:
+            raise ValueError("terminal_retention_seconds must be positive")
+        if not callable(clock):
+            raise ValueError("clock must be callable")
         self._manifest = manifest
         self._root = requested.resolve(strict=False)
         self._max_bytes = max_record_bytes
         self._max_records = max_records_per_slot
+        self._terminal_retention_seconds = retention
+        self._clock = clock
         self._client_ids = {
             config.client_id.casefold(): config.client_id for config in manifest.clients
         }
@@ -637,6 +655,16 @@ class WorkerOperationLedger:
         if not directory.resolve(strict=False).is_relative_to(self._root):
             raise WorkerOperationLedgerError("worker operation path escaped its state root")
         return directory
+
+    @contextmanager
+    def _transaction(self, directory: Path) -> Iterator[None]:
+        try:
+            with exclusive_record_lock(directory / ".ledger.lock"):
+                yield
+        except (OSError, TimeoutError) as exc:
+            raise WorkerOperationLedgerError(
+                f"could not lock worker operation ledger: {exc}"
+            ) from exc
 
     def _read(self, path: Path, parser: Callable[[str], object]) -> object:
         try:
@@ -665,55 +693,18 @@ class WorkerOperationLedger:
             raise WorkerOperationLedgerError("serialized operation record exceeds size limit")
         return payload
 
-    def submit(self, operation: WorkerOperation) -> WorkerOperationSubmission:
-        if not isinstance(operation, WorkerOperation):
-            raise ValueError("operation must be WorkerOperation")
-        canonical = self._client_id(operation.client_id)
-        if operation.node_id != self._manifest.node_id or operation.client_id != canonical:
-            raise WorkerOperationLedgerError("operation identity does not match the manifest")
-        directory = self._directory(canonical)
+    def _operation_paths(self, directory: Path) -> list[Path]:
         try:
-            directory.mkdir(parents=True, exist_ok=True)
-            existing_paths = sorted(directory.glob("operation-*.json"))
+            return sorted(directory.glob("operation-*.json"))
         except OSError as exc:
             raise WorkerOperationLedgerError(f"could not inspect operation inbox: {exc}") from exc
-        if len(existing_paths) >= self._max_records:
-            raise WorkerOperationLedgerError("worker operation inbox reached its bounded limit")
-        for path in existing_paths:
-            existing = self._read(path, loads_worker_operation)
-            assert isinstance(existing, WorkerOperation)
-            if existing.deduplication_id != operation.deduplication_id:
-                continue
-            if existing != operation:
-                raise WorkerOperationLedgerError(
-                    "deduplication_id is already owned by a different immutable operation"
-                )
-            return WorkerOperationSubmission(existing, duplicate=True)
-        target = directory / f"{operation.operation_id}.json"
-        payload = self._encode(operation.to_dict())
-        try:
-            with target.open("xb") as destination:
-                destination.write(payload)
-                destination.flush()
-                os.fsync(destination.fileno())
-        except FileExistsError as exc:
-            existing = self._read(target, loads_worker_operation)
-            if existing != operation:
-                raise WorkerOperationLedgerError(
-                    "operation_id is already owned by different immutable content"
-                ) from exc
-            return WorkerOperationSubmission(operation, duplicate=True)
-        except OSError as exc:
-            raise WorkerOperationLedgerError(f"could not persist operation: {exc}") from exc
-        return WorkerOperationSubmission(operation, duplicate=False)
 
-    def inspect_receipt(
+    def _inspect_receipt_unlocked(
         self,
-        client_id: str,
+        directory: Path,
         operation_id: str,
     ) -> WorkerOperationReceipt | None:
-        _pattern(operation_id, "operation_id", _OPERATION_ID)
-        target = self._directory(client_id) / f"{operation_id}.receipt"
+        target = directory / f"{operation_id}.receipt"
         try:
             if not target.exists():
                 return None
@@ -723,13 +714,11 @@ class WorkerOperationLedger:
         assert isinstance(receipt, WorkerOperationReceipt)
         return receipt
 
-    def publish_receipt(self, receipt: WorkerOperationReceipt) -> Path:
-        if not isinstance(receipt, WorkerOperationReceipt):
-            raise ValueError("receipt must be WorkerOperationReceipt")
-        canonical = self._client_id(receipt.client_id)
-        if receipt.node_id != self._manifest.node_id or receipt.client_id != canonical:
-            raise WorkerOperationLedgerError("receipt identity does not match the manifest")
-        directory = self._directory(canonical)
+    def _publish_receipt_unlocked(
+        self,
+        directory: Path,
+        receipt: WorkerOperationReceipt,
+    ) -> Path:
         operation_path = directory / f"{receipt.operation_id}.json"
         operation = self._read(operation_path, loads_worker_operation)
         assert isinstance(operation, WorkerOperation)
@@ -742,7 +731,7 @@ class WorkerOperationLedger:
         if receipt.operation_identity() != expected_identity:
             raise WorkerOperationLedgerError("receipt does not own its immutable operation")
         target = directory / f"{receipt.operation_id}.receipt"
-        current = self.inspect_receipt(canonical, receipt.operation_id)
+        current = self._inspect_receipt_unlocked(directory, receipt.operation_id)
         if current is not None:
             if current.operation_identity() != receipt.operation_identity():
                 raise WorkerOperationLedgerError("receipt identity changed")
@@ -771,37 +760,28 @@ class WorkerOperationLedger:
                     f"invalid operation transition {current.state.value} -> {receipt.state.value}"
                 )
         payload = self._encode(receipt.to_dict())
-        temporary = directory / f".{receipt.operation_id}.{os.getpid()}.{uuid.uuid4().hex}.tmp"
         try:
-            directory.mkdir(parents=True, exist_ok=True)
-            with temporary.open("xb") as destination:
-                destination.write(payload)
-                destination.flush()
-                os.fsync(destination.fileno())
-            temporary.replace(target)
+            publish_atomic_record(
+                target,
+                payload,
+                temporary_label=receipt.operation_id,
+            )
         except OSError as exc:
-            try:
-                temporary.unlink(missing_ok=True)
-            except OSError:
-                pass
             raise WorkerOperationLedgerError(f"could not persist receipt: {exc}") from exc
         return target
 
-    def inspect_slot(self, client_id: str) -> tuple[WorkerOperationSnapshot, ...]:
-        directory = self._directory(client_id)
-        try:
-            if not directory.exists():
-                return ()
-            paths = sorted(directory.glob("operation-*.json"))
-        except OSError as exc:
-            raise WorkerOperationLedgerError(f"could not inspect operation inbox: {exc}") from exc
+    def _inspect_slot_unlocked(
+        self,
+        directory: Path,
+    ) -> tuple[WorkerOperationSnapshot, ...]:
+        paths = self._operation_paths(directory)
         if len(paths) > self._max_records:
             raise WorkerOperationLedgerError("worker operation inbox exceeds its bounded limit")
         snapshots = []
         for path in paths:
             operation = self._read(path, loads_worker_operation)
             assert isinstance(operation, WorkerOperation)
-            receipt = self.inspect_receipt(operation.client_id, operation.operation_id)
+            receipt = self._inspect_receipt_unlocked(directory, operation.operation_id)
             snapshots.append(WorkerOperationSnapshot(operation, receipt))
         return tuple(
             sorted(
@@ -809,6 +789,122 @@ class WorkerOperationLedger:
                 key=lambda item: (item.operation.issued_at, item.operation.operation_id),
             )
         )
+
+    def _prune_terminal_unlocked(self, directory: Path, observed_at: float) -> int:
+        cutoff = observed_at - self._terminal_retention_seconds
+        if cutoff < 0:
+            return 0
+        removed = 0
+        for path in self._operation_paths(directory):
+            operation = self._read(path, loads_worker_operation)
+            assert isinstance(operation, WorkerOperation)
+            receipt_path = directory / f"{operation.operation_id}.receipt"
+            receipt = self._inspect_receipt_unlocked(directory, operation.operation_id)
+            if receipt is None or not receipt.state.terminal or receipt.observed_at > cutoff:
+                continue
+            try:
+                path.unlink()
+                receipt_path.unlink(missing_ok=True)
+            except OSError as exc:
+                raise WorkerOperationLedgerError(
+                    f"could not prune terminal operation: {exc}"
+                ) from exc
+            removed += 1
+        try:
+            orphan_receipts = sorted(directory.glob("operation-*.receipt"))
+        except OSError as exc:
+            raise WorkerOperationLedgerError(
+                f"could not inspect orphan operation receipts: {exc}"
+            ) from exc
+        for receipt_path in orphan_receipts:
+            operation_path = receipt_path.with_suffix(".json")
+            if operation_path.exists():
+                continue
+            receipt = self._read(receipt_path, loads_worker_operation_receipt)
+            assert isinstance(receipt, WorkerOperationReceipt)
+            if not receipt.state.terminal or receipt.observed_at > cutoff:
+                continue
+            try:
+                receipt_path.unlink()
+            except OSError as exc:
+                raise WorkerOperationLedgerError(
+                    f"could not prune orphan operation receipt: {exc}"
+                ) from exc
+        return removed
+
+    def submit(self, operation: WorkerOperation) -> WorkerOperationSubmission:
+        if not isinstance(operation, WorkerOperation):
+            raise ValueError("operation must be WorkerOperation")
+        canonical = self._client_id(operation.client_id)
+        if operation.node_id != self._manifest.node_id or operation.client_id != canonical:
+            raise WorkerOperationLedgerError("operation identity does not match the manifest")
+        directory = self._directory(canonical)
+        with self._transaction(directory):
+            existing_paths = self._operation_paths(directory)
+            for path in existing_paths:
+                existing = self._read(path, loads_worker_operation)
+                assert isinstance(existing, WorkerOperation)
+                if existing.deduplication_id != operation.deduplication_id:
+                    continue
+                if existing != operation:
+                    raise WorkerOperationLedgerError(
+                        "deduplication_id is already owned by a different immutable operation"
+                    )
+                return WorkerOperationSubmission(existing, duplicate=True)
+            observed_at = _finite_time(self._clock(), "clock result")
+            self._prune_terminal_unlocked(directory, observed_at)
+            if len(self._operation_paths(directory)) >= self._max_records:
+                raise WorkerOperationLedgerError("worker operation inbox reached its bounded limit")
+            target = directory / f"{operation.operation_id}.json"
+            payload = self._encode(operation.to_dict())
+            try:
+                with target.open("xb") as destination:
+                    destination.write(payload)
+                    destination.flush()
+                    os.fsync(destination.fileno())
+            except FileExistsError as exc:
+                existing = self._read(target, loads_worker_operation)
+                if existing != operation:
+                    raise WorkerOperationLedgerError(
+                        "operation_id is already owned by different immutable content"
+                    ) from exc
+                return WorkerOperationSubmission(operation, duplicate=True)
+            except OSError as exc:
+                raise WorkerOperationLedgerError(f"could not persist operation: {exc}") from exc
+            return WorkerOperationSubmission(operation, duplicate=False)
+
+    def inspect_receipt(
+        self,
+        client_id: str,
+        operation_id: str,
+    ) -> WorkerOperationReceipt | None:
+        _pattern(operation_id, "operation_id", _OPERATION_ID)
+        directory = self._directory(client_id)
+        with self._transaction(directory):
+            return self._inspect_receipt_unlocked(directory, operation_id)
+
+    def publish_receipt(self, receipt: WorkerOperationReceipt) -> Path:
+        if not isinstance(receipt, WorkerOperationReceipt):
+            raise ValueError("receipt must be WorkerOperationReceipt")
+        canonical = self._client_id(receipt.client_id)
+        if receipt.node_id != self._manifest.node_id or receipt.client_id != canonical:
+            raise WorkerOperationLedgerError("receipt identity does not match the manifest")
+        directory = self._directory(canonical)
+        with self._transaction(directory):
+            return self._publish_receipt_unlocked(directory, receipt)
+
+    def inspect_slot(self, client_id: str) -> tuple[WorkerOperationSnapshot, ...]:
+        directory = self._directory(client_id)
+        with self._transaction(directory):
+            return self._inspect_slot_unlocked(directory)
+
+    def prune_terminal(self, client_id: str, *, now: float) -> int:
+        """Remove terminal operation pairs older than the configured retention."""
+
+        directory = self._directory(client_id)
+        observed_at = _finite_time(now, "now")
+        with self._transaction(directory):
+            return self._prune_terminal_unlocked(directory, observed_at)
 
     def pending_for(
         self,
@@ -820,9 +916,10 @@ class WorkerOperationLedger:
         worker_process_started_at_100ns: int,
         now: float,
     ) -> tuple[WorkerOperation, ...]:
+        canonical = self._client_id(client_id)
         target = (
             self._manifest.node_id,
-            self._client_id(client_id),
+            canonical,
             _identifier(instance_id, "instance_id"),
             _pattern(worker_id, "worker_id", _WORKER_ID),
             _positive_integer(worker_process_id, "worker_process_id"),
@@ -832,27 +929,30 @@ class WorkerOperationLedger:
             ),
         )
         observed_at = _finite_time(now, "now")
+        directory = self._directory(canonical)
         pending = []
-        for snapshot in self.inspect_slot(client_id):
-            operation = snapshot.operation
-            if operation.target_identity() != target:
-                continue
-            receipt = snapshot.receipt
-            if receipt is not None and (
-                receipt.state is WorkerOperationState.ACTIVE or receipt.state.terminal
-            ):
-                continue
-            if operation.expires_at <= observed_at and receipt is None:
-                self.publish_receipt(
-                    WorkerOperationReceipt.for_operation(
-                        operation,
-                        WorkerOperationState.EXPIRED,
-                        observed_at=observed_at,
-                        detail="operation expired before worker acknowledgement",
+        with self._transaction(directory):
+            for snapshot in self._inspect_slot_unlocked(directory):
+                operation = snapshot.operation
+                if operation.target_identity() != target:
+                    continue
+                receipt = snapshot.receipt
+                if receipt is not None and (
+                    receipt.state is WorkerOperationState.ACTIVE or receipt.state.terminal
+                ):
+                    continue
+                if operation.expires_at <= observed_at:
+                    self._publish_receipt_unlocked(
+                        directory,
+                        WorkerOperationReceipt.for_operation(
+                            operation,
+                            WorkerOperationState.EXPIRED,
+                            observed_at=observed_at,
+                            detail="operation expired before worker activation",
+                        ),
                     )
-                )
-                continue
-            pending.append(operation)
+                    continue
+                pending.append(operation)
         return tuple(
             sorted(
                 pending,
@@ -886,6 +986,7 @@ class WorkerOperationLedger:
 
 __all__ = [
     "DEFAULT_WORKER_OPERATION_ACK_TIMEOUT_SECONDS",
+    "DEFAULT_WORKER_OPERATION_TERMINAL_RETENTION_SECONDS",
     "DEFAULT_WORKER_OPERATION_TTL_SECONDS",
     "WORKER_OPERATION_RECEIPT_SCHEMA_VERSION",
     "WORKER_OPERATION_SCHEMA_VERSION",

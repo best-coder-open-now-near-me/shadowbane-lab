@@ -15,6 +15,7 @@ from shadowbane_lab.client_observation import (
 from shadowbane_lab.travel.pathfinding import (
     NavigationCell,
     NavigationMapSnapshot,
+    NavigationPlanningWindow,
     SparseNavigationMap,
 )
 from shadowbane_lab.world_data import (
@@ -251,9 +252,23 @@ class ActiveZoneTerrainNavigationSource:
         self._center = (position.lt, position.lg)
         self._last_zone_name = zone.name
         self._last_seed = active.seed
+        planning_window = None
+        if (
+            active.seed is not None
+            and active.seed.window_center_lt is not None
+            and active.seed.window_center_lg is not None
+            and active.seed.window_radius is not None
+        ):
+            planning_window = NavigationPlanningWindow(
+                center_lt=active.seed.window_center_lt,
+                center_lg=active.seed.window_center_lg,
+                radius=active.seed.window_radius,
+                refresh_distance=self._refresh_distance,
+            )
         self._snapshot = NavigationMapSnapshot(
             token=f"{zone.zone_token}:{self._refresh_count}",
             navigation_map=active.navigation_map,
+            planning_window=planning_window,
         )
         return self._snapshot
 

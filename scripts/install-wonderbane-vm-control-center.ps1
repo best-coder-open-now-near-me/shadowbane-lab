@@ -39,6 +39,13 @@ foreach ($required in @(
 if ($NodeId -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$') {
     throw "NodeId must contain only letters, digits, '.', '_', or '-'."
 }
+if ($ClientCount -gt 1) {
+    throw (
+        "A multi-client manager cannot share one GameDirectory. Install one slot first, " +
+        "then use install-wonderbane-isolated-runtimes.ps1 to provision one local runtime " +
+        "per slot."
+    )
+}
 
 New-Item -ItemType Directory -Path $LocalStateRoot -Force | Out-Null
 $localRunner = Join-Path $LocalStateRoot "start-wonderbane-control-center.ps1"
@@ -63,6 +70,8 @@ if (-not $manifestAlreadyExists) {
                         MESA_EXTENSION_MAX_YEAR = "2001"
                         MESA_GL_VERSION_OVERRIDE = $null
                         MESA_GLSL_VERSION_OVERRIDE = $null
+                        WONDERBANE_CEL_PROFILE = "flat"
+                        WONDERBANE_PERFORMANCE_PROFILE = "frame"
                     }
                 }
                 expected_process_directory = $GameDirectory

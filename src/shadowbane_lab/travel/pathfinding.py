@@ -140,17 +140,62 @@ class AStarRouteNotFound(RuntimeError):
 
 
 @dataclass(frozen=True, slots=True)
+class NavigationPlanningWindow:
+    """Bounded terrain coverage around one active navigation refresh origin."""
+
+    center_lt: float
+    center_lg: float
+    radius: float
+    refresh_distance: float
+
+    def __post_init__(self) -> None:
+        for value, field_name in (
+            (self.center_lt, "center_lt"),
+            (self.center_lg, "center_lg"),
+            (self.radius, "radius"),
+            (self.refresh_distance, "refresh_distance"),
+        ):
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not isfinite(value)
+            ):
+                raise ValueError(f"{field_name} must be finite")
+        if self.radius <= 0:
+            raise ValueError("radius must be positive")
+        if not 0 < self.refresh_distance < self.radius:
+            raise ValueError("refresh_distance must be in (0, radius)")
+
+    def contains(self, destination: TravelDestination) -> bool:
+        if not isinstance(destination, TravelDestination):
+            raise ValueError("destination must be a TravelDestination")
+        return (
+            hypot(
+                destination.lt - self.center_lt,
+                destination.lg - self.center_lg,
+            )
+            <= self.radius
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class NavigationMapSnapshot:
     """One revision of the sparse global navigation map available to a route."""
 
     token: str
     navigation_map: SparseNavigationMap
+    planning_window: NavigationPlanningWindow | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.token, str) or not self.token.strip():
             raise ValueError("navigation snapshot token must be non-empty")
         if not isinstance(self.navigation_map, SparseNavigationMap):
             raise ValueError("navigation snapshot requires a SparseNavigationMap")
+        if self.planning_window is not None and not isinstance(
+            self.planning_window,
+            NavigationPlanningWindow,
+        ):
+            raise ValueError("planning_window must be a NavigationPlanningWindow or None")
 
 
 class SparseNavigationMap:
@@ -333,11 +378,66 @@ class WeightedAStarPlanner:
             total_cost=total_cost,
         )
 
+    def plan_reachable_frontier(
+        self,
+        navigation_map: SparseNavigationMap,
+        *,
+        start_lt: float,
+        start_lg: float,
+        destination: TravelDestination,
+    ) -> AStarRoute:
+        """Route to a safely reachable planning-window edge without crossing a barrier.
+
+        The closest cell to a blocked goal is commonly the near face of the
+        obstacle.  Stopping there leaves the next bounded plan with the same
+        disconnected grid.  Prefer a reachable edge cell instead so the next
+        local window can slide laterally and reveal a route around large
+        structures.  Search and expansion limits remain unchanged.
+        """
+
+        if not isinstance(navigation_map, SparseNavigationMap):
+            raise ValueError("navigation_map must be SparseNavigationMap")
+        if not isinstance(destination, TravelDestination):
+            raise ValueError("destination must be TravelDestination")
+        start = navigation_map.cell_for(start_lt, start_lg)
+        goal = navigation_map.cell_for(destination.lt, destination.lg)
+        grid = navigation_map.local_grid(start, goal, self._config)
+        cells, expanded, total_cost = self._search(
+            grid,
+            start,
+            goal,
+            allow_partial=True,
+        )
+        smoothed = self._smooth(grid, cells)
+        waypoint_radius = max(5.0, grid.cell_size * self._config.waypoint_radius_fraction)
+        frontier = smoothed[-1]
+        frontier_destination = (
+            destination
+            if frontier == goal
+            else TravelDestination(
+                *grid.center(frontier),
+                arrival_radius=waypoint_radius,
+            )
+        )
+        destinations = [
+            TravelDestination(*grid.center(cell), arrival_radius=waypoint_radius)
+            for cell in smoothed[1:-1]
+        ]
+        destinations.append(frontier_destination)
+        return AStarRoute(
+            cells=smoothed,
+            destinations=tuple(destinations),
+            expanded_cells=expanded,
+            total_cost=total_cost,
+        )
+
     def _search(
         self,
         grid: NavigationCostGrid,
         start: NavigationCell,
         goal: NavigationCell,
+        *,
+        allow_partial: bool = False,
     ) -> tuple[tuple[NavigationCell, ...], int, float]:
         if start in grid.blocked or goal in grid.blocked:
             raise AStarRouteNotFound("A* endpoint is blocked")
@@ -347,18 +447,44 @@ class WeightedAStarPlanner:
         came_from: dict[NavigationCell, NavigationCell] = {}
         cost_so_far = {start: 0.0}
         expanded = 0
+        closest = start
+        closest_heuristic = self._heuristic(start, goal)
+        boundary_frontier: NavigationCell | None = None
+        boundary_key: tuple[float, float, int, int] | None = None
         while frontier:
             _, _, current = heapq.heappop(frontier)
             expanded += 1
+            current_heuristic = self._heuristic(current, goal)
+            if (
+                current_heuristic < closest_heuristic
+                or (
+                    current_heuristic == closest_heuristic
+                    and cost_so_far[current] < cost_so_far[closest]
+                )
+            ):
+                closest = current
+                closest_heuristic = current_heuristic
+            if current != start and self._is_boundary_cell(grid, current):
+                candidate_key = (
+                    current_heuristic,
+                    cost_so_far[current],
+                    current.x,
+                    current.y,
+                )
+                if boundary_key is None or candidate_key < boundary_key:
+                    boundary_frontier = current
+                    boundary_key = candidate_key
             if expanded > self._config.maximum_expansions:
+                partial = boundary_frontier or (closest if closest != start else None)
+                if allow_partial and partial is not None:
+                    return (
+                        self._reconstruct(came_from, start, partial),
+                        expanded,
+                        cost_so_far[partial],
+                    )
                 raise AStarRouteNotFound("A* expansion budget exhausted")
             if current == goal:
-                path = [current]
-                while current != start:
-                    current = came_from[current]
-                    path.append(current)
-                path.reverse()
-                return tuple(path), expanded, cost_so_far[goal]
+                return self._reconstruct(came_from, start, current), expanded, cost_so_far[goal]
             for neighbor, step_cost in self._neighbors(grid, current):
                 new_cost = cost_so_far[current] + step_cost * grid.traversal_cost(neighbor)
                 if new_cost >= cost_so_far.get(neighbor, float("inf")):
@@ -370,7 +496,35 @@ class WeightedAStarPlanner:
                     neighbor, goal
                 )
                 heapq.heappush(frontier, (priority, order, neighbor))
+        partial = boundary_frontier or (closest if closest != start else None)
+        if allow_partial and partial is not None:
+            return (
+                self._reconstruct(came_from, start, partial),
+                expanded,
+                cost_so_far[partial],
+            )
         raise AStarRouteNotFound("A* found no route inside the planning window")
+
+    @staticmethod
+    def _is_boundary_cell(grid: NavigationCostGrid, cell: NavigationCell) -> bool:
+        return (
+            cell.x in {grid.minimum.x, grid.maximum.x}
+            or cell.y in {grid.minimum.y, grid.maximum.y}
+        )
+
+    @staticmethod
+    def _reconstruct(
+        came_from: dict[NavigationCell, NavigationCell],
+        start: NavigationCell,
+        endpoint: NavigationCell,
+    ) -> tuple[NavigationCell, ...]:
+        path = [endpoint]
+        current = endpoint
+        while current != start:
+            current = came_from[current]
+            path.append(current)
+        path.reverse()
+        return tuple(path)
 
     @staticmethod
     def _neighbors(

@@ -1,0 +1,5 @@
+LIBRARY "wonderbane-extension"
+
+EXPORTS
+    WonderBaneExtensionInitialize=_WonderBaneExtensionInitialize@0
+    WonderBaneExtensionGetStatus=_WonderBaneExtensionGetStatus@4

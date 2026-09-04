@@ -1,5 +1,6 @@
 """Scenario rollouts and deterministic baseline policies."""
 
+from shadowbane_lab.rollouts.builds import progression_build
 from shadowbane_lab.rollouts.duel import (
     ActionCount,
     CombatantConfig,
@@ -16,7 +17,6 @@ from shadowbane_lab.rollouts.duel import (
     VerifiedDuelConfig,
     VerifiedDuelResult,
     matched_progression_duels,
-    progression_build,
     progression_duel_matrix,
     run_duel,
     run_verified_duel,
@@ -43,11 +43,16 @@ from shadowbane_lab.rollouts.open_builds import (
 )
 from shadowbane_lab.rollouts.presets import (
     CombatantPreset,
+    WonderBaneDruidMatchupCell,
     WonderBaneMatchupCell,
     wonderbane_deflock,
+    wonderbane_deflock_vs_druid,
+    wonderbane_druid_matchup_matrix,
+    wonderbane_elf_healer_druid,
     wonderbane_sundancer_deflock_matrix,
     wonderbane_sundancer_proc_assassin,
     wonderbane_sundancer_vs_deflock,
+    wonderbane_sundancer_vs_druid,
 )
 from shadowbane_lab.rollouts.pure_pve import (
     CountBucket,
@@ -59,6 +64,7 @@ from shadowbane_lab.rollouts.pure_pve import (
 )
 from shadowbane_lab.rollouts.ruleset import (
     load_assassin_warlock_duel_ruleset,
+    load_wonderbane_guide_duel_ruleset,
     progression_milestones,
 )
 from shadowbane_lab.rollouts.smart_camp import (
@@ -114,12 +120,14 @@ __all__ = [
     "VerifiedDuelConfig",
     "VerifiedDuelResult",
     "WonderBaneMatchupCell",
+    "WonderBaneDruidMatchupCell",
     "apply_pve_combat_calibration",
     "generate_primitive_loadouts",
     "matched_progression_duels",
     "frost_walker_observed_config",
     "irekei_proc_assassin_smart_camp_config",
     "load_assassin_warlock_duel_ruleset",
+    "load_wonderbane_guide_duel_ruleset",
     "load_open_roster",
     "load_open_roster_text",
     "progression_milestones",
@@ -137,7 +145,11 @@ __all__ = [
     "run_smart_camp",
     "run_smart_camp_batch",
     "wonderbane_deflock",
+    "wonderbane_deflock_vs_druid",
+    "wonderbane_druid_matchup_matrix",
+    "wonderbane_elf_healer_druid",
     "wonderbane_sundancer_deflock_matrix",
     "wonderbane_sundancer_proc_assassin",
+    "wonderbane_sundancer_vs_druid",
     "wonderbane_sundancer_vs_deflock",
 ]

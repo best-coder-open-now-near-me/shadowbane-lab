@@ -53,7 +53,7 @@
       box-shadow: var(--shadow);
     }
     .toolbar { display: flex; flex-wrap: wrap; gap: .65rem; padding: .9rem; border-radius: .9rem; }
-    .summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 1rem 0; border-radius: .9rem; overflow: hidden; }
+    .summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 1rem 0; border-radius: .9rem; overflow: hidden; }
     .metric { padding: .85rem 1rem; border-right: 1px solid var(--line); }
     .metric:last-child { border-right: 0; }
     .metric span { display: block; color: var(--muted); font-size: .74rem; text-transform: uppercase; letter-spacing: .09em; }
@@ -107,6 +107,7 @@
 
     <section class="summary" aria-label="Manager summary">
       <div class="metric"><span>Open</span><strong id="open-count">—</strong></div>
+      <div class="metric"><span>Provisioned</span><strong id="configured-count">—</strong></div>
       <div class="metric"><span>Dispatch ready</span><strong id="dispatch-ready-count">—</strong></div>
       <div class="metric"><span>Updated</span><strong id="updated-at">—</strong></div>
     </section>
@@ -128,11 +129,17 @@
       const slotsElement = document.getElementById("slots");
       const nodeElement = document.getElementById("node-id");
       const openElement = document.getElementById("open-count");
+      const configuredElement = document.getElementById("configured-count");
       const dispatchReadyElement = document.getElementById("dispatch-ready-count");
       const updatedElement = document.getElementById("updated-at");
       const addClientButton = document.getElementById("add-client");
+      const refreshButton = document.getElementById("refresh");
       const statusPollMilliseconds = 2000;
       let statusRequest = null;
+      let managerConnected = false;
+      let disconnectedOnce = false;
+      addClientButton.disabled = true;
+      refreshButton.disabled = true;
 
       const request = async (path, options = {}) => {
         const headers = new Headers(options.headers || {});
@@ -316,12 +323,16 @@
       };
 
       const render = (status) => {
+        const reconnected = disconnectedOnce && !managerConnected;
+        managerConnected = true;
+        app.classList.remove("stale");
         const slots = Array.isArray(status.slots) ? status.slots : [];
         nodeElement.textContent = text(status.node_id);
         openElement.textContent = text(
           status.open_count ?? slots.filter((slot) => Boolean(rememberedInstanceFor(slot))).length,
           "0"
         );
+        configuredElement.textContent = text(status.configured_count, "0");
         dispatchReadyElement.textContent = text(
           status.dispatch_ready_count ?? slots.filter((slot) => slot?.dispatch_enabled === true).length,
           "0"
@@ -330,6 +341,10 @@
           ? new Date(status.updated_at).toLocaleTimeString()
           : new Date().toLocaleTimeString();
         addClientButton.disabled = status.can_add_client === false;
+        refreshButton.disabled = false;
+        addClientButton.title = status.can_add_client === false
+          ? text(status.add_client_detail, "No additional client can be added.")
+          : "Launch a provisioned client or publish a fresh isolated runtime.";
         slotsElement.replaceChildren(...slots.map(renderSlot));
         if (!slots.length) {
           const empty = document.createElement("div");
@@ -337,7 +352,9 @@
           empty.textContent = "No Shadowbane clients are open.";
           slotsElement.append(empty);
         }
-        notice.textContent = "Manager status is current.";
+        notice.textContent = reconnected
+          ? "Reconnected to the current manager. Controls are live again."
+          : "Manager status is current.";
         notice.className = "notice";
       };
 
@@ -355,8 +372,16 @@
       };
 
       const reportStatusError = (error) => {
+        managerConnected = false;
+        disconnectedOnce = true;
+        app.classList.add("stale");
+        addClientButton.disabled = true;
+        refreshButton.disabled = true;
+        slotsElement.querySelectorAll("button").forEach((button) => {
+          button.disabled = true;
+        });
         notice.textContent = error instanceof TypeError
-          ? "The local manager is no longer reachable. Start WonderBane Control Center and use the newly opened dashboard."
+          ? "The local manager is restarting or unavailable. Controls are disabled; this dashboard will reconnect automatically."
           : error.message;
         notice.className = "notice error";
       };
@@ -369,7 +394,9 @@
       const execute = async (body) => {
         app.classList.add("busy");
         try {
-          notice.textContent = `Running ${body.action}…`;
+          notice.textContent = body.action === "add-client"
+            ? "Provisioning if needed, then launching a client…"
+            : `Running ${body.action}…`;
           notice.className = "notice";
           await request("/api/v1/actions", {
             method: "POST",
@@ -379,17 +406,19 @@
           if (statusRequest) await statusRequest.catch(() => {});
           await loadStatus();
         } catch (error) {
-          notice.textContent = error instanceof TypeError
-            ? "The local manager is no longer reachable. Start WonderBane Control Center and use the newly opened dashboard."
-            : error.message;
-          notice.className = "notice error";
+          if (error instanceof TypeError || error?.status === 401) {
+            reportStatusError(error);
+          } else {
+            notice.textContent = error.message;
+            notice.className = "notice error";
+          }
         } finally {
           app.classList.remove("busy");
         }
       };
 
       addClientButton.addEventListener("click", () => execute({ action: "add-client" }));
-      document.getElementById("refresh").addEventListener("click", () => execute({ action: "refresh" }));
+      refreshButton.addEventListener("click", () => execute({ action: "refresh" }));
 
       document.addEventListener("visibilitychange", pollStatus);
       window.setInterval(pollStatus, statusPollMilliseconds);

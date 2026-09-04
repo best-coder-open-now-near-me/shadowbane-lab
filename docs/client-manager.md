@@ -83,8 +83,15 @@ embedding either in this file.
 
 `launch.environment` is optional and intentionally narrower than a general process environment.
 It accepts only the reviewed Mesa variables used by the WonderBane invisible-text compatibility
-launcher: software rendering through `llvmpipe`, the `2001` extension ceiling, and explicit
-removal of the GL/GLSL version overrides. PATH changes, credentials, arbitrary renderer settings,
+launcher plus the extension's bounded profiles: software rendering through `llvmpipe`, the
+`2001` extension ceiling, explicit removal of the GL/GLSL version overrides, `native`, `flat`, or
+`outlined` cel rendering, and `off`, `frame`, or `full` performance telemetry.
+`GALLIUM_DRIVER` and `LIBGL_ALWAYS_SOFTWARE` also accept explicit
+`null` removal for a reviewed system-OpenGL package; this prevents inherited software-renderer
+overrides from defeating that package boundary. The VM installer selects `flat` and `frame`, so
+software rendering does not redraw eligible scene geometry for silhouettes and ordinary gameplay
+does not install the twenty cache/read/upload diagnostic hooks. `full` is reserved for bounded
+diagnostic launches. PATH changes, credentials, arbitrary renderer settings,
 and every other variable are rejected. The manager merges accepted settings into a fresh copy of
 its own environment immediately before the direct launch.
 
@@ -116,10 +123,15 @@ For the standard WonderBane VM, the supported logon installer generates the loca
 retains the Mesa text fix, starts the command listener, and opens this dashboard without requiring
 an interactive terminal. See [VM setup](vm-setup.md#install-the-vm-control-center-at-logon).
 
-The dashboard presents running instances rather than exposing its internal slot capacity. Use
-**Add client** to launch another instance; the manager expands its hidden capacity transactionally
-when no free internal slot remains. The reviewed configurator remains available for an explicit
-offline capacity/layout change:
+The dashboard presents running instances and the number of provisioned runtimes. Use **Add client**
+to launch another instance into a free slot. When every isolated slot is occupied, the same action
+publishes one fresh guest-local runtime from the verified frozen baseline and pinned deployment
+inputs, preserves every live binding, atomically expands the manager manifest, and then launches the
+new slot. It never clones an occupied runtime directory. A failure before the manifest commit removes
+only the unpublished runtime; a launch failure after commit leaves the clean slot available to retry.
+
+The legacy reviewed configurator remains available for an explicit offline capacity/layout change
+on tiled, single-runtime test manifests:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
@@ -130,20 +142,77 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
 
 This only expands; it never silently deletes slots. Existing launch/process configuration is
 preserved, new slots clone the first reviewed launch configuration, all slots receive unique grid
-tiles, and the original JSON is retained beside the manifest as a timestamped backup. Re-running
-the VM installer preserves the existing manifest unless `-ClientCount` is explicitly supplied.
+tiles, and the original JSON is retained beside the manifest as a timestamped backup. It refuses
+tile-less isolated-runtime manifests because cloning their first launch directory would recreate
+shared mutable `Config`, `Logs`, `DoubleFusion`, and cache state.
+
+`configure-build` is a single-slot operation. It refuses a multi-slot manifest because one client
+directory is not a safe multibox runtime. With the game client closed, verify the published package
+immediately before retargeting a single-slot test manifest:
+
+```powershell
+$env:PYTHONPATH = "\\VBOXSVR\codexrepo\src"
+& "$env:USERPROFILE\shadowbane-lab\.venv\Scripts\python.exe" `
+  -m shadowbane_lab.client_extension verify-copy `
+  "\\VBOXSVR\codexdiag\client-extension-working\wonderbane-1.0.5-world-map-click-v1" `
+  --pretty
+
+& "$env:USERPROFILE\shadowbane-lab\.venv\Scripts\python.exe" `
+  -m shadowbane_lab.cli manager configure-build `
+  "$env:LOCALAPPDATA\ShadowbaneLab\client-manager.json" `
+  "\\VBOXSVR\codexdiag\client-extension-working\wonderbane-1.0.5-world-map-click-v1" `
+  --apply --json
+```
+
+For multi-client operation, freeze the reviewed vanilla source and publish one verified copy per
+slot in a single deployment transaction:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
+  \\VBOXSVR\codexrepo\scripts\install-wonderbane-isolated-runtimes.ps1 `
+  -ClientCount 2 `
+  -StartNow
+```
+
+The installer pins both the official `sb.exe` and unmodified `Textures.cache`, rejects extension
+residue in the vanilla source, freezes the complete baseline under local app data, and publishes
+each slot beneath a versioned guest-local deployment. It rereads every package before atomically
+replacing the manager manifest and retains the original JSON as a timestamped backup. No game
+client, baseline, or runtime is executed from a VirtualBox shared folder. Each deployment retains a
+hash-pinned local copy of its bootstrap manifest and extension artifact so later **Add client**
+actions do not depend on a mutable share or a running client tree.
+
+Every isolated slot launches with the calibrated `-windowed -resolution 1920x955` contract and no
+`window_tile`. Shadowbane retains its launch-time render surface when Win32 resizes its outer
+window, so grid tiling clips instead of scaling. Full-size windows therefore overlap and the
+manager focuses the selected exact instance; a smaller layout requires a separately observed and
+validated calibration rather than a guessed coordinate scale.
 
 `--live` is mandatory because reviewed dashboard actions can launch, tile, or request a graceful
-close. Opening the app never starts a client automatically. The terminal prints a per-run URL
-and normally opens it in the default browser; use `--no-browser` to print it only. The control
-token lives in the URL fragment, is removed from the visible address after page load, is kept
-only in page memory, and is required as a bearer token for every status or action request.
+close. Opening the app never starts a client automatically. The standard VM runner binds the
+dashboard to fixed loopback port `52739` and keeps one random 256-bit token in
+`%LOCALAPPDATA%\ShadowbaneLab\dashboard.token`. The token is inherited from the current user's
+local profile rather than exposed as a process argument. It enters the browser in the URL
+fragment, is removed from the visible address after page load, remains only in page memory there,
+and is required as a bearer token for every status or action request.
+
+The stable loopback origin and token let an already-open dashboard reconnect after a guarded
+manager restart. While the listener is absent, the page visibly disables every operation and
+continues read-only status polling; controls return only after the current manager answers. Running
+the standard control-center launcher while its exact manager is already alive opens another
+authenticated view of that same runtime. `--no-browser` suppresses browser launch.
 
 The server binds only to IPv4 loopback (`127.0.0.1`), does not enable CORS, rejects unreviewed
 routes and request shapes, caps action bodies, bounds concurrent request workers, enforces short
 header/body deadlines, suppresses request logging, and sends restrictive CSP, frame, cache,
 content-type, and referrer headers. It is intentionally not a cross-PC control plane. Run one app
 on each PC.
+
+The same `/api/v1/status` response includes an `extension` record for every slot. It resolves only
+the heartbeat whose PID and process-creation FILETIME match the current exact client binding;
+heartbeats from earlier launches are ignored. `initialized` is the only ready state. Missing,
+malformed, mismatched, unbound, and unconfigured states remain explicit and do not become native
+capability authority.
 
 The dashboard shows open instances, exact bindings, and worker health. It refreshes health every
 two seconds while visible, adopts safely identified clients that were already open, and archives
@@ -257,8 +326,13 @@ launching the new exact host.
 
 The existing `/go` and `/pve` chat listener is a node-level guarded operator service, not a per-slot
 worker. It keeps separate singleton ownership because physical chat input belongs to whichever game
-window is foreground. It must not be duplicated once per client. The next automation boundary is
-to route its accepted operation into the already-running exact worker for that foreground client.
+window is foreground. It must not be duplicated once per client. The listener also owns one
+renewable extension-event consumer lease per visible exact client lifetime. A current world-map
+destination event is converted into deterministic stop and travel operations for that event's PID,
+process-creation FILETIME, and HWND even if focus changes after capture. Reused PIDs, rebound HWNDs,
+stale events, unavailable workers, and competing consumers fail closed; an event is acknowledged
+only after its immutable operations are accepted by the node-local ledger. Operation state and the
+worker receipt remain visible through the same `/api/v1/status` response as chat-originated work.
 
 ## Multi-PC boundary
 

@@ -145,7 +145,13 @@ class _OperationStopSignal:
             )
         except (OSError, RuntimeError, ValueError):
             return True
-        return any(operation.kind is WorkerOperationKind.STOP for operation in pending)
+        return any(
+            operation.kind in {
+                WorkerOperationKind.CANCEL,
+                WorkerOperationKind.STOP,
+            }
+            for operation in pending
+        )
 
 
 @dataclass(slots=True)

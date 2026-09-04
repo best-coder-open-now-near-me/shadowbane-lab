@@ -1,0 +1,92 @@
+{
+  "approved_source": {
+    "generator": {
+      "byte_length": 10817,
+      "original_path": "artifacts/tools/render_cel_candidates.py",
+      "sha256": "ffc6df568cd7993c79285e1d7ccb392c8597487a8d5add40a48c4a42cec00795"
+    },
+    "label": "RESTRAINED CEL",
+    "report": {
+      "byte_length": 12977,
+      "original_path": "artifacts/mesh-candidates/cel-renders/cel-candidates-report.json",
+      "sha256": "3ccea5994d37786ae1e2d3b11c3390d2d5aef81cb9b9d4311d1c9df4c7c32091"
+    },
+    "variant": "cel_subtle",
+    "visual_reference": {
+      "path": "evidence/graphics/restrained-cel-v1/target-comparison.png",
+      "sha256": "d15dbc488030a17b2d55aec19a4c61d101e277171989099e466f55292d490d27"
+    }
+  },
+  "render_reference": {
+    "color_bands": [
+      {
+        "color": [0.23, 0.24, 0.26],
+        "upper_bound_exclusive": 0.22
+      },
+      {
+        "color": [0.54, 0.58, 0.65],
+        "upper_bound_exclusive": 0.43
+      },
+      {
+        "color": [0.78, 0.81, 0.84],
+        "upper_bound_exclusive": 0.66
+      },
+      {
+        "color": [1.0, 0.99, 0.95],
+        "upper_bound_exclusive": null
+      }
+    ],
+    "light": {
+      "angle_radians": 0.14,
+      "energy": 1.15,
+      "type": "sun"
+    },
+    "outline": {
+      "color": [0.0, 0.0, 0.0],
+      "edge_types": [
+        "silhouette",
+        "border",
+        "crease",
+        "contour",
+        "external_contour"
+      ],
+      "material_boundary": false,
+      "suggestive_contour": false,
+      "thickness_pixels": 1.35
+    },
+    "samples": [
+      {
+        "atlas_path": "assets/wonderbane_graphics/restrained-cel-v1/shadowbane-beast-1706016-basecolor-hand-grade-sigmoid-claws.png",
+        "atlas_sha256": "9ee9e5f01b97ea41c31062c0b094940a2aa1ca454a0fce2796b158e3300ac59c",
+        "mesh_resource_id": 1706016,
+        "preview_exposure_ev": 2.0,
+        "texture_resource_id": 1706002
+      },
+      {
+        "atlas_path": "assets/wonderbane_graphics/restrained-cel-v1/13306_5000191-accent-final.png",
+        "atlas_sha256": "6dbddd6ee597e1da276dcacb52f9ae72908c053c5f8e5b658f7de453e915c61a",
+        "mesh_resource_id": 5000191,
+        "preview_exposure_ev": 1.0,
+        "texture_resource_id": 5000190
+      }
+    ]
+  },
+  "runtime_translation": {
+    "band_source": "compatibility vertex program using the client's original mesh normals with derivative-aware transition filtering, subpixel highlight compression, and a gamma-compressed client vertex-light tint",
+    "depth_edge_composite_boundary": "first orthographic or recognized unlit planar overlay draw after perspective depth-writing scene geometry",
+    "depth_edge_radius_pixels": 1.0,
+    "depth_edge_source": "five-sample default-framebuffer inverse-eye-depth curvature; planar perspective slopes and the farther side of finite-depth discontinuities are rejected while nearer-side silhouettes and contact seams remain",
+    "extension_version": "1.6.1",
+    "fog_modes_preserved": ["linear", "exp", "exp2"],
+    "fragment_program": "GLSL 1.20 compatibility fragment program preserving texture environment and fog",
+    "live_controls": "a versioned 256-byte per-process shared-memory control block is consumed atomically at SwapBuffers; PID plus process creation time binds every update to one exact client, malformed or partial snapshots are rejected, and desired/applied/rejected sequences are published in graphics status",
+    "outline_translation": "single-owner nearer-side screen-space depth discontinuities provide fixed one-pixel silhouettes and contact seams; optional destination-aware blending adds a restrained colored rim to dark destination pixels while retaining dark ink over bright pixels without a framebuffer color copy; geometry crease and open-boundary accents remain dark and fixed-width, including opaque lit equipment layers that preserve rather than write scene depth",
+    "per_model_preview_exposure": "reference-only; not applied at runtime",
+    "texture_manifest_path": "assets/wonderbane_graphics/restrained-cel-v1/texture-patches.json",
+    "texture_patch_id": "wonderbane-1.0.5-55fbad5f.restrained-cel-v1",
+    "unsupported_state_behavior": "preserve the client's original fill; orthographic UI and unlit/unfogged planar textured alpha/blend overlays submitted by display lists or vertex arrays are drawn after the depth-edge composite and excluded from cel lighting and feature accents",
+    "vertex_processing": "GLSL 1.20 compatibility vertex program preserves client transforms and texture coordinates while deriving one-sun cel intensity from original normals; display-list, array, and immediate-mode terrain submissions share the same band policy"
+  },
+  "schema_version": 1,
+  "target_id": "wonderbane-55fb-restrained-cel-v1"
+}

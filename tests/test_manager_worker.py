@@ -3,6 +3,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from shadowbane_lab.manager.manifest import parse_manager_manifest
 from shadowbane_lab.manager.supervisor import ProcessLifetimeSnapshot
@@ -146,6 +147,37 @@ class ManagerWorkerTests(unittest.TestCase):
         )
         self.assertTrue(gate.allows_dispatch())
         self.assertFalse(gate.is_set())
+
+    def test_worker_record_replace_retries_transient_reader_lock(self) -> None:
+        self.ledger.publish(_heartbeat())
+        original_replace = Path.replace
+        attempts = 0
+
+        def intermittently_locked(source: Path, target: Path) -> Path:
+            nonlocal attempts
+            if source.name.startswith(".dispatch."):
+                attempts += 1
+                if attempts < 3:
+                    raise PermissionError(13, "record is transiently locked", str(target))
+            return original_replace(source, target)
+
+        with (
+            patch.object(Path, "replace", intermittently_locked),
+            patch("shadowbane_lab.manager.worker.sleep") as retry_sleep,
+        ):
+            health = self._supervisor().inspect(
+                CLIENT_ID,
+                instance_id=INSTANCE_ID,
+                lifecycle_dispatch_enabled=True,
+            )
+
+        self.assertTrue(health.dispatch_allowed)
+        self.assertEqual(3, attempts)
+        self.assertEqual([0.01, 0.02], [call.args[0] for call in retry_sleep.call_args_list])
+        permit = self.ledger.inspect_permit(CLIENT_ID)
+        self.assertIsNotNone(permit)
+        assert permit is not None
+        self.assertTrue(permit.allowed)
 
     def test_lifecycle_pause_blocks_dispatch_without_hiding_worker_health(self) -> None:
         self.ledger.publish(_heartbeat())

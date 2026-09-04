@@ -1,0 +1,105 @@
+{
+  "environment_id": "wonderbane-vm-1920x955",
+  "minimum_repetitions": 10,
+  "scenarios": [
+    {
+      "command": [
+        "python",
+        "-m",
+        "shadowbane_lab.runtime_consistency.manager_health_probe"
+      ],
+      "counter_policies": {
+        "active_operation_count": {
+          "maximum_increase": 0,
+          "maximum_value": 0,
+          "severity": "failure"
+        },
+        "candidate_count": {
+          "maximum_increase": 0,
+          "maximum_value": 0,
+          "severity": "failure"
+        },
+        "event_dropped_count": {
+          "maximum_increase": 0,
+          "maximum_value": 0,
+          "severity": "failure"
+        },
+        "event_pending_count": {
+          "maximum_increase": 0,
+          "maximum_value": 0,
+          "severity": "failure"
+        },
+        "event_producer_error_count": {
+          "maximum_increase": 0,
+          "maximum_value": 0,
+          "severity": "failure"
+        },
+        "queued_operation_count": {
+          "maximum_increase": 0,
+          "maximum_value": 0,
+          "severity": "failure"
+        },
+        "rejected_window_count": {
+          "maximum_increase": 0,
+          "maximum_value": 0,
+          "severity": "failure"
+        },
+        "worker_issue_count": {
+          "maximum_increase": 0,
+          "maximum_value": 0,
+          "severity": "failure"
+        }
+      },
+      "metric_policies": {
+        "manager_status_latency_ms": {
+          "absolute_tolerance": 50.0,
+          "direction": "increase",
+          "mad_multiplier": 6.0,
+          "relative_tolerance": 0.5,
+          "severity": "warning"
+        },
+        "pipeline.wall_duration_ms": {
+          "absolute_tolerance": 100.0,
+          "direction": "increase",
+          "mad_multiplier": 6.0,
+          "relative_tolerance": 0.5,
+          "severity": "warning"
+        },
+        "process_handle_count": {
+          "absolute_tolerance": 25.0,
+          "direction": "increase",
+          "mad_multiplier": 6.0,
+          "relative_tolerance": 0.25,
+          "severity": "warning"
+        },
+        "process_private_bytes": {
+          "absolute_tolerance": 67108864.0,
+          "direction": "increase",
+          "mad_multiplier": 6.0,
+          "relative_tolerance": 0.25,
+          "severity": "warning"
+        },
+        "process_working_set_bytes": {
+          "absolute_tolerance": 67108864.0,
+          "direction": "increase",
+          "mad_multiplier": 6.0,
+          "relative_tolerance": 0.25,
+          "severity": "warning"
+        },
+        "worker_heartbeat_age_seconds": {
+          "absolute_tolerance": 1.5,
+          "direction": "increase",
+          "mad_multiplier": 6.0,
+          "relative_tolerance": 0.5,
+          "severity": "failure"
+        }
+      },
+      "scenario_id": "manager-health",
+      "slot_scope": "all",
+      "timeout_seconds": 10.0
+    }
+  ],
+  "schema_version": 1,
+  "suite_id": "wonderbane-runtime-consistency",
+  "suite_revision": "2026-08-31.1"
+}

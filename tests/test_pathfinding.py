@@ -118,6 +118,30 @@ class WeightedAStarTests(unittest.TestCase):
         self.assertNotIn(NavigationCell(2, 0), route.cells)
         self.assertGreater(len(route.destinations), 1)
 
+    def test_partial_route_uses_reachable_window_edge_beside_complete_barrier(self) -> None:
+        navigation = SparseNavigationMap(cell_size=10.0)
+        for y in range(-2, 3):
+            navigation.mark_blocked(NavigationCell(3, y))
+        planner = WeightedAStarPlanner(
+            WeightedAStarConfig(
+                planning_margin_cells=2,
+                obstacle_clearance_cells=0,
+            )
+        )
+
+        route = planner.plan_reachable_frontier(
+            navigation,
+            start_lt=5.0,
+            start_lg=5.0,
+            destination=TravelDestination(65.0, 5.0, 5.0),
+        )
+
+        self.assertEqual(2, route.cells[-1].x)
+        self.assertEqual(2, abs(route.cells[-1].y))
+        self.assertEqual(25.0, route.destinations[-1].lt)
+        self.assertEqual(15.0, abs(route.destinations[-1].lg))
+        self.assertTrue(all(cell.x < 3 for cell in route.cells))
+
 
 if __name__ == "__main__":
     unittest.main()

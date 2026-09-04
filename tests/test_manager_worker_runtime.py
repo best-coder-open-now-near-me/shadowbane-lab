@@ -4,6 +4,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from shadowbane_lab.client_input import WindowBounds
@@ -30,6 +31,7 @@ from shadowbane_lab.manager import (
     new_worker_operation,
     parse_manager_manifest,
 )
+from shadowbane_lab.manager.worker_runtime import _OperationStopSignal
 
 NODE_ID = "gaming-pc-east"
 CLIENT_ID = "client-01"
@@ -160,6 +162,22 @@ def _heartbeat(*, instance_id: str, observed_at: float = 100.0) -> WorkerHeartbe
 
 
 class ExactClientWorkerRuntimeTests(unittest.TestCase):
+    def test_internal_cancel_interrupts_active_engine_operation(self) -> None:
+        class PendingCancellationLedger:
+            def pending_for(self, **_kwargs):
+                return (SimpleNamespace(kind=WorkerOperationKind.CANCEL),)
+
+        signal = _OperationStopSignal(
+            _StopSignal(),
+            PendingCancellationLedger(),
+            ExactClientWorkerBinding.from_client(CLIENT_ID, _client()),
+            WORKER_ID,
+            WORKER_PROCESS_ID,
+            WORKER_PROCESS_STARTED,
+        )
+
+        self.assertTrue(signal.is_set())
+
     def test_runtime_publishes_ready_only_while_exact_game_identity_exists(self) -> None:
         manifest = _manifest()
         client = _client()

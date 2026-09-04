@@ -6,6 +6,24 @@ from shadowbane_lab.pve.approach import (
     PvEApproachStatus,
     PvEApproachUpdate,
 )
+from shadowbane_lab.pve.authority import (
+    PvETargetAuthorityDecision,
+    PvETargetAuthorityEvaluator,
+    PvETargetAuthorityEvidence,
+    PvETargetAuthorityExclusion,
+    PvETargetCharacterKind,
+    StaticPvETargetAuthorityEvaluator,
+    evaluate_pve_target_authority,
+)
+from shadowbane_lab.pve.authority_snapshot import (
+    PvEAuthorityCharacterRecord,
+    PvETargetAuthoritySnapshot,
+    SnapshotPvETargetAuthorityEvaluator,
+)
+from shadowbane_lab.pve.authority_trace import (
+    PvEAuthorityRunTraceStep,
+    PvERunner,
+)
 from shadowbane_lab.pve.calibration import (
     PVE_COMBAT_CALIBRATION_SCHEMA_VERSION,
     ObservedSampleSummary,
@@ -16,7 +34,6 @@ from shadowbane_lab.pve.calibration import (
     load_pve_combat_calibration,
     save_pve_combat_calibration,
 )
-from shadowbane_lab.pve.controller import PvEController
 from shadowbane_lab.pve.evidence import (
     PVE_TRACE_JOURNAL_SCHEMA_VERSION,
     PVE_TRACE_SCHEMA_VERSION,
@@ -25,6 +42,11 @@ from shadowbane_lab.pve.evidence import (
     load_pve_trace_evidence,
     save_pve_trace_evidence,
     validate_pve_trace_evidence,
+)
+from shadowbane_lab.pve.guarded_runtime import (
+    NativePvEObservationSource,
+    PvEObservationCoherenceError,
+    PvEObservationSource,
 )
 from shadowbane_lab.pve.model import (
     PvECampLease,
@@ -37,6 +59,7 @@ from shadowbane_lab.pve.model import (
     PvERunResult,
     PvERunTraceStep,
 )
+from shadowbane_lab.pve.native_actuator import NativeExtensionPvEIntentDispatcher
 from shadowbane_lab.pve.runtime import (
     ClientPvEIntentDispatcher,
     CombatLogSource,
@@ -44,51 +67,74 @@ from shadowbane_lab.pve.runtime import (
     PlayerPositionSource,
     PlayerVitalsSource,
     PvEIntentDispatcher,
-    PvERunner,
     TargetActionSource,
     TargetHealthSource,
     TargetIdentitySource,
     TargetPositionSource,
+)
+from shadowbane_lab.pve.target_authority import (
+    PvEController,
+    PvETargetAuthorityControllerDecision,
+    PvETargetRejection,
+    PvETargetRejectionReason,
 )
 
 __all__ = [
     "ClientPvEIntentDispatcher",
     "CombatLogSource",
     "EmptyCombatLogSource",
+    "NativeExtensionPvEIntentDispatcher",
+    "NativePvEObservationSource",
     "ObservedSampleSummary",
     "PVE_COMBAT_CALIBRATION_SCHEMA_VERSION",
     "PVE_TRACE_JOURNAL_SCHEMA_VERSION",
     "PVE_TRACE_SCHEMA_VERSION",
+    "PlayerPositionSource",
+    "PlayerVitalsSource",
     "PvEApproachConfig",
     "PvEApproachController",
     "PvEApproachStatus",
     "PvEApproachUpdate",
+    "PvEAuthorityCharacterRecord",
+    "PvEAuthorityRunTraceStep",
+    "PvECampLease",
     "PvECombatCalibration",
     "PvECombatCalibrationError",
-    "PvECampLease",
     "PvEController",
     "PvEControllerConfig",
     "PvEControllerDecision",
     "PvEIntent",
     "PvEIntentDispatcher",
     "PvEKillConfirmation",
-    "PlayerPositionSource",
-    "PlayerVitalsSource",
     "PvEObservation",
+    "PvEObservationCoherenceError",
+    "PvEObservationSource",
     "PvEPhase",
-    "PvETraceEvidenceError",
-    "PvETraceJournal",
     "PvERunResult",
     "PvERunTraceStep",
     "PvERunner",
+    "PvETargetAuthorityControllerDecision",
+    "PvETargetAuthorityDecision",
+    "PvETargetAuthorityEvidence",
+    "PvETargetAuthorityEvaluator",
+    "PvETargetAuthorityExclusion",
+    "PvETargetAuthoritySnapshot",
+    "PvETargetCharacterKind",
+    "PvETargetRejection",
+    "PvETargetRejectionReason",
+    "PvETraceEvidenceError",
+    "PvETraceJournal",
+    "SnapshotPvETargetAuthorityEvaluator",
+    "StaticPvETargetAuthorityEvaluator",
     "TargetActionSource",
     "TargetHealthSource",
     "TargetIdentitySource",
     "TargetPositionSource",
     "compile_pve_combat_calibration",
     "compile_pve_combat_calibration_files",
-    "load_pve_trace_evidence",
+    "evaluate_pve_target_authority",
     "load_pve_combat_calibration",
+    "load_pve_trace_evidence",
     "save_pve_combat_calibration",
     "save_pve_trace_evidence",
     "validate_pve_trace_evidence",

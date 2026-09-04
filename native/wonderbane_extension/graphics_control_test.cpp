@@ -1,0 +1,192 @@
+#include "graphics_control.h"
+
+#include <Windows.h>
+
+#include <cmath>
+#include <cstdio>
+#include <cstring>
+#include <limits>
+
+namespace {
+
+bool NearlyEqual(const float left, const float right) noexcept {
+    return std::fabs(left - right) < 0.0001F;
+}
+
+int Fail(const char* const operation) noexcept {
+    std::fprintf(stderr, "%s failed\n", operation);
+    return 1;
+}
+
+}  // namespace
+
+int main() {
+    using wonderbane::extension::CurrentGraphicsParameters;
+    using wonderbane::extension::CurrentGraphicsParametersRevision;
+    using wonderbane::extension::DefaultGraphicsParameters;
+    using wonderbane::extension::DepthContourDebugMode;
+    using wonderbane::extension::DepthContourDebugModeName;
+    using wonderbane::extension::DepthContourMode;
+    using wonderbane::extension::DepthContourModeName;
+    using wonderbane::extension::GetGraphicsControlName;
+    using wonderbane::extension::GetGraphicsControlStatus;
+    using wonderbane::extension::GraphicsControlBlockV2;
+    using wonderbane::extension::GraphicsParametersFromControlBlock;
+    using wonderbane::extension::PopulateGraphicsControlBlock;
+    using wonderbane::extension::SnapshotGraphicsParameters;
+    using wonderbane::extension::StartGraphicsControl;
+    using wonderbane::extension::StopGraphicsControl;
+    using wonderbane::extension::ValidateGraphicsParameters;
+
+    const auto defaults = DefaultGraphicsParameters();
+    if (!ValidateGraphicsParameters(defaults)
+        || (defaults.flags & wonderbane::extension::kGraphicsControlAdaptiveOutlines)
+            == 0U
+        || defaults.depth_edge_threshold != 0.055F
+        || defaults.sustained_edge_threshold != 0.055F
+        || defaults.depth_contour_mode != DepthContourMode::legacy
+        || defaults.depth_contour_debug_mode != DepthContourDebugMode::none
+        || defaults.feature_outline_width != 1.35F
+        || std::strcmp(DepthContourModeName(defaults.depth_contour_mode), "legacy") != 0
+        || std::strcmp(
+            DepthContourDebugModeName(defaults.depth_contour_debug_mode), "none"
+        ) != 0
+        || std::strcmp(
+            DepthContourDebugModeName(DepthContourDebugMode::response),
+            "response"
+        ) != 0
+        || std::strcmp(
+            DepthContourDebugModeName(DepthContourDebugMode::sustained_response),
+            "sustained-response"
+        ) != 0
+        || std::strcmp(
+            DepthContourDebugModeName(DepthContourDebugMode::support),
+            "support"
+        ) != 0
+        || std::strcmp(
+            DepthContourDebugModeName(DepthContourDebugMode::rejected),
+            "rejected"
+        ) != 0) {
+        return Fail("default parameter contract");
+    }
+    auto invalid = defaults;
+    invalid.depth_edge_threshold = std::numeric_limits<float>::quiet_NaN();
+    if (ValidateGraphicsParameters(invalid)) {
+        return Fail("non-finite rejection");
+    }
+    invalid = defaults;
+    invalid.sustained_edge_threshold = 0.0F;
+    if (ValidateGraphicsParameters(invalid)) {
+        return Fail("sustained threshold rejection");
+    }
+    invalid = defaults;
+    invalid.band_thresholds = {0.5F, 0.4F, 0.7F};
+    if (ValidateGraphicsParameters(invalid)) {
+        return Fail("ordered threshold rejection");
+    }
+    invalid = defaults;
+    invalid.flags = 0x80000000U;
+    if (ValidateGraphicsParameters(invalid)) {
+        return Fail("unknown flag rejection");
+    }
+    invalid = defaults;
+    invalid.depth_contour_mode = static_cast<DepthContourMode>(7U);
+    if (ValidateGraphicsParameters(invalid)) {
+        return Fail("unknown contour mode rejection");
+    }
+    invalid = defaults;
+    invalid.depth_contour_debug_mode = static_cast<DepthContourDebugMode>(7U);
+    if (ValidateGraphicsParameters(invalid)) {
+        return Fail("unknown contour debug rejection");
+    }
+
+    GraphicsControlBlockV2 block{};
+    PopulateGraphicsControlBlock(&block, defaults, 1234U, 0x1122334455667788ULL);
+    const auto round_trip = GraphicsParametersFromControlBlock(block);
+    if (block.magic != wonderbane::extension::kGraphicsControlMagic
+        || block.schema_version != 2U || block.structure_size != 256U
+        || block.process_creation_filetime_low != 0x55667788U
+        || block.process_creation_filetime_high != 0x11223344U
+        || block.desired_sequence != 2 || block.applied_sequence != 2
+        || block.depth_contour_mode != 0U
+        || block.depth_contour_debug_mode != 0U
+        || !NearlyEqual(
+            round_trip.dark_scene_outline[2], defaults.dark_scene_outline[2]
+        ) || !NearlyEqual(
+            round_trip.band_colors[3][0], defaults.band_colors[3][0]
+        ) || !NearlyEqual(
+            round_trip.sustained_edge_threshold,
+            defaults.sustained_edge_threshold
+        )) {
+        return Fail("control block layout round trip");
+    }
+
+    DWORD result = StartGraphicsControl();
+    if (result != ERROR_SUCCESS) {
+        return Fail("control mapping start");
+    }
+    wchar_t name[128U]{};
+    result = GetGraphicsControlName(name, std::size(name));
+    if (result != ERROR_SUCCESS
+        || wcsstr(name, L"Local\\WonderBaneGraphicsControl-") != name) {
+        StopGraphicsControl();
+        return Fail("exact control mapping name");
+    }
+    const auto control_status = GetGraphicsControlStatus();
+    if (!control_status.available || control_status.desired_sequence != 2
+        || control_status.applied_sequence != 2
+        || control_status.rejected_sequence != 0
+        || control_status.last_error != ERROR_SUCCESS) {
+        StopGraphicsControl();
+        return Fail("control status snapshot");
+    }
+    if (!ValidateGraphicsParameters(CurrentGraphicsParameters())) {
+        StopGraphicsControl();
+        return Fail("published defaults");
+    }
+    const std::uint32_t initial_revision = CurrentGraphicsParametersRevision();
+    HANDLE mapping = OpenFileMappingW(FILE_MAP_ALL_ACCESS, FALSE, name);
+    if (mapping == nullptr) {
+        StopGraphicsControl();
+        return Fail("open control mapping");
+    }
+    auto* const live_block = static_cast<GraphicsControlBlockV2*>(
+        MapViewOfFile(mapping, FILE_MAP_ALL_ACCESS, 0U, 0U, sizeof(GraphicsControlBlockV2))
+    );
+    if (live_block == nullptr) {
+        CloseHandle(mapping);
+        StopGraphicsControl();
+        return Fail("map control view");
+    }
+    InterlockedExchange(&live_block->desired_sequence, 3);
+    MemoryBarrier();
+    live_block->feature_outline_width = 1.75F;
+    live_block->sustained_edge_threshold = 0.08F;
+    live_block->depth_contour_mode = static_cast<std::uint32_t>(
+        DepthContourMode::sustained
+    );
+    live_block->depth_contour_debug_mode = static_cast<std::uint32_t>(
+        DepthContourDebugMode::rejected
+    );
+    MemoryBarrier();
+    InterlockedExchange(&live_block->desired_sequence, 4);
+    wonderbane::extension::ApplyPendingGraphicsControl();
+    const auto updated_snapshot = SnapshotGraphicsParameters();
+    const auto& updated = updated_snapshot.parameters;
+    const std::uint32_t updated_revision = updated_snapshot.revision;
+    UnmapViewOfFile(live_block);
+    CloseHandle(mapping);
+    if (updated_revision == initial_revision
+        || !NearlyEqual(updated.feature_outline_width, 1.75F)
+        || !NearlyEqual(updated.sustained_edge_threshold, 0.08F)
+        || updated.depth_contour_mode != DepthContourMode::sustained
+        || updated.depth_contour_debug_mode != DepthContourDebugMode::rejected) {
+        StopGraphicsControl();
+        return Fail("published parameter revision");
+    }
+    StopGraphicsControl();
+    if (GetGraphicsControlStatus().available) {
+        return Fail("stopped control status");
+    }
+    return 0;
+}
