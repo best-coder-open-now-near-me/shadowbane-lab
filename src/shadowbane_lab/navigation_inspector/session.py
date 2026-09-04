@@ -17,6 +17,7 @@ from shadowbane_lab.graphics_lab.control import discover_graphics_targets
 
 from .events import ContextEvent, DiagnosticEvent, MotionEvent
 from .geometry import prepare_geometry
+from .identity import loaded_module_sha256
 from .protocol import encode_frame
 from .snapshot import Collector, SourceIdentity
 from .transport import Channel, Controls, _windows_api
@@ -28,7 +29,9 @@ QUEUE_CAPACITY = 256
 def source_identity(target) -> SourceIdentity:
     revision = "unavailable"
     try:
-        metadata = json.loads(Path(__file__).with_name("build_identity.json").read_text())
+        metadata = json.loads(
+            Path(__file__).with_name("build_identity.json").read_text(encoding="utf-8")
+        )
         revision = metadata["source_revision"]
     except (OSError, ValueError, KeyError):
         pass
@@ -42,7 +45,7 @@ def source_identity(target) -> SourceIdentity:
         target.executable_sha256,
         revision,
         package_version,
-        "unavailable",
+        loaded_module_sha256(target),
     )
 
 

@@ -230,3 +230,16 @@ def test_projected_evidence_survives_expiry_but_rejects_corruption(live_mapping,
         ctypes.c_ubyte.from_address(address + HEADER.size).value ^= 1
         with pytest.raises(ValueError, match="checksum"):
             reader.read_evidence()
+
+
+def test_loaded_module_identity_uses_actual_target_and_rejects_recycled_pid(live_mapping):
+    import re
+
+    from shadowbane_lab.navigation_inspector.identity import loaded_module_sha256
+
+    identity, _address, _api = live_mapping
+    pattern = re.compile(re.escape(identity.executable_path.name), re.IGNORECASE)
+    assert loaded_module_sha256(identity, pattern) == identity.executable_sha256
+    assert loaded_module_sha256(identity) == "unavailable"
+    recycled = replace(identity, process_creation_filetime_utc=1)
+    assert loaded_module_sha256(recycled, pattern) == "unavailable"
