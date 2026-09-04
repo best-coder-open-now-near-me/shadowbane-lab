@@ -83,17 +83,24 @@ replace it blindly. A full private pre-deletion Git bundle and before/after remo
 manifests are also retained under
 `artifacts/git-cleanup/20260904T062424Z/branch-retirement/`.
 
-## Local cleanup awaiting separate approval
+## Completed local cleanup
 
-No local branch or worktree was removed in this remote deletion. There are still
-38 local branches and 30 worktrees. Automatic approval review required explicit
-local authorization beyond the approval for remote deletion.
+After explicit approval, all **29 selected local branches** were deleted and
+**12 obsolete cache-only worktrees** were removed. Local branches decreased
+from **38 to 9**, and worktrees decreased from **30 to 18**.
 
-The prepared local plan contains 29 obsolete local branch refs and 12 worktrees
-with no unique files beyond caches. Nine other obsolete checkouts contain build
-or other local artifacts and would be kept at their exact detached commits.
-Recheck every tip, dirty state, ignored file, and active-task dependency before
-executing this local plan. The streaming draft remains untouched.
+The nine selected checkouts containing artifacts remain at their exact original
+commits with detached HEADs. Their tracked trees remain clean and their ignored
+file inventories are unchanged. The existing streaming draft and reject file
+were verified byte-for-byte against the preserved copies; they are unchanged.
+Every deleted local tip is retained by the archive tag and recorded below.
+
+The remaining local branches are `main`, `codex/integrate-current-development`,
+`codex/client-convergence-v2`, `codex/client-streaming-telemetry`,
+`codex/preserve-assassin-sdr-loadout`, `codex/pve-target-authority`,
+`codex/renderer-depth-composite-recovery`, `codex/world-map-exact-dispatch`, and
+`feat/simulator-foundation`. They retain the integration review, active source,
+dirty draft, PR dependencies, and separately preserved history.
 
 `feat/simulator-foundation` remains on origin because the current
 `scripts/setup-wonderbane-vm.ps1` still uses it as its default. Retire it only
@@ -101,38 +108,41 @@ after that consumer is updated and validated. Historical workflow push filters
 naming retired branches do not recreate those branches; their names remain
 historical until the workflow itself is intentionally revised.
 
-## Prepared local retirement set
+## Deleted local refs and worktree outcomes
 
-These local actions remain pending approval; they were not performed.
+Local tips can differ from the old remote tips above. Use this table when
+restoring a local branch. Original checkout paths and exact operation outcomes
+are saved privately in `branch-retirement/plan.json`, `worktree-results.json`,
+`local-deletion-results.json`, and `final-state.json` under the recovery directory.
 
-| Local branch | Worktree disposition |
-| --- | --- |
-| `codex/client-cel-preview` | No checked-out worktree |
-| `codex/client-convergence` | No checked-out worktree |
-| `codex/client-extension-bootstrap` | No checked-out worktree |
-| `codex/client-extension-map-api` | No checked-out worktree |
-| `codex/client-streaming-diagnostics-v2` | Remove clean cache-only checkout |
-| `codex/convergence-integrity-gates` | Retain artifact checkout at exact detached commit |
-| `codex/evidence-spine` | Remove clean cache-only checkout |
-| `codex/evidence-spine-outline` | Remove clean cache-only checkout |
-| `codex/graphics-banded-lighting` | Retain artifact checkout at exact detached commit |
-| `codex/graphics-baseline-55fb` | Retain artifact checkout at exact detached commit |
-| `codex/graphics-diagnostics-client` | Remove clean cache-only checkout |
-| `codex/graphics-evidence-integration` | Retain artifact checkout at exact detached commit |
-| `codex/integrate-preserved-features` | Retain artifact checkout at exact detached commit |
-| `codex/integrate-preserved-simulator` | Remove clean cache-only checkout |
-| `codex/integrate-pvp-current-client-data` | Remove clean cache-only checkout |
-| `codex/manager-permit-retry` | Retain artifact checkout at exact detached commit |
-| `codex/modularize-cli` | Remove clean cache-only checkout |
-| `codex/non-render-refactor` | Remove clean cache-only checkout |
-| `codex/non-render-refactor-v2` | No checked-out worktree |
-| `codex/patch-align-55fb` | Retain artifact checkout at exact detached commit |
-| `codex/portable-vanilla-diagnostics` | Remove clean cache-only checkout |
-| `codex/product-convergence` | No checked-out worktree |
-| `codex/pvp-current-client-data` | Retain artifact checkout at exact detached commit |
-| `codex/renderer-diagnostics-integration` | Remove clean cache-only checkout |
-| `codex/vanilla-diagnostics-release` | Remove clean cache-only checkout |
-| `codex/vendor-dialog-diagnostics` | No checked-out worktree |
-| `codex/window-manager` | Retain artifact checkout at exact detached commit |
-| `codex/worker-supervision` | Remove clean cache-only checkout |
-| `codex/wreck-texture-cache-swap` | No checked-out worktree |
+| Deleted local branch | Retained local commit | Worktree outcome |
+| --- | --- | --- |
+| `codex/client-cel-preview` | `7e62365ee5bd4c76397bd111ea9c959e647d074e` | No checked-out worktree |
+| `codex/client-convergence` | `6204c7d29841b6425deed6e6b3c720cde38c5a02` | No checked-out worktree |
+| `codex/client-extension-bootstrap` | `e78f3ed1982631fd6945f262121516f07546ca2f` | No checked-out worktree |
+| `codex/client-extension-map-api` | `0670de6176826464470625047f2d0648a054d2d2` | No checked-out worktree |
+| `codex/client-streaming-diagnostics-v2` | `4b047c9333ee8a2c6a7580480a9e7e58f001e709` | Removed clean cache-only checkout |
+| `codex/convergence-integrity-gates` | `a7595444504ef4effa28efe4b97c65a4e8bf3839` | Kept artifact checkout detached at same commit |
+| `codex/evidence-spine` | `8ee3d2c0d81b538d569d6bf95ddd930aed4f6ba3` | Removed clean cache-only checkout |
+| `codex/evidence-spine-outline` | `99fff9396c267874388650f9f8b752f6cec971f2` | Removed clean cache-only checkout |
+| `codex/graphics-banded-lighting` | `de9367f18a70231740f1f44adefa8458c7df795d` | Kept artifact checkout detached at same commit |
+| `codex/graphics-baseline-55fb` | `de9367f18a70231740f1f44adefa8458c7df795d` | Kept artifact checkout detached at same commit |
+| `codex/graphics-diagnostics-client` | `89cefb0fc57f354ab089c4af374b797ceeeeac8e` | Removed clean cache-only checkout |
+| `codex/graphics-evidence-integration` | `d58221cacaf30af13d716cd988d3eb39fb06686e` | Kept artifact checkout detached at same commit |
+| `codex/integrate-preserved-features` | `43be8c9050faff57f5748b8eb74cfe255d22a12c` | Kept artifact checkout detached at same commit |
+| `codex/integrate-preserved-simulator` | `db7dd16dcd255305f60f53a49d1c1580db94383d` | Removed clean cache-only checkout |
+| `codex/integrate-pvp-current-client-data` | `0d55095deaf5fa2eecdd95493ef86168bc9285ce` | Removed clean cache-only checkout |
+| `codex/manager-permit-retry` | `015e099a81c2968b880ef7e19cc40c0b4c473677` | Kept artifact checkout detached at same commit |
+| `codex/modularize-cli` | `900955fb845606014e55b1e818c8c3a58811c6cf` | Removed clean cache-only checkout |
+| `codex/non-render-refactor` | `43be8c9050faff57f5748b8eb74cfe255d22a12c` | Removed clean cache-only checkout |
+| `codex/non-render-refactor-v2` | `4b047c9333ee8a2c6a7580480a9e7e58f001e709` | No checked-out worktree |
+| `codex/patch-align-55fb` | `d482d0feac9acf6dc1c0d5ffd44da8e5d8ffa8ec` | Kept artifact checkout detached at same commit |
+| `codex/portable-vanilla-diagnostics` | `f6c198018a7892194f92d251bf804757503c1430` | Removed clean cache-only checkout |
+| `codex/product-convergence` | `51d3917ff0df3f0111de832090c6f4cd31a82204` | No checked-out worktree |
+| `codex/pvp-current-client-data` | `d035f749a3763e92651b278aecfd6e37cfe206b3` | Kept artifact checkout detached at same commit |
+| `codex/renderer-diagnostics-integration` | `1551a9be2d82fae73fea3ecd085d76698b652819` | Removed clean cache-only checkout |
+| `codex/vanilla-diagnostics-release` | `fff93812bd622dac14d4a7d9dc2b04ecc066a21e` | Removed clean cache-only checkout |
+| `codex/vendor-dialog-diagnostics` | `02d729808eb389a9565f2a83b93548974d5bbb08` | No checked-out worktree |
+| `codex/window-manager` | `ca71a53eb9e7d119c5c82248683ac985c2b6251d` | Kept artifact checkout detached at same commit |
+| `codex/worker-supervision` | `18efdbac1f62fb8cab1402d883fd568316507b3c` | Removed clean cache-only checkout |
+| `codex/wreck-texture-cache-swap` | `99b37c7f4140db1f465d834c089b9aa7b1bc761b` | No checked-out worktree |
