@@ -93,8 +93,10 @@ texture units. Its measured costs are synthetic, not live-game acceptance.
 - [x] Correct bounded destination execution, build and install source 8210ecf; verify the live minimap preflight.
 - [x] Short flat and slope walks: measured stationary arrival; flat trail coverage observed (8210ecf).
 - [x] Establish the exact ground-height source and implement optional measured-ground rendering without changing movement altitude.
-- [ ] Active: deploy the ground-height checkpoint and validate placement on both flat and sloped terrain.
-- [ ] Normal/x-ray occlusion, bounded PvE and overlay cost/scene checks in the [developer/owner live pass](handoffs/navigation-inspector.md).
+- [x] Deploy source 96d9036 and accept measured-ground placement on a live slope before the water transition.
+- [x] Validate the corrected measured-ground trail on a short dry flat route (96d9036).
+- [ ] Active: compare normal/x-ray occlusion on a clear tree or wall route.
+- [ ] Bounded PvE and overlay cost/scene checks in the [developer/owner live pass](handoffs/navigation-inspector.md).
 
 Draft PR #27 is the integration destination; a push is not an accepted merge.
 Retain the task worktree until the live pass and integration are complete.

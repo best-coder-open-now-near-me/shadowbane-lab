@@ -468,8 +468,38 @@ while inspector events use verified resolved ground height when available. Groun
 is optional and falls back without failing the canonical position reader. The full regression suite passes with 1,673 tests, 211 subtests and seven expected skips;
 the repository-wide lint gate also passes. Live flat/slope acceptance still requires the corrected package.
 
-Current active todo: build and install the corrected package, reconnect the inspector, then
-repeat the owner-assisted slope and flat alignment checks.
+Source `96d903675c123b1c5cf1cc4513ac345186bd4eae` built as package `e3ed8b4c`; archive
+SHA-256 is `1b0fa714523a724f56648e5a499476a4ed6a362f68696624c40122ebd87d9bcd` and wheel SHA-256
+is `322fb969e578568ae7cdcb21992bfc46d89c5d10942e9724fc7643bb137a331e`. The wheel replaced
+the Python layer without changing the loaded DLL. Exact client/source/DLL identity passed after
+installation. Panel 5200, listener 1352 and recorder 1452 were live with empty error logs.
+
+The corrected owner-assisted slope run started at LT 88512.734 / LG 44654.117 with resolved
+ground 0.249 and produced 35 ground-height trail points across an 11.845-unit descent. Session
+`1388190087102714464` retained all 38 events and all 35 trail samples with zero omissions or
+producer drops. Trail Y ranged from -4.569 to 6.182 in the frozen capture. The owner confirmed
+perfect surface placement before reaching water, so **slope ground alignment is accepted**.
+
+The movement result is deliberately not accepted. The client reached water, replanned away from
+the requested destination and ended `astar_route_not_found`; the client continued toward its last
+bounded click before settling. Its navigation context reports `sparse navigation cells; no terrain
+height layer`. This is retained as a focused water/client-server navigation failure, including
+`ground-slope-route.json`, `ground-slope-walk.json`, `ground-slope-post.json`, camera samples and
+`ground-slope-capture-1388190087102714464.json` under
+`resume-20260904-1915/ground-96d9036`.
+
+The first dry-flat harness invocation requested a four-unit arrival radius, which the command
+contract rejected before input. The character did not move and the frozen water failure remained
+intact. The corrected invocation used the required five-unit radius and created fresh session
+`2005051010612397357`. It moved 18.555 units over dry flat terrain, kept resolved ground height
+at 26.25, and confirmed stationary arrival 1.412 units from the destination. All ten trail samples
+and all nine events were retained with zero omissions or dropped observations. The owner
+confirmed the cyan line remained at the character's feet for the whole walk. **Flat and slope
+ground alignment are accepted.** Evidence is retained as `ground-flat2-*` under the same
+`ground-96d9036` folder.
+
+Current active todo: compare normal/x-ray occlusion on one clear tree or wall route, then perform
+bounded PvE and overlay cost/scene checks.
 
 ## Remaining acceptance pass
 
@@ -491,6 +521,6 @@ unavailable. Verify the measured LT/LG-to-world transform before accepting world
 alignment. If the separate terrain repair is added, it requires its own verified
 source and one combined boundary-tile check.
 
-Current active todo: resolve and validate ground-height placement on flat and
-sloped terrain; then normal/x-ray occlusion, bounded PvE and overlay cost/scene checks. After the remaining live pass, review
-and integrate PR #27, then retire the inspector worktree/branch when safe.
+Current active todo: compare normal/x-ray occlusion on one clear tree or wall route; then
+bounded PvE and overlay cost/scene checks. After the remaining live pass, review and integrate
+PR #27, then retire the inspector worktree/branch when safe.

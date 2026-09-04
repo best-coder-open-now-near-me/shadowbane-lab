@@ -229,5 +229,29 @@ The reader now retains the canonical actor altitude for movement and optionally 
 verified resolved ground height for inspector events. Invalid, unavailable, airborne or nested
 ground state falls back to the canonical position and cannot abort movement or PvE.
 
-Next todo: deploy this checkpoint and repeat flat/slope alignment. Normal/x-ray occlusion,
-bounded PvE and overlay cost/scene checks remain afterward. PR #27 stays draft and unmerged.
+Source `96d903675c123b1c5cf1cc4513ac345186bd4eae` was built into acceptance package
+`e3ed8b4c` (archive SHA-256
+`1b0fa714523a724f56648e5a499476a4ed6a362f68696624c40122ebd87d9bcd`). The wheel was
+installed without replacing the byte-identical native DLL. Live identity then verified the same
+client PID/creation time, updated Python source and loaded DLL. Panel 5200, listener 1352 and
+recorder 1452 were healthy with empty error logs. Five direct reader samples exposed resolved
+ground 26.25 while actor animation varied around 28.524.
+
+The corrected slope run captured 35 ground-height trail points spanning -4.569 to 6.182 with
+zero omissions or dropped observations. The owner confirmed perfect surface placement before
+the character reached water. This accepts slope ground alignment. The route itself is a retained
+failure: after reaching water it replanned and moved away from the requested destination, then
+ended `astar_route_not_found`. The active zone reported no terrain height layer, so that capture
+is useful evidence for the water/client-server navigation investigation and is not an accepted
+travel result. Evidence is under `resume-20260904-1915/ground-96d9036`, session
+`1388190087102714464`.
+
+A fresh dry-flat session then moved 18.555 units with no vertical ground change and arrived
+1.412 units from its five-unit-radius destination. It retained all ten ground trail samples and
+all nine events with zero omissions or drops. The owner confirmed the cyan line remained at the
+character's feet for the entire walk. Flat and slope ground alignment are now accepted. The
+first flat harness invocation used an invalid four-unit radius, sent no input and is retained only
+as a rejected preflight; session `2005051010612397357` is the valid pass.
+
+Next todo: compare normal/x-ray occlusion on one clear tree or wall route, then perform bounded
+PvE and overlay cost/scene checks. PR #27 stays draft and unmerged.
