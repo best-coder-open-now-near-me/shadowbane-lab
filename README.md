@@ -1,5 +1,7 @@
 # shadowbane-lab
 
+Navigation diagnostics: [inspector usage, review branch and acceptance status](docs/navigation-inspector.md).
+
 ## Finding the current code
 
 The consolidated development history is proposed for `main` on

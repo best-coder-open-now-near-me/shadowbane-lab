@@ -3,7 +3,8 @@
 Prepared 2026-09-04. Implementation has started on `codex/navigation-inspector`;
 see the [implementation, usage and current todos](../navigation-inspector.md).
 Publisher, viewer, controls and replay are implemented in draft PR #27. Exact
-package validation and the coordinated live acceptance remain pending. The
+package validation is complete; the [acceptance receipt](../navigation-inspector-acceptance-20260904.md)
+identifies the tested source and package. The coordinated live acceptance remains pending. The
 starting-point terrain observations below are historical, not a fresh terrain audit.
 The owner wants this surface before further pathfinding tuning, to support
 reliable `/go` and `/pve` movement.
@@ -165,7 +166,7 @@ where it was deployed, live acceptance result, remaining limitations and next to
 A workflow, generated payload, version label or successful old target does not
 prove the feature is in the delivered binary.
 
-Next todo: finish the exact committed-source package and receipts, then perform
-the bounded live pass above with the owner. Planned geometry is explicitly
+Next todo: use the verified package and receipts to perform the bounded live
+pass above with the owner. Planned geometry is explicitly
 projected until final terrain elevation is observed. Terrain delivery remains
 a separate follow-up; this package does not contain that repair.

@@ -6,9 +6,19 @@ acceptance.
 
 ## Current handoffs and terrain follow-up
 
-The [navigation inspector handoff](handoffs/navigation-inspector.md) is the next
-movement-diagnostics slice for the developer and owner. It uses this integration
-review source while terrain delivery is reconciled separately.
+The navigation inspector is implemented on codex/navigation-inspector in
+[draft PR #27](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/27),
+targeting codex/integrate-current-development. Use that feature branch for inspector
+review and the integration branch for independent development. The inspector's
+publisher, native overlay, controls and saved evidence are outside the shared
+integration branch until PR #27 is accepted. See the [usage and validation record](navigation-inspector.md)
+and [developer/owner live handoff](handoffs/navigation-inspector.md). This inspector
+package excludes the separate terrain material repair. The normal checkout is
+clean on main; the inspector worktree is retained for live acceptance and review.
+
+Branch/worktree counts in the retirement section below are the cleanup snapshot.
+The active inspector adds one branch and one worktree; it is not an obsolete
+checkout to retire before acceptance.
 
 A later September 4 fetch found convergence at `031de7e` and the new terrain
 repair branch at `9287c9a` ([PR #26](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/26)).
