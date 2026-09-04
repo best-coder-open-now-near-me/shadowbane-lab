@@ -1,0 +1,471 @@
+name: Complete and deliver terrain repair on Win32
+
+on:
+  push:
+    branches:
+      - codex/terrain-material-repair-completion
+
+permissions:
+  contents: write
+
+concurrency:
+  group: terrain-repair-complete-product
+  cancel-in-progress: false
+
+jobs:
+  complete:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/terrain-material-repair-completion
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Assemble a clean convergence plus repair merge
+        shell: bash
+        run: |
+          set -euo pipefail
+          original_completion="$(git rev-parse HEAD)"
+          echo "$original_completion" > "$RUNNER_TEMP/original-completion.txt"
+          cp .github/workflows/terrain-repair-product-gate.yml "$RUNNER_TEMP/terrain-repair-product-gate.yml"
+          git fetch origin codex/client-convergence-v2 codex/terrain-material-repair
+          git checkout -B terrain-product origin/codex/client-convergence-v2
+          git merge --no-commit --no-ff origin/codex/terrain-material-repair
+          cp "$RUNNER_TEMP/terrain-repair-product-gate.yml" .github/workflows/terrain-repair-product-gate.yml
+      - name: Correct exact-client generation and profile ownership
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/patch-terrain-product.py" <<'PY'
+          from pathlib import Path
+
+          codegen_path = Path('tools/terrain_material_codegen.py')
+          text = codegen_path.read_text(encoding='utf-8')
+          if 'CS_OP_IMM,' not in text:
+              anchor = '    CS_MODE_32,\n'
+              if text.count(anchor) != 1:
+                  raise SystemExit('could not locate capstone import insertion point')
+              text = text.replace(anchor, anchor + '    CS_OP_IMM,\n')
+
+          function_start = text.index('def analyze_abi(')
+          function_end = text.index('\ndef byte_list(', function_start)
+          replacement = '''def analyze_abi(pe: pefile.PE, raw: bytes, abi: FunctionAbi) -> tuple[int, int, bytes]:
+              """Recover an ABI only from instructions reachable from the entry point."""
+              payload = bytes_at(pe, raw, abi.entry_va, abi.scan_size)
+              window_start = abi.entry_va
+              window_end = window_start + len(payload)
+              disassembler = Cs(CS_ARCH_X86, CS_MODE_32)
+              disassembler.detail = True
+              decoded: dict[int, object] = {}
+              byte_owner: dict[int, int] = {}
+
+              def decode_one(address: int):
+                  if address in decoded:
+                      return decoded[address]
+                  if not window_start <= address < window_end:
+                      raise RuntimeError(
+                          f"{abi.label} control flow escaped the reviewed window at {address:#x}"
+                      )
+                  offset = address - window_start
+                  items = list(disassembler.disasm(payload[offset:], address, 1))
+                  if not items or items[0].address != address:
+                      raise RuntimeError(
+                          f"could not decode reachable {abi.label} instruction at {address:#x}"
+                      )
+                  instruction = items[0]
+                  if instruction.size <= 0 or address + instruction.size > window_end:
+                      raise RuntimeError(
+                          f"reachable {abi.label} instruction crosses the reviewed window"
+                      )
+                  for byte_address in range(address, address + instruction.size):
+                      owner = byte_owner.get(byte_address)
+                      if owner is not None and owner != address:
+                          raise RuntimeError(
+                              f"{abi.label} branch targets the middle of an instruction at "
+                              f"{address:#x}"
+                          )
+                      byte_owner[byte_address] = address
+                  decoded[address] = instruction
+                  return instruction
+
+              cleanup_values: set[int] = set()
+              pending = [abi.entry_va]
+              visited: set[int] = set()
+              maximum_reachable = max(256, abi.scan_size * 2)
+              while pending:
+                  address = pending.pop()
+                  while address not in visited:
+                      if len(visited) >= maximum_reachable:
+                          raise RuntimeError(
+                              f"{abi.label} reachable instruction bound was exceeded"
+                          )
+                      instruction = decode_one(address)
+                      visited.add(address)
+                      next_address = instruction.address + instruction.size
+
+                      if CS_GRP_INT in instruction.groups or CS_GRP_IRET in instruction.groups:
+                          raise RuntimeError(
+                              f"unsupported interrupt control flow in {abi.label} at "
+                              f"{instruction.address:#x}"
+                          )
+                      if CS_GRP_RET in instruction.groups:
+                          if instruction.mnemonic != 'ret':
+                              raise RuntimeError(
+                                  f"unsupported return form in {abi.label} at "
+                                  f"{instruction.address:#x}"
+                              )
+                          if not instruction.operands:
+                              cleanup = 0
+                          elif (
+                              len(instruction.operands) == 1
+                              and instruction.operands[0].type == CS_OP_IMM
+                          ):
+                              cleanup = int(instruction.operands[0].imm)
+                          else:
+                              raise RuntimeError(
+                                  f"unsupported return operands in {abi.label} at "
+                                  f"{instruction.address:#x}"
+                              )
+                          if cleanup < 0 or cleanup % 4 != 0:
+                              raise RuntimeError(
+                                  f"invalid {abi.label} return cleanup: {cleanup}"
+                              )
+                          cleanup_values.add(cleanup)
+                          break
+                      if CS_GRP_JUMP in instruction.groups:
+                          if (
+                              len(instruction.operands) != 1
+                              or instruction.operands[0].type != CS_OP_IMM
+                          ):
+                              raise RuntimeError(
+                                  f"indirect {abi.label} jump is outside the reviewed ABI "
+                                  f"contract at {instruction.address:#x}"
+                              )
+                          target = int(instruction.operands[0].imm) & 0xFFFFFFFF
+                          if not window_start <= target < window_end:
+                              raise RuntimeError(
+                                  f"{abi.label} jump escapes the reviewed function window: "
+                                  f"{instruction.address:#x} -> {target:#x}"
+                              )
+                          pending.append(target)
+                          if instruction.mnemonic == 'jmp':
+                              break
+                          if not (
+                              instruction.mnemonic.startswith('j')
+                              or instruction.mnemonic.startswith('loop')
+                          ):
+                              raise RuntimeError(
+                                  f"unsupported {abi.label} branch mnemonic "
+                                  f"{instruction.mnemonic!r}"
+                              )
+                          address = next_address
+                          continue
+                      address = next_address
+
+              if not cleanup_values:
+                  raise RuntimeError(f"{abi.label} has no reachable return")
+              if len(cleanup_values) != 1:
+                  raise RuntimeError(
+                      f"{abi.label} reachable returns disagree on stack cleanup: "
+                      f"{cleanup_values}"
+                  )
+              stack_bytes = cleanup_values.pop()
+              if stack_bytes > abi.maximum_stack_bytes:
+                  raise RuntimeError(
+                      f"unsupported {abi.label} stack cleanup: {stack_bytes}"
+                  )
+
+              patch_length = 0
+              address = abi.entry_va
+              forbidden = {CS_GRP_CALL, CS_GRP_INT, CS_GRP_IRET, CS_GRP_JUMP, CS_GRP_RET}
+              while patch_length < 5:
+                  instruction = decode_one(address)
+                  if any(group in forbidden for group in instruction.groups):
+                      raise RuntimeError(
+                          f"relative/control-flow instruction occurs in {abi.label} prologue"
+                      )
+                  patch_length += instruction.size
+                  address += instruction.size
+              if patch_length > 16:
+                  raise RuntimeError(
+                      f"unsupported {abi.label} patch length: {patch_length}"
+                  )
+              return stack_bytes, patch_length, payload[:patch_length]
+          '''
+          replacement = '\n'.join(
+              line[10:] if line.startswith('          ') else line
+              for line in replacement.splitlines()
+          )
+          text = text[:function_start] + replacement.rstrip() + '\n' + text[function_end + 1:]
+          text = text.replace(
+              'pe = pefile.PE(data=raw, fast_load=False)',
+              'pe = pefile.PE(data=raw, fast_load=True)',
+          )
+          if 'pe = pefile.PE(data=raw, fast_load=True)' not in text:
+              raise SystemExit('unexpected PE parser construction')
+          codegen_path.write_text(text, encoding='utf-8', newline='\n')
+
+          integration_path = Path('tools/integrate_terrain_material_repair.py')
+          integration = integration_path.read_text(encoding='utf-8')
+          old_runtime = '''target_sources({full_target} PRIVATE
+          {runtime_lines}
+          )
+          target_link_libraries({full_target} PRIVATE
+              wonderbane_terrain_material_core
+              bcrypt
+          )
+          target_compile_features({full_target} PRIVATE cxx_std_20)
+          target_compile_definitions({full_target} PRIVATE
+              WB_ENABLE_TERRAIN_MATERIAL_REPAIR=1
+          )'''
+          old_runtime = '\n'.join(
+              line[10:] if line.startswith('          ') else line
+              for line in old_runtime.splitlines()
+          )
+          new_runtime = '''if(WONDERBANE_EXTENSION_PROFILE STREQUAL "full")
+              target_sources({full_target} PRIVATE
+          {runtime_lines}
+              )
+              target_link_libraries({full_target} PRIVATE
+                  wonderbane_terrain_material_core
+                  bcrypt
+              )
+              target_compile_features({full_target} PRIVATE cxx_std_20)
+              target_compile_definitions({full_target} PRIVATE
+                  WB_ENABLE_TERRAIN_MATERIAL_REPAIR=1
+              )
+          elseif(NOT WONDERBANE_EXTENSION_PROFILE STREQUAL "diagnostics-only")
+              message(FATAL_ERROR "Terrain repair requires an explicit reviewed extension profile")
+          endif()'''
+          new_runtime = '\n'.join(
+              line[10:] if line.startswith('          ') else line
+              for line in new_runtime.splitlines()
+          )
+          if old_runtime in integration:
+              integration = integration.replace(old_runtime, new_runtime)
+          elif 'if(WONDERBANE_EXTENSION_PROFILE STREQUAL "full")' not in integration:
+              raise SystemExit('could not locate runtime ownership block')
+
+          core_anchor = 'target_compile_features(wonderbane_terrain_material_core PUBLIC cxx_std_20)\n'
+          core_settings = '''target_compile_features(wonderbane_terrain_material_core PUBLIC cxx_std_20)
+          if(MSVC)
+              target_compile_options(wonderbane_terrain_material_core PRIVATE
+                  /W4 /WX /permissive- /sdl /GS /guard:cf /Zc:__cplusplus /utf-8
+              )
+              set_property(TARGET wonderbane_terrain_material_core
+                  PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded")
+          endif()
+          '''
+          core_settings = '\n'.join(
+              line[10:] if line.startswith('          ') else line
+              for line in core_settings.splitlines()
+          )
+          if core_anchor in integration and 'target_compile_options(wonderbane_terrain_material_core' not in integration:
+              integration = integration.replace(core_anchor, core_settings.rstrip() + '\n')
+
+          test_tail = '''    add_test(NAME wonderbane_terrain_client_verification_test
+                  COMMAND wonderbane_terrain_client_verification_test
+              )
+          endif()
+          {END_MARKER}'''
+          test_tail = '\n'.join(
+              line[10:] if line.startswith('          ') else line
+              for line in test_tail.splitlines()
+          )
+          replacement_tail = '''    add_test(NAME wonderbane_terrain_client_verification_test
+                  COMMAND wonderbane_terrain_client_verification_test
+              )
+              target_compile_features(wonderbane_terrain_vtable_hook_test PRIVATE cxx_std_20)
+              target_compile_features(wonderbane_terrain_client_verification_test PRIVATE cxx_std_20)
+              if(MSVC)
+                  foreach(terrain_test_target
+                      wonderbane_terrain_material_plan_test
+                      wonderbane_terrain_material_transaction_test
+                      wonderbane_terrain_vtable_hook_test
+                      wonderbane_terrain_client_verification_test
+                  )
+                      target_compile_options(${terrain_test_target} PRIVATE
+                          /W4 /WX /permissive- /sdl /GS /guard:cf /Zc:__cplusplus /utf-8
+                      )
+                      set_property(TARGET ${terrain_test_target}
+                          PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded")
+                  endforeach()
+              endif()
+          endif()
+          {END_MARKER}'''
+          replacement_tail = '\n'.join(
+              line[10:] if line.startswith('          ') else line
+              for line in replacement_tail.splitlines()
+          )
+          if test_tail in integration:
+              integration = integration.replace(test_tail, replacement_tail)
+          elif 'foreach(terrain_test_target' not in integration:
+              raise SystemExit('could not locate terrain test settings insertion point')
+          integration_path.write_text(integration, encoding='utf-8', newline='\n')
+          PY
+          python "$RUNNER_TEMP/patch-terrain-product.py"
+      - name: Generate exact contracts and wire the product
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --upgrade pip
+          python -m pip install --disable-pip-version-check pefile==2024.8.26 capstone==5.0.9
+          python -m py_compile tools/terrain_material_codegen.py tools/integrate_terrain_material_repair.py
+          python tools/terrain_material_codegen.py --repository .
+          sha256sum \
+            native/wonderbane_extension/terrain_client_profile.generated.h \
+            native/wonderbane_extension/terrain_append_abi.generated.h \
+            native/wonderbane_extension/terrain_append_bridge.generated.cpp \
+            native/wonderbane_extension/terrain_registration_abi.generated.h \
+            native/wonderbane_extension/terrain_registration_bridge.generated.cpp \
+            > "$RUNNER_TEMP/contracts.sha256"
+          python tools/terrain_material_codegen.py --repository .
+          sha256sum -c "$RUNNER_TEMP/contracts.sha256"
+          python tools/integrate_terrain_material_repair.py --repository .
+
+          rm -f \
+            .github/workflows/generate-terrain-append-abi.yml \
+            .github/workflows/generate-terrain-client-profile.yml \
+            .github/workflows/generate-terrain-registration-abi.yml \
+            .github/workflows/terrain-material-finalize.yml \
+            .github/workflows/terrain-material-repair.yml \
+            .github/workflows/terrain-material-transaction.yml \
+            .github/workflows/wire-terrain-material-core.yml
+          for workflow in .github/workflows/*.yml; do
+            if grep -q 'codex/terrain-material-repair' "$workflow" \
+              && grep -qi 'merge' "$workflow" \
+              && [ "$(basename "$workflow")" != 'terrain-repair-product-gate.yml' ]; then
+              rm -f "$workflow"
+            fi
+          done
+
+          grep -q 'if(WONDERBANE_EXTENSION_PROFILE STREQUAL "full")' native/wonderbane_extension/CMakeLists.txt
+          grep -q 'WB_ENABLE_TERRAIN_MATERIAL_REPAIR=1' native/wonderbane_extension/CMakeLists.txt
+          grep -q 'QueueTerrainMaterialRepairStartup' native/wonderbane_extension/extension.cpp
+          test ! -e native/wonderbane_extension/terrain_material_runtime_integrated.cpp
+          git diff --check
+      - name: Commit the clean two-parent product merge
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git diff --cached --check
+          git commit -m 'feat: integrate and wire exact-client terrain material repair'
+          git rev-parse HEAD > "$RUNNER_TEMP/product-commit.txt"
+          git rev-list --parents -n 1 HEAD
+      - name: Install Python repository validation dependencies
+        shell: bash
+        run: |
+          python -m pip install --disable-pip-version-check -e . pytest ruff build
+      - name: Run Python, quality, and packaging gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pytest -q
+          python -m ruff check .
+          python -m build
+      - name: Configure full Win32 renderer
+        shell: pwsh
+        run: |
+          cmake -S native/wonderbane_extension -B build/full `
+            -G "Visual Studio 17 2022" -A Win32 `
+            -DWONDERBANE_EXTENSION_PROFILE=full -DBUILD_TESTING=ON
+          if ($LASTEXITCODE -ne 0) { throw 'Full CMake configure failed' }
+      - name: Configure diagnostics-only Win32 renderer
+        shell: pwsh
+        run: |
+          cmake -S native/wonderbane_extension -B build/diagnostics `
+            -G "Visual Studio 17 2022" -A Win32 `
+            -DWONDERBANE_EXTENSION_PROFILE=diagnostics-only -DBUILD_TESTING=ON
+          if ($LASTEXITCODE -ne 0) { throw 'Diagnostics CMake configure failed' }
+      - name: Prove diagnostics exclusion before compilation
+        shell: pwsh
+        run: |
+          $runtimeSources = @(
+            'terrain_client_verification.cpp',
+            'terrain_inline_hook.cpp',
+            'terrain_vtable_hook.cpp',
+            'terrain_material_client_adapter.cpp',
+            'terrain_material_runtime.cpp',
+            'terrain_material_bootstrap.cpp',
+            'terrain_append_bridge.generated.cpp',
+            'terrain_registration_bridge.generated.cpp'
+          )
+          $full = Get-Content -LiteralPath build/full/wonderbane_extension.vcxproj -Raw
+          $diagnostics = Get-Content -LiteralPath build/diagnostics/wonderbane_extension.vcxproj -Raw
+          foreach ($source in $runtimeSources) {
+            if ($full -notmatch [regex]::Escape($source)) { throw "Full project omits $source" }
+            if ($diagnostics -match [regex]::Escape($source)) { throw "Diagnostics project contains $source" }
+          }
+          if ($full -notmatch 'WB_ENABLE_TERRAIN_MATERIAL_REPAIR=1') {
+            throw 'Full project omits terrain repair enable definition'
+          }
+          if ($diagnostics -match 'WB_ENABLE_TERRAIN_MATERIAL_REPAIR') {
+            throw 'Diagnostics project enables terrain repair'
+          }
+      - name: Build and test full Win32 renderer
+        shell: pwsh
+        run: |
+          cmake --build build/full --config Release --parallel
+          if ($LASTEXITCODE -ne 0) { throw 'Full native build failed' }
+          ctest --test-dir build/full -C Release --output-on-failure
+          if ($LASTEXITCODE -ne 0) { throw 'Full native tests failed' }
+      - name: Build and test diagnostics-only Win32 renderer
+        shell: pwsh
+        run: |
+          cmake --build build/diagnostics --config Release --parallel
+          if ($LASTEXITCODE -ne 0) { throw 'Diagnostics native build failed' }
+          ctest --test-dir build/diagnostics -C Release --output-on-failure
+          if ($LASTEXITCODE -ne 0) { throw 'Diagnostics native tests failed' }
+      - name: Package exact build receipts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path delivery -Force | Out-Null
+          $commit = (Get-Content -LiteralPath "$env:RUNNER_TEMP/product-commit.txt" -Raw).Trim()
+          foreach ($profile in @('full', 'diagnostics')) {
+            $dll = Get-ChildItem -LiteralPath "build/$profile" -Recurse -File -Filter 'wonderbane-extension.dll' | Select-Object -First 1
+            if ($null -eq $dll) { throw "Missing $profile extension DLL" }
+            $label = if ($profile -eq 'full') { 'full' } else { 'diagnostics-only' }
+            $destination = "delivery/wonderbane-extension-$label.dll"
+            Copy-Item -LiteralPath $dll.FullName -Destination $destination
+            $receipt = [ordered]@{
+              schema = 'shadowbane-terrain-repair-build-receipt-v1'
+              source_commit = $commit
+              profile = $label
+              generator = 'Visual Studio 17 2022'
+              platform = 'Win32'
+              configuration = 'Release'
+              dll_size = (Get-Item -LiteralPath $destination).Length
+              dll_sha256 = (Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash.ToLowerInvariant()
+            }
+            $receipt | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath "delivery/$label.json" -Encoding UTF8
+          }
+          Copy-Item -LiteralPath dist/* -Destination delivery -Force
+          git show --stat --oneline HEAD | Set-Content -LiteralPath delivery/source-commit.txt -Encoding UTF8
+          git rev-list --parents -n 1 HEAD | Add-Content -LiteralPath delivery/source-commit.txt -Encoding UTF8
+          Get-ChildItem -LiteralPath delivery -File | ForEach-Object {
+            "{0}  {1}" -f (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant(), $_.Name
+          } | Set-Content -LiteralPath delivery/SHA256SUMS.txt -Encoding UTF8
+      - name: Advance convergence only after every gate passes
+        shell: bash
+        run: |
+          set -euo pipefail
+          product="$(cat "$RUNNER_TEMP/product-commit.txt")"
+          test "$product" = "$(git rev-parse HEAD)"
+          git merge-base --is-ancestor origin/codex/client-convergence-v2 HEAD
+          git merge-base --is-ancestor origin/codex/terrain-material-repair HEAD
+          git push origin HEAD:codex/client-convergence-v2
+          original_completion="$(cat "$RUNNER_TEMP/original-completion.txt")"
+          git push --force-with-lease=refs/heads/codex/terrain-material-repair-completion:"$original_completion" \
+            origin HEAD:codex/terrain-material-repair-completion
+      - uses: actions/upload-artifact@v4
+        with:
+          name: terrain-material-repair-acceptance
+          path: delivery/
+          if-no-files-found: error
+          retention-days: 30
