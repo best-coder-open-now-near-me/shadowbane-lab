@@ -56,7 +56,9 @@ target_compile_definitions(
   STRICT
 )
 if(WONDERBANE_EXTENSION_PROFILE STREQUAL "full")
-  target_sources(wonderbane_extension PRIVATE navigation_protocol.cpp navigation_channel.cpp)
+  target_sources(wonderbane_extension PRIVATE
+    navigation_protocol.cpp navigation_channel.cpp navigation_draw.cpp navigation_viewer.cpp)
+  target_link_libraries(wonderbane_extension PRIVATE opengl32)
 endif()
 if(WONDERBANE_EXTENSION_PROFILE STREQUAL "diagnostics-only")
   target_compile_definitions(
@@ -110,6 +112,15 @@ add_custom_command(
 )
 
 if(BUILD_TESTING)
+  add_executable(wonderbane_extension_navigation_draw_test navigation_draw.cpp navigation_draw_test.cpp)
+  target_compile_features(wonderbane_extension_navigation_draw_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_navigation_draw_test PRIVATE
+    UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_navigation_draw_test PRIVATE
+    /W4 /WX /permissive- /sdl /GS /guard:cf /utf-8)
+  target_link_libraries(wonderbane_extension_navigation_draw_test PRIVATE opengl32 gdi32 user32)
+  set_property(TARGET wonderbane_extension_navigation_draw_test PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded")
+  add_test(NAME wonderbane_extension_navigation_draw COMMAND wonderbane_extension_navigation_draw_test)
   add_executable(wonderbane_extension_navigation_test
     navigation_protocol.cpp navigation_channel.cpp navigation_protocol_test.cpp)
   target_compile_features(wonderbane_extension_navigation_test PRIVATE cxx_std_20)
@@ -747,4 +758,12 @@ if(BUILD_TESTING)
     NAME wonderbane_extension_heartbeat
     COMMAND wonderbane_extension_probe $<TARGET_FILE:wonderbane_extension>
   )
+endif()
+
+if(BUILD_TESTING)
+  foreach(renderer_test wonderbane_extension_cel_shading_test wonderbane_extension_performance_telemetry_test)
+    target_sources(${renderer_test} PRIVATE
+      navigation_protocol.cpp navigation_channel.cpp navigation_draw.cpp navigation_viewer.cpp)
+    target_link_libraries(${renderer_test} PRIVATE opengl32)
+  endforeach()
 endif()

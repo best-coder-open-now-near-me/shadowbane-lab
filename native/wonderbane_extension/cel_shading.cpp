@@ -4,6 +4,9 @@
 #include "fixed_function_state.h"
 #include "graphics_control.h"
 #include "graphics_status.h"
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+#include "navigation_viewer.h"
+#endif
 #include "terrain_trace.h"
 #include "terrain_mask_refresh.h"
 #include "import_hook.h"
@@ -1667,6 +1670,9 @@ __declspec(noinline) void APIENTRY StrongMatrixMode(const unsigned int mode) noe
         }
         if (BeginReviewedSceneUiBoundary(&g_scene_frame)) {
             g_scene_frame.composite_succeeded = CompositeDepthEdgesBeforeUi();
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+            DrawNavigationInspector();
+#endif
         }
         // Even when capture is unavailable, this verified call marks UI
         // ownership. Never start modifying perspective UI widgets afterward.

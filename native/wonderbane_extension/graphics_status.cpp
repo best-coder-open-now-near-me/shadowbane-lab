@@ -1529,6 +1529,19 @@ bool NeedsGraphicsCameraStateObservation() noexcept {
     return needed;
 }
 
+bool ReadPendingGraphicsCameraState(GraphicsCameraState* const state) noexcept {
+    if (state == nullptr || InterlockedCompareExchange(&g_started, 0, 0) == 0
+        || !TryAcquireSRWLockShared(&g_state_lock)) {
+        return false;
+    }
+    const bool valid = g_status.configured && g_status.call_count != UINT64_MAX
+        && g_status.pending_camera_valid && !g_status.pending_camera_ambiguous
+        && g_status.pending_camera_present_sequence == g_status.call_count + 1U;
+    if (valid) *state = g_status.pending_camera.state;
+    ReleaseSRWLockShared(&g_state_lock);
+    return valid;
+}
+
 void ObserveGraphicsCameraState(
     const float* const view_matrix,
     const std::size_t view_matrix_count,

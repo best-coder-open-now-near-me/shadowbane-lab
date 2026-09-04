@@ -44,7 +44,7 @@ owns mapping publication and geometry; movement callbacks enqueue immutable even
 The panel may arm the next session for its exact client; the developer override is
 `SHADOWBANE_NAV_INSPECTOR=1`. With no armed inspector there is no worker. A missing
 channel or diagnostic failure does not stop movement. No drawing or panel UI is
-enabled yet; those are the active work.
+enabled by that checkpoint.
 
 Search evidence and the route currently owned by movement are separate. Direct
 travel has an execution route without claiming A* ran. Moving targets update the
@@ -59,13 +59,28 @@ Clearance audits are cached per immutable plan, active route and radius; each
 layer has a bounded share of display geometry, so dense history cannot consume
 the entire obstacle display budget.
 
+Checkpoint 5 wires drawing through the reviewed scene/UI boundary. Planned
+geometry is shown in an explicitly labeled projected map with a visible legend;
+only measured trail samples enter the world view. Normal world drawing uses
+scene depth without writing it; optional x-ray is dashed and a different color.
+The viewer accepts only the current, unambiguous camera and matching viewport.
+Shader, texture-unit, matrix, enable, mask, scissor and other touched state are
+restored. No draw hooks or inspector runtime sources enter diagnostics-only.
+The desktop panel and saved-evidence UI remain the active work.
+
 Validation: 212 focused inspector, pathfinding, adaptive travel, travel and PvE
 controller, terrain and command tests pass. Observer failure is tested against identical ordinary
 route results and movement decisions. Real Windows mapping lifecycle tests pass.
-Both Visual Studio 2022 Win32 Release profiles build and pass all 17 native tests;
+Both Visual Studio 2022 Win32 Release profiles build and pass all 18 native tests;
 the navigation test reads the Python-generated golden frame and exercises the
-real channel. Generated DLL project files confirm that the channel and protocol
-sources are present only in full. Full viewer and live acceptance are pending.
+real channel. A hidden-window OpenGL test exercises real occlusion, dashed x-ray,
+no depth writes and state restoration with a nondefault GLSL program and multiple
+texture units. The local NVIDIA OpenGL 4.6 harness measured 0.145 ms per simple
+view and 0.541 ms at the 16,384-line capacity; these are synthetic harness values,
+not live-game frame-cost acceptance. Its image and build output stay under ignored
+`artifacts/navigation-inspector/`. Generated DLL projects confirm all four
+inspector runtime sources are present only in full. Complete panel/package and
+live acceptance are pending.
 
 ## Active todos
 
@@ -73,8 +88,9 @@ sources are present only in full. Full viewer and live acceptance are pending.
 - [x] Bound saved history/replay and clearance geometry; validate the versioned wire codec.
 - [x] Connect and validate Windows transport and full-profile native channel ownership.
 - [x] Wire live travel/PvE publishers, active-route ownership and map provenance.
-- [ ] Active: finish native drawing and panel controls, including saved-evidence
-  inspection, then measure frame cost and prepare the combined package.
+- [x] Wire native drawing and verify real OpenGL depth/state isolation and bounded draw cost.
+- [ ] Active: complete the desktop panel and saved-evidence inspection, then prepare
+  the combined package and exact source/build receipts.
 - [ ] Validate both native profiles and combined Python/package boundaries; record
   exact source and artifact hashes for the coordinated live acceptance package.
 - [ ] Complete the bounded live tests in the [developer/owner handoff](handoffs/navigation-inspector.md).

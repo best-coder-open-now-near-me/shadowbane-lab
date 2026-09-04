@@ -127,7 +127,13 @@ int wmain() {
         view.data(), view.size(), projection.data(), projection.size(),
         viewport.data(), viewport.size(), 1
     );
+    if (!wonderbane::extension::ReadPendingGraphicsCameraState(&camera)) {
+        return Fail(L"viewer current camera");
+    }
     ObserveGraphicsPresent();
+    if (wonderbane::extension::ReadPendingGraphicsCameraState(&camera)) {
+        return Fail(L"viewer previous frame camera rejection");
+    }
     ReportDepthEdgePassComposite();
     ReportSceneColorCapture();
     SceneFrameState classified_frame{};
@@ -205,6 +211,9 @@ int wmain() {
         conflicting_view.data(), conflicting_view.size(),
         projection.data(), projection.size(), viewport.data(), viewport.size(), 1
     );
+    if (wonderbane::extension::ReadPendingGraphicsCameraState(&camera)) {
+        return Fail(L"viewer ambiguous camera rejection");
+    }
     ObserveGraphicsPresent();
     StopGraphicsStatusPublication();
     StopGraphicsControl();
