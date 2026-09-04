@@ -7,7 +7,7 @@ from math import hypot, sqrt
 from typing import Protocol, runtime_checkable
 
 from shadowbane_lab.client_observation import NativePlayerPositionObservation
-from shadowbane_lab.navigation_inspector.events import MotionEvent, emit
+from shadowbane_lab.navigation_inspector.events import MotionEvent, emit, measured_position
 from shadowbane_lab.travel.controller import TravelController
 from shadowbane_lab.travel.model import (
     TravelControllerConfig,
@@ -293,7 +293,7 @@ class AStarTravelController:
                     0 if observation is None else observation.now_ms,
                     position=None
                     if position is None
-                    else (position.lt, position.lg, position.altitude),
+                    else measured_position(position),
                     destination=(
                         self._destination.lt,
                         self._destination.lg,

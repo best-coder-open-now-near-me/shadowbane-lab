@@ -19,7 +19,7 @@ from shadowbane_lab.client_observation.native_health import (
     WindowsReadOnlyProcessMemory,
 )
 
-NATIVE_POSITION_PROFILE_SCHEMA_VERSION = 2
+NATIVE_POSITION_PROFILE_SCHEMA_VERSION = 3
 _BUNDLED_PROFILE_NAME = "wonderbane-ef43784b.native-position.json"
 
 
@@ -62,6 +62,16 @@ class NativePlayerPositionProfile:
     minimum_altitude: float
     maximum_altitude: float
     maximum_sample_drift: float
+    location_vtable_rva: int
+    location_parent_offset: int
+    ground_height_offset: int
+    explicit_height_offset: int
+    grounding_flag_offset: int
+    player_collision_wrapper_offset: int
+    collision_wrapper_value_offset: int
+    collision_vtable_rva: int
+    collision_minimum_offset: int
+    maximum_ground_origin_error: float
     schema_version: int = NATIVE_POSITION_PROFILE_SCHEMA_VERSION
 
     def __post_init__(self) -> None:
@@ -86,6 +96,14 @@ class NativePlayerPositionProfile:
             (self.position_value_offset, "position_value_offset"),
             (self.minimum_user_address, "minimum_user_address"),
             (self.maximum_user_address, "maximum_user_address"),
+            (self.location_vtable_rva, "location_vtable_rva"),
+            (self.location_parent_offset, "location_parent_offset"),
+            (self.ground_height_offset, "ground_height_offset"),
+            (self.explicit_height_offset, "explicit_height_offset"),
+            (self.grounding_flag_offset, "grounding_flag_offset"),
+            (self.player_collision_wrapper_offset, "player_collision_wrapper_offset"),
+            (self.collision_vtable_rva, "collision_vtable_rva"),
+            (self.collision_minimum_offset, "collision_minimum_offset"),
         ):
             if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
                 raise ValueError(f"{field_name} must be a positive integer")
@@ -95,6 +113,12 @@ class NativePlayerPositionProfile:
             or self.component_value_offset < 0
         ):
             raise ValueError("component_value_offset must be a non-negative integer")
+        if (
+            isinstance(self.collision_wrapper_value_offset, bool)
+            or not isinstance(self.collision_wrapper_value_offset, int)
+            or self.collision_wrapper_value_offset < 0
+        ):
+            raise ValueError("collision_wrapper_value_offset must be a non-negative integer")
         if self.vtable_minimum_rva >= self.vtable_maximum_rva:
             raise ValueError("vtable RVA range must be increasing")
         if self.position_getter_slot_offset % self.pointer_size != 0:
@@ -111,6 +135,7 @@ class NativePlayerPositionProfile:
             (self.minimum_altitude, "minimum_altitude"),
             (self.maximum_altitude, "maximum_altitude"),
             (self.maximum_sample_drift, "maximum_sample_drift"),
+            (self.maximum_ground_origin_error, "maximum_ground_origin_error"),
         ):
             if (
                 isinstance(value, bool)
@@ -124,6 +149,8 @@ class NativePlayerPositionProfile:
             raise ValueError("altitude range must be increasing")
         if self.maximum_sample_drift <= 0:
             raise ValueError("maximum_sample_drift must be positive")
+        if self.maximum_ground_origin_error <= 0:
+            raise ValueError("maximum_ground_origin_error must be positive")
         if self.schema_version != NATIVE_POSITION_PROFILE_SCHEMA_VERSION:
             raise ValueError("unsupported native position profile version")
 
@@ -148,6 +175,37 @@ class NativePlayerPositionObservation:
             raise ValueError("transform_count must be a positive integer")
 
 
+class NativeGroundedPlayerPositionObservation(NativePlayerPositionObservation):
+    """Actor position with exact ground contact retained outside legacy serialization."""
+
+    __slots__ = ("ground_altitude",)
+
+    def __init__(
+        self,
+        lt: float,
+        lg: float,
+        altitude: float,
+        ground_altitude: float,
+        transform_count: int = 1,
+    ) -> None:
+        super().__init__(lt, lg, altitude, transform_count)
+        if not isfinite(ground_altitude):
+            raise ValueError("player ground altitude must be finite")
+        object.__setattr__(self, "ground_altitude", ground_altitude)
+
+
+@dataclass(frozen=True, slots=True)
+class _GroundSnapshot:
+    parent: int
+    collision_wrapper: int
+    collision: int
+    collision_vtable: int
+    ground_altitude: float
+    explicit_height: float
+    collision_minimum_y: float
+    grounding_enabled: bool
+
+
 @dataclass(frozen=True, slots=True)
 class _PlayerPositionSnapshot:
     player: int
@@ -155,6 +213,7 @@ class _PlayerPositionSnapshot:
     getter: int
     component: int
     value: int
+    ground: _GroundSnapshot | None
     observation: NativePlayerPositionObservation
 
 
@@ -314,23 +373,113 @@ class NativePlayerPositionReader:
                 "local-player position moved beyond the coherent-sample bound"
             )
         native_x, native_y, native_z = second
-        observation = self._validated_observation(
+        validated = self._validated_observation(
             lt=native_x,
             lg=-native_z,
             altitude=native_y,
         )
+        try:
+            ground = self._read_ground_snapshot(player, value, native_y)
+        except NativePlayerPositionReadError:
+            # Ground contact enriches diagnostics only. Airborne, nested or changing
+            # ground state must not make the canonical movement position unreadable.
+            ground = None
+        if ground is None:
+            observation = validated
+        else:
+            observation = NativeGroundedPlayerPositionObservation(
+                validated.lt,
+                validated.lg,
+                validated.altitude,
+                ground.ground_altitude,
+                validated.transform_count,
+            )
         return _PlayerPositionSnapshot(
             player=player,
             vtable=vtable,
             getter=getter,
             component=component,
             value=value,
+            ground=ground,
             observation=observation,
+        )
+
+    def _read_ground_snapshot(
+        self, player: int, value: int, position_y: float
+    ) -> _GroundSnapshot:
+        profile = self._profile
+        self._require_object_pointer(value, profile.grounding_flag_offset + 1, "player location")
+        location_vtable = self._read_pointer(value, "player-location vtable")
+        if location_vtable != self._process.base_address + profile.location_vtable_rva:
+            raise NativePlayerPositionReadError(
+                "player uses an unsupported location implementation"
+            )
+        parent = self._read_pointer(value + profile.location_parent_offset, "location parent")
+        if parent != 0:
+            raise NativePlayerPositionReadError("nested player location transform is unsupported")
+        location_values = self._read_exact(
+            value + profile.ground_height_offset,
+            profile.explicit_height_offset - profile.ground_height_offset + 4,
+            "player ground-height values",
+        )
+        ground_altitude, explicit_height = struct.unpack("<ff", location_values)
+        grounding = self._read_exact(
+            value + profile.grounding_flag_offset, 1, "player grounding flag"
+        )[0]
+        if grounding != 1:
+            raise NativePlayerPositionReadError("player ground height is not enabled")
+        collision_wrapper = self._read_pointer(
+            player + profile.player_collision_wrapper_offset, "player collision wrapper"
+        )
+        self._require_object_pointer(
+            collision_wrapper,
+            profile.collision_wrapper_value_offset + profile.pointer_size,
+            "player collision wrapper",
+        )
+        collision = self._read_pointer(
+            collision_wrapper + profile.collision_wrapper_value_offset,
+            "player collision info",
+        )
+        self._require_object_pointer(
+            collision, profile.collision_minimum_offset + 12, "player collision info"
+        )
+        collision_vtable = self._read_pointer(collision, "player collision-info vtable")
+        if collision_vtable != self._process.base_address + profile.collision_vtable_rva:
+            raise NativePlayerPositionReadError(
+                "player uses an unsupported collision implementation"
+            )
+        collision_minimum_y = struct.unpack(
+            "<fff",
+            self._read_exact(
+                collision + profile.collision_minimum_offset,
+                12,
+                "player collision minimum",
+            ),
+        )[1]
+        values = (ground_altitude, explicit_height, collision_minimum_y)
+        if any(not isfinite(item) for item in values):
+            raise NativePlayerPositionReadError("player ground-height values are not finite")
+        expected_origin = ground_altitude - collision_minimum_y + explicit_height
+        if abs(position_y - expected_origin) > profile.maximum_ground_origin_error:
+            raise NativePlayerPositionReadError(
+                "player ground height does not reconstruct the canonical actor origin"
+            )
+        if not profile.minimum_altitude <= ground_altitude <= profile.maximum_altitude:
+            raise NativePlayerPositionReadError("player ground height is outside calibrated bounds")
+        return _GroundSnapshot(
+            parent,
+            collision_wrapper,
+            collision,
+            collision_vtable,
+            ground_altitude,
+            explicit_height,
+            collision_minimum_y,
+            True,
         )
 
     def _snapshot_is_stable(self, snapshot: _PlayerPositionSnapshot) -> bool:
         profile = self._profile
-        return (
+        core_is_stable = (
             self._read_pointer(self._pointer_slot, "local player") == snapshot.player
             and self._read_pointer(snapshot.player, "local-player vtable") == snapshot.vtable
             and self._read_pointer(
@@ -348,6 +497,24 @@ class NativePlayerPositionReader:
                 "local-player position value",
             )
             == snapshot.value
+        )
+        if not core_is_stable or snapshot.ground is None:
+            return core_is_stable
+        return (
+            self._read_pointer(snapshot.value, "player-location vtable")
+            == self._process.base_address + profile.location_vtable_rva
+            and self._read_pointer(
+                snapshot.player + profile.player_collision_wrapper_offset,
+                "player collision wrapper",
+            )
+            == snapshot.ground.collision_wrapper
+            and self._read_pointer(
+                snapshot.ground.collision_wrapper + profile.collision_wrapper_value_offset,
+                "player collision info",
+            )
+            == snapshot.ground.collision
+            and self._read_pointer(snapshot.ground.collision, "player collision-info vtable")
+            == snapshot.ground.collision_vtable
         )
 
     def _read_position(self, value: int) -> tuple[float, float, float]:
@@ -483,6 +650,7 @@ def load_native_position_profile_text(text: str) -> NativePlayerPositionProfile:
                     "minimum_altitude",
                     "maximum_altitude",
                     "maximum_sample_drift",
+                    "maximum_ground_origin_error",
                 }
                 else _integer(data, key)
             )

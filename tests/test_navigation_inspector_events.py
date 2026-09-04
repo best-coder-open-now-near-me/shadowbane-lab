@@ -5,10 +5,11 @@ from dataclasses import FrozenInstanceError
 import pytest
 
 from shadowbane_lab.client_observation import (
+    NativeGroundedPlayerPositionObservation,
     NativePlayerPositionObservation,
     NativePlayerVitalsObservation,
 )
-from shadowbane_lab.navigation_inspector.events import MotionEvent, PlanEvent
+from shadowbane_lab.navigation_inspector.events import MotionEvent, PlanEvent, measured_position
 from shadowbane_lab.travel import (
     AStarRouteNotFound,
     AStarTravelController,
@@ -281,3 +282,13 @@ def test_zone_diagnostic_failure_does_not_replace_a_position_sample():
     wrapped = ObservedPositionSource(source, broken_observer, zone_reader=BrokenZone())
     assert wrapped.observe() == observation().position
     assert source.calls == 1
+
+
+def test_measured_position_prefers_verified_ground_altitude():
+    position = NativeGroundedPlayerPositionObservation(10.0, 20.0, 7.25, 5.0)
+    assert measured_position(position) == (10.0, 20.0, 5.0)
+
+
+def test_measured_position_preserves_legacy_actor_altitude():
+    position = NativePlayerPositionObservation(10.0, 20.0, 7.25)
+    assert measured_position(position) == (10.0, 20.0, 7.25)

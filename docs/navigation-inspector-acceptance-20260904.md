@@ -446,6 +446,31 @@ Current active todo: establish the exact player/ground height semantics and dura
 surface-placement source, then repeat flat and slope alignment before proceeding
 to normal/x-ray occlusion, bounded PvE and overlay cost/scene checks.
 
+## Exact ground-height contract and correction
+
+After the VM restart, the exact `3534418` runtime was verified again as client PID 3544,
+creation FILETIME `134330368496400834`, executable SHA-256
+`a9a59004b36f9331bb85f85e7853a02a5d5f07bda9acb9ea4a8affbf169a54b8`, installed source
+`8210ecf02b1a22c210c341ef0e41bfe710fb33ff`, and loaded DLL SHA-256
+`f08f99ea8dc8f8558971e3c00252b20df3ede58e00a723df012e4a14cd9071e7`. New evidence is in
+`navigation-inspector-3534418/resume-20260904-1915`.
+
+A bounded read-only probe captured five coherent samples and verified the exact
+`ArcLocationInfoImpl` and `ArcCollisionInfoImpl` implementations. Actor-origin Y was about
+28.518, client-resolved ground height was 26.25, explicit height was zero and collision minimum
+Y was about -2.268. The client equation
+`actor_y = ground_y - collision_min_y + explicit_height` reconstructed the canonical origin
+with maximum error `7.15e-7`. The collision minimum varied slightly with animation, which
+rules out a durable fixed subtraction. The retained receipt is `ground-height-contract.json`.
+
+The implementation now preserves actor-origin altitude for all movement and PvE decisions,
+while inspector events use verified resolved ground height when available. Ground enrichment
+is optional and falls back without failing the canonical position reader. The full regression suite passes with 1,673 tests, 211 subtests and seven expected skips;
+the repository-wide lint gate also passes. Live flat/slope acceptance still requires the corrected package.
+
+Current active todo: build and install the corrected package, reconnect the inspector, then
+repeat the owner-assisted slope and flat alignment checks.
+
 ## Remaining acceptance pass
 
 Use the [developer/owner handoff](handoffs/navigation-inspector.md) for the exact

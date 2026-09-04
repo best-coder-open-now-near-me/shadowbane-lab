@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from math import isfinite
 
-from shadowbane_lab.navigation_inspector.events import MotionEvent, emit
+from shadowbane_lab.navigation_inspector.events import MotionEvent, emit, measured_position
 from shadowbane_lab.pve.model import PvECampLease, PvEObservation, PvEPhase
 from shadowbane_lab.travel import (
     AStarRouteNotFound,
@@ -419,7 +419,7 @@ class PvEApproachController:
                     now,
                     position=None
                     if position is None
-                    else (position.lt, position.lg, position.altitude),
+                    else measured_position(position),
                     destination=None
                     if destination is None
                     else (destination.lt, destination.lg, destination.arrival_radius),

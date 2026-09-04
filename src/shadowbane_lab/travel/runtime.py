@@ -12,7 +12,12 @@ from shadowbane_lab.client_observation import (
     NativePlayerPositionObservation,
     NativePlayerVitalsObservation,
 )
-from shadowbane_lab.navigation_inspector.events import DiagnosticObserver, MotionEvent, emit
+from shadowbane_lab.navigation_inspector.events import (
+    DiagnosticObserver,
+    MotionEvent,
+    emit,
+    measured_position,
+)
 from shadowbane_lab.protocol import ActionBinding, DecisionMessage, DispatchResult, TargetKind
 from shadowbane_lab.travel.arrival import observe_arrival
 from shadowbane_lab.travel.model import (
@@ -260,7 +265,7 @@ class TravelRunner:
                             "observation",
                             "runtime",
                             now_ms,
-                            position=(position.lt, position.lg, position.altitude),
+                            position=measured_position(position),
                         ),
                     )
 

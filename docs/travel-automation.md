@@ -183,7 +183,11 @@ python -m shadowbane_lab.cli client observe-native-runegates --json
 
 The calibrated WonderBane build exposes the canonical position vector through the player
 object's verified position component. The native reader follows that exact object path and
-maps native `x/y/z` to `LT/altitude/-LG`. It requests query/read rights only.
+maps native `x/y/z` to `LT/altitude/-LG`. It requests query/read rights only. Movement, arrival
+and PvE continue to use that actor-origin altitude. When the client's exact location and
+collision implementations provide a coherent grounded sample, the reader also retains the
+resolved ground height for inspector rendering; unavailable diagnostic ground data never aborts
+or changes movement.
 
 The destination actuator reads the exact running client's minimap rectangle, content
 control and zoom. A rightward click increases LT; an upward click increases LG. Each

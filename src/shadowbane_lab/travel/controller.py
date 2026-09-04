@@ -11,6 +11,7 @@ from shadowbane_lab.navigation_inspector.events import (
     MotionEvent,
     RouteEvent,
     emit,
+    measured_position,
 )
 from shadowbane_lab.protocol import Vector2
 from shadowbane_lab.travel.model import (
@@ -606,7 +607,7 @@ class TravelController:
                     else observation.now_ms,
                     position=None
                     if position is None
-                    else (position.lt, position.lg, position.altitude),
+                    else measured_position(position),
                     waypoint_index=self._waypoint_index,
                     destination=(destination.lt, destination.lg, destination.arrival_radius),
                     direction=None

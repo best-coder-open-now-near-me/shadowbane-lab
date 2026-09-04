@@ -94,3 +94,9 @@ def emit(observer: DiagnosticObserver | None, event: DiagnosticEvent) -> None:
         except Exception:
             # Transport, UI and third-party observers do not own movement policy.
             pass
+
+
+def measured_position(position) -> tuple[float, float, float]:
+    """Use verified native ground contact for rendering without changing control input."""
+    altitude = getattr(position, "ground_altitude", position.altitude)
+    return (position.lt, position.lg, altitude)

@@ -15,7 +15,7 @@ from pathlib import Path
 
 from shadowbane_lab.graphics_lab.control import discover_graphics_targets
 
-from .events import ContextEvent, DiagnosticEvent, MotionEvent
+from .events import ContextEvent, DiagnosticEvent, MotionEvent, measured_position
 from .geometry import prepare_geometry
 from .identity import loaded_module_sha256
 from .protocol import encode_frame
@@ -249,7 +249,7 @@ def pve_trace_sink(journal, observer):
                         "observation",
                         "runtime",
                         now,
-                        position=(position.lt, position.lg, position.altitude),
+                        position=measured_position(position),
                     )
                 )
             for accepted, reason, prefix in (

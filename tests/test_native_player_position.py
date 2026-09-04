@@ -3,11 +3,13 @@ import json
 import struct
 import unittest
 from contextlib import redirect_stdout
+from dataclasses import asdict
 from pathlib import Path
 from unittest.mock import patch
 
 from shadowbane_lab.cli import main
 from shadowbane_lab.client_observation import (
+    NativeGroundedPlayerPositionObservation,
     NativePlayerPositionCompatibilityError,
     NativePlayerPositionObservation,
     NativePlayerPositionProfile,
@@ -40,6 +42,16 @@ def _profile() -> NativePlayerPositionProfile:
         minimum_altitude=-2_000,
         maximum_altitude=20_000,
         maximum_sample_drift=100,
+        location_vtable_rva=0x225000,
+        location_parent_offset=8,
+        ground_height_offset=0x108,
+        explicit_height_offset=0x10C,
+        grounding_flag_offset=0x146,
+        player_collision_wrapper_offset=0x4AC,
+        collision_wrapper_value_offset=0,
+        collision_vtable_rva=0x226000,
+        collision_minimum_offset=0x90,
+        maximum_ground_origin_error=0.01,
     )
 
 
@@ -91,6 +103,10 @@ def _fixture(
         "getter": FakeProcessMemory.base_address + profile.position_getter_rva,
         "component": 0x23000000,
         "value": 0x24000000,
+        "location_vtable": FakeProcessMemory.base_address + profile.location_vtable_rva,
+        "collision_wrapper": 0x25000000,
+        "collision": 0x26000000,
+        "collision_vtable": FakeProcessMemory.base_address + profile.collision_vtable_rva,
     }
     resolved_getter = addresses["getter"] if getter is None else getter
     process = FakeProcessMemory(
@@ -105,6 +121,20 @@ def _fixture(
             addresses["value"] + profile.position_value_offset: [
                 _position(*first_position),
                 _position(*second_position),
+            ],
+            addresses["value"]: [_pointer(addresses["location_vtable"])],
+            addresses["value"] + profile.location_parent_offset: [_pointer(0)],
+            addresses["value"] + profile.ground_height_offset: [
+                struct.pack("<ff", second_position[2] - 2.5, 0.0)
+            ],
+            addresses["value"] + profile.grounding_flag_offset: [b"\x01"],
+            addresses["player"] + profile.player_collision_wrapper_offset: [
+                _pointer(addresses["collision_wrapper"])
+            ],
+            addresses["collision_wrapper"]: [_pointer(addresses["collision"])],
+            addresses["collision"]: [_pointer(addresses["collision_vtable"])],
+            addresses["collision"] + profile.collision_minimum_offset: [
+                struct.pack("<fff", -1.0, -2.5, -1.0)
             ],
         }
     )
@@ -148,7 +178,33 @@ class NativePlayerPositionReaderTests(unittest.TestCase):
         self.assertEqual(106662.5, observation.lt)
         self.assertEqual(52432.25, observation.lg)
         self.assertEqual(148.0, observation.altitude)
+        self.assertEqual(145.5, observation.ground_altitude)
         self.assertEqual(1, observation.transform_count)
+
+    def test_grounded_observation_preserves_legacy_serialized_position(self) -> None:
+        observation = NativeGroundedPlayerPositionObservation(10.0, 20.0, 7.25, 5.0)
+
+        self.assertEqual(5.0, observation.ground_altitude)
+        self.assertEqual(
+            {"lt": 10.0, "lg": 20.0, "altitude": 7.25, "transform_count": 1},
+            asdict(observation),
+        )
+
+    def test_invalid_ground_height_falls_back_without_interrupting_position(self) -> None:
+        process, addresses = _fixture()
+        process.responses[addresses["value"] + _profile().ground_height_offset] = [
+            struct.pack("<ff", 100.0, 0.0)
+        ]
+
+        observation = NativePlayerPositionReader(
+            _profile(), process, stability_attempts=1
+        ).observe()
+
+        self.assertIs(type(observation), NativePlayerPositionObservation)
+        self.assertEqual(
+            (106662.5, 52432.25, 148.0),
+            (observation.lt, observation.lg, observation.altitude),
+        )
 
     def test_rejects_unsupported_position_getter(self) -> None:
         process, _ = _fixture(getter=FakeProcessMemory.base_address + 0xBEEF0)

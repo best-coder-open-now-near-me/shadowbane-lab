@@ -211,11 +211,23 @@ the goal, with 5.243 seconds of stable post-arrival observations. All 17 measure
 trail segments were present and the owner confirmed the normal trail looked good.
 
 The subsequent slope run verified a 15.101-unit climb, stationary arrival and
-camera rotation, but the owner reported a possible mid-body line origin and said
-the same offset could have been hidden by the flat-view angle. Ground-contact
-alignment is therefore unverified on both surfaces. Current geometry uses native
-player Y unchanged; its grounding semantics must be established before a correction.
+camera rotation, but the owner reported a mid-body line origin and said the same
+offset could have been hidden by the flat-view angle. Ground-contact alignment is
+therefore unverified on both surfaces.
 
-Next todo: verify the height source and durable ground-contact placement, then
-repeat flat/slope alignment. Normal/x-ray occlusion, bounded PvE and overlay
-cost/scene checks remain afterward. PR #27 stays draft and unmerged.
+A fresh read-only sample after the VM restart established the exact relationship. The running
+client was PID 3544 with creation FILETIME `134330368496400834`; its executable, installed
+source and loaded DLL identities matched the `3534418` package. Across five samples the actor
+origin was about 28.518, the resolved ground height was 26.25, explicit height was zero and
+collision minimum Y was about -2.268. The client equation
+`actor_y = ground_y - collision_min_y + explicit_height` reconstructed every actor sample
+within `7.15e-7`. The collision minimum changed slightly with animation, so a fixed visual
+offset would be wrong. Evidence is retained as `ground-height-contract.json` under
+`navigation-inspector-3534418/resume-20260904-1915`.
+
+The reader now retains the canonical actor altitude for movement and optionally publishes the
+verified resolved ground height for inspector events. Invalid, unavailable, airborne or nested
+ground state falls back to the canonical position and cannot abort movement or PvE.
+
+Next todo: deploy this checkpoint and repeat flat/slope alignment. Normal/x-ray occlusion,
+bounded PvE and overlay cost/scene checks remain afterward. PR #27 stays draft and unmerged.
