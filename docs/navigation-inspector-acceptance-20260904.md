@@ -234,17 +234,18 @@ ring was full, sequence advanced from 505 to 2,283, and producer drops stayed at
 zero. The sampled scene had one verified main scene/boundary, no invalidation,
 no late world draws, and a successful pre-UI composite.
 
-After the owner focused the game, `/go 88712 44857 --radius 5` completed using the
-production A* route: four clicks, no replans or direct fallback, and arrival within
-five units. The saved capture has 12 measured trail positions and 13 events. Its
+After the owner focused the game, `/go 88712 44857 --radius 5` reported completion
+using the production A* route: four clicks, no replans or direct fallback, and one
+position sample within five units. The subsequent overshoot below invalidates
+that completion claim. The saved capture has 12 measured trail positions and 13 events. Its
 geometry contains all 11 world-height trail segments, with zero omitted lines,
 trail omissions or dropped observations. Capture SHA-256:
 `0185547c71dbf0cdf954af261ec9d080f22b4c4aa8bf3ffca06a930a24d7a8f7`.
 
 The screenshots show cyan world-trail portions on the road, but the owner reports
 that only the first short segment was visible. **Trail visibility is not accepted.**
-The next comparison enables the existing dashed x-ray layer on a return walk to
-separate missing capture/geometry from depth occlusion. No height or depth rule
+The planned normal/x-ray comparison is paused until destination execution and
+actual arrival are verified. No height or depth rule
 has been changed to conceal the finding. The projected capture remains available
 after the producer lease expires; stale evidence cannot draw world lines.
 
@@ -254,6 +255,36 @@ and `graphics-status-in-world.json`. Timed PNGs and their UTC index are in the
 worktree's ignored `artifacts/navigation-inspector/live-20260904/camera-walk-*`.
 The current helpers are panel 3316, listener 6312 and recorder 7696. No movement
 command remains active.
+
+## Owner-confirmed destination overshoot
+
+The owner confirmed that the character kept walking without manual movement.
+The run reported LT 88708.140625 / LG 44857.0234375 at 3,422 ms, but subsequent
+read-only samples found it stationary at approximately LT 89009.25 / LG 44857.02:
+about 301 units beyond the reported endpoint. No second automated route ran.
+The x-ray comparison was armed but has not started.
+
+The owner clarified the actual client behavior: a click specifies a destination;
+new clicks replace that destination, and immediate stopping in place is not a
+reliable operation. Code inspection finds that `DecisionInputCompiler` normalizes
+all movement vectors to the full calibrated minimap radius, discarding waypoint
+distance. `compile_movement_stop` sends a center click, and `TravelRunner` returns
+as soon as that input is accepted, without observing a stationary arrival. Neither
+input acceptance nor a sample inside the arrival radius proves completion.
+The recorded trail ends with that premature return, so the apparent short trail
+must be reassessed after the movement lifecycle is corrected. A depth defect has
+not been demonstrated by this run.
+
+The production correction must preserve bounded world destinations through the
+minimap projection, verify its current scale/geometry rather than fit a guessed
+ratio to this overshoot, observe stationary arrival, and keep capturing until the
+run actually settles. Cancellation must describe destination replacement and
+remaining movement honestly. The same actuator is used by PvE; its acceptance
+remains blocked by this finding.
+
+Local evidence: `motion-before-xray.json`, `short-test.json`,
+`listener.stdout.jsonl`, and the original capture above. The read-only investigation
+and `before-stop-investigation.png` remain in the ignored live artifact directory.
 
 ## Remaining acceptance pass
 
@@ -275,7 +306,8 @@ unavailable. Verify the measured LT/LG-to-world transform before accepting world
 alignment. If the separate terrain repair is added, it requires its own verified
 source and one combined boundary-tile check.
 
-Current active todo: compare normal/x-ray trail coverage, then complete slope
+Current active todo: correct destination execution and verify stationary arrival;
+then compare normal/x-ray trail coverage and complete slope
 and camera-rotation alignment, the bounded PvE scenarios and overlay cost/scene
 checks. After the remaining live pass, review
 and integrate PR #27, then retire the inspector worktree/branch when safe.
