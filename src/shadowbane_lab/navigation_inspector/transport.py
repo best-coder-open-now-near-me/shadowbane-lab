@@ -19,7 +19,9 @@ from shadowbane_lab.graphics_lab.control import GraphicsControlTarget, verify_ta
 
 from .geometry import ALL_LAYERS
 from .protocol import (
+    CHECKSUM_OFFSET,
     HEADER,
+    LINE,
     MAGIC,
     MAX_FRAME_BYTES,
     SEQUENCE_OFFSET,
@@ -27,6 +29,7 @@ from .protocol import (
     Frame,
     decode_frame,
     mapping_name,
+    zone_identity,
 )
 from .snapshot import Clearance, Snapshot
 
@@ -246,6 +249,71 @@ class Channel:
             now_ms=self.clock_ms(),
             sequence_after=after,
         )
+
+    def read_evidence(self) -> tuple[Snapshot, str | None]:
+        """Read bounded evidence even after live placement expires.
+
+        Stale or unknown-zone evidence is only for the panel's projected view.
+        This never renews the native lease or sends a saved capture to the game.
+        """
+        self._check_open()
+        before = self._sequence(SEQUENCE_OFFSET)
+        if not before or before % 2:
+            raise ValueError("waiting for the next /go or /pve recording")
+        header = HEADER.unpack(ctypes.string_at(self._address, HEADER.size))
+        size, count, capture_size = header[2], header[14], header[16]
+        if (
+            not HEADER.size <= size <= MAX_FRAME_BYTES
+            or count > 16384
+            or size != HEADER.size + count * LINE.size + capture_size
+        ):
+            raise ValueError("invalid evidence capacity")
+        payload = ctypes.string_at(self._address, size)
+        if before != self._sequence(SEQUENCE_OFFSET):
+            raise ValueError("evidence changed during read")
+        actual = HEADER.unpack_from(payload)
+        if actual != header or header[3] != before or header[:2] != (MAGIC, VERSION):
+            raise ValueError("torn or unsupported evidence header")
+        checked = bytearray(payload)
+        struct.pack_into("<I", checked, CHECKSUM_OFFSET, 0)
+        if zlib.crc32(checked) != header[17]:
+            raise ValueError("evidence checksum mismatch")
+        snapshot = Snapshot.from_bytes(payload[HEADER.size + count * LINE.size :])
+        identity = snapshot.identity
+        if (
+            header[4] != self.target.process_id
+            or identity.process_id != self.target.process_id
+            or header[6] != self.target.process_creation_filetime_utc
+            or identity.process_creation_filetime != self.target.process_creation_filetime_utc
+            or identity.executable_sha256 != self.target.executable_sha256
+            or snapshot.session_id != header[7]
+            or zone_identity(snapshot.context.zone_token) != header[8]
+            or snapshot.map_revision != header[9]
+            or snapshot.route_revision != header[10]
+            or snapshot.sampled_ms != header[11]
+            or snapshot.frozen != bool(header[5] & 2)
+        ):
+            raise ValueError("evidence identity does not match its frame")
+        placement = None
+        try:
+            decode_frame(
+                payload,
+                process_id=self.target.process_id,
+                process_creation=self.target.process_creation_filetime_utc,
+                now_ms=self.clock_ms(),
+                sequence_after=before,
+            )
+        except ValueError as error:
+            if str(error) not in (
+                "frame zone unavailable or changed",
+                "producer lease expired",
+                "sample is stale",
+            ):
+                raise
+            placement = str(error)
+        if not self.alive:
+            placement = "client exited"
+        return snapshot, placement
 
     def snapshot(self, frame: Frame) -> Snapshot:
         snapshot = Snapshot.from_bytes(frame.capture)

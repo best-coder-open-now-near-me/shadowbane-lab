@@ -150,6 +150,7 @@ def _prepare_geometry(plan, clearance, active, trail, events, route=None) -> Geo
     execution = route
     if plan is not None:
         path(Layer.RAW, plan.raw_path)
+    if plan is not None or execution is not None:
         # The route begins at the real search start and uses the actual issued
         # destinations, including a non-cell-centered final destination.
         route = (
@@ -162,11 +163,11 @@ def _prepare_geometry(plan, clearance, active, trail, events, route=None) -> Geo
         for index, (start, end) in enumerate(zip(route, route[1:], strict=False)):
             physical = any(
                 swept_circle_overlaps_cell(start, end, cell, plan.cell_size, radius)
-                for cell in plan.physical_blocked
+                for cell in (() if plan is None else plan.physical_blocked)
             )
             learned = any(
                 swept_circle_overlaps_cell(start, end, cell, plan.cell_size, radius)
-                for cell in plan.learned_blocked
+                for cell in (() if plan is None else plan.learned_blocked)
             )
             if physical:
                 physical_hits.append(index)
@@ -186,6 +187,7 @@ def _prepare_geometry(plan, clearance, active, trail, events, route=None) -> Geo
                     )
             circle(Layer.CORRIDOR, start, radius, flags)
             circle(Layer.CORRIDOR, end, radius, flags)
+    if plan is not None:
         for layer, cells in (
             (Layer.PHYSICAL, plan.physical_blocked),
             (Layer.LEARNED, plan.learned_blocked),
@@ -202,7 +204,6 @@ def _prepare_geometry(plan, clearance, active, trail, events, route=None) -> Geo
             or (execution is not None and execution.omitted_destinations)
         )
     elif execution is not None:
-        path(Layer.FINAL, (execution.start,) + tuple(p[:2] for p in execution.destinations))
         circle(Layer.OBJECTIVE, execution.destinations[-1], execution.destinations[-1][2])
         truncated = bool(execution.omitted_destinations)
     if active is not None and active.destination is not None:

@@ -66,7 +66,13 @@ scene depth without writing it; optional x-ray is dashed and a different color.
 The viewer accepts only the current, unambiguous camera and matching viewport.
 Shader, texture-unit, matrix, enable, mask, scissor and other touched state are
 restored. No draw hooks or inspector runtime sources enter diagnostics-only.
-The desktop panel and saved-evidence UI remain the active work.
+Checkpoint 6 adds the desktop panel (shadowbane-navigation-inspector). Connect
+the exact client before starting /go or /pve, select layers, adjust explicit
+clearance estimates, and freeze/resume. Save and open strict captures without
+republishing them to the game. Expired or unknown-zone evidence remains available
+in the projected panel while native live placement expires. Tests exercise real
+Tk widgets without showing a window, replay controls and Windows stale evidence.
+Source/build identity and the combined acceptance package remain active.
 
 Validation: 212 focused inspector, pathfinding, adaptive travel, travel and PvE
 controller, terrain and command tests pass. Observer failure is tested against identical ordinary
@@ -89,8 +95,8 @@ live acceptance are pending.
 - [x] Connect and validate Windows transport and full-profile native channel ownership.
 - [x] Wire live travel/PvE publishers, active-route ownership and map provenance.
 - [x] Wire native drawing and verify real OpenGL depth/state isolation and bounded draw cost.
-- [ ] Active: complete the desktop panel and saved-evidence inspection, then prepare
-  the combined package and exact source/build receipts.
+- [x] Complete the desktop panel and saved-evidence inspection.
+- [ ] Active: prepare source/build identity and the combined acceptance package.
 - [ ] Validate both native profiles and combined Python/package boundaries; record
   exact source and artifact hashes for the coordinated live acceptance package.
 - [ ] Complete the bounded live tests in the [developer/owner handoff](handoffs/navigation-inspector.md).

@@ -11,6 +11,7 @@ requires-python = ">=3.11"
 dependencies = []
 
 [project.scripts]
+shadowbane-navigation-inspector = "shadowbane_lab.navigation_inspector.app:main"
 shadowbane-lab = "shadowbane_lab.cli:main"
 shadowbane-runtime-consistency = "shadowbane_lab.runtime_consistency.__main__:main"
 shadowbane-terrain-audit = "shadowbane_lab.world_data.terrain_seam_cli:main"

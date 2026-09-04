@@ -196,3 +196,37 @@ def test_real_session_worker_publishes_and_releases_ownership(live_mapping):
     assert not session._worker.is_alive()
     with Channel(identity, role="producer"):
         pass
+
+
+@pytest.mark.parametrize("zone,age", [("test-zone", 0), ("test-zone", 5000), (None, 0)])
+def test_projected_evidence_survives_expiry_but_rejects_corruption(live_mapping, zone, age):
+    identity, address, _api = live_mapping
+    with Channel(identity, role="producer") as writer, Channel(identity) as reader:
+        now = writer.clock_ms() - age
+        collector = Collector(
+            SourceIdentity(
+                identity.process_id,
+                identity.process_creation_filetime_utc,
+                identity.executable_sha256,
+                "unavailable",
+                "test",
+                "unavailable",
+            ),
+            99,
+        )
+        collector.observe(ContextEvent("context", zone, "map", "fixture only"), now)
+        snapshot = collector.snapshot()
+        writer.publish(
+            encode_frame(
+                snapshot, prepare_geometry(snapshot), sequence=2, lease_ms=now, live_zone=zone
+            )
+        )
+        saved, placement = reader.read_evidence()
+        assert saved == snapshot
+        assert (placement is None) == (zone is not None and age == 0)
+        if placement:
+            with pytest.raises(ValueError):
+                reader.read()
+        ctypes.c_ubyte.from_address(address + HEADER.size).value ^= 1
+        with pytest.raises(ValueError, match="checksum"):
+            reader.read_evidence()
