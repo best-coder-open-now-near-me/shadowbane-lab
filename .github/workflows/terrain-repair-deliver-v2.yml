@@ -101,7 +101,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python -m pip install --disable-pip-version-check -e . pytest ruff build
+          python -m pip install --disable-pip-version-check -e ".[test]" ruff build
       - name: Run Python, quality, and package gates
         shell: bash
         run: |
