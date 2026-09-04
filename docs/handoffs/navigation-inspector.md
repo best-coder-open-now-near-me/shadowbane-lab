@@ -170,3 +170,27 @@ Next todo: use the verified package and receipts to perform the bounded live
 pass above with the owner. Planned geometry is explicitly
 projected until final terrain elevation is observed. Terrain delivery remains
 a separate follow-up; this package does not contain that repair.
+
+
+### Destination execution correction (active)
+
+The owner confirmed continued movement after the first camera-enabled `/go` run
+reported completion. A center click is not a verified immediate stop. The current
+full-radius directional actuator must be replaced by destination-aware clicks
+and observed arrival before more visual acceptance. See the dated acceptance record.
+
+The read-only minimap investigation identifies ArcMapHud object/control vtables
+at RVAs `0x116da48` / `0x116da0c`. Screen-to-world is `0x661010`; the inverse
+world-to-map function is `0x661270`. The projection uses parent-local child control
+ID `0x4a` when present, otherwise the parent rectangle. Rectangle getter
+`0x554b70` reads the control's `+4` rectangle. Scale is the float at `0x11661a4`
+(approximately 0.13) multiplied by live zoom at `+0x37c`. The center-position
+getter `0x661440` reads the same player pointer/position getter already owned by
+native position observation. LT increases to the right; LG increases upward.
+
+The verified running `3534418` client has parent rectangle `(1710,14,1920,224)`,
+child rectangle `(3,3,207,207)`, center `(1815,119)`, and zoom
+`2.078929901123047`. A 45-unit waypoint projects about 12 pixels from that center,
+whereas the old actuator always selects its 82-pixel radius. The native minimap
+reader and its projection tests form the first correction checkpoint; travel/PvE
+wiring and measured completion are still required. This is not a deployed fix.
