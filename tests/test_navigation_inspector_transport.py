@@ -4,7 +4,6 @@ import ctypes
 import hashlib
 import os
 import struct
-import sys
 from ctypes import wintypes
 from dataclasses import replace
 from pathlib import Path
@@ -70,9 +69,20 @@ def live_mapping():
     process = api.OpenProcess(0x1000, False, os.getpid())
     times = [wintypes.FILETIME() for _ in range(4)]
     assert api.GetProcessTimes(process, *(ctypes.byref(value) for value in times))
+    api.QueryFullProcessImageNameW.argtypes = [
+        wintypes.HANDLE,
+        wintypes.DWORD,
+        wintypes.LPWSTR,
+        ctypes.POINTER(wintypes.DWORD),
+    ]
+    api.QueryFullProcessImageNameW.restype = wintypes.BOOL
+    size = wintypes.DWORD(32768)
+    path = ctypes.create_unicode_buffer(size.value)
+    assert api.QueryFullProcessImageNameW(process, 0, path, ctypes.byref(size))
     api.CloseHandle(process)
     creation = times[0].dwLowDateTime | (times[0].dwHighDateTime << 32)
-    executable = Path(sys.executable).resolve()
+    # Windows venv sys.executable may name a launcher, not the running image.
+    executable = Path(path.value).resolve()
     identity = GraphicsControlTarget(
         os.getpid(),
         creation,
