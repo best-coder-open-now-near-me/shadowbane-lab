@@ -307,6 +307,28 @@ with 7 skips and 211 subtests; exact final-source counts, native/profile gates a
 package receipts must come from the committed package build. No corrected wheel
 or DLL has been deployed yet, and the overshoot/visibility acceptance remains open.
 
+## Exact getter preflight correction
+
+The `c9f3e16050d4cc579a6d1935750bd3bea0c70e0c` package passed 1,668 Python tests,
+7 skips, 211 subtests, Ruff, both Win32 profiles (18 native tests each), wheel/source
+packages and the installed panel. All 27 receipt entries matched disk and ZIP.
+Package: `artifacts/navigation-inspector/c21a4f9f`; ZIP SHA-256
+`73d6658df2a36332358113a141b1c3e1b4cd10e2f9dcc57c9825dfffca0c8bd0`.
+The native DLLs are byte-identical to the accepted camera package.
+
+The verified wheel was installed into the existing testing runtime without changing
+PID 8652 or its loaded DLL. Its read-only live preflight rejected the minimap before
+any movement: the content rectangle getter is not the generic getter assumed in the
+initial fixture. The actual vtable `0x1169ec0` slot `+0x1c` points to `0x8ddc`, and
+offline review of the frozen executable proves its direct jump to `0x56c3e0` copies
+four rectangle integers from `this+4`. The guard and fixture are corrected to this
+exact getter; the old generic slot is explicitly rejected. No guard was disabled.
+
+The replacement package and repeated read-only preflight are required before any
+walk. The prior helper pair was stopped for the update, the recorder had expired,
+and no game restart or further movement occurred. Local evidence remains in
+`navigation-inspector-3534418/correction-c9f3e16`, including the failure receipt.
+
 ## Remaining acceptance pass
 
 Use the [developer/owner handoff](handoffs/navigation-inspector.md) for the exact

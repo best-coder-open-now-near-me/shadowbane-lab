@@ -34,7 +34,7 @@ class Process:
         struct.pack_into("<I4i", self.child, 0, 0x1569EC0, 3, 3, 207, 207)
         struct.pack_into("<I", self.child, 0x2F0, 0x4A)
         self.put(0x210000, struct.pack("<I", 0x220000))
-        self.put(0x1569EDC, struct.pack("<I", 0x425167))
+        self.put(0x1569EDC, struct.pack("<I", 0x408DDC))
 
     def put(self, address, value):
         self.memory[address] = value
@@ -129,6 +129,7 @@ def test_unreviewed_identity_scale_or_dispatch_is_rejected(mutation):
         lambda p: struct.pack_into("<2I", p.parent, 0x54, 0x210000, 0x310000),
         lambda p: struct.pack_into("<4i", p.child, 4, -1, 3, 207, 207),
         lambda p: p.put(0x1569EDC, struct.pack("<I", 0x401234)),
+        lambda p: p.put(0x1569EDC, struct.pack("<I", 0x425167)),
         lambda p: setattr(p, "hits", []),
         lambda p: setattr(p, "hits", [0x200000, 0x200000]),
     ],

@@ -18,7 +18,7 @@ from shadowbane_lab.client_observation.native_health import WindowsReadOnlyProce
 _REVIEWED_SHA = "ef43784ba6ffa0de6c0c16c76569f864393ad1530e7149395bb560e5cca30f13"
 _OBJECT_VTABLE = 0x116DA48
 _CONTROL_VTABLE = 0x116DA0C
-_RECT_GETTER = 0x25167
+_RECT_GETTER = 0x8DDC  # content-control slot +0x1c -> 0x56c3e0; copies this+4
 _BASE_SCALE_RVA = 0x11661A4
 
 

@@ -182,8 +182,9 @@ and observed arrival before more visual acceptance. See the dated acceptance rec
 The read-only minimap investigation identifies ArcMapHud object/control vtables
 at RVAs `0x116da48` / `0x116da0c`. Screen-to-world is `0x661010`; the inverse
 world-to-map function is `0x661270`. The projection uses parent-local child control
-ID `0x4a` when present, otherwise the parent rectangle. Rectangle getter
-`0x554b70` reads the control's `+4` rectangle. Scale is the float at `0x11661a4`
+ID `0x4a` when present, otherwise the parent rectangle. The observed content vtable `0x1169ec0` uses getter slot `+0x1c` -> thunk
+`0x8ddc` -> `0x56c3e0`, which copies the control's `+4` rectangle.
+The initially assumed generic getter `0x25167` is not this content-control slot. Scale is the float at `0x11661a4`
 (approximately 0.13) multiplied by live zoom at `+0x37c`. The center-position
 getter `0x661440` reads the same player pointer/position getter already owned by
 native position observation. LT increases to the right; LG increases upward.
