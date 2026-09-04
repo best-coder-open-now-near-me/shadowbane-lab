@@ -1,0 +1,24 @@
+name: Terrain material source export
+
+on:
+  push:
+    branches:
+      - codex/terrain-material-export-da109b0
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create source archive
+        run: git archive --format=zip --output=shadowbane-lab-da109b0.zip HEAD
+      - name: Upload source archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: shadowbane-lab-da109b0
+          path: shadowbane-lab-da109b0.zip
+          if-no-files-found: error
+          retention-days: 1
