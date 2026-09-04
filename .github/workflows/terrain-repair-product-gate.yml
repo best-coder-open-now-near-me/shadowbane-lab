@@ -1,0 +1,166 @@
+name: Terrain repair product gate
+
+on:
+  push:
+    branches:
+      - codex/terrain-material-repair-completion
+  pull_request:
+    branches:
+      - codex/client-convergence-v2
+
+permissions:
+  contents: read
+
+jobs:
+  policy-and-python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Python validation dependencies
+        run: |
+          python -m pip install --disable-pip-version-check --upgrade pip
+          python -m pip install --disable-pip-version-check -e . pytest ruff build pefile==2024.8.26 capstone==5.0.9
+      - name: Verify generated contracts are reproducible
+        run: |
+          set -euo pipefail
+          cp native/wonderbane_extension/terrain_client_profile.generated.h /tmp/profile.before
+          cp native/wonderbane_extension/terrain_append_abi.generated.h /tmp/append-abi.before
+          cp native/wonderbane_extension/terrain_append_bridge.generated.cpp /tmp/append-bridge.before
+          cp native/wonderbane_extension/terrain_registration_abi.generated.h /tmp/registration-abi.before
+          cp native/wonderbane_extension/terrain_registration_bridge.generated.cpp /tmp/registration-bridge.before
+          python tools/terrain_material_codegen.py --repository .
+          cmp /tmp/profile.before native/wonderbane_extension/terrain_client_profile.generated.h
+          cmp /tmp/append-abi.before native/wonderbane_extension/terrain_append_abi.generated.h
+          cmp /tmp/append-bridge.before native/wonderbane_extension/terrain_append_bridge.generated.cpp
+          cmp /tmp/registration-abi.before native/wonderbane_extension/terrain_registration_abi.generated.h
+          cmp /tmp/registration-bridge.before native/wonderbane_extension/terrain_registration_bridge.generated.cpp
+          git diff --exit-code
+      - name: Compile and run terrain policy tests
+        run: |
+          set -euo pipefail
+          g++ -std=c++20 -O2 -Wall -Wextra -Wpedantic -Werror \
+            native/wonderbane_extension/terrain_material_plan.cpp \
+            native/wonderbane_extension/terrain_material_plan_test.cpp \
+            -o /tmp/terrain_material_plan_test
+          /tmp/terrain_material_plan_test
+          g++ -std=c++20 -O2 -Wall -Wextra -Wpedantic -Werror \
+            native/wonderbane_extension/terrain_material_plan.cpp \
+            native/wonderbane_extension/terrain_material_transaction.cpp \
+            native/wonderbane_extension/terrain_material_transaction_test.cpp \
+            -o /tmp/terrain_material_transaction_test
+          /tmp/terrain_material_transaction_test
+          g++ -std=c++20 -O2 -Wall -Wextra -Wpedantic -Werror \
+            native/wonderbane_extension/terrain_vtable_hook.cpp \
+            native/wonderbane_extension/terrain_vtable_hook_test.cpp \
+            -o /tmp/terrain_vtable_hook_test
+          /tmp/terrain_vtable_hook_test
+          g++ -std=c++20 -O2 -Wall -Wextra -Wpedantic -Werror \
+            native/wonderbane_extension/terrain_client_verification.cpp \
+            native/wonderbane_extension/terrain_client_verification_test.cpp \
+            -o /tmp/terrain_client_verification_test
+          /tmp/terrain_client_verification_test
+      - name: Run repository Python and quality gates
+        run: |
+          python -m pytest -q
+          python -m ruff check .
+          python -m build
+
+  native-win32:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [full, diagnostics-only]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure reviewed Win32 profile
+        shell: pwsh
+        run: |
+          cmake -S native/wonderbane_extension `
+            -B "build/${{ matrix.profile }}" `
+            -G "Visual Studio 17 2022" `
+            -A Win32 `
+            -DWONDERBANE_EXTENSION_PROFILE=${{ matrix.profile }} `
+            -DBUILD_TESTING=ON
+          if ($LASTEXITCODE -ne 0) { throw "CMake configure failed" }
+      - name: Prove full-only source membership
+        shell: pwsh
+        run: |
+          $projectPath = "build/${{ matrix.profile }}/wonderbane_extension.vcxproj"
+          if (-not (Test-Path -LiteralPath $projectPath -PathType Leaf)) {
+            throw "Missing generated extension project: $projectPath"
+          }
+          $project = Get-Content -LiteralPath $projectPath -Raw
+          $runtimeSources = @(
+            'terrain_client_verification.cpp',
+            'terrain_inline_hook.cpp',
+            'terrain_vtable_hook.cpp',
+            'terrain_material_client_adapter.cpp',
+            'terrain_material_runtime.cpp',
+            'terrain_material_bootstrap.cpp',
+            'terrain_append_bridge.generated.cpp',
+            'terrain_registration_bridge.generated.cpp'
+          )
+          if ('${{ matrix.profile }}' -eq 'full') {
+            foreach ($source in $runtimeSources) {
+              if ($project -notmatch [regex]::Escape($source)) {
+                throw "Full renderer project omits $source"
+              }
+            }
+            if ($project -notmatch 'WB_ENABLE_TERRAIN_MATERIAL_REPAIR=1') {
+              throw 'Full renderer project omits the repair enable definition'
+            }
+          }
+          else {
+            foreach ($source in $runtimeSources) {
+              if ($project -match [regex]::Escape($source)) {
+                throw "Diagnostics-only project unexpectedly includes $source"
+              }
+            }
+            if ($project -match 'WB_ENABLE_TERRAIN_MATERIAL_REPAIR') {
+              throw 'Diagnostics-only project unexpectedly enables terrain repair'
+            }
+          }
+      - name: Build reviewed Win32 profile
+        shell: pwsh
+        run: |
+          cmake --build "build/${{ matrix.profile }}" --config Release --parallel
+          if ($LASTEXITCODE -ne 0) { throw "Native build failed" }
+      - name: Run native tests
+        shell: pwsh
+        run: |
+          ctest --test-dir "build/${{ matrix.profile }}" -C Release --output-on-failure
+          if ($LASTEXITCODE -ne 0) { throw "Native tests failed" }
+      - name: Create immutable build receipt
+        shell: pwsh
+        run: |
+          $root = Resolve-Path "build/${{ matrix.profile }}"
+          $dll = Get-ChildItem -LiteralPath $root -Recurse -File -Filter 'wonderbane-extension.dll' |
+            Select-Object -First 1
+          if ($null -eq $dll) { throw 'Built extension DLL was not found' }
+          New-Item -ItemType Directory -Path receipt -Force | Out-Null
+          Copy-Item -LiteralPath $dll.FullName -Destination "receipt/wonderbane-extension-${{ matrix.profile }}.dll"
+          $hash = (Get-FileHash -LiteralPath $dll.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          $source = '${{ github.sha }}'
+          $record = [ordered]@{
+            schema = 'shadowbane-terrain-repair-build-receipt-v1'
+            source_commit = $source
+            profile = '${{ matrix.profile }}'
+            generator = 'Visual Studio 17 2022'
+            platform = 'Win32'
+            configuration = 'Release'
+            dll_name = $dll.Name
+            dll_size = $dll.Length
+            dll_sha256 = $hash
+          }
+          $record | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath "receipt/${{ matrix.profile }}.json" -Encoding UTF8
+          Get-ChildItem -LiteralPath receipt | Format-Table Name,Length
+      - uses: actions/upload-artifact@v4
+        with:
+          name: terrain-repair-${{ matrix.profile }}-${{ github.sha }}
+          path: receipt/
+          if-no-files-found: error
+          retention-days: 14
