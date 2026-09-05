@@ -12,7 +12,7 @@ import os
 import subprocess
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import StrEnum
 from math import isfinite
 from typing import Protocol
@@ -667,6 +667,7 @@ class ClientLifecycleSupervisor:
         if not callable(getattr(self._process_inspector, "inspect", None)):
             raise ValueError("process_inspector must provide inspect(process_id)")
         self._bindings: dict[str, _ManagedBinding] = {}
+        self._instance_locks: dict[str, threading.RLock] = {}
         self._pending_launches: dict[str, LaunchReceipt | UnverifiedLaunchError | None] = {}
         self._lock = threading.RLock()
 
@@ -847,10 +848,27 @@ class ClientLifecycleSupervisor:
                 )
             self._sleeper.sleep(min(float(poll_seconds), remaining))
 
-    def pause(self, instance_id: str) -> ManagedClientSnapshot:
-        """Disable manager dispatch without suspending the operating-system process."""
-
+    def _instance_lock(self, instance_id: str) -> threading.RLock:
         with self._lock:
+            self._require_binding(instance_id)
+            return self._instance_locks.setdefault(instance_id, threading.RLock())
+
+    def _observe_binding(self, instance_id: str) -> _ManagedBinding:
+        # Caller owns only this instance. Publish an observation atomically after
+        # blocking registry/process inspection, and reject changed ownership.
+        with self._lock:
+            original = self._require_binding(instance_id)
+            candidate = replace(original)
+        observed = self._refresh_binding(candidate)
+        with self._lock:
+            if self._require_binding(instance_id) is not original:
+                raise StaleManagedClientError("binding changed during observation")
+            self._bindings[instance_id] = observed
+            return observed
+
+    def pause(self, instance_id: str) -> ManagedClientSnapshot:
+        """Disable dispatch without suspending the operating-system process."""
+        with self._instance_lock(instance_id), self._lock:
             binding = self._require_binding(instance_id)
             if binding.state in {ManagedClientState.STALE, ManagedClientState.EXITED}:
                 raise StaleManagedClientError(binding.status_detail or "client binding is stale")
@@ -862,35 +880,30 @@ class ClientLifecycleSupervisor:
             return binding.snapshot()
 
     def resume(self, instance_id: str) -> ManagedClientSnapshot:
-        """Re-enable dispatch only after re-verifying the immutable client identity."""
-
-        with self._lock:
-            binding = self._require_binding(instance_id)
-            if binding.state in {
-                ManagedClientState.CLOSE_REQUESTED,
-                ManagedClientState.EXITED,
-            }:
-                raise InvalidLifecycleTransitionError("cannot resume after close was requested")
-            binding = self._refresh_binding(binding)
-            if binding.state in {ManagedClientState.STALE, ManagedClientState.EXITED}:
-                raise StaleManagedClientError(binding.status_detail or "client binding is stale")
-            binding.state = ManagedClientState.ATTACHED
-            binding.dispatch_enabled = True
-            binding.status_detail = None
-            return binding.snapshot()
+        with self._instance_lock(instance_id):
+            with self._lock:
+                binding = self._require_binding(instance_id)
+                if binding.state in {ManagedClientState.CLOSE_REQUESTED, ManagedClientState.EXITED}:
+                    raise InvalidLifecycleTransitionError("cannot resume after close was requested")
+            binding = self._observe_binding(instance_id)
+            with self._lock:
+                if binding.state in {ManagedClientState.STALE, ManagedClientState.EXITED}:
+                    raise StaleManagedClientError(
+                        binding.status_detail or "client binding is stale"
+                    )
+                binding.state = ManagedClientState.ATTACHED
+                binding.dispatch_enabled = True
+                binding.status_detail = None
+                return binding.snapshot()
 
     def refresh(self, instance_id: str) -> ManagedClientSnapshot:
-        """Refresh one status, permanently failing its dispatch closed if identity is stale."""
-
-        with self._lock:
-            return self._refresh_binding(self._require_binding(instance_id)).snapshot()
+        with self._instance_lock(instance_id):
+            binding = self._observe_binding(instance_id)
+            with self._lock:
+                return binding.snapshot()
 
     def dispatch_is_enabled(self, instance_id: str) -> bool:
-        """Revalidate an immutable binding before authorizing any manager dispatch."""
-
-        with self._lock:
-            binding = self._refresh_binding(self._require_binding(instance_id))
-            return binding.dispatch_enabled
+        return self.refresh(instance_id).dispatch_enabled
 
     def status(self, instance_id: str) -> ManagedClientSnapshot:
         with self._lock:
@@ -898,14 +911,10 @@ class ClientLifecycleSupervisor:
 
     def snapshots(self) -> tuple[ManagedClientSnapshot, ...]:
         with self._lock:
-            return tuple(
-                self._bindings[instance_id].snapshot() for instance_id in sorted(self._bindings)
-            )
+            return tuple(self._bindings[key].snapshot() for key in sorted(self._bindings))
 
     def detach(self, instance_id: str) -> ManagedClientSnapshot:
-        """Forget a binding without closing, killing, or suspending its process."""
-
-        with self._lock:
+        with self._instance_lock(instance_id), self._lock:
             binding = self._require_binding(instance_id)
             del self._bindings[instance_id]
             binding.state = ManagedClientState.DETACHED
@@ -914,46 +923,47 @@ class ClientLifecycleSupervisor:
             return binding.snapshot()
 
     def request_close(self, instance_id: str) -> ManagedClientSnapshot:
-        """Disable dispatch and request a graceful window close through the controller."""
-
-        with self._lock:
+        """Reserve this lifetime, disable dispatch, then perform the verified close."""
+        with self._instance_lock(instance_id):
             if self._window_controller is None:
                 raise WindowControllerUnavailableError("no window controller is configured")
-            binding = self._require_binding(instance_id)
-            if binding.state in {
-                ManagedClientState.CLOSE_REQUESTED,
-                ManagedClientState.EXITED,
-            }:
-                raise InvalidLifecycleTransitionError("close was already requested")
-            binding = self._refresh_binding(binding)
-            if binding.state in {ManagedClientState.STALE, ManagedClientState.EXITED}:
-                raise StaleManagedClientError(binding.status_detail or "client binding is stale")
-            binding.state = ManagedClientState.PAUSED
-            binding.dispatch_enabled = False
-            binding.status_detail = "graceful close request pending"
+            with self._lock:
+                if self._require_binding(instance_id).state in {
+                    ManagedClientState.CLOSE_REQUESTED,
+                    ManagedClientState.EXITED,
+                }:
+                    raise InvalidLifecycleTransitionError("close was already requested")
+            binding = self._observe_binding(instance_id)
+            with self._lock:
+                if binding.state in {ManagedClientState.STALE, ManagedClientState.EXITED}:
+                    raise StaleManagedClientError(
+                        binding.status_detail or "client binding is stale"
+                    )
+                binding.state = ManagedClientState.PAUSED
+                binding.dispatch_enabled = False
+                binding.status_detail = "graceful close request pending"
+                expected = binding.client
             try:
-                current = self._window_controller.request_graceful_close(binding.client)
+                current = self._window_controller.request_graceful_close(expected)
             except Exception as exc:
-                binding.status_detail = f"graceful close request failed: {exc}"
+                with self._lock:
+                    binding.status_detail = f"graceful close request failed: {exc}"
                 raise SupervisorError(binding.status_detail) from exc
-            self._accept_window_result(binding, current)
-            binding.state = ManagedClientState.CLOSE_REQUESTED
-            binding.status_detail = "graceful close requested"
-            return binding.snapshot()
+            with self._lock:
+                if self._require_binding(instance_id) is not binding:
+                    raise StaleManagedClientError("binding changed during window close")
+                self._accept_window_result(binding, current)
+                binding.state = ManagedClientState.CLOSE_REQUESTED
+                binding.status_detail = "graceful close requested"
+                return binding.snapshot()
 
-    def tile(
-        self,
-        instance_id: str,
-        rectangle: WindowRectangle,
-    ) -> ManagedClientSnapshot:
-        """Place one verified window without activating it or changing its Z-order."""
-
-        with self._lock:
+    def tile(self, instance_id: str, rectangle: WindowRectangle) -> ManagedClientSnapshot:
+        with self._instance_lock(instance_id):
             if self._window_controller is None:
                 raise WindowControllerUnavailableError("no window controller is configured")
             if not isinstance(rectangle, WindowRectangle):
                 raise ValueError("rectangle must be WindowRectangle")
-            binding = self._refresh_binding(self._require_binding(instance_id))
+            binding = self._observe_binding(instance_id)
             if binding.state in {ManagedClientState.STALE, ManagedClientState.EXITED}:
                 raise StaleManagedClientError(binding.status_detail or "client binding is stale")
             if binding.state is ManagedClientState.CLOSE_REQUESTED:
@@ -964,8 +974,11 @@ class ClientLifecycleSupervisor:
                 current = self._window_controller.tile(binding.client, rectangle)
             except Exception as exc:
                 raise SupervisorError(f"window tile failed: {exc}") from exc
-            self._accept_window_result(binding, current)
-            return binding.snapshot()
+            with self._lock:
+                if self._require_binding(instance_id) is not binding:
+                    raise StaleManagedClientError("binding changed during window tile")
+                self._accept_window_result(binding, current)
+                return binding.snapshot()
 
     def _bind(
         self,

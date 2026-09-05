@@ -8,8 +8,9 @@ character, chat, or tactical-role state.
 from __future__ import annotations
 
 import threading
-from collections.abc import Callable
-from dataclasses import dataclass, field
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
+from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from math import isfinite
 from typing import Protocol
@@ -340,6 +341,7 @@ class ManagerSession:
         self._slots = {config.client_id: _SessionSlot(config=config) for config in manifest.clients}
         self._lock = threading.RLock()
         self._launching: set[str] = set()
+        self._slot_locks = {client_id: threading.RLock() for client_id in self._slots}
 
     @property
     def node_id(self) -> str:
@@ -366,15 +368,15 @@ class ManagerSession:
     ) -> ManagerSessionSnapshot | ManagerSlotSnapshot:
         """Revalidate exact bindings; complete a close once its instance disappears."""
 
-        with self._lock:
-            if client_id is not None:
-                slot = self._require_slot(client_id)
+        if client_id is not None:
+            with self._lock:
+                if client_id in self._launching:
+                    return self._require_slot(client_id).snapshot()
+            with self._slot_operation(client_id) as slot:
                 return self._refresh_slot(slot)
-            for config in self._manifest.clients:
-                slot = self._slots[config.client_id]
-                if slot.instance_id is not None:
-                    self._refresh_slot(slot)
-            return self._snapshot()
+        for config in self._manifest.clients:
+            self.refresh(config.client_id)
+        return self.snapshot()
 
     def start(
         self,
@@ -385,31 +387,31 @@ class ManagerSession:
     ) -> ManagerSlotSnapshot:
         """Launch and bind only the one new immutable instance for a manifest slot."""
 
-        with self._lock:
-            slot = self._require_slot(client_id)
-            self._require_unbound(slot, action="start")
-            selector = selector_from_config(self.node_id, slot.config)
-            command = launch_command_from_config(slot.config)
-            self._launching.add(client_id)
-        try:
-            managed = self._supervisor.launch_and_attach(
-                selector,
-                command,
-                timeout_seconds=timeout_seconds,
-                poll_seconds=poll_seconds,
-            )
+        with self._slot_operation(client_id, wait=False) as slot:
             with self._lock:
-                # The reservation excludes attach/start while polling is unlocked.
-                if client_id not in self._launching or slot.instance_id is not None:
-                    raise SessionSlotBoundError("launch reservation changed before attachment")
-                self._accept_binding(slot, managed, expected_instance_id=None)
-                return slot.snapshot()
-        except Exception as exc:
-            with self._lock:
-                self._raise_action_failure(slot, "start", exc)
-        finally:
-            with self._lock:
-                self._launching.discard(client_id)
+                self._require_unbound(slot, action="start")
+                selector = selector_from_config(self.node_id, slot.config)
+                command = launch_command_from_config(slot.config)
+                self._launching.add(client_id)
+            try:
+                managed = self._supervisor.launch_and_attach(
+                    selector,
+                    command,
+                    timeout_seconds=timeout_seconds,
+                    poll_seconds=poll_seconds,
+                )
+                with self._lock:
+                    # The reservation excludes attach/start while polling is unlocked.
+                    if client_id not in self._launching or slot.instance_id is not None:
+                        raise SessionSlotBoundError("launch reservation changed before attachment")
+                    self._accept_binding(slot, managed, expected_instance_id=None)
+                    return slot.snapshot()
+            except Exception as exc:
+                with self._lock:
+                    self._raise_action_failure(slot, "start", exc)
+            finally:
+                with self._lock:
+                    self._launching.discard(client_id)
 
     def start_all(
         self,
@@ -431,8 +433,7 @@ class ManagerSession:
     def attach(self, client_id: str, *, instance_id: str) -> ManagerSlotSnapshot:
         """Bind a slot only to the explicitly selected existing instance."""
 
-        with self._lock:
-            slot = self._require_slot(client_id)
+        with self._slot_operation(client_id) as slot:
             self._require_unbound(slot, action="attach")
             instance_id = _require_canonical_text(instance_id, "instance_id")
             owner = self._slot_owning_instance(instance_id, excluding=slot)
@@ -456,8 +457,7 @@ class ManagerSession:
     def tile(self, client_id: str) -> ManagerSlotSnapshot:
         """Apply the slot's configured rectangle without activating its window."""
 
-        with self._lock:
-            slot = self._require_slot(client_id)
+        with self._slot_operation(client_id) as slot:
             instance_id = self._require_bound(slot, action="tile")
             rectangle = window_rectangle_from_config(slot.config)
             if rectangle is None:
@@ -472,16 +472,16 @@ class ManagerSession:
     def tile_all(self) -> ManagerSessionSnapshot:
         """Tile bound slots with configured rectangles, stopping on the first failure."""
 
-        with self._lock:
-            for config in self._manifest.clients:
+        for config in self._manifest.clients:
+            with self._lock:
                 slot = self._slots[config.client_id]
-                if slot.instance_id is not None and slot.config.window_tile is not None:
-                    self.tile(config.client_id)
-            return self._snapshot()
+                should_tile = slot.instance_id is not None and slot.config.window_tile is not None
+            if should_tile:
+                self.tile(config.client_id)
+        return self.snapshot()
 
     def pause(self, client_id: str) -> ManagerSlotSnapshot:
-        with self._lock:
-            slot = self._require_slot(client_id)
+        with self._slot_operation(client_id) as slot:
             instance_id = self._require_bound(slot, action="pause")
             return self._bound_action(
                 slot,
@@ -490,8 +490,7 @@ class ManagerSession:
             )
 
     def resume(self, client_id: str) -> ManagerSlotSnapshot:
-        with self._lock:
-            slot = self._require_slot(client_id)
+        with self._slot_operation(client_id) as slot:
             instance_id = self._require_bound(slot, action="resume")
             return self._bound_action(
                 slot,
@@ -502,8 +501,7 @@ class ManagerSession:
     def detach(self, client_id: str) -> ManagerSlotSnapshot:
         """Forget one exact binding without any close, kill, or suspend request."""
 
-        with self._lock:
-            slot = self._require_slot(client_id)
+        with self._slot_operation(client_id) as slot:
             instance_id = self._require_bound(slot, action="detach")
             try:
                 detached = self._supervisor.detach(instance_id)
@@ -524,8 +522,7 @@ class ManagerSession:
     def request_close(self, client_id: str) -> ManagerSlotSnapshot:
         """Disable dispatch and request graceful window close; never force-kill."""
 
-        with self._lock:
-            slot = self._require_slot(client_id)
+        with self._slot_operation(client_id) as slot:
             instance_id = self._require_bound(slot, action="close")
             return self._bound_action(
                 slot,
@@ -535,6 +532,37 @@ class ManagerSession:
 
     def graceful_close(self, client_id: str) -> ManagerSlotSnapshot:
         return self.request_close(client_id)
+
+    @contextmanager
+    def _slot_operation(self, client_id: str, *, wait: bool = True) -> Iterator[_SessionSlot]:
+        with self._lock:
+            self._require_slot(client_id)
+            operation_lock = self._slot_locks[client_id]
+        if not operation_lock.acquire(blocking=wait):
+            raise SessionSlotBoundError("slot already has a lifecycle action in progress")
+        try:
+            with self._lock:
+                if client_id in self._launching:
+                    raise SessionSlotBoundError("slot already has a launch in progress")
+                original = self._require_slot(client_id)
+                working = replace(original)
+            try:
+                yield working
+            finally:
+                # Blocking supervisor work mutates only a private slot copy.
+                # Publish the complete transition after verifying ownership.
+                with self._lock:
+                    if self._slots[client_id] is not original:
+                        raise SessionSlotBoundError(
+                            "slot ownership changed during lifecycle action"
+                        )
+                    if working.instance_id is not None:
+                        owner = self._slot_owning_instance(working.instance_id, excluding=original)
+                        if owner is not None:
+                            raise SessionSlotBoundError("lifecycle result is owned by another slot")
+                    self._slots[client_id] = working
+        finally:
+            operation_lock.release()
 
     def _refresh_slot(self, slot: _SessionSlot) -> ManagerSlotSnapshot:
         instance_id = slot.instance_id

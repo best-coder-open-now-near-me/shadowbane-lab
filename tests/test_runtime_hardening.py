@@ -65,7 +65,9 @@ def launch_contender(root, barrier, results, stop):
             ("ok", controller.ensure_started(worker_fixture.CLIENT_ID, worker_fixture._client()))
         )
     except Exception as exc:
-        results.put(("error", repr(exc)))
+        import traceback
+
+        results.put(("error", f"{exc!r}\n{traceback.format_exc()}"))
     finally:
         for child in children:
             child.join(20)
@@ -504,3 +506,43 @@ def test_unverified_real_child_remains_owned_and_recovery_rejects_exited_lifetim
         child.wait(timeout=10)
     with pytest.raises(UnverifiedLaunchError):
         launcher.recover(pid)
+
+
+@pytest.mark.parametrize("action", ["tile", "request_close"])
+def test_blocked_window_action_does_not_block_other_client_pause_refresh_or_status(action):
+    from tests import test_manager_supervisor as fixture
+
+    entered, release = threading.Event(), threading.Event()
+
+    class Controller(fixture.FakeWindowController):
+        def tile(self, expected, rectangle):
+            entered.set()
+            assert release.wait(5)
+            return super().tile(expected, rectangle)
+
+        def request_graceful_close(self, expected):
+            entered.set()
+            assert release.wait(5)
+            return super().request_graceful_close(expected)
+
+    first = session_fixture._instance("instance-a", 101)
+    second = session_fixture._instance("instance-b", 102)
+    registry = fixture.FakeRegistry([fixture._snapshot(first, second)])
+    supervisor = fixture._supervisor(registry, controller=Controller())
+    session = ManagerSession(session_fixture._manifest(), supervisor)
+    session.attach("client-01", instance_id=first.instance_id)
+    session.attach("client-02", instance_id=second.instance_id)
+    with ThreadPoolExecutor(2) as pool:
+        blocked = pool.submit(getattr(session, action), "client-01")
+        assert entered.wait(5)
+        try:
+            paused = pool.submit(session.pause, "client-02").result(2)
+            assert not paused.dispatch_enabled
+            assert not pool.submit(session.refresh, "client-02").result(2).dispatch_enabled
+            assert len(pool.submit(session.snapshot).result(2).slots) == 3
+            if action == "request_close":
+                assert not supervisor.status(first.instance_id).dispatch_enabled
+        finally:
+            release.set()
+        assert blocked.result(5).instance_id == first.instance_id
+    assert not session.status("client-02").dispatch_enabled
