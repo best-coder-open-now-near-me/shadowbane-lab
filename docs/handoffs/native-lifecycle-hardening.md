@@ -427,3 +427,18 @@ policy. These findings rule out reconstructing opaque visibility from final dept
 plus translucent packets. Next is a narrowly scoped native scene-boundary proof
 for opaque visibility, including late opaque submissions and equal-depth order;
 no opaque-complete boundary, atlas, collector or package completion is assumed.
+
+
+Queued movement `03ad0aa3c8e7dcfb02b0b8fc781f51c383d0104c` is integrated at
+`fa49832c1b5d94a82da72082dafeb62d03d3d70c`. Both developer-only profile probe
+targets build and pass against the exact reviewed `feb351...` client bytes:
+whole-path destruction/retained actor lifetime through 1,024 elements, 144
+continuation cases, pool contention and 64,256 container/pool sequences.
+Evidence: `artifacts/hardening-evidence/path-lifetime-native-{full,diagnostics}.log`
+and matching build logs. The probe uses private memory and probe-owned finalizers;
+actual game-object destructors, connected-client behavior and complete Stop are
+not claimed. It remains EXCLUDE_FROM_ALL and absent from runtime/package sources.
+No process was attached or modified. Next movement work remains owner-scoped
+ordered action/path/follow retirement, outgoing idle-message ownership, stale-stop
+exclusion and real adapters. This is unfinished implementation, not an external
+blocker or an owner gameplay request. Rendering transparency also remains open.
