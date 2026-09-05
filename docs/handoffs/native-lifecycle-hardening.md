@@ -531,3 +531,19 @@ is terminal for the process-pinned registration; ordinary settings disable/re-en
 must not misuse it as a restartable registration API. No controls consumer is
 activated yet. Next remains real steering/picking/input/settings/grant wiring,
 followed by combined activation and package gates; transparency is still open.
+
+
+Native steering `f418b5f58acf69f66e0ffca5110e511d008f9ddd` is included at
+`66cc1ef02cefeadabcd84954df5e649bf67c217a`. Both complete DLL profiles build;
+each executes 11 movement/shared-update/startup tests successfully, zero skips.
+Evidence: `artifacts/hardening-evidence/steering-native-{full,diagnostics}.xml`
+and build logs. Production composition retains native collision/restriction
+admission, coalesces pending solves/deferred actions, balances outgoing references
+and pins cleanup to the actor captured by the movement. Replacement-actor failure
+cannot cause a cleanup stop to recapture a new actor under an old policy grant.
+Direction is normalized parent-local X/Z; no analog movement speed is invented.
+Local updates and 400ms message refresh are distinct; native solver, network
+cadence and connected obstacle behavior are not certified by controlled-call tests.
+No controls consumer is activated. Next is camera-basis/terrain-pick/Windows-input
+composition, settings and manager grant transport, then combined runtime and
+package gates. Native transparency remains unresolved.
