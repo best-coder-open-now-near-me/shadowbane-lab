@@ -44,11 +44,12 @@ private:
     } calls_{};
     struct Target {
         Grant grant{};
-        std::uintptr_t actor = 0, world = 0, window = 0;
+        std::uintptr_t actor = 0, world = 0, window = 0, request = 0;
         Identity identity{};
     } target_{};
     bool Capture(const Grant&) noexcept;
     bool Current(const Target&) const noexcept;
+    bool RequestCurrent(const Target&) const noexcept;
     bool Run(const Target&);
     bool RunCxxGuarded(const Target&) noexcept;
     bool RunGuarded(const Target&) noexcept;
