@@ -6,6 +6,8 @@
 namespace wonderbane::extension::cue {
 namespace {
 constexpr GLenum kTexture0=0x84C0, kFramebuffer=0x8D40, kColorAttachment=0x8CE0;
+using GetQuery=void(APIENTRY*)(GLenum,GLenum,GLint*);
+using BlendEquation=void(APIENTRY*)(GLenum);
 using ActiveTexture=void(APIENTRY*)(GLenum);
 using GenFramebuffers=void(APIENTRY*)(GLsizei,GLuint*);
 using DeleteFramebuffers=void(APIENTRY*)(GLsizei,const GLuint*);
@@ -24,6 +26,8 @@ using Uniform1f=void(APIENTRY*)(GLint,GLfloat);
 using Uniform2f=void(APIENTRY*)(GLint,GLfloat,GLfloat);
 using Uniform4f=void(APIENTRY*)(GLint,GLfloat,GLfloat,GLfloat,GLfloat);
 struct Api {
+    GetQuery query=nullptr;
+    BlendEquation equation=nullptr;
     ActiveTexture active=nullptr; GenFramebuffers gen=nullptr; DeleteFramebuffers del=nullptr;
     BindFramebuffer bind=nullptr; FramebufferTexture attach=nullptr; CheckFramebuffer check=nullptr;
     CreateShader create_shader=nullptr; ShaderSource source=nullptr; ShaderOp compile=nullptr, delete_shader=nullptr;
@@ -35,10 +39,10 @@ struct Api {
 thread_local Api a;
 struct Resources {
     HGLRC context=nullptr;
-    GLuint textures[4]{}; // before depth, after/final depth, mask, spare reserved
-    GLuint framebuffer=0, mask_program=0, glow_program=0;
+    GLuint textures[4]{}; // before, after/final, accumulated mask, translucent mesh depth
+    GLuint framebuffer=0, geometry_framebuffer=0, mask_program=0, glow_program=0;
     GLint viewport[4]{};
-    bool active=false, before=false, captured=false;
+    bool active=false, before=false, captured=false, extra=false;
 };
 thread_local Resources g;
 PROC Proc(const char* name) noexcept {
@@ -48,6 +52,8 @@ PROC Proc(const char* name) noexcept {
 bool Load() noexcept {
 #define CUE_GL(member,type,name) a.member=reinterpret_cast<type>(Proc(name)); if(!a.member) return false
     CUE_GL(active,ActiveTexture,"glActiveTexture");
+    CUE_GL(equation,BlendEquation,"glBlendEquation");
+    CUE_GL(query,GetQuery,"glGetQueryiv");
     CUE_GL(gen,GenFramebuffers,"glGenFramebuffers");
     CUE_GL(del,DeleteFramebuffers,"glDeleteFramebuffers");
     CUE_GL(bind,BindFramebuffer,"glBindFramebuffer");
@@ -104,8 +110,8 @@ void Pass(void* raw) noexcept {
     GLint old_program=0;glGetIntegerv(0x8B8D,&old_program);
     glDisable(GL_DEPTH_TEST);
     if(op.kind==0) {
-        glGenTextures(3,g.textures);
-        for(unsigned n=0;n<3;++n) {
+        glGenTextures(4,g.textures);
+        for(unsigned n=0;n<4;++n) {
             Texture(g.textures[n],0);
             glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST);
             glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
@@ -118,6 +124,11 @@ void Pass(void* raw) noexcept {
         a.attach(kFramebuffer,kColorAttachment,GL_TEXTURE_2D,g.textures[2],0);
         glDrawBuffer(kColorAttachment);glReadBuffer(kColorAttachment);
         op.ok=a.check(kFramebuffer)==0x8CD5;
+        a.gen(1,&g.geometry_framebuffer);a.bind(kFramebuffer,g.geometry_framebuffer);
+        a.attach(kFramebuffer,kColorAttachment,GL_TEXTURE_2D,g.textures[2],0);
+        a.attach(kFramebuffer,0x8D00,GL_TEXTURE_2D,g.textures[3],0);
+        glDrawBuffer(kColorAttachment);glReadBuffer(kColorAttachment);
+        op.ok=op.ok && a.check(kFramebuffer)==0x8CD5;
         a.bind(kFramebuffer,0);
         if(op.ok) {
             g.mask_program=Program(MaskFragmentSource());g.glow_program=Program(GlowFragmentSource());
@@ -125,7 +136,7 @@ void Pass(void* raw) noexcept {
         }
     } else if(op.kind==1) {
         a.bind(kFramebuffer,g.framebuffer);glDrawBuffer(kColorAttachment);
-        glViewport(0,0,g.viewport[2],g.viewport[3]);glClearColor(0,0,0,0);glClear(GL_COLOR_BUFFER_BIT);
+        glViewport(0,0,g.viewport[2],g.viewport[3]);glClearColor(1,1,1,1);glClear(GL_COLOR_BUFFER_BIT);
         a.bind(kFramebuffer,0);op.ok=true;
     } else if(op.kind==2 || op.kind==3 || op.kind==4) {
         const unsigned unit=op.kind==2 ? 0U : 1U;
@@ -134,9 +145,12 @@ void Pass(void* raw) noexcept {
         op.ok=true;
         if(op.kind==3) {
             a.bind(kFramebuffer,g.framebuffer);glDrawBuffer(kColorAttachment);
-            glViewport(0,0,g.viewport[2],g.viewport[3]);glDisable(GL_BLEND);
+            glViewport(0,0,g.viewport[2],g.viewport[3]);glEnable(GL_BLEND);
+            a.equation(0x8007); // MIN retains nearest owned surface across passes.
             a.use(g.mask_program);Texture(g.textures[0],0);Texture(g.textures[1],1);
+            Texture(g.textures[g.extra?3:1],2);
             a.i(a.uniform(g.mask_program,"beforeDepth"),0);a.i(a.uniform(g.mask_program,"afterDepth"),1);
+            a.i(a.uniform(g.mask_program,"geometryDepth"),2);
             Quad();a.bind(kFramebuffer,0);
         } else if(op.kind==4 && g.captured) {
             const auto& s=*op.settings;
@@ -174,24 +188,25 @@ void Indicator(void* raw) noexcept {
 }
 }
 const char* MaskFragmentSource() noexcept { return R"glsl(#version 120
-uniform sampler2D beforeDepth,afterDepth;
+uniform sampler2D beforeDepth,afterDepth,geometryDepth;
 void main(){vec2 uv=gl_TexCoord[0].xy;float b=texture2D(beforeDepth,uv).r;
-float d=texture2D(afterDepth,uv).r;if(d>=1.0 || abs(d-b)<0.00000003)discard;
+float d=min(texture2D(afterDepth,uv).r,texture2D(geometryDepth,uv).r);if(d>=1.0 || abs(d-b)<0.00000003)discard;
 gl_FragColor=vec4(d,0.0,0.0,1.0);})glsl"; }
 const char* GlowFragmentSource() noexcept { return R"glsl(#version 120
 uniform sampler2D maskDepth,sceneDepth;uniform vec2 pixel;uniform float radius;uniform vec4 tint;
 float visible(vec2 uv,float here){vec4 m=texture2D(maskDepth,uv);float z=texture2D(sceneDepth,uv).r;
-return m.a>0.5 && m.r==z && here>=m.r ? 1.0:0.0;}
+return m.r<1.0 && m.r<=z && here>=m.r ? 1.0:0.0;}
 void main(){vec2 uv=gl_TexCoord[0].xy;float here=texture2D(sceneDepth,uv).r;
 float center=visible(uv,here),halo=0.0;
 for(int i=0;i<16;++i){float angle=float(i)*0.3926990817;vec2 v=vec2(cos(angle),sin(angle))*pixel;
 halo=max(halo,visible(uv+v*radius,here)*0.35);
 halo=max(halo,visible(uv+v*radius*0.5,here)*0.7);}
 gl_FragColor=vec4(tint.rgb,tint.a*max(center*0.18,halo*(1.0-center)));})glsl"; }
-void DiscardMask() noexcept {g.active=false;g.before=false;g.captured=false;}
+void DiscardMask() noexcept {g.active=false;g.before=false;g.captured=false;g.extra=false;}
 void ReleaseMask() noexcept {
     DiscardMask();if(g.context!=wglGetCurrentContext())return;
-    if(g.textures[0])glDeleteTextures(3,g.textures);
+    if(g.textures[0])glDeleteTextures(4,g.textures);
+    if(g.geometry_framebuffer && a.del)a.del(1,&g.geometry_framebuffer);
     if(g.framebuffer && a.del)a.del(1,&g.framebuffer);
     if(g.mask_program && a.delete_program)a.delete_program(g.mask_program);
     if(g.glow_program && a.delete_program)a.delete_program(g.glow_program);
@@ -210,7 +225,44 @@ bool BeginMask() noexcept {
     g.active=Run(1);return g.active;
 }
 bool BeforeOwnedDraw() noexcept {
-    g.before=g.active && SameTarget() && Run(2);return g.before;
+    g.extra=false;g.before=g.active && SameTarget() && Run(2);return g.before;
+}
+bool CaptureGeometry(GeometryDraw draw,void* user) noexcept {
+    if(!g.before || !draw || !SameTarget())return false;
+    GLboolean depth_write=GL_TRUE;glGetBooleanv(GL_DEPTH_WRITEMASK,&depth_write);
+    if(depth_write)return true; // Normal depth-writing coverage is already captured.
+    GLint stack=0,maximum=0,mode=0,query=0;
+    a.query(0x8914,0x8865,&query); // Never double-count an active native samples query.
+    glGetIntegerv(GL_ATTRIB_STACK_DEPTH,&stack);glGetIntegerv(GL_MAX_ATTRIB_STACK_DEPTH,&maximum);
+    glGetIntegerv(GL_RENDER_MODE,&mode);
+    if(query || stack>=maximum || mode!=GL_RENDER || glIsEnabled(GL_STENCIL_TEST)
+        || g.viewport[0]!=0 || g.viewport[1]!=0)return false;
+    GLboolean color[4]{};glGetBooleanv(GL_COLOR_WRITEMASK,color);
+    if(!color[0] && !color[1] && !color[2])return true;
+    // Capture only the raw driver submission. Native transforms, texture/alpha
+    // state, programs and vertex arrays stay active; no game render is replayed.
+    glPushAttrib(GL_ALL_ATTRIB_BITS);
+    if(!g.extra){
+        GLint active=0,binding=0;glGetIntegerv(0x84E0,&active);a.active(kTexture0);
+        glGetIntegerv(GL_TEXTURE_BINDING_2D,&binding);glBindTexture(GL_TEXTURE_2D,g.textures[3]);
+        glCopyTexSubImage2D(GL_TEXTURE_2D,0,0,0,0,0,g.viewport[2],g.viewport[3]);
+        glBindTexture(GL_TEXTURE_2D,static_cast<GLuint>(binding));a.active(static_cast<GLenum>(active));
+        g.extra=true;
+    }
+    a.bind(kFramebuffer,g.geometry_framebuffer);glDrawBuffer(kColorAttachment);
+    glColorMask(GL_FALSE,GL_FALSE,GL_FALSE,GL_FALSE);glDepthMask(GL_TRUE);
+    if(!glIsEnabled(GL_DEPTH_TEST)){glEnable(GL_DEPTH_TEST);glDepthFunc(GL_LEQUAL);}
+    if(glIsEnabled(GL_BLEND) && !glIsEnabled(GL_ALPHA_TEST)){
+        GLint src=0,dst=0,equation=0;glGetIntegerv(GL_BLEND_SRC,&src);glGetIntegerv(GL_BLEND_DST,&dst);
+        glGetIntegerv(0x8009,&equation);
+        if((equation==0x8006 || equation==0x800B)
+            && (src==GL_SRC_ALPHA || src==GL_SRC_ALPHA_SATURATE)
+            && (dst==GL_ONE_MINUS_SRC_ALPHA || dst==GL_ONE)){
+            glEnable(GL_ALPHA_TEST);glAlphaFunc(GL_GREATER,0.0F);
+        }
+    }
+    draw(user);
+    a.bind(kFramebuffer,0);glPopAttrib();return true;
 }
 bool AfterOwnedDraw() noexcept {
     if(!g.before || !SameTarget()){DiscardMask();return false;}

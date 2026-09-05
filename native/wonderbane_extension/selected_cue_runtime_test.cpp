@@ -7,10 +7,12 @@
 namespace wonderbane::extension::cue {
 std::atomic<int> begins{0},before{0},after{0},composites{0},releases{0},discards{0};
 thread_local bool resources=false;
+std::atomic<int> geometry{0};
 thread_local int local_releases=0;
 bool begin_ok=true,before_ok=true,after_ok=true;
 bool BeginMask() noexcept {++begins;resources=begin_ok;return begin_ok;}
 bool BeforeOwnedDraw() noexcept {++before;return before_ok;}
+bool CaptureGeometry(GeometryDraw,void*) noexcept {++geometry;return true;}
 bool AfterOwnedDraw() noexcept {++after;return after_ok;}
 bool CompositeMask(const Settings&,const Direction&) noexcept {++composites;return true;}
 void DiscardMask() noexcept {++discards;}
@@ -22,6 +24,7 @@ bool clear_during_draw=false;
 HANDLE draw_entered=nullptr,draw_resume=nullptr;
 void __fastcall Draw(void*,void*) noexcept {
     ++draws;
+    wonderbane::extension::CaptureSelectedCueGeometry([](void*) noexcept {},nullptr);
     if(draw_entered){SetEvent(draw_entered);assert(WaitForSingleObject(draw_resume,5000)==WAIT_OBJECT_0);}
     if(clear_during_draw)*reinterpret_cast<std::uint32_t*>(wonderbane::extension::base+23735716U)=0;
 }
@@ -47,11 +50,11 @@ int main(){
     camera.projection_matrix[10]=-1;camera.projection_matrix[11]=-1;camera.projection_matrix[14]=-0.2F;
     assert(Selected().valid);BeginSelectedCueScene(&camera);assert(scene && render_count==1);
     OwnedRender(reinterpret_cast<void*>(wrapper),nullptr);
-    assert(draws==1 && cue::before==1 && cue::after==1);
+    assert(draws==1 && cue::before==1 && cue::after==1 && cue::geometry==1);
     FinishSelectedCueScene(&camera);assert(cue::composites==1 && !scene);EndSelectedCueFrame();
     // A different object's render wrapper cannot acquire the selected mask.
     BeginSelectedCueScene(&camera);put(wrapper+0x1c,render+0x100);
-    OwnedRender(reinterpret_cast<void*>(wrapper),nullptr);assert(draws==2 && cue::before==1);
+    OwnedRender(reinterpret_cast<void*>(wrapper),nullptr);assert(draws==2 && cue::before==1 && cue::geometry==1);
     // Selection loss during the original call discards the candidate.
     put(wrapper+0x1c,render);clear_during_draw=true;
     OwnedRender(reinterpret_cast<void*>(wrapper),nullptr);assert(draws==3 && cue::after==1);
