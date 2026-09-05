@@ -501,3 +501,17 @@ Next movement work is the actual native-update integration and movement/camera/
 picking/input adapters. Runtime activation and connected/server effects remain
 unverified; rendering transparency and final installed-package acceptance remain
 open. No new manager authority, capture or deployment was introduced.
+
+
+Native camera binding `d58b56d84073f48ae948a96acb953734ad30e3bd` is included at
+`cf59526d0b1b8dac3e6753e7b7d3fd672fae14dc`. Both complete DLL profiles build;
+each executes policy, native backend, shared scene-context and combined-render
+tests successfully, zero skips. Evidence: `artifacts/hardening-evidence/camera-native-{full,diagnostics}.xml`
+and build logs. Production policy/backend tests cover elapsed-time intervals,
+native pitch limits, preserved distance/inertia and route grant, phase/thread
+rejection and camera-only failure isolation. Native calls remain controlled doubles;
+these tests do not certify real camera update or coupled camera/sky behavior in
+a connected client. No runtime activation, grant transport or deployment occurred.
+Next is owner-complete steering/picking/input/native-update integration, then
+cross-feature activation checks and exact installed-package verification.
+Rendering transparency remains unresolved; no complete candidate is pinned.
