@@ -869,3 +869,16 @@ maintenance callback retain their previous cadence. 26 worker/ownership tests pa
 zero skips; Ruff passes. This is the worker-side cadence boundary for the native
 session's pending synchronized renew method; manager callback wiring follows that
 API, with no reacquisition or heartbeat-expiry revival permitted.
+
+Combined-source Python verification at dc392007b6b2b76853f19bd146c890d4fe224f6b:
+1777 passed, 8 skipped, 238 subtests passed (43.59 s). The real movement IPC fixture
+was explicitly configured to the combined full-profile runtime executable and ran.
+Seven skips were Windows symlink-permission cases; one inspector Tk creation skip
+was investigated with a focused rerun of the exact replay/control-rebind test,
+which passed with zero skips. The original suite skip remains recorded rather than
+rewritten. Evidence: artifacts/hardening-evidence/combined-dc39200-python.xml/log
+and combined-dc39200-inspector-tk.xml. Ruff for src/tests/existing builder passes;
+all 36 tracked PowerShell scripts parse successfully. This is combined source
+validation, not a new package/installed-wheel receipt or connected-client acceptance.
+Next remains manager operation grant/renewal composition against the owner pause/
+renew/dispatcher checkpoint and the unresolved visual transparency implementation.
