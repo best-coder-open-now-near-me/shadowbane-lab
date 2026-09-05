@@ -1003,3 +1003,20 @@ base GPU and source feasibility pass. The original two native foreground
 transparency assertions still fail. This solves selected material coverage,
 not ordered foreground compositing. Shared primitive-query protection must be
 included and combined-source verification completed before integration acceptance.
+
+
+### Ordinary versus EQUAL cost check (2026-09-05)
+
+The existing `--cost` mode now compares LEQUAL/EQUAL at 640x480 and 1920x1080,
+with 1 and 46 captures, 16 samples, alternating baseline/enabled order, and an
+identical native depth prepass. Callback counts assert one/two supplemental raw
+submissions respectively. EQUAL executes two blits per capture. Lazy storage is
+asserted at 8/12 bytes per pixel, and release is checked between every case.
+
+At 1080p/46 captures on this host, median enabled-minus-native synchronized frame
+time was 2.295 ms ordinary and 4.275 ms EQUAL; enabled medians were 2.489/4.483 ms.
+Ranges were 2.164–6.480 / 3.829–9.080 ms. Mask storage was 15.820/23.730 MiB.
+At 640x480/46 captures, the median differences were 2.154/3.703 ms. Amortized
+per-capture differences include frame setup/compositing and are not isolated
+capture latency. These synthetic host results do not certify a live-client
+budget. Raw local receipt: artifacts/selected-character-cue/equal-cost.txt.
