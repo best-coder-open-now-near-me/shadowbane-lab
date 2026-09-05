@@ -32,8 +32,8 @@ checks. Movement now registers one native update/input runtime after shared star
 defaults disabled, and composes native stop, camera, steering, terrain-pick and
 drag with exact lifetime and HWND safety handling. Native preferences and the selected-client
 Graphics Lab settings entry are included. Manager operations now use immutable native
-grants, renewal and exact cleanup. Standalone live CLI ownership integration remains
-with the movement owner; no connected capability is certified. No newly combined wheel/DLL acceptance
+grants, renewal and exact cleanup. Standalone live travel/PvE now use the same
+native authority, with no minimap movement fallback. No connected capability is certified. No newly combined wheel/DLL acceptance
 identity is certified yet. Preserve all active branches/worktrees; retirement
 requires verified inclusion and applicable approval.
 

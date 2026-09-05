@@ -952,3 +952,22 @@ cue/particles native transparency (existing feature owners), complete combined
 candidate review, exact installed package verification and one consolidated live
 acceptance session. Ordinary source pushes continue; no main merge or VM/client
 replacement is authorized by these receipts.
+
+
+Standalone live movement integration: feature checkpoint
+`55e30ccbddabf217a49e2cc847e56901d46b83b4` included by merge
+`9f22b1baef76f5b51d8377daea20e07ff2786bba`. Default travel/PvE now establish one
+exact native operation with independent renewal and latched window/parent/native
+cancellation; no minimap movement fallback remains. Manager-injected dispatcher
+is retained. PvE combat uses the same cancellation signal. The feature-owned
+standalone context uses the synchronized common session; manager maintenance
+continues on its existing worker cadence. No planner policy changed.
+
+71 combined focused tests passed with the full-profile real IPC fixture, zero
+skips; 28 context/session/manager tests passed with the diagnostics fixture, zero
+skips. Evidence: standalone-combined-{full,diagnostics}.xml. Ruff passes.
+Builder now requires installed/source membership of movement_operation.py and
+its regression, and requires the named standalone slow-planner native IPC test
+alongside session and manager IPC tests in both profiles. This is a builder
+source update, not an executed full package receipt. Next shared fix is the cue
+owner's public-source program-pipeline state correction; transparency remains open.
