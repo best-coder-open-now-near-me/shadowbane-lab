@@ -111,7 +111,7 @@ Result Controls::Configure(const Settings& settings) noexcept {
     if (!ValidSettings(settings)) { return Result::invalid; }
     Inhibit(StopReason::disabled);
     settings_ = settings;
-    faulted_ = false;
+    faulted_ = camera_faulted_ = false;
     available_ = false;
     has_tick_ = false;
     return pending_stop_ ? Result::stop_failed : Result::accepted;
@@ -203,14 +203,13 @@ void Controls::Tick(const Input& input) noexcept {
     const auto camera = RadialCamera(input.right_stick, settings_.camera_dead_zone);
     if (connected && !Nonzero(stick) && !Nonzero(camera)
         && Finite(input.left_stick) && Finite(input.right_stick)) { controller_armed_ = true; }
-    if (connected && controller_armed_ && seconds > 0 && Nonzero(camera)) {
+    if (connected && controller_armed_ && !camera_faulted_ && seconds > 0 && Nonzero(camera)) {
         const float scale = settings_.camera_radians_per_second * seconds;
         if (!actuator_.Camera({camera.x * scale * (settings_.invert_camera_x ? -1 : 1),
                               camera.y * scale * (settings_.invert_camera_y ? -1 : 1)})) {
-            Inhibit(StopReason::binding_failure);
-            faulted_ = true;
-            available_ = false;
-            return;
+            // Camera is not a movement owner. Latch its capability failure without
+            // revoking an unrelated route or suppressing working movement controls.
+            camera_faulted_ = true;
         }
     }
     if (!Nonzero(direction) && connected && controller_armed_) { direction = stick; }

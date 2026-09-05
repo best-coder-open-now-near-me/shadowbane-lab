@@ -103,6 +103,7 @@ public:
     bool ConsumesDrag() const noexcept { return drag_active_; }
     Grant Current() const noexcept { return grant_; }
     bool Ready() const noexcept { return available_ && !pending_stop_; }
+    bool CameraReady() const noexcept { return available_ && !camera_faulted_; }
 private:
     bool Retire(StopReason, Owner next, Token = {}, std::optional<std::uint64_t> next_scene = std::nullopt) noexcept;
     bool StopActive(StopReason) noexcept;
@@ -117,6 +118,7 @@ private:
     bool moving_ = false;
     bool available_ = false;
     bool faulted_ = false;
+    bool camera_faulted_ = false;
     bool foreground_ = false;
     bool keyboard_armed_ = false;
     bool controller_armed_ = false;
