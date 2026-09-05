@@ -303,3 +303,18 @@ startup, and correctly retains owning-thread release before unbind. The new cost
 changes still need inclusion and verification in the owner's next exact source.
 The required native-transparency gate is red; no final package or completed
 feature is claimed from this checkpoint.
+
+## Required cue foreground-transparency gate
+
+`wonderbane_extension_selected_cue_native_transparency` now runs the production
+GPU path as a required CTest. Its reference renders the same cue before a native
+50%-red foreground draw, and compares the current pre-UI candidate against it.
+Measured reference RGB is `(131,16,19)`; current late composition yields
+`(116,31,37)` with native depth writes off and `(127,0,0)` with them on. Both cases
+fail. This independently prevents a cue package from being certified merely
+because the particles transparency test is fixed. It is not disabled or marked
+expected-success. The existing package pipeline will stop on this regression.
+
+The cost-reduced capture and lifecycle work are published, but correct native
+foreground transmission remains unfinished shared renderer integration. The
+feature is not ready for manual acceptance or a completion claim.
