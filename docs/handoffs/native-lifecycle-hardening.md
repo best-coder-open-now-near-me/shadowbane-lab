@@ -241,3 +241,11 @@ preserve ownership. Both isolated actual-code probes pass 144 continuation-helpe
 cases with complete actor/state preservation plus 64,256 container sequences.
 These are policy/primitive checks; the later native world-update follow regression
 and complete stop composition remain unfinished. No runtime controls were enabled.
+
+Movement probe `d4f7207f7e5b923280478d750f95f1b8a96ef779` is integrated and passes
+in both combined profile builds: 144 continuation cases, 64,256 complete native
+lookup/removal/destruction/40-byte-pool-return sequences, plus forced pool-lock
+contention. The probe verifies free-list ownership, other size-class isolation,
+payload preservation and lock release using private globals and two verified
+Win32 imports. Runtime code is unchanged. This closes the isolated pool cleanup
+check; it does not complete native stop composition or enable controls.
