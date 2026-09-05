@@ -610,3 +610,20 @@ add `movement_settings.cpp` once to each package profile and retain the added
 advapi32/gdi32 system links. No installed package or connected acceptance changed.
 Next active todo is schema2 immutable acquire/move/stop transport and typed session,
 then shared manager composition, complete-candidate review and installed validation.
+
+## Schema 2 wire checkpoint
+
+The command extension is 576 bytes (768 with the existing action prefix), receipt
+384 bytes (512 total), and consistently published status 512 bytes. The expected
+grant/token and requested automation token are distinct, with full 95-byte ASCII
+identities, exact HWND, host PID/creation/lease generation and canonical UUID.
+Receipts retain their originating host lease and request UUID. Shared synthetic
+hex fixtures verify native/Python bytes in both directions; native settings now
+reuse this codec, preserving the existing 52-byte preferences format.
+
+Both complete DLL profiles and native wire/settings tests pass; 10 Python wire
+and settings tests pass (15 malformed-input subtests), Ruff passes. This is a
+codec checkpoint: active action-channel schema remains 1 until its consumer and
+producer switch together. No new dispatch capability or installed-package claim.
+Active todo remains schema-2 queue/status/session integration, then combined
+source/package review and coordinated connected acceptance.

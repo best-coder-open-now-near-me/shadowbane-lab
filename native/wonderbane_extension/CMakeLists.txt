@@ -1033,3 +1033,12 @@ if(BUILD_TESTING)
   set_property(TARGET wonderbane_extension_movement_settings_test PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
   add_test(NAME wonderbane_extension_movement_settings COMMAND wonderbane_extension_movement_settings_test)
 endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_movement_wire_test movement_wire_test.cpp movement_controls.cpp)
+  target_compile_features(wonderbane_extension_movement_wire_test PRIVATE cxx_std_20)
+  target_compile_options(wonderbane_extension_movement_wire_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  set_property(TARGET wonderbane_extension_movement_wire_test PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
+  add_test(NAME wonderbane_extension_movement_wire COMMAND wonderbane_extension_movement_wire_test
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/fixtures/native_movement_wire_v2.hex")
+endif()
