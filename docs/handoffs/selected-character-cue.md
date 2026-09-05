@@ -352,3 +352,12 @@ verification at the owner's next exact combined source and actual package build.
 No certified complete translucent stage was found in the queue investigation;
 per-wrapper composition would not preserve the whole-character silhouette.
 Both feature and lane-owned verification worktrees are retained for this work.
+
+
+The required transmission probe now also places native glass behind the selected
+character and samples the halo outside the mesh's native depth coverage. Both
+background depth modes produce expected/current RGB `(84,122,143)`. Moving all
+cue composition before glass instead produces `(142,61,72)` in both modes. The
+probe asserts this counterexample is distinct, preventing the foreground-only
+fixture from suggesting a wholesale earlier pass is sufficient. Existing two
+foreground mismatches remain required failures; the ordinary GPU suite passes.

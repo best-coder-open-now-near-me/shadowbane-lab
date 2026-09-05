@@ -44,7 +44,7 @@ void Rect(float x0,float x1,float y0,float y1,float z){
     glBegin(GL_QUADS);glVertex3f(x0,y0,z);glVertex3f(x1,y0,z);
     glVertex3f(x1,y1,z);glVertex3f(x0,y1,z);glEnd();
 }
-std::array<unsigned char,4> NativeForeground(bool late_composite,bool depth_write){
+std::array<unsigned char,4> NativeTransparency(bool late_composite,bool depth_write,bool foreground){
     glDepthMask(GL_TRUE);glDisable(GL_BLEND);glColor4f(0,0,0,1);
     glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
     Check(cue::BeginMask() && cue::BeforeOwnedDraw(),"native foreground selected mesh begin");
@@ -55,9 +55,9 @@ std::array<unsigned char,4> NativeForeground(bool late_composite,bool depth_writ
     if(!late_composite)Check(cue::CompositeMask(settings,{}),"reference cue before native foreground");
     glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
     glDepthMask(depth_write?GL_TRUE:GL_FALSE);glColor4f(1,0,0,.5F);
-    Rect(-.6F,.6F,-.6F,.6F,-.5F);
+    Rect(-.6F,.6F,-.6F,.6F,foreground?-.5F:.5F);
     if(late_composite)Check(cue::CompositeMask(settings,{}),"candidate cue after native foreground");
-    std::array<unsigned char,4> pixel{};glReadPixels(230,240,1,1,GL_RGBA,GL_UNSIGNED_BYTE,pixel.data());
+    std::array<unsigned char,4> pixel{};glReadPixels(foreground?230:190,240,1,1,GL_RGBA,GL_UNSIGNED_BYTE,pixel.data());
     glDepthMask(GL_TRUE);glDisable(GL_BLEND);return pixel;
 }
 unsigned Pixel(int x,int y){std::array<unsigned char,4> p{};glReadPixels(x,y,1,1,GL_RGBA,GL_UNSIGNED_BYTE,p.data());return p[0]+p[1]+p[2];}
@@ -84,13 +84,25 @@ int main(int argc,char** argv){
     glMatrixMode(GL_MODELVIEW);glLoadIdentity();glEnable(GL_DEPTH_TEST);glDepthFunc(GL_LESS);
     glClearColor(0,0,0,0);glClearDepth(1);glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
     if(argc==2 && std::strcmp(argv[1],"--native-transparency")==0){
-        for(bool depth_write:{false,true}){
-            const auto expected=NativeForeground(false,depth_write);
-            const auto actual=NativeForeground(true,depth_write);
-            bool correct=true;for(int n=0;n<3;++n)correct=correct && std::abs(int(expected[n])-int(actual[n]))<=1;
-            if(!correct)std::fprintf(stderr,"native foreground alpha=.5 depth_write=%d expected_rgb=%u,%u,%u actual_rgb=%u,%u,%u\n",
-                int(depth_write),unsigned(expected[0]),unsigned(expected[1]),unsigned(expected[2]),unsigned(actual[0]),unsigned(actual[1]),unsigned(actual[2]));
-            Check(correct,"cue must preserve native foreground transmission");
+        const auto equal=[](const auto& x,const auto& y){
+            for(int n=0;n<3;++n)if(std::abs(int(x[n])-int(y[n]))>1)return false;
+            return true;
+        };
+        for(bool foreground:{true,false})for(bool depth_write:{false,true}){
+            // Foreground must blend over the glow; background must remain below
+            // its halo. Sample the halo for background, outside native mesh depth.
+            const auto expected=NativeTransparency(!foreground,depth_write,foreground);
+            const auto actual=NativeTransparency(true,depth_write,foreground);
+            const bool correct=equal(expected,actual);
+            std::printf("native alpha=.5 foreground=%d depth_write=%d expected_rgb=%u,%u,%u actual_rgb=%u,%u,%u\n",
+                int(foreground),int(depth_write),unsigned(expected[0]),unsigned(expected[1]),unsigned(expected[2]),unsigned(actual[0]),unsigned(actual[1]),unsigned(actual[2]));
+            Check(correct,"cue must preserve native transparency on both sides of its depth");
+            if(!foreground){
+                const auto early=NativeTransparency(false,depth_write,foreground);
+                Check(!equal(expected,early),"background halo case must reject wholesale early composition");
+                std::printf("wholesale-early-counterexample depth_write=%d early_rgb=%u,%u,%u\n",
+                    int(depth_write),unsigned(early[0]),unsigned(early[1]),unsigned(early[2]));
+            }
         }
         cue::ReleaseMask();wglMakeCurrent(nullptr,nullptr);wglDeleteContext(context);ReleaseDC(window,dc);DestroyWindow(window);
         return failures?1:0;
