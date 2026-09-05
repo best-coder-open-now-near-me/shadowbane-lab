@@ -4,9 +4,10 @@
 
 namespace wonderbane::extension::cue {
 int begins=0,before=0,after=0,composites=0,releases=0,discards=0;
-bool BeginMask() noexcept {++begins;return true;}
-bool BeforeOwnedDraw() noexcept {++before;return true;}
-bool AfterOwnedDraw() noexcept {++after;return true;}
+bool begin_ok=true,before_ok=true,after_ok=true;
+bool BeginMask() noexcept {++begins;return begin_ok;}
+bool BeforeOwnedDraw() noexcept {++before;return before_ok;}
+bool AfterOwnedDraw() noexcept {++after;return after_ok;}
 bool CompositeMask(const Settings&,const Direction&) noexcept {++composites;return true;}
 void DiscardMask() noexcept {++discards;}
 void ReleaseMask() noexcept {++releases;}
@@ -52,6 +53,18 @@ int main(){
     clear_during_draw=false;put(base+23735716,actor);put(actor+124,99);
     BeginSelectedCueScene(&camera);assert(attachment.uuid==99);
     EndSelectedCueFrame();assert(!scene && render_count==0);
+    // Mask failures must survive a successful indicator-only composite.
+    for(int failure=0;failure<3;++failure){
+        cue::begin_ok=failure!=0;cue::before_ok=failure!=1;cue::after_ok=failure!=2;
+        BeginSelectedCueScene(&camera);OwnedRender(reinterpret_cast<void*>(wrapper),nullptr);
+        FinishSelectedCueScene(&camera);assert(block.render_error==1);EndSelectedCueFrame();
+    }
+    cue::begin_ok=cue::before_ok=cue::after_ok=true;
+    BeginSelectedCueScene(&camera);
+    for(int n=0;n<129;++n)OwnedRender(reinterpret_cast<void*>(wrapper),nullptr);
+    FinishSelectedCueScene(&camera);assert(block.render_error==1);EndSelectedCueFrame();
+    BeginSelectedCueScene(&camera);OwnedRender(reinterpret_cast<void*>(wrapper),nullptr);
+    FinishSelectedCueScene(&camera);assert(block.render_error==0);EndSelectedCueFrame();
     block.settings.enabled=0;BeginSelectedCueScene(&camera);assert(!scene && cue::releases>0);
     block.settings.enabled=2;assert(!Poll());assert(block.error==ERROR_INVALID_DATA);
     block.settings.enabled=1;block.sequence=3;assert(!Poll());block.sequence=4;

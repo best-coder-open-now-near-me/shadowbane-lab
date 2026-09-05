@@ -41,7 +41,7 @@ thread_local std::array<std::uint32_t,128> renders{};
 thread_local std::size_t render_count=0;
 thread_local cue::Tracker tracker;
 thread_local cue::Direction direction;
-thread_local bool scene=false,finished=false;
+thread_local bool scene=false,finished=false,mask_failed=false;
 thread_local unsigned nesting=0,owned=0;
 bool Read(void*,std::uint32_t address,void* data,std::size_t bytes) {
     if(address<0x10000 || address>0x7FFEFFFF || bytes>0x7FFEFFFF-address)return false;
@@ -112,18 +112,19 @@ BOOL WINAPI CueMakeCurrent(HDC dc,HGLRC context) noexcept {
 void __fastcall OwnedRender(void* self,void*) noexcept {
     const auto draw=reinterpret_cast<Render>(InterlockedCompareExchangePointer(&original,nullptr,nullptr));
     if(!draw)return;
-    if(!scene || !InterlockedCompareExchange(&running,0,0) || nesting || owned>=128){draw(self);return;}
+    if(!scene || !InterlockedCompareExchange(&running,0,0) || nesting){draw(self);return;}
     std::uint32_t render=0;bool match=false;
     if(Field(static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(self)),0x1c,render))
         for(std::size_t n=0;n<render_count;++n)match=match || renders[n]==render;
     if(!match){draw(self);return;}
     if(!StillSelected()){DiscardSelectedCueScene();draw(self);return;}
+    if(owned>=128){mask_failed=true;cue::DiscardMask();draw(self);return;}
     ++nesting;
-    const bool captured=cue::BeforeOwnedDraw();
+    const bool captured=!mask_failed && cue::BeforeOwnedDraw();
     draw(self); // Exactly one original call. No actor/animation replay.
     if(captured && StillSelected()){
-        if(!cue::AfterOwnedDraw())Status(static_cast<LONG>(owned),1,0);
-    }else cue::DiscardMask();
+        if(!cue::AfterOwnedDraw()){mask_failed=true;cue::DiscardMask();}
+    }else {mask_failed=true;cue::DiscardMask();}
     --nesting;++owned;
 }
 }
@@ -182,7 +183,7 @@ void DiscardSelectedCueScene() noexcept {scene=false;attachment={};render_count=
 void EndSelectedCueFrame() noexcept {if(!finished)DiscardSelectedCueScene();finished=false;}
 void ReleaseSelectedCueContext() noexcept {DiscardSelectedCueScene();cue::ReleaseMask();}
 void BeginSelectedCueScene(const GraphicsCameraState* camera) noexcept {
-    scene=false;owned=0;cue::DiscardMask();
+    scene=false;owned=0;mask_failed=false;cue::DiscardMask();
     if(!InterlockedCompareExchange(&running,0,0) || !Poll() || !settings.enabled){
         DiscardSelectedCueScene();cue::ReleaseMask();return;}
     attachment=Selected();
@@ -192,12 +193,12 @@ void BeginSelectedCueScene(const GraphicsCameraState* camera) noexcept {
     const float position[]{attachment.position.x,attachment.position.y,attachment.position.z};
     direction=tracker.Update(identity,position,camera,true);
     scene=direction.available;
-    const bool mask=scene && cue::BeginMask();Status(0,mask?0:1,0);
+    mask_failed=!(scene && cue::BeginMask());Status(0,mask_failed?1:0,0);
 }
 void FinishSelectedCueScene(const GraphicsCameraState* camera) noexcept {
     if(!scene || !camera || !InterlockedCompareExchange(&running,0,0)
         || !StillSelected()){DiscardSelectedCueScene();return;}
-    const bool ok=cue::CompositeMask(settings,direction);Status(static_cast<LONG>(owned),ok?0:1,0);
+    const bool ok=cue::CompositeMask(settings,direction);Status(static_cast<LONG>(owned),ok && !mask_failed?0:1,0);
     scene=false;finished=true;attachment={};render_count=0;
 }
 }

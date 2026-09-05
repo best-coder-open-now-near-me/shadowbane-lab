@@ -11,7 +11,7 @@ shared client/VM or merge main. Navigation acceptance is retained, not reopened.
 - [x] Isolate the pinned source in a separate worktree.
 - [x] Implement verified selection/render ownership, depth-writing silhouette and direction cue.
 - [x] Integrate settings, context-switch cleanup, regression tests and package wiring.
-- [ ] Verify both native profiles and the committed package.
+- [x] Verify both native profiles and the committed package (checkpoint below).
 - [ ] Reconcile with the integration owner's candidate and verify combined source.
 - [ ] Provide one consolidated live acceptance procedure and exact source/package IDs.
 
@@ -57,11 +57,11 @@ not a ring, bounding box, geometry-distance guess or position marker.
 Coverage of visible materials that do not write depth remains an explicit live
 question. Such pixels cannot be attributed by this method. Do not describe that
 coverage as verified, or call the complete requested feature delivered until the
-integration owner resolves that requirement in the combined candidate.
+feature developer resolves that requirement and verifies the combined candidate.
 
-Shared changes will be limited to renderer connections, startup/cleanup, Graphics
-Lab tab connection and CMake. The particles developer is extracting the existing
-navigation GL guard; coordinate reuse rather than introducing a second guard.
+Shared changes cover renderer connections, startup/cleanup, Graphics Lab tab,
+CMake and package wiring. The shared navigation GL guard is reused.
+Agreed combined ordering: composite -> selected cue -> particles -> navigation -> UI.
 
 
 ## Integration surface and resource behavior
@@ -115,5 +115,26 @@ One consolidated pass after combined-source/package verification:
    Check cleanup/identity status and performance while preserving the already
    accepted navigation, obstacle traversal and rune-hunt behavior.
 
-Next todo: exact committed package validation, then reconcile the lifecycle
-owner's combined candidate and resolve the material-coverage/performance questions.
+## Verified package checkpoint
+
+Source `7cc91b30ea4b9de57a43fd7d9f51db3c8d227519` was built from a clean committed
+archive by the existing package pipeline. Local package:
+`E:/Projects/shadowbane/artifacts/cue-packages/1ced2961/navigation-inspector-acceptance.zip`
+SHA-256 `5fdf65c211a05ab9842ff0d854db2d3dc5292c9fd337cec1728dc84738986338`.
+Receipt and logs are beside it. Both native profiles: 21 CTests passed, the private
+binding test skipped in general CTest and then passed explicitly against the
+reviewed client in each profile. Full Python suite, Ruff, sdist/wheel build,
+installed entry point and both installed UI panels passed. No VM deployment.
+
+A subsequent focused fix preserves capture-failure diagnostics across successful
+indicator drawing and discards masks on the 128-draw budget overflow. Native
+checks pass; the checkpoint package above predates that fix and must be rebuilt
+as part of the owner's combined package.
+
+Integration owner task: `01a070ce-f816-7b32-8673-904c6f406c7a`, branch
+`codex/native-lifecycle-hardening`. Owner has the exact checkpoint, cleanup
+contract and ordering. Combined verification is still pending.
+
+Next active todo: resolve material coverage. Remaining: reconcile lifecycle,
+verify combined source/package, and consolidate live material/performance checks.
+
