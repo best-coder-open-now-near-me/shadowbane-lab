@@ -5,7 +5,7 @@ from __future__ import annotations
 import heapq
 from dataclasses import dataclass
 from itertools import pairwise
-from math import floor, hypot, isfinite, sqrt
+from math import floor, hypot, inf, isclose, isfinite, sqrt
 from typing import Literal
 
 from shadowbane_lab.client_observation import NativePlayerPositionObservation
@@ -270,7 +270,20 @@ class SparseNavigationMap:
         if cell == current:
             step_x = 0 if delta_lt == 0 else (1 if delta_lt > 0 else -1)
             step_y = 0 if delta_lg == 0 else (1 if delta_lg > 0 else -1)
-            cell = NavigationCell(current.x + step_x, current.y + step_y)
+            boundary_lt = (current.x + (1 if step_x > 0 else 0)) * self._cell_size
+            boundary_lg = (current.y + (1 if step_y > 0 else 0)) * self._cell_size
+            crossing_lt = (
+                abs((boundary_lt - position.lt) / delta_lt) if step_x else inf
+            )
+            crossing_lg = (
+                abs((boundary_lg - position.lg) / delta_lg) if step_y else inf
+            )
+            if isclose(crossing_lt, crossing_lg, rel_tol=1e-9, abs_tol=1e-12):
+                cell = NavigationCell(current.x + step_x, current.y + step_y)
+            elif crossing_lt < crossing_lg:
+                cell = NavigationCell(current.x + step_x, current.y)
+            else:
+                cell = NavigationCell(current.x, current.y + step_y)
         self.mark_learned_blocked(cell)
         return cell
 

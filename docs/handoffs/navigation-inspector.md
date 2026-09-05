@@ -272,7 +272,24 @@ That wheel is installed in the existing exact client. Normal-depth session
 learned cell `(4440, 2253)`, then arrived 4.15 units from the farther north goal. It retained all
 42 trail samples and 31 events with no omissions or drops. The owner visually confirmed the
 backtrack and detour as very successful; the wider westward arc was the adjacent center on the
-20-unit grid and was accepted. Physical backtrack and learned-obstacle A* recovery now pass.
+20-unit grid and was accepted for that south-to-north scenario.
 
-Next todo: finish normal/x-ray visibility, then run bounded PvE and overlay cost/scene checks.
-PR #27 stays draft and unmerged.
+The reverse-direction machine pass also succeeded once the goal was outside the collision cell:
+session `2218625880244719481` backed 12.879 units north, replanned west once and arrived 2.84
+units from the south goal. The owner did not observe the overlay, so x-ray visibility remains open.
+A subsequent watched run from farther south failed with repeated tree impacts. It learned northeast
+cell `(4441, 2253)` instead of north corridor cell `(4440, 2253)` because sub-unit LT rounding was
+promoted to a full diagonal fallback step. The source correction now chooses the first cell boundary
+crossed by the movement ray, and exact-coordinate plus end-to-end regressions pass.
+
+The owner selected local path refinement for finesse: retain the 20-unit global route, use a
+10-unit subgrid around the first learned blocker and first valid detour, then splice that refined
+segment back into the coarse route. Foliage is rare but dense where present: every occupied or
+uncertain coarse foliage cell must fill all of its subcells, so refinement follows a known patch
+boundary and never invents an unobserved gap. This should reduce the accepted 27-unit swing without
+raising the global search cost. The boundary-selection source passes 1,677 tests, 211 subtests,
+seven expected skips and Ruff.
+
+Next todo: checkpoint blocked-cell selection, implement the local 10-unit refinement, then repeat
+the watched x-ray pass. Bounded PvE and overlay cost/scene checks follow. PR #27 stays draft and
+unmerged.

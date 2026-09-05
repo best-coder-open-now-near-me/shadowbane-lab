@@ -545,8 +545,33 @@ used one replan and no direct fallback, retained all 42 trail samples and 31 eve
 omissions or producer drops, and confirmed stationary arrival 4.15 units from the goal. The owner
 visually confirmed the backtrack and detour as very successful. The roughly 27-unit westward arc
 was the adjacent center on the 20-unit planning grid and was accepted as conservative but bounded.
-**Physical backtrack and learned-obstacle A* recovery are accepted.** Evidence is retained under
+**The south-to-north physical backtrack and learned-obstacle A* recovery scenario is accepted.**
+Evidence is retained under
 `resume-20260904-1915/recovery-46ab536/tree-intermediate-normal`.
+
+The first x-ray return used a goal only about 14 units beyond the collision and repeated the known
+goal-cell exclusion case; session `4873700326468364340` is retained as a rejected harness run.
+Extending the destination farther south produced session `2218625880244719481`: it physically
+backed 12.879 units north, learned cell `(4440, 2252)`, replanned west, retained all 48 trail
+samples and 37 events, and arrived 2.84 units from the goal with one replan. The owner was not
+watching the overlay, so this verifies the reverse-direction machine path but not x-ray visibility.
+
+The next observed x-ray run approached the same tree from farther south. Session
+`7641079418200662238` retained all 178 trail samples and 123 events, but timed out after eight
+backtracks and eight replans. The owner saw the character repeatedly hit the tree and backtrack
+instead of turning. Its final plan exposed the direction-dependent defect: the nearly due-north
+route learned `(4441, 2253)`, the northeast cell, while the tree corridor was `(4440, 2253)`.
+When the 15-unit probe remained in the current cell, the fallback treated any nonzero cross-axis
+delta as a full diagonal step; a sub-unit LT rounding difference therefore moved the blocker east.
+
+The source now selects the fallback neighbor by the first grid boundary crossed by the continuous
+movement ray. The exact live coordinates learn `(4440, 2253)`, while a true corner crossing remains
+diagonal; an end-to-end controller regression proves the replacement plan contains a side detour.
+The full suite passes with 1,677 tests, 211 subtests and seven expected skips; Ruff also passes.
+This correction needs a source checkpoint before the owner's selected local 10-unit subgrid
+refinement and the next live x-ray pass. Foliage is rare but forms dense patches, so refinement
+must preserve every occupied or uncertain coarse foliage cell across all of its subcells. It may
+tighten the path around a patch boundary but cannot infer unobserved gaps inside it.
 
 ## Remaining acceptance pass
 
@@ -568,6 +593,7 @@ unavailable. Verify the measured LT/LG-to-world transform before accepting world
 alignment. If the separate terrain repair is added, it requires its own verified
 source and one combined boundary-tile check.
 
-Current active todo: finish the normal/x-ray visibility comparison, then run bounded PvE and
-overlay cost/scene checks. After the remaining live pass, review and integrate PR #27, then
-retire the inspector worktree/branch when safe.
+Current active todo: checkpoint the boundary-crossing correction, add a local 10-unit refinement
+around the first learned-blocker detour, then repeat the observed x-ray pass. After that, run
+bounded PvE and overlay cost/scene checks, review and integrate PR #27, and retire the inspector
+worktree/branch when safe.

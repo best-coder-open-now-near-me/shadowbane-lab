@@ -72,6 +72,26 @@ class WeightedAStarTests(unittest.TestCase):
         self.assertEqual(NavigationCell(-3, -3), grid.minimum)
         self.assertEqual(NavigationCell(8, 3), grid.maximum)
 
+    def test_blocked_ahead_uses_first_boundary_crossed_by_nearly_cardinal_route(self) -> None:
+        navigation = SparseNavigationMap(cell_size=20.0)
+
+        blocked = navigation.mark_blocked_ahead(
+            NativePlayerPositionObservation(88818.8828125, 45040.55859375, 0.0),
+            TravelDestination(88819.0, 45122.0),
+        )
+
+        self.assertEqual(NavigationCell(4440, 2253), blocked)
+
+    def test_blocked_ahead_keeps_true_diagonal_fallback(self) -> None:
+        navigation = SparseNavigationMap(cell_size=20.0)
+
+        blocked = navigation.mark_blocked_ahead(
+            NativePlayerPositionObservation(5.0, 5.0, 0.0),
+            TravelDestination(35.0, 35.0),
+        )
+
+        self.assertEqual(NavigationCell(1, 1), blocked)
+
     def test_zero_clearance_keeps_single_obstacle_detour_local(self) -> None:
         navigation = SparseNavigationMap(cell_size=20.0)
         navigation.mark_blocked_ahead(

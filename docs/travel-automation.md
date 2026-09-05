@@ -2,9 +2,10 @@
 
 > Current testing wheel, 2026-09-04: source `46ab536` is installed. Exact minimap
 > projection, bounded destinations, measured arrival and ground-aligned inspector trails
-> pass. A live tree route physically backtracked, replanned around its learned cell and
-> arrived; the owner accepted the recovery. A water transition remains a retained
-> navigation failure. X-ray visibility and bounded PvE acceptance remain.
+> pass. One live tree direction physically backtracked, replanned and arrived. The
+> watched reverse approach exposed a near-cardinal blocked-cell error; its first-boundary
+> correction is pending a new package. A water transition remains a retained navigation
+> failure. Local detour refinement, x-ray visibility and bounded PvE acceptance remain.
 > See [the exact record](navigation-inspector-acceptance-20260904.md#tree-obstacle-diagnosis-and-recovery-correction).
 
 Travel uses exact native player coordinates as feedback and guarded right-clicks on the
@@ -96,10 +97,12 @@ remain available if recovery is still needed. Exact stall-learned cells are shar
 before issuing their first destination click. Derived terrain costs are rebuilt from client caches
 rather than copied into that state file. The final JSON
 event reports A* replan count, terrain refresh count, active zone, and navigation revision.
-Long-distance travel reevaluates steering every two seconds with an eight-unit progress threshold. Learned
-obstacles occupy their measured 20-unit cell without an additional clearance ring, while diagonal
-corner cutting remains forbidden; this keeps single-tree and mushroom detours local instead of
-turning them into 60-unit exclusion squares.
+Long-distance travel reevaluates steering every two seconds with an eight-unit progress threshold.
+Learned obstacles occupy their measured 20-unit cell without an additional clearance ring. If the
+forward probe remains inside the current cell, the learned neighbor is the first grid boundary
+crossed by the continuous movement ray; negligible cross-axis drift therefore cannot invent a
+diagonal blocker. Diagonal corner cutting remains forbidden. This keeps single-tree and mushroom
+detours local instead of turning them into 60-unit exclusion squares.
 
 The planner deliberately keeps exact LT/LG feedback and guarded minimap input as the execution
 loop; terrain data supplies route costs and waypoints rather than replacing client movement.
