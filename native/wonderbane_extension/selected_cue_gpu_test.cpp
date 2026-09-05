@@ -16,7 +16,7 @@ void Check(bool ok,const char* label){if(!ok){std::fprintf(stderr,"%s\n",label);
 struct State {
     GLint program{},active{},fbo{},draw{},read{},matrix{},viewport[4]{},textures[3]{};
     GLint depth_func{},blend_src{},blend_dst{},equation{},stencil[8]{};
-    GLboolean alpha_test{};GLfloat alpha_ref{};
+    GLboolean alpha_test{},scissor{};GLint scissor_box[4]{};GLfloat alpha_ref{};
     GLboolean depth{},blend{},mask{}; GLfloat clear[4]{};
 };
 using Active=void(APIENTRY*)(GLenum);
@@ -25,6 +25,7 @@ State Snapshot(){
     glGetIntegerv(0x8B8D,&s.program);glGetIntegerv(0x84E0,&s.active);glGetIntegerv(0x8CA6,&s.fbo);
     glGetIntegerv(GL_DRAW_BUFFER,&s.draw);glGetIntegerv(GL_READ_BUFFER,&s.read);
     glGetIntegerv(GL_MATRIX_MODE,&s.matrix);glGetIntegerv(GL_VIEWPORT,s.viewport);
+    s.scissor=glIsEnabled(GL_SCISSOR_TEST);glGetIntegerv(GL_SCISSOR_BOX,s.scissor_box);
     s.depth=glIsEnabled(GL_DEPTH_TEST);s.blend=glIsEnabled(GL_BLEND);
     glGetIntegerv(GL_DEPTH_FUNC,&s.depth_func);glGetIntegerv(GL_BLEND_SRC,&s.blend_src);
     glGetIntegerv(GL_BLEND_DST,&s.blend_dst);glGetIntegerv(0x8009,&s.equation);
@@ -42,6 +43,7 @@ void Same(const State& a,const State& b){
         && a.depth_func==b.depth_func && a.blend_src==b.blend_src && a.blend_dst==b.blend_dst
         && std::memcmp(a.stencil,b.stencil,sizeof(a.stencil))==0
         && a.equation==b.equation && a.alpha_test==b.alpha_test && a.alpha_ref==b.alpha_ref
+        && a.scissor==b.scissor && std::memcmp(a.scissor_box,b.scissor_box,sizeof(a.scissor_box))==0
         && a.depth==b.depth && a.blend==b.blend && a.mask==b.mask
         && std::memcmp(a.viewport,b.viewport,sizeof(a.viewport))==0
         && std::memcmp(a.textures,b.textures,sizeof(a.textures))==0
@@ -386,7 +388,8 @@ int main(int argc,char** argv){
     glColor4f(0,0,0,1);Rect(-.4F,0,-.5F,.5F,0);
     glEnableClientState(GL_VERTEX_ARRAY);glVertexPointer(3,GL_FLOAT,0,vertices);
     Check(cue::BeginMask() && cue::BeforeOwnedDraw(),"begin partial native EQUAL coverage");
-    glDepthMask(GL_FALSE);glDepthFunc(GL_EQUAL);material=Snapshot();
+    glDepthMask(GL_FALSE);glDepthFunc(GL_EQUAL);
+    glEnable(GL_SCISSOR_TEST);glScissor(200,0,100,480);material=Snapshot();
     GLfloat native_before[2]{};GLint stencil_before=0;
     glReadPixels(230,240,1,1,GL_DEPTH_COMPONENT,GL_FLOAT,&native_before[0]);
     glReadPixels(400,240,1,1,GL_DEPTH_COMPONENT,GL_FLOAT,&native_before[1]);
@@ -399,6 +402,7 @@ int main(int argc,char** argv){
     Check(std::memcmp(native_before,native_after,sizeof(native_before))==0 && stencil_before==stencil_after,
         "EQUAL capture preserves native depth and stencil");
     mesh(nullptr);Check(cue::AfterOwnedDraw(),"finish partial native EQUAL coverage");
+    glDisable(GL_SCISSOR_TEST);
     Check(cue::CompositeMask(s,{}),"partial native EQUAL composite");
     Check(Pixel(230,240)>0 && Pixel(400,240)==0,"only native EQUAL passing fragments glow");
     Check(cue::AllocatedMaskBytes()<=640ULL*480*32,"EQUAL scratch plus legacy storage bounded");
@@ -536,6 +540,7 @@ int main(int argc,char** argv){
                     native_median,enabled_median,enabled.front(),enabled.back(),enabled_median-native_median,
                     (enabled_median-native_median)/nodes,static_cast<double>(cue::AllocatedMaskBytes())/(1024*1024));
                 cue::ReleaseMask();Check(cue::AllocatedMaskBytes()==0,"cost resources released between modes");
+                Check(glGetError()==GL_NO_ERROR,"cost mode leaves no GL errors");
             }
         }
         glDisableClientState(GL_VERTEX_ARRAY);
