@@ -799,3 +799,15 @@ if(BUILD_TESTING)
   add_test(NAME wonderbane_extension_movement_boundary_concurrent_stop
     COMMAND wonderbane_extension_movement_boundary_test concurrent-stop)
 endif()
+
+# Explicit developer investigation target; never linked into or installed with DLL.
+# Requires a separately supplied reviewed client executable and is not a CI mock.
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_movement_tree_probe EXCLUDE_FROM_ALL movement_tree_probe.cpp)
+  target_compile_features(wonderbane_extension_movement_tree_probe PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_movement_tree_probe PRIVATE
+    UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_movement_tree_probe PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  target_link_libraries(wonderbane_extension_movement_tree_probe PRIVATE bcrypt)
+  set_property(TARGET wonderbane_extension_movement_tree_probe PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
+endif()

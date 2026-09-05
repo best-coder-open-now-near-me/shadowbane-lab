@@ -138,3 +138,34 @@ queued path, asynchronous request, active and scheduled actions, and native serv
 notification. A scheduled null action is not an acceptable synchronous stop if it
 can later cancel a replacement owner's command. Neither an idle snapshot nor the
 policy tests prove that ordered operation. No stop binding is enabled yet.
+
+## Actual native tree-removal conformance probe
+
+`wonderbane_extension_movement_tree_probe` is an explicit developer-only target,
+excluded from normal builds and not linked into or installed with the extension.
+It accepts a locally supplied reviewed executable, verifies the entire file SHA256
+and the exact native primitive digest, and copies only that reviewed import-free,
+relocation-free primitive into its own process. Memory changes from writable to
+executable/read-only before execution. It never opens or modifies another process,
+loads the game, supplies input, connects to a server, or distributes client bytes.
+
+Build and run it explicitly from the configured Win32 build directory:
+
+```powershell
+cmake --build <build-directory> --config Release --target wonderbane_extension_movement_tree_probe
+& <build-directory>/Release/wonderbane_extension_movement_tree_probe.exe <local-reviewed-client-executable>
+```
+
+Both profiles passed 64,256 actual native node removals across 1,024 generated trees
+with ascending, descending and deterministic shuffled deletion orders. After every
+removal the probe checks parent links, ordering, node identity, extrema, color and
+black-height invariants, and every payload word including detached nodes. A supplied
+unsupported executable is rejected before executable memory is allocated.
+
+This verifies the native generic detachment/rebalancing primitive, not a replacement
+container implementation. It does not verify native key destruction, native allocator
+cleanup, action-queue reentrancy, path cancellation or server behavior. Those remain
+part of the complete stop binding. The purpose is precise removal of the retiring
+actor's scheduled entry without retaining a delayed cancellation or clearing unrelated
+actors' entries. A different native map's erase wrapper cannot be reused blindly:
+its payload destructor and allocation size differ from the scheduled-action map.

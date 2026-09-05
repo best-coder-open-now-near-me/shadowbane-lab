@@ -134,3 +134,9 @@ package or connected acceptance. Full controls remain excluded from runtime sour
 
 Next active todo remains complete native stop and steering verification, especially
 asynchronous path cancellation, scheduled-action exclusion and outgoing state order.
+
+The developer-only actual-code tree probe now passes 64,256 native removals in each
+profile. This verifies the generic primitive needed for actor-scoped scheduled-entry
+removal, with payload preservation and tree invariants checked after each operation.
+It does not yet establish complete native stop or enable controls. Next is native
+key/allocator cleanup and the complete ordered stop composition.
