@@ -1366,3 +1366,16 @@ Cue owner is separately reproducing zero-contribution constant-alpha coverage in
 its production mask path; shared hook/guard ownership remains with integration.
 Next: consume that bounded feature fix when verified and reconcile the remaining
 ordered native source/coverage requirement without replaying native object callbacks.
+
+Integration review held cue81db95167965ab1a75557d29c718922580f2daf3 outside this
+branch: the proposed invisible constant-alpha suppression skips a depth-writing
+prepass needed by a subsequent visible EQUAL material pass. Cue owner reproduced
+one failing actual GPU assertion and is correcting it. Do not certify or integrate
+that standalone commit. Current mask conflates depth history and visible coverage;
+narrowing suppression to depth-writeOFF may improve one case but does not close
+material coverage. Existing validated depth-prepass behavior is retained here.
+
+Particles reviewed shared cc91cc1 source: no effects consumer conflict, because
+all effects use the shared scene guard. This was source review only, not an
+independent execution of cc91cc1 gates. Next remains the cue correction and ordered
+native coverage work; no owner input or new installation is required for that work.
