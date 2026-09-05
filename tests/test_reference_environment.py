@@ -76,6 +76,47 @@ def actor(
 
 
 class ReferenceEnvironmentTests(unittest.TestCase):
+    def test_historical_correlation_is_rejected_before_multi_actor_tick_applies(self):
+        cast = ActionSpec(
+            action_key="cast",
+            targeting=TargetingSpec(kind=TargetKind.SELF),
+            phases=(ActionPhase(kind=PhaseKind.ACTIVE, duration_ms=600),),
+            costs=(ResourceCost("mana", 2.0),),
+            cooldown_ms=600,
+        )
+        environment = ReferenceEnvironment(
+            ActionCatalog((cast,)),
+            (
+                actor("a", "red", Vector2(0.0, 0.0), ("cast",)),
+                actor("z", "blue", Vector2(1.0, 0.0), ("cast",)),
+            ),
+            seed=11,
+        )
+        environment.step((action_for(environment, "z", "cast", correlation_id="used"),))
+        environment.step()
+        environment.step()
+        before = environment.snapshot()
+        decisions = (
+            action_for(environment, "a", "cast", correlation_id="fresh"),
+            action_for(environment, "z", "cast", correlation_id="used"),
+        )
+        result = environment.step(decisions)
+        after = environment.snapshot()
+        rejected = [event for event in result.events if event.kind == EventKind.ACTION_REJECTED]
+        self.assertEqual(1, len(rejected))
+        self.assertEqual("z", rejected[0].source_entity_id)
+        self.assertEqual(("reason.duplicate_action_correlation",), rejected[0].tags)
+        self.assertEqual(8.0, environment.entity("a").scalars["mana"])
+        self.assertEqual(8.0, environment.entity("z").scalars["mana"])
+        self.assertEqual(1200, environment.entity("a").cooldowns["cast"])
+        self.assertEqual(600, environment.entity("z").cooldowns["cast"])
+        self.assertEqual(2, len(after.executions))
+        self.assertGreater(len(after.scheduled), len(before.scheduled))
+        self.assertEqual((4, 800), (result.tick, result.sim_time_ms))
+        environment.restore(before)
+        self.assertEqual(result, environment.step(tuple(reversed(decisions))))
+        self.assertEqual(after, environment.snapshot())
+
     def test_invisible_enemy_is_hidden_until_actor_has_detection(self) -> None:
         attack = ActionSpec(
             action_key="attack",
