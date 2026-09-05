@@ -91,3 +91,16 @@ invalid pick and lost capture, client isolation and camera integration at
 
 Next item remains native actuation investigation. No feature-complete PR or
 connected-acceptance claim is justified by this checkpoint.
+
+## Passive trace checkpoint
+
+The branch also contains an opt-in passive native-update observer and read-only
+collector, with additive shared startup/rollback and both-profile build wiring.
+See [the bounded investigation procedure](../investigations/native-movement-boundary.md).
+The exact update digest and original slot matched the existing client's read-only
+memory snapshot. No hook was installed in that client and no live actuation occurred.
+Held-callback shutdown/startup-failure tests pass, as do exact-identity/coherent-reader
+tests. The integration owner has accepted this source-level diagnostic workflow;
+installation/early connected observation remains with the existing shared workflow.
+This does not complete native bindings or any of the three requested controls.
+Next todo remains native binding investigation and verification.

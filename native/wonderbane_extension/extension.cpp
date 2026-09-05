@@ -1,3 +1,4 @@
+#include "movement_boundary_trace.h"
 #include "camera_observation.h"
 #include "cel_shading.h"
 #include "extension_api.h"
@@ -377,6 +378,7 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
         bool graphics_status_started = false;
         bool renderer_started = false;
         bool camera_observation_started = false;
+        bool movement_trace_started = false;
         bool performance_telemetry_started = false;
         if (result == ERROR_SUCCESS && !kDiagnosticsOnly) {
             result = wonderbane::extension::InitializeEventChannel(
@@ -403,6 +405,11 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
         if (result == ERROR_SUCCESS && is_client) {
             result = wonderbane::extension::StartGraphicsStatusPublication();
             graphics_status_started = result == ERROR_SUCCESS;
+        }
+        if (result == ERROR_SUCCESS && is_client) {
+            // Explicitly opted-in investigation participates in shared initialization rollback.
+            result = wonderbane::extension::StartMovementBoundaryTrace(identity);
+            movement_trace_started = true;
         }
         if (result == ERROR_SUCCESS && is_client && !kDiagnosticsOnly) {
             result = wonderbane::extension::StartGraphicsControl();
@@ -445,6 +452,7 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
             result = WriteHeartbeat(identity);
         }
         if (result != ERROR_SUCCESS) {
+            if (movement_trace_started) { wonderbane::extension::StopMovementBoundaryTrace(); }
             if (performance_telemetry_started) {
                 wonderbane::extension::StopPerformanceTelemetry();
             }
