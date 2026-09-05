@@ -441,3 +441,66 @@ def test_operation_interruption_stays_latched_after_renewal_or_cancel_receipt():
             567,
         )
         assert not replacement.is_set()
+
+
+def test_failed_attachment_recovers_original_launch_provenance_without_relaunch():
+    from shadowbane_lab.manager.supervisor import LaunchTimeoutError, ReviewedLaunchCommand
+    from tests import test_manager_supervisor as fixture
+
+    registry = fixture.FakeRegistry([fixture._snapshot()])
+    launcher = fixture.FakeLauncher(process_id=9000)
+    supervisor = fixture._supervisor(registry, launcher=launcher)
+    with pytest.raises(LaunchTimeoutError, match="9000/9000000"):
+        supervisor.launch_and_attach(
+            fixture._selector(),
+            ReviewedLaunchCommand((r"C:\Games\WonderBane\sb.exe",)),
+            timeout_seconds=0,
+        )
+    registry.snapshots = [fixture._snapshot(fixture._client(9000))]
+    recovered = supervisor.attach(fixture._selector(), instance_id="client-9000")
+    assert recovered.launched_by_manager
+    assert recovered.launcher_process_id == 9000
+    assert recovered.launcher_process_started_at_100ns == 9000000
+    assert len(launcher.commands) == 1
+    assert supervisor._pending_launches == {}
+
+
+def test_unverified_real_child_remains_owned_and_recovery_rejects_exited_lifetime():
+    import sys
+
+    from shadowbane_lab.manager.supervisor import (
+        ReviewedLaunchCommand,
+        SubprocessLauncher,
+        UnverifiedLaunchError,
+    )
+
+    class Inspector:
+        available = False
+
+        def inspect(self, pid):
+            return ProcessInspector().inspect(pid) if self.available else None
+
+    inspector = Inspector()
+    launcher = SubprocessLauncher(inspector)
+    # stdin is not used: this task-owned child waits on its own process-local event.
+    command = ReviewedLaunchCommand(
+        (sys.executable, "-c", "import threading; threading.Event().wait(30)")
+    )
+    with pytest.raises(UnverifiedLaunchError) as failure:
+        launcher.launch(command)
+    pid = failure.value.process_id
+    child = launcher._children[pid]
+    try:
+        assert child.poll() is None
+        inspector.available = True
+        receipt = launcher.recover(pid)
+        assert receipt.process_id == pid
+        assert (
+            receipt.process_started_at_100ns
+            == ProcessInspector().inspect(pid).process_started_at_100ns
+        )
+    finally:
+        child.terminate()  # Exact retained task-created Popen handle, never PID/name routing.
+        child.wait(timeout=10)
+    with pytest.raises(UnverifiedLaunchError):
+        launcher.recover(pid)

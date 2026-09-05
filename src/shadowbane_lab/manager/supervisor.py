@@ -29,6 +29,17 @@ class SupervisorError(RuntimeError):
     """Base class for lifecycle-supervisor failures."""
 
 
+class UnverifiedLaunchError(SupervisorError):
+    """A created process remains owned by the launcher but lacks a verified lifetime."""
+
+    def __init__(self, process_id: int) -> None:
+        self.process_id = process_id
+        super().__init__(
+            f"launched process PID {process_id} could not be verified; "
+            "explicit attach retries verification without launching again"
+        )
+
+
 class RegistryContractError(SupervisorError):
     """Raised when an injected registry violates the requested filter contract."""
 
@@ -541,6 +552,7 @@ class SubprocessLauncher:
         if not callable(getattr(self._process_inspector, "inspect", None)):
             raise ValueError("process_inspector must provide inspect(process_id)")
         self._children: dict[int, subprocess.Popen[bytes]] = {}
+        self._children_lock = threading.Lock()
 
     def launch(self, command: ReviewedLaunchCommand) -> LaunchReceipt:
         if not isinstance(command, ReviewedLaunchCommand):
@@ -560,23 +572,31 @@ class SubprocessLauncher:
             shell=False,
             **({} if launch_environment is None else {"env": launch_environment}),
         )
-        self._children[process.pid] = process
-        lifetime = self._process_inspector.inspect(process.pid)
-        if lifetime is None or lifetime.process_id != process.pid:
-            raise SupervisorError(
-                "launched process lifetime could not be verified; explicit attach is required"
-            )
-        return LaunchReceipt(
-            process_id=lifetime.process_id,
-            process_started_at_100ns=lifetime.process_started_at_100ns,
-        )
+        with self._children_lock:
+            self._children[process.pid] = process
+        return self.recover(process.pid)
+
+    def recover(self, process_id: int) -> LaunchReceipt:
+        """Verify only a retained Popen lifetime, never a numeric PID alone."""
+        with self._children_lock:
+            process = self._children.get(process_id)
+        if process is None or process.poll() is not None:
+            raise UnverifiedLaunchError(process_id)
+        try:
+            lifetime = self._process_inspector.inspect(process_id)
+        except (OSError, RuntimeError, ValueError) as exc:
+            raise UnverifiedLaunchError(process_id) from exc
+        if lifetime is None or lifetime.process_id != process_id or process.poll() is not None:
+            raise UnverifiedLaunchError(process_id)
+        return LaunchReceipt(lifetime.process_id, lifetime.process_started_at_100ns)
 
     def _reap_finished_children(self) -> None:
-        self._children = {
-            process_id: process
-            for process_id, process in self._children.items()
-            if process.poll() is None
-        }
+        with self._children_lock:
+            self._children = {
+                process_id: process
+                for process_id, process in self._children.items()
+                if process.poll() is None
+            }
 
 
 class SystemMonotonicClock:
@@ -647,7 +667,7 @@ class ClientLifecycleSupervisor:
         if not callable(getattr(self._process_inspector, "inspect", None)):
             raise ValueError("process_inspector must provide inspect(process_id)")
         self._bindings: dict[str, _ManagedBinding] = {}
-        self._pending_launches: dict[str, LaunchReceipt | None] = {}
+        self._pending_launches: dict[str, LaunchReceipt | UnverifiedLaunchError | None] = {}
         self._lock = threading.RLock()
 
     def attach(
@@ -658,42 +678,45 @@ class ClientLifecycleSupervisor:
     ) -> ManagedClientSnapshot:
         """Attach to one client, requiring an exact ID when filters are ambiguous."""
 
-        with self._lock:
-            snapshot = self._read_snapshot(selector)
-            if snapshot.rejected:
-                raise UnsafeClientIdentityError(
-                    f"{len(snapshot.rejected)} matching window(s) lack complete identity"
-                )
-            if not snapshot.clients:
-                raise NoMatchingClientError("no matching pre-existing client was found")
-            if instance_id is not None:
-                _require_canonical_text(instance_id, "instance_id")
-                matches = tuple(
-                    client for client in snapshot.clients if client.instance_id == instance_id
-                )
-                if not matches:
-                    raise NoMatchingClientError(
-                        f"registered client {instance_id!r} did not match the selector"
-                    )
-                if len(matches) != 1:
-                    raise AmbiguousClientError(f"registered client {instance_id!r} was not unique")
-                return self._bind(
-                    selector,
-                    matches[0],
-                    launch_receipt=None,
-                    launch_provenance=None,
-                )
-            if len(snapshot.clients) != 1:
-                raise AmbiguousClientError(
-                    f"found {len(snapshot.clients)} pre-existing clients; "
-                    "select an exact instance_id"
-                )
-            return self._bind(
-                selector,
-                snapshot.clients[0],
-                launch_receipt=None,
-                launch_provenance=None,
+        snapshot = self._read_safe_snapshot(selector)
+        if not snapshot.clients:
+            raise NoMatchingClientError("no matching pre-existing client was found")
+        if instance_id is not None:
+            _require_canonical_text(instance_id, "instance_id")
+            matches = tuple(
+                client for client in snapshot.clients if client.instance_id == instance_id
             )
+        else:
+            matches = snapshot.clients
+        if not matches:
+            raise NoMatchingClientError(
+                f"registered client {instance_id!r} did not match the selector"
+            )
+        if len(matches) != 1:
+            raise AmbiguousClientError("select one exact instance_id for explicit attach")
+        client = matches[0]
+        key = repr(selector)
+        with self._lock:
+            pending = self._pending_launches.get(key)
+        receipt = pending if isinstance(pending, LaunchReceipt) else None
+        if isinstance(pending, UnverifiedLaunchError):
+            recover = getattr(self._launcher, "recover", None)
+            if not callable(recover):
+                raise pending
+            receipt = recover(pending.process_id)
+        provenance = self._launch_provenance(client, receipt) if receipt is not None else None
+        with self._lock:
+            if self._pending_launches.get(key) is not pending:
+                raise SupervisorError("launch recovery ownership changed during attachment")
+            result = self._bind(
+                selector,
+                client,
+                launch_receipt=receipt if provenance is not None else None,
+                launch_provenance=provenance,
+            )
+            if provenance is not None:
+                del self._pending_launches[key]
+            return result
 
     def launch_and_attach(
         self,
@@ -722,23 +745,42 @@ class ClientLifecycleSupervisor:
                 raise SupervisorError(
                     "a prior launch is pending or requires explicit attachment recovery"
                 )
-            baseline = self._read_safe_snapshot(selector)
-            unowned_baseline = tuple(
-                client
-                for client in baseline.clients
-                if not self._binding_owns_exact_identity(client)
-            )
-            if unowned_baseline:
-                raise UnownedLaunchBaselineError(
-                    "launch baseline contains matching client(s) not owned by this supervisor; "
-                    "explicit attach is required: "
-                    + ", ".join(client.instance_id for client in unowned_baseline)
-                )
-            baseline_by_id = {client.instance_id: client for client in baseline.clients}
             self._pending_launches[key] = None
+        try:
+            baseline = self._read_safe_snapshot(selector)
+            with self._lock:
+                unowned_baseline = tuple(
+                    client
+                    for client in baseline.clients
+                    if not self._binding_owns_exact_identity(client)
+                )
+                if unowned_baseline:
+                    raise UnownedLaunchBaselineError(
+                        "launch baseline contains matching client(s) not owned by this supervisor; "
+                        "explicit attach is required: "
+                        + ", ".join(client.instance_id for client in unowned_baseline)
+                    )
+                baseline_by_id = {client.instance_id: client for client in baseline.clients}
+        except Exception:
+            # No process has been created yet; this reservation is safe to release.
+            with self._lock:
+                del self._pending_launches[key]
+            raise
         # Retain the reservation on uncertain launch/attachment failure. A receipt
         # records a process we created even when no usable window ever appears.
-        receipt = self._launcher.launch(command)
+        try:
+            receipt = self._launcher.launch(command)
+        except UnverifiedLaunchError as exc:
+            with self._lock:
+                self._pending_launches[key] = exc
+            raise
+        except OSError:
+            # Popen failure creates no child; SubprocessLauncher wraps all
+            # post-creation observation failures as UnverifiedLaunchError.
+            if isinstance(self._launcher, SubprocessLauncher):
+                with self._lock:
+                    del self._pending_launches[key]
+            raise
         if not isinstance(receipt, LaunchReceipt):
             raise SupervisorError("launcher must return LaunchReceipt")
 
@@ -799,7 +841,9 @@ class ClientLifecycleSupervisor:
             remaining = deadline - now
             if remaining <= 0:
                 raise LaunchTimeoutError(
-                    "launch produced no new matching client before the timeout"
+                    f"launch PID {receipt.process_id}/{receipt.process_started_at_100ns} "
+                    "produced no new matching client before the timeout; "
+                    "explicit attach can recover"
                 )
             self._sleeper.sleep(min(float(poll_seconds), remaining))
 
