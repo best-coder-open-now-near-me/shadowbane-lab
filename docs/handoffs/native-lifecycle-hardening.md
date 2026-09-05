@@ -1044,3 +1044,31 @@ collector or render stage was installed. Cue owns category semantics and cue
 composition; particles owns later native contributor semantics; integration owns
 shared boundary, resource and dispatch reconciliation. Next input needed solely
 for the rejected particles handoff: direct scoped user authorization in that task.
+
+
+Shared native query isolation repair: source inspection found scene_draw had no
+active sample-query exclusion, so supplemental cue indicator/effects/sky geometry
+could alter a native occlusion result. A production actual-GL regression reproduced
+nine failed assertions before the fix: callback ran, admission succeeded and query
+result changed for SAMPLES_PASSED, ANY_SAMPLES_PASSED and its conservative variant.
+Evidence: artifacts/hardening-evidence/scene-query-before.log (exit 1).
+
+The single shared guard now uses AreSceneSampleQueriesInactive before drawing.
+It queries only capability-supported targets, rejects active/unknown results or
+missing required API, and leaves native query objects/bindings untouched. Contexts
+without the capability retain ordinary drawing. No hook, collector, query pause
+or native object retention was introduced. Cue owner will reuse the same helper
+at its raw geometry capture boundary; that separate feature integration is not
+claimed completed here. Native wrapper lifetime findings also prohibit reading
+wrapper memory after callbacks or treating pre-callback material snapshots as
+actual draw state; no queue-stage authority has been inferred from categories.
+
+Both complete native profiles built. Six scene/context/basecue/pipeline/query/
+combined/sky tests per profile executed and passed, zero skips. Actual query tests
+verify positive native results, zero supplemental contribution, unchanged query
+binding/GL state and ordinary drawing after query end. Evidence: scene-query-
+{full,diagnostics}.xml and matching build logs. Existing package builder requires
+the dedicated scene_query_guard CTest to execute and pass. These checks do not
+resolve the two required native transparency failures or certify an installed
+package. Next: feature-owner capture reuse and verified material/late-contributor
+coverage, then combined acceptance gates.

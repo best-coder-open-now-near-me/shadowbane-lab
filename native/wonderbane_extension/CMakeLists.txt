@@ -171,6 +171,9 @@ if(BUILD_TESTING)
   add_test(NAME wonderbane_extension_scene_pipeline_guard
     COMMAND wonderbane_extension_selected_cue_gpu_test --pipeline-guard)
   set_tests_properties(wonderbane_extension_scene_pipeline_guard PROPERTIES SKIP_RETURN_CODE 77)
+  add_test(NAME wonderbane_extension_scene_query_guard
+    COMMAND wonderbane_extension_selected_cue_gpu_test --query-guard)
+  set_tests_properties(wonderbane_extension_scene_query_guard PROPERTIES SKIP_RETURN_CODE 77)
   add_test(NAME wonderbane_extension_selected_cue_source_feasibility
     COMMAND wonderbane_extension_selected_cue_gpu_test --source-feasibility)
   set_tests_properties(wonderbane_extension_selected_cue_source_feasibility PROPERTIES SKIP_RETURN_CODE 77)

@@ -146,6 +146,48 @@ int PipelineGuardRegression(){
     Check(glGetError()==GL_NO_ERROR,"pipeline guard regression leaves no GL errors");
     return failures?1:0;
 }
+int QueryGuardRegression(){
+    const auto* version=reinterpret_cast<const char*>(glGetString(GL_VERSION));
+    if(!version || version[0]<'4' || (version[0]=='4' && version[2]<'3')){
+        std::puts("SKIP: query guard regression requires all three core occlusion targets");return 77;
+    }
+    using Generate=void(APIENTRY*)(GLsizei,GLuint*);
+    using Delete=void(APIENTRY*)(GLsizei,const GLuint*);
+    using Begin=void(APIENTRY*)(GLenum,GLuint);
+    using End=void(APIENTRY*)(GLenum);
+    using Current=void(APIENTRY*)(GLenum,GLenum,GLint*);
+    using Result=void(APIENTRY*)(GLuint,GLenum,GLuint*);
+    const auto generate=reinterpret_cast<Generate>(wglGetProcAddress("glGenQueries"));
+    const auto remove=reinterpret_cast<Delete>(wglGetProcAddress("glDeleteQueries"));
+    const auto begin=reinterpret_cast<Begin>(wglGetProcAddress("glBeginQuery"));
+    const auto end=reinterpret_cast<End>(wglGetProcAddress("glEndQuery"));
+    const auto current=reinterpret_cast<Current>(wglGetProcAddress("glGetQueryiv"));
+    const auto result=reinterpret_cast<Result>(wglGetProcAddress("glGetQueryObjectuiv"));
+    if(!generate || !remove || !begin || !end || !current || !result)return 1;
+    for(GLenum target : {0x8914U,0x8C2FU,0x8D6AU}){
+        GLuint queries[2]{};generate(2,queries);
+        glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+        begin(target,queries[0]);Rect(-.4F,.4F,-.4F,.4F,0);end(target);
+        GLuint native=0;result(queries[0],0x8866U,&native);
+        Check(native>0,"native geometry contributes to its occlusion query");
+        glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+        begin(target,queries[1]);const auto before=Snapshot();int calls=0;
+        Check(!RenderSceneGeometry(nullptr,[](void* raw) noexcept {
+            ++*static_cast<int*>(raw);Rect(-.4F,.4F,-.4F,.4F,0);
+        },&calls),"supplemental scene draw rejected inside native query");
+        Check(calls==0,"native query excludes extension callback");
+        Same(before,Snapshot());GLint bound=0;current(target,0x8865U,&bound);
+        Check(static_cast<GLuint>(bound)==queries[1],"native query binding remains owned");
+        end(target);GLuint supplemental=1;result(queries[1],0x8866U,&supplemental);
+        Check(supplemental==0,"extension draw does not alter native query result");
+        Check(RenderSceneGeometry(nullptr,[](void*) noexcept {
+            Rect(-.4F,.4F,-.4F,.4F,0);
+        },nullptr),"ordinary scene drawing resumes after native query ends");
+        remove(2,queries);Check(glGetError()==GL_NO_ERROR,"query guard leaves no GL errors");
+    }
+    std::puts("query guard executed: native samples and both any-sample targets");
+    return failures?1:0;
+}
 unsigned Pixel(int x,int y){std::array<unsigned char,4> p{};glReadPixels(x,y,1,1,GL_RGBA,GL_UNSIGNED_BYTE,p.data());return p[0]+p[1]+p[2];}
 }
 #include "selected_cue_source_experiment.h"
@@ -153,8 +195,9 @@ int main(int argc,char** argv){
     if(argc>2 || (argc==2 && std::strcmp(argv[1],"--cost")!=0
         && std::strcmp(argv[1],"--native-transparency")!=0
         && std::strcmp(argv[1],"--source-feasibility")!=0
-        && std::strcmp(argv[1],"--pipeline-guard")!=0)){
-        std::fprintf(stderr,"usage: selected_cue_gpu_test [--cost|--native-transparency|--source-feasibility|--pipeline-guard]\n");return 2;
+        && std::strcmp(argv[1],"--pipeline-guard")!=0
+        && std::strcmp(argv[1],"--query-guard")!=0)){
+        std::fprintf(stderr,"usage: selected_cue_gpu_test [--cost|--native-transparency|--source-feasibility|--pipeline-guard|--query-guard]\n");return 2;
     }
     WNDCLASSW wc{};wc.style=CS_OWNDC;wc.lpfnWndProc=DefWindowProcW;
     wc.hInstance=GetModuleHandleW(nullptr);wc.lpszClassName=L"SelectedCueGpuTest";
@@ -173,6 +216,11 @@ int main(int argc,char** argv){
     glViewport(0,0,640,480);glMatrixMode(GL_PROJECTION);glLoadIdentity();
     glMatrixMode(GL_MODELVIEW);glLoadIdentity();glEnable(GL_DEPTH_TEST);glDepthFunc(GL_LESS);
     glClearColor(0,0,0,0);glClearDepth(1);glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+    if(argc==2 && std::strcmp(argv[1],"--query-guard")==0){
+        const int result=QueryGuardRegression();
+        wglMakeCurrent(nullptr,nullptr);wglDeleteContext(context);ReleaseDC(window,dc);DestroyWindow(window);
+        return result;
+    }
     if(argc==2 && std::strcmp(argv[1],"--pipeline-guard")==0){
         const int result=PipelineGuardRegression();
         wglMakeCurrent(nullptr,nullptr);wglDeleteContext(context);ReleaseDC(window,dc);DestroyWindow(window);

@@ -221,6 +221,7 @@ def main() -> int:
             "wonderbane_extension_combined_render",
             "wonderbane_extension_selected_cue_gpu",
             "wonderbane_extension_scene_pipeline_guard",
+            "wonderbane_extension_scene_query_guard",
             "wonderbane_extension_selected_cue_native_transparency",
             "wonderbane_extension_effects_native_transparency",
             "wonderbane_extension_movement_runtime_keyboard",
