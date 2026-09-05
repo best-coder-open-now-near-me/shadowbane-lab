@@ -766,3 +766,15 @@ if(BUILD_TESTING)
     target_link_libraries(${renderer_test} PRIVATE opengl32)
   endforeach()
 endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_movement_controls_test
+    movement_controls.cpp movement_controls_test.cpp)
+  target_compile_features(wonderbane_extension_movement_controls_test PRIVATE cxx_std_20)
+  target_compile_options(wonderbane_extension_movement_controls_test PRIVATE
+    /W4 /WX /permissive- /sdl /utf-8)
+  set_property(TARGET wonderbane_extension_movement_controls_test
+    PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded")
+  add_test(NAME wonderbane_extension_movement_controls
+    COMMAND wonderbane_extension_movement_controls_test)
+endif()
