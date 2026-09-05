@@ -24,11 +24,6 @@ bool Validate(const Config& c) noexcept {
         && Range(c.red,0,1) && Range(c.green,0,1) && Range(c.blue,0,1)
         && Range(c.opacity,0,1) && Range(c.height,-5,10) && Range(c.gravity,-30,30);
 }
-bool SameIdentity(const Attachment& a, const Attachment& b) noexcept {
-    return a.valid && b.valid && a.actor==b.actor && a.type==b.type && a.uuid==b.uuid
-        && a.component==b.component && a.location==b.location && a.zone==b.zone
-        && a.zone_type==b.zone_type && a.zone_uuid==b.zone_uuid;
-}
 void System::Clear() noexcept {
     particle_count_=sample_count_=0; emission_=0; active_=false; previous_={};
     stats.particles=stats.samples=stats.quads=0;
@@ -106,15 +101,26 @@ void System::Build(const Config& c, Vec eye, Vec right, Vec up, Vec forward, Geo
         quad(Sub(Sub(p.position,r),u),Add(Sub(p.position,u),r),Add(Add(p.position,r),u),Add(Sub(p.position,r),u),
             c.opacity*(1-static_cast<float>((time_-p.born)/c.lifetime)),p.position);
     }
+    std::array<Vec,kSamples> sides{};
+    for (std::size_t i=0;i<sample_count_;++i) {
+        const auto before=i ? i-1:i;
+        const auto after=(std::min)(i+1,sample_count_-1);
+        Vec tangent=Sub(samples_[after].position,samples_[before].position);
+        if (!Unit(tangent)) { ++stats.degenerate; sides[i]=Mul(right,c.width/2); continue; }
+        Vec side=Cross(tangent,Sub(eye,samples_[i].position));
+        if (!Unit(side)) { side=Cross(tangent,up); if (!Unit(side)) side=right; }
+        // Adjacent segments share endpoint offsets, so turns cannot open cracks.
+        if (i && Dot(side,sides[i-1])<0) side=Mul(side,-1);
+        sides[i]=Mul(side,c.width/2);
+    }
     for (std::size_t i=1;i<sample_count_;++i) {
         const auto& a=samples_[i-1]; const auto& b=samples_[i];
-        Vec tangent=Sub(b.position,a.position); if (!Unit(tangent)) { ++stats.degenerate; continue; }
-        const Vec center=Mul(Add(a.position,b.position),0.5F);
-        Vec side=Cross(tangent,Sub(eye,center));
-        if (!Unit(side)) { side=Cross(tangent,up); if (!Unit(side)) { ++stats.degenerate; continue; } }
-        side=Mul(side,c.width/2);
-        quad(Sub(a.position,side),Add(a.position,side),Add(b.position,side),Sub(b.position,side),
-            c.opacity*(1-static_cast<float>((time_-a.born)/c.trail_lifetime)),center);
+        const Vec delta=Sub(b.position,a.position);
+        if (Dot(delta,delta)<1e-10F) { ++stats.degenerate; continue; }
+        quad(Sub(a.position,sides[i-1]),Add(a.position,sides[i-1]),
+            Add(b.position,sides[i]),Sub(b.position,sides[i]),
+            c.opacity*(1-static_cast<float>((time_-a.born)/c.trail_lifetime)),
+            Mul(Add(a.position,b.position),0.5F));
     }
     std::sort(out.quads.begin(),out.quads.begin()+out.count,[](const Quad& a,const Quad& b){return a.depth>b.depth;});
     stats.quads=static_cast<std::uint32_t>(out.count);

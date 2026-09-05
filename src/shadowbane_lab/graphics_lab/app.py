@@ -25,8 +25,8 @@ from .control import (
     normalize_fixed_accent_controls,
     target_process_is_alive,
 )
-from .presets import GraphicsPresetStore
 from .effects_panel import EffectsPanel
+from .presets import GraphicsPresetStore
 
 _BACKGROUND = "#171b22"
 _PANEL = "#202630"

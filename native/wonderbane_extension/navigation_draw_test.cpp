@@ -1,4 +1,5 @@
 #include "navigation_viewer.h"
+#include "effects_draw.h"
 #include <Windows.h>
 #include <gl/GL.h>
 #include <array>
@@ -21,7 +22,8 @@ void Check(bool ok, const char* message) {
 constexpr GLenum kEnables[] = {GL_DEPTH_TEST, GL_FOG, GL_LIGHTING, GL_BLEND,
     GL_ALPHA_TEST, GL_SCISSOR_TEST, GL_STENCIL_TEST, GL_CULL_FACE, GL_TEXTURE_1D,
     GL_TEXTURE_2D, GL_LINE_STIPPLE, GL_LINE_SMOOTH, GL_COLOR_LOGIC_OP,
-    GL_POLYGON_OFFSET_LINE, GL_POLYGON_OFFSET_FILL, GL_DITHER, GL_CLIP_PLANE0};
+    GL_POLYGON_OFFSET_LINE, GL_POLYGON_OFFSET_FILL, GL_DITHER, GL_CLIP_PLANE0,
+    GL_POLYGON_STIPPLE, GL_POLYGON_SMOOTH};
 struct State {
     std::array<GLboolean, std::size(kEnables)> enables{};
     GLint mode{}, function{}, source{}, destination{};
@@ -194,6 +196,30 @@ int main(int argc, char** argv) {
     std::printf("Maximum line capacity draw mean (test context): %.3f ms\n",
         1000.0 * static_cast<double>(end.QuadPart - begin.QuadPart)
         / static_cast<double>(frequency.QuadPart) / 5.0);
+    // Exercise the production effects renderer against a real depth buffer.
+    glPushAttrib(GL_ALL_ATTRIB_BITS);
+    glDisable(GL_SCISSOR_TEST); glColorMask(GL_TRUE,GL_TRUE,GL_TRUE,GL_TRUE);
+    glClear(GL_COLOR_BUFFER_BIT); glPopAttrib();
+    effects::Geometry effect_geometry{};
+    effect_geometry.count=1;
+    effect_geometry.quads[0]={{{-0.85F,-0.05F,0.2F},{-0.6F,-0.05F,0.2F},
+                              {-0.6F,0.05F,0.2F},{-0.85F,0.05F,0.2F}},0.7F,0.2F};
+    effects::Config effect_config{}; effect_config.flags=1;
+    Check(RenderEffectsGeometry(effect_config,effect_geometry,camera),"production effect draw");
+    glFinish(); Same(state,Capture());
+    Check(ColoredPixels()==0,"effect behind scene depth is occluded");
+    for (auto& point:effect_geometry.quads[0].points) point.z=-0.2F;
+    Check(RenderEffectsGeometry(effect_config,effect_geometry,camera),"visible particle quad");
+    glFinish(); Same(state,Capture());
+    Check(ColoredPixels()>0,"visible particle has coverage");
+    glReadPixels(100,240,1,1,GL_DEPTH_COMPONENT,GL_FLOAT,&depth);
+    Check(std::fabs(depth-0.5F)<0.0001F,"particles preserve scene depth");
+    effect_config.flags=9;
+    Check(RenderEffectsGeometry(effect_config,effect_geometry,camera),"additive burst");
+    glFinish(); Same(state,Capture());
+    effect_config.flags=0;
+    Check(!RenderEffectsGeometry(effect_config,effect_geometry,camera),"disabled effects draw nothing");
+    Same(state,Capture());
     if (argc == 2) {
         // Synthetic test framebuffer only. Capture happens outside the renderer.
         std::vector<unsigned char> pixels(640U*480U*3U);

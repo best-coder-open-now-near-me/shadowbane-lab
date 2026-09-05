@@ -29,6 +29,9 @@ def sha256(path: Path) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cmake", default=shutil.which("cmake"))
+    parser.add_argument(
+        "--output-root", type=Path, help="Local artifact root; use a short Windows path"
+    )
     arguments = parser.parse_args()
     if os.name != "nt" or not arguments.cmake:
         parser.error("Windows and CMake are required")
@@ -41,7 +44,8 @@ def main() -> int:
         parser.error("Commit the reviewed source first; the package must match a clean Git tree")
     revision = git("rev-parse", "HEAD")
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
-    output = repo / "artifacts" / "navigation-inspector" / uuid4().hex[:8]
+    output_root = arguments.output_root or repo / "artifacts" / "navigation-inspector"
+    output = output_root.resolve() / uuid4().hex[:8]
     output.mkdir(parents=True, exist_ok=False)
     source = output / "source"
     logs = output / "logs"
@@ -102,6 +106,11 @@ def main() -> int:
         "navigation_channel.cpp",
         "navigation_draw.cpp",
         "navigation_viewer.cpp",
+        "scene_draw.cpp",
+        "effects.cpp",
+        "effects_attachment.cpp",
+        "effects_runtime.cpp",
+        "effects_draw.cpp",
     ]
     artifacts = [source_archive]
     for profile in ("full", "diagnostics-only"):
@@ -169,10 +178,15 @@ def main() -> int:
         (entry,) = [name for name in package.namelist() if name.endswith("entry_points.txt")]
         if "shadowbane-navigation-inspector" not in package.read(entry).decode():
             raise RuntimeError("wheel is missing the inspector entry point")
+        for name in ("effects.py", "effects_panel.py"):
+            if f"shadowbane_lab/graphics_lab/{name}" not in package.namelist():
+                raise RuntimeError(f"wheel missing effects control module {name}")
     with tarfile.open(sdist) as package:
         names = package.getnames()
         for relative in (
             "native/wonderbane_extension/navigation_draw.cpp",
+            "native/wonderbane_extension/effects_runtime.cpp",
+            "native/wonderbane_extension/effects_test.cpp",
             "tests/fixtures/navigation-inspector-v1.hex",
             "tests/fixtures/navigation-inspector-controls-v1.hex",
             "src/shadowbane_lab/navigation_inspector/build_identity.json",
@@ -200,6 +214,12 @@ def main() -> int:
         "assert app.current_snapshot is None; app.close()"
     )
     run("installed-panel", [python, "-c", smoke], cwd=output)
+    effects_smoke = (
+        "import tkinter as tk; from shadowbane_lab.graphics_lab.app import GraphicsLabApp; "
+        "root=tk.Tk(); root.withdraw(); app=GraphicsLabApp(root); "
+        "assert app.effects_panel is not None; app.close()"
+    )
+    run("installed-effects-panel", [python, "-c", effects_smoke], cwd=output)
     artifacts.extend(
         [
             wheel,
@@ -218,6 +238,7 @@ def main() -> int:
         "built_utc": stamp,
         "platform": "Visual Studio 2022 / Win32 / Release",
         "terrain_material_repair_included": False,
+        "actor_root_effects_included": True,
         "live_acceptance": "pending; no deployment performed",
         "source_identity": metadata,
         "steps": steps,

@@ -79,6 +79,7 @@ bool RenderSceneGeometry(const GraphicsCameraState* camera, SceneDraw draw, void
     glDisable(GL_DITHER); glDisable(GL_FOG); glDisable(GL_LIGHTING);
     glDisable(GL_SCISSOR_TEST); glDisable(GL_STENCIL_TEST); glDisable(GL_LINE_SMOOTH);
     glDisable(GL_POLYGON_OFFSET_FILL); glDisable(GL_POLYGON_OFFSET_LINE);
+    glDisable(GL_POLYGON_STIPPLE); glDisable(GL_POLYGON_SMOOTH);
     glDisable(GL_LINE_STIPPLE); glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);

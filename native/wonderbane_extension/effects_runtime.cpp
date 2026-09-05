@@ -1,7 +1,7 @@
 #include "effects_runtime.h"
 #include "effects.h"
 #include "reviewed_scene_boundary.h"
-#include "scene_draw.h"
+#include "effects_draw.h"
 #include <gl/GL.h>
 #include <strsafe.h>
 #include <cstring>
@@ -34,16 +34,7 @@ bool Read(void*,std::uint32_t address,void* out,std::size_t size) {
     SIZE_T copied=0;
     return ReadProcessMemory(GetCurrentProcess(),reinterpret_cast<const void*>(address),out,size,&copied) && copied==size;
 }
-void Draw(void*) noexcept {
-    if (g_config.flags&8U) glBlendFunc(GL_SRC_ALPHA,GL_ONE);
-    glBegin(GL_QUADS);
-    for (std::size_t i=0;i<g_geometry.count;++i) {
-        const auto& q=g_geometry.quads[i];
-        glColor4f(g_config.red,g_config.green,g_config.blue,q.alpha);
-        for (const auto& p:q.points) glVertex3f(p.x,p.y,p.z);
-    }
-    glEnd();
-}
+
 }
 DWORD StartEffects(const ProcessIdentity& identity) noexcept {
     bool reviewed=false;
@@ -100,7 +91,7 @@ void DrawEffects(const GraphicsCameraState* camera) noexcept {
         const auto vec=[](const float* p) { return effects::Vec{p[0],p[1],p[2]}; };
         const auto& v=camera->view_matrix;
         g_system.Build(g_config,vec(camera->position),{v[0],v[4],v[8]},vec(camera->up),vec(camera->forward),g_geometry);
-        if (g_geometry.count && !RenderSceneGeometry(camera,Draw,nullptr)) ++g_system.stats.render_rejected;
+        if (g_geometry.count && !RenderEffectsGeometry(g_config,g_geometry,*camera)) ++g_system.stats.render_rejected;
     }
     InterlockedIncrement(&g_control->status_sequence);
     g_control->stats=g_system.stats; MemoryBarrier();
