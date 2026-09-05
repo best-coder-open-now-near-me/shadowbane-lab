@@ -1,6 +1,8 @@
 #include "navigation_viewer.h"
 #include "effects_draw.h"
 #include "scene_draw.h"
+#include "selected_cue_gpu.h"
+#include "sky.h"
 #include <Windows.h>
 #include <gl/GL.h>
 #include <array>
@@ -80,6 +82,96 @@ unsigned ColoredPixels() {
     }
     return count;
 }
+// Production render functions share the real WGL context and state guard.
+// This checks composition/resource ownership, not native transparency acceptance.
+void CombinedProbe(const GraphicsCameraState& camera, bool measure) {
+    const State original = Capture();
+    HRSRC resource = FindResourceW(GetModuleHandleW(nullptr), MAKEINTRESOURCEW(201), RT_RCDATA);
+    Check(resource && SizeofResource(GetModuleHandleW(nullptr), resource) == sizeof(sky::Asset),
+          "combined test uses packaged sky asset");
+    if (!resource) return;
+    sky::Asset asset{};
+    const void* bytes = LockResource(LoadResource(GetModuleHandleW(nullptr), resource));
+    Check(bytes != nullptr, "load combined sky asset"); if (!bytes) return;
+    std::memcpy(&asset, bytes, sizeof(asset));
+    struct Combination { const GraphicsCameraState* camera; const sky::Asset* asset; unsigned flags; bool verify; };
+    LARGE_INTEGER frequency{}; QueryPerformanceFrequency(&frequency);
+    for (unsigned flags = 0; flags < 16; ++flags) {
+        cue::ReleaseMask();
+        Combination combination{&camera, &asset, flags, !measure};
+        LARGE_INTEGER begin{}, end{}; glFinish(); QueryPerformanceCounter(&begin);
+        const unsigned frames = measure ? 8U : 1U;
+        for (unsigned frame = 0; frame < frames; ++frame) {
+            Check(RenderSceneGeometry(&camera, [](void* value) noexcept {
+                const auto& c = *static_cast<Combination*>(value);
+                glDepthMask(GL_TRUE); glClearDepth(1); glClearColor(0,0,0,1);
+                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+                const auto before_sky = c.verify ? Capture() : State{};
+                if (c.flags & 8U) {
+                    sky::Settings settings{}; settings.enabled = 1;
+                    Check(sky::Render(*c.asset, settings, *c.camera), "combined early sky");
+                }
+                if(c.verify) Same(before_sky, Capture());
+                if (c.flags & 4U) Check(cue::BeginMask(), "combined cue begin");
+                glEnable(GL_DEPTH_TEST); glDepthFunc(GL_LESS); glDepthMask(GL_TRUE);
+                glDisable(GL_BLEND); glColor4f(0,0,0,1);
+                const GLfloat vertices[]{-.25F,-.5F,0,.25F,-.5F,0,.25F,.5F,0,-.25F,.5F,0};
+                glPushClientAttrib(GL_CLIENT_VERTEX_ARRAY_BIT);
+                glEnableClientState(GL_VERTEX_ARRAY); glVertexPointer(3,GL_FLOAT,0,vertices);
+                auto mesh=[](void*) noexcept { glDrawArrays(GL_QUADS,0,4); };
+                for (unsigned node=0; node<46; ++node) {
+                    if (c.flags & 4U) {
+                        Check(cue::BeforeOwnedDraw(), "combined owned wrapper");
+                        const auto material = c.verify ? Capture() : State{};
+                        Check(cue::CaptureGeometry(mesh,nullptr), "combined raw material capture");
+                        if(c.verify) Same(material, Capture());
+                    }
+                    mesh(nullptr);
+                    if (c.flags & 4U) Check(cue::AfterOwnedDraw(), "combined owned wrapper complete");
+                }
+                glPopClientAttrib();
+                const auto before_overlays = c.verify ? Capture() : State{};
+                GLfloat depth_before=0,depth_after=0;
+                if(c.verify) glReadPixels(c.camera->viewport[2]/2,c.camera->viewport[3]/2,1,1,GL_DEPTH_COMPONENT,GL_FLOAT,&depth_before);
+                if (c.flags & 4U) {
+                    cue::Settings settings{}; settings.enabled=1;
+                    Check(cue::CompositeMask(settings,{}), "combined whole-character cue");
+                }
+                if(c.verify) Same(before_overlays, Capture());
+                if (c.flags & 2U) {
+                    effects::Config config{}; config.flags=1;
+                    effects::Geometry geometry{}; geometry.count=1;
+                    geometry.quads[0]={{{-.85F,-.05F,-.2F},{-.6F,-.05F,-.2F},
+                        {-.6F,.05F,-.2F},{-.85F,.05F,-.2F}},.7F,.2F};
+                    Check(RenderEffectsGeometry(config,geometry,*c.camera), "combined particles");
+                }
+                if(c.verify) Same(before_overlays, Capture());
+                if (c.flags & 1U) {
+                    navigation::FrameHeader frame{};
+                    frame.flags=navigation::kEnabled|navigation::kUnknownHeight;
+                    frame.layer_mask=navigation::kAllLayers; frame.line_count=1; frame.view_radius=50;
+                    navigation::Line line{navigation::kTrailLayer,navigation::kWorldHeight,
+                        {-.85F,.1F,-.2F},{-.6F,.1F,-.2F}};
+                    Check(RenderNavigationGeometry(frame,&line,c.camera), "combined navigation");
+                }
+                if(c.verify) Same(before_overlays, Capture());
+                if(c.verify) glReadPixels(c.camera->viewport[2]/2,c.camera->viewport[3]/2,1,1,GL_DEPTH_COMPONENT,GL_FLOAT,&depth_after);
+                Check(depth_before == depth_after, "combined overlays preserve native scene depth");
+            }, &combination), "combined scene guard");
+            if(!measure) Same(original, Capture());
+        }
+        glFinish(); QueryPerformanceCounter(&end);
+        const auto allocated=cue::AllocatedMaskBytes();
+        if (measure) std::printf("Combined flags=%u (nav1/effects2/cue4/sky8),46 nodes: %.3f ms/frame, cue=%llu bytes\n",
+            flags,1000.0*static_cast<double>(end.QuadPart-begin.QuadPart)/frequency.QuadPart/frames,
+            static_cast<unsigned long long>(allocated));
+        Check(allocated <= static_cast<std::uint64_t>(camera.viewport[2])*camera.viewport[3]*8, "combined raw mesh resource bound");
+        cue::DiscardMask(); cue::ReleaseMask();
+        Check(cue::AllocatedMaskBytes()==0, "combined interruption releases cue resources");
+        Same(original,Capture());
+    }
+}
+
 // Quantifies the late-pass limitation without treating it as accepted behavior.
 // --verify-native-transparency turns the outstanding requirement into a failing
 // acceptance probe; normal regressions still validate the reference fixture.
@@ -274,8 +366,20 @@ int main(int argc, char** argv) {
     Same(state,Capture());
     const bool verify_transparency = argc == 2
         && std::strcmp(argv[1], "--verify-native-transparency") == 0;
+    const bool cost_1080 = argc == 2 && std::strcmp(argv[1], "--combined-cost-1080") == 0;
+    const bool combined_cost = cost_1080 || (argc == 2 && std::strcmp(argv[1], "--combined-cost") == 0);
+    if (cost_1080) {
+        RECT larger{0,0,1920,1080}; AdjustWindowRect(&larger,WS_OVERLAPPEDWINDOW,FALSE);
+        Check(SetWindowPos(window,nullptr,0,0,larger.right-larger.left,larger.bottom-larger.top,
+            SWP_NOZORDER|SWP_NOACTIVATE)!=0,"resize real combined test framebuffer");
+        GraphicsCameraState larger_camera=camera;larger_camera.viewport[2]=1920;larger_camera.viewport[3]=1080;
+        glViewport(0,0,1920,1080);CombinedProbe(larger_camera,true);
+        Check(SetWindowPos(window,nullptr,0,0,bounds.right-bounds.left,bounds.bottom-bounds.top,
+            SWP_NOZORDER|SWP_NOACTIVATE)!=0,"restore real test framebuffer");
+        glViewport(0,0,640,480);
+    } else CombinedProbe(camera, combined_cost);
     TransparencyProbe(camera, verify_transparency);
-    if (argc == 2 && !verify_transparency) {
+    if (argc == 2 && !verify_transparency && !combined_cost) {
         // Synthetic test framebuffer only. Capture happens outside the renderer.
         std::vector<unsigned char> pixels(640U*480U*3U);
         glReadPixels(0,0,640,480,GL_RGB,GL_UNSIGNED_BYTE,pixels.data());

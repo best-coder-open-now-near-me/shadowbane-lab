@@ -80,3 +80,13 @@ Bound lifecycle operations now serialize by immutable instance and manifest slot
 One earlier broad run observed an intermittent PermissionError in a subprocess worker-launch contender without its traceback. Full traceback capture was added; 30 controlled repetitions and the repeated broad suite passed. Root cause is not established; retain this transient as an open validation observation and inspect any recurrence rather than claim a fix.
 
 Full combined source at sky controls merge `1e73cad1d41e7d62d4b0429b607e96a8e0258d8c`: 1736 Python tests plus 223 subtests passed, 8 skipped (7 symlink-permission checks, 1 Tk display unavailable). Results are archived in `artifacts/hardening-evidence/combined-python.xml`. These are source gates, not a final installed candidate receipt.
+
+## Combined rendering and startup evidence
+
+`608f1fa` makes unavailable optional performance telemetry nonfatal to a working renderer. Production initializer test verifies disabled/unavailable instrumentation and actual rollback after later heartbeat failure. Existing held telemetry/publisher tests still pass. No wire version changed.
+
+Combined `c2f9c997870760bb1a347bd3a6006199038265b8` contains sky `4368f13` and cue frame accumulation `8967438ee794e97408ec268ba285b1e71737fffd`. Full native build passed; CTest 27 passed, two private-binding argument skips and one required transparency failure. Sky owner independently verified both profiles and exact asset/source ownership at this source. These development DLL identities are not final package receipts.
+
+The existing navigation WGL harness now checks all 16 combinations of navigation, particles, cue and sky using their production render functions, a shared real context and the packaged sky asset. It checks state restoration between passes, native-depth preservation, 46 selected raw mesh submissions, bounded cue memory, and complete cue release between combinations. Native attachment and scene-callsite identity remain covered by their dedicated tests; this fixture does not establish connected-client ordering or solve native transparency.
+
+Timing excludes per-node state/pixel assertions, which execute separately in normal CTest. Eight-frame host test samples include initialization and finish at GPU completion. All-enabled: 2.730ms at640x480, 2.780ms at1920x1080. Normal cue allocation: 2,457,600 and16,588,800 bytes respectively (8 bytes/pixel); zero after release. These synthetic meshes are not a full game workload. Per-combination results: `artifacts/hardening-evidence/combined-render-cost.txt` and `combined-render-cost-1080.txt`. Required native transparency still fails; do not accept these passing composition checks as a substitute.

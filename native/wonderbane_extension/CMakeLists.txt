@@ -167,13 +167,13 @@ if(BUILD_TESTING)
     /W4 /WX /permissive- /sdl /GS /guard:cf /utf-8)
   set_property(TARGET wonderbane_extension_selected_cue_test PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded")
   add_test(NAME wonderbane_extension_selected_cue COMMAND wonderbane_extension_selected_cue_test)
-  add_executable(wonderbane_extension_navigation_draw_test navigation_draw.cpp scene_draw.cpp effects.cpp effects_attachment.cpp effects_draw.cpp navigation_draw_test.cpp)
+  add_executable(wonderbane_extension_navigation_draw_test navigation_draw.cpp scene_draw.cpp effects.cpp effects_attachment.cpp effects_draw.cpp selected_cue.cpp selected_cue_gpu.cpp sky.cpp sky_draw.cpp sky_asset.rc navigation_draw_test.cpp)
   target_compile_features(wonderbane_extension_navigation_draw_test PRIVATE cxx_std_20)
   target_compile_definitions(wonderbane_extension_navigation_draw_test PRIVATE
     UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
   target_compile_options(wonderbane_extension_navigation_draw_test PRIVATE
     /W4 /WX /permissive- /sdl /GS /guard:cf /utf-8)
-  target_link_libraries(wonderbane_extension_navigation_draw_test PRIVATE opengl32 gdi32 user32)
+  target_link_libraries(wonderbane_extension_navigation_draw_test PRIVATE opengl32 gdi32 user32 bcrypt)
   set_property(TARGET wonderbane_extension_navigation_draw_test PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded")
   add_test(NAME wonderbane_extension_navigation_draw COMMAND wonderbane_extension_navigation_draw_test)
   add_test(NAME wonderbane_extension_effects_native_transparency
