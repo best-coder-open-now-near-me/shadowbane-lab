@@ -642,3 +642,43 @@ isolated empty learned map and must recover from first contact. Restart the prod
 from the saved schema-2 map before the warm pass, return to the same approach, and verify that
 the remembered 10-unit cells shape the first route without repeating those contacts. Bounded PvE
 and the remaining overlay cost/scene checks follow.
+
+## Dense-terrain persisted-memory acceptance
+
+The owner placed the character at LT 85984.69 / LG 71111.93 on the edge of a dense foliage
+patch in Ashfell Plain. A read-only terrain probe selected the southbound corridor from measured
+client data: all eight 20-unit center cells and 23 cells across its three-cell width carried
+uncertain object-density cost, while the north and west corridors carried none. Both accepted
+passes used the identical five-unit-radius destination at LT 85985 / LG 70972.
+
+The cold pass ran through the production chat listener with an isolated nonexistent learned-map
+path. It made ten accepted clicks, encountered one physical stall, issued one exact 10-unit
+backtrack and performed two pathfinding replans before arriving 3.047 units from the goal. It
+atomically wrote schema 2 with coarse parent `(4298, 3554)` and refined 10-unit cell
+`(8597, 7109)`. Inspector session `2107490049288739348` retained all 60 trail points and 37 events
+with no omissions or producer drops. Preserved capture SHA-256:
+`ed3a01a7101c2735af7d9a856bacd028af81532e9d3e4c2032328cbed8174df3`.
+
+The listener and recorder were then stopped and recreated against that exact saved file. Startup
+verified schema 2, 20-unit parent size, 10-unit refined size, one parent and one refined blocker.
+The loaded map SHA-256 was
+`d4f86ccdc32e5d289a66d2a902459b03c612bfc4db208363ce007d9f4ea35ddd`.
+After the owner returned to the recorded starting side, the warm pass made five accepted clicks,
+with zero stalls, zero backtracks and zero pathfinding replans, and arrived 3.155 units from the
+goal. The map hash remained byte-for-byte unchanged, proving avoidance from loaded memory rather
+than relearning. Session `8352064271430055971` retained all 39 trail points and 16 events with no
+omissions or drops. Preserved capture SHA-256:
+`f431ebacd38e6d403a5eb0beed54b75cad282322aa201ea0f09d785532c9cc26`.
+
+The loaded refined child remains in schema 2; the warm route's initial global plan conservatively
+avoided its 20-unit parent and used waypoint `(85970, 70990)` before the final destination. The
+owner accepted that behavior after observing both successful passes. **Cold obstacle recovery,
+persisted memory across listener restart and warm dense-terrain avoidance are accepted.**
+
+The isolated test listener was retired. The normal source-verified listener, recorder and panel
+were restored as PIDs 1704, 8688 and 7900 against unchanged client PID 1940. Private maps, logs,
+receipts and captures remain under `refinement-e8b24b5/dense-memory-7e719d6`.
+
+Next todo: exercise bounded `/pve` approach, a real stall/replan using the shared recovery path,
+camp return and cancellation. Then finish overlay cost/scene checks, review and integrate PR #27,
+and retire the inspector worktree and branch when safe.

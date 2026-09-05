@@ -328,3 +328,25 @@ restart the listener from that file, return to the same starting side, and repea
 destination. Compare first-click route, contacts, backtracks, replans, learned cells, path grain
 and completion. Then proceed to bounded PvE and the remaining overlay cost/scene checks. PR #27
 stays draft and unmerged.
+
+The dense-terrain cold/restart/warm pair is accepted. At LT 85984.69 / LG 71111.93 in Ashfell
+Plain, the measured south corridor contained object-density cost in all eight center cells and 23
+cells across its three-cell width. The cold production-listener pass to LT 85985 / LG 70972 used
+an isolated empty learned map, made ten clicks, recovered from one stall with one 10-unit
+backtrack, replanned twice and arrived 3.047 units from the goal. Session
+`2107490049288739348` retained all 60 trail points and 37 events.
+
+The cold pass wrote schema 2 parent `(4298, 3554)` and refined cell `(8597, 7109)`. The listener
+was recreated from the saved file and verified its hash
+`d4f86ccdc32e5d289a66d2a902459b03c612bfc4db208363ce007d9f4ea35ddd`. From the same starting
+side, the identical warm route used five clicks with zero stalls, zero backtracks and zero
+pathfinding replans, arriving 3.155 units from the goal. The learned-map hash remained unchanged.
+Session `8352064271430055971` retained all 39 trail points and 16 events. Neither capture omitted
+trail/events or reported producer drops. The warm global plan conservatively avoided the learned
+20-unit parent through `(85970, 70990)` while retaining its precise 10-unit child in schema 2; the
+owner accepted this behavior.
+
+The isolated helpers were retired. The normal listener 1704, recorder 8688 and panel 7900 are
+restored against unchanged client PID 1940 and source `7e719d6`. Current active todo: bounded
+`/pve` approach, real stall/replan, camp return and cancellation, followed by overlay cost/scene
+checks and PR #27 integration. PR #27 remains draft and unmerged.
