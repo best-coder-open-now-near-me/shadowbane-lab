@@ -192,14 +192,14 @@ combined `b713dbf0c5cecf743c441c38472db8568cdbeaf9` (same cue runtime source).
 Full source Python result: 1753 passed, 7 symlink-permission skips, 223 subtests.
 Ruff passed. Both Win32 profiles build; each CTest executes 36 entries: 32 passed,
 2 private-client argument skips, 2 required transparency failures. Local combined
-rendering executes and passes all16 feature combinations. The developer-only actual
+rendering executes and passes all 16 feature combinations. The developer-only actual
 native tree-detachment probe built and passed 64,256 removals against the reviewed
 binary in a separate process; it does not establish a complete native movement stop
 and is excluded from runtime/package capabilities. Full controls/adapters remain
-unfinished. Product version is still1.6.13; no ABI/wire change.
+unfinished. Product version is still 1.6.13; no ABI/wire change.
 
 The renderer evidence now proves that identical scene RGBA/depth snapshots can
-require different behind-effect transmission (blue191 vs64). Native source
+require different behind-effect transmission (blue 191 vs 64). Native source
 color/alpha/depth and blend semantics at every contributing fragment are missing
 from the existing capture contract. Nearest-depth masks, whole-pass early ordering
 and retained mutable shader pointers cannot resolve this. Existing feature owners
@@ -207,7 +207,7 @@ retain the correction and bounded material-path investigation; no competing hook
 or approximation has been installed. This blocks a complete particles/cue package,
 not the mere existence of newer movement work.
 
-No source package, installed wheel, acceptance DLL, consolidated owner procedure,
+No acceptance package, installed wheel, acceptance DLL, consolidated owner procedure,
 or independent complete-candidate review is claimed for this checkpoint. Last
 actual builder attempt and its failing gates remain recorded above. No main merge
 or shared VM/client change occurred. Active worktrees and ignored evidence remain
