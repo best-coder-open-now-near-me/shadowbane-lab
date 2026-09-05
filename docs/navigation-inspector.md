@@ -96,8 +96,8 @@ texture units. Its measured costs are synthetic, not live-game acceptance.
 - [x] Deploy source 96d9036 and accept measured-ground placement on a live slope before the water transition.
 - [x] Validate the corrected measured-ground trail on a short dry flat route (96d9036).
 - [x] Diagnose the first normal/x-ray tree runs: learning worked, but A* replanned before dispatching physical escape.
-- [ ] Active: package and live-validate reverse-ingress backtrack plus an A* detour with the tree in an intermediate cell.
-- [ ] Finish normal/x-ray visibility, bounded PvE and overlay cost/scene checks in the [developer/owner live pass](handoffs/navigation-inspector.md).
+- [x] Package and live-validate reverse-ingress backtrack plus an A* detour with the tree in an intermediate cell (46ab536).
+- [ ] Active: finish normal/x-ray visibility, then bounded PvE and overlay cost/scene checks in the [developer/owner live pass](handoffs/navigation-inspector.md).
 
 Draft PR #27 is the integration destination; a push is not an accepted merge.
 Retain the task worktree until the live pass and integration are complete.

@@ -264,10 +264,15 @@ northward clicks. X-ray session `7565812963352424179` reproduced the recovery-or
 The correction now shared by `/go` and `/pve` records meaningful measured ingress, dispatches one
 straight click in its exact reverse after a confirmed stall, and only then replans around the
 learned blocker from the backed-out position. With no measured ingress it reverses the active route
-segment. The full Python suite passes with 1,673 tests, 211 subtests and eight expected skips;
-Ruff also passes. This source still needs a committed acceptance package and a live rerun using
-a farther goal so the tree is an intermediate cell.
+segment. Source `46ab5369265a3c07ac9971cd42230e9a526bdc97` passed the full acceptance build
+as package `fc54d331`; the dated record contains the package, wheel and unchanged DLL hashes.
 
-Next todo: build and deploy reverse-ingress recovery, validate physical backtrack plus the detour,
-then finish normal/x-ray visibility and bounded PvE and overlay cost/scene checks. PR #27 stays
-draft and unmerged.
+That wheel is installed in the existing exact client. Normal-depth session
+`238701332475333700` backed 11.934 units south after contacting the tree, replanned once around
+learned cell `(4440, 2253)`, then arrived 4.15 units from the farther north goal. It retained all
+42 trail samples and 31 events with no omissions or drops. The owner visually confirmed the
+backtrack and detour as very successful; the wider westward arc was the adjacent center on the
+20-unit grid and was accepted. Physical backtrack and learned-obstacle A* recovery now pass.
+
+Next todo: finish normal/x-ray visibility, then run bounded PvE and overlay cost/scene checks.
+PR #27 stays draft and unmerged.

@@ -1,13 +1,11 @@
 # Closed-loop LT/LG travel
 
-> Current testing wheel, 2026-09-04: source `96d9036` is installed. Its exact
-> minimap preflight, bounded destinations and measured arrival pass; its inspector
-> trail uses the client-resolved ground surface accepted on dry flat land and a slope.
-> A water transition remains a retained navigation failure rather than an accepted route.
-> The earlier body-height concern was resolved by the exact ground contract and the owner
-> accepted surface placement on both terrain types. Obstacle recovery, occlusion and PvE
-> acceptance continue in the current checkpoint.
-> See [the exact record](navigation-inspector-acceptance-20260904.md#exact-ground-height-contract-and-correction).
+> Current testing wheel, 2026-09-04: source `46ab536` is installed. Exact minimap
+> projection, bounded destinations, measured arrival and ground-aligned inspector trails
+> pass. A live tree route physically backtracked, replanned around its learned cell and
+> arrived; the owner accepted the recovery. A water transition remains a retained
+> navigation failure. X-ray visibility and bounded PvE acceptance remain.
+> See [the exact record](navigation-inspector-acceptance-20260904.md#tree-obstacle-diagnosis-and-recovery-correction).
 
 Travel uses exact native player coordinates as feedback and guarded right-clicks on the
 minimap as the actuator. Start the foreground-scoped chat bridge once per client session:

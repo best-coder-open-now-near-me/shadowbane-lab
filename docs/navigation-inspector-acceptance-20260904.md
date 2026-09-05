@@ -521,13 +521,32 @@ not accepted before attention moved to correcting recovery.
 The source correction applies the owner's durable rule to both `/go` and `/pve`: record the last
 meaningful measured ingress direction, make the first stall-recovery click its exact reverse,
 physically dispatch that backtrack, and then replan from the backed-out position around the learned
-blocker. If no ingress sample exists, recovery reverses the active route segment. The full
-Python suite passes with 1,673 tests, 211 subtests and eight expected skips; Ruff also passes.
-A committed package and live tree rerun remain required.
+blocker. If no ingress sample exists, recovery reverses the active route segment.
 
-Package/live validation gate: build and deploy the reverse-ingress recovery checkpoint, validate it on a
-farther route with the tree as an intermediate blocker, then finish normal/x-ray visibility and
-bounded PvE and overlay cost/scene checks.
+Source `46ab5369265a3c07ac9971cd42230e9a526bdc97` built as package `fc54d331`; archive
+SHA-256 is `89b44e206eebfdebc4ede11fa47d2af72f01f28f2c68660583e8bafa7007f9a0` and wheel
+SHA-256 is `e732592e462201e25fc0d796aa8b3d38f4e2da62d2607fcd61093b4fa85e18bd`. The full
+Python suite passed with 1,673 tests, 211 subtests and eight expected skips; Ruff, both VS2022
+Win32 Release profiles with 18 native tests each, source/wheel packaging, installed entry point
+and actual Tk panel also passed. The full DLL remains byte-identical to the loaded DLL at
+`f08f99ea8dc8f8558971e3c00252b20df3ede58e00a723df012e4a14cd9071e7`.
+
+The wheel replaced only the Python layer in the same exact testing runtime. Client PID 3544,
+creation FILETIME `134330368496400834`, executable/DLL identity and inspector channel passed
+after installation. Panel 9124, listener 7324 and recorder 8984 were verified with empty error
+logs. At the tree collision the optional ground query was unavailable while canonical actor
+position remained coherent, exercising the intended non-failing fallback.
+
+Normal-depth session `238701332475333700` used an 80-unit northward goal so the tree's cell was
+an intermediate blocker. After the confirmed stall, the controller physically moved 11.934 units
+south from LG 45045.832 to LG 45033.898 before the learned-obstacle replan. The final plan retained
+learned cell `(4440, 2253)`, routed west through `(88790, 45050)` and then north around it. The run
+used one replan and no direct fallback, retained all 42 trail samples and 31 events with no
+omissions or producer drops, and confirmed stationary arrival 4.15 units from the goal. The owner
+visually confirmed the backtrack and detour as very successful. The roughly 27-unit westward arc
+was the adjacent center on the 20-unit planning grid and was accepted as conservative but bounded.
+**Physical backtrack and learned-obstacle A* recovery are accepted.** Evidence is retained under
+`resume-20260904-1915/recovery-46ab536/tree-intermediate-normal`.
 
 ## Remaining acceptance pass
 
@@ -549,7 +568,6 @@ unavailable. Verify the measured LT/LG-to-world transform before accepting world
 alignment. If the separate terrain repair is added, it requires its own verified
 source and one combined boundary-tile check.
 
-Current active todo: build and deploy reverse-ingress recovery, validate physical backtrack and
-the A* detour with the tree as an intermediate blocker, then finish normal/x-ray visibility and
-bounded PvE and overlay cost/scene checks. After the remaining live pass, review and integrate
-PR #27, then retire the inspector worktree/branch when safe.
+Current active todo: finish the normal/x-ray visibility comparison, then run bounded PvE and
+overlay cost/scene checks. After the remaining live pass, review and integrate PR #27, then
+retire the inspector worktree/branch when safe.
