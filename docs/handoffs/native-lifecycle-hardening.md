@@ -309,3 +309,25 @@ background depth substitution is not an accepted repair. Active work remains
 the shared native transparency contract, followed by complete-feature gates,
 independent combined review and exact installed-package acceptance. Movement
 stop composition and full runtime adapters remain with their existing owner.
+
+
+Combined source `4e908b411570122a07cc15fd98dc9888ab74fc37` now includes sky
+fixture `1e70f4095dc99ab95557c2ebdbb23fdf8d515713` and particles trace
+`ec816a594a99dff4cb6beedbfa9df42e15f2e262` plus strengthened capability tests
+`1f23943bc387b5ec7707f40eb49a8de0357a299a`. Both full and diagnostics native
+builds succeeded. Each profile ran and passed four targeted CTests (navigation,
+combined rendering, trace enabled and disabled), zero skips. JUnit evidence is
+`artifacts/hardening-evidence/trace-sky-native-full.xml` and
+`trace-sky-native-diagnostics.xml`. Existing Python trace analysis: 19 passed;
+trace collector: 29 passed. Ruff and diff checks passed. An initial pytest
+invocation named nonexistent `test_terrain_trace.py` and collected nothing;
+the corrected actual suites above were then executed successfully.
+
+The shared fixture now checks complete depth-buffer preservation, enabled sky
+pixels, alpha holes, later native background blending and final UI pixels, outside
+its timed path. Trace fields are additive, capability-gated and disabled by
+default; old state positions and readers remain compatible. This adds evidence
+for the transparency repair, not a repair or release claim. Required native
+transparency failures remain open; no package or owner acceptance is certified.
+Next is cue MultiDraw trace coverage and the shared transmission contract,
+with complete movement stop/runtime composition continuing in its owner lane.
