@@ -454,3 +454,31 @@ Batch prebinding rollback preserves foreign replacement and both previously and
 briefly dispatched originals. Both complete DLL profiles and 34 focused
 policy/backend/lifetime tests pass with zero skips. Controlled native originals
 exercise lifecycle composition; connected input acceptance remains separate.
+
+
+## Native UI and input event ordering
+
+The reviewed keyboard callback at RVA `453cc0` accepts four cdecl arguments
+(virtual key, modifiers, down, repeat). Its event submission thunk reaches RVA
+`7c7d10`, which both inserts and immediately drains the native event queue,
+dispatching through active UI/game-window handlers before returning. The native
+update driver later invokes the game-window update slot. Thus the existing
+pre-update controls consumer can inspect UI effects of earlier native key events;
+there is no evidence requiring a second input phase or delayed UI guess.
+
+The native text predicate is RVA `453c40`; focused-control getter `77f8b0` resolves
+the current HUD focus. Text kinds 5, 6 and 14 own input. The native modal global
+is checked at the beginning of native update; native input-inhibit bits are in its
+manager's +28 field. Window +28 is the existing item-drag payload. The native
+camera-gesture predicate reads its existing pointer-state +18 byte, separate from
+movement ownership. Top-level hit-test RVA `7834f0` walks visible native HUDs and
+uses their rectangle/transparent-child rules, preserving inventory/world-map UI.
+
+Native mouse dispatch scales physical client coordinates by native resolution
+versus native window rectangle extent. The reviewed rectangle getter thunk RVA
+`25167` copies the rectangle at native-window +8. `NativeClientPoint` verifies
+that getter and validates extents before converting. UI hit testing and production
+terrain/basis unprojection share this conversion. A read-only connected snapshot
+confirmed the getter binding and coherent physical/native extents; no input was
+sent and no game call was invoked by that inspection. Private inspection helper
+remains under artifacts/native-movement/inspect-input-live.ps1.

@@ -31,6 +31,7 @@ add_library(
   movement_controls.cpp
   movement_native_image.cpp
   movement_lifetime.cpp
+  movement_native_ui.cpp
   movement_native_stop.cpp
   cel_shading.cpp
   depth_edges.cpp
@@ -818,7 +819,7 @@ endif()
 
 if(BUILD_TESTING)
   add_executable(wonderbane_extension_movement_native_stop_test
-    movement_controls.cpp movement_native_image.cpp movement_native_stop.cpp movement_lifetime.cpp import_hook.cpp movement_native_stop_test.cpp)
+    movement_controls.cpp movement_native_image.cpp movement_native_stop.cpp movement_lifetime.cpp movement_native_ui.cpp import_hook.cpp movement_native_stop_test.cpp)
   target_compile_features(wonderbane_extension_movement_native_stop_test PRIVATE cxx_std_20)
   target_compile_definitions(wonderbane_extension_movement_native_stop_test PRIVATE
     UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
@@ -843,7 +844,7 @@ endif()
 
 if(BUILD_TESTING)
   add_executable(wonderbane_extension_movement_lifetime_test
-    movement_lifetime_test.cpp movement_native_stop.cpp movement_controls.cpp)
+    movement_lifetime_test.cpp movement_native_stop.cpp movement_native_ui.cpp movement_controls.cpp)
   target_compile_features(wonderbane_extension_movement_lifetime_test PRIVATE cxx_std_20)
   target_compile_definitions(wonderbane_extension_movement_lifetime_test PRIVATE
     UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
@@ -859,4 +860,15 @@ if(BUILD_TESTING)
     add_test(NAME wonderbane_extension_movement_lifetime_${mode}
       COMMAND wonderbane_extension_movement_lifetime_test ${mode})
   endforeach()
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_movement_native_ui_test movement_native_ui.cpp movement_native_ui_test.cpp)
+  target_compile_features(wonderbane_extension_movement_native_ui_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_movement_native_ui_test PRIVATE
+    UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_movement_native_ui_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  target_link_libraries(wonderbane_extension_movement_native_ui_test PRIVATE user32)
+  set_property(TARGET wonderbane_extension_movement_native_ui_test PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
+  add_test(NAME wonderbane_extension_movement_native_ui COMMAND wonderbane_extension_movement_native_ui_test)
 endif()
