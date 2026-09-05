@@ -7,6 +7,7 @@
 namespace we = wonderbane::extension;
 namespace wonderbane::extension {
 DWORD StartMovementBoundaryTraceForTesting(const ProcessIdentity&, std::uint32_t*, std::uint32_t) noexcept;
+DWORD StartNativeMovementUpdatesForTesting(const ProcessIdentity&, NativeMovementUpdate, std::uint32_t*, std::uint32_t) noexcept;
 const MovementBoundaryTrace* MovementBoundaryTraceForTesting() noexcept;
 }
 namespace {
@@ -14,7 +15,10 @@ using Update = std::uint32_t(__thiscall*)(void*, double);
 HANDLE entered = nullptr, release_call = nullptr;
 HANDLE install_entered = nullptr, install_release = nullptr;
 bool hold_install = false;
-std::atomic<int> calls{0};
+std::atomic<int> calls{0}, movement_calls{0};
+HANDLE movement_entered = nullptr, movement_release = nullptr;
+bool hold_movement = false;
+void Movement(void* receiver, double dt) noexcept;
 std::atomic<bool> forwarded{true};
 bool fail_after_install = false, failure_injected = false;
 std::thread held;
@@ -27,6 +31,14 @@ std::uint32_t __fastcall Original(void* receiver, void*, double dt) {
 }
 bool Call(std::uint32_t address) {
     return reinterpret_cast<Update>(address)(reinterpret_cast<void*>(0x123450),0.125) == result_value;
+}
+void Movement(void* receiver, double dt) noexcept {
+    if (reinterpret_cast<std::uintptr_t>(receiver) != 0x123450 || dt != 0.125) { forwarded = false; }
+    ++movement_calls;
+    if (hold_movement) {
+        SetEvent(movement_entered);
+        if (WaitForSingleObject(movement_release, 5000) != WAIT_OBJECT_0) { forwarded = false; }
+    }
 }
 int failures=0;
 void Check(bool ok,const char* message) { if (!ok) { ++failures; std::cerr << message << '\n'; } }
@@ -52,7 +64,8 @@ DWORD ReplaceImportAddressSlot(std::uint32_t* slot,std::uint32_t expected,std::u
 }
 }
 int main(int argc,char** argv) {
-    fail_after_install = argc>1 && std::strcmp(argv[1],"startup-failure")==0;
+    fail_after_install = argc > 1 && (std::strcmp(argv[1], "startup-failure") == 0
+        || std::strcmp(argv[1], "movement-startup-failure") == 0);
     SetEnvironmentVariableW(L"WONDERBANE_MOVEMENT_TRACE",nullptr);
     FILETIME creation{},exit{},kernel{},user{};
     Check(GetProcessTimes(GetCurrentProcess(),&creation,&exit,&kernel,&user)!=FALSE,"process identity");
@@ -70,6 +83,83 @@ int main(int argc,char** argv) {
     auto stale=identity; ++stale.creation_filetime_utc;
     Check(we::StartMovementBoundaryTraceForTesting(stale,&slot,slot)==ERROR_INVALID_DATA
         && !we::MovementBoundaryTraceForTesting(),"stale current-process creation time rejected");
+    if (argc > 1 && std::strcmp(argv[1], "movement-startup-failure") == 0) {
+        const auto original = slot;
+        Check(we::StartNativeMovementUpdatesForTesting(identity, &Movement, &slot, original) == ERROR_ACCESS_DENIED,
+            "controls startup preserves concrete partial-install failure");
+        Check(movement_calls == 0 && !we::MovementBoundaryTraceForTesting(),
+            "failed controls installation admits no consumer or trace");
+        we::StopNativeMovementUpdates(); SetEvent(release_call); held.join();
+        Check(slot == original && forwarded && calls == 1, "failed installation retains original through admitted callback");
+        CloseHandle(entered); CloseHandle(release_call); return failures ? 1 : 0;
+    }
+    if (argc > 1 && std::strcmp(argv[1], "shared-slot-replaced") == 0) {
+        const auto original = slot;
+        Check(we::StartNativeMovementUpdatesForTesting(identity, &Movement, &slot, original) == ERROR_SUCCESS,
+            "controls install before competing slot replacement");
+        slot = 1234;
+        Check(we::StartMovementBoundaryTraceForTesting(identity, &slot, original) == ERROR_INVALID_DATA,
+            "second consumer rejects lost hook ownership");
+        we::StopMovementBoundaryTrace(); we::StopNativeMovementUpdates();
+        Check(slot == 1234, "retirement does not overwrite competing slot owner");
+        CloseHandle(entered); CloseHandle(release_call); return failures ? 1 : 0;
+    }
+    if (argc > 1 && (std::strcmp(argv[1], "shared-trace-first") == 0
+        || std::strcmp(argv[1], "shared-controls-first") == 0
+        || std::strcmp(argv[1], "shared-held-control") == 0)) {
+        const bool trace_first = std::strcmp(argv[1], "shared-trace-first") == 0;
+        const bool hold = std::strcmp(argv[1], "shared-held-control") == 0;
+        const auto original = slot;
+        Check(we::StartNativeMovementUpdatesForTesting(stale, &Movement, &slot, original) == ERROR_INVALID_DATA,
+            "controls reject stale process identity without installation");
+        Check(we::StartNativeMovementUpdatesForTesting(identity, nullptr, &slot, original) == ERROR_INVALID_DATA,
+            "controls reject missing callback without installation");
+        if (trace_first) {
+            Check(we::StartMovementBoundaryTraceForTesting(identity, &slot, original) == ERROR_SUCCESS, "trace installs shared slot");
+        }
+        Check(we::StartNativeMovementUpdatesForTesting(identity, &Movement, &slot, original) == ERROR_SUCCESS,
+            "controls join or install shared slot");
+        const auto callback = slot;
+        if (!trace_first) {
+            Check(we::StartMovementBoundaryTraceForTesting(identity, &slot, original) == ERROR_SUCCESS, "trace joins controls slot");
+        }
+        Check(slot == callback, "second consumer does not replace shared callback");
+        Check(we::StartNativeMovementUpdatesForTesting(identity, &Movement, &slot, original) == ERROR_ALREADY_INITIALIZED,
+            "immutable controls callback cannot be replaced");
+        SetEvent(release_call);
+        Check(Call(callback) && movement_calls == 1 && we::MovementBoundaryTraceForTesting()->write_sequence == 1,
+            "both consumers execute and original return survives");
+        if (trace_first) {
+            we::StopNativeMovementUpdates();
+            Check(slot == callback && Call(callback) && movement_calls == 1
+                && we::MovementBoundaryTraceForTesting()->write_sequence == 2,
+                "controls retirement preserves active trace");
+            we::StopMovementBoundaryTrace();
+        } else {
+            we::StopMovementBoundaryTrace();
+            Check(slot == callback && Call(callback) && movement_calls == 2
+                && we::MovementBoundaryTraceForTesting()->write_sequence == 1,
+                "trace retirement preserves active controls");
+            if (hold) {
+                movement_entered = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+                movement_release = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+                hold_movement = true;
+                held = std::thread([callback] { if (!Call(callback)) { forwarded = false; } });
+                Check(WaitForSingleObject(movement_entered, 5000) == WAIT_OBJECT_0, "admitted controls callback held");
+                we::StopNativeMovementUpdates();
+                SetEvent(movement_release); held.join();
+                CloseHandle(movement_entered); CloseHandle(movement_release);
+            } else { we::StopNativeMovementUpdates(); }
+        }
+        const auto count = movement_calls.load();
+        Check(slot == original && Call(callback) && movement_calls == count,
+            "last consumer restores slot; late dispatch still calls original without consumers");
+        Check(we::StartNativeMovementUpdatesForTesting(identity, &Movement, &slot, original) == ERROR_ALREADY_INITIALIZED,
+            "retired runtime generation cannot restart");
+        Check(forwarded, "shared controls callback preserves receiver and native delta");
+        CloseHandle(entered); CloseHandle(release_call);
+        return failures ? 1 : 0;
+    }
     if (argc>1 && std::strcmp(argv[1],"concurrent-stop")==0) {
         install_entered=CreateEventW(nullptr,TRUE,FALSE,nullptr);
         install_release=CreateEventW(nullptr,TRUE,FALSE,nullptr);

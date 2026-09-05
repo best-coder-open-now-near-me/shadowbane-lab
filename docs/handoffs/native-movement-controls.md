@@ -295,3 +295,24 @@ Active todo remains complete native-update, steering, terrain-picking and input
 runtime wiring. Settings/automation transport, combined package verification and
 connected acceptance remain afterward. This camera checkpoint adds no runtime
 activation, installed package, independent deployment or feature-complete claim.
+
+
+Native update hook consolidation is implemented in the existing boundary module.
+Controls and optional trace now share one verified slot, immutable original call-
+through and serialized lifecycle. Either consumer may start first. Retiring trace
+cannot remove active controls, and retiring controls cannot remove active trace.
+The final consumer restores only its own slot. Admitted callbacks and their pinned
+state/original survive retirement; replacement slot owners are preserved. Runtime
+must request its own retirement only after its owning-thread native stop completes.
+A consumer cannot replace its callback or restart a retired generation.
+
+Both complete DLL profiles build and all ten focused movement/backend/hook tests
+pass per profile with zero skips. New lifecycle cases cover both startup orders,
+held controls callbacks, controls partial-install failure and intervening slot
+replacement; existing trace rollback/concurrent-stop cases continue passing.
+This checkpoint supplies the shared callback boundary, not an activated input
+consumer. Active work remains steering, picking and input runtime composition,
+then settings/grant transport and complete-candidate package/connected acceptance.
+On activation, native camera changes must feed the existing fresh camera
+observation before sky/world rendering, as requested by the integration owner;
+no separate camera authority or cached matrix approximation is introduced here.

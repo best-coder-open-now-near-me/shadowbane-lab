@@ -4,7 +4,14 @@
 #include "event_channel.h"
 
 namespace wonderbane::extension {
-// Passive investigation only. Never advertises movement capability or accepts commands.
+// One verified native-update hook serves controls and optional passive tracing.
+// The controls callback and all of its reachable state must remain process-pinned.
+// It runs before the original native update; it must perform its own exact-window,
+// scene and thread admission. It may retire itself only after native stop finishes.
+using NativeMovementUpdate = void(*)(void* receiver, double delta) noexcept;
+DWORD StartNativeMovementUpdates(const ProcessIdentity&, NativeMovementUpdate) noexcept;
+void StopNativeMovementUpdates() noexcept;
+// Passive observation never advertises movement capability or accepts commands.
 DWORD StartMovementBoundaryTrace(const ProcessIdentity&) noexcept;
 void StopMovementBoundaryTrace() noexcept;
 

@@ -30,6 +30,10 @@ Update original = nullptr;
 MovementBoundaryTrace* trace = nullptr;
 HANDLE mapping = nullptr;
 std::uint32_t* installed_slot = nullptr;
+NativeMovementUpdate movement_update = nullptr;
+volatile LONG movement_enabled = 0;
+bool movement_registered = false;
+bool hook_ready = false, hook_retired = false;
 SRWLOCK publication_lock = SRWLOCK_INIT;
 SRWLOCK lifecycle_lock = SRWLOCK_INIT;
 struct LifecycleGuard {
@@ -132,7 +136,54 @@ void Observe(void* receiver, double delta, std::uintptr_t caller) noexcept {
 }
 std::uint32_t __fastcall TracedUpdate(void* receiver, void*, double delta) {
     Observe(receiver, delta, reinterpret_cast<std::uintptr_t>(_ReturnAddress()));
+    // Callback identity is immutable after publication and remains process-pinned.
+    // A consumer admitted before retirement may finish; retirement never destroys
+    // its state or the original call-through. The runtime handles native shutdown
+    // on this thread before requesting its own retirement.
+    if (InterlockedCompareExchange(&movement_enabled, 0, 0)) { movement_update(receiver, delta); }
     return original(receiver, delta);
+}
+DWORD InstallUpdate(std::uint32_t* slot, Update target) noexcept {
+    if (installed_slot) {
+        if (!hook_ready || hook_retired || installed_slot != slot || original != target) { return ERROR_ALREADY_INITIALIZED; }
+        std::uint32_t current = 0;
+        return Read32(reinterpret_cast<std::uintptr_t>(slot), current)
+            && current == reinterpret_cast<std::uint32_t>(&TracedUpdate) ? ERROR_SUCCESS : ERROR_INVALID_DATA;
+    }
+    original = target; installed_slot = slot;
+    const auto result = ReplaceImportAddressSlot(slot, reinterpret_cast<std::uint32_t>(target),
+        reinterpret_cast<std::uint32_t>(&TracedUpdate));
+    hook_ready = result == ERROR_SUCCESS;
+    // A failed protection restoration may still have made the callback visible.
+    // Preserve original/state even on failure; do not admit another installation.
+    return result;
+}
+void RetireUnusedUpdate() noexcept {
+    if (!installed_slot || InterlockedCompareExchange(&movement_enabled, 0, 0)
+        || InterlockedCompareExchange(&enabled, 0, 0)) { return; }
+    hook_retired = true;
+    (void)ReplaceImportAddressSlot(installed_slot,
+        reinterpret_cast<std::uint32_t>(&TracedUpdate), reinterpret_cast<std::uint32_t>(original));
+}
+DWORD InstallMovement(const ProcessIdentity& identity, NativeMovementUpdate callback,
+    std::uint32_t* slot, Update target) noexcept {
+    if (!ExactIdentity(identity) || !callback) { return ERROR_INVALID_DATA; }
+    if (movement_registered) { return ERROR_ALREADY_INITIALIZED; }
+    // Publish immutable callback identity before making its admission flag visible.
+    movement_update = callback; movement_registered = true;
+    const auto result = InstallUpdate(slot, target);
+    if (result == ERROR_SUCCESS) { InterlockedExchange(&movement_enabled, 1); }
+    return result;
+}
+DWORD VerifyBinding(const ProcessIdentity& identity) noexcept {
+    if (!GraphicsExecutableSha256Matches("feb351f0fae87d47549fa43c37836405a753d76fbcd0b02232fc1c0733550dff")) {
+        return ERROR_NOT_SUPPORTED;
+    }
+    if (!ExactIdentity(identity)) { return ERROR_INVALID_DATA; }
+    const auto base = reinterpret_cast<std::uintptr_t>(GetModuleHandleW(nullptr));
+    if (!base || (image_base && image_base != base)) { return ERROR_INVALID_DATA; }
+    if (!image_base) { image_base = base; }
+    return VerifyUpdate() ? ERROR_SUCCESS : ERROR_INVALID_DATA;
 }
 DWORD InstallTrace(const ProcessIdentity& identity, std::uint32_t* slot, Update target) noexcept {
     if (!ExactIdentity(identity)) { return ERROR_INVALID_DATA; }
@@ -148,9 +199,7 @@ DWORD InstallTrace(const ProcessIdentity& identity, std::uint32_t* slot, Update 
     std::memcpy(trace->magic,"WBMVTR1",8);
     trace->schema=1; trace->record_size=sizeof(MovementBoundaryRecord); trace->capacity=256;
     trace->process_id=identity.process_id; trace->creation_filetime=identity.creation_filetime_utc;
-    original = target;
-    installed_slot = slot;
-    const auto result = ReplaceImportAddressSlot(slot, reinterpret_cast<std::uint32_t>(target),reinterpret_cast<std::uint32_t>(&TracedUpdate));
+    const auto result = InstallUpdate(slot, target);
     if (result == ERROR_SUCCESS) {
         InterlockedExchange(&trace->enabled,1); InterlockedExchange(&enabled,1);
     }
@@ -167,12 +216,8 @@ DWORD StartMovementBoundaryTrace(const ProcessIdentity& identity) noexcept {
     }
     // Initialized once by the shared process-pinned extension startup.
     if (mapping) { return ERROR_ALREADY_INITIALIZED; }
-    if (!GraphicsExecutableSha256Matches("feb351f0fae87d47549fa43c37836405a753d76fbcd0b02232fc1c0733550dff")) {
-        return ERROR_NOT_SUPPORTED;
-    }
-    if (!ExactIdentity(identity)) { return ERROR_INVALID_DATA; }
-    image_base = reinterpret_cast<std::uintptr_t>(GetModuleHandleW(nullptr));
-    if (!image_base || !VerifyUpdate()) { return ERROR_INVALID_DATA; }
+    const auto verified = VerifyBinding(identity);
+    if (verified != ERROR_SUCCESS) { return verified; }
     return InstallTrace(identity, reinterpret_cast<std::uint32_t*>(image_base + slot_rva),
         reinterpret_cast<Update>(image_base + thunk_rva));
 }
@@ -180,19 +225,37 @@ DWORD StartMovementBoundaryTrace(const ProcessIdentity& identity) noexcept {
 void StopMovementBoundaryTrace() noexcept {
     const LifecycleGuard lifecycle;
     InterlockedExchange(&enabled,0);
-    if (!mapping) { return; }
-    AcquireSRWLockExclusive(&publication_lock);
-    InterlockedExchange(&trace->enabled,0);
-    ReleaseSRWLockExclusive(&publication_lock);
-    (void)ReplaceImportAddressSlot(installed_slot,
-        reinterpret_cast<std::uint32_t>(&TracedUpdate),reinterpret_cast<std::uint32_t>(original));
+    if (mapping) {
+        AcquireSRWLockExclusive(&publication_lock);
+        InterlockedExchange(&trace->enabled,0);
+        ReleaseSRWLockExclusive(&publication_lock);
+    }
+    RetireUnusedUpdate();
     // Pinned code and bounded mapping stay alive until process exit. No unload race.
+}
+DWORD StartNativeMovementUpdates(const ProcessIdentity& identity, NativeMovementUpdate callback) noexcept {
+    const LifecycleGuard lifecycle;
+    if (movement_registered) { return ERROR_ALREADY_INITIALIZED; }
+    const auto verified = VerifyBinding(identity);
+    if (verified != ERROR_SUCCESS) { return verified; }
+    return InstallMovement(identity, callback, reinterpret_cast<std::uint32_t*>(image_base + slot_rva),
+        reinterpret_cast<Update>(image_base + thunk_rva));
+}
+void StopNativeMovementUpdates() noexcept {
+    const LifecycleGuard lifecycle;
+    InterlockedExchange(&movement_enabled, 0);
+    RetireUnusedUpdate();
 }
 #if defined(WONDERBANE_MOVEMENT_TRACE_TESTING)
 DWORD StartMovementBoundaryTraceForTesting(const ProcessIdentity& identity,
     std::uint32_t* slot, std::uint32_t target) noexcept {
     const LifecycleGuard lifecycle;
     return InstallTrace(identity, slot, reinterpret_cast<Update>(target));
+}
+DWORD StartNativeMovementUpdatesForTesting(const ProcessIdentity& identity, NativeMovementUpdate callback,
+    std::uint32_t* slot, std::uint32_t target) noexcept {
+    const LifecycleGuard lifecycle;
+    return InstallMovement(identity, callback, slot, reinterpret_cast<Update>(target));
 }
 const MovementBoundaryTrace* MovementBoundaryTraceForTesting() noexcept { return trace; }
 #endif
