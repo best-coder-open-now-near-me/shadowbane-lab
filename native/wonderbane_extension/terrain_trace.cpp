@@ -57,6 +57,11 @@ struct DrawRecord {
     std::array<std::uint32_t, kMaxStack> stack{};
     // depth test/write/func, alpha test/func, blend/src/dst, lighting, fog, cull.
     std::array<int, 11U> state{};
+    // -1 means unsupported/unqueried, never an inferred default.
+    std::array<int, 6U> blend_detail{}; // RGB src/dst, alpha src/dst, RGB/alpha equation
+    std::array<int, 15U> stencil_detail{}; // enable, front func/value/ref/write/fail/zfail/zpass, back equivalent
+    std::array<int, 4U> color_mask{};
+    int program = -1, framebuffer = -1;
     float alpha_ref = 0.0F;
     std::array<float, 4U> color{};
     std::array<float, 16U> model_view{}, projection{};
@@ -73,6 +78,7 @@ struct TraceFrame {
     bool main_clear = false, done3d = false, extra_depth_clear = false;
     bool context_mismatch = false, helpers_available = false;
     bool multitexture = false, combine_supported = false;
+    bool gl14 = false, gl20 = false, framebuffer_supported = false;
     unsigned int unit_count = 0, omitted_units = 0;
     std::uint64_t observed = 0, overflow = 0, unsafe = 0, budget_skipped = 0;
     std::size_t retained = 0;
@@ -111,11 +117,12 @@ bool Token(const char* text, const char* token) noexcept {
     }
     return false;
 }
-bool Version13(const char* version) noexcept {
+bool VersionAtLeast(const char* version, int wanted_major, int wanted_minor) noexcept {
     int major = 0, minor = 0;
     return version != nullptr && sscanf_s(version, "%d.%d", &major, &minor) == 2
-        && (major > 1 || (major == 1 && minor >= 3));
+        && (major > wanted_major || (major == wanted_major && minor >= wanted_minor));
 }
+bool Version13(const char* version) noexcept { return VersionAtLeast(version, 1, 3); }
 bool ValidProc(PROC proc) noexcept {
     const auto address = reinterpret_cast<std::uintptr_t>(proc);
     return address > 3U && address != UINTPTR_MAX;
@@ -163,6 +170,10 @@ void DetectCapabilities(TraceFrame& frame) noexcept {
     const auto* version = reinterpret_cast<const char*>(g_gl.string(0x1F02U));
     const auto* extensions = reinterpret_cast<const char*>(g_gl.string(0x1F03U));
     if (version == nullptr) { frame.helpers_available = false; return; }
+    frame.gl14 = VersionAtLeast(version, 1, 4);
+    frame.gl20 = VersionAtLeast(version, 2, 0);
+    frame.framebuffer_supported = VersionAtLeast(version, 3, 0)
+        || Token(extensions, "GL_ARB_framebuffer_object") || Token(extensions, "GL_EXT_framebuffer_object");
     const bool core = Version13(version);
     frame.multitexture = core || Token(extensions, "GL_ARB_multitexture");
     frame.combine_supported = core || Token(extensions, "GL_ARB_texture_env_combine")
@@ -194,6 +205,22 @@ void ReadState(DrawRecord& draw, const TraceFrame& frame) noexcept {
     for (std::size_t index = 0; index < draw.state.size(); ++index) {
         g_gl.integer(states[index], &draw.state[index]);
     }
+    draw.blend_detail.fill(-1); draw.stencil_detail.fill(-1);
+    draw.blend_detail[0] = draw.state[6]; draw.blend_detail[1] = draw.state[7];
+    if (frame.gl14) {
+        g_gl.integer(0x80CBU, &draw.blend_detail[2]);
+        g_gl.integer(0x80CAU, &draw.blend_detail[3]);
+        g_gl.integer(0x8009U, &draw.blend_detail[4]);
+    }
+    if (frame.gl20) {
+        g_gl.integer(0x883DU, &draw.blend_detail[5]);
+        g_gl.integer(0x8B8DU, &draw.program);
+    }
+    if (frame.framebuffer_supported) g_gl.integer(0x8CA6U, &draw.framebuffer);
+    constexpr unsigned int stencil[]{0x0B90U,0x0B92U,0x0B93U,0x0B97U,0x0B98U,
+        0x0B94U,0x0B95U,0x0B96U,0x8800U,0x8CA4U,0x8CA3U,0x8CA5U,0x8801U,0x8802U,0x8803U};
+    for (std::size_t i=0;i<(frame.gl20?15U:8U);++i) g_gl.integer(stencil[i], &draw.stencil_detail[i]);
+    g_gl.integer(0x0C23U, draw.color_mask.data());
     g_gl.real(0x0BC2U, &draw.alpha_ref);
     g_gl.real(0x0B00U, draw.color.data());
     g_gl.real(0x0BA6U, draw.model_view.data());
@@ -315,6 +342,10 @@ void WriteFrame(Json& json, const TraceFrame& frame) noexcept {
             json.Print(",\"submission_label\":\"multi_elements\",\"count_unit\":\"subdraws\"");
         }
         json.Print(",\"state\":"); json.Array(draw.state);
+        json.Print(",\"transmission_state\":{\"unavailable\":-1,\"program\":%d,\"framebuffer\":%d,\"blend_rgb_alpha_factors_equations\":", draw.program, draw.framebuffer);
+        json.Array(draw.blend_detail);
+        json.Print(",\"stencil_enable_front_back\":"); json.Array(draw.stencil_detail);
+        json.Print(",\"color_write_rgba\":"); json.Array(draw.color_mask); json.Print("}");
         json.Print(",\"alpha_ref\":"); json.Array(std::array<float, 1>{draw.alpha_ref});
         json.Print(",\"color\":"); json.Array(draw.color);
         json.Print(",\"model_view\":"); json.Array(draw.model_view);

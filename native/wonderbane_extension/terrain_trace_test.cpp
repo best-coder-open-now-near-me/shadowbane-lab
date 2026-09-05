@@ -3,6 +3,7 @@
 
 #include <limits>
 #include <string>
+#include <vector>
 
 using namespace wonderbane::extension;
 namespace {
@@ -11,13 +12,17 @@ int active_changes = 0;
 HGLRC context = reinterpret_cast<HGLRC>(0x1234U);
 const char* version = "1.3 test";
 bool proc_available = true;
+const char* extensions = "";
+std::vector<unsigned int> integer_queries;
 void APIENTRY Integer(const unsigned int name, int* output) {
     ++calls;
+    integer_queries.push_back(name);
     if (name == 0x84E0U) { *output = active_unit; }
     else if (name == 0x84E2U) { *output = maximum_units; }
     else if (name == 0x0BA2U) { output[0] = output[1] = 0; output[2] = 800; output[3] = 600; }
+    else if (name == 0x0C23U) { output[0]=1;output[1]=0;output[2]=1;output[3]=0; }
     else if (name == 0x8069U) { *output = 100 + active_unit - static_cast<int>(kTexture0); }
-    else { *output = 1; }
+    else { *output = static_cast<int>(name); }
 }
 void APIENTRY Real(const unsigned int name, float* output) {
     ++calls;
@@ -31,7 +36,7 @@ void APIENTRY Parameter(unsigned int, unsigned int, int* output) { ++calls; *out
 void APIENTRY Level(unsigned int, int, unsigned int, int* output) { ++calls; *output = 64; }
 void APIENTRY Environment(unsigned int, unsigned int, int* output) { ++calls; *output = 8448; }
 const unsigned char* APIENTRY String(unsigned int name) {
-    return reinterpret_cast<const unsigned char*>(name == 0x1F02U ? version : "");
+    return reinterpret_cast<const unsigned char*>(name == 0x1F02U ? version : extensions);
 }
 void APIENTRY Active(unsigned int unit) { ++active_changes; active_unit = static_cast<int>(unit); }
 HGLRC WINAPI Context() { return context; }
@@ -50,6 +55,42 @@ void Arm() { SetEvent(g_request); TerrainTracePresent(); }
 void Draw(bool safe = true) {
     TerrainTraceDraw(TerrainSubmission::arrays, 0x400123U, 4U, 2, 6, 0U, 0U, true, safe);
 }
+bool TransmissionQueryAudit() {
+    struct Case { const char* version; const char* extensions; bool separate, modern, fbo; };
+    const Case cases[]{
+        {"1.1 test","",false,false,false}, {"1.3 test","",false,false,false},
+        {"1.4 test","",true,false,false}, {"2.0 test","",true,true,false},
+        {"1.1 test","GL_EXT_framebuffer_object",false,false,true},
+        {"1.3 test","GL_EXT_blend_func_separate GL_ARB_shader_objects",false,false,false},
+        {"3.0 test","",true,true,true}};
+    for (const auto& test:cases) {
+        version=test.version;extensions=test.extensions;proc_available=true;
+        DetectCapabilities(*g_frame);
+        // Isolate state queries; existing tests exercise all texture-unit queries.
+        g_frame->unit_count=0;g_frame->multitexture=false;g_gl.active=nullptr;
+        DrawRecord value{};integer_queries.clear();ReadState(value,*g_frame);
+        std::vector<unsigned int> expected{0xB71,0xB72,0xB74,0xBC0,0xBC1,0xBE2,
+            0xBE1,0xBE0,0xB50,0xB60,0xB44,0xB90,0xB92,0xB93,0xB97,0xB98,
+            0xB94,0xB95,0xB96,0xC23,0xBA2};
+        if(test.separate)expected.insert(expected.end(),{0x80CB,0x80CA,0x8009});
+        if(test.modern)expected.insert(expected.end(),{0x883D,0x8B8D,0x8800,
+            0x8CA4,0x8CA3,0x8CA5,0x8801,0x8802,0x8803});
+        if(test.fbo)expected.push_back(0x8CA6);
+        std::sort(expected.begin(),expected.end());
+        std::sort(integer_queries.begin(),integer_queries.end());
+        if(integer_queries!=expected)return false; // rejects every unsupported or unexpected query
+        const std::array<int,6> blend{0xBE1,0xBE0,test.separate?0x80CB:-1,
+            test.separate?0x80CA:-1,test.separate?0x8009:-1,test.modern?0x883D:-1};
+        const std::array<int,15> stencil{0xB90,0xB92,0xB93,0xB97,0xB98,0xB94,0xB95,0xB96,
+            test.modern?0x8800:-1,test.modern?0x8CA4:-1,test.modern?0x8CA3:-1,
+            test.modern?0x8CA5:-1,test.modern?0x8801:-1,test.modern?0x8802:-1,test.modern?0x8803:-1};
+        if(value.blend_detail!=blend || value.stencil_detail!=stencil
+            || value.program!=(test.modern?0x8B8D:-1) || value.framebuffer!=(test.fbo?0x8CA6:-1)
+            || value.color_mask!=std::array<int,4>{1,0,1,0})return false;
+    }
+    return true;
+}
+
 }
 
 int main() {
@@ -92,6 +133,9 @@ int main() {
         || active_unit != static_cast<int>(kTexture0 + 1U) || active_changes != 3) {
         return Fail("per-unit capture or active unit restoration");
     }
+    if (draw.program!=-1 || draw.framebuffer!=-1 || draw.blend_detail[2]!=-1
+        || draw.stencil_detail[8]!=-1 || draw.color_mask!=std::array<int,4>{1,0,1,0})
+        return Fail("legacy optional state availability");
     g_frame->query_ticks = g_frequency;
     Draw();
     if (g_frame->budget_skipped != 1U || g_frame->retained != 1U) { return Fail("time bound"); }
@@ -118,7 +162,8 @@ int main() {
     char contents[16384U]{}; DWORD read = 0;
     ReadFile(file, contents, sizeof(contents) - 1U, &read, nullptr);
     CloseHandle(file);
-    if (!json.ok || std::strstr(contents, "\"submission_label\":\"multi_elements\",\"count_unit\":\"subdraws\"") == nullptr
+    if (!json.ok || std::strstr(contents, "\"transmission_state\":{\"unavailable\":-1,\"program\":-1") == nullptr
+        || std::strstr(contents, "\"submission_label\":\"multi_elements\",\"count_unit\":\"subdraws\"") == nullptr
         || std::strstr(contents, "\"model_view\":[null,") == nullptr
         || std::strstr(contents, "\"display_lists\":\"entry-state-only-not-internal-draws\"") == nullptr
         || std::strstr(contents, "\"reviewed_interval_complete\":true") == nullptr) {
@@ -148,6 +193,7 @@ int main() {
     if (!g_frame->helpers_available || g_frame->unit_count != 1U || g_frame->combine_supported) {
         return Fail("legacy capability fallback");
     }
+    if(!TransmissionQueryAudit())return Fail("exact transmission pnames, capability gates or field order");
     StopTerrainTrace();
     if (g_frame != nullptr || g_request != nullptr || g_idle != nullptr
         || g_phase.load() != Phase::disabled) {
