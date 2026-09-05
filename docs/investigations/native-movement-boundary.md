@@ -29,9 +29,11 @@ argument and preserves its integer return. No engine functions other than that
 original update are called; no actor, destination, camera or UI values are written.
 
 Initialization follows process pinning and graphics executable verification, before
-the shared renderer starts. An explicitly requested trace failure participates in
-initialization rollback. With the opt-in unset, no mapping or slot change occurs.
-The integration owner reconciles this additive wiring with newer shared lifecycle.
+the shared renderer starts. This feature branch originally made opted-in trace
+failure participate in initialization rollback. The integration owner reconciled
+that wiring as optional: failure immediately stops the trace and allows ordinary
+client initialization to continue. With the opt-in unset, no mapping or slot change
+occurs. Use the combined initializer for package validation.
 One lifecycle mutex serializes production/test admission and stop, and admission
 compares the supplied creation FILETIME to GetProcessTimes for the current process.
 A retained generation is never reset or restarted. Stop disables publication, drains the bounded publication section, and restores only
@@ -43,8 +45,10 @@ The mapping name includes PID and creation FILETIME. Its header has magic `WBMVT
 schema 1, record size 72, capacity 256 and exact identity. Each record commits its
 sequence after its payload; the read-only collector accepts only identical committed
 slots across two independent reads. Overwritten/missing sequence counts are retained
-in output. Read failures are explicit; UI fields are named *candidates*, not gating
-proof. Captures include process-local addresses and stay private under `artifacts/`.
+in output. Read failures are explicit. The schema-1 `ui_candidate` field has now been
+identified as the native item-drag payload; it is **not a text-entry predicate**.
+The field name is retained for ABI compatibility. `modal_candidate` also remains
+unverified as a complete UI gate. Neither field may enable or suppress controls. Captures include process-local addresses and stay private under `artifacts/`.
 
 ## Reviewable procedure through the existing package workflow
 
@@ -89,3 +93,48 @@ regressions, not a substitute for observing the real client thread.
 
 Python tests verify ABI sizes, exact-client rejection, two-read coherence, ring
 wrap/overwrites, sequence regression, malformed size and nonfinite delta rejection.
+
+## Native input findings
+
+Static inspection followed registration, the Windows message dispatcher, native GUI
+key delivery and focused-control handling in the reviewed executable. A read-only
+snapshot of the existing exact client matched the registered text predicate,
+keyboard callback and text callback pointers. No callback was installed or called
+by that probe. These are binding evidence, not connected controls acceptance.
+
+| Native boundary | Verified behavior | Remaining requirement |
+| --- | --- | --- |
+| Text-entry predicate | Checks an active HUD and the front HUD's focused control; accepts the three native editable-control kinds also handled by the text editor. | Invoke only through a fingerprint-verified binding on the owning thread; combine with modal, scene, focus and inventory ownership. |
+| Keyboard callback | Four caller-cleaned arguments: virtual key, modifiers, down/up, repeat. The dispatcher derives down/up and repeat from the Windows message flags. Extended Enter is translated to a distinct native key code. | Intercept only enabled movement bindings with paired press/release handling; preserve all other callbacks. |
+| Character translation | The message pump consults the same text predicate before translating ordinary keydown messages into text. Text/IME events use a separate registered callback. | Preserve text/IME handling while chat owns input; never swallow movement-letter text in an editor. |
+| Focused control | The native getter obtains the front HUD through native dynamic casting, then reads its focused control. The keyboard handler first offers input to that control before game-action bindings. | Do not replace dynamic casting with an assumed raw base-pointer layout. |
+| Item dragging | The previously collected UI candidate is set by the native item-drag/cursor path. | Treat it as inventory-drag evidence, not evidence that chat is or is not focused. |
+
+The callback registrations avoid a need to synthesize input. Their presence alone
+does not establish an installed interception lifecycle or complete UI classification.
+Raw disassembly, addresses and process snapshots remain in private local artifacts.
+
+## Cancellation findings and rejected shortcuts
+
+The native movement request checks restrictions and rejects a destination too close
+to the player **before** reaching its pending-path cancellation block. Therefore a
+request to the actor's current position is not a complete stop operation.
+
+The local stop method resets the native destination and movement state but does not
+erase the queued path or cancel the separate asynchronous path request. The world
+update can finish that request and repopulate the path. The native path-vector erase
+routine and action-queue erase routine are separate boundaries; the latter does not
+by itself remove the separate scheduled-action entry.
+
+The movement-state setter can build a native outgoing message while applying a state
+transition. Its update path then clears the state-change flag. Calling local stop
+first and asking for the same state afterward can therefore return no message.
+Normal movement selects the moving state, and the local stop selects idle; the
+animation dispatcher corroborates those meanings. Those states must not be forced
+over death, incapacitation or other movement restrictions.
+
+Complete stop still needs a verified ordered operation covering current destination,
+queued path, asynchronous request, active and scheduled actions, and native server
+notification. A scheduled null action is not an acceptable synchronous stop if it
+can later cancel a replacement owner's command. Neither an idle snapshot nor the
+policy tests prove that ordered operation. No stop binding is enabled yet.
