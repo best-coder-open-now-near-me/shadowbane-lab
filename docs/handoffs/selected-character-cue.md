@@ -157,3 +157,35 @@ acceptance or repeated navigation proof is requested. The feature developer
 retains responsibility for resolving any resulting coverage gap.
 
 Draft review: https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/29
+
+## Latest verified checkpoint and read-only guest evidence
+
+Package source: `4be561f63d8e327df3b3ee4e853ab4bb8fef0e6d` (includes failure and
+viewport fixes). Package:
+`E:/Projects/shadowbane/artifacts/cue-packages/30e40ddd/navigation-inspector-acceptance.zip`
+SHA-256 `63c647fb0c91207e778d7b4432d3303c41e52e3367a2997f58cedc8bc05bb489`.
+Full pipeline passed: 1,703 Python tests, 211 subtests, 7 Python skips; Ruff;
+both native profile builds with 21 general CTests passing and private binding
+verification separately passing in each; sdist/wheel and installed UI checks.
+This supersedes the earlier package checkpoint. Documentation-only changes after
+this source do not alter the packaged binaries. Combined-owner source is not yet
+verified and the material requirement remains open.
+
+The existing navigation guest invocation wrapper was located and used for bounded
+read-only process memory inspection. No client deployment, injection, selection
+change or movement was performed. Guest PID 5212 ran reviewed official hash
+`feb351f0fae87d47549fa43c37836405a753d76fbcd0b02232fc1c0733550dff`.
+Current selection vtable RVA `0x1142748` resolves by exact RTTI to `ArcItem`;
+the ArcCharacter guard correctly rejects it. A separate local-player reference
+snapshot contained 46 render nodes, all opacity 1, with shader vtable RVAs
+`0x1149BF4` (Generic), `0x1149C18` (StaticClipMap), `0x1149C3C` (mirrored clip map)
+and `0x1149C84` (StaticWithAlpha). This is reference evidence only, not substitute
+selected-character binding or proof of translucent/fading coverage.
+
+Task-owned local read-only scripts remain at
+`artifacts/selected-character-cue/read-selected-material.ps1` and
+`artifacts/selected-character-cue/read-player-material.ps1`. Private analysis tools
+remain in that ignored artifact directory; build output remains in ignored
+`build/cue-full`. Package receipts preserve their original source and log paths.
+The normal main checkout and navigation checkout are not modified by this lane.
+The feature worktree is retained for the pending combined-source verification.
