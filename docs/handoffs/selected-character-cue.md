@@ -940,3 +940,16 @@ failure replaces it. Local JUnit: artifacts/selected-character-cue/query-capture
 The integration owner already owns named shared query/pipeline gates and their
 package membership. Next: reconcile this capture fix with the combined source
 and verify it, then continue opaque visibility and ordered transparency work.
+
+
+Independent query-fix verification: exact combined source
+1eea5591a5884321eaddfc9fa364d99f3f327be5 matches the feature's selected_cue_gpu.cpp
+and shared scene_draw.cpp/h. A fresh full-profile Release DLL and GPU executable
+build pass. Base cue GPU (all six raw-capture query cases), named scene query
+guard, named pipeline guard and source/coverage feasibility execute and pass.
+Required cue transparency executes and still fails the same two foreground
+cases; zero skips. Evidence:
+E:/Projects/shadowbane/artifacts/cue-combined-native/1eea559/lane-cue.xml.
+The owner separately verified both profiles. The query repair is integrated and
+closed; the next active todo remains complete opaque visibility and ordered
+transmission, followed by package verification and consolidated acceptance.
