@@ -943,3 +943,16 @@ if(BUILD_TESTING)
   set_property(TARGET wonderbane_extension_movement_native_stop_test PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
   add_test(NAME wonderbane_extension_movement_native_stop COMMAND wonderbane_extension_movement_native_stop_test)
 endif()
+
+if(BUILD_TESTING)
+  add_test(NAME wonderbane_extension_movement_shared_trace_first
+    COMMAND wonderbane_extension_movement_boundary_test shared-trace-first)
+  add_test(NAME wonderbane_extension_movement_shared_controls_first
+    COMMAND wonderbane_extension_movement_boundary_test shared-controls-first)
+  add_test(NAME wonderbane_extension_movement_shared_held_control
+    COMMAND wonderbane_extension_movement_boundary_test shared-held-control)
+  add_test(NAME wonderbane_extension_movement_update_startup_failure
+    COMMAND wonderbane_extension_movement_boundary_test movement-startup-failure)
+  add_test(NAME wonderbane_extension_movement_shared_slot_replaced
+    COMMAND wonderbane_extension_movement_boundary_test shared-slot-replaced)
+endif()
