@@ -1020,3 +1020,22 @@ At 640x480/46 captures, the median differences were 2.154/3.703 ms. Amortized
 per-capture differences include frame setup/compositing and are not isolated
 capture latency. These synthetic host results do not certify a live-client
 budget. Raw local receipt: artifacts/selected-character-cue/equal-cost.txt.
+
+
+### Independent combined-source receipt e7a648b (2026-09-05)
+
+Verified clean detached exact combined source
+`e7a648bc0f713d828dbaff95e1919c16d480730e` in the cue-combined-verification
+worktree. Fresh full DLL and GPU executable build. Base GPU, pipeline guard,
+geometry-query guard, and source feasibility pass without skips. Native
+foreground transparency retains exactly its previous two failing assertions.
+Receipt: E:/Projects/shadowbane/artifacts/cue-combined-native/e7a648b/lane-cue.xml.
+Production cue GPU source matches d116843 except the intended shared helper
+rename to AreSceneGeometryQueriesInactive, retaining primitive-query protection.
+
+The follow-up source test also enables a partial native scissor during EQUAL
+capture, verifies the scissor box/enable and stencil state are restored, and
+checks native depth/stencil preservation and absent right-side coverage. It
+passes in the feature worktree. Unsupported default depth/stencil formats were
+not exercised with actual hardware; rejection is explicit in source, not a
+verified alternate-format rendering path. No acceptance package or deployment.
