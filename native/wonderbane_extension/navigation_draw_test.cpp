@@ -184,6 +184,98 @@ void TransparencyProbe(const GraphicsCameraState& camera, bool require_correct) 
                 unsigned(required[0][2]),unsigned(required[1][2]));
 }
 
+// Actual-GL restricted operator hypothesis, not a production transmission resolver.
+void OrderedOperatorProbe(const GraphicsCameraState& camera) {
+    using Pixel=std::array<float,4>;
+    struct Op { GLenum source,destination; Pixel color; float z=-0.6F; bool depth_write=false; };
+    const State original=Capture();
+    auto clear=[&](const Pixel& color) {
+        Check(RenderSceneGeometry(&camera,[](void* raw) noexcept {
+            const auto& c=*static_cast<const Pixel*>(raw);
+            glClearColor(c[0],c[1],c[2],c[3]);glDepthMask(GL_TRUE);glClearDepth(1);
+            glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+        },const_cast<Pixel*>(&color)),"operator fixture clear");
+    };
+    auto native=[&](Op op) {
+        Check(RenderSceneGeometry(&camera,[](void* raw) noexcept {
+            const auto& o=*static_cast<Op*>(raw);
+            glBlendFunc(o.source,o.destination);glDepthMask(o.depth_write?GL_TRUE:GL_FALSE);
+            glColor4fv(o.color.data());glBegin(GL_QUADS);
+            glVertex3f(-0.85F,-0.05F,o.z);glVertex3f(-0.6F,-0.05F,o.z);
+            glVertex3f(-0.6F,0.05F,o.z);glVertex3f(-0.85F,0.05F,o.z);glEnd();
+        },&op),"native operator fixture");
+    };
+    auto read=[] {Pixel p{};glReadPixels(100,240,1,1,GL_RGBA,GL_FLOAT,p.data());return p;};
+    auto distance=[](const Pixel& a,const Pixel& b) {
+        float error=0;for(unsigned i=0;i<4;++i)error=(std::max)(error,std::fabs(a[i]-b[i]));return error;
+    };
+    auto mix=[](const Pixel& a,const Pixel& b,float alpha) {
+        Pixel p{};for(unsigned i=0;i<4;++i)p[i]=(1-alpha)*a[i]+alpha*b[i];return p;
+    };
+    effects::Geometry geometry{};geometry.count=1;
+    geometry.quads[0]={{{-0.85F,-0.05F,0.2F},{-0.6F,-0.05F,0.2F},
+                        {-0.6F,0.05F,0.2F},{-0.85F,0.05F,0.2F}},0.35F,0};
+    auto effect=[&](const Pixel& p,float z) {
+        effects::Config config{};config.flags=1;config.red=p[0];config.green=p[1];config.blue=p[2];
+        geometry.quads[0].alpha=p[3];for(auto& v:geometry.quads[0].points)v.z=z;
+        Check(RenderEffectsGeometry(config,geometry,camera),"production effect for operator reference");
+    };
+    const Op alpha{GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA,{0.15F,0.10F,0.20F,0.25F}};
+    const Op modulate{GL_DST_COLOR,GL_ZERO,{0.40F,0.30F,0.50F,0.50F}};
+    const std::array<std::array<Op,2>,5> cases{{
+        {alpha,{GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA,{0.10F,0.25F,0.05F,0.30F}}},
+        {Op{GL_ONE,GL_ONE,{0.10F,0.10F,0.10F,0.20F}},modulate},
+        {modulate,alpha},
+        {Op{GL_DST_ALPHA,GL_ONE_MINUS_SRC_ALPHA,{0.15F,0.20F,0.10F,0.25F}},modulate},
+        {Op{GL_DST_COLOR,GL_SRC_COLOR,{0.20F,0.40F,0.30F,0.50F}},alpha}}};
+    unsigned passed=0;
+    for(const Pixel background:{Pixel{0.10F,0.15F,0.20F,0.40F},Pixel{0.25F,0.10F,0.15F,0.30F}}) {
+      for(auto ops:cases) for(bool writes:{false,true}) {
+        for(auto& op:ops)op.depth_write=writes;
+        const Pixel e{0.20F,0.30F,0.10F,0.35F};
+        clear(background);for(const auto& op:ops)native(op);const auto baseline=read();
+        clear(e);for(const auto& op:ops)native(op);const auto transformed=read();
+        clear(background);effect(e,0.2F);for(const auto& op:ops)native(op);const auto reference=read();
+        Check(distance(reference,mix(baseline,transformed,e[3]))<=3.0F/255,
+              "restricted unsaturated affine native-order RGBA identity");
+        ++passed;Same(original,Capture());
+      }
+    }
+    // Equal-depth operators retain submission order, including when writing depth.
+    Op equal_a=alpha,equal_b=modulate;equal_a.depth_write=equal_b.depth_write=true;
+    const Pixel background{0.2F,0.2F,0.2F,0.4F};
+    clear(background);native(equal_a);native(equal_b);const auto forward=read();
+    clear(background);native(equal_b);native(equal_a);const auto reverse=read();
+    Check(distance(forward,reverse)>0.02F,"equal-depth native blend order is significant");
+    // Far effect sees the intermediate native operator; near effect must not.
+    const Pixel far_effect{0.1F,0.1F,0.8F,0.4F},near_effect{0.1F,0.8F,0.1F,0.5F};
+    Op middle=alpha;middle.z=0;
+    clear(background);effect(far_effect,0.2F);native(middle);effect(near_effect,-0.2F);const auto two_depth=read();
+    clear(background);native(middle);const auto baseline=read();
+    clear(far_effect);native(middle);const auto transformed_far=read();
+    const auto predicted=mix(mix(baseline,transformed_far,far_effect[3]),near_effect,near_effect[3]);
+    Check(distance(two_depth,predicted)<=3.0F/255,"two effect depths use distinct foreground operators");
+    clear(near_effect);native(middle);const auto wrongly_transformed_near=read();
+    Check(distance(two_depth,mix(mix(baseline,transformed_far,far_effect[3]),wrongly_transformed_near,near_effect[3]))>0.02F,
+          "one shared foreground transform fails for two effect depths");
+    // Even nominal affine factors fail distributivity after framebuffer saturation.
+    for(bool saturated:{false,true}) {
+        const Pixel b{0.6F,0.6F,0.6F,0.6F},e{0.1F,0.1F,0.1F,0.5F};
+        const Op op=saturated?Op{GL_ONE,GL_ONE,{0.8F,0.8F,0.8F,0.8F}}:
+                              Op{GL_ZERO,GL_DST_COLOR,{0.2F,0.2F,0.2F,0.2F}};
+        clear(b);native(op);const auto fb=read();clear(e);native(op);const auto fe=read();
+        clear(b);effect(e,0.2F);native(op);const auto actual=read();
+        const float rejected_error=distance(actual,mix(fb,fe,e[3]));
+        Check(rejected_error>0.03F,
+              "nonlinear destination factor or saturation rejects affine hypothesis");
+        std::printf("Operator rejection: %s max RGBA error %.6f\n",
+                    saturated?"framebuffer saturation":"nonlinear destination factor",rejected_error);
+    }
+    Same(original,Capture());
+    std::printf("Restricted native operator experiment: %u RGBA cases; equal-depth order, two effect depths, "
+                "nonlinear and saturation counterexamples checked (not runtime integration)\n",passed);
+}
+
 }
 int main(int argc, char** argv) {
     WNDCLASSW klass{};
@@ -199,13 +291,15 @@ int main(int argc, char** argv) {
     PIXELFORMATDESCRIPTOR format{};
     format.nSize = sizeof(format); format.nVersion = 1;
     format.dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER;
-    format.iPixelType = PFD_TYPE_RGBA; format.cColorBits = 32; format.cDepthBits = 24;
+    format.iPixelType = PFD_TYPE_RGBA; format.cColorBits = 32; format.cAlphaBits = 8; format.cDepthBits = 24;
     format.cStencilBits = 8; format.iLayerType = PFD_MAIN_PLANE;
     const int index = ChoosePixelFormat(dc, &format);
     if (!index || !SetPixelFormat(dc, index, &format)) return 4;
     HGLRC context = wglCreateContext(dc);
     if (!context || !wglMakeCurrent(dc, context)) return 5;
     std::printf("OpenGL draw test: %s\n", glGetString(GL_VERSION));
+    GLint alpha_bits=0;glGetIntegerv(GL_ALPHA_BITS,&alpha_bits);
+    Check(alpha_bits>=8,"operator RGBA experiment requires an alpha buffer");
     glViewport(0,0,640,480); glPixelStorei(GL_PACK_ALIGNMENT, 1);
     glClearColor(0,0,0,1); glClearDepth(0.5); glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glEnable(GL_FOG); glEnable(GL_LIGHTING); glEnable(GL_ALPHA_TEST);
@@ -328,6 +422,7 @@ int main(int argc, char** argv) {
     const bool verify_transparency = argc == 2
         && std::strcmp(argv[1], "--verify-native-transparency") == 0;
     TransparencyProbe(camera, verify_transparency);
+    OrderedOperatorProbe(camera);
     if (argc == 2 && !verify_transparency) {
         // Synthetic test framebuffer only. Capture happens outside the renderer.
         std::vector<unsigned char> pixels(640U*480U*3U);

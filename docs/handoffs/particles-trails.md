@@ -462,3 +462,39 @@ variants pass. The existing Python trace analyzer accepts old and enriched draw
 payloads with identical analysis and unchanged state positions: all 19 tests in
 `test_terrain_trace_analysis.py` pass. No production query changes were needed.
 Cue owns MultiDraw categorization and is inspecting the immediate producer.
+
+
+## Restricted native-order blend experiment
+
+The owner rejected both a fragment ledger and atlas reservation/implementation.
+Only a bounded operator hypothesis was tested in the existing WGL effects harness;
+no collector, resolver, runtime ABI, texture atlas or hook was added.
+
+Twenty actual-GL RGBA cases use the production particle renderer and two successive
+native-style operations, two backgrounds and both native depth-write modes.
+Within unsaturated values, the measured native-order identity
+`(1-a)*F(B) + a*F(E) = F((1-a)*B + a*E)` passes within 3/255. E carries the actual
+effect source alpha, preserving the renderer's separate alpha-channel behavior.
+The tested factor pairs are SRC_ALPHA/ONE_MINUS_SRC_ALPHA, ONE/ONE,
+DST_COLOR/ZERO, DST_ALPHA/ONE_MINUS_SRC_ALPHA and DST_COLOR/SRC_COLOR.
+This is a restricted affine-in-destination domain, not all OpenGL blending.
+
+Equal-depth native operations produce different results when reversed, including
+with depth writes on. A second case places one effect behind and one in front of
+an intermediate native surface: separate transforms at those effect depths match
+reference rendering; a shared transform fails. No native order was changed by
+production code.
+
+The same experiment explicitly rejects ZERO/DST_COLOR (destination squared),
+measured max RGBA error 0.062745. It also rejects an additive case after framebuffer
+saturation, error 0.050980. Thus nominally affine blend factors alone do not certify
+distributivity: clamping and quantization must be included in the domain. No
+baseline inversion or reconstruction of lost fragment data is performed.
+
+The rebuilt normal GL harness passes on local NVIDIA OpenGL 4.6.0/596.36 with an
+explicit 8-bit-alpha framebuffer requirement. The required native transparency
+probe remains red with its two original foreground failures. These results do
+not establish opaque visibility, current native state eligibility or runtime
+capture coverage. Cue owns the complementary opaque/depth-writing-alpha and
+cue destination-pixel/tap-depth tests. Next is proving visibility from the actual
+shared scene path before any capture/storage implementation is split.
