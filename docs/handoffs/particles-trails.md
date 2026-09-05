@@ -165,8 +165,16 @@ These generated artifacts are ignored and were not pushed with source. The
 feature worktree remains retained for the combined-candidate verification.
 No other checkout was edited; the normal shared checkout remains clean on main.
 
-Completion remains blocked on identifying the assigned lifecycle owner's task
-and receiving that owner's combined source/package SHA. Peer coordination with
-the selected-character feature has shared the renderer guard and resolver; it
-does not substitute for the owner's combined candidate. No manual acceptance is
-requested until that candidate is verified.
+Integration owner identified: task `01a070ce-f816-7b32-8673-904c6f406c7a`,
+branch `codex/native-lifecycle-hardening`, based on the same pinned source.
+The exact feature/package hashes and shared-file contract were sent directly.
+Confirmed combined pass order: scene composite -> selected cue -> particles ->
+navigation -> UI. The cue must restore scene depth, framebuffer, viewport and
+camera state before effects draw. Effects never write depth. The owner controls
+the combined version, lifecycle admission/drain and original call-through.
+
+Next active todo: receive the owner's combined source/package SHA and verify
+this feature against it. Peer coordination with the selected-character feature
+has shared the renderer guard and resolver; it does not substitute for the
+owner's combined candidate. No manual acceptance is requested until that
+candidate is verified.
