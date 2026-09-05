@@ -657,3 +657,18 @@ Next: owner-supplied first/replacement lifetime arming correction, complete move
 consumer wiring, and the existing cue/effects native transparency repairs. After a
 complete candidate is pinned, obtain the independent integration review and run
 the existing exact-source package/installed checks before consolidated owner testing.
+
+First/replacement lifetime arming correction 99f65051d5210d8a67fe443433930061b37965c
+is included at 347b4ca6082cd9e14aed5056965d39744567ec31. Both complete native DLL profiles build;
+each executes 34 policy/backend/lifetime tests successfully, zero skips. Evidence:
+artifacts/hardening-evidence/arming-native-full.xml and arming-native-diagnostics.xml,
+with matching build logs. Exact supported finalizer slots are prebound before
+observation. The observation fence rejects uncertain concurrent destruction;
+publication-edge callbacks invalidate a newly matching watch before original
+call-through. Production-path barriers cover first/replacement capture, preexisting
+held callbacks, prepublication and publication-edge entry, plus batch rollback
+with foreign-slot preservation. These close the reproduced watch-arming gap;
+they do not certify live client input or server behavior. No extra runtime cpp
+membership or active movement consumer was introduced. Next remains complete
+input/UI/settings/grant composition, cue/effects transparency repair, independent
+review of a complete candidate, and exact-source package/installed validation.
