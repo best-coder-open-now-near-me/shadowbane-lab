@@ -686,3 +686,34 @@ successfully against both generated DLL projects; builder Ruff and diff checks p
 No runtime controls consumer is activated or package identity certified. Next:
 Windows/XInput consumer and settings/grant integration, existing transparency
 repairs, then complete-candidate review and installed-package validation.
+
+Action-channel producer ownership repair (integration-owned, before movement wire
+revision): real Windows IPC tests exposed absent kernel32 Interlocked exports on
+64-bit Python, concurrent read/exchange lease claims, same-PID competing hosts,
+and stale close/renew affecting a replacement generation. The transport now uses
+one named producer mutex per exact client mapping for claim, command transaction
+and release; captures generation; rejects active same-PID contenders; and never
+wraps exhausted generations. Process exit releases the OS mutex. Native consumers
+must not take this host-only transaction mutex while completing commands.
+Captured host PID/creation and lease generation are exposed for the movement owner.
+No wire/schema/product version changed in this repair; native full-identity
+admission is part of the coordinated forthcoming movement schema revision.
+
+Missing Win64 exports are replaced by aligned scalar access with explicit Windows
+FlushProcessWriteBuffers ordering. This requires 64-bit Python and rejects
+unaligned accesses. Read-modify-write ownership comes from the producer mutex;
+these scalar stores are not compare-and-swap. Windows reference:
+https://learn.microsoft.com/en-us/windows/win32/sync/interlocked-variable-access
+The local 1000 fenced store/read-pair measurement was 1.786 ms; this is a host
+micro-measurement, not connected-client performance acceptance.
+
+Validation: 45 action-channel/trace/manager-worker tests passed, zero skips;
+Ruff passed. Evidence: artifacts/hardening-evidence/producer-lease-python.xml.
+New tests use independently spawned processes and actual Windows shared memory/
+mutexes, covering simultaneous claim, held producer transaction, abrupt test-owned
+process death, unrelated-client admission, stale same-PID close/renew, generation
+exhaustion and exact current host lifetime. A test-fixture event cleanup deadlock
+was corrected before the passing run. No client process was opened or changed.
+Next: integrate typed movement sessions/consumer, preserve operation cancellation
+and immutable grants at manager composition, resolve visual transparency, then
+complete-candidate review and installed-package validation.
