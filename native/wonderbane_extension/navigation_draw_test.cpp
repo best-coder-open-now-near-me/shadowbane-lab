@@ -5,6 +5,7 @@
 #include "sky.h"
 #include <Windows.h>
 #include <gl/GL.h>
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdio>
@@ -96,12 +97,19 @@ void CombinedProbe(const GraphicsCameraState& camera, bool measure) {
     std::memcpy(&asset, bytes, sizeof(asset));
     struct Combination { const GraphicsCameraState* camera; const sky::Asset* asset; unsigned flags; bool verify; };
     LARGE_INTEGER frequency{}; QueryPerformanceFrequency(&frequency);
-    for (unsigned flags = 0; flags < 16; ++flags) {
+    // Normal validation repeats enable/release transitions; timing separates
+    // first-frame resource creation, warm-up and steady frames for every mask.
+    constexpr unsigned warmup_frames = 3, steady_frames = 16;
+    for (unsigned transition = 0; transition < (measure ? 16U : 48U); ++transition) {
+        const unsigned flags = transition % 16;
         cue::ReleaseMask();
         Combination combination{&camera, &asset, flags, !measure};
-        LARGE_INTEGER begin{}, end{}; glFinish(); QueryPerformanceCounter(&begin);
-        const unsigned frames = measure ? 8U : 1U;
+        std::array<double, steady_frames> samples{};
+        double first_frame_ms=0, warmup_ms=0;
+        const unsigned frames = measure ? 1U + warmup_frames + steady_frames : 1U;
         for (unsigned frame = 0; frame < frames; ++frame) {
+            LARGE_INTEGER begin{}, end{};
+            if(measure){glFinish();QueryPerformanceCounter(&begin);}
             Check(RenderSceneGeometry(&camera, [](void* value) noexcept {
                 const auto& c = *static_cast<Combination*>(value);
                 glDepthMask(GL_TRUE); glClearDepth(1); glClearColor(0,0,0,1);
@@ -159,12 +167,25 @@ void CombinedProbe(const GraphicsCameraState& camera, bool measure) {
                 Check(depth_before == depth_after, "combined overlays preserve native scene depth");
             }, &combination), "combined scene guard");
             if(!measure) Same(original, Capture());
+            else {
+                glFinish();QueryPerformanceCounter(&end);
+                const double elapsed=1000.0*static_cast<double>(end.QuadPart-begin.QuadPart)/frequency.QuadPart;
+                if(frame==0)first_frame_ms=elapsed;
+                else if(frame<=warmup_frames)warmup_ms+=elapsed;
+                else samples[frame-warmup_frames-1]=elapsed;
+            }
         }
-        glFinish(); QueryPerformanceCounter(&end);
+        glFinish();
         const auto allocated=cue::AllocatedMaskBytes();
-        if (measure) std::printf("Combined flags=%u (nav1/effects2/cue4/sky8),46 nodes: %.3f ms/frame, cue=%llu bytes\n",
-            flags,1000.0*static_cast<double>(end.QuadPart-begin.QuadPart)/frequency.QuadPart/frames,
-            static_cast<unsigned long long>(allocated));
+        if (measure) {
+            std::sort(samples.begin(),samples.end());
+            const double median=(samples[steady_frames/2-1]+samples[steady_frames/2])/2;
+            std::printf("Combined flags=%u (nav1/effects2/cue4/sky8),46 nodes: "
+                "first-frame=%.3f ms, warm-up(%u) mean=%.3f ms, steady(%u) median=%.3f ms "
+                "range=%.3f..%.3f ms, cue=%llu bytes\n",flags,first_frame_ms,warmup_frames,
+                warmup_ms/warmup_frames,steady_frames,median,samples.front(),samples.back(),
+                static_cast<unsigned long long>(allocated));
+        }
         Check(allocated <= static_cast<std::uint64_t>(camera.viewport[2])*camera.viewport[3]*8, "combined raw mesh resource bound");
         cue::DiscardMask(); cue::ReleaseMask();
         Check(cue::AllocatedMaskBytes()==0, "combined interruption releases cue resources");

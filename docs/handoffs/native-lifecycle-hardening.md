@@ -10,6 +10,14 @@ Lifecycle contract: admitted callbacks retain their resources and original call-
 
 Reuse particles scene_draw state guard and effects_attachment observations; selected cue retains its separate verified rendered-object ownership. Proposed ordering: scene composite, selected cue, particles, navigation, UI. Feature owners retain complete feature delivery and can continue independently.
 
+Shared acceptance requirements: [the owner's consolidated plan](../combined-testing-acceptance.md).
+Pin the exact complete build source for each pass, preserve the known-good runtime
+and restoration procedure, and record automated results separately from owner
+observations. Documentation-only results commits must not replace the recorded
+build SHA. Required GPU skips block package certification. Use one coordinated
+first gameplay session and focused retests after actual failures; no paid compute
+or separate group-operation/research scope is introduced.
+
 Todos:
 - [x] Native telemetry/publisher teardown, shared scene/context and initializer rollback.
 - [x] Manager dispatch isolation, per-slot transitions, retained launch recovery and stop routing.
