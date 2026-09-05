@@ -841,3 +841,19 @@ nonterminal movement stop versus terminal grant release, and navigation with man
 controls disabled. Manager operation/session composition remains integration-owned.
 Visual transparency, final independent review and exact installed-package acceptance
 remain open. No client/VM installation was changed.
+
+Shared CLI dispatcher boundary is now explicit: _run_travel and _run_pve accept
+an optional TravelDecisionDispatcher and pass that exact object to their existing
+runners. Native movement does not create a minimap reader; travel also avoids the
+unused desktop movement backend. PvE retains its existing separately guarded
+combat-input adapter. Default standalone callers preserve existing behavior;
+no route/planner policy changed and no native dispatcher is silently substituted
+on failure. Existing CLI reader-binding tests now cover both default and injected
+paths, asserting no minimap/desktop-movement construction for the injected path.
+Validation: 152 CLI/travel/adaptive/PvE/manager tests passed, zero skips; Ruff passed.
+Evidence: artifacts/hardening-evidence/movement-dispatcher-injection-python.xml.
+Next: manager-owned immutable operation session/grant lifecycle and sub-second
+renewal while movement is paused, using the owner's pending pause/renew/dispatcher
+API. Renewal must not reacquire or revive expired ownership; manual takeover
+must latch interruption for PvE combat as well as movement. Native destination
+and final acceptance remain unfinished; no owner-facing candidate was produced.

@@ -98,6 +98,7 @@ from shadowbane_lab.pve import (
 from shadowbane_lab.travel import (
     ClientTravelDecisionDispatcher,
     SparseNavigationMap,
+    TravelDecisionDispatcher,
     WeightedAStarPlanner,
     load_active_zone_terrain_navigation,
 )
@@ -143,7 +144,14 @@ def _run_pve(
     retained_trace_steps: int = 2_000,
     native_character_population_profile_path: Path | None = None,
     navigation_map: SparseNavigationMap | None = None,
+    movement_dispatcher: TravelDecisionDispatcher | None = None,
 ) -> int:
+    if movement_dispatcher is not None and not isinstance(
+        movement_dispatcher, TravelDecisionDispatcher
+    ):
+        return _error(
+            "movement dispatcher must implement TravelDecisionDispatcher", as_json=as_json
+        )
     if not live:
         return _error("PvE execution requires the explicit --live flag", as_json=as_json)
     if isinstance(max_kills, bool) or not 1 <= max_kills <= 10:
@@ -207,7 +215,7 @@ def _run_pve(
         client_profile = load_calibration(client_profile_path)
         if not client_profile.live_input_enabled:
             raise ValueError("client profile is not enabled for live input")
-        if client_profile.movement.button is not MouseButton.RIGHT:
+        if movement_dispatcher is None and client_profile.movement.button is not MouseButton.RIGHT:
             raise ValueError("PvE approach movement must use right-click input")
         controller = PvEController(
             PvEControllerConfig(
@@ -494,12 +502,14 @@ def _run_pve(
                 reader_process_ids.add(zone_reader.process_id)
             if len(reader_process_ids) != 1:
                 raise ValueError("native PvE readers resolved different client processes")
-            minimap_reader = stack.enter_context(
-                open_windows_native_minimap_reader(process_id=process_id)
-            )
-            movement_resolver = MinimapDestinationResolver(
-                client_profile, minimap_reader, player_position_reader
-            )
+            movement_resolver = None
+            if movement_dispatcher is None:
+                minimap_reader = stack.enter_context(
+                    open_windows_native_minimap_reader(process_id=process_id)
+                )
+                movement_resolver = MinimapDestinationResolver(
+                    client_profile, minimap_reader, player_position_reader
+                )
             executor = GuardedInputExecutor(
                 guard=guard,
                 backend=PyAutoGuiBackend(),
@@ -563,7 +573,10 @@ def _run_pve(
                     navigation_map=active_navigation_map,
                     planner=WeightedAStarPlanner(observer=navigation_observer),
                 ),
-                movement_dispatcher=ClientTravelDecisionDispatcher(adapter),
+                movement_dispatcher=(
+                    movement_dispatcher if movement_dispatcher is not None
+                    else ClientTravelDecisionDispatcher(adapter)
+                ),
                 stop_signal=active_stop_signal,
                 poll_interval_ms=poll_ms,
                 maximum_retained_trace_steps=(retained_trace_steps if continuous else None),
