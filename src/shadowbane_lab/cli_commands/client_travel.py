@@ -6,22 +6,16 @@ import json
 from contextlib import ExitStack
 from pathlib import Path
 
+from shadowbane_lab.client_extension.movement_operation import NativeMovementOperation
 from shadowbane_lab.client_input import (
     CalibrationLoadError,
-    ClientInputAdapter,
-    DecisionInputCompiler,
     ForegroundWindowGuard,
-    GuardedInputExecutor,
-    MouseButton,
-    PyAutoGuiBackend,
-    StaticBindingPointResolver,
     StopSignal,
     WindowGuardError,
     WindowsForegroundWindowInspector,
     WindowsHotkeyEmergencyStop,
     load_calibration,
 )
-from shadowbane_lab.client_input.minimap import MinimapDestinationResolver
 from shadowbane_lab.client_observation import (
     NativePlayerPositionError,
     NativePlayerVitalsError,
@@ -39,12 +33,10 @@ from shadowbane_lab.client_observation import (
     open_windows_native_player_vitals_reader,
     open_windows_native_runegate_registry_reader,
 )
-from shadowbane_lab.client_observation.native_minimap import open_windows_native_minimap_reader
 from shadowbane_lab.navigation_inspector.session import optional_session
 from shadowbane_lab.travel import (
     ActiveZoneTerrainNavigationSource,
     AStarTravelController,
-    ClientTravelDecisionDispatcher,
     SparseNavigationMap,
     TravelController,
     TravelControllerConfig,
@@ -123,8 +115,6 @@ def _run_travel(
         client_profile = load_calibration(client_profile_path)
         if not client_profile.live_input_enabled:
             raise ValueError("client profile is not enabled for live input")
-        if movement_dispatcher is None and client_profile.movement.button is not MouseButton.RIGHT:
-            raise ValueError("travel profile movement must use right-click input")
         position_profile = (
             load_native_position_profile(native_position_profile_path)
             if native_position_profile_path is not None
@@ -239,26 +229,11 @@ def _run_travel(
                 )
                 controller = astar_controller
             if movement_dispatcher is None:
-                minimap_reader = stack.enter_context(
-                    open_windows_native_minimap_reader(process_id=selected_process_id)
+                native_operation = stack.enter_context(
+                    NativeMovementOperation(guard, active_stop_signal)
                 )
-                movement_resolver = MinimapDestinationResolver(
-                    client_profile, minimap_reader, position_reader
-                )
-                executor = GuardedInputExecutor(
-                    guard=guard,
-                    backend=PyAutoGuiBackend(),
-                    stop_signal=active_stop_signal,
-                )
-                adapter = ClientInputAdapter(
-                    DecisionInputCompiler(
-                        client_profile,
-                        StaticBindingPointResolver(),
-                        movement_resolver=movement_resolver,
-                    ),
-                    executor,
-                )
-                movement_dispatcher = ClientTravelDecisionDispatcher(adapter)
+                movement_dispatcher = native_operation.dispatcher
+                active_stop_signal = native_operation
             result = TravelRunner(
                 controller=controller,
                 position_reader=position_reader,

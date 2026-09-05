@@ -715,3 +715,32 @@ Verified controller signs against the native edge-camera path: stick right uses
 negative native yaw, stick up positive pitch, before configured inversions. Updated
 production policy/frame-rate tests accordingly. Integration/installed acceptance
 remains the active todo; no new baseline or deployment was introduced.
+
+
+## Standalone operation composition
+
+Consumed the owner's CLI injection commit 0c238f2 as 0e126f1; do not reapply that
+cherry-pick to the integration branch. Camera composition assertion correction
+595ca1e passes both profiles and retains the verified default negative yaw.
+
+Standalone live travel and PvE now require NativeMovementOperation. No minimap
+movement resolver or mouse movement dispatcher remains in either default path.
+The existing injected manager dispatcher remains intact. The standalone context
+pins PID, creation time and HWND, acquires one immutable operation grant, and
+renews every 250ms independently of planner work. Its latched parent/native/window
+stop signal gates both navigation and PvE attack execution. Focus/client change,
+manual takeover or renewal failure cannot resume or acquire another grant.
+Terminal exit enqueues exact-grant stop, retries ambiguous stop with the same UUID,
+joins maintenance, then closes the producer lease. A stale old stop is harmless;
+an unconfirmed non-stale stop is reported. Acquisition timeout retries preserve
+the original expected snapshot/token/UUID. Unsupported bindings fail explicitly.
+
+Validation: 50 focused Python tests pass with zero skips using the full native
+process fixture; 18 operation/session tests pass with zero skips using diagnostics.
+This includes production Windows producer/native consumer execution, maintenance
+across a planner pause longer than the one-second lease, exact-client changes,
+latched parent/manual cancellation, held renewal/close, stable retry identities,
+failed stop reporting, and CLI routing/combat stop-signal composition. Ruff passes.
+
+Next active todo: owner inclusion and combined source/package verification, then
+installed package and coordinated connected acceptance. No connected claim yet.

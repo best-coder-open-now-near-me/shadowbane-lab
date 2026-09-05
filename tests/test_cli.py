@@ -1035,7 +1035,8 @@ class ClientCliTests(unittest.TestCase):
     def _assert_travel_process_binding(self, *, native_movement: bool = False) -> None:
         movement_dispatcher = (
             SimpleNamespace(dispatch=MagicMock(), stop_movement=MagicMock())
-            if native_movement else None
+            if native_movement
+            else None
         )
         template = Path(__file__).parents[1] / "configs" / "wonderbane-travel.template.json"
         profile = replace(load_calibration(template), live_input_enabled=True)
@@ -1102,9 +1103,8 @@ class ClientCliTests(unittest.TestCase):
             ) as mouse_backend,
             patch("shadowbane_lab.cli.TravelRunner") as travel_runner,
             patch(
-                "shadowbane_lab.cli_commands.client_travel.open_windows_native_minimap_reader",
-                side_effect=lambda process_id: nullcontext(SimpleNamespace(process_id=process_id)),
-            ) as minimap,
+                "shadowbane_lab.cli_commands.client_travel.NativeMovementOperation",
+            ) as native_operation,
             patch(
                 "shadowbane_lab.cli_commands.client_travel.optional_session",
                 return_value=nullcontext(None),
@@ -1133,8 +1133,14 @@ class ClientCliTests(unittest.TestCase):
 
         if native_movement:
             self.assertIs(travel_runner.call_args.kwargs["dispatcher"], movement_dispatcher)
-            minimap.assert_not_called()
+            native_operation.assert_not_called()
             mouse_backend.assert_not_called()
+        else:
+            owned = native_operation.return_value.__enter__.return_value
+            self.assertIs(travel_runner.call_args.kwargs["dispatcher"], owned.dispatcher)
+            self.assertIs(travel_runner.call_args.kwargs["stop_signal"], owned)
+            native_operation.return_value.__exit__.assert_called_once()
+        mouse_backend.assert_not_called()
         inspector_session.assert_called_once_with(position_reader)
         self.assertEqual(0, result)
         open_position.assert_called_once_with(position_profile, process_id=4320)
@@ -1231,8 +1237,7 @@ class ClientCliTests(unittest.TestCase):
             ),
             patch("shadowbane_lab.cli.TravelRunner") as travel_runner,
             patch(
-                "shadowbane_lab.cli_commands.client_travel.open_windows_native_minimap_reader",
-                side_effect=lambda process_id: nullcontext(SimpleNamespace(process_id=process_id)),
+                "shadowbane_lab.cli_commands.client_travel.NativeMovementOperation",
             ),
             redirect_stdout(output),
         ):
@@ -1306,7 +1311,8 @@ class ClientCliTests(unittest.TestCase):
 
         movement_dispatcher = (
             SimpleNamespace(dispatch=MagicMock(), stop_movement=MagicMock())
-            if native_movement else None
+            if native_movement
+            else None
         )
         template = Path(__file__).parents[1] / "configs" / "wonderbane-pve.template.json"
         profile = replace(load_calibration(template), live_input_enabled=True)
@@ -1448,11 +1454,8 @@ class ClientCliTests(unittest.TestCase):
                 ),
                 patch("shadowbane_lab.cli.PvERunner") as pve_runner,
                 patch(
-                    "shadowbane_lab.cli_commands.client_pve.open_windows_native_minimap_reader",
-                    side_effect=lambda process_id: nullcontext(
-                        SimpleNamespace(process_id=process_id)
-                    ),
-                ) as minimap,
+                    "shadowbane_lab.cli_commands.client_pve.NativeMovementOperation",
+                ) as native_operation,
                 patch(
                     "shadowbane_lab.cli_commands.client_pve.optional_session",
                     return_value=nullcontext(None),
@@ -1513,7 +1516,15 @@ class ClientCliTests(unittest.TestCase):
 
         if native_movement:
             self.assertIs(pve_runner.call_args.kwargs["movement_dispatcher"], movement_dispatcher)
-            minimap.assert_not_called()
+            native_operation.assert_not_called()
+        else:
+            owned = native_operation.return_value.__enter__.return_value
+            self.assertIs(pve_runner.call_args.kwargs["movement_dispatcher"], owned.dispatcher)
+            self.assertIs(pve_runner.call_args.kwargs["stop_signal"], owned)
+            self.assertIs(
+                pve_runner.call_args.kwargs["dispatcher"]._adapter._executor._stop_signal, owned
+            )
+            native_operation.return_value.__exit__.assert_called_once()
         self.assertEqual(0, result)
         self.assertEqual(1, saved_evidence["trace_schema_version"])
         self.assertEqual(4320, saved_evidence["native_observation"]["process_id"])
