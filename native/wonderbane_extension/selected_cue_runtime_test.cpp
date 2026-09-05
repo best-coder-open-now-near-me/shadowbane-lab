@@ -93,8 +93,6 @@ int main(){
     HANDLE stop_started=CreateEventW(nullptr,TRUE,FALSE,nullptr);
     HANDLE stopped=CreateEventW(nullptr,TRUE,FALSE,nullptr);
     HANDLE restart=CreateEventW(nullptr,TRUE,FALSE,nullptr);
-    std::uint32_t retained_hook=static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(&CueMakeCurrent));
-    context_slot=&retained_hook;
     std::thread render_thread([&]{
         BeginSelectedCueScene(&camera);assert(cue::resources);
         const int released=cue::local_releases;
@@ -122,12 +120,11 @@ int main(){
     assert(WaitForSingleObject(restart_done,50)==WAIT_TIMEOUT);
     SetEvent(draw_resume);assert(WaitForSingleObject(stopped,5000)==WAIT_OBJECT_0);stopper.join();
     assert(WaitForSingleObject(restart_done,5000)==WAIT_OBJECT_0);restarter.join();
-    assert(context_slot==&retained_hook && retained_hook==static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(&CueMakeCurrent)));
     control->settings.enabled=1;InterlockedExchange(&running,1);
     SetEvent(restart);render_thread.join();
-    CloseHandle(draw_entered);draw_entered=nullptr;context_slot=nullptr;StopSelectedCue();
+    CloseHandle(draw_entered);draw_entered=nullptr;StopSelectedCue();
     for(HANDLE event:{draw_resume,stop_started,stopped,restart,restart_done})CloseHandle(event);
     VirtualFree(memory,0,MEM_RELEASE);
 }
 
-namespace wonderbane::extension { void DiscardSkyScene() noexcept {} }
+namespace wonderbane::extension { DWORD StartSceneContextObservation(std::uint8_t*,std::size_t) noexcept {return ERROR_SUCCESS;} }

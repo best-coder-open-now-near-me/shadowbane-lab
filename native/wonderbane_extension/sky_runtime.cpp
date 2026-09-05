@@ -1,4 +1,5 @@
 #include "sky_runtime.h"
+#include "scene_context.h"
 #include "sky.h"
 #include "sky_binding.h"
 #include "sky_asset_identity.h"
@@ -84,6 +85,8 @@ DWORD StartSky(std::uint8_t* image,std::size_t size,const char* hash) noexcept {
     sky_base=static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(image));
     if(!IsReviewedSceneExecutable(hash)||!sky::ReviewedBackground(image,size,sky_base))return ERROR_REVISION_MISMATCH;
     if(!LoadSkyAsset())return ERROR_INVALID_DATA;
+    const DWORD context_result=StartSceneContextObservation(image,size);
+    if(context_result!=ERROR_SUCCESS)return context_result;
     FILETIME creation{},exit{},kernel{},user{};
     if(!GetProcessTimes(GetCurrentProcess(),&creation,&exit,&kernel,&user))return GetLastError();
     sky_creation=(static_cast<std::uint64_t>(creation.dwHighDateTime)<<32)|creation.dwLowDateTime;

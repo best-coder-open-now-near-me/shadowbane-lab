@@ -111,6 +111,7 @@ def main() -> int:
         "selected_cue_runtime.cpp",
         "effects_attachment.cpp",
         "scene_draw.cpp",
+        "scene_context.cpp",
         "navigation_protocol.cpp",
         "navigation_channel.cpp",
         "navigation_draw.cpp",

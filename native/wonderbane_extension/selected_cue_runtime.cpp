@@ -3,7 +3,7 @@
 #include "selected_cue_gpu.h"
 #include "selected_cue_binding.h"
 #include "effects.h"
-#include "sky_runtime.h"
+#include "scene_context.h"
 #include "import_hook.h"
 #include "render_lifetime.h"
 #include "reviewed_scene_boundary.h"
@@ -34,9 +34,6 @@ thread_local LONG64 thread_generation=0;
 std::uint32_t base=0;
 std::uint64_t expected_creation=0;
 std::uint32_t* slot=nullptr;
-std::uint32_t* context_slot=nullptr;
-PVOID volatile original_context=nullptr;
-using MakeCurrent=BOOL(WINAPI*)(HDC,HGLRC);
 using Render=void(__thiscall*)(void*);
 PVOID volatile original=nullptr;
 thread_local cue::Settings settings{};
@@ -114,13 +111,6 @@ void SynchronizeGeneration() noexcept {
     cue::DiscardMask();cue::ReleaseMask();
     thread_generation=current;
 }
-BOOL WINAPI CueMakeCurrent(HDC dc,HGLRC context) noexcept {
-    RenderCallbackLease lease;SynchronizeGeneration();
-    const auto call=reinterpret_cast<MakeCurrent>(InterlockedCompareExchangePointer(&original_context,nullptr,nullptr));
-    if(!call)return FALSE;
-    if(context!=wglGetCurrentContext()){ReleaseSelectedCueContext();DiscardSkyScene();}
-    return call(dc,context);
-}
 void __fastcall OwnedRender(void* self,void*) noexcept {
     RenderCallbackLease lease;SynchronizeGeneration();
     const auto draw=reinterpret_cast<Render>(InterlockedCompareExchangePointer(&original,nullptr,nullptr));
@@ -163,20 +153,7 @@ DWORD StartSelectedCue(std::uint8_t* image,std::size_t size,const char* hash) no
     base=static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(image));
     if(!IsReviewedSceneExecutable(hash) || !cue::ReviewedBinding(image,size,base))error=ERROR_REVISION_MISMATCH;
     else{
-        const auto cleanup_hook=static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(&CueMakeCurrent));
-        if(context_slot){
-            // Pinned cleanup hook survives Stop until every owning context unbinds.
-            // Reuse it; chaining to ourselves would recurse on the next context call.
-            error=*context_slot==cleanup_hook ? ERROR_SUCCESS : ERROR_BUSY;
-        } else {
-            auto* candidate=FindImportAddressSlot(image,size,"opengl32.dll","wglMakeCurrent");
-            if(!candidate)error=ERROR_PROC_NOT_FOUND;
-            else {
-                InterlockedExchangePointer(&original_context,reinterpret_cast<void*>(*candidate));
-                error=ReplaceImportAddressSlot(candidate,*candidate,cleanup_hook);
-                if(error==ERROR_SUCCESS)context_slot=candidate;
-            }
-        }
+        error=StartSceneContextObservation(image,size);
         auto* candidate_slot=reinterpret_cast<std::uint32_t*>(image+0x1149ed4);
         InterlockedExchangePointer(&original,reinterpret_cast<PVOID>(base+0x26d91));
         if(error==ERROR_SUCCESS){
@@ -193,7 +170,7 @@ void StopSelectedCue() noexcept {
     InterlockedExchange(&running,0);InterlockedIncrement64(&generation);
     if(slot){const auto replacement=static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(&OwnedRender));
         if(ReplaceImportAddressSlot(slot,replacement,base+0x26d91)==ERROR_SUCCESS)slot=nullptr;}
-    // Keep the cleanup-only context hook pinned across Stop. A worker cannot
+    // The shared cleanup-only context hook remains pinned across Stop. A worker cannot
     // delete another thread's GL objects. The owning thread releases at its next
     // scene entry (generation mismatch) or before context unbind. The DLL is
     // process-lifetime pinned; this hook performs no cue drawing while stopped.
