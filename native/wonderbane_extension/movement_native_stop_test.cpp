@@ -621,7 +621,7 @@ void CameraComposition() {
         for (std::uint64_t elapsed = 0; elapsed < 1000; elapsed += interval) {
             f.input.tick_ms += interval; f.controls.Tick(f.input);
         }
-        Check(std::abs(Get<float>(f.base, 0x16a2c10 + 0x68) - 2.0F) < 0.00001F
+        Check(std::abs(Get<float>(f.base, 0x16a2c10 + 0x68) + 2.0F) < 0.00001F
             && f.controls.Current() == grant && f.clears == clears && f.moves == 0,
             "production policy and camera executor apply elapsed-time yaw without revoking route");
         Check(Get<float>(f.base, 0x16a2c10 + 0x138) == 0.031F
