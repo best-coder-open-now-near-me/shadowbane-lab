@@ -204,13 +204,13 @@ void StopSelectedCue() noexcept {
     DiscardSelectedCueScene();cue::ReleaseMask();
 }
 void DiscardSelectedCueScene() noexcept {RenderCallbackLease lease;SynchronizeGeneration();scene=false;attachment={};render_count=0;tracker.Reset();cue::DiscardMask();}
-void EndSelectedCueFrame() noexcept {RenderCallbackLease lease;SynchronizeGeneration();if(!finished)DiscardSelectedCueScene();finished=false;}
+void EndSelectedCueFrame() noexcept {RenderCallbackLease lease;SynchronizeGeneration();if(!finished){if(scene)Status(0,0,1);DiscardSelectedCueScene();}finished=false;}
 void ReleaseSelectedCueContext() noexcept {RenderCallbackLease lease;DiscardSelectedCueScene();cue::ReleaseMask();}
 void BeginSelectedCueScene(const GraphicsCameraState* camera) noexcept {
     RenderCallbackLease lease;SynchronizeGeneration();
     scene=false;owned=0;mask_failed=false;cue::DiscardMask();
     if(!InterlockedCompareExchange(&running,0,0) || !Poll() || !settings.enabled){
-        DiscardSelectedCueScene();cue::ReleaseMask();return;}
+        DiscardSelectedCueScene();cue::ReleaseMask();Status(0,0,0);return;}
     attachment=Selected();
     if(!attachment.valid || !CollectRenders() || !camera){DiscardSelectedCueScene();Status(0,0,1);return;}
     const cue::Identity identity{attachment.actor,attachment.type,attachment.uuid,attachment.zone,renders[0],
@@ -229,8 +229,9 @@ void CaptureSelectedCueGeometry(SelectedGeometryDraw draw,void* user) noexcept {
 }
 void FinishSelectedCueScene(const GraphicsCameraState* camera) noexcept {
     RenderCallbackLease lease;SynchronizeGeneration();
-    if(!scene || !camera || !InterlockedCompareExchange(&running,0,0)
-        || !StillSelected()){DiscardSelectedCueScene();return;}
+    if(!scene){DiscardSelectedCueScene();return;}
+    if(!camera || !InterlockedCompareExchange(&running,0,0)
+        || !StillSelected()){DiscardSelectedCueScene();Status(0,0,1);return;}
     const bool ok=cue::CompositeMask(settings,direction);Status(static_cast<LONG>(owned),ok && !mask_failed?0:1,0);
     scene=false;finished=true;attachment={};render_count=0;
 }
