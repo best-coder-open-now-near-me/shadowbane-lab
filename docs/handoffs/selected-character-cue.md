@@ -955,19 +955,22 @@ closed; the next active todo remains complete opaque visibility and ordered
 transmission, followed by package verification and consolidated acceptance.
 
 
-### Constant-alpha selected-material coverage (2026-09-05)
+### Constant-alpha selected-material coverage (2026-09-05): incomplete
 
-The actual GPU regression reproduced a silhouette for an RGB-neutral
-constant-alpha material. The capture now omits the supplemental mask draw only
-when the RGB operator is exactly destination-preserving: zero constant source
-factor, unit destination factor, and ADD or REVERSE_SUBTRACT. The original native
-draw still runs, including its depth and alpha writes. Nonzero source factors
-remain eligible for silhouette capture.
+Do not integrate 81db951 alone. Integration review reproduced an EQUAL-pass
+regression: skipping a constant-alpha zero-contribution depth-writing prepass
+also removed private depth needed by a later visible selected material pass.
+The correction limits suppression to depth-write OFF. Depth-writing submissions
+retain the previous capture behavior and support subsequent EQUAL passes.
 
-The existing GPU executable covers both constant-alpha directions, source
-contributions 0/0.5/1, and depth writes off/on (12 cases), with state and blend
-constant restoration. Full DLL and GPU executable build; base GPU and source
-feasibility tests pass. Native foreground transparency still fails its same two
-assertions. This is a material-coverage correction, not an ordered transparency
-collector or a delivery receipt. Route the focused source/test change through
-codex/native-lifecycle-hardening and verify combined source before acceptance.
+The actual GPU executable retains 12 constant-alpha cases plus the new prepass
+sequence. After the correction, the prepass and ten constant-alpha cases pass;
+the two invisible depth-writing cases fail explicitly. Geometry depth currently
+doubles as visible coverage; a complete fix must separate these responsibilities.
+Do not weaken or remove those failures or describe this slice as complete.
+
+The full DLL and GPU executable build. Source feasibility passes. In addition to
+the two constant-alpha coverage assertions, native foreground transparency still
+fails its original two assertions. No package, deployment, or acceptance receipt
+is produced by this change. Both focused commits belong to draft PR29 and require
+integration-owner review; the owner's branch remains the combined destination.

@@ -318,6 +318,20 @@ int main(int argc,char** argv){
             Check(contribution==0?Pixel(189,240)==0:Pixel(189,240)>0,
                 "constant-alpha zero coverage excluded and visible coverage retained");
         }
+        glDepthMask(GL_TRUE);glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+        Check(cue::BeginMask() && cue::BeforeOwnedDraw(),"begin constant-alpha depth prepass");
+        glEnable(GL_BLEND);glBlendFunc(0x8003,0x8004);blend_color(0,0,0,0);
+        glColor4f(.2F,.2F,.2F,1);
+        Check(cue::CaptureGeometry(mesh,nullptr),"capture constant-alpha depth prepass");
+        mesh(nullptr);Check(cue::AfterOwnedDraw(),"finish constant-alpha depth prepass");
+        glDisable(GL_BLEND);glDepthMask(GL_FALSE);glDepthFunc(GL_EQUAL);
+        Check(cue::BeforeOwnedDraw(),"begin visible equal pass after constant-alpha depth prepass");
+        Check(cue::CaptureGeometry(mesh,nullptr),"capture visible equal pass after constant-alpha depth prepass");
+        glColor4f(0,0,0,1);mesh(nullptr);
+        Check(cue::AfterOwnedDraw(),"finish visible equal pass after constant-alpha depth prepass");
+        Check(cue::CompositeMask(s,{}),"constant-alpha prepass plus equal composite");
+        Check(Pixel(230,240)>0,"constant-alpha depth prepass supports later visible equal pass");
+        glDepthMask(GL_TRUE);glDepthFunc(GL_LESS);
         blend_color(0,0,0,0);
     }
     glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);

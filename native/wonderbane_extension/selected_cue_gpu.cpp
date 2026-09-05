@@ -277,8 +277,11 @@ bool CaptureGeometry(GeometryDraw draw,void* user) noexcept {
     if(!depth_write && !color[0] && !color[1] && !color[2])return true;
     // A constant-alpha blend can contribute no RGB even when fragment alpha
     // is nonzero. Exclude only the exact destination-preserving operator;
-    // the caller still issues the original native draw (including its depth).
-    if(glIsEnabled(GL_BLEND)){
+    // Depth-writing material must still seed subsequent EQUAL passes. This
+    // buffer currently doubles as visible coverage, so excluding invisible
+    // depth-writing prepasses remains unresolved rather than losing that depth.
+    // The caller always issues the original native draw.
+    if(!depth_write && glIsEnabled(GL_BLEND)){
         GLint src=0,dst=0,equation=0;
         glGetIntegerv(GL_BLEND_SRC,&src);glGetIntegerv(GL_BLEND_DST,&dst);
         glGetIntegerv(0x8009,&equation);
