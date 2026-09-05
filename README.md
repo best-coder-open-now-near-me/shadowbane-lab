@@ -4,11 +4,14 @@ Navigation diagnostics: [inspector usage, review branch and acceptance status](d
 
 ## Finding the current code
 
-The consolidated development history is proposed for `main` on
-[`codex/integrate-current-development`](https://github.com/best-coder-open-now-near-me/shadowbane-lab/compare/main...codex/integrate-current-development).
-It starts from `codex/client-convergence-v2` at `da109b0`. Until that review is
-merged, `main` remains the older release; checking out `main` alone will not show
-the current client, renderer, diagnostics, and simulator integration.
+The current runtime-hardening and rolling feature integration is on
+[`codex/native-lifecycle-hardening`](https://github.com/best-coder-open-now-near-me/shadowbane-lab/compare/main...codex/native-lifecycle-hardening),
+starting from navigation inspector `14d117e8c5194c6dff55dac608b2d3f683187d31`.
+It retains the earlier consolidated development history. The normal checkout
+remains on `main`; no merge or deployment is implied. The
+[active handoff](docs/handoffs/native-lifecycle-hardening.md) records included
+feature revisions, completed repairs and the required rendering gates that still
+block a complete acceptance package.
 
 Read the [branch map](docs/git-branch-map.md) before choosing a development base,
 and the [contributor workflow](CONTRIBUTING.md) before starting a new task.
