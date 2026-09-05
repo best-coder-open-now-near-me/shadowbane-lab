@@ -1122,3 +1122,39 @@ my nonexistent terrain_trace_enabled name; the real terrain_trace_full and
 terrain_trace_disabled both executed/passed. Corrected the required gate name to
 the existing CMake target. Failed attempt retained under local trace-packages/
 1dcedf4f with validation-progress.json and full logs; no receipt certifies it.
+
+
+Diagnostic-only build completed from exact clean source
+`f9c6f7a57526ec192aa1273b0a1612359a1474db` through the existing builder.
+Directory: `E:/Projects/shadowbane/artifacts/trace-packages/32073800`.
+Archive navigation-inspector-diagnostic.zip SHA256:
+faeaecd19020baea55480817347fa847d2ae3cffb1691b52050f23c56bfe8db8.
+Full DLL: 3e8cd3c3fa4946aa620cd94ed0caf1bc3fa3b7a7c6785f6e72e1e01c12036f26.
+Diagnostics DLL: ad6999ab31871ddc49757dcfcbc8ffe33fecf83f406699c24e29732296b3df6a.
+Wheel shadowbane_lab-0.1.0-py3-none-any.whl:
+aafa97f9b1a44a709d4f0dc6712aedc94df9ae332e00aa463c4789a7368d6728.
+Product/wire versions unchanged; source/hash identifies this non-release build.
+Every manifest hash was reread and verified. Archive has diagnostic-manifest.json,
+no receipt.json, acceptance_eligible=false, and all four transparency failure
+entries (two per profile). No acceptance certification or deployment is claimed.
+
+All 26 builder steps executed. Python: 1812 pass, 11 skips, 238 subtests pass.
+Both profiles: 104 CTests, 100 pass, 2 transparency failures, 2 binding skips;
+explicit private-binding runs pass. Three initially unconfigured IPC tests then
+execute in both per-profile gates: 29 tests/profile pass, zero skips. Seven
+symlink skips remain environmental; the exact Tk case separately passes against
+archived source (diagnostic-f9c6f7a-tk.xml). Ruff and actual installed-wheel entry,
+inspector, effects, cue, sky, movement controls and trace-reader checks pass.
+Full DLL contains transmission_state, quad_support and pipeline_binding fields;
+diagnostics-only is not the trace-capable choice.
+
+Activation is unexecuted. Local activation/bootstrap-manifest.json binds the
+reviewed vanilla client and exact full DLL. Host dry-run correctly rejects the
+historical frozen baseline's guest-UNC binding. The subsequent read-only guest
+dry-run was rejected by automatic approval review: extracting the VM autologon
+credential from unattended XML lacks specific authorization. No bypass or new
+credential access followed. Earlier read-only live check found vanilla PID5212
+with no extension; evidence live-vm-20260905-170840.json is retained locally.
+Next input: scoped permission to use existing VM setup credentials for the
+read-only preparation check. Installation/relaunch approval remains separate,
+after the isolated-runtime/restoration procedure is concrete and reviewable.
