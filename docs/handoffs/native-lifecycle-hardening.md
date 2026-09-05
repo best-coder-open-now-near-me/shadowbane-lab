@@ -347,3 +347,20 @@ and cel shading. Evidence: `artifacts/hardening-evidence/multidraw-full.xml` and
 hook system, wire version, package receipt or transparency completion is claimed.
 Next remains shared native fragment/transmission representation, coordinated
 through the existing scene owner; bounded emitter replay alone is insufficient.
+
+
+Bounded material observer `dffd9bbd43fa8375ea033082c41750c0a0a741b3` was applied
+without its copied prerequisite, producing combined source
+`1c293a1a48280b83ab5493f7b0a92dfb94f2c4b7`. The explicit candidate predicate
+observes capability-gated ARB/program, texture target/texgen and raster state;
+unknown mechanisms remain unknown and replay eligibility is always false.
+Both complete native profile builds succeeded. Each profile executed five
+trace/lifecycle tests (startup, cue runtime, both trace modes, graphics publisher):
+all passed, zero skips. Evidence: `artifacts/hardening-evidence/material-native-full.xml`,
+`material-native-diagnostics.xml` and matching build logs. Existing trace Python
+suites: 49 passed; touched-test Ruff and diff checks passed. This is instrumentation
+for a bounded missing-facts check, not a transmission repair or package receipt.
+No capture, client replacement or deployment occurred. Next is owner analysis of
+whether this observation resolves the specific material unknowns and whether one
+narrow enriched capture is necessary; coverage/pre-depth/ABI/source-equivalence
+and complete movement runtime remain unresolved.
