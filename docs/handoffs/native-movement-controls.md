@@ -3,7 +3,9 @@
 Feature branch: `codex/native-movement-controls`.
 Worktree: `.worktrees/native-movement-controls`.
 Assigned starting source: `0c807ee774859cc3f17f9ebc04d3f0a900bd0428`.
-Draft PR: https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/31
+Initial checkpoint PR: https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/31
+PR #31 was merged at `8536b20576fc11bc2ee33e49761f104753165b75`; it is not
+an open review of subsequent commits.
 Initial PR/integration destination: `codex/native-lifecycle-hardening`.
 The existing hardening owner owns shared reconciliation and combined packaging.
 The normal shared checkout remains on `main`. Terrain-repair branches are excluded.
@@ -177,3 +179,19 @@ case uses the allocator's verified Win32 imports against private globals. The
 probe remains excluded from normal builds and packages. Next active todo remains
 complete native stop composition and its native follow-update regression; source
 verification alone does not enable or certify the connected feature.
+
+## Current source inclusion audit
+
+After fetching origin, feature source `d4f7207f7e5b923280478d750f95f1b8a96ef779`
+is an ancestor of combined source
+`3d74beb1aa7fbdf602ed2bce2468bc87e34ec9a4` on
+`origin/codex/native-lifecycle-hardening`. The owner integrated later checkpoints
+separately after PR #31 merged. That PR's historical head is `8536b2`, not the
+current feature tip. No new runtime controls or package is implied by inclusion.
+
+The feature worktree stays on `codex/native-movement-controls`; the normal shared
+checkout remains clean on `main`. Source and tests are committed; only ignored
+private investigation/build artifacts are retained under `artifacts/native-movement`.
+The next implementation/review still targets the same hardening integration owner.
+The active todo remains complete native stop composition, followed by all-input
+runtime/settings/automation wiring and combined package/connected acceptance.
