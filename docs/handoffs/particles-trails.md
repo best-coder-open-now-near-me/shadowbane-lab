@@ -223,3 +223,45 @@ confirm effects compatibility before consolidated connected acceptance. This
 checkpoint result does not certify future lifecycle changes or extend the old
 feature-package receipt to a newly combined DLL. Sky/movement rolling additions
 remain separately owned and do not reopen completed particle implementation.
+
+
+## Native transparency requirement: confirmed unresolved
+
+Focused review against owner source `8961fad07ff00c40b511f5b8f9562669069aad39`
+confirms a compositing defect, not merely a live appearance question. The existing
+WGL regression now includes a reference native-style red alpha-0.5 foreground
+quad and a blue particle behind it. Both use actual GL depth/blending and the
+production effect renderer; this is a controlled test, not a captured game frame.
+The expected RGB is `(127, 0, 128)`. At the current pre-UI effects position:
+
+| Native surface | Actual RGB | Failure |
+| --- | --- | --- |
+| Depth writes off | `(0, 0, 255)` | Foreground transmission is lost |
+| Depth writes on | `(127, 0, 0)` | Behind effect is fully rejected |
+
+Measured on NVIDIA OpenGL 4.6.0 / driver 596.36, independently built from an archive
+of the exact combined commit with only the test file overlaid. Source is retained
+under ignored `artifacts/combined-8961fad/source`; build is
+`E:/Projects/shadowbane/build/pc-8961-full`. Production effects draw and scene guard
+are unchanged between the feature head and that checkpoint. The normal regression
+passes reference arithmetic and GL restoration but prints `UNRESOLVED`; it does
+not assert that this composition is correct. Run the explicit requirement probe:
+
+```powershell
+& E:/Projects/shadowbane/build/pc-8961-full/Release/wonderbane_extension_navigation_draw_test.exe --verify-native-transparency
+```
+
+It exits 1 for both unmet transmission cases. This is an outstanding acceptance
+requirement; the previous green opaque-depth tests do not cover it. Moving all
+effects before all native transparent surfaces would invert the error for effects
+in front and is not a fix. A durable solution needs native/effect depth ordering
+or preserved transparency contributions. No new hook/stage is installed here.
+
+Sky-owner evidence identifies a native sorted world queue at RVA `0x79c730`,
+virtual entry draw at `0x79c792`, and comparator thunk `0x419f79 -> 0x1c0dc0`.
+The comparator's byte `+0x10` and float `+0x14` meanings are not yet verified as
+transparency categories/depth. These are investigation leads, not an approved
+binding. Shared hook changes remain integration-owner controlled.
+
+Next active todo: resolve native ordering with the integration owner using reviewed
+queue evidence, then verify the repaired combined package before visual acceptance.
