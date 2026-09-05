@@ -375,3 +375,23 @@ pipeline zero clears only its own ambiguity; nonzero/missing, EXT-only semantics
 and independent vendor mechanisms remain unsupported/unknown. Replay eligibility
 remains false. Next is the authorized bounded actual-GL source/coverage comparison
 in the existing cue GPU test path; no runtime collector or deployment is enabled.
+
+
+Actual-GL feasibility `827b7421f35bb19390eced07b261695c64561fed` is included at
+combined source `a22a1bbb8b7252ba8a0d1c1e7c1f51078d75d4d3`. Both profile cue GPU
+targets build. Each executes base GPU and source-feasibility tests successfully,
+zero skips; each required cue native-transparency test still fails the same two
+foreground cases (expected 131,16,19; actual 116,31,37 without depth writes and
+127,0,0 with depth writes). Background cases still pass. JUnit and build logs:
+`artifacts/hardening-evidence/source-native-full*` and
+`source-native-diagnostics*`. No failure was reclassified or hidden.
+
+The test-only explicit material packet exercises 288 controlled actual-GL cases
+through the existing shared scene guard: source RGBA, independent alpha/depth
+coverage, pre-depth scratch copy, native-buffer invariance, query rejection and
+successive order-dependent draws. Its 64x64 scratch is 32KiB attachment storage;
+that is not a complete runtime memory or frame-cost budget. No client hook,
+collector, runtime replay or guessed ABI was added. Next is a bounded ordered
+transmission strategy preserving distinct native submissions and cue tap depths;
+this successful experiment alone does not provide that integration or certify
+an owner-facing package. Full movement stop/input integration remains open.
