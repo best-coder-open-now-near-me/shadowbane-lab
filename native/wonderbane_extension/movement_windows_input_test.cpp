@@ -8,7 +8,7 @@
 #include <vector>
 using namespace wonderbane::extension::movement;
 namespace {
-int failures = 0, image_checks = 0;
+int failures = 0, image_checks = 0, settings_calls = 0;
 void Check(bool ok, const char* message) { if (!ok) { ++failures; std::cerr << message << '\n'; } }
 HWND foreground = nullptr, client = nullptr;
 std::array<SHORT, 256> keys{};
@@ -61,6 +61,14 @@ struct WindowsInputTestAccess {
         input.platform_ = {&Focus, &KeyState, &Cursor, &Controller, &Capabilities};
         return input.BindVerified(hwnd, slot, &Original);
     }
+    static void Settings(WindowsInput& input) {
+        input.callbacks_.open_settings = [](void*, HWND hwnd, std::uint64_t creation) noexcept {
+            Check(hwnd == client && creation != 0, "settings request preserves exact client identity");
+            ++settings_calls; return true;
+        };
+    }
+    static std::uint64_t Creation(const WindowsInput& input) { return input.process_creation_; }
+    static UINT Message(const WindowsInput& input) { return input.settings_message_; }
     static void ReplaceSubclass(HWND hwnd, DWORD_PTR owner) {
         Check(SetWindowSubclass(hwnd, &WindowsInput::Window, 0x57424d56, owner) != FALSE, "foreign subclass replacement installed");
     }
@@ -105,7 +113,21 @@ int main(int argc, char** argv) {
           "already bound registration rejects before image verification or XInput loading");
     Check(windows.Configure(settings), "configure capture");
     const auto key = &WindowsInputTestAccess::Key;
-    if (mode == "keyboard") {
+    if (mode == "settings") {
+        WindowsInputTestAccess::Settings(windows);
+        settings.enabled = false; windows.Configure(settings); controls.Configure(settings);
+        key(VK_F10, 0x14, true, false); key(VK_F10, 0x14, true, true); key(VK_F10, 0, false, false);
+        Check(settings_calls == 1 && original_keys == 0, "settings chord pairs suppression while controls disabled");
+        ui_owned = true; key(VK_F10, 0x14, true, false); key(VK_F10, 0, false, false);
+        Check(settings_calls == 1 && original_keys == 2, "text/modal ownership keeps chord native");
+        ui_owned = false;
+        const auto creation = WindowsInputTestAccess::Creation(windows);
+        const auto message = WindowsInputTestAccess::Message(windows);
+        Check(SendMessageW(client, message, static_cast<WPARAM>(creation + 1), static_cast<LPARAM>(creation >> 32)) == FALSE
+            && settings_calls == 1, "stale process creation cannot open settings on reused HWND");
+        Check(SendMessageW(client, message, static_cast<WPARAM>(creation), static_cast<LPARAM>(creation >> 32)) == TRUE
+            && settings_calls == 2, "exact-client UI request opens settings without a producer lease");
+    } else if (mode == "keyboard") {
         key('W', 0x14, true, false); key('W', 0x14, true, true);
         Check(original_keys == 0, "mapped native down and repeat suppressed");
         ui_owned = true; key('W', 0, false, false);
@@ -121,6 +143,12 @@ int main(int argc, char** argv) {
         foreground = nullptr; key('A', 7, true, false); Check(original_keys == 6, "other foreground keeps native action");
         std::thread other([&] { key('D', 9, true, false); }); other.join();
         Check(original_keys == 7 && last_mods == 9, "foreign thread only forwards original callback");
+        foreground = client; settings.enabled = true; windows.Configure(settings); controls.Configure(settings);
+        key('W', 0, true, false); settings.enabled = false; windows.Configure(settings); controls.Configure(settings);
+        // Its release was delivered to a different window. A fresh native down
+        // must start a new pair, not inherit the abandoned suppressed gesture.
+        key('W', 0, true, false); key('W', 0, false, false);
+        Check(original_keys == 9, "new pair after an outside release preserves disabled native actions");
     } else if (mode == "mouse") {
         const auto down = MAKEWPARAM(MK_XBUTTON1, XBUTTON1), up = MAKEWPARAM(0, XBUTTON1);
         SendMessageW(client, WM_XBUTTONDOWN, down, MAKELPARAM(10, 10));
@@ -155,6 +183,11 @@ int main(int argc, char** argv) {
         SendMessageW(client, WM_XBUTTONDOWN, down, MAKELPARAM(10, 10));
         SendMessageW(client, WM_XBUTTONUP, up, MAKELPARAM(10, 10));
         Check(native_down == 4 && native_up == 4, "fresh pair survives an abandoned capture");
+        pointer_owned = false;
+        SendMessageW(client, WM_XBUTTONDOWN, down, MAKELPARAM(10, 10));
+        windows.Suspend();
+        SendMessageW(client, WM_XBUTTONUP, up, MAKELPARAM(10, 10));
+        Check(native_down == 4 && native_up == 4, "scene/UI transition cannot replay a buffered old click");
     } else if (mode == "controller") {
         CapturedInput out{}; Check(windows.Snapshot(out) && !out.input.controller_connected, "initial controller neutral rearm edge");
         pad.sThumbLX = -32768; pad.sThumbLY = 16384; pad.sThumbRX = 32767;

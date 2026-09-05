@@ -73,6 +73,11 @@ bool WindowsInput::BindVerified(HWND window, std::uint32_t* slot, KeyboardCall o
     DWORD pid = 0; const auto thread = GetWindowThreadProcessId(window, &pid);
     if (bound_ || terminal_ || !slot || !original || !callbacks_.ui || !callbacks_.safety
         || !thread || thread != GetCurrentThreadId() || pid != GetCurrentProcessId()) { return false; }
+    FILETIME creation{}, exit{}, kernel{}, user{};
+    if (!GetProcessTimes(GetCurrentProcess(), &creation, &exit, &kernel, &user)) { return false; }
+    process_creation_ = (static_cast<std::uint64_t>(creation.dwHighDateTime) << 32) | creation.dwLowDateTime;
+    settings_message_ = RegisterWindowMessageW(settings_message_name);
+    if (!settings_message_) { return false; }
     WindowsInput* expected = nullptr;
     if (!input_owner.compare_exchange_strong(expected, this)) { return false; }
     window_ = window; thread_ = thread; key_slot_ = slot; original_ = original;
@@ -129,10 +134,20 @@ bool WindowsInput::Configure(const Settings& settings) noexcept {
     }
     return true;
 }
-bool WindowsInput::Key(std::uint32_t key, std::uint32_t, std::uint32_t down, std::uint32_t repeat) noexcept {
+bool WindowsInput::Key(std::uint32_t key, std::uint32_t mods, std::uint32_t down, std::uint32_t repeat) noexcept {
     if (key >= suppressed_.size()) { return false; }
+    // A fresh native down proves a release happened even if it was delivered
+    // outside this HWND. Do not mistake a new gesture for an abandoned pair.
+    if (down && !repeat) { suppressed_[key] = original_down_[key] = false; }
     if (suppressed_[key]) { if (!down) { suppressed_[key] = false; } return true; }
     if (!down) { original_down_[key] = false; return false; }
+    if (key == VK_F10 && (mods & 0x16) == 0x14 && !repeat && Current() && ExactFocus() && callbacks_.open_settings) {
+        POINT point{}; NativeUiState ui{};
+        if (Cursor(point) && Query(point, ui) && !ui.keyboard_owned) {
+            suppressed_[key] = true;
+            (void)callbacks_.open_settings(callbacks_.context, window_, process_creation_); return true;
+        }
+    }
     if (original_down_[key] || repeat || !settings_.enabled || !settings_.keyboard || !Current() || !ExactFocus()) { original_down_[key] = true; return false; }
     POINT point{}; NativeUiState ui{};
     if (!Cursor(point) || !Query(point, ui) || ui.keyboard_owned) {
@@ -162,6 +177,11 @@ LRESULT CALLBACK WindowsInput::Window(HWND window, UINT message, WPARAM wp, LPAR
     return self->Message(message, wp, lp);
 }
 LRESULT WindowsInput::Message(UINT message, WPARAM wp, LPARAM lp) {
+    if (message == settings_message_ && Current() && callbacks_.open_settings) {
+        const auto creation = static_cast<std::uint64_t>(static_cast<std::uint32_t>(wp))
+            | (static_cast<std::uint64_t>(static_cast<std::uint32_t>(lp)) << 32);
+        return creation == process_creation_ && callbacks_.open_settings(callbacks_.context, window_, creation) ? TRUE : FALSE;
+    }
     if (message == WM_NCDESTROY) {
         terminal_ = true; mouse_pending_ = mouse_dragging_ = false;
         Safety(StopReason::shutdown, true); Restore();
@@ -279,6 +299,10 @@ void WindowsInput::Restore() noexcept {
     if (key_slot_ && original_ && (!verified_ || (Read(base_ + 0x16ac67c, manager) && manager == manager_))) {
         (void)ReplaceImportAddressSlot(key_slot_, reinterpret_cast<std::uint32_t>(&Keyboard), reinterpret_cast<std::uint32_t>(original_));
     }
+}
+void WindowsInput::Suspend() noexcept {
+    if (!bound_ || terminal_ || GetCurrentThreadId() != thread_) { return; }
+    Cancel(StopReason::scene_changed, false); device_reset_ = true;
 }
 void WindowsInput::Retire() noexcept {
     if (!bound_ || terminal_ || GetCurrentThreadId() != thread_) { return; }

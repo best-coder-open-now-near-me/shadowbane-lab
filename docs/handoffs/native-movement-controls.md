@@ -14,9 +14,9 @@ The normal shared checkout remains on `main`. Terrain-repair branches are exclud
 
 The native ownership/input policy, steering, stop, camera, terrain-pick, lifetime,
 UI ownership, Windows/XInput capture and native-update consumer are implemented.
-The consumer is registered after successful shared extension startup and defaults
-to disabled. Settings UI/persistence and automation transport are still being
-connected. No action-channel movement capability is advertised, no installed
+The consumer is registered after successful shared extension startup. Initial
+preferences are disabled; explicitly saved preferences apply on later starts. Settings UI/persistence and both entry points are implemented; automation
+transport is still being connected. No action-channel movement capability is advertised, no installed
 package has changed, and no connected acceptance is claimed. This checkpoint is
 not the complete requested feature or an acceptance package.
 
@@ -88,14 +88,14 @@ invalid pick and lost capture, client isolation and camera integration at
 - [x] Bind native stop, steering, camera and picking with native lifetime guards.
 - [x] Bind native UI/text/modal ownership and shared pointer-coordinate conversion.
 - [x] Compose Windows/XInput input capture and the native-update consumer.
-- [ ] Active: wire real settings, remapping, controller configuration and feature controls.
-- [ ] Wire travel/PvE dispatch and immutable ownership grants with the hardening owner.
+- [x] Wire real settings, remapping, controller configuration and feature controls.
+- [ ] Active: wire travel/PvE dispatch and immutable ownership grants with the hardening owner.
 - [ ] Validate production native adapters, both profiles, lifecycle and delayed dispatch.
 - [ ] Build/install the complete combined package through the existing integration owner.
 - [ ] Run focused connected acceptance for all input methods, camera, obstacles,
   real release/stop, chat/UI safety, multi-client isolation and navigation takeover.
 
-Next item is settings UI/persistence and discoverable entry points. Connected engine behavior still
+Next item is immutable automation command transport and the typed producer session. Connected engine behavior still
 requires the complete combined package and coordinated acceptance. Historical
 checkpoint notes below describe the progression, not additional active todos.
 
@@ -578,3 +578,35 @@ one process-pinned XInput handle is retained. Unsupported and already-bound
 regression cases verify rejection before repeated image/load admission. This is
 source API/consumer coverage; complete settings, command transport, shared review,
 exact-source installed package and coordinated gameplay acceptance remain todos.
+
+
+## Native settings and Graphics Lab entry checkpoint
+
+`movement_settings.cpp` implements a native per-client panel, real remapping and
+controller/drag controls, and versioned validated user preferences. The panel is
+reachable through paired Ctrl+Alt+F10 (text/modal gated) and Graphics Lab's selected
+client button. The latter sends only a settings-open notification; the native
+receiver checks the exact HWND chain and full process creation time. It cannot be
+used to apply settings or submit movement. Native configuration still runs under
+an immutable process/window/grant/revision ticket and stop-only phase. Controller
+API availability is explicit. See [user behavior and acceptance procedure](../native-movement-controls.md).
+
+Preferences are atomically stored as one versioned registry value and loaded at
+native runtime startup. The restart regression writes an isolated test key, starts
+a new hidden test process to read it through the production decoder, then removes
+that exact key. The panel test uses real Win32 controls and checks layout bounds,
+validation, stale-ticket rejection and close/reopen behavior; visibility/focus and
+its ordinary save callback are isolated from the user's desktop/preferences.
+Eight capture/settings-entry cases and thirteen consumer cases plus the panel test
+pass on both profiles. The prior 35 native policy/backend/UI/lifetime tests remain
+applicable. Python selected-client routing and existing Graphics Lab control tests
+pass 37 cases, zero skips; Ruff passes. Initial compile-only fixture/string fixes
+were corrected before the passing rebuilt tests.
+
+Buffered gestures are now suspended on scene/UI/focus transitions so an old click
+cannot leak into a replacement scene. Fresh native key downs repair pairing when
+the prior release arrived outside the game window. The integration owner should
+add `movement_settings.cpp` once to each package profile and retain the added
+advapi32/gdi32 system links. No installed package or connected acceptance changed.
+Next active todo is schema2 immutable acquire/move/stop transport and typed session,
+then shared manager composition, complete-candidate review and installed validation.
