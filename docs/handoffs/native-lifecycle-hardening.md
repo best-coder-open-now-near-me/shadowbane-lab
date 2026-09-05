@@ -624,3 +624,16 @@ these gaps with production-path barriers or establish a verified native thread
 constraint, rather than infer coverage from held already-watched callbacks.
 Next is those focused lifetime corrections and complete input/UI/settings/grant
 consumer wiring. Rendering transparency and final package acceptance remain open.
+
+
+Lifetime integrity correction `b29fcff8be58c4b1c1d79017b6c4d10b54b50b3e` is
+included at `6f457db3e42cde1b876a32522a2dcd28e6cd6b3e`. Both complete DLL profiles
+build; each executes 13 policy/backend/lifetime tests successfully, zero skips.
+Evidence: `artifacts/hardening-evidence/lifetime-integrity-native-{full,diagnostics}.xml`
+and build logs. Current now validates the watched actor/parent finalizer interfaces
+and exact world-free slot within the admitted update, invalidates immediately on
+loss and cannot revive after restoring a slot. Only owning Observe/Retire performs
+cleanup; foreign slots remain intact. This closes the reproduced mid-update
+integrity finding. First/replacement-watch arming remains explicitly unresolved
+and is being corrected by the movement owner before activation. Input/UI/settings/
+grant composition, rendering transparency and final package acceptance remain open.
