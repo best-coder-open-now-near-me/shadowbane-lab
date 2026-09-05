@@ -1,22 +1,28 @@
 #include "selected_cue_runtime.cpp"
 #undef NDEBUG
 #include <cassert>
+#include <atomic>
+#include <thread>
 
 namespace wonderbane::extension::cue {
-int begins=0,before=0,after=0,composites=0,releases=0,discards=0;
+std::atomic<int> begins{0},before{0},after{0},composites{0},releases{0},discards{0};
+thread_local bool resources=false;
+thread_local int local_releases=0;
 bool begin_ok=true,before_ok=true,after_ok=true;
-bool BeginMask() noexcept {++begins;return begin_ok;}
+bool BeginMask() noexcept {++begins;resources=begin_ok;return begin_ok;}
 bool BeforeOwnedDraw() noexcept {++before;return before_ok;}
 bool AfterOwnedDraw() noexcept {++after;return after_ok;}
 bool CompositeMask(const Settings&,const Direction&) noexcept {++composites;return true;}
 void DiscardMask() noexcept {++discards;}
-void ReleaseMask() noexcept {++releases;}
+void ReleaseMask() noexcept {++releases;if(resources){++local_releases;resources=false;}}
 }
 namespace {
 int draws=0;
 bool clear_during_draw=false;
+HANDLE draw_entered=nullptr,draw_resume=nullptr;
 void __fastcall Draw(void*,void*) noexcept {
     ++draws;
+    if(draw_entered){SetEvent(draw_entered);assert(WaitForSingleObject(draw_resume,5000)==WAIT_OBJECT_0);}
     if(clear_during_draw)*reinterpret_cast<std::uint32_t*>(wonderbane::extension::base+23735716U)=0;
 }
 }
@@ -73,5 +79,50 @@ int main(){
     control=nullptr;InterlockedExchange(&running,0);original=nullptr;base=0;
     assert(StartSelectedCue(memory,0x1900000,"unknown")==ERROR_REVISION_MISMATCH);
     assert(control && control->binding==0);StopSelectedCue();assert(!control && !mapping);
+    // Stop drains an admitted wrapper. Its worker cannot release render-thread
+    // resources; a later generation releases those before reuse on that thread.
+    put(render+0x3c,0);put(render+0x40,0);
+    assert(StartSelectedCue(memory,0x1900000,"unknown")==ERROR_REVISION_MISMATCH);
+    control->settings.enabled=1;InterlockedExchange(&running,1);
+    InterlockedExchangePointer(&original,reinterpret_cast<void*>(&Draw));
+    draw_entered=CreateEventW(nullptr,TRUE,FALSE,nullptr);
+    draw_resume=CreateEventW(nullptr,TRUE,FALSE,nullptr);
+    HANDLE stop_started=CreateEventW(nullptr,TRUE,FALSE,nullptr);
+    HANDLE stopped=CreateEventW(nullptr,TRUE,FALSE,nullptr);
+    HANDLE restart=CreateEventW(nullptr,TRUE,FALSE,nullptr);
+    std::uint32_t retained_hook=static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(&CueMakeCurrent));
+    context_slot=&retained_hook;
+    std::thread render_thread([&]{
+        BeginSelectedCueScene(&camera);assert(cue::resources);
+        const int released=cue::local_releases;
+        OwnedRender(reinterpret_cast<void*>(wrapper),nullptr);
+        assert(WaitForSingleObject(restart,5000)==WAIT_OBJECT_0);
+        assert(cue::resources && cue::local_releases==released);
+        BeginSelectedCueScene(&camera);
+        assert(cue::resources && cue::local_releases==released+1);
+        ReleaseSelectedCueContext();assert(!cue::resources);
+    });
+    assert(WaitForSingleObject(draw_entered,5000)==WAIT_OBJECT_0);
+    std::thread stopper([&]{SetEvent(stop_started);StopSelectedCue();SetEvent(stopped);});
+    assert(WaitForSingleObject(stop_started,5000)==WAIT_OBJECT_0);
+    const auto deadline=GetTickCount64()+5000;
+    while(g_render_lifecycle.try_lock()){
+        g_render_lifecycle.unlock();assert(GetTickCount64()<deadline);std::this_thread::yield();
+    }
+    assert(WaitForSingleObject(stopped,50)==WAIT_TIMEOUT);
+    // A concurrent restart must serialize behind the draining mutation.
+    HANDLE restart_done=CreateEventW(nullptr,TRUE,FALSE,nullptr);
+    std::thread restarter([&]{
+        assert(StartSelectedCue(memory,0x1900000,"unknown")==ERROR_REVISION_MISMATCH);
+        SetEvent(restart_done);
+    });
+    assert(WaitForSingleObject(restart_done,50)==WAIT_TIMEOUT);
+    SetEvent(draw_resume);assert(WaitForSingleObject(stopped,5000)==WAIT_OBJECT_0);stopper.join();
+    assert(WaitForSingleObject(restart_done,5000)==WAIT_OBJECT_0);restarter.join();
+    assert(context_slot==&retained_hook && retained_hook==static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(&CueMakeCurrent)));
+    control->settings.enabled=1;InterlockedExchange(&running,1);
+    SetEvent(restart);render_thread.join();
+    CloseHandle(draw_entered);draw_entered=nullptr;context_slot=nullptr;StopSelectedCue();
+    for(HANDLE event:{draw_resume,stop_started,stopped,restart,restart_done})CloseHandle(event);
     VirtualFree(memory,0,MEM_RELEASE);
 }
