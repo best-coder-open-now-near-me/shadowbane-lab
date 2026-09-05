@@ -16,7 +16,7 @@ Todos:
 - [x] Durable navigation merges, operation claim/retry semantics and terminal history retention.
 - [x] Simulator transaction admission and public planner correctness/indexing.
 - [x] Inspector launch/cleanup exact runtime and process-lifetime ownership.
-- [ ] Active: combined cue material coverage and cue/effects native transparency with existing owners.
+- [ ] Active: cue/effects native transparency with existing owners; observed MultiDraw coverage repaired.
 - [ ] Rolling movement native actuation/adapters; passive trace and policy are integrated only.
 - [ ] Combined required gates, independent review of a complete pinned candidate, exact package and installed controls.
 - [ ] Consolidated acceptance handoff with identities and specific remaining live checks.
@@ -169,3 +169,46 @@ capability skip; ordinary navigation remains independently executable. Both test
 ran and passed locally with real FBO support. The package builder now reads native
 JUnit results and requires combined rendering, cue GPU and both transparency gates
 to have actually executed and passed. Capability skips cannot certify a package.
+
+
+## Latest combined checkpoint (not an acceptance package)
+
+Verified source `83326a6ef43f39ff65fc34de2eb02aa6b0d6fb11`, based on original
+`14d117e8c5194c6dff55dac608b2d3f683187d31`. Included feature tips:
+- particles `11a44eea9ce21250e46a9caf2b61ed11d4ad9b13`;
+- selected cue `d741f04ff0eadd9e2d94901e5d2dd366e3a72a35`;
+- sky implementation `4368f13c53601684d0abb67f3d43513561b0bbf4`;
+- movement investigation/policy/trace `6f26a58429deb378fcac0b53be82cdcb9bc4ab63`.
+
+Cue MultiDraw integration preserves the one shared context lifecycle and adds
+sealed dynamic slot observation/capture within shared callback admission. Its
+metadata lock is not held over drawing. The production regression holds a callback
+through driver refresh and stop; original call-through remains captured and the old
+scene mask is invalidated. Real GPU tests capture both primitives with depth writes
+on/off and one native color submission. The exact reviewed-client binding test
+passes all new code seals and drift checks. The lane is separately verifying
+combined `b713dbf0c5cecf743c441c38472db8568cdbeaf9` (same cue runtime source).
+
+Full source Python result: 1753 passed, 7 symlink-permission skips, 223 subtests.
+Ruff passed. Both Win32 profiles build; each CTest executes 36 entries: 32 passed,
+2 private-client argument skips, 2 required transparency failures. Local combined
+rendering executes and passes all16 feature combinations. The developer-only actual
+native tree-detachment probe built and passed 64,256 removals against the reviewed
+binary in a separate process; it does not establish a complete native movement stop
+and is excluded from runtime/package capabilities. Full controls/adapters remain
+unfinished. Product version is still1.6.13; no ABI/wire change.
+
+The renderer evidence now proves that identical scene RGBA/depth snapshots can
+require different behind-effect transmission (blue191 vs64). Native source
+color/alpha/depth and blend semantics at every contributing fragment are missing
+from the existing capture contract. Nearest-depth masks, whole-pass early ordering
+and retained mutable shader pointers cannot resolve this. Existing feature owners
+retain the correction and bounded material-path investigation; no competing hooks
+or approximation has been installed. This blocks a complete particles/cue package,
+not the mere existence of newer movement work.
+
+No source package, installed wheel, acceptance DLL, consolidated owner procedure,
+or independent complete-candidate review is claimed for this checkpoint. Last
+actual builder attempt and its failing gates remain recorded above. No main merge
+or shared VM/client change occurred. Active worktrees and ignored evidence remain
+retained; current source is published on the integration branch.

@@ -164,10 +164,11 @@ def main() -> int:
         ]
         if included_sources.count("movement_boundary_trace.cpp") != 1:
             raise RuntimeError(f"{profile}: passive movement trace must have one runtime owner")
-        if included_sources.count("movement_controls.cpp") != 0:
-            raise RuntimeError(
-                f"{profile}: unfinished movement policy must not imply live actuation"
-            )
+        for developer_source in ("movement_controls.cpp", "movement_tree_probe.cpp"):
+            if included_sources.count(developer_source) != 0:
+                raise RuntimeError(
+                    f"{profile}: developer-only source entered runtime: {developer_source}"
+                )
         for name in contracts:
             expected_count = 1 if profile == "full" else 0
             if included_sources.count(name) != expected_count:
