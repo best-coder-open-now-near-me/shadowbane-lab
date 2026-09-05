@@ -3,6 +3,7 @@
 #include <array>
 #include <cstdio>
 #include <cstring>
+#include <chrono>
 using namespace wonderbane::extension;
 namespace {
 int failures=0;
@@ -43,7 +44,7 @@ void Rect(float x0,float x1,float y0,float y1,float z){
 }
 unsigned Pixel(int x,int y){std::array<unsigned char,4> p{};glReadPixels(x,y,1,1,GL_RGBA,GL_UNSIGNED_BYTE,p.data());return p[0]+p[1]+p[2];}
 }
-int main(){
+int main(int argc,char** argv){
     WNDCLASSW wc{};wc.style=CS_OWNDC;wc.lpfnWndProc=DefWindowProcW;
     wc.hInstance=GetModuleHandleW(nullptr);wc.lpszClassName=L"SelectedCueGpuTest";
     if(!RegisterClassW(&wc))return 2;
@@ -61,7 +62,9 @@ int main(){
     glMatrixMode(GL_MODELVIEW);glLoadIdentity();glEnable(GL_DEPTH_TEST);glDepthFunc(GL_LESS);
     glClearColor(0,0,0,0);glClearDepth(1);glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
     auto initial=Snapshot();Check(cue::BeginMask(),"mask resource creation");Same(initial,Snapshot());
-    Check(cue::BeforeOwnedDraw(),"before capture");Same(initial,Snapshot());
+    Check(cue::AllocatedMaskBytes()==640ULL*480*8,"normal mesh uses only two depth textures");
+    Check(cue::BeforeOwnedDraw() && cue::BeforeLegacyGeometry(),"before legacy capture");
+    Check(cue::AllocatedMaskBytes()>640ULL*480*8 && cue::AllocatedMaskBytes()<=640ULL*480*28,"legacy storage allocated only on demand");Same(initial,Snapshot());
     glColor3f(0,0,0);Rect(-0.4F,0.4F,-0.5F,0.5F,0);
     Check(cue::AfterOwnedDraw(),"after capture");Same(initial,Snapshot());
     // A later nearer obstacle hides half of the selected silhouette.
@@ -142,8 +145,89 @@ int main(){
     Check(Pixel(400,240)>native_pixel,"visible textured alpha coverage glows");
     glDepthMask(GL_TRUE);glDisable(GL_BLEND);glDisable(GL_ALPHA_TEST);glDisable(GL_TEXTURE_2D);
     glDisableClientState(GL_TEXTURE_COORD_ARRAY);glDisableClientState(GL_VERTEX_ARRAY);glDeleteTextures(1,&texture);
+    glEnableClientState(GL_VERTEX_ARRAY);glVertexPointer(3,GL_FLOAT,0,vertices);
+    glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+    Check(cue::BeginMask() && cue::BeforeOwnedDraw(),"begin native depth prepass");
+    glColorMask(GL_FALSE,GL_FALSE,GL_FALSE,GL_FALSE);
+    Check(cue::CaptureGeometry(mesh,nullptr),"capture color-disabled native depth prepass");
+    mesh(nullptr);Check(cue::AfterOwnedDraw(),"finish native depth prepass");
+    glColorMask(GL_TRUE,GL_TRUE,GL_TRUE,GL_TRUE);glDepthMask(GL_FALSE);glDepthFunc(GL_EQUAL);
+    Check(cue::BeforeOwnedDraw(),"begin native equal-depth material pass");
+    Check(cue::CaptureGeometry(mesh,nullptr),"capture native equal-depth material pass");
+    glColor4f(0,0,0,1);mesh(nullptr);Check(cue::AfterOwnedDraw(),"finish equal-depth material pass");
+    Check(cue::CompositeMask(s,{}),"depth-prepass character composite");
+    Check(Pixel(230,240)>0,"depth prepass plus equal color pass retains character coverage");
+    glDepthMask(GL_TRUE);glDepthFunc(GL_LESS);glDisableClientState(GL_VERTEX_ARRAY);
+    // Whole-character union stays correct when raw and legacy nodes interleave.
+    const GLfloat left_vertices[]{-.8F,-.5F,0,-.2F,-.5F,0,-.2F,.5F,0,-.8F,.5F,0};
+    glEnableClientState(GL_VERTEX_ARRAY);glVertexPointer(3,GL_FLOAT,0,left_vertices);
+    glColor4f(0,0,0,1);
+    for(bool raw_first:{false,true}){
+        glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);Check(cue::BeginMask(),"mixed mask begin");
+        for(int part=0;part<2;++part){
+            Check(cue::BeforeOwnedDraw(),"mixed owned begin");
+            if((part==0)==raw_first){Check(cue::CaptureGeometry(mesh,nullptr),"mixed raw");mesh(nullptr);}
+            else{Check(cue::BeforeLegacyGeometry(),"mixed legacy");Rect(.2F,.8F,-.5F,.5F,0);}
+            Check(cue::AfterOwnedDraw(),"mixed owned end");
+        }
+        Check(cue::CompositeMask(s,{}),"mixed whole-character composite");
+        Check(Pixel(160,240)>0 && Pixel(480,240)>0,"both native submission paths remain in silhouette");
+        Check(Pixel(320,240)==0,"empty space between character pieces remains empty");
+    }
+    glDisableClientState(GL_VERTEX_ARRAY);
+    Check(cue::BeginMask() && cue::BeforeOwnedDraw(),"begin stencil safety case");
+    glDepthMask(GL_FALSE);glEnable(GL_STENCIL_TEST);material=Snapshot();
+    Check(!cue::CaptureGeometry(mesh,nullptr),"active native stencil is not replayed");Same(material,Snapshot());
+    Check(glIsEnabled(GL_STENCIL_TEST)==GL_TRUE,"stencil enable remains native");
+    glDisable(GL_STENCIL_TEST);cue::DiscardMask();
+    using Queries=void(APIENTRY*)(GLsizei,GLuint*);
+    using DeleteQueries=void(APIENTRY*)(GLsizei,const GLuint*);
+    using BeginQuery=void(APIENTRY*)(GLenum,GLuint);
+    using EndQuery=void(APIENTRY*)(GLenum);
+    using QueryResult=void(APIENTRY*)(GLuint,GLenum,GLuint*);
+    auto gen_query=reinterpret_cast<Queries>(wglGetProcAddress("glGenQueries"));
+    auto delete_query=reinterpret_cast<DeleteQueries>(wglGetProcAddress("glDeleteQueries"));
+    auto begin_query=reinterpret_cast<BeginQuery>(wglGetProcAddress("glBeginQuery"));
+    auto end_query=reinterpret_cast<EndQuery>(wglGetProcAddress("glEndQuery"));
+    auto query_result=reinterpret_cast<QueryResult>(wglGetProcAddress("glGetQueryObjectuiv"));
+    Check(gen_query && delete_query && begin_query && end_query && query_result,"native query test APIs");
+    if(gen_query && delete_query && begin_query && end_query && query_result){
+        GLuint query=0,result=1;gen_query(1,&query);
+        Check(cue::BeginMask() && cue::BeforeOwnedDraw(),"begin query safety case");
+        begin_query(0x8914,query);material=Snapshot();
+        Check(!cue::CaptureGeometry(mesh,nullptr),"active native query is not replayed");Same(material,Snapshot());
+        end_query(0x8914);query_result(query,0x8866,&result);
+        Check(result==0,"capture cannot add native query samples");delete_query(1,&query);cue::DiscardMask();
+    }
+    glDepthMask(GL_TRUE);
     cue::ReleaseMask();Check(glGetError()==GL_NO_ERROR,"no GL errors after cleanup");
-    Check(cue::BeginMask(),"resources recreate after cleanup");cue::ReleaseMask();
+    Check(cue::AllocatedMaskBytes()==0,"cleanup releases tracked mask storage");
+    Check(cue::BeginMask(),"resources recreate after cleanup");
+    Check(cue::AllocatedMaskBytes()==640ULL*480*8,"recreation starts without legacy allocations");cue::ReleaseMask();
+    if(argc==2 && std::strcmp(argv[1],"--cost")==0){
+        glEnableClientState(GL_VERTEX_ARRAY);glVertexPointer(3,GL_FLOAT,0,vertices);
+        for(int width:{640,1920}){
+            const int height=width==640?480:1080;
+            RECT rect{0,0,width,height};AdjustWindowRect(&rect,WS_OVERLAPPEDWINDOW,FALSE);
+            SetWindowPos(window,nullptr,0,0,rect.right-rect.left,rect.bottom-rect.top,SWP_NOMOVE|SWP_NOZORDER|SWP_NOACTIVATE);
+            glViewport(0,0,width,height);glFinish();
+            const auto start=std::chrono::steady_clock::now();
+            for(int frame=0;frame<4;++frame){
+                glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+                Check(cue::BeginMask(),"cost mask begin");
+                for(int node=0;node<46;++node){
+                    Check(cue::BeforeOwnedDraw(),"cost owned begin");
+                    Check(cue::CaptureGeometry(mesh,nullptr),"cost mesh capture");
+                    mesh(nullptr);Check(cue::AfterOwnedDraw(),"cost owned end");
+                }
+                Check(cue::CompositeMask(s,{}),"cost composite");glFinish();
+            }
+            const auto ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count()/4;
+            std::printf("production-mask-cost viewport=%dx%d owned_nodes=46 mean_frame_ms=%.3f nominal_mib=%.3f (host test context, includes native mesh and initialization)\n",width,height,ms,static_cast<double>(cue::AllocatedMaskBytes())/(1024*1024));
+            cue::ReleaseMask();
+        }
+        glDisableClientState(GL_VERTEX_ARRAY);
+    }
     wglMakeCurrent(nullptr,nullptr);wglDeleteContext(context);ReleaseDC(window,dc);DestroyWindow(window);
     return failures ? 1:0;
 }

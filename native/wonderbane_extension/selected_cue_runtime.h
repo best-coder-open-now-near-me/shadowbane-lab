@@ -4,6 +4,7 @@
 #include <cstdint>
 namespace wonderbane::extension {
 using SelectedGeometryDraw = void(*)(void*) noexcept;
+void ObserveSelectedCueLegacyGeometry() noexcept;
 void CaptureSelectedCueGeometry(SelectedGeometryDraw, void*) noexcept;
 DWORD StartSelectedCue(std::uint8_t*,std::size_t,const char*) noexcept;
 void StopSelectedCue() noexcept;
