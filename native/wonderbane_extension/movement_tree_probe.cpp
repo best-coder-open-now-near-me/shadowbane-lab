@@ -13,11 +13,13 @@
 #include <random>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <vector>
 
 // Developer-only conformance probe. Never opens or modifies another process.
 // No proprietary bytes are distributed: an explicitly supplied, exact reviewed
-// executable supplies reviewed relocation-free, import-free container primitives.
+// executable supplies reviewed native primitives. The pool test forwards only
+// its two verified Win32 imports and uses private allocator globals.
 namespace {
 void Require(bool condition, const char* message) {
     if (!condition) { throw std::runtime_error(message); }
@@ -60,6 +62,17 @@ using Find = Node** (__thiscall*)(void*, Node**, const Identity*);
 using CopyIdentity = Identity* (__thiscall*)(Identity*, const Identity*);
 using DestroyIdentity = void (__thiscall*)(Identity*);
 using ClearContinuation = void (__thiscall*)(void*);
+using PoolReturn = void (__cdecl*)(void*, std::uint32_t);
+HANDLE pool_contention_event = nullptr;
+LONG WINAPI ForwardPoolExchange(volatile LONG* target, LONG value) {
+    const LONG previous = InterlockedExchange(target, value);
+    if (previous && pool_contention_event) { SetEvent(pool_contention_event); }
+    return previous;
+}
+struct EventHandle {
+    HANDLE value = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+    ~EventHandle() { if (value) { CloseHandle(value); } }
+};
 struct Map { Node* sentinel; std::uint32_t size; };
 struct ExecutableCode {
     void* memory = nullptr;
@@ -147,6 +160,7 @@ int RunProbe(int argc, wchar_t** argv) {
             "unsupported executable");
         struct Segment { std::size_t offset; std::size_t size; const char* sha256; };
         constexpr std::array segments{
+            Segment{0x40270,284,"bdce79064089f17dd744e34dfdac4187203ca9c6f3c8bc05c77708a11a332b93"},
             Segment{0x63a30,24,"a786e52b8f763cb0e705244fa2e34c1b0db4e27a8234c762e6e6795b75107604"},
             Segment{0x8edd0,1001,"647324142ed2d678037248e82d948a9666f084962476a5f5cb866c008723fffa"},
             Segment{0x21b7b0,93,"6e9518982122e7fd858e307e98f652372ef5c9efb4960317349aea232b97e62a"},
@@ -155,12 +169,13 @@ int RunProbe(int argc, wchar_t** argv) {
             Segment{0x1117b0,22,"66b42201ae2adac5438161fdb2a8dc60eb4bf84b6a9462a2564677c9a809cdd4"},
             Segment{0x1119d0,1,"ae3f4619b0413d70d3004b9131c3752153074e45725be13b9a148978895e359e"}};
         // Reviewed PE raw offsets equal RVAs for these segments. Preserve relative
-        // native calls between lookup, its thunk and comparator. All gaps trap;
-        // no unreviewed instruction, import or client startup is copied/executed.
-        constexpr std::size_t length = 0x220000;
+        // native calls between lookup, its thunk and comparator. Code gaps trap;
+        // data pages are never executable. No client startup is copied/executed.
+        constexpr std::size_t code_length = 0x220000;
+        constexpr std::size_t length = 0x16c0000;
         for (const auto& segment : segments) {
             Require(segment.offset + segment.size <= bytes.size()
-                && segment.offset + segment.size <= length, "missing native primitive");
+                && segment.offset + segment.size <= code_length, "missing native primitive");
             Require(Digest(bytes.data() + segment.offset, segment.size) == segment.sha256,
                 "native primitive digest mismatch");
         }
@@ -172,11 +187,35 @@ int RunProbe(int argc, wchar_t** argv) {
         for (const auto& segment : segments) {
             std::copy_n(bytes.data() + segment.offset, segment.size, arena + segment.offset);
         }
+        // These are the complete reviewed HIGHLOW relocation sites in PoolReturn.
+        constexpr std::array pool_relocations{0x13,0x18,0x21,0x2f,0x34,0x4e,0x59,
+            0x5f,0xa0,0xa6,0xc2,0xc8,0xde,0xe4,0xfa};
+        for (const auto offset : pool_relocations) {
+            std::uint32_t operand{};
+            std::memcpy(&operand, arena + 0x40270 + offset, sizeof(operand));
+            operand += reinterpret_cast<std::uintptr_t>(arena) - 0x400000U;
+            std::memcpy(arena + 0x40270 + offset, &operand, sizeof(operand));
+        }
+        // Native import names verified from the reviewed PE import directory:
+        // KERNEL32!InterlockedExchange and KERNEL32!Sleep. No game API stubs.
+        const auto exchange_address = reinterpret_cast<std::uintptr_t>(&ForwardPoolExchange);
+        const auto sleep_address = reinterpret_cast<std::uintptr_t>(&Sleep);
+        std::memcpy(arena + 0x16b0308, &exchange_address, sizeof(exchange_address));
+        std::memcpy(arena + 0x16b030c, &sleep_address, sizeof(sleep_address));
+        auto* pool_heads = reinterpret_cast<Node**>(arena + 0x1372ddc);
+        auto* pool_lock = reinterpret_cast<volatile LONG*>(arena + 0x1372e28);
+        // All native allocator data stays inside this developer process.
+        std::fill_n(pool_heads, 16, nullptr);
+        InterlockedExchange(pool_lock, 0);
+        std::uint32_t spin = 0;
+        std::memcpy(arena + 0x12c464c, &spin, sizeof(spin));
+        std::memcpy(arena + 0x1372e2c, &spin, sizeof(spin));
         DWORD previous{};
-        Require(VirtualProtect(code.memory, length, PAGE_EXECUTE_READ, &previous) != 0,
+        Require(VirtualProtect(code.memory, code_length, PAGE_EXECUTE_READ, &previous) != 0,
             "executable protection failed");
-        Require(FlushInstructionCache(GetCurrentProcess(), code.memory, length) != 0,
+        Require(FlushInstructionCache(GetCurrentProcess(), code.memory, code_length) != 0,
             "instruction cache flush failed");
+        const auto pool_return = reinterpret_cast<PoolReturn>(arena + 0x40270);
         const auto erase = reinterpret_cast<Erase>(arena + 0x8edd0);
         const auto find = reinterpret_cast<Find>(arena + 0x21b7b0);
         const auto copy = reinterpret_cast<CopyIdentity>(arena + 0x1117b0);
@@ -220,6 +259,7 @@ int RunProbe(int argc, wchar_t** argv) {
         for (unsigned height = 1; height <= 8; ++height) {
             const std::size_t count = (1U << height) - 1U;
             for (unsigned trial = 0; trial < 128; ++trial) {
+                pool_heads[4] = nullptr;
                 Tree tree(count);
                 tree.Verify();
                 Map map{&tree.sentinel, static_cast<std::uint32_t>(count)};
@@ -248,11 +288,45 @@ int RunProbe(int argc, wchar_t** argv) {
                     destroy(&identity);
                     Require(identity == expected, "identity destructor changed value");
                     tree.Verify();
+                    destroy(reinterpret_cast<Identity*>(removed->payload.data()));
+                    const auto old_head = pool_heads[4];
+                    const auto payload = removed->payload;
+                    pool_return(removed, sizeof(Node));
+                    Node* next{};
+                    std::memcpy(&next, removed, sizeof(next));
+                    Require(pool_heads[4] == removed && next == old_head && *pool_lock == 0,
+                        "native 40-byte pool return lost node, chain or lock");
+                    Require(removed->payload == payload, "pool return changed payload bytes");
+                    for (std::size_t bucket = 0; bucket < 16; ++bucket) {
+                        Require(bucket == 4 || pool_heads[bucket] == nullptr,
+                            "native pool return changed another size class");
+                    }
                     ++removals;
                 }
             }
         }
-        std::printf("PASS: %llu native lookup/removal/copy/destruction sequences; tree invariants and payload preservation\n",
+        pool_heads[4] = nullptr;
+        // Force native allocator contention: the releasing thread cannot unlock
+        // until the native function actually attempts its first locked exchange.
+        EventHandle contention;
+        Require(contention.value != nullptr, "contention event failed");
+        pool_contention_event = contention.value;
+        Node contended_node{};
+        InterlockedExchange(pool_lock, 1);
+        DWORD observed = WAIT_FAILED;
+        {
+            std::jthread releaser([&] {
+                observed = WaitForSingleObject(contention.value, 5000);
+                InterlockedExchange(pool_lock, 0);
+            });
+            pool_return(&contended_node, sizeof(Node));
+        }
+        pool_contention_event = nullptr;
+        Require(observed == WAIT_OBJECT_0 && pool_heads[4] == &contended_node && *pool_lock == 0,
+            "native contended pool return failed to wait and release");
+        pool_heads[4] = nullptr;
+        std::printf("PASS: native pool contention uses verified Win32 imports and releases lock\n");
+        std::printf("PASS: %llu native lookup/removal/copy/destruction/pool-return sequences; tree invariants and payload preservation\n",
             static_cast<unsigned long long>(removals));
         return 0;
     } catch (const std::exception& error) {

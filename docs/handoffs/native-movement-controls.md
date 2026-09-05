@@ -169,3 +169,11 @@ regressions after takeover and release. The native UI toggle alone does not clea
 both forms. That binding/composition remains unfinished, as do native pool cleanup,
 ordered server notification and full controls/package wiring. Next active todo is
 still the complete native stop and steering binding; no installed client changed.
+
+Native allocator verification now also passes in both profiles: all 64,256 scheduled
+node sequences execute native key destruction and 40-byte pool return, checking
+size-class isolation, payload preservation and lock release. A forced-contention
+case uses the allocator's verified Win32 imports against private globals. The
+probe remains excluded from normal builds and packages. Next active todo remains
+complete native stop composition and its native follow-update regression; source
+verification alone does not enable or certify the connected feature.
