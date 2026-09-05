@@ -314,3 +314,31 @@ would instead need complete blended-fragment capture (including display lists,
 immediate draws, shader alpha) and bounded handling of distinct effect depths.
 Neither contract is currently verified. This is not a request for the owner to
 approve an approximation or repeat navigation testing.
+
+
+## Bounded queue preparation review
+
+Read-only call-graph follow-up found traversal thunk RVA `0x15a0f` targeting
+`0x79c730`, with direct callers `0x797a2c` (auxiliary/global queue at RVA
+`0x16aaec8`) and `0x79817e` (main queue at current EBX+0xf8).
+The main sequence is sky virtual enqueue at `0x798139`, preparation via thunk
+`0x1d9e4 -> 0x1ca470`, object virtual+0xc enqueue loop
+`0x79815c..0x798172`, then direct traversal at `0x79817e`.
+There is no separate re-sort or key-rewrite call between that enqueue loop and
+traversal. This does not rule out behavior inside the virtual enqueue/draw calls.
+
+Preparation `0x1ca470..0x1ca962` resizes and initializes wrapper pools, resets
+used counters, and configures shader records. The inspected instructions do not
+assign camera-depth keys. Pass marker constructors `0x4e1c20`, `0x4e1cd0`,
+`0x4e1d80`, `0x4e1e90` use category zero and shader priorities -10000, +10000,
++1000, +2000 respectively. Callback shader constructor `0x4eff30` stores that
+priority at shader+8, which the shared comparator reads. Thus pass markers cannot
+be treated as a general spatial transparency boundary.
+
+This bounded path has not yielded a certified correction. The remaining missing
+fact lies in virtual enqueue/draw material behavior and a complete spatial merge
+contract; another main-loop late/early hook would not resolve it. The cue developer
+owns the non-overlapping `0x1c3380` material / `0x1cb700` character-draw review.
+The integration owner received these exact paths. No new hooks, production
+changes, live observation, build, or deployment were made for this read-only
+follow-up. Required transparency probes remain red.
