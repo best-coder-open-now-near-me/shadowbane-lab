@@ -823,3 +823,57 @@ No native contributor storage, collector, scene hook or broad instrumentation
 was added. Next active todo is establishing the actual opaque visibility source
 and exact supported ordered operator domain before choosing storage or splitting
 transmission implementation. Full selected-cue delivery remains incomplete.
+
+
+## Published-source checks at 47c1e23
+
+Independently built the existing cue GPU target from exact published combined
+`47c1e23febd8f14588e3638f2a36a88cc9333eb7` in the lane-owned verification worktree.
+The cue GPU implementation and experiment files are unchanged from the tested
+feature source. Base GPU and expanded source/visibility feasibility pass without
+skips. The required cue transparency test executes and still fails both native
+foreground cases with the previously recorded values; background cases pass.
+JUnit: `E:/Projects/shadowbane/artifacts/cue-combined-native/47c1e23/lane-cue.xml`.
+This is a focused cue verification, not another complete-suite/package receipt.
+
+The published C++ interfaces do not expose an existing opaque-only scene buffer.
+`CaptureSelectedCueGeometry` and its legacy equivalent require active selected
+render nesting; they cannot be repurposed as evidence of whole-scene coverage.
+The depth-edge composite invokes CopyDepthTexture on the default target near
+scene completion, so its texture contains the mixed native depth result. These
+are source-code observations only. The separately rejected private-binary
+coordination payload has not been added here or sent through another task.
+
+No runtime correction is claimed. Next active todo remains establishing a valid
+opaque-visibility input and supported ordered transmission behavior. Detailed
+binary-analysis coordination is separately waiting on explicit sharing
+permission after automatic review rejection. Movement work is not the reason
+for the visual feature hold.
+
+
+## Shared scene guard: separate shader pipeline restoration
+
+A focused runtime fix saves, clears and restores the core/ARB program-pipeline
+binding around RenderSceneGeometry, alongside the existing current-program
+save/restore. Clearing only the current program exposes a bound pipeline's
+stages to extension geometry. Support is gated by desktop GL 4.1+ or the exact
+ARB_separate_shader_objects extension token; EXT-only support is not conflated.
+Missing binding API or an unwritten binding query rejects before state mutation.
+No second renderer or new package path is introduced. Integration owner confirmed
+no overlapping scene_draw.cpp/h changes and will reconcile this isolated commit.
+
+The actual-GL regression failed before the fix: native green fragment shading
+incorrectly colored extension geometry green. After the fix it verifies red
+extension pixels, green native pixels afterward, independent current-program and
+pipeline bindings, and unchanged fragment-stage attachment. It executed on the
+host (no capability skip). The Release DLL and GPU test build pass. Base cue GPU
+and 288-case source/visibility feasibility tests pass; required native-transparency
+still fails the same two foreground cases. JUnit is in the ignored build tree at
+build/cue-full/artifacts/selected-character-cue/pipeline-guard.xml.
+
+The pipeline rule follows the Khronos compatibility specification, section on
+program pipelines: https://registry.khronos.org/OpenGL/specs/gl/glspec46.compatibility.pdf.
+This state-restoration fix does not supply opaque-only visibility or solve ordered
+native transmission. Next: integrate and verify this shared guard in the owner's
+combined source, then continue the outstanding transparency requirement. Full
+feature/package acceptance remains blocked by that requirement.

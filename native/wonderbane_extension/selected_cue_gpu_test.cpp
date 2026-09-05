@@ -8,6 +8,7 @@
 #include <cstring>
 #include <chrono>
 #include <cstdlib>
+#include <cstdint>
 using namespace wonderbane::extension;
 namespace {
 int failures=0;
@@ -61,6 +62,88 @@ std::array<unsigned char,4> NativeTransparency(bool late_composite,bool depth_wr
     if(late_composite)Check(cue::CompositeMask(settings,{}),"candidate cue after native foreground");
     std::array<unsigned char,4> pixel{};glReadPixels(foreground?230:190,240,1,1,GL_RGBA,GL_UNSIGNED_BYTE,pixel.data());
     glDepthMask(GL_TRUE);glDisable(GL_BLEND);return pixel;
+}
+// A bound separable fragment stage must not shade extension geometry, even
+// though glUseProgram(0) makes it eligible to execute in the native pipeline.
+void PipelineGuardRegression(){
+    const auto* version=reinterpret_cast<const char*>(glGetString(GL_VERSION));
+    const auto* extensions=reinterpret_cast<const char*>(glGetString(GL_EXTENSIONS));
+    const auto* arb=extensions ? std::strstr(extensions,"GL_ARB_separate_shader_objects") : nullptr;
+    constexpr std::size_t arb_length=sizeof("GL_ARB_separate_shader_objects")-1;
+    const bool arb_supported=arb && (arb==extensions || arb[-1]==' ')
+        && (arb[arb_length]==' ' || arb[arb_length]=='\0');
+    const bool supported=version && (version[0]>'4'
+        || (version[0]=='4' && version[1]=='.' && version[2]>='1')
+        || arb_supported);
+    if(!supported){std::puts("pipeline guard regression unavailable: unsupported context");return;}
+    const auto procedure=[](const char* name){
+        const PROC p=wglGetProcAddress(name);const auto value=reinterpret_cast<std::uintptr_t>(p);
+        return value<=3U || value==UINTPTR_MAX ? nullptr : p;
+    };
+    using Generate=void(APIENTRY*)(GLsizei,GLuint*);
+    using Delete=void(APIENTRY*)(GLsizei,const GLuint*);
+    using Bind=void(APIENTRY*)(GLuint);
+    using Create=GLuint(APIENTRY*)(GLenum,GLsizei,const char* const*);
+    using Stages=void(APIENTRY*)(GLuint,GLbitfield,GLuint);
+    using Get=void(APIENTRY*)(GLuint,GLenum,GLint*);
+    const auto gen=reinterpret_cast<Generate>(procedure("glGenProgramPipelines"));
+    const auto remove=reinterpret_cast<Delete>(procedure("glDeleteProgramPipelines"));
+    const auto bind=reinterpret_cast<Bind>(procedure("glBindProgramPipeline"));
+    const auto create=reinterpret_cast<Create>(procedure("glCreateShaderProgramv"));
+    const auto stages=reinterpret_cast<Stages>(procedure("glUseProgramStages"));
+    const auto get=reinterpret_cast<Get>(procedure("glGetProgramiv"));
+    const auto use=reinterpret_cast<Bind>(procedure("glUseProgram"));
+    const auto delete_program=reinterpret_cast<Bind>(procedure("glDeleteProgram"));
+    if(!gen || !remove || !bind || !create || !stages || !get || !delete_program || !use){
+        Check(false,"supported pipeline context exposes required entry points");return;
+    }
+    const char* fragment="#version 120\nvoid main(){gl_FragColor=vec4(0,1,0,1);}";
+    const GLuint program=create(0x8B30U,1,&fragment);
+    GLint linked=0;get(program,0x8B82U,&linked);
+    Check(linked!=0,"separable fragment shader links");
+    if(!linked){delete_program(program);return;}
+    GLuint pipeline=0;gen(1,&pipeline);bind(pipeline);stages(pipeline,2U,program);
+    const auto sample=[](){
+        std::array<unsigned char,4> rgba{};
+        glReadPixels(320,240,1,1,GL_RGBA,GL_UNSIGNED_BYTE,rgba.data());return rgba;
+    };
+    glColor4f(1,0,0,1);Rect(-.4F,.4F,-.4F,.4F,0);
+    auto pixel=sample();Check(pixel[0]==0 && pixel[1]==255,"native pipeline actually shades green");
+    glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+    const auto before=Snapshot();
+    Check(RenderSceneGeometry(nullptr,[](void*) noexcept {
+        GLint binding=-1;glGetIntegerv(0x825AU,&binding);
+        Check(binding==0,"extension geometry runs without native program pipeline");
+        glColor4f(1,0,0,1);Rect(-.4F,.4F,-.4F,.4F,0);
+    },nullptr),"scene guard accepts supported bound pipeline");
+    pixel=sample();Check(pixel[0]==255 && pixel[1]==0,"extension uses intended fixed-function red");
+    GLint restored=-1;glGetIntegerv(0x825AU,&restored);
+    Check(static_cast<GLuint>(restored)==pipeline,"native program pipeline binding restored");
+    GLint fragment_program=0;
+    const auto get_pipeline=reinterpret_cast<Get>(procedure("glGetProgramPipelineiv"));
+    Check(get_pipeline!=nullptr,"pipeline stage inspection available");
+    if(get_pipeline){get_pipeline(pipeline,0x8B30U,&fragment_program);
+        Check(static_cast<GLuint>(fragment_program)==program,"native pipeline stage attachment unchanged");}
+    Same(before,Snapshot());
+    glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);Rect(-.4F,.4F,-.4F,.4F,0);
+    pixel=sample();Check(pixel[0]==0 && pixel[1]==255,"native rendering resumes its pipeline");
+    // A regular current program overrides the pipeline. Both bindings must
+    // survive the guard independently, including the formerly hidden pipeline.
+    use(program);glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+    const auto with_program=Snapshot();
+    Check(RenderSceneGeometry(nullptr,[](void*) noexcept {
+        GLint pipeline_binding=-1,current=-1;
+        glGetIntegerv(0x825AU,&pipeline_binding);glGetIntegerv(0x8B8DU,&current);
+        Check(pipeline_binding==0 && current==0,"guard disables both programmable bindings");
+        glColor4f(1,0,0,1);Rect(-.4F,.4F,-.4F,.4F,0);
+    },nullptr),"guard handles current program plus pipeline");
+    pixel=sample();Check(pixel[0]==255 && pixel[1]==0,"guard bypasses current program plus pipeline");
+    Same(with_program,Snapshot());glGetIntegerv(0x825AU,&restored);
+    Check(static_cast<GLuint>(restored)==pipeline,"hidden pipeline restored with current program");
+    use(0);bind(0);remove(1,&pipeline);delete_program(program);
+    std::puts("pipeline guard regression executed: native pixels, extension pixels, both bindings and stage restoration");
+    glColor4f(1,1,1,1);glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+    Check(glGetError()==GL_NO_ERROR,"pipeline guard regression leaves no GL errors");
 }
 unsigned Pixel(int x,int y){std::array<unsigned char,4> p{};glReadPixels(x,y,1,1,GL_RGBA,GL_UNSIGNED_BYTE,p.data());return p[0]+p[1]+p[2];}
 }
@@ -117,6 +200,7 @@ int main(int argc,char** argv){
         cue::ReleaseMask();wglMakeCurrent(nullptr,nullptr);wglDeleteContext(context);ReleaseDC(window,dc);DestroyWindow(window);
         return failures?1:0;
     }
+    PipelineGuardRegression();
     auto initial=Snapshot();Check(cue::BeginMask(),"mask resource creation");Same(initial,Snapshot());
     Check(cue::AllocatedMaskBytes()==640ULL*480*8,"normal mesh uses only two depth textures");
     Check(cue::BeforeOwnedDraw() && cue::BeforeLegacyGeometry(),"before legacy capture");

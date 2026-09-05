@@ -7,6 +7,7 @@ namespace wonderbane::extension {
 namespace {
 using ActiveTexture = void(APIENTRY*)(GLenum);
 using UseProgram = void(APIENTRY*)(GLuint);
+using BindProgramPipeline = void(APIENTRY*)(GLuint);
 using BlendEquation = void(APIENTRY*)(GLenum);
 using BlendEquationSeparate = void(APIENTRY*)(GLenum, GLenum);
 constexpr GLenum kTexture0 = 0x84C0U;
@@ -17,6 +18,16 @@ PROC Extension(const char* name) noexcept {
     const PROC result = wglGetProcAddress(name);
     const auto value = reinterpret_cast<std::uintptr_t>(result);
     return value <= 3U || value == UINTPTR_MAX ? nullptr : result;
+}
+
+bool HasExtension(const char* extensions, const char* name) noexcept {
+    if (!extensions) return false;
+    const std::size_t length = std::strlen(name);
+    for (const char* match = extensions; (match = std::strstr(match, name)) != nullptr; match += length) {
+        if ((match == extensions || match[-1] == ' ')
+            && (match[length] == '\0' || match[length] == ' ')) return true;
+    }
+    return false;
 }
 
 bool StackRoom(GLenum depth_name, GLenum max_name) noexcept {
@@ -42,6 +53,19 @@ bool RenderSceneGeometry(const GraphicsCameraState* camera, SceneDraw draw, void
     if (extensions != nullptr && (
         (std::strstr(extensions, "GL_ARB_vertex_program") != nullptr && glIsEnabled(0x8620U))
         || (std::strstr(extensions, "GL_ARB_fragment_program") != nullptr && glIsEnabled(0x8804U)))) return false;
+    // UseProgram(0) exposes any bound separate pipeline; it does not disable it.
+    // EXT_separate_shader_objects predates the core/ARB pipeline object API.
+    const bool pipelines = version[0] > '4'
+        || (version[0] == '4' && version[1] == '.' && version[2] >= '1')
+        || HasExtension(extensions, "GL_ARB_separate_shader_objects");
+    const auto bind_pipeline = pipelines
+        ? reinterpret_cast<BindProgramPipeline>(Extension("glBindProgramPipeline")) : nullptr;
+    GLint pipeline = -1;
+    if (pipelines) {
+        if (!bind_pipeline) return false;
+        glGetIntegerv(0x825AU, &pipeline); // GL_PROGRAM_PIPELINE_BINDING
+        if (pipeline == -1) return false; // Unknown binding: leave native state untouched.
+    }
     const auto active_texture = reinterpret_cast<ActiveTexture>(Extension("glActiveTexture"));
     const auto use_program = reinterpret_cast<UseProgram>(Extension("glUseProgram"));
     const auto blend_equation = reinterpret_cast<BlendEquation>(Extension("glBlendEquation"));
@@ -66,6 +90,7 @@ bool RenderSceneGeometry(const GraphicsCameraState* camera, SceneDraw draw, void
     glPushAttrib(GL_ALL_ATTRIB_BITS);
     glMatrixMode(GL_PROJECTION); glPushMatrix();
     glMatrixMode(GL_MODELVIEW); glPushMatrix();
+    if (bind_pipeline) bind_pipeline(0U);
     if (use_program) use_program(0U);
     if (blend_equation) blend_equation(0x8006U);
     for (GLint unit = 0; unit < units; ++unit) {
@@ -94,6 +119,7 @@ bool RenderSceneGeometry(const GraphicsCameraState* camera, SceneDraw draw, void
     glMatrixMode(GL_PROJECTION); glPopMatrix();
     glPopAttrib();
     if (use_program) use_program(static_cast<GLuint>(program));
+    if (bind_pipeline) bind_pipeline(static_cast<GLuint>(pipeline));
     if (blend_separate) blend_separate(static_cast<GLenum>(equation_rgb), static_cast<GLenum>(equation_alpha));
     else if (blend_equation) blend_equation(static_cast<GLenum>(equation_rgb));
     if (active_texture) active_texture(static_cast<GLenum>(active));
