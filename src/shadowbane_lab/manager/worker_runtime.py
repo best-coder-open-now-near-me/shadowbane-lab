@@ -143,7 +143,10 @@ class _OperationStopSignal:
         self._local.set()
 
     def is_set(self) -> bool:
-        if self._local.is_set() or self._dispatch_gate.is_set():
+        if self._local.is_set():
+            return True
+        if self._dispatch_gate.is_set():
+            self.trip()
             return True
         try:
             pending = self._ledger.pending_for(
@@ -155,8 +158,9 @@ class _OperationStopSignal:
                 now=time.time(),
             )
         except (OSError, RuntimeError, ValueError):
+            self.trip()
             return True
-        return any(
+        interrupted = any(
             operation.kind
             in {
                 WorkerOperationKind.CANCEL,
@@ -164,6 +168,9 @@ class _OperationStopSignal:
             }
             for operation in pending
         )
+        if interrupted:
+            self.trip()
+        return interrupted
 
 
 @dataclass(slots=True)
@@ -362,23 +369,8 @@ class ExactClientWorkerRuntime:
         if not pending:
             return None
         operation = pending[0]
-        observed_at = time.time()
-        ledger.publish_receipt(
-            WorkerOperationReceipt.for_operation(
-                operation,
-                WorkerOperationState.ACCEPTED,
-                observed_at=observed_at,
-                detail="accepted by exact per-client worker",
-            )
-        )
-        ledger.publish_receipt(
-            WorkerOperationReceipt.for_operation(
-                operation,
-                WorkerOperationState.ACTIVE,
-                observed_at=max(time.time(), observed_at),
-                detail="executing through the exact worker dispatch gate",
-            )
-        )
+        if not ledger.claim_for_execution(operation, now=time.time()):
+            return None
         operation_stop = _OperationStopSignal(
             publisher.dispatch_gate(),
             ledger,

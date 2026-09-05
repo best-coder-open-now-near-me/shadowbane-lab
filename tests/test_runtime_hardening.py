@@ -338,3 +338,106 @@ def test_stale_but_running_worker_is_not_replaced(tmp_path):
     )
     assert controller.ensure_started(worker_fixture.CLIENT_ID, worker_fixture._client()) is None
     assert launcher.bindings == []
+
+
+def claim_operation(root, operation, barrier, results):
+    from shadowbane_lab.manager.operation import WorkerOperationLedger
+    from tests.test_manager_operation import _manifest
+
+    ledger = WorkerOperationLedger(_manifest(), root, clock=lambda: 100.0)
+    barrier.wait(15)
+    results.put(ledger.claim_for_execution(operation, now=100.5))
+
+
+def test_independent_process_claims_execute_once_and_terminal_receipt_cannot_regress(tmp_path):
+    from shadowbane_lab.manager.operation import (
+        WorkerOperationKind,
+        WorkerOperationLedger,
+        WorkerOperationLedgerError,
+        WorkerOperationReceipt,
+        WorkerOperationState,
+        new_worker_operation,
+    )
+    from tests.test_manager_operation import _manifest, _permit
+
+    operation = new_worker_operation(_permit(), WorkerOperationKind.PVE, "/pve", now=100.0)
+    ledger = WorkerOperationLedger(_manifest(), tmp_path, clock=lambda: 100.0)
+    ledger.submit(operation)
+    context = multiprocessing.get_context("spawn")
+    barrier, results = context.Barrier(2), context.Queue()
+    contenders = [
+        context.Process(target=claim_operation, args=(str(tmp_path), operation, barrier, results))
+        for _ in range(2)
+    ]
+    for contender in contenders:
+        contender.start()
+    try:
+        assert sorted(results.get(timeout=15) for _ in contenders) == [False, True]
+        for contender in contenders:
+            contender.join(15)
+            assert contender.exitcode == 0
+    finally:
+        for contender in contenders:
+            if contender.is_alive():
+                contender.terminate()
+            contender.join(5)
+    terminal = WorkerOperationReceipt.for_operation(
+        operation, WorkerOperationState.CANCELLED, observed_at=101.0
+    )
+    ledger.publish_receipt(terminal)
+    with pytest.raises(WorkerOperationLedgerError, match="terminal"):
+        ledger.publish_receipt(
+            WorkerOperationReceipt.for_operation(
+                operation, WorkerOperationState.ACTIVE, observed_at=102.0
+            )
+        )
+    assert not ledger.claim_for_execution(operation, now=102.0)
+    assert ledger.inspect_receipt(operation.client_id, operation.operation_id) == terminal
+
+
+def test_operation_interruption_stays_latched_after_renewal_or_cancel_receipt():
+    from types import SimpleNamespace
+
+    from shadowbane_lab.manager.operation import WorkerOperationKind
+    from shadowbane_lab.manager.worker_runtime import _OperationStopSignal
+
+    class Gate:
+        stopped = False
+
+        def is_set(self):
+            return self.stopped
+
+    class Ledger:
+        pending = ()
+
+        def pending_for(self, **kwargs):
+            return self.pending
+
+    for source in ("permit", "cancel"):
+        gate, ledger = Gate(), Ledger()
+        signal = _OperationStopSignal(
+            gate,
+            ledger,
+            SimpleNamespace(client_id="client-01", instance_id="instance-1"),
+            "worker-1",
+            123,
+            456,
+        )
+        assert not signal.is_set()
+        if source == "permit":
+            gate.stopped = True
+        else:
+            ledger.pending = (SimpleNamespace(kind=WorkerOperationKind.CANCEL),)
+        assert signal.is_set()
+        gate.stopped, ledger.pending = False, ()
+        assert signal.is_set()
+        # A separately admitted operation remains independent.
+        replacement = _OperationStopSignal(
+            gate,
+            ledger,
+            SimpleNamespace(client_id="client-02", instance_id="instance-2"),
+            "worker-2",
+            234,
+            567,
+        )
+        assert not replacement.is_set()
