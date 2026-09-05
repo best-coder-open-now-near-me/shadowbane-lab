@@ -109,6 +109,17 @@ void Ownership() {
     Check(f.controls.Stop(manual) == Result::stale, "old manual stop cannot cancel new route");
     Check(f.controls.Current() == next, "new route retains ownership");
 }
+void CameraFailure() {
+    Fixture f; const auto route = f.Automate(); f.actuator.camera_ok = false;
+    f.input.right_stick = {1, 0}; f.Step();
+    Check(f.controls.Current() == route && f.actuator.Count('s') == 0,
+          "camera failure cannot revoke movement ownership");
+    Check(!f.controls.CameraReady() && f.controls.Ready(), "camera capability fails independently");
+    f.Step(); Check(f.actuator.Count('c') == 1, "camera failure is latched without repeat calls");
+    f.input.keys[0x57] = true; f.Step();
+    Check(f.controls.Current().owner == Owner::manual && f.actuator.Count('d') == 1,
+          "movement remains available after camera failure");
+}
 void Gates() {
     Fixture f; f.input.keys[0x57] = true; f.Step();
     f.input.exact_foreground = false; f.Step();
@@ -203,6 +214,6 @@ void FrameRatesAndSettings() {
 }
 }
 int main() {
-    Interpretation(); Ownership(); Gates(); Devices(); Drag(); FailureAndScene(); FrameRatesAndSettings();
+    Interpretation(); Ownership(); CameraFailure(); Gates(); Devices(); Drag(); FailureAndScene(); FrameRatesAndSettings();
     return failures ? 1 : 0;
 }
