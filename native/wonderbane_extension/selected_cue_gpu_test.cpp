@@ -15,7 +15,7 @@ int failures=0;
 void Check(bool ok,const char* label){if(!ok){std::fprintf(stderr,"%s\n",label);++failures;}}
 struct State {
     GLint program{},active{},fbo{},draw{},read{},matrix{},viewport[4]{},textures[3]{};
-    GLint depth_func{},blend_src{},blend_dst{},equation{};
+    GLint depth_func{},blend_src{},blend_dst{},equation{},stencil[8]{};
     GLboolean alpha_test{};GLfloat alpha_ref{};
     GLboolean depth{},blend{},mask{}; GLfloat clear[4]{};
 };
@@ -28,6 +28,9 @@ State Snapshot(){
     s.depth=glIsEnabled(GL_DEPTH_TEST);s.blend=glIsEnabled(GL_BLEND);
     glGetIntegerv(GL_DEPTH_FUNC,&s.depth_func);glGetIntegerv(GL_BLEND_SRC,&s.blend_src);
     glGetIntegerv(GL_BLEND_DST,&s.blend_dst);glGetIntegerv(0x8009,&s.equation);
+    const GLenum stencil_names[]{GL_STENCIL_TEST,GL_STENCIL_FUNC,GL_STENCIL_REF,GL_STENCIL_VALUE_MASK,
+        GL_STENCIL_WRITEMASK,GL_STENCIL_FAIL,GL_STENCIL_PASS_DEPTH_FAIL,GL_STENCIL_PASS_DEPTH_PASS};
+    for(unsigned n=0;n<8;++n)glGetIntegerv(stencil_names[n],&s.stencil[n]);
     s.alpha_test=glIsEnabled(GL_ALPHA_TEST);glGetFloatv(GL_ALPHA_TEST_REF,&s.alpha_ref);
     glGetBooleanv(GL_DEPTH_WRITEMASK,&s.mask);glGetFloatv(GL_COLOR_CLEAR_VALUE,s.clear);
     for(unsigned n=0;n<3;++n){active(0x84C0+n);glGetIntegerv(GL_TEXTURE_BINDING_2D,&s.textures[n]);}
@@ -37,6 +40,7 @@ void Same(const State& a,const State& b){
     Check(a.program==b.program && a.active==b.active && a.fbo==b.fbo
         && a.draw==b.draw && a.read==b.read && a.matrix==b.matrix
         && a.depth_func==b.depth_func && a.blend_src==b.blend_src && a.blend_dst==b.blend_dst
+        && std::memcmp(a.stencil,b.stencil,sizeof(a.stencil))==0
         && a.equation==b.equation && a.alpha_test==b.alpha_test && a.alpha_ref==b.alpha_ref
         && a.depth==b.depth && a.blend==b.blend && a.mask==b.mask
         && std::memcmp(a.viewport,b.viewport,sizeof(a.viewport))==0
@@ -422,6 +426,30 @@ int main(int argc,char** argv){
     glColor4f(0,0,0,1);mesh(nullptr);Check(cue::AfterOwnedDraw(),"finish equal-depth material pass");
     Check(cue::CompositeMask(s,{}),"depth-prepass character composite");
     Check(Pixel(230,240)>0,"depth prepass plus equal color pass retains character coverage");
+    glDepthMask(GL_TRUE);glDepthFunc(GL_LESS);glDisableClientState(GL_VERTEX_ARRAY);
+    // EQUAL coverage must use actual native history, not inferred selected depth.
+    // Only the left half has a matching native prepass; stale coverage from the
+    // preceding frame must not make the right half eligible.
+    glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);glClearStencil(7);glClear(GL_STENCIL_BUFFER_BIT);
+    glColor4f(0,0,0,1);Rect(-.4F,0,-.5F,.5F,0);
+    glEnableClientState(GL_VERTEX_ARRAY);glVertexPointer(3,GL_FLOAT,0,vertices);
+    Check(cue::BeginMask() && cue::BeforeOwnedDraw(),"begin partial native EQUAL coverage");
+    glDepthMask(GL_FALSE);glDepthFunc(GL_EQUAL);material=Snapshot();
+    GLfloat native_before[2]{};GLint stencil_before=0;
+    glReadPixels(230,240,1,1,GL_DEPTH_COMPONENT,GL_FLOAT,&native_before[0]);
+    glReadPixels(400,240,1,1,GL_DEPTH_COMPONENT,GL_FLOAT,&native_before[1]);
+    glReadPixels(230,240,1,1,GL_STENCIL_INDEX,GL_INT,&stencil_before);
+    Check(cue::CaptureGeometry(mesh,nullptr),"capture partial native EQUAL coverage");Same(material,Snapshot());
+    GLfloat native_after[2]{};GLint stencil_after=0;
+    glReadPixels(230,240,1,1,GL_DEPTH_COMPONENT,GL_FLOAT,&native_after[0]);
+    glReadPixels(400,240,1,1,GL_DEPTH_COMPONENT,GL_FLOAT,&native_after[1]);
+    glReadPixels(230,240,1,1,GL_STENCIL_INDEX,GL_INT,&stencil_after);
+    Check(std::memcmp(native_before,native_after,sizeof(native_before))==0 && stencil_before==stencil_after,
+        "EQUAL capture preserves native depth and stencil");
+    mesh(nullptr);Check(cue::AfterOwnedDraw(),"finish partial native EQUAL coverage");
+    Check(cue::CompositeMask(s,{}),"partial native EQUAL composite");
+    Check(Pixel(230,240)>0 && Pixel(400,240)==0,"only native EQUAL passing fragments glow");
+    Check(cue::AllocatedMaskBytes()<=640ULL*480*32,"EQUAL scratch plus legacy storage bounded");
     glDepthMask(GL_TRUE);glDepthFunc(GL_LESS);glDisableClientState(GL_VERTEX_ARRAY);
     // Whole-character union stays correct when raw and legacy nodes interleave.
     const GLfloat left_vertices[]{-.8F,-.5F,0,-.2F,-.5F,0,-.2F,.5F,0,-.8F,.5F,0};

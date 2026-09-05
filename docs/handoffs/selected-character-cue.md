@@ -974,3 +974,32 @@ the two constant-alpha coverage assertions, native foreground transparency still
 fails its original two assertions. No package, deployment, or acceptance receipt
 is produced by this change. Both focused commits belong to draft PR29 and require
 integration-owner review; the owner's branch remains the combined destination.
+
+
+### Separate EQUAL-test history from visible coverage (2026-09-05)
+
+Supersedes the incomplete constant-alpha depth-prepass draft above. Invisible
+constant-alpha and RGB-write-disabled submissions no longer enter the visible
+mask; the caller still performs the original native submission. A later visible
+EQUAL pass snapshots actual pre-draw native depth into a lazy private D24S8
+scratch target. Raw geometry records depth/alpha/program-passing coverage in
+private stencil. That stencil gates a second raw submission into the independent
+nearest-visible-depth mask. No actor, wrapper, animation, or native lifecycle
+callback is replayed, and native depth/stencil storage is not modified.
+
+This path requires a single-sample default D24S8 target and framebuffer blit
+support; other depth/stencil formats are explicitly rejected. It uses two raw
+driver submissions and two depth/stencil blits per EQUAL capture. Its live cost
+has not been measured. The extra scratch allocation is four nominal bytes per
+pixel, allocated only on EQUAL use, and released with the existing context-owned
+resources. Normal storage remains eight bytes/pixel; maximum legacy plus EQUAL
+storage becomes 32 bytes/pixel (five texture names).
+
+Actual GPU checks pass for all 12 constant-alpha cases, invisible depth prepass
+followed by visible EQUAL, existing color-disabled prepass, partial matching
+native depth, native depth/stencil and graphics-state preservation, stale-frame
+coverage, bounded allocation, and cleanup. Full DLL and GPU executable build;
+base GPU and source feasibility pass. The original two native foreground
+transparency assertions still fail. This solves selected material coverage,
+not ordered foreground compositing. Shared primitive-query protection must be
+included and combined-source verification completed before integration acceptance.
