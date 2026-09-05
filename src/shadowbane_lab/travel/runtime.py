@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable
+from dataclasses import replace
 from typing import Protocol, runtime_checkable
 
 from shadowbane_lab.client_input import ClientInputAdapter, StopSignal
@@ -11,7 +12,14 @@ from shadowbane_lab.client_observation import (
     NativePlayerPositionObservation,
     NativePlayerVitalsObservation,
 )
+from shadowbane_lab.navigation_inspector.events import (
+    DiagnosticObserver,
+    MotionEvent,
+    emit,
+    measured_position,
+)
 from shadowbane_lab.protocol import ActionBinding, DecisionMessage, DispatchResult, TargetKind
+from shadowbane_lab.travel.arrival import observe_arrival
 from shadowbane_lab.travel.model import (
     TravelDecision,
     TravelObservation,
@@ -50,7 +58,7 @@ class TravelControl(Protocol):
 
 
 class ClientTravelDecisionDispatcher:
-    """Wraps minimap directions in the shared semantic movement contract."""
+    """Wrap bounded world destinations in the shared semantic movement contract."""
 
     def __init__(self, adapter: ClientInputAdapter, *, agent_id: str = "client-self") -> None:
         if not isinstance(adapter, ClientInputAdapter):
@@ -63,8 +71,8 @@ class ClientTravelDecisionDispatcher:
     def dispatch(self, decision: TravelDecision) -> DispatchResult:
         if not isinstance(decision, TravelDecision):
             raise ValueError("decision must be TravelDecision")
-        if decision.minimap_direction is None:
-            raise ValueError("travel decision has no minimap direction")
+        if decision.minimap_direction is None or decision.click_destination is None:
+            raise ValueError("travel decision has no bounded world destination")
         correlation_id = f"travel:{decision.decision_id}:minimap"
         return self._adapter.dispatch(
             DecisionMessage(
@@ -77,8 +85,8 @@ class ClientTravelDecisionDispatcher:
                 action_key=self._adapter_action_key,
                 binding=ActionBinding(
                     actor_id=self._agent_id,
-                    target_kind=TargetKind.DIRECTION,
-                    direction=decision.minimap_direction,
+                    target_kind=TargetKind.POSITION,
+                    position=decision.click_destination,
                 ),
             )
         )
@@ -98,7 +106,7 @@ class ClientTravelDecisionDispatcher:
 
 
 class TravelRunner:
-    """Poll exact feedback and dispatch bounded minimap click leases."""
+    """Poll exact feedback, dispatch bounded destinations, and verify arrival."""
 
     def __init__(
         self,
@@ -112,6 +120,7 @@ class TravelRunner:
         maximum_consecutive_observation_failures: int = 3,
         clock: Callable[[], float] = time.monotonic,
         sleeper: Callable[[float], None] = time.sleep,
+        observer: DiagnosticObserver | None = None,
     ) -> None:
         if not isinstance(controller, TravelControl):
             raise ValueError("controller must implement TravelControl")
@@ -135,6 +144,7 @@ class TravelRunner:
             or maximum_consecutive_observation_failures <= 0
         ):
             raise ValueError("maximum_consecutive_observation_failures must be a positive integer")
+        self._observer = observer
         self._controller = controller
         self._position_reader = position_reader
         self._player_vitals_reader = player_vitals_reader
@@ -223,14 +233,6 @@ class TravelRunner:
             )
             if decision.terminal:
                 terminal = decision
-                if decision.click_count > 0:
-                    try:
-                        stop_result = self._dispatcher.stop_movement(decision)
-                        stop_input_accepted = stop_result.accepted
-                        stop_input_reason = stop_result.reason
-                    except Exception as exc:
-                        stop_input_accepted = False
-                        stop_input_reason = f"input_failure:{type(exc).__name__}"
                 break
             self._sleeper(self._poll_interval_seconds)
 
@@ -238,27 +240,103 @@ class TravelRunner:
         assert terminal.terminal_reason is not None
         final_phase = terminal.phase
         terminal_reason = terminal.terminal_reason
-        if stop_input_accepted is False:
-            final_phase = TravelPhase.STOPPED
-            terminal_reason = "movement_stop_rejected"
+        arrival_confirmed = None
+        final_position = None if last_observation is None else last_observation.position
+        if final_phase is TravelPhase.COMPLETE:
+            destination = terminal.arrival_destination
+            if destination is None:
+                arrival_confirmed = False
+                terminal_reason = "arrival_destination_unavailable"
+            else:
+
+                def record_arrival(position):
+                    now_ms = round((self._clock() - started_at) * 1000)
+                    trace.append(
+                        TravelRunTraceStep(
+                            decision=replace(terminal, now_ms=now_ms),
+                            position=position,
+                            health_fraction=None,
+                        )
+                    )
+                    emit(
+                        self._observer,
+                        MotionEvent(
+                            "motion",
+                            "observation",
+                            "runtime",
+                            now_ms,
+                            position=measured_position(position),
+                        ),
+                    )
+
+                arrival = observe_arrival(
+                    self._position_reader,
+                    destination,
+                    stop_signal=self._stop_signal,
+                    observer=record_arrival,
+                    clock=self._clock,
+                    sleeper=self._sleeper,
+                )
+                arrival_confirmed = arrival.confirmed
+                final_position = arrival.position or final_position
+                if not arrival.confirmed:
+                    terminal_reason = arrival.reason
+            if not arrival_confirmed:
+                final_phase = TravelPhase.STOPPED
+            self._debug_result(
+                "completion" if arrival_confirmed else "failure",
+                round((self._clock() - started_at) * 1000),
+                terminal_reason,
+            )
+        elif terminal.click_count > 0:
+            # Cancellation ends automation. A center click is not an immediate stop;
+            # preserve the original reason and explicitly report residual motion.
+            try:
+                stop_result = self._dispatcher.stop_movement(terminal)
+                stop_input_accepted, stop_input_reason = stop_result.accepted, stop_result.reason
+            except Exception as exc:
+                stop_input_accepted = False
+                stop_input_reason = f"input_failure:{type(exc).__name__}"
+            self._debug_result(
+                "stop_accepted" if stop_input_accepted else "stop_rejected",
+                round((self._clock() - started_at) * 1000),
+                stop_input_reason,
+            )
         return TravelRunResult(
             final_phase=final_phase,
             terminal_reason=terminal_reason,
-            final_position=None if last_observation is None else last_observation.position,
+            final_position=final_position,
             clicks=terminal.click_count,
             trace=tuple(trace),
             stop_input_accepted=stop_input_accepted,
             stop_input_reason=stop_input_reason,
+            arrival_confirmed=arrival_confirmed,
         )
 
-    @staticmethod
     def _trace(
+        self,
         decision: TravelDecision,
         observation: TravelObservation | None,
         *,
         input_accepted: bool | None = None,
         input_reason: str | None = None,
     ) -> TravelRunTraceStep:
+        if input_accepted is not None:
+            self._debug_result(
+                "input_accepted" if input_accepted else "input_rejected",
+                decision.now_ms,
+                input_reason,
+            )
+        if decision.terminal:
+            self._debug_result(
+                "arrival_candidate"
+                if decision.phase is TravelPhase.COMPLETE
+                else "cancelled"
+                if decision.terminal_reason == "emergency_stop"
+                else "failure",
+                decision.now_ms,
+                decision.terminal_reason,
+            )
         return TravelRunTraceStep(
             decision=decision,
             position=None if observation is None else observation.position,
@@ -266,3 +344,7 @@ class TravelRunner:
             input_accepted=input_accepted,
             input_reason=input_reason,
         )
+
+    def _debug_result(self, event: str, now_ms: int, reason: str | None) -> None:
+        if self._observer is not None:
+            emit(self._observer, MotionEvent("motion", event, "runtime", now_ms, reason=reason))

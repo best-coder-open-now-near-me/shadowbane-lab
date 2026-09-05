@@ -287,23 +287,13 @@ class GuardedInputAdapterTests(unittest.TestCase):
         )
         self.assertEqual(1, inspector.inspection_count)
 
-    def test_movement_stop_uses_guarded_calibrated_center_click(self) -> None:
+    def test_unsupported_instant_stop_sends_no_input(self) -> None:
         adapter, backend, inspector, _ = _client_adapter()
-        bounds = _valid_snapshot().client_bounds
-
         result = adapter.dispatch_movement_stop(correlation_id="travel:7:stop")
-
-        self.assertTrue(result.accepted)
-        self.assertEqual(
-            (
-                ClickInvocation(
-                    point=bounds.resolve(NormalizedPoint(0.5, 0.5)),
-                    button=MouseButton.LEFT,
-                ),
-            ),
-            backend.invocations,
-        )
-        self.assertEqual(1, inspector.inspection_count)
+        self.assertFalse(result.accepted)
+        self.assertIn("last clicked destination", result.reason)
+        self.assertEqual((), backend.invocations)
+        self.assertEqual(0, inspector.inspection_count)
 
 
 class PyAutoGuiBackendTests(unittest.TestCase):

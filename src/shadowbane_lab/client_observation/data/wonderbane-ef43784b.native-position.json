@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "profile_id": "wonderbane-ef43784b-player-position",
   "executable_name": "sb.exe",
   "executable_sha256": "ef43784ba6ffa0de6c0c16c76569f864393ad1530e7149395bb560e5cca30f13",
@@ -18,5 +18,15 @@
   "maximum_world_coordinate": 200000,
   "minimum_altitude": -2000,
   "maximum_altitude": 20000,
-  "maximum_sample_drift": 100
+  "maximum_sample_drift": 100,
+  "location_vtable_rva": 18136556,
+  "location_parent_offset": 8,
+  "ground_height_offset": 264,
+  "explicit_height_offset": 268,
+  "grounding_flag_offset": 326,
+  "player_collision_wrapper_offset": 1196,
+  "collision_wrapper_value_offset": 0,
+  "collision_vtable_rva": 18134512,
+  "collision_minimum_offset": 144,
+  "maximum_ground_origin_error": 0.01
 }

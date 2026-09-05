@@ -199,3 +199,12 @@ class BootstrapAuthorTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_current_version_update_uses_reviewed_bootstrap_layout():
+    profile = resolve_reviewed_bootstrap_profile(
+        "feb351f0fae87d47549fa43c37836405a753d76fbcd0b02232fc1c0733550dff"
+    )
+    assert profile.profile_id == "wonderbane-1.3.38.6-feb351f0"
+    assert profile.text == WONDERBANE_1_0_5_55FB_PROFILE.text
+    assert profile.entry_point_rva == WONDERBANE_1_0_5_55FB_PROFILE.entry_point_rva

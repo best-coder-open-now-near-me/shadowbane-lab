@@ -3,6 +3,9 @@
 #include "extension_api.h"
 #include "event_channel.h"
 #include "graphics_control.h"
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+#include "navigation_channel.h"
+#endif
 #include "graphics_status.h"
 #include "performance_telemetry.h"
 #include "world_map_capture.h"
@@ -405,6 +408,12 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
             result = wonderbane::extension::StartGraphicsControl();
             graphics_control_started = result == ERROR_SUCCESS;
         }
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+        if (result == ERROR_SUCCESS && is_client) {
+            // Optional diagnostics must never disable the ordinary renderer.
+            (void)wonderbane::extension::StartNavigationChannel(identity);
+        }
+#endif
         if (result == ERROR_SUCCESS && is_client) {
 #if defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
             result = wonderbane::extension::StartGraphicsPresentObservation();
@@ -449,6 +458,9 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
                 wonderbane::extension::StopStrongCelShading();
 #endif
             }
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+            wonderbane::extension::StopNavigationChannel();
+#endif
             if (graphics_control_started) {
                 wonderbane::extension::StopGraphicsControl();
             }

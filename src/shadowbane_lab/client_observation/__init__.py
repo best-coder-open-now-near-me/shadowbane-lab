@@ -96,6 +96,7 @@ from shadowbane_lab.client_observation.native_population import (
 )
 from shadowbane_lab.client_observation.native_position import (
     NATIVE_POSITION_PROFILE_SCHEMA_VERSION,
+    NativeGroundedPlayerPositionObservation,
     NativePlayerPositionCompatibilityError,
     NativePlayerPositionError,
     NativePlayerPositionObservation,
@@ -348,6 +349,7 @@ __all__ = [
     "NativeGroupProfile",
     "NativeGroupProfileLoadError",
     "NativeGroupReadError",
+    "NativeGroundedPlayerPositionObservation",
     "NativeGroupReader",
     "NativeHealthProfileLoadError",
     "NativeMemoryRegion",

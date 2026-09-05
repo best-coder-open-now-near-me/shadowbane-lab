@@ -2,7 +2,7 @@ import io
 import json
 import tempfile
 import unittest
-from contextlib import redirect_stderr, redirect_stdout
+from contextlib import nullcontext, redirect_stderr, redirect_stdout
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
@@ -41,10 +41,7 @@ from tests.test_client_input_executor import _valid_snapshot
 
 class ClientCliTests(unittest.TestCase):
     def test_world_map_close_plan_discovers_matching_character_configs(self) -> None:
-        config = (
-            'BEGINHOTKEYS\nKEY= "M" FALSE FALSE FALSE 48 0 0 "WorldMap"\n'
-            "ENDHOTKEYS\n"
-        )
+        config = 'BEGINHOTKEYS\nKEY= "M" FALSE FALSE FALSE 48 0 0 "WorldMap"\nENDHOTKEYS\n'
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             for name in (
@@ -1048,6 +1045,7 @@ class ClientCliTests(unittest.TestCase):
         vitals_profile = SimpleNamespace(executable_sha256="ab" * 32)
         position_reader = MagicMock()
         position_reader.process_id = 4320
+        position_reader.executable_sha256 = "cd" * 32
         position_reader.__enter__.return_value = position_reader
         vitals_reader = MagicMock()
         vitals_reader.process_id = 4320
@@ -1058,6 +1056,7 @@ class ClientCliTests(unittest.TestCase):
             final_position=NativePlayerPositionObservation(1000, 2000, 10),
             trace=(),
             clicks=1,
+            arrival_confirmed=True,
             stop_input_accepted=None,
             stop_input_reason=None,
         )
@@ -1090,6 +1089,14 @@ class ClientCliTests(unittest.TestCase):
                 return_value=RecordingInputBackend(),
             ),
             patch("shadowbane_lab.cli.TravelRunner") as travel_runner,
+            patch(
+                "shadowbane_lab.cli_commands.client_travel.open_windows_native_minimap_reader",
+                side_effect=lambda process_id: nullcontext(SimpleNamespace(process_id=process_id)),
+            ),
+            patch(
+                "shadowbane_lab.cli_commands.client_travel.optional_session",
+                return_value=nullcontext(None),
+            ) as inspector_session,
             redirect_stdout(output),
         ):
             travel_runner.return_value.run.return_value = completed_run
@@ -1111,6 +1118,7 @@ class ClientCliTests(unittest.TestCase):
                 client_process_id=4320,
             )
 
+        inspector_session.assert_called_once_with(position_reader)
         self.assertEqual(0, result)
         open_position.assert_called_once_with(position_profile, process_id=4320)
         open_vitals.assert_called_once_with(vitals_profile, process_id=4320)
@@ -1156,6 +1164,7 @@ class ClientCliTests(unittest.TestCase):
             final_position=NativePlayerPositionObservation(1000, 2000, 10),
             trace=(),
             clicks=4,
+            arrival_confirmed=True,
             stop_input_accepted=None,
             stop_input_reason=None,
         )
@@ -1204,6 +1213,10 @@ class ClientCliTests(unittest.TestCase):
                 return_value=RecordingInputBackend(),
             ),
             patch("shadowbane_lab.cli.TravelRunner") as travel_runner,
+            patch(
+                "shadowbane_lab.cli_commands.client_travel.open_windows_native_minimap_reader",
+                side_effect=lambda process_id: nullcontext(SimpleNamespace(process_id=process_id)),
+            ),
             redirect_stdout(output),
         ):
             cache = Path(directory) / "cache"
@@ -1244,7 +1257,7 @@ class ClientCliTests(unittest.TestCase):
             payload["pathfinding"],
         )
         open_zone.assert_called_once_with(native_profile, process_id=4320)
-        terrain_factory.assert_called_once_with(cache, zone_reader)
+        terrain_factory.assert_called_once_with(cache, zone_reader, observer=None)
         self.assertIs(
             astar_controller,
             travel_runner.call_args.kwargs["controller"],
@@ -1410,6 +1423,16 @@ class ClientCliTests(unittest.TestCase):
                     return_value=RecordingInputBackend(),
                 ),
                 patch("shadowbane_lab.cli.PvERunner") as pve_runner,
+                patch(
+                    "shadowbane_lab.cli_commands.client_pve.open_windows_native_minimap_reader",
+                    side_effect=lambda process_id: nullcontext(
+                        SimpleNamespace(process_id=process_id)
+                    ),
+                ),
+                patch(
+                    "shadowbane_lab.cli_commands.client_pve.optional_session",
+                    return_value=nullcontext(None),
+                ) as inspector_session,
                 redirect_stdout(output),
             ):
                 emergency_stop.return_value.__enter__.return_value = EventEmergencyStop()
@@ -1434,6 +1457,9 @@ class ClientCliTests(unittest.TestCase):
                     evidence_output_path=evidence_output,
                     stop_signal=injected_stop,
                     client_process_id=4320,
+                )
+                inspector_session.assert_called_once_with(
+                    open_position.return_value.__enter__.return_value
                 )
                 saved_evidence = json.loads(evidence_output.read_text(encoding="utf-8"))
 

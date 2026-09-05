@@ -48,6 +48,8 @@ bool BuildGraphicsCameraState(
     GraphicsCameraState* state
 ) noexcept;
 bool NeedsGraphicsCameraStateObservation() noexcept;
+// Current, unambiguous pending-present camera only; never a previous frame.
+bool ReadPendingGraphicsCameraState(GraphicsCameraState* state) noexcept;
 void ObserveGraphicsCameraState(
     const float* view_matrix,
     std::size_t view_matrix_count,

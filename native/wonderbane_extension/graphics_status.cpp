@@ -708,12 +708,14 @@ DWORD FormatCameraState(
         0U,
         "{\"schema_version\":1,\"clock\":\"windows-query-performance-counter\","
         "\"counter_frequency_hz\":%lld,"
-        "\"source\":\"unique-base-model-view-per-present\","
+        "\"source\":\"%s\","
         "\"mapping_authority\":\"runtime-observed-fixed-function-state\","
         "\"latest_sample_sequence\":%llu,\"oldest_available_sequence\":%llu,"
         "\"sample_capacity\":%llu,\"sample_count\":%llu,"
         "\"producer_drop_count\":%llu,\"samples\":[",
         static_cast<long long>(snapshot.status.performance_counter_frequency),
+        std::strcmp(snapshot.status.runtime_profile, "full-renderer") == 0
+            ? "reviewed-main-scene-boundaries" : "unique-base-model-view-per-present",
         static_cast<unsigned long long>(latest_sequence),
         static_cast<unsigned long long>(oldest_sequence),
         static_cast<unsigned long long>(kCameraStateSampleCapacity),
@@ -1527,6 +1529,19 @@ bool NeedsGraphicsCameraStateObservation() noexcept {
             || !g_status.pending_camera_ambiguous);
     ReleaseSRWLockShared(&g_state_lock);
     return needed;
+}
+
+bool ReadPendingGraphicsCameraState(GraphicsCameraState* const state) noexcept {
+    if (state == nullptr || InterlockedCompareExchange(&g_started, 0, 0) == 0
+        || !TryAcquireSRWLockShared(&g_state_lock)) {
+        return false;
+    }
+    const bool valid = g_status.configured && g_status.call_count != UINT64_MAX
+        && g_status.pending_camera_valid && !g_status.pending_camera_ambiguous
+        && g_status.pending_camera_present_sequence == g_status.call_count + 1U;
+    if (valid) *state = g_status.pending_camera.state;
+    ReleaseSRWLockShared(&g_state_lock);
+    return valid;
 }
 
 void ObserveGraphicsCameraState(

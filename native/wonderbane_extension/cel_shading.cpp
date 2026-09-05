@@ -4,6 +4,9 @@
 #include "fixed_function_state.h"
 #include "graphics_control.h"
 #include "graphics_status.h"
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+#include "navigation_viewer.h"
+#endif
 #include "terrain_trace.h"
 #include "terrain_mask_refresh.h"
 #include "import_hook.h"
@@ -227,6 +230,8 @@ thread_local std::array<float, 16U> g_immediate_scene_projection{};
 thread_local std::array<int, 4U> g_immediate_scene_viewport{};
 thread_local SceneFrameState g_scene_frame{};
 thread_local HGLRC g_main_scene_context = nullptr;
+thread_local GraphicsCameraState g_main_scene_camera{};
+thread_local bool g_main_scene_camera_valid = false;
 thread_local FixedFunctionStateMirror g_fixed_function_state{};
 thread_local HGLRC g_fixed_function_context = nullptr;
 
@@ -1436,20 +1441,6 @@ void DrawWithSilhouette(
         );
     }
     if (source_state.depth_writes) {
-        const auto get_integerv = LoadFunction<GlGetIntegerv>(&g_get_integerv);
-        int model_view_stack_depth = 0;
-        if (get_integerv != nullptr) {
-            get_integerv(kGlModelViewStackDepth, &model_view_stack_depth);
-            ObserveGraphicsCameraState(
-                model_view.data(),
-                model_view.size(),
-                projection.data(),
-                projection.size(),
-                viewport.data(),
-                viewport.size(),
-                model_view_stack_depth
-            );
-        }
         MarkDepthEdgeSceneDraw();
     }
 }
@@ -1522,27 +1513,6 @@ void APIENTRY StrongBegin(const unsigned int mode) noexcept {
                         &g_viewport_height, 0, 0
                     )),
                 };
-                if (NeedsGraphicsCameraStateObservation()) {
-                    const auto get_floatv = LoadFunction<GlGetFloatv>(
-                        &g_get_floatv
-                    );
-                    const auto get_integerv = LoadFunction<GlGetIntegerv>(
-                        &g_get_integerv
-                    );
-                    std::array<float, 16U> view{};
-                    int model_view_stack_depth = 0;
-                    if (get_floatv != nullptr && get_integerv != nullptr) {
-                        get_floatv(kGlModelViewMatrix, view.data());
-                        get_integerv(kGlModelViewStackDepth, &model_view_stack_depth);
-                        ObserveGraphicsCameraState(
-                            view.data(), view.size(),
-                            projection.data(), projection.size(),
-                            g_immediate_scene_viewport.data(),
-                            g_immediate_scene_viewport.size(),
-                            model_view_stack_depth
-                        );
-                    }
-                }
             }
         }
         original(mode);
@@ -1619,6 +1589,54 @@ void APIENTRY StrongViewport(
     }
 }
 
+// The reviewed main clear and pre-UI boundary bracket the world queue.
+// That queue pushes model-view before drawing, so per-draw stack-depth-one
+// sampling misses terrain and can observe unrelated objects. Only a matching
+// outer view at both owned boundaries may become the current scene camera.
+bool ReadOuterSceneCamera(GraphicsCameraState* const camera) noexcept {
+    const auto get_floatv = LoadFunction<GlGetFloatv>(&g_get_floatv);
+    const auto get_integerv = LoadFunction<GlGetIntegerv>(&g_get_integerv);
+    if (camera == nullptr || get_floatv == nullptr || get_integerv == nullptr
+        || g_immediate_primitive_open || IsCompilingDisplayListOnCurrentThread()) return false;
+    int depth = 0;
+    get_integerv(kGlModelViewStackDepth, &depth);
+    if (depth != 1) return false;
+    std::array<float, 16U> view{}, projection{};
+    std::array<int, 4U> viewport{};
+    get_floatv(kGlModelViewMatrix, view.data());
+    get_floatv(kGlProjectionMatrix, projection.data());
+    get_integerv(0x0BA2U, viewport.data());
+    return BuildGraphicsCameraState(view.data(), view.size(), projection.data(),
+        projection.size(), viewport.data(), viewport.size(), camera);
+}
+
+void BeginMainSceneCamera() noexcept {
+    g_main_scene_camera_valid = g_scene_frame.boundary_mapping_verified
+        && g_scene_frame.main_scene_start_count == 1U
+        && !g_scene_frame.main_scene_invalidated && g_main_scene_context != nullptr
+        && ReadOuterSceneCamera(&g_main_scene_camera);
+}
+
+bool FinishMainSceneCamera(GraphicsCameraState* const camera) noexcept {
+    const bool candidate = g_main_scene_camera_valid;
+    g_main_scene_camera_valid = false;  // A boundary can consume it only once.
+    const auto current_context = LoadFunction<WglGetCurrentContext>(&g_get_current_context);
+    GraphicsCameraState restored{};
+    if (!candidate || camera == nullptr || !g_scene_frame.boundary_mapping_verified
+        || g_scene_frame.main_scene_start_count != 1U || g_scene_frame.boundary_count != 1U
+        || g_scene_frame.main_scene_world_draw_count == 0U || g_scene_frame.main_scene_invalidated
+        || current_context == nullptr || g_main_scene_context == nullptr
+        || current_context() != g_main_scene_context || !ReadOuterSceneCamera(&restored)
+        || std::memcmp(restored.view_matrix, g_main_scene_camera.view_matrix,
+            sizeof(restored.view_matrix)) != 0
+        || std::memcmp(restored.projection_matrix, g_main_scene_camera.projection_matrix,
+            sizeof(restored.projection_matrix)) != 0
+        || std::memcmp(restored.viewport, g_main_scene_camera.viewport,
+            sizeof(restored.viewport)) != 0) return false;
+    *camera = restored;
+    return true;
+}
+
 __declspec(noinline) void APIENTRY StrongClear(const unsigned int mask) noexcept {
     const auto caller = reinterpret_cast<std::uintptr_t>(_ReturnAddress());
     const auto original = LoadFunction<GlClearBuffers>(&g_original_clear);
@@ -1629,17 +1647,20 @@ __declspec(noinline) void APIENTRY StrongClear(const unsigned int mask) noexcept
         && (mask == 0x4100U || mask == 0x4500U)
         && IsReviewedSceneCall(caller, g_scene_image_base, kSceneClearReturnRva), mask);
     if ((mask & 0x100U) != 0U) {
+        g_main_scene_camera_valid = false;
         DiscardPendingDepthEdgeScene();
         if (g_scene_frame.main_scene_start_count > 0U) {
             g_scene_frame.main_scene_invalidated = true;
         }
     }
     if (g_scene_mapping_verified && (mask == 0x4100U || mask == 0x4500U)
+        && !g_immediate_primitive_open
         && IsReviewedSceneCall(caller, g_scene_image_base, kSceneClearReturnRva)) {
         const auto current_context = LoadFunction<WglGetCurrentContext>(&g_get_current_context);
         g_main_scene_context = current_context != nullptr ? current_context() : nullptr;
         g_scene_frame.boundary_mapping_verified = true;
         ObserveMainSceneClear(&g_scene_frame);
+        BeginMainSceneCamera();
         std::array<float, 16U> projection{};
         std::array<int, 4U> viewport{};
         bool perspective = false;
@@ -1666,7 +1687,15 @@ __declspec(noinline) void APIENTRY StrongMatrixMode(const unsigned int mode) noe
             g_scene_frame.main_scene_invalidated = true;
         }
         if (BeginReviewedSceneUiBoundary(&g_scene_frame)) {
+            GraphicsCameraState camera{};
+            if (FinishMainSceneCamera(&camera)) {
+                ObserveGraphicsCameraState(camera.view_matrix, 16U,
+                    camera.projection_matrix, 16U, camera.viewport, 4U, 1);
+            }
             g_scene_frame.composite_succeeded = CompositeDepthEdgesBeforeUi();
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+            DrawNavigationInspector();
+#endif
         }
         // Even when capture is unavailable, this verified call marks UI
         // ownership. Never start modifying perspective UI widgets afterward.
@@ -1827,6 +1856,7 @@ BOOL WINAPI StrongSwapBuffers(const HDC device_context) noexcept {
     g_scene_frame = {};
     g_scene_frame.boundary_mapping_verified = g_scene_mapping_verified;
     g_main_scene_context = nullptr;
+    g_main_scene_camera_valid = false;
     InvalidateFixedFunctionState(&g_fixed_function_state);
     ObservePerformancePresent(performance_started_qpc, result != FALSE);
     return result;
@@ -2696,10 +2726,14 @@ DWORD StartStrongCelShading() noexcept {
     }};
     auto* const image = reinterpret_cast<std::uint8_t*>(executable);
     const auto image_base = reinterpret_cast<std::uintptr_t>(image);
-    const bool reviewed_executable = GraphicsExecutableSha256Matches(
-        "55fbad5f0110cd99b4085af72d1e8fddb782ccdec1491478492c18158f5c61bc")
-        || GraphicsExecutableSha256Matches(
-            "a9a59004b36f9331bb85f85e7853a02a5d5f07bda9acb9ea4a8affbf169a54b8");
+    const char* reviewed_hash = nullptr;
+    for (const char* candidate : kReviewedSceneExecutableHashes) {
+        if (GraphicsExecutableSha256Matches(candidate)) {
+            reviewed_hash = candidate;
+            break;
+        }
+    }
+    const bool reviewed_executable = reviewed_hash != nullptr;
     const bool reviewed_code = reviewed_executable
         && nt->OptionalHeader.SizeOfImage >= kSceneDisplayRva + kSceneDisplaySize
         && IsReadableMemoryRange(image + kSceneDisplayRva, kSceneDisplaySize)
@@ -2778,6 +2812,7 @@ DWORD StartStrongCelShading() noexcept {
     g_scene_frame = {};
     g_scene_frame.boundary_mapping_verified = g_scene_mapping_verified;
     g_main_scene_context = nullptr;
+    g_main_scene_camera_valid = false;
     g_fixed_function_state = {};
     g_fixed_function_context = nullptr;
     ResetBandedLighting();
@@ -2817,18 +2852,11 @@ DWORD StartStrongCelShading() noexcept {
         return present_result;
     }
     if (g_scene_mapping_verified) {
-        StartTerrainMaskRefresh(image, nt->OptionalHeader.SizeOfImage,
-            GraphicsExecutableSha256Matches(
-                "55fbad5f0110cd99b4085af72d1e8fddb782ccdec1491478492c18158f5c61bc")
-                ? "55fbad5f0110cd99b4085af72d1e8fddb782ccdec1491478492c18158f5c61bc"
-                : "a9a59004b36f9331bb85f85e7853a02a5d5f07bda9acb9ea4a8affbf169a54b8");
+        StartTerrainMaskRefresh(image, nt->OptionalHeader.SizeOfImage, reviewed_hash);
         wchar_t status_path[MAX_PATH]{};
         if (GetGraphicsStatusPath(status_path, MAX_PATH) == ERROR_SUCCESS) {
             StartTerrainTrace(status_path, image_base, nt->OptionalHeader.SizeOfImage,
-                GraphicsExecutableSha256Matches(
-                    "55fbad5f0110cd99b4085af72d1e8fddb782ccdec1491478492c18158f5c61bc")
-                    ? "55fbad5f0110cd99b4085af72d1e8fddb782ccdec1491478492c18158f5c61bc"
-                    : "a9a59004b36f9331bb85f85e7853a02a5d5f07bda9acb9ea4a8affbf169a54b8");
+                reviewed_hash);
         }
     }
     return ERROR_SUCCESS;
@@ -2997,6 +3025,7 @@ void StopStrongCelShading() noexcept {
         g_scene_mapping_verified = false;
         g_scene_image_base = 0U;
         g_main_scene_context = nullptr;
+        g_main_scene_camera_valid = false;
         InterlockedExchangePointer(&g_get_current_context, nullptr);
         ClearDisplayListBounds();
         InterlockedExchange(&g_viewport_height, 0);

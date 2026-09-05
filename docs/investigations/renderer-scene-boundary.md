@@ -101,3 +101,22 @@ Check character/prop outlines and ground seams, untouched text/UI, live baseline
 reset, and frame timings. Success counters alone are not acceptance.
 Live VM verification and visual acceptance remain required before calling the
 renderer recovered. Neither VM has been changed by this work.
+
+## 2026-09-04: navigation camera ownership
+
+The exact frozen executable above was inspected again while diagnosing zero
+accepted camera samples in the navigation inspector. The render queue routine
+`[0x79C730, 0x79C7FD)` calls `glPushMatrix` at `0x79C738`, dispatches its entries,
+and calls `glPopMatrix` at `0x79C7F1`. Per-draw sampling restricted to model-view
+stack depth one therefore misses the nested world queue. Owner-authorized,
+in-place analysis of two historical renderer traces found 40 and 54 attributed
+terrain draws, each using one consistent model-view matrix; unrelated object
+matrices are numerous and cannot establish camera ownership.
+
+The full renderer now reads the outer model-view at the existing reviewed main
+clear and requires the byte-identical restored view, projection, and viewport at
+the existing reviewed pre-UI boundary in the same context. Both reads require
+stack depth one and numeric camera validation. Only a nonempty, single, valid main
+scene can publish the result. No new client detours, draw-count heuristic, matrix
+address guesses, or relaxed stack rule are used. Historical captures support the
+investigation only; world-trail alignment remains a current-client visual gate.

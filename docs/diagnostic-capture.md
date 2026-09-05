@@ -293,8 +293,19 @@ Extension 1.6.2 implements that producer in both native profiles. It considers o
 perspective, depth-writing draws observed at model-view stack depth one. Every qualifying view,
 projection, and viewport in a present must be byte-identical; a conflict rejects the whole camera
 sample and increments `producer_drop_count`. `zoom` is the absolute vertical projection scale and
-vertical FOV is derived as `2 * atan(1 / zoom)`. The full profile calls the same status API from its
-existing classified scene path. The diagnostics-only profile uses a separate pass-through module
+vertical FOV is derived as `2 * atan(1 / zoom)`.
+
+The navigation-inspector branch replaces full-profile per-draw sampling with
+`reviewed-main-scene-boundaries`: capture the outer model-view at the verified main clear,
+then require byte-identical view/projection/viewport at the verified pre-UI boundary,
+the same graphics context, stack depth one at both boundaries, and a nonempty,
+uninvalidated main scene. Object transforms inside the world queue cannot nominate a
+camera. Missing, duplicate, changed or stale scenes cannot publish one. This adds
+only two bounded camera reads per eligible frame and removes the per-draw camera
+queries. World alignment still requires the joint live acceptance pass.
+
+The diagnostics-only profile retains the original passive rule and source name.
+It uses a separate pass-through module
 that redirects four exact, reviewed OpenGL imports and always invokes the original function without
 changing OpenGL state. It performs no game-data memory writes and uses no client offsets or
 alignment guesses; validated IAT redirection is its only in-process instrumentation.

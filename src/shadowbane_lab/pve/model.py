@@ -542,6 +542,7 @@ class PvERunTraceStep:
     approach_input_reason: str | None = None
     movement_stop_accepted: bool | None = None
     movement_stop_reason: str | None = None
+    movement_arrival_confirmed: bool | None = None
     population_character_count: int | None = None
     population_attack_eligible_count: int | None = None
     population_selected_target_token: str | None = None
@@ -549,6 +550,11 @@ class PvERunTraceStep:
     population_scan_generation: int | None = None
 
     def __post_init__(self) -> None:
+        if self.movement_arrival_confirmed is not None:
+            if type(self.movement_arrival_confirmed) is not bool:
+                raise ValueError("movement_arrival_confirmed must be boolean when present")
+            if self.approach_decision is None or not self.approach_decision.terminal:
+                raise ValueError("arrival confirmation requires a terminal approach decision")
         if not isinstance(self.decision, PvEControllerDecision):
             raise ValueError("decision must be PvEControllerDecision")
         if not isinstance(self.target_present, bool):
@@ -784,6 +790,7 @@ class PvERunTraceStep:
                     ),
                     "input_accepted": self.approach_input_accepted,
                     "input_reason": self.approach_input_reason,
+                    "movement_arrival_confirmed": self.movement_arrival_confirmed,
                     "movement_stop_accepted": self.movement_stop_accepted,
                     "movement_stop_reason": self.movement_stop_reason,
                 }

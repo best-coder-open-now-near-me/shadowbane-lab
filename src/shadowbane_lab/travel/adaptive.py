@@ -7,6 +7,7 @@ from math import hypot, sqrt
 from typing import Protocol, runtime_checkable
 
 from shadowbane_lab.client_observation import NativePlayerPositionObservation
+from shadowbane_lab.navigation_inspector.events import MotionEvent, emit, measured_position
 from shadowbane_lab.travel.controller import TravelController
 from shadowbane_lab.travel.model import (
     TravelControllerConfig,
@@ -77,6 +78,7 @@ class AStarTravelController:
         self._partial_route_count = 0
         self._route_mode: str | None = None
         self._travel_reaches_destination = False
+        self._backtrack_pending = False
         self._terminal: TravelDecision | None = None
 
     @property
@@ -122,6 +124,7 @@ class AStarTravelController:
             self._navigation is not None and navigation.token != self._navigation.token
         ):
             self._navigation = navigation
+            self._backtrack_pending = False
             try:
                 (
                     self._travel,
@@ -156,11 +159,15 @@ class AStarTravelController:
             and self._replan_count < self._maximum_replans
         ):
             assert self._navigation is not None
-            active_waypoint = self._travel.plan.destinations[decision.waypoint_index]
-            self._navigation.navigation_map.mark_blocked_ahead(
-                observation.position,
-                active_waypoint,
-            )
+            if not self._backtrack_pending:
+                active_waypoint = self._travel.plan.destinations[decision.waypoint_index]
+                self._navigation.navigation_map.mark_blocked_ahead(
+                    observation.position,
+                    active_waypoint,
+                )
+                self._backtrack_pending = True
+                return self._translate(decision)
+            self._backtrack_pending = False
             try:
                 replacement, reaches_destination, route_mode = self._plan(
                     observation,
@@ -175,6 +182,8 @@ class AStarTravelController:
                 self._route_mode = route_mode
                 self._replan_count += 1
                 decision = self._travel.step(observation)
+        elif decision.maneuver is TravelManeuver.DIRECT:
+            self._backtrack_pending = False
         return self._translate(decision)
 
     def stop(
@@ -196,6 +205,7 @@ class AStarTravelController:
         allow_partial_fallback: bool,
     ) -> tuple[TravelController, bool, str]:
         assert self._navigation is not None
+        self._debug_event("replan", observation, reason)
         planning_destination = self._planning_destination(observation)
         reaches_destination = planning_destination == self._destination
         try:
@@ -218,16 +228,51 @@ class AStarTravelController:
             route_mode = "astar_partial"
         else:
             route_mode = "astar_final" if reaches_destination else "astar_horizon"
+            if reason == "learned_obstacle":
+                try:
+                    refined_route = self._planner.plan_refined(
+                        self._navigation.navigation_map,
+                        start_lt=observation.position.lt,
+                        start_lg=observation.position.lg,
+                        destination=planning_destination,
+                        maximum_distance=(
+                            self._navigation.navigation_map.cell_size * 6
+                        ),
+                    )
+                except AStarRouteNotFound:
+                    # Re-emit the route we will actually follow after the failed
+                    # fine-grid attempt so the inspector never shows a stale plan.
+                    route = self._planner.plan(
+                        self._navigation.navigation_map,
+                        start_lt=observation.position.lt,
+                        start_lg=observation.position.lg,
+                        destination=planning_destination,
+                    )
+                else:
+                    route = refined_route
+                    reaches_planning_destination = (
+                        route.destinations[-1] == planning_destination
+                    )
+                    reaches_destination = (
+                        reaches_destination and reaches_planning_destination
+                    )
+                    route_mode = (
+                        "astar_refined_final"
+                        if reaches_destination
+                        else "astar_refined_horizon"
+                        if reaches_planning_destination
+                        else "astar_refined_local"
+                    )
         return (
             TravelController(
                 TravelPlan(
                     plan_id=(
-                        f"{self._plan_id}:{reason}:{self._replan_count}:"
-                        f"{self._navigation.token}"
+                        f"{self._plan_id}:{reason}:{self._replan_count}:{self._navigation.token}"
                     ),
                     destinations=route.destinations,
                 ),
                 self._config,
+                observer=self._planner.observer,
             ),
             reaches_destination,
             route_mode,
@@ -249,9 +294,7 @@ class AStarTravelController:
         direction_lg = delta_lg / distance
         offset_lt = observation.position.lt - window.center_lt
         offset_lg = observation.position.lg - window.center_lg
-        target_radius = window.refresh_distance + (
-            window.radius - window.refresh_distance
-        ) * 0.5
+        target_radius = window.refresh_distance + (window.radius - window.refresh_distance) * 0.5
         projection = offset_lt * direction_lt + offset_lg * direction_lg
         discriminant = (
             projection * projection
@@ -279,11 +322,40 @@ class AStarTravelController:
             arrival_radius=local_radius,
         )
 
+    def _debug_event(self, event: str, observation: TravelObservation | None, reason: str) -> None:
+        if self._planner.observer is None:
+            return
+        try:
+            position = None if observation is None else observation.position
+            emit(
+                self._planner.observer,
+                MotionEvent(
+                    "motion",
+                    event,
+                    self._plan_id,
+                    0 if observation is None else observation.now_ms,
+                    position=None
+                    if position is None
+                    else measured_position(position),
+                    destination=(
+                        self._destination.lt,
+                        self._destination.lg,
+                        self._destination.arrival_radius,
+                    ),
+                    reason=reason,
+                ),
+            )
+        except Exception:
+            pass
+
     def _stop(
         self,
         reason: str,
         observation: TravelObservation | None,
     ) -> TravelDecision:
+        self._debug_event(
+            "cancelled" if reason == "emergency_stop" else "failure", observation, reason
+        )
         if self._travel is not None:
             internal = self._travel.stop(reason, observation)
             if internal.phase is TravelPhase.STOPPED:
