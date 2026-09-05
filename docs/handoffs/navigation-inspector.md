@@ -282,14 +282,17 @@ cell `(4441, 2253)` instead of north corridor cell `(4440, 2253)` because sub-un
 promoted to a full diagonal fallback step. The source correction now chooses the first cell boundary
 crossed by the movement ray, and exact-coordinate plus end-to-end regressions pass.
 
-The owner selected local path refinement for finesse: retain the 20-unit global route, use a
-10-unit subgrid around the first learned blocker and first valid detour, then splice that refined
-segment back into the coarse route. Foliage is rare but dense where present: every occupied or
-uncertain coarse foliage cell must fill all of its subcells, so refinement follows a known patch
-boundary and never invents an unobserved gap. This should reduce the accepted 27-unit swing without
-raising the global search cost. The boundary-selection source passes 1,677 tests, 211 subtests,
-seven expected skips and Ruff.
+The owner selected local path refinement for finesse. The implementation retains the 20-unit
+coarse route as the global safety search, then uses a 10-unit grid for the first 120-unit segment
+after a learned collision. `/pve` uses the same fine planner from a learned collision to its current
+target. Exact live collisions block only the entered fine cell plus one fine-cell character
+clearance; saved navigation state schema 2 retains that precision and loads schema 1 conservatively.
 
-Next todo: checkpoint blocked-cell selection, implement the local 10-unit refinement, then repeat
-the watched x-ray pass. Bounded PvE and overlay cost/scene checks follow. PR #27 stays draft and
-unmerged.
+Foliage is rare but dense where present, and PvP must retain tactical movement inside it. Structural
+terrain blockers therefore fill all fine children, while foliage density remains a traversal cost
+copied into every fine child. A collision does not erase that cost from its neighboring children, so
+the planner may cross dense cover when that route is worthwhile without inventing a clear lane. The
+source and compatibility regressions pass 1,682 tests, 211 subtests, seven expected skips and Ruff.
+
+Next todo: package and deploy the refined source, then repeat the watched x-ray tree pass. Bounded
+PvE and overlay cost/scene checks follow. PR #27 stays draft and unmerged.

@@ -127,6 +127,11 @@ class AStarTravelControllerTests(unittest.TestCase):
             navigation.learned_blocked,
         )
         self.assertEqual(TravelManeuver.DIRECT, replanned.maneuver)
+        self.assertEqual("astar_refined_final", controller.route_mode)
+        self.assertEqual(
+            frozenset({NavigationCell(8881, 4506)}),
+            navigation.refined_learned_blocked,
+        )
         assert replanned.minimap_direction is not None
         self.assertNotEqual(0.0, replanned.minimap_direction.x)
         assert controller.active_plan is not None

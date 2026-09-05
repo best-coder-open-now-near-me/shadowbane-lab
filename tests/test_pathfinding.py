@@ -74,6 +74,7 @@ class WeightedAStarTests(unittest.TestCase):
 
     def test_blocked_ahead_uses_first_boundary_crossed_by_nearly_cardinal_route(self) -> None:
         navigation = SparseNavigationMap(cell_size=20.0)
+        navigation.set_cost(NavigationCell(4440, 2253), 8.0)
 
         blocked = navigation.mark_blocked_ahead(
             NativePlayerPositionObservation(88818.8828125, 45040.55859375, 0.0),
@@ -91,6 +92,85 @@ class WeightedAStarTests(unittest.TestCase):
         )
 
         self.assertEqual(NavigationCell(1, 1), blocked)
+
+    def test_live_collision_marks_only_the_entered_refined_child(self) -> None:
+        navigation = SparseNavigationMap(cell_size=20.0)
+        navigation.set_cost(NavigationCell(4440, 2253), 8.0)
+
+        blocked = navigation.mark_blocked_ahead(
+            NativePlayerPositionObservation(88818.8828125, 45040.55859375, 0.0),
+            TravelDestination(88819.0, 45122.0),
+        )
+        refined = navigation.refined_navigation_map()
+
+        self.assertEqual(NavigationCell(4440, 2253), blocked)
+        self.assertEqual(
+            frozenset({NavigationCell(8881, 4506)}),
+            navigation.refined_learned_blocked,
+        )
+        self.assertIn(NavigationCell(8881, 4506), refined.blocked)
+        self.assertNotIn(NavigationCell(8880, 4506), refined.blocked)
+        self.assertNotIn(NavigationCell(8881, 4507), refined.blocked)
+        grid = refined.local_grid(
+            NavigationCell(8880, 4506),
+            NavigationCell(8881, 4507),
+            WeightedAStarConfig(obstacle_clearance_cells=0),
+        )
+        self.assertEqual(8.0, grid.traversal_cost(NavigationCell(8880, 4506)))
+        self.assertEqual(8.0, grid.traversal_cost(NavigationCell(8881, 4507)))
+
+    def test_refinement_keeps_structural_walls_solid_and_foliage_traversable(self) -> None:
+        navigation = SparseNavigationMap(cell_size=20.0)
+        navigation.mark_blocked(NavigationCell(0, 0))
+        navigation.set_cost(NavigationCell(1, 0), 8.0)
+
+        refined = navigation.refined_navigation_map()
+        grid = refined.local_grid(
+            NavigationCell(2, 0),
+            NavigationCell(5, 0),
+            WeightedAStarConfig(
+                planning_margin_cells=2,
+                obstacle_clearance_cells=0,
+            ),
+        )
+
+        self.assertTrue(
+            {
+                NavigationCell(0, 0),
+                NavigationCell(0, 1),
+                NavigationCell(1, 0),
+                NavigationCell(1, 1),
+            }.issubset(refined.blocked)
+        )
+        for child in (
+            NavigationCell(2, 0),
+            NavigationCell(2, 1),
+            NavigationCell(3, 0),
+            NavigationCell(3, 1),
+        ):
+            self.assertNotIn(child, refined.blocked)
+            self.assertEqual(8.0, grid.traversal_cost(child))
+
+    def test_refined_plan_is_bounded_to_one_local_route_slice(self) -> None:
+        navigation = SparseNavigationMap(cell_size=20.0)
+        navigation.mark_blocked_ahead(
+            NativePlayerPositionObservation(10.0, 10.0, 0.0),
+            TravelDestination(200.0, 10.0),
+        )
+        planner = WeightedAStarPlanner(
+            WeightedAStarConfig(obstacle_clearance_cells=0)
+        )
+
+        route = planner.plan_refined(
+            navigation,
+            start_lt=10.0,
+            start_lg=10.0,
+            destination=TravelDestination(200.0, 10.0),
+            maximum_distance=120.0,
+        )
+
+        self.assertEqual((130.0, 10.0), (route.destinations[-1].lt, route.destinations[-1].lg))
+        self.assertTrue(any(cell.y != 1 for cell in route.cells))
 
     def test_zero_clearance_keeps_single_obstacle_detour_local(self) -> None:
         navigation = SparseNavigationMap(cell_size=20.0)

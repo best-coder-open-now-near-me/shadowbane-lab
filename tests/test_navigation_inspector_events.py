@@ -148,7 +148,9 @@ def test_adaptive_replanning_keeps_the_same_observer_on_replacement_controller()
     controller.step(observation(200, -5.0, 5.0))
     plans = [e for e in events if isinstance(e, PlanEvent)]
     motions = [e for e in events if isinstance(e, MotionEvent)]
-    assert len(plans) == 2
+    assert len(plans) == 3
+    assert plans[-2].cell_size == 10.0
+    assert plans[-1].cell_size == 5.0
     assert plans[-1].learned_blocked
     assert any("learned_obstacle" in e.plan_id for e in motions)
     assert any(e.event == "stall" for e in motions)

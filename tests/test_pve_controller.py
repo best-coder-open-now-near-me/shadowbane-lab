@@ -17,6 +17,7 @@ from shadowbane_lab.client_observation import (
     NativeTargetIdentityReadError,
     NativeTargetPositionObservation,
 )
+from shadowbane_lab.navigation_inspector.events import PlanEvent
 from shadowbane_lab.protocol import DispatchResult
 from shadowbane_lab.pve import (
     CombatLogSource,
@@ -1672,6 +1673,7 @@ class PvEApproachControllerTests(unittest.TestCase):
 
     def test_stalled_native_chase_backtracks_before_astar_replan(self) -> None:
         navigation = SparseNavigationMap()
+        events = []
         approach = PvEApproachController(
             PvEApproachConfig(
                 native_progress_grace_ms=100,
@@ -1684,6 +1686,7 @@ class PvEApproachControllerTests(unittest.TestCase):
                 ),
             ),
             navigation_map=navigation,
+            planner=WeightedAStarPlanner(observer=events.append),
         )
 
         def observe(now_ms: int):
@@ -1710,6 +1713,9 @@ class PvEApproachControllerTests(unittest.TestCase):
         self.assertGreater(len(navigation.blocked), 0)
         self.assertEqual("moving", replanned.status.value)
         self.assertEqual(TravelManeuver.DIRECT, replanned.decision.maneuver)
+        plans = [event for event in events if isinstance(event, PlanEvent)]
+        self.assertEqual(10.0, plans[-1].cell_size)
+        self.assertEqual(1, plans[-1].planner_clearance_cells)
 
     def test_initial_astar_no_route_becomes_recoverable_approach_failure(self) -> None:
         class NoRoutePlanner(WeightedAStarPlanner):

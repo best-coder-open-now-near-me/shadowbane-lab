@@ -444,12 +444,13 @@ class PvEApproachController:
         destination: TravelDestination,
     ) -> TravelController:
         assert observation.player_position is not None
+        learned_replan = self._travel is not None
         self._debug_event(
             "replan",
             observation,
             destination,
             reason="learned_obstacle"
-            if self._travel is not None
+            if learned_replan
             else "forced_reposition"
             if self._forced_reposition
             else "native_chase_stalled",
@@ -460,6 +461,21 @@ class PvEApproachController:
             start_lg=observation.player_position.lg,
             destination=destination,
         )
+        if learned_replan:
+            try:
+                route = self._planner.plan_refined(
+                    self._navigation_map,
+                    start_lt=observation.player_position.lt,
+                    start_lg=observation.player_position.lg,
+                    destination=destination,
+                )
+            except AStarRouteNotFound:
+                route = self._planner.plan(
+                    self._navigation_map,
+                    start_lt=observation.player_position.lt,
+                    start_lg=observation.player_position.lg,
+                    destination=destination,
+                )
         assert self._target_token is not None
         return TravelController(
             TravelPlan(

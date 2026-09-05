@@ -9,8 +9,10 @@ from pathlib import Path
 
 from shadowbane_lab.travel.pathfinding import NavigationCell, SparseNavigationMap
 
-_SCHEMA_VERSION = 1
+_SCHEMA_VERSION = 2
+_SUPPORTED_SCHEMA_VERSIONS = frozenset({1, 2})
 _MAXIMUM_LEARNED_CELLS = 50_000
+_MAXIMUM_REFINED_CELLS = 200_000
 
 
 class LearnedNavigationStateError(ValueError):
@@ -36,8 +38,11 @@ def load_learned_navigation_map(
         raise LearnedNavigationStateError(
             f"could not read learned navigation state: {exc}"
         ) from exc
-    if not isinstance(payload, dict) or payload.get("schema_version") != _SCHEMA_VERSION:
+    if not isinstance(payload, dict) or payload.get("schema_version") not in (
+        _SUPPORTED_SCHEMA_VERSIONS
+    ):
         raise LearnedNavigationStateError("learned navigation state has an unsupported schema")
+    schema_version = payload["schema_version"]
     stored_cell_size = payload.get("cell_size")
     if (
         isinstance(stored_cell_size, bool)
@@ -61,8 +66,56 @@ def load_learned_navigation_map(
         ) from exc
     if len(restored) != len(cells):
         raise LearnedNavigationStateError("learned navigation blocked_cells must be unique")
+    if schema_version == 1:
+        for cell in restored:
+            navigation_map.mark_learned_blocked(cell)
+        return navigation_map
+
+    stored_refined_cell_size = payload.get("refined_cell_size")
+    if (
+        isinstance(stored_refined_cell_size, bool)
+        or not isinstance(stored_refined_cell_size, (int, float))
+        or not isfinite(stored_refined_cell_size)
+        or float(stored_refined_cell_size) != navigation_map.refined_cell_size
+    ):
+        raise LearnedNavigationStateError(
+            "learned navigation state targets a different refined cell size"
+        )
+    refined_cells = payload.get("refined_blocked_cells")
+    if not isinstance(refined_cells, list):
+        raise LearnedNavigationStateError(
+            "learned navigation refined_blocked_cells must be an array"
+        )
+    if len(refined_cells) > _MAXIMUM_REFINED_CELLS:
+        raise LearnedNavigationStateError(
+            "learned navigation state exceeds its refined cell limit"
+        )
+    try:
+        restored_refined = {_parse_cell(item) for item in refined_cells}
+    except ValueError as exc:
+        raise LearnedNavigationStateError(
+            f"learned navigation state contains an invalid refined cell: {exc}"
+        ) from exc
+    if len(restored_refined) != len(refined_cells):
+        raise LearnedNavigationStateError(
+            "learned navigation refined_blocked_cells must be unique"
+        )
+    refined_by_parent: dict[NavigationCell, list[NavigationCell]] = {}
+    factor = navigation_map.refinement_factor
+    for refined_cell in restored_refined:
+        parent = NavigationCell(refined_cell.x // factor, refined_cell.y // factor)
+        if parent not in restored:
+            raise LearnedNavigationStateError(
+                "refined learned blocker has no matching coarse blocker"
+            )
+        refined_by_parent.setdefault(parent, []).append(refined_cell)
     for cell in restored:
-        navigation_map.mark_learned_blocked(cell)
+        precise = refined_by_parent.get(cell)
+        if not precise:
+            navigation_map.mark_learned_blocked(cell)
+            continue
+        for refined_cell in precise:
+            navigation_map.mark_refined_learned_blocked(cell, refined_cell)
     return navigation_map
 
 
@@ -77,12 +130,21 @@ def save_learned_navigation_map(
     if not isinstance(navigation_map, SparseNavigationMap):
         raise LearnedNavigationStateError("navigation_map must be SparseNavigationMap")
     cells = sorted(navigation_map.learned_blocked)
+    refined_cells = sorted(navigation_map.refined_learned_blocked)
     if len(cells) > _MAXIMUM_LEARNED_CELLS:
         raise LearnedNavigationStateError("learned navigation state exceeds its cell limit")
+    if len(refined_cells) > _MAXIMUM_REFINED_CELLS:
+        raise LearnedNavigationStateError(
+            "learned navigation state exceeds its refined cell limit"
+        )
     payload = {
         "schema_version": _SCHEMA_VERSION,
         "cell_size": navigation_map.cell_size,
+        "refined_cell_size": navigation_map.refined_cell_size,
         "blocked_cells": [{"x": cell.x, "y": cell.y} for cell in cells],
+        "refined_blocked_cells": [
+            {"x": cell.x, "y": cell.y} for cell in refined_cells
+        ],
     }
     temporary_path = state_path.with_name(f".{state_path.name}.{os.getpid()}.tmp")
     try:

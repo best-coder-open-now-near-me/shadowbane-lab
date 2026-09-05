@@ -228,6 +228,41 @@ class AStarTravelController:
             route_mode = "astar_partial"
         else:
             route_mode = "astar_final" if reaches_destination else "astar_horizon"
+            if reason == "learned_obstacle":
+                try:
+                    refined_route = self._planner.plan_refined(
+                        self._navigation.navigation_map,
+                        start_lt=observation.position.lt,
+                        start_lg=observation.position.lg,
+                        destination=planning_destination,
+                        maximum_distance=(
+                            self._navigation.navigation_map.cell_size * 6
+                        ),
+                    )
+                except AStarRouteNotFound:
+                    # Re-emit the route we will actually follow after the failed
+                    # fine-grid attempt so the inspector never shows a stale plan.
+                    route = self._planner.plan(
+                        self._navigation.navigation_map,
+                        start_lt=observation.position.lt,
+                        start_lg=observation.position.lg,
+                        destination=planning_destination,
+                    )
+                else:
+                    route = refined_route
+                    reaches_planning_destination = (
+                        route.destinations[-1] == planning_destination
+                    )
+                    reaches_destination = (
+                        reaches_destination and reaches_planning_destination
+                    )
+                    route_mode = (
+                        "astar_refined_final"
+                        if reaches_destination
+                        else "astar_refined_horizon"
+                        if reaches_planning_destination
+                        else "astar_refined_local"
+                    )
         return (
             TravelController(
                 TravelPlan(
