@@ -318,3 +318,46 @@ expected-success. The existing package pipeline will stop on this regression.
 The cost-reduced capture and lifecycle work are published, but correct native
 foreground transmission remains unfinished shared renderer integration. The
 feature is not ready for manual acceptance or a completion claim.
+
+## Combined source verification and steady-frame cost
+
+The lane independently built exact owner source
+`c2f9c997870760bb1a347bd3a6006199038265b8` in its own clean detached verification
+worktree. The 30-test native suite had 27 passes, two no-argument binding skips,
+and the required effects native-transparency failure in both depth modes. The
+cue private-client binding test was then supplied the reviewed executable and
+passed. Cue GPU, runtime, identity/math, shared context, sky and navigation checks
+passed. This source includes cue `8967438`, but predates the additional required
+cue-transparency test at `0613b97`; its ordinary cue GPU pass is not evidence of
+correct native transparency. No certifiable package was produced at this pin.
+
+The original four-frame cost sample on that combined source measured 2.747 ms at
+640x480 and 4.362 ms at 1080p, illustrating host-load variance relative to earlier
+samples. The cost mode now reports cold initialization separately, warms three
+paired frames, then measures 16 native-only and cue-enabled frames in alternating
+order. It reports median, range and nominal texture storage; `glFinish` includes
+CPU/GPU synchronization. These are synthetic 46-submission host tests, not live
+client frame-time certification or a representative mesh-complexity benchmark.
+
+The updated feature test measured 640x480 enabled median 1.897 ms (1.646–2.316 ms),
+native-only median 0.069 ms, and cold setup frame 2.654 ms. At 1080p it measured
+2.646 ms (2.428–2.985 ms), native-only 0.095 ms, and cold frame 3.528 ms. Normal
+mask storage remains 15.820 MiB at 1080p. General GPU assertions passed during
+this run. Unknown command-line modes now exit 2 instead of silently running the
+default test. The native-transparency mode still exits 1 with both documented
+pixel mismatches; the harness check of this known failure does not make it pass.
+
+Next active todo is the shared foreground-transmission correction, followed by
+verification at the owner's next exact combined source and actual package build.
+No certified complete translucent stage was found in the queue investigation;
+per-wrapper composition would not preserve the whole-character silhouette.
+Both feature and lane-owned verification worktrees are retained for this work.
+
+
+The required transmission probe now also places native glass behind the selected
+character and samples the halo outside the mesh's native depth coverage. Both
+background depth modes produce expected/current RGB `(84,122,143)`. Moving all
+cue composition before glass instead produces `(142,61,72)` in both modes. The
+probe asserts this counterexample is distinct, preventing the foreground-only
+fixture from suggesting a wholesale earlier pass is sufficient. Existing two
+foreground mismatches remain required failures; the ordinary GPU suite passes.
