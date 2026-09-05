@@ -1158,3 +1158,30 @@ with no extension; evidence live-vm-20260905-170840.json is retained locally.
 Next input: scoped permission to use existing VM setup credentials for the
 read-only preparation check. Installation/relaunch approval remains separate,
 after the isolated-runtime/restoration procedure is concrete and reviewable.
+
+### Approved diagnostic-share preflight completed
+
+The owner explicitly approved existing VM credential use for read-only preparation
+and then staging the diagnostic source, DLL and bootstrap manifest in the existing
+VM diagnostics share. No installation, process launch or settings change occurred.
+The codexrepo share points at a missing host directory; its mapping was not changed.
+Inputs were staged at the existing codexdiag share's diagnostic-f9c6f7a-preflight
+folder. All 393 source files and the exact full DLL were hash-compared successfully.
+
+The first usable guest dry-run rejected the manifest's review-copy filename.
+Regenerated through the existing author-bootstrap command against the frozen
+baseline's sb.exe; no validation bypass or executable change was made.
+Correct activation input: local 32073800/activation/bootstrap-sb-manifest.json,
+staged as bootstrap-manifest.json, SHA256
+346287965c2f87faaf11824d847e7af3abe9a8725db34114f5cbf7e565527076.
+The earlier bootstrap-manifest.json in the local activation folder is superseded.
+These activation inputs are separate from the immutable diagnostic archive.
+
+The production prepare-copy guest dry-run now exits zero with dry_run=true and
+destination_published=false. Evidence: artifacts/hardening-evidence/
+diagnostic-guest-dry-run.log (local only). Proposed destination remains
+S:/ShadowbaneLab-Guided/diagnostic-f9c6f7a/client; no runtime was published there.
+Build source remains f9c6f7a57526ec192aa1273b0a1612359a1474db, not this receipt commit.
+Next: finish the isolated launch/restoration procedure and coordinate the two
+narrow foreground observations before requesting separate activation approval.
+The cue/effects transparency failures remain open; this is not owner acceptance.
