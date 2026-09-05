@@ -249,3 +249,12 @@ contention. The probe verifies free-list ownership, other size-class isolation,
 payload preservation and lock release using private globals and two verified
 Win32 imports. Runtime code is unchanged. This closes the isolated pool cleanup
 check; it does not complete native stop composition or enable controls.
+
+
+GitHub delivery metadata audit: PR31 is merged at its historical movement head
+`8536b20576fc11bc2ee33e49761f104753165b75`; subsequent movement checkpoints were
+merged separately into this branch. PR30 is also merged. PR28 and PR29 remain
+open against `codex/navigation-inspector`, despite the intended new source
+integration destination being this hardening branch. The branch map now states
+the actual metadata and owners were notified to reconcile future review targeting.
+No main merge, PR closure, branch deletion or runtime deployment was performed.

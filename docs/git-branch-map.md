@@ -12,9 +12,14 @@ base: `14d117e8c5194c6dff55dac608b2d3f683187d31`. The normal checkout remains
 `main`; do not reset or switch another developer's checkout. This does not
 supersede historical source/retirement records below or authorize main merge or VM deployment.
 
-Particles (`codex/particles-trails`, PR28), selected cue
-(`codex/selected-character-cue`, PR29), sky (`codex/sky-horizon`, PR30), and native
-movement (`codex/native-movement-controls`, PR31) target this integration branch.
+The four feature source branches target this integration owner:
+`codex/particles-trails`, `codex/selected-character-cue`, `codex/sky-horizon`, and
+`codex/native-movement-controls`. GitHub metadata audited September 5: PR28 and
+PR29 remain open with the older `codex/navigation-inspector` base; their owners
+must reconcile review targeting with the intended hardening destination as new
+unintegrated work becomes available. PR30 and PR31 are already merged checkpoint
+PRs, not open reviews of subsequent commits. Exact newer source inclusion is
+recorded in the handoffs and verified by ancestry.
 Useful dependencies are merged during development. Features enter rolling owner
 candidates only when complete; newer movement work must not indefinitely delay
 completed older features. Shared scene/context/startup and manager ownership
