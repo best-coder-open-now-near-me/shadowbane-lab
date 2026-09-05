@@ -395,3 +395,20 @@ collector, runtime replay or guessed ABI was added. Next is a bounded ordered
 transmission strategy preserving distinct native submissions and cue tap depths;
 this successful experiment alone does not provide that integration or certify
 an owner-facing package. Full movement stop/input integration remains open.
+
+
+Particles operator regression `b0010bb97a0b3d9d6c99eb6c84e58d41c22230e2` is
+included as `84c1e44`; root compatibility adjustment is exact combined source
+`0376ae083cc0bcf5406d8544bef1b69c1f30f835`. The existing navigation executable
+now exposes `--ordered-operators` as a distinct CTest, isolating its eight-bit
+alpha-buffer requirement from ordinary navigation, combined render and screenshot
+paths. Both profile targets build; navigation, ordered operators and combined
+render each pass with zero skips. Required effects/native transparency still
+fails both behind-surface cases and passes front cases. Evidence:
+`artifacts/hardening-evidence/operators-native-{full,diagnostics}.xml` and build logs.
+The 20 RGBA restricted cases preserve native order, equal-depth behavior and two
+effect depths. Negative witnesses reject nonlinear destination factors and even
+additive factors after framebuffer saturation. Factors alone do not establish
+an affine resolve domain. No atlas or runtime resolver was added. Next remains
+opaque visibility and per-tap destination-depth coverage, followed by an exact
+bounded transmission strategy; these tests do not certify complete features.
