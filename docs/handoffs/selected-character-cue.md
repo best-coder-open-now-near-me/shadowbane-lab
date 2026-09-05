@@ -885,3 +885,29 @@ missing required APIs on an advertised capable context fail. The ordinary cue
 GPU test no longer silently includes an optional subtest. The integration owner
 owns adding its named CTest and required package-gate membership to the combined
 source. Runtime support for older contexts remains unchanged.
+
+
+## Independent combined verification: 1b0b6c5
+
+Verified exact owner-published source
+1b0b6c5f29c7015c85006a570686253f30676f92 in the lane-owned detached verification
+worktree. It includes production fix 6ca19048e3eb4c40a52d1c2527cef5d0ae2840b5
+and explicit test mode f1a56c27db0e3bc90b221f7c2a3f4f5ce256884c. The guard C++
+and GPU test match the feature branch; the reconciled header correctly retains
+both verified background and scene/UI boundary authority.
+
+Independently built the Release full-profile DLL and cue GPU target. Named
+scene_pipeline_guard, base selected_cue_gpu, and source_feasibility all execute
+and pass. Required selected_cue_native_transparency executes and fails both
+foreground cases, unchanged; background cases pass. Zero skips across the four
+checks. Evidence: E:/Projects/shadowbane/artifacts/cue-combined-native/1b0b6c5/lane-cue.xml.
+Reviewed central CTest registration and package builder required-set validation:
+a missing, skipped, failed, or duplicate pipeline gate cannot certify a package.
+The integration owner separately reports both profiles' affected rendering gates
+pass with zero skips; this lane's independent build is full-profile only.
+
+The shared pipeline correction is integrated and verified. Next active todo is
+correct opaque visibility and ordered native foreground transmission. Final
+package validation and consolidated live acceptance remain outstanding; no
+completion or installable-candidate claim is made. The feature worktree remains
+on codex/selected-character-cue; normal main and navigation checkouts are untouched.
