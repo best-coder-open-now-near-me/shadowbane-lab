@@ -189,3 +189,37 @@ remain in that ignored artifact directory; build output remains in ignored
 `build/cue-full`. Package receipts preserve their original source and log paths.
 The normal main checkout and navigation checkout are not modified by this lane.
 The feature worktree is retained for the pending combined-source verification.
+
+## Combined dependency verification and cue lifecycle follow-up
+
+Verified owner source `50ad9e1dd83a67de3bc814a098dc4230b0393299` in an isolated
+read-only checkout at `E:/Projects/shadowbane/.worktrees/cue-combined-verification`.
+Full package passed: 1,715 Python tests, 223 subtests, 8 skips; Ruff; both native
+profiles (23 passing CTests and the private binding check separately passing);
+sdist/wheel, entry point, inspector, effects and selection installed UI checks.
+Package `E:/Projects/shadowbane/artifacts/cue-combined-packages/5ecad118/navigation-inspector-acceptance.zip`,
+SHA-256 `649f670036d427a8854346c24cd5f86b531598a425560b385aa74dc979cc9721`.
+Shared source lists, panel disconnects, boundary camera checks and pass ordering
+were reviewed. This dependency checkpoint predates the owner's final lifecycle
+repairs and does not resolve material coverage.
+
+The subsequent cue lifecycle fix consumes `render_lifetime.h` verbatim from owner
+`8961fad07ff00c40b511f5b8f9562669069aad39`. All cue callbacks and public scene
+entries lease that same recursive admission domain; Start/Stop use its mutation
+lock. Stop drains admitted wrappers and retains original call-through. It advances
+a generation so old render-thread selection, direction and mask state cannot be
+reused after restart. Each thread releases its old mask on its next cue entry,
+before creating new-generation resources.
+
+The cleanup-only `wglMakeCurrent` import hook deliberately remains installed while
+the process-pinned extension lives, including while the feature is stopped. It
+releases resources on the owning thread before unbind/switch; restart recognizes
+and reuses the installed hook without chaining to itself. A stopping worker never
+deletes another context's objects. If a render thread makes no subsequent cue or
+context call, its bounded GL objects remain with that context until the normal
+context/process destruction. Hot unload is not supported or requested. Any new
+owner context path bypassing that game import must call `ReleaseSelectedCueContext`
+on the owning thread before unbind/destruction. The held-wrapper regression checks
+drain, concurrent stop/restart serialization, retained cleanup hook, and owning-thread
+release before new-generation reuse. Final combined-source verification must
+include this lifecycle follow-up.
