@@ -479,7 +479,8 @@ app.close()
     run("installed-trace-reader", [python, "-c", """
 import json, pathlib, sys, tempfile
 from shadowbane_lab.diagnostics import terrain_trace
-assert pathlib.Path(terrain_trace.__file__).resolve().is_relative_to(pathlib.Path(sys.prefix).resolve())
+installed_root = pathlib.Path(sys.prefix).resolve()
+assert pathlib.Path(terrain_trace.__file__).resolve().is_relative_to(installed_root)
 payload = {"transmission_state": {"program": 0, "framebuffer": 0},
            "quad_support": {"program_pipeline": 0}}
 with tempfile.TemporaryDirectory() as directory:
@@ -511,12 +512,12 @@ with tempfile.TemporaryDirectory() as directory:
             f"Exact source: {revision}\n"
             "Known full transparency gate failures remain recorded in diagnostic-manifest.json.\n"
             "No VM installation, deployment or activation is authorized by this artifact.\n"
-            "The full-profile DLL contains the opt-in terrain observer; diagnostics-only does not.\n"
-            "Both profiles are retained for verification, not interchangeable observer capability.\n"
+            "Only the full-profile DLL contains the opt-in terrain observer.\n"
+            "Both profiles are retained for verification; their capabilities differ.\n"
             "Existing capture-wonderbane-terrain-trace.ps1 requests one bounded frame.\n"
             "Activation requires an exact isolated runtime, disabled visual/movement settings,\n"
             "verified restoration and separate owner authorization. No current client overwrite.\n"
-            "A captured frame identifies observed submissions/state only, not opaque completeness.\n",
+            "A frame identifies observed submissions/state, not opaque completeness.\n",
             encoding="utf-8",
         )
         artifacts.append(diagnostic_note)
