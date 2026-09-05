@@ -28,9 +28,10 @@ remain with the integration owner.
 See [the active source and validation handoff](handoffs/native-lifecycle-hardening.md)
 for exact included revisions, committed repairs and outstanding gates. Native
 foreground transparency currently fails required effects and cue acceptance
-checks. Movement includes the shared update hook and unbound native stop, camera,
-steering, terrain-pick and drag components. Input/UI/settings/grant integration
-and activation remain unfinished. No newly combined wheel/DLL acceptance
+checks. Movement now registers one native update/input runtime after shared startup,
+defaults disabled, and composes native stop, camera, steering, terrain-pick and
+drag with exact lifetime and HWND safety handling. User settings and immutable
+command/grant integration remain unfinished; no connected capability is certified. No newly combined wheel/DLL acceptance
 identity is certified yet. Preserve all active branches/worktrees; retirement
 requires verified inclusion and applicable approval.
 

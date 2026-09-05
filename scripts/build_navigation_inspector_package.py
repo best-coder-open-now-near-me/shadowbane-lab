@@ -162,8 +162,8 @@ def main() -> int:
             for item in project_root.findall(f".//{{*}}{tag}")
             if "Include" in item.attrib
         ]
-        # Stop/policy components are compiled but remain unbound until the feature
-        # owner completes runtime activation. Membership is not a capability claim.
+        # The native consumer registers after successful startup and defaults disabled.
+        # Membership does not certify complete settings/transport capability.
         for movement_source in (
             "movement_boundary_trace.cpp",
             "movement_controls.cpp",
@@ -172,6 +172,7 @@ def main() -> int:
             "movement_native_stop.cpp",
             "movement_native_ui.cpp",
             "movement_windows_input.cpp",
+            "movement_runtime.cpp",
         ):
             if included_sources.count(movement_source) != 1:
                 raise RuntimeError(

@@ -745,3 +745,28 @@ A repeated Bind/XInput module reference issue was routed back to the movement
 owner before activation. Next remains that correction, nested safety/runtime,
 settings and typed grants, existing transparency repair, complete-candidate review
 and exact installed-package acceptance.
+
+Native consumer e5b910deb93727fa7f6e8bb6ef39bcca8b2ec1c8 is included at
+0287cd97cfc72fdf9054cf0dfc57ecd126a8fdaa, with this shared integration correction.
+The first combined all-target build exposed an unresolved new dependency in the
+existing extension_startup_test. Its external-service seam now supplies the
+controls entry point and tests actual production initializer ordering: heartbeat
+success precedes registration; repeat initialize does not register twice;
+unsupported optional controls preserve success; shared rollback never registers.
+Both complete DLL profiles subsequently build. Each executes 66 movement/runtime,
+shared-update, startup, context and combined-render checks successfully, zero skips.
+Evidence: artifacts/hardening-evidence/movement-runtime-full.xml and
+movement-runtime-diagnostics.xml, with build logs. These runtime tests exercise
+production composition with real HWNDs and controlled native callees, including
+focus without updates, nested interruptions, drag release, chat and stale tickets.
+They do not certify actual server/gameplay behavior. The repeated Bind/XInput
+reference issue is closed by admission-before-load and its passing regression.
+
+The consumer now registers only after shared startup success and defaults disabled;
+ordinary disable retains it for re-enable. Existing builder checks now require
+movement_runtime.cpp exactly once in both generated DLL projects; their actual
+membership statements and builder Ruff pass. Branch map reflects that registration,
+without advertising completed settings/transport capability. Next: native settings
+and Graphics Lab discovery, immutable wire/session API and manager composition,
+existing cue/effects transparency repair, complete-candidate independent review
+and exact installed-package verification before owner acceptance.
