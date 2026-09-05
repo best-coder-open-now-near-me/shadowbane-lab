@@ -1379,3 +1379,38 @@ Particles reviewed shared cc91cc1 source: no effects consumer conflict, because
 all effects use the shared scene guard. This was source review only, not an
 independent execution of cc91cc1 gates. Next remains the cue correction and ordered
 native coverage work; no owner input or new installation is required for that work.
+
+### Corrected cue depth/visible-coverage slice integrated together
+
+Consumed cue81db95167965ab1a75557d29c718922580f2daf3,
+d6c16c9abbca0d242aadd8c7645affadd8defcc1 and
+d1168438107cfcbd80ae2384f21ab01e63531528 together, mapping to integration
+1b2b417, e1f0643 and e7a648bc0f713d828dbaff95e1919c16d480730e. This supersedes
+the standalone-patch hold above; never certify either intermediate state alone.
+Only a chronological handoff append conflicted; preserved both evidence entries.
+Source changes merged with AreSceneGeometryQueriesInactive intact.
+
+The completed focused correction distinguishes invisible material depth history
+from visible coverage. Native EQUAL testing uses a lazy private D24S8 scratch
+snapshot, passing fragments mark private stencil, and selected visible depth
+accumulates independently. Native object callbacks are not replayed. Existing
+native query guards remain ahead of supplemental work. Requires supported blit
+and exact default single-sample D24S8 for this EQUAL path; other targets fail closed.
+Added cost: 4 bytes/pixel after first EQUAL use, two raw submissions and two blits
+per EQUAL capture. Feature owner is extending existing cost mode to measure this
+path; previous ordinary-capture timings do not certify the new path's live cost.
+
+Actual combined validation: both production DLL targets and both cue/navigation
+GPU harnesses rebuilt. Cue GPU, shared query/pipeline guards, source feasibility,
+navigation draw, ordered operators and combined render all execute/pass in both
+profiles: 7/7 per profile, zero skips. Native depth/stencil/state preservation,
+invisible constant-alpha cases, native prepass then visible EQUAL, partial EQUAL
+coverage and resource cleanup execute in the base GPU test. Local XML:
+cue-equal-combined-full.xml and cue-equal-combined-diagnostics.xml.
+
+Explicit full-profile required cue/effects native-transparency gates both still
+fail their same two foreground/behind-native cases, with unchanged pixel values;
+retained in cue-equal-transparency.xml. This material correction does not resolve
+the general ordered-transparency requirement. Exact combined source sent to cue
+owner for independent verification. No new package, installation, or owner run.
+Next: EQUAL cost/independent verification and production ordered transparency.
