@@ -770,3 +770,25 @@ without advertising completed settings/transport capability. Next: native settin
 and Graphics Lab discovery, immutable wire/session API and manager composition,
 existing cue/effects transparency repair, complete-candidate independent review
 and exact installed-package verification before owner acceptance.
+
+Native settings b5e139570444c34c8282cdd112fb6c6819594261 is included at
+112d8d4144834e55da1ee8d2459c644fccd10823. Both complete DLL profiles build;
+68 movement/runtime/settings/startup/context/combined-render tests per profile
+pass, zero skips. The native settings test includes isolated preference reload
+in another process and real panel validation/stale apply. Python selected-client
+settings, Graphics Lab and producer tests: 44 passed, zero skips. Ruff passes.
+Evidence: artifacts/hardening-evidence/movement-settings-{full,diagnostics}.xml,
+matching build logs and movement-settings-python.xml.
+
+Existing builder membership statements execute successfully against both DLL
+projects with movement_settings.cpp exactly once. Wheel/sdist membership and
+installed Graphics Lab button/module checks are extended in that same builder;
+installed smoke syntax is checked, but no new installed-wheel execution is claimed.
+Required native gate checks now explicitly include all three runtime inputs,
+focus/nested interruption/chat/stale settings and the native preferences panel,
+so absent/skipped entries cannot produce a successful receipt. These supplement
+the still-failing required cue/effects transparency gates. Saved preferences are
+defaults for future clients; applying the panel changes only the selected current
+client and uses its immutable grant/revision. Next is typed native command/session
+and manager operation composition, visual transparency repair, final independent
+review and exact package/installed verification before consolidated owner testing.

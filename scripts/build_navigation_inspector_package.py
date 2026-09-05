@@ -173,6 +173,7 @@ def main() -> int:
             "movement_native_ui.cpp",
             "movement_windows_input.cpp",
             "movement_runtime.cpp",
+            "movement_settings.cpp",
         ):
             if included_sources.count(movement_source) != 1:
                 raise RuntimeError(
@@ -215,14 +216,24 @@ def main() -> int:
                 native_results,
             ],
         )
-        required_render_tests = {
+        required_native_tests = {
             "wonderbane_extension_combined_render",
             "wonderbane_extension_selected_cue_gpu",
             "wonderbane_extension_selected_cue_native_transparency",
             "wonderbane_extension_effects_native_transparency",
+            "wonderbane_extension_movement_runtime_keyboard",
+            "wonderbane_extension_movement_runtime_controller",
+            "wonderbane_extension_movement_runtime_drag",
+            "wonderbane_extension_movement_runtime_focus",
+            "wonderbane_extension_movement_runtime_nested-stop",
+            "wonderbane_extension_movement_runtime_nested-camera",
+            "wonderbane_extension_movement_runtime_nested-move",
+            "wonderbane_extension_movement_runtime_chat",
+            "wonderbane_extension_movement_runtime_settings-stale",
+            "wonderbane_extension_movement_settings",
         }
         cases = ET.parse(native_results).getroot().findall(".//testcase")
-        for name in required_render_tests:
+        for name in required_native_tests:
             matches = [case for case in cases if case.get("name") == name]
             if (
                 len(matches) != 1
@@ -231,7 +242,7 @@ def main() -> int:
                 or matches[0].find("failure") is not None
             ):
                 raise RuntimeError(
-                    f"{profile}: required render gate did not execute and pass: {name}"
+                    f"{profile}: required native gate did not execute and pass: {name}"
                 )
         if arguments.reviewed_client:
             run(
@@ -280,6 +291,8 @@ def main() -> int:
         for name in ("effects.py", "effects_panel.py", "sky.py", "sky_panel.py"):
             if f"shadowbane_lab/graphics_lab/{name}" not in package.namelist():
                 raise RuntimeError(f"wheel missing effects control module {name}")
+        if "shadowbane_lab/client_extension/movement_settings.py" not in package.namelist():
+            raise RuntimeError("wheel missing native movement settings entry")
         sky_names = [
             name
             for name in package.namelist()
@@ -298,6 +311,10 @@ def main() -> int:
             "native/wonderbane_extension/navigation_draw.cpp",
             "native/wonderbane_extension/effects_runtime.cpp",
             "native/wonderbane_extension/effects_test.cpp",
+            "native/wonderbane_extension/movement_runtime.cpp",
+            "native/wonderbane_extension/movement_settings.cpp",
+            "src/shadowbane_lab/client_extension/movement_settings.py",
+            "docs/native-movement-controls.md",
             "tests/fixtures/navigation-inspector-v1.hex",
             "tests/fixtures/navigation-inspector-controls-v1.hex",
             "src/shadowbane_lab/navigation_inspector/build_identity.json",
@@ -346,6 +363,27 @@ def main() -> int:
         "assert app.sky_panel.get().enabled == 0; app.close()"
     )
     run("installed-sky-panel", [python, "-c", sky_smoke], cwd=output)
+    movement_smoke = """
+import pathlib, sys, tkinter as tk
+import shadowbane_lab.graphics_lab.app as module
+import shadowbane_lab.client_extension.movement_settings as settings
+assert pathlib.Path(settings.__file__).resolve().is_relative_to(pathlib.Path(sys.prefix).resolve())
+module.discover_graphics_targets = lambda: ()
+root = tk.Tk()
+root.withdraw()
+app = module.GraphicsLabApp(root)
+def descendants(widget):
+    for child in widget.winfo_children():
+        yield child
+        yield from descendants(child)
+buttons = [child for child in descendants(root)
+           if child.winfo_class() == "TButton" and child.cget("text") == "Movement controls"]
+assert len(buttons) == 1
+buttons[0].invoke()
+assert app.status_var.get() == "Select a connected client first"
+app.close()
+"""
+    run("installed-movement-panel", [python, "-c", movement_smoke], cwd=output)
     artifacts.extend(
         [
             wheel,

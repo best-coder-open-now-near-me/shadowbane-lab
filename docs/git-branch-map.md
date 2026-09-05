@@ -30,8 +30,9 @@ for exact included revisions, committed repairs and outstanding gates. Native
 foreground transparency currently fails required effects and cue acceptance
 checks. Movement now registers one native update/input runtime after shared startup,
 defaults disabled, and composes native stop, camera, steering, terrain-pick and
-drag with exact lifetime and HWND safety handling. User settings and immutable
-command/grant integration remain unfinished; no connected capability is certified. No newly combined wheel/DLL acceptance
+drag with exact lifetime and HWND safety handling. Native preferences and the selected-client
+Graphics Lab settings entry are included. Immutable command/grant integration
+remains unfinished; no connected capability is certified. No newly combined wheel/DLL acceptance
 identity is certified yet. Preserve all active branches/worktrees; retirement
 requires verified inclusion and applicable approval.
 
