@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <cstring>
 #include <chrono>
+#include <cstdlib>
 using namespace wonderbane::extension;
 namespace {
 int failures=0;
@@ -42,6 +43,22 @@ void Rect(float x0,float x1,float y0,float y1,float z){
     glBegin(GL_QUADS);glVertex3f(x0,y0,z);glVertex3f(x1,y0,z);
     glVertex3f(x1,y1,z);glVertex3f(x0,y1,z);glEnd();
 }
+std::array<unsigned char,4> NativeForeground(bool late_composite,bool depth_write){
+    glDepthMask(GL_TRUE);glDisable(GL_BLEND);glColor4f(0,0,0,1);
+    glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+    Check(cue::BeginMask() && cue::BeforeOwnedDraw(),"native foreground selected mesh begin");
+    auto mesh=[](void*) noexcept {Rect(-.4F,.4F,-.5F,.5F,0);};
+    Check(cue::CaptureGeometry(mesh,nullptr),"native foreground selected mesh capture");mesh(nullptr);
+    Check(cue::AfterOwnedDraw(),"native foreground selected mesh end");
+    cue::Settings settings{};settings.enabled=1;
+    if(!late_composite)Check(cue::CompositeMask(settings,{}),"reference cue before native foreground");
+    glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+    glDepthMask(depth_write?GL_TRUE:GL_FALSE);glColor4f(1,0,0,.5F);
+    Rect(-.6F,.6F,-.6F,.6F,-.5F);
+    if(late_composite)Check(cue::CompositeMask(settings,{}),"candidate cue after native foreground");
+    std::array<unsigned char,4> pixel{};glReadPixels(230,240,1,1,GL_RGBA,GL_UNSIGNED_BYTE,pixel.data());
+    glDepthMask(GL_TRUE);glDisable(GL_BLEND);return pixel;
+}
 unsigned Pixel(int x,int y){std::array<unsigned char,4> p{};glReadPixels(x,y,1,1,GL_RGBA,GL_UNSIGNED_BYTE,p.data());return p[0]+p[1]+p[2];}
 }
 int main(int argc,char** argv){
@@ -61,6 +78,18 @@ int main(int argc,char** argv){
     glViewport(0,0,640,480);glMatrixMode(GL_PROJECTION);glLoadIdentity();
     glMatrixMode(GL_MODELVIEW);glLoadIdentity();glEnable(GL_DEPTH_TEST);glDepthFunc(GL_LESS);
     glClearColor(0,0,0,0);glClearDepth(1);glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+    if(argc==2 && std::strcmp(argv[1],"--native-transparency")==0){
+        for(bool depth_write:{false,true}){
+            const auto expected=NativeForeground(false,depth_write);
+            const auto actual=NativeForeground(true,depth_write);
+            bool correct=true;for(int n=0;n<3;++n)correct=correct && std::abs(int(expected[n])-int(actual[n]))<=1;
+            if(!correct)std::fprintf(stderr,"native foreground alpha=.5 depth_write=%d expected_rgb=%u,%u,%u actual_rgb=%u,%u,%u\n",
+                int(depth_write),unsigned(expected[0]),unsigned(expected[1]),unsigned(expected[2]),unsigned(actual[0]),unsigned(actual[1]),unsigned(actual[2]));
+            Check(correct,"cue must preserve native foreground transmission");
+        }
+        cue::ReleaseMask();wglMakeCurrent(nullptr,nullptr);wglDeleteContext(context);ReleaseDC(window,dc);DestroyWindow(window);
+        return failures?1:0;
+    }
     auto initial=Snapshot();Check(cue::BeginMask(),"mask resource creation");Same(initial,Snapshot());
     Check(cue::AllocatedMaskBytes()==640ULL*480*8,"normal mesh uses only two depth textures");
     Check(cue::BeforeOwnedDraw() && cue::BeforeLegacyGeometry(),"before legacy capture");
