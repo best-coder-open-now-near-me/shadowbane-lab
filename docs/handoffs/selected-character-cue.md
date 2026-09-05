@@ -259,3 +259,14 @@ The integration owner approved focused work in the two existing draw hooks; the
 particles developer confirmed no hook conflict. Shared admission and pass order
 remain unchanged. Next active todo: resolve native foreground transparency with
 the shared queue work, then verify the owner-pinned combined candidate/package.
+
+## Resource-cost and query/stencil checks
+
+`wonderbane_extension_selected_cue_gpu_test.exe --cost` runs the actual production
+mask functions with 46 native array submissions per frame, matching the observed
+player node count. Four-frame host-context measurements (including initialization
+and native mesh submission) averaged 6.338 ms at 640x480 and 9.566 ms at 1920x1080.
+These are bounded developer measurements, not VM/live-game performance acceptance.
+The exact primitive geometry is a test fixture; no offline viewer is delivered.
+GPU regressions also verify stencil state remains unchanged and an active native
+samples query receives zero samples from rejected supplemental capture.

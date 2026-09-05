@@ -3,6 +3,7 @@
 #include <array>
 #include <cstdio>
 #include <cstring>
+#include <chrono>
 using namespace wonderbane::extension;
 namespace {
 int failures=0;
@@ -43,7 +44,7 @@ void Rect(float x0,float x1,float y0,float y1,float z){
 }
 unsigned Pixel(int x,int y){std::array<unsigned char,4> p{};glReadPixels(x,y,1,1,GL_RGBA,GL_UNSIGNED_BYTE,p.data());return p[0]+p[1]+p[2];}
 }
-int main(){
+int main(int argc,char** argv){
     WNDCLASSW wc{};wc.style=CS_OWNDC;wc.lpfnWndProc=DefWindowProcW;
     wc.hInstance=GetModuleHandleW(nullptr);wc.lpszClassName=L"SelectedCueGpuTest";
     if(!RegisterClassW(&wc))return 2;
@@ -142,8 +143,57 @@ int main(){
     Check(Pixel(400,240)>native_pixel,"visible textured alpha coverage glows");
     glDepthMask(GL_TRUE);glDisable(GL_BLEND);glDisable(GL_ALPHA_TEST);glDisable(GL_TEXTURE_2D);
     glDisableClientState(GL_TEXTURE_COORD_ARRAY);glDisableClientState(GL_VERTEX_ARRAY);glDeleteTextures(1,&texture);
+    Check(cue::BeginMask() && cue::BeforeOwnedDraw(),"begin stencil safety case");
+    glDepthMask(GL_FALSE);glEnable(GL_STENCIL_TEST);material=Snapshot();
+    Check(!cue::CaptureGeometry(mesh,nullptr),"active native stencil is not replayed");Same(material,Snapshot());
+    Check(glIsEnabled(GL_STENCIL_TEST)==GL_TRUE,"stencil enable remains native");
+    glDisable(GL_STENCIL_TEST);cue::DiscardMask();
+    using Queries=void(APIENTRY*)(GLsizei,GLuint*);
+    using DeleteQueries=void(APIENTRY*)(GLsizei,const GLuint*);
+    using BeginQuery=void(APIENTRY*)(GLenum,GLuint);
+    using EndQuery=void(APIENTRY*)(GLenum);
+    using QueryResult=void(APIENTRY*)(GLuint,GLenum,GLuint*);
+    auto gen_query=reinterpret_cast<Queries>(wglGetProcAddress("glGenQueries"));
+    auto delete_query=reinterpret_cast<DeleteQueries>(wglGetProcAddress("glDeleteQueries"));
+    auto begin_query=reinterpret_cast<BeginQuery>(wglGetProcAddress("glBeginQuery"));
+    auto end_query=reinterpret_cast<EndQuery>(wglGetProcAddress("glEndQuery"));
+    auto query_result=reinterpret_cast<QueryResult>(wglGetProcAddress("glGetQueryObjectuiv"));
+    Check(gen_query && delete_query && begin_query && end_query && query_result,"native query test APIs");
+    if(gen_query && delete_query && begin_query && end_query && query_result){
+        GLuint query=0,result=1;gen_query(1,&query);
+        Check(cue::BeginMask() && cue::BeforeOwnedDraw(),"begin query safety case");
+        begin_query(0x8914,query);material=Snapshot();
+        Check(!cue::CaptureGeometry(mesh,nullptr),"active native query is not replayed");Same(material,Snapshot());
+        end_query(0x8914);query_result(query,0x8866,&result);
+        Check(result==0,"capture cannot add native query samples");delete_query(1,&query);cue::DiscardMask();
+    }
+    glDepthMask(GL_TRUE);
     cue::ReleaseMask();Check(glGetError()==GL_NO_ERROR,"no GL errors after cleanup");
     Check(cue::BeginMask(),"resources recreate after cleanup");cue::ReleaseMask();
+    if(argc==2 && std::strcmp(argv[1],"--cost")==0){
+        glEnableClientState(GL_VERTEX_ARRAY);glVertexPointer(3,GL_FLOAT,0,vertices);
+        for(int width:{640,1920}){
+            const int height=width==640?480:1080;
+            RECT rect{0,0,width,height};AdjustWindowRect(&rect,WS_OVERLAPPEDWINDOW,FALSE);
+            SetWindowPos(window,nullptr,0,0,rect.right-rect.left,rect.bottom-rect.top,SWP_NOMOVE|SWP_NOZORDER|SWP_NOACTIVATE);
+            glViewport(0,0,width,height);glFinish();
+            const auto start=std::chrono::steady_clock::now();
+            for(int frame=0;frame<4;++frame){
+                glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+                Check(cue::BeginMask(),"cost mask begin");
+                for(int node=0;node<46;++node){
+                    Check(cue::BeforeOwnedDraw(),"cost owned begin");
+                    Check(cue::CaptureGeometry(mesh,nullptr),"cost mesh capture");
+                    mesh(nullptr);Check(cue::AfterOwnedDraw(),"cost owned end");
+                }
+                Check(cue::CompositeMask(s,{}),"cost composite");glFinish();
+            }
+            const auto ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count()/4;
+            std::printf("production-mask-cost viewport=%dx%d owned_nodes=46 mean_frame_ms=%.3f (host test context, includes native mesh and initialization)\n",width,height,ms);
+            cue::ReleaseMask();
+        }
+        glDisableClientState(GL_VERTEX_ARRAY);
+    }
     wglMakeCurrent(nullptr,nullptr);wglDeleteContext(context);ReleaseDC(window,dc);DestroyWindow(window);
     return failures ? 1:0;
 }
