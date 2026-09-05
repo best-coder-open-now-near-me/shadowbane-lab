@@ -37,6 +37,8 @@ bool NativeStop::Bind(HWND window) noexcept {
     calls_.clear_waypoint = reinterpret_cast<decltype(calls_.clear_waypoint)>(base_ + 0x79fc50);
     calls_.state = reinterpret_cast<decltype(calls_.state)>(base_ + 0x5f8c0);
     calls_.send = reinterpret_cast<decltype(calls_.send)>(base_ + 0x7f4da0);
+    calls_.ground_target = reinterpret_cast<decltype(calls_.ground_target)>(base_ + 0x2d1fa0);
+    calls_.move = reinterpret_cast<decltype(calls_.move)>(base_ + 0x62570);
     calls_.camera = reinterpret_cast<decltype(calls_.camera)>(base_ + 0x51c210);
     bound_ = true; return true;
 }
@@ -69,6 +71,95 @@ bool NativeStop::Current(const Target& target) const noexcept {
 bool NativeStop::RequestCurrent(const Target& target) const noexcept {
     std::uintptr_t request = 0;
     return Current(target) && Read(base_ + 0x16a1c00, request) && request == target.request;
+}
+bool NativeStop::MovementCurrent(const Target& target) const noexcept {
+    return controls_.Ready() && target.grant.owner != Owner::none && controls_.Current() == target.grant && Current(target);
+}
+bool NativeStop::Steer(const Grant& grant, Vector2 direction, std::uint64_t tick, bool start) noexcept {
+    if (!Available() || !in_update_ || executing_ || GetCurrentThreadId() != thread_
+        || !controls_.Ready() || grant.owner == Owner::none || controls_.Current() != grant
+        || !std::isfinite(direction.x) || !std::isfinite(direction.y)
+        || std::abs(std::hypot(direction.x, direction.y) - 1.0F) > 0.001F) { return false; }
+    if (!steering_captured_ || steering_target_.grant != grant) {
+        Target target{}; target.grant = grant;
+        if (!Read(base_ + 0x16a2d98, target.actor) || !Read(base_ + 0x1389028, target.world)
+            || !Read(base_ + 0x16a7bfc, target.window) || !target.actor || !target.world || !target.window
+            || !Read(target.actor + 0x18, target.identity) || !MovementCurrent(target)) { return false; }
+        steering_target_ = target; steering_captured_ = true;
+        steering_submitted_ = steering_sent_ = steering_deferred_ = false;
+    }
+    if (!MovementCurrent(steering_target_) || (steering_submitted_ && tick < steering_tick_)) { return false; }
+    executing_ = true;
+    const bool result = SteerGuarded(steering_target_, direction, tick, start);
+    executing_ = false;
+    return result;
+}
+bool NativeStop::RunSteer(const Target& target, Vector2 direction, std::uint64_t tick, bool start) {
+    if (!MovementCurrent(target)) { return false; }
+    std::uintptr_t connection = 0;
+    if (!Read(base_ + 0x16ab88c, connection) || !connection) { return false; }
+    const bool changed = !steering_submitted_ || direction.x != steering_direction_.x || direction.y != steering_direction_.y;
+    if (!start && !changed) {
+        // Do not restart an in-flight native path solve every input update. A
+        // direction change goes through native replacement; release uses Execute.
+        std::uintptr_t request = 0; std::uint32_t state = 1;
+        if (!Read(base_ + 0x16a1c00, request) || (request && !Read(request, state))) { return false; }
+        if (request && state == 0) { steering_tick_ = tick; return true; }
+        if (steering_deferred_) {
+            Map map{}; Node* found = nullptr;
+            if (!Read(target.world + 0xb8, map) || !map.sentinel) { return false; }
+            calls_.find(reinterpret_cast<void*>(target.world + 0xb8), &found, &target.identity);
+            if (!MovementCurrent(target) || !found) { return false; }
+            if (found != map.sentinel) { steering_tick_ = tick; return true; }
+        }
+    }
+    calls_.retain(&held_actor_, reinterpret_cast<void*>(target.actor));
+    bool completed = false;
+    if (held_actor_ == reinterpret_cast<void*>(target.actor) && MovementCurrent(target)) {
+        GroundPoint position{}; calls_.position(held_actor_, &position);
+        float distance = 0;
+        if (MovementCurrent(target) && Finite(position) && Read(base_ + 0x1141544, distance)
+            && std::isfinite(distance) && distance > 0) {
+            // Match the native continuous routine's look-ahead, not its input
+            // flag writes. Native Move still owns collision, restrictions,
+            // animation/deferred admission, path solving and movement speed.
+            GroundTarget ground{};
+            const GroundPoint wanted{position.x + direction.x * distance, position.y, position.z + direction.y * distance};
+            if (Finite(wanted)) {
+                calls_.ground_target(&ground, wanted);
+                if (MovementCurrent(target)) {
+                    const bool publish = start || !steering_sent_ || tick - steering_sent_tick_ >= 400;
+                    calls_.move(held_actor_, &message_, &ground, publish, true, false, nullptr, false);
+                    completed = MovementCurrent(target);
+                    // Null output is legitimate native rejection/deferred work,
+                    // not evidence that restrictions should be bypassed.
+                    steering_deferred_ = !message_;
+                    if (completed && message_ && message_ != reinterpret_cast<void*>(~std::uintptr_t{0})) {
+                        completed = Read(base_ + 0x16ab88c, connection) && connection != 0;
+                        if (completed) {
+                            void* outgoing = message_; message_ = nullptr;
+                            calls_.send(reinterpret_cast<void*>(base_ + 0x16ab888), outgoing);
+                            completed = MovementCurrent(target);
+                            if (completed) { steering_sent_ = true; steering_sent_tick_ = tick; }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    ReleaseMessage();
+    if (held_actor_) { calls_.release(&held_actor_); }
+    if (completed && MovementCurrent(target)) {
+        steering_direction_ = direction; steering_tick_ = tick; steering_submitted_ = true; return true;
+    }
+    return false;
+}
+bool NativeStop::SteerCxxGuarded(const Target& target, Vector2 direction, std::uint64_t tick, bool start) noexcept {
+    try { return RunSteer(target, direction, tick, start); } catch (...) { faulted_ = true; return false; }
+}
+bool NativeStop::SteerGuarded(const Target& target, Vector2 direction, std::uint64_t tick, bool start) noexcept {
+    __try { return SteerCxxGuarded(target, direction, tick, start); }
+    __except(EXCEPTION_EXECUTE_HANDLER) { faulted_ = true; return false; }
 }
 bool NativeStop::RotateCamera(Vector2 radians) noexcept {
     if (!Available() || !controls_.CameraReady() || !in_update_ || executing_
@@ -110,6 +201,7 @@ bool NativeStop::RotateCameraGuarded(const Target& target, Vector2 radians) noex
 }
 void NativeStop::SceneRetired(std::uint64_t scene) noexcept {
     if (captured_ && target_.grant.scene == scene) { captured_ = false; }
+    if (steering_captured_ && steering_target_.grant.scene == scene) { steering_captured_ = false; }
     // Native resources with uncertain exception ownership remain process-pinned.
 }
 bool NativeStop::CancelQueued(const Target& target) {
@@ -254,7 +346,13 @@ bool NativeStop::Execute(const Grant& grant) noexcept {
     if (!Available() || !in_update_ || executing_ || !controls_.AuthorizesNativeStop(grant) || GetCurrentThreadId() != thread_) {
         return false;
     }
-    if ((!captured_ || target_.grant != grant) && !Capture(grant)) { return false; }
+    // A failed move can have changed the native scene inside its callbacks. Its
+    // cleanup stop belongs to the actor captured for that movement, never a fresh
+    // actor discovered under the still-old policy scene on return.
+    if (steering_captured_ && steering_target_.grant == grant) {
+        if (!Current(steering_target_)) { return false; }
+        target_ = steering_target_; captured_ = true;
+    } else if ((!captured_ || target_.grant != grant) && !Capture(grant)) { return false; }
     if (!Current(target_)) { return false; }
     Target target = target_;
     // A later stop in the same manual grant may retire a different request.
@@ -267,6 +365,9 @@ bool NativeStop::Execute(const Grant& grant) noexcept {
         // A partly applied native state change cannot be retried as though its
         // outgoing message had never been built/consumed. Exclude new movement.
         faulted_ = true;
+    }
+    if (complete && steering_captured_ && steering_target_.grant == grant) {
+        steering_submitted_ = steering_sent_ = steering_deferred_ = false;
     }
     return complete;
 }
