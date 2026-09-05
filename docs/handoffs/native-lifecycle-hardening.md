@@ -1334,3 +1334,11 @@ cannot reconstruct all ordered native contributions. Native object callbacks may
 mutate or delete their inputs, so replaying them is not an approved solution.
 Next: a justified side-effect-free source/coverage path in the existing renderer,
 then targeted production regressions; no additional owner capture requested.
+
+Independent cue-owner verification of exact f1f9c105be99d2217ab2c46d8ef6422e7032b7fb:
+clean detached combined checkout retained the cue query fix; no field/API conflict
+found. Integrator read the actual fresh-build CTest receipt at local
+E:/Projects/shadowbane/artifacts/cue-combined-native/f1f9c10/trace-review.xml:
+full and disabled observer cases both executed, 2 passed, 0 failures, 0 skips.
+This is focused observer review, not the final complete-candidate integration review.
+Next remains production transparency source/coverage ownership; no new deployment.
