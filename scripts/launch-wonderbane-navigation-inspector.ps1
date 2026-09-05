@@ -71,6 +71,30 @@ function Get-InspectorProcesses {
     )
 }
 
+function Remove-StaleInspectorProcesses {
+    $inspectors = @(
+        Get-CimInstance Win32_Process |
+            Where-Object {
+                $_.Name -in @('python.exe', 'pythonw.exe') -and
+                $_.CommandLine -match 'shadowbane_lab\.navigation_inspector'
+            }
+    )
+    foreach ($inspector in $inspectors) {
+        $match = [regex]::Match($inspector.CommandLine, '(?:^|\s)--pid\s+(\d+)(?:\s|$)')
+        if (-not $match.Success) {
+            continue
+        }
+        $targetProcessId = [int]$match.Groups[1].Value
+        $target = Get-CimInstance `
+            Win32_Process `
+            -Filter "ProcessId=$targetProcessId" `
+            -ErrorAction SilentlyContinue
+        if ($null -eq $target -or $target.Name -ne 'sb.exe') {
+            Stop-Process -Id $inspector.ProcessId -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
 function Wait-InspectorWindow {
     param(
         [int]$ClientProcessId,
@@ -217,6 +241,7 @@ try {
 
     $env:PYTHONPATH = $null
     Wait-InspectorTarget -ClientProcessId $game.ProcessId
+    Remove-StaleInspectorProcesses
     $panels = @(Get-InspectorProcesses -ClientProcessId $game.ProcessId)
     $logRoot = Join-Path $env:LOCALAPPDATA 'ShadowbaneLab\navigation-inspector'
     New-Item -ItemType Directory -Path $logRoot -Force | Out-Null

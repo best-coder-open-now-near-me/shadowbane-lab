@@ -63,7 +63,8 @@ to the new process. The default patcher wait is 15 minutes.
 
 A runtime-specific mutex prevents competing launchers. If the exact client is already
 running, the launcher verifies it and restores a missing panel without creating a
-second client. Panel logs are written under
+second client. Panels bound to exited client processes are retired before the live
+panel is selected. Panel logs are written under
 `LocalAppData/ShadowbaneLab/navigation-inspector`. The final receipt reports patcher,
 client, and panel process identities.
 
