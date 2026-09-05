@@ -637,3 +637,23 @@ cleanup; foreign slots remain intact. This closes the reproduced mid-update
 integrity finding. First/replacement-watch arming remains explicitly unresolved
 and is being corrected by the movement owner before activation. Input/UI/settings/
 grant composition, rendering transparency and final package acceptance remain open.
+
+Shared acceptance plan rechecked against the supplied owner document. The existing
+`docs/combined-testing-acceptance.md` remains the controlling consolidated procedure.
+At clean published source `47c1e23febd8f14588e3638f2a36a88cc9333eb7`, both complete
+native CTest suites executed 55 entries: 51 passed, two required transparency
+checks failed, and two private-image binding checks skipped for absent arguments.
+JUnit evidence is `artifacts/hardening-evidence/combined-47c1e23-native-full.xml`
+and `combined-47c1e23-native-diagnostics.xml`. The skipped cue and sky binding
+executables were then run explicitly in both profiles against the reviewed private
+client SHA256 `feb351f0fae87d47549fa43c37836405a753d76fbcd0b02232fc1c0733550dff`;
+all four runs exited zero, verifying exact code, relocation and byte-drift rejection.
+This supplements, rather than rewrites, the recorded CTest skips. It is offline
+binding validation, not installed-client or connected gameplay acceptance.
+The two failures remain selected_cue_native_transparency and
+effects_native_transparency. Combined-render and all movement/lifecycle entries
+passed. No complete package is certified and no installation was changed.
+Next: owner-supplied first/replacement lifetime arming correction, complete movement
+consumer wiring, and the existing cue/effects native transparency repairs. After a
+complete candidate is pinned, obtain the independent integration review and run
+the existing exact-source package/installed checks before consolidated owner testing.
