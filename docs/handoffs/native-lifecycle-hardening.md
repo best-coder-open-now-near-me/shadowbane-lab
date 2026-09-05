@@ -971,3 +971,34 @@ its regression, and requires the named standalone slow-planner native IPC test
 alongside session and manager IPC tests in both profiles. This is a builder
 source update, not an executed full package receipt. Next shared fix is the cue
 owner's public-source program-pipeline state correction; transparency remains open.
+
+
+Shared shader pipeline integration: included cue source
+`6ca19048e3eb4c40a52d1c2527cef5d0ae2840b5` at
+`4e61fd56daa3a8bda930916580dc462583f6a661`. Reconciled the guard contract to retain
+both verified background and scene/UI stage authority while preserving current
+program and separate pipeline bindings. Both complete native profiles built;
+102 CTests/profile again yielded 98 pass, 2 transparency failures and 2 private
+binding skips. Logs: combined-4e61fd5-{full,diagnostics}.*. The new shader case
+explicitly logged execution in both profiles; it does not resolve transparency.
+
+Included standalone thread-start rollback `2be1a650cde19a46c6301062418f7d9f698d2d10`
+at `fd207a3c521bd38f6a4e77a409caeac867bcc3ec`. Full Python at that exact source:
+1807 pass, 8 skips, 238 subtests pass (45.42 s). Seven environmental symlink skips
+and one transient Tk display skip; exact Tk replay/control-rebind rerun passed.
+Evidence: combined-fd207a3-python.xml/log and combined-fd207a3-inspector-tk.xml.
+Ruff passes; all 36 tracked PowerShell scripts parse.
+
+Cue follow-up `f1a56c27db0e3bc90b221f7c2a3f4f5ce256884c` makes pipeline testing
+an explicit --pipeline-guard mode. Shared CMake registers the dedicated
+wonderbane_extension_scene_pipeline_guard test, and the existing package builder
+requires its actual nonskipped execution. The test returns 77 on an unsupported
+context without changing runtime fallback behavior. Before this checkpoint commit,
+both complete native profiles rebuilt; five affected scene/context/cue/pipeline/
+sky tests/profile passed, zero skips (pipeline-gate-{full,diagnostics}.xml).
+Executed the existing builder's three runtime source-membership loops against
+both generated DLL projects: exact intended movement sources and profile-specific
+visual sources, with developer probe excluded. Both passed. No installed package
+receipt is inferred from these source/build checks. Remaining production blocker:
+cue/effects foreground transparency, followed by finished-candidate independent
+review and actual installed-package/connected acceptance.
