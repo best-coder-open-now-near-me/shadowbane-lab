@@ -19,7 +19,8 @@
 // Developer-only conformance probe. Never opens or modifies another process.
 // No proprietary bytes are distributed: an explicitly supplied, exact reviewed
 // executable supplies reviewed native primitives. The pool test forwards only
-// its two verified Win32 imports and uses private allocator globals.
+// verified Win32 imports and uses private allocator globals. Path references
+// use probe-owned virtual objects whose finalizer records native lifetime events.
 namespace {
 void Require(bool condition, const char* message) {
     if (!condition) { throw std::runtime_error(message); }
@@ -73,6 +74,85 @@ struct EventHandle {
     HANDLE value = CreateEventW(nullptr, TRUE, FALSE, nullptr);
     ~EventHandle() { if (value) { CloseHandle(value); } }
 };
+
+LONG WINAPI ForwardIncrement(volatile LONG* target) { return InterlockedIncrement(target); }
+LONG WINAPI ForwardDecrement(volatile LONG* target) { return InterlockedDecrement(target); }
+struct ProbeReference {
+    std::array<std::uint32_t, 2> prefix{};
+    const std::int32_t* offsets = nullptr;
+    std::uint32_t padding = 0;
+    const std::uintptr_t* table = nullptr;
+    volatile LONG references = 1;
+    std::uint32_t finalizations = 0;
+    std::uint32_t finalizer_flags = 0;
+};
+static_assert(offsetof(ProbeReference, offsets) == 8 && offsetof(ProbeReference, table) == 16
+    && offsetof(ProbeReference, references) == 20);
+void __fastcall ReferenceFinalized(void* interface_pointer, void*, std::uint32_t flags) {
+    auto* object = reinterpret_cast<ProbeReference*>(static_cast<unsigned char*>(interface_pointer) - 16);
+    ++object->finalizations;
+    object->finalizer_flags = flags;
+}
+struct PathElement { std::array<std::uint32_t, 3> position; void* reference = nullptr; };
+struct PathVector { PathElement* begin; PathElement* end; PathElement* capacity; };
+static_assert(sizeof(PathElement) == 16 && offsetof(PathElement, reference) == 12);
+using RetainActor = void** (__thiscall*)(void**, void*);
+using ReleaseActor = void (__thiscall*)(void**);
+using ErasePath = PathElement* (__thiscall*)(PathVector*, PathElement*, PathElement*);
+void VerifyPathLifetimes(unsigned char* arena) {
+    const auto retain = reinterpret_cast<RetainActor>(arena + 0x7d700);
+    const auto release = reinterpret_cast<ReleaseActor>(arena + 0x7d740);
+    const auto erase = reinterpret_cast<ErasePath>(arena + 0x784420);
+    const std::array<std::int32_t, 2> offsets{0, 8};
+    const std::array<std::uintptr_t, 3> table{0,
+        reinterpret_cast<std::uintptr_t>(&ReferenceFinalized),
+        reinterpret_cast<std::uintptr_t>(arena + 0x1311b0)};
+    PathVector null_path{};
+    Require(erase(&null_path, nullptr, nullptr) == nullptr && null_path.begin == nullptr
+        && null_path.end == nullptr && null_path.capacity == nullptr, "null path clear changed vector");
+    for (const std::size_t count : {0U, 1U, 2U, 7U, 31U, 127U, 1024U}) {
+        std::array<ProbeReference, 4> objects{};
+        for (auto& object : objects) { object.offsets = offsets.data(); object.table = table.data(); }
+        std::vector<PathElement> points(count + 1);
+        for (std::size_t i = 0; i < points.size(); ++i) {
+            points[i].position = {static_cast<std::uint32_t>(i), 0x12345678, 0xabcdef01};
+            if (i == count) { continue; }
+            if (i % 6 < objects.size()) {
+                Require(retain(&points[i].reference, &objects[i % 6]) == &points[i].reference,
+                    "native actor retention returned wrong reference");
+            } else if (i % 6 == 5) { points[i].reference = reinterpret_cast<void*>(~std::uintptr_t{0}); }
+        }
+        // Hold the retiring actor across native path destruction. Drop each initial
+        // external reference so path ownership and this explicit lease are decisive.
+        void* held = nullptr;
+        retain(&held, &objects[0]);
+        for (auto& object : objects) { void* initial = &object; release(&initial); }
+        PathVector path{points.data(), points.data() + count, points.data() + points.size()};
+        const auto capacity = path.capacity;
+        Require(erase(&path, path.begin, path.end) == path.begin && path.end == path.begin
+            && path.capacity == capacity, "native whole-path clear corrupted vector bounds");
+        for (std::size_t i = 0; i < points.size(); ++i) {
+            Require(points[i].reference == nullptr && points[i].position ==
+                std::array<std::uint32_t, 3>{static_cast<std::uint32_t>(i), 0x12345678, 0xabcdef01},
+                "native path clear changed coordinates or retained element reference");
+        }
+        Require(objects[0].references == 1 && objects[0].finalizations == 0,
+            "retiring actor did not survive native path destruction");
+        for (std::size_t i = 1; i < objects.size(); ++i) {
+            Require(objects[i].references == 0 && objects[i].finalizations == 1,
+                "native path cleanup leaked or multiply finalized referenced object");
+        }
+        erase(&path, path.begin, path.end);
+        release(&held);
+        Require(held == nullptr, "native actor release retained reference slot");
+        for (const auto& object : objects) {
+            Require(object.references == 0 && object.finalizations == 1 && object.finalizer_flags == 1,
+                "native lifetime ownership or repeated path clear is incorrect");
+        }
+    }
+    std::printf("PASS: native whole-path destruction and retained actor lifetime; null/empty through 1024 elements\n");
+}
+
 struct Map { Node* sentinel; std::uint32_t size; };
 struct ExecutableCode {
     void* memory = nullptr;
@@ -160,6 +240,20 @@ int RunProbe(int argc, wchar_t** argv) {
             "unsupported executable");
         struct Segment { std::size_t offset; std::size_t size; const char* sha256; };
         constexpr std::array segments{
+            Segment{0x784420,113,"6791f1e358621a2fb07e180a559af8da7e1ed4fa0979a592091d97731ed10cd8"},
+            Segment{0x1524e,5,"e8cde9584c565d226dbc56d39df86c6d97e02b862e6dec2c38113391a5835b25"},
+            Segment{0x90190,48,"a3dc8f312545e1eb7e6bbc15ee08fe9e207c373499602e5c5cdef12ea6347033"},
+            Segment{0x1f5f0,5,"b18bab3bc760b6e42d20bfbe4ac34ab8d3f5f15f6715a1b2cc12cbbd5e825123"},
+            Segment{0x788a0,114,"743ded08f30e0fa99b25814f6e0e6c695aaf452c4ffd78d645a8981ad3e18036"},
+            Segment{0x7d700,43,"a5b8456a0cf25f731d89e2ee077cbcb42ca2903ec0c6e947c79922939d9cf1d7"},
+            Segment{0x7d740,46,"5a32a400e7ecbbb4841a7d1813fe77e5ab2cbf4dc63843c1021bae1484456441"},
+            Segment{0xb2b7,5,"64c03dded86ce9f2b6b89075b5954e449701ee2bb83ac77f4fecf8c2195bf50f"},
+            Segment{0x131190,13,"0d3ed09b1b254a1431ad870bad1528cc3fcde07a728f6cf621d6529201f91de5"},
+            Segment{0x1311b0,36,"96e124d1f3bf74ce703626356fba6e0cf6b97535fb57b9ca2e8c985aa30ca63b"},
+            Segment{0x1795e,5,"94ca8b3be29653a21239620e3d6928d66d781ba94d7176ac9da8d854cdf551af"},
+            Segment{0xbdc5,5,"9514894e992f15e5297c31adf885f7704fca66bf0fd325d5dcc941f258661f57"},
+            Segment{0x14c7a0,15,"228b13eb39203982858a347461b09adf4f1f3bfc13220b6a012f2f085363e0d7"},
+            Segment{0x14c7c0,15,"7dfc48bdf326dc44fc71cc00adcd905c768f6e1f85f6d24e9604d478bb8d9aed"},
             Segment{0x40270,284,"bdce79064089f17dd744e34dfdac4187203ca9c6f3c8bc05c77708a11a332b93"},
             Segment{0x63a30,24,"a786e52b8f763cb0e705244fa2e34c1b0db4e27a8234c762e6e6795b75107604"},
             Segment{0x8edd0,1001,"647324142ed2d678037248e82d948a9666f084962476a5f5cb866c008723fffa"},
@@ -171,7 +265,7 @@ int RunProbe(int argc, wchar_t** argv) {
         // Reviewed PE raw offsets equal RVAs for these segments. Preserve relative
         // native calls between lookup, its thunk and comparator. Code gaps trap;
         // data pages are never executable. No client startup is copied/executed.
-        constexpr std::size_t code_length = 0x220000;
+        constexpr std::size_t code_length = 0x790000;
         constexpr std::size_t length = 0x16c0000;
         for (const auto& segment : segments) {
             Require(segment.offset + segment.size <= bytes.size()
@@ -196,8 +290,19 @@ int RunProbe(int argc, wchar_t** argv) {
             operand += reinterpret_cast<std::uintptr_t>(arena) - 0x400000U;
             std::memcpy(arena + 0x40270 + offset, &operand, sizeof(operand));
         }
+        for (const auto helper : {0x14c7a0, 0x14c7c0}) {
+            std::uint32_t operand{};
+            std::memcpy(&operand, arena + helper + 9, sizeof(operand));
+            operand += reinterpret_cast<std::uintptr_t>(arena) - 0x400000U;
+            std::memcpy(arena + helper + 9, &operand, sizeof(operand));
+        }
+        const auto increment_address = reinterpret_cast<std::uintptr_t>(&ForwardIncrement);
+        const auto decrement_address = reinterpret_cast<std::uintptr_t>(&ForwardDecrement);
+        std::memcpy(arena + 0x16b0254, &increment_address, sizeof(increment_address));
+        std::memcpy(arena + 0x16b0258, &decrement_address, sizeof(decrement_address));
         // Native import names verified from the reviewed PE import directory:
-        // KERNEL32!InterlockedExchange and KERNEL32!Sleep. No game API stubs.
+        // KERNEL32!InterlockedExchange, Sleep, InterlockedIncrement/Decrement.
+        // Native lifetime methods invoke only the probe-owned finalizer callback.
         const auto exchange_address = reinterpret_cast<std::uintptr_t>(&ForwardPoolExchange);
         const auto sleep_address = reinterpret_cast<std::uintptr_t>(&Sleep);
         std::memcpy(arena + 0x16b0308, &exchange_address, sizeof(exchange_address));
@@ -215,6 +320,7 @@ int RunProbe(int argc, wchar_t** argv) {
             "executable protection failed");
         Require(FlushInstructionCache(GetCurrentProcess(), code.memory, code_length) != 0,
             "instruction cache flush failed");
+        VerifyPathLifetimes(arena);
         const auto pool_return = reinterpret_cast<PoolReturn>(arena + 0x40270);
         const auto erase = reinterpret_cast<Erase>(arena + 0x8edd0);
         const auto find = reinterpret_cast<Find>(arena + 0x21b7b0);

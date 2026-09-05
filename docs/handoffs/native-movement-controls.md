@@ -195,3 +195,27 @@ private investigation/build artifacts are retained under `artifacts/native-movem
 The next implementation/review still targets the same hardening integration owner.
 The active todo remains complete native stop composition, followed by all-input
 runtime/settings/automation wiring and combined package/connected acceptance.
+
+## Shared acceptance plan and path lifetime checkpoint
+
+This feature follows the integration owner's [shared acceptance plan](https://github.com/best-coder-open-now-near-me/shadowbane-lab/blob/758e6f8242cc25e0e749bde0d679f2fc03dd9cad/docs/combined-testing-acceptance.md).
+Complete production controls and interaction/transition checks precede the single
+coordinated gameplay pass. Independent integration review follows completion.
+The owner retains combined packaging, known-good runtime restoration and candidate
+identity records. No unfinished-feature demo, new architecture task, additional
+navigation research or paid compute is part of this lane.
+
+The developer-only actual-code probe now also executes native whole-path erase,
+waypoint-reference destruction, actor retain/release and reference counting. Both
+profiles pass null/empty paths and populated paths through 1,024 elements, including
+shared references, native null/sentinel cases, repeated clear and an actor retained
+across path destruction. Native reference-count imports use real Win32 atomics;
+probe-owned virtual objects record finalization. This verifies the lifetime ABI
+and primitive effects, not real game-object destructors or a connected stop.
+
+Executed: both profile probe builds and complete updated conformance runs.
+Not performed: full native stop/follow-update integration, actual input adapters,
+installed controls package, combined gameplay acceptance and independent completed
+integration review. These are outstanding implementation/validation, not passing
+checks or environmental skips. Next active todo remains complete ordered native
+stop composition and subsequent native steering/runtime wiring.
