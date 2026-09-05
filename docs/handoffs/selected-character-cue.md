@@ -638,3 +638,39 @@ not a substitute. Existing required cue/effects transparency tests remain red.
 Next active todo: resolve these source/coverage support facts with the shared
 renderer owner, then implement and verify transmission, final package and the
 single consolidated live acceptance. Feature delivery is not complete.
+
+
+## Observer support gap closure (owner-assigned follow-up)
+
+The owner assigned the bounded observer changes after the feasibility record.
+Dependency commit b2245e9 carries only terrain_trace.cpp/test from verified
+combined5519a8e; it does not merge a moving stack. The subsequent change adds
+capability-gated ARB enable/binding, alternative texture target/texgen enables,
+environment color, bounded raster/profile state and explicit unknowns, with
+an evidence-only material predicate for the two emitter callers. It supersedes
+the earlier statement that these enable/binding fields cannot be observed.
+The exact field order and conservative predicate are documented in
+`docs/diagnostics/terrain-draw-trace.md`. No generic material snapshot, UV
+collector, replay, feature-disable path or live request was introduced.
+
+A material candidate is not replay eligibility. Program-zero alone is rejected
+when ARB state is active/unknown, alternate program mechanisms are unobserved,
+units are omitted, texgen/alternate targets are enabled, or the material falls
+outside the narrow fixed-function case. Query side effects, pre-native buffers,
+coverage, ROI ABI and source equivalence remain explicitly unresolved. Required
+native transparency regressions are unchanged and still block feature delivery.
+The owner must verify this observer delta on a new exact combined pin before
+choosing a diagnostic package/observation; historical launcher hash gates remain.
+
+
+Validation for this observer delta: actual full DLL builds; both native trace
+profiles pass with zero skips, covering advertised/absent/unknown ARB capability,
+missing getter, active program versus GLSL zero, alternate material paths,
+profile/pipeline unknowns, texture enable/texgen/MODULATE gates, exact query
+contracts, active-unit restoration, unsafe queries, bounds and shutdown.
+All 47 Python trace/analysis tests pass and the changed Python test passes Ruff.
+Native JUnit is retained in the feature worktree at
+`artifacts/selected-character-cue/observer-material-tests.xml`.
+These checks do not certify GPU source equivalence or a release package.
+Next active todo is owner reconciliation and exact combined verification of this
+observer, then resolution of the remaining native source/coverage facts.

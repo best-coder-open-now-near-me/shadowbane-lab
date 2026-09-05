@@ -169,3 +169,16 @@ def test_unknown_trace_version_remains_closed(payload, target, version):
     payload["extension_version"] = version
     with pytest.raises(ValueError, match="extension_version"):
         trace.assess_trace(payload, target, 100)
+
+
+def test_material_evidence_does_not_promote_capture_to_replay_approval(payload, target):
+    payload["draws"][0]["quad_support"] = {
+        "material_gate": "fixed_function_material_candidate",
+        "replay_eligible": False,
+        "arb_enable_binding": [0, 71, 0, 72],
+    }
+    payload["draws"][0]["textures"][0]["env_color"] = [None] * 4
+    result = trace.assess_trace(payload, target, 100)
+    assert result["status"] == "captured"
+    assert "replay_eligible" not in result
+    assert payload["draws"][0]["quad_support"]["replay_eligible"] is False
