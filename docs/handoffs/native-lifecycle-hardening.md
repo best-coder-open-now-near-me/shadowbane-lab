@@ -1185,3 +1185,66 @@ Build source remains f9c6f7a57526ec192aa1273b0a1612359a1474db, not this receipt 
 Next: finish the isolated launch/restoration procedure and coordinate the two
 narrow foreground observations before requesting separate activation approval.
 The cue/effects transparency failures remain open; this is not owner acceptance.
+
+### Approved obsolete-client removal and diagnostic activation procedure
+
+The owner explicitly authorized deleting old client backups on September 5.
+Removed only these direct children of S:/ShadowbaneLab-Guided:
+20260903-1016421, 20260903-920ba0f, 20260903-a1f8a77, 20260903-ed9aa5b,
+20260904-inspector-18bcf6d, 20260904-inspector-e380e0f.
+Before removal, resolved each literal path beneath that exact parent, rejected
+reparse points throughout the trees, and checked process executable paths and
+command lines for references. No running process referenced these copies.
+Confirmed removal and retained the latest 20260904-inspector-3534418 runtime
+(including the Python used by diagnostics), vanilla Downloads client and frozen
+baseline. Local evidence: artifacts/hardening-evidence/approved-old-client-removal.log.
+S: free space is now 8,115,077,120 bytes; frozen inventory totals 2,383,853,480 bytes.
+No diagnostic client has been installed or launched.
+
+The next activation is diagnostic observation only, pending separate authorization:
+
+1. Recheck no process uses the proposed destination and at least 3 GB is free.
+   Use the already hash-verified inputs in
+   \\VBoxSvr\codexdiag\diagnostic-f9c6f7a-preflight and Python at
+   S:\ShadowbaneLab-Guided\20260904-inspector-3534418\python\Scripts\python.exe.
+   Set process-local PYTHONPATH to the staged src and PYTHONDONTWRITEBYTECODE=1.
+2. Run the existing client_extension prepare-copy command, without --dry-run,
+   against the exact guest-bound frozen baseline recorded above, destination
+   S:\ShadowbaneLab-Guided\diagnostic-f9c6f7a\client, staged bootstrap-manifest.json
+   (SHA346287965c2f87faaf11824d847e7af3abe9a8725db34114f5cbf7e565527076),
+   and staged wonderbane-extension.dll. Refuse an existing destination. Preserve
+   publication output locally and run existing verify-launchable-copy on it.
+3. Before starting, independently compare sb.exe SHA256 to
+   bb63469eb35917e6b3f58be75d29f94855c9868024271222465b4db62f0e3a87 and DLL to
+   3e8cd3c3fa4946aa620cd94ed0caf1bc3fa3b7a7c6785f6e72e1e01c12036f26.
+   Launch sb.exe directly from this destination, as the frozen baseline's existing
+   Launch-WonderBane-TextFix.cmd does. Do not invoke a patcher that can replace it.
+   Use that baseline's process-local renderer environment: LIBGL_ALWAYS_SOFTWARE=true,
+   GALLIUM_DRIVER=llvmpipe, MESA_EXTENSION_MAX_YEAR=2001; clear GL/GLSL overrides.
+   Add WONDERBANE_TERRAIN_TRACE=1 only to this launch and restore caller environment
+   in finally. Do not alter global environment, registry, shortcuts or saved settings.
+   Do not reuse the old hash-pinned graphics launcher or passive-profile receipt.
+4. Record the returned process handle, executable path, PID and creation FILETIME.
+   Use existing wait-graphics-status with that exact identity, executable hash and
+   --runtime-profile full-renderer; inspect the loaded DLL path/hash. On any mismatch
+   stop the procedure and retain evidence, without starting another client or killing
+   another runtime. Failed startup is not authorization for automatic relaunch.
+5. Owner logs into this diagnostic client. No /go, /pve, movement acquisition or
+   settings apply/save is part of this observation. Read-only preflight found no saved
+   native-movement preferences; production defaults leave manual controls disabled.
+   Obtain exactly two owner-cued frames in one representative scene: selected character
+   unobstructed, then behind native translucent foreground. Invoke existing
+   shadowbane_lab.diagnostics.terrain_trace --pid <PID> --creation-filetime <FILETIME>
+   --timeout 30 for each; retain screenshot/time correlation and all coverage limits.
+   A timeout or limited trace is evidence, not grounds for repeated automatic requests.
+6. Restoration: close only this exact diagnostic client normally; wait for its recorded
+   lifetime to exit. No broad process-name termination or hot unload. The original
+   C:\Users\tester\Downloads\WonderbaneClient\Wonderbane installation was not modified
+   and remains the normal launch path. No registry/environment restoration is required
+   because these were not changed; verify the vanilla sb.exe remains SHA
+   feb351f0fae87d47549fa43c37836405a753d76fbcd0b02232fc1c0733550dff.
+   Retain diagnostic evidence locally. Do not remove the new copy while it is running.
+
+This procedure does not certify cue/effects transparency or complete-candidate
+acceptance. It collects the missing foreground invocation/material-state evidence;
+source/package identity remains the diagnostic f9c6f7a build recorded above.
