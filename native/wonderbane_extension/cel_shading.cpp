@@ -1474,6 +1474,9 @@ bool CurrentProjection(
 
 void APIENTRY StrongBegin(const unsigned int mode) noexcept {
     const bool compiling = IsCompilingDisplayListOnCurrentThread();
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+    if (!compiling && !g_immediate_primitive_open) ObserveSelectedCueLegacyGeometry();
+#endif
     TerrainTraceDraw(TerrainSubmission::immediate,
         reinterpret_cast<std::uintptr_t>(_ReturnAddress()), mode, 0, -1, 0U, 0U,
         false, !compiling && !g_immediate_primitive_open);
@@ -1737,6 +1740,9 @@ void APIENTRY StrongCallList(const unsigned int list) noexcept {
             original(list);
             return;
         }
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+        if (!g_immediate_primitive_open) ObserveSelectedCueLegacyGeometry();
+#endif
         const bool stable = IsDisplayListSourceStateStable(list);
         TerrainTraceDraw(TerrainSubmission::list,
             reinterpret_cast<std::uintptr_t>(_ReturnAddress()), 0U, 0, -1, 0U, list,
@@ -1770,6 +1776,10 @@ void APIENTRY StrongCallLists(
     MarkCompiledListStateChange();
     const auto original = LoadFunction<GlCallLists>(&g_original_call_lists);
     if (original != nullptr) {
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+        if (!IsCompilingDisplayListOnCurrentThread() && !g_immediate_primitive_open)
+            ObserveSelectedCueLegacyGeometry();
+#endif
         original(count, type, lists);
         if (!IsCompilingDisplayListOnCurrentThread()) {
             InvalidateObservedFixedFunctionState();

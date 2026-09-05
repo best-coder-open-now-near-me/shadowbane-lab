@@ -270,3 +270,36 @@ These are bounded developer measurements, not VM/live-game performance acceptanc
 The exact primitive geometry is a test fixture; no offline viewer is delivered.
 GPU regressions also verify stencil state remains unchanged and an active native
 samples query receives zero samples from rejected supplemental capture.
+
+## Cost-reduced whole-character capture
+
+The current raw array/element path accumulates nearest owned geometry into one
+frame-long private depth target. Its whole-character glow reads that target once
+at composition; it no longer performs a full-frame copy and mask pass per normal
+wrapper. Immediate/display-list geometry retains the original depth-delta coverage
+through a lazy baseline at the existing `StrongBegin`, `StrongCallList` and
+`StrongCallLists` hooks. Mixed raw/legacy nodes are tested in both orders and still
+form one whole-character mask. Depth prepass plus equal-depth material passes are
+also covered; native stencil/query/logic operations are never blindly replayed.
+
+Normal mesh storage is two depth textures (8 nominal bytes/pixel), 15.820 MiB at
+1080p. Legacy baseline and accumulated-mask textures are allocated only when used;
+R32F is used where supported, with the original RGBA32F compatibility allocation
+otherwise. Maximum fallback storage remains bounded at 28 nominal bytes/pixel.
+Allocation/release/recreation assertions verify the normal path does not retain
+fallback allocations after cleanup.
+
+Same 46-node/four-frame host cost check now averages 2.052 ms at 640x480 and
+2.653 ms at 1080p, including initialization. Compared with the earlier 9.566 ms
+1080p result, this reduces measured normal-mesh cost by about 72%. This is still
+host test-context evidence, not live VM performance certification. Full native
+build and all 21 general CTests pass; private binding code remains unchanged.
+
+Owner shared-context source `44d926166220a0e5254ec90e6c21914d273270b0` was separately
+built in the isolated verification checkout. Its cue GPU/runtime/math and shared
+context tests pass, and the explicit reviewed-client binding verifier passes.
+The shared context hook is now owned by `scene_context.cpp`, independent of cue
+startup, and correctly retains owning-thread release before unbind. The new cost
+changes still need inclusion and verification in the owner's next exact source.
+The required native-transparency gate is red; no final package or completed
+feature is claimed from this checkpoint.

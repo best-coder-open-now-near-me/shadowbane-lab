@@ -12,6 +12,7 @@ thread_local int local_releases=0;
 bool begin_ok=true,before_ok=true,after_ok=true;
 bool BeginMask() noexcept {++begins;resources=begin_ok;return begin_ok;}
 bool BeforeOwnedDraw() noexcept {++before;return before_ok;}
+bool BeforeLegacyGeometry() noexcept {return true;}
 bool CaptureGeometry(GeometryDraw,void*) noexcept {++geometry;return true;}
 bool AfterOwnedDraw() noexcept {++after;return after_ok;}
 bool CompositeMask(const Settings&,const Direction&) noexcept {++composites;return true;}
