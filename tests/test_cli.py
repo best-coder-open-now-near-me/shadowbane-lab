@@ -1025,6 +1025,16 @@ class ClientCliTests(unittest.TestCase):
         self.assertTrue(learned_state_saved)
 
     def test_travel_binds_native_readers_to_the_guarded_client_process(self) -> None:
+        self._assert_travel_process_binding()
+
+    def test_travel_uses_injected_movement_without_minimap_or_mouse_backend(self) -> None:
+        self._assert_travel_process_binding(native_movement=True)
+
+    def _assert_travel_process_binding(self, *, native_movement: bool = False) -> None:
+        movement_dispatcher = (
+            SimpleNamespace(dispatch=MagicMock(), stop_movement=MagicMock())
+            if native_movement else None
+        )
         template = Path(__file__).parents[1] / "configs" / "wonderbane-travel.template.json"
         profile = replace(load_calibration(template), live_input_enabled=True)
         snapshot = WindowSnapshot(
@@ -1087,12 +1097,12 @@ class ClientCliTests(unittest.TestCase):
             patch(
                 "shadowbane_lab.cli.PyAutoGuiBackend",
                 return_value=RecordingInputBackend(),
-            ),
+            ) as mouse_backend,
             patch("shadowbane_lab.cli.TravelRunner") as travel_runner,
             patch(
                 "shadowbane_lab.cli_commands.client_travel.open_windows_native_minimap_reader",
                 side_effect=lambda process_id: nullcontext(SimpleNamespace(process_id=process_id)),
-            ),
+            ) as minimap,
             patch(
                 "shadowbane_lab.cli_commands.client_travel.optional_session",
                 return_value=nullcontext(None),
@@ -1116,8 +1126,13 @@ class ClientCliTests(unittest.TestCase):
                 as_json=True,
                 stop_signal=EventEmergencyStop(),
                 client_process_id=4320,
+                movement_dispatcher=movement_dispatcher,
             )
 
+        if native_movement:
+            self.assertIs(travel_runner.call_args.kwargs["dispatcher"], movement_dispatcher)
+            minimap.assert_not_called()
+            mouse_backend.assert_not_called()
         inspector_session.assert_called_once_with(position_reader)
         self.assertEqual(0, result)
         open_position.assert_called_once_with(position_profile, process_id=4320)
@@ -1276,7 +1291,10 @@ class ClientCliTests(unittest.TestCase):
     def test_pve_auto_resolves_character_and_records_binding_before_starting(self) -> None:
         self._assert_pve_process_binding(policy="proc-assassin")
 
-    def _assert_pve_process_binding(self, *, policy: str) -> None:
+    def test_pve_uses_injected_movement_without_minimap(self) -> None:
+        self._assert_pve_process_binding(policy="basic", native_movement=True)
+
+    def _assert_pve_process_binding(self, *, policy: str, native_movement: bool = False) -> None:
         from shadowbane_lab.client_input.character_config import CharacterConfigSession
         from shadowbane_lab.client_observation.native_character_config import (
             NativeCharacterConfigReader,
@@ -1284,6 +1302,10 @@ class ClientCliTests(unittest.TestCase):
         from tests.test_active_character_config import CharacterMemory, write_profile
         from tests.test_arcane_hotbar import _CAPTURED_HOTBAR
 
+        movement_dispatcher = (
+            SimpleNamespace(dispatch=MagicMock(), stop_movement=MagicMock())
+            if native_movement else None
+        )
         template = Path(__file__).parents[1] / "configs" / "wonderbane-pve.template.json"
         profile = replace(load_calibration(template), live_input_enabled=True)
         snapshot = WindowSnapshot(
@@ -1428,7 +1450,7 @@ class ClientCliTests(unittest.TestCase):
                     side_effect=lambda process_id: nullcontext(
                         SimpleNamespace(process_id=process_id)
                     ),
-                ),
+                ) as minimap,
                 patch(
                     "shadowbane_lab.cli_commands.client_pve.optional_session",
                     return_value=nullcontext(None),
@@ -1457,6 +1479,7 @@ class ClientCliTests(unittest.TestCase):
                     evidence_output_path=evidence_output,
                     stop_signal=injected_stop,
                     client_process_id=4320,
+                    movement_dispatcher=movement_dispatcher,
                 )
                 inspector_session.assert_called_once_with(
                     open_position.return_value.__enter__.return_value
@@ -1486,6 +1509,9 @@ class ClientCliTests(unittest.TestCase):
                     open_character.assert_not_called()
                     self.assertIsNone(saved_evidence["character_config"])
 
+        if native_movement:
+            self.assertIs(pve_runner.call_args.kwargs["movement_dispatcher"], movement_dispatcher)
+            minimap.assert_not_called()
         self.assertEqual(0, result)
         self.assertEqual(1, saved_evidence["trace_schema_version"])
         self.assertEqual(4320, saved_evidence["native_observation"]["process_id"])

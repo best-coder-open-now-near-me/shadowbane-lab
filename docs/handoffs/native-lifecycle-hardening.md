@@ -706,3 +706,143 @@ was corrected before the passing run. No client process was opened or changed.
 Next: integrate typed movement sessions/consumer, preserve operation cancellation
 and immutable grants at manager composition, resolve visual transparency, then
 complete-candidate review and installed-package validation.
+
+Stop-only HWND admission 15659286dccbf86cccab7517fe96a09d9381ee6a is included
+at 1ad1455570386d34a4346d2f577bfd77d3f8a792. Both complete DLL profiles build;
+35 targeted movement/UI/lifetime tests per profile pass, zero skips. Evidence:
+artifacts/hardening-evidence/owner-stop-full.xml and owner-stop-diagnostics.xml,
+with corresponding build logs. Admission requires the owned HWND/thread and
+observed native lifetime; this phase rejects movement, pick and camera operations.
+Emergency cancellation uses the existing grant authority and requires neutral
+input before rearming. These tests verify the API/backend contract, not the
+unfinished window-event consumer, nested stop deferral or connected focus loss.
+Those remain owner work alongside input/runtime/settings and typed transport.
+Visual transparency and complete-candidate package/review acceptance remain open.
+
+Windows capture ebdafce11385e75f843124478621f4798f72fe75 is included at
+a07726dc736a1c0aa967bb89b6e359a8ed447a4d. The producer repair dependency was
+retained without replay; the chronological handoff conflict retained the existing
+stop-only validation record. Both complete DLL profiles build; 41 targeted
+movement/UI/lifetime/capture tests per profile pass, zero skips. Six exercise
+real Windows subclass/capture paths, including rollback and foreign subclass.
+Evidence: artifacts/hardening-evidence/windows-input-full.xml and
+windows-input-diagnostics.xml with build logs. Actual builder membership checks
+execute successfully for both generated projects, requiring exactly one
+movement_windows_input.cpp; builder Ruff passes. These certify capture components,
+not the unfinished runtime consumer or connected WASD/controller/drag behavior.
+A repeated Bind/XInput module reference issue was routed back to the movement
+owner before activation. Next remains that correction, nested safety/runtime,
+settings and typed grants, existing transparency repair, complete-candidate review
+and exact installed-package acceptance.
+
+Native consumer e5b910deb93727fa7f6e8bb6ef39bcca8b2ec1c8 is included at
+0287cd97cfc72fdf9054cf0dfc57ecd126a8fdaa, with this shared integration correction.
+The first combined all-target build exposed an unresolved new dependency in the
+existing extension_startup_test. Its external-service seam now supplies the
+controls entry point and tests actual production initializer ordering: heartbeat
+success precedes registration; repeat initialize does not register twice;
+unsupported optional controls preserve success; shared rollback never registers.
+Both complete DLL profiles subsequently build. Each executes 66 movement/runtime,
+shared-update, startup, context and combined-render checks successfully, zero skips.
+Evidence: artifacts/hardening-evidence/movement-runtime-full.xml and
+movement-runtime-diagnostics.xml, with build logs. These runtime tests exercise
+production composition with real HWNDs and controlled native callees, including
+focus without updates, nested interruptions, drag release, chat and stale tickets.
+They do not certify actual server/gameplay behavior. The repeated Bind/XInput
+reference issue is closed by admission-before-load and its passing regression.
+
+The consumer now registers only after shared startup success and defaults disabled;
+ordinary disable retains it for re-enable. Existing builder checks now require
+movement_runtime.cpp exactly once in both generated DLL projects; their actual
+membership statements and builder Ruff pass. Branch map reflects that registration,
+without advertising completed settings/transport capability. Next: native settings
+and Graphics Lab discovery, immutable wire/session API and manager composition,
+existing cue/effects transparency repair, complete-candidate independent review
+and exact installed-package verification before owner acceptance.
+
+Native settings b5e139570444c34c8282cdd112fb6c6819594261 is included at
+112d8d4144834e55da1ee8d2459c644fccd10823. Both complete DLL profiles build;
+68 movement/runtime/settings/startup/context/combined-render tests per profile
+pass, zero skips. The native settings test includes isolated preference reload
+in another process and real panel validation/stale apply. Python selected-client
+settings, Graphics Lab and producer tests: 44 passed, zero skips. Ruff passes.
+Evidence: artifacts/hardening-evidence/movement-settings-{full,diagnostics}.xml,
+matching build logs and movement-settings-python.xml.
+
+Existing builder membership statements execute successfully against both DLL
+projects with movement_settings.cpp exactly once. Wheel/sdist membership and
+installed Graphics Lab button/module checks are extended in that same builder;
+installed smoke syntax is checked, but no new installed-wheel execution is claimed.
+Required native gate checks now explicitly include all three runtime inputs,
+focus/nested interruption/chat/stale settings and the native preferences panel,
+so absent/skipped entries cannot produce a successful receipt. These supplement
+the still-failing required cue/effects transparency gates. Saved preferences are
+defaults for future clients; applying the panel changes only the selected current
+client and uses its immutable grant/revision. Next is typed native command/session
+and manager operation composition, visual transparency repair, final independent
+review and exact package/installed verification before consolidated owner testing.
+
+Lossless movement codec 7791888b21c02dc3ecc704d5c97f2ecf39144eea is included at
+1e7bcaa7f983d27b0d5ce51b97b64aa3c394cf0b. Both complete DLL profiles build;
+18 targeted wire/preferences/runtime/startup tests per profile pass, zero skips.
+Python codec/settings/action/producer checks: 25 passed plus 15 malformed-input
+subtests; Ruff and diff checks pass. Evidence: artifacts/hardening-evidence/
+movement-wire-{full,diagnostics}.xml, matching build logs and movement-wire-python.xml.
+Shared synthetic bytes verify exact Python/native command, receipt and status
+layout; native preferences now reuse the existing 52-byte settings encoding.
+Existing package checks require the codec module, source header/fixture and a
+successfully executed native wire test. This adds no runtime cpp source.
+Active action-channel schema remains 1: schema-2 payloads are defined but no
+producer/consumer switch or usable movement session is claimed yet. Product and
+installed artifact identity remain unchanged/unverified for this combined source.
+The movement owner is correcting the touched command-channel timed-out shutdown
+ownership with production held-worker tests while implementing admission/status/
+receipts. Next: coordinated live wire switch, typed session and manager operation
+composition, visual transparency repair, complete-candidate independent review
+and exact package/installed checks before owner acceptance.
+
+Schema-2 transport b8380f2aac41818104dc435abd25464fe2d169aa is included at
+4dd02e4684ba5d6074d38837695ac2588b63f5b2 with the shared probe link correction
+in this checkpoint. The existing probe now links movement_controls.cpp for the
+validator reached through event_channel; the first combined all-target build
+correctly failed before that dependency was supplied. Both complete builds now
+pass. 70 movement/startup/event/channel tests per profile pass, zero skips.
+Real Python-to-native tests ran against each exact newly built runtime fixture:
+22 tests plus 15 subtests per profile passed, zero skips, including acquire/retry/
+stop while the Python producer mutex remains held and read-only/mixed-schema checks.
+Evidence: artifacts/hardening-evidence/movement-channel-{full,diagnostics}.xml,
+matching build logs and movement-session-{full,diagnostics}-python.xml. Ruff passes.
+
+Active action schema is now 2 (command768/result512/status512); legacy action and
+learned-power payload prefixes remain, but schema-1 peers are rejected. Product
+version is unchanged. Command-channel stop disables admission immediately; a timed
+out worker retains handles/state, and admitted lease references retain mappings
+until released. The production held-worker test verifies repeated-start rejection,
+release/final cleanup and later restart. Package builder requires this lifecycle
+and runtime command gate, and runs the real IPC pytest with each freshly built
+fixture explicitly, rejecting missing/skipped cases. Inherited fixture paths are
+cleared. These package steps are not claimed executed by a new complete package.
+
+Open cross-feature work: arbitrary world destination currently returns unavailable;
+manager dispatcher injection will preserve the accepted LT/LG planner decisions.
+The owner is implementing that adapter, bounded acquisition-receipt retention,
+nonterminal movement stop versus terminal grant release, and navigation with manual
+controls disabled. Manager operation/session composition remains integration-owned.
+Visual transparency, final independent review and exact installed-package acceptance
+remain open. No client/VM installation was changed.
+
+Shared CLI dispatcher boundary is now explicit: _run_travel and _run_pve accept
+an optional TravelDecisionDispatcher and pass that exact object to their existing
+runners. Native movement does not create a minimap reader; travel also avoids the
+unused desktop movement backend. PvE retains its existing separately guarded
+combat-input adapter. Default standalone callers preserve existing behavior;
+no route/planner policy changed and no native dispatcher is silently substituted
+on failure. Existing CLI reader-binding tests now cover both default and injected
+paths, asserting no minimap/desktop-movement construction for the injected path.
+Validation: 152 CLI/travel/adaptive/PvE/manager tests passed, zero skips; Ruff passed.
+Evidence: artifacts/hardening-evidence/movement-dispatcher-injection-python.xml.
+Next: manager-owned immutable operation session/grant lifecycle and sub-second
+renewal while movement is paused, using the owner's pending pause/renew/dispatcher
+API. Renewal must not reacquire or revive expired ownership; manual takeover
+must latch interruption for PvE combat as well as movement. Native destination
+and final acceptance remain unfinished; no owner-facing candidate was produced.
