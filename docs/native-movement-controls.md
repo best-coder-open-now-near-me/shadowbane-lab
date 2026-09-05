@@ -83,3 +83,29 @@ Each command owns one exact-client operation and renews its lease every 250ms
 while the planner runs. Exiting performs native terminal stop and releases the
 lease. Missing bindings produce an error; there is no mouse-movement fallback.
 After manual takeover, explicitly issue a new route or PvE command to resume.
+
+
+## Focused connected acceptance sequence
+
+Use the integration owner's frozen, installed combined package and shared
+acceptance record. Record its source SHA, DLL/wheel/package identities, selected
+controller slot and control settings before starting. Use the already accepted
+zone navigation scenario and representative obstacles; do not repeat navigation
+research. A supported XInput gamepad and a second client are needed for the device
+and isolation cases. Each observation below remains pending until performed.
+
+| Step | Action and expected result |
+| --- | --- |
+| Disabled baseline | Launch normally with manual controls disabled. Check ordinary selection, native mouse camera, inventory drag and world map. No manual keys or buttons are consumed. |
+| WASD and remapping | Enable, release all input to arm, rotate the camera, then press each direction, opposing pairs and diagonals. Movement follows camera-relative ground direction, opposing pairs cancel and diagonals do not increase native speed. Remap a key and check its original action is suppressed only while controls own it. Release stops through the native path. |
+| Controller | Select the intended XInput slot. Test left-stick direction above/below the configured dead zone and right-stick sensitivity/inversions. Analog direction is preserved at the game's normal permitted speed. Neutral stops. Looking around during /go preserves the route; dead-zone noise cannot take it over. |
+| Terrain and mouse drag | Hold the configured X1 default over valid world terrain and cross the six-pixel threshold; steer over sloped terrain and around an obstacle. Release stops. A below-threshold click retains its native click behavior. Invalid terrain does not invent a destination. Check normal selection, inventory, map and right-button camera interactions remain usable. |
+| UI and focus | While moving, open chat/text/modal UI, lose focus, lose capture or leave the client. Movement stops. Return with input still held: nothing restarts until neutral and deliberate input. |
+| Device and instance | Disconnect during stick movement. Reconnect while held: nothing restarts until neutral. Switch focus between two clients: only the intended foreground instance receives movement/camera input; the previous instance stops. |
+| Ownership race | Start /go, then deliberately move manually. Release: route stays cancelled. Repeat with /pve and confirm attack dispatch also stops. Correlate diagnostics with the existing automated delayed-command/stale-stop regressions; old ownership cannot resume movement or stop a newer owner. Explicitly issue a new route to resume. |
+| Native constraints and lifecycle | Exercise an obstacle and a normal movement restriction, confirm native collision/animation/server behavior, then transition character/scene and disable/re-enable. No old input, destination or stop affects the new scene. Quit cleanly. |
+
+Collect failures with expected/observed behavior and package identity in the shared
+record. Developer native tests already cover delayed processing and 20/30/60/144/240
+Hz camera integration; during acceptance compare available frame-rate conditions
+without changing the accepted source or introducing alternate movement writers.
