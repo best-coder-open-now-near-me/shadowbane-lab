@@ -1,0 +1,10 @@
+{
+  "schema": 1,
+  "id": "clear-day-v1",
+  "asset": "clear-day.sky",
+  "sha256": "c4143315072e94413db211cc81164121ce8331af2a4497ab8229ac611cac73ce",
+  "size": 520,
+  "license": "CC0-1.0",
+  "author": "Shadowbane Lab",
+  "source": "clear-day.json"
+}

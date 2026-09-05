@@ -3,6 +3,7 @@
 #include "selected_cue_gpu.h"
 #include "selected_cue_binding.h"
 #include "effects.h"
+#include "sky_runtime.h"
 #include "import_hook.h"
 #include "render_lifetime.h"
 #include "reviewed_scene_boundary.h"
@@ -117,7 +118,7 @@ BOOL WINAPI CueMakeCurrent(HDC dc,HGLRC context) noexcept {
     RenderCallbackLease lease;SynchronizeGeneration();
     const auto call=reinterpret_cast<MakeCurrent>(InterlockedCompareExchangePointer(&original_context,nullptr,nullptr));
     if(!call)return FALSE;
-    if(context!=wglGetCurrentContext())ReleaseSelectedCueContext();
+    if(context!=wglGetCurrentContext()){ReleaseSelectedCueContext();DiscardSkyScene();}
     return call(dc,context);
 }
 void __fastcall OwnedRender(void* self,void*) noexcept {

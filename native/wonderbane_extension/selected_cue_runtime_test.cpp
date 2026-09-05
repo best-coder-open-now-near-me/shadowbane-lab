@@ -126,3 +126,5 @@ int main(){
     for(HANDLE event:{draw_resume,stop_started,stopped,restart,restart_done})CloseHandle(event);
     VirtualFree(memory,0,MEM_RELEASE);
 }
+
+namespace wonderbane::extension { void DiscardSkyScene() noexcept {} }
