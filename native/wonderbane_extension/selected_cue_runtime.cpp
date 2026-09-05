@@ -3,6 +3,9 @@
 #include "selected_cue_gpu.h"
 #include "selected_cue_binding.h"
 #include "effects.h"
+#include "cel_shading.h"
+#include "terrain_trace.h"
+#include <intrin.h>
 #include "import_hook.h"
 #include "render_lifetime.h"
 #include "reviewed_scene_boundary.h"
@@ -146,9 +149,13 @@ void APIENTRY OwnedMultiDraw(GLenum mode,const GLsizei* count,GLenum type,
     auto draw=NativeMultiDraw();
     if(!draw)draw=reinterpret_cast<MultiDraw>(InterlockedCompareExchangePointer(&multi_original,nullptr,nullptr));
     if(!draw || draw==&OwnedMultiDraw)return;
+    const bool query_safe=AreNativeDrawQueriesSafe();
+    TerrainTraceDraw(TerrainSubmission::multi_elements,reinterpret_cast<std::uintptr_t>(_ReturnAddress()),
+        mode,0,primitive_count,type,0U,true,query_safe);
     struct Args{MultiDraw draw;GLenum mode;const GLsizei* count;GLenum type;const void* const* indices;GLsizei primitives;};
     Args args{draw,mode,count,type,indices,primitive_count};
-    if(count && indices && primitive_count>0)CaptureSelectedCueGeometry([](void* value) noexcept {
+    if(!query_safe && scene && nesting){mask_failed=true;cue::DiscardMask();}
+    if(query_safe && count && indices && primitive_count>0)CaptureSelectedCueGeometry([](void* value) noexcept {
         const auto& a=*static_cast<const Args*>(value);a.draw(a.mode,a.count,a.type,a.indices,a.primitives);
     },&args);
     draw(mode,count,type,indices,primitive_count); // One native framebuffer submission.
@@ -277,6 +284,9 @@ void ReleaseSelectedCueContext() noexcept {RenderCallbackLease lease;DiscardSele
 void BeginSelectedCueScene(const GraphicsCameraState* camera) noexcept {
     RenderCallbackLease lease;SynchronizeGeneration();
     scene=false;owned=0;mask_failed=false;cue::DiscardMask();
+    // A bounded opt-in contributor trace must not require a selected target or
+    // an enabled glow to observe the native optimized world submission path.
+    if(InterlockedCompareExchange(&running,0,0) && IsTerrainTraceCapturing())RefreshMultiDraw();
     if(!InterlockedCompareExchange(&running,0,0) || !Poll() || !settings.enabled){
         DiscardSelectedCueScene();cue::ReleaseMask();Status(0,0,0);return;}
     attachment=Selected();

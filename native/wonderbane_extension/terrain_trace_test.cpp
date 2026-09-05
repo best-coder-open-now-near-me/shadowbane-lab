@@ -54,7 +54,7 @@ void Draw(bool safe = true) {
 
 int main() {
     Draw(); TerrainTraceClear(true, 0x4100U); TerrainTraceDone3d(); TerrainTracePresent();
-    if (calls != 0 || g_phase.load() != Phase::disabled) { return Fail("disabled observer queried GL"); }
+    if (IsTerrainTraceCapturing() || calls != 0 || g_phase.load() != Phase::disabled) { return Fail("disabled observer queried GL"); }
     if (LocalOrdinaryDirectory(L"\\\\server\\share")
         || LocalOrdinaryDirectory(L"relative") || LocalOrdinaryDirectory(L"\\\\?\\C:\\")) {
         return Fail("non-local destination accepted");
@@ -79,13 +79,14 @@ int main() {
     TerrainTraceClear(false, 0x4100U); Draw();
     if (calls != 0 || g_phase.load() != Phase::armed) { return Fail("unreviewed clear armed capture"); }
     TerrainTraceClear(true, 0x4100U);
-    if (!g_frame->helpers_available || g_frame->unit_count != 2U) { return Fail("capability detection"); }
+    if (!IsTerrainTraceCapturing() || !g_frame->helpers_available || g_frame->unit_count != 2U) { return Fail("capability detection"); }
     const int before_unsafe = calls;
     Draw(false);
     if (calls != before_unsafe || g_frame->unsafe != 1U) { return Fail("unsafe GL query"); }
-    Draw();
+    TerrainTraceDraw(TerrainSubmission::multi_elements, 0x400123U, 4U, 0, 2, 0x1403U, 0U, true, true);
     const auto& draw = g_frame->draws[0];
     if (g_frame->retained != 1U || draw.caller_rva != 0x123U
+        || draw.submission != TerrainSubmission::multi_elements || draw.count != 2
         || draw.textures[0].binding != 100 || draw.textures[1].binding != 101
         || draw.textures[1].matrix[0] != 2.0F || !draw.active_unit_restored
         || active_unit != static_cast<int>(kTexture0 + 1U) || active_changes != 3) {
@@ -117,7 +118,8 @@ int main() {
     char contents[16384U]{}; DWORD read = 0;
     ReadFile(file, contents, sizeof(contents) - 1U, &read, nullptr);
     CloseHandle(file);
-    if (!json.ok || std::strstr(contents, "\"model_view\":[null,") == nullptr
+    if (!json.ok || std::strstr(contents, "\"submission_label\":\"multi_elements\",\"count_unit\":\"subdraws\"") == nullptr
+        || std::strstr(contents, "\"model_view\":[null,") == nullptr
         || std::strstr(contents, "\"display_lists\":\"entry-state-only-not-internal-draws\"") == nullptr
         || std::strstr(contents, "\"reviewed_interval_complete\":true") == nullptr) {
         return Fail("JSON fidelity and scope");

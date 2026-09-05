@@ -453,3 +453,57 @@ and final package certification remain unfinished. The verification checkout is
 retained at this exact pin, feature checkout is clean/published, and normal main
 checkout remains untouched. Next active todo remains the shared transmission
 correction, followed by the final combined package and consolidated acceptance.
+
+
+## Native multi-draw contributor diagnostics
+
+The owner authorized reusing the existing bounded TerrainTrace for native
+optimized submissions, coordinated with particles' transmission-state fields.
+The existing hook now reports one `multi_elements` observation before supplemental
+mask replay. `count_unit` is explicitly `subdraws`; count is neither summed
+indices nor fragment coverage. Private replay never produces another observation.
+
+A read-only helper exposes the renderer's existing thread-local begin/list guard.
+Unsafe calls still reach the original native procedure once, but neither query
+state nor perform supplemental mask submission; any partial owned mask is
+invalidated. A read-only trace-phase predicate allows the same verified dynamic
+slot to be adopted for an opt-in frame even with cue disabled or no selected
+target. Disabled cue with no active trace does not adopt the slot. Existing
+context, epoch, original-call and Stop restoration rules remain in force.
+This adds no new hook/lifecycle authority, and is diagnostic submission coverage,
+not a retained fragment/transmission implementation. Unavailable/unhooked paths,
+query/capacity limits and list-internal state remain outside a completeness claim.
+
+The actual full DLL builds. Four affected native tests pass (cue runtime, trace
+full/disabled and shared cel guard), including disabled/no-target capture and
+no-opt-in/no-adoption. The 46 existing Python trace-reader/terrain-analysis tests
+pass. The root owns inclusion with the enriched trace fields; no shared client
+or VM was changed by this lane. The PR is to be reconciled to the owner's current
+`codex/native-lifecycle-hardening` destination for this new unintegrated delta.
+
+## Immediate contributor evidence across client versions
+
+The archived PID960 trace identifies executable SHA256
+`a9a59004b36f9331bb85f85e7853a02a5d5f07bda9acb9ea4a8affbf169a54b8`.
+It is not the updated `feb351...` client. The retained private
+`before-current-game-update/sb.exe` matches that archive hash. Comparing its
+producer spans to `updated-official-sb.exe` establishes byte identity:
+
+- `538EC0`, 136 bytes, SHA256
+  `222be1f940e4cc1849a3d3b51ac09e8bbc49139e16631711b4e85f8331e5fb54`.
+  Trace caller `538ED0` is the return from `glBegin(GL_QUADS)`. The routine emits
+  four `glTexCoord2f`/`glVertex3f` pairs and then `glEnd`, with no internal color or
+  texture-binding change. UVs come from its object; positions from six arguments.
+- `D8EC0`, 193 bytes, SHA256
+  `d992624a435278c1552c0616a684de657889887bd191d4a7e15111dd3689092c`.
+  Before its quad it calls material virtual `+58` and enables blending. Trace
+  caller `D8F13` follows `glBegin`. Four constant UV pairs and computed vertices
+  are emitted before `glEnd`.
+
+This validates the specific producer mapping across those two private builds,
+not every material/state observation on the current client. It confirms that a
+position-only collector omits required UV information, while these two local
+emitters have a bounded four-vertex contract. Full native transmission still
+needs verified source color/alpha and depth per contributing fragment, including
+other immediate/list paths and all relevant blend/program/stencil classes. No
+replay or S(z),T(z) representation is certified by this evidence alone.
