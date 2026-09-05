@@ -390,3 +390,37 @@ parent-frame composition, degenerate views and frame changes during conversion a
 reference cleanup. These native-call-double tests do not certify rendered native
 camera output. Active next work is Windows/XInput/UI input consumer wiring and
 settings/manager grant transport, then complete candidate/package acceptance.
+
+
+Native lifetime tracking now observes the sealed reference-finalizer ABI for actor
+and parent and the exact reviewed world deallocation import. It invalidates the
+current epoch before original destruction and checks captured watch generation.
+Same-address reuse gets a fresh epoch; same allocation cannot rearm while its
+original destructor is held. Callback completion never invalidates a replacement
+watch. Unknown reference interfaces, foreign slot replacements and partial install
+fail closed, preserving original call-through and foreign ownership. The observer
+has terminal retirement only; ordinary settings toggles keep it registered.
+
+Production native Bind now requires BeginUpdate(receiver, observed_scene), with
+Input.scene equal to observed_scene.epoch. The previous unobserved overload is not
+an activation path after production Bind. Every actuator scene check also verifies
+the lifetime epoch, so a destruction callback invalidates a captured stop before
+the next input tick. Runtime must StartNativeMovementLifetime on the owning client
+thread, Observe each admitted native update, finish its owning-thread stop before
+terminal retirement, and retain callback state for process lifetime. Do not use
+renderer frame/context counters for this identity.
+
+Both DLL profiles and 11 policy/backend/lifetime tests pass with zero skips. New
+lifetime tests cover actor/parent/world ABA, watched and ordinary free, held actor
+and world callbacks, watch replacement, partial-install rollback with dispatched
+callback, foreign finalizer/free slots, unsupported image/interface and production
+actuator rejection of old stops before another input tick. A test-only symbol
+collision was corrected before rebuilding and rerunning the final test binaries.
+New production source: movement_lifetime.cpp in both profiles; native_stop tests
+also link it and import_hook.cpp. Integration owner reconciles the package builder.
+
+Active next: complete Windows/XInput/native UI consumer composition; then real
+settings and automation grant transport, complete candidate/package checks and
+coordinated connected acceptance. No partial controls capability is advertised or
+installed. Source destination remains codex/native-lifecycle-hardening, then its
+reviewed combined integration; PR31 is the earlier merged checkpoint only.

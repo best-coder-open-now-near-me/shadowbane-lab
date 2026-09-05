@@ -1,6 +1,7 @@
 #pragma once
 #include <Windows.h>
 #include "movement_controls.h"
+#include "movement_lifetime.h"
 #include <array>
 #include <cstdint>
 namespace wonderbane::extension::movement {
@@ -13,6 +14,7 @@ public:
     // Enter/leave only around the verified native-update hook, before calling its
     // original. Input, render and teardown callbacks cannot execute native stop.
     bool BeginUpdate(void* native_window) noexcept;
+    bool BeginUpdate(void* native_window, const NativeScene&) noexcept;
     void EndUpdate() noexcept;
     bool Execute(const Grant&) noexcept;
     // Camera input does not acquire or retire movement ownership.
@@ -105,6 +107,8 @@ private:
     std::uintptr_t base_ = 0;
     HWND window_ = nullptr;
     DWORD thread_ = 0;
+    NativeScene lifetime_scene_{};
+    bool require_lifetime_ = false;
     bool bound_ = false, faulted_ = false, executing_ = false, captured_ = false, in_update_ = false;
     // On an unexpected native exception, retain ambiguous resources and fail
     // closed. Never retry an uncertain send or unload code from under callbacks.

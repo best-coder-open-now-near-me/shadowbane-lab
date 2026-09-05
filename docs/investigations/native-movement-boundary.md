@@ -372,3 +372,48 @@ change during movement. That last test initially found cleanup capturing the new
 actor under the old policy scene. Stop now reuses the movement transaction's actor
 identity and refuses to act on the replacement; the test passes in both profiles.
 These tests do not execute the native collision solver/world update or server.
+
+
+## Native object lifetime boundary
+
+The sealed generic reference Release at RVA `1311b0` decrements its reference
+count and, at zero, calls interface vtable slot +4 with ECX equal to the reference
+interface and one flags argument of 1. The reviewed release thunk is RVA `26f49`.
+Actor and parent native reference wrappers obtain that interface using object+8's
+virtual-base table and its +4 offset. The observer accepts only that exact release
+thunk, readable/aligned reviewed-data tables and a finalizer in authenticated native
+text. This verifies the invoked interface ABI for the tracked type; other release
+implementations are unavailable. It does not assume an arbitrary actor vtable is
+a reference interface or infer a parent's allocation base.
+
+For the reviewed ArcCharacter reference interface, finalizer thunk RVA `6a46`
+reaches the adjustment wrapper at `970d0`, then scalar destruction at `48810`.
+The adjustment recovers the character allocation and the deletion flag frees it.
+The observer executes before that finalizer, with immutable per-slot original
+call-through. It observes parent finalization through the same verified reference
+ABI, including when the parent and actor have different allocation layouts.
+
+World construction at RVA `1f6cd0` is reached through its thunk only at the two
+reviewed allocation sites (`1f524b` and `370b44`), both following allocation of
+0x210 bytes. The world destructor thunk's three reviewed callers (`3734e6`,
+`51ff68`, `79fad0`) deallocate the original allocation through the common native
+free wrapper. That wrapper reaches the reviewed MSVCRT free import slot at RVA
+`16b0504`. The observer verifies import identity and its actual CRT export before
+replacement. Only the exact currently watched world allocation and captured watch
+generation can invalidate a scene; unrelated and null frees merely call through.
+A world is not assumed to have a vtable at offset zero.
+
+`movement_lifetime` assigns an epoch to the verified native actor/ID, parent,
+world and game-window tuple. Finalization/deallocation invalidates it before the
+original call, never actuating gameplay. In-flight destruction prevents rearming
+the same allocation. A different tuple can be watched while an old original is
+held; that old callback's completion only removes its in-flight notice and cannot
+invalidate the replacement. Same-address reuse after destruction obtains a new
+epoch. Non-playable/invalid capture intervals also retire the prior epoch.
+
+No lock spans original call-through. Watch state, slot records and originals are
+process-pinned; terminal failure/retirement restores only owned slots and preserves
+already-dispatched callbacks. Partial install failure cannot restart. NativeStop
+requires the exact observed epoch in production BeginUpdate and checks it again
+at every existing scene/current boundary, including stops. These tests use
+controlled native originals and are not connected native-engine certification.
