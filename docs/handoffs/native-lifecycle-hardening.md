@@ -717,3 +717,15 @@ was corrected before the passing run. No client process was opened or changed.
 Next: integrate typed movement sessions/consumer, preserve operation cancellation
 and immutable grants at manager composition, resolve visual transparency, then
 complete-candidate review and installed-package validation.
+
+Stop-only HWND admission 15659286dccbf86cccab7517fe96a09d9381ee6a is included
+at 1ad1455570386d34a4346d2f577bfd77d3f8a792. Both complete DLL profiles build;
+35 targeted movement/UI/lifetime tests per profile pass, zero skips. Evidence:
+artifacts/hardening-evidence/owner-stop-full.xml and owner-stop-diagnostics.xml,
+with corresponding build logs. Admission requires the owned HWND/thread and
+observed native lifetime; this phase rejects movement, pick and camera operations.
+Emergency cancellation uses the existing grant authority and requires neutral
+input before rearming. These tests verify the API/backend contract, not the
+unfinished window-event consumer, nested stop deferral or connected focus loss.
+Those remain owner work alongside input/runtime/settings and typed transport.
+Visual transparency and complete-candidate package/review acceptance remain open.
