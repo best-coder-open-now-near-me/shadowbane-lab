@@ -138,3 +138,22 @@ contract and ordering. Combined verification is still pending.
 Next active todo: resolve material coverage. Remaining: reconcile lifecycle,
 verify combined source/package, and consolidate live material/performance checks.
 
+## Material investigation and targeted observation
+
+Static shader dispatch confirms the coverage limitation is a real possible code
+path, not only a generic OpenGL concern. The selected render object's `+0xEC`
+shader is configured at RVA `0x1CC549` (virtual `+0x14`) and drawn at `0x1CC554`
+(virtual `+0x0C`). RTTI identifies ArcShaderGeneric draw RVA `0x4F1E70`, which
+conditionally disables depth writes at `0x4F201F`; ArcShaderStaticWithAlpha draw
+`0x4F63D0` and ArcShaderStaticNoAlpha draw `0x4F6990` also have conditional depth
+write changes (`0x4F6773`, `0x4F6D13`). These are exact-code observations from the
+reviewed private executable above.
+
+The missing runtime fact is which shader/material state the selected body's and
+clothing's meshes actually use, especially while fading or translucent. Static
+code cannot supply those live object values. The integration owner has been sent
+this precise evidence request for the combined capture; no intermediate demo
+acceptance or repeated navigation proof is requested. The feature developer
+retains responsibility for resolving any resulting coverage gap.
+
+Draft review: https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/29

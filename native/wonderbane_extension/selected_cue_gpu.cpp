@@ -218,7 +218,7 @@ bool AfterOwnedDraw() noexcept {
 }
 bool CompositeMask(const Settings& s,const Direction& d) noexcept {
     bool ok=true;
-    if(g.active && SameTarget())ok=Run(4,&s);
+    if(g.active)ok=SameTarget() && Run(4,&s);
     Operation op{5,&s,&d};
     if(d.available && d.offscreen)ok=RenderSceneGeometry(nullptr,Indicator,&op)&&ok;
     DiscardMask();return ok;

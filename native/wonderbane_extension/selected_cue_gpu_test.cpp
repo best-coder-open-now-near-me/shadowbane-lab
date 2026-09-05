@@ -72,6 +72,12 @@ int main(){
     cue::Direction d{true,true,-1,-1};
     Check(cue::CompositeMask(s,d),"offscreen direction draw");Same(initial,Snapshot());
     Check(Pixel(44,394)>0,"indicator is in the client viewport");
+    Check(cue::BeginMask(),"begin before viewport transition");
+    glViewport(0,0,600,400);
+    Check(!cue::CompositeMask(s,{}),"viewport change rejects stale capture");
+    Check(cue::BeginMask(),"resize recreates matching resources");
+    Check(cue::CompositeMask(s,{}),"resized scene composite");
+    glViewport(0,0,640,480);
     cue::ReleaseMask();Check(glGetError()==GL_NO_ERROR,"no GL errors after cleanup");
     Check(cue::BeginMask(),"resources recreate after cleanup");cue::ReleaseMask();
     wglMakeCurrent(nullptr,nullptr);wglDeleteContext(context);ReleaseDC(window,dc);DestroyWindow(window);
