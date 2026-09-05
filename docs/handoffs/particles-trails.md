@@ -178,3 +178,48 @@ this feature against it. Peer coordination with the selected-character feature
 has shared the renderer guard and resolver; it does not substitute for the
 owner's combined candidate. No manual acceptance is requested until that
 candidate is verified.
+
+## Independent combined-checkpoint verification
+
+The integration owner supplied `50ad9e1dd83a67de3bc814a098dc4230b0393299`
+from `codex/native-lifecycle-hardening` for feature compatibility verification.
+This includes particles `21e884b` and cue `782aead`. It is a dependency checkpoint,
+not the final acceptance candidate: required lifecycle/durable-state repairs and
+cue material coverage were still in progress when supplied.
+
+The effects developer fetched and archived that exact commit into the feature
+worktree's ignored `artifacts/combined-50ad9e1/source`, without editing the owner's
+checkout or changing the feature baseline. Independent Win32 builds are retained
+at `E:/Projects/shadowbane/build/pc-50ad-full` and `pc-50ad-diagnostics-only`.
+
+Effects core, attachment resolver, runtime and shared scene guard match the
+previously verified feature source. The reviewed integration preserves camera
+validation, composite -> cue -> effects -> navigation -> UI order, both Graphics
+Lab connection/cleanup paths and native source ownership. Project-file checks
+confirm each effects runtime source appears exactly once in full and zero times
+in diagnostics-only.
+
+Both profiles built successfully. Each CTest run passed 23 cases and skipped the
+binding CLI test because its private executable argument is not in CTest. The
+explicit binding verifier then passed for both builds against the existing
+reviewed local client: exact code, both relocations, and every-byte drift
+rejection. No executable was copied or deployed. Effects rendering, depth/state
+restoration, lifecycle and shared guard regressions passed in the combined build.
+Combined Python effects/cue/control/navigation-panel selection passed 54 tests
+and 12 subtests with one Tk display skip. Graphics Lab and package-builder lint
+passed.
+
+Dependency-build DLL hashes (not final package identities):
+- Full: `0ea28e431bad5120de6389b3067aa60e4c34a3a7cda497d5d163534c095a7f6a`.
+- Diagnostics-only: `bd8fcc1f15babb32f35537bdd4a29044ce333891d1efd99ffe71bb6b97a084fd`.
+
+Two package-builder review notes were sent to the owner: deduplicate repeated
+source-contract names, and isolate the selection-panel smoke test from real
+client discovery just as the effects-panel smoke test already does. No effects
+compatibility blocker or feature-code fix was found at this checkpoint.
+
+Next active todo: review the owner's final repaired source/package delta and
+confirm effects compatibility before consolidated connected acceptance. This
+checkpoint result does not certify future lifecycle changes or extend the old
+feature-package receipt to a newly combined DLL. Sky/movement rolling additions
+remain separately owned and do not reopen completed particle implementation.
