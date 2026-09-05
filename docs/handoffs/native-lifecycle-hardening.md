@@ -466,3 +466,21 @@ replacement regressions. These remain open before runtime activation. Existing
 manager grant ownership remains authoritative; no competing movement owner is
 introduced. Next is those fixes plus complete adapters/activation, alongside
 opaque-visibility/transmission work. No package or owner acceptance is certified.
+
+
+Movement correction `36d62d92974da016fb5f7d11c558358c4b10cf66` is included at
+`16c780c2ea5adedd67d79888e43b54b537bd07b0`. Both complete native profile builds
+and both policy/production-stop tests per profile pass, zero skips. Evidence:
+`artifacts/hardening-evidence/stop-request-native-{full,diagnostics}.xml` and logs.
+Missing outgoing connection now fails unavailable with balanced owned-reference
+cleanup. Each execution pins its current-player request; action/path/state
+callback replacements are not adopted. Native current-player producer/consumer
+ownership and noncallback container helpers are documented by the feature owner.
+
+Review follow-up remains open: position/destination/waypoint and other actual
+callback boundaries must check the pinned request before subsequent mutations,
+not merely actor/world identity. The movement owner is adding those focused
+regressions and consistent RequestCurrent checks. Runtime remains unbound; this
+checkpoint does not certify complete Stop, adapters or a connected package.
+Next is that correction and real movement/camera/picking/input integration;
+rendering transparency and exact final package acceptance remain unfinished.
