@@ -11,7 +11,17 @@ int calls = 0, active_unit = static_cast<int>(kTexture0 + 1U), maximum_units = 2
 int active_changes = 0;
 HGLRC context = reinterpret_cast<HGLRC>(0x1234U);
 const char* version = "1.3 test";
-bool proc_available = true;
+bool proc_available = true, program_proc_available = true;
+int program_calls = 0, profile_mask = 2;
+void APIENTRY Program(unsigned int target,unsigned int name,int* output) {
+    ++program_calls;
+    if (name != 0x8677U || (target != 0x8620U && target != 0x8804U)) std::abort();
+    *output = target == 0x8620U ? 71 : 72;
+}
+void APIENTRY EnvironmentReal(unsigned int target,unsigned int name,float* output) {
+    if(target != 0x2300U || name != 0x2201U) std::abort();
+    std::fill_n(output,4U,0.25F);
+}
 const char* extensions = "";
 std::vector<unsigned int> integer_queries;
 void APIENTRY Integer(const unsigned int name, int* output) {
@@ -20,12 +30,17 @@ void APIENTRY Integer(const unsigned int name, int* output) {
     if (name == 0x84E0U) { *output = active_unit; }
     else if (name == 0x84E2U) { *output = maximum_units; }
     else if (name == 0x0BA2U) { output[0] = output[1] = 0; output[2] = 800; output[3] = 600; }
+    else if (name == 0x9126U) { *output=profile_mask; }
+    else if (name == 0x0B40U) { output[0]=output[1]=0x1B02; }
+    else if (name == 0x0C10U) { output[0]=output[1]=0;output[2]=800;output[3]=600; }
+    else if (name == 0x0D32U) { *output=6; }
     else if (name == 0x0C23U) { output[0]=1;output[1]=0;output[2]=1;output[3]=0; }
     else if (name == 0x8069U) { *output = 100 + active_unit - static_cast<int>(kTexture0); }
     else { *output = static_cast<int>(name); }
 }
 void APIENTRY Real(const unsigned int name, float* output) {
     ++calls;
+    if (name == 0x0B70U) { output[0]=0.0F;output[1]=1.0F;return; }
     if (name == 0x0BC2U) { *output = 0.5F; return; }
     if (name == 0x0B00U) { std::fill_n(output, 4U, 1.0F); return; }
     std::fill_n(output, 16U, 0.0F);
@@ -40,13 +55,17 @@ const unsigned char* APIENTRY String(unsigned int name) {
 }
 void APIENTRY Active(unsigned int unit) { ++active_changes; active_unit = static_cast<int>(unit); }
 HGLRC WINAPI Context() { return context; }
-PROC WINAPI Proc(LPCSTR) { return proc_available ? reinterpret_cast<PROC>(&Active) : nullptr; }
+PROC WINAPI Proc(LPCSTR name) {
+    if(std::strcmp(name,"glGetProgramivARB")==0)
+        return program_proc_available ? reinterpret_cast<PROC>(&Program) : nullptr;
+    return proc_available ? reinterpret_cast<PROC>(&Active) : nullptr;
+}
 int Fail(const char* reason) { std::fprintf(stderr, "%s\n", reason); return 1; }
 void FakeStart() {
     g_frame = new TraceFrame{};
     g_request = CreateEventW(nullptr, FALSE, FALSE, nullptr);
     g_idle = CreateEventW(nullptr, TRUE, TRUE, nullptr);
-    g_gl = {Integer, Real, Parameter, Level, Environment, String, nullptr, Context, Proc};
+    g_gl = {Integer, Real, Parameter, Level, Environment, String, nullptr, Context, Proc, nullptr, EnvironmentReal};
     g_frequency = 1000000000U; // overriden for timing-limit test
     g_image_base = 0x400000U; g_image_size = 0x100000U;
     g_phase.store(Phase::idle);
@@ -54,6 +73,72 @@ void FakeStart() {
 void Arm() { SetEvent(g_request); TerrainTracePresent(); }
 void Draw(bool safe = true) {
     TerrainTraceDraw(TerrainSubmission::arrays, 0x400123U, 4U, 2, 6, 0U, 0U, true, safe);
+}
+bool MaterialQueryAudit() {
+    version="2.1 test";extensions="GL_ARB_vertex_program GL_ARB_fragment_program";
+    proc_available=true;program_proc_available=true;maximum_units=2;
+    DetectCapabilities(*g_frame);
+    DrawRecord captured{};program_calls=0;integer_queries.clear();
+    const int previous_unit=active_unit;
+    ReadState(captured,*g_frame);
+    if(program_calls!=2 || captured.arb_programs[1]!=71 || captured.arb_programs[3]!=72
+        || captured.textures[0].env_color[0]!=0.25F || active_unit!=previous_unit
+        || !captured.active_unit_restored || captured.depth_range[1]!=1.0F) return false;
+    program_proc_available=false;DetectCapabilities(*g_frame);
+    captured={};ReadState(captured,*g_frame);
+    if(captured.arb_programs[1]!=-1 || captured.arb_programs[3]!=-1 || program_calls!=2) return false;
+    version="1.1 test";extensions="";DetectCapabilities(*g_frame);
+    integer_queries.clear();captured={};ReadState(captured,*g_frame);
+    for(const unsigned int illegal:{0x8620U,0x8804U,0x806FU,0x8513U,0x84F5U,0x80A8U,0x80A9U,0x8458U})
+        if(std::find(integer_queries.begin(),integer_queries.end(),illegal)!=integer_queries.end())return false;
+    if(captured.arb_programs[0]!=0 || captured.arb_programs[1]!=-1 || captured.raster[1]!=0)return false;
+    extensions="GL_ARB_fragment_program";program_proc_available=true;DetectCapabilities(*g_frame);
+    captured={};program_calls=0;ReadState(captured,*g_frame);
+    if(program_calls!=1 || captured.arb_programs[0]!=0 || captured.arb_programs[1]!=-1
+        || captured.arb_programs[3]!=72)return false;
+    extensions=nullptr;DetectCapabilities(*g_frame);captured={};ReadState(captured,*g_frame);
+    if(captured.arb_programs[0]!=-1 || captured.textures[0].alternate_targets[1]!=-1)return false;
+    extensions="GL_ARB_vertex_program2 GL_ARB_fragment_program2";DetectCapabilities(*g_frame);
+    if(g_frame->arb_vertex || g_frame->arb_fragment)return false;
+    version="1.3 test";extensions="";program_proc_available=true;
+    return true;
+}
+bool MaterialGateAudit() {
+    version="2.1 test";extensions="GL_ARB_vertex_program GL_ARB_fragment_program";
+    DetectCapabilities(*g_frame);
+    DrawRecord base{};ReadState(base,*g_frame);
+    base.submission=TerrainSubmission::immediate;base.mode=7U;base.caller_rva=0x538ED0U;
+    base.program=0;base.arb_programs={0,71,0,72};base.state[8]=base.state[9]=base.raster[3]=0;
+    for(auto& t:base.textures){t.enabled=0;t.alternate_targets.fill(0);t.texgen.fill(0);}
+    base.textures[0].enabled=1;base.textures[0].env_mode=0x2100;
+    auto candidate=[&](const DrawRecord& d){return std::strcmp(QuadMaterialGate(d,*g_frame),
+        "fixed_function_material_candidate")==0;};
+    if(!candidate(base))return false;
+    DrawRecord changed=base;changed.caller_rva=0xD8F13U;if(!candidate(changed))return false;
+    changed=base;changed.program=7;if(candidate(changed))return false;
+    changed=base;changed.arb_programs[0]=1;if(candidate(changed))return false;
+    changed=base;changed.arb_programs[2]=1;if(candidate(changed))return false;
+    changed=base;changed.arb_programs[1]=-1;if(candidate(changed))return false;
+    changed=base;changed.state[8]=1;if(candidate(changed))return false;
+    changed=base;changed.state[9]=1;if(candidate(changed))return false;
+    changed=base;changed.raster[3]=1;if(candidate(changed))return false;
+    changed=base;changed.textures[0].env_mode=0x8570;if(candidate(changed))return false;
+    changed=base;changed.textures[0].texgen[0]=1;if(candidate(changed))return false;
+    changed=base;changed.textures[0].alternate_targets[2]=1;if(candidate(changed))return false;
+    changed=base;changed.textures[1].enabled=1;if(candidate(changed))return false;
+    changed=base;changed.active_unit_restored=false;if(candidate(changed))return false;
+    changed=base;changed.submission=TerrainSubmission::list;if(candidate(changed))return false;
+    changed=base;changed.caller_rva=0x123U;if(candidate(changed))return false;
+    g_frame->omitted_units=1;if(candidate(base))return false;g_frame->omitted_units=0;
+    extensions="GL_NV_fragment_program";DetectCapabilities(*g_frame);if(candidate(base))return false;
+    extensions=nullptr;DetectCapabilities(*g_frame);if(candidate(base))return false;
+    version="3.0 test";extensions="";DetectCapabilities(*g_frame);if(candidate(base))return false;
+    version="3.2 test";profile_mask=2;DetectCapabilities(*g_frame);if(!candidate(base))return false;
+    profile_mask=1;DetectCapabilities(*g_frame);if(candidate(base))return false;profile_mask=2;
+    version="4.1 test";DetectCapabilities(*g_frame);if(candidate(base))return false;
+    version="2.1 test";extensions="GL_ARB_separate_shader_objects";
+    DetectCapabilities(*g_frame);if(candidate(base))return false;
+    version="1.3 test";extensions="";return true;
 }
 bool TransmissionQueryAudit() {
     struct Case { const char* version; const char* extensions; bool separate, modern, fbo; };
@@ -76,6 +161,10 @@ bool TransmissionQueryAudit() {
         if(test.modern)expected.insert(expected.end(),{0x883D,0x8B8D,0x8800,
             0x8CA4,0x8CA3,0x8CA5,0x8801,0x8802,0x8803});
         if(test.fbo)expected.push_back(0x8CA6);
+        expected.insert(expected.end(),{0xC40,0xC11,0x8037,0xBF2,0xD32,0xB40,0xC10,
+            0x3000,0x3001,0x3002,0x3003,0x3004,0x3005});
+        if(Version13(test.version))expected.insert(expected.end(),{0x80A8,0x80A9});
+        if(test.separate)expected.push_back(0x8458);
         std::sort(expected.begin(),expected.end());
         std::sort(integer_queries.begin(),integer_queries.end());
         if(integer_queries!=expected)return false; // rejects every unsupported or unexpected query
@@ -113,6 +202,8 @@ int main() {
     SetEnvironmentVariableW(L"WONDERBANE_TERRAIN_TRACE", nullptr);
 #endif
     FakeStart();
+    if(!MaterialQueryAudit() || !MaterialGateAudit())return Fail("bounded material evidence eligibility");
+    calls=0;active_changes=0;
     Draw();
     if (calls != 0) { return Fail("idle observer queried GL"); }
     Arm();
@@ -162,7 +253,10 @@ int main() {
     char contents[16384U]{}; DWORD read = 0;
     ReadFile(file, contents, sizeof(contents) - 1U, &read, nullptr);
     CloseHandle(file);
-    if (!json.ok || std::strstr(contents, "\"transmission_state\":{\"unavailable\":-1,\"program\":-1") == nullptr
+    if (!json.ok || std::strstr(contents,"\"replay_eligible\":false")==nullptr
+        || std::strstr(contents,"\"arb_enable_binding\":")==nullptr
+        || std::strstr(contents,"\"env_color\":[0.25,0.25,0.25,0.25]")==nullptr
+        || std::strstr(contents, "\"transmission_state\":{\"unavailable\":-1,\"program\":-1") == nullptr
         || std::strstr(contents, "\"submission_label\":\"multi_elements\",\"count_unit\":\"subdraws\"") == nullptr
         || std::strstr(contents, "\"model_view\":[null,") == nullptr
         || std::strstr(contents, "\"display_lists\":\"entry-state-only-not-internal-draws\"") == nullptr

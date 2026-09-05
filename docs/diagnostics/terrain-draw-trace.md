@@ -70,7 +70,7 @@ claim exhaustive state coverage: also inspect helpers, unit omissions, capacity,
 unsafe-query and budget counters, and per-draw restoration results.
 
 Submission codes: 0 immediate, 1 display list, 2 multiple lists, 3 arrays,
-4 indexed elements. Count `-1` means unknown. The draw ordinal indexes retained
+4 indexed elements, 5 multi_elements (`count_unit: subdraws`). Count `-1` means unknown. The draw ordinal indexes retained
 records, not every actual primitive inside the driver. Caller/stack addresses are
 filtered to client RVAs; stack unwinding is best-effort, bounded evidence, not
 terrain ownership authority. A zero caller RVA means outside the client image.
@@ -96,8 +96,8 @@ not identify an object under a screen coordinate, decode cache ownership, log
 unhooked/driver-internal submissions, or inspect display-list internal draws.
 List state is entry state even when the source-state stability cache reports true.
 Only 2D level zero is described; other texture targets, mip contents, per-vertex
-UVs, texgen, shader programs, and complete material/light/fog parameters are not
-captured. Do not infer those values from defaults or from missing fields.
+UVs, texgen parameters, program contents, and complete material/light/fog parameters are not
+captured. Bounded enable/binding observations are described below. Do not infer those values from defaults or from missing fields.
 
 Use this evidence to narrow the real texture/transform path before authorizing
 any terrain-specific repair. Preserve stock height, population, collision, UI,
@@ -105,3 +105,73 @@ other materials, and the existing 1.6.11 transparency fixes.
 
 Combiner query tokens and capability gates follow the Khronos
 [texture environment combine specification](https://registry.khronos.org/OpenGL/extensions/EXT/EXT_texture_env_combine.txt).
+
+
+## Bounded quad material evidence
+
+The optional additive `quad_support` fields describe entry state, never replay
+permission. Existing schema-1 traces without these fields remain readable and
+cannot establish the new facts. `transmission_state` records current GLSL program
+(on GL 2+), framebuffer, separate blend factors/equations, stencil and color mask.
+Its unavailable integer sentinel is -1. No program is replaced or executed by
+this observer.
+
+`arb_enable_binding` is `[vertex_enabled, vertex_binding, fragment_enabled,
+fragment_binding]`. Each advertised ARB capability enables only its own query;
+`glGetProgramivARB(target, PROGRAM_BINDING_ARB)` reads binding. A missing function
+leaves binding -1. Known absent extension yields enable 0 and binding -1, with
+`arb_vertex_supported`/`arb_fragment_supported` false. Missing extension string
+is unknown, not absence. Queries follow the Khronos
+[ARB vertex program](https://registry.khronos.org/OpenGL/extensions/ARB/ARB_vertex_program.txt)
+and [ARB fragment program](https://registry.khronos.org/OpenGL/extensions/ARB/ARB_fragment_program.txt)
+contracts; no GL error state is consumed.
+
+`compatibility` is 1 for a recognized pre-3 desktop context or a 3.2+ compatibility
+profile, 0 for a 3.2+ non-compatibility profile, -1 for an unestablished profile.
+Unqueried alternative material mechanisms are conservative unknown: core 4.1+
+or ARB/EXT separate shader objects (program pipelines), pre-2 ARB
+shader objects, NV vertex/fragment programs, ATI fragment shader, EXT vertex
+shader, NV register combiners/texture shader, EXT fragment lighting/light texture,
+and ATI environment bump mapping. Advertising these does not prove they are on;
+it prevents a fixed-function claim until their state is resolved.
+
+Per texture unit, `alternate_targets` contains 1D/3D/cube/rectangle enables with
+core/extension capability gates. `texgen_enabled` contains S/T/R/Q enables.
+`env_color` is the four-component environment constant, null if its optional
+getter is unavailable. Texgen modes/planes, alternate-target bindings and full
+material parameters are deliberately not queried. The bounded material gate
+rejects relevant enabled paths instead. Existing combine and texture matrices
+remain available as evidence even when their path is outside this gate.
+
+The diagnostic `material_gate` returns `fixed_function_material_candidate` only
+for immediate QUADS at caller RVA 538ED0 or D8F13, with known compatibility and
+extension state, GLSL absent/zero, ARB enables zero and advertised bindings known,
+no unobserved alternate program mechanism, lighting/fog/color-sum disabled, all
+fixed-function units observed and active unit restored. Every alternate target
+must be off; any enabled 2D texture must be unit zero, bound, MODULATE, with texgen
+off and a finite texture matrix. Current RGBA must be finite. Untextured current
+color is also a material candidate. Other results name the first blocking
+material condition; inspect raw fields for additional conditions. These caller
+RVAs are evidence filters, not executable seals or authority to read arguments.
+
+`raster` order is render mode, sample buffers, samples, color sum, scissor enabled,
+polygon offset fill enabled, color logic op enabled, maximum user clip planes.
+Also recorded are front/back polygon mode, scissor rectangle, depth range and
+up to six clip-plane enables (-1 for unavailable entries). A larger maximum
+means clip state is incomplete. These values describe raster restrictions; they
+are not included in the narrower material predicate.
+
+**`replay_eligible` is always false in this diagnostic.** No replay path has been
+validated. A future eligibility predicate must additionally establish supported
+blend/channel behavior, GL_RENDER, single-sample framebuffer compatibility,
+applicable scissor/polygon/offset/clip behavior, absence of duplicate native query
+side effects, pre-native depth/stencil, explicit coverage preserving alpha tests,
+sealed geometry/UV ABI and source equivalence. The query side-effect state,
+attachment formats/contents and pixel equivalence are explicitly unobserved.
+Lighting/fog/material internals and unsupported program contents are not inferred.
+This result never changes effects settings or silently disables a requested cue.
+
+The existing one-frame caps, query budget, query-safety guards and cleanup still
+apply. Additional fields increase query work within the same budget, so inspect
+budget-skipped counts before using the trace as evidence. No connected capture
+or deployment is authorized by these fields.

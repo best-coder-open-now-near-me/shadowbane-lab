@@ -33,6 +33,8 @@ struct GlApi {
     void (APIENTRY* active)(unsigned int) = nullptr;
     HGLRC (WINAPI* context)() = nullptr;
     PROC (WINAPI* proc)(LPCSTR) = nullptr;
+    void (APIENTRY* program)(unsigned int, unsigned int, int*) = nullptr;
+    void (APIENTRY* environment_real)(unsigned int, unsigned int, float*) = nullptr;
 };
 struct TextureState {
     int enabled = 0, binding = 0;
@@ -41,6 +43,10 @@ struct TextureState {
     // min/mag filters, wrap S/T.
     std::array<int, 4U> sampler{};
     int env_mode = 0;
+    // 1D, 3D, cube, rectangle enables; -1 means not observed.
+    std::array<int, 4U> alternate_targets{};
+    std::array<int, 4U> texgen{}; // S,T,R,Q enables; parameters unnecessary when disabled.
+    std::array<float, 4U> env_color{};
     // combine RGB/alpha, RGB sources 0..2, alpha sources 0..2,
     // RGB operands 0..2, alpha operands 0..2, RGB/alpha scales.
     std::array<int, 16U> combine{};
@@ -62,6 +68,16 @@ struct DrawRecord {
     std::array<int, 15U> stencil_detail{}; // enable, front func/value/ref/write/fail/zfail/zpass, back equivalent
     std::array<int, 4U> color_mask{};
     int program = -1, framebuffer = -1;
+    // vertex enable/binding, fragment enable/binding. Absent capability: enable=0,
+    // binding=-1; advertised capability with missing helper: binding=-1.
+    std::array<int, 4U> arb_programs{};
+    // render mode, sample buffers/count, color sum, scissor, polygon offset fill,
+    // color logic op, maximum user clip planes. -1 is unavailable.
+    std::array<int, 8U> raster{};
+    std::array<int, 2U> polygon_mode{};
+    std::array<int, 4U> scissor_box{};
+    std::array<int, 6U> clip_planes{};
+    std::array<float, 2U> depth_range{};
     float alpha_ref = 0.0F;
     std::array<float, 4U> color{};
     std::array<float, 16U> model_view{}, projection{};
@@ -79,6 +95,10 @@ struct TraceFrame {
     bool context_mismatch = false, helpers_available = false;
     bool multitexture = false, combine_supported = false;
     bool gl14 = false, gl20 = false, framebuffer_supported = false;
+    bool extensions_known = false, arb_vertex = false, arb_fragment = false;
+    bool unobserved_program_path = true, texture3d = false, cube = false, rectangle = false;
+    bool multisample = false, color_sum = false;
+    int compatibility = -1;
     unsigned int unit_count = 0, omitted_units = 0;
     std::uint64_t observed = 0, overflow = 0, unsafe = 0, budget_skipped = 0;
     std::size_t retained = 0;
@@ -157,6 +177,7 @@ void LoadGl() noexcept {
     WB_TRACE_GL(parameter, "glGetTexParameteriv");
     WB_TRACE_GL(level, "glGetTexLevelParameteriv");
     WB_TRACE_GL(environment, "glGetTexEnviv");
+    WB_TRACE_GL(environment_real, "glGetTexEnvfv");
     WB_TRACE_GL(string, "glGetString");
     WB_TRACE_GL(context, "wglGetCurrentContext");
     WB_TRACE_GL(proc, "wglGetProcAddress");
@@ -174,6 +195,43 @@ void DetectCapabilities(TraceFrame& frame) noexcept {
     frame.gl20 = VersionAtLeast(version, 2, 0);
     frame.framebuffer_supported = VersionAtLeast(version, 3, 0)
         || Token(extensions, "GL_ARB_framebuffer_object") || Token(extensions, "GL_EXT_framebuffer_object");
+    frame.extensions_known = extensions != nullptr;
+    frame.arb_vertex = Token(extensions, "GL_ARB_vertex_program");
+    frame.arb_fragment = Token(extensions, "GL_ARB_fragment_program");
+    frame.compatibility = -1;
+    if (VersionAtLeast(version, 1, 1) && !VersionAtLeast(version, 3, 0)) frame.compatibility = 1;
+    if (VersionAtLeast(version, 3, 2)) {
+        int profile = 0; g_gl.integer(0x9126U, &profile);
+        frame.compatibility = (profile & 2) != 0 ? 1 : 0;
+    }
+    // These advertised alternate material mechanisms are deliberately unqueried.
+    // Presence is conservative unknown, not evidence that any one is active.
+    frame.unobserved_program_path = !frame.extensions_known
+        || VersionAtLeast(version, 4, 1)
+        || Token(extensions, "GL_ARB_separate_shader_objects")
+        || Token(extensions, "GL_EXT_separate_shader_objects")
+        || (!frame.gl20 && Token(extensions, "GL_ARB_shader_objects"))
+        || Token(extensions, "GL_NV_vertex_program")
+        || Token(extensions, "GL_NV_fragment_program")
+        || Token(extensions, "GL_ATI_fragment_shader")
+        || Token(extensions, "GL_EXT_vertex_shader")
+        || Token(extensions, "GL_NV_register_combiners")
+        || Token(extensions, "GL_NV_texture_shader")
+        || Token(extensions, "GL_EXT_fragment_lighting")
+        || Token(extensions, "GL_EXT_light_texture")
+        || Token(extensions, "GL_ATI_envmap_bumpmap");
+    frame.texture3d = VersionAtLeast(version, 1, 2) || Token(extensions, "GL_EXT_texture3D");
+    frame.cube = Version13(version) || Token(extensions, "GL_ARB_texture_cube_map")
+        || Token(extensions, "GL_EXT_texture_cube_map");
+    frame.rectangle = VersionAtLeast(version, 3, 1) || Token(extensions, "GL_ARB_texture_rectangle")
+        || Token(extensions, "GL_EXT_texture_rectangle") || Token(extensions, "GL_NV_texture_rectangle");
+    frame.multisample = Version13(version) || Token(extensions, "GL_ARB_multisample");
+    frame.color_sum = frame.gl14 || Token(extensions, "GL_EXT_secondary_color");
+    g_gl.program = nullptr;
+    if (frame.arb_vertex || frame.arb_fragment) {
+        const PROC program = g_gl.proc == nullptr ? nullptr : g_gl.proc("glGetProgramivARB");
+        if (ValidProc(program)) g_gl.program = reinterpret_cast<decltype(g_gl.program)>(program);
+    }
     const bool core = Version13(version);
     frame.multitexture = core || Token(extensions, "GL_ARB_multitexture");
     frame.combine_supported = core || Token(extensions, "GL_ARB_texture_env_combine")
@@ -221,6 +279,28 @@ void ReadState(DrawRecord& draw, const TraceFrame& frame) noexcept {
         0x0B94U,0x0B95U,0x0B96U,0x8800U,0x8CA4U,0x8CA3U,0x8CA5U,0x8801U,0x8802U,0x8803U};
     for (std::size_t i=0;i<(frame.gl20?15U:8U);++i) g_gl.integer(stencil[i], &draw.stencil_detail[i]);
     g_gl.integer(0x0C23U, draw.color_mask.data());
+    draw.arb_programs.fill(-1);
+    constexpr unsigned int program_targets[]{0x8620U, 0x8804U};
+    const bool program_supported[]{frame.arb_vertex, frame.arb_fragment};
+    for (std::size_t i=0;i<2U;++i) {
+        if (program_supported[i]) {
+            g_gl.integer(program_targets[i], &draw.arb_programs[i*2]);
+            if (g_gl.program) g_gl.program(program_targets[i], 0x8677U, &draw.arb_programs[i*2+1]);
+        } else if (frame.extensions_known) draw.arb_programs[i*2]=0;
+    }
+    draw.raster.fill(-1); draw.clip_planes.fill(-1);
+    g_gl.integer(0x0C40U, &draw.raster[0]); // GL_RENDER_MODE
+    if (frame.multisample) {
+        g_gl.integer(0x80A8U, &draw.raster[1]); g_gl.integer(0x80A9U, &draw.raster[2]);
+    } else if (frame.extensions_known) draw.raster[1]=draw.raster[2]=0;
+    if (frame.color_sum) g_gl.integer(0x8458U, &draw.raster[3]);
+    else if (frame.extensions_known) draw.raster[3]=0;
+    g_gl.integer(0x0C11U, &draw.raster[4]); g_gl.integer(0x8037U, &draw.raster[5]);
+    g_gl.integer(0x0BF2U, &draw.raster[6]); g_gl.integer(0x0D32U, &draw.raster[7]);
+    g_gl.integer(0x0B40U, draw.polygon_mode.data());
+    g_gl.integer(0x0C10U, draw.scissor_box.data());
+    for (int i=0;i<std::min(6,draw.raster[7]);++i) g_gl.integer(0x3000U+i, &draw.clip_planes[i]);
+    g_gl.real(0x0B70U, draw.depth_range.data());
     g_gl.real(0x0BC2U, &draw.alpha_ref);
     g_gl.real(0x0B00U, draw.color.data());
     g_gl.real(0x0BA6U, draw.model_view.data());
@@ -231,6 +311,16 @@ void ReadState(DrawRecord& draw, const TraceFrame& frame) noexcept {
     for (unsigned int unit = 0; unit < frame.unit_count; ++unit) {
         if (g_gl.active != nullptr) { g_gl.active(kTexture0 + unit); }
         auto& texture = draw.textures[unit];
+        texture.alternate_targets.fill(-1); texture.texgen.fill(-1);
+        constexpr unsigned int targets[]{0x0DE0U, 0x806FU, 0x8513U, 0x84F5U};
+        const bool supported[]{true,frame.texture3d,frame.cube,frame.rectangle};
+        for (std::size_t i=0;i<4U;++i) {
+            if (supported[i]) g_gl.integer(targets[i], &texture.alternate_targets[i]);
+            else if (frame.extensions_known) texture.alternate_targets[i]=0;
+            g_gl.integer(0x0C60U+static_cast<unsigned int>(i), &texture.texgen[i]);
+        }
+        texture.env_color.fill(NAN);
+        if (g_gl.environment_real) g_gl.environment_real(0x2300U,0x2201U,texture.env_color.data());
         g_gl.integer(kTexture2d, &texture.enabled);
         g_gl.integer(0x8069U, &texture.binding);
         g_gl.real(0x0BA8U, texture.matrix.data());
@@ -257,6 +347,38 @@ void ReadState(DrawRecord& draw, const TraceFrame& frame) noexcept {
         g_gl.integer(0x84E0U, &restored);
         draw.active_unit_restored = restored == draw.active_unit;
     }
+}
+
+// Diagnostic material gate only: never authorizes replay, disables effects, or
+// promotes a caller RVA into ownership/ABI authority.
+const char* QuadMaterialGate(const DrawRecord& draw, const TraceFrame& frame) noexcept {
+    if (draw.submission != TerrainSubmission::immediate || draw.mode != 7U
+        || (draw.caller_rva != 0x538ED0U && draw.caller_rva != 0xD8F13U)) return "not_reviewed_quad";
+    if (!frame.helpers_available || frame.compatibility != 1 || !frame.extensions_known
+        || frame.unobserved_program_path) return "unknown_program_path";
+    if (frame.gl20 ? draw.program != 0 : draw.program != -1) return "glsl_active_or_unknown";
+    for (std::size_t i=0;i<2U;++i) {
+        if (draw.arb_programs[i*2] != 0) return "arb_active_or_unknown";
+        if ((i==0 ? frame.arb_vertex : frame.arb_fragment) && draw.arb_programs[i*2+1]<0)
+            return "arb_binding_unknown";
+    }
+    if (draw.state[8] != 0 || draw.state[9] != 0 || draw.raster[3] != 0)
+        return "lighting_fog_or_color_sum";
+    if (frame.unit_count == 0 || frame.omitted_units != 0 || !draw.active_unit_restored)
+        return "texture_units_unknown";
+    for (unsigned int unit=0;unit<frame.unit_count;++unit) {
+        const auto& t=draw.textures[unit];
+        for (const int enabled:t.alternate_targets) if (enabled != 0) return "alternate_target_or_unknown";
+        if (t.enabled != 0 && t.enabled != 1) return "texture_enable_unknown";
+        if (!t.enabled) continue;
+        if (unit != 0) return "additional_texture_unit";
+        for (const int enabled:t.texgen) if (enabled != 0) return "texgen_or_unknown";
+        if (t.env_mode != 0x2100) return "environment_not_modulate";
+        if (t.binding <= 0) return "texture_binding_unknown";
+        for (const float value:t.matrix) if (!std::isfinite(value)) return "texture_matrix_unknown";
+    }
+    for (const float value:draw.color) if (!std::isfinite(value)) return "current_color_unknown";
+    return "fixed_function_material_candidate";
 }
 
 // Streaming JSON runs only on the existing publisher, never on a draw hook.
@@ -346,6 +468,18 @@ void WriteFrame(Json& json, const TraceFrame& frame) noexcept {
         json.Array(draw.blend_detail);
         json.Print(",\"stencil_enable_front_back\":"); json.Array(draw.stencil_detail);
         json.Print(",\"color_write_rgba\":"); json.Array(draw.color_mask); json.Print("}");
+        json.Print(",\"quad_support\":{\"material_gate\":\"%s\",\"replay_eligible\":false,"
+            "\"remaining\":\"query-side-effects,pre-draw-depth-stencil,coverage,ABI,source-equivalence\","
+            "\"compatibility\":%d,\"extensions_known\":%s,\"unobserved_program_path\":%s,"
+            "\"arb_vertex_supported\":%s,\"arb_fragment_supported\":%s,\"arb_enable_binding\":",
+            QuadMaterialGate(draw,frame),frame.compatibility,frame.extensions_known?"true":"false",
+            frame.unobserved_program_path?"true":"false",frame.arb_vertex?"true":"false",frame.arb_fragment?"true":"false");
+        json.Array(draw.arb_programs);
+        json.Print(",\"raster\":");json.Array(draw.raster);
+        json.Print(",\"polygon_mode\":");json.Array(draw.polygon_mode);
+        json.Print(",\"scissor_box\":");json.Array(draw.scissor_box);
+        json.Print(",\"clip_planes\":");json.Array(draw.clip_planes);
+        json.Print(",\"depth_range\":");json.Array(draw.depth_range);json.Print("}");
         json.Print(",\"alpha_ref\":"); json.Array(std::array<float, 1>{draw.alpha_ref});
         json.Print(",\"color\":"); json.Array(draw.color);
         json.Print(",\"model_view\":"); json.Array(draw.model_view);
@@ -363,6 +497,9 @@ void WriteFrame(Json& json, const TraceFrame& frame) noexcept {
             json.Print(",\"env_mode\":%d,\"combine\":", texture.env_mode);
             if (frame.combine_supported) { json.Array(texture.combine); }
             else { json.Print("null"); }
+            json.Print(",\"alternate_targets\":");json.Array(texture.alternate_targets);
+            json.Print(",\"texgen_enabled\":");json.Array(texture.texgen);
+            json.Print(",\"env_color\":");json.Array(texture.env_color);
             json.Print(",\"matrix\":"); json.Array(texture.matrix);
             json.Print("}");
         }
