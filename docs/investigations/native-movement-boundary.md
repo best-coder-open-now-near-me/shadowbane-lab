@@ -32,7 +32,9 @@ Initialization follows process pinning and graphics executable verification, bef
 the shared renderer starts. An explicitly requested trace failure participates in
 initialization rollback. With the opt-in unset, no mapping or slot change occurs.
 The integration owner reconciles this additive wiring with newer shared lifecycle.
-Stop disables publication, drains the bounded publication section, and restores only
+One lifecycle mutex serializes production/test admission and stop, and admission
+compares the supplied creation FILETIME to GetProcessTimes for the current process.
+A retained generation is never reset or restarted. Stop disables publication, drains the bounded publication section, and restores only
 our own slot. The original function pointer, code and 18,480-byte mapping remain
 process-pinned, including startup failure and late callback cases. There is no worker,
 input sampler, command receiver or competing movement authority in this diagnostic.
@@ -75,13 +77,14 @@ proof. Captures include process-local addresses and stay private under `artifact
 
 ## Developer validation
 
-Both Win32 DLL profiles build and all 21 CTests pass in each profile. Production tracing code is compiled into tests with
+Both Win32 DLL profiles build and all 22 CTests pass in each profile. Production tracing code is compiled into tests with
 an isolated test-only installation seam and test original callback. Tests cover
 opt-in absence, unsupported executable rejection, exact lifetime header, duplicate
 start, committed publication, invalid receiver reads, unchanged call-through,
 held original callback across shutdown, callback after shutdown, startup failure
 after slot visibility, retained mapping/code responsibility and replacement-slot
-protection. The test seam is absent from production builds. These are lifecycle
+protection, stale creation-time rejection and concurrent stop blocked behind a held
+installation. The test seam is absent from production builds. These are lifecycle
 regressions, not a substitute for observing the real client thread.
 
 Python tests verify ABI sizes, exact-client rejection, two-read coherence, ring

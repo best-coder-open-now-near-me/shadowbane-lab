@@ -794,3 +794,8 @@ if(BUILD_TESTING)
   add_test(NAME wonderbane_extension_movement_boundary_startup_failure
     COMMAND wonderbane_extension_movement_boundary_test startup-failure)
 endif()
+
+if(BUILD_TESTING)
+  add_test(NAME wonderbane_extension_movement_boundary_concurrent_stop
+    COMMAND wonderbane_extension_movement_boundary_test concurrent-stop)
+endif()

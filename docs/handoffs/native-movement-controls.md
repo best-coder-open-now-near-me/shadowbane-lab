@@ -3,6 +3,7 @@
 Feature branch: `codex/native-movement-controls`.
 Worktree: `.worktrees/native-movement-controls`.
 Assigned starting source: `0c807ee774859cc3f17f9ebc04d3f0a900bd0428`.
+Draft PR: https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/31
 Initial PR/integration destination: `codex/native-lifecycle-hardening`.
 The existing hardening owner owns shared reconciliation and combined packaging.
 The normal shared checkout remains on `main`. Terrain-repair branches are excluded.
@@ -104,3 +105,12 @@ tests. The integration owner has accepted this source-level diagnostic workflow;
 installation/early connected observation remains with the existing shared workflow.
 This does not complete native bindings or any of the three requested controls.
 Next todo remains native binding investigation and verification.
+
+Review correction: trace start/stop/test admission now share one lifecycle mutex;
+actual current-process creation time is verified at admission, and retained trace
+generations cannot be restarted. Both DLL profiles build and all 22 native tests
+pass in each profile. Shared optional-telemetry changes remain the integration
+owner's reconciliation responsibility; this additive trace wiring does not alter them.
+Native investigation also located a separate asynchronous path request that can
+repopulate path work after local destination/state reset. That cancellation race
+remains unresolved; no stop binding is enabled on the strength of an idle snapshot.

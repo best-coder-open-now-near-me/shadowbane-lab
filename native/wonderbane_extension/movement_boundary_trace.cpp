@@ -31,6 +31,21 @@ MovementBoundaryTrace* trace = nullptr;
 HANDLE mapping = nullptr;
 std::uint32_t* installed_slot = nullptr;
 SRWLOCK publication_lock = SRWLOCK_INIT;
+SRWLOCK lifecycle_lock = SRWLOCK_INIT;
+struct LifecycleGuard {
+    LifecycleGuard() noexcept { AcquireSRWLockExclusive(&lifecycle_lock); }
+    ~LifecycleGuard() { ReleaseSRWLockExclusive(&lifecycle_lock); }
+    LifecycleGuard(const LifecycleGuard&) = delete;
+    LifecycleGuard& operator=(const LifecycleGuard&) = delete;
+};
+bool ExactIdentity(const ProcessIdentity& identity) noexcept {
+    FILETIME creation{}, exit{}, kernel{}, user{};
+    if (identity.process_id != GetCurrentProcessId()
+        || !GetProcessTimes(GetCurrentProcess(), &creation, &exit, &kernel, &user)) { return false; }
+    const auto actual = (static_cast<std::uint64_t>(creation.dwHighDateTime) << 32)
+        | creation.dwLowDateTime;
+    return identity.creation_filetime_utc == actual;
+}
 volatile LONG enabled = 0;
 LONG64 sequence = 0;
 
@@ -120,6 +135,7 @@ std::uint32_t __fastcall TracedUpdate(void* receiver, void*, double delta) {
     return original(receiver, delta);
 }
 DWORD InstallTrace(const ProcessIdentity& identity, std::uint32_t* slot, Update target) noexcept {
+    if (!ExactIdentity(identity)) { return ERROR_INVALID_DATA; }
     if (mapping) { return ERROR_ALREADY_INITIALIZED; }
     wchar_t name[160]{};
     if (FAILED(StringCchPrintfW(name,160,L"Local\\ShadowbaneLab.Extension.MovementBoundary.%lu.%llu",
@@ -144,6 +160,7 @@ DWORD InstallTrace(const ProcessIdentity& identity, std::uint32_t* slot, Update 
 }
 
 DWORD StartMovementBoundaryTrace(const ProcessIdentity& identity) noexcept {
+    const LifecycleGuard lifecycle;
     wchar_t option[4]{};
     if (GetEnvironmentVariableW(L"WONDERBANE_MOVEMENT_TRACE", option, 4) != 1 || option[0] != L'1') {
         return ERROR_SUCCESS;
@@ -153,7 +170,7 @@ DWORD StartMovementBoundaryTrace(const ProcessIdentity& identity) noexcept {
     if (!GraphicsExecutableSha256Matches("feb351f0fae87d47549fa43c37836405a753d76fbcd0b02232fc1c0733550dff")) {
         return ERROR_NOT_SUPPORTED;
     }
-    if (identity.process_id != GetCurrentProcessId() || !identity.creation_filetime_utc) { return ERROR_INVALID_DATA; }
+    if (!ExactIdentity(identity)) { return ERROR_INVALID_DATA; }
     image_base = reinterpret_cast<std::uintptr_t>(GetModuleHandleW(nullptr));
     if (!image_base || !VerifyUpdate()) { return ERROR_INVALID_DATA; }
     return InstallTrace(identity, reinterpret_cast<std::uint32_t*>(image_base + slot_rva),
@@ -161,6 +178,7 @@ DWORD StartMovementBoundaryTrace(const ProcessIdentity& identity) noexcept {
 }
 
 void StopMovementBoundaryTrace() noexcept {
+    const LifecycleGuard lifecycle;
     InterlockedExchange(&enabled,0);
     if (!mapping) { return; }
     AcquireSRWLockExclusive(&publication_lock);
@@ -173,6 +191,7 @@ void StopMovementBoundaryTrace() noexcept {
 #if defined(WONDERBANE_MOVEMENT_TRACE_TESTING)
 DWORD StartMovementBoundaryTraceForTesting(const ProcessIdentity& identity,
     std::uint32_t* slot, std::uint32_t target) noexcept {
+    const LifecycleGuard lifecycle;
     return InstallTrace(identity, slot, reinterpret_cast<Update>(target));
 }
 const MovementBoundaryTrace* MovementBoundaryTraceForTesting() noexcept { return trace; }

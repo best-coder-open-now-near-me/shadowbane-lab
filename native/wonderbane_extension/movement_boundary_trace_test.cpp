@@ -12,6 +12,8 @@ const MovementBoundaryTrace* MovementBoundaryTraceForTesting() noexcept;
 namespace {
 using Update = std::uint32_t(__thiscall*)(void*, double);
 HANDLE entered = nullptr, release_call = nullptr;
+HANDLE install_entered = nullptr, install_release = nullptr;
+bool hold_install = false;
 std::atomic<int> calls{0};
 std::atomic<bool> forwarded{true};
 bool fail_after_install = false, failure_injected = false;
@@ -35,6 +37,11 @@ DWORD ReplaceImportAddressSlot(std::uint32_t* slot,std::uint32_t expected,std::u
     const auto previous=InterlockedCompareExchange(reinterpret_cast<LONG*>(slot),
         static_cast<LONG>(replacement),static_cast<LONG>(expected));
     if (static_cast<std::uint32_t>(previous)!=expected) { return ERROR_INVALID_DATA; }
+    if (hold_install) {
+        hold_install=false;
+        SetEvent(install_entered);
+        if (WaitForSingleObject(install_release,5000)!=WAIT_OBJECT_0) { forwarded=false; }
+    }
     if (fail_after_install && !failure_injected) {
         failure_injected=true;
         held=std::thread([replacement] { if (!Call(replacement)) { forwarded=false; } });
@@ -60,6 +67,34 @@ int main(int argc,char** argv) {
     release_call=CreateEventW(nullptr,TRUE,FALSE,nullptr);
     Check(entered && release_call,"test synchronization");
     auto slot=reinterpret_cast<std::uint32_t>(&Original);
+    auto stale=identity; ++stale.creation_filetime_utc;
+    Check(we::StartMovementBoundaryTraceForTesting(stale,&slot,slot)==ERROR_INVALID_DATA
+        && !we::MovementBoundaryTraceForTesting(),"stale current-process creation time rejected");
+    if (argc>1 && std::strcmp(argv[1],"concurrent-stop")==0) {
+        install_entered=CreateEventW(nullptr,TRUE,FALSE,nullptr);
+        install_release=CreateEventW(nullptr,TRUE,FALSE,nullptr);
+        HANDLE stop_requested=CreateEventW(nullptr,TRUE,FALSE,nullptr);
+        HANDLE stop_complete=CreateEventW(nullptr,TRUE,FALSE,nullptr);
+        hold_install=true;
+        DWORD status=ERROR_GEN_FAILURE;
+        const auto original=slot;
+        std::thread starting([&] { status=we::StartMovementBoundaryTraceForTesting(identity,&slot,original); });
+        Check(WaitForSingleObject(install_entered,5000)==WAIT_OBJECT_0,"install held after slot visibility");
+        std::thread stopping([&] { SetEvent(stop_requested); we::StopMovementBoundaryTrace(); SetEvent(stop_complete); });
+        Check(WaitForSingleObject(stop_requested,5000)==WAIT_OBJECT_0,"concurrent stop requested");
+        Check(WaitForSingleObject(stop_complete,100)==WAIT_TIMEOUT,"stop serialized behind admission");
+        SetEvent(install_release);
+        starting.join(); stopping.join();
+        const auto* snapshot=we::MovementBoundaryTraceForTesting();
+        Check(status==ERROR_SUCCESS && snapshot && snapshot->enabled==0
+            && slot==original,"stop linearizes after installation and cannot be re-enabled");
+        Check(we::StartMovementBoundaryTraceForTesting(identity,&slot,original)==ERROR_ALREADY_INITIALIZED,
+            "retained generation cannot be restarted");
+        CloseHandle(stop_requested); CloseHandle(stop_complete);
+        CloseHandle(install_entered); CloseHandle(install_release);
+        CloseHandle(entered); CloseHandle(release_call);
+        return failures ? 1 : 0;
+    }
     const auto start=we::StartMovementBoundaryTraceForTesting(identity,&slot,slot);
     const auto* trace=we::MovementBoundaryTraceForTesting();
     Check(trace && trace->process_id==identity.process_id
