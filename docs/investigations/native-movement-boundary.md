@@ -219,3 +219,28 @@ process memory are accessed. Full-file and per-helper seals precede execution.
 This completes isolated verification of scheduled-node lookup, detachment, key
 cleanup and native pool return. It does not complete actor/action lifetime handling,
 selective retirement of queued movement, follow intent or state-message ordering.
+
+## Native path destruction and retiring-actor lifetime
+
+Native path elements contain coordinates and an owning reference. Whole-path erase
+calls the element destructor, which releases through the object's native interface
+adjustment and reference lifetime. Clearing vector bounds directly would leak that
+ownership; dropping the actor before native cleanup callbacks finish could invalidate
+later stop steps.
+
+The actual-code probe now executes native whole-path erase and its element destructor,
+native actor retention/release, and native reference increment/decrement helpers.
+Both profiles pass null and allocated-empty paths and sizes 1, 2, 7, 31, 127 and
+1,024. Cases include shared references, null and native sentinel references, repeated
+clear and an explicit retiring-actor lease across destruction. It verifies unchanged
+coordinates/capacity, cleared references, exactly one finalization per probe-owned
+object and actor survival until its explicit release. Finalizers record events on
+probe-owned virtual objects; actual game-object destructor behavior is not exercised.
+
+The two additional verified imports are KERNEL32 InterlockedIncrement and
+InterlockedDecrement. Their sealed native callers use private reference objects;
+no connected client or actor is touched. The previously verified continuation,
+scheduled-container and allocator tests still pass in both profiles. Complete stop
+must compose these lifetimes with exact owner/scene checks, pending-request and
+follow retirement, action queues, destination cancellation and native state-message
+ordering before runtime capability or connected acceptance is justified.
