@@ -142,6 +142,46 @@ void TransparencyProbe(const GraphicsCameraState& camera, bool require_correct) 
         Same(original, Capture());
       }
     }
+    // Before/after scene RGBA+depth cannot recover source alpha. A translucent
+    // surface matching the existing RGB leaves identical scene samples for
+    // different alpha values, but must attenuate a behind effect differently.
+    std::array<std::array<unsigned char,4>,2> observed{}, required{};
+    std::array<float,2> observed_depth{};
+    for (auto& point : geometry.quads[0].points) point.z = -0.2F;
+    for (unsigned sample=0;sample<2;++sample) {
+        float alpha=sample ? 0.75F : 0.25F;
+        auto background = [&]() {
+            Check(RenderSceneGeometry(&camera, [](void*) noexcept {
+                glDepthMask(GL_TRUE);glClearDepth(1);glClearColor(0,0,0,1);
+                glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+            }, nullptr), "prepare transmission information fixture");
+        };
+        auto surface = [&]() {
+            Check(RenderSceneGeometry(&camera, [](void* raw) noexcept {
+                glColorMask(GL_TRUE,GL_TRUE,GL_TRUE,GL_FALSE);
+                glColor4f(0,0,0,*static_cast<float*>(raw));
+                glBegin(GL_QUADS);
+                glVertex3f(-0.85F,-0.05F,-0.6F);glVertex3f(-0.6F,-0.05F,-0.6F);
+                glVertex3f(-0.6F,0.05F,-0.6F);glVertex3f(-0.85F,0.05F,-0.6F);
+                glEnd();
+            }, &alpha), "draw ambiguous native transmission");
+        };
+        background();surface();
+        glReadPixels(100,240,1,1,GL_RGBA,GL_UNSIGNED_BYTE,observed[sample].data());
+        glReadPixels(100,240,1,1,GL_DEPTH_COMPONENT,GL_FLOAT,&observed_depth[sample]);
+        background();
+        Check(RenderEffectsGeometry(config,geometry,camera), "reference transmitted effect");
+        surface();
+        glReadPixels(100,240,1,1,GL_RGBA,GL_UNSIGNED_BYTE,required[sample].data());
+        Same(original,Capture());
+    }
+    Check(observed[0]==observed[1] && observed_depth[0]==observed_depth[1],
+          "different native alpha can leave identical scene RGBA and depth");
+    Check(std::abs(int(required[0][2])-191)<=2 && std::abs(int(required[1][2])-64)<=2,
+          "identical observed scene requires distinct effect transmission");
+    std::printf("Transmission information: identical scene RGBA/depth, required behind blue=%u vs %u; "
+                "source alpha is not recoverable from scene snapshots\n",
+                unsigned(required[0][2]),unsigned(required[1][2]));
 }
 
 }

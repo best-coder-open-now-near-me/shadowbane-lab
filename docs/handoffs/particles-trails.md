@@ -342,3 +342,48 @@ owns the non-overlapping `0x1c3380` material / `0x1cb700` character-draw review.
 The integration owner received these exact paths. No new hooks, production
 changes, live observation, build, or deployment were made for this read-only
 follow-up. Required transparency probes remain red.
+
+
+## Synchronous transmission capture contract
+
+Shared hooks inspected at owner commit
+`79ae9f813001484d4dd5e8aede63c70f2d0bc1e3`. Arrays/elements have raw driver callbacks
+that can be invoked synchronously while native arrays, textures and programs are
+valid. Cue owns the additional MultiDraw hooks. No mutable game shader or stack
+pointer needs to survive a synchronous callback. However, this establishes raw
+submission availability, not complete transmission capture.
+
+The GL regression now proves a concrete information loss: native black alpha
+0.25 and alpha 0.75 over black, with alpha writes masked and depth writes off,
+produce identical scene RGBA and depth. A blue effect behind them must instead
+produce blue channel 191 and 64 respectively. Actual GL samples match those
+values. Therefore before/after scene color and depth cannot reconstruct source
+alpha. This fixture is controlled evidence, not a claim that this exact black
+material was observed in-game. Normal regressions pass; the required transparency
+probe still exits 1 for the two existing failures.
+
+For standard alpha-over, each effect depth needs the foreground color contribution
+S and transmission T, plus underlying color/opaque visibility. If final native
+color is C, effect color E and effect alpha a, the desired result is
+`(1-a)*C + a*(S + T*E)`. Merely multiplying effect alpha by T loses foreground
+color in general. Other native blend equations/factors and color masks require
+their actual transformation, not that formula. Multiple native fragments at
+different depths require a depth-resolved representation; nearest depth plus
+one RGBA sample is insufficient for effects between those layers.
+
+| Submission | Existing boundary | Missing capture contract |
+| --- | --- | --- |
+| Arrays/elements | Raw synchronous callback | Preserve contributing source RGBA/depth layers and native blend/depth/stencil semantics, including overlapping triangles |
+| MultiDraw | Cue-owned hook work | Same fragment contract across all subdraws; avoid a nearest-layer approximation |
+| Immediate | Begin/End and Vertex3f observation | Existing retained position-only data omits complete per-vertex material state; live immediate draws are not a replayable callback |
+| Lists | List-call boundary | Internal playback bypasses executable import hooks and may mutate state; position/bounds capture is not a complete material command stream |
+
+Smallest missing evidence for constraining a bounded implementation: whether all
+contributing blended native geometry in the supported client uses the replayable
+array/MultiDraw path, and the exact blend/program/depth/stencil state classes on
+that path. If immediate/list contributors exist, they need an equally complete
+synchronous fragment capture boundary. Even with that evidence, a bounded
+representation must preserve distinct effect depths and expose overflow; a single
+nearest-depth texture does not meet the requirement. This is the precise current
+implementation blocker at the existing hooks. No production correction or broad
+capture framework has been installed, and no acceptance requirement was relaxed.
