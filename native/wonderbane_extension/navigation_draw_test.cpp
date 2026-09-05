@@ -107,27 +107,40 @@ void TransparencyProbe(const GraphicsCameraState& camera, bool require_correct) 
             glEnd();
         }, &writes_depth), "native-style foreground alpha surface");
     };
-    for (bool writes_depth : {false, true}) {
-        unsigned char reference[3]{}, actual[3]{};
+    for (bool in_front : {false, true}) {
+      for (auto& point : geometry.quads[0].points) point.z = in_front ? -0.8F : -0.2F;
+      for (bool writes_depth : {false, true}) {
+        unsigned char reference[3]{}, actual[3]{}, early[3]{};
         reset();
-        Check(RenderEffectsGeometry(config, geometry, camera), "reference back effect");
-        glass(writes_depth);
+        if (in_front) glass(writes_depth);
+        Check(RenderEffectsGeometry(config, geometry, camera), "reference ordered effect");
+        if (!in_front) glass(writes_depth);
         glReadPixels(100,240,1,1,GL_RGB,GL_UNSIGNED_BYTE,reference);
-        Check(std::abs(int(reference[0])-128)<=2 && reference[1]==0
-              && std::abs(int(reference[2])-128)<=2, "reference alpha transmission");
+        Check(std::abs(int(reference[0])-(in_front ? 0 : 128))<=2 && reference[1]==0
+              && std::abs(int(reference[2])-(in_front ? 255 : 128))<=2,
+              "reference alpha transmission in both relative depth orders");
         reset(); glass(writes_depth);
         Check(RenderEffectsGeometry(config, geometry, camera), "current late effect");
         glReadPixels(100,240,1,1,GL_RGB,GL_UNSIGNED_BYTE,actual);
         const int error = std::abs(int(actual[0])-int(reference[0]))
                         + std::abs(int(actual[1])-int(reference[1]))
                         + std::abs(int(actual[2])-int(reference[2]));
-        std::printf("Native transparency requirement: depth-write=%d expected RGB=%u,%u,%u "
+        reset();
+        Check(RenderEffectsGeometry(config, geometry, camera), "early-pass counterexample");
+        glass(writes_depth);
+        glReadPixels(100,240,1,1,GL_RGB,GL_UNSIGNED_BYTE,early);
+        // Drawing every effect earlier is also wrong: a behind native fragment
+        // blends over front particles, because particles must not write depth.
+        if (in_front) Check(early[0] > 120 && early[2] < 135,
+                            "wholesale early pass cannot satisfy front effect ordering");
+        std::printf("Native transparency requirement: effect-front=%d depth-write=%d expected RGB=%u,%u,%u "
                     "late-pass RGB=%u,%u,%u absolute error=%d/765 %s\n",
-                    int(writes_depth), unsigned(reference[0]), unsigned(reference[1]),
+                    int(in_front), int(writes_depth), unsigned(reference[0]), unsigned(reference[1]),
                     unsigned(reference[2]), unsigned(actual[0]), unsigned(actual[1]),
                     unsigned(actual[2]), error, error<=6 ? "PASS" : "UNRESOLVED");
-        if (require_correct) Check(error<=6, "native foreground transparency must attenuate behind effects");
+        if (require_correct) Check(error<=6, "native/effect transparency must respect relative depth");
         Same(original, Capture());
+      }
     }
 }
 

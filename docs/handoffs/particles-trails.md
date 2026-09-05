@@ -287,3 +287,30 @@ in place and emits only selected disassembly/addresses. No executable or capture
 is committed. Full cross-feature GPU cost and repaired-stage correctness remain
 unmeasured; the existing harness timing of navigation alone is not evidence of
 combined cue/sky/effects performance.
+
+
+The requirement probe now covers front and behind effects against both native
+depth-write modes. Front effects produce the correct blue pixel in the current
+late pass; the same two behind cases remain red. A separate early-pass reference
+confirms that moving every effect earlier incorrectly blends native red over a
+front particle. Normal GL regressions pass; the explicit transparency gate still
+exits 1. Production effects/guard sources are identical in owner checkpoint
+`8cf0683e944081bd5fa8b09d77dfa2e7aa8a0ada`; this comparison does not constitute a
+full build or package verification of that checkpoint.
+
+Further static evidence from the cue developer was independently checked:
+character enqueue `0x1cb100` delegates to `0x1c4340`, which calls metadata writer
+`0x1c4150`. That writer obtains the category through `0x1c3380`: render+0xcc less
+than `0.995` yields true, otherwise linked material fields/guards determine it.
+It writes zero to wrapper+0x14 immediately before tree insertion. This is evidence
+of a material/opacity category, not proof of a usable spatial ordering key.
+A scan of x87 floating writes did not establish a later native depth-key writer;
+integer copies or other paths have not been ruled out.
+
+The exact missing contract for a native queue correction is a reviewed per-entry
+depth/material ordering and draw boundary covering the contributing transparent
+geometry while preserving native pass markers. A retained-transmission approach
+would instead need complete blended-fragment capture (including display lists,
+immediate draws, shader alpha) and bounded handling of distinct effect depths.
+Neither contract is currently verified. This is not a request for the owner to
+approve an approximation or repeat navigation testing.
