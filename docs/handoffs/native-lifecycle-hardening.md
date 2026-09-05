@@ -233,3 +233,11 @@ missing lookup after removal, tree invariants and payload preservation are check
 Only the developer-only probe and its handoff changed; DLL/runtime capabilities
 are unchanged. Native pool cleanup and ordered full-stop composition remain with
 the movement owner. This is not a complete stop binding or feature acceptance.
+
+Movement `2f87ee47ccdf79469ab727380d9887e14ceb94cf` is integrated. Both combined
+profile policy tests pass: takeover requests a native stop even without locally
+tracked movement, failed stop excludes the new writer, and camera/ordinary click
+preserve ownership. Both isolated actual-code probes pass 144 continuation-helper
+cases with complete actor/state preservation plus 64,256 container sequences.
+These are policy/primitive checks; the later native world-update follow regression
+and complete stop composition remain unfinished. No runtime controls were enabled.
