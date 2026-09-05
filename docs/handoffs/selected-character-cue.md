@@ -779,3 +779,47 @@ or multisample cases, full-size cost and ordered multi-contributor transmission
 remain unresolved. Next active todo: owner combined verification and selection
 of a bounded integration strategy using this evidence; no deployment or live
 acceptance is requested, and selected-cue delivery remains incomplete.
+
+
+## Opaque visibility and retained-tap counterexamples
+
+Owner combined source `a22a1bbb8b7252ba8a0d1c1e7c1f51078d75d4d3` was independently
+fetched and GPU-built in this lane's verification worktree. Both base GPU and
+source-feasibility tests pass with zero skips. Evidence is retained at
+`E:/Projects/shadowbane/artifacts/cue-combined-native/a22a1bb/lane-source.xml`.
+The owner then directed bounded visibility/operator regressions rather than
+approving the proposed atlas. Cue owns only the cue GPU experiment/header;
+particles owns the navigation/effects operator test. No atlas is implemented.
+
+The cue experiment now exercises the production mask/composite pipeline for
+opaque versus depth-writing alpha, foreground versus background, and an alpha
+draw followed by an opaque LEQUAL draw at the same depth. The opaque material
+is deliberately chosen to match the quantized native alpha result, constructing
+a counterexample rather than recovering/inverting framebuffer source. Alpha-only
+and alpha-then-opaque produce identical native RGBA 127,0,0,63 and final depth
+0.25, with identical pre-alpha pixel inputs and alpha draw packet. Correct cue
+references differ: 131,16,19 through alpha versus 127,0,0 with late opaque.
+Opaque foreground blocks the cue; opaque behind retained halo depth does not.
+Thus the current final color/depth plus earlier alpha packet cannot determine
+opaque visibility. An actual late opaque coverage observation or a proven
+opaque-complete boundary is necessary; neither is inferred from this test.
+
+A separate actual-GL covered-pixel reference validates foreground transformation
+at the destination pixel for retained tap depths 0.25 and 0.75. The native patch
+covers the destination but not the neighboring mask-tap location. Covered
+reference RGB is 25,204,153 for the near tap and 31,169,179 for the far tap.
+The source fold at destination agrees within 2/255, while using the neighboring
+pixel or the final background depth fails. Equal-strength taps therefore cannot
+lose their distinct depths before native transformation. This does not select
+or change the cue's winner/reduction behavior.
+
+Both new witnesses, all prior 288 source cases and the existing base GPU test
+pass without skips. JUnit is retained at
+`artifacts/selected-character-cue/visibility-feasibility.xml`. The required native
+foreground-transparency gate remains unresolved; no product renderer changed.
+Particles independently found a framebuffer-saturation counterexample even for
+ONE/ONE, so a factors-only affine S/T eligibility rule is also insufficient.
+No native contributor storage, collector, scene hook or broad instrumentation
+was added. Next active todo is establishing the actual opaque visibility source
+and exact supported ordered operator domain before choosing storage or splitting
+transmission implementation. Full selected-cue delivery remains incomplete.
