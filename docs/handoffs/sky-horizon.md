@@ -217,8 +217,9 @@ The required full-profile effects-native-transparency test was explicitly run an
 still fails the two behind-effect cases; front-effect cases pass. That gate was not
 removed, weakened, or bypassed. No package or deployment was attempted.
 
-Integration destination remains `codex/native-lifecycle-hardening` through PR30;
-the owner reconciles this focused fixture delta. Active todo remains the green
+PR30 is a merged implementation checkpoint. The new fixture delta is published on
+`codex/sky-horizon` for the owner to integrate into `codex/native-lifecycle-hardening`;
+it is not included by that historical PR. Active todo remains the green
 combined package gate, followed by exact package/content verification and the one
 coordinated connected acceptance pass under `docs/combined-testing-acceptance.md`.
 The provisional duplicate matrix source and build products were removed; existing
