@@ -1,5 +1,6 @@
 #include "movement_lifetime.h"
 #include "movement_native_image.h"
+#include "movement_lifetime_bindings.h"
 #include "import_hook.h"
 #include <atomic>
 #include <cstring>
@@ -7,7 +8,7 @@
 #include <utility>
 namespace wonderbane::extension::movement {
 namespace {
-constexpr std::size_t kSlots = 32;
+constexpr std::size_t kSlots = kLifetimeBindings.size();
 using Finalizer = void* (__thiscall*)(void*, std::uint32_t);
 using Free = void (__cdecl*)(void*);
 struct Slot { std::uint32_t* address = nullptr; std::uint32_t original = 0, hook = 0; };
@@ -19,6 +20,9 @@ struct State {
     DWORD thread = 0;
     bool started = false, alive = false;
     std::atomic<bool> binding_lost{false};
+    std::atomic<bool> arming{false};
+    std::atomic<std::uint32_t> callbacks_active{0};
+    bool arming_dirty = false;
     std::atomic<bool> terminal{false};
     std::atomic<std::uint64_t> watch_generation{0};
     NativeScene scene{};
@@ -49,14 +53,28 @@ bool Advance() noexcept { // lock held
     }
     ++state.scene.epoch; return true;
 }
+#ifdef WONDERBANE_MOVEMENT_LIFETIME_TESTING
+void (*notice_barrier)() = nullptr;
+#endif
 void BeginNotice(Notice& notice, void* pointer, bool world) noexcept {
+    const bool arming = state.arming.load();
     const auto generation = state.watch_generation.load();
-    if (!pointer || (world ? state.fast_world.load() != pointer
-        : state.fast_actor.load() != pointer && state.fast_parent.load() != pointer)) { return; }
+    if (!arming && (!pointer || (world ? state.fast_world.load() != pointer
+        : state.fast_actor.load() != pointer && state.fast_parent.load() != pointer))) { return; }
+#ifdef WONDERBANE_MOVEMENT_LIFETIME_TESTING
+    if (notice_barrier) { notice_barrier(); }
+#endif
     AcquireSRWLockExclusive(&state.lock);
+    // Interference only rejects an unpublished snapshot; an arbitrary free is
+    // never authority to assign a scene or invalidate an unrelated live watch.
+    if (state.arming) { state.arming_dirty = true; }
     const bool matches = world ? state.scene.world == reinterpret_cast<std::uintptr_t>(pointer)
         : state.actor_ref == pointer || state.parent_ref == pointer;
-    if (!state.terminal && matches && generation && state.watch_generation.load() == generation) {
+    // A callback entering after the publisher's active-count check waits on
+    // this lock. Its original has not run: if its pointer is now watched, it
+    // invalidates that just-published watch before destruction. Completed old
+    // callbacks never revisit BeginNotice and cannot take this path.
+    if (!state.terminal && pointer && matches && (arming || (generation && state.watch_generation.load() == generation))) {
         // Invalidate before destruction, within this exact captured watch. No
         // callback performs a second invalidation after original call-through.
         if (state.alive) { (void)Advance(); }
@@ -75,18 +93,20 @@ void EndNotice(Notice& notice) noexcept {
 template<std::size_t I> void* __fastcall Finalize(void* receiver, void*, std::uint32_t flags) {
     // Per-slot immutable original: a changed receiver vtable cannot redirect an
     // already dispatched callback. State is published before the slot exchange.
+    ++state.callbacks_active;
     const auto original = reinterpret_cast<Finalizer>(state.slots[I].original);
     Notice notice{}; BeginNotice(notice, receiver, false);
     void* result = nullptr;
     __try { result = original(receiver, flags); }
-    __finally { EndNotice(notice); }
+    __finally { EndNotice(notice); --state.callbacks_active; }
     return result;
 }
 void __cdecl Deallocate(void* allocation) {
+    ++state.callbacks_active;
     const auto original = reinterpret_cast<Free>(state.free_slot.original);
     Notice notice{}; BeginNotice(notice, allocation, true);
     __try { original(allocation); }
-    __finally { EndNotice(notice); }
+    __finally { EndNotice(notice); --state.callbacks_active; }
 }
 template<std::size_t... I> auto Hooks(std::index_sequence<I...>) noexcept {
     return std::array<std::uint32_t, sizeof...(I)>{reinterpret_cast<std::uint32_t>(&Finalize<I>)...};
@@ -160,12 +180,48 @@ bool Reference(void* object, void*& receiver) noexcept {
             receiver = reinterpret_cast<void*>(address + 8 + offset); return true;
         }
     }
-    if (state.count == kSlots || finalizer < state.base + 0x1000 || finalizer >= state.base + 0x1141000) { return false; }
-    auto& record = state.slots[state.count];
-    record = {slot, finalizer, hooks[state.count]}; ++state.count;
-    if (ReplaceImportAddressSlot(slot, record.original, record.hook) != ERROR_SUCCESS) { return false; }
-    receiver = reinterpret_cast<void*>(address + 8 + offset); return true;
+    // No new type can enter between capture and registration: every supported
+    // slot must already have been installed by Start.
+    return false;
 }
+bool InstallReference(std::uint32_t* slot, std::uint32_t original) noexcept {
+    const auto index = state.count.load();
+    if (index == kSlots) { return false; }
+    auto& record = state.slots[index];
+    record = {slot, original, hooks[index]}; state.count = index + 1;
+    return ReplaceImportAddressSlot(slot, record.original, record.hook) == ERROR_SUCCESS;
+}
+bool UnrecordedCallbacks() noexcept { // lock held
+    std::uint32_t recorded = 0;
+    for (auto* notice = state.destroying; notice; notice = notice->next) { ++recorded; }
+    // Already watched originals have exact object notices. A replacement with
+    // disjoint pointers may proceed while those calls are held. Any callback
+    // without a published notice makes a new snapshot uncertain.
+    return state.callbacks_active.load() != recorded;
+}
+struct Arm {
+    bool admitted = false;
+    Arm() noexcept {
+        AcquireSRWLockExclusive(&state.lock);
+        state.arming_dirty = false; state.arming = true;
+        admitted = !state.terminal && !UnrecordedCallbacks();
+        if (!admitted) { state.arming = false; }
+        ReleaseSRWLockExclusive(&state.lock);
+    }
+    ~Arm() {
+        if (!admitted) { return; }
+        AcquireSRWLockExclusive(&state.lock);
+        state.arming = false;
+        ReleaseSRWLockExclusive(&state.lock);
+    }
+};
+#ifdef WONDERBANE_MOVEMENT_LIFETIME_TESTING
+void (*capture_barrier)(int) = nullptr;
+void CaptureBarrier(int phase) { if (capture_barrier) { capture_barrier(phase); } }
+#else
+void CaptureBarrier(int) noexcept {}
+#endif
+
 void Gap() noexcept {
     AcquireSRWLockExclusive(&state.lock);
     if (state.alive) { (void)Advance(); }
@@ -189,6 +245,14 @@ bool StartNativeMovementLifetime(HWND window) noexcept {
     if (!original || reinterpret_cast<std::uintptr_t>(slot) != state.base + 0x16b0504) { Fail(); return false; }
     state.free_slot = {slot, reinterpret_cast<std::uint32_t>(original), reinterpret_cast<std::uint32_t>(&Deallocate)};
     if (ReplaceImportAddressSlot(slot, state.free_slot.original, state.free_slot.hook) != ERROR_SUCCESS) { Fail(); return false; }
+    for (const auto binding : kLifetimeBindings) {
+        auto* finalizer_slot = reinterpret_cast<std::uint32_t*>(state.base + binding.slot);
+        std::uint32_t release = 0;
+        if (!Read(state.base + binding.slot + 4, release) || release != state.base + 0x26f49
+            || !InstallReference(finalizer_slot, static_cast<std::uint32_t>(state.base + binding.original))) {
+            Fail(); return false;
+        }
+    }
     return true;
 }
 bool ObserveNativeMovementLifetime(void* native_window, NativeScene& out) noexcept {
@@ -197,16 +261,29 @@ bool ObserveNativeMovementLifetime(void* native_window, NativeScene& out) noexce
     if (state.binding_lost || !Intact(state.free_slot)) { Fail(); return false; }
     NativeScene scene{}, again{};
     if (!Capture(native_window, scene)) { Gap(); return false; }
+    // The existing watch already observes destruction. Only first/replacement
+    // arming needs the conservative short fence around native snapshot reads.
+    AcquireSRWLockShared(&state.lock);
+    if (state.alive && Same(state.scene, scene)) { scene.epoch = state.scene.epoch; }
+    ReleaseSRWLockShared(&state.lock);
+    if (scene.epoch && NativeMovementLifetimeCurrent(scene)) { out = scene; return true; }
+    if (state.binding_lost) { Fail(); return false; }
+    Arm arm;
+    if (!arm.admitted) { return false; }
+    if (!Capture(native_window, scene)) { Gap(); return false; }
+    CaptureBarrier(1);
     void* actor_ref = nullptr; void* parent_ref = nullptr;
     if (!Reference(reinterpret_cast<void*>(scene.actor), actor_ref)
         || !Reference(reinterpret_cast<void*>(scene.parent), parent_ref)) { Fail(); return false; }
     if (!Capture(native_window, again) || !Same(scene, again)) { Gap(); return false; }
+    CaptureBarrier(2);
     AcquireSRWLockExclusive(&state.lock);
-    bool destroying = false;
+    bool destroying = state.arming_dirty || UnrecordedCallbacks();
     for (auto* n = state.destroying; n; n = n->next) {
         destroying = destroying || (n->world ? scene.world == reinterpret_cast<std::uintptr_t>(n->pointer)
             : actor_ref == n->pointer || parent_ref == n->pointer);
     }
+    CaptureBarrier(3);
     if (!state.terminal && !destroying) {
         if (!state.alive || !Same(state.scene, scene)) {
             if (Advance()) {
@@ -219,6 +296,7 @@ bool ObserveNativeMovementLifetime(void* native_window, NativeScene& out) noexce
         }
         if (state.alive) { out = state.scene; }
     }
+    state.arming = false;
     ReleaseSRWLockExclusive(&state.lock);
     return out.epoch != 0;
 }

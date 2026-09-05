@@ -441,3 +441,24 @@ initial capture and watch publication is observed. This is an explicit remaining
 activation gate, not a claim that rendering or input-thread ownership proves
 native destruction confinement. Active next is closing that specific interval,
 then the Windows/XInput/UI consumer, settings/transport and combined acceptance.
+
+
+The watch arming correction now prebinds the bounded exact 34 ArcObj-family
+finalizer slots before any scene observation. The complete binding list was
+validated against the reviewed executable's RTTI/reference tables. New watch
+capture uses an interference fence and in-flight callback accounting; no reference
+slot is installed lazily from the captured object. It rejects destruction already
+in flight or overlapping capture/publication. Entry after the final publication
+check invalidates a newly published matching watch before original destruction.
+Existing exact notices still permit disjoint replacement during a held original;
+late completion does not alter the replacement's epoch. Ordinary unrelated frees
+are not scene authority. Multi-slot rollback preserves foreign slots and dispatched
+originals, with no lock across original call-through.
+
+Both full DLL profiles and 34 focused policy/backend/lifetime tests pass, zero
+skips. The new header movement_lifetime_bindings.h accompanies the already-wired
+production source; no additional cpp membership is required. This closes the
+implemented arming interval subject to integration review. Runtime activation
+remains pending the complete feature. Active next is the Windows/XInput/native UI
+consumer, then real settings and automation grant transport, full package checks
+and coordinated connected acceptance. No installed package was replaced here.
