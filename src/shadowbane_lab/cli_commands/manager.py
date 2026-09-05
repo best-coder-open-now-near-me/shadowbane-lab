@@ -7,27 +7,22 @@ import ntpath
 import os
 import secrets
 import sys
+import threading
 import time
 import webbrowser
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 
 from shadowbane_lab.client_extension import (
     ExtensionHeartbeatStatusProvider,
     load_patch_manifest,
 )
-from shadowbane_lab.client_input import (
-    ClientInputAdapter,
-    DecisionInputCompiler,
-    ForegroundWindowGuard,
-    GuardedInputExecutor,
-    PyAutoGuiBackend,
-    StaticBindingPointResolver,
-    StopSignal,
-    WindowsForegroundWindowInspector,
-    WindowsVisibleWindowInspector,
-    load_calibration,
+from shadowbane_lab.client_extension.action_channel import (
+    NativeActionChannelError,
+    NativeClientProcessIdentity,
 )
+from shadowbane_lab.client_extension.movement_session import NativeMovementSession
+from shadowbane_lab.client_input import StopSignal, WindowsVisibleWindowInspector
 from shadowbane_lab.manager import (
     ClientLifecycleSupervisor,
     ClientRegistrySnapshot,
@@ -62,7 +57,9 @@ from shadowbane_lab.manager import (
     replace_manager_manifest,
     retarget_manager_clients,
 )
+from shadowbane_lab.manager.movement import OperationMovement
 from shadowbane_lab.travel import (
+    TravelDecisionDispatcher,
     load_learned_navigation_map,
     save_learned_navigation_map,
 )
@@ -695,6 +692,28 @@ def _run_manager_worker(
         binding.validate_for(manifest)
         inspector = WindowsVisibleWindowInspector()
         process_inspector = Win32ProcessLifetimeInspector()
+        executor = _ExactWorkerEngineExecutor(
+            binding,
+            destination_state_path=destination_state_path,
+            client_profile_path=client_profile_path,
+            native_position_profile_path=native_position_profile_path,
+            native_vitals_profile_path=native_vitals_profile_path,
+            pve_client_profile_path=pve_client_profile_path,
+            pve_hotbar_config_path=pve_hotbar_config_path,
+            pve_evidence_directory=pve_evidence_directory,
+            navigation_cache_directory=navigation_cache_directory,
+            learned_navigation_state_path=learned_navigation_state_path,
+            pve_max_kills=pve_max_kills,
+            pve_max_seconds=pve_max_seconds,
+            pve_max_encounter_seconds=pve_max_encounter_seconds,
+            pve_recovery_timeout_seconds=pve_recovery_timeout_seconds,
+            pve_poll_ms=pve_poll_ms,
+            pve_camp_radius=pve_camp_radius,
+            pve_retained_trace_steps=pve_retained_trace_steps,
+            travel_max_seconds=travel_max_seconds,
+            travel_poll_ms=travel_poll_ms,
+            travel_click_interval_ms=travel_click_interval_ms,
+        )
         runtime = ExactClientWorkerRuntime(
             manifest,
             binding,
@@ -705,28 +724,8 @@ def _run_manager_worker(
                 manifest,
                 worker_state_directory,
             ),
-            operation_executor=_ExactWorkerEngineExecutor(
-                binding,
-                destination_state_path=destination_state_path,
-                client_profile_path=client_profile_path,
-                native_position_profile_path=native_position_profile_path,
-                native_vitals_profile_path=native_vitals_profile_path,
-                pve_client_profile_path=pve_client_profile_path,
-                pve_hotbar_config_path=pve_hotbar_config_path,
-                pve_evidence_directory=pve_evidence_directory,
-                navigation_cache_directory=navigation_cache_directory,
-                learned_navigation_state_path=learned_navigation_state_path,
-                pve_max_kills=pve_max_kills,
-                pve_max_seconds=pve_max_seconds,
-                pve_max_encounter_seconds=pve_max_encounter_seconds,
-                pve_recovery_timeout_seconds=pve_recovery_timeout_seconds,
-                pve_poll_ms=pve_poll_ms,
-                pve_camp_radius=pve_camp_radius,
-                pve_retained_trace_steps=pve_retained_trace_steps,
-                travel_max_seconds=travel_max_seconds,
-                travel_poll_ms=travel_poll_ms,
-                travel_click_interval_ms=travel_click_interval_ms,
-            ),
+            operation_executor=executor,
+            operation_maintenance=executor.maintain,
             heartbeat_interval_seconds=heartbeat_ms / 1_000.0,
         )
         return runtime.serve()
@@ -760,8 +759,12 @@ class _ExactWorkerEngineExecutor:
         travel_max_seconds: float,
         travel_poll_ms: int,
         travel_click_interval_ms: int,
+        movement_session_factory: Callable[..., NativeMovementSession] = NativeMovementSession,
     ) -> None:
         self._binding = binding
+        self._movement_session_factory = movement_session_factory
+        self._movement_lock = threading.Lock()
+        self._movement: OperationMovement | None = None
         self._destination_state_path = destination_state_path
         self._client_profile_path = client_profile_path
         self._native_position_profile_path = native_position_profile_path
@@ -789,7 +792,14 @@ class _ExactWorkerEngineExecutor:
         *,
         stop_signal: StopSignal,
     ) -> WorkerOperationExecution:
-        if operation.instance_id != self._binding.instance_id:
+        if (
+            operation.instance_id != self._binding.instance_id
+            or operation.client_id != self._binding.client_id
+            or (
+                self._binding.worker_id is not None
+                and operation.worker_id != self._binding.worker_id
+            )
+        ):
             return WorkerOperationExecution(
                 WorkerOperationState.FAILED,
                 "operation does not own this exact game instance",
@@ -804,50 +814,78 @@ class _ExactWorkerEngineExecutor:
                 WorkerOperationState.CANCELLED,
                 "worker dispatch gate closed before execution",
             )
+        if operation.kind is WorkerOperationKind.STOP:
+            # The worker cancels and joins the old operation, whose finally block
+            # stops its exact grant. An idle STOP must not take over manual input.
+            return WorkerOperationExecution(
+                WorkerOperationState.SUCCEEDED,
+                "owned automation stopped without acquiring another movement owner",
+            )
+        with self._movement_lock:
+            if self._movement is not None:
+                return WorkerOperationExecution(
+                    WorkerOperationState.FAILED, "another operation retains movement ownership"
+                )
+            movement = OperationMovement(
+                operation,
+                self._movement_session_factory(
+                    NativeClientProcessIdentity(
+                        self._binding.game_process_id,
+                        self._binding.game_process_started_at_100ns,
+                    ),
+                    self._binding.game_window_handle,
+                ),
+                stop_signal,
+            )
+            self._movement = movement
+        cleanup_problem = None
         try:
-            if operation.kind is WorkerOperationKind.STOP:
-                result = self._execute_stop(stop_signal=stop_signal)
+            if not movement.acquire():
+                result = WorkerOperationExecution(
+                    WorkerOperationState.CANCELLED,
+                    movement.reason or "movement acquisition cancelled",
+                )
             elif operation.kind is WorkerOperationKind.TRAVEL:
-                result = self._execute_travel(operation, stop_signal=stop_signal)
+                result = self._execute_travel(
+                    operation, stop_signal=movement, movement_dispatcher=movement.dispatcher
+                )
             elif operation.kind is WorkerOperationKind.PVE:
-                result = self._execute_pve(stop_signal=stop_signal)
+                result = self._execute_pve(
+                    stop_signal=movement, movement_dispatcher=movement.dispatcher
+                )
             else:
                 raise ValueError(f"unsupported operation kind {operation.kind!r}")
+        except (NativeActionChannelError, OSError, ValueError) as exc:
+            result = WorkerOperationExecution(
+                WorkerOperationState.FAILED,
+                f"native operation failed ({type(exc).__name__}); "
+                f"acquisition={movement.request_key}",
+            )
         finally:
+            cleanup_problem = movement.finish()
+            with self._movement_lock:
+                if self._movement is movement:
+                    self._movement = None
             save_learned_navigation_map(
                 self._learned_navigation_state_path,
                 self._navigation_map,
             )
+        if cleanup_problem:
+            return WorkerOperationExecution(WorkerOperationState.FAILED, cleanup_problem)
         return result
 
-    def _execute_stop(self, *, stop_signal: StopSignal) -> WorkerOperationExecution:
-        profile = load_calibration(self._client_profile_path)
-        guard = ForegroundWindowGuard(
-            profile,
-            WindowsForegroundWindowInspector(),
-            expected_process_id=self._binding.game_process_id,
-        )
-        adapter = ClientInputAdapter(
-            DecisionInputCompiler(profile, StaticBindingPointResolver()),
-            GuardedInputExecutor(
-                guard=guard,
-                backend=PyAutoGuiBackend(),
-                stop_signal=stop_signal,
-            ),
-        )
-        result = adapter.dispatch_movement_stop(
-            correlation_id=f"worker:{self._binding.client_id}:stop"
-        )
-        return WorkerOperationExecution(
-            (WorkerOperationState.SUCCEEDED if result.accepted else WorkerOperationState.FAILED),
-            result.reason,
-        )
+    def maintain(self, operation: WorkerOperation, stop_signal: StopSignal) -> None:
+        with self._movement_lock:
+            movement = self._movement
+        if movement is not None and movement.operation == operation:
+            movement.maintain()
 
     def _execute_travel(
         self,
         operation: WorkerOperation,
         *,
         stop_signal: StopSignal,
+        movement_dispatcher: TravelDecisionDispatcher,
     ) -> WorkerOperationExecution:
         destination = operation.destination
         if destination is None:
@@ -870,6 +908,7 @@ class _ExactWorkerEngineExecutor:
             client_process_id=self._binding.game_process_id,
             navigation_cache_directory=self._navigation_cache_directory,
             navigation_map=self._navigation_map,
+            movement_dispatcher=movement_dispatcher,
         )
         if stop_signal.is_set():
             return WorkerOperationExecution(
@@ -881,7 +920,12 @@ class _ExactWorkerEngineExecutor:
             "travel completed" if result == 0 else f"travel exited with status {result}",
         )
 
-    def _execute_pve(self, *, stop_signal: StopSignal) -> WorkerOperationExecution:
+    def _execute_pve(
+        self,
+        *,
+        stop_signal: StopSignal,
+        movement_dispatcher: TravelDecisionDispatcher,
+    ) -> WorkerOperationExecution:
         self._pve_evidence_directory.mkdir(parents=True, exist_ok=True)
         evidence_output = _new_chat_pve_evidence_path(self._pve_evidence_directory)
         result = _run_pve(
@@ -911,6 +955,7 @@ class _ExactWorkerEngineExecutor:
             camp_radius=self._pve_camp_radius,
             retained_trace_steps=self._pve_retained_trace_steps,
             navigation_map=self._navigation_map,
+            movement_dispatcher=movement_dispatcher,
         )
         if stop_signal.is_set():
             return WorkerOperationExecution(

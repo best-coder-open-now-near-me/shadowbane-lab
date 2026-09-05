@@ -882,3 +882,40 @@ all 36 tracked PowerShell scripts parse successfully. This is combined source
 validation, not a new package/installed-wheel receipt or connected-client acceptance.
 Next remains manager operation grant/renewal composition against the owner pause/
 renew/dispatcher checkpoint and the unresolved visual transparency implementation.
+
+
+### Manager native operation composition (September 5)
+
+Integrated movement destination/pause/renew checkpoint
+`95a3b363189557c529ebeecd4d5e1ec2004b6c67`, camera correction
+`429d0de3de8972ddd1c352455414b33c95ca4261`, and session lifecycle serialization
+through `5af4908`. These build on the combined `cc8895e` checkpoint; no deployment.
+
+Manager operations now reserve one per-operation context before native IPC,
+acquire one immutable grant, inject the existing native dispatcher into the
+unchanged travel/PvE engines, and renew from the worker maintenance cadence.
+Permit loss/manual takeover/status failure latch cancellation for movement and
+combat. Cleanup stops only the captured grant, retries ambiguous stop with the
+same UUID, and closes its producer lease. Idle STOP cannot acquire or stop a
+manual owner. Unresolved cleanup is a failed operation receipt, not success.
+Shared source ownership remains manager/CLI/package integration here and native
+session/input/standalone CLI feature delivery with the movement owner.
+
+Validation: 64 focused Python tests passed, zero skips, including an actual
+separate native fixture process exercising production operation acquisition,
+destination/pause/renew/destination/pause/terminal cleanup. Barrier regressions
+cover overlapping executor requests, held acquisition, independent client
+maintenance, renewal versus closure, latched takeover, and exact retry IDs.
+Evidence: `artifacts/hardening-evidence/manager-movement-python.xml`.
+Existing package builder now requires dispatcher/context/test membership and
+execution of the operation interprocess regression for both profiles.
+
+Both complete native DLL/profile builds succeeded. Broader movement/startup
+CTest selection ran 69 tests/profile: 68 passed, one failed, zero skips.
+`movement_native_stop` has five camera-yaw assertions still expecting the earlier
+sign after the camera correction; routed to the feature owner for an evidence-based
+fix. Logs/JUnit: `artifacts/hardening-evidence/movement-destination-*`.
+Required cue/effects transparency failures remain open. No complete candidate,
+installed package receipt, independent final review or owner acceptance is claimed.
+Next: consume the owner camera regression fix and direct live CLI ownership
+composition, then rerun combined gates and resolve remaining render coverage.

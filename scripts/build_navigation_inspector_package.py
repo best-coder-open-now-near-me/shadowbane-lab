@@ -256,14 +256,17 @@ def main() -> int:
             run(
                 f"{profile}-movement-ipc",
                 [sys.executable, "-m", "pytest", "tests/test_native_movement_session.py",
+                 "tests/test_manager_movement.py",
                  "-q", f"--junitxml={ipc_results}"],
             )
         finally:
             environment.pop("WONDERBANE_MOVEMENT_RUNTIME_TEST", None)
         ipc_cases = ET.parse(ipc_results).getroot().findall(".//testcase")
-        if not any(case.get("name") ==
-                   "test_real_producer_mutex_native_owner_completion_and_readonly_snapshot"
-                   for case in ipc_cases) or any(
+        required_ipc = {
+            "test_real_producer_mutex_native_owner_completion_and_readonly_snapshot",
+            "test_operation_context_uses_real_native_interprocess_movement",
+        }
+        if not required_ipc <= {case.get("name") for case in ipc_cases} or any(
             case.find("skipped") is not None or case.find("failure") is not None
             or case.find("error") is not None for case in ipc_cases
         ):
@@ -321,6 +324,8 @@ def main() -> int:
             raise RuntimeError("wheel missing native movement codec")
         if "shadowbane_lab/client_extension/movement_session.py" not in package.namelist():
             raise RuntimeError("wheel missing native movement session")
+        if "shadowbane_lab/client_extension/movement_dispatcher.py" not in package.namelist():
+            raise RuntimeError("wheel missing native movement dispatcher")
         sky_names = [
             name
             for name in package.namelist()
@@ -347,6 +352,11 @@ def main() -> int:
             "src/shadowbane_lab/client_extension/movement_wire.py",
             "tests/fixtures/native_movement_wire_v2.hex",
             "src/shadowbane_lab/client_extension/movement_session.py",
+            "src/shadowbane_lab/client_extension/movement_dispatcher.py",
+            "src/shadowbane_lab/manager/movement.py",
+            "tests/test_native_movement_session.py",
+            "tests/test_native_movement_dispatcher.py",
+            "tests/test_manager_movement.py",
             "native/wonderbane_extension/movement_command_queue.h",
             "native/wonderbane_extension/movement_channel_test.cpp",
             "tests/fixtures/navigation-inspector-v1.hex",

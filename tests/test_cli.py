@@ -57,12 +57,14 @@ class ClientCliTests(unittest.TestCase):
 
     def test_worker_cancel_acknowledges_without_touching_client_input(self) -> None:
         executor = object.__new__(_ExactWorkerEngineExecutor)
-        executor._binding = SimpleNamespace(instance_id="instance-101")
+        executor._binding = SimpleNamespace(
+            instance_id="instance-101", client_id="client", worker_id="worker"
+        )
         stop_signal = MagicMock()
 
         result = executor.execute(
             SimpleNamespace(
-                instance_id="instance-101",
+                instance_id="instance-101", client_id="client", worker_id="worker",
                 kind=WorkerOperationKind.CANCEL,
             ),
             stop_signal=stop_signal,
