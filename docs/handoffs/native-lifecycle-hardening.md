@@ -919,3 +919,36 @@ Required cue/effects transparency failures remain open. No complete candidate,
 installed package receipt, independent final review or owner acceptance is claimed.
 Next: consume the owner camera regression fix and direct live CLI ownership
 composition, then rerun combined gates and resolve remaining render coverage.
+
+
+Combined validation follow-up: full Python at exact source
+`d3f3af3d9752485a2e9468cf0215e45ba87b6c2f` passed 1793 tests and 238 subtests,
+with seven environmental symlink-permission skips (42.60 s); the actual native
+IPC fixture was configured and executed. Evidence: combined-d3f3af3-python.xml/log.
+Diagnostics-profile operation/session IPC separately passed 14 tests, zero skips
+(manager-movement-diagnostics-python.xml).
+
+Owner camera assertion correction `595ca1e6e992c0a768609361e0039a80ce66b656`
+was reviewed and integrated at `43f5dfee2d2e5e13a64b6d7d3fa481b4ca3a4d66`.
+The changed expectation agrees with the previously verified negative native yaw
+for rightward controller input; no runtime behavior changed in this correction.
+A cherry-picked CLI dependency introduced a handoff-only merge conflict; retained
+the integration history. An initial native run during that conflict is only a
+working-tree check (combined-camera-full.*), not a pinned-source certificate.
+After resolving and committing, both complete native profiles rebuilt and all
+102 CTests/profile executed at 43f5dfe: 98 passed, 2 failed, 2 skipped. The movement
+camera test now passes. The two required failures remain selected-cue native
+transparency and effects native transparency. Evidence: combined-43f5dfe-*.xml/log.
+The skipped selected-cue and sky binding executables were then explicitly run
+against the reviewed private client SHA256
+feb351f0fae87d47549fa43c37836405a753d76fbcd0b02232fc1c0733550dff;
+all four profile/binding runs passed, recorded in the matching separate logs.
+Do not reinterpret the original CTest skips as passes.
+
+No final package built/installed, no final independent review requested, no owner
+client testing requested. The shared acceptance plan remains authoritative.
+Remaining: standalone live CLI same-owner composition (movement owner), production
+cue/particles native transparency (existing feature owners), complete combined
+candidate review, exact installed package verification and one consolidated live
+acceptance session. Ordinary source pushes continue; no main merge or VM/client
+replacement is authorized by these receipts.

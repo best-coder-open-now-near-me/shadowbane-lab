@@ -326,6 +326,8 @@ def main() -> int:
             raise RuntimeError("wheel missing native movement session")
         if "shadowbane_lab/client_extension/movement_dispatcher.py" not in package.namelist():
             raise RuntimeError("wheel missing native movement dispatcher")
+        if "shadowbane_lab/manager/movement.py" not in package.namelist():
+            raise RuntimeError("wheel missing manager native operation ownership")
         sky_names = [
             name
             for name in package.namelist()
