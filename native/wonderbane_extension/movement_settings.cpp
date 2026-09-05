@@ -1,4 +1,5 @@
 #include "movement_settings.h"
+#include "movement_wire.h"
 #include <CommCtrl.h>
 #include <array>
 #include <cmath>
@@ -7,37 +8,9 @@ namespace wonderbane::extension::movement {
 namespace {
 constexpr wchar_t preferences_key[] = L"Software\\ShadowbaneLab\\NativeMovement";
 constexpr wchar_t panel_class[] = L"WonderBane.NativeMovement.Settings";
-struct Saved {
-    std::uint32_t magic = 0x57424d43, version = 1, flags = 0;
-    std::array<std::uint32_t, 4> keys{};
-    std::uint32_t slot = 0;
-    float movement_zone = 0, camera_zone = 0, sensitivity = 0, threshold = 0;
-    std::uint32_t button = 0;
-};
-static_assert(sizeof(Saved) == 52);
-Saved Encode(const Settings& s) noexcept {
-    Saved value{};
-    value.flags = (s.enabled ? 1U : 0U) | (s.keyboard ? 2U : 0U) | (s.controller ? 4U : 0U)
-        | (s.drag ? 8U : 0U) | (s.invert_camera_x ? 16U : 0U) | (s.invert_camera_y ? 32U : 0U);
-    for (std::size_t i = 0; i < 4; ++i) { value.keys[i] = s.keys[i]; }
-    value.slot = s.controller_slot; value.movement_zone = s.movement_dead_zone;
-    value.camera_zone = s.camera_dead_zone; value.sensitivity = s.camera_radians_per_second;
-    value.threshold = s.drag_threshold_pixels; value.button = s.drag_button; return value;
-}
-bool Decode(const Saved& value, Settings& s) noexcept {
-    if (value.magic != 0x57424d43 || value.version != 1 || (value.flags & ~63U) || value.button > 255) { return false; }
-    Settings next{};
-    next.enabled = (value.flags & 1) != 0; next.keyboard = (value.flags & 2) != 0;
-    next.controller = (value.flags & 4) != 0; next.drag = (value.flags & 8) != 0;
-    next.invert_camera_x = (value.flags & 16) != 0; next.invert_camera_y = (value.flags & 32) != 0;
-    for (std::size_t i = 0; i < 4; ++i) {
-        if (value.keys[i] > 255) { return false; } next.keys[i] = static_cast<std::uint16_t>(value.keys[i]);
-    }
-    next.controller_slot = value.slot; next.movement_dead_zone = value.movement_zone;
-    next.camera_dead_zone = value.camera_zone; next.camera_radians_per_second = value.sensitivity;
-    next.drag_threshold_pixels = value.threshold; next.drag_button = static_cast<std::uint16_t>(value.button);
-    if (!ValidSettings(next)) { return false; } s = next; return true;
-}
+using Saved = wire::Settings;
+using wire::Encode;
+using wire::Decode;
 bool SaveTo(const wchar_t* location, const Settings& settings) noexcept {
     if (!ValidSettings(settings)) { return false; }
     const auto value = Encode(settings); HKEY key = nullptr;
