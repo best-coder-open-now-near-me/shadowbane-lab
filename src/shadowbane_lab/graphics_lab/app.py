@@ -159,6 +159,9 @@ class GraphicsLabApp:
         ttk.Button(target_row, text="Refresh", command=self.refresh_targets).pack(
             side="left", padx=(8, 0)
         )
+        ttk.Button(
+            target_row, text="Movement controls", command=self._open_movement_controls
+        ).pack(side="left", padx=(8, 0))
         self.status_label = ttk.Label(
             container, textvariable=self.status_var, style="Muted.TLabel"
         )
@@ -383,6 +386,21 @@ class GraphicsLabApp:
         index = self.target_combo.current()
         if 0 <= index < len(self.targets):
             self._connect_target(self.targets[index])
+
+    def _open_movement_controls(self) -> None:
+        from shadowbane_lab.client_extension.movement_settings import (
+            open_native_movement_settings,
+        )
+
+        if self.client is None:
+            self._show_status("Select a connected client first", error=True)
+            return
+        try:
+            open_native_movement_settings(self.client.target)
+        except (OSError, RuntimeError, ValueError) as error:
+            self._show_status(str(error), error=True)
+            return
+        self._show_status("Movement settings requested in the selected client")
 
     def _connect_target(self, target: GraphicsControlTarget) -> None:
         self._disconnect()

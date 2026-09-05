@@ -4,6 +4,7 @@
 #include "movement_native_ui.h"
 #include "movement_windows_input.h"
 #include "movement_lifetime.h"
+#include "movement_settings.h"
 #include <array>
 #include <atomic>
 #include <optional>
@@ -14,7 +15,7 @@ public:
     Controls controls{*this};
     NativeStop native{controls};
     NativeUi ui;
-    WindowsInput input{controls, {this, &QueryUi, &SafetyEvent}};
+    WindowsInput input{controls, {this, &QueryUi, &SafetyEvent, &OpenSettings}};
     ProcessIdentity process{};
     Settings settings{};
     NativeScene scene{};
@@ -24,6 +25,8 @@ public:
     decltype(&GetTickCount64) clock = &GetTickCount64;
     bool initialized = false, initializing = false, busy = false, destroyed = false, terminal = false;
     bool lifetime_started = false;
+    std::optional<std::uint64_t> settings_requested_scene;
+    bool settings_shown = false;
     std::optional<StopReason> interrupted;
     struct SafetyCommand { HWND window; NativeScene scene; Grant grant; StopReason reason; };
     std::array<SafetyCommand, 8> pending{};
@@ -38,6 +41,18 @@ public:
     }
     static void SafetyEvent(void* context, HWND source, StopReason reason, bool destroying) noexcept {
         static_cast<Runtime*>(context)->Safety(source, reason, destroying);
+    }
+    static bool OpenSettings(void* context, HWND source, std::uint64_t creation) noexcept {
+        auto& self = *static_cast<Runtime*>(context);
+        if (source != self.window || creation != self.process.creation_filetime_utc
+            || GetCurrentThreadId() != self.thread || self.terminal || self.destroyed
+            || !NativeMovementLifetimeCurrent(self.scene)) { return false; }
+        POINT point{}; NativeUiState gate{};
+        if (!GetCursorPos(&point) || !ScreenToClient(source, &point) || !self.ui.Snapshot(point, gate)
+            || gate.keyboard_owned) { return false; }
+        self.settings_requested_scene = self.scene.epoch; self.settings_shown = false;
+        const bool deferred = self.busy;
+        self.Safety(source, StopReason::ui, false); return deferred || self.settings_shown;
     }
     bool Stop(const Grant& grant, StopReason) noexcept override {
         return !destroyed && !terminal && native.Execute(grant);
@@ -61,6 +76,7 @@ public:
             && input.Available() && NativeMovementLifetimeCurrent(scene);
         next.ready = next.bindings_available && controls.Ready();
         next.camera_available = next.bindings_available && controls.CameraReady();
+        next.controller_api_available = input.ControllerApiAvailable(); next.controller_connected = input.ControllerConnected();
         AcquireSRWLockExclusive(&publication_lock); published = next; ReleaseSRWLockExclusive(&publication_lock);
     }
     void FinishDestroyed() noexcept {
@@ -113,6 +129,14 @@ public:
         }
         if (!pending_count) { interrupted.reset(); }
         Publish();
+        if (settings_requested_scene && !pending_count && !busy) {
+            const auto epoch = *settings_requested_scene; settings_requested_scene.reset();
+            if (epoch == scene.epoch && controls.Current().owner == Owner::none && NativeMovementLifetimeCurrent(scene)) {
+                RuntimeSnapshot snapshot{};
+                AcquireSRWLockShared(&publication_lock); snapshot = published; ReleaseSRWLockShared(&publication_lock);
+                settings_shown = ShowMovementSettings(snapshot);
+            }
+        }
     }
     void Safety(HWND source, StopReason reason, bool destroying) noexcept {
         if (source != window || GetCurrentThreadId() != thread || terminal) { return; }
@@ -121,7 +145,7 @@ public:
         // merely because the user is looking around during a route.
         if ((reason == StopReason::device_lost || reason == StopReason::capture_lost)
             && controls.Current().owner != Owner::manual) { return; }
-        interrupted = reason;
+        input.Suspend(); interrupted = reason;
         Queue({source, scene, controls.Current(), reason}); Drain();
     }
     bool Initialize() noexcept {
@@ -133,7 +157,7 @@ public:
         if (success) { success = native.Bind(window) && ui.Bind(window); }
         if (success) { lifetime_started = StartNativeMovementLifetime(window); success = lifetime_started; }
         if (success) { success = input.Bind(window); }
-        if (success) { success = controls.Configure(settings) == Result::accepted && input.Configure(settings); }
+        if (success) { settings = LoadMovementPreferences(); success = controls.Configure(settings) == Result::accepted && input.Configure(settings); }
         initialized = success; initializing = false;
         if (!success) { destroyed = true; FinishDestroyed(); }
         return success;
@@ -146,6 +170,7 @@ public:
         busy = true; interrupted.reset(); tick = clock();
         NativeScene next{};
         const bool observed = ObserveNativeMovementLifetime(receiver, next);
+        if (!observed || next.epoch != scene.epoch) { input.Suspend(); }
         scene = observed ? next : NativeScene{};
         controls.ObserveScene(scene.epoch);
         CapturedInput captured{};
@@ -168,6 +193,8 @@ public:
                     static_cast<int>(sampled.pointer_y), sampled.ground);
             }
         }
+        if (!sampled.native_available || !sampled.exact_foreground || sampled.ui_owns_input
+            || (captured.press_origin && !sampled.pointer_in_world)) { input.Suspend(); }
         controls.Tick(sampled);
         if (phase) { native.EndUpdate(); }
         busy = false; Drain(); Publish();

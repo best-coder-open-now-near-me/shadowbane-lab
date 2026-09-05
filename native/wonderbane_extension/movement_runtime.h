@@ -13,6 +13,8 @@ struct RuntimeSnapshot {
     bool ready = false;
     bool camera_available = false;
     bool terminal = false;
+    bool controller_api_available = false;
+    bool controller_connected = false;
 };
 DWORD StartNativeMovementControls(const ProcessIdentity&) noexcept;
 // Read-only, no automation host lease acquisition, safe for the status publisher.

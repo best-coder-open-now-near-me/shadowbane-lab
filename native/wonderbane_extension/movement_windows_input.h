@@ -8,12 +8,14 @@ namespace wonderbane::extension::movement {
 // Resolve the HWND stored by the reviewed native CreateWindow path.
 // No foreground-window guessing or enumeration heuristic.
 bool NativeInputWindow(HWND&) noexcept;
+inline constexpr wchar_t settings_message_name[] = L"ShadowbaneLab.NativeMovement.OpenSettings.v1";
 struct InputCallbacks {
     void* context = nullptr;
     bool (*ui)(void*, POINT, NativeUiState&) noexcept = nullptr;
     // Called synchronously on the exact HWND thread. The runtime captures the
     // current scene/grant here and defers nested stops until actuation returns.
     void (*safety)(void*, HWND, StopReason, bool destroying) noexcept = nullptr;
+    bool (*open_settings)(void*, HWND, std::uint64_t creation) noexcept = nullptr;
 };
 struct CapturedInput {
     Input input{};
@@ -29,7 +31,11 @@ public:
     bool Configure(const Settings&) noexcept;
     bool Snapshot(CapturedInput&) noexcept;
     void Retire() noexcept;
+    // Cancel a buffered gesture without delivering its old click in a new UI/scene.
+    void Suspend() noexcept;
     bool Available() const noexcept;
+    bool ControllerApiAvailable() const noexcept { return platform_.controller && platform_.capabilities; }
+    bool ControllerConnected() const noexcept { return controller_connected_; }
 private:
     using KeyboardCall = void (__cdecl*)(std::uint32_t, std::uint32_t, std::uint32_t, std::uint32_t);
     struct Platform {
@@ -57,6 +63,8 @@ private:
     Settings settings_{};
     HWND window_ = nullptr;
     DWORD thread_ = 0;
+    UINT settings_message_ = 0;
+    std::uint64_t process_creation_ = 0;
     std::uintptr_t base_ = 0, manager_ = 0;
     std::uint32_t* key_slot_ = nullptr;
     KeyboardCall original_ = nullptr;
