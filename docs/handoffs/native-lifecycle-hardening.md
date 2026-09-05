@@ -1248,3 +1248,30 @@ The next activation is diagnostic observation only, pending separate authorizati
 This procedure does not certify cue/effects transparency or complete-candidate
 acceptance. It collects the missing foreground invocation/material-state evidence;
 source/package identity remains the diagnostic f9c6f7a build recorded above.
+
+### Authorized isolated diagnostic runtime launched
+
+Owner explicitly approved preparation and launch for the two targeted captures.
+Existing prepare-copy published S:/ShadowbaneLab-Guided/diagnostic-f9c6f7a/client;
+verify-launchable-copy passed. Patched executable and full DLL match the exact
+hashes above. The frozen-baseline-derived package repository_revision f0bad0ec is
+baseline provenance (package.py copies baseline.repository_revision), not the
+new DLL source: diagnostic source is still f9c6f7a57526ec192aa1273b0a1612359a1474db.
+The package manifest hash is its canonical serialization hash and is distinct
+from the raw bootstrap JSON file hash. Preserve those distinctions in receipts.
+
+Launched once, directly, with the documented process-local renderer/trace environment.
+Exact lifetime: PID2916 / creation FILETIME134331032163429508.
+Existing wait-graphics-status passed for the exact executable and full-renderer
+profile. Initial 64-bit PowerShell module enumeration saw only seven WOW64 modules
+and failed the additional DLL check; no relaunch followed. Rechecked from 32-bit
+PowerShell: 89 modules, exactly the expected extension DLL at the diagnostic path,
+SHA3e8cd3c3fa4946aa620cd94ed0caf1bc3fa3b7a7c6785f6e72e1e01c12036f26,
+process still alive. This resolves the inspection failure, not a source defect.
+
+Local evidence: diagnostic-prepare-copy.log, diagnostic-launch.log (including the
+initial inspection failure), diagnostic-loaded-module.json under
+artifacts/hardening-evidence. Guest launch-identity.json is in the diagnostic runtime
+parent. No patcher, automation operation, saved setting or global environment change.
+Next: owner login and unobstructed selected-character ready cue; then exactly one
+foreground-obstructed comparison capture. No trace has yet been requested.
