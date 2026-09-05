@@ -36,8 +36,34 @@ bool StackRoom(GLenum depth_name, GLenum max_name) noexcept {
     return depth >= 0 && depth < maximum;
 }
 }
+bool AreSceneSampleQueriesInactive() noexcept {
+    if (!wglGetCurrentContext()) return false;
+    const auto* version = reinterpret_cast<const char*>(glGetString(GL_VERSION));
+    if (!version || version[0] < '1' || version[0] > '9') return false;
+    const auto at_least = [version](char major, char minor) noexcept {
+        return version[0] > major || (version[0] == major && version[1] == '.' && version[2] >= minor);
+    };
+    const auto* extensions = reinterpret_cast<const char*>(glGetString(GL_EXTENSIONS));
+    const bool samples = at_least('1','5') || HasExtension(extensions,"GL_ARB_occlusion_query");
+    if (!samples) return true;
+    using GetQuery = void(APIENTRY*)(GLenum,GLenum,GLint*);
+    auto query = reinterpret_cast<GetQuery>(Extension("glGetQueryiv"));
+    if (!query) query = reinterpret_cast<GetQuery>(Extension("glGetQueryivARB"));
+    if (!query) return false;
+    const auto inactive = [query](GLenum target) noexcept {
+        GLint active = -1;
+        query(target,0x8865U,&active); // GL_CURRENT_QUERY; unknown is not safe.
+        return active == 0;
+    };
+    if (!inactive(0x8914U)) return false; // GL_SAMPLES_PASSED
+    if ((at_least('3','3') || HasExtension(extensions,"GL_ARB_occlusion_query2"))
+        && !inactive(0x8C2FU)) return false; // GL_ANY_SAMPLES_PASSED
+    if ((at_least('4','3') || HasExtension(extensions,"GL_ARB_ES3_compatibility"))
+        && !inactive(0x8D6AU)) return false; // GL_ANY_SAMPLES_PASSED_CONSERVATIVE
+    return true;
+}
 bool RenderSceneGeometry(const GraphicsCameraState* camera, SceneDraw draw, void* user) noexcept {
-    if (!draw || !wglGetCurrentContext()
+    if (!draw || !AreSceneSampleQueriesInactive()
         || !StackRoom(GL_ATTRIB_STACK_DEPTH, GL_MAX_ATTRIB_STACK_DEPTH)
         || !StackRoom(GL_MODELVIEW_STACK_DEPTH, GL_MAX_MODELVIEW_STACK_DEPTH)
         || !StackRoom(GL_PROJECTION_STACK_DEPTH, GL_MAX_PROJECTION_STACK_DEPTH)) return false;
