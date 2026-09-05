@@ -2,8 +2,9 @@
 
 Source implementation is in progress on `codex/native-movement-controls`, integrated
 through `codex/native-lifecycle-hardening`. This document describes the settings
-and controls in that source. The complete command transport, combined installed
-package and connected acceptance are not yet delivered.
+and controls in that source. Native transport and the movement adapter are implemented;
+combined manager integration, installed package verification and connected acceptance
+remain pending.
 
 ## Settings
 
@@ -26,7 +27,7 @@ left/right perpendicular to it. Opposing keys cancel; diagonal movement is
 normalized. Four distinct single keys can be remapped in the panel. The settings
 chord is reserved. Text/chat and modal ownership inhibit movement.
 
-Controller slots 1–4 map explicitly to XInput indices 0–3. Devices must expose
+Controller slots 1â€“4 map explicitly to XInput indices 0â€“3. Devices must expose
 XInput gamepad axes; unsupported device types and missing XInput are unavailable.
 There is no automatic first-connected selection or DirectInput emulation. The
 left stick controls movement direction; the right stick controls the native camera.
@@ -55,8 +56,8 @@ the gesture; a buffered click is never replayed into a replacement scene.
 Deliberate manual movement takes over the current native movement owner immediately.
 Old-generation movement and stop commands cannot affect the new owner. Releasing
 manual input never resumes a route. Resume requires an explicit new `/go` or `/pve`
-request after manual controls are neutral. Travel/PvE producer transport wiring is
-still being completed before this behavior can be certified in the connected client.
+request after manual controls are neutral. The complete combined package must pass connected acceptance before this behavior
+can be certified in the client.
 
 The combined acceptance pass must use the integration owner's exact source and
 installed package. Exercise all three input methods and camera-only control;

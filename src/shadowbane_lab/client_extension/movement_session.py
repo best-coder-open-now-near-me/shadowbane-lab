@@ -5,6 +5,7 @@ from __future__ import annotations
 import ctypes
 import itertools
 import sys
+import threading
 from dataclasses import dataclass
 
 from . import action_channel as channel
@@ -92,28 +93,30 @@ class NativeMovementSession:
         self._revoked: set[NativeMovementGrant] = set()
         self._stops: dict[NativeMovementGrant, str] = {}
         self._closed = False
+        self._session_lock = threading.RLock()
 
     def snapshot(self) -> Snapshot:
         return read_snapshot(self.identity, self.window)
 
     def _host(self, *, acquire: bool) -> Host:
-        if self._closed:
-            raise channel.NativeActionChannelUnavailable("movement session is closed")
-        if self._transport is None:
-            if not acquire:
-                raise channel.NativeActionChannelUnavailable(
-                    "session does not own an automation lease"
-                )
-            self._transport = channel.WindowsNativeActionCommandTransport(self.identity)
-        transport = self._transport
-        if transport is None or self._closed:
-            raise channel.NativeActionChannelUnavailable("movement session is closed")
-        identity = transport.host_process_identity
-        return Host(
-            identity.process_id,
-            transport.host_lease_generation,
-            identity.creation_filetime_utc,
-        )
+        with self._session_lock:
+            if self._closed:
+                raise channel.NativeActionChannelUnavailable("movement session is closed")
+            if self._transport is None:
+                if not acquire:
+                    raise channel.NativeActionChannelUnavailable(
+                        "session does not own an automation lease"
+                    )
+                self._transport = channel.WindowsNativeActionCommandTransport(self.identity)
+            transport = self._transport
+            if transport is None or self._closed:
+                raise channel.NativeActionChannelUnavailable("movement session is closed")
+            identity = transport.host_process_identity
+            return Host(
+                identity.process_id,
+                transport.host_lease_generation,
+                identity.creation_filetime_utc,
+            )
 
     def _expected(self, snapshot: Snapshot) -> None:
         if (
@@ -151,26 +154,27 @@ class NativeMovementSession:
     def acquire(
         self, expected: Snapshot, worker_id: str, operation_id: str, request_key: str
     ) -> NativeMovementGrant:
-        self._expected(expected)
-        payload = Command(
-            self._host(acquire=True),
-            self.window,
-            expected.grant,
-            request_key,
-            settings=expected.settings,
-            revision=expected.revision,
-            worker_id=worker_id,
-            operation_id=operation_id,
-        )
-        previous = self._acquisitions.setdefault(request_key, payload)
-        if previous != payload:
-            raise ValueError(
-                "acquisition retry must preserve its original snapshot, lease and token"
+        with self._session_lock:
+            self._expected(expected)
+            payload = Command(
+                self._host(acquire=True),
+                self.window,
+                expected.grant,
+                request_key,
+                settings=expected.settings,
+                revision=expected.revision,
+                worker_id=worker_id,
+                operation_id=operation_id,
             )
-        receipt = self._submit(Verb.ACQUIRE, previous)
-        return NativeMovementGrant(
-            self.identity, self.window, receipt.grant, receipt.host, request_key
-        )
+            previous = self._acquisitions.setdefault(request_key, payload)
+            if previous != payload:
+                raise ValueError(
+                    "acquisition retry must preserve its original snapshot, lease and token"
+                )
+            receipt = self._submit(Verb.ACQUIRE, previous)
+            return NativeMovementGrant(
+                self.identity, self.window, receipt.grant, receipt.host, request_key
+            )
 
     def _check_grant(self, grant: NativeMovementGrant) -> None:
         if grant.process_identity != self.identity or grant.window != self.window:
@@ -181,77 +185,83 @@ class NativeMovementSession:
     def move(
         self, grant: NativeMovementGrant, destination: tuple[float, float, float], request_key: str
     ) -> Receipt:
-        self._check_grant(grant)
-        if grant in self._stops:
-            raise NativeMovementError(Outcome.INHIBITED)
-        try:
-            return self._submit(
-                Verb.DESTINATION,
-                Command(grant.host, grant.window, grant.ownership, request_key, destination),
-            )
-        except NativeMovementError:
-            self._revoked.add(grant)
-            raise
+        with self._session_lock:
+            self._check_grant(grant)
+            if grant in self._stops:
+                raise NativeMovementError(Outcome.INHIBITED)
+            try:
+                return self._submit(
+                    Verb.DESTINATION,
+                    Command(grant.host, grant.window, grant.ownership, request_key, destination),
+                )
+            except NativeMovementError:
+                self._revoked.add(grant)
+                raise
 
     def renew(self, grant: NativeMovementGrant) -> None:
-        self._check_grant(grant)
-        snapshot = self.snapshot()
-        if snapshot.grant != grant.ownership or not snapshot.flags & 2 or snapshot.flags & 8:
-            self._revoked.add(grant)
-            raise NativeMovementError(Outcome.STALE)
-        transport = self._transport
-        if transport is None or self._closed:
-            raise channel.NativeActionChannelUnavailable("movement session is closed")
-        transport.renew_lease()
+        with self._session_lock:
+            self._check_grant(grant)
+            snapshot = self.snapshot()
+            if snapshot.grant != grant.ownership or not snapshot.flags & 2 or snapshot.flags & 8:
+                self._revoked.add(grant)
+                raise NativeMovementError(Outcome.STALE)
+            transport = self._transport
+            if transport is None or self._closed:
+                raise channel.NativeActionChannelUnavailable("movement session is closed")
+            transport.renew_lease()
 
     def pause(self, grant: NativeMovementGrant, request_key: str) -> Receipt:
-        self._check_grant(grant)
-        try:
-            receipt = self._submit(
-                Verb.PAUSE, Command(grant.host, grant.window, grant.ownership, request_key)
-            )
-        except NativeMovementError:
-            self._revoked.add(grant)
-            raise
-        if receipt.grant != grant.ownership:
-            self._revoked.add(grant)
-            raise channel.NativeActionChannelError("pause changed operation ownership")
-        return receipt
+        with self._session_lock:
+            self._check_grant(grant)
+            try:
+                receipt = self._submit(
+                    Verb.PAUSE, Command(grant.host, grant.window, grant.ownership, request_key)
+                )
+            except NativeMovementError:
+                self._revoked.add(grant)
+                raise
+            if receipt.grant != grant.ownership:
+                self._revoked.add(grant)
+                raise channel.NativeActionChannelError("pause changed operation ownership")
+            return receipt
 
     def stop(self, grant: NativeMovementGrant, request_key: str) -> Receipt:
-        self._check_grant(grant)
-        previous = self._stops.setdefault(grant, request_key)
-        if previous != request_key:
-            raise ValueError("ambiguous stop retry must retain its request UUID")
-        try:
-            receipt = self._submit(
-                Verb.STOP, Command(grant.host, grant.window, grant.ownership, request_key)
-            )
-        except channel.NativeActionChannelTimeout:
-            # Movement stays excluded, but the exact cancellation can be retried.
-            raise
-        except NativeMovementError:
+        with self._session_lock:
+            self._check_grant(grant)
+            previous = self._stops.setdefault(grant, request_key)
+            if previous != request_key:
+                raise ValueError("ambiguous stop retry must retain its request UUID")
+            try:
+                receipt = self._submit(
+                    Verb.STOP, Command(grant.host, grant.window, grant.ownership, request_key)
+                )
+            except channel.NativeActionChannelTimeout:
+                # Movement stays excluded, but the exact cancellation can be retried.
+                raise
+            except NativeMovementError:
+                self._revoked.add(grant)
+                raise
             self._revoked.add(grant)
-            raise
-        self._revoked.add(grant)
-        return receipt
+            return receipt
 
     def configure(self, expected: Snapshot, settings: Settings, request_key: str) -> Receipt:
-        self._expected(expected)
-        return self._submit(
-            Verb.CONFIGURE,
-            Command(
-                self._host(acquire=False),
-                self.window,
-                expected.grant,
-                request_key,
-                settings=settings,
-                revision=expected.revision,
-            ),
-        )
+        with self._session_lock:
+            self._expected(expected)
+            return self._submit(
+                Verb.CONFIGURE,
+                Command(
+                    self._host(acquire=False),
+                    self.window,
+                    expected.grant,
+                    request_key,
+                    settings=settings,
+                    revision=expected.revision,
+                ),
+            )
 
     def close(self) -> None:
-        self._closed = True
-        if self._transport is not None:
-            self._transport.close()
-            self._transport = None
+        with self._session_lock:
+            self._closed = True
+            if self._transport is not None:
+                self._transport.close()
+                self._transport = None

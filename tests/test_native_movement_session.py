@@ -117,3 +117,130 @@ def test_snapshot_mixed_schema_and_odd_publication_never_claim_lease():
         assert memory[:128] == header
     finally:
         memory.close()
+
+
+def test_close_serializes_with_initial_lease_open(monkeypatch):
+    import threading
+
+    entered, release, closed = threading.Event(), threading.Event(), threading.Event()
+
+    class OpeningTransport:
+        def __init__(self, identity):
+            entered.set()
+            assert release.wait(2)
+            self.host_process_identity = identity
+            self.host_lease_generation = 1
+
+        def close(self):
+            closed.set()
+
+    monkeypatch.setattr(channel, "WindowsNativeActionCommandTransport", OpeningTransport)
+    session = NativeMovementSession(channel.NativeClientProcessIdentity(123, 456), 789)
+    opening = threading.Thread(target=lambda: session._host(acquire=True))
+    closing = threading.Thread(target=session.close)
+    opening.start()
+    try:
+        assert entered.wait(2)
+        closing.start()
+        assert not closed.wait(0.05)
+    finally:
+        release.set()
+        opening.join(2)
+        if closing.ident is not None:
+            closing.join(2)
+    assert not opening.is_alive() and not closing.is_alive()
+    assert closed.is_set() and session._transport is None
+    with pytest.raises(channel.NativeActionChannelUnavailable):
+        session._host(acquire=True)
+
+
+def test_submit_serializes_renew_and_close_at_public_session_boundary(monkeypatch):
+    import threading
+
+    from shadowbane_lab.client_extension.movement_session import NativeMovementGrant
+    from shadowbane_lab.client_extension.movement_wire import (
+        Grant,
+        Host,
+        Outcome,
+        Receipt,
+        Settings,
+        Snapshot,
+    )
+
+    entered, release, finished = threading.Event(), threading.Event(), threading.Event()
+    calls, failures = [], []
+    identity = channel.NativeClientProcessIdentity(123, 456)
+    ownership = Grant(10, 20, Owner.AUTOMATION, "worker", "operation")
+    grant = NativeMovementGrant(identity, 789, ownership, Host(123, 1, 456), str(uuid.uuid4()))
+
+    class Transport:
+        host_process_identity = identity
+        host_lease_generation = 1
+
+        def submit(self, command, *, timeout_ms):
+            calls.append("submit")
+            entered.set()
+            assert release.wait(2)
+            receipt = Receipt(
+                ownership,
+                command.payload.request_key,
+                grant.host,
+                789,
+                1,
+                Settings(),
+                Outcome.ACCEPTED,
+                3,
+            )
+            calls.append("complete")
+            return channel.NativeActionResult(
+                1,
+                command.command_id,
+                1,
+                channel.NativeActionResultStage.SUBMITTED_TO_CLIENT,
+                0,
+                1,
+                1,
+                "receipt",
+                receipt.encode(),
+            )
+
+        def renew_lease(self):
+            calls.append("renew")
+
+        def close(self):
+            calls.append("close")
+            finished.set()
+
+    session = NativeMovementSession(identity, 789)
+    session._transport = Transport()
+    monkeypatch.setattr(
+        session, "snapshot", lambda: Snapshot(2, 123, 3, 456, 789, ownership, Settings(), 1, 1)
+    )
+
+    def run(action):
+        try:
+            action()
+        except channel.NativeActionChannelUnavailable:
+            # Close may win the lock before renewal; no post-close write occurs.
+            pass
+        except Exception as exc:
+            failures.append(exc)
+
+    moving = threading.Thread(
+        target=lambda: run(lambda: session.move(grant, (1, 0, -2), str(uuid.uuid4())))
+    )
+    renewing = threading.Thread(target=lambda: run(lambda: session.renew(grant)))
+    closing = threading.Thread(target=lambda: run(session.close))
+    moving.start()
+    try:
+        assert entered.wait(2)
+        renewing.start()
+        closing.start()
+        assert not finished.wait(0.05) and calls == ["submit"]
+    finally:
+        release.set()
+        for thread in (moving, renewing, closing):
+            if thread.ident is not None:
+                thread.join(2)
+    assert not failures and all(not thread.is_alive() for thread in (moving, renewing, closing))
+    assert calls[:2] == ["submit", "complete"] and calls[-1] == "close"
