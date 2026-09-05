@@ -183,6 +183,9 @@ if(BUILD_TESTING)
   target_link_libraries(wonderbane_extension_navigation_draw_test PRIVATE opengl32 gdi32 user32 bcrypt)
   set_property(TARGET wonderbane_extension_navigation_draw_test PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded")
   add_test(NAME wonderbane_extension_navigation_draw COMMAND wonderbane_extension_navigation_draw_test)
+  add_test(NAME wonderbane_extension_ordered_operators
+    COMMAND wonderbane_extension_navigation_draw_test --ordered-operators)
+  set_tests_properties(wonderbane_extension_ordered_operators PROPERTIES SKIP_RETURN_CODE 77)
   add_test(NAME wonderbane_extension_combined_render
     COMMAND wonderbane_extension_navigation_draw_test --combined-render)
   set_tests_properties(wonderbane_extension_combined_render PROPERTIES SKIP_RETURN_CODE 77)

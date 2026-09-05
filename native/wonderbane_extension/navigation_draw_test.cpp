@@ -443,6 +443,7 @@ void OrderedOperatorProbe(const GraphicsCameraState& camera) {
 
 }
 int main(int argc, char** argv) {
+    const bool ordered_operators = argc == 2 && std::strcmp(argv[1], "--ordered-operators") == 0;
     WNDCLASSW klass{};
     klass.style = CS_OWNDC; klass.lpfnWndProc = DefWindowProcW;
     klass.hInstance = GetModuleHandleW(nullptr); klass.lpszClassName = L"WonderBaneNavigationDrawTest";
@@ -456,7 +457,7 @@ int main(int argc, char** argv) {
     PIXELFORMATDESCRIPTOR format{};
     format.nSize = sizeof(format); format.nVersion = 1;
     format.dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER;
-    format.iPixelType = PFD_TYPE_RGBA; format.cColorBits = 32; format.cAlphaBits = 8; format.cDepthBits = 24;
+    format.iPixelType = PFD_TYPE_RGBA; format.cColorBits = 32; format.cAlphaBits = ordered_operators ? 8 : 0; format.cDepthBits = 24;
     format.cStencilBits = 8; format.iLayerType = PFD_MAIN_PLANE;
     const int index = ChoosePixelFormat(dc, &format);
     if (!index || !SetPixelFormat(dc, index, &format)) return 4;
@@ -475,7 +476,13 @@ int main(int argc, char** argv) {
         return 77;
     }
     GLint alpha_bits=0;glGetIntegerv(GL_ALPHA_BITS,&alpha_bits);
-    Check(alpha_bits>=8,"operator RGBA experiment requires an alpha buffer");
+    if (ordered_operators && alpha_bits < 8) {
+        std::fprintf(stderr, "SKIP ordered operators require an eight-bit alpha buffer\n");
+        wglMakeCurrent(nullptr,nullptr); wglDeleteContext(context);
+        ReleaseDC(window,dc); DestroyWindow(window);
+        UnregisterClassW(klass.lpszClassName,klass.hInstance);
+        return 77;
+    }
     glViewport(0,0,640,480); glPixelStorei(GL_PACK_ALIGNMENT, 1);
     glClearColor(0,0,0,1); glClearDepth(0.5); glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glEnable(GL_FOG); glEnable(GL_LIGHTING); glEnable(GL_ALPHA_TEST);
@@ -610,8 +617,8 @@ int main(int argc, char** argv) {
         glViewport(0,0,640,480);
     } else if (combined_render) CombinedProbe(camera, combined_cost);
     TransparencyProbe(camera, verify_transparency);
-    OrderedOperatorProbe(camera);
-    if (argc == 2 && !verify_transparency && !combined_render) {
+    if (ordered_operators) OrderedOperatorProbe(camera);
+    if (argc == 2 && !verify_transparency && !combined_render && !ordered_operators) {
         // Synthetic test framebuffer only. Capture happens outside the renderer.
         std::vector<unsigned char> pixels(640U*480U*3U);
         glReadPixels(0,0,640,480,GL_RGB,GL_UNSIGNED_BYTE,pixels.data());
