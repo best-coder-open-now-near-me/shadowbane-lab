@@ -64,6 +64,7 @@ struct DrawRecord {
     // depth test/write/func, alpha test/func, blend/src/dst, lighting, fog, cull.
     std::array<int, 11U> state{};
     // -1 means unsupported/unqueried, never an inferred default.
+    std::array<float, 4U> blend_color{-1.0F, -1.0F, -1.0F, -1.0F};
     std::array<int, 6U> blend_detail{}; // RGB src/dst, alpha src/dst, RGB/alpha equation
     std::array<int, 15U> stencil_detail{}; // enable, front func/value/ref/write/fail/zfail/zpass, back equivalent
     std::array<int, 4U> color_mask{};
@@ -95,6 +96,7 @@ struct TraceFrame {
     bool context_mismatch = false, helpers_available = false;
     bool multitexture = false, combine_supported = false;
     bool gl14 = false, gl20 = false, framebuffer_supported = false;
+    bool blend_color_supported = false;
     bool extensions_known = false, arb_vertex = false, arb_fragment = false;
     bool unobserved_program_path = true, texture3d = false, cube = false, rectangle = false;
     bool multisample = false, color_sum = false, pipeline_supported = false;
@@ -193,6 +195,9 @@ void DetectCapabilities(TraceFrame& frame) noexcept {
     if (version == nullptr) { frame.helpers_available = false; return; }
     frame.gl14 = VersionAtLeast(version, 1, 4);
     frame.gl20 = VersionAtLeast(version, 2, 0);
+    // Core in 1.4; the earlier imaging subset is optional.
+    frame.blend_color_supported = frame.gl14 || Token(extensions, "GL_EXT_blend_color")
+        || Token(extensions, "GL_ARB_imaging");
     frame.framebuffer_supported = VersionAtLeast(version, 3, 0)
         || Token(extensions, "GL_ARB_framebuffer_object") || Token(extensions, "GL_EXT_framebuffer_object");
     frame.extensions_known = extensions != nullptr;
@@ -264,6 +269,8 @@ void ReadState(DrawRecord& draw, const TraceFrame& frame) noexcept {
         g_gl.integer(states[index], &draw.state[index]);
     }
     draw.blend_detail.fill(-1); draw.stencil_detail.fill(-1);
+    draw.blend_color.fill(-1.0F);
+    if (frame.blend_color_supported) g_gl.real(0x8005U, draw.blend_color.data());
     draw.blend_detail[0] = draw.state[6]; draw.blend_detail[1] = draw.state[7];
     if (frame.gl14) {
         g_gl.integer(0x80CBU, &draw.blend_detail[2]);
@@ -468,6 +475,7 @@ void WriteFrame(Json& json, const TraceFrame& frame) noexcept {
         json.Print(",\"state\":"); json.Array(draw.state);
         json.Print(",\"transmission_state\":{\"unavailable\":-1,\"program\":%d,\"framebuffer\":%d,\"blend_rgb_alpha_factors_equations\":", draw.program, draw.framebuffer);
         json.Array(draw.blend_detail);
+        json.Print(",\"blend_constant_rgba\":"); json.Array(draw.blend_color);
         json.Print(",\"stencil_enable_front_back\":"); json.Array(draw.stencil_detail);
         json.Print(",\"color_write_rgba\":"); json.Array(draw.color_mask); json.Print("}");
         json.Print(",\"quad_support\":{\"material_gate\":\"%s\",\"replay_eligible\":false,"

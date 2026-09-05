@@ -14,6 +14,8 @@ const char* version = "1.3 test";
 bool proc_available = true, program_proc_available = true;
 int program_calls = 0, profile_mask = 2;
 bool pipeline_query_writes = true;
+bool blend_color_query_writes = true;
+unsigned int blend_color_queries = 0;
 void APIENTRY Program(unsigned int target,unsigned int name,int* output) {
     ++program_calls;
     if (name != 0x8677U || (target != 0x8620U && target != 0x8804U)) std::abort();
@@ -42,6 +44,13 @@ void APIENTRY Integer(const unsigned int name, int* output) {
 }
 void APIENTRY Real(const unsigned int name, float* output) {
     ++calls;
+    if (name == 0x8005U) {
+        ++blend_color_queries;
+        if (blend_color_query_writes) {
+            output[0]=0.125F; output[1]=0.25F; output[2]=0.5F; output[3]=0.75F;
+        }
+        return;
+    }
     if (name == 0x0B70U) { output[0]=0.0F;output[1]=1.0F;return; }
     if (name == 0x0BC2U) { *output = 0.5F; return; }
     if (name == 0x0B00U) { std::fill_n(output, 4U, 1.0F); return; }
@@ -157,7 +166,29 @@ bool MaterialGateAudit() {
     DetectCapabilities(*g_frame);if(candidate(base))return false;
     version="1.3 test";extensions="";return true;
 }
+bool BlendColorQueryAudit() {
+    struct Case { const char* version; const char* extensions; bool supported; };
+    const Case cases[]{
+        {"1.1 test", "", false}, {"1.2 test", "", false},
+        {"1.3 test", "", false}, {"1.4 test", "", true},
+        {"2.0 test", "", true}, {"1.1 test", "GL_EXT_blend_color", true},
+        {"1.2 test", "GL_ARB_imaging", true},
+        {"1.3 test", "GL_EXT_blend_color_suffix", false}};
+    for (const auto& test : cases) {
+        version=test.version; extensions=test.extensions; DetectCapabilities(*g_frame);
+        DrawRecord value{}; blend_color_queries=0; ReadState(value,*g_frame);
+        const std::array<float,4> expected = test.supported
+            ? std::array<float,4>{0.125F,0.25F,0.5F,0.75F}
+            : std::array<float,4>{-1,-1,-1,-1};
+        if(value.blend_color!=expected || blend_color_queries!=(test.supported?1U:0U))return false;
+        // A driver query that leaves its output untouched must not invent zero alpha.
+        blend_color_query_writes=false; ReadState(value,*g_frame); blend_color_query_writes=true;
+        if(value.blend_color!=std::array<float,4>{-1,-1,-1,-1})return false;
+    }
+    return true;
+}
 bool TransmissionQueryAudit() {
+    if(!BlendColorQueryAudit())return false;
     struct Case { const char* version; const char* extensions; bool separate, modern, fbo; };
     const Case cases[]{
         {"1.1 test","",false,false,false}, {"1.3 test","",false,false,false},
@@ -273,6 +304,7 @@ int main() {
     if (!json.ok || std::strstr(contents,"\"replay_eligible\":false")==nullptr
         || std::strstr(contents,"\"arb_enable_binding\":")==nullptr
         || std::strstr(contents,"\"env_color\":[0.25,0.25,0.25,0.25]")==nullptr
+        || std::strstr(contents, "\"blend_constant_rgba\":[-1,-1,-1,-1]") == nullptr
         || std::strstr(contents, "\"transmission_state\":{\"unavailable\":-1,\"program\":-1") == nullptr
         || std::strstr(contents, "\"submission_label\":\"multi_elements\",\"count_unit\":\"subdraws\"") == nullptr
         || std::strstr(contents, "\"model_view\":[null,") == nullptr

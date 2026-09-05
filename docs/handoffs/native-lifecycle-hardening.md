@@ -1305,3 +1305,32 @@ owner scene run requested. Next: owner findings and production transparency repa
 on the existing branches, reconciled through this integration branch. Required
 transparency gates remain open. Diagnostic client remains open for normal closure;
 no settings, automation or unrelated process changes were made during collection.
+
+### Constant-blend observer gap repaired in source
+
+Added transmission_state.blend_constant_rgba to the existing terrain observer.
+Capability gating uses GL1.4, GL_EXT_blend_color or GL_ARB_imaging; GL1.2 alone
+is not assumed to include the optional imaging subset. Unsupported and unwritten
+query results retain -1 for all four components, distinct from real zero alpha.
+Reference: https://registry.khronos.org/OpenGL/extensions/EXT/EXT_blend_color.txt.
+No hook, lifecycle, replay eligibility, wire/product version or scene-order change.
+
+Direct production ReadState tests cover core, extension, optional imaging, unsupported
+versions, extension-token boundaries, unwritten output and serialized unavailable
+state. Full/disabled observer tests executed and passed in both native build profiles
+(2/2 each, zero skips); both production DLL targets rebuilt successfully. Focused
+Python trace-analysis/package gate tests: 27 passed. Initial build command named a
+nonexistent unsuffixed test target; corrected to the existing full/disabled targets
+before claiming execution. Evidence: blend-color-trace-full.xml and
+blend-color-trace-diagnostics.xml under local hardening-evidence.
+
+Shared observer ownership remains with integration; particles withdrew a duplicate
+uncommitted field, avoiding incompatible JSON names. This source change has not been
+packaged or deployed. The installed diagnostic DLL and captured frames remain the
+exact earlier f9c6f7a build, and their missing constant color cannot be reconstructed.
+
+The material-ordering/coverage requirement remains open: late final-depth composition
+cannot reconstruct all ordered native contributions. Native object callbacks may
+mutate or delete their inputs, so replaying them is not an approved solution.
+Next: a justified side-effect-free source/coverage path in the existing renderer,
+then targeted production regressions; no additional owner capture requested.
