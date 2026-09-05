@@ -44,6 +44,10 @@ struct NativeStopTestAccess {
     static bool __fastcall RayCast(void*, void*, Ray*);
     static GroundPoint* __fastcall RayPoint(Ray*, void*, GroundPoint*);
     static void __fastcall ParentRelease(void**, void*, void*);
+    static void __fastcall ApplyRay(Ray*, void*, void*, bool);
+    static void* __fastcall Parent(void*, void*);
+    static GroundTarget* __fastcall GroundRefs(GroundTarget*, void*, GroundPoint, void*, void*);
+    static void __fastcall GroundActorRelease(void**, void*, void*);
     static GroundTarget* __fastcall Ground(GroundTarget*, void*, GroundPoint);
     static void** __fastcall Move(void*, void*, void**, const GroundTarget*, bool, bool, bool, bool*, bool);
     static void __fastcall Camera(void*, void*, float, float, float, bool);
@@ -69,8 +73,11 @@ struct Fixture {
     HWND window = CreateWindowExW(0, L"STATIC", L"native stop test", 0, 0, 0, 1, 1, HWND_MESSAGE, nullptr, nullptr, nullptr);
     std::array<unsigned char, 0xc30> actor{}, replacement{};
     std::array<unsigned char, 0x200> world{};
-    std::array<unsigned char, 0x100> game_window{};
+    std::array<unsigned char, 0x140> game_window{};
+    std::array<unsigned char, 0xc30> marker{};
     std::array<unsigned char, 0x40> state{};
+    std::array<unsigned char, 0x150> pose{};
+    void* pose_pointer = pose.data();
     std::array<unsigned char, 48> path{};
     struct Request { std::uint32_t state = 0; std::uint8_t usable = 1; } request, alternate_request;
     std::array<unsigned char, 0x200> alternate_world{};
@@ -82,6 +89,8 @@ struct Fixture {
     int position_calls = 0, destination_calls = 0, waypoint_calls = 0;
     int camera_calls = 0;
     bool camera_fault = false;
+    bool real_pick_move = false, replace_on_marker = false, replace_parent_on_marker = false;
+    int marker_applies = 0, ground_creates = 0, ground_actor_releases = 0;
     int ray_creates = 0, ray_casts = 0, ray_points = 0, parent_releases = 0;
     bool ray_hit = true, replace_on_pick = false;
     bool real_steering = false, pending_solve = false, deferred_move = false, replace_on_move = false;
@@ -96,6 +105,7 @@ struct Fixture {
         actuator.native = &stop; Access::Bind(stop, base, window);
         const std::array<std::uint32_t, 2> id{17, 31};
         Put(actor.data(), 0x18, id);
+        Put(actor.data(), 0x4b0, reinterpret_cast<std::uintptr_t>(&pose_pointer));
         Put(actor.data(), 0xad0, reinterpret_cast<std::uintptr_t>(state.data()));
         Put(base, 0x16a2d98, reinterpret_cast<std::uintptr_t>(actor.data()));
         Put(base, 0x1389028, reinterpret_cast<std::uintptr_t>(world.data()));
@@ -103,6 +113,7 @@ struct Fixture {
         Put(base, 0x16a1c00, reinterpret_cast<std::uintptr_t>(&request));
         Put(base, 0x16ab88c, std::uintptr_t{1});
         Put(game_window.data(), 0x64, std::uint32_t{2});
+        Put(game_window.data(), 0x120, reinterpret_cast<std::uintptr_t>(marker.data()));
         active_node.identity = scheduled_node.identity = id;
         active_sentinel.left = active_sentinel.right = &active_sentinel;
         scheduled_sentinel.left = scheduled_sentinel.right = &scheduled_sentinel;
@@ -151,7 +162,10 @@ bool Actuator::Direction(const Grant& grant, Vector2 direction, bool start) noex
     if (current->real_steering) { return native->Steer(grant, direction, current->input.tick_ms, start); }
     ++current->moves; current->Arm(false); return true;
 }
-bool Actuator::Destination(const Grant&, GroundPoint, bool) noexcept { ++current->moves; current->Arm(false); return true; }
+bool Actuator::Destination(const Grant& grant, GroundPoint point, bool) noexcept {
+    if (current->real_pick_move) { return native->MoveToPick(grant, point); }
+    ++current->moves; current->Arm(false); return true;
+}
 }
 namespace wonderbane::extension::movement {
 void NativeStopTestAccess::Bind(NativeStop& stop, void* base, HWND window) {
@@ -169,6 +183,9 @@ void NativeStopTestAccess::Bind(NativeStop& stop, void* base, HWND window) {
     c.ray_cast = reinterpret_cast<decltype(c.ray_cast)>(&RayCast);
     c.ray_point = reinterpret_cast<decltype(c.ray_point)>(&RayPoint);
     c.release_parent = reinterpret_cast<decltype(c.release_parent)>(&ParentRelease);
+    c.apply_ray = reinterpret_cast<decltype(c.apply_ray)>(&ApplyRay); c.parent = reinterpret_cast<decltype(c.parent)>(&Parent);
+    c.ground_with_refs = reinterpret_cast<decltype(c.ground_with_refs)>(&GroundRefs);
+    c.release_ground_actor = reinterpret_cast<decltype(c.release_ground_actor)>(&GroundActorRelease);
     c.ground_target = reinterpret_cast<decltype(c.ground_target)>(&Ground);
     c.move = reinterpret_cast<decltype(c.move)>(&Move);
     c.camera = reinterpret_cast<decltype(c.camera)>(&Camera);
@@ -201,6 +218,25 @@ void __fastcall NativeStopTestAccess::ParentRelease(void** reference, void*, voi
     Check(!replacement, "native parent reference released without replacement");
     if (*reference) { ++current->parent_releases; } *reference = nullptr;
 }
+void __fastcall NativeStopTestAccess::ApplyRay(Ray* ray, void*, void* marker, bool attach) {
+    auto& f = *current; ++f.marker_applies;
+    Check(ray->actor == f.actor.data() && marker == f.marker.data() && attach, "native ray applies only to destination marker");
+    if (f.replace_parent_on_marker) { Put(f.pose.data(), 8, reinterpret_cast<std::uintptr_t>(f.alternate_world.data())); }
+    if (f.replace_on_marker) {
+        f.replacement = f.actor; Put(f.base, 0x16a2d98, reinterpret_cast<std::uintptr_t>(f.replacement.data()));
+    }
+}
+void* __fastcall NativeStopTestAccess::Parent(void* marker, void*) {
+    Check(marker == current->marker.data(), "native target obtains destination marker parent"); return current->alternate_world.data();
+}
+NativeStopTestAccess::GroundTarget* __fastcall NativeStopTestAccess::GroundRefs(GroundTarget* output, void*,
+    GroundPoint point, void* actor, void* parent) {
+    ++current->ground_creates; *output = {point, actor, parent}; return output;
+}
+void __fastcall NativeStopTestAccess::GroundActorRelease(void** reference, void*, void* replacement) {
+    Check(!replacement, "ground actor reference released without replacement");
+    if (*reference) { ++current->ground_actor_releases; } *reference = nullptr;
+}
 NativeStopTestAccess::GroundTarget* __fastcall NativeStopTestAccess::Ground(GroundTarget* output, void*, GroundPoint point) {
     *output = {point, nullptr, nullptr}; return output;
 }
@@ -208,7 +244,9 @@ void** __fastcall NativeStopTestAccess::Move(void* actor, void*, void** output, 
     bool publish, bool collision, bool extra, bool* result, bool deferred) {
     auto& f = *current; ++f.moves;
     Check(actor == f.actor.data() && collision && !extra && !result && !deferred
-        && !target->actor && !target->parent, "native steering preserves continuous move flags and collision admission");
+        && ((f.real_pick_move && target->actor == f.marker.data() && target->parent == f.alternate_world.data())
+            || (!f.real_pick_move && !target->actor && !target->parent)),
+        "native movement preserves collision admission and method-specific ground references");
     f.destination = target->point; *output = nullptr;
     if (f.deferred_move) {
         f.active_sentinel.parent = &f.active_node;
@@ -396,6 +434,36 @@ void StatesAndFailures() {
       Check(!f.stop.Available() && !f.controls.Ready() && f.moves == 0 && f.retains == 1 && f.releases == 0,
           "native exception retains ambiguous actor ownership and blocks new writer"); }
 }
+void DragMoveComposition() {
+    { Fixture f; f.real_pick_move = true; f.input.keys[5] = true; f.Step();
+      Check(f.stop.PickGround(0, 0, f.input.ground), "drag obtains native pick");
+      f.input.pointer_x = 20; f.Step();
+      Check(f.moves == 1 && f.marker_applies == 1 && f.ground_creates == 1 && f.ground_actor_releases == 1
+          && f.sends == 2 && f.destination.y == -4 && f.packet.references == 0, "thresholded drag uses native attached terrain target");
+      f.Step(); Check(f.moves == 1, "unchanged drag does not restart native movement");
+      f.stop.EndUpdate(); Check(f.retains == f.releases && f.parent_releases == 2, "drag target and ray references all released");
+      Check(f.stop.BeginUpdate(f.game_window.data()), "next owning update admitted");
+      Check(!f.stop.MoveToPick(f.controls.Current(), f.input.ground), "old update pick cannot be replayed");
+      f.input.keys[5] = false; f.Step();
+      Check(f.sends == 3 && Get<std::uint32_t>(f.state.data(), 0x10) == 5, "drag release uses native idle stop"); }
+    { Fixture f; f.real_pick_move = true; f.replace_on_marker = true; f.input.keys[5] = true; f.Step();
+      Check(f.stop.PickGround(0, 0, f.input.ground), "transition drag obtains pick");
+      f.input.pointer_x = 20; f.Step();
+      Check(f.marker_applies == 1 && f.moves == 0 && f.sends == 1 && f.ground_creates == 0,
+          "marker callback scene replacement prevents movement and replacement-actor cleanup");
+      f.stop.EndUpdate(); Check(f.retains == f.releases, "old marker/actor/ray references released after transition"); }
+    { Fixture f; f.real_pick_move = true; f.replace_parent_on_marker = true; f.input.keys[5] = true; f.Step();
+      Check(f.stop.PickGround(0, 0, f.input.ground), "parent transition drag obtains pick"); f.input.pointer_x = 20; f.Step();
+      Check(f.moves == 0 && f.sends == 1 && f.ground_creates == 0,
+          "same-actor parent transition invalidates native coordinate frame before movement");
+      const auto clears = f.clears; f.input.scene = 2; f.input.keys[5] = false; f.Step();
+      Check(f.controls.Current().scene == 2 && f.clears == clears,
+          "new coordinate-frame scene retires old failed stop without touching replacement frame"); }
+    { Fixture f; f.real_pick_move = true; f.pending_solve = true; f.input.keys[5] = true; f.Step();
+      Check(f.stop.PickGround(0, 0, f.input.ground), "pending drag obtains pick"); f.input.pointer_x = 20; f.Step();
+      f.Step(); f.Step(); Check(f.moves == 1, "held drag does not starve native pending path solve");
+      f.input.keys[5] = false; f.Step(); Check(f.request.state == 1 && f.request.usable == 0, "release cancels drag path solve"); }
+}
 void TerrainPickComposition() {
     { Fixture f; GroundPoint point{};
       Check(f.stop.PickGround(0, 0, point) && point.x == 8 && point.y == -4 && point.z == 11
@@ -561,6 +629,6 @@ void ReentryAndScene() {
 }
 int main() {
     { Fixture f; NativeStop unbound(f.controls); Check(!unbound.Bind(f.window), "unsupported executable stays unavailable"); }
-    ManualMethods(); StatesAndFailures(); TerrainPickComposition(); SteeringComposition(); CameraComposition(); ReentryAndScene();
+    ManualMethods(); StatesAndFailures(); DragMoveComposition(); TerrainPickComposition(); SteeringComposition(); CameraComposition(); ReentryAndScene();
     return failures ? 1 : 0;
 }
