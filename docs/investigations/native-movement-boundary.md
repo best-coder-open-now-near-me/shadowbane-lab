@@ -144,8 +144,9 @@ policy tests prove that ordered operation. No stop binding is enabled yet.
 `wonderbane_extension_movement_tree_probe` is an explicit developer-only target,
 excluded from normal builds and not linked into or installed with the extension.
 It accepts a locally supplied reviewed executable, verifies the entire file SHA256
-and the exact native primitive digest, and copies only that reviewed import-free,
-relocation-free primitive into its own process. Memory changes from writable to
+and exact native helper digests, and copies only those reviewed import-free,
+relocation-free helpers into its own process. Relative calls between the lookup,
+its comparator thunk and comparator retain their original spacing; unused gaps trap. Memory changes from writable to
 executable/read-only before execution. It never opens or modifies another process,
 loads the game, supplies input, connects to a server, or distributes client bytes.
 
@@ -156,16 +157,30 @@ cmake --build <build-directory> --config Release --target wonderbane_extension_m
 & <build-directory>/Release/wonderbane_extension_movement_tree_probe.exe <local-reviewed-client-executable>
 ```
 
-Both profiles passed 64,256 actual native node removals across 1,024 generated trees
+Both profiles passed 64,256 actual native lookup/copy/removal/destruction sequences
+across 1,024 generated trees
 with ascending, descending and deterministic shuffled deletion orders. After every
 removal the probe checks parent links, ordering, node identity, extrema, color and
-black-height invariants, and every payload word including detached nodes. A supplied
+black-height invariants, and every payload word including detached nodes. Native
+lookup must find the exact two-word identity before removal and return the sentinel
+afterward. Cases include zero, unsigned high-bit values, all-one words, identities
+sharing one word, and a missing key adjacent to the maximum identity. Native copy
+returns the destination identity unchanged, and its native destructor is a no-op. A supplied
 unsupported executable is rejected before executable memory is allocated.
 
-This verifies the native generic detachment/rebalancing primitive, not a replacement
-container implementation. It does not verify native key destruction, native allocator
+This verifies native lookup, value copy/destruction and generic detachment/rebalancing,
+not a replacement container implementation. It does not verify native allocator
 cleanup, action-queue reentrancy, path cancellation or server behavior. Those remain
 part of the complete stop binding. The purpose is precise removal of the retiring
 actor's scheduled entry without retaining a delayed cancellation or clearing unrelated
 actors' entries. A different native map's erase wrapper cannot be reused blindly:
 its payload destructor and allocation size differ from the scheduled-action map.
+
+
+Further static checks established that scheduled-entry keys are plain two-word
+identities. Their destructor is a no-op; scheduled nodes still require the native
+40-byte pool return after detachment and a map-count decrement. Active-action nodes
+use a different size and payload destructor. The native continuous movement caller
+uses a ten-unit look-ahead destination and its own message throttling. Its differing
+final wrapper argument affects deferred action construction, not pathfinding; it is
+not a safe shortcut for bypassing collision or asynchronous path handling.

@@ -140,3 +140,9 @@ profile. This verifies the generic primitive needed for actor-scoped scheduled-e
 removal, with payload preservation and tree invariants checked after each operation.
 It does not yet establish complete native stop or enable controls. Next is native
 key/allocator cleanup and the complete ordered stop composition.
+
+
+The conformance probe now also executes native exact-identity lookup, two-word copy
+and destruction, including unsigned boundary values and missing-key checks before
+and after removal. Both profiles pass 64,256 complete sequences. Native allocator
+cleanup and full stop composition remain unverified; no controls are enabled.

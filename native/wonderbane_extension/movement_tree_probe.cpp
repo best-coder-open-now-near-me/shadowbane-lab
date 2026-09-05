@@ -16,7 +16,7 @@
 
 // Developer-only conformance probe. Never opens or modifies another process.
 // No proprietary bytes are distributed: an explicitly supplied, exact reviewed
-// executable supplies one relocation-free, import-free tree primitive.
+// executable supplies reviewed relocation-free, import-free container primitives.
 namespace {
 void Require(bool condition, const char* message) {
     if (!condition) { throw std::runtime_error(message); }
@@ -54,6 +54,11 @@ static_assert(offsetof(Node, parent) == 4 && offsetof(Node, left) == 8
     && offsetof(Node, right) == 12 && offsetof(Node, payload) == 16);
 static_assert(sizeof(Node) == 40);
 using Erase = Node* (__cdecl*)(Node*, Node**, Node**, Node**);
+using Identity = std::array<std::uint32_t, 2>;
+using Find = Node** (__thiscall*)(void*, Node**, const Identity*);
+using CopyIdentity = Identity* (__thiscall*)(Identity*, const Identity*);
+using DestroyIdentity = void (__thiscall*)(Identity*);
+struct Map { Node* sentinel; std::uint32_t size; };
 struct ExecutableCode {
     void* memory = nullptr;
     ~ExecutableCode() { if (memory) { VirtualFree(memory, 0, MEM_RELEASE); } }
@@ -68,6 +73,9 @@ struct Tree {
             auto node = std::make_unique<Node>();
             for (std::size_t j = 0; j < node->payload.size(); ++j) {
                 node->payload[j] = static_cast<std::uint32_t>(i * 101 + j);
+                if (j == 0) { node->payload[j] = static_cast<std::uint32_t>(i % 32) * 0x08421084U; }
+                if (j == 1) { node->payload[j] = static_cast<std::uint32_t>(i / 32) * 0x24924924U; }
+                if (i + 1 == count && j < 2) { node->payload[j] = 0xffffffffU; }
             }
             nodes.push_back(std::move(node));
         }
@@ -106,7 +114,11 @@ struct Tree {
         std::vector<Node*> expected, ordered;
         for (std::size_t i = 0; i < nodes.size(); ++i) {
             for (std::size_t j = 0; j < nodes[i]->payload.size(); ++j) {
-                Require(nodes[i]->payload[j] == i * 101 + j, "payload changed");
+                const auto expected_word = i + 1 == nodes.size() && j < 2 ? 0xffffffffU
+                    : j == 0 ? static_cast<std::uint32_t>(i % 32) * 0x08421084U
+                    : j == 1 ? static_cast<std::uint32_t>(i / 32) * 0x24924924U
+                    : static_cast<std::uint32_t>(i * 101 + j);
+                Require(nodes[i]->payload[j] == expected_word, "payload changed");
             }
             if (present[i]) { expected.push_back(nodes[i].get()); }
         }
@@ -118,7 +130,7 @@ struct Tree {
     }
 };
 }
-int wmain(int argc, wchar_t** argv) {
+int RunProbe(int argc, wchar_t** argv) {
     try {
         Require(argc == 2, "usage: movement_tree_probe <reviewed-client-executable>");
         std::ifstream file(std::filesystem::path(argv[1]), std::ios::binary | std::ios::ate);
@@ -131,21 +143,41 @@ int wmain(int argc, wchar_t** argv) {
         Require(Digest(bytes.data(), bytes.size()) ==
             "feb351f0fae87d47549fa43c37836405a753d76fbcd0b02232fc1c0733550dff",
             "unsupported executable");
-        constexpr std::size_t offset = 0x8edd0, length = 1001;
-        Require(bytes.size() >= offset + length, "missing native primitive");
-        Require(Digest(bytes.data() + offset, length) ==
-            "647324142ed2d678037248e82d948a9666f084962476a5f5cb866c008723fffa",
-            "native primitive digest mismatch");
+        struct Segment { std::size_t offset; std::size_t size; const char* sha256; };
+        constexpr std::array segments{
+            Segment{0x8edd0,1001,"647324142ed2d678037248e82d948a9666f084962476a5f5cb866c008723fffa"},
+            Segment{0x21b7b0,93,"6e9518982122e7fd858e307e98f652372ef5c9efb4960317349aea232b97e62a"},
+            Segment{0x12a3f,5,"22f1ce707ccfeb03ab5559276494c7045f1804b9820eabeec33d00f6b5832b79"},
+            Segment{0x111bd0,43,"614f594fbe84d1ecd760eb1cccfc199275c3b84be0e0fb2055acdbf8b3378f03"},
+            Segment{0x1117b0,22,"66b42201ae2adac5438161fdb2a8dc60eb4bf84b6a9462a2564677c9a809cdd4"},
+            Segment{0x1119d0,1,"ae3f4619b0413d70d3004b9131c3752153074e45725be13b9a148978895e359e"}};
+        // Reviewed PE raw offsets equal RVAs for these segments. Preserve relative
+        // native calls between lookup, its thunk and comparator. All gaps trap;
+        // no unreviewed instruction, import or client startup is copied/executed.
+        constexpr std::size_t length = 0x220000;
+        for (const auto& segment : segments) {
+            Require(segment.offset + segment.size <= bytes.size()
+                && segment.offset + segment.size <= length, "missing native primitive");
+            Require(Digest(bytes.data() + segment.offset, segment.size) == segment.sha256,
+                "native primitive digest mismatch");
+        }
         ExecutableCode code;
         code.memory = VirtualAlloc(nullptr, length, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
         Require(code.memory != nullptr, "allocation failed");
-        std::copy_n(bytes.data() + offset, length, static_cast<unsigned char*>(code.memory));
+        auto* arena = static_cast<unsigned char*>(code.memory);
+        std::fill_n(arena, length, static_cast<unsigned char>(0xcc));
+        for (const auto& segment : segments) {
+            std::copy_n(bytes.data() + segment.offset, segment.size, arena + segment.offset);
+        }
         DWORD previous{};
         Require(VirtualProtect(code.memory, length, PAGE_EXECUTE_READ, &previous) != 0,
             "executable protection failed");
         Require(FlushInstructionCache(GetCurrentProcess(), code.memory, length) != 0,
             "instruction cache flush failed");
-        const auto erase = reinterpret_cast<Erase>(code.memory);
+        const auto erase = reinterpret_cast<Erase>(arena + 0x8edd0);
+        const auto find = reinterpret_cast<Find>(arena + 0x21b7b0);
+        const auto copy = reinterpret_cast<CopyIdentity>(arena + 0x1117b0);
+        const auto destroy = reinterpret_cast<DestroyIdentity>(arena + 0x1119d0);
         std::mt19937 random(0x53424d56);
         std::uint64_t removals = 0;
         for (unsigned height = 1; height <= 8; ++height) {
@@ -153,25 +185,49 @@ int wmain(int argc, wchar_t** argv) {
             for (unsigned trial = 0; trial < 128; ++trial) {
                 Tree tree(count);
                 tree.Verify();
+                Map map{&tree.sentinel, static_cast<std::uint32_t>(count)};
+                Node* found = nullptr;
+                const Identity missing{0xfffffffeU, 0xffffffffU};
+                Require(find(&map, &found, &missing) == &found && found == &tree.sentinel,
+                    "absent identity found");
                 std::vector<std::size_t> order(count);
                 std::iota(order.begin(), order.end(), 0U);
                 if (trial == 1) { std::reverse(order.begin(), order.end()); }
                 else if (trial > 1) { std::shuffle(order.begin(), order.end(), random); }
                 for (auto index : order) {
-                    Node* removed = erase(tree.nodes[index].get(), &tree.sentinel.parent,
+                    Identity identity{};
+                    const Identity expected{tree.nodes[index]->payload[0], tree.nodes[index]->payload[1]};
+                    Require(copy(&identity, &expected) == &identity && identity == expected,
+                        "identity copy changed words or return address");
+                    Require(find(&map, &found, &identity) == &found && found == tree.nodes[index].get(),
+                        "lookup selected wrong actor identity");
+                    Node* removed = erase(found, &tree.sentinel.parent,
                         &tree.sentinel.left, &tree.sentinel.right);
                     Require(removed == tree.nodes[index].get(), "wrong detached identity");
                     tree.present[index] = false;
+                    --map.size;
+                    Require(find(&map, &found, &identity) == &found && found == &tree.sentinel,
+                        "retired actor still found");
+                    destroy(&identity);
+                    Require(identity == expected, "identity destructor changed value");
                     tree.Verify();
                     ++removals;
                 }
             }
         }
-        std::printf("PASS: %llu native removals; tree invariants, exact identity and payload preservation\n",
+        std::printf("PASS: %llu native lookup/removal/copy/destruction sequences; tree invariants and payload preservation\n",
             static_cast<unsigned long long>(removals));
         return 0;
     } catch (const std::exception& error) {
         std::fprintf(stderr, "%s\n", error.what());
         return 1;
+    }
+}
+
+int wmain(int argc, wchar_t** argv) {
+    __try { return RunProbe(argc, argv); }
+    __except(EXCEPTION_EXECUTE_HANDLER) {
+        std::fprintf(stderr, "Native conformance exception: 0x%08lx\n", GetExceptionCode());
+        return 2;
     }
 }
