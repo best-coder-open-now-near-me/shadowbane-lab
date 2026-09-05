@@ -614,6 +614,7 @@ if(BUILD_TESTING)
     wonderbane_extension_event_channel_test
     event_channel.cpp
     event_channel_test.cpp
+    movement_controls.cpp
   )
   target_compile_features(wonderbane_extension_event_channel_test PRIVATE cxx_std_20)
   target_compile_definitions(
@@ -901,7 +902,7 @@ if(BUILD_TESTING)
   target_compile_options(wonderbane_extension_movement_runtime_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
   target_link_libraries(wonderbane_extension_movement_runtime_test PRIVATE user32 comctl32 bcrypt advapi32 gdi32)
   set_property(TARGET wonderbane_extension_movement_runtime_test PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
-  foreach(mode keyboard controller drag focus stale destroyed nested-stop nested-camera nested-move startup-unavailable settings-stale scene-stale chat)
+  foreach(mode commands keyboard controller drag focus stale destroyed nested-stop nested-camera nested-move startup-unavailable settings-stale scene-stale chat)
     add_test(NAME wonderbane_extension_movement_runtime_${mode} COMMAND wonderbane_extension_movement_runtime_test ${mode})
   endforeach()
 endif()
@@ -924,4 +925,13 @@ if(BUILD_TESTING)
   set_property(TARGET wonderbane_extension_movement_wire_test PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
   add_test(NAME wonderbane_extension_movement_wire COMMAND wonderbane_extension_movement_wire_test
     "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/fixtures/native_movement_wire_v2.hex")
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_movement_channel_test movement_channel_test.cpp movement_controls.cpp)
+  target_compile_features(wonderbane_extension_movement_channel_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_movement_channel_test PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+  target_compile_options(wonderbane_extension_movement_channel_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  set_property(TARGET wonderbane_extension_movement_channel_test PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
+  add_test(NAME wonderbane_extension_movement_channel COMMAND wonderbane_extension_movement_channel_test)
 endif()

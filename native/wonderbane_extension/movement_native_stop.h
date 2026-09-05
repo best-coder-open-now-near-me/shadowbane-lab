@@ -29,6 +29,9 @@ public:
     // Retained hit references belong only to this admitted update, until EndUpdate.
     bool PickGround(int client_x, int client_y, GroundPoint&) noexcept;
     bool MoveToPick(const Grant&, GroundPoint) noexcept;
+    void SetMovementAdmission(bool (*check)(void*) noexcept, void* context) noexcept {
+        movement_admission_ = check; movement_context_ = context;
+    }
     void SceneRetired(std::uint64_t scene) noexcept;
     bool Available() const noexcept { return bound_ && !faulted_; }
 private:
@@ -105,6 +108,8 @@ private:
     bool RunGuarded(const Target&) noexcept;
     bool CancelQueued(const Target&);
     void ReleaseMessage();
+    bool (*movement_admission_)(void*) noexcept = nullptr;
+    void* movement_context_ = nullptr;
     const Controls& controls_;
     std::uintptr_t base_ = 0;
     HWND window_ = nullptr;

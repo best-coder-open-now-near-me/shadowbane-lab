@@ -5,6 +5,8 @@
 #include "movement_windows_input.h"
 #include "movement_lifetime.h"
 #include "movement_settings.h"
+#include "command_channel.h"
+#include <map>
 #include <array>
 #include <atomic>
 #include <optional>
@@ -28,6 +30,22 @@ public:
     std::optional<std::uint64_t> settings_requested_scene;
     bool settings_shown = false;
     std::optional<StopReason> interrupted;
+    std::shared_ptr<CommandLease> automation_lease;
+    Grant automation_grant{};
+    std::shared_ptr<CommandLease> executing_lease;
+    std::uint64_t executing_deadline = 0;
+    static bool MovementAdmission(void* context) noexcept {
+        const auto& self = *static_cast<Runtime*>(context);
+        if (self.interrupted) { return false; }
+        if (self.executing_lease) {
+            return self.executing_lease->Current(self.clock()) && self.clock() <= self.executing_deadline;
+        }
+        return !self.automation_lease || self.controls.Current() != self.automation_grant
+            || self.automation_lease->Current(self.clock());
+    }
+    struct Acquisition { wire::Command request; wire::Receipt receipt; };
+    std::map<std::array<std::uint8_t, 16>, Acquisition> acquisitions;
+
     struct SafetyCommand { HWND window; NativeScene scene; Grant grant; StopReason reason; };
     std::array<SafetyCommand, 8> pending{};
     std::size_t pending_count = 0;
@@ -68,7 +86,87 @@ public:
     }
     void Revoked(const Grant&, const Grant&, StopReason) noexcept override {}
     void SceneRetired(std::uint64_t epoch) noexcept override { native.SceneRetired(epoch); }
-    std::optional<StopReason> Interrupted() const noexcept override { return interrupted; }
+    std::optional<StopReason> Interrupted() const noexcept override {
+        if (interrupted) { return interrupted; }
+        if (executing_lease && (!executing_lease->Current(clock()) || clock() > executing_deadline)) {
+            return StopReason::stalled;
+        }
+        return std::nullopt;
+    }
+    wire::Receipt Receipt(const QueuedCommand& command, Result result) const noexcept {
+        wire::Receipt value{}; value.grant = wire::Encode(controls.Current());
+        value.request = command.command.request; value.host = command.command.host;
+        value.window = reinterpret_cast<std::uintptr_t>(window); value.revision = revision;
+        value.settings = wire::Encode(settings); value.outcome = static_cast<std::uint32_t>(result);
+        value.flags = (native.Available() ? wire::bindings : 0) | (controls.Ready() ? wire::ready : 0)
+            | (controls.CameraReady() ? wire::camera : 0) | (terminal || destroyed ? wire::terminal : 0);
+        return value;
+    }
+    void Commands(bool phase) noexcept {
+        // Tick has already handled deliberate manual input. A revoked automation
+        // lease may cancel only its own still-current grant, never the new owner.
+        if (automation_lease && automation_grant != controls.Current()) { automation_lease.reset(); }
+        if (automation_lease && !automation_lease->Current(clock())) {
+            (void)controls.EmergencyStop(automation_grant, StopReason::stalled); automation_lease.reset();
+        }
+        auto command = TakeMovementCommand(); if (!command) { return; }
+        executing_lease = command->lease; executing_deadline = command->deadline;
+        struct ResetExecution {
+            Runtime& runtime;
+            ~ResetExecution() { runtime.executing_lease.reset(); runtime.executing_deadline = 0; }
+        } reset{*this};
+        Result result = Result::stale; Grant expected{};
+        const auto& payload = command->command;
+        const bool live = command->lease && command->lease->Current(clock()) && clock() <= command->deadline;
+        const bool exact = phase && wire::Decode(payload.expected, expected)
+            && payload.window == reinterpret_cast<std::uintptr_t>(window)
+            && expected.scene == scene.epoch && NativeMovementLifetimeCurrent(scene);
+        if (live && exact && command->verb == wire::Verb::acquire) {
+            const auto prior = acquisitions.find(payload.request);
+            if (prior != acquisitions.end()) {
+                // Do not mint a new generation after an ambiguous receipt timeout.
+                if (std::memcmp(&prior->second.request, &payload, sizeof(payload)) == 0) {
+                    CompleteMovementCommand(command, prior->second.receipt); return;
+                }
+                result = Result::invalid;
+            } else if (expected == controls.Current()) {
+                try {
+                    // Allocate the journal entry before any native stop or grant.
+                    auto [entry, inserted] = acquisitions.emplace(payload.request, Acquisition{payload, Receipt(*command, Result::unavailable)});
+                    if (inserted) {
+                        Token token{}; Grant acquired{};
+                        result = wire::Decode(payload.requested, token, true)
+                            ? controls.AcquireAutomation(expected.generation, token, acquired) : Result::invalid;
+                        if (result == Result::accepted) { automation_lease = command->lease; automation_grant = acquired; }
+                        entry->second.receipt = Receipt(*command, result);
+                    }
+                } catch (...) { result = Result::unavailable; }
+            }
+        } else if (live && exact && expected == controls.Current()) {
+            if (command->verb == wire::Verb::stop) {
+                if (automation_lease == command->lease || (automation_lease
+                    && std::memcmp(&automation_lease->host, &payload.host, sizeof(payload.host)) == 0)) {
+                    result = controls.Stop(expected);
+                }
+            } else if (command->verb == wire::Verb::configure) {
+                Settings next{};
+                if (payload.revision != revision) { result = Result::stale; }
+                else if (revision == UINT64_MAX || !wire::Decode(payload.settings, next)) { result = Result::invalid; }
+                else {
+                    result = controls.Configure(next);
+                    if (result == Result::accepted || result == Result::stop_failed) {
+                        if (input.Configure(next)) { settings = next; ++revision; }
+                        else { controls.Shutdown(); result = Result::unavailable; }
+                    }
+                }
+            } else if (command->verb == wire::Verb::destination) {
+                // Admission remains unavailable until the verified world-target
+                // adapter is wired; never reinterpret XYZ as a current pointer pick.
+                result = Result::unavailable;
+            }
+        }
+        CompleteMovementCommand(command, Receipt(*command, result));
+    }
     void Publish() noexcept {
         RuntimeSnapshot next{}; next.process = process; next.window = window; next.settings = settings;
         next.grant = controls.Current(); next.settings_revision = revision; next.terminal = terminal || destroyed;
@@ -78,6 +176,14 @@ public:
         next.camera_available = next.bindings_available && controls.CameraReady();
         next.controller_api_available = input.ControllerApiAvailable(); next.controller_connected = input.ControllerConnected();
         AcquireSRWLockExclusive(&publication_lock); published = next; ReleaseSRWLockExclusive(&publication_lock);
+        wire::Status status{}; status.process = process.process_id; status.creation = process.creation_filetime_utc;
+        status.window = reinterpret_cast<std::uintptr_t>(window); status.grant = wire::Encode(next.grant);
+        status.settings = wire::Encode(settings); status.revision = revision; status.tick = clock();
+        status.flags = (next.bindings_available ? wire::bindings : 0) | (next.ready ? wire::ready : 0)
+            | (next.camera_available ? wire::camera : 0) | (next.terminal ? wire::terminal : 0)
+            | (next.controller_api_available ? wire::controller_api : 0)
+            | (next.controller_connected ? wire::controller_connected : 0);
+        PublishMovementCommandStatus(status);
     }
     void FinishDestroyed() noexcept {
         if (busy || GetCurrentThreadId() != thread) { return; }
@@ -155,6 +261,7 @@ public:
         DWORD pid = 0; const auto window_thread = GetWindowThreadProcessId(window, &pid);
         success = success && window_thread == thread && pid == process.process_id;
         if (success) { success = native.Bind(window) && ui.Bind(window); }
+        native.SetMovementAdmission(&MovementAdmission, this);
         if (success) { lifetime_started = StartNativeMovementLifetime(window); success = lifetime_started; }
         if (success) { success = input.Bind(window); }
         if (success) { settings = LoadMovementPreferences(); success = controls.Configure(settings) == Result::accepted && input.Configure(settings); }
@@ -196,6 +303,7 @@ public:
         if (!sampled.native_available || !sampled.exact_foreground || sampled.ui_owns_input
             || (captured.press_origin && !sampled.pointer_in_world)) { input.Suspend(); }
         controls.Tick(sampled);
+        Commands(phase);
         if (phase) { native.EndUpdate(); }
         busy = false; Drain(); Publish();
     }
