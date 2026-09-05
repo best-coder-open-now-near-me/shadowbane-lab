@@ -424,3 +424,20 @@ settings and automation grant transport, complete candidate/package checks and
 coordinated connected acceptance. No partial controls capability is advertised or
 installed. Source destination remains codex/native-lifecycle-hardening, then its
 reviewed combined integration; PR31 is the earlier merged checkpoint only.
+
+
+The integration review identified a mid-update hook replacement gap. Lifetime
+Current now validates the watched actor/parent interface slots and world free
+slot at each actuator boundary, immediately latching rejection and advancing the
+epoch on mismatch. Restoring a slot cannot revive that epoch. Cleanup remains on
+the owning Observe/Retire path and never overwrites a foreign slot. Immutable
+slot-record publication is atomic for callbacks consulting Current concurrently.
+Both full DLL profiles and 13 focused tests pass with zero skips, including
+replacement after BeginUpdate and before Execute for both finalizer and free.
+
+The separate first/replacement-watch arming interval remains under investigation:
+existing held-watched callbacks alone do not prove that destruction between the
+initial capture and watch publication is observed. This is an explicit remaining
+activation gate, not a claim that rendering or input-thread ownership proves
+native destruction confinement. Active next is closing that specific interval,
+then the Windows/XInput/UI consumer, settings/transport and combined acceptance.

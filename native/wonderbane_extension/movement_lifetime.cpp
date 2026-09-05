@@ -18,6 +18,7 @@ struct State {
     HWND window = nullptr;
     DWORD thread = 0;
     bool started = false, alive = false;
+    std::atomic<bool> binding_lost{false};
     std::atomic<bool> terminal{false};
     std::atomic<std::uint64_t> watch_generation{0};
     NativeScene scene{};
@@ -28,7 +29,7 @@ struct State {
     std::atomic<void*> fast_actor{nullptr}, fast_parent{nullptr}, fast_world{nullptr};
     Notice* destroying = nullptr;
     std::array<Slot, kSlots> slots{};
-    std::size_t count = 0;
+    std::atomic<std::size_t> count{0};
     Slot free_slot{};
 } state;
 SRWLOCK registration_lock = SRWLOCK_INIT;
@@ -127,6 +128,18 @@ void Fail() noexcept {
     for (std::size_t i = 0; i < state.count; ++i) { Restore(state.slots[i]); }
     Restore(state.free_slot);
 }
+bool WatchedReferenceIntact(void* receiver) noexcept {
+    if (!receiver) { return true; }
+    std::uintptr_t vtable = 0; std::uint32_t release = 0;
+    if (!Read(reinterpret_cast<std::uintptr_t>(receiver), vtable)
+        || !Read(vtable + 8, release) || release != state.base + 0x26f49) { return false; }
+    for (std::size_t i = 0; i < state.count; ++i) {
+        if (reinterpret_cast<std::uintptr_t>(state.slots[i].address) == vtable + 4) {
+            return Intact(state.slots[i]);
+        }
+    }
+    return false;
+}
 bool Reference(void* object, void*& receiver) noexcept {
     if (!object) { receiver = nullptr; return true; }
     const auto address = reinterpret_cast<std::uintptr_t>(object);
@@ -181,7 +194,7 @@ bool StartNativeMovementLifetime(HWND window) noexcept {
 bool ObserveNativeMovementLifetime(void* native_window, NativeScene& out) noexcept {
     out = {};
     if (!OnOwningThread() || !state.started || state.terminal) { return false; }
-    if (!Intact(state.free_slot)) { Fail(); return false; }
+    if (state.binding_lost || !Intact(state.free_slot)) { Fail(); return false; }
     NativeScene scene{}, again{};
     if (!Capture(native_window, scene)) { Gap(); return false; }
     void* actor_ref = nullptr; void* parent_ref = nullptr;
@@ -210,9 +223,16 @@ bool ObserveNativeMovementLifetime(void* native_window, NativeScene& out) noexce
     return out.epoch != 0;
 }
 bool NativeMovementLifetimeCurrent(const NativeScene& scene) noexcept {
-    AcquireSRWLockShared(&state.lock);
-    const bool current = state.alive && !state.terminal && scene.epoch && scene.epoch == state.scene.epoch && Same(scene, state.scene);
-    ReleaseSRWLockShared(&state.lock);
+    AcquireSRWLockExclusive(&state.lock);
+    bool current = state.alive && !state.terminal && !state.binding_lost && scene.epoch
+        && scene.epoch == state.scene.epoch && Same(scene, state.scene);
+    if (current && (!Intact(state.free_slot) || !WatchedReferenceIntact(state.actor_ref)
+        || !WatchedReferenceIntact(state.parent_ref))) {
+        // Callbacks may consult Current from a different thread. Latch rejection
+        // immediately; only the owning Observe/Retire performs slot cleanup.
+        state.binding_lost = true; (void)Advance(); current = false;
+    }
+    ReleaseSRWLockExclusive(&state.lock);
     return current;
 }
 void RetireNativeMovementLifetime() noexcept {

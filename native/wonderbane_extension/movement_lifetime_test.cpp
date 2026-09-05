@@ -147,7 +147,7 @@ int main(int argc, char** argv) {
         std::thread foreign([&] { wm::NativeScene other{}; foreign_result = f->Observe(other); }); foreign.join();
         Check(!foreign_result && wm::NativeMovementLifetimeCurrent(scene), "foreign thread cannot replace watch");
         const auto callback = *f->finalizer_slot;
-        if (mode == "actuator") {
+        if (mode == "actuator" || mode == "actuator-foreign" || mode == "actuator-foreign-free") {
             QuietActuator actuator; wm::Controls controls(actuator); wm::NativeStop native(controls);
             wm::NativeStopTestAccess::Bind(native);
             wm::Input input{}; input.scene = scene.epoch; controls.Tick(input);
@@ -155,6 +155,19 @@ int main(int argc, char** argv) {
             Check(!native.BeginUpdate(f->window.data()), "production backend requires an observed lifetime");
             Check(native.BeginUpdate(f->window.data(), scene), "observed lifetime enters native phase");
             Check(wm::NativeStopTestAccess::Current(native, scene, grant), "native callback boundary accepts current lifetime");
+            if (mode != "actuator") {
+                auto* slot = mode == "actuator-foreign" ? f->finalizer_slot : &f->free_slot;
+                const auto foreign_callback = reinterpret_cast<std::uint32_t>(&Foreign);
+                *slot = foreign_callback;
+                Check(!wm::NativeStopTestAccess::Current(native, scene, grant), "mid-update foreign slot immediately rejects native current");
+                Check(!native.Execute(grant), "mid-update foreign slot rejects stop without native actuation");
+                Check(*slot == foreign_callback, "native current rejection preserves foreign replacement");
+                *slot = mode == "actuator-foreign" ? callback : reinterpret_cast<std::uint32_t>(&wm::Deallocate);
+                Check(!wm::NativeMovementLifetimeCurrent(scene), "restored slot cannot revive previously rejected lifetime");
+                native.EndUpdate();
+                Check(!f->Observe(scene) && wm::state.terminal, "owner cleans up latched binding loss");
+                return failures ? 1 : 0;
+            }
             old_scene = scene; reinterpret_cast<wm::Free>(f->free_slot)(expected_free);
             Check(!wm::NativeStopTestAccess::Current(native, scene, grant), "native callback boundary rejects destruction before next input tick");
             Check(!native.Execute(grant), "old stop cannot call native bindings after destruction");
