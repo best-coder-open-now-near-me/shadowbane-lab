@@ -6,7 +6,6 @@
 namespace wonderbane::extension::cue {
 namespace {
 constexpr GLenum kTexture0=0x84C0, kFramebuffer=0x8D40, kColorAttachment=0x8CE0;
-using GetQuery=void(APIENTRY*)(GLenum,GLenum,GLint*);
 using BlendEquation=void(APIENTRY*)(GLenum);
 using ActiveTexture=void(APIENTRY*)(GLenum);
 using GenFramebuffers=void(APIENTRY*)(GLsizei,GLuint*);
@@ -26,7 +25,6 @@ using Uniform1f=void(APIENTRY*)(GLint,GLfloat);
 using Uniform2f=void(APIENTRY*)(GLint,GLfloat,GLfloat);
 using Uniform4f=void(APIENTRY*)(GLint,GLfloat,GLfloat,GLfloat,GLfloat);
 struct Api {
-    GetQuery query=nullptr;
     BlendEquation equation=nullptr;
     ActiveTexture active=nullptr; GenFramebuffers gen=nullptr; DeleteFramebuffers del=nullptr;
     BindFramebuffer bind=nullptr; FramebufferTexture attach=nullptr; CheckFramebuffer check=nullptr;
@@ -53,7 +51,6 @@ bool Load() noexcept {
 #define CUE_GL(member,type,name) a.member=reinterpret_cast<type>(Proc(name)); if(!a.member) return false
     CUE_GL(active,ActiveTexture,"glActiveTexture");
     CUE_GL(equation,BlendEquation,"glBlendEquation");
-    CUE_GL(query,GetQuery,"glGetQueryiv");
     CUE_GL(gen,GenFramebuffers,"glGenFramebuffers");
     CUE_GL(del,DeleteFramebuffers,"glDeleteFramebuffers");
     CUE_GL(bind,BindFramebuffer,"glBindFramebuffer");
@@ -189,8 +186,6 @@ void Pass(void* raw) noexcept {
     a.use(static_cast<GLuint>(old_program));
 }
 bool Run(int kind,const Settings* settings=nullptr) noexcept {
-    GLint query=0;a.query(0x8914,0x8865,&query);
-    if(query && (kind==3 || kind==4 || kind==6))return false;
     Operation op{kind,settings};
     return RenderSceneGeometry(nullptr,Pass,&op) && op.ok;
 }
@@ -266,14 +261,15 @@ bool BeforeLegacyGeometry() noexcept {
     return g.legacy;
 }
 bool CaptureGeometry(GeometryDraw draw,void* user) noexcept {
-    if(!g.before || !draw || !SameTarget())return false;
+    // Never submit supplemental fragments or enter legacy fallback while a
+    // native visibility query is active (including boolean query variants).
+    if(!g.before || !draw || !SameTarget() || !AreSceneSampleQueriesInactive())return false;
     GLboolean depth_write=GL_TRUE;glGetBooleanv(GL_DEPTH_WRITEMASK,&depth_write);
-    GLint stack=0,maximum=0,mode=0,query=0,depth_function=0;
+    GLint stack=0,maximum=0,mode=0,depth_function=0;
     glGetIntegerv(GL_DEPTH_FUNC,&depth_function);
-    a.query(0x8914,0x8865,&query); // Never double-count an active native samples query.
     glGetIntegerv(GL_ATTRIB_STACK_DEPTH,&stack);glGetIntegerv(GL_MAX_ATTRIB_STACK_DEPTH,&maximum);
     glGetIntegerv(GL_RENDER_MODE,&mode);
-    if(query || stack>=maximum || mode!=GL_RENDER || glIsEnabled(GL_STENCIL_TEST) || glIsEnabled(GL_COLOR_LOGIC_OP)
+    if(stack>=maximum || mode!=GL_RENDER || glIsEnabled(GL_STENCIL_TEST) || glIsEnabled(GL_COLOR_LOGIC_OP)
         || g.viewport[0]!=0 || g.viewport[1]!=0
         || (glIsEnabled(GL_DEPTH_TEST) && depth_function!=GL_LESS && depth_function!=GL_LEQUAL && depth_function!=GL_EQUAL))
         return depth_write && BeforeLegacyGeometry();

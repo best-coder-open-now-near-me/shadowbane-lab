@@ -911,3 +911,32 @@ correct opaque visibility and ordered native foreground transmission. Final
 package validation and consolidated live acceptance remain outstanding; no
 completion or installable-candidate claim is made. The feature worktree remains
 on codex/selected-character-cue; normal main and navigation checkouts are untouched.
+
+
+## Cue capture uses the shared native-query exclusion
+
+The user directly authorized private analysis sharing among the existing cue,
+particles and integration tasks. Coordination has resumed; private binaries,
+captures and detailed audit files remain ignored local artifacts. No deployment
+or public disclosure was authorized by that permission.
+
+Imported only scene_draw.cpp/h from the owner's exact
+20bd47557dae1aea7072505b45ed68fbd5d9e39b as a prerequisite checkpoint. Cue raw
+capture now calls AreSceneSampleQueriesInactive before submitting geometry or
+entering the legacy fallback. The duplicate SAMPLES_PASSED-only API/check was
+removed; shared guarded composition handles all supported sample-query targets.
+This also prevents the former depth-write-on fallback from reporting capture
+success during an active query. No new renderer, lifecycle owner or hook added.
+
+The expanded production GPU regression covers SAMPLES_PASSED,
+ANY_SAMPLES_PASSED and ANY_SAMPLES_PASSED_CONSERVATIVE, each with native depth
+writes off/on. It checks zero callback invocations, zero added query samples,
+unchanged graphics state and rejected indicator composition. All six cases
+execute on the host. They reproduced failures before the fix and now pass.
+Release DLL/GPU builds, base GPU and source/visibility feasibility pass. Required
+foreground transparency remains unchanged with two failures; no skip or expected
+failure replaces it. Local JUnit: artifacts/selected-character-cue/query-capture.xml.
+
+The integration owner already owns named shared query/pipeline gates and their
+package membership. Next: reconcile this capture fix with the combined source
+and verify it, then continue opaque visibility and ordered transparency work.
