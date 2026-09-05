@@ -54,18 +54,22 @@ void PollSky() noexcept {
     }
     sky_settings=next;InterlockedExchange(&sky_control->applied,before);InterlockedExchange(&sky_control->error,0);
 }
+bool ReplaceNativeSky(std::uintptr_t caller,void* self) noexcept {
+    const auto context=reinterpret_cast<std::uintptr_t>(wglGetCurrentContext());
+    std::uint32_t table=0;
+    return sky_running&&sky_authority.painted&&sky_authority.generation==sky_generation
+        &&context==sky_authority.context&&IsReviewedSceneCall(caller,sky_base,0x5524df)
+        &&ReadSky(nullptr,static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(self)),&table,4)
+        &&table==sky_base+0x1162b34&&effects::SameIdentity(sky_actor,effects::Resolve(ReadSky,nullptr,sky_base,0));
+}
 void __fastcall NativeSkyDraw(void* self,void*) noexcept {
     const RenderCallbackLease lease;
     const auto original=reinterpret_cast<NativeSky>(InterlockedCompareExchangePointer(&sky_original,nullptr,nullptr));
     if(!original)return;
-    const auto caller=reinterpret_cast<std::uintptr_t>(_ReturnAddress());
-    const auto context=reinterpret_cast<std::uintptr_t>(wglGetCurrentContext());
-    std::uint32_t table=0;
-    const bool replace=sky_running&&sky_authority.painted&&sky_authority.generation==sky_generation
-        &&context==sky_authority.context&&IsReviewedSceneCall(caller,sky_base,0x5524df)
-        &&ReadSky(nullptr,static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(self)),&table,4)
-        &&table==sky_base+0x1162b34&&effects::SameIdentity(sky_actor,effects::Resolve(ReadSky,nullptr,sky_base,0));
-    if(replace){if(sky_control)InterlockedIncrement(reinterpret_cast<volatile LONG*>(&sky_control->suppressed));return;}
+    if(ReplaceNativeSky(reinterpret_cast<std::uintptr_t>(_ReturnAddress()),self)){
+        if(sky_control)InterlockedIncrement(reinterpret_cast<volatile LONG*>(&sky_control->suppressed));
+        return;
+    }
     original(self);
 }
 bool LoadSkyAsset() noexcept {
