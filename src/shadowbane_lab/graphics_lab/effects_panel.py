@@ -111,7 +111,14 @@ class EffectsPanel:
 
     def disable(self) -> None:
         self.flags[0].set(False)
-        self.apply()
+        if not self.client:
+            return
+        try:
+            # A malformed edit must never prevent the emergency clear action.
+            sequence = self.client.write(EffectsConfig())
+            self.status.set(f"Disable queued {sequence}")
+        except (OSError, ValueError, RuntimeError, TimeoutError) as error:
+            self.status.set(str(error))
 
     def poll(self) -> None:
         if self.client:

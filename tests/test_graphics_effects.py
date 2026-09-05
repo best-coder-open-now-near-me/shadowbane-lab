@@ -1,8 +1,11 @@
 import math
 import unittest
 from dataclasses import replace
+from types import SimpleNamespace
+from unittest.mock import Mock
 
 from shadowbane_lab.graphics_lab.effects import CONFIG, PRESETS, EffectsConfig
+from shadowbane_lab.graphics_lab.effects_panel import EffectsPanel
 
 
 class EffectsConfigurationTests(unittest.TestCase):
@@ -31,6 +34,14 @@ class EffectsConfigurationTests(unittest.TestCase):
         ):
             with self.subTest(change=change), self.assertRaises(ValueError):
                 replace(EffectsConfig(), **change).pack()
+
+    def test_disable_ignores_invalid_unapplied_edits(self):
+        client = Mock()
+        panel = SimpleNamespace(client=client, flags=[Mock()], status=Mock())
+        EffectsPanel.disable(panel)
+        sent = client.write.call_args.args[0]
+        self.assertEqual(sent.flags, 0)
+        sent.validate()
 
     def test_default_is_disabled_and_presets_are_explicit(self):
         self.assertEqual(EffectsConfig().flags, 0)

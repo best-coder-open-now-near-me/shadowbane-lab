@@ -215,8 +215,9 @@ def main() -> int:
     )
     run("installed-panel", [python, "-c", smoke], cwd=output)
     effects_smoke = (
-        "import tkinter as tk; from shadowbane_lab.graphics_lab.app import GraphicsLabApp; "
-        "root=tk.Tk(); root.withdraw(); app=GraphicsLabApp(root); "
+        "import tkinter as tk; import shadowbane_lab.graphics_lab.app as module; "
+        "module.discover_graphics_targets=lambda: (); "
+        "root=tk.Tk(); root.withdraw(); app=module.GraphicsLabApp(root); "
         "assert app.effects_panel is not None; app.close()"
     )
     run("installed-effects-panel", [python, "-c", effects_smoke], cwd=output)
@@ -255,6 +256,9 @@ def main() -> int:
     receipt_path.write_text(json.dumps(receipt, indent=2) + "\n", encoding="utf-8")
     handoff = output / "navigation-inspector.md"
     shutil.copy2(source / "docs/handoffs/navigation-inspector.md", handoff)
+    effects_handoff = output / "particles-trails.md"
+    shutil.copy2(source / "docs/handoffs/particles-trails.md", effects_handoff)
+    artifacts.append(effects_handoff)
     package_path = output / "navigation-inspector-acceptance.zip"
     with zipfile.ZipFile(package_path, "x", compression=zipfile.ZIP_DEFLATED) as archive:
         for path in [receipt_path, handoff, *artifacts]:
