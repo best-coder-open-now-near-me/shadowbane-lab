@@ -184,3 +184,20 @@ use a different size and payload destructor. The native continuous movement call
 uses a ten-unit look-ahead destination and its own message throttling. Its differing
 final wrapper argument affects deferred action construction, not pathfinding; it is
 not a safe shortcut for bypassing collision or asynchronous path handling.
+
+## Follow intent and restricted-state continuation
+
+The native world update can initiate combat-target following from either persistent
+combat-close preference or temporary follow intent. Native configuration and UI
+messages corroborate that behavior. A manual owner must retire both forms before
+movement submission; release must not restore them. The existing UI toggle changes
+only the persistent form, so it is not by itself a complete cancellation operation.
+Camera-only input must preserve both follow and automation ownership.
+
+A separate native helper clears path continuation only when the native path vector
+is empty. Unlike the broader local-stop method, it does not select the idle state.
+The actual-code conformance probe now invokes this exact reviewed helper in 144
+cases and checks entire actor/state snapshots before and after two consecutive
+calls. This verifies empty-path preconditions, nonempty-path preservation and
+idempotence while preserving all tested movement-state values. It does not verify
+path element destruction, follow retirement or complete stop/network ordering.

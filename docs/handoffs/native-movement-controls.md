@@ -146,3 +146,26 @@ The conformance probe now also executes native exact-identity lookup, two-word c
 and destruction, including unsigned boundary values and missing-key checks before
 and after removal. Both profiles pass 64,256 complete sequences. Native allocator
 cleanup and full stop composition remain unverified; no controls are enabled.
+
+## Untracked native intent and continuation checkpoint
+
+Takeover now calls the actuator stop even when this controls instance has not
+recorded movement. Native click or combat-follow intent may already exist in that
+case. All three manual methods are tested for stop-before-submission, failed-stop
+exclusion, release without resumption and stale-owner rejection. Camera-only input
+and ordinary clicks preserve the existing owner. These are policy-contract checks;
+they do not yet prove the native combat-follow flags are retired by an adapter.
+
+The actual-code probe executes the native empty-path continuation helper in 144
+cases, including all 16 tested state values, null and allocated empty paths,
+nonempty paths, multiple continuation values and repeated calls. Complete actor
+and state byte snapshots remain unchanged except the documented continuation byte
+when the path is empty. Both profiles pass this probe and the takeover policy test.
+
+Static inspection identified persistent combat-close and temporary combat-follow
+intent as another world-update movement writer. The integration owner requested
+its retirement in the same complete native stop implementation, with later-update
+regressions after takeover and release. The native UI toggle alone does not clear
+both forms. That binding/composition remains unfinished, as do native pool cleanup,
+ordered server notification and full controls/package wiring. Next active todo is
+still the complete native stop and steering binding; no installed client changed.
