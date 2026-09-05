@@ -27,6 +27,7 @@ from .control import (
 )
 from .effects_panel import EffectsPanel
 from .presets import GraphicsPresetStore
+from .selected_cue import CuePanel
 
 _BACKGROUND = "#171b22"
 _PANEL = "#202630"
@@ -173,6 +174,7 @@ class GraphicsLabApp:
         self._build_outline_tab(outline_tab)
         self._build_lighting_tab(lighting_tab)
         self._build_preset_tab(preset_tab)
+        self.cue_panel = CuePanel(notebook, lambda: self.client.target if self.client else None)
 
     def _build_outline_tab(self, parent: ttk.Frame) -> None:
         ttk.Checkbutton(
@@ -415,6 +417,8 @@ class GraphicsLabApp:
 
     def _disconnect(self) -> None:
         self.effects_panel.disconnect()
+        if hasattr(self, "cue_panel"):
+            self.cue_panel.disconnect()
         if self.client is not None:
             self.client.close()
             self.client = None
@@ -615,6 +619,7 @@ class GraphicsLabApp:
         if self._apply_after is not None:
             self.root.after_cancel(self._apply_after)
         self._disconnect()
+        self.cue_panel.close()
         self.root.destroy()
 
 

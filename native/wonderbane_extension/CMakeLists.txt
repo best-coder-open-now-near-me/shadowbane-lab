@@ -58,6 +58,7 @@ target_compile_definitions(
 if(WONDERBANE_EXTENSION_PROFILE STREQUAL "full")
   target_sources(wonderbane_extension PRIVATE
     navigation_protocol.cpp navigation_channel.cpp navigation_draw.cpp navigation_viewer.cpp
+    selected_cue.cpp selected_cue_gpu.cpp selected_cue_runtime.cpp
     scene_draw.cpp effects.cpp effects_attachment.cpp effects_runtime.cpp effects_draw.cpp)
   target_link_libraries(wonderbane_extension PRIVATE opengl32)
 endif()
@@ -113,6 +114,42 @@ add_custom_command(
 )
 
 if(BUILD_TESTING)
+  add_executable(wonderbane_extension_selected_cue_runtime_test
+    selected_cue.cpp effects_attachment.cpp import_hook.cpp selected_cue_runtime_test.cpp)
+  target_compile_features(wonderbane_extension_selected_cue_runtime_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_selected_cue_runtime_test PRIVATE
+    UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_selected_cue_runtime_test PRIVATE /W4 /WX /permissive- /utf-8)
+  target_link_libraries(wonderbane_extension_selected_cue_runtime_test PRIVATE bcrypt opengl32)
+  set_property(TARGET wonderbane_extension_selected_cue_runtime_test PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded")
+  add_test(NAME wonderbane_extension_selected_cue_runtime COMMAND wonderbane_extension_selected_cue_runtime_test)
+  add_executable(wonderbane_extension_selected_cue_binding_test selected_cue_binding_test.cpp)
+  target_compile_features(wonderbane_extension_selected_cue_binding_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_selected_cue_binding_test PRIVATE
+    UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_selected_cue_binding_test PRIVATE /W4 /WX /permissive- /utf-8)
+  target_link_libraries(wonderbane_extension_selected_cue_binding_test PRIVATE bcrypt)
+  set_property(TARGET wonderbane_extension_selected_cue_binding_test PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded")
+  add_test(NAME wonderbane_extension_selected_cue_binding COMMAND wonderbane_extension_selected_cue_binding_test)
+  set_tests_properties(wonderbane_extension_selected_cue_binding PROPERTIES SKIP_RETURN_CODE 77)
+  add_executable(wonderbane_extension_selected_cue_gpu_test
+    selected_cue.cpp selected_cue_gpu.cpp scene_draw.cpp selected_cue_gpu_test.cpp)
+  target_compile_features(wonderbane_extension_selected_cue_gpu_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_selected_cue_gpu_test PRIVATE
+    UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_selected_cue_gpu_test PRIVATE /W4 /WX /permissive- /utf-8)
+  target_link_libraries(wonderbane_extension_selected_cue_gpu_test PRIVATE opengl32 gdi32 user32)
+  set_property(TARGET wonderbane_extension_selected_cue_gpu_test PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded")
+  add_test(NAME wonderbane_extension_selected_cue_gpu COMMAND wonderbane_extension_selected_cue_gpu_test)
+  set_tests_properties(wonderbane_extension_selected_cue_gpu PROPERTIES SKIP_RETURN_CODE 77)
+  add_executable(wonderbane_extension_selected_cue_test selected_cue.cpp selected_cue_test.cpp)
+  target_compile_features(wonderbane_extension_selected_cue_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_selected_cue_test PRIVATE
+    UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_selected_cue_test PRIVATE
+    /W4 /WX /permissive- /sdl /GS /guard:cf /utf-8)
+  set_property(TARGET wonderbane_extension_selected_cue_test PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded")
+  add_test(NAME wonderbane_extension_selected_cue COMMAND wonderbane_extension_selected_cue_test)
   add_executable(wonderbane_extension_navigation_draw_test navigation_draw.cpp scene_draw.cpp effects.cpp effects_attachment.cpp effects_draw.cpp navigation_draw_test.cpp)
   target_compile_features(wonderbane_extension_navigation_draw_test PRIVATE cxx_std_20)
   target_compile_definitions(wonderbane_extension_navigation_draw_test PRIVATE
@@ -764,6 +801,7 @@ if(BUILD_TESTING)
   foreach(renderer_test wonderbane_extension_cel_shading_test wonderbane_extension_performance_telemetry_test)
     target_sources(${renderer_test} PRIVATE
       navigation_protocol.cpp navigation_channel.cpp navigation_draw.cpp navigation_viewer.cpp
+    selected_cue.cpp selected_cue_gpu.cpp selected_cue_runtime.cpp
     scene_draw.cpp effects.cpp effects_attachment.cpp effects_runtime.cpp effects_draw.cpp)
     target_link_libraries(${renderer_test} PRIVATE opengl32)
   endforeach()

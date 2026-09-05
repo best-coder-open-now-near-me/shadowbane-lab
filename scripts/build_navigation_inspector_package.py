@@ -32,6 +32,9 @@ def main() -> int:
     parser.add_argument(
         "--output-root", type=Path, help="Local artifact root; use a short Windows path"
     )
+    parser.add_argument(
+        "--reviewed-client", type=Path, help="Private executable for read-only binding verification"
+    )
     arguments = parser.parse_args()
     if os.name != "nt" or not arguments.cmake:
         parser.error("Windows and CMake are required")
@@ -102,6 +105,11 @@ def main() -> int:
     cmake = Path(arguments.cmake).resolve()
     ctest = cmake.with_name("ctest.exe")
     contracts = [
+        "selected_cue.cpp",
+        "selected_cue_gpu.cpp",
+        "selected_cue_runtime.cpp",
+        "effects_attachment.cpp",
+        "scene_draw.cpp",
         "navigation_protocol.cpp",
         "navigation_channel.cpp",
         "navigation_draw.cpp",
@@ -153,6 +161,14 @@ def main() -> int:
         run(
             f"{profile}-tests", [ctest, "--test-dir", build, "-C", "Release", "--output-on-failure"]
         )
+        if arguments.reviewed_client:
+            run(
+                f"{profile}-selected-binding",
+                [
+                    build / "Release/wonderbane_extension_selected_cue_binding_test.exe",
+                    arguments.reviewed_client.resolve(),
+                ],
+            )
         destination = output / profile / "wonderbane-extension.dll"
         destination.parent.mkdir()
         shutil.copy2(build / "Release/wonderbane-extension.dll", destination)
@@ -184,6 +200,8 @@ def main() -> int:
     with tarfile.open(sdist) as package:
         names = package.getnames()
         for relative in (
+            "native/wonderbane_extension/selected_cue_runtime.cpp",
+            "src/shadowbane_lab/graphics_lab/selected_cue.py",
             "native/wonderbane_extension/navigation_draw.cpp",
             "native/wonderbane_extension/effects_runtime.cpp",
             "native/wonderbane_extension/effects_test.cpp",
@@ -221,6 +239,12 @@ def main() -> int:
         "assert app.effects_panel is not None; app.close()"
     )
     run("installed-effects-panel", [python, "-c", effects_smoke], cwd=output)
+    cue_smoke = (
+        "import tkinter as tk; from shadowbane_lab.graphics_lab.app import GraphicsLabApp; "
+        "root=tk.Tk(); root.withdraw(); app=GraphicsLabApp(root); "
+        "assert app.cue_panel.settings().enabled is False; app.close()"
+    )
+    run("installed-selection-panel", [python, "-c", cue_smoke], cwd=output)
     artifacts.extend(
         [
             wheel,
@@ -241,6 +265,7 @@ def main() -> int:
         "terrain_material_repair_included": False,
         "actor_root_effects_included": True,
         "live_acceptance": "pending; no deployment performed",
+        "selected_cue_binding_verified": bool(arguments.reviewed_client),
         "source_identity": metadata,
         "steps": steps,
         "files": [
@@ -261,7 +286,12 @@ def main() -> int:
     artifacts.append(effects_handoff)
     package_path = output / "navigation-inspector-acceptance.zip"
     with zipfile.ZipFile(package_path, "x", compression=zipfile.ZIP_DEFLATED) as archive:
-        for path in [receipt_path, handoff, *artifacts]:
+        for path in [
+            receipt_path,
+            handoff,
+            source / "docs/handoffs/selected-character-cue.md",
+            *artifacts,
+        ]:
             archive.write(path, path.relative_to(output))
     digest_path = output / "navigation-inspector-acceptance.sha256"
     digest_path.write_text(sha256(package_path) + "  " + package_path.name + "\n", encoding="ascii")
