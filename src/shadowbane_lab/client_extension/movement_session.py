@@ -105,10 +105,13 @@ class NativeMovementSession:
                     "session does not own an automation lease"
                 )
             self._transport = channel.WindowsNativeActionCommandTransport(self.identity)
-        identity = self._transport.host_process_identity
+        transport = self._transport
+        if transport is None or self._closed:
+            raise channel.NativeActionChannelUnavailable("movement session is closed")
+        identity = transport.host_process_identity
         return Host(
             identity.process_id,
-            self._transport.host_lease_generation,
+            transport.host_lease_generation,
             identity.creation_filetime_utc,
         )
 
@@ -121,11 +124,12 @@ class NativeMovementSession:
             raise ValueError("snapshot belongs to another client")
 
     def _submit(self, verb: Verb, payload: Command) -> Receipt:
-        if self._transport is None:
+        transport = self._transport
+        if transport is None or self._closed:
             raise channel.NativeActionChannelUnavailable("session is closed")
         # Validation precedes publication; retries retain the same payload UUID.
         payload.encode(verb)
-        result = self._transport.submit(
+        result = transport.submit(
             channel.NativeMovementCommand(next(self._ids), verb, payload),
             timeout_ms=self.timeout_ms,
         )
@@ -188,6 +192,31 @@ class NativeMovementSession:
         except NativeMovementError:
             self._revoked.add(grant)
             raise
+
+    def renew(self, grant: NativeMovementGrant) -> None:
+        self._check_grant(grant)
+        snapshot = self.snapshot()
+        if snapshot.grant != grant.ownership or not snapshot.flags & 2 or snapshot.flags & 8:
+            self._revoked.add(grant)
+            raise NativeMovementError(Outcome.STALE)
+        transport = self._transport
+        if transport is None or self._closed:
+            raise channel.NativeActionChannelUnavailable("movement session is closed")
+        transport.renew_lease()
+
+    def pause(self, grant: NativeMovementGrant, request_key: str) -> Receipt:
+        self._check_grant(grant)
+        try:
+            receipt = self._submit(
+                Verb.PAUSE, Command(grant.host, grant.window, grant.ownership, request_key)
+            )
+        except NativeMovementError:
+            self._revoked.add(grant)
+            raise
+        if receipt.grant != grant.ownership:
+            self._revoked.add(grant)
+            raise channel.NativeActionChannelError("pause changed operation ownership")
+        return receipt
 
     def stop(self, grant: NativeMovementGrant, request_key: str) -> Receipt:
         self._check_grant(grant)

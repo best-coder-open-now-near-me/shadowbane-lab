@@ -43,6 +43,7 @@ struct NativeStopTestAccess {
     static GroundPoint* __cdecl Unproject(GroundPoint*, int, int, float);
     static Ray* __fastcall RayCreate(Ray*, void*, void*, const GroundPoint*, const GroundPoint*, bool);
     static bool __fastcall RayCast(void*, void*, Ray*);
+    static float __fastcall TerrainHeight(void*, void*, float, float);
     static GroundPoint* __fastcall RayPoint(Ray*, void*, GroundPoint*);
     static void __fastcall ParentRelease(void**, void*, void*);
     static void __fastcall ApplyRay(Ray*, void*, void*, bool);
@@ -93,7 +94,7 @@ struct Fixture {
     bool real_pick_move = false, replace_on_marker = false, replace_parent_on_marker = false;
     int marker_applies = 0, ground_creates = 0, ground_actor_releases = 0;
     int ray_creates = 0, ray_casts = 0, ray_points = 0, parent_releases = 0;
-    bool ray_hit = true, replace_on_pick = false;
+    bool ray_hit = true, replace_on_pick = false, world_pick_call = false;
     bool basis_mode = false, basis_degenerate = false, basis_parent_change = false, replace_on_ray_release = false;
     bool runtime_composition = false;
     void (*on_native)(char) = nullptr;
@@ -124,6 +125,7 @@ struct Fixture {
         Put(world.data(), 0xb8, Access::Map{&active_sentinel, 0});
         Put(world.data(), 0xe8, Access::Map{&scheduled_sentinel, 0});
         Put(base, 0x1141544, 10.0F);
+        Put(base, 0x1141330, 1000.0F);
         Put(base, 0x1163250, 1.5707963705062866F);
         Put(base, 0x1163300, 0.05F);
         Put(base, 0x1163254, 0.7853981852531433F);
@@ -184,6 +186,7 @@ void NativeStopTestAccess::Bind(NativeStop& stop, void* base, HWND window) {
     c.position = reinterpret_cast<decltype(c.position)>(&Position); c.destination = reinterpret_cast<decltype(c.destination)>(&Destination);
     c.clear_waypoint = reinterpret_cast<decltype(c.clear_waypoint)>(&Waypoint);
     c.unproject = &Unproject; c.ray = reinterpret_cast<decltype(c.ray)>(&RayCreate);
+    c.terrain_height = reinterpret_cast<decltype(c.terrain_height)>(&TerrainHeight);
     c.ray_cast = reinterpret_cast<decltype(c.ray_cast)>(&RayCast);
     c.ray_point = reinterpret_cast<decltype(c.ray_point)>(&RayPoint);
     c.release_parent = reinterpret_cast<decltype(c.release_parent)>(&ParentRelease);
@@ -209,7 +212,11 @@ GroundPoint* __cdecl NativeStopTestAccess::Unproject(GroundPoint* output, int x,
 }
 NativeStopTestAccess::Ray* __fastcall NativeStopTestAccess::RayCreate(Ray* ray, void*, void* actor,
     const GroundPoint* origin, const GroundPoint* direction, bool flag) {
-    if (current->basis_mode && (!current->runtime_composition || (direction->x == 0 && direction->y == 0 && direction->z == 0))) {
+    current->world_pick_call = flag;
+    if (flag) {
+        Check(direction->x == 0 && direction->y == -1 && direction->z == 0 && origin->y == 1012,
+            "native world destination ray uses actual terrain height and native downward offset");
+    } else if (current->basis_mode && (!current->runtime_composition || (direction->x == 0 && direction->y == 0 && direction->z == 0))) {
         Check(!flag && direction->x == 0 && direction->y == 0 && direction->z == 0, "basis conversion uses owned zero-distance ray");
     } else {
         Check(!flag && std::abs(direction->x - 0.6F) < 0.00001F && std::abs(direction->y - 0.8F) < 0.00001F
@@ -217,6 +224,9 @@ NativeStopTestAccess::Ray* __fastcall NativeStopTestAccess::RayCreate(Ray* ray, 
     }
     ++current->ray_creates; ++current->retains;
     *ray = {actor, *origin, *direction, 0, 0, nullptr, nullptr}; return ray;
+}
+float __fastcall NativeStopTestAccess::TerrainHeight(void* world, void*, float x, float z) {
+    Check(world == current->world.data() && x >= 0 && z <= 0, "native terrain query receives world X/Z"); return 12;
 }
 bool __fastcall NativeStopTestAccess::RayCast(void* world, void*, Ray* ray) {
     Check(world == current->world.data(), "native ray uses captured world"); ++current->ray_casts;
@@ -229,7 +239,8 @@ bool __fastcall NativeStopTestAccess::RayCast(void* world, void*, Ray* ray) {
 }
 GroundPoint* __fastcall NativeStopTestAccess::RayPoint(Ray* ray, void*, GroundPoint* output) {
     ++current->ray_points;
-    if (current->basis_mode && (!current->runtime_composition || ray->distance == 0)) {
+    if (current->world_pick_call) { *output = {ray->origin.x + 100, 12, ray->origin.z - 200}; }
+    else if (current->basis_mode && (!current->runtime_composition || ray->distance == 0)) {
         Check(ray->distance == 0, "basis uses native parent transform without terrain collision");
         *output = {ray->origin.z + 100, ray->origin.y - 10, 200 - ray->origin.x};
         if (current->basis_parent_change && current->ray_points == 2) {
@@ -267,8 +278,8 @@ NativeStopTestAccess::GroundTarget* __fastcall NativeStopTestAccess::Ground(Grou
 void** __fastcall NativeStopTestAccess::Move(void* actor, void*, void** output, const GroundTarget* target,
     bool publish, bool collision, bool extra, bool* result, bool deferred) {
     auto& f = *current; ++f.moves;
-    Check(actor == f.actor.data() && collision && !extra && !result && !deferred
-        && ((f.real_pick_move && target->actor == f.marker.data() && target->parent == f.alternate_world.data())
+    Check(actor == f.actor.data() && collision && !extra && !result && deferred == f.world_pick_call
+        && ((f.world_pick_call && !target->actor && !target->parent) || (f.real_pick_move && target->actor == f.marker.data() && target->parent == f.alternate_world.data())
             || (!f.real_pick_move && !target->actor && !target->parent)),
         "native movement preserves collision admission and method-specific ground references");
     f.destination = target->point; *output = nullptr;
@@ -511,6 +522,23 @@ void DragMoveComposition() {
       f.Step(); f.Step(); Check(f.moves == 1, "held drag does not starve native pending path solve");
       f.input.keys[5] = false; f.Step(); Check(f.request.state == 1 && f.request.usable == 0, "release cancels drag path solve"); }
 }
+void WorldDestinationComposition() {
+    { Fixture f; Token token{}; std::memcpy(token.worker.data(), "worker", 6); std::memcpy(token.operation.data(), "route", 5);
+      Grant grant{}; Check(f.controls.AcquireAutomation(f.controls.Current().generation, token, grant) == Result::accepted,
+          "world destination obtains policy grant");
+      f.pending_solve = true;
+      Check(f.stop.MoveToWorld(grant, {10, 999, -20}) && f.destination.x == 110 && f.destination.y == 12 && f.destination.z == -220,
+          "world destination uses native terrain hit and parent conversion, not supplied altitude");
+      Check(f.stop.MoveToWorld(grant, {10, 0, -20}) && f.moves == 1, "identical pending world destination does not restart solver");
+      Check(f.stop.MoveToWorld(grant, {11, 0, -21}) && f.moves == 2, "changed world destination is not silently dropped behind solver");
+      Check(!f.stop.MoveToWorld(grant, {-1, 0, -20}) && !f.stop.MoveToWorld(grant, {10, 0, 20}) && f.moves == 2,
+          "outside accepted navigation coordinate bounds rejected before native mutation");
+      Check(f.stop.Execute(grant) && f.request.state == 1 && Get<std::uint32_t>(f.state.data(), 0x10) == 5,
+          "world destination shares verified native cancellation"); }
+    { Fixture f; Token token{}; std::memcpy(token.worker.data(), "worker", 6); std::memcpy(token.operation.data(), "route", 5);
+      Grant grant{}; (void)f.controls.AcquireAutomation(f.controls.Current().generation, token, grant); f.ray_hit = false;
+      Check(!f.stop.MoveToWorld(grant, {10, 0, -20}) && f.moves == 0, "native terrain miss never falls back to a plane"); }
+}
 void TerrainPickComposition() {
     { Fixture f; GroundPoint point{};
       Check(f.stop.PickGround(0, 0, point) && point.x == 8 && point.y == -4 && point.z == 11
@@ -627,7 +655,7 @@ void EmergencyStopComposition() {
     GroundPoint point{}; Vector2 forward{}, right{};
     Check(!f.stop.PickGround(1, 1, point) && !f.stop.CameraBasis(forward, right)
         && !f.stop.RotateCamera({1, 0}) && !f.stop.Steer(grant, {0, 1}, 50, true)
-        && !f.stop.MoveToPick(grant, {}), "emergency phase cannot pick, move or rotate camera");
+        && !f.stop.MoveToPick(grant, {}) && !f.stop.MoveToWorld(grant, {10, 0, -20}), "emergency phase cannot pick, move or rotate camera");
     const auto sends = f.sends;
     Check(f.controls.EmergencyStop(grant, StopReason::focus) == Result::accepted,
           "stop-only phase executes production cancellation without another native update");
@@ -693,6 +721,6 @@ void ReentryAndScene() {
 }
 int main() {
     { Fixture f; NativeStop unbound(f.controls); Check(!unbound.Bind(f.window), "unsupported executable stays unavailable"); }
-    ManualMethods(); StatesAndFailures(); CameraBasisComposition(); DragMoveComposition(); TerrainPickComposition(); SteeringComposition(); CameraComposition(); EmergencyStopComposition(); ReentryAndScene();
+    ManualMethods(); StatesAndFailures(); CameraBasisComposition(); DragMoveComposition(); TerrainPickComposition(); WorldDestinationComposition(); SteeringComposition(); CameraComposition(); EmergencyStopComposition(); ReentryAndScene();
     return failures ? 1 : 0;
 }

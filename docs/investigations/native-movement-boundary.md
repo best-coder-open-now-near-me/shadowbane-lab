@@ -495,3 +495,22 @@ and explicitly ignores the return value; the hook forwards those four arguments
 unchanged for original-owned events. Private disassembly remains in the task's
 ignored evidence directory. This static verification does not certify live input
 or server movement acceptance.
+
+## Native automation destination path
+
+Existing map-navigation actuation provides a grounded world destination without
+cursor/minimap simulation. The reviewed path takes world X/Z, queries native terrain
+height, adds the game's own vertical offset, constructs a downward native ray with
+its terrain flag enabled, casts through the current world, and obtains the native
+parent-local hit. It applies that hit to the existing destination marker, constructs
+the ordinary ground target, and invokes the same native Move wrapper with collision
+and native finite-destination flags. The adapter implements that sequence inside the
+admitted owning update, preserving references and checking the captured grant,
+lease, actor identity and parent frame at native callback boundaries.
+
+The accepted observation mapping is LT = native X and LG = -native Z. The travel
+adapter preserves each existing bounded click_destination as X=LT,Z=-LG; Y is
+resolved by native terrain/collision. Native misses reject movement. Matching
+in-flight targets are coalesced; a changed destination is submitted through native
+replacement instead of acknowledged and dropped. No actor coordinate/speed writes,
+flat-plane pick, desktop input, or alternate navigation planner were introduced.

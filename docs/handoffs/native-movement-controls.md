@@ -668,3 +668,41 @@ world-destination submission is explicitly unavailable pending its verified adap
 and accepted navigation coordinate wiring. Manual controls remain operational.
 Active next todo is that adapter plus typed manager composition, then combined
 source/package review, installed package and coordinated connected acceptance.
+
+## Complete native destination and operation adapter checkpoint
+
+Native world destinations now use the verified terrain-height/downward-world-ray
+path and normal native collision/movement submission. The previous explicit
+unavailable destination branch is removed. `movement_dispatcher.NativeMovementTravelDispatcher`
+implements the existing TravelDecisionDispatcher with the exact operation grant;
+accepted bounded destinations and LT/X,LG/-Z mapping are preserved. It exposes
+latched `interruption_reason` and read-only `is_set()` for the integration owner's
+PvE/operation stop-signal composition; no failed route automatically reacquires.
+
+PAUSE verb7/session.pause cancels native movement while retaining the immutable
+operation grant for the next PvE approach. STOP remains terminal release. Session
+renew(grant) uses a synchronized transport renewal, verifies the observed grant,
+and rejects expired heartbeat or closed transport rather than claiming/reviving.
+The integration owner supplies operation maintenance every250ms independently of
+its slower dashboard heartbeat and owns both CLI dispatcher injection points.
+
+Manual enabled no longer gates automation readiness. Disabled manual inputs stay
+unconsumed; native automation still observes focus/UI/lifetime/lease rules. Enabling
+manual input preserves active automation and requires neutral rearm before takeover.
+Shutdown has a distinct terminal latch. Settings revisions retain stale protection.
+Acquisition receipts are bounded at128 entries. Eviction advances a monotonic
+expected-generation floor; an evicted request returns stale without native mutation.
+Recent ambiguous retries return the original receipt. In the conservative edge
+case of many rejected requests at one generation, a fresh observed generation is
+required before another acquisition can succeed; no silent reacquisition is allowed.
+
+Both DLL profiles and18 affected native tests pass0skips. Production runtime IPC
+now exercises acquire/retry/move/pause/renew/move/terminalstop with manual controls
+disabled. Native tests cover terrain miss, changed target during a pending solve,
+world stop, pause/resume, manual enable/rearm/takeover, shutdown and150 successive
+acquisitions with bounded receipts/latest retry.25 focused Python tests plus15
+malformed subtests pass0skips; Ruff passes.
+
+Next active todo: integrate the owner's CLI/operation composition with this adapter,
+review complete combined source and package, then installed exact-package validation
+and coordinated connected acceptance. No installed package/connected claim yet.

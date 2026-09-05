@@ -67,3 +67,12 @@ navigation run and verify delayed old moves/stops cannot resume or cancel manual
 movement. Confirm explicit route restart works after release. Developer-controlled
 native/window tests are evidence for the implementation, not a substitute for this
 connected engine/server pass.
+
+
+Automation uses the same native owner even while manual controls are disabled.
+Enabling controls requires neutral input before manual takeover. Travel and PvE
+retain their existing planner and bounded destinations; native terrain picking
+resolves the destination height. An approach pause stops movement while retaining
+that operation's grant; ending the operation releases it. Manual takeover revokes
+the grant, and neither release of the keys nor a previous route heartbeat resumes
+it. The operation worker renews its live lease separately from dashboard updates.

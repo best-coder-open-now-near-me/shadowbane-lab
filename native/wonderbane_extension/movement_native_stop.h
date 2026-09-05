@@ -29,6 +29,8 @@ public:
     // Retained hit references belong only to this admitted update, until EndUpdate.
     bool PickGround(int client_x, int client_y, GroundPoint&) noexcept;
     bool MoveToPick(const Grant&, GroundPoint) noexcept;
+    // Native terrain-height/downward-ray destination, same path as native map navigation.
+    bool MoveToWorld(const Grant&, GroundPoint) noexcept;
     void SetMovementAdmission(bool (*check)(void*) noexcept, void* context) noexcept {
         movement_admission_ = check; movement_context_ = context;
     }
@@ -68,6 +70,7 @@ private:
         GroundPoint* (__cdecl* unproject)(GroundPoint*, int, int, float) = nullptr;
         Ray* (__thiscall* ray)(Ray*, void*, const GroundPoint*, const GroundPoint*, bool) = nullptr;
         bool (__thiscall* ray_cast)(void*, Ray*) = nullptr;
+        float (__thiscall* terrain_height)(void*, float, float) = nullptr;
         GroundPoint* (__thiscall* ray_point)(Ray*, GroundPoint*) = nullptr;
         void (__thiscall* release_parent)(void**, void*) = nullptr;
         void (__thiscall* apply_ray)(Ray*, void*, bool) = nullptr;
@@ -94,6 +97,9 @@ private:
     bool RunBasis(Vector2&, Vector2&);
     bool BasisCxxGuarded(Vector2&, Vector2&) noexcept;
     bool BasisGuarded(Vector2&, Vector2&) noexcept;
+    bool RunWorldPick(const Grant&, GroundPoint);
+    bool WorldPickCxxGuarded(const Grant&, GroundPoint) noexcept;
+    bool WorldPickGuarded(const Grant&, GroundPoint) noexcept;
     bool RunPickMove(const Target&);
     bool PickMoveCxxGuarded(const Target&) noexcept;
     bool PickMoveGuarded(const Target&) noexcept;
@@ -129,7 +135,7 @@ private:
     Ray ray_{};
     Target pick_target_{};
     GroundPoint pick_point_{};
-    bool ray_owned_ = false, pick_valid_ = false;
+    bool ray_owned_ = false, pick_valid_ = false, world_pick_ = false;
     Target steering_target_{};
     Vector2 steering_direction_{};
     std::uint64_t steering_tick_ = 0, steering_sent_tick_ = 0;

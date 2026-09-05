@@ -10,7 +10,7 @@
 namespace wonderbane::extension::movement::wire {
 constexpr std::uint32_t schema = 2, command_size = 768, result_size = 512, status_size = 512;
 constexpr std::uint32_t command_prefix = 192, result_prefix = 128;
-enum class Verb : std::uint32_t { acquire = 3, destination = 4, stop = 5, configure = 6 };
+enum class Verb : std::uint32_t { acquire = 3, destination = 4, stop = 5, configure = 6, pause = 7 };
 #pragma pack(push, 1)
 struct Host { std::uint32_t process = 0, generation = 0; std::uint64_t creation = 0; };
 struct Token { char worker[96]{}, operation[96]{}; };
@@ -117,7 +117,7 @@ inline bool Valid(Verb verb, const Command& value) noexcept {
         return grant.owner == Owner::automation && std::isfinite(value.destination.x)
             && std::isfinite(value.destination.y) && std::isfinite(value.destination.z);
     }
-    if (verb == Verb::stop) { return grant.owner == Owner::automation; }
+    if (verb == Verb::stop || verb == Verb::pause) { return grant.owner == Owner::automation; }
     if (verb == Verb::configure) { return value.revision && Decode(value.settings, settings); }
     return false;
 }

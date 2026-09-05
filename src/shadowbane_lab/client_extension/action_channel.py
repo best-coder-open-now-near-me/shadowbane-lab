@@ -737,6 +737,17 @@ class WindowsNativeActionCommandTransport:
                 deadline_tick=deadline_tick,
             )
 
+    def renew_lease(self) -> None:
+        """Renew this lease only while alive; never claim or revive an expired host."""
+        with self._lock, self._kernel.producer_lock(
+            self._producer_lock_name, self._host_lease_timeout_ms
+        ):
+            now = self._kernel.tick_count()
+            heartbeat = self._read_i64(_HOST_HEARTBEAT_TICK_OFFSET)
+            if heartbeat <= 0 or now < heartbeat or now - heartbeat > self._host_lease_timeout_ms:
+                raise NativeActionChannelBusy("native action host lease expired")
+            self._renew_host_lease()
+
     def close(self) -> None:
         with self._lock:
             if self._view is not None:

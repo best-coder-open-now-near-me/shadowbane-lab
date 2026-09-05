@@ -125,13 +125,17 @@ bool Controls::ContinueInput() noexcept {
     Inhibit(*reason); return false;
 }
 Result Controls::Configure(const Settings& settings) noexcept {
-    if (actuating_) { return Result::inhibited; }
+    if (actuating_ || shutdown_) { return Result::inhibited; }
     if (!ValidSettings(settings)) { return Result::invalid; }
-    Inhibit(StopReason::disabled);
+    if (grant_.owner != Owner::automation) { Inhibit(StopReason::disabled); }
+    else {
+        keyboard_armed_ = controller_armed_ = drag_armed_ = false;
+        drag_pending_ = drag_active_ = previous_drag_down_ = false;
+    }
     if (shutdown_pending_) { Shutdown(); return Result::inhibited; }
     settings_ = settings;
     faulted_ = camera_faulted_ = false;
-    available_ = false;
+    if (grant_.owner != Owner::automation) { available_ = false; }
     has_tick_ = false;
     return pending_stop_ ? Result::stop_failed : Result::accepted;
 }
@@ -180,6 +184,13 @@ Result Controls::AutomationDestination(const Grant& grant, GroundPoint point) no
     }
     return Result::accepted;
 }
+Result Controls::PauseAutomation(const Grant& grant) noexcept {
+    if (actuating_ || shutdown_pending_) { return Result::inhibited; }
+    if (grant != grant_ || grant.owner != Owner::automation) { return Result::stale; }
+    if (!StopActive(StopReason::release)) { return Result::stop_failed; }
+    if (!ContinueInput()) { return Result::inhibited; }
+    return Result::accepted;
+}
 Result Controls::Stop(const Grant& grant, StopReason reason) noexcept {
     if (actuating_) { return Result::inhibited; }
     if (grant != grant_) { return Result::stale; }
@@ -193,7 +204,7 @@ Result Controls::EmergencyStop(const Grant& grant, StopReason reason) noexcept {
 }
 void Controls::Shutdown() noexcept {
     if (actuating_) { shutdown_pending_ = true; return; }
-    shutdown_pending_ = false;
+    shutdown_pending_ = false; shutdown_ = true;
     settings_.enabled = false;
     Inhibit(StopReason::shutdown);
     (void)RetryStop();
@@ -215,6 +226,7 @@ void Controls::ObserveScene(std::uint64_t scene) noexcept {
 
 void Controls::Tick(const Input& input) noexcept {
     if (actuating_) { return; }
+    if (shutdown_) { (void)RetryStop(); return; }
     if (shutdown_pending_) { Shutdown(); return; }
     ObserveScene(input.scene);
     if (shutdown_pending_) { Shutdown(); return; }
@@ -224,9 +236,9 @@ void Controls::Tick(const Input& input) noexcept {
         : static_cast<float>(input.tick_ms - last_tick_) / 1000.0F;
     last_tick_ = input.tick_ms;
     has_tick_ = true;
-    available_ = settings_.enabled && !faulted_ && input.native_available && input.scene != 0;
+    available_ = !faulted_ && input.native_available && input.scene != 0;
     if (!available_ || !input.exact_foreground || input.ui_owns_input || discontinuity) {
-        Inhibit(!settings_.enabled ? StopReason::disabled : !input.native_available
+        Inhibit(!input.native_available
             ? StopReason::binding_failure : discontinuity ? StopReason::stalled
             : !input.exact_foreground ? StopReason::focus : StopReason::ui);
         if (input.native_available) { (void)RetryStop(); }
@@ -236,6 +248,11 @@ void Controls::Tick(const Input& input) noexcept {
     if (!ContinueInput()) { return; }
     if (!RetryStop()) { return; }
 
+    if (!settings_.enabled) {
+        keyboard_armed_ = controller_armed_ = drag_armed_ = false;
+        drag_pending_ = drag_active_ = previous_drag_down_ = false;
+        return;
+    }
     const bool all_keys_up = std::all_of(settings_.keys.begin(), settings_.keys.end(),
         [&](auto key) { return !input.keys[key]; });
     if (all_keys_up) { keyboard_armed_ = true; }

@@ -46,6 +46,7 @@ bool NativeStop::Bind(HWND window) noexcept {
     calls_.send = reinterpret_cast<decltype(calls_.send)>(base_ + 0x7f4da0);
     calls_.unproject = reinterpret_cast<decltype(calls_.unproject)>(base_ + 0x14ccf0);
     calls_.ray = reinterpret_cast<decltype(calls_.ray)>(base_ + 0x242d00);
+    calls_.terrain_height = reinterpret_cast<decltype(calls_.terrain_height)>(base_ + 0x205630);
     calls_.ray_cast = reinterpret_cast<decltype(calls_.ray_cast)>(base_ + 0x20daa0);
     calls_.ray_point = reinterpret_cast<decltype(calls_.ray_point)>(base_ + 0x242e10);
     calls_.release_parent = reinterpret_cast<decltype(calls_.release_parent)>(base_ + 0x8adc0);
@@ -138,6 +139,7 @@ bool NativeStop::PickGround(int x, int y, GroundPoint& output) noexcept {
     return result;
 }
 bool NativeStop::RunPick(int x, int y, GroundPoint& output) {
+    world_pick_ = false;
     RECT bounds{};
     if (!GetClientRect(window_, &bounds) || x < 0 || y < 0 || x >= bounds.right || y >= bounds.bottom) { return false; }
     Target target{}; target.grant = controls_.Current();
@@ -233,6 +235,41 @@ bool NativeStop::BasisGuarded(Vector2& forward, Vector2& right) noexcept {
     __try { return BasisCxxGuarded(forward, right); }
     __except(EXCEPTION_EXECUTE_HANDLER) { faulted_ = true; return false; }
 }
+bool NativeStop::MoveToWorld(const Grant& grant, GroundPoint point) noexcept {
+    if (stop_only_ || !Available() || !in_update_ || executing_ || GetCurrentThreadId() != thread_
+        || !controls_.Ready() || grant != controls_.Current() || grant.owner != Owner::automation
+        || !Finite(point) || point.x < 0 || point.x > 200000 || point.z > 0 || point.z < -200000) { return false; }
+    executing_ = true;
+    const bool picked = ClearPickGuarded() && WorldPickGuarded(grant, point);
+    executing_ = false;
+    return picked && MoveToPick(grant, pick_point_);
+}
+bool NativeStop::RunWorldPick(const Grant& grant, GroundPoint point) {
+    if (!Capture(grant) || !MovementCurrent(target_)) { return false; }
+    const Target target = target_; world_pick_ = true;
+    float offset = 0;
+    if (!calls_.terrain_height || !Read(base_ + 0x1141330, offset) || offset != 1000.0F) { return false; }
+    // Reviewed native map destination path queries its own terrain height, then
+    // casts downward from that height plus the native offset. Input Y is not a
+    // made-up plane or actor teleport; the real collision hit supplies ground.
+    point.y = calls_.terrain_height(reinterpret_cast<void*>(target.world), point.x, point.z) + offset;
+    if (!MovementCurrent(target) || !Finite(point)) { return false; }
+    const GroundPoint down{0, -1, 0}; ray_owned_ = true;
+    calls_.ray(&ray_, reinterpret_cast<void*>(target.actor), &point, &down, true);
+    if (!MovementCurrent(target) || ray_.actor != reinterpret_cast<void*>(target.actor)) { return false; }
+    if (!calls_.ray_cast(reinterpret_cast<void*>(target.world), &ray_) || !MovementCurrent(target)
+        || !std::isfinite(ray_.distance) || ray_.distance < 0) { return false; }
+    calls_.ray_point(&ray_, &pick_point_);
+    if (!MovementCurrent(target) || !Finite(pick_point_)) { return false; }
+    pick_target_ = target; pick_valid_ = true; return true;
+}
+bool NativeStop::WorldPickCxxGuarded(const Grant& grant, GroundPoint point) noexcept {
+    try { return RunWorldPick(grant, point); } catch (...) { faulted_ = true; return false; }
+}
+bool NativeStop::WorldPickGuarded(const Grant& grant, GroundPoint point) noexcept {
+    __try { return WorldPickCxxGuarded(grant, point); }
+    __except(EXCEPTION_EXECUTE_HANDLER) { faulted_ = true; return false; }
+}
 bool NativeStop::MoveToPick(const Grant& grant, GroundPoint point) noexcept {
     if (stop_only_ || !Available() || !in_update_ || executing_ || !controls_.Ready() || GetCurrentThreadId() != thread_
         || !pick_valid_ || !ray_owned_ || !Finite(point) || point.x != pick_point_.x || point.y != pick_point_.y
@@ -252,7 +289,7 @@ bool NativeStop::RunPickMove(const Target& target) {
     std::uintptr_t marker = 0, connection = 0;
     if (!MovementCurrent(target) || !Read(target.window + 0x120, marker) || !marker
         || !Read(base_ + 0x16ab88c, connection) || !connection) { return false; }
-    if (drag_submitted_) {
+    if (drag_submitted_ && pick_point_.x == drag_point_.x && pick_point_.y == drag_point_.y && pick_point_.z == drag_point_.z) {
         std::uintptr_t request = 0, state_object = 0; std::uint32_t request_state = 1, state = 0;
         if (!Read(base_ + 0x16a1c00, request) || (request && !Read(request, request_state))) { return false; }
         // Keep only the latest pointer pick while the native solver owns its
@@ -284,9 +321,10 @@ bool NativeStop::RunPickMove(const Target& target) {
                 void* parent = calls_.parent(held_marker_);
                 if (MovementCurrent(target)) {
                     ground_owned_ = true;
-                    calls_.ground_with_refs(&ground_, pick_point_, held_marker_, parent);
+                    if (world_pick_) { calls_.ground_target(&ground_, pick_point_); }
+                    else { calls_.ground_with_refs(&ground_, pick_point_, held_marker_, parent); }
                     if (MovementCurrent(target)) {
-                        calls_.move(held_actor_, &message_, &ground_, true, true, false, nullptr, false);
+                        calls_.move(held_actor_, &message_, &ground_, true, true, false, nullptr, world_pick_);
                         completed = MovementCurrent(target);
                         drag_deferred_ = !message_;
                     }
