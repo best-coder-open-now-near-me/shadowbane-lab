@@ -437,11 +437,13 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
             && performance_profile
                 != wonderbane::extension::PerformanceTelemetryProfile::disabled
         ) {
-            result = wonderbane::extension::StartPerformanceTelemetry(
+            // Instrumentation owns its failure rollback. An unavailable optional
+            // mapping/import must not tear down a working client renderer.
+            const DWORD telemetry_result = wonderbane::extension::StartPerformanceTelemetry(
                 identity,
                 performance_profile
             );
-            performance_telemetry_started = result == ERROR_SUCCESS;
+            performance_telemetry_started = telemetry_result == ERROR_SUCCESS;
         }
         if (result == ERROR_SUCCESS) {
             result = WriteHeartbeat(identity);
