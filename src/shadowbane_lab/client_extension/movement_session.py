@@ -5,6 +5,7 @@ from __future__ import annotations
 import ctypes
 import itertools
 import sys
+import threading
 from dataclasses import dataclass
 
 from . import action_channel as channel
@@ -92,28 +93,30 @@ class NativeMovementSession:
         self._revoked: set[NativeMovementGrant] = set()
         self._stops: dict[NativeMovementGrant, str] = {}
         self._closed = False
+        self._session_lock = threading.RLock()
 
     def snapshot(self) -> Snapshot:
         return read_snapshot(self.identity, self.window)
 
     def _host(self, *, acquire: bool) -> Host:
-        if self._closed:
-            raise channel.NativeActionChannelUnavailable("movement session is closed")
-        if self._transport is None:
-            if not acquire:
-                raise channel.NativeActionChannelUnavailable(
-                    "session does not own an automation lease"
-                )
-            self._transport = channel.WindowsNativeActionCommandTransport(self.identity)
-        transport = self._transport
-        if transport is None or self._closed:
-            raise channel.NativeActionChannelUnavailable("movement session is closed")
-        identity = transport.host_process_identity
-        return Host(
-            identity.process_id,
-            transport.host_lease_generation,
-            identity.creation_filetime_utc,
-        )
+        with self._session_lock:
+            if self._closed:
+                raise channel.NativeActionChannelUnavailable("movement session is closed")
+            if self._transport is None:
+                if not acquire:
+                    raise channel.NativeActionChannelUnavailable(
+                        "session does not own an automation lease"
+                    )
+                self._transport = channel.WindowsNativeActionCommandTransport(self.identity)
+            transport = self._transport
+            if transport is None or self._closed:
+                raise channel.NativeActionChannelUnavailable("movement session is closed")
+            identity = transport.host_process_identity
+            return Host(
+                identity.process_id,
+                transport.host_lease_generation,
+                identity.creation_filetime_utc,
+            )
 
     def _expected(self, snapshot: Snapshot) -> None:
         if (
@@ -251,7 +254,8 @@ class NativeMovementSession:
         )
 
     def close(self) -> None:
-        self._closed = True
-        if self._transport is not None:
-            self._transport.close()
-            self._transport = None
+        with self._session_lock:
+            self._closed = True
+            if self._transport is not None:
+                self._transport.close()
+                self._transport = None

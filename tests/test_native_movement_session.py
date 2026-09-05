@@ -115,3 +115,38 @@ def test_snapshot_mixed_schema_and_odd_publication_never_claim_lease():
         assert memory[:128] == header
     finally:
         memory.close()
+
+
+def test_close_serializes_with_initial_lease_open(monkeypatch):
+    import threading
+
+    entered, release, closed = threading.Event(), threading.Event(), threading.Event()
+
+    class OpeningTransport:
+        def __init__(self, identity):
+            entered.set()
+            assert release.wait(2)
+            self.host_process_identity = identity
+            self.host_lease_generation = 1
+
+        def close(self):
+            closed.set()
+
+    monkeypatch.setattr(channel, "WindowsNativeActionCommandTransport", OpeningTransport)
+    session = NativeMovementSession(channel.NativeClientProcessIdentity(123, 456), 789)
+    opening = threading.Thread(target=lambda: session._host(acquire=True))
+    closing = threading.Thread(target=session.close)
+    opening.start()
+    try:
+        assert entered.wait(2)
+        closing.start()
+        assert not closed.wait(0.05)
+    finally:
+        release.set()
+        opening.join(2)
+        if closing.ident is not None:
+            closing.join(2)
+    assert not opening.is_alive() and not closing.is_alive()
+    assert closed.is_set() and session._transport is None
+    with pytest.raises(channel.NativeActionChannelUnavailable):
+        session._host(acquire=True)

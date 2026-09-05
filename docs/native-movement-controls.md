@@ -26,7 +26,7 @@ left/right perpendicular to it. Opposing keys cancel; diagonal movement is
 normalized. Four distinct single keys can be remapped in the panel. The settings
 chord is reserved. Text/chat and modal ownership inhibit movement.
 
-Controller slots 1–4 map explicitly to XInput indices 0–3. Devices must expose
+Controller slots 1â€“4 map explicitly to XInput indices 0â€“3. Devices must expose
 XInput gamepad axes; unsupported device types and missing XInput are unavailable.
 There is no automatic first-connected selection or DirectInput emulation. The
 left stick controls movement direction; the right stick controls the native camera.
