@@ -76,6 +76,8 @@ struct Input {
 // Implemented only by the verified native adapter. Every method runs synchronously
 // on the owning client thread. No callback may enqueue an untagged delayed write.
 // Stop must cancel native pending movement, not merely stop supplying destinations.
+// A takeover stop also retires native click/combat-follow intent even if no move
+// has been recorded here. It must not restore that intent on manual release.
 // SceneRetired must discard work for that scene without touching its replacement.
 class NativeActuator {
 public:

@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <cstring>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
@@ -58,6 +59,7 @@ using Identity = std::array<std::uint32_t, 2>;
 using Find = Node** (__thiscall*)(void*, Node**, const Identity*);
 using CopyIdentity = Identity* (__thiscall*)(Identity*, const Identity*);
 using DestroyIdentity = void (__thiscall*)(Identity*);
+using ClearContinuation = void (__thiscall*)(void*);
 struct Map { Node* sentinel; std::uint32_t size; };
 struct ExecutableCode {
     void* memory = nullptr;
@@ -145,6 +147,7 @@ int RunProbe(int argc, wchar_t** argv) {
             "unsupported executable");
         struct Segment { std::size_t offset; std::size_t size; const char* sha256; };
         constexpr std::array segments{
+            Segment{0x63a30,24,"a786e52b8f763cb0e705244fa2e34c1b0db4e27a8234c762e6e6795b75107604"},
             Segment{0x8edd0,1001,"647324142ed2d678037248e82d948a9666f084962476a5f5cb866c008723fffa"},
             Segment{0x21b7b0,93,"6e9518982122e7fd858e307e98f652372ef5c9efb4960317349aea232b97e62a"},
             Segment{0x12a3f,5,"22f1ce707ccfeb03ab5559276494c7045f1804b9820eabeec33d00f6b5832b79"},
@@ -178,6 +181,40 @@ int RunProbe(int argc, wchar_t** argv) {
         const auto find = reinterpret_cast<Find>(arena + 0x21b7b0);
         const auto copy = reinterpret_cast<CopyIdentity>(arena + 0x1117b0);
         const auto destroy = reinterpret_cast<DestroyIdentity>(arena + 0x1119d0);
+        // Execute the native empty-path continuation helper against complete byte
+        // snapshots, including restricted/incapacitated state values. It must not
+        // force idle, change follow preferences, dereference path data or touch state.
+        const auto clear_continuation = reinterpret_cast<ClearContinuation>(arena + 0x63a30);
+        unsigned continuation_cases = 0;
+        for (std::uint32_t state = 0; state < 16; ++state) {
+            for (const std::uint32_t path_case : {0U, 1U, 2U}) {
+                for (const auto continuation : std::array<unsigned char, 3>{0, 1, 0xa5}) {
+                    std::array<unsigned char, 0xc20> actor;
+                    std::array<unsigned char, 0x30> state_object;
+                    actor.fill(0xa5); state_object.fill(0x5a);
+                    std::memcpy(state_object.data() + 0x10, &state, sizeof(state));
+                    const auto state_address = reinterpret_cast<std::uintptr_t>(state_object.data());
+                    std::memcpy(actor.data() + 0xad0, &state_address, sizeof(state_address));
+                    const std::uint32_t begin = path_case == 0 ? 0 : 0x1000;
+                    const std::uint32_t end = path_case == 2 ? begin + 16 : begin;
+                    std::memcpy(actor.data() + 0xc10, &begin, sizeof(begin));
+                    std::memcpy(actor.data() + 0xc14, &end, sizeof(end));
+                    actor[0xc1e] = continuation;
+                    auto expected = actor;
+                    const auto expected_state = state_object;
+                    if (begin == end) { expected[0xc1e] = 0; }
+                    clear_continuation(actor.data());
+                    Require(actor == expected && state_object == expected_state,
+                        "native continuation clear changed unrelated actor/state or nonempty path");
+                    clear_continuation(actor.data());
+                    Require(actor == expected && state_object == expected_state,
+                        "native continuation clear is not idempotent");
+                    ++continuation_cases;
+                }
+            }
+        }
+        std::printf("PASS: %u native continuation cases; complete actor/state preservation and idempotence\n",
+            continuation_cases);
         std::mt19937 random(0x53424d56);
         std::uint64_t removals = 0;
         for (unsigned height = 1; height <= 8; ++height) {

@@ -77,7 +77,9 @@ bool Controls::RetryStop() noexcept {
 }
 bool Controls::StopActive(StopReason reason) noexcept {
     if (!RetryStop()) { return false; }
-    if (!moving_) { return true; }
+    // Native click/follow intent may exist before this controller has submitted
+    // a move. Admission must retire it before publishing a replacement owner.
+    if (!moving_ && reason != StopReason::takeover) { return true; }
     moving_ = false;
     if (actuator_.Stop(grant_, reason)) { return true; }
     pending_grant_ = grant_;

@@ -89,7 +89,7 @@ void Interpretation() {
     Check(f.actuator.events.back().kind == 's', "invalid camera basis cannot move");
 }
 void Ownership() {
-    Fixture f; const auto old = f.Automate();
+    Fixture f; const auto old = f.Automate(); f.actuator.events.clear();
     f.input.left_stick = {0.01F, 0.01F}; f.input.right_stick = {1, 0}; f.Step();
     Check(f.controls.Current() == old, "camera and dead-zone noise retain route");
     Check(f.actuator.Count('s') == 0, "camera does not stop route");
@@ -110,7 +110,8 @@ void Ownership() {
     Check(f.controls.Current() == next, "new route retains ownership");
 }
 void CameraFailure() {
-    Fixture f; const auto route = f.Automate(); f.actuator.camera_ok = false;
+    Fixture f; const auto route = f.Automate(); f.actuator.events.clear();
+    f.actuator.camera_ok = false;
     f.input.right_stick = {1, 0}; f.Step();
     Check(f.controls.Current() == route && f.actuator.Count('s') == 0,
           "camera failure cannot revoke movement ownership");
@@ -187,9 +188,48 @@ void FailureAndScene() {
     Check(f.controls.Stop(old) == Result::stale, "retired scene stop stays stale");
     Fixture partial; partial.actuator.move_ok = false;
     partial.input.keys[0x57] = true; partial.Step();
-    Check(partial.actuator.Count('s') == 1 && !partial.controls.Ready(), "partial native failure stopped");
+    Check(partial.actuator.Count('s') == 2 && !partial.controls.Ready(), "partial native failure stopped");
     partial.input.keys[0x57] = false; partial.Step(); partial.input.keys[0x57] = true; partial.Step();
     Check(partial.actuator.Count('d') == 1, "binding failure latched until explicit configure");
+}
+// Policy-contract regression: force the adapter stop even without a tracked move.
+// Actual native follow retirement must still be verified in the adapter.
+void NativeIntentTakeover() {
+    for (const int method : {0, 1, 2}) {
+        Fixture f;
+        const auto native_owner = f.controls.Current();
+        // Neither a camera gesture nor a sub-threshold click may retire native follow.
+        f.input.right_stick = {1, 0}; f.Step();
+        f.input.keys[5] = true; f.Step();
+        Check(f.actuator.Count('s') == 0 && f.controls.Current() == native_owner,
+              "camera and ordinary click preserve untracked native intent");
+        if (method == 0) { f.input.keys[0x57] = true; }
+        if (method == 1) { f.input.left_stick = {1, 0}; }
+        if (method == 2) { f.input.pointer_x = 7; }
+        f.Step();
+        const auto& events = f.actuator.events;
+        std::size_t stop = events.size(), move = events.size();
+        for (std::size_t i = 0; i < events.size(); ++i) {
+            if (events[i].kind == 's') { stop = i; }
+            if (events[i].kind == 'd' || events[i].kind == 'p') { move = i; }
+        }
+        Check(stop < move && events[stop].grant == native_owner,
+              "all manual methods retire untracked native intent before moving");
+        const auto manual = f.controls.Current();
+        f.input.keys.fill(false); f.input.left_stick = {}; f.input.right_stick = {}; f.Step();
+        const auto after_release = f.actuator.events.size(); f.Step();
+        Check(f.controls.Current() == manual && f.actuator.events.size() == after_release,
+              "manual release and later update cannot reacquire retired intent");
+        Check(f.controls.Stop(native_owner) == Result::stale,
+              "untracked old owner stop cannot reach replacement actor");
+    }
+    Fixture blocked; blocked.actuator.stop_ok = false;
+    blocked.input.keys[0x57] = true; blocked.Step();
+    Check(blocked.actuator.Count('s') == 1 && blocked.actuator.Count('d') == 0
+          && !blocked.controls.Ready(), "failed untracked-intent stop excludes manual writer");
+    blocked.actuator.stop_ok = true; blocked.Step();
+    Check(blocked.controls.Ready() && blocked.actuator.Count('d') == 1,
+          "retained exact stop completes before manual submission");
 }
 void FrameRatesAndSettings() {
     for (const int hz : {20, 30, 60, 144, 240}) {
@@ -214,6 +254,6 @@ void FrameRatesAndSettings() {
 }
 }
 int main() {
-    Interpretation(); Ownership(); CameraFailure(); Gates(); Devices(); Drag(); FailureAndScene(); FrameRatesAndSettings();
+    Interpretation(); Ownership(); CameraFailure(); Gates(); Devices(); Drag(); FailureAndScene(); NativeIntentTakeover(); FrameRatesAndSettings();
     return failures ? 1 : 0;
 }
