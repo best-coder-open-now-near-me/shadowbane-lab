@@ -601,3 +601,26 @@ native lifecycle evidence for Input.scene; changed identity tuples or observed
 invalid intervals alone do not prove an unobserved ABA transition impossible.
 Next remains input/UI consumer plus settings/grant transport, with that lifetime
 contract explicit. Rendering transparency and final package gates remain open.
+
+
+Native destruction observer `245e605eddf759d96e87a4dacf679dc7e61003a3` is merged
+at `79aa4a0578e0dec2cc0ab2c3ad5ca0b2f4f011ad`; builder membership alignment is
+`d94c705132d85f0bc5a27a5650f07207870e1e89`. Both complete DLL profiles build;
+each executes 22 targeted movement/lifetime/startup/publisher tests successfully,
+zero skips. Actual builder membership statements pass against both generated
+projects, requiring exactly one movement_lifetime.cpp and excluding the probe.
+Builder Ruff and diff checks pass. Evidence:
+`artifacts/hardening-evidence/lifetime-native-{full,diagnostics}.xml` and build logs.
+The observer records destruction before original finalizer/free call-through,
+retains process-pinned callback records and preserves foreign slots on retirement.
+Production backend admission now consumes observed NativeScene epochs rather
+than a render-frame counter. No runtime controls consumer is activated.
+
+Integration follow-ups remain open: NativeMovementLifetimeCurrent must reject
+lost hook integrity during an already admitted update, without waiting for the
+next Observe; first/replacement watch publication must not miss destruction
+between capture/registration and arming. The movement owner was asked to reproduce
+these gaps with production-path barriers or establish a verified native thread
+constraint, rather than infer coverage from held already-watched callbacks.
+Next is those focused lifetime corrections and complete input/UI/settings/grant
+consumer wiring. Rendering transparency and final package acceptance remain open.
