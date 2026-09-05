@@ -127,7 +127,46 @@ After owner reconciliation and a successful combined-source package run:
 7. With the diagnostics-only package, the tab must report unavailable and no
    effects may appear.
 
-Remaining todos: finish exact feature package receipt; reconcile actual shared
+Remaining todos: reconcile actual shared
 changes with the named lifecycle owner; verify the combined source/package;
 perform one coordinated connected acceptance covering the live questions above.
 No connected-client behavior or performance has been certified by offline tests.
+
+## Verified feature candidate
+
+Draft PR: https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/28
+
+Exact tested/packaged source: `e1add65b4368a3eb1c5a10c1ccd70f23521c4130`.
+The subsequent receipt update is documentation only. The feature is outside
+both the navigation branch and main pending integration-owner reconciliation.
+
+Local package: `E:/Projects/shadowbane/artifacts/particles-packages/80cb5bc6/navigation-inspector-acceptance.zip`.
+It retains the existing package builder's filename and contains the effects
+handoff, both native profiles, wheel/sdist, archived source and validation logs.
+Package SHA-256: `7913caa2742224cac20bff74f27fd578efcd9c3bb7a64cd954300b37b3845d25`.
+Full DLL: `fe09b412634010f52943447450b5283a7f6d44a993fb10ac062f8508c63b2fef`.
+Diagnostics-only DLL: `2b50db4d63dc24469c846c371f676e25659a053b23f41a21765ba43a7599a658`.
+Wheel: `267417504f7af59fea6a96e92cc277cedd2f72e2d1f5200d509d5525e67ce03e`.
+The adjacent `receipt.json` records all component hashes and executed commands.
+
+The exact-source pipeline passed 1,689 Python tests and 223 subtests, with eight
+skips. A focused skip audit found seven unavailable symlink-permission cases and
+one Tk display condition. Both separate installed-panel smoke tests passed,
+including the actual Graphics Lab Effects tab. Ruff passed. Both Win32 Release
+profiles passed all 20 native tests. Source membership checks confirm effects are
+excluded from the diagnostics-only runtime DLL. CI Python 3.11/3.12/3.13, lint and
+PowerShell checks passed at the receipt audit; remote native jobs were still
+running (local native checks passed).
+
+Retained local evidence: final package directory `80cb5bc6`, earlier superseded
+package `5d2991b4` (source `5957bf9`), and development builds
+`E:/Projects/shadowbane/build/particles-full` and `particles-diagnostics`.
+These generated artifacts are ignored and were not pushed with source. The
+feature worktree remains retained for the combined-candidate verification.
+No other checkout was edited; the normal shared checkout remains clean on main.
+
+Completion remains blocked on identifying the assigned lifecycle owner's task
+and receiving that owner's combined source/package SHA. Peer coordination with
+the selected-character feature has shared the renderer guard and resolver; it
+does not substitute for the owner's combined candidate. No manual acceptance is
+requested until that candidate is verified.
