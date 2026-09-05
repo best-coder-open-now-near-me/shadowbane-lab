@@ -87,7 +87,7 @@ bool NativeStop::CancelQueued(const Target& target) {
     }
     Node* found = nullptr;
     calls_.find(map, &found, &target.identity);
-    if (!Current(target) || !found) { return false; }
+    if (!RequestCurrent(target) || !found) { return false; }
     if (found != snapshot.sentinel) {
         Identity identity{};
         if (!snapshot.size || !Read(reinterpret_cast<std::uintptr_t>(found) + 16, identity)
@@ -100,7 +100,7 @@ bool NativeStop::CancelQueued(const Target& target) {
         // InterlockedExchange/Sleep only. No new command is admitted in this group.
         calls_.destroy_identity(&removed->identity);
         calls_.pool_return(removed, sizeof(Node));
-        if (!Current(target)) { return false; }
+        if (!RequestCurrent(target)) { return false; }
         --map->size;
     }
     if (!RequestCurrent(target)) { return false; }
@@ -128,7 +128,7 @@ bool NativeStop::CancelQueued(const Target& target) {
     if (!RequestCurrent(target)) { return false; }
     calls_.clear_continuation(reinterpret_cast<void*>(target.actor));
     Vector after{};
-    if (!Current(target) || !Read(target.actor + 0xc10, after) || after.begin != after.end
+    if (!RequestCurrent(target) || !Read(target.actor + 0xc10, after) || after.begin != after.end
         || after.capacity != path.capacity || !Write(target.actor + 0xc1c, std::uint16_t{0})) { return false; }
     // Native callback side effects must not turn a partial cancellation into a
     // successful stop. Both maps share the verified two-word identity/tree layout;
@@ -138,7 +138,7 @@ bool NativeStop::CancelQueued(const Target& target) {
         if (!Read(target.world + offset, remaining) || !remaining.sentinel) { return false; }
         Node* item = nullptr;
         calls_.find(reinterpret_cast<void*>(target.world + offset), &item, &target.identity);
-        if (!Current(target) || item != remaining.sentinel) { return false; }
+        if (!RequestCurrent(target) || item != remaining.sentinel) { return false; }
     }
     std::uintptr_t latest = 0;
     if (!RequestCurrent(target) || !Read(base_ + 0x16a1c00, latest)
@@ -156,29 +156,30 @@ void NativeStop::ReleaseMessage() {
     release(reference, &reference);
 }
 bool NativeStop::Run(const Target& target) {
+    if (!RequestCurrent(target)) { return false; }
     calls_.retain(&held_actor_, reinterpret_cast<void*>(target.actor));
     bool completed = false;
-    if (held_actor_ == reinterpret_cast<void*>(target.actor) && Current(target) && CancelQueued(target)) {
+    if (held_actor_ == reinterpret_cast<void*>(target.actor) && RequestCurrent(target) && CancelQueued(target)) {
         GroundPoint position{};
         calls_.position(held_actor_, &position);
-        if (Current(target) && Finite(position)) {
+        if (RequestCurrent(target) && Finite(position)) {
             calls_.destination(held_actor_, &position);
-            if (Current(target)) {
+            if (RequestCurrent(target)) {
                 calls_.clear_waypoint(reinterpret_cast<void*>(target.window), 0, 0);
                 std::uintptr_t state_object = 0; std::uint32_t original_state = 0;
-                if (Current(target) && Read(target.actor + 0xad0, state_object)
+                if (RequestCurrent(target) && Read(target.actor + 0xad0, state_object)
                     && Read(state_object + 0x10, original_state)) {
                     // Only native moving state transitions to idle. In particular,
                     // do not overwrite incapacitated/dead/seated/other states.
                     if (original_state == 7) { calls_.state(held_actor_, &message_, true, 5, true); }
                     std::uint32_t resulting_state = 0;
-                    completed = Current(target) && Read(state_object + 0x10, resulting_state)
+                    completed = RequestCurrent(target) && Read(state_object + 0x10, resulting_state)
                         && resulting_state == (original_state == 7 ? 5U : original_state)
                         && (original_state != 7 || (message_ && message_ != reinterpret_cast<void*>(~std::uintptr_t{0})));
                     // State/animation notification can invoke native callbacks.
                     // Retire resulting old movement work before publishing idle.
                     if (completed) {
-                        completed = CancelQueued(target) && Current(target)
+                        completed = CancelQueued(target) && RequestCurrent(target)
                             && Read(target.actor + 0xad0, state_object)
                             && Read(state_object + 0x10, resulting_state)
                             && resulting_state == (original_state == 7 ? 5U : original_state);
