@@ -67,6 +67,7 @@ struct Fixture {
     struct Packet { const std::uintptr_t* table; int references; } packet{packet_table.data(), 0};
     Input input{};
     int retains = 0, releases = 0, clears = 0, pools = 0, sends = 0, state_calls = 0, moves = 0, follow_moves = 0;
+    int position_calls = 0, destination_calls = 0, waypoint_calls = 0;
     int callback_mode = 0;
     Result nested = Result::accepted;
     bool missing_message = false, raise_fault = false;
@@ -139,7 +140,13 @@ void NativeStopTestAccess::Bind(NativeStop& stop, void* base, HWND window) {
     c.clear_waypoint = reinterpret_cast<decltype(c.clear_waypoint)>(&Waypoint);
     c.state = reinterpret_cast<decltype(c.state)>(&State); c.send = reinterpret_cast<decltype(c.send)>(&Send);
 }
-void** __fastcall NativeStopTestAccess::Retain(void** output, void*, void* actor) { ++current->retains; *output = actor; return output; }
+void** __fastcall NativeStopTestAccess::Retain(void** output, void*, void* actor) {
+    ++current->retains; *output = actor;
+    if (current->callback_mode == 13) {
+        Put(current->base, 0x16a1c00, reinterpret_cast<std::uintptr_t>(&current->alternate_request));
+    }
+    return output;
+}
 void __fastcall NativeStopTestAccess::Release(void** output, void*) { ++current->releases; *output = nullptr; }
 void __fastcall NativeStopTestAccess::Clear(void*, void*, const NativeStop::Identity*) {
     ++current->clears;
@@ -172,16 +179,34 @@ void* __fastcall NativeStopTestAccess::Erase(void* receiver, void*, void* first,
     return first;
 }
 void __fastcall NativeStopTestAccess::Continuation(void* receiver, void*) { Put(receiver, 0xc1e, std::uint8_t{0}); }
-GroundPoint* __fastcall NativeStopTestAccess::Position(void*, void*, GroundPoint* output) { *output = {100, 0, 200}; return output; }
-void __fastcall NativeStopTestAccess::Destination(void*, void*, const GroundPoint* position) { current->destination = *position; }
-void __fastcall NativeStopTestAccess::Waypoint(void*, void*, std::uint32_t a, std::uint32_t b) { Check(!a && !b, "native waypoint cleared"); }
+GroundPoint* __fastcall NativeStopTestAccess::Position(void*, void*, GroundPoint* output) {
+    ++current->position_calls; *output = {100, 0, 200};
+    if (current->callback_mode == 9) {
+        Put(current->base, 0x16a1c00, reinterpret_cast<std::uintptr_t>(&current->alternate_request));
+    }
+    return output;
+}
+void __fastcall NativeStopTestAccess::Destination(void*, void*, const GroundPoint* position) {
+    ++current->destination_calls; current->destination = *position;
+    if (current->callback_mode == 10) {
+        Put(current->base, 0x16a1c00, reinterpret_cast<std::uintptr_t>(&current->alternate_request));
+    }
+}
+void __fastcall NativeStopTestAccess::Waypoint(void*, void*, std::uint32_t a, std::uint32_t b) {
+    ++current->waypoint_calls; Check(!a && !b, "native waypoint cleared");
+    if (current->callback_mode == 11) {
+        Put(current->base, 0x16a1c00, reinterpret_cast<std::uintptr_t>(&current->alternate_request));
+    }
+}
 void** __fastcall NativeStopTestAccess::State(void*, void*, void** output, bool update, std::uint32_t value, bool build) {
     auto& f = *current; ++f.state_calls;
     Check(update && build && value == 5 && Get<std::uint32_t>(f.state.data(), 0x10) == 7,
         "idle packet built on native moving-state transition");
     Put(f.state.data(), 0x10, value);
     f.packet.references = f.missing_message ? 0 : 1; *output = f.missing_message ? nullptr : &f.packet;
-    if (f.callback_mode == 1) {
+    if (f.callback_mode == 12) {
+        Put(f.base, 0x16a1c00, reinterpret_cast<std::uintptr_t>(&f.alternate_request));
+    } else if (f.callback_mode == 1) {
         Token token{}; std::memcpy(token.worker.data(), "worker", 6); std::memcpy(token.operation.data(), "reentrant", 9);
         Grant grant{};
         f.nested = f.controls.AcquireAutomation(f.controls.Current().generation, token, grant);
@@ -281,6 +306,21 @@ void StatesAndFailures() {
           "native exception retains ambiguous actor ownership and blocks new writer"); }
 }
 void ReentryAndScene() {
+    // Boundary fault injection also covers sealed retain/position helpers; this
+    // does not claim those reviewed native routines invoke gameplay callbacks.
+    for (const int mode : {9, 10, 11, 12, 13}) {
+        Fixture f; f.callback_mode = mode; f.input.keys[0x57] = true; f.Step();
+        Check(f.alternate_request.state == 0 && f.alternate_request.usable == 1
+            && f.sends == 0 && f.moves == 0 && f.retains == f.releases && f.packet.references == 0,
+            "replaced request is untouched and old stop references are released");
+        Check(f.position_calls == (mode == 13 ? 0 : 1)
+            && f.destination_calls == (mode >= 10 && mode <= 12 ? 1 : 0)
+            && f.waypoint_calls == (mode == 11 || mode == 12 ? 1 : 0)
+            && f.state_calls == (mode == 12 ? 1 : 0)
+            && f.clears == (mode == 13 ? 0 : 1),
+            "request replacement prevents every subsequent destination/UI/state mutation");
+        Check(!f.stop.Available() && !f.controls.Ready(), "request invalidation excludes a replacement writer");
+    }
     for (const int mode : {5, 6}) {
         Fixture f; f.callback_mode = mode; f.input.keys[0x57] = true; f.Step();
         Check(f.alternate_request.state == 0 && f.alternate_request.usable == 1

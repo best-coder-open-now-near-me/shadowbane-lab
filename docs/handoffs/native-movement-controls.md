@@ -271,3 +271,12 @@ boundaries from sealed container/pool operations. Both profiles build and pass t
 focused production-composition regressions, including absent requests and repeated
 manual stops with different request objects. Runtime adapters and activation remain
 the active todo; no connected acceptance or package change is claimed.
+
+The remaining post-call guard gap is closed: stop now uses the captured-request
+check consistently before subsequent destination, waypoint and state mutations.
+New production-composition regressions first reproduced all three gaps, then passed
+in both profiles after correction. They assert exact mutation counts, unchanged
+replacement requests, balanced old references and no new movement/send. Retain and
+position boundary fault injection is defensive coverage, not a claim that their
+sealed native implementations call gameplay callbacks. Both DLL profiles build;
+runtime adapters and activation remain the next active work.
