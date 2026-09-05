@@ -1275,3 +1275,33 @@ artifacts/hardening-evidence. Guest launch-identity.json is in the diagnostic ru
 parent. No patcher, automation operation, saved setting or global environment change.
 Next: owner login and unobstructed selected-character ready cue; then exactly one
 foreground-obstructed comparison capture. No trace has yet been requested.
+
+### Paired owner-cued diagnostic observations captured
+
+Owner cued readiness for unobstructed selection, then for native translucent
+foreground with the same selection. Requested exactly one trace at each cue.
+Both match PID2916/creation134331032163429508, verified diagnostic f9c6f7a runtime.
+Sequence1 retained 1631 of 1632 submissions; sequence2 retained 1830 of 1831.
+Both reviewed intervals complete, main-clear/done3d seen, no extra depth clear or
+context/thread mismatch, and zero capacity/query-budget skips. Both report
+unsafe_query_skipped=1 and omitted_units=4. Their captured_with_limits outcome
+is retained, including nonzero guest command outcomes; no retry or completeness
+claim. Observer query costs 5.5261/4.4848 ms are not combined frame-time benchmarks.
+
+Private raw evidence under artifacts/hardening-evidence:
+- diagnostic-unobstructed-trace.json SHA256
+  ee62f5fc9694420235f92b8cd9eaef96ba61b22c1d58b4a4dd62db472d4dbb7c.
+- diagnostic-foreground-trace.json SHA256
+  87c4a9f58f8659c998a1d36789f716e6ba216dc0f97fb7f3af8cca15842949b8.
+- Corresponding *-capture.json summaries and *-screen.png screenshots. Screenshots
+  were taken after their traces at 17:37:39.7091456Z and 17:39:52.0716985Z; they
+  are scene context, not exact-frame pixel correlation. Image preview was unavailable
+  in the integrator tool; do not claim independent visual verification of the setup.
+
+Raw frames contain the intended transmission_state and quad_support observations;
+feature owners received both local paths/hashes for bounded material-family analysis.
+No private traces, screenshots or client artifacts were staged into Git. No further
+owner scene run requested. Next: owner findings and production transparency repair
+on the existing branches, reconciled through this integration branch. Required
+transparency gates remain open. Diagnostic client remains open for normal closure;
+no settings, automation or unrelated process changes were made during collection.
