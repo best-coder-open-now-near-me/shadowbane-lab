@@ -22,6 +22,8 @@ from math import isfinite
 from pathlib import Path
 from typing import Protocol
 
+from shadowbane_lab.record_store import exclusive_record_lock, publish_atomic_record
+
 from .manifest import ManagerManifest
 from .model import ClientInstanceSnapshot, ClientRegistrySnapshot
 from .operation import (
@@ -32,7 +34,6 @@ from .operation import (
     WorkerOperationReceipt,
     WorkerOperationState,
 )
-from .record_store import exclusive_record_lock, publish_atomic_record
 from .registry import derive_client_instance_id
 from .supervisor import ProcessLifetimeInspector, ProcessLifetimeSnapshot
 from .worker import (

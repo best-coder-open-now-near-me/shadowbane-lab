@@ -11,8 +11,9 @@ Lifecycle contract: admitted callbacks retain their resources and original call-
 Reuse particles scene_draw state guard and effects_attachment observations; selected cue retains its separate verified rendered-object ownership. Proposed ordering: scene composite, selected cue, particles, navigation, UI. Feature owners retain complete feature delivery and can continue independently.
 
 Todos:
-- [ ] Active: native teardown and manager dispatch/renewal isolation with regression tests.
-- [ ] Worker/process ownership and transactional durable stores.
+- [x] Native telemetry/publisher teardown and manager dispatch/renewal isolation checkpoints.
+- [ ] Remaining native scene/rollback integration with feature lifecycle repairs.
+- [ ] Active: remaining worker/process recovery and transactional durable stores.
 - [ ] Simulator correlation transaction and public planner correctness/performance.
 - [ ] Reconcile both feature heads and shared integration.
 - [ ] Combined gates, exact clean source package and installed controls verification.
@@ -37,3 +38,11 @@ Worker controller reserves a launch in a durable node-local file under the exist
 Validation: 234 manager/ownership/CLI tests plus 155 subtests passed. Includes two independent controller processes racing to launch one real child with no heartbeat, pre-heartbeat exact stop request, unverified attachment retention, blocked launch across application/session/supervisor/live configuration, stale-running worker, close/publish race, and terminal-history reload. Remaining: review reservation crash/recovery surface, exact launcher/panel cleanup, operation store transitions and broader combined gates. No package identity is issued for this intermediate checkpoint.
 
 Next active todo: integrate available shared feature dependencies, then transactional navigation persistence and simulator/planner findings while cue material coverage continues with its owner.
+
+## Shared renderer and durable map checkpoints
+
+Merged particles `21e884b1c220ff072e15e83c0bd87166d1d9a012` and cue `782aead36e0a010a0f57c7aa864e90c427f974c0` at combined `50ad9e1dd83a67de3bc814a098dc4230b0393299`. Cue material coverage and resource teardown remain with its owner; inclusion is not feature acceptance. Renderer checkpoint `8961fad07ff00c40b511f5b8f9562669069aad39` supplies one recursive callback admission/exclusive lifecycle boundary and retains restored original call-through. Full native CTest: 23 passed, binding test skipped without arguments; explicit private-client binding verification passed separately. Both installed feature smoke paths now suppress client discovery.
+
+Sky and native movement owners start at published `0c807ee774859cc3f17f9ebc04d3f0a900bd0428` and target this branch. They are rolling additions: do not delay a complete particles/cue candidate indefinitely. Root retains shared scene/lifecycle and manager ownership reconciliation. Sky renders at verified early clear with current camera and native fallback; movement must use verified client-thread actuation and exact owner/generation checks, including stop. Neither may add competing hooks or authorities.
+
+Learned navigation now uses the existing atomic record primitive, moved to `shadowbane_lab.record_store`, with an interprocess lock spanning load, merge and replace. Saves monotonically union coarse/refined evidence and update the saving map after successful publication. Process crash before replacement retains the previous complete map; crash after replacement exposes the new complete map. Orphan unique temporary files are ignored on load; they are not evidence records. This is process-crash recovery, not a guarantee against storage hardware/power failure. Two independently loaded writers and a deliberately crashing writer test the production save path with barriers. Navigation/store/ownership/operation tests: 29 passed.

@@ -1,7 +1,10 @@
 import json
+import multiprocessing
+import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from shadowbane_lab.client_observation import NativePlayerPositionObservation
 from shadowbane_lab.travel import (
@@ -14,7 +17,105 @@ from shadowbane_lab.travel import (
 )
 
 
+def _save_observation(path, coordinate, ready, release):
+    navigation = load_learned_navigation_map(Path(path))
+    cell = NavigationCell(*coordinate)
+    navigation.mark_refined_learned_blocked(NavigationCell(cell.x // 2, cell.y // 2), cell)
+    ready.put(True)
+    if not release.wait(15):
+        raise RuntimeError("save barrier timed out")
+    save_learned_navigation_map(Path(path), navigation)
+
+
+def _crash_before_replace(path, ready, release):
+    from shadowbane_lab import record_store
+
+    navigation = load_learned_navigation_map(Path(path))
+    navigation.mark_learned_blocked(NavigationCell(99, 99))
+
+    def interrupted_publish(target, payload, *, temporary_label):
+        def crash(temporary, target):
+            ready.set()
+            if not release.wait(15):
+                raise RuntimeError("crash barrier timed out")
+            os._exit(23)
+
+        return record_store.publish_atomic_record(
+            target, payload, temporary_label=temporary_label, replacer=crash
+        )
+
+    with patch("shadowbane_lab.travel.navigation_state.publish_atomic_record", interrupted_publish):
+        save_learned_navigation_map(Path(path), navigation)
+
+
 class LearnedNavigationStateTests(unittest.TestCase):
+    def test_independent_processes_merge_observations_and_reload(self):
+        context = multiprocessing.get_context("spawn")
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "shared.json"
+            ready, release = context.Queue(), context.Event()
+            cells = ((8, 10), (9, 11))
+            writers = [
+                context.Process(target=_save_observation, args=(str(path), cell, ready, release))
+                for cell in cells
+            ]
+            for writer in writers:
+                writer.start()
+            try:
+                for _ in writers:
+                    self.assertTrue(ready.get(timeout=15))
+                release.set()
+                for writer in writers:
+                    writer.join(15)
+                    self.assertEqual(0, writer.exitcode)
+            finally:
+                release.set()
+                for writer in writers:
+                    if writer.is_alive():
+                        writer.terminate()
+                    writer.join(5)
+            restored = load_learned_navigation_map(path)
+            self.assertEqual(
+                frozenset(NavigationCell(*cell) for cell in cells), restored.refined_learned_blocked
+            )
+            self.assertEqual(frozenset({NavigationCell(4, 5)}), restored.learned_blocked)
+            save_learned_navigation_map(path, restored)
+            self.assertEqual(
+                restored.refined_learned_blocked,
+                load_learned_navigation_map(path).refined_learned_blocked,
+            )
+
+    def test_crashed_writer_preserves_previous_generation_and_releases_lock(self):
+        context = multiprocessing.get_context("spawn")
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "shared.json"
+            initial = SparseNavigationMap(cell_size=20.0)
+            initial.mark_learned_blocked(NavigationCell(1, 2))
+            save_learned_navigation_map(path, initial)
+            before = path.read_bytes()
+            ready, release = context.Event(), context.Event()
+            writer = context.Process(target=_crash_before_replace, args=(str(path), ready, release))
+            writer.start()
+            try:
+                self.assertTrue(ready.wait(15))
+                self.assertEqual(before, path.read_bytes())
+                release.set()
+                writer.join(15)
+                self.assertEqual(23, writer.exitcode)
+            finally:
+                release.set()
+                if writer.is_alive():
+                    writer.terminate()
+                writer.join(5)
+            self.assertEqual(before, path.read_bytes())
+            recovered = load_learned_navigation_map(path)
+            recovered.mark_learned_blocked(NavigationCell(3, 4))
+            save_learned_navigation_map(path, recovered)
+            self.assertEqual(
+                frozenset({NavigationCell(1, 2), NavigationCell(3, 4)}),
+                load_learned_navigation_map(path).learned_blocked,
+            )
+
     def test_round_trips_only_live_learned_blockers(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "learned-navigation.json"

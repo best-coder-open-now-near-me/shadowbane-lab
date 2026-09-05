@@ -16,8 +16,9 @@ from math import isfinite
 from pathlib import Path
 from typing import NoReturn
 
+from shadowbane_lab.record_store import exclusive_record_lock, publish_atomic_record
+
 from .manifest import ManagerManifest
-from .record_store import exclusive_record_lock, publish_atomic_record
 from .worker import WorkerDispatchPermit
 
 WORKER_OPERATION_SCHEMA_VERSION = 1

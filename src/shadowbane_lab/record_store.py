@@ -1,6 +1,6 @@
-"""Shared durable replacement for node-local manager records.
+"""Shared durable replacement for node-local records.
 
-Manager ledgers own their schemas, identities, and size limits.  This module
+Record owners define their schemas, identities, and size limits.  This module
 owns only the filesystem transaction used once a ledger has encoded a valid
 record: create a unique sibling, flush it to disk, and atomically replace the
 published record despite bounded transient Windows reader locks.

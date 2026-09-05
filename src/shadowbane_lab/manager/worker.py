@@ -21,8 +21,9 @@ from pathlib import Path
 from time import sleep, time
 from typing import NoReturn
 
+from shadowbane_lab.record_store import publish_atomic_record, replace_record_with_retry
+
 from .manifest import ManagerManifest
-from .record_store import publish_atomic_record, replace_record_with_retry
 from .supervisor import ProcessLifetimeInspector, ProcessLifetimeSnapshot
 
 WORKER_HEARTBEAT_SCHEMA_VERSION = 1

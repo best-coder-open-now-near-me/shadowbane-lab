@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import json
-import os
 from math import isfinite
 from pathlib import Path
 
+from shadowbane_lab.record_store import exclusive_record_lock, publish_atomic_record
 from shadowbane_lab.travel.pathfinding import NavigationCell, SparseNavigationMap
 
 _SCHEMA_VERSION = 2
@@ -87,9 +87,7 @@ def load_learned_navigation_map(
             "learned navigation refined_blocked_cells must be an array"
         )
     if len(refined_cells) > _MAXIMUM_REFINED_CELLS:
-        raise LearnedNavigationStateError(
-            "learned navigation state exceeds its refined cell limit"
-        )
+        raise LearnedNavigationStateError("learned navigation state exceeds its refined cell limit")
     try:
         restored_refined = {_parse_cell(item) for item in refined_cells}
     except ValueError as exc:
@@ -97,9 +95,7 @@ def load_learned_navigation_map(
             f"learned navigation state contains an invalid refined cell: {exc}"
         ) from exc
     if len(restored_refined) != len(refined_cells):
-        raise LearnedNavigationStateError(
-            "learned navigation refined_blocked_cells must be unique"
-        )
+        raise LearnedNavigationStateError("learned navigation refined_blocked_cells must be unique")
     refined_by_parent: dict[NavigationCell, list[NavigationCell]] = {}
     factor = navigation_map.refinement_factor
     for refined_cell in restored_refined:
@@ -129,40 +125,47 @@ def save_learned_navigation_map(
         raise LearnedNavigationStateError("state_path must be Path")
     if not isinstance(navigation_map, SparseNavigationMap):
         raise LearnedNavigationStateError("navigation_map must be SparseNavigationMap")
-    cells = sorted(navigation_map.learned_blocked)
-    refined_cells = sorted(navigation_map.refined_learned_blocked)
-    if len(cells) > _MAXIMUM_LEARNED_CELLS:
-        raise LearnedNavigationStateError("learned navigation state exceeds its cell limit")
-    if len(refined_cells) > _MAXIMUM_REFINED_CELLS:
-        raise LearnedNavigationStateError(
-            "learned navigation state exceeds its refined cell limit"
-        )
-    payload = {
-        "schema_version": _SCHEMA_VERSION,
-        "cell_size": navigation_map.cell_size,
-        "refined_cell_size": navigation_map.refined_cell_size,
-        "blocked_cells": [{"x": cell.x, "y": cell.y} for cell in cells],
-        "refined_blocked_cells": [
-            {"x": cell.x, "y": cell.y} for cell in refined_cells
-        ],
-    }
-    temporary_path = state_path.with_name(f".{state_path.name}.{os.getpid()}.tmp")
+    # The lock owns read/merge/write across worker processes, not just replacement.
+    # Learned evidence is monotonic; a stale independently loaded map cannot erase
+    # another worker's observations. Atomic replacement preserves the prior complete
+    # generation on failure; the OS releases the lock if a writer crashes.
     try:
-        state_path.parent.mkdir(parents=True, exist_ok=True)
-        temporary_path.write_text(
-            json.dumps(payload, sort_keys=True) + "\n",
-            encoding="utf-8",
-        )
-        temporary_path.replace(state_path)
-    except OSError as exc:
+        with exclusive_record_lock(state_path.with_name(f".{state_path.name}.lock")):
+            prior = load_learned_navigation_map(state_path, cell_size=navigation_map.cell_size)
+            if prior.refined_cell_size != navigation_map.refined_cell_size:
+                raise LearnedNavigationStateError("incompatible refined navigation cell size")
+            cells = sorted(prior.learned_blocked | navigation_map.learned_blocked)
+            refined_cells = sorted(
+                prior.refined_learned_blocked | navigation_map.refined_learned_blocked
+            )
+            if len(cells) > _MAXIMUM_LEARNED_CELLS:
+                raise LearnedNavigationStateError("learned navigation state exceeds its cell limit")
+            if len(refined_cells) > _MAXIMUM_REFINED_CELLS:
+                raise LearnedNavigationStateError(
+                    "learned navigation exceeds its refined cell limit"
+                )
+            payload = {
+                "schema_version": _SCHEMA_VERSION,
+                "cell_size": navigation_map.cell_size,
+                "refined_cell_size": navigation_map.refined_cell_size,
+                "blocked_cells": [{"x": cell.x, "y": cell.y} for cell in cells],
+                "refined_blocked_cells": [{"x": cell.x, "y": cell.y} for cell in refined_cells],
+            }
+            publish_atomic_record(
+                state_path,
+                (json.dumps(payload, sort_keys=True) + "\n").encode(),
+                temporary_label="learned-navigation",
+            )
+            # Feed merged observations back into the active planner only after
+            # publication succeeds. Structural/cost data stays local to its owner.
+            factor = navigation_map.refinement_factor
+            for cell in refined_cells:
+                parent = NavigationCell(cell.x // factor, cell.y // factor)
+                navigation_map.mark_refined_learned_blocked(parent, cell)
+    except (OSError, TimeoutError) as exc:
         raise LearnedNavigationStateError(
             f"could not save learned navigation state: {exc}"
         ) from exc
-    finally:
-        try:
-            temporary_path.unlink(missing_ok=True)
-        except OSError:
-            pass
 
 
 def _parse_cell(value: object) -> NavigationCell:
