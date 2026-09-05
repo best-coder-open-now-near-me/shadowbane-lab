@@ -16,6 +16,7 @@ void APIENTRY Integer(const unsigned int name, int* output) {
     if (name == 0x84E0U) { *output = active_unit; }
     else if (name == 0x84E2U) { *output = maximum_units; }
     else if (name == 0x0BA2U) { output[0] = output[1] = 0; output[2] = 800; output[3] = 600; }
+    else if (name == 0x0C23U) { output[0]=1;output[1]=0;output[2]=1;output[3]=0; }
     else if (name == 0x8069U) { *output = 100 + active_unit - static_cast<int>(kTexture0); }
     else { *output = 1; }
 }
@@ -91,6 +92,16 @@ int main() {
         || active_unit != static_cast<int>(kTexture0 + 1U) || active_changes != 3) {
         return Fail("per-unit capture or active unit restoration");
     }
+    if (draw.program!=-1 || draw.framebuffer!=-1 || draw.blend_detail[2]!=-1
+        || draw.stencil_detail[8]!=-1 || draw.color_mask!=std::array<int,4>{1,0,1,0})
+        return Fail("legacy optional state availability");
+    version="3.0 test"; DetectCapabilities(*g_frame);
+    Draw();
+    const auto& modern=g_frame->draws[1];
+    if(modern.program!=1 || modern.framebuffer!=1 || modern.blend_detail[5]!=1
+        || modern.stencil_detail[14]!=1 || modern.color_mask!=std::array<int,4>{1,0,1,0}
+        || active_unit!=static_cast<int>(kTexture0+1U)) return Fail("modern transmission state capture");
+    g_frame->retained=1;
     g_frame->query_ticks = g_frequency;
     Draw();
     if (g_frame->budget_skipped != 1U || g_frame->retained != 1U) { return Fail("time bound"); }
@@ -117,7 +128,8 @@ int main() {
     char contents[16384U]{}; DWORD read = 0;
     ReadFile(file, contents, sizeof(contents) - 1U, &read, nullptr);
     CloseHandle(file);
-    if (!json.ok || std::strstr(contents, "\"model_view\":[null,") == nullptr
+    if (!json.ok || std::strstr(contents, "\"transmission_state\":{\"unavailable\":-1,\"program\":-1") == nullptr
+        || std::strstr(contents, "\"model_view\":[null,") == nullptr
         || std::strstr(contents, "\"display_lists\":\"entry-state-only-not-internal-draws\"") == nullptr
         || std::strstr(contents, "\"reviewed_interval_complete\":true") == nullptr) {
         return Fail("JSON fidelity and scope");

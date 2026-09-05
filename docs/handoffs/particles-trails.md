@@ -387,3 +387,33 @@ representation must preserve distinct effect depths and expose overflow; a singl
 nearest-depth texture does not meet the requirement. This is the precise current
 implementation blocker at the existing hooks. No production correction or broad
 capture framework has been installed, and no acceptance requirement was relaxed.
+
+
+## Contributor-state diagnostic extension
+
+The existing opt-in `TerrainTrace` draw record now adds `transmission_state`:
+GLSL program and draw framebuffer, separate RGB/alpha blend factors/equations,
+front/back stencil function/masks/operations, and RGBA write masks. Fixed-function
+1.1 fields are always queried; later core queries are gated on the advertised GL
+version, and framebuffer queries on core/ARB/EXT support. Unsupported fields use
+`-1`, not fabricated defaults. `program` identifies core GLSL state only; it does
+not certify absence of legacy assembly programs. Blend constants and fragment
+outputs are not captured by this extension.
+
+This is an additive JSON record in the existing observer/publisher, with no new
+hooks or runtime enabled by default. The existing 8192-record and 250ms query
+limits remain; roughly 108 additional bytes per record increase the bounded
+allocation by approximately 0.85 MiB. Extra queries can reach the time budget
+sooner; budget skips remain explicit. Display-list scope remains entry state only.
+
+Production trace tests built and passed for the full and diagnostics-only test
+variants, covering legacy unavailable values, modern state capture, write-mask
+arrays, JSON serialization, active texture restoration, disabled/unsafe no-query
+paths and existing budgets/cleanup. These tests use the production observer with
+controlled GL callbacks; they are not a live trace or combined package receipt.
+No real client capture was performed. Required transparency GL gates remain red.
+
+Next: integration owner reconciles this focused diagnostic change with cue's
+MultiDraw submission hook and obtains/reuses contributor-state evidence through
+the existing opt-in trace. Complete fragment representation and cue destination
+pixel/owned-depth lookup remain implementation work, not certified interfaces.
