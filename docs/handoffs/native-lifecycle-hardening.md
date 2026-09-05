@@ -484,3 +484,20 @@ regressions and consistent RequestCurrent checks. Runtime remains unbound; this
 checkpoint does not certify complete Stop, adapters or a connected package.
 Next is that correction and real movement/camera/picking/input integration;
 rendering transparency and exact final package acceptance remain unfinished.
+
+
+Movement callback correction `0203ff124373b747a923765583103bb3d9e611cf` is merged
+at `1c73c51af86bc398e23cd9c5f473be4b5d635b75`. The owner first reproduced the
+position/destination/waypoint gaps against 36d62; production stop now revalidates
+the captured request before every subsequent mutation. Combined full and
+diagnostics DLL builds pass, as do both policy/stop tests per profile, zero skips.
+Evidence: `artifacts/hardening-evidence/stop-callback-native-{full,diagnostics}.xml`
+and build logs. Regressions verify precise downstream call counts, untouched
+replacement requests, balanced references and no stale movement/send, including
+request-only state replacement and defensive retain-boundary invalidation.
+This closes the identified callback request-revalidation finding; artificial
+boundary injection does not claim sealed helpers invoke gameplay callbacks.
+Next movement work is the actual native-update integration and movement/camera/
+picking/input adapters. Runtime activation and connected/server effects remain
+unverified; rendering transparency and final installed-package acceptance remain
+open. No new manager authority, capture or deployment was introduced.
