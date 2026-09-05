@@ -186,9 +186,38 @@ def main() -> int:
                 "/verbosity:quiet",
             ],
         )
+        native_results = logs / f"{profile}-tests.xml"
         run(
-            f"{profile}-tests", [ctest, "--test-dir", build, "-C", "Release", "--output-on-failure"]
+            f"{profile}-tests",
+            [
+                ctest,
+                "--test-dir",
+                build,
+                "-C",
+                "Release",
+                "--output-on-failure",
+                "--output-junit",
+                native_results,
+            ],
         )
+        required_render_tests = {
+            "wonderbane_extension_combined_render",
+            "wonderbane_extension_selected_cue_gpu",
+            "wonderbane_extension_selected_cue_native_transparency",
+            "wonderbane_extension_effects_native_transparency",
+        }
+        cases = ET.parse(native_results).getroot().findall(".//testcase")
+        for name in required_render_tests:
+            matches = [case for case in cases if case.get("name") == name]
+            if (
+                len(matches) != 1
+                or matches[0].get("status") != "run"
+                or matches[0].find("skipped") is not None
+                or matches[0].find("failure") is not None
+            ):
+                raise RuntimeError(
+                    f"{profile}: required render gate did not execute and pass: {name}"
+                )
         if arguments.reviewed_client:
             run(
                 f"{profile}-selected-binding",

@@ -154,3 +154,18 @@ were separately verified from their generated runtime projects, and all PowerShe
 scripts parsed successfully. CI run 33960127863 for the same source completed
 Python 3.11/3.12/3.13, quality and PowerShell syntax successfully; native jobs were
 still running at this observation. Preserve that distinction from local GPU gates.
+
+`79ae9f8` preserves unverified worker Popen evidence across other launches, keyed
+by worker token. Reaping is allowed only after the controller acknowledges durable
+reservation publication/retirement. A real two-child regression verifies that a
+later launch cannot erase the first child's exit proof or substitute its PID.
+32 targeted worker/ownership tests passed.
+
+CI 33960127863 finished with both native jobs failing: effects transparency failed,
+but cue GPU/transparency were skipped because hosted OpenGL lacks FBOs. The ordinary
+navigation draw test also failed because the combined fixture incorrectly required
+cue resources there. The 16-combination fixture now has its own explicit CTest and
+capability skip; ordinary navigation remains independently executable. Both tests
+ran and passed locally with real FBO support. The package builder now reads native
+JUnit results and requires combined rendering, cue GPU and both transparency gates
+to have actually executed and passed. Capability skips cannot certify a package.

@@ -258,6 +258,17 @@ int main(int argc, char** argv) {
     HGLRC context = wglCreateContext(dc);
     if (!context || !wglMakeCurrent(dc, context)) return 5;
     std::printf("OpenGL draw test: %s\n", glGetString(GL_VERSION));
+    const bool combined_render = argc == 2 && (
+        std::strcmp(argv[1], "--combined-render") == 0
+        || std::strcmp(argv[1], "--combined-cost") == 0
+        || std::strcmp(argv[1], "--combined-cost-1080") == 0);
+    if (combined_render && !wglGetProcAddress("glGenFramebuffers")) {
+        std::fprintf(stderr, "SKIP: combined cue rendering requires framebuffer objects\n");
+        wglMakeCurrent(nullptr, nullptr); wglDeleteContext(context);
+        ReleaseDC(window, dc); DestroyWindow(window);
+        UnregisterClassW(klass.lpszClassName, klass.hInstance);
+        return 77;
+    }
     glViewport(0,0,640,480); glPixelStorei(GL_PACK_ALIGNMENT, 1);
     glClearColor(0,0,0,1); glClearDepth(0.5); glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glEnable(GL_FOG); glEnable(GL_LIGHTING); glEnable(GL_ALPHA_TEST);
@@ -390,9 +401,9 @@ int main(int argc, char** argv) {
         Check(SetWindowPos(window,nullptr,0,0,bounds.right-bounds.left,bounds.bottom-bounds.top,
             SWP_NOZORDER|SWP_NOACTIVATE)!=0,"restore real test framebuffer");
         glViewport(0,0,640,480);
-    } else CombinedProbe(camera, combined_cost);
+    } else if (combined_render) CombinedProbe(camera, combined_cost);
     TransparencyProbe(camera, verify_transparency);
-    if (argc == 2 && !verify_transparency && !combined_cost) {
+    if (argc == 2 && !verify_transparency && !combined_render) {
         // Synthetic test framebuffer only. Capture happens outside the renderer.
         std::vector<unsigned char> pixels(640U*480U*3U);
         glReadPixels(0,0,640,480,GL_RGB,GL_UNSIGNED_BYTE,pixels.data());
