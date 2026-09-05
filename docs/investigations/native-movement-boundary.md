@@ -334,3 +334,41 @@ locally and separately gates message publication. Its reviewed time constants ar
 publication. The complete steering adapter still needs to preserve the native
 start/change/continuation semantics; these findings do not license a destination-
 spam approximation or establish a completed input feature.
+
+
+## Native steering composition and coordinate correction
+
+The native ray result helper is a parent-local result, despite its earlier working
+name suggesting a world-space result. The helper calls the actor parent's native
+conversion; that conversion copies the native transformation, invokes the imported
+`math::Transformation::Inverse`, then `Transform`. Ground picking therefore must
+retain native parent semantics. It must not pass arbitrary world coordinates to
+movement or replace terrain picking with a plane. The directional backend accepts
+normalized X/Z in that native parent-local frame; runtime camera basis/pick wiring
+must supply this frame explicitly.
+
+The backend now binds the reviewed continuous-target constructor and native Move
+wrapper. It uses the native continuous routine's look-ahead constant, passes native
+collision/path admission and continuous/deferred flags, and leaves speed, state,
+animation restrictions and actual path resolution to the native movement code.
+It does not write actor coordinates or native input flags. Unchanged direction
+waits for an in-flight native path solve or deferred actor action instead of
+restarting it each input poll. Changed direction reaches native replacement.
+
+Outgoing native messages are built/submitted on start and at a 400 ms refresh
+cadence while steering; local native updates are independent of that publication
+cadence. The refresh is intentional even for unchanged heading because the move
+packet contains a finite native destination. This is not proof of connected
+responsiveness or server acceptance at every native movement speed. Those remain
+combined connected acceptance requirements, along with obstacle/path interaction.
+Null native output preserves normal rejection/deferred semantics; it is not an
+excuse to disable collision/restrictions. Native send consumes its owned reference
+once, and scene invalidation releases unsent output.
+
+Production-composition tests exercise policy through this steering backend with
+native-call doubles at 5/10/20/40/100 ms intervals, analog direction, solve/deferred
+coalescing, direction changes, real shared release/stop, stale ownership and a scene
+change during movement. That last test initially found cleanup capturing the new
+actor under the old policy scene. Stop now reuses the movement transaction's actor
+identity and refuses to act on the replacement; the test passes in both profiles.
+These tests do not execute the native collision solver/world update or server.

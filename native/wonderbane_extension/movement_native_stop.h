@@ -17,6 +17,9 @@ public:
     bool Execute(const Grant&) noexcept;
     // Camera input does not acquire or retire movement ownership.
     bool RotateCamera(Vector2 radians) noexcept;
+    // Direction is normalized X/Z in the player's native parent-local frame.
+    // tick_ms comes from the owning update's monotonic clock, never render dt.
+    bool Steer(const Grant&, Vector2 direction, std::uint64_t tick_ms, bool start) noexcept;
     void SceneRetired(std::uint64_t scene) noexcept;
     bool Available() const noexcept { return bound_ && !faulted_; }
 private:
@@ -28,6 +31,8 @@ private:
     static_assert(sizeof(Node) == 40);
     struct Map { Node* sentinel; std::uint32_t size; };
     struct Vector { void* begin; void* end; void* capacity; };
+    struct GroundTarget { GroundPoint point; void* actor; void* parent; };
+    static_assert(sizeof(GroundTarget) == 20);
     struct Calls {
         void** (__thiscall* retain)(void**, void*) = nullptr;
         void (__thiscall* release)(void**) = nullptr;
@@ -43,6 +48,8 @@ private:
         void (__thiscall* clear_waypoint)(void*, std::uint32_t, std::uint32_t) = nullptr;
         void** (__thiscall* state)(void*, void**, bool, std::uint32_t, bool) = nullptr;
         void (__thiscall* send)(void*, void*) = nullptr;
+        GroundTarget* (__thiscall* ground_target)(GroundTarget*, GroundPoint) = nullptr;
+        void** (__thiscall* move)(void*, void**, const GroundTarget*, bool, bool, bool, bool*, bool) = nullptr;
         void (__thiscall* camera)(void*, float, float, float, bool) = nullptr;
     } calls_{};
     struct Target {
@@ -53,6 +60,10 @@ private:
     bool Capture(const Grant&) noexcept;
     bool Current(const Target&) const noexcept;
     bool RequestCurrent(const Target&) const noexcept;
+    bool MovementCurrent(const Target&) const noexcept;
+    bool RunSteer(const Target&, Vector2, std::uint64_t, bool);
+    bool SteerCxxGuarded(const Target&, Vector2, std::uint64_t, bool) noexcept;
+    bool SteerGuarded(const Target&, Vector2, std::uint64_t, bool) noexcept;
     bool RotateCameraGuarded(const Target&, Vector2) noexcept;
     bool Run(const Target&);
     bool RunCxxGuarded(const Target&) noexcept;
@@ -68,6 +79,10 @@ private:
     // closed. Never retry an uncertain send or unload code from under callbacks.
     void* held_actor_ = nullptr;
     void* message_ = nullptr;
+    Target steering_target_{};
+    Vector2 steering_direction_{};
+    std::uint64_t steering_tick_ = 0, steering_sent_tick_ = 0;
+    bool steering_captured_ = false, steering_submitted_ = false, steering_sent_ = false, steering_deferred_ = false;
     friend struct NativeStopTestAccess;
 };
 }

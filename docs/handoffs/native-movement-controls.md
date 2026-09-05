@@ -316,3 +316,21 @@ then settings/grant transport and complete-candidate package/connected acceptanc
 On activation, native camera changes must feed the existing fresh camera
 observation before sky/world rendering, as requested by the integration owner;
 no separate camera authority or cached matrix approximation is introduced here.
+
+
+Native directional steering now binds the actual target constructor and Move
+wrapper in the shared backend. It preserves native collision/restriction/deferred
+admission, uses the native look-ahead, coalesces unchanged input during pending
+native work, and publishes native messages on start/time-based refresh. Release
+uses the shared cancellation/state-message path. A reproduced scene-transition
+cleanup bug is fixed: failed-move stop cannot capture a replacement actor under
+its obsolete grant. Both complete DLL profiles and focused policy/backend tests
+pass, including several update rates and pending/deferred work.
+
+The backend takes parent-local direction; native ray conversion evidence is now
+recorded explicitly in the investigation. Active work remains camera-basis,
+terrain-pick and Windows/XInput/UI composition into the shared native-update
+consumer, followed by settings, automation grant transport and complete installed
+candidate verification. Directional binding tests use native-call doubles; native
+solver, connected steering cadence and all-three-input acceptance remain open.
+This checkpoint does not advertise or install partial controls.

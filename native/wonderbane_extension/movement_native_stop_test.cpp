@@ -21,6 +21,7 @@ Fixture* current = nullptr;
 }
 namespace wonderbane::extension::movement {
 struct NativeStopTestAccess {
+    using GroundTarget = NativeStop::GroundTarget;
     using Node = NativeStop::Node; using Map = NativeStop::Map; using Vector = NativeStop::Vector;
     static void Bind(NativeStop&, void*, HWND);
     static void** __fastcall Retain(void**, void*, void*);
@@ -37,6 +38,8 @@ struct NativeStopTestAccess {
     static void __fastcall Waypoint(void*, void*, std::uint32_t, std::uint32_t);
     static void** __fastcall State(void*, void*, void**, bool, std::uint32_t, bool);
     static void __fastcall Send(void*, void*, void*);
+    static GroundTarget* __fastcall Ground(GroundTarget*, void*, GroundPoint);
+    static void** __fastcall Move(void*, void*, void**, const GroundTarget*, bool, bool, bool, bool*, bool);
     static void __fastcall Camera(void*, void*, float, float, float, bool);
     static void __fastcall PacketRelease(void*, void*, void**);
 };
@@ -73,6 +76,7 @@ struct Fixture {
     int position_calls = 0, destination_calls = 0, waypoint_calls = 0;
     int camera_calls = 0;
     bool camera_fault = false;
+    bool real_steering = false, pending_solve = false, deferred_move = false, replace_on_move = false;
     int callback_mode = 0;
     Result nested = Result::accepted;
     bool missing_message = false, raise_fault = false;
@@ -94,6 +98,7 @@ struct Fixture {
         scheduled_sentinel.left = scheduled_sentinel.right = &scheduled_sentinel;
         Put(world.data(), 0xb8, Access::Map{&active_sentinel, 0});
         Put(world.data(), 0xe8, Access::Map{&scheduled_sentinel, 0});
+        Put(base, 0x1141544, 10.0F);
         Put(base, 0x1163250, 1.5707963705062866F);
         Put(base, 0x1163300, 0.05F);
         Put(base, 0x1163254, 0.7853981852531433F);
@@ -132,7 +137,10 @@ struct Fixture {
             || Get<Access::Map>(world.data(), 0xe8).size) { ++moves; }
     }
 };
-bool Actuator::Direction(const Grant&, Vector2, bool) noexcept { ++current->moves; current->Arm(false); return true; }
+bool Actuator::Direction(const Grant& grant, Vector2 direction, bool start) noexcept {
+    if (current->real_steering) { return native->Steer(grant, direction, current->input.tick_ms, start); }
+    ++current->moves; current->Arm(false); return true;
+}
 bool Actuator::Destination(const Grant&, GroundPoint, bool) noexcept { ++current->moves; current->Arm(false); return true; }
 }
 namespace wonderbane::extension::movement {
@@ -147,8 +155,33 @@ void NativeStopTestAccess::Bind(NativeStop& stop, void* base, HWND window) {
     c.clear_continuation = reinterpret_cast<decltype(c.clear_continuation)>(&Continuation);
     c.position = reinterpret_cast<decltype(c.position)>(&Position); c.destination = reinterpret_cast<decltype(c.destination)>(&Destination);
     c.clear_waypoint = reinterpret_cast<decltype(c.clear_waypoint)>(&Waypoint);
+    c.ground_target = reinterpret_cast<decltype(c.ground_target)>(&Ground);
+    c.move = reinterpret_cast<decltype(c.move)>(&Move);
     c.camera = reinterpret_cast<decltype(c.camera)>(&Camera);
     c.state = reinterpret_cast<decltype(c.state)>(&State); c.send = reinterpret_cast<decltype(c.send)>(&Send);
+}
+NativeStopTestAccess::GroundTarget* __fastcall NativeStopTestAccess::Ground(GroundTarget* output, void*, GroundPoint point) {
+    *output = {point, nullptr, nullptr}; return output;
+}
+void** __fastcall NativeStopTestAccess::Move(void* actor, void*, void** output, const GroundTarget* target,
+    bool publish, bool collision, bool extra, bool* result, bool deferred) {
+    auto& f = *current; ++f.moves;
+    Check(actor == f.actor.data() && collision && !extra && !result && !deferred
+        && !target->actor && !target->parent, "native steering preserves continuous move flags and collision admission");
+    f.destination = target->point; *output = nullptr;
+    if (f.deferred_move) {
+        f.active_sentinel.parent = &f.active_node;
+        Put(f.world.data(), 0xb8, Map{&f.active_sentinel, 1}); return output;
+    }
+    Put(f.state.data(), 0x10, std::uint32_t{7});
+    f.request.state = f.pending_solve ? 0U : 1U; f.request.usable = 1;
+    if (publish) { ++f.packet.references; *output = &f.packet; }
+    if (f.replace_on_move) {
+        f.replacement = f.actor;
+        Put(f.base, 0x16a2d98, reinterpret_cast<std::uintptr_t>(f.replacement.data()));
+        f.input.scene = 2;
+    }
+    return output;
 }
 void __fastcall NativeStopTestAccess::Camera(void* camera, void*, float pitch, float yaw, float distance, bool relative) {
     ++current->camera_calls;
@@ -322,6 +355,49 @@ void StatesAndFailures() {
       Check(!f.stop.Available() && !f.controls.Ready() && f.moves == 0 && f.retains == 1 && f.releases == 0,
           "native exception retains ambiguous actor ownership and blocks new writer"); }
 }
+void SteeringComposition() {
+    for (const std::uint64_t interval : {5ULL, 10ULL, 20ULL, 40ULL, 100ULL}) {
+        Fixture f; f.real_steering = true; f.input.keys[0x57] = true;
+        for (std::uint64_t elapsed = 0; elapsed < 1000; elapsed += interval) {
+            f.input.tick_ms += interval; f.controls.Tick(f.input);
+        }
+        Check(f.controls.Ready() && f.moves == static_cast<int>(1000 / interval) && f.sends == 4
+            && f.destination.x == 100 && f.destination.y == 0 && f.destination.z == 210,
+            "native steering refreshes local collision path with bounded time-based outgoing messages");
+        f.input.keys[0x57] = false; f.Step();
+        Check(f.sends == 5 && f.packet.references == 0 && f.retains == f.releases
+            && Get<std::uint32_t>(f.state.data(), 0x10) == 5,
+            "native steering release sends idle and balances actor/message references");
+        const auto moves = f.moves; f.Step(); f.WorldUpdate();
+        Check(f.moves == moves, "release cannot revive steering or pending native work");
+    }
+    { Fixture f; f.real_steering = true; f.pending_solve = true; f.input.keys[0x57] = true;
+      f.Step(); f.Step(); f.Step();
+      Check(f.moves == 1 && f.controls.Ready(), "same direction preserves in-flight native path solve");
+      f.input.keys[0x57] = false; f.input.keys[0x44] = true; f.Step();
+      Check(f.moves == 2 && f.destination.x == 110 && f.destination.z == 200,
+          "changed direction reaches native replacement immediately");
+      f.input.keys[0x44] = false; f.Step();
+      Check(f.request.state == 1 && f.request.usable == 0 && f.controls.Ready(), "release cancels in-flight path solve"); }
+    { Fixture f; f.real_steering = true; f.deferred_move = true; f.input.keys[0x57] = true;
+      f.Step(); f.Step(); f.Step();
+      Check(f.moves == 1 && f.controls.Ready(), "native deferred action is not duplicated every poll");
+      f.input.keys[0x57] = false; f.Step();
+      Check(Get<Access::Map>(f.world.data(), 0xb8).size == 0 && f.controls.Ready(), "release retires deferred native action"); }
+    { Fixture f; f.real_steering = true; f.input.left_stick = {0.3F, 0.4F}; f.Step();
+      Check(std::abs(f.destination.x - 106) < 0.0001F && std::abs(f.destination.z - 208) < 0.0001F,
+          "native steering preserves analog direction without inventing analog speed");
+      const auto old = f.controls.Current(); f.input.left_stick = {}; f.Step();
+      Token token{}; std::memcpy(token.worker.data(), "worker", 6); std::memcpy(token.operation.data(), "restart", 7);
+      Grant next{}; Check(f.controls.AcquireAutomation(old.generation, token, next) == Result::accepted, "explicit new route accepted");
+      const auto count = f.moves;
+      Check(!f.stop.Steer(old, {1, 0}, f.input.tick_ms, true) && f.moves == count,
+          "obsolete manual steering cannot overwrite new route"); }
+    { Fixture f; f.real_steering = true; f.replace_on_move = true; f.input.keys[0x57] = true; f.Step();
+      Check(f.moves == 1 && f.sends == 1 && f.packet.references == 0 && f.retains == f.releases
+          && Get<std::uint32_t>(f.state.data(), 0x10) == 7,
+          "scene replacement during native move releases old output without sending it"); }
+}
 void CameraComposition() {
     for (const std::uint64_t interval : {5ULL, 10ULL, 20ULL, 40ULL, 100ULL}) {
         Fixture f;
@@ -418,6 +494,6 @@ void ReentryAndScene() {
 }
 int main() {
     { Fixture f; NativeStop unbound(f.controls); Check(!unbound.Bind(f.window), "unsupported executable stays unavailable"); }
-    ManualMethods(); StatesAndFailures(); CameraComposition(); ReentryAndScene();
+    ManualMethods(); StatesAndFailures(); SteeringComposition(); CameraComposition(); ReentryAndScene();
     return failures ? 1 : 0;
 }
