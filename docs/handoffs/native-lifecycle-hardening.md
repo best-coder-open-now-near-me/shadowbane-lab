@@ -266,3 +266,18 @@ open against `codex/navigation-inspector`, despite the intended new source
 integration destination being this hardening branch. The branch map now states
 the actual metadata and owners were notified to reconcile future review targeting.
 No main merge, PR closure, branch deletion or runtime deployment was performed.
+
+Shared acceptance plan adopted at source checkpoint
+`758e6f8242cc25e0e749bde0d679f2fc03dd9cad` and sent to all four feature owners.
+The existing combined WGL check now repeats all 16 enable/release combinations
+three times, verifies bounded allocation and zero cue bytes after release, and
+reports first-frame resource creation separately from three warm-up frames and
+16 steady samples. Both profile targets build and the combined CTests pass.
+One internal 1080p sample with all visual features enabled: first frame 5.055ms,
+warm-up mean 3.350ms, steady median 3.079ms (range 2.779–3.459ms); cue allocation
+16,588,800 bytes, zero after release. First-frame timing is renderer resource
+creation, not complete client/process startup. Synthetic 46-node geometry and
+this host's GPU are not connected-client performance acceptance. Evidence:
+`artifacts/hardening-evidence/combined-render-phases-1080.txt`. This results-only
+entry is not a new build source or package receipt. Remaining blockers and the
+single coordinated owner acceptance gate are unchanged.
