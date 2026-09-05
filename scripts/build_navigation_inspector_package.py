@@ -170,6 +170,7 @@ def main() -> int:
             "movement_native_image.cpp",
             "movement_lifetime.cpp",
             "movement_native_stop.cpp",
+            "movement_native_ui.cpp",
         ):
             if included_sources.count(movement_source) != 1:
                 raise RuntimeError(

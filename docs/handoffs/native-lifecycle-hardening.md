@@ -672,3 +672,17 @@ they do not certify live client input or server behavior. No extra runtime cpp
 membership or active movement consumer was introduced. Next remains complete
 input/UI/settings/grant composition, cue/effects transparency repair, independent
 review of a complete candidate, and exact-source package/installed validation.
+
+Native UI checkpoint eac3cd06e1995ed16f90063aff35d9078b4dc13c is included at
+ea5ac8ebd220dd3b7ce31e4fdab1092429e9194e. Both complete DLL profiles build;
+each executes 35 movement policy/backend/UI/lifetime tests successfully, zero
+skips. Evidence: artifacts/hardening-evidence/native-ui-full.xml and
+native-ui-diagnostics.xml with matching build logs. UI text/focus/modal/drag
+ownership and native pointer conversion now share the reviewed binding;
+terrain and camera-basis unprojection consume that same conversion in production.
+The existing package builder now requires movement_native_ui.cpp exactly once
+in both profiles. Its actual movement/probe membership statements executed
+successfully against both generated DLL projects; builder Ruff and diff checks pass.
+No runtime controls consumer is activated or package identity certified. Next:
+Windows/XInput consumer and settings/grant integration, existing transparency
+repairs, then complete-candidate review and installed-package validation.
