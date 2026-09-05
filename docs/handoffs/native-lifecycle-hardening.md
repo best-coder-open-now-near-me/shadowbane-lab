@@ -141,3 +141,16 @@ or VM deployment is certified. The next package-builder run must retain its fail
 gate logs and stop; do not bypass transmission failures to issue a package receipt.
 A complete candidate receives one independent integration review and consolidated
 owner procedure only after developer-controlled checks and installed verification.
+
+Exact clean package-builder attempt: source `5f0cf3ba15cf07634b290ac16190645f8fd5e804`,
+artifacts `E:/Projects/shadowbane/artifacts/hardening-packages/0eb5791d`.
+Its archived-source Python suite passed 1752 tests plus 223 subtests, with seven
+symlink-permission skips; Ruff and Visual Studio 2022 full Win32 configure/build
+passed. Required full native CTest returned 8 for the two transmission failures.
+`validation-progress.json` and `logs/full-tests.log` record the actual executed
+commands/results. The builder stopped before diagnostics/package/installed-wheel
+stages; no acceptance archive or wheel was issued. Both profiles' source contracts
+were separately verified from their generated runtime projects, and all PowerShell
+scripts parsed successfully. CI run 33960127863 for the same source completed
+Python 3.11/3.12/3.13, quality and PowerShell syntax successfully; native jobs were
+still running at this observation. Preserve that distinction from local GPU gates.
