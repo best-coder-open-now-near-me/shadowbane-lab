@@ -730,3 +730,66 @@ def test_failure_before_worker_creation_releases_only_its_reservation(tmp_path):
                 controller.ensure_started(worker_fixture.CLIENT_ID, worker_fixture._client())
         assert popen.call_count == 2
     assert list(tmp_path.rglob(".launch-reservation")) == []
+
+
+def submit_semantic_retry(root, operation, barrier, results):
+    from shadowbane_lab.manager.operation import WorkerOperationLedger
+    from tests.test_manager_operation import _manifest
+
+    ledger = WorkerOperationLedger(_manifest(), root, clock=lambda: 100.0)
+    barrier.wait(15)
+    result = ledger.submit(operation)
+    results.put((result.operation, result.duplicate))
+
+
+def test_interprocess_semantic_retry_retains_first_envelope_and_deadline(tmp_path):
+    from dataclasses import replace
+
+    from shadowbane_lab.manager.operation import (
+        WorkerOperationKind,
+        WorkerOperationLedger,
+        WorkerOperationLedgerError,
+        WorkerOperationReceipt,
+        WorkerOperationState,
+        new_worker_operation,
+    )
+    from tests.test_manager_operation import _manifest, _permit
+
+    first = new_worker_operation(_permit(), WorkerOperationKind.PVE, "/pve", now=100.0)
+    retry = replace(
+        first,
+        operation_id="operation-11111111111111111111111111111111",
+        issued_at=101.0,
+        expires_at=first.expires_at + 20,
+    )
+    context = multiprocessing.get_context("spawn")
+    barrier, results = context.Barrier(2), context.Queue()
+    contenders = [
+        context.Process(target=submit_semantic_retry, args=(str(tmp_path), op, barrier, results))
+        for op in (first, retry)
+    ]
+    for process in contenders:
+        process.start()
+    try:
+        outcomes = [results.get(timeout=15) for _ in contenders]
+        canonical = outcomes[0][0]
+        assert outcomes[1][0] == canonical
+        assert sorted(duplicate for _, duplicate in outcomes) == [False, True]
+    finally:
+        for process in contenders:
+            process.join(15)
+            assert process.exitcode == 0
+    ledger = WorkerOperationLedger(_manifest(), tmp_path, clock=lambda: 102.0)
+    assert ledger.claim_for_execution(canonical, now=102.0)
+    ledger.publish_receipt(
+        WorkerOperationReceipt.for_operation(
+            canonical,
+            WorkerOperationState.SUCCEEDED,
+            observed_at=103.0,
+        )
+    )
+    later = replace(retry, issued_at=104.0, expires_at=retry.expires_at + 100)
+    assert ledger.submit(later).operation == canonical
+    assert not ledger.claim_for_execution(canonical, now=104.0)
+    with pytest.raises(WorkerOperationLedgerError, match="different immutable"):
+        ledger.submit(replace(later, worker_process_started_at_100ns=999))
