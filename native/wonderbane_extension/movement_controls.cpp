@@ -53,7 +53,7 @@ bool ValidSettings(const Settings& s) noexcept {
         && std::isfinite(s.camera_dead_zone) && s.camera_dead_zone >= 0.05F
         && s.camera_dead_zone < 0.95F && std::isfinite(s.camera_radians_per_second)
         && s.camera_radians_per_second > 0 && s.camera_radians_per_second <= 10
-        && (s.drag_button == 1 || s.drag_button == 2 || s.drag_button == 4
+        && (s.drag_button == 1 || s.drag_button == 4
             || s.drag_button == 5 || s.drag_button == 6)
         && std::isfinite(s.drag_threshold_pixels)
         && s.drag_threshold_pixels >= 2 && s.drag_threshold_pixels <= 64;
@@ -233,7 +233,7 @@ void Controls::Tick(const Input& input) noexcept {
     const auto camera = RadialCamera(input.right_stick, settings_.camera_dead_zone);
     if (connected && !Nonzero(stick) && !Nonzero(camera)
         && Finite(input.left_stick) && Finite(input.right_stick)) { controller_armed_ = true; }
-    if (connected && controller_armed_ && !camera_faulted_ && seconds > 0 && Nonzero(camera)) {
+    if (connected && controller_armed_ && !input.camera_blocked && !camera_faulted_ && seconds > 0 && Nonzero(camera)) {
         const float scale = settings_.camera_radians_per_second * seconds;
         bool accepted = false;
         { const ActuationGuard guard(actuating_);
@@ -255,6 +255,11 @@ void Controls::Tick(const Input& input) noexcept {
             && std::isfinite(input.pointer_x) && std::isfinite(input.pointer_y);
         drag_origin_x_ = input.pointer_x;
         drag_origin_y_ = input.pointer_y;
+        if (input.press_origin) {
+            drag_origin_x_ = input.press_origin->x; drag_origin_y_ = input.press_origin->y;
+            drag_pending_ = input.press_origin->ground_valid && input.pointer_in_world
+                && std::isfinite(drag_origin_x_) && std::isfinite(drag_origin_y_);
+        }
     }
     previous_drag_down_ = drag_down;
     const bool lost_capture = (drag_pending_ || drag_active_)

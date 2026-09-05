@@ -505,3 +505,37 @@ stop-only flag, including pending path retirement and native stopped-state send.
 Full-profile policy/backend/lifetime tests: 34 passed, zero skips. This is phase
 and policy coverage; the Windows event consumer and its nested callback handling
 are still the active todo. It does not yet certify connected focus-loss behavior.
+
+## Windows input capture checkpoint
+
+`movement_windows_input.cpp` now provides the native keyboard callback and Win32
+subclass/capture adapter plus explicit-slot XInput sampling. It binds the HWND
+stored by the native input manager's window object, checks PID/thread/exact
+foreground, retains original key down/repeat/up ownership across UI changes and
+remapping, and retains original callback records after retirement. Right mouse is
+reserved for the native camera gesture and is rejected as a drag binding.
+Eligible mouse downs are held until click/drag classification; ordinary clicks
+forward their original pair once, qualified drags never become click actuation.
+Actual press coordinates survive a delayed first update. The runtime must verify
+the press terrain pick before setting the policy's `press_origin.ground_valid`.
+Camera-gesture blocking preserves actual stick neutral state.
+
+The adapter reports safety synchronously from focus/capture/device/window events;
+it does not itself actuate movement. Six production capture tests use real Windows
+subclass/capture/teardown, with controlled native UI/controller/key sources. They
+cover pairing, UI/native camera preservation, loss, explicit slot/analog endpoints,
+registration rollback and foreign hook/subclass ownership. Both complete profiles
+compile; diagnostics runs all 41 focused tests successfully (zero skips), full
+runs the same prior 35 plus all six capture tests successfully. The first test
+compile needed the SDK's XInput noexcept signature; only rebuilt binaries count.
+
+Integration-owner producer repair `d26ddab` is consumed at `bea6b0d`; seven real
+Windows producer tests pass. Its handoff conflict preserves the full incoming
+integration history. The owner retains shared manager composition and package
+membership reconciliation. Add `movement_windows_input.cpp` exactly once to each
+profile's package membership checks and link `comctl32` (CMake is already wired).
+
+Active next todo: native-update consumer composition, including nested safety
+interruption before another native move. Then settings, immutable automation
+grants, combined package validation and coordinated connected acceptance. Capture
+is not yet registered by extension startup and this is not a completed feature.
