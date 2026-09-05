@@ -50,6 +50,29 @@ Open capture supports layer toggles, pan/zoom and clearance reanalysis offline.
 Evidence and source lists provenance, revisions, omissions and identities.
 Return to live rebinds controls to the current live session.
 
+### Text-fixed prepared-client launcher
+
+`scripts/launch-wonderbane-navigation-inspector.ps1 -RuntimeDirectory <runtime>`
+launches `<runtime>/client/sb.exe` after the installed `<runtime>/python` verifies
+its prepared-client inventory. It applies the existing TextFix software-rendering
+settings, caps llvmpipe at three threads, clears GL/GLSL version overrides, and
+restores the calling process environment afterward. It refuses a second instance
+from the same runtime and reports the new PID and creation time.
+
+For double-click launch, install this script and
+`scripts/Launch-WonderBane-Inspector-TextFix.cmd` together in `<runtime>/scripts`.
+The CMD resolves the runtime relative to its own directory; it requires no repository
+share. On the testing VM, the **WonderBane Inspector - TextFix** desktop shortcut
+points to this launcher in `S:/ShadowbaneLab-Guided/20260904-inspector-3534418/scripts`.
+The launcher starts the game; open the inspector panel and connect to that exact
+process before running movement. It does not start movement or combat automatically.
+
+The launcher is delivered through PR #27 into `codex/integrate-current-development`,
+then `main`. It does not change the installed navigation wheel. The September 4 live
+launch verified source `e8b24b57fc942305c99fa2d351f0110883306e94`, the accepted native
+DLL, and the inspector channel. The next acceptance todo remains the refined tree
+detour, followed by PvE and overlay cost/scene checks.
+
 ## Source and build evidence
 
 Capture identity records the installed acceptance wheel's source commit and
