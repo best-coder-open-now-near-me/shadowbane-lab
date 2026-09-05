@@ -64,18 +64,22 @@ bool NativeStop::Current(const Target& target) const noexcept {
         && Read(window + 0x64, mode) && mode == 2
         && Read(actor + 0x18, identity) && identity == target.identity;
 }
+bool NativeStop::RequestCurrent(const Target& target) const noexcept {
+    std::uintptr_t request = 0;
+    return Current(target) && Read(base_ + 0x16a1c00, request) && request == target.request;
+}
 void NativeStop::SceneRetired(std::uint64_t scene) noexcept {
     if (captured_ && target_.grant.scene == scene) { captured_ = false; }
     // Native resources with uncertain exception ownership remain process-pinned.
 }
 bool NativeStop::CancelQueued(const Target& target) {
-    if (!Current(target)) { return false; }
+    if (!RequestCurrent(target)) { return false; }
     // These are native intent fields used by the game's combat-close preference
     // and temporary follow path, not position, speed, restriction or input flags.
     // The ordinary UI toggle cannot retire both. Never restore them on release.
     if (!Write(target.actor + 0xc1c, std::uint16_t{0})) { return false; }
     calls_.clear_actions(reinterpret_cast<void*>(target.world), &target.identity);
-    if (!Current(target)) { return false; }
+    if (!RequestCurrent(target)) { return false; }
     auto* map = reinterpret_cast<Map*>(target.world + 0xe8);
     Map snapshot{};
     if (!Read(reinterpret_cast<std::uintptr_t>(map), snapshot) || !snapshot.sentinel || snapshot.size > 1048576) {
@@ -91,15 +95,24 @@ bool NativeStop::CancelQueued(const Target& target) {
         auto* removed = calls_.detach(found, &snapshot.sentinel->parent,
             &snapshot.sentinel->left, &snapshot.sentinel->right);
         if (removed != found) { faulted_ = true; return false; }
+        // Sealed detach/key destructor/pool return have no gameplay callback:
+        // the first two are pure container/value code, the pool uses Win32
+        // InterlockedExchange/Sleep only. No new command is admitted in this group.
         calls_.destroy_identity(&removed->identity);
         calls_.pool_return(removed, sizeof(Node));
+        if (!Current(target)) { return false; }
         --map->size;
     }
-    if (!Current(target)) { return false; }
+    if (!RequestCurrent(target)) { return false; }
+    // The reviewed producer allocates this slot only for the current player;
+    // the world consumer processes/applies it with that same current-player
+    // global. It has no independent actor/world identity tag that we can trust.
+    // Pin its exact pointer with the captured actor/world for this transaction;
+    // never adopt a replacement created by a native callback.
     // Match the native pending-path cancellation block. The native update only
     // processes state zero; do not destroy an object still owned by that update.
     std::uintptr_t request = 0; std::uint32_t request_state = 0;
-    if (!Read(base_ + 0x16a1c00, request)) { return false; }
+    if (!Read(base_ + 0x16a1c00, request) || request != target.request) { return false; }
     if (request) {
         if (!Read(request, request_state)) { return false; }
         if (request_state == 0 && (!Write(request + 4, std::uint8_t{0})
@@ -112,7 +125,7 @@ bool NativeStop::CancelQueued(const Target& target) {
     const auto capacity = reinterpret_cast<std::uintptr_t>(path.capacity);
     if (end < begin || capacity < end || capacity - begin > 1048576 || (end - begin) % 16) { return false; }
     calls_.erase_path(reinterpret_cast<void*>(target.actor + 0xc10), path.begin, path.end);
-    if (!Current(target)) { return false; }
+    if (!RequestCurrent(target)) { return false; }
     calls_.clear_continuation(reinterpret_cast<void*>(target.actor));
     Vector after{};
     if (!Current(target) || !Read(target.actor + 0xc10, after) || after.begin != after.end
@@ -128,7 +141,8 @@ bool NativeStop::CancelQueued(const Target& target) {
         if (!Current(target) || item != remaining.sentinel) { return false; }
     }
     std::uintptr_t latest = 0;
-    if (!Read(base_ + 0x16a1c00, latest) || (latest && !Read(latest, request_state))) { return false; }
+    if (!RequestCurrent(target) || !Read(base_ + 0x16a1c00, latest)
+        || latest != target.request || (latest && !Read(latest, request_state))) { return false; }
     if (latest && request_state == 0) {
         if (!Write(latest + 4, std::uint8_t{0}) || !Write(latest, std::uint32_t{1})) { return false; }
     }
@@ -171,13 +185,13 @@ bool NativeStop::Run(const Target& target) {
                     }
                     if (completed && message_) {
                         std::uintptr_t connection = 0;
-                        completed = Current(target) && Read(base_ + 0x16ab88c, connection);
-                        if (completed && connection) {
+                        completed = RequestCurrent(target) && Read(base_ + 0x16ab88c, connection) && connection != 0;
+                        if (completed) {
                             void* outgoing = message_; message_ = nullptr;
                             // Send consumes exactly this owned by-value reference.
                             // Submission is not a claim of server acknowledgement.
                             calls_.send(reinterpret_cast<void*>(base_ + 0x16ab888), outgoing);
-                            completed = Current(target);
+                            completed = RequestCurrent(target);
                         }
                     }
                 }
@@ -186,7 +200,7 @@ bool NativeStop::Run(const Target& target) {
     }
     ReleaseMessage();
     if (held_actor_) { calls_.release(&held_actor_); }
-    return completed && Current(target);
+    return completed && RequestCurrent(target);
 }
 bool NativeStop::RunCxxGuarded(const Target& target) noexcept {
     try { return Run(target); } catch (...) { faulted_ = true; return false; }
@@ -201,7 +215,10 @@ bool NativeStop::Execute(const Grant& grant) noexcept {
     }
     if ((!captured_ || target_.grant != grant) && !Capture(grant)) { return false; }
     if (!Current(target_)) { return false; }
-    const Target target = target_;
+    Target target = target_;
+    // A later stop in the same manual grant may retire a different request.
+    // Seal once per execution, before any native call, never during cleanup.
+    if (!Read(base_ + 0x16a1c00, target.request) || !RequestCurrent(target)) { return false; }
     executing_ = true;
     const bool complete = RunGuarded(target);
     executing_ = false;

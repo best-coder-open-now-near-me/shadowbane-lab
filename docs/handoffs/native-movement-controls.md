@@ -261,3 +261,13 @@ No movement capability is advertised or client package changed. The active todo
 has therefore moved from constructing stop composition to real native-update,
 movement/camera/picking and input adapter wiring; complete native behavior and
 combined connected acceptance remain outstanding under the shared plan.
+
+Integration review corrections now reject missing-connection completion for an
+outgoing stop message and pin the current-player pending request once per stop
+transaction. Callback-created replacement requests are left untouched; actor/world
+changes abort remaining cleanup and packet submission. The investigation document
+records the native producer/consumer guards and distinguishes gameplay callback
+boundaries from sealed container/pool operations. Both profiles build and pass the
+focused production-composition regressions, including absent requests and repeated
+manual stops with different request objects. Runtime adapters and activation remain
+the active todo; no connected acceptance or package change is claimed.

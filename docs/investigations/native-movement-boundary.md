@@ -269,3 +269,36 @@ not the unmodified game update. Full native execution, positive loaded-code bind
 in the running client, movement/camera/picking adapters and server-effect acceptance
 remain to be validated as part of the complete candidate. No owner gameplay pass
 or runtime capability is justified by these unit tests alone.
+
+## Pending-request ownership and missing-connection correction
+
+The reviewed native move routine first compares its receiver to the current-player
+global. Its pending-slot allocation/replacement branch checks that comparison again.
+Both initial processing and the world-update continuation pass the current-player
+global into the path processor; successful results are installed on that same
+current-player global. This is the client's current-player pending slot, not a
+per-arbitrary-actor request queue. No independent request actor/world identity tag
+is assumed or claimed verified.
+
+The stop executor now seals the exact pending pointer once per execution, together
+with the captured player identity, world, window, scene and policy grant. A later
+stop in the same manual grant obtains a new transaction snapshot. Every actual
+native callback boundary rechecks the captured scope and request pointer before
+further cancellation. A callback replacement is not adopted as the latest request:
+cleanup aborts and the replacement object remains untouched. Tests cover replacement
+from action destruction, path destruction, and actor/world changes during state
+notification, as well as absent requests and successive stops in one grant.
+
+Callback boundaries include action/object/path destruction, state/animation
+notification, message send and reference release. The sealed scheduled lookup,
+detachment, identity destruction and pool-return group does not invoke gameplay
+callbacks: lookup/detachment/value destruction are native container primitives;
+the pool's only external calls are verified Win32 InterlockedExchange and Sleep.
+The executor nevertheless checks current scope again before the map-count write.
+
+If moving-to-idle produces a message but the native connection is missing, stop now
+returns failure/unavailable after local cleanup and owned-reference release. It no
+longer reports completion without sending. The regression verifies no manual move,
+no send, balanced references and latched unavailability. Both profile DLL builds
+and focused production-composition tests pass. These checks still do not constitute
+unmodified-engine or server-effect acceptance.

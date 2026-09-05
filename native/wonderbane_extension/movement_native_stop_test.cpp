@@ -60,7 +60,8 @@ struct Fixture {
     std::array<unsigned char, 0x100> game_window{};
     std::array<unsigned char, 0x40> state{};
     std::array<unsigned char, 48> path{};
-    struct Request { std::uint32_t state = 0; std::uint8_t usable = 1; } request;
+    struct Request { std::uint32_t state = 0; std::uint8_t usable = 1; } request, alternate_request;
+    std::array<unsigned char, 0x200> alternate_world{};
     Access::Node active_sentinel{}, scheduled_sentinel{}, active_node{}, scheduled_node{};
     std::array<std::uintptr_t, 3> packet_table{0, 0, reinterpret_cast<std::uintptr_t>(&Access::PacketRelease)};
     struct Packet { const std::uintptr_t* table; int references; } packet{packet_table.data(), 0};
@@ -102,7 +103,9 @@ struct Fixture {
         Put(actor.data(), 0xc1e, std::uint8_t{1});
         Put(actor.data(), 0xc10, Access::Vector{path.data(), path.data() + path.size(), path.data() + path.size()});
         Put(state.data(), 0x10, std::uint32_t{7});
-        request.state = 0; request.usable = 1;
+        auto* pending = Get<Request*>(base, 0x16a1c00);
+        if (!pending) { pending = &request; Put(base, 0x16a1c00, reinterpret_cast<std::uintptr_t>(pending)); }
+        pending->state = 0; pending->usable = 1;
         active_sentinel.parent = &active_node;
         scheduled_sentinel.parent = &scheduled_node;
         Put(world.data(), 0xb8, Access::Map{&active_sentinel, 1});
@@ -114,7 +117,8 @@ struct Fixture {
     void WorldUpdate() {
         FollowUpdate();
         const auto p = Get<Access::Vector>(actor.data(), 0xc10);
-        if (request.state == 0 || p.begin != p.end || Get<Access::Map>(world.data(), 0xb8).size
+        const auto* pending = Get<Request*>(base, 0x16a1c00);
+        if ((pending && pending->state == 0) || p.begin != p.end || Get<Access::Map>(world.data(), 0xb8).size
             || Get<Access::Map>(world.data(), 0xe8).size) { ++moves; }
     }
 };
@@ -142,6 +146,14 @@ void __fastcall NativeStopTestAccess::Clear(void*, void*, const NativeStop::Iden
     if (current->raise_fault) { RaiseException(0xc0000005, 0, 0, nullptr); }
     current->active_sentinel.parent = nullptr;
     Put(current->world.data(), 0xb8, Map{&current->active_sentinel, 0});
+    if (current->callback_mode == 5) {
+        Put(current->base, 0x16a1c00, reinterpret_cast<std::uintptr_t>(&current->alternate_request));
+    } else if (current->callback_mode == 7) {
+        current->replacement = current->actor;
+        Put(current->replacement.data(), 0xc1c, std::uint16_t{0x0101});
+        Put(current->base, 0x16a2d98, reinterpret_cast<std::uintptr_t>(current->replacement.data()));
+        current->input.scene = 2;
+    }
 }
 NativeStopTestAccess::Node** __fastcall NativeStopTestAccess::Find(void* receiver, void*, Node** output, const NativeStop::Identity* id) {
     const auto& map = *static_cast<Map*>(receiver);
@@ -152,7 +164,13 @@ NativeStopTestAccess::Node* __cdecl NativeStopTestAccess::Detach(Node* node, Nod
 }
 void __fastcall NativeStopTestAccess::Destroy(NativeStop::Identity*, void*) {}
 void __cdecl NativeStopTestAccess::Pool(void*, std::uint32_t size) { Check(size == 40, "correct native scheduled-node pool size"); ++current->pools; }
-void* __fastcall NativeStopTestAccess::Erase(void* receiver, void*, void* first, void*) { static_cast<Vector*>(receiver)->end = first; return first; }
+void* __fastcall NativeStopTestAccess::Erase(void* receiver, void*, void* first, void*) {
+    static_cast<Vector*>(receiver)->end = first;
+    if (current->callback_mode == 6) {
+        Put(current->base, 0x16a1c00, reinterpret_cast<std::uintptr_t>(&current->alternate_request));
+    }
+    return first;
+}
 void __fastcall NativeStopTestAccess::Continuation(void* receiver, void*) { Put(receiver, 0xc1e, std::uint8_t{0}); }
 GroundPoint* __fastcall NativeStopTestAccess::Position(void*, void*, GroundPoint* output) { *output = {100, 0, 200}; return output; }
 void __fastcall NativeStopTestAccess::Destination(void*, void*, const GroundPoint* position) { current->destination = *position; }
@@ -167,6 +185,11 @@ void** __fastcall NativeStopTestAccess::State(void*, void*, void** output, bool 
         Token token{}; std::memcpy(token.worker.data(), "worker", 6); std::memcpy(token.operation.data(), "reentrant", 9);
         Grant grant{};
         f.nested = f.controls.AcquireAutomation(f.controls.Current().generation, token, grant);
+    } else if (f.callback_mode == 8) {
+        f.alternate_world = f.world;
+        Put(f.base, 0x1389028, reinterpret_cast<std::uintptr_t>(f.alternate_world.data()));
+        Put(f.base, 0x16a1c00, reinterpret_cast<std::uintptr_t>(&f.alternate_request));
+        f.input.scene = 2;
     } else if (f.callback_mode == 3) {
         f.controls.Shutdown();
     } else if (f.callback_mode == 2) {
@@ -218,6 +241,22 @@ void ManualMethods() {
     }
 }
 void StatesAndFailures() {
+    { Fixture f; Put(f.base, 0x16a1c00, std::uintptr_t{0});
+      Check(f.stop.Execute(f.controls.Current()) && f.request.state == 0,
+          "absent current-player request does not touch an unrelated request object");
+      const auto moves = f.moves; f.WorldUpdate(); Check(f.moves == moves, "world driver reads only current-player request slot"); }
+    { Fixture f; f.input.keys[0x57] = true; f.Step(); f.input.keys[0x57] = false; f.Step();
+      const auto grant = f.controls.Current();
+      Put(f.base, 0x16a1c00, reinterpret_cast<std::uintptr_t>(&f.alternate_request));
+      f.input.keys[0x57] = true; f.Step(); f.input.keys[0x57] = false; f.Step();
+      Check(f.controls.Current() == grant && f.controls.Ready() && f.stop.Available()
+          && f.alternate_request.state == 1 && f.alternate_request.usable == 0,
+          "new stop transaction in same manual grant seals its own current request"); }
+    { Fixture f; Put(f.base, 0x16ab88c, std::uintptr_t{0});
+      f.input.keys[0x57] = true; f.Step();
+      Check(f.sends == 0 && f.packet.references == 0 && !f.stop.Available() && !f.controls.Ready()
+          && f.moves == 0 && f.retains == f.releases,
+          "missing connection fails unavailable after local cleanup and reference release"); }
     { Fixture f; f.stop.EndUpdate();
       Check(!f.stop.Execute(f.controls.Current()) && f.clears == 0, "outside native update cannot stop");
       Check(!f.stop.BeginUpdate(f.actor.data()), "wrong native update receiver rejected");
@@ -242,6 +281,21 @@ void StatesAndFailures() {
           "native exception retains ambiguous actor ownership and blocks new writer"); }
 }
 void ReentryAndScene() {
+    for (const int mode : {5, 6}) {
+        Fixture f; f.callback_mode = mode; f.input.keys[0x57] = true; f.Step();
+        Check(f.alternate_request.state == 0 && f.alternate_request.usable == 1
+            && f.moves == 0 && f.sends == 0 && !f.stop.Available(),
+            "callback replacement request never adopted or cancelled");
+        Check(f.request.state == (mode == 5 ? 0U : 1U), "only captured request may be retired");
+    }
+    { Fixture f; f.callback_mode = 7; f.input.keys[0x57] = true; f.Step();
+      Check(f.pools == 0 && f.request.state == 0 && f.sends == 0 && f.moves == 0
+          && Get<std::uint16_t>(f.replacement.data(), 0xc1c) == 0x0101,
+          "actor replacement in action destructor prevents subsequent cleanup of new actor"); }
+    { Fixture f; f.callback_mode = 8; f.input.keys[0x57] = true; f.Step();
+      Check(f.clears == 1 && f.alternate_request.state == 0 && f.alternate_request.usable == 1
+          && f.sends == 0 && f.packet.references == 0 && f.moves == 0,
+          "world/request replacement in state callback cannot receive old stop or packet"); }
     { Fixture f; f.callback_mode = 3; f.input.keys[0x57] = true; f.Step();
       Check(f.moves == 0 && !f.controls.Ready(), "shutdown during takeover cannot submit one last move"); }
     { Fixture f; f.callback_mode = 4; f.input.keys[0x57] = true; f.Step();
