@@ -537,38 +537,55 @@ int main(int argc,char** argv){
             RECT rect{0,0,width,height};AdjustWindowRect(&rect,WS_OVERLAPPEDWINDOW,FALSE);
             SetWindowPos(window,nullptr,0,0,rect.right-rect.left,rect.bottom-rect.top,SWP_NOMOVE|SWP_NOZORDER|SWP_NOACTIVATE);
             glViewport(0,0,width,height);glFinish();
-            const auto frame=[&](bool capture){
-                glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
-                if(capture)Check(cue::BeginMask(),"cost mask begin");
-                for(int node=0;node<46;++node){
-                    if(capture){
-                        Check(cue::BeforeOwnedDraw(),"cost owned begin");
-                        Check(cue::CaptureGeometry(mesh,nullptr),"cost mesh capture");
+            for(int nodes:{1,46})for(bool equal:{false,true}){
+                const auto frame=[&](bool capture){
+                    glDepthMask(GL_TRUE);glDepthFunc(GL_LEQUAL);
+                    glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+                    // Identical native depth prepass for both modes and baselines.
+                    glColorMask(GL_FALSE,GL_FALSE,GL_FALSE,GL_FALSE);mesh(nullptr);
+                    glColorMask(GL_TRUE,GL_TRUE,GL_TRUE,GL_TRUE);
+                    glDepthMask(GL_FALSE);glDepthFunc(equal?GL_EQUAL:GL_LEQUAL);
+                    if(capture)Check(cue::BeginMask(),"cost mask begin");
+                    unsigned submissions=0;
+                    for(int node=0;node<nodes;++node){
+                        if(capture){
+                            Check(cue::BeforeOwnedDraw(),"cost owned begin");
+                            Check(cue::CaptureGeometry([](void* value) noexcept {
+                                ++*static_cast<unsigned*>(value);glDrawArrays(GL_QUADS,0,4);
+                            },&submissions),"cost mesh capture");
+                        }
+                        mesh(nullptr);
+                        if(capture)Check(cue::AfterOwnedDraw(),"cost owned end");
                     }
-                    mesh(nullptr);
-                    if(capture)Check(cue::AfterOwnedDraw(),"cost owned end");
+                    if(capture){
+                        Check(submissions==static_cast<unsigned>(nodes)*(equal?2U:1U),
+                            "cost measures expected supplemental driver submissions");
+                        Check(cue::AllocatedMaskBytes()==static_cast<std::uint64_t>(width)*height*(equal?12U:8U),
+                            "EQUAL scratch adds only four lazy bytes per pixel");
+                        Check(cue::CompositeMask(s,{}),"cost composite");
+                    }
+                    glFinish();
+                };
+                const auto timed=[&](bool capture){
+                    const auto start=std::chrono::steady_clock::now();frame(capture);
+                    return std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();
+                };
+                const double cold=timed(true);
+                for(int warmup=0;warmup<3;++warmup){frame(false);frame(true);}
+                std::array<double,16> native{},enabled{};
+                for(std::size_t sample=0;sample<native.size();++sample){
+                    // Alternate order to reduce systematic warm-cache/order bias.
+                    if(sample%2){enabled[sample]=timed(true);native[sample]=timed(false);}
+                    else{native[sample]=timed(false);enabled[sample]=timed(true);}
                 }
-                if(capture)Check(cue::CompositeMask(s,{}),"cost composite");
-                glFinish();
-            };
-            const auto timed=[&](bool capture){
-                const auto start=std::chrono::steady_clock::now();frame(capture);
-                return std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();
-            };
-            const double cold=timed(true);
-            for(int warmup=0;warmup<3;++warmup){frame(false);frame(true);}
-            std::array<double,16> native{},enabled{};
-            for(std::size_t sample=0;sample<native.size();++sample){
-                // Alternate order to reduce systematic warm-cache/order bias.
-                if(sample%2){enabled[sample]=timed(true);native[sample]=timed(false);}
-                else{native[sample]=timed(false);enabled[sample]=timed(true);}
+                std::sort(native.begin(),native.end());std::sort(enabled.begin(),enabled.end());
+                const double native_median=(native[7]+native[8])/2,enabled_median=(enabled[7]+enabled[8])/2;
+                std::printf("production-mask-cost path=%s viewport=%dx%d owned_nodes=%d samples=16 supplemental_submissions_per_capture=%d depth_stencil_blits_per_capture=%d cold_ms=%.3f native_median_ms=%.3f enabled_median_ms=%.3f enabled_min_ms=%.3f enabled_max_ms=%.3f median_difference_ms=%.3f amortized_difference_per_capture_ms=%.3f nominal_mib=%.3f (host synthetic synchronized frame time; amortized includes frame setup/composite; not isolated capture latency or live-client budget)\n",
+                    equal?"EQUAL":"LEQUAL",width,height,nodes,equal?2:1,equal?2:0,cold,
+                    native_median,enabled_median,enabled.front(),enabled.back(),enabled_median-native_median,
+                    (enabled_median-native_median)/nodes,static_cast<double>(cue::AllocatedMaskBytes())/(1024*1024));
+                cue::ReleaseMask();Check(cue::AllocatedMaskBytes()==0,"cost resources released between modes");
             }
-            std::sort(native.begin(),native.end());std::sort(enabled.begin(),enabled.end());
-            const double native_median=(native[7]+native[8])/2,enabled_median=(enabled[7]+enabled[8])/2;
-            std::printf("production-mask-cost viewport=%dx%d owned_nodes=46 samples=16 cold_ms=%.3f native_median_ms=%.3f enabled_median_ms=%.3f enabled_min_ms=%.3f enabled_max_ms=%.3f median_difference_ms=%.3f nominal_mib=%.3f (host test context, synthetic mesh, synchronized CPU/GPU frame time; not a live-client budget)\n",
-                width,height,cold,native_median,enabled_median,enabled.front(),enabled.back(),enabled_median-native_median,
-                static_cast<double>(cue::AllocatedMaskBytes())/(1024*1024));
-            cue::ReleaseMask();
         }
         glDisableClientState(GL_VERTEX_ARRAY);
     }
