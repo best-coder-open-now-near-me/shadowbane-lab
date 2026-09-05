@@ -412,3 +412,18 @@ additive factors after framebuffer saturation. Factors alone do not establish
 an affine resolve domain. No atlas or runtime resolver was added. Next remains
 opaque visibility and per-tap destination-depth coverage, followed by an exact
 bounded transmission strategy; these tests do not certify complete features.
+
+
+Cue visibility witnesses `b75b6563ab5e36a3b8798119572055266e615f31` are included
+at source `97f65217a48d9199c3e6f39038463f4b34dcded4`. Both profile GPU targets
+build; base GPU and expanded source/visibility/tap feasibility pass, zero skips.
+Required cue transparency still fails the same two foreground cases. Evidence:
+`artifacts/hardening-evidence/visibility-native-{full,diagnostics}.xml` and build logs.
+Actual production cue composition proves identical final native color/depth and
+earlier alpha inputs can require different output after a late opaque draw.
+The controlled per-tap experiment separately proves destination-pixel coverage
+and retained owned depth are required; it does not introduce a halo reduction
+policy. These findings rule out reconstructing opaque visibility from final depth
+plus translucent packets. Next is a narrowly scoped native scene-boundary proof
+for opaque visibility, including late opaque submissions and equal-depth order;
+no opaque-complete boundary, atlas, collector or package completion is assumed.
