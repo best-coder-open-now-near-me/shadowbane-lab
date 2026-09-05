@@ -65,7 +65,7 @@ std::array<unsigned char,4> NativeTransparency(bool late_composite,bool depth_wr
 }
 // A bound separable fragment stage must not shade extension geometry, even
 // though glUseProgram(0) makes it eligible to execute in the native pipeline.
-void PipelineGuardRegression(){
+int PipelineGuardRegression(){
     const auto* version=reinterpret_cast<const char*>(glGetString(GL_VERSION));
     const auto* extensions=reinterpret_cast<const char*>(glGetString(GL_EXTENSIONS));
     const auto* arb=extensions ? std::strstr(extensions,"GL_ARB_separate_shader_objects") : nullptr;
@@ -75,7 +75,7 @@ void PipelineGuardRegression(){
     const bool supported=version && (version[0]>'4'
         || (version[0]=='4' && version[1]=='.' && version[2]>='1')
         || arb_supported);
-    if(!supported){std::puts("pipeline guard regression unavailable: unsupported context");return;}
+    if(!supported){std::puts("SKIP: pipeline guard regression unavailable: unsupported context");return 77;}
     const auto procedure=[](const char* name){
         const PROC p=wglGetProcAddress(name);const auto value=reinterpret_cast<std::uintptr_t>(p);
         return value<=3U || value==UINTPTR_MAX ? nullptr : p;
@@ -95,13 +95,13 @@ void PipelineGuardRegression(){
     const auto use=reinterpret_cast<Bind>(procedure("glUseProgram"));
     const auto delete_program=reinterpret_cast<Bind>(procedure("glDeleteProgram"));
     if(!gen || !remove || !bind || !create || !stages || !get || !delete_program || !use){
-        Check(false,"supported pipeline context exposes required entry points");return;
+        Check(false,"supported pipeline context exposes required entry points");return 1;
     }
     const char* fragment="#version 120\nvoid main(){gl_FragColor=vec4(0,1,0,1);}";
     const GLuint program=create(0x8B30U,1,&fragment);
     GLint linked=0;get(program,0x8B82U,&linked);
     Check(linked!=0,"separable fragment shader links");
-    if(!linked){delete_program(program);return;}
+    if(!linked){delete_program(program);return 1;}
     GLuint pipeline=0;gen(1,&pipeline);bind(pipeline);stages(pipeline,2U,program);
     const auto sample=[](){
         std::array<unsigned char,4> rgba{};
@@ -144,6 +144,7 @@ void PipelineGuardRegression(){
     std::puts("pipeline guard regression executed: native pixels, extension pixels, both bindings and stage restoration");
     glColor4f(1,1,1,1);glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
     Check(glGetError()==GL_NO_ERROR,"pipeline guard regression leaves no GL errors");
+    return failures?1:0;
 }
 unsigned Pixel(int x,int y){std::array<unsigned char,4> p{};glReadPixels(x,y,1,1,GL_RGBA,GL_UNSIGNED_BYTE,p.data());return p[0]+p[1]+p[2];}
 }
@@ -151,8 +152,9 @@ unsigned Pixel(int x,int y){std::array<unsigned char,4> p{};glReadPixels(x,y,1,1
 int main(int argc,char** argv){
     if(argc>2 || (argc==2 && std::strcmp(argv[1],"--cost")!=0
         && std::strcmp(argv[1],"--native-transparency")!=0
-        && std::strcmp(argv[1],"--source-feasibility")!=0)){
-        std::fprintf(stderr,"usage: selected_cue_gpu_test [--cost|--native-transparency|--source-feasibility]\n");return 2;
+        && std::strcmp(argv[1],"--source-feasibility")!=0
+        && std::strcmp(argv[1],"--pipeline-guard")!=0)){
+        std::fprintf(stderr,"usage: selected_cue_gpu_test [--cost|--native-transparency|--source-feasibility|--pipeline-guard]\n");return 2;
     }
     WNDCLASSW wc{};wc.style=CS_OWNDC;wc.lpfnWndProc=DefWindowProcW;
     wc.hInstance=GetModuleHandleW(nullptr);wc.lpszClassName=L"SelectedCueGpuTest";
@@ -171,6 +173,11 @@ int main(int argc,char** argv){
     glViewport(0,0,640,480);glMatrixMode(GL_PROJECTION);glLoadIdentity();
     glMatrixMode(GL_MODELVIEW);glLoadIdentity();glEnable(GL_DEPTH_TEST);glDepthFunc(GL_LESS);
     glClearColor(0,0,0,0);glClearDepth(1);glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+    if(argc==2 && std::strcmp(argv[1],"--pipeline-guard")==0){
+        const int result=PipelineGuardRegression();
+        wglMakeCurrent(nullptr,nullptr);wglDeleteContext(context);ReleaseDC(window,dc);DestroyWindow(window);
+        return result;
+    }
     if(argc==2 && std::strcmp(argv[1],"--source-feasibility")==0){
         const int result=source_experiment::Run();
         wglMakeCurrent(nullptr,nullptr);wglDeleteContext(context);ReleaseDC(window,dc);DestroyWindow(window);
@@ -200,7 +207,6 @@ int main(int argc,char** argv){
         cue::ReleaseMask();wglMakeCurrent(nullptr,nullptr);wglDeleteContext(context);ReleaseDC(window,dc);DestroyWindow(window);
         return failures?1:0;
     }
-    PipelineGuardRegression();
     auto initial=Snapshot();Check(cue::BeginMask(),"mask resource creation");Same(initial,Snapshot());
     Check(cue::AllocatedMaskBytes()==640ULL*480*8,"normal mesh uses only two depth textures");
     Check(cue::BeforeOwnedDraw() && cue::BeforeLegacyGeometry(),"before legacy capture");

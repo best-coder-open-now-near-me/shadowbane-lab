@@ -877,3 +877,11 @@ This state-restoration fix does not supply opaque-only visibility or solve order
 native transmission. Next: integrate and verify this shared guard in the owner's
 combined source, then continue the outstanding transparency requirement. Full
 feature/package acceptance remains blocked by that requirement.
+
+
+Pipeline test gate accounting: the follow-up exposes --pipeline-guard as a
+separate executed GPU-test mode. Unsupported contexts return 77 explicitly;
+missing required APIs on an advertised capable context fail. The ordinary cue
+GPU test no longer silently includes an optional subtest. The integration owner
+owns adding its named CTest and required package-gate membership to the combined
+source. Runtime support for older contexts remains unchanged.
