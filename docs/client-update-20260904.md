@@ -31,3 +31,37 @@ against the actual updated executable. Exact committed package validation and VM
 replacement follow this checkpoint. Delivery uses `codex/navigation-inspector`, PR
 #27 into `codex/integrate-current-development`, then main. Next todo: deploy the
 verified current-version package, reconnect the client, then retry the tree detour.
+
+## Verified deployment
+
+Committed source `f0bad0ec561bb3a693676e77f5180b27264005fc` passed the exact package
+pipeline: 1,684 Python tests, seven expected skips, 211 subtests; Ruff; both VS2022
+Win32 profiles and 18 CTest cases per profile; wheel installation, entry point and
+Tk panel. Package `28331e60` archive SHA-256 is
+`8f2a4e8f6a7fbfba2331968e1eb31de31355a10baa4de66195652d90d382baad`.
+The deployed DLL SHA-256 is
+`65c67e8e05397b8acab5f3e01a4e566a1f7c75fcec99250c5a7bcb77ffee8fd2`.
+
+Freezing the current official client also identified updated `cache/CObjects.cache`
+and `Config/Config.wpak`. The prepared replacement includes both game-data changes
+and the existing restrained texture treatment. Four changed files and package
+metadata were backed up before offline replacement. The package's destination
+metadata records its actual installed path; the complete runtime inventory was
+reverified there, preserving reviewed mutable settings. No navigation state or
+calibration was replaced. The frozen source and verified staging package remain in
+private host storage because the VM staging drive has limited free space.
+
+The installed runtime remains `S:/ShadowbaneLab-Guided/20260904-inspector-3534418`.
+Its existing TextFix desktop shortcut now launches the updated prepared client.
+Live verification matched source, executable, loaded DLL, creation identity and
+inspector channel for PID 1940, creation FILETIME `134330468660427387`. Panel 1956,
+listener 7820 and recorder 2832 were reconnected. Duplicate-launch protection and
+helper health checks pass. Login and the refined tree run remain pending.
+
+Private rollback and deployment receipts are retained beneath the same VM diagnostics
+folder: `before-current-game-update`, `current-version-deployment.json`,
+`current-deployment-plan.json`, `current-game-baseline`, and `prepared-current-client`.
+This supersedes the earlier e8b24b5/a9a59004 runtime identities, not the retained
+historical acceptance captures. PR #27 still awaits integration; the normal checkout
+remains on main. Next todo: login, then the refined tree detour and remaining PvE/
+overlay acceptance. Keep the rollback until the current client passes live acceptance.

@@ -1,5 +1,10 @@
 # Navigation inspector: developer and owner handoff
 
+Current runtime update: [September 4 client patch and deployment](../client-update-20260904.md).
+The prepared client now uses game version 1.3.38.6 and source f0bad0e; use that receipt
+for live identities. Older runtime details below are historical. Next todo is login
+and the refined tree test.
+
 Prepared 2026-09-04. Implementation has started on `codex/navigation-inspector`;
 see the [implementation, usage and current todos](../navigation-inspector.md).
 Publisher, viewer, controls and replay are implemented in draft PR #27. Exact
