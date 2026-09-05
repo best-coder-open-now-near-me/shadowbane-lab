@@ -18,7 +18,8 @@ int wmain(int argc,wchar_t** argv){
     if(!file || !ReviewedBinding(image.data(),image.size(),0x400000))return 5;
     struct Span{std::uint32_t rva,size;std::vector<unsigned> reloc;};
     const Span spans[]{ {0x78ae0,404,{7,38,155,223,265,279,367}},
-        {0x1cb100,173,{28,64,69,78,91}}, {0x1c8a90,68,{33}}, {0x79c730,205,{10,195}} };
+        {0x1cb100,173,{28,64,69,78,91}}, {0x1c8a90,68,{33}}, {0x79c730,205,{10,195}},
+        {0x5645b3,66,{1,8,13,20,25,34,41,46,53,61}}, {0x5655c0,33,{25}}, {0x1a07f0,168,{55,138}} };
     for(auto base:{0x100000U,0x10000000U}){
         auto relocated=image;
         for(const auto& span:spans)for(auto offset:span.reloc){

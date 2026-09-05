@@ -38,6 +38,16 @@ PVOID volatile original_context=nullptr;
 using MakeCurrent=BOOL(WINAPI*)(HDC,HGLRC);
 using Render=void(__thiscall*)(void*);
 PVOID volatile original=nullptr;
+// The reviewed optimized producer calls this dynamic core/EXT slot directly,
+// bypassing the ordinary glDrawElements import. Never retain its stack arrays.
+std::uint32_t* multi_slot=nullptr;
+PVOID volatile multi_original=nullptr;
+// Leaf metadata lock only: never held during native drawing. The shared
+// lifecycle lease remains the sole admission boundary for callbacks/Stop.
+SRWLOCK multi_metadata=SRWLOCK_INIT;
+alignas(8) volatile LONG64 multi_epoch=0;
+thread_local LONG64 scene_multi_epoch=0;
+using MultiDraw=void(APIENTRY*)(GLenum,const GLsizei*,GLenum,const void* const*,GLsizei);
 thread_local cue::Settings settings{};
 thread_local effects::Attachment attachment{};
 thread_local std::array<std::uint32_t,128> renders{};
@@ -120,6 +130,61 @@ BOOL WINAPI CueMakeCurrent(HDC dc,HGLRC context) noexcept {
     if(context!=wglGetCurrentContext())ReleaseSelectedCueContext();
     return call(dc,context);
 }
+MultiDraw NativeMultiDraw() noexcept {
+    if(!wglGetCurrentContext())return nullptr;
+    // Match the reviewed native initializer's core-then-EXT lookup exactly.
+    PROC proc=wglGetProcAddress("glMultiDrawElements");
+    const auto valid=[](PROC p){const auto v=reinterpret_cast<std::uintptr_t>(p);return v>3 && v!=static_cast<std::uintptr_t>(-1);};
+    if(!valid(proc))proc=wglGetProcAddress("glMultiDrawElementsEXT");
+    return valid(proc)?reinterpret_cast<MultiDraw>(proc):nullptr;
+}
+void APIENTRY OwnedMultiDraw(GLenum mode,const GLsizei* count,GLenum type,
+                            const void* const* indices,GLsizei primitive_count) noexcept {
+    RenderCallbackLease lease;SynchronizeGeneration();
+    // Resolve on this current context; the native dispatch slot is global, but
+    // extension procedure addresses need not be identical across contexts.
+    auto draw=NativeMultiDraw();
+    if(!draw)draw=reinterpret_cast<MultiDraw>(InterlockedCompareExchangePointer(&multi_original,nullptr,nullptr));
+    if(!draw || draw==&OwnedMultiDraw)return;
+    struct Args{MultiDraw draw;GLenum mode;const GLsizei* count;GLenum type;const void* const* indices;GLsizei primitives;};
+    Args args{draw,mode,count,type,indices,primitive_count};
+    if(count && indices && primitive_count>0)CaptureSelectedCueGeometry([](void* value) noexcept {
+        const auto& a=*static_cast<const Args*>(value);a.draw(a.mode,a.count,a.type,a.indices,a.primitives);
+    },&args);
+    draw(mode,count,type,indices,primitive_count); // One native framebuffer submission.
+}
+bool MultiDrawInstalled() noexcept {
+    return multi_slot && InterlockedCompareExchange(reinterpret_cast<volatile LONG*>(multi_slot),0,0)
+        ==static_cast<LONG>(reinterpret_cast<std::uintptr_t>(&OwnedMultiDraw));
+}
+bool MultiDrawUnchanged() noexcept {
+    return MultiDrawInstalled() && scene_multi_epoch==InterlockedCompareExchange64(&multi_epoch,0,0);
+}
+bool RefreshMultiDraw() noexcept {
+    const auto native=NativeMultiDraw();if(!native)return false;
+    AcquireSRWLockExclusive(&multi_metadata);
+    if(!multi_slot){ReleaseSRWLockExclusive(&multi_metadata);return false;}
+    const auto hook=static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(&OwnedMultiDraw));
+    const auto current=static_cast<std::uint32_t>(InterlockedCompareExchange(reinterpret_cast<volatile LONG*>(multi_slot),0,0));
+    bool ok=current==hook;
+    // Do not replace another extension's hook or an uninitialized/stale pointer.
+    if(!ok && current==static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(native))){
+        const auto saved=InterlockedExchangePointer(&multi_original,reinterpret_cast<PVOID>(native));
+        ok=ReplaceImportAddressSlot(multi_slot,current,hook)==ERROR_SUCCESS;
+        if(ok)InterlockedIncrement64(&multi_epoch);
+        else InterlockedExchangePointer(&multi_original,saved);
+    }
+    if(ok)scene_multi_epoch=InterlockedCompareExchange64(&multi_epoch,0,0);
+    ReleaseSRWLockExclusive(&multi_metadata);return ok;
+}
+void RestoreMultiDraw() noexcept {
+    if(!multi_slot)return;
+    const auto hook=static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(&OwnedMultiDraw));
+    if(!MultiDrawInstalled()){multi_slot=nullptr;return;} // Preserve a foreign replacement.
+    const auto saved=static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(InterlockedCompareExchangePointer(&multi_original,nullptr,nullptr)));
+    if(saved && (ReplaceImportAddressSlot(multi_slot,hook,saved)==ERROR_SUCCESS || !MultiDrawInstalled()))multi_slot=nullptr;
+    // Keep call-through alive for a callback which already loaded our address.
+}
 void __fastcall OwnedRender(void* self,void*) noexcept {
     RenderCallbackLease lease;SynchronizeGeneration();
     const auto draw=reinterpret_cast<Render>(InterlockedCompareExchangePointer(&original,nullptr,nullptr));
@@ -130,11 +195,12 @@ void __fastcall OwnedRender(void* self,void*) noexcept {
         for(std::size_t n=0;n<render_count;++n)match=match || renders[n]==render;
     if(!match){draw(self);return;}
     if(!StillSelected()){DiscardSelectedCueScene();draw(self);return;}
+    if(!MultiDrawUnchanged()){mask_failed=true;cue::DiscardMask();}
     if(owned>=128){mask_failed=true;cue::DiscardMask();draw(self);return;}
     ++nesting;
     const bool captured=!mask_failed && cue::BeforeOwnedDraw();
     draw(self); // Exactly one original call. No actor/animation replay.
-    if(captured && StillSelected()){
+    if(captured && StillSelected() && MultiDrawUnchanged()){
         if(!cue::AfterOwnedDraw()){mask_failed=true;cue::DiscardMask();}
     }else {mask_failed=true;cue::DiscardMask();}
     --nesting;++owned;
@@ -143,7 +209,7 @@ void __fastcall OwnedRender(void* self,void*) noexcept {
 DWORD StartSelectedCue(std::uint8_t* image,std::size_t size,const char* hash) noexcept {
     RenderLifecycleMutation mutation;
     AcquireSRWLockExclusive(&lock);
-    if(slot){ReleaseSRWLockExclusive(&lock);return ERROR_BUSY;}
+    if(slot || multi_slot){ReleaseSRWLockExclusive(&lock);return ERROR_BUSY;}
     if(mapping){ReleaseSRWLockExclusive(&lock);return ERROR_ALREADY_INITIALIZED;}
     FILETIME creation{},exit{},kernel{},user{};
     if(!GetProcessTimes(GetCurrentProcess(),&creation,&exit,&kernel,&user)){
@@ -160,7 +226,7 @@ DWORD StartSelectedCue(std::uint8_t* image,std::size_t size,const char* hash) no
     Control initial{};initial.pid=GetCurrentProcessId();initial.creation_low=creation.dwLowDateTime;
     initial.creation_high=creation.dwHighDateTime;std::memcpy(control,&initial,sizeof(initial));
     base=static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(image));
-    if(!IsReviewedSceneExecutable(hash) || !cue::ReviewedBinding(image,size,base))error=ERROR_REVISION_MISMATCH;
+    if(size<0x16aa03c || !IsReviewedSceneExecutable(hash) || !cue::ReviewedBinding(image,size,base))error=ERROR_REVISION_MISMATCH;
     else{
         const auto cleanup_hook=static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(&CueMakeCurrent));
         if(context_slot){
@@ -182,7 +248,8 @@ DWORD StartSelectedCue(std::uint8_t* image,std::size_t size,const char* hash) no
             error=ReplaceImportAddressSlot(candidate_slot,base+0x26d91,static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(&OwnedRender)));
             if(error==ERROR_SUCCESS)slot=candidate_slot;
         }
-        if(error==ERROR_SUCCESS){InterlockedIncrement64(&generation);InterlockedExchange(&running,1);InterlockedExchange(&control->binding,1);}
+        if(error==ERROR_SUCCESS){multi_slot=reinterpret_cast<std::uint32_t*>(image+0x16aa038);
+            InterlockedIncrement64(&generation);InterlockedExchange(&running,1);InterlockedExchange(&control->binding,1);}
     }
     InterlockedExchange(&control->error,static_cast<LONG>(error));
     ReleaseSRWLockExclusive(&lock);return error;
@@ -190,6 +257,7 @@ DWORD StartSelectedCue(std::uint8_t* image,std::size_t size,const char* hash) no
 void StopSelectedCue() noexcept {
     RenderLifecycleMutation mutation;
     InterlockedExchange(&running,0);InterlockedIncrement64(&generation);
+    RestoreMultiDraw();
     if(slot){const auto replacement=static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(&OwnedRender));
         if(ReplaceImportAddressSlot(slot,replacement,base+0x26d91)==ERROR_SUCCESS)slot=nullptr;}
     // Keep the cleanup-only context hook pinned across Stop. A worker cannot
@@ -218,7 +286,7 @@ void BeginSelectedCueScene(const GraphicsCameraState* camera) noexcept {
     const float position[]{attachment.position.x,attachment.position.y,attachment.position.z};
     direction=tracker.Update(identity,position,camera,true);
     scene=direction.available;
-    mask_failed=!(scene && cue::BeginMask());Status(0,mask_failed?1:0,0);
+    mask_failed=!(scene && RefreshMultiDraw() && cue::BeginMask());Status(0,mask_failed?1:0,0);
 }
 void ObserveSelectedCueLegacyGeometry() noexcept {
     RenderCallbackLease lease;SynchronizeGeneration();
@@ -230,7 +298,7 @@ void ObserveSelectedCueLegacyGeometry() noexcept {
 void CaptureSelectedCueGeometry(SelectedGeometryDraw draw,void* user) noexcept {
     RenderCallbackLease lease;SynchronizeGeneration();
     if(!scene || !nesting || mask_failed || !InterlockedCompareExchange(&running,0,0))return;
-    if(!StillSelected() || !cue::CaptureGeometry(draw,user)){
+    if(!StillSelected() || !MultiDrawUnchanged() || !cue::CaptureGeometry(draw,user)){
         mask_failed=true;cue::DiscardMask();
     }
 }
@@ -239,6 +307,7 @@ void FinishSelectedCueScene(const GraphicsCameraState* camera) noexcept {
     if(!scene){DiscardSelectedCueScene();return;}
     if(!camera || !InterlockedCompareExchange(&running,0,0)
         || !StillSelected()){DiscardSelectedCueScene();Status(0,0,1);return;}
+    if(!MultiDrawUnchanged()){mask_failed=true;cue::DiscardMask();}
     const bool ok=cue::CompositeMask(settings,direction);Status(static_cast<LONG>(owned),ok && !mask_failed?0:1,0);
     scene=false;finished=true;attachment={};render_count=0;
 }

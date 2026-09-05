@@ -152,6 +152,38 @@ int main(int argc,char** argv){
     Check(cue::CompositeMask(s,{}),"translucent silhouette composite");
     Check(Pixel(230,240)>0,"translucent mesh glows in front of farther background");
     Check(Pixel(380,240)==0,"nearer opaque foreground occludes translucent mesh");
+    using MultiDraw=void(APIENTRY*)(GLenum,const GLsizei*,GLenum,const void* const*,GLsizei);
+    auto multi=reinterpret_cast<MultiDraw>(wglGetProcAddress("glMultiDrawElements"));
+    if(!multi)multi=reinterpret_cast<MultiDraw>(wglGetProcAddress("glMultiDrawElementsEXT"));
+    Check(multi!=nullptr,"observed optimized multi-draw API available");
+    if(multi){
+        const GLushort elements[]{0,1,2,0,2,3};const GLsizei counts[]{3,3};
+        const void* indices[]{elements,elements+3};
+        struct MultiArgs{MultiDraw draw;const GLsizei* count;const void* const* indices;};
+        MultiArgs args{multi,counts,indices};
+        const auto submit=[](void* value) noexcept {
+            const auto& a=*static_cast<const MultiArgs*>(value);
+            a.draw(GL_TRIANGLES,a.count,GL_UNSIGNED_SHORT,a.indices,2);
+        };
+        for(bool depth_write:{false,true}){
+            glDepthMask(GL_TRUE);glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+            Check(cue::BeginMask() && cue::BeforeOwnedDraw(),"optimized multi-draw begin");
+            glDepthMask(depth_write?GL_TRUE:GL_FALSE);glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);glColor4f(1,0,0,.5F);
+            material=Snapshot();void* vertex_pointer=nullptr;glGetPointerv(GL_VERTEX_ARRAY_POINTER,&vertex_pointer);
+            Check(cue::CaptureGeometry(submit,&args),"production mask captures both multi-draw primitives");Same(material,Snapshot());
+            void* restored_pointer=nullptr;glGetPointerv(GL_VERTEX_ARRAY_POINTER,&restored_pointer);
+            Check(vertex_pointer==restored_pointer,"multi-draw preserves native client arrays");
+            submit(&args);Check(cue::AfterOwnedDraw(),"optimized multi-draw end");
+            for(int x:{230,380}){
+                std::array<unsigned char,4> pixel{};glReadPixels(x,240,1,1,GL_RGBA,GL_UNSIGNED_BYTE,pixel.data());
+                Check(pixel[0]>=126 && pixel[0]<=129 && pixel[1]==0 && pixel[2]==0,"multi-draw reaches native color buffer once");
+            }
+            Check(cue::CompositeMask(s,{}),"optimized multi-draw composite");
+            Check(Pixel(189,240)>0 && Pixel(450,240)>0,"whole silhouette includes both optimized primitives");
+        }
+        glDepthMask(GL_TRUE);glDisable(GL_BLEND);
+    }
     for(GLenum destination:{GL_ONE_MINUS_SRC_ALPHA,GL_ONE}){
         glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
         Check(cue::BeginMask() && cue::BeforeOwnedDraw(),"begin zero-alpha mesh");

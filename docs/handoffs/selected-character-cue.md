@@ -361,3 +361,70 @@ cue composition before glass instead produces `(142,61,72)` in both modes. The
 probe asserts this counterexample is distinct, preventing the foreground-only
 fixture from suggesting a wholesale earlier pass is sufficient. Existing two
 foreground mismatches remain required failures; the ordinary GPU suite passes.
+
+
+## Bounded material investigation and optimized multi-draw repair
+
+The integration owner requested continued material/queue investigation and
+explicitly authorized this focused coverage repair. No competing present,
+context, scene or procedure-resolution hook was introduced.
+
+On the reviewed updated official executable, character draw `1CB700` writes a
+cached matrix at `1CBAA5` before shader configuration/draw at `1CC549`/`1CC554`.
+Common shader configuration `4EFFE0` updates mesh references and writes its
+caller-local draw-description pointer into shader `+10` at `4F003A`. Retaining a
+shader pointer for later replay would retain a reference to expired stack data.
+Category helper `1C3380` tests opacity against 0.995 and material flags; it does
+not provide a spatial depth key. These facts rule out treating game-render or
+shader calls as a harmless prepass. They do not prove every possible retained
+geometry strategy impossible.
+
+Bounded read-only player-reference observations (not selected-target substitution)
+resolved 32 drawable nodes among the 46-node subtree through `ArcSinglePolyMesh`
+vtable `11498A0`, `ArcMesh` vtable `114965C`, and active
+`CacheCompiledVertexArrays` vtable `11496B4`. Fourteen terminal submitters were
+`RenderNormal` (`11495A8`); eighteen were `RenderOptimizedMultiDraw` (`11495C8`).
+The latter builds count/index arrays on its stack at `1A07F0`, then calls thunk
+`13868`, wrapper `5655C0`, and dynamic procedure slot `16AA038`. That path bypasses
+the ordinary `glDrawElements` import. The native initializer at `5645B3` resolves
+`glMultiDrawElements` first, then `glMultiDrawElementsEXT` if unavailable.
+
+The existing cue runtime now registers this slot after reviewed binding succeeds,
+validates/adopts it on the GL thread at BeginScene, and captures multi-draw
+synchronously into the same whole-character mask. It calls the current-context
+native procedure with the original stack arrays while they remain valid; nothing
+is retained for later replay. Raw mask submission is supplemental; native color
+submission remains once. Exact initializer, producer and dispatch code spans are
+covered by relocation-normalized seals and every-byte mutation rejection.
+
+Late initialization is retried at the next scene boundary. A foreign pointer is
+never replaced. Any pointer drift during a scene discards the whole mask,
+including prior nodes. A short metadata lock serializes adoption only; it is not
+held over native drawing and does not create a second callback admission domain.
+An installation epoch also detects drift/re-adoption while an older callback is
+held. That callback retains its locally captured native procedure through return.
+Stop uses the shared lifecycle mutation, drains admitted callbacks and restores
+by compare/exchange; foreign replacements survive. Call-through remains pinned
+for previously loaded hook addresses. Context procedure resolution is strict and
+failed observation prevents a partial mask from being presented.
+
+Validation: full extension build succeeds; runtime and GPU cue suites pass.
+Runtime cases cover delayed initialization, EXT fallback, unavailable context,
+foreign replacement, prior-mask discard, held callback plus concurrent driver
+refresh, retained call-through, and Stop/restart while multi-draw is in flight.
+Actual WGL multi-draw tests cover both depth-write modes, both primitive halves,
+client-array/GL-state restoration and one native color-buffer submission. The
+explicit private-client binding test passes with both relocation directions and
+every-byte drift rejection on the new spans. The required foreground transmission
+regression still fails both foreground depth modes; this repair does not resolve
+transmission and is not final package certification.
+
+The lane's ignored read-only scripts `read-player-backend.ps1`,
+`read-player-submission.ps1`, `read-player-driver.ps1` and
+`read-player-primitive.ps1` remain under `artifacts/selected-character-cue/`.
+No client binaries, credentials or raw geometry were exported. The remaining
+transmission contract needs either a verified depth-aware integration preserving
+native pass ordering, or owned per-fragment transmission/geometry/material data
+for all contributing native draws. The inspected shader pointer is not that
+contract. Next: owner inclusion and exact combined verification of this repair,
+then continue the shared transmission investigation; the package gate stays red.
