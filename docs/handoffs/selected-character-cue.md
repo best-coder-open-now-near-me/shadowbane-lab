@@ -507,3 +507,47 @@ emitters have a bounded four-vertex contract. Full native transmission still
 needs verified source color/alpha and depth per contributing fragment, including
 other immediate/list paths and all relevant blend/program/stencil classes. No
 replay or S(z),T(z) representation is certified by this evidence alone.
+
+
+## Combined trace verification and bounded next contract
+
+The lane independently built full-profile exact combined source
+`5519a8e4026136d04231c9c66cfe71fc23fdac97`, containing cue `98bcd21` and the
+owner-reconciled enriched trace state. All seven targeted native tests passed
+with zero skips (cue runtime, shared context, navigation draw, sixteen-combination
+render test, trace full/disabled, and cel guard). All 48 Python trace tests passed.
+The shared context extraction and both serialization assertions were retained.
+Evidence: `E:/Projects/shadowbane/artifacts/cue-combined-native/5519a8e/lane-targeted.xml`.
+This is the tested build source, not a later documentation commit. Required
+foreground transparency remains unresolved; no final package was certified.
+
+Further static evidence: quad caller `538600`, 391 bytes, is byte-identical
+between the archived `a9a590...` and updated `feb351...` private clients; SHA256
+`579559a61a8dd456b269789739bce3cd76a87b5d2259be2e6679422dcd0d8a7b`.
+It binds material virtual `+58` at `53864B`. Its shadow branch saves renderer
+RGBA, sets RGB to zero with preserved alpha at `5386C7`, calls the quad at
+`538703`, restores RGBA at `53871E`, and draws again at `538769`. Constant color
+is therefore branch-dependent even though it does not vary within this quad.
+The inspected local code does not establish the complete inherited GLSL/ARB,
+texture-combine, fog/light or stencil state; absence of a local program write is
+not evidence that no program is active.
+
+The integration owner rejected the large fragment-ledger proposal; this lane
+has not implemented it. The proposed next feasibility contract is limited to
+the two sealed quad emitters under the existing cel capture owner. It requires
+four positions/UVs plus supported entry state, synchronous native material use,
+and reusable scratch source RGBA, depth and explicit coverage for one primitive.
+It is not an approved frame representation or an implementation split. A
+conservative pre-Begin projected region could reduce scratch/copy cost only if
+its caller ABI and clipping bounds are first verified.
+
+Pre-native depth/stencil must be retained if native tests are to be reproduced:
+copying after a depth-writing draw changes LESS/EQUAL results. Coverage cannot be
+inferred from nonzero color or changed depth. Proposed production regressions
+must exercise textured alpha and shadow color, LESS/LEQUAL/EQUAL, both depth-write
+modes, stencil outcomes, overlapping/equal-depth primitives, unchanged native
+buffers/state, synchronous input lifetime, cleanup and measured scratch cost.
+Inherited program/texture state and an exact coverage marker are still missing
+facts. No UV collector, replacement material shader, fixed layer count or new
+renderer was added. Next active todo is to establish those supported native
+source/coverage semantics with the owner before choosing a shared representation.
