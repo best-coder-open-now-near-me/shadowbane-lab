@@ -66,6 +66,7 @@ def main() -> int:
     identity.write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
     environment = dict(os.environ)
     environment.pop("PYTHONPATH", None)
+    environment.pop("WONDERBANE_MOVEMENT_RUNTIME_TEST", None)
     environment["PYTHONUTF8"] = "1"
     steps = []
 
@@ -232,6 +233,8 @@ def main() -> int:
             "wonderbane_extension_movement_runtime_settings-stale",
             "wonderbane_extension_movement_settings",
             "wonderbane_extension_movement_wire",
+            "wonderbane_extension_movement_channel",
+            "wonderbane_extension_movement_runtime_commands",
         }
         cases = ET.parse(native_results).getroot().findall(".//testcase")
         for name in required_native_tests:
@@ -245,6 +248,26 @@ def main() -> int:
                 raise RuntimeError(
                     f"{profile}: required native gate did not execute and pass: {name}"
                 )
+        ipc_results = logs / f"{profile}-movement-ipc.xml"
+        environment["WONDERBANE_MOVEMENT_RUNTIME_TEST"] = str(
+            build / "Release/wonderbane_extension_movement_runtime_test.exe"
+        )
+        try:
+            run(
+                f"{profile}-movement-ipc",
+                [sys.executable, "-m", "pytest", "tests/test_native_movement_session.py",
+                 "-q", f"--junitxml={ipc_results}"],
+            )
+        finally:
+            environment.pop("WONDERBANE_MOVEMENT_RUNTIME_TEST", None)
+        ipc_cases = ET.parse(ipc_results).getroot().findall(".//testcase")
+        if not any(case.get("name") ==
+                   "test_real_producer_mutex_native_owner_completion_and_readonly_snapshot"
+                   for case in ipc_cases) or any(
+            case.find("skipped") is not None or case.find("failure") is not None
+            or case.find("error") is not None for case in ipc_cases
+        ):
+            raise RuntimeError(f"{profile}: required native movement IPC did not execute and pass")
         if arguments.reviewed_client:
             run(
                 f"{profile}-selected-binding",
@@ -296,6 +319,8 @@ def main() -> int:
             raise RuntimeError("wheel missing native movement settings entry")
         if "shadowbane_lab/client_extension/movement_wire.py" not in package.namelist():
             raise RuntimeError("wheel missing native movement codec")
+        if "shadowbane_lab/client_extension/movement_session.py" not in package.namelist():
+            raise RuntimeError("wheel missing native movement session")
         sky_names = [
             name
             for name in package.namelist()
@@ -321,6 +346,9 @@ def main() -> int:
             "native/wonderbane_extension/movement_wire.h",
             "src/shadowbane_lab/client_extension/movement_wire.py",
             "tests/fixtures/native_movement_wire_v2.hex",
+            "src/shadowbane_lab/client_extension/movement_session.py",
+            "native/wonderbane_extension/movement_command_queue.h",
+            "native/wonderbane_extension/movement_channel_test.cpp",
             "tests/fixtures/navigation-inspector-v1.hex",
             "tests/fixtures/navigation-inspector-controls-v1.hex",
             "src/shadowbane_lab/navigation_inspector/build_identity.json",

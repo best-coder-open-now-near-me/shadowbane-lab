@@ -791,7 +791,7 @@ if(BUILD_TESTING)
     COMMAND wonderbane_extension_performance_telemetry_test
   )
 
-  add_executable(wonderbane_extension_probe event_channel.cpp probe.cpp)
+  add_executable(wonderbane_extension_probe event_channel.cpp probe.cpp movement_controls.cpp)
   if(WONDERBANE_EXTENSION_PROFILE STREQUAL "diagnostics-only")
     target_compile_definitions(
       wonderbane_extension_probe

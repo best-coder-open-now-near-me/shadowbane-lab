@@ -811,3 +811,33 @@ ownership with production held-worker tests while implementing admission/status/
 receipts. Next: coordinated live wire switch, typed session and manager operation
 composition, visual transparency repair, complete-candidate independent review
 and exact package/installed checks before owner acceptance.
+
+Schema-2 transport b8380f2aac41818104dc435abd25464fe2d169aa is included at
+4dd02e4684ba5d6074d38837695ac2588b63f5b2 with the shared probe link correction
+in this checkpoint. The existing probe now links movement_controls.cpp for the
+validator reached through event_channel; the first combined all-target build
+correctly failed before that dependency was supplied. Both complete builds now
+pass. 70 movement/startup/event/channel tests per profile pass, zero skips.
+Real Python-to-native tests ran against each exact newly built runtime fixture:
+22 tests plus 15 subtests per profile passed, zero skips, including acquire/retry/
+stop while the Python producer mutex remains held and read-only/mixed-schema checks.
+Evidence: artifacts/hardening-evidence/movement-channel-{full,diagnostics}.xml,
+matching build logs and movement-session-{full,diagnostics}-python.xml. Ruff passes.
+
+Active action schema is now 2 (command768/result512/status512); legacy action and
+learned-power payload prefixes remain, but schema-1 peers are rejected. Product
+version is unchanged. Command-channel stop disables admission immediately; a timed
+out worker retains handles/state, and admitted lease references retain mappings
+until released. The production held-worker test verifies repeated-start rejection,
+release/final cleanup and later restart. Package builder requires this lifecycle
+and runtime command gate, and runs the real IPC pytest with each freshly built
+fixture explicitly, rejecting missing/skipped cases. Inherited fixture paths are
+cleared. These package steps are not claimed executed by a new complete package.
+
+Open cross-feature work: arbitrary world destination currently returns unavailable;
+manager dispatcher injection will preserve the accepted LT/LG planner decisions.
+The owner is implementing that adapter, bounded acquisition-receipt retention,
+nonterminal movement stop versus terminal grant release, and navigation with manual
+controls disabled. Manager operation/session composition remains integration-owned.
+Visual transparency, final independent review and exact installed-package acceptance
+remain open. No client/VM installation was changed.

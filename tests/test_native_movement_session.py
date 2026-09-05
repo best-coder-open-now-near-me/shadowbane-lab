@@ -1,5 +1,6 @@
 import os
 import subprocess
+import sys
 import uuid
 from dataclasses import replace
 from pathlib import Path
@@ -10,6 +11,7 @@ from shadowbane_lab.client_extension import action_channel as channel
 from shadowbane_lab.client_extension.movement_session import NativeMovementSession
 from shadowbane_lab.client_extension.movement_wire import Owner
 
+pytestmark = pytest.mark.skipif(sys.platform != "win32", reason="Windows native IPC")
 
 def test_real_producer_mutex_native_owner_completion_and_readonly_snapshot():
     configured = os.environ.get("WONDERBANE_MOVEMENT_RUNTIME_TEST")
