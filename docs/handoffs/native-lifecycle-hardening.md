@@ -1072,3 +1072,23 @@ the dedicated scene_query_guard CTest to execute and pass. These checks do not
 resolve the two required native transparency failures or certify an installed
 package. Next: feature-owner capture reuse and verified material/late-contributor
 coverage, then combined acceptance gates.
+
+
+Cue query protection is now integrated: feature commit
+`ef1adcea0028c1fa20b45b12dc99a8ff3665d92b` applied as
+`1eea5591a5884321eaddfc9fa364d99f3f327be5` on the existing shared-helper source.
+The owner's copied-helper prerequisite was not reapplied. A handoff-only conflict
+was reconciled retaining historical verification and the new cue receipt.
+CaptureGeometry now rejects active/unknown sample queries before its callback or
+legacy fallback, reusing AreSceneSampleQueriesInactive. Removed the duplicate
+narrow query API/check. Indicator/composition remains under the same shared guard.
+
+Both complete native profiles built at exact 1eea559. Nine affected CTests/profile
+ran: seven passed, two required transparency gates failed, zero skips. Both JUnit
+outputs explicitly contain all six cue query cases (three targets, depth writes
+off/on), plus the dedicated shared-query execution. The two foreground native
+transparency failures retain their prior expected/actual values; no regression
+closure is claimed for them. Evidence: artifacts/hardening-evidence/cue-query-
+{full,diagnostics}.xml and matching build logs. Next: independent affected cue
+verification and ongoing material/late-contributor work for the transparency fix;
+no package or owner-install request until the complete candidate passes.
