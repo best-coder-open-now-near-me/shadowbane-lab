@@ -171,6 +171,7 @@ def main() -> int:
             "movement_lifetime.cpp",
             "movement_native_stop.cpp",
             "movement_native_ui.cpp",
+            "movement_windows_input.cpp",
         ):
             if included_sources.count(movement_source) != 1:
                 raise RuntimeError(

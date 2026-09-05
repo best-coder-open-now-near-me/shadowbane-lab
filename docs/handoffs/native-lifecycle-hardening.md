@@ -729,3 +729,19 @@ input before rearming. These tests verify the API/backend contract, not the
 unfinished window-event consumer, nested stop deferral or connected focus loss.
 Those remain owner work alongside input/runtime/settings and typed transport.
 Visual transparency and complete-candidate package/review acceptance remain open.
+
+Windows capture ebdafce11385e75f843124478621f4798f72fe75 is included at
+a07726dc736a1c0aa967bb89b6e359a8ed447a4d. The producer repair dependency was
+retained without replay; the chronological handoff conflict retained the existing
+stop-only validation record. Both complete DLL profiles build; 41 targeted
+movement/UI/lifetime/capture tests per profile pass, zero skips. Six exercise
+real Windows subclass/capture paths, including rollback and foreign subclass.
+Evidence: artifacts/hardening-evidence/windows-input-full.xml and
+windows-input-diagnostics.xml with build logs. Actual builder membership checks
+execute successfully for both generated projects, requiring exactly one
+movement_windows_input.cpp; builder Ruff passes. These certify capture components,
+not the unfinished runtime consumer or connected WASD/controller/drag behavior.
+A repeated Bind/XInput module reference issue was routed back to the movement
+owner before activation. Next remains that correction, nested safety/runtime,
+settings and typed grants, existing transparency repair, complete-candidate review
+and exact installed-package acceptance.
