@@ -212,3 +212,16 @@ or independent complete-candidate review is claimed for this checkpoint. Last
 actual builder attempt and its failing gates remain recorded above. No main merge
 or shared VM/client change occurred. Active worktrees and ignored evidence remain
 retained; current source is published on the integration branch.
+
+Cue owner independently verified exact combined
+`b713dbf0c5cecf743c441c38472db8568cdbeaf9` in a clean lane-owned detached worktree:
+full DLL/all native targets build; CTest 36 entries = 32 passed, 2 argument skips,
+2 required cue/effects transparency failures. Explicit reviewed-client cue and sky
+binding tests both passed. Held MultiDraw refresh/stop, actual GPU, shared context,
+all 16 rendering combinations and 17 Python selection-control tests passed.
+GPU/binding sources match `d741f04`; reviewed runtime reconciliation consists of
+the shared scene_context extraction. Evidence:
+`E:/Projects/shadowbane/artifacts/cue-combined-native/b713dbf/lane-verification.xml`.
+This closes independent lane verification of MultiDraw inclusion. It is neither
+transmission/package acceptance nor the independent integration review required
+once a complete candidate is pinned.
