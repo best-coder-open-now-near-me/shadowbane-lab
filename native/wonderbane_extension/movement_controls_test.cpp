@@ -17,17 +17,20 @@ struct Actuator final : NativeActuator {
     bool stop_ok = true;
     bool move_ok = true;
     bool camera_ok = true;
+    char interrupt_at = 0;
+    std::optional<StopReason> interruption;
+    std::optional<StopReason> Interrupted() const noexcept override { return interruption; }
     bool Stop(const Grant& g, StopReason) noexcept override {
-        events.push_back({'s', g, {}, false}); return stop_ok;
+        events.push_back({'s', g, {}, false}); if (interrupt_at == 's') { interruption = StopReason::focus; } return stop_ok;
     }
     bool Direction(const Grant& g, Vector2 v, bool start) noexcept override {
-        events.push_back({'d', g, v, start}); return move_ok;
+        events.push_back({'d', g, v, start}); if (interrupt_at == 'd') { interruption = StopReason::focus; } return move_ok;
     }
     bool Destination(const Grant& g, GroundPoint p, bool start) noexcept override {
         events.push_back({'p', g, {p.x, p.z}, start}); return move_ok;
     }
     bool Camera(Vector2 v) noexcept override {
-        events.push_back({'c', {}, v, false}); return camera_ok;
+        events.push_back({'c', {}, v, false}); if (interrupt_at == 'c') { interruption = StopReason::focus; } return camera_ok;
     }
     void Revoked(const Grant& old, const Grant& next, StopReason) noexcept override {
         revoked_old = old; revoked_next = next;
@@ -250,6 +253,27 @@ void NativeIntentTakeover() {
     Check(blocked.controls.Ready() && blocked.actuator.Count('d') == 1,
           "retained exact stop completes before manual submission");
 }
+void NestedSafety() {
+    for (const char phase : {'s', 'c', 'd'}) {
+        Fixture f; f.Automate(); f.actuator.events.clear(); f.actuator.interrupt_at = phase;
+        f.input.keys[0x57] = true; if (phase == 'c') { f.input.right_stick = {1, 0}; }
+        f.Step();
+        Check(f.controls.Current().owner == Owner::none && f.actuator.Count('d') == (phase == 'd' ? 1U : 0U),
+              "nested safety vetoes remaining input before a replacement move");
+        Check(f.actuator.Count('s') >= 1, "nested safety completes native cancellation before returning");
+        f.actuator.interrupt_at = 0; f.actuator.interruption.reset(); f.Step();
+        Check(f.controls.Current().owner == Owner::none, "held input cannot rearm after nested safety");
+        f.input.keys.fill(false); f.input.right_stick = {}; f.Step();
+        f.input.keys[0x57] = true; f.Step();
+        Check(f.controls.Current().owner == Owner::manual && f.controls.Ready(),
+              "safety interruption does not fabricate a native binding failure");
+    }
+    Fixture acquisition; acquisition.actuator.interrupt_at = 's'; Grant grant{};
+    Check(acquisition.controls.AcquireAutomation(acquisition.controls.Current().generation,
+        Identity("interrupted"), grant) == Result::inhibited
+        && acquisition.controls.Current().owner == Owner::none,
+        "nested safety cannot publish a replacement automation owner");
+}
 void EmergencyStops() {
     for (const auto reason : {StopReason::focus, StopReason::capture_lost, StopReason::ui}) {
         Fixture f; const auto old = f.Automate();
@@ -302,6 +326,6 @@ void FrameRatesAndSettings() {
 }
 }
 int main() {
-    Interpretation(); Ownership(); CameraFailure(); Gates(); Devices(); Drag(); BufferedInput(); FailureAndScene(); NativeIntentTakeover(); EmergencyStops(); FrameRatesAndSettings();
+    Interpretation(); Ownership(); CameraFailure(); Gates(); Devices(); Drag(); BufferedInput(); FailureAndScene(); NativeIntentTakeover(); NestedSafety(); EmergencyStops(); FrameRatesAndSettings();
     return failures ? 1 : 0;
 }

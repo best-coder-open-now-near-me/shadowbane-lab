@@ -12,12 +12,13 @@ The normal shared checkout remains on `main`. Terrain-repair branches are exclud
 
 ## Status: unfinished, not a connected candidate
 
-The native ownership/input policy, steering, stop, camera, terrain-pick, lifetime
-and UI-ownership adapters are implemented and tested. The Windows/XInput consumer
-and settings/automation transport are still being connected. The controls policy
-is not yet called by the extension. No controls capability is advertised, no installed package
-has changed, and no native binding is enabled. This checkpoint must not be treated
-as the complete requested feature or as an acceptance package.
+The native ownership/input policy, steering, stop, camera, terrain-pick, lifetime,
+UI ownership, Windows/XInput capture and native-update consumer are implemented.
+The consumer is registered after successful shared extension startup and defaults
+to disabled. Settings UI/persistence and automation transport are still being
+connected. No action-channel movement capability is advertised, no installed
+package has changed, and no connected acceptance is claimed. This checkpoint is
+not the complete requested feature or an acceptance package.
 
 The production policy requires a synchronous owning-client-thread actuator. A
 movement ownership grant contains a generation, scene lifetime, owner and lossless
@@ -86,15 +87,15 @@ invalid pick and lost capture, client isolation and camera integration at
 - [x] Implement and test the shared input interpretation and ownership policy.
 - [x] Bind native stop, steering, camera and picking with native lifetime guards.
 - [x] Bind native UI/text/modal ownership and shared pointer-coordinate conversion.
-- [ ] Active: compose Windows/XInput input capture and the native-update consumer.
-- [ ] Wire real settings, remapping, controller configuration and feature controls.
+- [x] Compose Windows/XInput input capture and the native-update consumer.
+- [ ] Active: wire real settings, remapping, controller configuration and feature controls.
 - [ ] Wire travel/PvE dispatch and immutable ownership grants with the hardening owner.
 - [ ] Validate production native adapters, both profiles, lifecycle and delayed dispatch.
 - [ ] Build/install the complete combined package through the existing integration owner.
 - [ ] Run focused connected acceptance for all input methods, camera, obstacles,
   real release/stop, chat/UI safety, multi-client isolation and navigation takeover.
 
-Next item is Windows/XInput consumer composition. Connected engine behavior still
+Next item is settings UI/persistence and discoverable entry points. Connected engine behavior still
 requires the complete combined package and coordinated acceptance. Historical
 checkpoint notes below describe the progression, not additional active todos.
 
@@ -539,3 +540,41 @@ Active next todo: native-update consumer composition, including nested safety
 interruption before another native move. Then settings, immutable automation
 grants, combined package validation and coordinated connected acceptance. Capture
 is not yet registered by extension startup and this is not a completed feature.
+
+
+## Owning native consumer checkpoint
+
+`movement_runtime.cpp` composes the native lifetime observer, capture adapter,
+policy and executor before the original native update. It validates camera basis
+before press/current terrain picks, preserving the final native pick for drag
+actuation. A bounded immutable safety queue captures HWND, scene and grant.
+Nested safety vetoes remaining work before publishing a new owner or issuing a
+later move; already submitted movement is stopped before the consumer returns.
+Normal focus loss uses stop-only window admission without requiring another
+native update. Destroyed/retired scenes lose authority without recapturing actors.
+Settings application has an exact process/window/grant/revision ticket; stale
+configuration cannot stop a newly accepted owner. Ordinary disable retains the
+registered consumer. Unsupported startup publishes unavailable and retires it.
+
+The consumer now registers after successful shared extension startup. Controls
+remain disabled until explicit settings; the panel/persistence and automation
+wire integration are next. This source does not change the installed client.
+The integration owner must add `movement_runtime.cpp` once in each actual package
+profile and reconcile the additive extension startup call with shared rollback.
+
+Thirteen consumer tests reuse production native backend call composition and real
+HWND capture, with controlled native callees/lifetime/input sources. All three
+inputs take over an actual native move held by an automation grant, then reject
+its delayed commands/stops. Coverage includes release, no automatic route resume,
+chat/held-key rearm, focus loss without updates, stale scene/settings tickets,
+destruction and nested stop/camera/move callbacks. These are developer-controlled
+composition tests, not live engine/server acceptance. Together with seven capture
+cases and the prior 35 policy/backend/UI/lifetime cases, the affected suites pass
+55 cases in each complete native profile, zero skips.
+
+The repeated-Bind/XInput review finding is addressed by one-shot admission before
+image verification/loading. Wrong/redundant/reentrant calls do not load modules;
+one process-pinned XInput handle is retained. Unsupported and already-bound
+regression cases verify rejection before repeated image/load admission. This is
+source API/consumer coverage; complete settings, command transport, shared review,
+exact-source installed package and coordinated gameplay acceptance remain todos.

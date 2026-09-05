@@ -8,7 +8,7 @@
 #include <vector>
 using namespace wonderbane::extension::movement;
 namespace {
-int failures = 0;
+int failures = 0, image_checks = 0;
 void Check(bool ok, const char* message) { if (!ok) { ++failures; std::cerr << message << '\n'; } }
 HWND foreground = nullptr, client = nullptr;
 std::array<SHORT, 256> keys{};
@@ -55,7 +55,7 @@ struct Actuator : NativeActuator {
 };
 }
 namespace wonderbane::extension::movement {
-bool VerifyNativeMovementImage(std::uintptr_t&) noexcept { return false; }
+bool VerifyNativeMovementImage(std::uintptr_t&) noexcept { ++image_checks; return false; }
 struct WindowsInputTestAccess {
     static bool Bind(WindowsInput& input, HWND hwnd, std::uint32_t* slot) {
         input.platform_ = {&Focus, &KeyState, &Cursor, &Controller, &Capabilities};
@@ -86,6 +86,11 @@ int main(int argc, char** argv) {
     input.tick_ms = 1; controls.Tick(input);
     WindowsInput windows(controls, {nullptr, &Ui, &Safety});
     std::uint32_t slot = reinterpret_cast<std::uint32_t>(&Original);
+    if (mode == "unsupported") {
+        Check(!windows.Bind(client) && !windows.Bind(client) && image_checks == 1,
+              "unsupported/redundant binding makes only one native image/load admission attempt");
+        DestroyWindow(client); return failures ? 1 : 0;
+    }
     if (mode == "rollback") {
         slot = reinterpret_cast<std::uint32_t>(&Foreign);
         Check(!WindowsInputTestAccess::Bind(windows, client, &slot) && !windows.Available(), "foreign native slot rejects registration");
@@ -96,6 +101,8 @@ int main(int argc, char** argv) {
         DestroyWindow(client); return failures ? 1 : 0;
     }
     Check(WindowsInputTestAccess::Bind(windows, client, &slot) && windows.Available(), "real window and callback hooks installed");
+    Check(!windows.Bind(client) && !windows.Bind(client) && image_checks == 0,
+          "already bound registration rejects before image verification or XInput loading");
     Check(windows.Configure(settings), "configure capture");
     const auto key = &WindowsInputTestAccess::Key;
     if (mode == "keyboard") {

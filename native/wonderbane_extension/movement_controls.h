@@ -92,6 +92,9 @@ public:
     virtual bool Camera(Vector2 radians) noexcept = 0;
     virtual void Revoked(const Grant&, const Grant&, StopReason) noexcept = 0;
     virtual void SceneRetired(std::uint64_t) noexcept = 0;
+    // A safety event nested inside this input/command's native callback can
+    // veto its remaining work before a replacement grant or move is accepted.
+    virtual std::optional<StopReason> Interrupted() const noexcept { return std::nullopt; }
 };
 
 // Exactly one instance per injected client. All calls (including automation
@@ -101,6 +104,9 @@ public:
     explicit Controls(NativeActuator& actuator) noexcept : actuator_(actuator) {}
     Result Configure(const Settings&) noexcept;
     void Tick(const Input&) noexcept;
+    // Runtime calls this with a verified lifetime before read-only native picks.
+    // It retires old authority without issuing a stop against the new actor.
+    void ObserveScene(std::uint64_t) noexcept;
     Result AcquireAutomation(std::uint64_t expected_generation, Token, Grant&) noexcept;
     Result AutomationDestination(const Grant&, GroundPoint) noexcept;
     Result Stop(const Grant&, StopReason = StopReason::release) noexcept;
@@ -109,6 +115,9 @@ public:
     Result EmergencyStop(const Grant&, StopReason) noexcept;
     void Shutdown() noexcept;
     bool ConsumesKey(std::uint16_t key) const noexcept;
+    // Native event capture separately verifies current foreground/UI/lifetime;
+    // capture need not wait for a sampling tick after enabling or restoring focus.
+    bool CapturesKey(std::uint16_t key) const noexcept;
     bool ConsumesDrag() const noexcept { return drag_active_; }
     Grant Current() const noexcept { return grant_; }
     bool Ready() const noexcept { return available_ && !pending_stop_; }
@@ -123,6 +132,7 @@ private:
     bool StopActive(StopReason) noexcept;
     void Inhibit(StopReason) noexcept;
     bool RetryStop() noexcept;
+    bool ContinueInput() noexcept;
     NativeActuator& actuator_;
     Settings settings_{};
     Grant grant_{1, 0, Owner::none, {}};

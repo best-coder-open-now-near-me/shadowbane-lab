@@ -45,6 +45,13 @@ bool NativeInputWindow(HWND& window) noexcept {
         && window && IsWindow(window);
 }
 bool WindowsInput::Bind(HWND window) noexcept {
+    DWORD pid = 0;
+    if (bound_ || terminal_ || attempted_ || input_owner.load(std::memory_order_acquire)
+        || !callbacks_.ui || !callbacks_.safety
+        || GetWindowThreadProcessId(window, &pid) != GetCurrentThreadId() || pid != GetCurrentProcessId()) { return false; }
+    // One process-pinned load attempt. Failed/reentrant/redundant registration
+    // cannot accumulate XInput module references or replace published originals.
+    attempted_ = true;
     std::uintptr_t manager = 0, callback = 0, native_window = 0; HWND actual = nullptr;
     if (!VerifyNativeMovementImage(base_) || !Read(base_ + 0x16ac67c, manager)
         || !manager || !Read(manager + 4, native_window) || !native_window
@@ -131,7 +138,7 @@ bool WindowsInput::Key(std::uint32_t key, std::uint32_t, std::uint32_t down, std
     if (!Cursor(point) || !Query(point, ui) || ui.keyboard_owned) {
         original_down_[key] = true; Safety(StopReason::ui); return false;
     }
-    if (!controls_.ConsumesKey(static_cast<std::uint16_t>(key))) { original_down_[key] = true; return false; }
+    if (!controls_.CapturesKey(static_cast<std::uint16_t>(key))) { original_down_[key] = true; return false; }
     suppressed_[key] = true; return true;
 }
 void __cdecl WindowsInput::Keyboard(std::uint32_t key, std::uint32_t mods, std::uint32_t down, std::uint32_t repeat) {
