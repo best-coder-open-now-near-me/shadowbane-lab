@@ -658,7 +658,7 @@ consumer wiring, and the existing cue/effects native transparency repairs. After
 complete candidate is pinned, obtain the independent integration review and run
 the existing exact-source package/installed checks before consolidated owner testing.
 
-First/replacement lifetime arming correction 99f65051d5210d8a67fe443433930061b37965c
+First/replacement lifetime arming correction b99f65051d5210d8a67fe443433930061b37965c
 is included at 347b4ca6082cd9e14aed5056965d39744567ec31. Both complete native DLL profiles build;
 each executes 34 policy/backend/lifetime tests successfully, zero skips. Evidence:
 artifacts/hardening-evidence/arming-native-full.xml and arming-native-diagnostics.xml,
