@@ -37,6 +37,11 @@ bool NativeStop::Bind(HWND window) noexcept {
     calls_.clear_waypoint = reinterpret_cast<decltype(calls_.clear_waypoint)>(base_ + 0x79fc50);
     calls_.state = reinterpret_cast<decltype(calls_.state)>(base_ + 0x5f8c0);
     calls_.send = reinterpret_cast<decltype(calls_.send)>(base_ + 0x7f4da0);
+    calls_.unproject = reinterpret_cast<decltype(calls_.unproject)>(base_ + 0x14ccf0);
+    calls_.ray = reinterpret_cast<decltype(calls_.ray)>(base_ + 0x242d00);
+    calls_.ray_cast = reinterpret_cast<decltype(calls_.ray_cast)>(base_ + 0x20daa0);
+    calls_.ray_point = reinterpret_cast<decltype(calls_.ray_point)>(base_ + 0x242e10);
+    calls_.release_parent = reinterpret_cast<decltype(calls_.release_parent)>(base_ + 0x8adc0);
     calls_.ground_target = reinterpret_cast<decltype(calls_.ground_target)>(base_ + 0x2d1fa0);
     calls_.move = reinterpret_cast<decltype(calls_.move)>(base_ + 0x62570);
     calls_.camera = reinterpret_cast<decltype(calls_.camera)>(base_ + 0x51c210);
@@ -46,10 +51,15 @@ bool NativeStop::BeginUpdate(void* native_window) noexcept {
     DWORD pid = 0; std::uintptr_t actual = 0;
     if (!Available() || in_update_ || executing_ || GetCurrentThreadId() != thread_
         || GetWindowThreadProcessId(window_, &pid) != thread_ || pid != GetCurrentProcessId()
-        || !Read(base_ + 0x16a7bfc, actual) || actual != reinterpret_cast<std::uintptr_t>(native_window)) { return false; }
+        || !Read(base_ + 0x16a7bfc, actual) || !actual || actual != reinterpret_cast<std::uintptr_t>(native_window)) { return false; }
     in_update_ = true; return true;
 }
-void NativeStop::EndUpdate() noexcept { if (!executing_) { in_update_ = false; } }
+void NativeStop::EndUpdate() noexcept {
+    if (!in_update_ || executing_ || GetCurrentThreadId() != thread_) { return; }
+    executing_ = true;
+    if (!faulted_) { (void)ClearPickGuarded(); }
+    executing_ = false; in_update_ = false;
+}
 bool NativeStop::Capture(const Grant& grant) noexcept {
     Target target{}; target.grant = grant;
     if (!Read(base_ + 0x16a2d98, target.actor) || !Read(base_ + 0x1389028, target.world)
@@ -58,8 +68,11 @@ bool NativeStop::Capture(const Grant& grant) noexcept {
     target_ = target; captured_ = true; return true;
 }
 bool NativeStop::Current(const Target& target) const noexcept {
+    return controls_.AuthorizesNativeStop(target.grant) && SceneCurrent(target);
+}
+bool NativeStop::SceneCurrent(const Target& target) const noexcept {
     DWORD pid = 0;
-    if (!in_update_ || !controls_.AuthorizesNativeStop(target.grant) || GetCurrentThreadId() != thread_
+    if (!in_update_ || !target.grant.scene || controls_.Current().scene != target.grant.scene || GetCurrentThreadId() != thread_
         || GetWindowThreadProcessId(window_, &pid) != thread_ || pid != GetCurrentProcessId()) { return false; }
     std::uintptr_t actor = 0, world = 0, window = 0; std::uint32_t mode = 0; Identity identity{};
     return Read(base_ + 0x16a2d98, actor) && actor == target.actor
@@ -71,6 +84,62 @@ bool NativeStop::Current(const Target& target) const noexcept {
 bool NativeStop::RequestCurrent(const Target& target) const noexcept {
     std::uintptr_t request = 0;
     return Current(target) && Read(base_ + 0x16a1c00, request) && request == target.request;
+}
+bool NativeStop::ClearPickCxxGuarded() noexcept {
+    pick_valid_ = false;
+    try {
+        if (ray_owned_) {
+            calls_.release_parent(&ray_.parent, nullptr);
+            calls_.release(&ray_.actor);
+            ray_owned_ = false; ray_ = {};
+        }
+        return true;
+    } catch (...) { faulted_ = true; return false; }
+}
+bool NativeStop::ClearPickGuarded() noexcept {
+    __try { return ClearPickCxxGuarded(); }
+    __except(EXCEPTION_EXECUTE_HANDLER) { faulted_ = true; return false; }
+}
+bool NativeStop::PickGround(int x, int y, GroundPoint& output) noexcept {
+    output = {};
+    if (!Available() || !in_update_ || executing_ || !controls_.Ready() || GetCurrentThreadId() != thread_) { return false; }
+    executing_ = true;
+    const bool result = ClearPickGuarded() && PickGuarded(x, y, output);
+    executing_ = false;
+    return result;
+}
+bool NativeStop::RunPick(int x, int y, GroundPoint& output) {
+    RECT bounds{};
+    if (!GetClientRect(window_, &bounds) || x < 0 || y < 0 || x >= bounds.right || y >= bounds.bottom) { return false; }
+    Target target{}; target.grant = controls_.Current();
+    if (!Read(base_ + 0x16a2d98, target.actor) || !Read(base_ + 0x1389028, target.world)
+        || !Read(base_ + 0x16a7bfc, target.window) || !target.actor || !target.world || !target.window
+        || !Read(target.actor + 0x18, target.identity) || !SceneCurrent(target)) { return false; }
+    GroundPoint origin{}, screen{};
+    if (!Read(base_ + 0x16a2c34, origin) || !Finite(origin)) { return false; }
+    calls_.unproject(&screen, x, y, 0.0F);
+    if (!SceneCurrent(target) || !Finite(screen)) { return false; }
+    GroundPoint direction{screen.x - origin.x, screen.y - origin.y, screen.z - origin.z};
+    const float length = std::hypot(direction.x, direction.y, direction.z);
+    if (!std::isfinite(length) || length <= 0) { return false; }
+    direction.x /= length; direction.y /= length; direction.z /= length;
+    ray_owned_ = true;
+    calls_.ray(&ray_, reinterpret_cast<void*>(target.actor), &origin, &direction, false);
+    if (!SceneCurrent(target) || ray_.actor != reinterpret_cast<void*>(target.actor)) { return false; }
+    if (!calls_.ray_cast(reinterpret_cast<void*>(target.world), &ray_) || !SceneCurrent(target)
+        || !std::isfinite(ray_.distance) || ray_.distance < 0) { return false; }
+    // This native helper locks and reads the actor/parent transformation and
+    // converts the world hit into the player's native parent-local coordinates.
+    calls_.ray_point(&ray_, &pick_point_);
+    if (!SceneCurrent(target) || !Finite(pick_point_)) { return false; }
+    pick_target_ = target; pick_valid_ = true; output = pick_point_; return true;
+}
+bool NativeStop::PickCxxGuarded(int x, int y, GroundPoint& output) noexcept {
+    try { return RunPick(x, y, output); } catch (...) { faulted_ = true; return false; }
+}
+bool NativeStop::PickGuarded(int x, int y, GroundPoint& output) noexcept {
+    __try { return PickCxxGuarded(x, y, output); }
+    __except(EXCEPTION_EXECUTE_HANDLER) { faulted_ = true; return false; }
 }
 bool NativeStop::MovementCurrent(const Target& target) const noexcept {
     return controls_.Ready() && target.grant.owner != Owner::none && controls_.Current() == target.grant && Current(target);
@@ -200,6 +269,7 @@ bool NativeStop::RotateCameraGuarded(const Target& target, Vector2 radians) noex
     } __except(EXCEPTION_EXECUTE_HANDLER) { return false; }
 }
 void NativeStop::SceneRetired(std::uint64_t scene) noexcept {
+    if (pick_target_.grant.scene == scene) { pick_valid_ = false; }
     if (captured_ && target_.grant.scene == scene) { captured_ = false; }
     if (steering_captured_ && steering_target_.grant.scene == scene) { steering_captured_ = false; }
     // Native resources with uncertain exception ownership remain process-pinned.
