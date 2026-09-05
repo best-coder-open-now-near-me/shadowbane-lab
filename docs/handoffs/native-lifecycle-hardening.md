@@ -580,3 +580,24 @@ hardening. PR28 merge is `4e908b411570122a07cc15fd98dc9888ab74fc37`; PR29 merge 
 `5519a8e4026136d04231c9c66cfe71fc23fdac97`. They represent historical checkpoints,
 not open reviews or certification of later source/package work. No main merge,
 PR closure action or deployment was performed by this audit.
+
+
+Native camera basis `c401c0e4763e59ace394b68c10636cc7d09dff58` is included at
+`e01a054531c83b40c6a7801563b720b7a97aca34`. Both complete DLL profiles build;
+each executes policy/backend, scene-context and combined-render tests successfully,
+zero skips. Evidence: `artifacts/hardening-evidence/basis-native-{full,diagnostics}.xml`
+and build logs. Current native center/right rays and inverse-parent conversion
+produce movement axes; conversion references retire immediately and frame changes
+during conversion/cleanup reject the result. Native calls are controlled in these
+tests; no rendered client-camera behavior is certified. CameraBasis invalidates
+its scratch pick, so runtime composition must calculate basis before its final
+terrain pick or deliberately repick before drag actuation.
+
+Existing scene_frame/cel counters reset per render frame; scene_context observes
+GL-context changes, and cue generation/epochs cover feature or hook lifetimes.
+None is a durable game scene-generation source proving same-pointer replacement.
+The movement owner was told to preserve that distinction and establish specific
+native lifecycle evidence for Input.scene; changed identity tuples or observed
+invalid intervals alone do not prove an unobserved ABA transition impossible.
+Next remains input/UI consumer plus settings/grant transport, with that lifetime
+contract explicit. Rendering transparency and final package gates remain open.
