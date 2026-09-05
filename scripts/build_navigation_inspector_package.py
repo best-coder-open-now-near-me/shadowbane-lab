@@ -156,6 +156,10 @@ def main() -> int:
             for item in project_root.findall(f".//{{*}}{tag}")
             if "Include" in item.attrib
         ]
+        if included_sources.count("movement_boundary_trace.cpp") != 1:
+            raise RuntimeError(f"{profile}: passive movement trace must have one runtime owner")
+        if included_sources.count("movement_controls.cpp") != 0:
+            raise RuntimeError(f"{profile}: unfinished movement policy must not imply live actuation")
         for name in contracts:
             expected_count = 1 if profile == "full" else 0
             if included_sources.count(name) != expected_count:

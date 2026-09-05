@@ -27,7 +27,10 @@ HRESULT WINAPI FixtureKnownFolder(REFKNOWNFOLDERID, DWORD, HANDLE, PWSTR* destin
 namespace wonderbane::extension {
 int renderer_starts = 0, renderer_stops = 0, telemetry_starts = 0, telemetry_stops = 0;
 int effects_stops = 0, navigation_stops = 0, status_stops = 0, control_stops = 0, event_stops = 0;
-DWORD telemetry_result = ERROR_ACCESS_DENIED;
+DWORD telemetry_result = ERROR_ACCESS_DENIED, trace_result = ERROR_SUCCESS;
+int trace_stops = 0;
+DWORD StartMovementBoundaryTrace(const ProcessIdentity&) noexcept { return trace_result; }
+void StopMovementBoundaryTrace() noexcept { ++trace_stops; }
 bool IsReviewedWorldMapClient() noexcept { return false; }
 DWORD StartWorldMapCapture(HMODULE, const ProcessIdentity&) noexcept { return ERROR_SUCCESS; }
 void StopWorldMapCapture() noexcept {}
@@ -65,14 +68,15 @@ int main() {
     assert(renderer_starts == 1 && telemetry_starts == 0 && renderer_stops == 0);
     assert(DeleteFileW(g_heartbeat_path));
     InterlockedExchange(&g_state, static_cast<LONG>(WonderBaneExtensionState::uninitialized));
+    trace_result = ERROR_ACCESS_DENIED;
     assert(SetEnvironmentVariableW(kPerformanceProfileEnvironment, L"frame"));
     assert(WonderBaneExtensionInitialize() == ERROR_SUCCESS);
-    assert(renderer_starts == 2 && telemetry_starts == 1 && renderer_stops == 0);
+    assert(renderer_starts == 2 && telemetry_starts == 1 && renderer_stops == 0 && trace_stops == 1);
     assert(DeleteFileW(g_heartbeat_path));
     InterlockedExchange(&g_state, static_cast<LONG>(WonderBaneExtensionState::uninitialized));
-    telemetry_result = ERROR_SUCCESS; fail_heartbeat = true;
+    telemetry_result = ERROR_SUCCESS; trace_result = ERROR_SUCCESS; fail_heartbeat = true;
     assert(WonderBaneExtensionInitialize() == ERROR_ACCESS_DENIED);
-    assert(renderer_stops == 1 && telemetry_stops == 1 && effects_stops == 1);
+    assert(renderer_stops == 1 && telemetry_stops == 1 && effects_stops == 1 && trace_stops == 2);
     assert(navigation_stops == 1 && status_stops == 1 && control_stops == 1 && event_stops == 1);
     // Failed initialization cannot start a replacement generation implicitly.
     assert(WonderBaneExtensionInitialize() == ERROR_ACCESS_DENIED && renderer_starts == 3);

@@ -27,6 +27,7 @@ add_library(
   SHARED
   banded_lighting.cpp
   camera_observation.cpp
+  movement_boundary_trace.cpp
   cel_shading.cpp
   depth_edges.cpp
   event_channel.cpp
@@ -873,4 +874,36 @@ if(BUILD_TESTING)
   target_link_libraries(wonderbane_extension_sky_render_test PRIVATE bcrypt opengl32 gdi32 user32)
   set_property(TARGET wonderbane_extension_sky_render_test PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded")
   add_test(NAME wonderbane_extension_sky_render COMMAND wonderbane_extension_sky_render_test)
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_movement_controls_test
+    movement_controls.cpp movement_controls_test.cpp)
+  target_compile_features(wonderbane_extension_movement_controls_test PRIVATE cxx_std_20)
+  target_compile_options(wonderbane_extension_movement_controls_test PRIVATE
+    /W4 /WX /permissive- /sdl /utf-8)
+  set_property(TARGET wonderbane_extension_movement_controls_test
+    PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded")
+  add_test(NAME wonderbane_extension_movement_controls
+    COMMAND wonderbane_extension_movement_controls_test)
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_movement_boundary_test
+    movement_boundary_trace.cpp movement_boundary_trace_test.cpp)
+  target_compile_features(wonderbane_extension_movement_boundary_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_movement_boundary_test PRIVATE
+    UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT WONDERBANE_MOVEMENT_TRACE_TESTING=1)
+  target_compile_options(wonderbane_extension_movement_boundary_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  target_link_libraries(wonderbane_extension_movement_boundary_test PRIVATE bcrypt user32)
+  set_property(TARGET wonderbane_extension_movement_boundary_test PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
+  add_test(NAME wonderbane_extension_movement_boundary_stop
+    COMMAND wonderbane_extension_movement_boundary_test)
+  add_test(NAME wonderbane_extension_movement_boundary_startup_failure
+    COMMAND wonderbane_extension_movement_boundary_test startup-failure)
+endif()
+
+if(BUILD_TESTING)
+  add_test(NAME wonderbane_extension_movement_boundary_concurrent_stop
+    COMMAND wonderbane_extension_movement_boundary_test concurrent-stop)
 endif()
