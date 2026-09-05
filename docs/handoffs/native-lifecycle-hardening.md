@@ -442,3 +442,27 @@ No process was attached or modified. Next movement work remains owner-scoped
 ordered action/path/follow retirement, outgoing idle-message ownership, stale-stop
 exclusion and real adapters. This is unfinished implementation, not an external
 blocker or an owner gameplay request. Rendering transparency also remains open.
+
+
+Production movement stop `fe0f26fcc3629840297fbce31e9837ec07012595` is merged
+at `95fa869add3b354c6abe48651e531aca75d6235b`; builder ownership alignment is
+`a0761b37be0b743afe54063c006a89d8ad858485`. Policy, native image verification and
+stop composition now compile exactly once in both DLL profiles, but remain
+unbound: no runtime input/transport capability is enabled. The developer-only
+tree probe remains excluded. The existing builder's actual membership statements
+were executed against both generated projects and passed; no alternate package
+pipeline was created. Both complete native builds and nine targeted movement/
+lifecycle tests per profile pass, zero skips. Python movement/package suites:
+24 passed; builder Ruff and diff checks pass. Evidence:
+`artifacts/hardening-evidence/stop-native-{full,diagnostics}.xml` and build logs.
+
+Production composition tests use controlled native-call boundaries; their later
+world-update driver is not unmodified game execution or server-effect evidence.
+Integration review identified missing connection returning success without sending
+an idle message, and replacement pending-request adoption during callbacks. The
+movement owner accepted both focused corrections: fail/unavailable with owned
+message release, and pin exact request identity for the transaction plus callback
+replacement regressions. These remain open before runtime activation. Existing
+manager grant ownership remains authoritative; no competing movement owner is
+introduced. Next is those fixes plus complete adapters/activation, alongside
+opaque-visibility/transmission work. No package or owner acceptance is certified.
