@@ -428,3 +428,28 @@ native pass ordering, or owned per-fragment transmission/geometry/material data
 for all contributing native draws. The inspected shader pointer is not that
 contract. Next: owner inclusion and exact combined verification of this repair,
 then continue the shared transmission investigation; the package gate stays red.
+
+
+## Multi-draw combined verification
+
+The lane independently verified exact owner pin
+`b713dbf0c5cecf743c441c38472db8568cdbeaf9`, containing feature repair
+`d741f04ff0eadd9e2d94901e5d2dd366e3a72a35`, in its own clean detached verification
+worktree. GPU/binding sources are identical to the repair; runtime differences
+only retain the owner's shared `scene_context` extraction. That reconciliation
+was reviewed, including release before context unbind and shared admission.
+
+The full-profile DLL and all native test targets build. The 36-test suite reports
+32 passes, two argument-only binding skips, and the two required cue/effects
+foreground-transparency failures. Both cue and sky binding tests were then run
+with the explicit reviewed private client and passed. Cue held-multi-draw runtime,
+actual GPU, shared context, and all sixteen render combinations passed. The
+Python cue control/configuration suite passed all 17 tests. Machine-readable
+results are retained locally at
+`E:/Projects/shadowbane/artifacts/cue-combined-native/b713dbf/lane-verification.xml`.
+
+The multi-draw repair is therefore verified in the combined source. Transmission
+and final package certification remain unfinished. The verification checkout is
+retained at this exact pin, feature checkout is clean/published, and normal main
+checkout remains untouched. Next active todo remains the shared transmission
+correction, followed by the final combined package and consolidated acceptance.
