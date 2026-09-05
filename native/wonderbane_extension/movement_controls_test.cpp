@@ -175,6 +175,25 @@ void Drag() {
     f.input.keys[5] = true; f.Step(); f.input.pointer_x = 50; f.Step();
     Check(f.actuator.Count('p') == count, "UI-origin drag never captured");
 }
+void BufferedInput() {
+    Fixture f; f.input.keys[5] = true; f.input.pointer_x = 30;
+    f.input.press_origin = DragPress{10, 0, true}; f.Step();
+    Check(f.controls.ConsumesDrag() && f.actuator.Count('p') == 1,
+          "buffered press crosses drag threshold before first sampled update");
+    Fixture invalid; invalid.input.keys[5] = true; invalid.input.pointer_x = 30;
+    invalid.input.press_origin = DragPress{10, 0, false}; invalid.Step();
+    Check(!invalid.controls.ConsumesDrag() && invalid.actuator.Count('p') == 0,
+          "invalid terrain at buffered press never starts a drag");
+    Fixture looking; const auto route = looking.Automate(); looking.input.right_stick = {1, 0};
+    looking.input.camera_blocked = true; looking.Step();
+    Check(looking.actuator.Count('c') == 0 && looking.controls.Current() == route,
+          "existing native camera gesture has priority without route cancellation");
+    looking.input.camera_blocked = false; looking.Step();
+    Check(looking.actuator.Count('c') == 1 && looking.controls.Current() == route,
+          "controller camera resumes after native gesture without movement takeover");
+    Settings conflict; conflict.drag_button = 2;
+    Check(!ValidSettings(conflict), "right mouse remains reserved for native camera");
+}
 void FailureAndScene() {
     Fixture f; const auto old = f.Automate(); f.actuator.stop_ok = false;
     f.input.keys[0x57] = true; f.Step();
@@ -283,6 +302,6 @@ void FrameRatesAndSettings() {
 }
 }
 int main() {
-    Interpretation(); Ownership(); CameraFailure(); Gates(); Devices(); Drag(); FailureAndScene(); NativeIntentTakeover(); EmergencyStops(); FrameRatesAndSettings();
+    Interpretation(); Ownership(); CameraFailure(); Gates(); Devices(); Drag(); BufferedInput(); FailureAndScene(); NativeIntentTakeover(); EmergencyStops(); FrameRatesAndSettings();
     return failures ? 1 : 0;
 }

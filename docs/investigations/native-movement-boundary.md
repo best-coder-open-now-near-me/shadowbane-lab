@@ -482,3 +482,16 @@ terrain/basis unprojection share this conversion. A read-only connected snapshot
 confirmed the getter binding and coherent physical/native extents; no input was
 sent and no game call was invoked by that inspection. Private inspection helper
 remains under artifacts/native-movement/inspect-input-live.ps1.
+
+### Native input HWND and keyboard consumer
+
+The reviewed image's input-manager root leads through its window object to the
+HWND returned by native CreateWindow. Creation stores that return value in the
+window object's HWND field; teardown calls DestroyWindow on it before clearing
+it. Native IME context acquisition uses the same field. Production input now
+checks this chain rather than choosing a similarly titled/foreground window.
+The keyboard dispatcher calls its callback cdecl with key/modifiers/down/repeat
+and explicitly ignores the return value; the hook forwards those four arguments
+unchanged for original-owned events. Private disassembly remains in the task's
+ignored evidence directory. This static verification does not certify live input
+or server movement acceptance.

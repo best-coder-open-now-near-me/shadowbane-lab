@@ -50,6 +50,7 @@ bool ValidSettings(const Settings&) noexcept;
 Vector2 RadialDirection(Vector2 value, float dead_zone) noexcept;
 Vector2 RadialCamera(Vector2 value, float dead_zone) noexcept;
 
+struct DragPress { float x = 0; float y = 0; bool ground_valid = false; };
 struct Input {
     std::uint64_t tick_ms = 0;
     // A new character/scene or native parent coordinate frame needs a new nonzero identity,
@@ -63,11 +64,13 @@ struct Input {
     std::uint32_t controller_slot = 0;
     Vector2 left_stick{};
     Vector2 right_stick{};
+    bool camera_blocked = false;
     bool camera_basis_valid = false;
     Vector2 camera_forward{};
     Vector2 camera_right{};
     bool pointer_in_world = false;
     bool capture_valid = false;
+    std::optional<DragPress> press_origin;
     float pointer_x = 0;
     float pointer_y = 0;
     bool ground_valid = false;
