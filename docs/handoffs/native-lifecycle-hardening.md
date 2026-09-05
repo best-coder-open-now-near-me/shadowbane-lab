@@ -1414,3 +1414,15 @@ retained in cue-equal-transparency.xml. This material correction does not resolv
 the general ordered-transparency requirement. Exact combined source sent to cue
 owner for independent verification. No new package, installation, or owner run.
 Next: EQUAL cost/independent verification and production ordered transparency.
+
+Integrated cue cost-test extension677a6462afe9ac107fa9ac94b27de5ba8095301e as
+cdb77c8 and executed existing --cost on actual combined source. Eight cases
+(640x480/1080p,1/46 captures,ordinary/EQUAL),16samples each, all pass; expected
+1/2 supplemental submissions and8/12bytes per pixel checked, storage released
+between every case. Combined1080p/46 native-subtracted medians: ordinary2.261ms,
+EQUAL3.795ms; enabled medians2.472/4.002ms, ranges2.189-6.995/3.821-8.675ms.
+Nominal storage15.820/23.730MiB. These synchronized synthetic host frame measurements
+include setup/composite; they are not isolated capture latency or VM/live budgets.
+Local full output: artifacts/hardening-evidence/cue-equal-combined-cost.txt.
+No runtime source change, package or deployment in this test extension. Next:
+independent combined verification, native-scissor case and ordered transparency.
