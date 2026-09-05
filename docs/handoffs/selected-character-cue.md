@@ -551,3 +551,90 @@ Inherited program/texture state and an exact coverage marker are still missing
 facts. No UV collector, replacement material shader, fixed layer count or new
 renderer was added. Next active todo is to establish those supported native
 source/coverage semantics with the owner before choosing a shared representation.
+
+
+## Bounded feasibility: missing facts and conditional observation
+
+Examined exact combined source `5519a8e4026136d04231c9c66cfe71fc23fdac97`.
+A no-ignore inventory of the project artifacts and testing-VM diagnostics found
+only the two retained terrain traces (PID 960 and 6420) already cited above.
+They precede the enriched observer and use the older executable. Byte-identical
+emitters establish geometry provenance, not the current inherited material state.
+
+| Requirement | Existing evidence | Still required |
+| --- | --- | --- |
+| Inherited programs/material | The enriched observer records GL_CURRENT_PROGRAM on GL 2+, separate blend factors/equations, front/back stencil, color mask, framebuffer, and up to four 2D units including combine sources/operands/scales and matrices. Unsupported fields are -1. | Current emitter-entry records. Program zero does not exclude ARB vertex/fragment programs: their enable/binding is not recorded. Neither are texture environment constant color, texgen, non-2D targets, detailed fog/light state or all current attributes. Active GLSL IDs do not establish output equivalence on a scratch target. The owner must resolve these support gates before replay; an unchanged-observer capture alone cannot do so. |
+| Pre-native depth/stencil | Existing cel Begin boundary queries before immediate geometry, and cue legacy capture can copy pre-draw depth for an owned actor. | No general contributor pre-draw depth/stencil snapshot exists. Current cue scratch rejects stencil in its direct path and its legacy depth delta is not fragment coverage. Establish framebuffer attachment format/sample compatibility and preserve pre-draw contents before native execution; test LESS/LEQUAL/EQUAL and stencil outcomes. Trace framebuffer ID/stencil settings do not provide buffer contents. |
+| Explicit coverage | Sealed emitters give four positions/UVs and no within-quad color changes. | No exact coverage marker is implemented. Zero source RGBA and unchanged depth cannot distinguish rejection from an accepted fragment. Marker production must preserve material alpha test/discard, depth/stencil tests and source RGBA, including equal-depth and zero-alpha additive/multiplicative cases. A replacement shader or stencil overwrite is not automatically equivalent. Prove a supported strategy with developer-controlled GPU tests first. |
+| Conservative ROI and ABI | Static analysis identifies arguments/object UVs in the two private executable versions. | These producer/caller spans are not installed runtime ABI authority for reading a pre-Begin ROI. Verify calling convention, argument offsets and object lifetime, seal the executable/code and reject drift. Clipping, perspective division, viewport/scissor bounds and degeneracy need tests. A bounded trace stack is evidence only; do not read guessed stack arguments. |
+
+No collector, UV hook, frame ledger or renderer implementation is authorized by
+this feasibility record. A one-quad scratch result still leaves ordered native
+transmission and all contributing submission classes unresolved.
+
+### One conditional existing-tool observation
+
+The integration owner decides whether to request this, and owns package/launch
+preparation. It is a diagnostic observation, not acceptance or authorization to
+deploy. Use a separately verified **full-renderer** package built from exactly
+`5519a8e4026136d04231c9c66cfe71fc23fdac97` (or replace that pin explicitly with a
+new owner-verified source). Record package/DLL hashes and source receipt; trace
+JSON carries executable/version/lifetime, not a Git SHA. A docs-only head is not
+a replacement build source.
+
+Launch with child environment `WONDERBANE_TERRAIN_TRACE=1`. The existing baseline
+launcher exposes `-EnableTerrainTrace`, but at this pin it hardcodes the old
+1.6.13 DLL and a9a590 executable hashes. **It cannot launch/certify the enriched
+5519a8e package merely by changing PackageDirectory.** The owner's reviewed
+current launch path/receipt is a prerequisite; do not bypass the hash checks or
+present the historical command as ready for this source.
+
+In the ordinary world scene, have visible character/name-label quads from the
+two identified producers; retain normal material settings. No navigation rerun,
+selection demonstration or gameplay input automation is required. Once that
+scene is active, run the existing collector once inside the VM:
+
+```powershell
+& "$reviewedFrozenSource/scripts/capture-wonderbane-terrain-trace.ps1" `
+  -RepositoryShare $reviewedFrozenSource -TimeoutSeconds 30
+```
+
+`$reviewedFrozenSource` must name the frozen exact source above. With more than
+one verified client, add its actual `-ProcessId` and
+`-ProcessCreationFiletimeUtc`; never reuse an archived PID. The collector checks
+process executable/profile/version/lifetime and requests one following frame.
+Retain the local result and receipt. Inspect caller RVAs 538ED0/D8F13, ordered
+submissions (including multi_elements), full transmission_state, alpha reference,
+current color, texture/combine state, transforms, and every continuity/omission
+counter. An absent emitter or unavailable field is unanswered, not a default.
+
+The observer allows 8,192 records, four units and 24 stack frames with a 250 ms
+query budget; a driver query can overrun that budget. It can visibly stall one
+frame and is not a performance measurement. No pixels, texture bytes or geometry
+are read. Queries restore active texture selection; local publication is atomic.
+Collector handles close on return; native trace storage/events close on normal
+extension shutdown. Relaunch normally with the opt-in absent afterward. A failed
+or abandoned request is reported without an automatic retry; normal restart may
+be needed. Preserve only the local evidence and its original path, with no upload
+or client replacement by this lane.
+
+This one observation would narrow current GLSL/blend/stencil/2D-combine usage;
+it cannot resolve ARB state, coverage or pre-draw contents. The owner should
+resolve the observer's missing support fields before spending this observation
+if those fields are needed for the chosen feasibility path.
+
+### Production proof remains required
+
+Validate captured source RGBA/depth by recompositing over two distinct known
+backgrounds against untouched native reference under identical entry state.
+Include alpha-cutout edges, transparent texels, zero-alpha nonzero-RGB sources,
+clipped/degenerate and overlapping successive quads, both depth-write modes,
+LESS/LEQUAL/EQUAL and stencil outcomes. Compare complete RGBA/depth/stencil and
+all restored state/current attributes. Replay must not repeat game material
+setup or native query side effects. Preserve synchronous input lifetime,
+resource cleanup and measured scratch cost. Cue halo transmission must use each
+contributing owned depth at the destination pixel; output background depth is
+not a substitute. Existing required cue/effects transparency tests remain red.
+Next active todo: resolve these source/coverage support facts with the shared
+renderer owner, then implement and verify transmission, final package and the
+single consolidated live acceptance. Feature delivery is not complete.
