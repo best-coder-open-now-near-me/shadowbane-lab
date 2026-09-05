@@ -1,3 +1,4 @@
+#define WONDERBANE_MOVEMENT_LIFETIME_TESTING 1
 #include "movement_lifetime.cpp"
 #include "movement_native_stop.h"
 #include <iostream>
@@ -14,6 +15,21 @@ std::thread held_install;
 void* expected_ref = nullptr;
 void* expected_free = nullptr;
 wm::NativeScene old_scene{};
+int barrier_phase = 0;
+bool barrier_free = false, barrier_hold = false;
+std::uint32_t barrier_callback = 0;
+std::thread barrier_thread;
+void NoticeEntered() { SetEvent(entered); }
+void ArmBarrier(int phase) {
+    if (phase != barrier_phase) { return; }
+    barrier_phase = 0;
+    barrier_thread = std::thread([] {
+        if (barrier_free) { wm::Deallocate(expected_free); }
+        else { (void)reinterpret_cast<wm::Finalizer>(barrier_callback)(expected_ref, 1); }
+    });
+    if (barrier_hold || phase == 3) { Check(WaitForSingleObject(entered, 5000) == WAIT_OBJECT_0, "destruction entered during capture"); }
+    else { barrier_thread.join(); }
+}
 void Hold(bool enabled) {
     if (enabled) {
         SetEvent(entered);
@@ -86,7 +102,7 @@ struct Fixture {
     std::uint32_t free_slot = reinterpret_cast<std::uint32_t>(&OriginalFree);
     std::uint32_t* finalizer_slot = nullptr;
     template<class T> void Put(std::uintptr_t address, T value) { std::memcpy(reinterpret_cast<void*>(address), &value, sizeof(value)); }
-    explicit Fixture(bool broken_release = false) {
+    explicit Fixture(bool broken_release = false, bool skip_registration = false) {
         Check(image && hwnd, "fixture allocation");
         auto& s = wm::state; s.base = reinterpret_cast<std::uintptr_t>(image); s.window = hwnd;
         s.thread = GetCurrentThreadId(); s.started = true;
@@ -104,6 +120,7 @@ struct Fixture {
         Put(vtable + 4, static_cast<std::uint32_t>(thunk));
         Put(vtable + 8, static_cast<std::uint32_t>(s.base + (broken_release ? 0x26f50 : 0x26f49)));
         finalizer_slot = reinterpret_cast<std::uint32_t*>(vtable + 4);
+        if (!skip_registration) { Check(wm::InstallReference(finalizer_slot, *finalizer_slot), "pre-register finalizer before any capture"); }
         for (auto* a : {actor.data(), next.data(), parent.data()}) {
             const auto ptr = reinterpret_cast<std::uintptr_t>(a);
             Put(ptr + 8, vbtable); Put(ptr + 0xe78, vtable);
@@ -128,18 +145,63 @@ int main(int argc, char** argv) {
         Check(wm::state.terminal && !wm::state.free_slot.address, "unreviewed image installs nothing");
         return failures ? 1 : 0;
     }
-    auto* f = new Fixture(mode == "unsupported-reference");
+    auto* f = new Fixture(mode == "unsupported-reference", (mode == "rollback" || mode == "rollback-batch"));
     wm::NativeScene scene{};
     if (mode == "unsupported-reference") {
         Check(!f->Observe(scene) && wm::state.terminal, "unknown native Release interface unavailable");
         Check(f->free_slot == reinterpret_cast<std::uint32_t>(&OriginalFree), "unsupported interface rolls back owned free slot");
+    } else if (mode == "rollback-batch") {
+        const auto original = *f->finalizer_slot;
+        Check(wm::InstallReference(f->finalizer_slot, original), "first prebinding");
+        auto* second = reinterpret_cast<std::uint32_t*>(wm::state.base + 0x1141300);
+        auto* third = reinterpret_cast<std::uint32_t*>(wm::state.base + 0x1141400);
+        *second = *third = original;
+        Check(wm::InstallReference(second, original), "second prebinding");
+        const auto dispatched = *second;
+        *f->finalizer_slot = reinterpret_cast<std::uint32_t>(&Foreign);
+        hold_ref = true; fail_install = true;
+        Check(!wm::InstallReference(third, original), "later prebinding fails after visibility");
+        wm::Fail();
+        Check(*f->finalizer_slot == reinterpret_cast<std::uint32_t>(&Foreign), "batch rollback preserves foreign first slot");
+        Check(*second == original && *third == original, "batch rollback restores remaining owned slots");
+        SetEvent(release_call); held_install.join(); hold_ref = false;
+        Check(CallRef(dispatched, expected_ref) && ref_calls == 2 && forwarded, "both captured callbacks retain original after batch rollback");
     } else if (mode == "rollback") {
         hold_ref = true; fail_install = true;
+        Check(!wm::InstallReference(f->finalizer_slot, *f->finalizer_slot), "registration fails after visibility");
+        wm::Fail();
         Check(!f->Observe(scene) && !scene.epoch && wm::state.terminal, "partial install fails closed");
         Check(*f->finalizer_slot == wm::state.slots[0].original && f->free_slot == reinterpret_cast<std::uint32_t>(&OriginalFree), "owned slots restored");
         Check(!wm::StartNativeMovementLifetime(f->hwnd), "partial install cannot restart");
         SetEvent(release_call); held_install.join();
         Check(ref_calls == 1 && forwarded, "already dispatched callback retains immutable original after rollback");
+    } else if (mode.rfind("arm-", 0) == 0) {
+        const bool replacement = mode.find("replacement") != std::string::npos;
+        barrier_free = mode.find("free") != std::string::npos;
+        barrier_hold = mode.find("held") != std::string::npos || mode.find("before") != std::string::npos;
+        if (replacement) {
+            Check(f->Observe(scene), "initial watch before replacement arming");
+            f->SetActor(f->next.data()); expected_ref = f->next.data() + 0xe78;
+            f->Put(wm::state.base + 0x1389028, std::uintptr_t{0x22340000}); expected_free = reinterpret_cast<void*>(0x22340000);
+        }
+        const auto previous = scene;
+        barrier_callback = *f->finalizer_slot;
+        hold_free = barrier_hold && barrier_free; hold_ref = barrier_hold && !barrier_free;
+        const bool publication_edge = mode.find("edge") != std::string::npos;
+        barrier_phase = publication_edge ? 3 : mode.find("publish") != std::string::npos ? 2 : 1;
+        if (publication_edge) { wm::notice_barrier = &NoticeEntered; }
+        wm::capture_barrier = &ArmBarrier;
+        if (mode.find("before") != std::string::npos) { ArmBarrier(barrier_phase); }
+        const bool observed = f->Observe(scene);
+        if (publication_edge) {
+            barrier_thread.join(); wm::notice_barrier = nullptr;
+            Check(observed && !wm::NativeMovementLifetimeCurrent(scene), "late entry invalidates newly published matching watch before original");
+        } else { Check(!observed && !scene.epoch, "destruction overlapping unpublished watch rejects capture"); }
+        if (barrier_hold) { SetEvent(release_call); barrier_thread.join(); }
+        Check(!wm::state.terminal && !wm::state.binding_lost, "interference does not fabricate unsupported binding");
+        wm::capture_barrier = nullptr;
+        Check(f->Observe(scene) && scene.epoch && scene.epoch != previous.epoch, "stable post-destruction capture receives fresh epoch");
+        Check(ref_calls + free_calls == 1 && forwarded, "intervening destructor forwarded exactly once");
     } else {
         Check(f->Observe(scene) && scene.epoch && wm::NativeMovementLifetimeCurrent(scene), "observe current native tuple");
         const auto first = scene;

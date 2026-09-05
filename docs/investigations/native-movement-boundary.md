@@ -417,3 +417,40 @@ already-dispatched callbacks. Partial install failure cannot restart. NativeStop
 requires the exact observed epoch in production BeginUpdate and checks it again
 at every existing scene/current boundary, including stops. These tests use
 controlled native originals and are not connected native-engine certification.
+
+
+### Watch arming correction
+
+The first implementation installed a reference slot after capturing its object,
+leaving a publication interval not covered by already-watched lifetime tests.
+Registration now prebinds the exact 34 reference-finalizer slot/original pairs in
+`movement_lifetime_bindings.h`, derived from the reviewed image's RTTI hierarchies
+containing ArcObj. The complete list was compared against that image (the SHA above)
+and matched all 34 entries. Runtime also checks each exact original and generic
+release thunk. This is a bounded actor-family list, not hooks for unrelated native
+reference types. Observe cannot lazily register a newly discovered type.
+
+A short arming fence begins before the authoritative capture of a new watch.
+Callbacks announce entry before their pointer fast path. Unrecorded originals
+already in flight prevent arming; callbacks overlapping capture mark the snapshot
+uncertain. Publication checks that fence while holding the metadata lock. A callback
+entering immediately after that check waits on the lock and invalidates the newly
+published matching watch before running its original. Arming is sampled before
+watch generation so a callback cannot pair an old generation with the post-publish
+unarmed flag. Original calls never run under this lock.
+
+Already watched held originals have exact in-flight object notices, permitting a
+disjoint replacement while still prohibiting the same allocation. Their completion
+cannot invalidate that replacement. Ordinary free traffic outside arming only
+checks exact watched identity; its entry/exit accounting is not scene authority.
+Interference with an unpublished snapshot rejects that observation and does not
+assign an epoch or invalidate an unrelated established watch. The established-watch
+fast path does not open a new arming interval on every update.
+
+Production barriers test first and replacement capture, destruction already in
+flight, completion before publication, held originals and entry after the final
+admission check. Same-address post-destruction capture must obtain a fresh epoch.
+Batch prebinding rollback preserves foreign replacement and both previously and
+briefly dispatched originals. Both complete DLL profiles and 34 focused
+policy/backend/lifetime tests pass with zero skips. Controlled native originals
+exercise lifecycle composition; connected input acceptance remains separate.
