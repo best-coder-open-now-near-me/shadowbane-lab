@@ -11,13 +11,15 @@ Lifecycle contract: admitted callbacks retain their resources and original call-
 Reuse particles scene_draw state guard and effects_attachment observations; selected cue retains its separate verified rendered-object ownership. Proposed ordering: scene composite, selected cue, particles, navigation, UI. Feature owners retain complete feature delivery and can continue independently.
 
 Todos:
-- [x] Native telemetry/publisher teardown and manager dispatch/renewal isolation checkpoints.
-- [ ] Remaining native scene/rollback integration with feature lifecycle repairs.
-- [ ] Active: remaining worker/process recovery and transactional durable stores.
-- [ ] Simulator correlation transaction and public planner correctness/performance.
-- [ ] Reconcile both feature heads and shared integration.
-- [ ] Combined gates, exact clean source package and installed controls verification.
-- [ ] Consolidated acceptance handoff with exact identities and remaining live checks.
+- [x] Native telemetry/publisher teardown, shared scene/context and initializer rollback.
+- [x] Manager dispatch isolation, per-slot transitions, retained launch recovery and stop routing.
+- [x] Durable navigation merges, operation claim/retry semantics and terminal history retention.
+- [x] Simulator transaction admission and public planner correctness/indexing.
+- [x] Inspector launch/cleanup exact runtime and process-lifetime ownership.
+- [ ] Active: combined cue material coverage and cue/effects native transparency with existing owners.
+- [ ] Rolling movement native actuation/adapters; passive trace and policy are integrated only.
+- [ ] Combined required gates, independent review of a complete pinned candidate, exact package and installed controls.
+- [ ] Consolidated acceptance handoff with identities and specific remaining live checks.
 
 Each validated coherent repair is a commit checkpoint; publish source normally under AGENTS.md. Preserve private artifacts under ignored artifacts/. Existing feature package receipts do not certify this candidate.
 
@@ -90,3 +92,52 @@ Combined `c2f9c997870760bb1a347bd3a6006199038265b8` contains sky `4368f13` and c
 The existing navigation WGL harness now checks all 16 combinations of navigation, particles, cue and sky using their production render functions, a shared real context and the packaged sky asset. It checks state restoration between passes, native-depth preservation, 46 selected raw mesh submissions, bounded cue memory, and complete cue release between combinations. Native attachment and scene-callsite identity remain covered by their dedicated tests; this fixture does not establish connected-client ordering or solve native transparency.
 
 Timing excludes per-node state/pixel assertions, which execute separately in normal CTest. Eight-frame host test samples include initialization and finish at GPU completion. All-enabled: 2.730ms at640x480, 2.780ms at1920x1080. Normal cue allocation: 2,457,600 and16,588,800 bytes respectively (8 bytes/pixel); zero after release. These synthetic meshes are not a full game workload. Per-combination results: `artifacts/hardening-evidence/combined-render-cost.txt` and `combined-render-cost-1080.txt`. Required native transparency still fails; do not accept these passing composition checks as a substitute.
+
+
+## September 5 combined ownership and validation checkpoint
+
+`0b0efcc` serializes worker launch/stop with the existing per-slot interprocess lock,
+so a pre-heartbeat stop cannot miss an in-flight launch. The production subprocess
+launcher retains its Popen handle and retries failed attachment through that handle;
+unowned numeric PIDs cannot be recovered. A proven failure before Popen creates a
+child releases its reservation. Unknown launches remain explicit and conservative;
+a manager crash before durable PID publication still requires external recovery
+evidence and is not silently cleared. Invalid reservation records are retained.
+Real-process tests cover concurrent stop/launch, retained-handle recovery and exit.
+
+`52f6777` restricts stale inspector cleanup to the prepared runtime executable and
+exact module invocation, then opens a process handle and revalidates creation time
+before stopping it. New panels and discovery probes carry client creation FILETIME,
+preventing PID reuse from selecting a replacement client. Actual task-owned Python
+child tests verify external-runtime exclusion, stale-lifetime rejection and owned
+cleanup. All PowerShell scripts parsed; 13 inspector/transport tests passed.
+
+`c5f2f74` reuses the first immutable operation envelope for a semantic retry with
+the same deduplication key and exact target/request. Regenerated envelope IDs and
+timestamps do not extend its deadline or replay a terminal operation. Changed worker
+lifetime or work remains a conflict. Two independent submitters converge on one
+canonical envelope; existing interprocess execution claims still execute once.
+34 targeted operation/ownership tests passed; Ruff passed.
+
+Included feature revisions: particles `9e0cceddd64bbad31c911ebe4e5e75c4c9eb7a6a`,
+cue `69caa80009279197296631c353e47574f04aee9e`, sky implementation `4368f13`,
+movement `8536b20576fc11bc2ee33e49761f104753165b75` (policy tests and optional
+passive trace; full actuation absent from runtime source lists). Both foreground
+and background transparency samples now execute: front samples pass, behind samples
+fail, and wholesale early-pass counterexamples fail as expected. Required CTests
+remain failures, never expected-failure/disabled gates. Cue owner found a concrete
+optimized MultiDraw path bypassing raw capture and is implementing that focused fix.
+
+At `fc0723b`, complete Python run: 1750 passed, 8 skipped, 223 subtests passed.
+At the same native source both Win32 profiles built; each executed 35 CTests:
+31 passed, 2 private-argument skips, 2 required native transparency failures.
+Explicit full-profile cue/sky binding and sky mapped-client render checks passed
+against reviewed client SHA256 `feb351f0fae87d47549fa43c37836405a753d76fbcd0b02232fc1c0733550dff`.
+XML/logs remain under `artifacts/hardening-evidence`; these source checks are not an
+installed-package receipt. Product remains 1.6.13; ABI/wire versions unchanged.
+
+No complete combined acceptance candidate, final wheel/DLL identity, main merge,
+or VM deployment is certified. The next package-builder run must retain its failed
+gate logs and stop; do not bypass transmission failures to issue a package receipt.
+A complete candidate receives one independent integration review and consolidated
+owner procedure only after developer-controlled checks and installed verification.

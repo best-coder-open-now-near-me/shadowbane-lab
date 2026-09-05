@@ -24,7 +24,7 @@ git switch -c codex/describe-the-change
 ```
 
 While the candidate is awaiting review, dependent work can use
-`origin/codex/integrate-current-development` as an explicit base. Record that
+`origin/codex/native-lifecycle-hardening` as an explicit base. Record that
 dependency in its PR. Never assume the currently checked-out topic is current.
 
 ## Keep independent tasks in separate checkouts
@@ -69,8 +69,8 @@ certify their exact commit only.
 git fetch origin --prune
 git branch -a --contains <commit-sha>
 git log --all --oneline -- path/to/file
-git log origin/main..origin/codex/integrate-current-development --oneline
-git rev-list --left-right --count origin/main...origin/codex/integrate-current-development
+git log origin/main..origin/codex/native-lifecycle-hardening --oneline
+git rev-list --left-right --count origin/main...origin/codex/native-lifecycle-hardening
 ```
 
 A branch being pushed does not mean it was merged into `main`. Compare ancestry

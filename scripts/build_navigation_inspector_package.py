@@ -85,6 +85,12 @@ def main() -> int:
                 "log": str(log.relative_to(output)),
             }
         )
+        # Preserve executed gates even when a required gate stops packaging.
+        # This progress record is not a successful package receipt.
+        (output / "validation-progress.json").write_text(
+            json.dumps({"source_revision": revision, "steps": steps}, indent=2) + "\n",
+            encoding="utf-8",
+        )
         if result.returncode:
             print(log.read_text(encoding="utf-8")[-6000:], flush=True)
             raise RuntimeError(f"{name} failed; see {log}")
