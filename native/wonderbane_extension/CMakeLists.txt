@@ -160,6 +160,9 @@ if(BUILD_TESTING)
   set_property(TARGET wonderbane_extension_selected_cue_gpu_test PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded")
   add_test(NAME wonderbane_extension_selected_cue_gpu COMMAND wonderbane_extension_selected_cue_gpu_test)
   set_tests_properties(wonderbane_extension_selected_cue_gpu PROPERTIES SKIP_RETURN_CODE 77)
+  add_test(NAME wonderbane_extension_selected_cue_source_feasibility
+    COMMAND wonderbane_extension_selected_cue_gpu_test --source-feasibility)
+  set_tests_properties(wonderbane_extension_selected_cue_source_feasibility PROPERTIES SKIP_RETURN_CODE 77)
   add_test(NAME wonderbane_extension_selected_cue_native_transparency
     COMMAND wonderbane_extension_selected_cue_gpu_test --native-transparency)
   set_tests_properties(wonderbane_extension_selected_cue_native_transparency PROPERTIES SKIP_RETURN_CODE 77)

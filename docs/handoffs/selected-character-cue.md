@@ -721,3 +721,61 @@ all those cases, including missing query output and absent-capability no-query.
 The full DLL builds, both native trace profiles pass and 47 feature-branch Python
 trace tests pass. Actual-GL source/coverage feasibility is the next authorized
 step; this diagnostic change still never authorizes replay or live deployment.
+
+
+## Authorized actual-GL source and coverage experiment
+
+The existing cue GPU executable now has `--source-feasibility`, registered as
+`wonderbane_extension_selected_cue_source_feasibility`. Its focused test-only
+header uses the existing RenderSceneGeometry guard and a context-owned reusable
+64x64 RGBA8/depth24-stencil8 framebuffer. There is no runtime collector, native
+hook, stack/ROI assumption or second feature implementation. The integration
+owner explicitly authorized this bounded developer-controlled experiment.
+
+The controlled fixture requires a single-sample default target with depth24,
+stencil8 and alpha8, fixed-function MODULATE, unit-zero nearest-filtered RGBA8
+texture, no native stencil, and planar convex raw quads. Explicit test packets
+establish material state identically for scratch and native reference; no game
+material setup is repeated. Native depth is copied before the draw. Scratch
+color stores unblended source RGBA, scratch depth writes record fragment depth,
+and stencil ALWAYS/passREPLACE records coverage after inherited alpha/depth
+tests. FBO changes are balanced inside the shared guard; resources release on
+their owning context. An active native samples query rejects capture and remains
+at zero samples in the regression. Other query classes are not established by
+this controlled fixture and remain unsupported for a runtime implementation.
+
+All 288 cases pass without skips: two distinct RGBA backgrounds; LESS, LEQUAL,
+EQUAL; native depth-write and alpha-write masks both ways; nearer/equal/farther
+depths; varied current RGBA/UV, below/exact GEQUAL thresholds, accepted alpha zero,
+partial clipping and degenerate quads. Coverage is checked independently from
+expected geometry/texture alpha/depth. Unblended source channels are also checked
+against texel/current RGBA, including nonzero RGB at alpha zero. Recomposition
+uses the actual same RGB/alpha blend factors: alpha is S.a*S.a+B.a*(1-S.a), with
+native alpha-write masking. Tolerances are 1.5/255 for captured source channels,
+2/255 for recomposition and 1e-6 for depth. Native color/depth/stencil remain
+unchanged by scratch; affected material, current color/UV/normal, matrices,
+stencil state and 2D enables/bindings across fixed-function units restore.
+Successive overlapping quads keep distinct source depths and reversing their
+native order changes the result. This explicitly does not prove that nearest
+fragments or depth sorting suffice for transmission.
+
+Final local run: scratch GPU storage 32,768 bytes (64x64x8), allocation/cold
+1.822 ms, 16-sample steady median 0.092 ms, native raw-quad median 0.026 ms after
+three warmups. Timings include glFinish and exclude readback; they are a small
+local fixture, not client/VM or full-frame performance. CPU image arrays are
+test oracles only, not a proposed retained-fragment ledger. JUnit is retained at
+`artifacts/selected-character-cue/source-feasibility-passing.xml`.
+
+The existing cue GPU regression also passes. The required native-transparency
+regression was rerun because its executable changed and still fails both
+foreground cases (depth-write off/on), with the same 131,16,19 expected versus
+116,31,37 and 127,0,0 actual RGB. Both background cases pass and still reject
+wholesale early compositing. Its results remain in
+`artifacts/selected-character-cue/source-feasibility.xml`.
+
+This establishes only the scoped single-quad source/coverage mechanism. Runtime
+identity/ABI/input lifetime, supported inherited material paths, native stencil
+or multisample cases, full-size cost and ordered multi-contributor transmission
+remain unresolved. Next active todo: owner combined verification and selection
+of a bounded integration strategy using this evidence; no deployment or live
+acceptance is requested, and selected-cue delivery remains incomplete.
