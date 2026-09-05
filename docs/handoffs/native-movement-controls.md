@@ -114,3 +114,23 @@ owner's reconciliation responsibility; this additive trace wiring does not alter
 Native investigation also located a separate asynchronous path request that can
 repopulate path work after local destination/state reset. That cancellation race
 remains unresolved; no stop binding is enabled on the strength of an idle snapshot.
+
+
+## Native input investigation checkpoint
+
+The native text-entry predicate and registered keyboard/text callback slots have
+been located through their registration and message-dispatch callers. An exact-client
+read-only snapshot matched all three registrations. Keyboard arguments are virtual
+key, modifiers, down/up and repeat; the native message pump also gates character
+translation using the text-entry predicate. The passive schema-1 `ui_candidate`
+field is now identified as item-drag state and must not be used as a chat gate.
+See the investigation document for the verified scope and remaining UI requirements.
+
+The integration owner reports the camera-policy correction included in combined
+source `5f0cf3b`, with both combined profile policy tests passing. The owner also
+reconciled trace initialization failure as nonfatal with immediate trace cleanup.
+There is still no full-controls native generation transport, installed controls
+package or connected acceptance. Full controls remain excluded from runtime sources.
+
+Next active todo remains complete native stop and steering verification, especially
+asynchronous path cancellation, scheduled-action exclusion and outgoing state order.
