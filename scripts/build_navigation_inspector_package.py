@@ -162,9 +162,19 @@ def main() -> int:
             for item in project_root.findall(f".//{{*}}{tag}")
             if "Include" in item.attrib
         ]
-        if included_sources.count("movement_boundary_trace.cpp") != 1:
-            raise RuntimeError(f"{profile}: passive movement trace must have one runtime owner")
-        for developer_source in ("movement_controls.cpp", "movement_tree_probe.cpp"):
+        # Stop/policy components are compiled but remain unbound until the feature
+        # owner completes runtime activation. Membership is not a capability claim.
+        for movement_source in (
+            "movement_boundary_trace.cpp",
+            "movement_controls.cpp",
+            "movement_native_image.cpp",
+            "movement_native_stop.cpp",
+        ):
+            if included_sources.count(movement_source) != 1:
+                raise RuntimeError(
+                    f"{profile}: movement source must have one owner: {movement_source}"
+                )
+        for developer_source in ("movement_tree_probe.cpp",):
             if included_sources.count(developer_source) != 0:
                 raise RuntimeError(
                     f"{profile}: developer-only source entered runtime: {developer_source}"
