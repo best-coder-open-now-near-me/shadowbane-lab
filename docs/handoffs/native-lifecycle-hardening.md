@@ -1030,3 +1030,17 @@ disclosure. Existing owners resume the production visibility/transmission repair
 shared scene, lifecycle and state integration remains here. Next: reconcile the
 verified boundary and implementation division, integrate fixes and rerun the two
 required transparency gates before preparing a complete acceptance package.
+
+
+Follow-up: user authorization is granted in the integration task, but the
+particles task reported automatic approval review rejects relayed authorization
+and requires a direct user message in that task before its detailed handoff.
+No bypass or rerouting is authorized. Local analysis and public-source work
+continue. Source-side integration check confirms the current shared boundary
+only establishes reviewed main-scene clear and scene/UI completion, not opaque
+completeness. Reuse RenderCallbackLease, the existing camera/context validation
+and pre-unbind context cleanup for any later verified coverage resource; no new
+collector or render stage was installed. Cue owns category semantics and cue
+composition; particles owns later native contributor semantics; integration owns
+shared boundary, resource and dispatch reconciliation. Next input needed solely
+for the rejected particles handoff: direct scoped user authorization in that task.
