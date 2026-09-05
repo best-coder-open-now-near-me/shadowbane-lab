@@ -12,7 +12,8 @@ import itertools
 import struct
 import sys
 import threading
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
 from dataclasses import dataclass
 from enum import IntEnum
 from types import MappingProxyType
@@ -440,8 +441,11 @@ class _WindowsKernel:
         handle = ctypes.c_void_p
         dword = ctypes.c_uint32
         bool_type = ctypes.c_int
-        long_type = ctypes.c_long
-        longlong = ctypes.c_longlong
+
+        kernel.CreateMutexW.argtypes = [ctypes.c_void_p, bool_type, ctypes.c_wchar_p]
+        kernel.CreateMutexW.restype = handle
+        kernel.ReleaseMutex.argtypes = [handle]
+        kernel.ReleaseMutex.restype = bool_type
 
         kernel.OpenFileMappingW.argtypes = [dword, bool_type, ctypes.c_wchar_p]
         kernel.OpenFileMappingW.restype = handle
@@ -461,24 +465,38 @@ class _WindowsKernel:
         kernel.GetTickCount64.restype = ctypes.c_uint64
         kernel.GetCurrentProcessId.argtypes = []
         kernel.GetCurrentProcessId.restype = dword
-        kernel.InterlockedCompareExchange64.argtypes = [
-            ctypes.POINTER(longlong),
-            longlong,
-            longlong,
-        ]
-        kernel.InterlockedCompareExchange64.restype = longlong
-        kernel.InterlockedExchange64.argtypes = [ctypes.POINTER(longlong), longlong]
-        kernel.InterlockedExchange64.restype = longlong
-        kernel.InterlockedCompareExchange.argtypes = [
-            ctypes.POINTER(long_type),
-            long_type,
-            long_type,
-        ]
-        kernel.InterlockedCompareExchange.restype = long_type
-        kernel.InterlockedExchange.argtypes = [ctypes.POINTER(long_type), long_type]
-        kernel.InterlockedExchange.restype = long_type
-        kernel.InterlockedIncrement.argtypes = [ctypes.POINTER(long_type)]
-        kernel.InterlockedIncrement.restype = long_type
+        kernel.GetCurrentProcess.argtypes = []
+        kernel.GetCurrentProcess.restype = handle
+        kernel.GetProcessTimes.argtypes = [handle] + [ctypes.POINTER(ctypes.c_uint64)] * 4
+        kernel.GetProcessTimes.restype = bool_type
+        # Interlocked functions are compiler intrinsics, not kernel32 exports on
+        # 64-bit Windows. Aligned scalar loads/stores are atomic there; explicit
+        # Windows memory barriers provide publication ordering. RMW ownership is
+        # provided separately by the named producer mutex, never by these stores.
+        if ctypes.sizeof(ctypes.c_void_p) != 8:
+            raise NativeActionChannelUnavailable(
+                "native action transport requires a 64-bit Python host"
+            )
+        kernel.FlushProcessWriteBuffers.argtypes = []
+        kernel.FlushProcessWriteBuffers.restype = None
+
+    @contextmanager
+    def producer_lock(self, name: str, timeout_ms: int) -> Iterator[None]:
+        handle = self._checked_handle(
+            self._kernel.CreateMutexW(None, False, name), "CreateMutexW"
+        )
+        acquired = False
+        try:
+            result = self.wait(handle, timeout_ms)
+            # Abandonment transfers ownership after a producer process crashes.
+            acquired = result in {_WAIT_OBJECT_0, 0x80}
+            if not acquired:
+                raise NativeActionChannelBusy("native action producer transaction is busy")
+            yield
+        finally:
+            if acquired:
+                self._kernel.ReleaseMutex(ctypes.c_void_p(handle))
+            self.close_handle(handle)
 
     def open_file_mapping(self, name: str) -> int:
         handle = self._kernel.OpenFileMappingW(
@@ -530,25 +548,41 @@ class _WindowsKernel:
     def process_id(self) -> int:
         return int(self._kernel.GetCurrentProcessId())
 
+    def process_identity(self) -> NativeClientProcessIdentity:
+        creation, exit_time, kernel_time, user_time = (ctypes.c_uint64() for _ in range(4))
+        if not self._kernel.GetProcessTimes(
+            self._kernel.GetCurrentProcess(), ctypes.byref(creation),
+            ctypes.byref(exit_time), ctypes.byref(kernel_time), ctypes.byref(user_time),
+        ):
+            self._raise_last_error("GetProcessTimes")
+        return NativeClientProcessIdentity(self.process_id(), creation.value)
+
+    def _load_scalar(self, address: int, scalar: type) -> int:
+        if address % ctypes.sizeof(scalar):
+            raise NativeActionChannelError("unaligned native action scalar")
+        self._kernel.FlushProcessWriteBuffers()
+        value = scalar.from_address(address).value
+        self._kernel.FlushProcessWriteBuffers()
+        return int(value)
+
+    def _store_scalar(self, address: int, value: int, scalar: type) -> int:
+        previous = self._load_scalar(address, scalar)
+        self._kernel.FlushProcessWriteBuffers()
+        scalar.from_address(address).value = value
+        self._kernel.FlushProcessWriteBuffers()
+        return previous
+
     def read_i64(self, address: int) -> int:
-        pointer = ctypes.cast(address, ctypes.POINTER(ctypes.c_longlong))
-        return int(self._kernel.InterlockedCompareExchange64(pointer, 0, 0))
+        return self._load_scalar(address, ctypes.c_int64)
 
     def exchange_i64(self, address: int, value: int) -> int:
-        pointer = ctypes.cast(address, ctypes.POINTER(ctypes.c_longlong))
-        return int(self._kernel.InterlockedExchange64(pointer, value))
+        return self._store_scalar(address, value, ctypes.c_int64)
 
     def read_i32(self, address: int) -> int:
-        pointer = ctypes.cast(address, ctypes.POINTER(ctypes.c_long))
-        return int(self._kernel.InterlockedCompareExchange(pointer, 0, 0))
+        return self._load_scalar(address, ctypes.c_int32)
 
     def exchange_i32(self, address: int, value: int) -> int:
-        pointer = ctypes.cast(address, ctypes.POINTER(ctypes.c_long))
-        return int(self._kernel.InterlockedExchange(pointer, value))
-
-    def increment_i32(self, address: int) -> int:
-        pointer = ctypes.cast(address, ctypes.POINTER(ctypes.c_long))
-        return int(self._kernel.InterlockedIncrement(pointer))
+        return self._store_scalar(address, value, ctypes.c_int32)
 
     @staticmethod
     def _checked_handle(value: object, operation: str) -> int:
@@ -592,11 +626,23 @@ class WindowsNativeActionCommandTransport:
         self._command_signal: int | None = None
         self._result_signal: int | None = None
         self._lock = threading.Lock()
+        self._lease_generation: int | None = None
+        self._producer_lock_name = self._identity.mapping_name + ".Producer"
         self._open()
 
     @property
     def process_identity(self) -> NativeClientProcessIdentity:
         return self._identity
+
+    @property
+    def host_process_identity(self) -> NativeClientProcessIdentity:
+        return self._kernel.process_identity()
+
+    @property
+    def host_lease_generation(self) -> int:
+        if self._lease_generation is None:
+            raise NativeActionChannelUnavailable("native action host lease is not owned")
+        return self._lease_generation
 
     @property
     def header(self) -> NativeActionChannelHeader:
@@ -624,7 +670,7 @@ class WindowsNativeActionCommandTransport:
             or timeout_ms <= 0
         ):
             raise ValueError("timeout_ms must be positive")
-        with self._lock:
+        with self._lock, self._kernel.producer_lock(self._producer_lock_name, timeout_ms):
             self._renew_host_lease()
             write_sequence = self._read_i64(_COMMAND_WRITE_SEQUENCE_OFFSET)
             read_sequence = self._read_i64(_COMMAND_READ_SEQUENCE_OFFSET)
@@ -669,13 +715,18 @@ class WindowsNativeActionCommandTransport:
         with self._lock:
             if self._view is not None:
                 try:
-                    if self._read_i32(_HOST_PROCESS_ID_OFFSET) == self._kernel.process_id():
-                        self._exchange_i64(_HOST_HEARTBEAT_TICK_OFFSET, 0)
-                        self._exchange_i32(_HOST_PROCESS_ID_OFFSET, 0)
+                    with self._kernel.producer_lock(
+                        self._producer_lock_name, self._host_lease_timeout_ms
+                    ):
+                        if self._owns_host_lease():
+                            self._exchange_i32(_HOST_PROCESS_ID_OFFSET, 0)
+                            self._exchange_i64(_HOST_HEARTBEAT_TICK_OFFSET, 0)
                 except NativeActionChannelError:
+                    # Expiry recovers a lease if another producer transaction is busy.
                     pass
                 self._kernel.unmap_view(self._view)
                 self._view = None
+            self._lease_generation = None
             for field_name in ("_result_signal", "_command_signal", "_mapping"):
                 handle = getattr(self, field_name)
                 if handle is not None:
@@ -708,26 +759,42 @@ class WindowsNativeActionCommandTransport:
             raise
 
     def _claim_host_lease(self) -> None:
-        now = self._kernel.tick_count()
-        existing_process_id = self._read_i32(_HOST_PROCESS_ID_OFFSET)
-        heartbeat = self._read_i64(_HOST_HEARTBEAT_TICK_OFFSET)
-        active = (
-            existing_process_id > 0
-            and heartbeat > 0
-            and now >= heartbeat
-            and now - heartbeat <= self._host_lease_timeout_ms
-        )
-        current_process_id = self._kernel.process_id()
-        if active and existing_process_id != current_process_id:
-            raise NativeActionChannelBusy(
-                f"native action channel is leased by host process {existing_process_id}"
+        with self._kernel.producer_lock(
+            self._producer_lock_name, self._host_lease_timeout_ms
+        ):
+            now = self._kernel.tick_count()
+            existing_process_id = self._read_i32(_HOST_PROCESS_ID_OFFSET)
+            heartbeat = self._read_i64(_HOST_HEARTBEAT_TICK_OFFSET)
+            active = (
+                existing_process_id > 0
+                and heartbeat > 0
+                and now >= heartbeat
+                and now - heartbeat <= self._host_lease_timeout_ms
             )
-        self._exchange_i32(_HOST_PROCESS_ID_OFFSET, current_process_id)
-        self._kernel.increment_i32(self._address(_HOST_LEASE_GENERATION_OFFSET))
-        self._exchange_i64(_HOST_HEARTBEAT_TICK_OFFSET, now)
+            if active:
+                raise NativeActionChannelBusy(
+                    f"native action channel is leased by host process {existing_process_id}"
+                )
+            generation = self._read_i32(_HOST_LEASE_GENERATION_OFFSET)
+            if generation < 0 or generation >= 2**31 - 1:
+                raise NativeActionChannelUnavailable("native action host generation exhausted")
+            # Publish PID last: the consumer cannot admit a partially claimed lease.
+            self._exchange_i32(_HOST_PROCESS_ID_OFFSET, 0)
+            self._exchange_i32(_HOST_LEASE_GENERATION_OFFSET, generation + 1)
+            self._exchange_i64(_HOST_HEARTBEAT_TICK_OFFSET, now)
+            self._exchange_i32(_HOST_PROCESS_ID_OFFSET, self._kernel.process_id())
+            self._lease_generation = generation + 1
+
+    def _owns_host_lease(self) -> bool:
+        return (
+            self._lease_generation is not None
+            and self._read_i32(_HOST_PROCESS_ID_OFFSET) == self._kernel.process_id()
+            and self._read_i32(_HOST_LEASE_GENERATION_OFFSET) == self._lease_generation
+        )
 
     def _renew_host_lease(self) -> None:
-        if self._read_i32(_HOST_PROCESS_ID_OFFSET) != self._kernel.process_id():
+        # Callers serialize the entire command publication/completion transaction.
+        if not self._owns_host_lease():
             raise NativeActionChannelBusy("native action channel host lease was lost")
         self._exchange_i64(_HOST_HEARTBEAT_TICK_OFFSET, self._kernel.tick_count())
 
