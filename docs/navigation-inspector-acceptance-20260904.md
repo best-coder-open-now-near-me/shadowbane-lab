@@ -597,3 +597,48 @@ Current active todo: checkpoint the boundary-crossing correction, add a local 10
 around the first learned-blocker detour, then repeat the observed x-ray pass. After that, run
 bounded PvE and overlay cost/scene checks, review and integrate PR #27, and retire the inspector
 worktree/branch when safe.
+
+## Refined tree route and tighter initial backtrack
+
+The current-version client ran the locally refined route from LT 88826.32 / LG 45039.13 to an
+80-unit northward goal. Session `5218318916770432677` recorded one stall, one physical backtrack
+and one replan. The final plan used `astar_refined_final` with 10-unit cells, retained learned
+cell `(8882, 4504)`, and routed through `(88805, 45025)` and `(88805, 45065)` before the goal.
+All 46 trail points and 36 events were retained with no omissions or producer drops. The run
+settled 0.79 units from the goal. The owner visually confirmed that the refined route granularity
+was good and that the x-ray diagnostic was visible, but found the initial pullback as broad as the
+earlier recovery. Its destination was still capped by the general 50-unit click distance and the
+measured retreat was about 13.6 units.
+
+Source `7e719d6fa2a524574e1813a0f76cfe1634b2440f` gives the first physical
+`escape_backtrack` decision its own 10-unit destination limit. The general click limit and later
+escape maneuvers are unchanged. Exact controller, A*, and PvE regressions cover the new distance
+and its interaction with a smaller global click cap. Package `776defa9` passed 1,685 Python tests,
+211 subtests and eight expected skips; Ruff; both Win32 build profiles with all 18 native tests;
+wheel/source packaging; and installed entry-point and Tk panel gates. Its wheel SHA-256 is
+`711bfe1c653a9c8b742d85ff6b80aaedcd9cf4df11b5ef1d47e340d6dd8266ef`.
+
+The wheel was installed into the same running client without replacing the executable or native
+DLL. Client PID 1940 and creation FILETIME `134330468660427387` remained unchanged. The verified
+executable SHA-256 is `bb63469eb35917e6b3f58be75d29f94855c9868024271222465b4db62f0e3a87`;
+the loaded DLL remains
+`65c67e8e05397b8acab5f3e01a4e566a1f7c75fcec99250c5a7bcb77ffee8fd2`.
+
+Watched session `5119146404273284310` then approached the same tree from LT 88829.55 /
+LG 45039.87. It encountered two physical blockers while resolving the route. Both backtrack
+destinations were exactly 10.00 units from their stall positions. The first produced 11.10 units
+of measured retreat; the second produced 6.77 units before the next escape/replan transition.
+The final refined plan retained cells `(8882, 4504)` and `(8884, 4506)` and cleared the tree.
+All 51 trail points and 56 events were retained with no omissions or producer drops. The owner
+accepted both pullbacks as tight enough.
+
+That run crossed within 0.41 units of the goal, then continued to a stationary point 5.52 units
+away and correctly ended `arrival_not_settled` for the five-unit radius. The boundary miss is
+retained separately from the accepted recovery behavior. Private evidence is under
+`resume-20260904-1915/refinement-e8b24b5/tree-backtrack-10-confirmation`.
+
+Next todo: run a cold and warm pair through a dense foliage patch. The cold pass starts with an
+isolated empty learned map and must recover from first contact. Restart the production listener
+from the saved schema-2 map before the warm pass, return to the same approach, and verify that
+the remembered 10-unit cells shape the first route without repeating those contacts. Bounded PvE
+and the remaining overlay cost/scene checks follow.

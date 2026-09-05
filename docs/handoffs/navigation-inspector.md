@@ -301,3 +301,30 @@ source and compatibility regressions pass 1,682 tests, 211 subtests, seven expec
 
 Next todo: package and deploy the refined source, then repeat the watched x-ray tree pass. Bounded
 PvE and overlay cost/scene checks follow. PR #27 stays draft and unmerged.
+
+The refined current-client route is now live-verified. Session `5218318916770432677` used the
+10-unit local grid after one collision, retained every one of its 46 trail points and 36 events,
+and settled 0.79 units from the goal. The owner accepted the replan granularity and visible x-ray
+diagnostic, but requested a smaller first pullback.
+
+Source `7e719d6fa2a524574e1813a0f76cfe1634b2440f` limits only the initial physical
+`escape_backtrack` click to 10 units. Package `776defa9` passed 1,685 Python tests, 211 subtests,
+eight expected skips, Ruff, both Win32 profiles and all 18 native tests per profile. Wheel
+SHA-256: `711bfe1c653a9c8b742d85ff6b80aaedcd9cf4df11b5ef1d47e340d6dd8266ef`.
+The wheel is installed in the same PID 1940 client; executable and loaded DLL hashes remain
+`bb63469eb35917e6b3f58be75d29f94855c9868024271222465b4db62f0e3a87` and
+`65c67e8e05397b8acab5f3e01a4e566a1f7c75fcec99250c5a7bcb77ffee8fd2`.
+
+Watched session `5119146404273284310` exercised two stalls. Both backtrack destinations were
+exactly 10 units; measured retreats were 11.10 and 6.77 units. The refined map retained cells
+`(8882, 4504)` and `(8884, 4506)`, cleared the tree, and retained all 51 trail points and 56
+events with no omissions or drops. The owner accepted both pullbacks as tight enough. The route
+passed 0.41 units from its goal but settled 5.52 units away, so its terminal
+`arrival_not_settled` is retained as a separate five-unit-radius boundary miss.
+
+Current active todo: exercise production persistence and refinement as a cold/warm dense-terrain
+pair. Use an isolated empty learned map for the first approach, preserve its schema-2 output,
+restart the listener from that file, return to the same starting side, and repeat the same
+destination. Compare first-click route, contacts, backtracks, replans, learned cells, path grain
+and completion. Then proceed to bounded PvE and the remaining overlay cost/scene checks. PR #27
+stays draft and unmerged.
