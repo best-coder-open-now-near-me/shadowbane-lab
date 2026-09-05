@@ -240,8 +240,9 @@ def main() -> int:
     )
     run("installed-effects-panel", [python, "-c", effects_smoke], cwd=output)
     cue_smoke = (
-        "import tkinter as tk; from shadowbane_lab.graphics_lab.app import GraphicsLabApp; "
-        "root=tk.Tk(); root.withdraw(); app=GraphicsLabApp(root); "
+        "import tkinter as tk; import shadowbane_lab.graphics_lab.app as module; "
+        "module.discover_graphics_targets=lambda: (); "
+        "root=tk.Tk(); root.withdraw(); app=module.GraphicsLabApp(root); "
         "assert app.cue_panel.settings().enabled is False; app.close()"
     )
     run("installed-selection-panel", [python, "-c", cue_smoke], cwd=output)

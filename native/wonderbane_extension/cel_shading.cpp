@@ -1,4 +1,5 @@
 #include "cel_shading.h"
+#include "render_lifetime.h"
 #include "banded_lighting.h"
 #include "depth_edges.h"
 #include "fixed_function_state.h"
@@ -304,6 +305,7 @@ void MarkCompiledListStateChange() noexcept {
     PVOID volatile g_list_original_##name = nullptr; \
     std::uint32_t* g_list_slot_##name = nullptr; \
     void APIENTRY ListState##name parameters noexcept { \
+        const RenderCallbackLease lease; \
         MarkCompiledListStateChange(); \
         const auto original = LoadFunction<decltype(&ListState##name)>( \
             &g_list_original_##name); \
@@ -1448,6 +1450,7 @@ void DrawWithSilhouette(
 }
 
 void APIENTRY StrongShadeModel(const unsigned int mode) noexcept {
+    const RenderCallbackLease lease;
     MarkCompiledListStateChange();
     const auto original = LoadFunction<GlShadeModel>(&g_original_shade_model);
     if (original != nullptr) {
@@ -1474,6 +1477,7 @@ bool CurrentProjection(
 }
 
 void APIENTRY StrongBegin(const unsigned int mode) noexcept {
+    const RenderCallbackLease lease;
     const bool compiling = IsCompilingDisplayListOnCurrentThread();
     TerrainTraceDraw(TerrainSubmission::immediate,
         reinterpret_cast<std::uintptr_t>(_ReturnAddress()), mode, 0, -1, 0U, 0U,
@@ -1523,6 +1527,7 @@ void APIENTRY StrongBegin(const unsigned int mode) noexcept {
 }
 
 void APIENTRY StrongEnd() noexcept {
+    const RenderCallbackLease lease;
     const auto original = LoadFunction<GlEnd>(&g_original_end);
     if (original != nullptr) {
         original();
@@ -1538,6 +1543,7 @@ void APIENTRY StrongEnd() noexcept {
 }
 
 void APIENTRY StrongNewList(const unsigned int list, const unsigned int mode) noexcept {
+    const RenderCallbackLease lease;
     const auto original = LoadFunction<GlNewList>(&g_original_new_list);
     if (original != nullptr) {
         BeginDisplayListCapture(list);
@@ -1546,6 +1552,7 @@ void APIENTRY StrongNewList(const unsigned int list, const unsigned int mode) no
 }
 
 void APIENTRY StrongEndList() noexcept {
+    const RenderCallbackLease lease;
     const auto original = LoadFunction<GlEndList>(&g_original_end_list);
     if (original != nullptr) {
         original();
@@ -1557,6 +1564,7 @@ void APIENTRY StrongEndList() noexcept {
 }
 
 void APIENTRY StrongVertex3f(const float x, const float y, const float z) noexcept {
+    const RenderCallbackLease lease;
     CaptureDisplayListVertex(x, y, z);
     const auto original = LoadFunction<GlVertex3f>(&g_original_vertex_3f);
     if (original != nullptr) {
@@ -1565,6 +1573,7 @@ void APIENTRY StrongVertex3f(const float x, const float y, const float z) noexce
 }
 
 void APIENTRY StrongDeleteLists(const unsigned int list, const int range) noexcept {
+    const RenderCallbackLease lease;
     const auto original = LoadFunction<GlDeleteLists>(&g_original_delete_lists);
     if (original != nullptr) {
         original(list, range);
@@ -1578,6 +1587,7 @@ void APIENTRY StrongViewport(
     const int width,
     const int height
 ) noexcept {
+    const RenderCallbackLease lease;
     MarkCompiledListStateChange();
     const auto original = LoadFunction<GlViewport>(&g_original_viewport);
     if (original != nullptr) {
@@ -1640,6 +1650,7 @@ bool FinishMainSceneCamera(GraphicsCameraState* const camera) noexcept {
 }
 
 __declspec(noinline) void APIENTRY StrongClear(const unsigned int mask) noexcept {
+    const RenderCallbackLease lease;
     const auto caller = reinterpret_cast<std::uintptr_t>(_ReturnAddress());
     const auto original = LoadFunction<GlClearBuffers>(&g_original_clear);
     if (original == nullptr) { return; }
@@ -1680,6 +1691,7 @@ __declspec(noinline) void APIENTRY StrongClear(const unsigned int mask) noexcept
 }
 
 __declspec(noinline) void APIENTRY StrongMatrixMode(const unsigned int mode) noexcept {
+    const RenderCallbackLease lease;
     MarkCompiledListStateChange();
     const auto caller = reinterpret_cast<std::uintptr_t>(_ReturnAddress());
     if (mode == 0x1701U && g_scene_mapping_verified
@@ -1719,6 +1731,7 @@ __declspec(noinline) void APIENTRY StrongMatrixMode(const unsigned int mode) noe
 }
 
 void APIENTRY StrongCallList(const unsigned int list) noexcept {
+    const RenderCallbackLease lease;
     const auto original = LoadFunction<GlCallList>(&g_original_call_list);
     if (original != nullptr) {
         if (IsCompilingDisplayListOnCurrentThread()) {
@@ -1766,6 +1779,7 @@ void APIENTRY StrongCallList(const unsigned int list) noexcept {
 void APIENTRY StrongCallLists(
     const int count, const unsigned int type, const void* const lists
 ) noexcept {
+    const RenderCallbackLease lease;
     TerrainTraceDraw(TerrainSubmission::lists,
         reinterpret_cast<std::uintptr_t>(_ReturnAddress()), 0U, 0, count, type, 0U,
         false, !IsCompilingDisplayListOnCurrentThread() && !g_immediate_primitive_open);
@@ -1784,6 +1798,7 @@ void APIENTRY StrongDrawArrays(
     const int first,
     const int count
 ) noexcept {
+    const RenderCallbackLease lease;
     const auto original = LoadFunction<GlDrawArrays>(&g_original_draw_arrays);
     if (original != nullptr) {
         TerrainTraceDraw(TerrainSubmission::arrays,
@@ -1821,6 +1836,7 @@ void APIENTRY StrongDrawElements(
     const unsigned int type,
     const void* const indices
 ) noexcept {
+    const RenderCallbackLease lease;
     const auto original = LoadFunction<GlDrawElements>(&g_original_draw_elements);
     if (original != nullptr) {
         TerrainTraceDraw(TerrainSubmission::elements,
@@ -1853,6 +1869,7 @@ void APIENTRY StrongDrawElements(
 }
 
 BOOL WINAPI StrongSwapBuffers(const HDC device_context) noexcept {
+    const RenderCallbackLease lease;
     const std::uint64_t performance_started_qpc = BeginPerformancePresent();
     if (TerrainTracePresent()) { RequestGraphicsStatusPublish(); }
     ApplyPendingGraphicsControl();
@@ -1959,7 +1976,7 @@ bool RestoreHook(
 ) noexcept {
     std::uint32_t* const slot = *slot_storage;
     PVOID const original = LoadFunction<PVOID>(original_storage);
-    if (slot == nullptr && original == nullptr) {
+    if (slot == nullptr) {
         return true;
     }
     if (slot == nullptr || original == nullptr) {
@@ -1979,7 +1996,7 @@ bool RestoreHook(
         return false;
     }
     *slot_storage = nullptr;
-    InterlockedExchangePointer(original_storage, nullptr);
+    // Keep original call-through for a callback dispatched before restoration.
     return true;
 }
 
@@ -2117,6 +2134,7 @@ void APIENTRY StrongVertexPointer(
     const int stride,
     const void* const pointer
 ) noexcept {
+    const RenderCallbackLease lease;
     const auto original = LoadFunction<GlVertexPointer>(&g_original_vertex_pointer);
     if (original != nullptr) {
         original(size, type, stride, pointer);
@@ -2133,6 +2151,7 @@ void APIENTRY StrongTexCoordPointer(
     const int stride,
     const void* const pointer
 ) noexcept {
+    const RenderCallbackLease lease;
     const auto original = LoadFunction<GlTexCoordPointer>(
         &g_original_tex_coord_pointer
     );
@@ -2146,6 +2165,7 @@ void APIENTRY StrongTexCoordPointer(
 }
 
 void APIENTRY StrongEnable(const unsigned int capability) noexcept {
+    const RenderCallbackLease lease;
     MarkCompiledListStateChange();
     const auto original = LoadFunction<GlEnable>(&g_enable);
     if (original != nullptr) {
@@ -2157,6 +2177,7 @@ void APIENTRY StrongEnable(const unsigned int capability) noexcept {
 }
 
 void APIENTRY StrongDisable(const unsigned int capability) noexcept {
+    const RenderCallbackLease lease;
     MarkCompiledListStateChange();
     const auto original = LoadFunction<GlDisable>(&g_disable);
     if (original != nullptr) {
@@ -2168,6 +2189,7 @@ void APIENTRY StrongDisable(const unsigned int capability) noexcept {
 }
 
 void APIENTRY StrongDepthMask(const unsigned char flag) noexcept {
+    const RenderCallbackLease lease;
     MarkCompiledListStateChange();
     const auto original = LoadFunction<GlDepthMask>(&g_depth_mask);
     if (original != nullptr) {
@@ -2181,6 +2203,7 @@ void APIENTRY StrongDepthMask(const unsigned char flag) noexcept {
 }
 
 void APIENTRY StrongPopAttrib() noexcept {
+    const RenderCallbackLease lease;
     MarkCompiledListStateChange();
     const auto original = LoadFunction<GlPopAttrib>(&g_original_pop_attrib);
     if (original != nullptr) {
@@ -2194,6 +2217,7 @@ void APIENTRY StrongPopAttrib() noexcept {
 }
 
 void APIENTRY StrongEnableClientState(const unsigned int array) noexcept {
+    const RenderCallbackLease lease;
     const auto original = LoadFunction<GlEnableClientState>(
         &g_original_enable_client_state
     );
@@ -2208,6 +2232,7 @@ void APIENTRY StrongEnableClientState(const unsigned int array) noexcept {
 }
 
 void APIENTRY StrongDisableClientState(const unsigned int array) noexcept {
+    const RenderCallbackLease lease;
     const auto original = LoadFunction<GlDisableClientState>(
         &g_original_disable_client_state
     );
@@ -2376,7 +2401,7 @@ DWORD InstallGraphicsPresentHook(
     ) {
         return ERROR_INVALID_PARAMETER;
     }
-    if (g_swap_buffers_slot != nullptr || g_original_swap_buffers != nullptr) {
+    if (g_swap_buffers_slot != nullptr) {
         return ERROR_ALREADY_INITIALIZED;
     }
     const HMODULE gdi = GetModuleHandleW(L"GDI32.dll");
@@ -2425,7 +2450,7 @@ DWORD InstallGraphicsPresentHook(
         if (*slot == static_cast<std::uint32_t>(replacement_address)) {
             g_swap_buffers_slot = slot;
         } else {
-            InterlockedExchangePointer(&g_original_swap_buffers, nullptr);
+            // No published slot; retain resolved call-through for prior dispatch.
         }
         StopGraphicsPresentObservation();
         return hook_result;
@@ -2435,12 +2460,11 @@ DWORD InstallGraphicsPresentHook(
 }
 
 DWORD StartGraphicsPresentObservation() noexcept {
+    const RenderLifecycleMutation mutation;
     static_assert(sizeof(void*) == sizeof(std::uint32_t));
     if (
         g_shade_model_slot != nullptr
-        || g_original_shade_model != nullptr
         || g_swap_buffers_slot != nullptr
-        || g_original_swap_buffers != nullptr
     ) {
         return ERROR_ALREADY_INITIALIZED;
     }
@@ -2469,6 +2493,7 @@ DWORD StartGraphicsPresentObservation() noexcept {
 }
 
 void StopGraphicsPresentObservation() noexcept {
+    const RenderLifecycleMutation mutation;
     RestoreHook(
         &g_swap_buffers_slot,
         &g_original_swap_buffers,
@@ -2477,9 +2502,10 @@ void StopGraphicsPresentObservation() noexcept {
 }
 
 DWORD StartStrongCelShading() noexcept {
+    const RenderLifecycleMutation mutation;
     static_assert(sizeof(void*) == sizeof(std::uint32_t));
 #define WB_CHECK_LIST_STATE_HOOK(name, parameters, arguments) \
-    if (g_list_slot_##name != nullptr || g_list_original_##name != nullptr) { \
+    if (g_list_slot_##name != nullptr) { \
         return ERROR_ALREADY_INITIALIZED; \
     }
     WB_LIST_STATE_COMMANDS(WB_CHECK_LIST_STATE_HOOK)
@@ -2508,30 +2534,10 @@ DWORD StartStrongCelShading() noexcept {
         || g_depth_mask_slot != nullptr
         || g_pop_attrib_slot != nullptr
         || g_swap_buffers_slot != nullptr
-        || g_original_shade_model != nullptr
-        || g_original_begin != nullptr
-        || g_original_end != nullptr
-        || g_original_call_list != nullptr
-        || g_original_call_lists != nullptr
-        || g_original_new_list != nullptr
-        || g_original_end_list != nullptr
-        || g_original_vertex_3f != nullptr
-        || g_original_delete_lists != nullptr
-        || g_original_viewport != nullptr
-        || g_original_matrix_mode != nullptr
-        || g_original_clear != nullptr
-        || g_original_draw_arrays != nullptr
-        || g_original_draw_elements != nullptr
-        || g_original_vertex_pointer != nullptr
-        || g_original_tex_coord_pointer != nullptr
-        || g_original_enable_client_state != nullptr
-        || g_original_disable_client_state != nullptr
-        || g_original_swap_buffers != nullptr
         || g_get_floatv != nullptr
         || g_get_booleanv != nullptr
         || g_push_attrib != nullptr
         || g_pop_attrib != nullptr
-        || g_original_pop_attrib != nullptr
         || g_push_matrix != nullptr
         || g_pop_matrix != nullptr
         || g_translatef != nullptr
@@ -2850,7 +2856,7 @@ DWORD StartStrongCelShading() noexcept {
             if (*plan.slot == replacement_address) {
                 *plan.slot_storage = plan.slot;
             } else {
-                InterlockedExchangePointer(plan.original_storage, nullptr);
+                // Resolved originals remain callable after rollback.
             }
             StopStrongCelShading();
             return result;
@@ -2881,6 +2887,7 @@ DWORD StartStrongCelShading() noexcept {
 }
 
 void StopStrongCelShading() noexcept {
+    const RenderLifecycleMutation mutation;
 #if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
     StopSelectedCue();
 #endif

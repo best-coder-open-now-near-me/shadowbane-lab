@@ -13,6 +13,7 @@
 #include <cstdio>
 #include <cstring>
 #include <vector>
+#include <thread>
 
 namespace {
 
@@ -388,15 +389,47 @@ bool CheckOptionalImportPlans() {
     // The extension still needs its own glPopAttrib helper when no client IAT
     // slot exists. That helper must not look like a partially installed hook.
     g_pop_attrib = reinterpret_cast<PVOID>(&FakeRestoreAttributes);
+    const auto retained_original = g_original_pop_attrib;
     StopStrongCelShading();
-    ok = ok && g_pop_attrib == nullptr && g_original_pop_attrib == nullptr
+    ok = ok && g_pop_attrib == nullptr && g_original_pop_attrib == retained_original
         && g_pop_attrib_slot == nullptr;
     return ok;
 }
 
 }  // namespace
 
+HANDLE render_entered = nullptr;
+HANDLE render_release = nullptr;
+BOOL WINAPI HeldSwap(HDC) {
+    SetEvent(render_entered);
+    WaitForSingleObject(render_release, INFINITE);
+    return TRUE;
+}
+bool CheckInFlightCleanup() {
+    using namespace wonderbane::extension;
+    render_entered = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+    render_release = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+    g_original_swap_buffers = reinterpret_cast<PVOID>(&HeldSwap);
+    std::uint32_t imported = static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(&StrongSwapBuffers));
+    g_swap_buffers_slot = &imported;
+    std::thread callback([] { StrongSwapBuffers(nullptr); });
+    WaitForSingleObject(render_entered, INFINITE);
+    if (TryAcquireSRWLockExclusive(&g_render_lifetime)) { std::abort(); }
+    HANDLE stop_entered = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+    std::thread cleanup([&] { SetEvent(stop_entered); StopStrongCelShading(); });
+    WaitForSingleObject(stop_entered, INFINITE);
+    SetEvent(render_release);
+    callback.join(); cleanup.join();
+    const bool ok = !g_swap_buffers_slot
+        && imported == static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(&HeldSwap))
+        && StrongSwapBuffers(nullptr) == TRUE;
+    StopStrongCelShading();
+    CloseHandle(stop_entered); CloseHandle(render_entered); CloseHandle(render_release);
+    return ok;
+}
+
 int wmain() {
+    if (!CheckInFlightCleanup()) { return Fail(L"in-flight renderer cleanup/call-through"); }
     if (!CheckReviewedSceneCamera()) {
         return Fail(L"reviewed scene camera ownership and nested world transforms");
     }
