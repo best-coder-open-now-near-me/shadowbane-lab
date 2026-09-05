@@ -331,3 +331,19 @@ for the transparency repair, not a repair or release claim. Required native
 transparency failures remain open; no package or owner acceptance is certified.
 Next is cue MultiDraw trace coverage and the shared transmission contract,
 with complete movement stop/runtime composition continuing in its owner lane.
+
+
+Cue trace checkpoint `98bcd21814b472942c8eea1ee1e932806ca5c0a9` is integrated
+at combined source `5519a8e4026136d04231c9c66cfe71fc23fdac97`. Merge resolution
+retains the shared scene-context observer and both material-state and MultiDraw
+serialization assertions. The same verified dynamic slot observes one native
+multi-submit before private replay; count is explicitly subdraws. Opt-in capture
+works with disabled cue or missing target, while disabled/no-trace avoids adoption.
+Existing immediate/list query guards suppress unsafe supplemental GL work.
+Both native profiles build and each executes seven targeted tests successfully,
+zero skips: startup, scene context, cue runtime, combined render, both trace modes,
+and cel shading. Evidence: `artifacts/hardening-evidence/multidraw-full.xml` and
+`multidraw-diagnostics.xml`. Both Python trace suites pass (48 tests). No new
+hook system, wire version, package receipt or transparency completion is claimed.
+Next remains shared native fragment/transmission representation, coordinated
+through the existing scene owner; bounded emitter replay alone is insufficient.
