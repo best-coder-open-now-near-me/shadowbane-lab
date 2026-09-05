@@ -328,7 +328,8 @@ bool NativeStop::PickMoveGuarded(const Target& target) noexcept {
     __except(EXCEPTION_EXECUTE_HANDLER) { faulted_ = true; return false; }
 }
 bool NativeStop::MovementCurrent(const Target& target) const noexcept {
-    return controls_.Ready() && target.grant.owner != Owner::none && controls_.Current() == target.grant && Current(target);
+    return (!movement_admission_ || movement_admission_(movement_context_))
+        && controls_.Ready() && target.grant.owner != Owner::none && controls_.Current() == target.grant && Current(target);
 }
 bool NativeStop::Steer(const Grant& grant, Vector2 direction, std::uint64_t tick, bool start) noexcept {
     if (stop_only_ || !Available() || !in_update_ || executing_ || GetCurrentThreadId() != thread_

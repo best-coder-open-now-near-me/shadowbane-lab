@@ -627,3 +627,44 @@ codec checkpoint: active action-channel schema remains 1 until its consumer and
 producer switch together. No new dispatch capability or installed-package claim.
 Active todo remains schema-2 queue/status/session integration, then combined
 source/package review and coordinated connected acceptance.
+
+## Schema 2 owning-thread transport checkpoint
+
+Active action schema now 2, command768/result512/status512, with legacy verbs and
+payload1 preserved and mixed geometry rejected. Python lease claim/renew/close
+methods remain unchanged. The worker captures PID/creation/lease generation and a
+retained process handle; the owning update rechecks lifetime/deadline/window/scene
+and full grant after manual Tick. Acquisition UUID journal returns the original
+receipt, never a new generation after an ambiguous timeout. Native callbacks check
+current lease admission; old lease loss cancels only its captured grant. Result
+publication is single-worker and retains original sequence/ID/UUID/lease; full
+result-ring backpressure keeps the pending receipt. Status uses odd/even sequence
+publication and a read-only Python mapping with no lease mutation.
+
+Channel stop now retains worker/events/storage after timeout. Confirmed worker exit
+closes its handles, while admitted command/automation leases retain mapped backing
+until they return. Backing acceptance is retired immediately. Named mapping collision
+prevents replacement while old references remain. Production-path held-worker tests
+exercise timeout, repeat start/stop rejection, release and final cleanup.
+
+`NativeMovementSession(identity, window).snapshot()` is read-only;
+`acquire(snapshot, worker_id, operation_id, canonical_uuid)` returns immutable
+`NativeMovementGrant`; `move(grant, XYZ, uuid)`, `stop(grant, uuid)` and
+`configure(snapshot, settings, uuid)` retain correlation. Configure requires an
+already-owned producer lease. Ambiguous acquisition/stop retries must retain their
+original UUID and immutable request; pending cancellation excludes further move.
+Closed sessions never silently reopen. Manager operation composition remains with
+the hardening owner.
+
+Both DLL profiles +16 event-channel/runtime/held-channel cases pass0skips. Real
+Python-to-native IPC through the production runtime fixture proves acquire/retry/
+stop completion while Python holds its producer mutex. Read-only status tests prove
+mixed schema/geometry and odd publication reject without changing lease fields.
+21 Python codec/producer/IPC tests plus15 malformed subtests passed in diagnostics,
+then the added second status test passed; Ruff passes.
+
+This is a transport checkpoint, not complete feature acceptance: arbitrary native
+world-destination submission is explicitly unavailable pending its verified adapter
+and accepted navigation coordinate wiring. Manual controls remain operational.
+Active next todo is that adapter plus typed manager composition, then combined
+source/package review, installed package and coordinated connected acceptance.

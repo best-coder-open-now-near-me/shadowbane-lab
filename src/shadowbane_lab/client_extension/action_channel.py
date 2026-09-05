@@ -21,12 +21,14 @@ from typing import Protocol, runtime_checkable
 
 from shadowbane_lab.protocol import DispatchResult
 
+from . import movement_wire
+
 CLIENT_ACTION_CHANNEL_MAGIC = b"WBACTV1\0"
-CLIENT_ACTION_CHANNEL_SCHEMA_VERSION = 1
+CLIENT_ACTION_CHANNEL_SCHEMA_VERSION = 2
 CLIENT_ACTION_CHANNEL_HEADER_SIZE = 128
-CLIENT_ACTION_COMMAND_SLOT_SIZE = 192
+CLIENT_ACTION_COMMAND_SLOT_SIZE = 768
 CLIENT_ACTION_COMMAND_CAPACITY = 32
-CLIENT_ACTION_RESULT_SLOT_SIZE = 128
+CLIENT_ACTION_RESULT_SLOT_SIZE = 512
 CLIENT_ACTION_RESULT_CAPACITY = 64
 CLIENT_ACTION_PAYLOAD_VERSION = 1
 CLIENT_ACTION_ARGUMENT_CAPACITY = 96
@@ -37,10 +39,12 @@ CLIENT_ACTION_RESULT_RING_OFFSET = (
     CLIENT_ACTION_COMMAND_RING_OFFSET
     + CLIENT_ACTION_COMMAND_SLOT_SIZE * CLIENT_ACTION_COMMAND_CAPACITY
 )
-CLIENT_ACTION_CHANNEL_SIZE = (
+CLIENT_ACTION_STATUS_OFFSET = (
     CLIENT_ACTION_RESULT_RING_OFFSET
     + CLIENT_ACTION_RESULT_SLOT_SIZE * CLIENT_ACTION_RESULT_CAPACITY
 )
+
+CLIENT_ACTION_CHANNEL_SIZE = CLIENT_ACTION_STATUS_OFFSET + movement_wire.STATUS_SIZE
 
 CLIENT_ACTION_TRANSPORT_CAPABILITY = 1 << 0
 NATIVE_ACTION_DISPATCH_CAPABILITY = 1 << 1
@@ -57,9 +61,9 @@ _RESULT = struct.Struct("<qQqIIQII72s8s")
 
 if _HEADER.size != CLIENT_ACTION_CHANNEL_HEADER_SIZE:
     raise RuntimeError("native action header ABI size drifted")
-if _COMMAND.size != CLIENT_ACTION_COMMAND_SLOT_SIZE:
+if _COMMAND.size + 576 != CLIENT_ACTION_COMMAND_SLOT_SIZE:
     raise RuntimeError("native action command ABI size drifted")
-if _RESULT.size != CLIENT_ACTION_RESULT_SLOT_SIZE:
+if _RESULT.size + 384 != CLIENT_ACTION_RESULT_SLOT_SIZE:
     raise RuntimeError("native action result ABI size drifted")
 
 _COMMAND_WRITE_SEQUENCE_OFFSET = 48
@@ -282,11 +286,7 @@ class NativeActionCommand:
     ) -> bytes:
         if isinstance(sequence, bool) or not isinstance(sequence, int) or sequence <= 0:
             raise ValueError("sequence must be a positive integer")
-        if (
-            isinstance(created_tick, bool)
-            or not isinstance(created_tick, int)
-            or created_tick <= 0
-        ):
+        if isinstance(created_tick, bool) or not isinstance(created_tick, int) or created_tick <= 0:
             raise ValueError("created_tick must be a positive integer")
         if (
             isinstance(deadline_tick, bool)
@@ -323,7 +323,37 @@ class NativeActionCommand:
             0,
             argument.ljust(CLIENT_ACTION_ARGUMENT_CAPACITY, b"\0"),
             power_identifier.ljust(CLIENT_ACTION_POWER_IDENTIFIER_CAPACITY, b"\0"),
+        ) + bytes(576)
+
+
+@dataclass(frozen=True, slots=True)
+class NativeMovementCommand:
+    command_id: int
+    kind: movement_wire.Verb
+    payload: movement_wire.Command
+
+    def encode_slot(self, *, sequence: int, created_tick: int, deadline_tick: int) -> bytes:
+        if type(self.command_id) is not int or not 0 < self.command_id < 2**64:
+            raise ValueError("movement command ID must be a positive uint64")
+        if not 0 < sequence < 2**63 or not 0 < created_tick <= deadline_tick < 2**64:
+            raise ValueError("invalid command sequence/deadline")
+        prefix = _COMMAND.pack(
+            0,
+            self.command_id,
+            self.kind,
+            CLIENT_ACTION_PAYLOAD_VERSION,
+            created_tick,
+            deadline_tick,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            bytes(96),
+            bytes(32),
         )
+        return prefix + self.payload.encode(self.kind)
 
 
 @dataclass(frozen=True, slots=True)
@@ -336,6 +366,7 @@ class NativeActionResult:
     observed_tick: int
     consumer_thread_id: int
     detail: str
+    movement_payload: bytes = b""
 
     @classmethod
     def decode_slot(cls, payload: bytes) -> NativeActionResult:
@@ -352,7 +383,7 @@ class NativeActionResult:
             detail_length,
             detail_bytes,
             reserved,
-        ) = _RESULT.unpack(payload)
+        ) = _RESULT.unpack(payload[: _RESULT.size])
         if result_sequence <= 0 or command_id <= 0 or command_sequence <= 0:
             raise NativeActionChannelError("result contains invalid sequence identity")
         try:
@@ -376,6 +407,7 @@ class NativeActionResult:
             observed_tick=observed_tick,
             consumer_thread_id=consumer_thread_id,
             detail=detail,
+            movement_payload=payload[_RESULT.size :],
         )
 
 
@@ -498,18 +530,18 @@ class _WindowsKernel:
                 self._kernel.ReleaseMutex(ctypes.c_void_p(handle))
             self.close_handle(handle)
 
-    def open_file_mapping(self, name: str) -> int:
+    def open_file_mapping(self, name: str, *, read_only: bool = False) -> int:
         handle = self._kernel.OpenFileMappingW(
-            _FILE_MAP_READ | _FILE_MAP_WRITE,
+            _FILE_MAP_READ if read_only else _FILE_MAP_READ | _FILE_MAP_WRITE,
             False,
             name,
         )
         return self._checked_handle(handle, "OpenFileMappingW")
 
-    def map_view(self, mapping: int, size: int) -> int:
+    def map_view(self, mapping: int, size: int, *, read_only: bool = False) -> int:
         view = self._kernel.MapViewOfFile(
             ctypes.c_void_p(mapping),
-            _FILE_MAP_READ | _FILE_MAP_WRITE,
+            _FILE_MAP_READ if read_only else _FILE_MAP_READ | _FILE_MAP_WRITE,
             0,
             0,
             size,
@@ -662,13 +694,9 @@ class WindowsNativeActionCommandTransport:
         *,
         timeout_ms: int,
     ) -> NativeActionResult:
-        if not isinstance(command, NativeActionCommand):
-            raise ValueError("command must be NativeActionCommand")
-        if (
-            isinstance(timeout_ms, bool)
-            or not isinstance(timeout_ms, int)
-            or timeout_ms <= 0
-        ):
+        if not isinstance(command, (NativeActionCommand, NativeMovementCommand)):
+            raise ValueError("command must be a native action or movement command")
+        if isinstance(timeout_ms, bool) or not isinstance(timeout_ms, int) or timeout_ms <= 0:
             raise ValueError("timeout_ms must be positive")
         with self._lock, self._kernel.producer_lock(self._producer_lock_name, timeout_ms):
             self._renew_host_lease()
@@ -702,9 +730,7 @@ class WindowsNativeActionCommandTransport:
             ctypes.memmove(view + slot_offset, encoded, len(encoded))
             self._exchange_i64(slot_offset, sequence)
             self._exchange_i64(_COMMAND_WRITE_SEQUENCE_OFFSET, sequence)
-            self._kernel.set_event(
-                self._require_handle(self._command_signal, "command signal")
-            )
+            self._kernel.set_event(self._require_handle(self._command_signal, "command signal"))
             return self._wait_for_completion(
                 command_id=command.command_id,
                 command_sequence=sequence,

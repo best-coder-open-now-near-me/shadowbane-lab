@@ -85,6 +85,67 @@ int main(int argc, char** argv) {
     Check(rt.controls.Configure(rt.settings) == wm::Result::accepted && rt.input.Configure(rt.settings), "consumer settings configured");
     const auto step = [&] { rt.Update(f.game_window.data()); };
     step(); step();
+    if (mode == "ipc") {
+        FILETIME created{}, exited{}, kernel{}, user{};
+        Check(GetProcessTimes(GetCurrentProcess(), &created, &exited, &kernel, &user) != FALSE, "IPC client lifetime");
+        rt.process = {GetCurrentProcessId(), (static_cast<std::uint64_t>(created.dwHighDateTime) << 32) | created.dwLowDateTime};
+        rt.clock = &GetTickCount64;
+        Check(wonderbane::extension::StartClientActionCommandChannel(rt.process) == ERROR_SUCCESS, "IPC production channel");
+        step(); step(); rt.Publish();
+        std::printf("%lu %llu %llu\n", static_cast<unsigned long>(rt.process.process_id),
+            static_cast<unsigned long long>(rt.process.creation_filetime_utc),
+            static_cast<unsigned long long>(reinterpret_cast<std::uintptr_t>(f.window))); std::fflush(stdout);
+        const auto until = GetTickCount64() + 10000;
+        auto* storage = wonderbane::extension::command_channel_detail::g_runtime.storage;
+        while (GetTickCount64() < until && InterlockedCompareExchange64(&storage->header.result_read_sequence, 0, 0) < 3) {
+            step(); Sleep(5);
+        }
+        Check(storage->header.result_read_sequence == 3, "Python consumed three correlated native receipts");
+        wonderbane::extension::StopClientActionCommandChannel(); rt.input.Retire(); return failures ? 1 : 0;
+    }
+    if (mode == "commands") {
+        auto lease = std::make_shared<wm::CommandLease>();
+        lease->process = OpenProcess(SYNCHRONIZE, FALSE, GetCurrentProcessId());
+        lease->host = {GetCurrentProcessId(), 9, 42};
+        bool lease_current = true; lease->context = &lease_current;
+        lease->validate = [](void* context, const wm::wire::Host&, std::uint64_t) noexcept { return *static_cast<bool*>(context); };
+        const auto make = [&](wm::wire::Verb verb, wm::Grant expected, unsigned char key) {
+            auto command = std::make_shared<wm::QueuedCommand>(); command->id = key; command->sequence = key;
+            command->deadline = 100000; command->verb = verb; command->lease = lease;
+            command->command.host = lease->host; command->command.window = reinterpret_cast<std::uintptr_t>(f.window);
+            command->command.expected = wm::wire::Encode(expected); command->command.request[0] = key;
+            command->command.settings = wm::wire::Encode(rt.settings); command->command.revision = rt.revision;
+            if (verb == wm::wire::Verb::acquire) {
+                std::memcpy(command->command.requested.worker, "worker", 6);
+                std::memcpy(command->command.requested.operation, "route", 5);
+            }
+            return command;
+        };
+        const auto run = [&](const std::shared_ptr<wm::QueuedCommand>& command) {
+            Check(wm::QueueMovementCommand(command), "command admitted once"); step();
+            Check(command->state.load() == 2, "owning update publishes receipt"); wm::ReleaseMovementCommand(command);
+        };
+        const auto original = rt.controls.Current(); auto acquire = make(wm::wire::Verb::acquire, original, 1);
+        run(acquire); const auto owned = rt.controls.Current();
+        Check(acquire->receipt.outcome == 0 && owned.owner == wm::Owner::automation, "queued acquire obtains native owner");
+        auto retry = make(wm::wire::Verb::acquire, original, 1); run(retry);
+        Check(retry->receipt.outcome == 0 && rt.controls.Current() == owned
+            && std::memcmp(&retry->receipt, &acquire->receipt, sizeof(retry->receipt)) == 0,
+            "ambiguous retry returns original immutable receipt without reacquisition");
+        auto delayed = make(wm::wire::Verb::stop, owned, 2);
+        physical_keys['W'] = static_cast<SHORT>(0x8000); run(delayed);
+        const auto manual = rt.controls.Current();
+        Check(delayed->receipt.outcome == static_cast<unsigned>(wm::Result::stale)
+            && manual.owner == wm::Owner::manual, "manual Tick precedes delayed automation stop");
+        lease_current = false; step(); Check(rt.controls.Current() == manual, "obsolete lease loss cannot stop manual owner");
+        physical_keys.fill(0); step(); lease_current = true;
+        auto expired = make(wm::wire::Verb::acquire, rt.controls.Current(), 3); expired->deadline = 1; run(expired);
+        Check(expired->receipt.outcome == static_cast<unsigned>(wm::Result::stale), "expired command never reacquires");
+        auto replacement = make(wm::wire::Verb::acquire, rt.controls.Current(), 4); run(replacement);
+        Check(replacement->receipt.outcome == 0, "explicit new request resumes automation");
+        lease_current = false; step(); Check(rt.controls.Current().owner == wm::Owner::none, "current lease loss cancels its exact owner");
+        rt.input.Retire(); return failures ? 1 : 0;
+    }
     Token token{}; std::memcpy(token.worker.data(), "worker", 6); std::memcpy(token.operation.data(), "route", 5);
     Grant automation{};
     Check(rt.native.BeginUpdate(f.game_window.data(), observed), "automation admission uses native owner phase");

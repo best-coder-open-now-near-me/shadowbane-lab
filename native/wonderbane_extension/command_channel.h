@@ -2,6 +2,7 @@
 
 #include "client_action_dispatch.h"
 #include "event_channel.h"
+#include "movement_command_queue.h"
 
 #include <Windows.h>
 #include <strsafe.h>
@@ -14,11 +15,11 @@
 namespace wonderbane::extension {
 
 constexpr char kClientActionChannelMagic[8] = {'W', 'B', 'A', 'C', 'T', 'V', '1', '\0'};
-constexpr std::uint32_t kClientActionChannelSchemaVersion = 1U;
+constexpr std::uint32_t kClientActionChannelSchemaVersion = 2U;
 constexpr std::uint32_t kClientActionChannelHeaderSize = 128U;
-constexpr std::uint32_t kClientActionCommandSlotSize = 192U;
+constexpr std::uint32_t kClientActionCommandSlotSize = 768U;
 constexpr std::uint32_t kClientActionCommandCapacity = 32U;
-constexpr std::uint32_t kClientActionResultSlotSize = 128U;
+constexpr std::uint32_t kClientActionResultSlotSize = 512U;
 constexpr std::uint32_t kClientActionResultCapacity = 64U;
 constexpr std::uint32_t kClientActionPayloadVersion = 1U;
 constexpr std::size_t kClientActionArgumentCapacity = 96U;
@@ -30,9 +31,10 @@ constexpr std::size_t kClientActionCommandRingOffset = kClientActionChannelHeade
 constexpr std::size_t kClientActionResultRingOffset =
     kClientActionCommandRingOffset
     + kClientActionCommandSlotSize * kClientActionCommandCapacity;
-constexpr std::size_t kClientActionChannelSize =
+constexpr std::size_t kClientActionStatusOffset =
     kClientActionResultRingOffset
     + kClientActionResultSlotSize * kClientActionResultCapacity;
+constexpr std::size_t kClientActionChannelSize = kClientActionStatusOffset + 512U;
 
 #pragma pack(push, 1)
 struct ClientActionChannelHeader {
@@ -75,6 +77,7 @@ struct ClientActionCommandSlot {
     std::uint32_t flags;
     char argument[kClientActionArgumentCapacity];
     char power_identifier[kClientActionPowerIdentifierCapacity];
+    movement::wire::Command movement;
 };
 
 struct ClientActionResultSlot {
@@ -88,12 +91,14 @@ struct ClientActionResultSlot {
     std::uint32_t detail_length;
     char detail[kClientActionResultDetailCapacity];
     std::uint8_t reserved[8];
+    movement::wire::Receipt movement;
 };
 
 struct ClientActionChannelStorage {
     ClientActionChannelHeader header;
     ClientActionCommandSlot commands[kClientActionCommandCapacity];
     ClientActionResultSlot results[kClientActionResultCapacity];
+    movement::wire::Status movement_status;
 };
 #pragma pack(pop)
 
@@ -108,7 +113,17 @@ static_assert(offsetof(ClientActionCommandSlot, committed_sequence) == 0U);
 static_assert(offsetof(ClientActionResultSlot, committed_sequence) == 0U);
 
 namespace command_channel_detail {
-
+struct Backing {
+    HANDLE mapping = nullptr;
+    ClientActionChannelStorage* storage = nullptr;
+    std::atomic<bool> accepting{false};
+    ~Backing() {
+        if (storage) { UnmapViewOfFile(storage); }
+        if (mapping) { CloseHandle(mapping); }
+    }
+};
+inline std::atomic<std::shared_ptr<Backing>> active_backing;
+inline SRWLOCK lifecycle_lock = SRWLOCK_INIT;
 struct Runtime {
     HANDLE mapping = nullptr;
     HANDLE command_signal = nullptr;
@@ -116,6 +131,10 @@ struct Runtime {
     HANDLE stop_signal = nullptr;
     HANDLE worker = nullptr;
     ClientActionChannelStorage* storage = nullptr;
+    std::shared_ptr<Backing> backing;
+    std::shared_ptr<movement::QueuedCommand> pending;
+    void (*before_drain)() noexcept = nullptr;
+    DWORD shutdown_wait_ms = 2000;
 };
 
 inline Runtime g_runtime{};
@@ -285,7 +304,9 @@ inline bool TryPublishResult(
     const DWORD error,
     const char* const detail,
     const std::size_t detail_length,
-    const ULONGLONG now
+    const ULONGLONG now,
+    const movement::wire::Receipt* movement_receipt = nullptr,
+    DWORD execution_thread = 0
 ) noexcept {
     const LONG64 write_sequence = InterlockedCompareExchange64(
         &storage.header.result_write_sequence,
@@ -331,13 +352,15 @@ inline bool TryPublishResult(
     slot.stage = static_cast<std::uint32_t>(stage);
     slot.error = error;
     slot.observed_tick = now;
-    slot.consumer_thread_id = GetCurrentThreadId();
+    slot.consumer_thread_id = execution_thread ? execution_thread : GetCurrentThreadId();
     slot.detail_length = static_cast<std::uint32_t>(detail_length);
     ZeroMemory(slot.detail, sizeof(slot.detail));
     if (detail != nullptr && detail_length > 0U) {
         std::memcpy(slot.detail, detail, detail_length);
     }
     ZeroMemory(slot.reserved, sizeof(slot.reserved));
+    ZeroMemory(&slot.movement, sizeof(slot.movement));
+    if (movement_receipt) { slot.movement = *movement_receipt; }
     MemoryBarrier();
     InterlockedExchange64(&slot.committed_sequence, sequence);
     InterlockedExchange64(&storage.header.result_write_sequence, sequence);
@@ -355,6 +378,40 @@ inline bool TryPublishResult(
     return true;
 }
 
+inline bool MovementLeaseCurrent(void* context, const movement::wire::Host& host, std::uint64_t now) noexcept {
+    const auto& backing = *static_cast<Backing*>(context);
+    if (!backing.accepting.load() || !backing.storage) { return false; }
+    auto& h = backing.storage->header;
+    return HeaderIsValid(h) && HostLeaseIsActive(*backing.storage, now)
+        && InterlockedCompareExchange(&h.host_process_id, 0, 0) == static_cast<LONG>(host.process)
+        && InterlockedCompareExchange(&h.host_lease_generation, 0, 0) == static_cast<LONG>(host.generation);
+}
+inline std::shared_ptr<movement::CommandLease> CaptureMovementLease(
+    const std::shared_ptr<Backing>& backing, const movement::wire::Host& host, std::uint64_t now) {
+    if (!backing || !movement::wire::Valid(host) || !MovementLeaseCurrent(backing.get(), host, now)) { return {}; }
+    auto lease = std::make_shared<movement::CommandLease>();
+    lease->backing = backing; lease->host = host; lease->context = backing.get(); lease->validate = MovementLeaseCurrent;
+    lease->process = OpenProcess(SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION, FALSE, host.process);
+    FILETIME created{}, exited{}, kernel{}, user{};
+    if (!lease->process || !GetProcessTimes(lease->process, &created, &exited, &kernel, &user)
+        || ((static_cast<std::uint64_t>(created.dwHighDateTime) << 32) | created.dwLowDateTime) != host.creation
+        || !lease->Current(now)) { return {}; }
+    return lease;
+}
+inline DWORD FinishPending(Runtime& runtime, ULONGLONG now) noexcept {
+    const auto& pending = runtime.pending;
+    if (!pending) { return ERROR_SUCCESS; }
+    if (pending->state.load(std::memory_order_acquire) != 2) { return ERROR_IO_PENDING; }
+    const bool accepted = pending->receipt.outcome == static_cast<unsigned>(movement::Result::accepted);
+    constexpr char detail[] = "native_movement_receipt";
+    if (!TryPublishResult(*runtime.storage, runtime.result_signal, static_cast<LONG64>(pending->sequence), pending->id,
+        accepted ? ClientActionResultStage::submitted_to_client : ClientActionResultStage::rejected_by_client,
+        accepted ? ERROR_SUCCESS : ERROR_REQUEST_ABORTED, detail, sizeof(detail) - 1, now,
+        &pending->receipt, pending->execution_thread)) { return ERROR_NOT_ENOUGH_QUOTA; }
+    InterlockedExchange64(&runtime.storage->header.command_read_sequence, static_cast<LONG64>(pending->sequence));
+    movement::ReleaseMovementCommand(pending); runtime.pending.reset(); return ERROR_SUCCESS;
+}
+
 inline DWORD DrainCommands(
     ClientActionChannelStorage& storage,
     const HANDLE result_signal,
@@ -362,6 +419,10 @@ inline DWORD DrainCommands(
 ) noexcept {
     if (!HeaderIsValid(storage.header)) {
         return ERROR_INVALID_DATA;
+    }
+    if (&storage == g_runtime.storage && g_runtime.pending) {
+        const auto result = FinishPending(g_runtime, now);
+        if (result != ERROR_SUCCESS) { return result; }
     }
     if (!HostLeaseIsActive(storage, now)) {
         return ERROR_NO_DATA;
@@ -412,6 +473,35 @@ inline DWORD DrainCommands(
             return ERROR_RETRY;
         }
 
+        if (snapshot.kind >= 3U && snapshot.kind <= 6U) {
+            const auto verb = static_cast<movement::wire::Verb>(snapshot.kind);
+            const bool valid = snapshot.command_id && snapshot.payload_version == kClientActionPayloadVersion
+                && snapshot.created_tick && snapshot.created_tick <= now && now <= snapshot.deadline_tick
+                && !snapshot.flags && !snapshot.action_code && !snapshot.parameter_one && !snapshot.parameter_two
+                && !snapshot.argument_length && !snapshot.power_identifier_length
+                && movement::wire::Zero(snapshot.argument, sizeof(snapshot.argument))
+                && movement::wire::Zero(snapshot.power_identifier, sizeof(snapshot.power_identifier))
+                && movement::wire::Valid(verb, snapshot.movement);
+            if (valid && &storage == g_runtime.storage && g_runtime.backing) {
+                try {
+                    auto lease = CaptureMovementLease(g_runtime.backing, snapshot.movement.host, now);
+                    if (lease) {
+                        auto command = std::make_shared<movement::QueuedCommand>();
+                        command->id = snapshot.command_id; command->sequence = static_cast<std::uint64_t>(expected_sequence);
+                        command->deadline = snapshot.deadline_tick; command->verb = verb;
+                        command->command = snapshot.movement; command->lease = std::move(lease);
+                        if (!movement::QueueMovementCommand(command)) { return ERROR_RETRY; }
+                        g_runtime.pending = std::move(command); return ERROR_IO_PENDING;
+                    }
+                } catch (...) { return ERROR_NOT_ENOUGH_MEMORY; }
+            }
+            constexpr char detail[] = "invalid_or_expired_movement_lease";
+            if (!TryPublishResult(storage, result_signal, expected_sequence, snapshot.command_id,
+                ClientActionResultStage::failed, ERROR_INVALID_DATA, detail, sizeof(detail) - 1, now)) {
+                return ERROR_NOT_ENOUGH_QUOTA;
+            }
+            InterlockedExchange64(&storage.header.command_read_sequence, expected_sequence); continue;
+        }
         const ValidationResult validation = ValidateCommand(snapshot, now);
         ClientActionDispatchResult dispatch{};
         if (validation.error != ERROR_SUCCESS) {
@@ -483,6 +573,7 @@ inline DWORD WINAPI WorkerThread(void*) noexcept {
         if (runtime.storage == nullptr) {
             return ERROR_INVALID_HANDLE;
         }
+        if (runtime.before_drain) { runtime.before_drain(); }
         const DWORD drain_result = DrainCommands(
             *runtime.storage,
             runtime.result_signal,
@@ -490,6 +581,7 @@ inline DWORD WINAPI WorkerThread(void*) noexcept {
         );
         if (
             drain_result != ERROR_SUCCESS
+            && drain_result != ERROR_IO_PENDING
             && drain_result != ERROR_NO_DATA
             && drain_result != ERROR_RETRY
             && drain_result != ERROR_NOT_ENOUGH_QUOTA
@@ -520,6 +612,11 @@ inline void CloseRuntime() noexcept {
         CloseHandle(runtime.command_signal);
         runtime.command_signal = nullptr;
     }
+    if (runtime.backing) {
+        runtime.backing->accepting.store(false); active_backing.store({});
+        runtime.storage = nullptr; runtime.mapping = nullptr; runtime.backing.reset();
+    }
+    if (runtime.pending) { movement::ReleaseMovementCommand(runtime.pending); runtime.pending.reset(); }
     if (runtime.storage != nullptr) {
         UnmapViewOfFile(runtime.storage);
         runtime.storage = nullptr;
@@ -583,7 +680,7 @@ inline DWORD FormatClientActionResultSignalName(
         : command_channel_detail::HResultToWin32(result);
 }
 
-inline DWORD StartClientActionCommandChannel(
+inline DWORD StartClientActionCommandChannelLocked(
     const ProcessIdentity& identity
 ) noexcept {
     using namespace command_channel_detail;
@@ -710,6 +807,11 @@ inline DWORD StartClientActionCommandChannel(
     runtime.storage->header.process_creation_filetime_utc = identity.creation_filetime_utc;
     MemoryBarrier();
 
+    try {
+        runtime.backing = std::make_shared<Backing>();
+        runtime.backing->mapping = runtime.mapping; runtime.backing->storage = runtime.storage;
+        runtime.backing->accepting.store(true); active_backing.store(runtime.backing);
+    } catch (...) { CloseRuntime(); return ERROR_NOT_ENOUGH_MEMORY; }
     runtime.worker = CreateThread(
         nullptr,
         0U,
@@ -726,16 +828,33 @@ inline DWORD StartClientActionCommandChannel(
     return ERROR_SUCCESS;
 }
 
+inline DWORD StartClientActionCommandChannel(const ProcessIdentity& identity) noexcept {
+    AcquireSRWLockExclusive(&command_channel_detail::lifecycle_lock);
+    const auto result = StartClientActionCommandChannelLocked(identity);
+    ReleaseSRWLockExclusive(&command_channel_detail::lifecycle_lock); return result;
+}
 inline void StopClientActionCommandChannel() noexcept {
     using namespace command_channel_detail;
+    AcquireSRWLockExclusive(&lifecycle_lock);
     Runtime& runtime = g_runtime;
-    if (runtime.stop_signal != nullptr) {
-        SetEvent(runtime.stop_signal);
-    }
-    if (runtime.worker != nullptr) {
-        (void)WaitForSingleObject(runtime.worker, 2000U);
-    }
-    CloseRuntime();
+    if (runtime.backing) { runtime.backing->accepting.store(false); }
+    if (runtime.stop_signal) { SetEvent(runtime.stop_signal); }
+    // A timed-out worker retains its entire generation. Start rejects it until
+    // a later stop observes exit; queued/active leases retain storage separately.
+    if (!runtime.worker || WaitForSingleObject(runtime.worker, runtime.shutdown_wait_ms) == WAIT_OBJECT_0) { CloseRuntime(); }
+    ReleaseSRWLockExclusive(&lifecycle_lock);
+}
+inline void PublishMovementCommandStatus(movement::wire::Status status) noexcept {
+    const auto backing = command_channel_detail::active_backing.load();
+    if (!backing || !backing->accepting.load()) { return; }
+    auto& target = backing->storage->movement_status;
+    auto* sequence = reinterpret_cast<volatile LONG64*>(&target.sequence);
+    const auto prior = InterlockedCompareExchange64(sequence, 0, 0);
+    if (prior < 0 || prior > LLONG_MAX - 2 || (prior & 1)) { return; }
+    InterlockedExchange64(sequence, prior + 1);
+    std::memcpy(reinterpret_cast<std::uint8_t*>(&target) + 8,
+        reinterpret_cast<const std::uint8_t*>(&status) + 8, sizeof(status) - 8);
+    InterlockedExchange64(sequence, prior + 2);
 }
 
 inline DWORD DrainClientActionCommandsForTesting(
