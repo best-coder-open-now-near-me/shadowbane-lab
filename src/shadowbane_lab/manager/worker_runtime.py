@@ -557,7 +557,8 @@ class SubprocessWorkerLauncher:
             sys.executable if python_executable is None else python_executable
         ).resolve(strict=False)
         self._heartbeat_interval_ms = heartbeat_interval_ms
-        self._children: dict[int, subprocess.Popen[bytes]] = {}
+        self._children: dict[str, subprocess.Popen[bytes]] = {}
+        self._durable_children: set[str] = set()
         self._children_lock = threading.Lock()
 
     def launch(self, binding: ExactClientWorkerBinding) -> int:
@@ -612,19 +613,24 @@ class SubprocessWorkerLauncher:
         except OSError as exc:
             raise _WorkerNotLaunched(f"could not launch exact client worker: {exc}") from exc
         with self._children_lock:
-            self._children = {
-                pid: child for pid, child in self._children.items() if child.poll() is None
+            finished = {
+                token
+                for token, child in self._children.items()
+                if token in self._durable_children and child.poll() is not None
             }
-            self._children[process.pid] = process
+            for token in finished:
+                del self._children[token]
+            self._durable_children.difference_update(finished)
+            self._children[binding.worker_id or f"unreserved-{uuid.uuid4().hex}"] = process
         return process.pid
 
     def recover(
-        self, process_id: int, inspector: ProcessLifetimeInspector
+        self, process_id: int, inspector: ProcessLifetimeInspector, *, worker_id: str
     ) -> ProcessLifetimeSnapshot | None:
         """Reinspect a retained child; None proves that this child exited."""
         with self._children_lock:
-            child = self._children.get(process_id)
-        if child is None:
+            child = self._children.get(worker_id)
+        if child is None or child.pid != process_id:
             raise ExactClientWorkerError("worker launch has no retained process ownership")
         if child.poll() is not None:
             return None
@@ -636,6 +642,12 @@ class SubprocessWorkerLauncher:
                 f"launched worker {process_id} requires attachment recovery"
             )
         return process
+
+    def acknowledge_reservation(self, worker_id: str) -> None:
+        """Allow reaping only after the controller durably recorded or retired ownership."""
+        with self._children_lock:
+            if worker_id in self._children:
+                self._durable_children.add(worker_id)
 
 
 class ManagedWorkerController:
@@ -731,7 +743,9 @@ class ManagedWorkerController:
             if process_id is not None and started is None:
                 recover = getattr(self._launcher, "recover", None)
                 if callable(recover):
-                    process = recover(process_id, self._process_inspector)
+                    process = recover(
+                        process_id, self._process_inspector, worker_id=reservation["worker_id"]
+                    )
                     if process is not None:
                         reservation["process_started_at_100ns"] = process.process_started_at_100ns
                         reservation["state"] = "started"
@@ -740,9 +754,11 @@ class ManagedWorkerController:
                             json.dumps(reservation).encode(),
                             temporary_label="worker-launch",
                         )
+                        self._acknowledge_reservation(reservation["worker_id"])
                         return None
                     # Only the retained child handle can establish exit before attachment.
                     reservation_path.unlink()
+                    self._acknowledge_reservation(reservation["worker_id"])
                     return self._ensure_started_owned(client_id, client, reservation_path)
             if process_id is None or started is None:
                 raise ExactClientWorkerError("previous worker launch requires explicit recovery")
@@ -776,7 +792,7 @@ class ManagedWorkerController:
         )
         recover = getattr(self._launcher, "recover", None)
         process = (
-            recover(process_id, self._process_inspector)
+            recover(process_id, self._process_inspector, worker_id=reservation["worker_id"])
             if callable(recover)
             else self._process_inspector.inspect(process_id)
         )
@@ -789,7 +805,13 @@ class ManagedWorkerController:
         publish_atomic_record(
             reservation_path, json.dumps(reservation).encode(), temporary_label="worker-launch"
         )
+        self._acknowledge_reservation(reservation["worker_id"])
         return process_id
+
+    def _acknowledge_reservation(self, worker_id: str) -> None:
+        acknowledge = getattr(self._launcher, "acknowledge_reservation", None)
+        if callable(acknowledge):
+            acknowledge(worker_id)
 
     def request_stop(self, client_id: str, *, reason: str) -> int:
         if not isinstance(reason, str) or not reason.strip() or reason != reason.strip():

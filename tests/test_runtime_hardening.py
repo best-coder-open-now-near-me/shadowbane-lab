@@ -673,11 +673,12 @@ def test_retained_worker_child_recovers_failed_attachment_without_relaunch(tmp_p
             )
             assert popen.call_count == 1
         assert controller.request_stop(worker_fixture.CLIENT_ID, reason="recovered stop") == 1
+        token = json.loads(next(tmp_path.rglob(".launch-reservation")).read_text())["worker_id"]
         child.stdin.close()
         child.wait(10)
-        assert launcher.recover(child.pid, inspector) is None
+        assert launcher.recover(child.pid, inspector, worker_id=token) is None
         with pytest.raises(ExactClientWorkerError, match="no retained"):
-            launcher.recover(os.getpid(), inspector)
+            launcher.recover(os.getpid(), inspector, worker_id=token)
     finally:
         if not child.stdin.closed:
             child.stdin.close()
@@ -793,3 +794,49 @@ def test_interprocess_semantic_retry_retains_first_envelope_and_deadline(tmp_pat
     assert not ledger.claim_for_execution(canonical, now=104.0)
     with pytest.raises(WorkerOperationLedgerError, match="different immutable"):
         ledger.submit(replace(later, worker_process_started_at_100ns=999))
+
+
+def test_unverified_child_exit_evidence_survives_another_worker_launch(tmp_path):
+    import subprocess
+    import sys
+    from dataclasses import replace
+    from unittest.mock import patch
+
+    from shadowbane_lab.manager.worker_runtime import (
+        ExactClientWorkerBinding,
+        SubprocessWorkerLauncher,
+    )
+
+    launcher = SubprocessWorkerLauncher(
+        manifest_path=tmp_path / "manifest.json",
+        worker_state_directory=tmp_path,
+        log_directory=tmp_path / "logs",
+    )
+    binding = replace(
+        ExactClientWorkerBinding.from_client(worker_fixture.CLIENT_ID, worker_fixture._client()),
+        worker_id="worker-11111111111111111111111111111111",
+    )
+    children = [
+        subprocess.Popen(
+            [sys.executable, "-c", "import sys; sys.stdin.buffer.read()"],
+            stdin=subprocess.PIPE,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+        for _ in range(2)
+    ]
+    try:
+        with patch("shadowbane_lab.manager.worker_runtime.subprocess.Popen", side_effect=children):
+            first = launcher.launch(binding)
+            children[0].stdin.close()
+            children[0].wait(10)
+            launcher.launch(replace(binding, worker_id="worker-22222222222222222222222222222222"))
+        # The first launch never durably acquired a creation time. Reaping it on
+        # another slot's launch would destroy the only safe proof of its exit.
+        assert launcher.recover(first, ProcessInspector(), worker_id=binding.worker_id) is None
+        with pytest.raises(ExactClientWorkerError, match="no retained"):
+            launcher.recover(children[1].pid, ProcessInspector(), worker_id=binding.worker_id)
+    finally:
+        for child in children:
+            if not child.stdin.closed:
+                child.stdin.close()
+            child.wait(10)
