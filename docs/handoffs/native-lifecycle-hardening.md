@@ -1426,3 +1426,18 @@ include setup/composite; they are not isolated capture latency or VM/live budget
 Local full output: artifacts/hardening-evidence/cue-equal-combined-cost.txt.
 No runtime source change, package or deployment in this test extension. Next:
 independent combined verification, native-scissor case and ordered transparency.
+
+Independent exacte7a648b receipt read by integrator from
+E:/Projects/shadowbane/artifacts/cue-combined-native/e7a648b/lane-cue.xml:
+baseGPU,queryguard,pipelineguard,sourcefeasibility4pass;requiredtransparency1fail
+(same2assertions);zero skips. This remains focused source verification.
+Integrated cue scissor-testabaea169da8cd2af6966b81d8626ad000d86b750 as4a56c45.
+Added a combined pixel assertion with matching native depth outside the scissor
+rectangle to distinguish scissor exclusion from EQUAL-depth rejection.
+Full-profile existing--cost (including base/scissor/query cases) passes all8cost
+cases and GL-error cleanup assertions; diagnostics-profile base/query/pipeline/
+source-feasibility4/4pass,zero skips. Local logs cue-scissor-combined-cost.txt and
+cue-scissor-combined.xml. Runtime source/package identity unchanged by these tests.
+Unsupported default depth/stencil formats are source-rejected but not exercised
+with an actual GL context. Next remains ordered native-transparency completion;
+no new owner capture or deployment requested.

@@ -453,6 +453,7 @@ int main(int argc,char** argv){
     glDisable(GL_SCISSOR_TEST);
     Check(cue::CompositeMask(s,{}),"partial native EQUAL composite");
     Check(Pixel(230,240)>0 && Pixel(400,240)==0,"only native EQUAL passing fragments glow");
+    Check(Pixel(310,240)==0,"matching native depth outside scissor does not enter visible coverage");
     Check(cue::AllocatedMaskBytes()<=640ULL*480*32,"EQUAL scratch plus legacy storage bounded");
     glDepthMask(GL_TRUE);glDepthFunc(GL_LESS);glDisableClientState(GL_VERTEX_ARRAY);
     // Whole-character union stays correct when raw and legacy nodes interleave.
