@@ -1,5 +1,7 @@
 #include "cel_shading.h"
 #include "render_lifetime.h"
+#include "sky_runtime.h"
+#include <string_view>
 #include "banded_lighting.h"
 #include "depth_edges.h"
 #include "fixed_function_state.h"
@@ -301,6 +303,14 @@ void MarkCompiledListStateChange() noexcept {
     }
 }
 
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+#define WB_OBSERVE_SKY_UPLOAD(name) \
+    if constexpr (std::string_view(#name) == "LoadMatrixf") { \
+        ObserveSkyCameraUpload(reinterpret_cast<std::uintptr_t>(_ReturnAddress()), \
+            !g_active_display_list_capture.active && !g_immediate_primitive_open); }
+#else
+#define WB_OBSERVE_SKY_UPLOAD(name)
+#endif
 #define WB_DECLARE_LIST_STATE_HOOK(name, parameters, arguments) \
     PVOID volatile g_list_original_##name = nullptr; \
     std::uint32_t* g_list_slot_##name = nullptr; \
@@ -309,7 +319,7 @@ void MarkCompiledListStateChange() noexcept {
         MarkCompiledListStateChange(); \
         const auto original = LoadFunction<decltype(&ListState##name)>( \
             &g_list_original_##name); \
-        if (original != nullptr) { original arguments; } \
+        if (original != nullptr) { original arguments; WB_OBSERVE_SKY_UPLOAD(name) } \
     }
 WB_LIST_STATE_COMMANDS(WB_DECLARE_LIST_STATE_HOOK)
 #undef WB_DECLARE_LIST_STATE_HOOK
@@ -1659,6 +1669,10 @@ __declspec(noinline) void APIENTRY StrongClear(const unsigned int mask) noexcept
     TerrainTraceClear(g_scene_mapping_verified && !g_immediate_primitive_open
         && (mask == 0x4100U || mask == 0x4500U)
         && IsReviewedSceneCall(caller, g_scene_image_base, kSceneClearReturnRva), mask);
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+    if (!g_scene_mapping_verified || (mask != 0x4100U && mask != 0x4500U)
+        || !IsReviewedSceneCall(caller, g_scene_image_base, kSceneClearReturnRva)) DiscardSkyScene();
+#endif
     if ((mask & 0x100U) != 0U) {
         g_main_scene_camera_valid = false;
         DiscardPendingDepthEdgeScene();
@@ -1687,6 +1701,10 @@ __declspec(noinline) void APIENTRY StrongClear(const unsigned int mask) noexcept
                 viewport.data(), viewport.size())) {
             g_scene_frame.main_scene_invalidated = true;
         }
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+        BeginSkyBackground(g_main_scene_camera_valid ? &g_main_scene_camera : nullptr,
+            g_scene_frame.main_scene_start_count == 1U && !g_scene_frame.main_scene_invalidated);
+#endif
     }
 }
 
@@ -1697,6 +1715,9 @@ __declspec(noinline) void APIENTRY StrongMatrixMode(const unsigned int mode) noe
     if (mode == 0x1701U && g_scene_mapping_verified
         && !IsCompilingDisplayListOnCurrentThread() && !g_immediate_primitive_open
         && IsReviewedSceneCall(caller, g_scene_image_base, kSceneUiReturnRva)) {
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+        DiscardSkyScene();
+#endif
         TerrainTraceDone3d();
         const auto current_context = LoadFunction<WglGetCurrentContext>(&g_get_current_context);
         if (current_context == nullptr || g_main_scene_context == nullptr
@@ -1884,6 +1905,7 @@ BOOL WINAPI StrongSwapBuffers(const HDC device_context) noexcept {
     EndDepthEdgeFrame();
 #if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
     EndSelectedCueFrame();
+    EndSkyFrame();
 #endif
     g_scene_frame = {};
     g_scene_frame.boundary_mapping_verified = g_scene_mapping_verified;
@@ -2875,6 +2897,7 @@ DWORD StartStrongCelShading() noexcept {
     if (g_scene_mapping_verified) {
 #if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
         (void)StartSelectedCue(image, nt->OptionalHeader.SizeOfImage, reviewed_hash);
+        (void)StartSky(image, nt->OptionalHeader.SizeOfImage, reviewed_hash);
 #endif
         StartTerrainMaskRefresh(image, nt->OptionalHeader.SizeOfImage, reviewed_hash);
         wchar_t status_path[MAX_PATH]{};
@@ -2890,6 +2913,7 @@ void StopStrongCelShading() noexcept {
     const RenderLifecycleMutation mutation;
 #if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
     StopSelectedCue();
+    StopSky();
 #endif
     StopTerrainMaskRefresh();
     StopTerrainTrace();

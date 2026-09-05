@@ -3,6 +3,7 @@
 #include "selected_cue_gpu.h"
 #include "selected_cue_binding.h"
 #include "effects.h"
+#include "sky_runtime.h"
 #include "import_hook.h"
 #include "reviewed_scene_boundary.h"
 #include <strsafe.h>
@@ -106,7 +107,7 @@ bool StillSelected() noexcept {
 BOOL WINAPI CueMakeCurrent(HDC dc,HGLRC context) noexcept {
     const auto call=reinterpret_cast<MakeCurrent>(InterlockedCompareExchangePointer(&original_context,nullptr,nullptr));
     if(!call)return FALSE;
-    if(context!=wglGetCurrentContext())ReleaseSelectedCueContext();
+    if(context!=wglGetCurrentContext()){ReleaseSelectedCueContext();DiscardSkyScene();}
     return call(dc,context);
 }
 void __fastcall OwnedRender(void* self,void*) noexcept {

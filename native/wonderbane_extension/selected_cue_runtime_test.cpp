@@ -75,3 +75,5 @@ int main(){
     assert(control && control->binding==0);StopSelectedCue();assert(!control && !mapping);
     VirtualFree(memory,0,MEM_RELEASE);
 }
+
+namespace wonderbane::extension { void DiscardSkyScene() noexcept {} }

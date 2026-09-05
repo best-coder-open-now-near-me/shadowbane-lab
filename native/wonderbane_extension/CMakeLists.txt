@@ -59,7 +59,8 @@ if(WONDERBANE_EXTENSION_PROFILE STREQUAL "full")
   target_sources(wonderbane_extension PRIVATE
     navigation_protocol.cpp navigation_channel.cpp navigation_draw.cpp navigation_viewer.cpp
     selected_cue.cpp selected_cue_gpu.cpp selected_cue_runtime.cpp
-    scene_draw.cpp effects.cpp effects_attachment.cpp effects_runtime.cpp effects_draw.cpp)
+    scene_draw.cpp effects.cpp effects_attachment.cpp effects_runtime.cpp effects_draw.cpp
+    sky.cpp sky_draw.cpp sky_runtime.cpp sky_asset.rc)
   target_link_libraries(wonderbane_extension PRIVATE opengl32)
 endif()
 if(WONDERBANE_EXTENSION_PROFILE STREQUAL "diagnostics-only")
@@ -802,7 +803,8 @@ if(BUILD_TESTING)
     target_sources(${renderer_test} PRIVATE
       navigation_protocol.cpp navigation_channel.cpp navigation_draw.cpp navigation_viewer.cpp
     selected_cue.cpp selected_cue_gpu.cpp selected_cue_runtime.cpp
-    scene_draw.cpp effects.cpp effects_attachment.cpp effects_runtime.cpp effects_draw.cpp)
+    scene_draw.cpp effects.cpp effects_attachment.cpp effects_runtime.cpp effects_draw.cpp
+    sky.cpp sky_draw.cpp sky_runtime.cpp sky_asset.rc)
     target_link_libraries(${renderer_test} PRIVATE opengl32)
   endforeach()
 endif()
@@ -825,4 +827,28 @@ if(BUILD_TESTING)
   target_link_libraries(wonderbane_extension_effects_runtime_test PRIVATE opengl32)
   set_property(TARGET wonderbane_extension_effects_runtime_test PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded")
   add_test(NAME wonderbane_extension_effects_runtime COMMAND wonderbane_extension_effects_runtime_test)
+endif()
+
+if(BUILD_TESTING)
+  foreach(sky_test sky sky_binding)
+    add_executable(wonderbane_extension_${sky_test}_test ${sky_test}_test.cpp)
+    target_compile_features(wonderbane_extension_${sky_test}_test PRIVATE cxx_std_20)
+    target_compile_definitions(wonderbane_extension_${sky_test}_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+    target_compile_options(wonderbane_extension_${sky_test}_test PRIVATE /W4 /WX /permissive- /utf-8)
+    target_link_libraries(wonderbane_extension_${sky_test}_test PRIVATE bcrypt)
+    set_property(TARGET wonderbane_extension_${sky_test}_test PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded")
+    add_test(NAME wonderbane_extension_${sky_test} COMMAND wonderbane_extension_${sky_test}_test)
+  endforeach()
+  target_sources(wonderbane_extension_sky_test PRIVATE sky.cpp sky_asset.rc)
+  set_tests_properties(wonderbane_extension_sky_binding PROPERTIES SKIP_RETURN_CODE 77)
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_sky_render_test sky_render_test.cpp sky.cpp sky_draw.cpp scene_draw.cpp import_hook.cpp sky_asset.rc)
+  target_compile_features(wonderbane_extension_sky_render_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_sky_render_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_sky_render_test PRIVATE /W4 /WX /permissive- /utf-8)
+  target_link_libraries(wonderbane_extension_sky_render_test PRIVATE bcrypt opengl32 gdi32 user32)
+  set_property(TARGET wonderbane_extension_sky_render_test PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded")
+  add_test(NAME wonderbane_extension_sky_render COMMAND wonderbane_extension_sky_render_test)
 endif()
