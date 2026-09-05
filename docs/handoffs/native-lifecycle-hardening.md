@@ -1112,3 +1112,13 @@ deployment is implied. Eight focused gate-accounting tests pass. Trace enabled/
 disabled tests are mandatory. Next: build this exact committed diagnostic source,
 verify actual artifacts/reader identity, and prepare one reviewable isolated-runtime
 activation/restoration procedure before requesting any owner action.
+
+
+First diagnostic builder attempt at 3ceb5c9 stopped without an archive/manifest:
+archived-source Python passed 1813 tests/238 subtests with ten skips, Ruff and
+full native build passed. Full native CTest recorded the expected two transparency
+failures plus two private-binding skips. Gate validation then correctly rejected
+my nonexistent terrain_trace_enabled name; the real terrain_trace_full and
+terrain_trace_disabled both executed/passed. Corrected the required gate name to
+the existing CMake target. Failed attempt retained under local trace-packages/
+1dcedf4f with validation-progress.json and full logs; no receipt certifies it.

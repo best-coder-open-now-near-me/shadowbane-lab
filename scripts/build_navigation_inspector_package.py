@@ -266,7 +266,7 @@ def main() -> int:
             "wonderbane_extension_selected_cue_gpu",
             "wonderbane_extension_scene_pipeline_guard",
             "wonderbane_extension_scene_query_guard",
-            "wonderbane_extension_terrain_trace_enabled",
+            "wonderbane_extension_terrain_trace_full",
             "wonderbane_extension_terrain_trace_disabled",
             "wonderbane_extension_selected_cue_native_transparency",
             "wonderbane_extension_effects_native_transparency",
