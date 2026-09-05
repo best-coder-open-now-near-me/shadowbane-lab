@@ -61,22 +61,48 @@ function Get-InspectorProcesses {
     param([int]$ClientProcessId)
 
     $pidPattern = "(?:^|\s)--pid\s+$ClientProcessId(?:\s|$)"
+    $creationPattern = "(?:^|\s)--process-creation-filetime\s+$script:gameCreation(?:\s|$)"
     @(
         Get-CimInstance Win32_Process |
             Where-Object {
-                $_.Name -in @('python.exe', 'pythonw.exe') -and
-                $_.CommandLine -match 'shadowbane_lab\.navigation_inspector' -and
-                $_.CommandLine -match $pidPattern
+                $_.ExecutablePath -and
+                $_.ExecutablePath -in @($script:python, $script:pythonw) -and
+                $_.CommandLine -match '(?:^|\s)-m\s+shadowbane_lab\.navigation_inspector(?:\s|$)' -and
+                $_.CommandLine -match $pidPattern -and
+                $_.CommandLine -match $creationPattern
             }
     )
+}
+
+function Stop-ExactInspectorProcess {
+    param($Inspector)
+
+    # Retain the handle before checking lifetime; Kill cannot follow a reused PID.
+    $process = $null
+    try {
+        $process = Get-Process -Id $Inspector.ProcessId -ErrorAction Stop
+        $null = $process.Handle
+        $observed = $Inspector.CreationDate.ToUniversalTime().Ticks
+        $started = $process.StartTime.ToUniversalTime().Ticks
+        # CIM timestamps have microsecond precision, FILETIME has 100ns precision.
+        if (($started - ($started % 10)) -ne ($observed - ($observed % 10))) { return }
+        if ($process.MainModule.FileName -notin @($script:python, $script:pythonw)) { return }
+        $process.Kill()
+    }
+    catch [System.InvalidOperationException] { }
+    catch [System.ComponentModel.Win32Exception] { }
+    finally {
+        if ($null -ne $process) { $process.Dispose() }
+    }
 }
 
 function Remove-StaleInspectorProcesses {
     $inspectors = @(
         Get-CimInstance Win32_Process |
             Where-Object {
-                $_.Name -in @('python.exe', 'pythonw.exe') -and
-                $_.CommandLine -match 'shadowbane_lab\.navigation_inspector'
+                $_.ExecutablePath -and
+                $_.ExecutablePath -in @($script:python, $script:pythonw) -and
+                $_.CommandLine -match '(?:^|\s)-m\s+shadowbane_lab\.navigation_inspector(?:\s|$)'
             }
     )
     foreach ($inspector in $inspectors) {
@@ -89,8 +115,8 @@ function Remove-StaleInspectorProcesses {
             Win32_Process `
             -Filter "ProcessId=$targetProcessId" `
             -ErrorAction SilentlyContinue
-        if ($null -eq $target -or $target.Name -ne 'sb.exe') {
-            Stop-Process -Id $inspector.ProcessId -Force -ErrorAction SilentlyContinue
+        if ($null -eq $target -or $target.ExecutablePath -ne $script:executable) {
+            Stop-ExactInspectorProcess -Inspector $inspector
         }
     }
 }
@@ -140,6 +166,7 @@ while time.monotonic() < deadline:
         for target in discover_graphics_targets()
         if target.process_id == process_id
         and target.executable_path.resolve() == executable
+        and target.process_creation_filetime_utc == int(sys.argv[4])
     ]
     if len(matches) == 1:
         raise SystemExit(0)
@@ -152,7 +179,8 @@ raise SystemExit(1)
         -c $probe `
         $ClientProcessId `
         $script:executable `
-        $InspectorStartupTimeoutSeconds
+        $InspectorStartupTimeoutSeconds `
+        $script:gameCreation
     if ($LASTEXITCODE -ne 0) {
         throw (
             'The prepared client did not expose one exact inspector channel within ' +
@@ -239,6 +267,15 @@ try {
         $game = $games[0]
     }
 
+    $gameHandle = Get-Process -Id $game.ProcessId -ErrorAction Stop
+    try {
+        $null = $gameHandle.Handle
+        if ($gameHandle.MainModule.FileName -ne $executable) {
+            throw 'The prepared client changed before inspector attachment.'
+        }
+        $script:gameCreation = $gameHandle.StartTime.ToUniversalTime().ToFileTimeUtc()
+    }
+    finally { $gameHandle.Dispose() }
     $env:PYTHONPATH = $null
     Wait-InspectorTarget -ClientProcessId $game.ProcessId
     Remove-StaleInspectorProcesses
@@ -255,7 +292,9 @@ try {
                 '-m',
                 'shadowbane_lab.navigation_inspector',
                 '--pid',
-                [string]$game.ProcessId
+                [string]$game.ProcessId,
+                '--process-creation-filetime',
+                [string]$script:gameCreation
             ) `
             -WorkingDirectory $runtime `
             -WindowStyle Normal `
@@ -277,9 +316,7 @@ try {
             $patcherProcess.Id
         }
         process_id = $game.ProcessId
-        process_creation_filetime = (
-            Get-Process -Id $game.ProcessId
-        ).StartTime.ToUniversalTime().ToFileTimeUtc()
+        process_creation_filetime = $script:gameCreation
         executable = $executable
         game_status = $gameStatus
         panel_status = $panelStatus
