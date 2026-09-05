@@ -258,10 +258,32 @@ in front and is not a fix. A durable solution needs native/effect depth ordering
 or preserved transparency contributions. No new hook/stage is installed here.
 
 Sky-owner evidence identifies a native sorted world queue at RVA `0x79c730`,
-virtual entry draw at `0x79c792`, and comparator thunk `0x419f79 -> 0x1c0dc0`.
+virtual entry draw at `0x79c792`, and comparator thunk RVA `0x19f79 -> 0x1c0dc0`.
 The comparator's byte `+0x10` and float `+0x14` meanings are not yet verified as
 transparency categories/depth. These are investigation leads, not an approved
 binding. Shared hook changes remain integration-owner controlled.
 
 Next active todo: resolve native ordering with the integration owner using reviewed
 queue evidence, then verify the repaired combined package before visual acceptance.
+
+
+Read-only queue follow-up confirms the comparator thunk was originally reported
+as VA `0x419f79` (image base `0x400000`), therefore RVA `0x19f79`.
+RTTI identifies shared comparator users including `ArcCharacterRenderWrapper`
+(vtable RVA `0x1149ed0`), `ArcRenderQueueCallback` (`0x1149e88`), sky, line lists,
+and start/end rendering and lighting pass wrappers. Queue insertion at RVA
+`0x4d9830` invokes virtual `+8`; traversal at `0x79c730` invokes virtual `+4`.
+Metadata constructor `0x51c420`, called with wrapper+8, initializes category and
+float key to zero, and installs a default shader pointer. Sky enqueue `0x552570`
+retains these defaults. The comparator sorts nonzero-category unequal float keys
+descending, then shader priority/address and other address tie breaks. The actual
+world-distance calculation and material category assignment remain unverified.
+Because pass markers also use this comparator, arbitrary insertion based solely
+on the byte and float would risk breaking multipass renderer boundaries.
+
+Read-only inspection scratch is retained at
+`artifacts/combined-8961fad/inspect_queue.py`; it reads the existing private binary
+in place and emits only selected disassembly/addresses. No executable or capture
+is committed. Full cross-feature GPU cost and repaired-stage correctness remain
+unmeasured; the existing harness timing of navigation alone is not evidence of
+combined cue/sky/effects performance.
