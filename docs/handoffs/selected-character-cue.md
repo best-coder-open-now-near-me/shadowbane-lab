@@ -674,3 +674,40 @@ Native JUnit is retained in the feature worktree at
 These checks do not certify GPU source equivalence or a release package.
 Next active todo is owner reconciliation and exact combined verification of this
 observer, then resolution of the remaining native source/coverage facts.
+
+
+## Exact combined verification: 1c293a1
+
+The owner applied dffd9bb alone to produce published combined
+`1c293a1a48280b83ab5493f7b0a92dfb94f2c4b7`. This lane independently fetched and
+built that exact source in its clean detached verification worktree. The actual
+full DLL builds, both native trace profiles pass with zero skips, and all 49
+combined Python trace/analysis tests plus Ruff pass. The observer source/test
+files are byte-identical to dffd9bb. JUnit is retained at
+`E:/Projects/shadowbane/artifacts/cue-combined-native/1c293a1/lane-observer.xml`.
+No unchanged transparency gate was rerun or relabeled passing. No final package
+or connected-client observation was performed.
+
+Assessment: retained `navigation-inspector-3534418/graphics-status-in-world.json`
+reports OpenGL 4.6 Compatibility Mesa 26.1.7 and 24 depth bits for the older
+`a9a590...` executable. Thus separate program-pipeline capability is a specific
+remaining path, not speculation. The current observer conservatively leaves
+this unknown on GL4.1+ and cannot prove fixed-function eligibility on that context.
+A narrowly scoped future query of capability-gated PROGRAM_PIPELINE_BINDING could
+clear this ambiguity when zero; nonzero remains unsupported without stage/output
+equivalence. This is a proposal to the integration owner, not a new capture or
+broad instrumentation assignment. No retained extension list establishes which
+additional advertised vendor paths are present or enabled on the current client.
+
+The next bounded source/coverage feasibility case can use scratch stencil only
+when native stencil is disabled, with single-sample compatible attachments and
+verified convex planar raw geometry. Copy pre-native depth, clear scratch coverage
+to zero, preserve inherited alpha test, and use scratch stencil ALWAYS/passREPLACE
+to mark accepted fragments while writing unblended source RGBA and fragment depth.
+This would distinguish zero-alpha accepted fragments and unchanged native depth
+from rejection. It is unimplemented and unproven: two-background RGBA/depth
+recomposition, native buffer/state invariance, depth functions, alpha cutouts,
+clipping/degeneracy, successive quads, input lifetime and query-side-effect gates
+are still required. It does not solve whole-scene ordered transmission.
+Next active todo: owner-directed resolution of that specific program ambiguity
+and bounded GPU source/coverage equivalence, before collector implementation.
