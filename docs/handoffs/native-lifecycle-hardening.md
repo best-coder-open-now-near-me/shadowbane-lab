@@ -515,3 +515,19 @@ a connected client. No runtime activation, grant transport or deployment occurre
 Next is owner-complete steering/picking/input/native-update integration, then
 cross-feature activation checks and exact installed-package verification.
 Rendering transparency remains unresolved; no complete candidate is pinned.
+
+
+Shared native-update ownership `eea575d9613ff04c14250d251ada04d5f3cb2848` is
+included at `7fd53a5de59d301dc911bfa1bfbfdbb8bed1a51f`. Both complete DLL profiles
+build and each executes 13 targeted movement/startup/telemetry/publisher tests:
+all passed, zero skips. Evidence: `artifacts/hardening-evidence/shared-update-native-{full,diagnostics}.xml`
+and build logs. Both consumer start orders preserve one verified slot; retiring
+trace preserves controls and vice versa. Held controls callbacks retain immutable
+callback/original identity, partial installation failure preserves call-through,
+and final retirement leaves foreign slot replacements intact. No loader-lock
+shutdown work or second update hook was added. The runtime must perform its native
+stop on the owning update thread before final consumer retirement. This retirement
+is terminal for the process-pinned registration; ordinary settings disable/re-enable
+must not misuse it as a restartable registration API. No controls consumer is
+activated yet. Next remains real steering/picking/input/settings/grant wiring,
+followed by combined activation and package gates; transparency is still open.
