@@ -152,6 +152,64 @@ bool NativeStop::PickGuarded(int x, int y, GroundPoint& output) noexcept {
     __try { return PickCxxGuarded(x, y, output); }
     __except(EXCEPTION_EXECUTE_HANDLER) { faulted_ = true; return false; }
 }
+bool NativeStop::CameraBasis(Vector2& forward, Vector2& right) noexcept {
+    forward = {}; right = {};
+    if (!Available() || !in_update_ || executing_ || !controls_.Ready() || GetCurrentThreadId() != thread_) { return false; }
+    executing_ = true;
+    bool result = ClearPickGuarded() && BasisGuarded(forward, right);
+    if (!faulted_) { result = ClearPickGuarded() && result; }
+    result = result && SceneCurrent(pick_target_);
+    if (!result) { forward = {}; right = {}; }
+    executing_ = false; return result;
+}
+bool NativeStop::RunBasis(Vector2& forward, Vector2& right) {
+    RECT bounds{};
+    if (!GetClientRect(window_, &bounds) || bounds.right < 2 || bounds.bottom < 2) { return false; }
+    Target target{}; target.grant = controls_.Current();
+    if (!Read(base_ + 0x16a2d98, target.actor) || !Read(base_ + 0x1389028, target.world)
+        || !Read(base_ + 0x16a7bfc, target.window) || !target.actor || !target.world || !target.window
+        || !Read(target.actor + 0x18, target.identity) || !ReadParent(target.actor, target.parent) || !SceneCurrent(target)) { return false; }
+    pick_target_ = target;
+    GroundPoint origin{}, center{}, side{}, local_origin{}, local_center{}, local_side{};
+    if (!Read(base_ + 0x16a2c34, origin) || !Finite(origin)) { return false; }
+    const int x = bounds.right / 2, y = bounds.bottom / 2;
+    const int side_x = std::min(bounds.right - 1, x + std::max(1L, bounds.right / 4));
+    calls_.unproject(&center, x, y, 0.0F);
+    if (!SceneCurrent(target) || !Finite(center)) { return false; }
+    calls_.unproject(&side, side_x, y, 0.0F);
+    if (!SceneCurrent(target) || !Finite(side)) { return false; }
+    // Use the current native view's rays, including its orbit/parent offset.
+    // No cached/invented view matrix or guessed yaw-axis convention is needed.
+    // A zero-distance native ray converts each owned scratch origin through the
+    // same locked inverse-parent helper as terrain picking; it is not a ground pick.
+    GroundPoint zero{}; ray_owned_ = true;
+    calls_.ray(&ray_, reinterpret_cast<void*>(target.actor), &origin, &zero, false);
+    if (!SceneCurrent(target) || ray_.actor != reinterpret_cast<void*>(target.actor)) { return false; }
+    ray_.distance = 0;
+    calls_.ray_point(&ray_, &local_origin);
+    if (!SceneCurrent(target) || !Finite(local_origin)) { return false; }
+    ray_.origin = center; calls_.ray_point(&ray_, &local_center);
+    if (!SceneCurrent(target) || !Finite(local_center)) { return false; }
+    ray_.origin = side; calls_.ray_point(&ray_, &local_side);
+    if (!SceneCurrent(target) || !Finite(local_side)) { return false; }
+    const Vector2 along{local_center.x - local_origin.x, local_center.z - local_origin.z};
+    const Vector2 across{local_side.x - local_center.x, local_side.z - local_center.z};
+    const float length = std::hypot(along.x, along.y);
+    if (!std::isfinite(length) || length <= 0.000001F) { return false; }
+    forward = {along.x / length, along.y / length};
+    right = {-forward.y, forward.x};
+    const float sign = right.x * across.x + right.y * across.y;
+    if (!std::isfinite(sign) || std::abs(sign) <= 0.000001F) { return false; }
+    if (sign < 0) { right.x = -right.x; right.y = -right.y; }
+    return true;
+}
+bool NativeStop::BasisCxxGuarded(Vector2& forward, Vector2& right) noexcept {
+    try { return RunBasis(forward, right); } catch (...) { faulted_ = true; return false; }
+}
+bool NativeStop::BasisGuarded(Vector2& forward, Vector2& right) noexcept {
+    __try { return BasisCxxGuarded(forward, right); }
+    __except(EXCEPTION_EXECUTE_HANDLER) { faulted_ = true; return false; }
+}
 bool NativeStop::MoveToPick(const Grant& grant, GroundPoint point) noexcept {
     if (!Available() || !in_update_ || executing_ || !controls_.Ready() || GetCurrentThreadId() != thread_
         || !pick_valid_ || !ray_owned_ || !Finite(point) || point.x != pick_point_.x || point.y != pick_point_.y
