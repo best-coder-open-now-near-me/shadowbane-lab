@@ -1,4 +1,6 @@
-#include "graphics_status.h"
+#define WONDERBANE_PUBLISHER_LIFETIME_TEST
+#include "graphics_status.cpp"
+#include <thread>
 #include "graphics_control.h"
 #include "scene_frame.h"
 
@@ -21,7 +23,44 @@ int Fail(const wchar_t* const operation) noexcept {
 
 }  // namespace
 
+HANDLE publish_entered = nullptr;
+HANDLE publish_release = nullptr;
+void HoldPublish() {
+    SetEvent(publish_entered);
+    WaitForSingleObject(publish_release, INFINITE);
+}
+int PublisherLifetimeRegression() {
+    using namespace wonderbane::extension;
+    publish_entered = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+    publish_release = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+    g_before_publish_test = HoldPublish;
+    DWORD started = ERROR_SUCCESS;
+    std::thread startup([&] { started = StartGraphicsStatusPublication(); });
+    WaitForSingleObject(publish_entered, INFINITE);
+    startup.join(); // exercises the actual startup-failure rollback timeout
+    if (started != ERROR_TIMEOUT || g_worker_thread == nullptr || g_stop_event == nullptr) {
+        return Fail(L"startup timeout retained publisher ownership");
+    }
+    const HANDLE owned_thread = g_worker_thread;
+    StopGraphicsStatusPublication(); // a second timeout must retain the same generation
+    if (g_worker_thread != owned_thread || StartGraphicsStatusPublication() != ERROR_ALREADY_INITIALIZED) {
+        return Fail(L"timed-out publisher replacement exclusion");
+    }
+    RequestGraphicsStatusPublish();
+    SetEvent(publish_release);
+    WaitForSingleObject(owned_thread, INFINITE);
+    StopGraphicsStatusPublication();
+    StopGraphicsStatusPublication();
+    if (g_worker_thread != nullptr || g_stop_event != nullptr || g_started != 0) {
+        return Fail(L"completed publisher reaping");
+    }
+    g_before_publish_test = nullptr;
+    CloseHandle(publish_entered); CloseHandle(publish_release);
+    return 0;
+}
+
 int wmain() {
+    if (PublisherLifetimeRegression() != 0) { return 1; }
     using wonderbane::extension::BuildGraphicsCameraState;
     using wonderbane::extension::ConfigureGraphicsPresentEntry;
     using wonderbane::extension::GetGraphicsStatusPath;

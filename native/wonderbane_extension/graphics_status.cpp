@@ -18,6 +18,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <mutex>
 
 namespace wonderbane::extension {
 namespace {
@@ -42,7 +43,12 @@ constexpr std::size_t kEscapedDepthEdgeReasonCapacity =
 constexpr std::size_t kControlNameUtf8Capacity = 512U;
 constexpr std::size_t kEscapedControlNameCapacity = kControlNameUtf8Capacity * 2U + 3U;
 constexpr DWORD kPublishIntervalMilliseconds = 2'000U;
+#ifdef WONDERBANE_PUBLISHER_LIFETIME_TEST
+constexpr DWORD kWorkerStopTimeoutMilliseconds = 50U;
+void (*g_before_publish_test)() = nullptr;
+#else
 constexpr DWORD kWorkerStopTimeoutMilliseconds = 5'000U;
+#endif
 constexpr std::size_t kHashReadCapacity = 64U * 1024U;
 constexpr ULONG kMaximumHashObjectBytes = 1024U * 1024U;
 constexpr unsigned int kGlVersion = 0x1F02U;
@@ -125,6 +131,7 @@ struct PublisherSnapshot {
 };
 
 SRWLOCK g_state_lock = SRWLOCK_INIT;
+std::mutex g_lifecycle_mutex;
 volatile LONG g_started = 0;
 HANDLE g_stop_event = nullptr;
 HANDLE g_wake_event = nullptr;
@@ -1283,6 +1290,9 @@ DWORD PublishSnapshot(const PublisherSnapshot& snapshot) noexcept {
 }
 
 DWORD PublishWithRetry(const PublisherSnapshot& snapshot) noexcept {
+#ifdef WONDERBANE_PUBLISHER_LIFETIME_TEST
+    if (g_before_publish_test != nullptr) { g_before_publish_test(); }
+#endif
     DWORD result = ERROR_GEN_FAILURE;
     for (DWORD attempt = 0U; attempt < 10U; ++attempt) {
         result = PublishSnapshot(snapshot);
@@ -1607,6 +1617,7 @@ void ObserveGraphicsCameraState(
 }
 
 DWORD StartGraphicsStatusPublication() noexcept {
+    const std::lock_guard<std::mutex> lifecycle(g_lifecycle_mutex);
     if (InterlockedCompareExchange(&g_started, 1, 0) != 0) {
         return ERROR_ALREADY_INITIALIZED;
     }
@@ -1775,9 +1786,14 @@ DWORD StartGraphicsStatusPublication() noexcept {
     }
     if (g_worker_thread != nullptr) {
         SetEvent(g_stop_event);
-        WaitForSingleObject(g_worker_thread, kWorkerStopTimeoutMilliseconds);
+        // A timeout is not thread exit. Keep this generation owned so a later
+        // stop can reap it; start must not reuse its globals or event handles.
+        if (WaitForSingleObject(g_worker_thread, kWorkerStopTimeoutMilliseconds) != WAIT_OBJECT_0) {
+            return result;
+        }
         CloseHandle(g_worker_thread);
     }
+    AcquireSRWLockExclusive(&g_state_lock);
     if (wake_event != nullptr) {
         CloseHandle(wake_event);
     }
@@ -1792,6 +1808,7 @@ DWORD StartGraphicsStatusPublication() noexcept {
     g_ready_event = nullptr;
     g_stop_event = nullptr;
     InterlockedExchange(&g_started, 0);
+    ReleaseSRWLockExclusive(&g_state_lock);
     return result;
 }
 
@@ -1835,7 +1852,7 @@ DWORD ConfigureGraphicsPresentEntry(
     if (FAILED(result)) {
         return HResultToWin32(result);
     }
-    SetEvent(g_wake_event);
+    RequestGraphicsStatusPublish();
     return ERROR_SUCCESS;
 }
 
@@ -1920,7 +1937,7 @@ void ObserveGraphicsPresent() noexcept {
     }
     ReleaseSRWLockExclusive(&g_state_lock);
     if (publish) {
-        SetEvent(g_wake_event);
+        RequestGraphicsStatusPublish();
     }
 }
 
@@ -1936,7 +1953,7 @@ void ReportDepthEdgePassComposite() noexcept {
     publish = g_status.depth_edge_composite_count == 1U;
     ReleaseSRWLockExclusive(&g_state_lock);
     if (publish) {
-        SetEvent(g_wake_event);
+        RequestGraphicsStatusPublish();
     }
 }
 
@@ -1957,7 +1974,7 @@ void ReportDepthEdgePassFailure(const char* const reason) noexcept {
     );
     ReleaseSRWLockExclusive(&g_state_lock);
     if (publish) {
-        SetEvent(g_wake_event);
+        RequestGraphicsStatusPublish();
     }
 }
 
@@ -1973,7 +1990,7 @@ void ReportSceneColorCapture() noexcept {
     publish = g_status.scene_color_capture_count == 1U;
     ReleaseSRWLockExclusive(&g_state_lock);
     if (publish) {
-        SetEvent(g_wake_event);
+        RequestGraphicsStatusPublish();
     }
 }
 
@@ -1994,7 +2011,7 @@ void ReportSceneColorCaptureFailure(const char* const reason) noexcept {
     );
     ReleaseSRWLockExclusive(&g_state_lock);
     if (publish) {
-        SetEvent(g_wake_event);
+        RequestGraphicsStatusPublish();
     }
 }
 
@@ -2034,12 +2051,13 @@ void ReportSceneFrameClassification(const SceneFrameState& frame) noexcept {
     );
     ReleaseSRWLockExclusive(&g_state_lock);
     if (publish) {
-        SetEvent(g_wake_event);
+        RequestGraphicsStatusPublish();
     }
 }
 
 void StopGraphicsStatusPublication() noexcept {
-    if (InterlockedExchange(&g_started, 0) == 0) {
+    const std::lock_guard<std::mutex> lifecycle(g_lifecycle_mutex);
+    if (InterlockedCompareExchange(&g_started, 0, 0) == 0) {
         return;
     }
     const HANDLE thread = g_worker_thread;
@@ -2050,9 +2068,12 @@ void StopGraphicsStatusPublication() noexcept {
         SetEvent(stop_event);
     }
     if (thread != nullptr) {
-        WaitForSingleObject(thread, kWorkerStopTimeoutMilliseconds);
+        if (WaitForSingleObject(thread, kWorkerStopTimeoutMilliseconds) != WAIT_OBJECT_0) {
+            return;
+        }
         CloseHandle(thread);
     }
+    AcquireSRWLockExclusive(&g_state_lock);
     if (wake_event != nullptr) {
         CloseHandle(wake_event);
     }
@@ -2062,12 +2083,12 @@ void StopGraphicsStatusPublication() noexcept {
     if (stop_event != nullptr) {
         CloseHandle(stop_event);
     }
-    AcquireSRWLockExclusive(&g_state_lock);
     g_worker_thread = nullptr;
     g_wake_event = nullptr;
     g_ready_event = nullptr;
     g_stop_event = nullptr;
     g_status = {};
+    InterlockedExchange(&g_started, 0);
     ReleaseSRWLockExclusive(&g_state_lock);
 }
 

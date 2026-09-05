@@ -498,7 +498,6 @@ if(BUILD_TESTING)
   add_executable(
     wonderbane_extension_graphics_status_test
     graphics_control.cpp
-    graphics_status.cpp
     terrain_trace.cpp
     terrain_mask_refresh.cpp
     graphics_status_test.cpp
@@ -657,7 +656,6 @@ if(BUILD_TESTING)
     terrain_trace.cpp
     terrain_mask_refresh.cpp
     import_hook.cpp
-    performance_telemetry.cpp
     performance_telemetry_test.cpp
     scene_frame.cpp
   )
