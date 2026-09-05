@@ -90,6 +90,9 @@ int main(int argc, char** argv) {
         Check(GetProcessTimes(GetCurrentProcess(), &created, &exited, &kernel, &user) != FALSE, "IPC client lifetime");
         rt.process = {GetCurrentProcessId(), (static_cast<std::uint64_t>(created.dwHighDateTime) << 32) | created.dwLowDateTime};
         rt.clock = &GetTickCount64;
+        rt.settings.enabled = false;
+        Check(rt.controls.Configure(rt.settings) == wm::Result::accepted && rt.input.Configure(rt.settings),
+            "manual disabled retains native automation readiness");
         Check(wonderbane::extension::StartClientActionCommandChannel(rt.process) == ERROR_SUCCESS, "IPC production channel");
         step(); step(); rt.Publish();
         std::printf("%lu %llu %llu\n", static_cast<unsigned long>(rt.process.process_id),
@@ -97,10 +100,10 @@ int main(int argc, char** argv) {
             static_cast<unsigned long long>(reinterpret_cast<std::uintptr_t>(f.window))); std::fflush(stdout);
         const auto until = GetTickCount64() + 10000;
         auto* storage = wonderbane::extension::command_channel_detail::g_runtime.storage;
-        while (GetTickCount64() < until && InterlockedCompareExchange64(&storage->header.result_read_sequence, 0, 0) < 3) {
+        while (GetTickCount64() < until && InterlockedCompareExchange64(&storage->header.result_read_sequence, 0, 0) < 6) {
             step(); Sleep(5);
         }
-        Check(storage->header.result_read_sequence == 3, "Python consumed three correlated native receipts");
+        Check(storage->header.result_read_sequence == 6, "Python consumed six correlated native receipts");
         wonderbane::extension::StopClientActionCommandChannel(); rt.input.Retire(); return failures ? 1 : 0;
     }
     if (mode == "commands") {
@@ -132,6 +135,14 @@ int main(int argc, char** argv) {
         Check(retry->receipt.outcome == 0 && rt.controls.Current() == owned
             && std::memcmp(&retry->receipt, &acquire->receipt, sizeof(retry->receipt)) == 0,
             "ambiguous retry returns original immutable receipt without reacquisition");
+        auto moving = make(wm::wire::Verb::destination, owned, 5); moving->command.destination = {30, 0, -40}; run(moving);
+        Check(moving->receipt.outcome == 0 && f.destination.x == 130 && f.destination.z == -240,
+            "queued world move uses terrain hit transformed by native parent helper");
+        auto pause = make(wm::wire::Verb::pause, owned, 6); run(pause);
+        Check(pause->receipt.outcome == 0 && rt.controls.Current() == owned && Get<std::uint32_t>(f.state.data(), 0x10) == 5,
+            "pause cancels native movement while retaining operation grant");
+        auto resumed = make(wm::wire::Verb::destination, owned, 7); resumed->command.destination = {31, 0, -41}; run(resumed);
+        Check(resumed->receipt.outcome == 0 && rt.controls.Current() == owned, "next PvE approach uses same immutable grant");
         auto delayed = make(wm::wire::Verb::stop, owned, 2);
         physical_keys['W'] = static_cast<SHORT>(0x8000); run(delayed);
         const auto manual = rt.controls.Current();
@@ -144,6 +155,19 @@ int main(int argc, char** argv) {
         auto replacement = make(wm::wire::Verb::acquire, rt.controls.Current(), 4); run(replacement);
         Check(replacement->receipt.outcome == 0, "explicit new request resumes automation");
         lease_current = false; step(); Check(rt.controls.Current().owner == wm::Owner::none, "current lease loss cancels its exact owner");
+        lease_current = true;
+        std::shared_ptr<wm::QueuedCommand> latest;
+        for (unsigned n = 0; n < 150; ++n) {
+            auto next = make(wm::wire::Verb::acquire, rt.controls.Current(), static_cast<unsigned char>(n + 10));
+            next->command.request[1] = 1; run(next); latest = next;
+            Check(next->receipt.outcome == 0 && rt.acquisitions.size() <= rt.acquisition_capacity,
+                "long operation sequence keeps bounded receipts");
+        }
+        auto latest_retry = make(wm::wire::Verb::acquire, {}, 200); latest_retry->command = latest->command; run(latest_retry);
+        Check(latest_retry->receipt.outcome == 0 && std::memcmp(&latest_retry->receipt, &latest->receipt, sizeof(latest->receipt)) == 0,
+            "latest ambiguous acquisition survives journal retirement");
+        auto old_retry = make(wm::wire::Verb::acquire, original, 1); run(old_retry);
+        Check(old_retry->receipt.outcome == static_cast<unsigned>(wm::Result::stale), "evicted acquisition cannot mint authority");
         rt.input.Retire(); return failures ? 1 : 0;
     }
     Token token{}; std::memcpy(token.worker.data(), "worker", 6); std::memcpy(token.operation.data(), "route", 5);
@@ -152,7 +176,7 @@ int main(int argc, char** argv) {
     Check(rt.controls.AcquireAutomation(rt.controls.Current().generation, token, automation) == Result::accepted, "existing route acquires ownership");
     GroundPoint route_point{}; f.real_pick_move = true;
     Check(rt.native.PickGround(0, 0, route_point)
-        && rt.controls.AutomationDestination(automation, route_point) == Result::accepted,
+        && rt.controls.AutomationDestination(automation, {30, 0, -40}) == Result::accepted,
         "automation owns an actual native movement before manual takeover");
     rt.native.EndUpdate(); f.real_pick_move = false; f.moves = 0;
     const auto drive = [&] {

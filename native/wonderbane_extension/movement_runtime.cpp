@@ -45,6 +45,17 @@ public:
     }
     struct Acquisition { wire::Command request; wire::Receipt receipt; };
     std::map<std::array<std::uint8_t, 16>, Acquisition> acquisitions;
+    static constexpr std::size_t acquisition_capacity = 128;
+    std::uint64_t retired_acquisition_generation = 0;
+    void RetireAcquisitionReceipt() noexcept {
+        if (acquisitions.size() < acquisition_capacity) { return; }
+        auto oldest = acquisitions.begin();
+        for (auto entry = acquisitions.begin(); entry != acquisitions.end(); ++entry) {
+            if (entry->second.request.expected.generation < oldest->second.request.expected.generation) { oldest = entry; }
+        }
+        retired_acquisition_generation = std::max(retired_acquisition_generation, oldest->second.request.expected.generation);
+        acquisitions.erase(oldest);
+    }
 
     struct SafetyCommand { HWND window; NativeScene scene; Grant grant; StopReason reason; };
     std::array<SafetyCommand, 8> pending{};
@@ -79,7 +90,8 @@ public:
         return !destroyed && !terminal && !interrupted && native.Steer(grant, direction, tick, start);
     }
     bool Destination(const Grant& grant, GroundPoint point, bool) noexcept override {
-        return !destroyed && !terminal && !interrupted && native.MoveToPick(grant, point);
+        return !destroyed && !terminal && !interrupted
+            && (grant.owner == Owner::automation ? native.MoveToWorld(grant, point) : native.MoveToPick(grant, point));
     }
     bool Camera(Vector2 radians) noexcept override {
         return !destroyed && !terminal && !interrupted && native.RotateCamera(radians);
@@ -129,9 +141,13 @@ public:
                     CompleteMovementCommand(command, prior->second.receipt); return;
                 }
                 result = Result::invalid;
-            } else if (expected == controls.Current()) {
+            } else if (expected == controls.Current() && expected.generation > retired_acquisition_generation) {
                 try {
                     // Allocate the journal entry before any native stop or grant.
+                    RetireAcquisitionReceipt();
+                    if (expected.generation <= retired_acquisition_generation) {
+                        CompleteMovementCommand(command, Receipt(*command, Result::stale)); return;
+                    }
                     auto [entry, inserted] = acquisitions.emplace(payload.request, Acquisition{payload, Receipt(*command, Result::unavailable)});
                     if (inserted) {
                         Token token{}; Grant acquired{};
@@ -143,10 +159,10 @@ public:
                 } catch (...) { result = Result::unavailable; }
             }
         } else if (live && exact && expected == controls.Current()) {
-            if (command->verb == wire::Verb::stop) {
+            if (command->verb == wire::Verb::stop || command->verb == wire::Verb::pause) {
                 if (automation_lease == command->lease || (automation_lease
                     && std::memcmp(&automation_lease->host, &payload.host, sizeof(payload.host)) == 0)) {
-                    result = controls.Stop(expected);
+                    result = command->verb == wire::Verb::pause ? controls.PauseAutomation(expected) : controls.Stop(expected);
                 }
             } else if (command->verb == wire::Verb::configure) {
                 Settings next{};
@@ -160,9 +176,9 @@ public:
                     }
                 }
             } else if (command->verb == wire::Verb::destination) {
-                // Admission remains unavailable until the verified world-target
-                // adapter is wired; never reinterpret XYZ as a current pointer pick.
-                result = Result::unavailable;
+                if (automation_lease && std::memcmp(&automation_lease->host, &payload.host, sizeof(payload.host)) == 0) {
+                    result = controls.AutomationDestination(expected, payload.destination);
+                }
             }
         }
         CompleteMovementCommand(command, Receipt(*command, result));

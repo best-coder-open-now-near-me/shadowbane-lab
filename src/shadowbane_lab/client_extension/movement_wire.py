@@ -30,6 +30,7 @@ class Verb(IntEnum):
     DESTINATION = 4
     STOP = 5
     CONFIGURE = 6
+    PAUSE = 7
 
 
 class Outcome(IntEnum):
@@ -225,7 +226,10 @@ class Command:
         verb = Verb(verb)
         if len(self.destination) != 3 or any(not math.isfinite(v) for v in self.destination):
             raise ValueError("native destination must be finite XYZ")
-        if verb in (Verb.DESTINATION, Verb.STOP) and self.expected.owner != Owner.AUTOMATION:
+        if (
+            verb in (Verb.DESTINATION, Verb.STOP, Verb.PAUSE)
+            and self.expected.owner != Owner.AUTOMATION
+        ):
             raise ValueError("movement/stop requires an automation grant")
         if verb != Verb.ACQUIRE and (self.worker_id or self.operation_id):
             raise ValueError("requested token is only valid for acquisition")

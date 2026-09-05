@@ -303,6 +303,20 @@ void EmergencyStops() {
     f.input.scene = 12; f.Step();
     Check(!f.controls.AuthorizesNativeStop(old), "scene replacement discards old emergency stop authority");
 }
+void DisabledAutomation() {
+    Fixture f; f.settings.enabled = false;
+    Check(f.controls.Configure(f.settings) == Result::accepted, "disable manual controls"); f.Step();
+    const auto route = f.Automate();
+    Check(route.owner == Owner::automation && !f.controls.CapturesKey(0x57), "disabled manual capture retains native automation");
+    f.input.keys[0x57] = true; f.Step(); Check(f.controls.Current() == route, "disabled held key does not steal automation");
+    f.settings.enabled = true;
+    Check(f.controls.Configure(f.settings) == Result::accepted && f.controls.Current() == route && f.controls.Ready(),
+        "enabling controls preserves live automation availability and grant");
+    f.Step(); Check(f.controls.Current() == route, "enable requires neutral rearm");
+    f.input.keys[0x57] = false; f.Step(); f.input.keys[0x57] = true; f.Step();
+    Check(f.controls.Current().owner == Owner::manual && f.controls.AutomationDestination(route, {}) == Result::stale
+        && f.controls.Stop(route) == Result::stale, "deliberate manual input retires disabled-start route generation");
+}
 void FrameRatesAndSettings() {
     for (const int hz : {20, 30, 60, 144, 240}) {
         Fixture f; f.input.right_stick = {1, 0};
@@ -326,6 +340,6 @@ void FrameRatesAndSettings() {
 }
 }
 int main() {
-    Interpretation(); Ownership(); CameraFailure(); Gates(); Devices(); Drag(); BufferedInput(); FailureAndScene(); NativeIntentTakeover(); NestedSafety(); EmergencyStops(); FrameRatesAndSettings();
+    Interpretation(); Ownership(); CameraFailure(); Gates(); Devices(); Drag(); BufferedInput(); FailureAndScene(); NativeIntentTakeover(); NestedSafety(); EmergencyStops(); DisabledAutomation(); FrameRatesAndSettings();
     return failures ? 1 : 0;
 }

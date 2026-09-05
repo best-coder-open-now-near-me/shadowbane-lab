@@ -40,6 +40,12 @@ def test_real_producer_mutex_native_owner_completion_and_readonly_snapshot():
         assert retried == grant
         with pytest.raises(ValueError):
             session.acquire(replace(before, revision=before.revision + 1), "worker", "route", key)
+        assert not before.settings.enabled
+        session.move(grant, (30.0, 0.0, -40.0), str(uuid.uuid4()))
+        session.pause(grant, str(uuid.uuid4()))
+        assert session.snapshot().grant == grant.ownership
+        session.renew(grant)
+        session.move(grant, (31.0, 0.0, -41.0), str(uuid.uuid4()))
         session.stop(grant, str(uuid.uuid4()))
         session.close()
         output, error = process.communicate(timeout=5)

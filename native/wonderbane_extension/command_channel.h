@@ -473,7 +473,7 @@ inline DWORD DrainCommands(
             return ERROR_RETRY;
         }
 
-        if (snapshot.kind >= 3U && snapshot.kind <= 6U) {
+        if (snapshot.kind >= 3U && snapshot.kind <= 7U) {
             const auto verb = static_cast<movement::wire::Verb>(snapshot.kind);
             const bool valid = snapshot.command_id && snapshot.payload_version == kClientActionPayloadVersion
                 && snapshot.created_tick && snapshot.created_tick <= now && now <= snapshot.deadline_tick

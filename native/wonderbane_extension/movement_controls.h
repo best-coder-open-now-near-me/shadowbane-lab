@@ -109,6 +109,7 @@ public:
     void ObserveScene(std::uint64_t) noexcept;
     Result AcquireAutomation(std::uint64_t expected_generation, Token, Grant&) noexcept;
     Result AutomationDestination(const Grant&, GroundPoint) noexcept;
+    Result PauseAutomation(const Grant&) noexcept;
     Result Stop(const Grant&, StopReason = StopReason::release) noexcept;
     // Exact-owner safety command from the verified window thread. The runtime
     // defers a nested command until native actuation returns, then revalidates.
@@ -140,7 +141,7 @@ private:
     StopReason pending_reason_ = StopReason::release;
     bool pending_stop_ = false;
     bool actuating_ = false;
-    bool shutdown_pending_ = false;
+    bool shutdown_pending_ = false, shutdown_ = false;
     bool moving_ = false;
     bool available_ = false;
     bool faulted_ = false;
