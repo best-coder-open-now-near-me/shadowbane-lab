@@ -12,15 +12,16 @@ The normal shared checkout remains on `main`. Terrain-repair branches are exclud
 
 ## Status: unfinished, not a connected candidate
 
-The native ownership/input policy, steering, stop, camera, terrain-pick, lifetime,
-UI ownership, Windows/XInput capture and native-update consumer are implemented.
-The consumer is registered after successful shared extension startup. Initial
-preferences are disabled; explicitly saved preferences apply on later starts. Settings UI/persistence and both entry points are implemented. Schema2 native
-travel/PvE transport, terrain-derived destinations, same-grant pause, renewal and
-typed adapter are implemented at `95a3b363189557c529ebeecd4d5e1ec2004b6c67`.
-Shared CLI/manager operation composition and complete package validation remain
-with the integration owner. No installed package has changed and no connected acceptance is claimed. This checkpoint is
-not the complete requested feature or an acceptance package.
+The native ownership/input policy, steering, stop, camera, terrain picking,
+lifetime, UI ownership, Windows/XInput capture, native-update consumer and real
+settings are implemented. Schema2 travel/PvE transport, terrain-derived destinations,
+same-grant pause, renewal and immutable typed sessions are wired. Standalone live
+CLI composition is published at `55e30ccbddabf217a49e2cc847e56901d46b83b4`;
+manager composition is published by the integration owner at `d3f3af3`.
+The consumer starts after successful shared extension startup. Initial manual
+preferences are disabled; saved preferences apply on later starts. The integration
+owner is assembling the combined source/package. No installed package change or
+connected acceptance is claimed; this is not yet the complete accepted feature.
 
 The production policy requires a synchronous owning-client-thread actuator. A
 movement ownership grant contains a generation, scene lifetime, owner and lossless
@@ -91,14 +92,14 @@ invalid pick and lost capture, client isolation and camera integration at
 - [x] Bind native UI/text/modal ownership and shared pointer-coordinate conversion.
 - [x] Compose Windows/XInput input capture and the native-update consumer.
 - [x] Wire real settings, remapping, controller configuration and feature controls.
-- [ ] Active: wire travel/PvE dispatch and immutable ownership grants with the hardening owner.
+- [x] Wire travel/PvE dispatch and immutable ownership grants with the hardening owner.
 - [x] Validate production native adapters, both profiles, lifecycle and delayed dispatch.
-- [ ] Build/install the complete combined package through the existing integration owner.
+- [ ] Active: verify combined source and build/install the complete package through the integration owner.
 - [ ] Run focused connected acceptance for all input methods, camera, obstacles,
   real release/stop, chat/UI safety, multi-client isolation and navigation takeover.
 
-Next item is immutable automation command transport and the typed producer session. Connected engine behavior still
-requires the complete combined package and coordinated acceptance. Historical
+Next item is combined source/package verification. Connected engine behavior
+requires the exact installed candidate and coordinated acceptance. Historical
 checkpoint notes below describe the progression, not additional active todos.
 
 ## Passive trace checkpoint
@@ -744,3 +745,27 @@ failed stop reporting, and CLI routing/combat stop-signal composition. Ruff pass
 
 Next active todo: owner inclusion and combined source/package verification, then
 installed package and coordinated connected acceptance. No connected claim yet.
+
+
+## Combined-source inclusion and final feature-side audit
+
+The integration owner included `55e30cc` at
+`9f22b1baef76f5b51d8377daea20e07ff2786bba`. At published combined source
+`ac38e0965a1cc6f3190bbd94d412ddbbda6135a7`, the movement runtime, standalone
+context and both live CLI files match the feature implementation. The package
+builder checks wheel/source membership and requires the named standalone real
+native-process regression alongside the manager/session regressions for both
+profiles; missing, failed or skipped required tests reject packaging.
+
+The full feature-side Python run at `55e30cc` passed 1729 tests and226 subtests;
+seven symlink-permission checks were skipped. Native IPC was enabled and executed.
+Evidence stays private at `artifacts/native-movement/python-complete.xml`.
+A follow-up ensures failed maintenance-thread creation still stops the acquired
+grant and closes its lease; all15 operation tests pass, including actual native
+IPC. This source follow-up must be included before the candidate is frozen.
+
+The current guide contains a focused acceptance sequence within the existing
+shared plan. The owner reports required cue/effects transparency failures, so no
+complete package manifest/install receipt exists yet. Active todo remains exact
+combined package verification and owner-controlled installation, followed by the
+coordinated connected pass. No separate client/VM change was made.

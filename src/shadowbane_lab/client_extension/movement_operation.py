@@ -92,10 +92,11 @@ class NativeMovementOperation:
             self._native = NativeMovementTravelDispatcher(self._session, grant)
             if self.is_set():
                 raise NativeActionChannelError(self.interruption_reason)
-            self._thread = threading.Thread(
+            maintenance = threading.Thread(
                 target=self._maintain, name="native-movement-lease", daemon=True
             )
-            self._thread.start()
+            maintenance.start()
+            self._thread = maintenance
             return self
         except BaseException:
             self.close()

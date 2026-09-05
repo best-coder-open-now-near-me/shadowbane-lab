@@ -233,3 +233,16 @@ def test_standalone_context_real_native_process_renews_across_slow_planner():
         if process.poll() is None:
             process.kill()
             process.communicate()
+
+
+def test_failed_maintenance_thread_start_still_stops_and_closes(setup, monkeypatch):
+    operation, session, *_ = setup
+
+    def failed_start(thread):
+        raise RuntimeError("thread creation failed")
+
+    monkeypatch.setattr(threading.Thread, "start", failed_start)
+    with pytest.raises(RuntimeError, match="thread creation failed"):
+        operation.__enter__()
+    session.stop.assert_called_once()
+    session.close.assert_called_once()
