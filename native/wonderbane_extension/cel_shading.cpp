@@ -1825,9 +1825,17 @@ void APIENTRY StrongDrawArrays(
         TerrainTraceDraw(TerrainSubmission::arrays,
             reinterpret_cast<std::uintptr_t>(_ReturnAddress()), mode, first, count, 0U, 0U,
             true, !IsCompilingDisplayListOnCurrentThread() && !g_immediate_primitive_open);
-        const auto draw = [original, mode, first, count]() noexcept {
+        auto draw = [original, mode, first, count]() noexcept {
             original(mode, first, count);
         };
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+        if (!IsCompilingDisplayListOnCurrentThread() && !g_immediate_primitive_open
+            && count >= 3 && IsFilledPrimitiveMode(mode)) {
+            CaptureSelectedCueGeometry([](void* callback) noexcept {
+                (*static_cast<decltype(draw)*>(callback))();
+            }, &draw);
+        }
+#endif
         if (IsCompilingDisplayListOnCurrentThread()) {
             MarkCompiledListStateChange();
             draw();
@@ -1863,9 +1871,17 @@ void APIENTRY StrongDrawElements(
         TerrainTraceDraw(TerrainSubmission::elements,
             reinterpret_cast<std::uintptr_t>(_ReturnAddress()), mode, 0, count, type, 0U,
             true, !IsCompilingDisplayListOnCurrentThread() && !g_immediate_primitive_open);
-        const auto draw = [original, mode, count, type, indices]() noexcept {
+        auto draw = [original, mode, count, type, indices]() noexcept {
             original(mode, count, type, indices);
         };
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+        if (!IsCompilingDisplayListOnCurrentThread() && !g_immediate_primitive_open
+            && count >= 3 && IsFilledPrimitiveMode(mode)) {
+            CaptureSelectedCueGeometry([](void* callback) noexcept {
+                (*static_cast<decltype(draw)*>(callback))();
+            }, &draw);
+        }
+#endif
         if (IsCompilingDisplayListOnCurrentThread()) {
             MarkCompiledListStateChange();
             draw();

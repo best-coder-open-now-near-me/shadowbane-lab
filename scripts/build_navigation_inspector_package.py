@@ -15,6 +15,7 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import xml.etree.ElementTree as ET
 import zipfile
 from datetime import UTC, datetime
 from pathlib import Path
@@ -110,22 +111,24 @@ def main() -> int:
         "selected_cue_runtime.cpp",
         "effects_attachment.cpp",
         "scene_draw.cpp",
+        "scene_context.cpp",
         "navigation_protocol.cpp",
         "navigation_channel.cpp",
         "navigation_draw.cpp",
         "navigation_viewer.cpp",
-        "scene_draw.cpp",
         "effects.cpp",
-        "effects_attachment.cpp",
         "effects_runtime.cpp",
         "effects_draw.cpp",
+        "sky.cpp",
+        "sky_draw.cpp",
+        "sky_runtime.cpp",
+        "sky_asset.rc",
     ]
     sky_folder = source / "assets/sky-horizon"
     sky_manifest = json.loads((sky_folder / "manifest.json").read_text(encoding="utf-8"))
     sky_content = (sky_folder / "clear-day.sky").read_bytes()
     if hashlib.sha256(sky_content).hexdigest() != sky_manifest["sha256"]:
         raise RuntimeError("sky asset identity mismatch")
-    contracts.extend(["sky.cpp", "sky_draw.cpp", "sky_runtime.cpp", "sky_asset.rc"])
     artifacts = [source_archive, *sorted(sky_folder.iterdir())]
     for profile in ("full", "diagnostics-only"):
         # MSBuild still imposes MAX_PATH on its long generated test tlog names.
@@ -146,9 +149,16 @@ def main() -> int:
             ],
         )
         project = build / "wonderbane_extension.vcxproj"
-        project_text = project.read_text(encoding="utf-8-sig")
+        project_root = ET.parse(project).getroot()
+        included_sources = [
+            Path(item.attrib["Include"]).name
+            for tag in ("ClCompile", "ResourceCompile")
+            for item in project_root.findall(f".//{{*}}{tag}")
+            if "Include" in item.attrib
+        ]
         for name in contracts:
-            if (name in project_text) != (profile == "full"):
+            expected_count = 1 if profile == "full" else 0
+            if included_sources.count(name) != expected_count:
                 raise RuntimeError(f"{profile}: incorrect runtime source ownership for {name}")
         run(
             f"{profile}-build",

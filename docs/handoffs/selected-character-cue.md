@@ -84,8 +84,8 @@ Agreed combined ordering: composite -> selected cue -> particles -> navigation -
 - CMake and `build_navigation_inspector_package.py` include/verify the real DLL,
   source distribution, wheel, installed Graphics Lab Selection tab and both profiles.
 
-Resource bounds: at most 128 owned render nodes, 3840x2160 pixels, three textures
-(two depth24, one RGBA32F mask), one FBO and two programs. Multisample or non-default
+Resource bounds: at most 128 owned render nodes, 3840x2160 pixels, four textures
+(three depth24, one RGBA32F mask), two FBOs and two programs. Multisample or non-default
 framebuffers, unavailable GL facilities, invalid observations or unknown code
 fail closed with Graphics Lab diagnostics. The scene camera is authoritative;
 no synthetic camera is used. The depth-copy cost needs measurement in the
@@ -189,3 +189,73 @@ remain in that ignored artifact directory; build output remains in ignored
 `build/cue-full`. Package receipts preserve their original source and log paths.
 The normal main checkout and navigation checkout are not modified by this lane.
 The feature worktree is retained for the pending combined-source verification.
+
+## Combined dependency verification and cue lifecycle follow-up
+
+Verified owner source `50ad9e1dd83a67de3bc814a098dc4230b0393299` in an isolated
+read-only checkout at `E:/Projects/shadowbane/.worktrees/cue-combined-verification`.
+Full package passed: 1,715 Python tests, 223 subtests, 8 skips; Ruff; both native
+profiles (23 passing CTests and the private binding check separately passing);
+sdist/wheel, entry point, inspector, effects and selection installed UI checks.
+Package `E:/Projects/shadowbane/artifacts/cue-combined-packages/5ecad118/navigation-inspector-acceptance.zip`,
+SHA-256 `649f670036d427a8854346c24cd5f86b531598a425560b385aa74dc979cc9721`.
+Shared source lists, panel disconnects, boundary camera checks and pass ordering
+were reviewed. This dependency checkpoint predates the owner's final lifecycle
+repairs and does not resolve material coverage.
+
+The subsequent cue lifecycle fix consumes `render_lifetime.h` verbatim from owner
+`8961fad07ff00c40b511f5b8f9562669069aad39`. All cue callbacks and public scene
+entries lease that same recursive admission domain; Start/Stop use its mutation
+lock. Stop drains admitted wrappers and retains original call-through. It advances
+a generation so old render-thread selection, direction and mask state cannot be
+reused after restart. Each thread releases its old mask on its next cue entry,
+before creating new-generation resources.
+
+The cleanup-only `wglMakeCurrent` import hook deliberately remains installed while
+the process-pinned extension lives, including while the feature is stopped. It
+releases resources on the owning thread before unbind/switch; restart recognizes
+and reuses the installed hook without chaining to itself. A stopping worker never
+deletes another context's objects. If a render thread makes no subsequent cue or
+context call, its bounded GL objects remain with that context until the normal
+context/process destruction. Hot unload is not supported or requested. Any new
+owner context path bypassing that game import must call `ReleaseSelectedCueContext`
+on the owning thread before unbind/destruction. The held-wrapper regression checks
+drain, concurrent stop/restart serialization, retained cleanup hook, and owning-thread
+release before new-generation reuse. Final combined-source verification must
+include this lifecycle follow-up.
+
+## Non-depth-writing mesh coverage follow-up
+
+The current implementation supplements wrapper depth deltas with a narrowly
+scoped raw mesh capture in the existing `StrongDrawArrays`/`StrongDrawElements`
+hooks. Only the verified selected wrapper admits this capture. When native depth
+writes are off, it draws that same driver submission into a private depth target,
+retaining native vertex arrays, transforms, textures, programs and alpha testing.
+The game character/animation render function is still called exactly once. The
+capture cannot modify the client's depth or color attachments. Native GL state is
+restored before the original submission proceeds normally.
+
+Nearest owned depth accumulates across material passes. Comparison against final
+scene depth permits the owned translucent mesh in front of farther background,
+and rejects nearer opaque foreground. Standard source-over and alpha-weighted
+additive draws with zero source alpha are excluded; RGB-additive drawing correctly
+ignores alpha when the native blend factors do. Native textured alpha-test holes
+are preserved. Real GL pixel/state tests cover these cases, including exactly
+owned wrapper admission and resource/lifecycle regressions.
+
+This closes the tested array/element mesh coverage gap, but does not claim all
+native transparency is solved. The particles developer's real GL probe confirms
+that pre-UI composition cannot reconstruct transmission through a native
+translucent foreground surface from final depth, regardless of that surface's
+depth-write mode. Native sorting/interleaving remains shared integration work.
+The supplemental capture also rejects active native sample queries, stencil-test
+paths and nonzero viewport origins to avoid altering their semantics; display-list
+or immediate-only non-depth-writing meshes are not covered by this seam. These
+are explicit unresolved coverage cases for the final candidate, not substitutes
+for the requested character silhouette. The current scene guard still rejects
+unreviewed active ARB program paths. No live acceptance or deployment is claimed.
+
+The integration owner approved focused work in the two existing draw hooks; the
+particles developer confirmed no hook conflict. Shared admission and pass order
+remain unchanged. Next active todo: resolve native foreground transparency with
+the shared queue work, then verify the owner-pinned combined candidate/package.

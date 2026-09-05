@@ -3,8 +3,9 @@
 #include "selected_cue_gpu.h"
 #include "selected_cue_binding.h"
 #include "effects.h"
-#include "sky_runtime.h"
+#include "scene_context.h"
 #include "import_hook.h"
+#include "render_lifetime.h"
 #include "reviewed_scene_boundary.h"
 #include <strsafe.h>
 #include <gl/GL.h>
@@ -28,12 +29,11 @@ SRWLOCK lock=SRWLOCK_INIT;
 HANDLE mapping=nullptr;
 Control* control=nullptr;
 volatile LONG running=0;
+alignas(8) volatile LONG64 generation=0;
+thread_local LONG64 thread_generation=0;
 std::uint32_t base=0;
 std::uint64_t expected_creation=0;
 std::uint32_t* slot=nullptr;
-std::uint32_t* context_slot=nullptr;
-PVOID volatile original_context=nullptr;
-using MakeCurrent=BOOL(WINAPI*)(HDC,HGLRC);
 using Render=void(__thiscall*)(void*);
 PVOID volatile original=nullptr;
 thread_local cue::Settings settings{};
@@ -104,13 +104,15 @@ bool StillSelected() noexcept {
     return effects::SameIdentity(attachment,Selected()) && render_count
         && Field(attachment.actor,0xc0,root) && root==renders[0];
 }
-BOOL WINAPI CueMakeCurrent(HDC dc,HGLRC context) noexcept {
-    const auto call=reinterpret_cast<MakeCurrent>(InterlockedCompareExchangePointer(&original_context,nullptr,nullptr));
-    if(!call)return FALSE;
-    if(context!=wglGetCurrentContext()){ReleaseSelectedCueContext();DiscardSkyScene();}
-    return call(dc,context);
+void SynchronizeGeneration() noexcept {
+    const auto current=InterlockedCompareExchange64(&generation,0,0);
+    if(thread_generation==current)return;
+    scene=false;finished=false;attachment={};render_count=0;tracker.Reset();settings={};
+    cue::DiscardMask();cue::ReleaseMask();
+    thread_generation=current;
 }
 void __fastcall OwnedRender(void* self,void*) noexcept {
+    RenderCallbackLease lease;SynchronizeGeneration();
     const auto draw=reinterpret_cast<Render>(InterlockedCompareExchangePointer(&original,nullptr,nullptr));
     if(!draw)return;
     if(!scene || !InterlockedCompareExchange(&running,0,0) || nesting){draw(self);return;}
@@ -130,7 +132,9 @@ void __fastcall OwnedRender(void* self,void*) noexcept {
 }
 }
 DWORD StartSelectedCue(std::uint8_t* image,std::size_t size,const char* hash) noexcept {
+    RenderLifecycleMutation mutation;
     AcquireSRWLockExclusive(&lock);
+    if(slot){ReleaseSRWLockExclusive(&lock);return ERROR_BUSY;}
     if(mapping){ReleaseSRWLockExclusive(&lock);return ERROR_ALREADY_INITIALIZED;}
     FILETIME creation{},exit{},kernel{},user{};
     if(!GetProcessTimes(GetCurrentProcess(),&creation,&exit,&kernel,&user)){
@@ -149,30 +153,27 @@ DWORD StartSelectedCue(std::uint8_t* image,std::size_t size,const char* hash) no
     base=static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(image));
     if(!IsReviewedSceneExecutable(hash) || !cue::ReviewedBinding(image,size,base))error=ERROR_REVISION_MISMATCH;
     else{
-        context_slot=FindImportAddressSlot(image,size,"opengl32.dll","wglMakeCurrent");
-        if(!context_slot)error=ERROR_PROC_NOT_FOUND;
-        else {
-            InterlockedExchangePointer(&original_context,reinterpret_cast<void*>(*context_slot));
-            error=ReplaceImportAddressSlot(context_slot,*context_slot,
-                static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(&CueMakeCurrent)));
-        }
-        slot=reinterpret_cast<std::uint32_t*>(image+0x1149ed4);
+        error=StartSceneContextObservation(image,size);
+        auto* candidate_slot=reinterpret_cast<std::uint32_t*>(image+0x1149ed4);
         InterlockedExchangePointer(&original,reinterpret_cast<PVOID>(base+0x26d91));
-        if(error==ERROR_SUCCESS)error=ReplaceImportAddressSlot(slot,base+0x26d91,static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(&OwnedRender)));
-        if(error==ERROR_SUCCESS){InterlockedExchange(&running,1);InterlockedExchange(&control->binding,1);}
+        if(error==ERROR_SUCCESS){
+            error=ReplaceImportAddressSlot(candidate_slot,base+0x26d91,static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(&OwnedRender)));
+            if(error==ERROR_SUCCESS)slot=candidate_slot;
+        }
+        if(error==ERROR_SUCCESS){InterlockedIncrement64(&generation);InterlockedExchange(&running,1);InterlockedExchange(&control->binding,1);}
     }
     InterlockedExchange(&control->error,static_cast<LONG>(error));
     ReleaseSRWLockExclusive(&lock);return error;
 }
 void StopSelectedCue() noexcept {
-    InterlockedExchange(&running,0);
+    RenderLifecycleMutation mutation;
+    InterlockedExchange(&running,0);InterlockedIncrement64(&generation);
     if(slot){const auto replacement=static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(&OwnedRender));
         if(ReplaceImportAddressSlot(slot,replacement,base+0x26d91)==ERROR_SUCCESS)slot=nullptr;}
-    if(context_slot){
-        const auto replacement=static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(&CueMakeCurrent));
-        const auto prior=static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(InterlockedCompareExchangePointer(&original_context,nullptr,nullptr)));
-        if(ReplaceImportAddressSlot(context_slot,replacement,prior)==ERROR_SUCCESS)context_slot=nullptr;
-    }
+    // The shared cleanup-only context hook remains pinned across Stop. A worker cannot
+    // delete another thread's GL objects. The owning thread releases at its next
+    // scene entry (generation mismatch) or before context unbind. The DLL is
+    // process-lifetime pinned; this hook performs no cue drawing while stopped.
     // Keep original callable for an already-entered wrapper. Extension lifetime
     // is pinned by the existing startup path; do not null a live trampoline.
     AcquireSRWLockExclusive(&lock);
@@ -180,10 +181,11 @@ void StopSelectedCue() noexcept {
     control=nullptr;mapping=nullptr;ReleaseSRWLockExclusive(&lock);
     DiscardSelectedCueScene();cue::ReleaseMask();
 }
-void DiscardSelectedCueScene() noexcept {scene=false;attachment={};render_count=0;tracker.Reset();cue::DiscardMask();}
-void EndSelectedCueFrame() noexcept {if(!finished)DiscardSelectedCueScene();finished=false;}
-void ReleaseSelectedCueContext() noexcept {DiscardSelectedCueScene();cue::ReleaseMask();}
+void DiscardSelectedCueScene() noexcept {RenderCallbackLease lease;SynchronizeGeneration();scene=false;attachment={};render_count=0;tracker.Reset();cue::DiscardMask();}
+void EndSelectedCueFrame() noexcept {RenderCallbackLease lease;SynchronizeGeneration();if(!finished)DiscardSelectedCueScene();finished=false;}
+void ReleaseSelectedCueContext() noexcept {RenderCallbackLease lease;DiscardSelectedCueScene();cue::ReleaseMask();}
 void BeginSelectedCueScene(const GraphicsCameraState* camera) noexcept {
+    RenderCallbackLease lease;SynchronizeGeneration();
     scene=false;owned=0;mask_failed=false;cue::DiscardMask();
     if(!InterlockedCompareExchange(&running,0,0) || !Poll() || !settings.enabled){
         DiscardSelectedCueScene();cue::ReleaseMask();return;}
@@ -196,7 +198,15 @@ void BeginSelectedCueScene(const GraphicsCameraState* camera) noexcept {
     scene=direction.available;
     mask_failed=!(scene && cue::BeginMask());Status(0,mask_failed?1:0,0);
 }
+void CaptureSelectedCueGeometry(SelectedGeometryDraw draw,void* user) noexcept {
+    RenderCallbackLease lease;SynchronizeGeneration();
+    if(!scene || !nesting || mask_failed || !InterlockedCompareExchange(&running,0,0))return;
+    if(!StillSelected() || !cue::CaptureGeometry(draw,user)){
+        mask_failed=true;cue::DiscardMask();
+    }
+}
 void FinishSelectedCueScene(const GraphicsCameraState* camera) noexcept {
+    RenderCallbackLease lease;SynchronizeGeneration();
     if(!scene || !camera || !InterlockedCompareExchange(&running,0,0)
         || !StillSelected()){DiscardSelectedCueScene();return;}
     const bool ok=cue::CompositeMask(settings,direction);Status(static_cast<LONG>(owned),ok && !mask_failed?0:1,0);

@@ -99,3 +99,7 @@ int wmain(int argc,wchar_t** argv){
     Check(glGetError()==GL_NO_ERROR,"no GL errors");wglMakeCurrent(nullptr,nullptr);wglDeleteContext(context);ReleaseDC(window,dc);DestroyWindow(window);
     return failures?1:0;
 }
+
+namespace wonderbane::extension {
+DWORD StartSceneContextObservation(std::uint8_t*,std::size_t) noexcept {return ERROR_SUCCESS;}
+}

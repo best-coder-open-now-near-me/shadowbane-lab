@@ -1,5 +1,6 @@
 #include "navigation_viewer.h"
 #include "effects_draw.h"
+#include "scene_draw.h"
 #include <Windows.h>
 #include <gl/GL.h>
 #include <array>
@@ -79,6 +80,57 @@ unsigned ColoredPixels() {
     }
     return count;
 }
+// Quantifies the late-pass limitation without treating it as accepted behavior.
+// --verify-native-transparency turns the outstanding requirement into a failing
+// acceptance probe; normal regressions still validate the reference fixture.
+void TransparencyProbe(const GraphicsCameraState& camera, bool require_correct) {
+    effects::Geometry geometry{};
+    geometry.count = 1;
+    geometry.quads[0] = {{{-0.85F,-0.05F,-0.2F},{-0.6F,-0.05F,-0.2F},
+                          {-0.6F,0.05F,-0.2F},{-0.85F,0.05F,-0.2F}},1.0F,0.0F};
+    effects::Config config{};
+    config.flags = 1; config.red = 0; config.green = 0; config.blue = 1;
+    const State original = Capture();
+    auto reset = [&]() {
+        Check(RenderSceneGeometry(&camera, [](void*) noexcept {
+            glDepthMask(GL_TRUE); glClearDepth(1.0); glClearColor(0,0,0,1);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        }, nullptr), "prepare transparency fixture");
+    };
+    auto glass = [&](bool writes_depth) {
+        Check(RenderSceneGeometry(&camera, [](void* raw) noexcept {
+            glDepthMask(*static_cast<bool*>(raw) ? GL_TRUE : GL_FALSE);
+            glColor4f(1,0,0,0.5F);
+            glBegin(GL_QUADS);
+            glVertex3f(-0.85F,-0.05F,-0.6F); glVertex3f(-0.6F,-0.05F,-0.6F);
+            glVertex3f(-0.6F,0.05F,-0.6F); glVertex3f(-0.85F,0.05F,-0.6F);
+            glEnd();
+        }, &writes_depth), "native-style foreground alpha surface");
+    };
+    for (bool writes_depth : {false, true}) {
+        unsigned char reference[3]{}, actual[3]{};
+        reset();
+        Check(RenderEffectsGeometry(config, geometry, camera), "reference back effect");
+        glass(writes_depth);
+        glReadPixels(100,240,1,1,GL_RGB,GL_UNSIGNED_BYTE,reference);
+        Check(std::abs(int(reference[0])-128)<=2 && reference[1]==0
+              && std::abs(int(reference[2])-128)<=2, "reference alpha transmission");
+        reset(); glass(writes_depth);
+        Check(RenderEffectsGeometry(config, geometry, camera), "current late effect");
+        glReadPixels(100,240,1,1,GL_RGB,GL_UNSIGNED_BYTE,actual);
+        const int error = std::abs(int(actual[0])-int(reference[0]))
+                        + std::abs(int(actual[1])-int(reference[1]))
+                        + std::abs(int(actual[2])-int(reference[2]));
+        std::printf("Native transparency requirement: depth-write=%d expected RGB=%u,%u,%u "
+                    "late-pass RGB=%u,%u,%u absolute error=%d/765 %s\n",
+                    int(writes_depth), unsigned(reference[0]), unsigned(reference[1]),
+                    unsigned(reference[2]), unsigned(actual[0]), unsigned(actual[1]),
+                    unsigned(actual[2]), error, error<=6 ? "PASS" : "UNRESOLVED");
+        if (require_correct) Check(error<=6, "native foreground transparency must attenuate behind effects");
+        Same(original, Capture());
+    }
+}
+
 }
 int main(int argc, char** argv) {
     WNDCLASSW klass{};
@@ -220,7 +272,10 @@ int main(int argc, char** argv) {
     effect_config.flags=0;
     Check(!RenderEffectsGeometry(effect_config,effect_geometry,camera),"disabled effects draw nothing");
     Same(state,Capture());
-    if (argc == 2) {
+    const bool verify_transparency = argc == 2
+        && std::strcmp(argv[1], "--verify-native-transparency") == 0;
+    TransparencyProbe(camera, verify_transparency);
+    if (argc == 2 && !verify_transparency) {
         // Synthetic test framebuffer only. Capture happens outside the renderer.
         std::vector<unsigned char> pixels(640U*480U*3U);
         glReadPixels(0,0,640,480,GL_RGB,GL_UNSIGNED_BYTE,pixels.data());
