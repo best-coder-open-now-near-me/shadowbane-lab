@@ -417,3 +417,48 @@ Next: integration owner reconciles this focused diagnostic change with cue's
 MultiDraw submission hook and obtains/reuses contributor-state evidence through
 the existing opt-in trace. Complete fragment representation and cue destination
 pixel/owned-depth lookup remain implementation work, not certified interfaces.
+
+
+## Archived contributor evidence and diagnostic review follow-up
+
+The integration owner located ignored historical traces under
+`E:/Projects/shadowbane/artifacts/git-cleanup/20260904T062424Z/scratch/.tmp`.
+Earlier file discovery omitted ignored paths; this evidence now supersedes the
+statement that no archived trace was located. No new live observation was needed.
+
+| Relative archived path | File SHA-256 | Retained / blended |
+| --- | --- | --- |
+| `terrain-trace-evidence-960/terrain-trace-960-134329406441965396-1.json` | `c1fb44bd853204a093570cee326ff76a1544f5832c6a7f7474c1a5778f540e1a` | 537 / 403 |
+| `terrain-retained-trace-20260903/terrain-trace-6420-134329234815817786-1.json` | `3dcde46513ab8e698299b80bfdeae8422489cd803c1fb124ccbe1d3a9efb7704` | 1505 / 218 |
+
+Both identify client SHA-256
+`a9a59004b36f9331bb85f85e7853a02a5d5f07bda9acb9ea4a8affbf169a54b8`, have reviewed
+clear/done3d intervals, zero capacity/time skips, one unsafe query skipped and
+four omitted texture units. They explicitly omit unhooked/driver-internal draws
+and list internals. They do not contain the new transmission fields or certify
+current combined-source behavior.
+
+PID960 retained 241 blended immediate, 130 blended arrays, 29 blended elements
+and three blended list entries. PID6420 retained 23, 140, 52 and three respectively.
+Caller RVA `0x538ed0` accounts for 236/18 immediate quads; `0xd8f13` accounts for
+four in each trace. These have perspective projection, depth test/write on,
+LEQUAL, alpha GEQUAL 0.05 and SRC_ALPHA/ONE_MINUS_SRC_ALPHA. The first caller has
+current alpha 0.7. Its stack includes `0x538708 -> 0x53ab98 -> 0xd82d7 -> 0x2041c5
+-> 0x7981c2`, after main queue traversal. This is direct evidence against an
+array/MultiDraw-only or main-queue-only correction. Actual surviving pixel alpha
+cannot be inferred without texture/program output.
+
+The three list entries at `0x546ed6` carry the sky wrapper `0x5524df` in their
+stacks; they do not prove generic foreground list geometry. Observed other blend
+states include ONE/ONE arrays and DST_COLOR/ZERO elements with EQUAL depth and
+writes off. These cannot be treated uniformly as alpha-over transmission.
+
+Integration review requested stronger tests for the diagnostic fields. The native
+test now records every integer pname and compares the exact query set for GL1.1,
+1.3, 1.4, 2.0, EXT-only FBO, extension-only blend/program, and GL3.0. Distinct
+per-enum responses verify separate factors/equations and front/back stencil
+ordering; unexpected unsupported queries fail. Both full/disabled production test
+variants pass. The existing Python trace analyzer accepts old and enriched draw
+payloads with identical analysis and unchanged state positions: all 19 tests in
+`test_terrain_trace_analysis.py` pass. No production query changes were needed.
+Cue owns MultiDraw categorization and is inspecting the immediate producer.
