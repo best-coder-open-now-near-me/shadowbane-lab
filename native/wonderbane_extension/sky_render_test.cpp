@@ -18,6 +18,7 @@ bool SameIdentity(const Attachment& a,const Attachment& b) noexcept {return a.va
 using namespace wonderbane::extension;
 namespace {
 int failures=0,native_calls=0;
+DWORD context_readiness=ERROR_SUCCESS;
 void Check(bool v,const char* message){if(!v){std::fprintf(stderr,"%s\n",message);++failures;}}
 void __fastcall FakeNative(void*,void*) {++native_calls;}
 struct State {GLint mode=0,viewport[4]{},depth_func=0,shade=0,draw=0;GLboolean depth=0,mask=0,blend=0,fog=0;float view[16]{},projection[16]{},color[4]{};};
@@ -78,6 +79,10 @@ int wmain(int argc,wchar_t** argv){
             auto* entries=reinterpret_cast<const WORD*>(block+1);for(unsigned n=0;n<(block->SizeOfBlock-sizeof(*block))/2;++n)if((entries[n]>>12)==3){
                 auto* value=reinterpret_cast<std::uint32_t*>(image+block->VirtualAddress+(entries[n]&0xfff));*value+=base-0x400000U;}
             offset+=block->SizeOfBlock;}
+        context_readiness=ERROR_PROC_NOT_FOUND;
+        Check(StartSky(image,nt->OptionalHeader.SizeOfImage,kReviewedSceneExecutableHashes[2])==ERROR_PROC_NOT_FOUND
+            &&!sky_control&&!sky_slot,"missing shared context boundary refuses startup");
+        context_readiness=ERROR_SUCCESS;
         const auto started=StartSky(image,nt->OptionalHeader.SizeOfImage,kReviewedSceneExecutableHashes[2]);
         if(started){std::fprintf(stderr,"StartSky error %lu base %x size %lu\n",started,base,nt->OptionalHeader.SizeOfImage);return 8;}
         Check(started==ERROR_SUCCESS,"production startup and binding");
@@ -86,6 +91,11 @@ int wmain(int argc,wchar_t** argv){
         sky_control->settings.enabled=1;InterlockedExchange(&sky_control->desired,2);effects::test_actor=true;
         glMatrixMode(GL_PROJECTION);glLoadMatrixf(camera.projection_matrix);glMatrixMode(GL_MODELVIEW);glLoadMatrixf(camera.view_matrix);
         ObserveSkyCameraUpload(base+0x51b1df,true);BeginSkyBackground(&camera,true);Check(sky_control->painted==1&&sky_control->applied==2,"fresh upload draws through production entry");
+        std::uint32_t shader_table=base+0x1162b34;
+        Check(ReplaceNativeSky(base+0x5524df,&shader_table),"successful paint suppresses only reviewed native sky stage");
+        Check(!ReplaceNativeSky(base+0x5524de,&shader_table),"wrong caller preserves native draw");
+        ++shader_table;Check(!ReplaceNativeSky(base+0x5524df,&shader_table),"wrong native object preserves original");--shader_table;
+        DiscardSkyScene();Check(!ReplaceNativeSky(base+0x5524df,&shader_table),"context invalidation revokes native suppression");
         BeginSkyBackground(&camera,true);Check(!sky_control->painted&&sky_control->reason==1,"duplicate stage rejected");
         ObserveSkyCameraUpload(base+0x51b1df,true);EndSkyFrame();BeginSkyBackground(&camera,true);Check(!sky_control->painted,"frame rollover discards camera");
         ObserveSkyCameraUpload(base+0x51b1df,false);BeginSkyBackground(&camera,true);Check(!sky_control->painted,"illegal observation excluded");
@@ -101,5 +111,5 @@ int wmain(int argc,wchar_t** argv){
 }
 
 namespace wonderbane::extension {
-DWORD StartSceneContextObservation(std::uint8_t*,std::size_t) noexcept {return ERROR_SUCCESS;}
+DWORD StartSceneContextObservation(std::uint8_t*,std::size_t) noexcept {return context_readiness;}
 }

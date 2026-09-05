@@ -2,10 +2,12 @@
 
 Feature branch: `codex/sky-horizon`, worktree `.worktrees/sky-horizon`.
 User-pinned start: `0c807ee774859cc3f17f9ebc04d3f0a900bd0428`.
-Consumed shared owner dependencies through `8961fad07ff00c40b511f5b8f9562669069aad39`.
+Consumed shared owner dependencies through `44d926166220a0e5254ec90e6c21914d273270b0`
+(merged as `d689fd3`).
 PR destination: `codex/native-lifecycle-hardening`, then owner-reviewed integration
 into `main`. No shared client/VM replacement, main merge or deployment is authorized.
-This is an unfinished source checkpoint, not an acceptance package.
+PR: https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/30
+The feature is wired in source; combined acceptance packaging remains gated.
 
 ## Rendering evidence and agreed stage
 
@@ -56,8 +58,10 @@ All callbacks share RenderCallbackLease; startup/stop share RenderLifecycleMutat
 Original call-through survives stop. Generation/context/frame invalidation discards
 observations. No persistent GPU objects exist; immediate rendering uses the single
 scene_draw guard and leaves original depth/state intact. The pinned module owns RCDATA.
-Shared edits are identified in cel_shading, CMake, scene_draw contract and existing
-context-change callback; integration owner reconciles them.
+Shared edits are identified in cel_shading, CMake and scene_draw contract. The owner
+extracted scene_context as a single pinned handler independent of cue startup; sky
+requires its successful idempotent installation. Missing readiness refuses startup.
+Context switches, failed switches and A/B/A reuse invalidate the sky observation.
 
 ## Checkpoint validation
 
@@ -74,7 +78,87 @@ Task outputs remain under ignored `artifacts/sky`; no shared VM changes.
 
 - [x] Camera routine coverage investigation and native integration regression checks.
 - [x] Graphics Lab sky/horizon/orientation/intensity/restore controls and persistence.
-- [ ] Active: shared context extraction, package identity and both-profile validation.
-- [ ] Feature PR and owner's combined source/package verification.
+- [x] Shared context extraction, asset/wheel/sdist identity and both-profile build/exclusion tests.
+- [x] Feature PR targeting the integration owner.
+- [ ] Active: owner's combined source/package verification after the shared transparency gate passes.
 - [ ] Focused connected acceptance: appearance, translation/rotation, horizon/fog,
       foliage/water, UI/minimap, toggles/context transitions and performance.
+
+
+## Actual native sky observation
+
+The existing read-only guest channel inspected the running reviewed client PID5212.
+It reported an initialized ArcSky with one layer, a non-null texture object for that
+layer, and all three optional native texture object pointers present. This rules out
+an absent sky object/empty layer list in that observation; non-null texture objects
+alone do not certify their GPU uploads or archive contents. The implementation does
+not diagnose missing terrain or claim archive repair. Native clear is black, native
+sky runs separately with fog disabled, and subsequent world geometry uses fog.
+The replacement therefore owns the native background stage and joins the world fog
+transition, instead of guessing a clear-color edit from the screen color.
+Read-only script and unmodified output remain privately at
+`artifacts/sky/read-native-sky.ps1` and `artifacts/sky/native-sky-observation.json`.
+No new injection, client launch, input, archive change or VM deployment was used.
+
+## Controls and connected acceptance
+
+After the integration owner has a green exact-source combined package and performs
+the authorized installation, use that package's Python environment:
+
+```powershell
+python -m shadowbane_lab.graphics_lab
+```
+
+Select the exact connected process, then open **Sky / horizon**. **Clear-day defaults**
+loads the authored appearance; **Enable** validates/applies it. Orientation is degrees;
+intensity changes appearance brightness, horizon elevation/width tune the fog transition,
+and cirrus/sun/fog matching are separate controls. **Disable** ignores invalid pending
+field edits and returns to native sky on the next frame. **Restore original** also
+resets the sky settings. Neither command changes unrelated graphics/navigation settings.
+**Save appearance** writes an atomic JSON preset with asset identity; **Load appearance**
+loads it without changing the connected client until Apply. Startup defaults disabled.
+
+Focused acceptance, once for the combined package:
+
+1. Verify source, both DLL profiles, native resource and installed control identity
+   from the normal package receipt. Confirm the sky channel is ready and applied
+   sequence catches desired; require repeated successful draws while stationary.
+2. Enable the default outdoors. Rotate/yaw/pitch and walk without rotating: the
+   horizon/cloud field rotates with view and remains stable under player translation.
+   Check overhead/backwards views for seams; orientation should rotate the field.
+3. Look across distant terrain and fog with defaults, then adjust horizon transition
+   and intensity. No terrain is added or concealed as a repair. Terrain, buildings
+   and actors must retain their existing depth and visibility.
+4. Inspect alpha-tested leaf holes, foliage edges, water/translucent objects and
+   native particles. Sky is behind all world submission. Verify the combined cue,
+   effects and navigation with the owner's existing accepted traversal scenario.
+5. Check UI text, minimap, selection panels and previews; sky must stay out of their
+   targets. Disable, enable, restore, relog/zone, resize and supported context changes;
+   no stale scene sky, context errors or stuck native-sky suppression may remain.
+6. Compare existing frame timings with sky disabled/default/enabled. Record the sky
+   tab's background microseconds and refused frames along with normal telemetry.
+   Rejection must be explainable (absent scene/context/camera); no guessed fallback.
+7. Diagnostics-only DLL contains no sky resource/runtime and offers no sky channel.
+
+Both Win32 profiles build. Sky/core/context real-WGL tests and private native binding
+and runtime tests pass. The full Python checkpoint before the newest shared merge
+passed1727 tests,9 skips,223 subtests;66 targeted sky/graphics tests passed. Exact asset
+ownership was checked in both DLLs: present once in full and absent from diagnostics.
+The real wheel/sdist carry exact content; the installed Graphics Lab sky tab opens.
+These are development validations, not a substitute for the combined package gate.
+
+## Current combined-package blocker
+
+The integration owner's required particle/native-transparency test reproduces a
+foreground-water ordering failure unrelated to early sky painting. The effects owner
+is investigating that stage. Do not bypass this required test, certify an earlier
+package against current source, or ask for connected acceptance before the combined
+package passes. Root asked this lane to defer the full package run until that gate is
+repaired. Source and targeted installed-wheel checks are published for integration;
+there is currently no sky acceptance ZIP or authorized deployment.
+
+Retained task artifacts: `artifacts/sky/nf` and `nd` native builds/logs, `dist` and
+`installed` for wheel/sdist validation, and private observation scripts/output. The
+initial `artifacts/sky/full` is a superseded automatic-toolchain build and is not a
+validated package. The normal project checkout remains on main; this feature worktree
+is retained for the pending combined package verification. No other worktree is changed.
