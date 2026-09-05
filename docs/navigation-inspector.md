@@ -53,19 +53,26 @@ Return to live rebinds controls to the current live session.
 ### Text-fixed prepared-client launcher
 
 `scripts/launch-wonderbane-navigation-inspector.ps1 -RuntimeDirectory <runtime>`
-launches `<runtime>/client/sb.exe` after the installed `<runtime>/python` verifies
-its prepared-client inventory. It applies the existing TextFix software-rendering
-settings, caps llvmpipe at three threads, clears GL/GLSL version overrides, and
-restores the calling process environment afterward. It refuses a second instance
-from the same runtime and reports the new PID and creation time.
+verifies the prepared-client inventory with the installed `<runtime>/python`. When
+the exact prepared client is not running, it opens
+`<runtime>/client/WonderBanePatcher.exe` with the TextFix software-rendering settings,
+caps llvmpipe at three threads, clears GL/GLSL version overrides, and waits for the
+patcher's Launch action to create that exact client. It verifies the runtime again,
+waits for the native inspector channel, and opens an inspector panel already attached
+to the new process. The default patcher wait is 15 minutes.
+
+A runtime-specific mutex prevents competing launchers. If the exact client is already
+running, the launcher verifies it and restores a missing panel without creating a
+second client. Panel logs are written under
+`LocalAppData/ShadowbaneLab/navigation-inspector`. The final receipt reports patcher,
+client, and panel process identities.
 
 For double-click launch, install this script and
 `scripts/Launch-WonderBane-Inspector-TextFix.cmd` together in `<runtime>/scripts`.
 The CMD resolves the runtime relative to its own directory; it requires no repository
 share. On the testing VM, the **WonderBane Inspector - TextFix** desktop shortcut
 points to this launcher in `S:/ShadowbaneLab-Guided/20260904-inspector-3534418/scripts`.
-The launcher starts the game; open the inspector panel and connect to that exact
-process before running movement. It does not start movement or combat automatically.
+The launcher does not start movement or combat automatically.
 
 The launcher is delivered through PR #27 into `codex/integrate-current-development`,
 then `main`. It does not change the installed navigation wheel. The September 4 live
