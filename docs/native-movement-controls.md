@@ -77,3 +77,9 @@ resolves the destination height. An approach pause stops movement while retainin
 that operation's grant; ending the operation releases it. Manual takeover revokes
 the grant, and neither release of the keys nor a previous route heartbeat resumes
 it. The operation worker renews its live lease separately from dashboard updates.
+
+Standalone live `client go` and `client run-pve` also require the native extension.
+Each command owns one exact-client operation and renews its lease every 250ms
+while the planner runs. Exiting performs native terminal stop and releases the
+lease. Missing bindings produce an error; there is no mouse-movement fallback.
+After manual takeover, explicitly issue a new route or PvE command to resume.
