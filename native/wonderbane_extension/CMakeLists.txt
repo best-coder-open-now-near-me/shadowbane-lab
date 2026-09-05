@@ -967,7 +967,7 @@ if(BUILD_TESTING)
   target_compile_options(wonderbane_extension_movement_lifetime_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
   target_link_libraries(wonderbane_extension_movement_lifetime_test PRIVATE user32)
   set_property(TARGET wonderbane_extension_movement_lifetime_test PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
-  foreach(mode normal held held-free rollback foreign foreign-free actuator unsupported unsupported-reference)
+  foreach(mode normal held held-free rollback foreign foreign-free actuator actuator-foreign actuator-foreign-free unsupported unsupported-reference)
     add_test(NAME wonderbane_extension_movement_lifetime_${mode}
       COMMAND wonderbane_extension_movement_lifetime_test ${mode})
   endforeach()
