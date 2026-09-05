@@ -462,7 +462,7 @@ class ManagedWorkerControllerTests(unittest.TestCase):
         self.assertEqual(WORKER_PROCESS_ID, request.process_id)
         self.assertEqual("detach requested", request.reason)
 
-    def test_replaced_instance_is_stopped_before_new_worker_launch(self) -> None:
+    def test_replaced_instance_must_exit_before_new_worker_launch(self) -> None:
         manifest = _manifest()
         replacement = _client(
             process_id=202,
@@ -488,10 +488,9 @@ class ManagedWorkerControllerTests(unittest.TestCase):
             process_id = controller.ensure_started(CLIENT_ID, replacement)
             request = ledger.inspect_stop_request(CLIENT_ID, WORKER_ID)
 
-        self.assertEqual(7777, process_id)
+        self.assertIsNone(process_id)
         self.assertIsNotNone(request)
-        self.assertEqual(1, len(launcher.bindings))
-        self.assertEqual(replacement.instance_id, launcher.bindings[0].instance_id)
+        self.assertEqual([], launcher.bindings)
 
     def test_stop_request_schema_is_strict_and_round_trips(self) -> None:
         request = WorkerStopRequest(

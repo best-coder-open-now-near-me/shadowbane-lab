@@ -647,6 +647,7 @@ class ClientLifecycleSupervisor:
         if not callable(getattr(self._process_inspector, "inspect", None)):
             raise ValueError("process_inspector must provide inspect(process_id)")
         self._bindings: dict[str, _ManagedBinding] = {}
+        self._pending_launches: dict[str, LaunchReceipt | None] = {}
         self._lock = threading.RLock()
 
     def attach(
@@ -715,7 +716,12 @@ class ClientLifecycleSupervisor:
         if not isinstance(command, ReviewedLaunchCommand):
             raise ValueError("command must be ReviewedLaunchCommand")
 
+        key = repr(selector)
         with self._lock:
+            if key in self._pending_launches:
+                raise SupervisorError(
+                    "a prior launch is pending or requires explicit attachment recovery"
+                )
             baseline = self._read_safe_snapshot(selector)
             unowned_baseline = tuple(
                 client
@@ -729,65 +735,73 @@ class ClientLifecycleSupervisor:
                     + ", ".join(client.instance_id for client in unowned_baseline)
                 )
             baseline_by_id = {client.instance_id: client for client in baseline.clients}
-            receipt = self._launcher.launch(command)
-            if not isinstance(receipt, LaunchReceipt):
-                raise SupervisorError("launcher must return LaunchReceipt")
+            self._pending_launches[key] = None
+        # Retain the reservation on uncertain launch/attachment failure. A receipt
+        # records a process we created even when no usable window ever appears.
+        receipt = self._launcher.launch(command)
+        if not isinstance(receipt, LaunchReceipt):
+            raise SupervisorError("launcher must return LaunchReceipt")
 
-            deadline = self._now() + timeout_seconds
-            while True:
-                current = self._read_safe_snapshot(selector)
-                current_by_id = {client.instance_id: client for client in current.clients}
-                missing = tuple(sorted(set(baseline_by_id) - set(current_by_id)))
-                if missing:
-                    raise StaleManagedClientError(
-                        "baseline client identities disappeared during launch: "
-                        + ", ".join(missing)
-                    )
-                for instance_id, baseline_client in baseline_by_id.items():
-                    if _immutable_identity(current_by_id[instance_id]) != _immutable_identity(
-                        baseline_client
-                    ):
-                        raise StaleManagedClientError(
-                            f"baseline client identity changed during launch: {instance_id}"
-                        )
-
-                new_clients = tuple(
-                    client for client in current.clients if client.instance_id not in baseline_by_id
+        with self._lock:
+            self._pending_launches[key] = receipt
+        deadline = self._now() + timeout_seconds
+        while True:
+            current = self._read_safe_snapshot(selector)
+            current_by_id = {client.instance_id: client for client in current.clients}
+            missing = tuple(sorted(set(baseline_by_id) - set(current_by_id)))
+            if missing:
+                raise StaleManagedClientError(
+                    "baseline client identities disappeared during launch: " + ", ".join(missing)
                 )
-                proven: list[tuple[ClientInstanceSnapshot, LaunchProvenance]] = []
-                unproven: list[ClientInstanceSnapshot] = []
-                for client in new_clients:
-                    provenance = self._launch_provenance(client, receipt)
-                    if provenance is None:
-                        unproven.append(client)
-                    else:
-                        proven.append((client, provenance))
-                if unproven:
-                    raise UnprovenLaunchProvenanceError(
-                        "new matching client(s) were not the reviewed launch process or a "
-                        "verified live descendant; explicit attach is required: "
-                        + ", ".join(client.instance_id for client in unproven)
+            for instance_id, baseline_client in baseline_by_id.items():
+                if _immutable_identity(current_by_id[instance_id]) != _immutable_identity(
+                    baseline_client
+                ):
+                    raise StaleManagedClientError(
+                        f"baseline client identity changed during launch: {instance_id}"
                     )
-                if len(proven) > 1:
-                    raise AmbiguousClientError(
-                        f"launch produced {len(proven)} provenance-matched clients"
-                    )
-                if len(proven) == 1:
-                    client, provenance = proven[0]
-                    return self._bind(
+
+            new_clients = tuple(
+                client for client in current.clients if client.instance_id not in baseline_by_id
+            )
+            proven: list[tuple[ClientInstanceSnapshot, LaunchProvenance]] = []
+            unproven: list[ClientInstanceSnapshot] = []
+            for client in new_clients:
+                provenance = self._launch_provenance(client, receipt)
+                if provenance is None:
+                    unproven.append(client)
+                else:
+                    proven.append((client, provenance))
+            if unproven:
+                raise UnprovenLaunchProvenanceError(
+                    "new matching client(s) were not the reviewed launch process or a "
+                    "verified live descendant; explicit attach is required: "
+                    + ", ".join(client.instance_id for client in unproven)
+                )
+            if len(proven) > 1:
+                raise AmbiguousClientError(
+                    f"launch produced {len(proven)} provenance-matched clients"
+                )
+            if len(proven) == 1:
+                client, provenance = proven[0]
+                with self._lock:
+                    self._reject_managed_duplicate(client)
+                    result = self._bind(
                         selector,
                         client,
                         launch_receipt=receipt,
                         launch_provenance=provenance,
                     )
+                    del self._pending_launches[key]
+                    return result
 
-                now = self._now()
-                remaining = deadline - now
-                if remaining <= 0:
-                    raise LaunchTimeoutError(
-                        "launch produced no new matching client before the timeout"
-                    )
-                self._sleeper.sleep(min(float(poll_seconds), remaining))
+            now = self._now()
+            remaining = deadline - now
+            if remaining <= 0:
+                raise LaunchTimeoutError(
+                    "launch produced no new matching client before the timeout"
+                )
+            self._sleeper.sleep(min(float(poll_seconds), remaining))
 
     def pause(self, instance_id: str) -> ManagedClientSnapshot:
         """Disable manager dispatch without suspending the operating-system process."""

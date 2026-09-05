@@ -903,17 +903,6 @@ class WorkerHeartbeatLedger:
             raise WorkerHeartbeatLedgerError(
                 f"could not inspect heartbeat directory for {canonical}: {exc}"
             ) from exc
-        if len(entries) > self._max_records_per_slot:
-            issue = WorkerLedgerIssue(
-                file_name="*",
-                code="record-limit-exceeded",
-                detail=(
-                    f"slot contains {len(entries)} heartbeat records; "
-                    f"limit is {self._max_records_per_slot}"
-                ),
-            )
-            return WorkerLedgerSnapshot(client_id=canonical, records=(), issues=(issue,))
-
         records: list[WorkerHeartbeat] = []
         issues: list[WorkerLedgerIssue] = []
         for entry in entries:
@@ -939,6 +928,23 @@ class WorkerHeartbeatLedger:
                         detail=str(exc)[:512],
                     )
                 )
+        active_count = sum(
+            record.runtime_state
+            not in {
+                WorkerRuntimeState.STOPPED,
+                WorkerRuntimeState.FAILED,
+            }
+            for record in records
+        )
+        if active_count > self._max_records_per_slot:
+            issues.append(
+                WorkerLedgerIssue(
+                    file_name="*",
+                    code="record-limit-exceeded",
+                    detail=(f"slot contains {active_count} active records; "
+                            f"limit is {self._max_records_per_slot}"),
+                )
+            )
         records.sort(key=lambda item: (item.observed_at, item.worker_id), reverse=True)
         issues.sort(key=lambda item: (item.file_name, item.code, item.detail))
         return WorkerLedgerSnapshot(
@@ -1030,6 +1036,7 @@ class WorkerSupervisor:
         *,
         instance_id: str | None,
         lifecycle_dispatch_enabled: bool,
+        renew_permit: bool = True,
     ) -> WorkerSlotHealthSnapshot:
         """Return health; effective dispatch is a conjunction, never an assumption."""
 
@@ -1052,6 +1059,7 @@ class WorkerSupervisor:
                         issues=ledger.issues,
                     ),
                     now=now,
+                    renew_permit=renew_permit,
                 )
             if ledger.issues:
                 return self._publish_health(
@@ -1065,6 +1073,7 @@ class WorkerSupervisor:
                         issues=ledger.issues,
                     ),
                     now=now,
+                    renew_permit=renew_permit,
                 )
             if not ledger.records:
                 return self._publish_health(
@@ -1076,6 +1085,7 @@ class WorkerSupervisor:
                         detail="no worker heartbeat has claimed this exact slot",
                     ),
                     now=now,
+                    renew_permit=renew_permit,
                 )
 
             assessments = tuple(
@@ -1094,6 +1104,7 @@ class WorkerSupervisor:
                         detail="multiple live worker process lifetimes claim this manifest slot",
                     ),
                     now=now,
+                    renew_permit=renew_permit,
                 )
             selected = active[0] if active else assessments[0]
             dispatch_allowed = (
@@ -1115,6 +1126,7 @@ class WorkerSupervisor:
                     detail=detail,
                 ),
                 now=now,
+                renew_permit=renew_permit,
             )
 
     def revoke(self, client_id: str, *, reason: str) -> WorkerDispatchPermit:
@@ -1142,6 +1154,7 @@ class WorkerSupervisor:
         health: WorkerSlotHealthSnapshot,
         *,
         now: float,
+        renew_permit: bool = True,
     ) -> WorkerSlotHealthSnapshot:
         heartbeat = health.heartbeat
         expires_at = now + self._permit_ttl
@@ -1164,7 +1177,8 @@ class WorkerSupervisor:
             expires_at=expires_at,
             reason=health.detail or f"worker health is {health.state.value}",
         )
-        self._ledger.publish_permit(permit)
+        if renew_permit:
+            self._ledger.publish_permit(permit)
         return health
 
     def _assess(
@@ -1214,14 +1228,6 @@ class WorkerSupervisor:
         if prior is None or heartbeat.sequence > prior.sequence:
             self._last_seen[(heartbeat.client_id, heartbeat.worker_id)] = heartbeat
 
-        if age >= self._timeout:
-            return _AssessedHeartbeat(
-                heartbeat,
-                WorkerHealthState.STALE,
-                age,
-                "worker heartbeat expired",
-                False,
-            )
         try:
             process = self._process_inspector.inspect(heartbeat.process_id)
         except (OSError, RuntimeError, ValueError):
@@ -1249,6 +1255,14 @@ class WorkerSupervisor:
                 age,
                 "exact worker process lifetime is no longer running",
                 False,
+            )
+        if age >= self._timeout:
+            return _AssessedHeartbeat(
+                heartbeat,
+                WorkerHealthState.STALE,
+                age,
+                "worker heartbeat expired",
+                True,
             )
         if heartbeat.instance_id != instance_id:
             return _AssessedHeartbeat(
@@ -1398,7 +1412,7 @@ class WorkerHeartbeatPublisher:
         self._emergency_stop = False
         self._closed = False
         self._last: WorkerHeartbeat | None = None
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
 
     @property
     def worker_id(self) -> str:
@@ -1463,10 +1477,9 @@ class WorkerHeartbeatPublisher:
         with self._lock:
             if self._closed:
                 return self._last
-        final = self.publish(WorkerRuntimeState.STOPPED, detail=detail)
-        with self._lock:
+            final = self.publish(WorkerRuntimeState.STOPPED, detail=detail)
             self._closed = True
-        return final
+            return final
 
 
 __all__ = [

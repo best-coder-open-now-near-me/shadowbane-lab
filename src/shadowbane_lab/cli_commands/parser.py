@@ -1198,6 +1198,7 @@ def _parser() -> argparse.ArgumentParser:
         help="strict schema-v1 manager manifest JSON",
     )
     manager_worker.add_argument("--worker-state-directory", type=Path, required=True)
+    manager_worker.add_argument("--worker-id")
     manager_worker.add_argument("--client-id", required=True)
     manager_worker.add_argument("--instance-id", required=True)
     manager_worker.add_argument("--game-process-id", type=int, required=True)

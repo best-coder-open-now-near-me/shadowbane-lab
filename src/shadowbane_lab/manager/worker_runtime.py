@@ -7,14 +7,17 @@ host into which travel, PvE, and later group tactics are composed.
 
 from __future__ import annotations
 
+import json
 import os
 import queue
+import re
 import subprocess
 import sys
 import threading
 import time
+import uuid
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from math import isfinite
 from pathlib import Path
 from typing import Protocol
@@ -29,6 +32,7 @@ from .operation import (
     WorkerOperationReceipt,
     WorkerOperationState,
 )
+from .record_store import exclusive_record_lock, publish_atomic_record
 from .registry import derive_client_instance_id
 from .supervisor import ProcessLifetimeInspector, ProcessLifetimeSnapshot
 from .worker import (
@@ -54,6 +58,7 @@ class ExactClientWorkerBinding:
     game_process_id: int
     game_process_started_at_100ns: int
     game_window_handle: int
+    worker_id: str | None = None
 
     @classmethod
     def from_client(
@@ -74,6 +79,11 @@ class ExactClientWorkerBinding:
     def validate_for(self, manifest: ManagerManifest) -> None:
         if not isinstance(manifest, ManagerManifest):
             raise ValueError("manifest must be ManagerManifest")
+        if (
+            self.worker_id is not None
+            and re.fullmatch(r"worker-[0-9a-f]{32}", self.worker_id) is None
+        ):
+            raise ExactClientWorkerError("invalid reserved worker identity")
         known = {config.client_id for config in manifest.clients}
         if self.client_id not in known:
             raise ExactClientWorkerError(f"unknown manifest client_id {self.client_id!r}")
@@ -146,7 +156,8 @@ class _OperationStopSignal:
         except (OSError, RuntimeError, ValueError):
             return True
         return any(
-            operation.kind in {
+            operation.kind
+            in {
                 WorkerOperationKind.CANCEL,
                 WorkerOperationKind.STOP,
             }
@@ -242,6 +253,7 @@ class ExactClientWorkerRuntime:
             client_id=self._binding.client_id,
             instance_id=self._binding.instance_id,
             process=self._process,
+            worker_id=self._binding.worker_id,
         )
         publisher.publish(
             WorkerRuntimeState.STARTING,
@@ -579,6 +591,8 @@ class SubprocessWorkerLauncher:
             str(self._heartbeat_interval_ms),
             "--live",
         )
+        if binding.worker_id is not None:
+            argv += ("--worker-id", binding.worker_id)
         creation_flags = 0
         if os.name == "nt":
             creation_flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
@@ -643,6 +657,18 @@ class ManagedWorkerController:
         client_id: str,
         client: ClientInstanceSnapshot,
     ) -> int | None:
+        directory = self._ledger.root / self._manifest.node_id / client_id
+        # Validate the slot before constructing any filesystem transaction path.
+        ExactClientWorkerBinding.from_client(client_id, client).validate_for(self._manifest)
+        with exclusive_record_lock(directory / ".launch.lock"):
+            return self._ensure_started_owned(client_id, client, directory / ".launch-reservation")
+
+    def _ensure_started_owned(
+        self,
+        client_id: str,
+        client: ClientInstanceSnapshot,
+        reservation_path: Path,
+    ) -> int | None:
         binding = ExactClientWorkerBinding.from_client(client_id, client)
         binding.validate_for(self._manifest)
         snapshot = self._ledger.inspect(client_id)
@@ -673,9 +699,48 @@ class ManagedWorkerController:
                     record,
                     reason="worker is bound to a replaced or stopping game instance",
                 )
-        if reusable:
+        if live:
             return None
-        return self._launcher.launch(binding)
+        if reservation_path.exists():
+            reservation = json.loads(reservation_path.read_text(encoding="utf-8"))
+            process_id = reservation.get("process_id")
+            started = reservation.get("process_started_at_100ns")
+            if process_id is None or started is None:
+                raise ExactClientWorkerError("previous worker launch requires explicit recovery")
+            process = self._process_inspector.inspect(process_id)
+            if process is not None and process.process_started_at_100ns == started:
+                return None
+            # Only verified exit/PID replacement retires the reservation.
+            reservation_path.unlink()
+        binding = replace(binding, worker_id=f"worker-{uuid.uuid4().hex}")
+        reservation = {
+            "schema_version": 1,
+            "worker_id": binding.worker_id,
+            "instance_id": client.instance_id,
+            "process_id": None,
+            "process_started_at_100ns": None,
+            "state": "launching",
+        }
+        publish_atomic_record(
+            reservation_path, json.dumps(reservation).encode(), temporary_label="worker-launch"
+        )
+        process_id = self._launcher.launch(binding)
+        reservation["process_id"] = process_id
+        reservation["state"] = "unverified"
+        publish_atomic_record(
+            reservation_path, json.dumps(reservation).encode(), temporary_label="worker-launch"
+        )
+        process = self._process_inspector.inspect(process_id)
+        if not isinstance(process, ProcessLifetimeSnapshot):
+            raise ExactClientWorkerError(
+                f"launched worker {process_id} requires attachment recovery"
+            )
+        reservation["process_started_at_100ns"] = process.process_started_at_100ns
+        reservation["state"] = "started"
+        publish_atomic_record(
+            reservation_path, json.dumps(reservation).encode(), temporary_label="worker-launch"
+        )
+        return process_id
 
     def request_stop(self, client_id: str, *, reason: str) -> int:
         if not isinstance(reason, str) or not reason.strip() or reason != reason.strip():
@@ -690,20 +755,39 @@ class ManagedWorkerController:
             if self._is_live(record):
                 self._request_record_stop(record, reason=reason)
                 stopped += 1
+        path = self._ledger.root / self._manifest.node_id / client_id / ".launch-reservation"
+        if path.exists():
+            reservation = json.loads(path.read_text(encoding="utf-8"))
+            pid, started = (
+                reservation.get("process_id"),
+                reservation.get("process_started_at_100ns"),
+            )
+            worker_id = reservation.get("worker_id")
+            if pid is not None and started is not None and worker_id is not None:
+                process = self._process_inspector.inspect(pid)
+                if (
+                    isinstance(process, ProcessLifetimeSnapshot)
+                    and process.process_started_at_100ns == started
+                    and all(record.worker_id != worker_id for record in snapshot.records)
+                ):
+                    self._ledger.publish_stop_request(
+                        WorkerStopRequest(
+                            node_id=self._manifest.node_id,
+                            client_id=client_id,
+                            worker_id=worker_id,
+                            process_id=pid,
+                            process_started_at_100ns=started,
+                            requested_at=self._clock(),
+                            reason=reason,
+                        )
+                    )
+                    stopped += 1
         return stopped
 
     def _is_live(self, heartbeat: WorkerHeartbeat) -> bool:
-        if self._clock() - heartbeat.observed_at >= self._timeout:
-            return False
         process = self._process_inspector.inspect(heartbeat.process_id)
-        return (
-            isinstance(process, ProcessLifetimeSnapshot)
-            and (process.process_started_at_100ns == heartbeat.process_started_at_100ns)
-            and heartbeat.runtime_state
-            not in {
-                WorkerRuntimeState.STOPPED,
-                WorkerRuntimeState.FAILED,
-            }
+        return isinstance(process, ProcessLifetimeSnapshot) and (
+            process.process_started_at_100ns == heartbeat.process_started_at_100ns
         )
 
     def _request_record_stop(self, heartbeat: WorkerHeartbeat, *, reason: str) -> None:

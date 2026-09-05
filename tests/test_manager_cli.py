@@ -102,7 +102,7 @@ class ManagerCliTests(unittest.TestCase):
 
             output = io.StringIO()
             with (
-                patch("shadowbane_lab.cli.Path.is_file", return_value=True),
+                patch("shadowbane_lab.cli_commands.manager.Path.is_file", return_value=True),
                 redirect_stdout(output),
             ):
                 configured = main(
@@ -143,7 +143,7 @@ class ManagerCliTests(unittest.TestCase):
             original_bytes = manifest_path.read_bytes()
 
             with (
-                patch("shadowbane_lab.cli.Path.is_file", return_value=True),
+                patch("shadowbane_lab.cli_commands.manager.Path.is_file", return_value=True),
                 redirect_stderr(io.StringIO()),
             ):
                 result = main(
@@ -291,7 +291,7 @@ class ManagerCliTests(unittest.TestCase):
         output = io.StringIO()
         with (
             patch(
-                "shadowbane_lab.cli.WindowsVisibleWindowInspector",
+                "shadowbane_lab.cli_commands.manager.WindowsVisibleWindowInspector",
                 return_value=inspector,
             ),
             redirect_stdout(output),
@@ -347,7 +347,7 @@ class ManagerCliTests(unittest.TestCase):
             output = io.StringIO()
             with (
                 patch(
-                    "shadowbane_lab.cli.WindowsVisibleWindowInspector",
+                    "shadowbane_lab.cli_commands.manager.WindowsVisibleWindowInspector",
                     return_value=inspector,
                 ),
                 redirect_stdout(output),
@@ -376,7 +376,7 @@ class ManagerCliTests(unittest.TestCase):
         output = io.StringIO()
         with (
             patch(
-                "shadowbane_lab.cli.WindowsVisibleWindowInspector",
+                "shadowbane_lab.cli_commands.manager.WindowsVisibleWindowInspector",
                 return_value=StaticVisibleWindowInspector(()),
             ),
             redirect_stdout(output),
@@ -414,11 +414,11 @@ class ManagerCliTests(unittest.TestCase):
             )
             with (
                 patch(
-                    "shadowbane_lab.cli.WindowsVisibleWindowInspector",
+                    "shadowbane_lab.cli_commands.manager.WindowsVisibleWindowInspector",
                     return_value=inspector,
                 ),
                 patch(
-                    "shadowbane_lab.cli._manager_path_status",
+                    "shadowbane_lab.cli_commands.manager._manager_path_status",
                     side_effect=_ready_manager_path_status,
                 ),
                 redirect_stdout(output),
@@ -469,11 +469,11 @@ class ManagerCliTests(unittest.TestCase):
             )
             with (
                 patch(
-                    "shadowbane_lab.cli.WindowsVisibleWindowInspector",
+                    "shadowbane_lab.cli_commands.manager.WindowsVisibleWindowInspector",
                     return_value=inspector,
                 ),
                 patch(
-                    "shadowbane_lab.cli._manager_path_status",
+                    "shadowbane_lab.cli_commands.manager._manager_path_status",
                     side_effect=_ready_manager_path_status,
                 ),
                 redirect_stdout(output),
@@ -609,27 +609,27 @@ class ManagerCliTests(unittest.TestCase):
 
             with (
                 patch(
-                    "shadowbane_lab.cli.WindowsVisibleWindowInspector",
+                    "shadowbane_lab.cli_commands.manager.WindowsVisibleWindowInspector",
                     return_value=StaticVisibleWindowInspector(()),
                 ),
                 patch(
-                    "shadowbane_lab.cli._manager_path_status",
+                    "shadowbane_lab.cli_commands.manager._manager_path_status",
                     side_effect=_ready_manager_path_status,
                 ),
                 patch(
-                    "shadowbane_lab.cli.Win32WindowApi",
+                    "shadowbane_lab.cli_commands.manager.Win32WindowApi",
                     return_value=FakeNativeWindowApi(),
                 ),
                 patch(
-                    "shadowbane_lab.cli.Win32ProcessLifetimeInspector",
+                    "shadowbane_lab.cli_commands.manager.Win32ProcessLifetimeInspector",
                     return_value=FakeProcessLifetimeInspector(),
                 ),
                 patch(
-                    "shadowbane_lab.cli.DashboardServer",
+                    "shadowbane_lab.cli_commands.manager.DashboardServer",
                     FakeDashboardServer,
                 ),
                 patch(
-                    "shadowbane_lab.cli.time.sleep",
+                    "shadowbane_lab.cli_commands.manager.time.sleep",
                     side_effect=interrupt_after_pid_claim,
                 ),
                 redirect_stdout(output),
@@ -673,7 +673,7 @@ class ManagerCliTests(unittest.TestCase):
         output = io.StringIO()
         with (
             patch(
-                "shadowbane_lab.cli.WindowsVisibleWindowInspector",
+                "shadowbane_lab.cli_commands.manager.WindowsVisibleWindowInspector",
                 side_effect=RuntimeError("Windows only"),
             ),
             redirect_stdout(output),

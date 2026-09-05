@@ -339,6 +339,7 @@ class ManagerSession:
         self._supervisor = supervisor
         self._slots = {config.client_id: _SessionSlot(config=config) for config in manifest.clients}
         self._lock = threading.RLock()
+        self._launching: set[str] = set()
 
     @property
     def node_id(self) -> str:
@@ -389,17 +390,26 @@ class ManagerSession:
             self._require_unbound(slot, action="start")
             selector = selector_from_config(self.node_id, slot.config)
             command = launch_command_from_config(slot.config)
-            try:
-                managed = self._supervisor.launch_and_attach(
-                    selector,
-                    command,
-                    timeout_seconds=timeout_seconds,
-                    poll_seconds=poll_seconds,
-                )
+            self._launching.add(client_id)
+        try:
+            managed = self._supervisor.launch_and_attach(
+                selector,
+                command,
+                timeout_seconds=timeout_seconds,
+                poll_seconds=poll_seconds,
+            )
+            with self._lock:
+                # The reservation excludes attach/start while polling is unlocked.
+                if client_id not in self._launching or slot.instance_id is not None:
+                    raise SessionSlotBoundError("launch reservation changed before attachment")
                 self._accept_binding(slot, managed, expected_instance_id=None)
-            except Exception as exc:
+                return slot.snapshot()
+        except Exception as exc:
+            with self._lock:
                 self._raise_action_failure(slot, "start", exc)
-            return slot.snapshot()
+        finally:
+            with self._lock:
+                self._launching.discard(client_id)
 
     def start_all(
         self,
@@ -409,16 +419,14 @@ class ManagerSession:
     ) -> ManagerSessionSnapshot:
         """Start unbound slots sequentially, stopping immediately on the first failure."""
 
-        with self._lock:
-            for config in self._manifest.clients:
-                slot = self._slots[config.client_id]
-                if slot.instance_id is None:
-                    self.start(
-                        config.client_id,
-                        timeout_seconds=timeout_seconds,
-                        poll_seconds=poll_seconds,
-                    )
-            return self._snapshot()
+        for config in self._manifest.clients:
+            with self._lock:
+                should_start = self._slots[config.client_id].instance_id is None
+            if should_start:
+                self.start(
+                    config.client_id, timeout_seconds=timeout_seconds, poll_seconds=poll_seconds
+                )
+        return self.snapshot()
 
     def attach(self, client_id: str, *, instance_id: str) -> ManagerSlotSnapshot:
         """Bind a slot only to the explicitly selected existing instance."""
@@ -697,6 +705,8 @@ class ManagerSession:
         slot.failure_detail = f"{action} failed: {detail}"
 
     def _require_unbound(self, slot: _SessionSlot, *, action: str) -> None:
+        if slot.config.client_id in self._launching:
+            raise SessionSlotBoundError("slot already has a launch in progress")
         if slot.instance_id is not None:
             self._record_local_failure(
                 slot,

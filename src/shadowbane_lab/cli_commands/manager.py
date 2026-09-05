@@ -617,7 +617,7 @@ def _run_manager_app(
                         print("Could not open a browser; use the printed dashboard URL.")
                 try:
                     while server.is_running:
-                        application.status()
+                        application.supervise()
                         time.sleep(0.75)
                 except KeyboardInterrupt:
                     print("Stopping manager dashboard...")
@@ -648,6 +648,7 @@ def _run_manager_worker(
     game_process_id: int,
     game_process_started_at_100ns: int,
     game_window_handle: int,
+    worker_id: str | None = None,
     heartbeat_ms: int,
     destination_state_path: Path,
     client_profile_path: Path,
@@ -689,6 +690,7 @@ def _run_manager_worker(
             game_process_id=game_process_id,
             game_process_started_at_100ns=game_process_started_at_100ns,
             game_window_handle=game_window_handle,
+            worker_id=worker_id,
         )
         binding.validate_for(manifest)
         inspector = WindowsVisibleWindowInspector()

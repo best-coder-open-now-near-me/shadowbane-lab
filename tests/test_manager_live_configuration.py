@@ -45,6 +45,9 @@ class _FakeApplication:
         self.execute_calls: list[tuple[str, str | None, str | None]] = []
         self.revocations: list[str] = []
 
+    def supervise(self) -> None:
+        pass
+
     def status(self) -> dict[str, object]:
         bound_ids = set(self.bindings.values())
         candidates = [
