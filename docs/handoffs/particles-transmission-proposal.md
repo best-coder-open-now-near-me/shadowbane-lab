@@ -1,6 +1,9 @@
 # Shared native transmission: representation review
 
-Status: proposal for the integration owner, not implemented or acceptance-ready.
+Status: rejected by the integration owner; do not implement the fragment ledger.
+The memory/cost and original-fragment capture contracts are unproven. Retained
+only as a record of the mathematical requirements and rejected design. Not
+implemented or acceptance-ready.
 Applies to particles/trails and whole-character cue in the existing native renderer.
 No new scene authority, hooks, standalone viewer, or capture framework is installed.
 Combined reviewed checkpoint: `5519a8e4026136d04231c9c66cfe71fc23fdac97`.
@@ -90,3 +93,10 @@ implementation. Keep the required gates failing until the production path passes
 
 No synthetic viewer or isolated model of the proposed ledger counts as passing
 these production tests. No additional owner gameplay demonstration is requested.
+
+
+Owner-directed next bounded work: validate synchronous source/depth capture for
+the two verified native immediate quad producers using their actual material
+state, without shader substitution, duplicate side effects, or multiplicity loss.
+Any UV/BeginEnd work must extend existing cel capture under the shared owner.
+This does not authorize a new ledger, renderer, or silently suppressed effects.
