@@ -1018,3 +1018,15 @@ pipeline-state defect is closed. This focused feature-owner verification does
 not replace the independent review required after a complete candidate is pinned.
 Next remains production opaque-visibility/ordered-transmission correction for
 cue and particles; final package verification and consolidated acceptance follow.
+
+
+Coordination authorization update (September 5): the owner explicitly approved
+sharing the private client-binary analysis among the existing cue, particles and
+integration tasks to resolve transparency. Both feature owners were notified.
+The earlier sharing hold is lifted within that scope; it is not a remaining
+user-input blocker. Private binaries/captures remain outside public source, and
+this does not authorize deployment, client replacement, main merge or broader
+disclosure. Existing owners resume the production visibility/transmission repair;
+shared scene, lifecycle and state integration remains here. Next: reconcile the
+verified boundary and implementation division, integrate fixes and rerun the two
+required transparency gates before preparing a complete acceptance package.
