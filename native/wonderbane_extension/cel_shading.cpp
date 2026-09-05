@@ -6,6 +6,7 @@
 #include "graphics_status.h"
 #if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
 #include "navigation_viewer.h"
+#include "effects_runtime.h"
 #endif
 #include "terrain_trace.h"
 #include "terrain_mask_refresh.h"
@@ -1688,12 +1689,14 @@ __declspec(noinline) void APIENTRY StrongMatrixMode(const unsigned int mode) noe
         }
         if (BeginReviewedSceneUiBoundary(&g_scene_frame)) {
             GraphicsCameraState camera{};
-            if (FinishMainSceneCamera(&camera)) {
+            const bool effects_camera_valid = FinishMainSceneCamera(&camera);
+            if (effects_camera_valid) {
                 ObserveGraphicsCameraState(camera.view_matrix, 16U,
                     camera.projection_matrix, 16U, camera.viewport, 4U, 1);
             }
             g_scene_frame.composite_succeeded = CompositeDepthEdgesBeforeUi();
 #if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+            DrawEffects(effects_camera_valid ? &camera : nullptr);
             DrawNavigationInspector();
 #endif
         }
@@ -1848,6 +1851,10 @@ BOOL WINAPI StrongSwapBuffers(const HDC device_context) noexcept {
     const std::uint64_t performance_started_qpc = BeginPerformancePresent();
     if (TerrainTracePresent()) { RequestGraphicsStatusPublish(); }
     ApplyPendingGraphicsControl();
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+    if (g_scene_frame.boundary_count != 1U || g_scene_frame.main_scene_invalidated)
+        DrawEffects(nullptr);
+#endif
     ReportSceneFrameClassification(g_scene_frame);
     ObserveGraphicsPresent();
     const auto original = LoadFunction<GdiSwapBuffers>(&g_original_swap_buffers);
@@ -3022,6 +3029,9 @@ void StopStrongCelShading() noexcept {
         restored = false;
     }
     if (restored) {
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+        StopEffects();
+#endif
         g_scene_mapping_verified = false;
         g_scene_image_base = 0U;
         g_main_scene_context = nullptr;

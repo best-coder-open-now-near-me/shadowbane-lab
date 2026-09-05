@@ -57,7 +57,8 @@ target_compile_definitions(
 )
 if(WONDERBANE_EXTENSION_PROFILE STREQUAL "full")
   target_sources(wonderbane_extension PRIVATE
-    navigation_protocol.cpp navigation_channel.cpp navigation_draw.cpp navigation_viewer.cpp)
+    navigation_protocol.cpp navigation_channel.cpp navigation_draw.cpp navigation_viewer.cpp
+    scene_draw.cpp effects.cpp effects_attachment.cpp effects_runtime.cpp effects_draw.cpp)
   target_link_libraries(wonderbane_extension PRIVATE opengl32)
 endif()
 if(WONDERBANE_EXTENSION_PROFILE STREQUAL "diagnostics-only")
@@ -112,7 +113,7 @@ add_custom_command(
 )
 
 if(BUILD_TESTING)
-  add_executable(wonderbane_extension_navigation_draw_test navigation_draw.cpp navigation_draw_test.cpp)
+  add_executable(wonderbane_extension_navigation_draw_test navigation_draw.cpp scene_draw.cpp effects.cpp effects_attachment.cpp effects_draw.cpp navigation_draw_test.cpp)
   target_compile_features(wonderbane_extension_navigation_draw_test PRIVATE cxx_std_20)
   target_compile_definitions(wonderbane_extension_navigation_draw_test PRIVATE
     UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
@@ -762,7 +763,28 @@ endif()
 if(BUILD_TESTING)
   foreach(renderer_test wonderbane_extension_cel_shading_test wonderbane_extension_performance_telemetry_test)
     target_sources(${renderer_test} PRIVATE
-      navigation_protocol.cpp navigation_channel.cpp navigation_draw.cpp navigation_viewer.cpp)
+      navigation_protocol.cpp navigation_channel.cpp navigation_draw.cpp navigation_viewer.cpp
+    scene_draw.cpp effects.cpp effects_attachment.cpp effects_runtime.cpp effects_draw.cpp)
     target_link_libraries(${renderer_test} PRIVATE opengl32)
   endforeach()
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_effects_test effects.cpp effects_attachment.cpp effects_test.cpp)
+  target_compile_features(wonderbane_extension_effects_test PRIVATE cxx_std_20)
+  target_compile_options(wonderbane_extension_effects_test PRIVATE /W4 /WX /permissive- /utf-8)
+  set_property(TARGET wonderbane_extension_effects_test PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded")
+  add_test(NAME wonderbane_extension_effects COMMAND wonderbane_extension_effects_test)
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_effects_runtime_test
+    effects.cpp effects_attachment.cpp effects_runtime_test.cpp)
+  target_compile_features(wonderbane_extension_effects_runtime_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_effects_runtime_test PRIVATE
+    UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_effects_runtime_test PRIVATE /W4 /WX /permissive- /utf-8)
+  target_link_libraries(wonderbane_extension_effects_runtime_test PRIVATE opengl32)
+  set_property(TARGET wonderbane_extension_effects_runtime_test PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded")
+  add_test(NAME wonderbane_extension_effects_runtime COMMAND wonderbane_extension_effects_runtime_test)
 endif()

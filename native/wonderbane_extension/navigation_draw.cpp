@@ -1,4 +1,5 @@
 #include "navigation_viewer.h"
+#include "scene_draw.h"
 
 #include <Windows.h>
 #include <gl/GL.h>
@@ -10,20 +11,6 @@
 
 namespace wonderbane::extension {
 namespace {
-using ActiveTexture = void(APIENTRY*)(GLenum);
-using UseProgram = void(APIENTRY*)(GLuint);
-using BlendEquation = void(APIENTRY*)(GLenum);
-using BlendEquationSeparate = void(APIENTRY*)(GLenum, GLenum);
-constexpr GLenum kTexture0 = 0x84C0U;
-constexpr GLenum kActiveTexture = 0x84E0U;
-constexpr GLenum kCurrentProgram = 0x8B8DU;
-
-PROC Extension(const char* name) noexcept {
-    const PROC result = wglGetProcAddress(name);
-    const auto value = reinterpret_cast<std::uintptr_t>(result);
-    return value <= 3U || value == UINTPTR_MAX ? nullptr : result;
-}
-
 struct Glyph { char letter; std::array<unsigned char, 7> rows; };
 constexpr Glyph kGlyphs[] = {
     {'A',{14,17,17,31,17,17,17}}, {'B',{30,17,17,30,17,17,30}},
@@ -82,11 +69,6 @@ void Color(const std::uint32_t layer, const bool overlap = false) noexcept {
     case 128U: glColor4f(0.2F, 0.85F, 1.0F, 1.0F); break;
     default: glColor4f(1.0F, 0.3F, 0.85F, 1.0F); break;
     }
-}
-bool StackRoom(GLenum depth_name, GLenum max_name) noexcept {
-    GLint depth = 0, maximum = 0;
-    glGetIntegerv(depth_name, &depth); glGetIntegerv(max_name, &maximum);
-    return depth >= 0 && depth < maximum;
 }
 void WorldLines(const navigation::FrameHeader& frame, const navigation::Line* lines,
                 const bool xray) noexcept {
@@ -167,63 +149,18 @@ bool RenderNavigationGeometry(const navigation::FrameHeader& frame,
         || frame.view_radius <= 0.0F || wglGetCurrentContext() == nullptr) return false;
     GLint viewport[4]{};
     glGetIntegerv(GL_VIEWPORT, viewport);
-    if (viewport[2] < 480 || viewport[3] < 360
-        || !StackRoom(GL_ATTRIB_STACK_DEPTH, GL_MAX_ATTRIB_STACK_DEPTH)
-        || !StackRoom(GL_MODELVIEW_STACK_DEPTH, GL_MAX_MODELVIEW_STACK_DEPTH)
-        || !StackRoom(GL_PROJECTION_STACK_DEPTH, GL_MAX_PROJECTION_STACK_DEPTH)) return false;
-    const auto* version = reinterpret_cast<const char*>(glGetString(GL_VERSION));
-    if (version == nullptr || version[0] < '1' || version[0] > '9') return false;
-    const bool modern = version[0] >= '2';
-    const bool texture3d = modern || (version[0] == '1' && version[1] == '.' && version[2] >= '2');
-    // Legacy ARB programs are a separate state machine from GLSL. Do not draw
-    // through an unreviewed active program path; leave it untouched.
-    const auto* extensions = reinterpret_cast<const char*>(glGetString(GL_EXTENSIONS));
-    if (extensions != nullptr && (
-        (std::strstr(extensions, "GL_ARB_vertex_program") != nullptr && glIsEnabled(0x8620U))
-        || (std::strstr(extensions, "GL_ARB_fragment_program") != nullptr && glIsEnabled(0x8804U)))) return false;
-    const auto active_texture = reinterpret_cast<ActiveTexture>(Extension("glActiveTexture"));
-    const auto use_program = reinterpret_cast<UseProgram>(Extension("glUseProgram"));
-    const auto blend_equation = reinterpret_cast<BlendEquation>(Extension("glBlendEquation"));
-    const auto blend_separate = reinterpret_cast<BlendEquationSeparate>(Extension("glBlendEquationSeparate"));
-    if (modern && (active_texture == nullptr || use_program == nullptr || blend_equation == nullptr)) return false;
-    if (Extension("glBindFramebuffer") != nullptr || Extension("glBindFramebufferEXT") != nullptr) {
-        GLint framebuffer = 0; glGetIntegerv(0x8CA6U, &framebuffer);
-        if (framebuffer != 0) return false;
-    }
-    GLint units = 1, active = kTexture0, program = 0, matrix_mode = 0;
-    GLint equation_rgb = 0x8006, equation_alpha = 0x8006;
-    if (active_texture) {
-        glGetIntegerv(0x84E2U, &units); glGetIntegerv(kActiveTexture, &active);
-        if (units < 1 || units > 32) return false;
-    }
-    if (use_program) glGetIntegerv(kCurrentProgram, &program);
-    if (blend_equation) glGetIntegerv(0x8009U, &equation_rgb);
-    if (blend_separate) glGetIntegerv(0x883DU, &equation_alpha);
-    glGetIntegerv(GL_MATRIX_MODE, &matrix_mode);
+    if (viewport[2] < 480 || viewport[3] < 360) return false;
     const bool camera_available = live_placement && camera != nullptr
         && std::memcmp(camera->viewport, viewport, sizeof(viewport)) == 0;
-    // Core OpenGL imports belong to this extension, not the game's hooked IAT.
-    // Restoring the driver state keeps the existing fixed-function mirror coherent.
-    glPushAttrib(GL_ALL_ATTRIB_BITS);
-    glMatrixMode(GL_PROJECTION); glPushMatrix();
-    glMatrixMode(GL_MODELVIEW); glPushMatrix();
-    if (use_program) use_program(0U);
-    if (blend_equation) blend_equation(0x8006U);
-    for (GLint unit = 0; unit < units; ++unit) {
-        if (active_texture) active_texture(kTexture0 + static_cast<GLenum>(unit));
-        glDisable(GL_TEXTURE_1D); glDisable(GL_TEXTURE_2D);
-        if (texture3d) glDisable(0x806FU);
-        if (active_texture) glDisable(0x8513U);
-    }
-    for (GLenum plane = GL_CLIP_PLANE0; plane <= GL_CLIP_PLANE5; ++plane) glDisable(plane);
-    glDisable(GL_ALPHA_TEST); glDisable(GL_COLOR_LOGIC_OP); glDisable(GL_CULL_FACE);
-    glDisable(GL_DITHER); glDisable(GL_FOG); glDisable(GL_LIGHTING);
-    glDisable(GL_SCISSOR_TEST); glDisable(GL_STENCIL_TEST); glDisable(GL_LINE_SMOOTH);
-    glDisable(GL_POLYGON_OFFSET_FILL); glDisable(GL_POLYGON_OFFSET_LINE);
-    glDisable(GL_LINE_STIPPLE); glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-    glDepthMask(GL_FALSE); glLineWidth(1.0F); glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    struct Draw { const navigation::FrameHeader& frame; const navigation::Line* lines;
+                  const GraphicsCameraState* camera; const GLint* viewport;
+                  bool camera_available, live_placement; };
+    Draw args{frame,lines,camera,viewport,camera_available,live_placement};
+    return RenderSceneGeometry(camera_available ? camera : nullptr, [](void* raw) noexcept {
+        const auto& args = *static_cast<Draw*>(raw);
+        const auto& frame=args.frame; const auto* lines=args.lines;
+        const auto* camera=args.camera; const auto* viewport=args.viewport;
+        const bool camera_available=args.camera_available, live_placement=args.live_placement;
     if (camera_available) {
         glMatrixMode(GL_PROJECTION); glLoadMatrixf(camera->projection_matrix);
         glMatrixMode(GL_MODELVIEW); glLoadMatrixf(camera->view_matrix);
@@ -235,15 +172,7 @@ bool RenderNavigationGeometry(const navigation::FrameHeader& frame,
         WorldLines(frame, lines, false);
     }
     ProjectedView(frame, lines, viewport, camera_available, live_placement);
-    glMatrixMode(GL_MODELVIEW); glPopMatrix();
-    glMatrixMode(GL_PROJECTION); glPopMatrix();
-    glPopAttrib();
-    if (use_program) use_program(static_cast<GLuint>(program));
-    if (blend_separate) blend_separate(static_cast<GLenum>(equation_rgb), static_cast<GLenum>(equation_alpha));
-    else if (blend_equation) blend_equation(static_cast<GLenum>(equation_rgb));
-    if (active_texture) active_texture(static_cast<GLenum>(active));
-    glMatrixMode(static_cast<GLenum>(matrix_mode));
-    return true;
+    }, &args);
 }
 
 }  // namespace wonderbane::extension

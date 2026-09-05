@@ -5,6 +5,7 @@
 #include "graphics_control.h"
 #if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
 #include "navigation_channel.h"
+#include "effects_runtime.h"
 #endif
 #include "graphics_status.h"
 #include "performance_telemetry.h"
@@ -412,6 +413,7 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
         if (result == ERROR_SUCCESS && is_client) {
             // Optional diagnostics must never disable the ordinary renderer.
             (void)wonderbane::extension::StartNavigationChannel(identity);
+            (void)wonderbane::extension::StartEffects(identity);
         }
 #endif
         if (result == ERROR_SUCCESS && is_client) {
@@ -459,6 +461,7 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
 #endif
             }
 #if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+            wonderbane::extension::StopEffects();
             wonderbane::extension::StopNavigationChannel();
 #endif
             if (graphics_control_started) {
