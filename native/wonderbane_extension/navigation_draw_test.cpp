@@ -83,6 +83,21 @@ unsigned ColoredPixels() {
     }
     return count;
 }
+// Sample fixture regions outside the navigation panel and cue/effect geometry.
+using BackgroundPixel = std::array<unsigned char,3>;
+BackgroundPixel BackgroundSample(const GraphicsCameraState& camera,float x,float y) {
+    BackgroundPixel pixel{};
+    glReadPixels(static_cast<GLint>(camera.viewport[2]*x),static_cast<GLint>(camera.viewport[3]*y),
+        1,1,GL_RGB,GL_UNSIGNED_BYTE,pixel.data());return pixel;
+}
+std::vector<float> SceneDepth(const GraphicsCameraState& camera) {
+    std::vector<float> depth(static_cast<std::size_t>(camera.viewport[2])*camera.viewport[3]);
+    glReadPixels(0,0,camera.viewport[2],camera.viewport[3],GL_DEPTH_COMPONENT,GL_FLOAT,depth.data());return depth;
+}
+void BackgroundRect(float x0,float x1,float y0,float y1) {
+    glBegin(GL_QUADS);glVertex3f(x0,y0,-.5F);glVertex3f(x1,y0,-.5F);
+    glVertex3f(x1,y1,-.5F);glVertex3f(x0,y1,-.5F);glEnd();
+}
 // Production render functions share the real WGL context and state guard.
 // This checks composition/resource ownership, not native transparency acceptance.
 void CombinedProbe(const GraphicsCameraState& camera, bool measure) {
@@ -115,11 +130,18 @@ void CombinedProbe(const GraphicsCameraState& camera, bool measure) {
                 glDepthMask(GL_TRUE); glClearDepth(1); glClearColor(0,0,0,1);
                 glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
                 const auto before_sky = c.verify ? Capture() : State{};
+                const auto clear_depth = c.verify ? SceneDepth(*c.camera) : std::vector<float>{};
                 if (c.flags & 8U) {
                     sky::Settings settings{}; settings.enabled = 1;
                     Check(sky::Render(*c.asset, settings, *c.camera), "combined early sky");
                 }
-                if(c.verify) Same(before_sky, Capture());
+                if(c.verify) {
+                    Same(before_sky, Capture());
+                    Check(clear_depth==SceneDepth(*c.camera),"combined early sky preserves complete depth buffer");
+                    const auto background=BackgroundSample(*c.camera,.95F,.95F);
+                    Check((background[0]||background[1]||background[2])==bool(c.flags&8U),
+                        "combined sky contributes visible background only when enabled");
+                }
                 if (c.flags & 4U) Check(cue::BeginMask(), "combined cue begin");
                 glEnable(GL_DEPTH_TEST); glDepthFunc(GL_LESS); glDepthMask(GL_TRUE);
                 glDisable(GL_BLEND); glColor4f(0,0,0,1);
@@ -138,6 +160,26 @@ void CombinedProbe(const GraphicsCameraState& camera, bool measure) {
                     if (c.flags & 4U) Check(cue::AfterOwnedDraw(), "combined owned wrapper complete");
                 }
                 glPopClientAttrib();
+                BackgroundPixel water{},leaf{};
+                if(c.verify) {
+                    // Native alpha holes and depthless blending run after sky.
+                    // The separate required effects/native-water ordering gate
+                    // remains authoritative for overlapping particles and water.
+                    const auto backdrop=BackgroundSample(*c.camera,.85F,.85F);
+                    leaf=BackgroundSample(*c.camera,.15F,.85F);
+                    glPushAttrib(GL_ALL_ATTRIB_BITS);
+                    glEnable(GL_ALPHA_TEST);glAlphaFunc(GL_GREATER,.5F);glColor4f(0,1,0,0);
+                    BackgroundRect(-.9F,-.5F,.5F,.9F);glDisable(GL_ALPHA_TEST);
+                    Check(leaf==BackgroundSample(*c.camera,.15F,.85F),"combined alpha hole reveals sky");
+                    glDepthMask(GL_FALSE);glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+                    glColor4f(1,0,0,.5F);BackgroundRect(.5F,.9F,.5F,.9F);
+                    water=BackgroundSample(*c.camera,.85F,.85F);
+                    Check(std::abs(int(water[0])-(255+int(backdrop[0]))/2)<=2
+                        &&std::abs(int(water[1])-int(backdrop[1])/2)<=2
+                        &&std::abs(int(water[2])-int(backdrop[2])/2)<=2,"combined native translucency blends over sky");
+                    glPopAttrib();
+                }
+                const auto native_depth=c.verify?SceneDepth(*c.camera):std::vector<float>{};
                 const auto before_overlays = c.verify ? Capture() : State{};
                 GLfloat depth_before=0,depth_after=0;
                 if(c.verify) glReadPixels(c.camera->viewport[2]/2,c.camera->viewport[3]/2,1,1,GL_DEPTH_COMPONENT,GL_FLOAT,&depth_before);
@@ -165,6 +207,16 @@ void CombinedProbe(const GraphicsCameraState& camera, bool measure) {
                 if(c.verify) Same(before_overlays, Capture());
                 if(c.verify) glReadPixels(c.camera->viewport[2]/2,c.camera->viewport[3]/2,1,1,GL_DEPTH_COMPONENT,GL_FLOAT,&depth_after);
                 Check(depth_before == depth_after, "combined overlays preserve native scene depth");
+                if(c.verify) {
+                    Check(native_depth==SceneDepth(*c.camera),"combined features preserve complete native depth buffer");
+                    Check(water==BackgroundSample(*c.camera,.85F,.85F)
+                        &&leaf==BackgroundSample(*c.camera,.15F,.85F),"combined features preserve native background composition");
+                    glPushAttrib(GL_ALL_ATTRIB_BITS);glDisable(GL_DEPTH_TEST);glDisable(GL_BLEND);
+                    glColor4f(1,0,1,1);BackgroundRect(.8F,1,.8F,1);
+                    const auto ui=BackgroundSample(*c.camera,.95F,.95F);
+                    Check(ui==BackgroundPixel{255,0,255},"combined final UI/minimap region remains unobstructed");
+                    glPopAttrib();
+                }
             }, &combination), "combined scene guard");
             if(!measure) Same(original, Capture());
             else {

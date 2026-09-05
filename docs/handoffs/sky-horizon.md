@@ -194,3 +194,32 @@ particle/native-transparency gate still fails. No deployment or connected visual
 acceptance occurred. Next active todo: owner repairs that gate and supplies a green
 exact-source package, then verify sky content/control identity and run the focused
 connected acceptance above. Retain this worktree until those checks are complete.
+
+## Shared combination assertions: source 2289bd7 plus focused sky tests
+
+Consumed the integration owner's shared acceptance plan and combined fixture at
+`2289bd7b9277bcccd3bbc50821eee2b6dcb1bc36`, preserving this lane's published
+verification record through a merge. Extended the existing `CombinedProbe` in
+`navigation_draw_test.cpp`; no separate matrix or executable was retained.
+
+The non-timed path now verifies complete depth-buffer equality immediately around
+sky and around later feature composition, visible sky only when enabled, native
+alpha holes, native depthless alpha blending over sky, preservation of those regions
+through all feature combinations, and final UI/minimap-region pixels. These native
+submissions are controlled fixtures, not connected foliage/water acceptance. The
+shared 16 combinations, three cleanup cycles, allocation limits, and separate
+first-frame/warmup/steady timing paths remain in place. No runtime code changed.
+
+Validation: Win32 Release combined-render and navigation-draw tests pass in both
+full and diagnostics build configurations (no skips). The diagnostics DLL remains
+unchanged; production render functions are linked only into its test executable.
+The required full-profile effects-native-transparency test was explicitly run and
+still fails the two behind-effect cases; front-effect cases pass. That gate was not
+removed, weakened, or bypassed. No package or deployment was attempted.
+
+Integration destination remains `codex/native-lifecycle-hardening` through PR30;
+the owner reconciles this focused fixture delta. Active todo remains the green
+combined package gate, followed by exact package/content verification and the one
+coordinated connected acceptance pass under `docs/combined-testing-acceptance.md`.
+The provisional duplicate matrix source and build products were removed; existing
+`artifacts/sky` development validation material remains local and is not a package.
