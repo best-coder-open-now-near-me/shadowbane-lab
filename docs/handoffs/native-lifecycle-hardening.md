@@ -857,3 +857,15 @@ renewal while movement is paused, using the owner's pending pause/renew/dispatch
 API. Renewal must not reacquire or revive expired ownership; manual takeover
 must latch interruption for PvE combat as well as movement. Native destination
 and final acceptance remain unfinished; no owner-facing candidate was produced.
+
+Worker supervision now accepts an explicit operation-maintenance callback. When
+configured, it polls at most every 250 ms independently of the configured heartbeat
+publication interval; heartbeat frequency remains unchanged. Exact game identity
+and the operation's latched permit/cancellation signal are checked before renewal.
+A controlled-clock production serve-loop regression holds the strategy thread,
+verifies three maintenance calls between heartbeats, then revokes the permit and
+verifies maintenance stops without an extra renewal. Existing workers without a
+maintenance callback retain their previous cadence. 26 worker/ownership tests pass,
+zero skips; Ruff passes. This is the worker-side cadence boundary for the native
+session's pending synchronized renew method; manager callback wiring follows that
+API, with no reacquisition or heartbeat-expiry revival permitted.

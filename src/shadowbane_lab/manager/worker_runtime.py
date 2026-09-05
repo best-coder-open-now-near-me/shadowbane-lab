@@ -198,6 +198,8 @@ class ExactClientWorkerRuntime:
         *,
         operation_ledger: WorkerOperationLedger | None = None,
         operation_executor: WorkerOperationExecutor | None = None,
+        operation_maintenance: Callable[[WorkerOperation, StopSignal], None] | None = None,
+        monotonic_clock: Callable[[], float] = time.monotonic,
         process_id: int | None = None,
         heartbeat_interval_seconds: float = 1.0,
         sleeper: Callable[[float], None] = time.sleep,
@@ -219,6 +221,10 @@ class ExactClientWorkerRuntime:
             or heartbeat_interval_seconds <= 0
         ):
             raise ValueError("heartbeat_interval_seconds must be finite and positive")
+        if operation_maintenance is not None and not callable(operation_maintenance):
+            raise ValueError("operation_maintenance must be callable")
+        if not callable(monotonic_clock):
+            raise ValueError("monotonic_clock must be callable")
         if not callable(sleeper):
             raise ValueError("sleeper must be callable")
         if (operation_ledger is None) != (operation_executor is None):
@@ -251,6 +257,8 @@ class ExactClientWorkerRuntime:
         self._sleep = sleeper
         self._operation_ledger = operation_ledger
         self._operation_executor = operation_executor
+        self._operation_maintenance = operation_maintenance
+        self._monotonic = monotonic_clock
 
     @property
     def process(self) -> ProcessLifetimeSnapshot:
@@ -274,6 +282,7 @@ class ExactClientWorkerRuntime:
         final_detail = "worker runtime stopped"
         active_operation: _ActiveWorkerOperation | None = None
         evidence_sequence = 0
+        next_heartbeat = self._monotonic()
         try:
             while stop_signal is None or not stop_signal.is_set():
                 request = self._ledger.inspect_stop_request(
@@ -301,20 +310,34 @@ class ExactClientWorkerRuntime:
                     active_operation = None
                 if active_operation is None:
                     active_operation = self._start_next_operation(publisher)
-                publisher.publish(
-                    WorkerRuntimeState.RUNNING,
-                    dispatch_ready=True,
-                    detail=(
-                        "exact game identity and guarded dispatch boundary are ready"
-                        if active_operation is None
-                        else (
-                            f"{active_operation.operation.kind.value} operation "
-                            f"{active_operation.operation.operation_id} is active"
+                if active_operation is not None and self._operation_maintenance is not None:
+                    # Renewal is independent of heartbeat publication and runs on
+                    # this worker's supervision thread, never the strategy thread.
+                    # A revoked permit is latched before any maintenance callback.
+                    if not active_operation.stop_signal.is_set():
+                        self._operation_maintenance(
+                            active_operation.operation, active_operation.stop_signal
                         )
-                    ),
-                    evidence_sequence=evidence_sequence,
+                now = self._monotonic()
+                if self._operation_maintenance is None or now >= next_heartbeat:
+                    publisher.publish(
+                        WorkerRuntimeState.RUNNING,
+                        dispatch_ready=True,
+                        detail=(
+                            "exact game identity and guarded dispatch boundary are ready"
+                            if active_operation is None
+                            else (
+                                f"{active_operation.operation.kind.value} operation "
+                                f"{active_operation.operation.operation_id} is active"
+                            )
+                        ),
+                        evidence_sequence=evidence_sequence,
+                    )
+                    next_heartbeat = now + self._interval
+                delay = self._interval if self._operation_maintenance is None else min(
+                    0.25, max(0.0, next_heartbeat - self._monotonic())
                 )
-                self._sleep(self._interval)
+                self._sleep(delay)
             final_detail = "local worker stop signal was set"
             if active_operation is not None:
                 self._cancel_active_operation(
