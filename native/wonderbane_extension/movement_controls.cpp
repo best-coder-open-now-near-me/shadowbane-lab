@@ -97,7 +97,9 @@ bool Controls::StopActive(StopReason reason) noexcept {
 bool Controls::Retire(StopReason reason, Owner next, Token token,
                       std::optional<std::uint64_t> next_scene) noexcept {
     const auto old = grant_;
-    const bool stopped = StopActive(reason);
+    bool stopped = StopActive(reason);
+    const auto interrupted = next != Owner::none ? actuator_.Interrupted() : std::nullopt;
+    if (interrupted) { reason = *interrupted; next = Owner::none; token = {}; stopped = false; }
     if (grant_.generation == std::numeric_limits<std::uint64_t>::max()) {
         available_ = false;
         grant_.owner = Owner::none;
@@ -108,6 +110,7 @@ bool Controls::Retire(StopReason reason, Owner next, Token token,
     grant_.token = token;
     if (next_scene) { grant_.scene = *next_scene; }
     { const ActuationGuard guard(actuating_); actuator_.Revoked(old, grant_, reason); }
+    if (interrupted) { Inhibit(reason); }
     return stopped;
 }
 void Controls::Inhibit(StopReason reason) noexcept {
@@ -115,6 +118,11 @@ void Controls::Inhibit(StopReason reason) noexcept {
     keyboard_armed_ = controller_armed_ = drag_armed_ = false;
     drag_pending_ = drag_active_ = previous_drag_down_ = false;
     foreground_ = false;
+}
+bool Controls::ContinueInput() noexcept {
+    const auto reason = actuator_.Interrupted();
+    if (!reason) { return true; }
+    Inhibit(*reason); return false;
 }
 Result Controls::Configure(const Settings& settings) noexcept {
     if (actuating_) { return Result::inhibited; }
@@ -127,6 +135,10 @@ Result Controls::Configure(const Settings& settings) noexcept {
     has_tick_ = false;
     return pending_stop_ ? Result::stop_failed : Result::accepted;
 }
+bool Controls::CapturesKey(std::uint16_t key) const noexcept {
+    return settings_.enabled && settings_.keyboard && !faulted_ && !pending_stop_ && grant_.scene
+        && std::find(settings_.keys.begin(), settings_.keys.end(), key) != settings_.keys.end();
+}
 bool Controls::ConsumesKey(std::uint16_t key) const noexcept {
     if (!settings_.enabled || !settings_.keyboard || !available_ || !foreground_) { return false; }
     return std::find(settings_.keys.begin(), settings_.keys.end(), key) != settings_.keys.end();
@@ -136,9 +148,12 @@ Result Controls::AcquireAutomation(std::uint64_t expected, Token token, Grant& o
     if (expected != grant_.generation) { return Result::stale; }
     if (!ValidTokenText(token.worker) || !ValidTokenText(token.operation)) { return Result::invalid; }
     if (!available_) { return Result::unavailable; }
+    if (!ContinueInput()) { return Result::inhibited; }
     if (!foreground_ || (grant_.owner == Owner::manual && moving_)) { return Result::inhibited; }
     if (!RetryStop()) { return Result::stop_failed; }
-    if (!Retire(StopReason::takeover, Owner::automation, token)) { return Result::stop_failed; }
+    if (!Retire(StopReason::takeover, Owner::automation, token)) {
+        return actuator_.Interrupted() ? Result::inhibited : Result::stop_failed;
+    }
     if (shutdown_pending_) { Shutdown(); return Result::inhibited; }
     output = grant_;
     return Result::accepted;
@@ -147,6 +162,7 @@ Result Controls::AutomationDestination(const Grant& grant, GroundPoint point) no
     if (actuating_ || shutdown_pending_) { return Result::inhibited; }
     if (grant != grant_ || grant.owner != Owner::automation) { return Result::stale; }
     if (!Finite(point)) { return Result::invalid; }
+    if (!ContinueInput()) { return Result::inhibited; }
     if (!available_ || !foreground_) { return Result::inhibited; }
     if (!RetryStop()) { return Result::stop_failed; }
     const bool start = !moving_;
@@ -154,6 +170,7 @@ Result Controls::AutomationDestination(const Grant& grant, GroundPoint point) no
     moving_ = true;
     bool accepted = false;
     { const ActuationGuard guard(actuating_); accepted = actuator_.Destination(grant_, point, start); }
+    if (!ContinueInput()) { return Result::inhibited; }
     if (shutdown_pending_) { Shutdown(); return Result::inhibited; }
     if (!accepted) {
         Inhibit(StopReason::binding_failure);
@@ -183,18 +200,23 @@ void Controls::Shutdown() noexcept {
     available_ = false;
 }
 
-void Controls::Tick(const Input& input) noexcept {
+void Controls::ObserveScene(std::uint64_t scene) noexcept {
     if (actuating_) { return; }
-    if (shutdown_pending_) { Shutdown(); return; }
-    if (input.scene != grant_.scene) {
+    if (scene != grant_.scene) {
         const auto old = grant_;
         { const ActuationGuard guard(actuating_); actuator_.SceneRetired(old.scene); }
         // Never invoke an old actor's stop on a replacement actor or reused pointer.
         moving_ = pending_stop_ = false;
-        (void)Retire(StopReason::scene_changed, Owner::none, {}, input.scene);
+        (void)Retire(StopReason::scene_changed, Owner::none, {}, scene);
         Inhibit(StopReason::scene_changed);
         has_tick_ = false;
     }
+}
+
+void Controls::Tick(const Input& input) noexcept {
+    if (actuating_) { return; }
+    if (shutdown_pending_) { Shutdown(); return; }
+    ObserveScene(input.scene);
     if (shutdown_pending_) { Shutdown(); return; }
     const bool discontinuity = has_tick_ &&
         (input.tick_ms < last_tick_ || input.tick_ms - last_tick_ > 250);
@@ -211,6 +233,7 @@ void Controls::Tick(const Input& input) noexcept {
         return;
     }
     foreground_ = true;
+    if (!ContinueInput()) { return; }
     if (!RetryStop()) { return; }
 
     const bool all_keys_up = std::all_of(settings_.keys.begin(), settings_.keys.end(),
@@ -239,6 +262,7 @@ void Controls::Tick(const Input& input) noexcept {
         { const ActuationGuard guard(actuating_);
           accepted = actuator_.Camera({camera.x * scale * (settings_.invert_camera_x ? -1 : 1),
                                        camera.y * scale * (settings_.invert_camera_y ? -1 : 1)}); }
+        if (!ContinueInput()) { return; }
         if (shutdown_pending_) { Shutdown(); return; }
         if (!accepted) {
             // Camera is not a movement owner. Latch its capability failure without
@@ -290,6 +314,7 @@ void Controls::Tick(const Input& input) noexcept {
         { const ActuationGuard guard(actuating_);
           accepted = directional ? actuator_.Direction(grant_, WorldDirection(direction, input), start)
                                  : actuator_.Destination(grant_, input.ground, start); }
+        if (!ContinueInput()) { return; }
         if (shutdown_pending_) { Shutdown(); return; }
         if (!accepted) {
             Inhibit(StopReason::binding_failure);

@@ -95,6 +95,8 @@ struct Fixture {
     int ray_creates = 0, ray_casts = 0, ray_points = 0, parent_releases = 0;
     bool ray_hit = true, replace_on_pick = false;
     bool basis_mode = false, basis_degenerate = false, basis_parent_change = false, replace_on_ray_release = false;
+    bool runtime_composition = false;
+    void (*on_native)(char) = nullptr;
     bool real_steering = false, pending_solve = false, deferred_move = false, replace_on_move = false;
     int callback_mode = 0;
     Result nested = Result::accepted;
@@ -196,7 +198,7 @@ void NativeStopTestAccess::Bind(NativeStop& stop, void* base, HWND window) {
 GroundPoint* __cdecl NativeStopTestAccess::Unproject(GroundPoint* output, int x, int y, float depth) {
     if (current->basis_mode) {
         RECT bounds{}; GetClientRect(current->window, &bounds);
-        Check((x == bounds.right / 2 || x == bounds.right / 2 + bounds.right / 4)
+        Check(current->runtime_composition || (x == bounds.right / 2 || x == bounds.right / 2 + bounds.right / 4)
             && y == bounds.bottom / 2 && depth == 0, "native basis samples center and right view rays");
         *output = current->basis_degenerate ? GroundPoint{} : GroundPoint{3, 4, x > bounds.right / 2 ? 2.0F : 0.0F};
     } else {
@@ -207,7 +209,7 @@ GroundPoint* __cdecl NativeStopTestAccess::Unproject(GroundPoint* output, int x,
 }
 NativeStopTestAccess::Ray* __fastcall NativeStopTestAccess::RayCreate(Ray* ray, void*, void* actor,
     const GroundPoint* origin, const GroundPoint* direction, bool flag) {
-    if (current->basis_mode) {
+    if (current->basis_mode && (!current->runtime_composition || (direction->x == 0 && direction->y == 0 && direction->z == 0))) {
         Check(!flag && direction->x == 0 && direction->y == 0 && direction->z == 0, "basis conversion uses owned zero-distance ray");
     } else {
         Check(!flag && std::abs(direction->x - 0.6F) < 0.00001F && std::abs(direction->y - 0.8F) < 0.00001F
@@ -227,7 +229,7 @@ bool __fastcall NativeStopTestAccess::RayCast(void* world, void*, Ray* ray) {
 }
 GroundPoint* __fastcall NativeStopTestAccess::RayPoint(Ray* ray, void*, GroundPoint* output) {
     ++current->ray_points;
-    if (current->basis_mode) {
+    if (current->basis_mode && (!current->runtime_composition || ray->distance == 0)) {
         Check(ray->distance == 0, "basis uses native parent transform without terrain collision");
         *output = {ray->origin.z + 100, ray->origin.y - 10, 200 - ray->origin.x};
         if (current->basis_parent_change && current->ray_points == 2) {
@@ -282,6 +284,7 @@ void** __fastcall NativeStopTestAccess::Move(void* actor, void*, void** output, 
         Put(f.base, 0x16a2d98, reinterpret_cast<std::uintptr_t>(f.replacement.data()));
         f.input.scene = 2;
     }
+    if (f.on_native) { f.on_native('d'); }
     return output;
 }
 void __fastcall NativeStopTestAccess::Camera(void* camera, void*, float pitch, float yaw, float distance, bool relative) {
@@ -290,6 +293,7 @@ void __fastcall NativeStopTestAccess::Camera(void* camera, void*, float pitch, f
     if (current->camera_fault) { RaiseException(EXCEPTION_ACCESS_VIOLATION, 0, 0, nullptr); }
     Put(camera, 0x70, pitch); Put(camera, 0x68, yaw); Put(camera, 0x7c, distance);
     Put(camera, 0x134, std::uint8_t{1});
+    if (current->on_native) { current->on_native('c'); }
 }
 void** __fastcall NativeStopTestAccess::Retain(void** output, void*, void* actor) {
     ++current->retains; *output = actor;
@@ -378,6 +382,7 @@ void** __fastcall NativeStopTestAccess::State(void*, void*, void** output, bool 
         Put(f.base, 0x16a2d98, reinterpret_cast<std::uintptr_t>(f.replacement.data()));
         f.input.scene = 2; f.controls.Tick(f.input);
     }
+    if (f.on_native) { f.on_native('s'); }
     return output;
 }
 void __fastcall NativeStopTestAccess::Send(void* receiver, void*, void* packet) {

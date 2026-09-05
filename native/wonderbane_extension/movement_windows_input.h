@@ -61,7 +61,7 @@ private:
     std::uint32_t* key_slot_ = nullptr;
     KeyboardCall original_ = nullptr;
     HMODULE xinput_ = nullptr;
-    bool bound_ = false, terminal_ = false, verified_ = false, callback_active_ = false;
+    bool bound_ = false, terminal_ = false, verified_ = false, callback_active_ = false, attempted_ = false;
     bool device_reset_ = true, controller_connected_ = false, controller_moving_ = false;
     std::array<bool, 256> suppressed_{}, original_down_{};
     bool mouse_pending_ = false, mouse_dragging_ = false, mouse_up_owned_ = false;

@@ -30,6 +30,7 @@ add_library(
   movement_boundary_trace.cpp
   movement_controls.cpp
   movement_windows_input.cpp
+  movement_runtime.cpp
   movement_native_image.cpp
   movement_lifetime.cpp
   movement_native_ui.cpp
@@ -883,8 +884,23 @@ if(BUILD_TESTING)
   target_compile_options(wonderbane_extension_movement_windows_input_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
   target_link_libraries(wonderbane_extension_movement_windows_input_test PRIVATE user32 comctl32)
   set_property(TARGET wonderbane_extension_movement_windows_input_test PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
-  foreach(mode keyboard mouse controller lifecycle rollback foreign-subclass)
+  foreach(mode keyboard mouse controller lifecycle rollback foreign-subclass unsupported)
     add_test(NAME wonderbane_extension_movement_windows_input_${mode}
       COMMAND wonderbane_extension_movement_windows_input_test ${mode})
+  endforeach()
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_movement_runtime_test movement_runtime_test.cpp
+    movement_controls.cpp movement_native_stop.cpp movement_native_ui.cpp movement_windows_input.cpp
+    movement_native_image.cpp import_hook.cpp)
+  target_compile_features(wonderbane_extension_movement_runtime_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_movement_runtime_test PRIVATE
+    UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_movement_runtime_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  target_link_libraries(wonderbane_extension_movement_runtime_test PRIVATE user32 comctl32 bcrypt)
+  set_property(TARGET wonderbane_extension_movement_runtime_test PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
+  foreach(mode keyboard controller drag focus stale destroyed nested-stop nested-camera nested-move startup-unavailable settings-stale scene-stale chat)
+    add_test(NAME wonderbane_extension_movement_runtime_${mode} COMMAND wonderbane_extension_movement_runtime_test ${mode})
   endforeach()
 endif()
