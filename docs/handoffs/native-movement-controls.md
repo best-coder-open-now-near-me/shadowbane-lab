@@ -280,3 +280,18 @@ replacement requests, balanced old references and no new movement/send. Retain a
 position boundary fault injection is defensive coverage, not a claim that their
 sealed native implementations call gameplay callbacks. Both DLL profiles build;
 runtime adapters and activation remain the next active work.
+
+
+The shared native backend now includes the verified native camera orientation
+setter. Controller radians pass through the production policy and this executor
+under the same client-thread/update-phase checks; the current route grant is
+preserved. Native pitch limits and camera distance are preserved, and controller
+input does not accumulate mouse-event inertia. Camera failures remain isolated
+from the movement stop path. Both DLL profiles and focused policy/native backend
+tests pass, including several input update rates. Native-call doubles certify the
+composition, not the real native camera update or connected result.
+
+Active todo remains complete native-update, steering, terrain-picking and input
+runtime wiring. Settings/automation transport, combined package verification and
+connected acceptance remain afterward. This camera checkpoint adds no runtime
+activation, installed package, independent deployment or feature-complete claim.

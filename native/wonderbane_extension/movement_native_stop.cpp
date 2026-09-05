@@ -1,5 +1,6 @@
 #include "movement_native_stop.h"
 #include "movement_native_image.h"
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 namespace wonderbane::extension::movement {
@@ -36,6 +37,7 @@ bool NativeStop::Bind(HWND window) noexcept {
     calls_.clear_waypoint = reinterpret_cast<decltype(calls_.clear_waypoint)>(base_ + 0x79fc50);
     calls_.state = reinterpret_cast<decltype(calls_.state)>(base_ + 0x5f8c0);
     calls_.send = reinterpret_cast<decltype(calls_.send)>(base_ + 0x7f4da0);
+    calls_.camera = reinterpret_cast<decltype(calls_.camera)>(base_ + 0x51c210);
     bound_ = true; return true;
 }
 bool NativeStop::BeginUpdate(void* native_window) noexcept {
@@ -67,6 +69,44 @@ bool NativeStop::Current(const Target& target) const noexcept {
 bool NativeStop::RequestCurrent(const Target& target) const noexcept {
     std::uintptr_t request = 0;
     return Current(target) && Read(base_ + 0x16a1c00, request) && request == target.request;
+}
+bool NativeStop::RotateCamera(Vector2 radians) noexcept {
+    if (!Available() || !controls_.CameraReady() || !in_update_ || executing_
+        || GetCurrentThreadId() != thread_ || !std::isfinite(radians.x) || !std::isfinite(radians.y)) { return false; }
+    Target target{}; target.grant = controls_.Current();
+    if (!Read(base_ + 0x16a2d98, target.actor) || !Read(base_ + 0x1389028, target.world)
+        || !Read(base_ + 0x16a7bfc, target.window) || !target.actor || !target.world || !target.window
+        || !Read(target.actor + 0x18, target.identity) || !Current(target)) { return false; }
+    executing_ = true;
+    const bool result = RotateCameraGuarded(target, radians);
+    executing_ = false;
+    // Controls latches a camera failure independently from movement. Do not poison
+    // a route's stop path or replace its captured target on camera-only input.
+    return result;
+}
+bool NativeStop::RotateCameraGuarded(const Target& target, Vector2 radians) noexcept {
+    __try {
+        float yaw = 0, pitch = 0, distance = 0, half_pi = 0, margin = 0, lower = 0;
+        const auto camera = base_ + 0x16a2c10;
+        if (!Current(target) || !Read(camera + 0x68, yaw) || !Read(camera + 0x70, pitch)
+            || !Read(camera + 0x7c, distance) || !Read(base_ + 0x1163250, half_pi)
+            || !Read(base_ + 0x1163300, margin) || !Read(base_ + 0x1163254, lower)
+            || !std::isfinite(yaw) || !std::isfinite(pitch) || !std::isfinite(distance)
+            || half_pi <= 0 || margin < 0 || margin >= 1 || lower <= 0
+            || !std::isfinite(half_pi) || !std::isfinite(margin) || !std::isfinite(lower)) { return false; }
+        const float next_yaw = yaw + radians.x;
+        const float next_pitch = pitch + radians.y;
+        if (!std::isfinite(next_yaw) || !std::isfinite(next_pitch)) { return false; }
+        // The native delta gesture accumulates mouse inertia on every invocation.
+        // The native orientation setter avoids making controller sensitivity
+        // depend on that event count. Match the native pitch limits, preserve
+        // camera distance and inertia, and leave matrix/collision updates native.
+        // false selects the sealed branch that does not dereference a camera
+        // target or alter its parent-relative yaw offset.
+        calls_.camera(reinterpret_cast<void*>(camera),
+            std::clamp(next_pitch, -lower, half_pi - half_pi * margin), next_yaw, distance, false);
+        return Current(target);
+    } __except(EXCEPTION_EXECUTE_HANDLER) { return false; }
 }
 void NativeStop::SceneRetired(std::uint64_t scene) noexcept {
     if (captured_ && target_.grant.scene == scene) { captured_ = false; }
