@@ -885,3 +885,58 @@ missing required APIs on an advertised capable context fail. The ordinary cue
 GPU test no longer silently includes an optional subtest. The integration owner
 owns adding its named CTest and required package-gate membership to the combined
 source. Runtime support for older contexts remains unchanged.
+
+
+## Independent combined verification: 1b0b6c5
+
+Verified exact owner-published source
+1b0b6c5f29c7015c85006a570686253f30676f92 in the lane-owned detached verification
+worktree. It includes production fix 6ca19048e3eb4c40a52d1c2527cef5d0ae2840b5
+and explicit test mode f1a56c27db0e3bc90b221f7c2a3f4f5ce256884c. The guard C++
+and GPU test match the feature branch; the reconciled header correctly retains
+both verified background and scene/UI boundary authority.
+
+Independently built the Release full-profile DLL and cue GPU target. Named
+scene_pipeline_guard, base selected_cue_gpu, and source_feasibility all execute
+and pass. Required selected_cue_native_transparency executes and fails both
+foreground cases, unchanged; background cases pass. Zero skips across the four
+checks. Evidence: E:/Projects/shadowbane/artifacts/cue-combined-native/1b0b6c5/lane-cue.xml.
+Reviewed central CTest registration and package builder required-set validation:
+a missing, skipped, failed, or duplicate pipeline gate cannot certify a package.
+The integration owner separately reports both profiles' affected rendering gates
+pass with zero skips; this lane's independent build is full-profile only.
+
+The shared pipeline correction is integrated and verified. Next active todo is
+correct opaque visibility and ordered native foreground transmission. Final
+package validation and consolidated live acceptance remain outstanding; no
+completion or installable-candidate claim is made. The feature worktree remains
+on codex/selected-character-cue; normal main and navigation checkouts are untouched.
+
+
+## Cue capture uses the shared native-query exclusion
+
+The user directly authorized private analysis sharing among the existing cue,
+particles and integration tasks. Coordination has resumed; private binaries,
+captures and detailed audit files remain ignored local artifacts. No deployment
+or public disclosure was authorized by that permission.
+
+Imported only scene_draw.cpp/h from the owner's exact
+20bd47557dae1aea7072505b45ed68fbd5d9e39b as a prerequisite checkpoint. Cue raw
+capture now calls AreSceneSampleQueriesInactive before submitting geometry or
+entering the legacy fallback. The duplicate SAMPLES_PASSED-only API/check was
+removed; shared guarded composition handles all supported sample-query targets.
+This also prevents the former depth-write-on fallback from reporting capture
+success during an active query. No new renderer, lifecycle owner or hook added.
+
+The expanded production GPU regression covers SAMPLES_PASSED,
+ANY_SAMPLES_PASSED and ANY_SAMPLES_PASSED_CONSERVATIVE, each with native depth
+writes off/on. It checks zero callback invocations, zero added query samples,
+unchanged graphics state and rejected indicator composition. All six cases
+execute on the host. They reproduced failures before the fix and now pass.
+Release DLL/GPU builds, base GPU and source/visibility feasibility pass. Required
+foreground transparency remains unchanged with two failures; no skip or expected
+failure replaces it. Local JUnit: artifacts/selected-character-cue/query-capture.xml.
+
+The integration owner already owns named shared query/pipeline gates and their
+package membership. Next: reconcile this capture fix with the combined source
+and verify it, then continue opaque visibility and ordered transparency work.

@@ -418,12 +418,44 @@ int main(int argc,char** argv){
     auto query_result=reinterpret_cast<QueryResult>(wglGetProcAddress("glGetQueryObjectuiv"));
     Check(gen_query && delete_query && begin_query && end_query && query_result,"native query test APIs");
     if(gen_query && delete_query && begin_query && end_query && query_result){
-        GLuint query=0,result=1;gen_query(1,&query);
-        Check(cue::BeginMask() && cue::BeforeOwnedDraw(),"begin query safety case");
-        begin_query(0x8914,query);material=Snapshot();
-        Check(!cue::CaptureGeometry(mesh,nullptr),"active native query is not replayed");Same(material,Snapshot());
-        end_query(0x8914);query_result(query,0x8866,&result);
-        Check(result==0,"capture cannot add native query samples");delete_query(1,&query);cue::DiscardMask();
+        int major=0,minor=0;
+        const auto* version=reinterpret_cast<const char*>(glGetString(GL_VERSION));
+        const auto* extensions=reinterpret_cast<const char*>(glGetString(GL_EXTENSIONS));
+        if(version)sscanf_s(version,"%d.%d",&major,&minor);
+        const auto has=[&](const char* name){
+            if(!extensions)return false;
+            const auto length=std::strlen(name);
+            for(const char* at=extensions;(at=std::strstr(at,name))!=nullptr;at+=length)
+                if((at==extensions || at[-1]==' ') && (at[length]==' ' || at[length]=='\0'))return true;
+            return false;
+        };
+        const GLenum targets[]{0x8914U,0x8C2FU,0x8D6AU};
+        for(const GLenum target:targets){
+            if(target==0x8C2FU && !(major>3 || (major==3 && minor>=3)
+                || has("GL_ARB_occlusion_query2")))continue;
+            if(target==0x8D6AU && !(major>4 || (major==4 && minor>=3)
+                || has("GL_ARB_ES3_compatibility")))continue;
+            for(const bool depth_write:{false,true}){
+                glDepthMask(GL_TRUE);glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+                Check(cue::BeginMask() && cue::BeforeOwnedDraw(),"begin query safety case");
+                glDepthMask(depth_write?GL_TRUE:GL_FALSE);
+                GLuint query=0,result=1;gen_query(1,&query);
+                begin_query(target,query);material=Snapshot();
+                bool submitted=false;
+                Check(!cue::CaptureGeometry([](void* value) noexcept {
+                    *static_cast<bool*>(value)=true;Rect(-.4F,.4F,-.4F,.4F,0);
+                },&submitted),"active native query rejects selected geometry capture");
+                Check(!submitted,"selected capture never invokes geometry during native query");
+                Same(material,Snapshot());
+                const cue::Direction indicator{true,true,-1,-1};
+                Check(!cue::CompositeMask(s,indicator),"active query rejects cue and indicator composition");
+                Same(material,Snapshot());
+                end_query(target);query_result(query,0x8866,&result);
+                Check(result==0,"cue cannot add samples to any native occlusion query");
+                delete_query(1,&query);cue::DiscardMask();
+                std::printf("cue query safety executed target=0x%x depth_write=%d\n",target,int(depth_write));
+            }
+        }
     }
     glDepthMask(GL_TRUE);
     cue::ReleaseMask();Check(glGetError()==GL_NO_ERROR,"no GL errors after cleanup");
