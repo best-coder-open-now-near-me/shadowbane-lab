@@ -135,6 +135,7 @@ class PvEApproachController:
         self._terminal_reported = False
         self._last_travel_observation: TravelObservation | None = None
         self._astar_replans = 0
+        self._backtrack_pending = False
         self._forced_reposition = False
         self._debug_phase = None
 
@@ -318,19 +319,25 @@ class PvEApproachController:
             and decision.maneuver is not TravelManeuver.DIRECT
             and self._astar_replans < self._config.maximum_astar_replans_per_target
         ):
-            active_waypoint = self._travel.plan.destinations[decision.waypoint_index]
-            assert observation.player_position is not None
-            self._navigation_map.mark_blocked_ahead(
-                observation.player_position,
-                active_waypoint,
-            )
-            try:
-                self._travel = self._plan_route(observation, destination)
-            except AStarRouteNotFound:
-                pass
+            if not self._backtrack_pending:
+                active_waypoint = self._travel.plan.destinations[decision.waypoint_index]
+                assert observation.player_position is not None
+                self._navigation_map.mark_blocked_ahead(
+                    observation.player_position,
+                    active_waypoint,
+                )
+                self._backtrack_pending = True
             else:
-                self._astar_replans += 1
-                decision = self._travel.step(self._last_travel_observation)
+                self._backtrack_pending = False
+                try:
+                    self._travel = self._plan_route(observation, destination)
+                except AStarRouteNotFound:
+                    pass
+                else:
+                    self._astar_replans += 1
+                    decision = self._travel.step(self._last_travel_observation)
+        elif decision.maneuver is TravelManeuver.DIRECT:
+            self._backtrack_pending = False
         if decision.phase is TravelPhase.STOPPED:
             self._terminal_reported = True
             return PvEApproachUpdate(PvEApproachStatus.FAILED, decision)
@@ -367,6 +374,7 @@ class PvEApproachController:
         self._travel = None
         self._terminal_reported = False
         self._astar_replans = 0
+        self._backtrack_pending = False
         self._forced_reposition = forced_reposition
 
     def _reset(self) -> None:
@@ -377,6 +385,7 @@ class PvEApproachController:
         self._terminal_reported = False
         self._last_travel_observation = None
         self._astar_replans = 0
+        self._backtrack_pending = False
         self._forced_reposition = False
 
     def _debug_event(

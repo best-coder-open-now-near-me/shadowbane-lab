@@ -124,6 +124,7 @@ class TravelPhase(StrEnum):
 
 class TravelManeuver(StrEnum):
     DIRECT = "direct"
+    ESCAPE_BACKTRACK = "escape_backtrack"
     ESCAPE_BACK_LEFT = "escape_back_left"
     ESCAPE_BACK_RIGHT = "escape_back_right"
     ESCAPE_SWEEP_LEFT = "escape_sweep_left"

@@ -396,7 +396,7 @@ Local evidence under `navigation-inspector-3534418/correction-8210ecf` includes
 Eight original screenshots and their UTC index are in the ignored worktree directory
 `artifacts/navigation-inspector/live-20260904/destination-walk-*`.
 
-Next todo: move to a clear nearby slope with the owner and check trail alignment
+At that checkpoint, the next todo was to move to a clear nearby slope with the owner and check trail alignment
 while rotating the camera. Then compare normal/x-ray against a known obstruction,
 exercise the bounded PvE scenarios and measure overlay cost/scene behavior.
 
@@ -442,7 +442,7 @@ and `slope-walk-capture-2905256194675038123.json` in the resumed diagnostics fol
 Nine screenshots plus their index remain under ignored `live-20260904/slope-walk-*`.
 No additional movement or renderer-offset change has been made.
 
-Current active todo: establish the exact player/ground height semantics and durable
+At that checkpoint, the active todo was to establish the exact player/ground height semantics and durable
 surface-placement source, then repeat flat and slope alignment before proceeding
 to normal/x-ray occlusion, bounded PvE and overlay cost/scene checks.
 
@@ -498,7 +498,35 @@ confirmed the cyan line remained at the character's feet for the whole walk. **F
 ground alignment are accepted.** Evidence is retained as `ground-flat2-*` under the same
 `ground-96d9036` folder.
 
-Current active todo: compare normal/x-ray occlusion on one clear tree or wall route, then perform
+## Tree-obstacle diagnosis and recovery correction
+
+The first normal-depth tree run used the owner's identified tree immediately north of the
+character. Session `4060971429726872299` moved about two units before stalling against the tree,
+then retained 67 trail samples and 77 events with no producer drops or omissions. It recorded
+nine replans, eight stalls and eight escape plans before the bounded session timeout. The owner
+confirmed that the character hit the tree and that the learned blocked-cell box appeared.
+
+That capture exposed an execution-order defect rather than a missing stall detector. The
+low-level controller planned a physical escape, but the A* wrapper intercepted the first escape
+decision and replanned before its input was dispatched. Because the deliberately short test goal
+shared the learned 20-unit cell, the planner also excluded the goal cell from blockers and kept
+returning the same northward click. The result is retained under
+`ground-96d9036/obstacle-tree-north`; it is diagnostic evidence, not an accepted obstacle pass.
+
+The owner enabled x-ray and session `7565812963352424179` retained 62 trail samples and 70 events
+with no producer drops. It reproduced the same recovery-order defect and timed out after seven
+replans. The run is retained under `ground-96d9036/obstacle-tree-north-xray`. X-ray visibility was
+not accepted before attention moved to correcting recovery.
+
+The source correction applies the owner's durable rule to both `/go` and `/pve`: record the last
+meaningful measured ingress direction, make the first stall-recovery click its exact reverse,
+physically dispatch that backtrack, and then replan from the backed-out position around the learned
+blocker. If no ingress sample exists, recovery reverses the active route segment. The full
+Python suite passes with 1,673 tests, 211 subtests and eight expected skips; Ruff also passes.
+A committed package and live tree rerun remain required.
+
+Package/live validation gate: build and deploy the reverse-ingress recovery checkpoint, validate it on a
+farther route with the tree as an intermediate blocker, then finish normal/x-ray visibility and
 bounded PvE and overlay cost/scene checks.
 
 ## Remaining acceptance pass
@@ -521,6 +549,7 @@ unavailable. Verify the measured LT/LG-to-world transform before accepting world
 alignment. If the separate terrain repair is added, it requires its own verified
 source and one combined boundary-tile check.
 
-Current active todo: compare normal/x-ray occlusion on one clear tree or wall route; then
+Current active todo: build and deploy reverse-ingress recovery, validate physical backtrack and
+the A* detour with the tree as an intermediate blocker, then finish normal/x-ray visibility and
 bounded PvE and overlay cost/scene checks. After the remaining live pass, review and integrate
 PR #27, then retire the inspector worktree/branch when safe.

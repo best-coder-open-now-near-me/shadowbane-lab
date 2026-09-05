@@ -66,6 +66,8 @@ class TravelController:
         self._escape_side_switches = 0
         self._escape_release_distance: float | None = None
         self._escaping = False
+        self._last_observed_position: Vector2 | None = None
+        self._ingress_direction = Vector2(0, 0)
         self._terminal: TravelDecision | None = None
 
     @property
@@ -119,6 +121,7 @@ class TravelController:
             raise ValueError("observation must be TravelObservation")
         if self._terminal is not None:
             return self._terminal
+        self._observe_ingress(observation)
         self._debug_route(observation)
         self._debug_event("observation", observation)
         if self._started_at_ms is None:
@@ -309,11 +312,15 @@ class TravelController:
         destination = self._plan.destinations[self._waypoint_index]
         delta_lt = destination.lt - observation.position.lt
         screen_delta_lg = -(destination.lg - observation.position.lg)
-        length = hypot(delta_lt, screen_delta_lg)
-        if length == 0:
-            self._escape_forward = Vector2(0, 0)
+        length = hypot(self._ingress_direction.x, self._ingress_direction.y)
+        if length > 0:
+            self._escape_forward = self._ingress_direction
         else:
-            self._escape_forward = Vector2(delta_lt / length, screen_delta_lg / length)
+            length = hypot(delta_lt, screen_delta_lg)
+            if length == 0:
+                self._escape_forward = Vector2(0, 0)
+            else:
+                self._escape_forward = Vector2(delta_lt / length, screen_delta_lg / length)
         self._escape_side_sign = 1.0 if self._escape_sequence_count % 2 else -1.0
         self._escape_phase = _EscapePhase.BACKUP
         self._escape_step = 0
@@ -395,17 +402,21 @@ class TravelController:
         side_sign = self._escape_side_sign
 
         if self._escape_phase is _EscapePhase.BACKUP:
-            zig_sign = side_sign if self._escape_step % 2 == 0 else -side_sign
-            lateral = self._config.escape_backup_lateral_ratio
-            direction = Vector2(
-                -forward_x + zig_sign * lateral * perpendicular_x,
-                -forward_y + zig_sign * lateral * perpendicular_y,
-            )
-            maneuver = (
-                TravelManeuver.ESCAPE_BACK_LEFT
-                if zig_sign > 0
-                else TravelManeuver.ESCAPE_BACK_RIGHT
-            )
+            if self._escape_step == 0:
+                direction = Vector2(-forward_x, -forward_y)
+                maneuver = TravelManeuver.ESCAPE_BACKTRACK
+            else:
+                zig_sign = side_sign if self._escape_step % 2 == 0 else -side_sign
+                lateral = self._config.escape_backup_lateral_ratio
+                direction = Vector2(
+                    -forward_x + zig_sign * lateral * perpendicular_x,
+                    -forward_y + zig_sign * lateral * perpendicular_y,
+                )
+                maneuver = (
+                    TravelManeuver.ESCAPE_BACK_LEFT
+                    if zig_sign > 0
+                    else TravelManeuver.ESCAPE_BACK_RIGHT
+                )
         elif self._escape_phase is _EscapePhase.SWEEP:
             reverse = self._config.escape_sweep_reverse_ratio
             direction = Vector2(
@@ -452,6 +463,21 @@ class TravelController:
         return self._config.escape_sweep_clearance + (
             (self._escape_sequence_count - 1) * self._config.escape_widening_clearance_per_sequence
         )
+
+    def _observe_ingress(self, observation: TravelObservation) -> None:
+        position = self._screen_position(observation)
+        previous = self._last_observed_position
+        if previous is None:
+            self._last_observed_position = position
+            return
+        if self._escaping:
+            return
+        delta_x = position.x - previous.x
+        delta_y = position.y - previous.y
+        distance = hypot(delta_x, delta_y)
+        if distance >= min(1.0, self._config.minimum_progress):
+            self._ingress_direction = Vector2(delta_x / distance, delta_y / distance)
+            self._last_observed_position = position
 
     def _observe_escape_motion(self, observation: TravelObservation) -> None:
         if self._escape_step == 0:

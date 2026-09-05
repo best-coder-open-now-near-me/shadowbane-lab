@@ -166,7 +166,7 @@ where it was deployed, live acceptance result, remaining limitations and next to
 A workflow, generated payload, version label or successful old target does not
 prove the feature is in the delivered binary.
 
-Next todo: use the verified package and receipts to perform the bounded live
+At that checkpoint, the next todo was to use the verified package and receipts for the bounded live
 pass above with the owner. Planned geometry is explicitly
 projected until final terrain elevation is observed. Terrain delivery remains
 a separate follow-up; this package does not contain that repair.
@@ -253,5 +253,21 @@ character's feet for the entire walk. Flat and slope ground alignment are now ac
 first flat harness invocation used an invalid four-unit radius, sent no input and is retained only
 as a rejected preflight; session `2005051010612397357` is the valid pass.
 
-Next todo: compare normal/x-ray occlusion on one clear tree or wall route, then perform bounded
-PvE and overlay cost/scene checks. PR #27 stays draft and unmerged.
+The first owner-assisted tree route captured the real failure. Normal-depth session
+`4060971429726872299` moved about two units into the tree, showed the learned blocker and retained
+67 trail samples plus 77 events with no omissions or drops. The A* wrapper was consuming the
+low-level escape decision to replan, so the physical escape never ran. The short goal also occupied
+the same 20-unit cell as the learned blocker; goal-cell exclusion consequently sent repeated
+northward clicks. X-ray session `7565812963352424179` reproduced the recovery-order defect with
+62 trail samples and 70 events and no data loss. X-ray visibility itself is not yet accepted.
+
+The correction now shared by `/go` and `/pve` records meaningful measured ingress, dispatches one
+straight click in its exact reverse after a confirmed stall, and only then replans around the
+learned blocker from the backed-out position. With no measured ingress it reverses the active route
+segment. The full Python suite passes with 1,673 tests, 211 subtests and eight expected skips;
+Ruff also passes. This source still needs a committed acceptance package and a live rerun using
+a farther goal so the tree is an intermediate cell.
+
+Next todo: build and deploy reverse-ingress recovery, validate physical backtrack plus the detour,
+then finish normal/x-ray visibility and bounded PvE and overlay cost/scene checks. PR #27 stays
+draft and unmerged.

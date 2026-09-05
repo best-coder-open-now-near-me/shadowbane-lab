@@ -145,6 +145,7 @@ def test_adaptive_replanning_keeps_the_same_observer_on_replacement_controller()
     )
     controller.step(observation(0))
     controller.step(observation(100))
+    controller.step(observation(200, -5.0, 5.0))
     plans = [e for e in events if isinstance(e, PlanEvent)]
     motions = [e for e in events if isinstance(e, MotionEvent)]
     assert len(plans) == 2

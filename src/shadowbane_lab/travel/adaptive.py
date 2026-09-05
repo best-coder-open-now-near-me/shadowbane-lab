@@ -78,6 +78,7 @@ class AStarTravelController:
         self._partial_route_count = 0
         self._route_mode: str | None = None
         self._travel_reaches_destination = False
+        self._backtrack_pending = False
         self._terminal: TravelDecision | None = None
 
     @property
@@ -123,6 +124,7 @@ class AStarTravelController:
             self._navigation is not None and navigation.token != self._navigation.token
         ):
             self._navigation = navigation
+            self._backtrack_pending = False
             try:
                 (
                     self._travel,
@@ -157,11 +159,15 @@ class AStarTravelController:
             and self._replan_count < self._maximum_replans
         ):
             assert self._navigation is not None
-            active_waypoint = self._travel.plan.destinations[decision.waypoint_index]
-            self._navigation.navigation_map.mark_blocked_ahead(
-                observation.position,
-                active_waypoint,
-            )
+            if not self._backtrack_pending:
+                active_waypoint = self._travel.plan.destinations[decision.waypoint_index]
+                self._navigation.navigation_map.mark_blocked_ahead(
+                    observation.position,
+                    active_waypoint,
+                )
+                self._backtrack_pending = True
+                return self._translate(decision)
+            self._backtrack_pending = False
             try:
                 replacement, reaches_destination, route_mode = self._plan(
                     observation,
@@ -176,6 +182,8 @@ class AStarTravelController:
                 self._route_mode = route_mode
                 self._replan_count += 1
                 decision = self._travel.step(observation)
+        elif decision.maneuver is TravelManeuver.DIRECT:
+            self._backtrack_pending = False
         return self._translate(decision)
 
     def stop(

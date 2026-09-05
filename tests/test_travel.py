@@ -460,21 +460,21 @@ class TravelControllerTests(unittest.TestCase):
         )
 
         direct = controller.step(_observation(0, 1000, 1000))
-        back_left = controller.step(_observation(1000, 1000, 1000))
+        backtrack = controller.step(_observation(1000, 1000, 1000))
         back_right = controller.step(_observation(2000, 800, 1000))
         sweep_left = controller.step(_observation(3000, 700, 1000))
         bypass_left = controller.step(_observation(4000, 700, 650))
         reacquired = controller.step(_observation(5000, 850, 650))
 
         self.assertEqual(TravelManeuver.DIRECT, direct.maneuver)
-        self.assertEqual(TravelManeuver.ESCAPE_BACK_LEFT, back_left.maneuver)
+        self.assertEqual(TravelManeuver.ESCAPE_BACKTRACK, backtrack.maneuver)
         self.assertEqual(TravelManeuver.ESCAPE_BACK_RIGHT, back_right.maneuver)
         self.assertEqual(TravelManeuver.ESCAPE_SWEEP_LEFT, sweep_left.maneuver)
         self.assertEqual(TravelManeuver.ESCAPE_BYPASS_LEFT, bypass_left.maneuver)
         self.assertEqual(TravelManeuver.DIRECT, reacquired.maneuver)
         forward = direct.minimap_direction
         assert forward is not None
-        for escape in (back_left, back_right):
+        for escape in (backtrack, back_right):
             direction = escape.minimap_direction
             assert direction is not None
             self.assertLess(forward.x * direction.x + forward.y * direction.y, 0)
@@ -484,6 +484,26 @@ class TravelControllerTests(unittest.TestCase):
             forward.x * bypass_direction.x + forward.y * bypass_direction.y,
             0,
         )
+
+    def test_first_backtrack_reverses_measured_ingress_direction(self) -> None:
+        controller = TravelController(
+            parse_go_command("go 5000 1000"),
+            TravelControllerConfig(
+                click_interval_ms=1000,
+                minimum_progress=5,
+                maximum_no_progress_clicks=1,
+            ),
+        )
+
+        controller.step(_observation(0, 1000, 1000))
+        backtrack = controller.step(_observation(1000, 1000, 1010))
+
+        self.assertEqual(TravelManeuver.ESCAPE_BACKTRACK, backtrack.maneuver)
+        assert backtrack.minimap_direction is not None
+        self.assertAlmostEqual(0.0, backtrack.minimap_direction.x)
+        self.assertGreater(backtrack.minimap_direction.y, 0.0)
+        assert backtrack.click_destination is not None
+        self.assertLess(backtrack.click_destination.y, 1010.0)
 
     def test_stops_after_escape_budget_is_exhausted(self) -> None:
         controller = TravelController(
@@ -504,10 +524,7 @@ class TravelControllerTests(unittest.TestCase):
         bypass = controller.step(_observation(3000, 1000, 1000))
         stopped = controller.step(_observation(4000, 1000, 1000))
 
-        self.assertIn(
-            back.maneuver,
-            (TravelManeuver.ESCAPE_BACK_LEFT, TravelManeuver.ESCAPE_BACK_RIGHT),
-        )
+        self.assertEqual(TravelManeuver.ESCAPE_BACKTRACK, back.maneuver)
         self.assertIn(
             sweep.maneuver,
             (TravelManeuver.ESCAPE_SWEEP_LEFT, TravelManeuver.ESCAPE_SWEEP_RIGHT),
@@ -537,11 +554,11 @@ class TravelControllerTests(unittest.TestCase):
             controller.step(_observation(now_ms, 1000, 1000)) for now_ms in range(1000, 6_000, 1000)
         )
 
-        self.assertEqual(TravelManeuver.ESCAPE_BACK_LEFT, decisions[1].maneuver)
+        self.assertEqual(TravelManeuver.ESCAPE_BACKTRACK, decisions[1].maneuver)
         self.assertEqual(TravelManeuver.ESCAPE_SWEEP_LEFT, decisions[2].maneuver)
         self.assertEqual(TravelManeuver.ESCAPE_SWEEP_RIGHT, decisions[3].maneuver)
         self.assertEqual(TravelManeuver.ESCAPE_BYPASS_RIGHT, decisions[4].maneuver)
-        self.assertEqual(TravelManeuver.ESCAPE_BACK_RIGHT, decisions[5].maneuver)
+        self.assertEqual(TravelManeuver.ESCAPE_BACKTRACK, decisions[5].maneuver)
 
     def test_manual_progress_reacquires_direct_during_escape(self) -> None:
         controller = TravelController(
@@ -582,7 +599,7 @@ class TravelControllerTests(unittest.TestCase):
         controller.step(_observation(3000, 2200, 1000))
         new_escape = controller.step(_observation(4000, 2200, 1000))
 
-        self.assertEqual(TravelManeuver.ESCAPE_BACK_LEFT, new_escape.maneuver)
+        self.assertEqual(TravelManeuver.ESCAPE_BACKTRACK, new_escape.maneuver)
 
     def test_progress_resets_no_progress_counter(self) -> None:
         controller = TravelController(

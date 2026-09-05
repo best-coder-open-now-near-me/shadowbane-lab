@@ -1,13 +1,13 @@
 # Closed-loop LT/LG travel
 
-> Current testing wheel, 2026-09-04: source `8210ecf` is installed and its live
-> minimap preflight passes. It uses verified geometry/zoom, bounded destinations
-> and measured arrival. The original `3534418` wheel overshot a reported arrival
-> by about 301 units. The corrected 45-unit walk settled 0.409 units from its goal,
-> remained stationary for over five seconds; the slope walk also verified arrival.
-> The owner subsequently reported a possible body-height trail origin on both
-> surfaces. Ground alignment, occlusion and PvE acceptance remain pending.
-> See [the exact record](navigation-inspector-acceptance-20260904.md#verified-destination-package-and-running-update).
+> Current testing wheel, 2026-09-04: source `96d9036` is installed. Its exact
+> minimap preflight, bounded destinations and measured arrival pass; its inspector
+> trail uses the client-resolved ground surface accepted on dry flat land and a slope.
+> A water transition remains a retained navigation failure rather than an accepted route.
+> The earlier body-height concern was resolved by the exact ground contract and the owner
+> accepted surface placement on both terrain types. Obstacle recovery, occlusion and PvE
+> acceptance continue in the current checkpoint.
+> See [the exact record](navigation-inspector-acceptance-20260904.md#exact-ground-height-contract-and-correction).
 
 Travel uses exact native player coordinates as feedback and guarded right-clicks on the
 minimap as the actuator. Start the foreground-scoped chat bridge once per client session:
@@ -88,10 +88,12 @@ weighted A* over the active zone's terrain height, water, and object-density cos
 window refreshes after 600 world units and whenever the native current-zone token changes, while
 retaining sparse global costs learned earlier in the same listener session. Route smoothing
 preserves A*'s weighted-cost choice instead of shortcutting back across water or object-density
-cells. If exact position feedback shows
-two consecutive steering checkpoints without progress, the controller marks the cell ahead as blocked
-and replans around it before falling back to the bounded zig-zag escape sequence. Exact
-stall-learned cells are shared by `/go` and `/pve` and atomically persisted by the VM launcher in
+cells. If exact position feedback confirms a stall, the first recovery click reverses the last meaningful
+measured movement vector. If no inbound movement has been observed, it reverses the active route
+segment. The controller marks the cell ahead as blocked, physically backs out along the traversed
+approach, and only then replans around the learned obstacle. The bounded lateral sweep and bypass
+remain available if recovery is still needed. Exact stall-learned cells are shared by `/go` and
+`/pve` and atomically persisted by the VM launcher in
 `codexdiag/learned-navigation-state.json`, so later routes and listener restarts plan around them
 before issuing their first destination click. Derived terrain costs are rebuilt from client caches
 rather than copied into that state file. The final JSON
@@ -226,11 +228,15 @@ clicked destination; rounding and movement between observation and input affect 
 exact remaining distance. Result fields distinguish confirmed arrival from an unsupported
 stop attempt and retain the reason automation ended.
 
-Three no-progress checkpoints trigger a bounded reverse-zig-zag, lateral sweep and
-forward bypass. Recovery uses measured displacement rather than click counts alone:
-a blocked sub-leg changes strategy, a cleared bypass reacquires the destination early,
-and meaningful manual progress returns control to direct travel. Each retry starts on
-the opposite side and widens its clearance target. The finite escape budget ends input
+Three no-progress checkpoints trigger bounded recovery. Its first click is a straight
+backtrack along the reverse of the last meaningful measured ingress direction, matching the
+known traversable path used to enter the obstruction. The A* wrappers for `/go` and `/pve`
+physically dispatch that backtrack before planning around the newly learned blocked cell.
+If no route can take over, the low-level controller continues with a reverse zig-zag,
+lateral sweep and forward bypass. Recovery uses measured displacement rather than click
+counts alone: a blocked sub-leg changes strategy, a cleared bypass reacquires the destination
+early, and meaningful manual progress returns control to direct travel. Each retry starts
+on the opposite side and widens its clearance target. The finite escape budget ends input
 when exhausted. Sustained direct progress resets it for later, unrelated obstacles.
 
 The client also ships a native character pathfinder and a `PATHFINDING` preference, currently

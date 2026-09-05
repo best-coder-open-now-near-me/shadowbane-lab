@@ -1670,7 +1670,7 @@ class PvEApproachControllerTests(unittest.TestCase):
         self.assertEqual("arrived", arrived.status.value)
         self.assertTrue(arrived.decision.terminal)
 
-    def test_stalled_native_chase_replans_with_astar_before_blind_escape(self) -> None:
+    def test_stalled_native_chase_backtracks_before_astar_replan(self) -> None:
         navigation = SparseNavigationMap()
         approach = PvEApproachController(
             PvEApproachConfig(
@@ -1702,11 +1702,14 @@ class PvEApproachControllerTests(unittest.TestCase):
         self.assertEqual(TravelManeuver.DIRECT, observe(100).decision.maneuver)
         self.assertEqual(TravelManeuver.DIRECT, observe(200).decision.maneuver)
 
-        replanned = observe(300)
+        backtrack = observe(300)
+        replanned = observe(400)
 
+        self.assertEqual("moving", backtrack.status.value)
+        self.assertEqual(TravelManeuver.ESCAPE_BACKTRACK, backtrack.decision.maneuver)
+        self.assertGreater(len(navigation.blocked), 0)
         self.assertEqual("moving", replanned.status.value)
         self.assertEqual(TravelManeuver.DIRECT, replanned.decision.maneuver)
-        self.assertGreater(len(navigation.blocked), 0)
 
     def test_initial_astar_no_route_becomes_recoverable_approach_failure(self) -> None:
         class NoRoutePlanner(WeightedAStarPlanner):
