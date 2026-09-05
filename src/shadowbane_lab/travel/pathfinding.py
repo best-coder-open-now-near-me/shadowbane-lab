@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import heapq
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from itertools import pairwise
 from math import floor, hypot, inf, isclose, isfinite, sqrt
 from typing import Literal
@@ -69,6 +69,8 @@ class NavigationCostGrid:
     maximum: NavigationCell
     blocked: frozenset[NavigationCell] = frozenset()
     costs: tuple[tuple[NavigationCell, float], ...] = ()
+    physical_blocked: frozenset[NavigationCell] = frozenset()
+    _cost_index: dict[NavigationCell, float] = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         if (
@@ -100,6 +102,7 @@ class NavigationCostGrid:
             ):
                 raise ValueError("traversal costs must be finite and at least one")
             seen.add(cell)
+        object.__setattr__(self, "_cost_index", dict(self.costs))
 
     def contains(self, cell: NavigationCell) -> bool:
         return (
@@ -108,10 +111,7 @@ class NavigationCostGrid:
         )
 
     def traversal_cost(self, cell: NavigationCell) -> float:
-        for candidate, cost in self.costs:
-            if candidate == cell:
-                return cost
-        return 1.0
+        return self._cost_index.get(cell, 1.0)
 
     def cell_for(self, lt: float, lg: float) -> NavigationCell:
         return NavigationCell(floor(lt / self.cell_size), floor(lg / self.cell_size))
@@ -295,12 +295,8 @@ class SparseNavigationMap:
             step_y = 0 if delta_lg == 0 else (1 if delta_lg > 0 else -1)
             boundary_lt = (current.x + (1 if step_x > 0 else 0)) * self._cell_size
             boundary_lg = (current.y + (1 if step_y > 0 else 0)) * self._cell_size
-            crossing_lt = (
-                abs((boundary_lt - position.lt) / delta_lt) if step_x else inf
-            )
-            crossing_lg = (
-                abs((boundary_lg - position.lg) / delta_lg) if step_y else inf
-            )
+            crossing_lt = abs((boundary_lt - position.lt) / delta_lt) if step_x else inf
+            crossing_lg = abs((boundary_lg - position.lg) / delta_lg) if step_y else inf
             if isclose(crossing_lt, crossing_lg, rel_tol=1e-9, abs_tol=1e-12):
                 cell = NavigationCell(current.x + step_x, current.y + step_y)
             elif crossing_lt < crossing_lg:
@@ -340,9 +336,7 @@ class SparseNavigationMap:
     ) -> None:
         """Retain a collision at fine precision while preserving coarse routing."""
 
-        if not isinstance(cell, NavigationCell) or not isinstance(
-            refined_cell, NavigationCell
-        ):
+        if not isinstance(cell, NavigationCell) or not isinstance(refined_cell, NavigationCell):
             raise ValueError("cell and refined_cell must be NavigationCell values")
         if self._coarse_parent(refined_cell) != cell:
             raise ValueError("refined learned blocker must belong to its coarse cell")
@@ -366,14 +360,13 @@ class SparseNavigationMap:
             for child in self._refined_children(cell):
                 refined._blocked.add(child)
                 refined._structural_blocked.add(child)
+        children_by_parent: dict[NavigationCell, set[NavigationCell]] = {}
+        for child in self._refined_learned_blocked:
+            children_by_parent.setdefault(self._coarse_parent(child), set()).add(child)
         for cell in self._learned_blocked:
             if cell in self._structural_blocked:
                 continue
-            children = {
-                child
-                for child in self._refined_learned_blocked
-                if self._coarse_parent(child) == cell
-            }
+            children = children_by_parent.get(cell)
             if not children:
                 children = set(self._refined_children(cell))
             for child in children:
@@ -424,14 +417,8 @@ class SparseNavigationMap:
         entry_distance = max(crossings)
         epsilon = self.refined_cell_size * 1e-6
         refined = NavigationCell(
-            floor(
-                (start_lt + direction_lt * (entry_distance + epsilon))
-                / self.refined_cell_size
-            ),
-            floor(
-                (start_lg + direction_lg * (entry_distance + epsilon))
-                / self.refined_cell_size
-            ),
+            floor((start_lt + direction_lt * (entry_distance + epsilon)) / self.refined_cell_size),
+            floor((start_lg + direction_lg * (entry_distance + epsilon)) / self.refined_cell_size),
         )
         if self._coarse_parent(refined) != cell:
             raise RuntimeError("refined collision inference left the selected coarse cell")
@@ -467,6 +454,11 @@ class SparseNavigationMap:
         blocked: set[NavigationCell] = set()
         clearance = config.obstacle_clearance_cells
         for obstacle in self._blocked:
+            if not (
+                minimum.x - clearance <= obstacle.x <= maximum.x + clearance
+                and minimum.y - clearance <= obstacle.y <= maximum.y + clearance
+            ):
+                continue
             for delta_x in range(-clearance, clearance + 1):
                 for delta_y in range(-clearance, clearance + 1):
                     candidate = NavigationCell(obstacle.x + delta_x, obstacle.y + delta_y)
@@ -475,8 +467,11 @@ class SparseNavigationMap:
                         and minimum.y <= candidate.y <= maximum.y
                     ):
                         blocked.add(candidate)
+        # Permit escape from the occupied start cell and preserve the existing
+        # free-destination clearance exception, never erase a physical endpoint.
         blocked.discard(start)
-        blocked.discard(goal)
+        if goal not in self._blocked:
+            blocked.discard(goal)
         costs = tuple(
             sorted(
                 (cell, cost)
@@ -494,6 +489,11 @@ class SparseNavigationMap:
             maximum=maximum,
             blocked=frozenset(blocked),
             costs=costs,
+            physical_blocked=frozenset(
+                cell
+                for cell in self._blocked
+                if (minimum.x <= cell.x <= maximum.x and minimum.y <= cell.y <= maximum.y)
+            ),
         )
 
 
@@ -533,7 +533,39 @@ class WeightedAStarPlanner:
         goal = navigation_map.cell_for(destination.lt, destination.lg)
         grid = navigation_map.local_grid(start, goal, self._config)
         try:
-            cells, expanded, total_cost = self._search(grid, start, goal)
+            if (
+                goal in navigation_map.blocked
+                and hypot(destination.lt - start_lt, destination.lg - start_lg)
+                <= destination.arrival_radius
+            ):
+                # Arrival is already satisfied without entering a blocked cell.
+                cells, expanded, total_cost = (start,), 1, 0.0
+                endpoint = TravelDestination(start_lt, start_lg, destination.arrival_radius)
+            else:
+                blocked_destination = destination if goal in navigation_map.blocked else None
+                cells, expanded, total_cost = self._search(
+                    grid, start, goal, arrival_region=blocked_destination
+                )
+                point = self._arrival_point(grid, cells[-1], destination)
+                endpoint = (
+                    destination
+                    if blocked_destination is None
+                    else TravelDestination(
+                        *point,
+                        arrival_radius=min(
+                            grid.cell_size * 0.1,
+                            (
+                                destination.arrival_radius
+                                - hypot(point[0] - destination.lt, point[1] - destination.lg)
+                            )
+                            * 0.5,
+                            point[0] - cells[-1].x * grid.cell_size,
+                            (cells[-1].x + 1) * grid.cell_size - point[0],
+                            point[1] - cells[-1].y * grid.cell_size,
+                            (cells[-1].y + 1) * grid.cell_size - point[1],
+                        ),
+                    )
+                )
         except AStarRouteNotFound as exc:
             self._emit_plan(
                 navigation_map,
@@ -556,7 +588,11 @@ class WeightedAStarPlanner:
             TravelDestination(*grid.center(cell), arrival_radius=waypoint_radius)
             for cell in smoothed[1:-1]
         ]
-        destinations.append(destination)
+        if endpoint != destination and len(smoothed) > 1:
+            destinations.append(
+                TravelDestination(*grid.center(smoothed[-1]), arrival_radius=waypoint_radius)
+            )
+        destinations.append(endpoint)
         self._emit_plan(
             navigation_map,
             grid,
@@ -610,8 +646,7 @@ class WeightedAStarPlanner:
                 start_lg + direction_lg * maximum_distance,
                 arrival_radius=max(
                     5.0,
-                    navigation_map.refined_cell_size
-                    * self._config.waypoint_radius_fraction,
+                    navigation_map.refined_cell_size * self._config.waypoint_radius_fraction,
                 ),
             )
         refined_map = navigation_map.refined_navigation_map()
@@ -782,8 +817,11 @@ class WeightedAStarPlanner:
         goal: NavigationCell,
         *,
         allow_partial: bool = False,
+        arrival_region: TravelDestination | None = None,
     ) -> tuple[tuple[NavigationCell, ...], int, float]:
-        if start in grid.blocked or goal in grid.blocked:
+        if start in grid.blocked or (
+            goal in grid.blocked and not allow_partial and arrival_region is None
+        ):
             raise AStarRouteNotFound("A* endpoint is blocked")
         frontier: list[tuple[float, int, NavigationCell]] = []
         order = 0
@@ -824,8 +862,19 @@ class WeightedAStarPlanner:
                         cost_so_far[partial],
                     )
                 raise AStarRouteNotFound("A* expansion budget exhausted")
-            if current == goal:
-                return self._reconstruct(came_from, start, current), expanded, cost_so_far[goal]
+            arrived = (
+                current == goal
+                and current not in grid.blocked
+                and (arrival_region is None or current not in grid.physical_blocked)
+            )
+            if arrival_region is not None and current not in grid.physical_blocked:
+                point = self._arrival_point(grid, current, arrival_region)
+                arrived = (
+                    hypot(point[0] - arrival_region.lt, point[1] - arrival_region.lg)
+                    < arrival_region.arrival_radius
+                )
+            if arrived:
+                return self._reconstruct(came_from, start, current), expanded, cost_so_far[current]
             for neighbor, step_cost in self._neighbors(grid, current):
                 new_cost = cost_so_far[current] + step_cost * grid.traversal_cost(neighbor)
                 if new_cost >= cost_so_far.get(neighbor, float("inf")):
@@ -845,6 +894,36 @@ class WeightedAStarPlanner:
                 cost_so_far[partial],
             )
         raise AStarRouteNotFound("A* found no route inside the planning window")
+
+    @staticmethod
+    def _arrival_point(
+        grid: NavigationCostGrid, cell: NavigationCell, destination: TravelDestination
+    ) -> tuple[float, float]:
+        # Keep the endpoint strictly inside the reachable cell. A small arrival
+        # region may intersect a cell without containing its center.
+        inset = grid.cell_size * 1e-6
+        nearest = (
+            min(
+                max(destination.lt, cell.x * grid.cell_size + inset),
+                (cell.x + 1) * grid.cell_size - inset,
+            ),
+            min(
+                max(destination.lg, cell.y * grid.cell_size + inset),
+                (cell.y + 1) * grid.cell_size - inset,
+            ),
+        )
+        center = grid.center(cell)
+        distance = hypot(nearest[0] - destination.lt, nearest[1] - destination.lg)
+        towards_center = hypot(center[0] - nearest[0], center[1] - nearest[1])
+        fraction = (
+            min(0.5, max(0.0, destination.arrival_radius - distance) / (2 * towards_center))
+            if towards_center
+            else 0.0
+        )
+        return (
+            nearest[0] + fraction * (center[0] - nearest[0]),
+            nearest[1] + fraction * (center[1] - nearest[1]),
+        )
 
     @staticmethod
     def _is_boundary_cell(grid: NavigationCostGrid, cell: NavigationCell) -> bool:

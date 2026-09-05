@@ -1,4 +1,5 @@
 import unittest
+from math import hypot
 
 from shadowbane_lab.client_observation import NativePlayerPositionObservation
 from shadowbane_lab.travel import (
@@ -8,9 +9,58 @@ from shadowbane_lab.travel import (
     WeightedAStarConfig,
     WeightedAStarPlanner,
 )
+from shadowbane_lab.travel.pathfinding import AStarRouteNotFound
 
 
 class WeightedAStarTests(unittest.TestCase):
+    def test_physical_destination_is_not_cleared_and_arrival_region_can_be_reached(self):
+        navigation = SparseNavigationMap(cell_size=10.0)
+        navigation.mark_blocked(NavigationCell(3, 0))
+        planner = WeightedAStarPlanner(WeightedAStarConfig(obstacle_clearance_cells=0))
+        with self.assertRaises(AStarRouteNotFound):
+            planner.plan(
+                navigation,
+                start_lt=5.0,
+                start_lg=5.0,
+                destination=TravelDestination(35.0, 5.0, 2.0),
+            )
+        destination = TravelDestination(30.5, 5.0, 2.0)
+        route = planner.plan(navigation, start_lt=5.0, start_lg=5.0, destination=destination)
+        endpoint = route.destinations[-1]
+        self.assertLess(hypot(endpoint.lt - destination.lt, endpoint.lg - destination.lg), 2.0)
+        self.assertNotIn(navigation.cell_for(endpoint.lt, endpoint.lg), navigation.blocked)
+        self.assertIn(NavigationCell(3, 0), navigation.blocked)
+        self.assertNotIn(NavigationCell(3, 0), route.cells)
+
+    def test_blocked_start_can_escape_but_cannot_move_inside_blocked_destination(self):
+        navigation = SparseNavigationMap(cell_size=10.0)
+        navigation.mark_blocked(NavigationCell(0, 0))
+        planner = WeightedAStarPlanner(WeightedAStarConfig(obstacle_clearance_cells=0))
+        route = planner.plan(
+            navigation, start_lt=1.0, start_lg=1.0, destination=TravelDestination(25.0, 5.0, 2.0)
+        )
+        self.assertEqual(NavigationCell(0, 0), route.cells[0])
+        with self.assertRaises(AStarRouteNotFound):
+            planner.plan(
+                navigation, start_lt=1.0, start_lg=1.0, destination=TravelDestination(5.0, 5.0, 1.0)
+            )
+        stationary = planner.plan(
+            navigation, start_lt=5.0, start_lg=5.0, destination=TravelDestination(5.0, 5.0, 1.0)
+        )
+        self.assertEqual((NavigationCell(0, 0),), stationary.cells)
+        self.assertEqual(0, stationary.total_cost)
+        self.assertIn(NavigationCell(0, 0), navigation.blocked)
+
+    def test_clearance_only_destination_retains_exact_endpoint(self):
+        navigation = SparseNavigationMap(cell_size=10.0)
+        navigation.mark_blocked(NavigationCell(4, 0))
+        destination = TravelDestination(35.0, 5.0, 2.0)
+        route = WeightedAStarPlanner().plan(
+            navigation, start_lt=5.0, start_lg=5.0, destination=destination
+        )
+        self.assertEqual(destination, route.destinations[-1])
+        self.assertIn(NavigationCell(4, 0), navigation.blocked)
+
     def test_direct_route_smooths_to_exact_destination(self) -> None:
         navigation = SparseNavigationMap(cell_size=10.0)
         route = WeightedAStarPlanner().plan(
@@ -157,9 +207,7 @@ class WeightedAStarTests(unittest.TestCase):
             NativePlayerPositionObservation(10.0, 10.0, 0.0),
             TravelDestination(200.0, 10.0),
         )
-        planner = WeightedAStarPlanner(
-            WeightedAStarConfig(obstacle_clearance_cells=0)
-        )
+        planner = WeightedAStarPlanner(WeightedAStarConfig(obstacle_clearance_cells=0))
 
         route = planner.plan_refined(
             navigation,
