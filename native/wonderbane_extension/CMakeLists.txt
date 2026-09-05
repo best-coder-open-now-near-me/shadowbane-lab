@@ -30,6 +30,7 @@ add_library(
   movement_boundary_trace.cpp
   movement_controls.cpp
   movement_native_image.cpp
+  movement_lifetime.cpp
   movement_native_stop.cpp
   cel_shading.cpp
   depth_edges.cpp
@@ -817,7 +818,7 @@ endif()
 
 if(BUILD_TESTING)
   add_executable(wonderbane_extension_movement_native_stop_test
-    movement_controls.cpp movement_native_image.cpp movement_native_stop.cpp movement_native_stop_test.cpp)
+    movement_controls.cpp movement_native_image.cpp movement_native_stop.cpp movement_lifetime.cpp import_hook.cpp movement_native_stop_test.cpp)
   target_compile_features(wonderbane_extension_movement_native_stop_test PRIVATE cxx_std_20)
   target_compile_definitions(wonderbane_extension_movement_native_stop_test PRIVATE
     UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
@@ -838,4 +839,19 @@ if(BUILD_TESTING)
     COMMAND wonderbane_extension_movement_boundary_test movement-startup-failure)
   add_test(NAME wonderbane_extension_movement_shared_slot_replaced
     COMMAND wonderbane_extension_movement_boundary_test shared-slot-replaced)
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_movement_lifetime_test
+    movement_lifetime_test.cpp movement_native_stop.cpp movement_controls.cpp)
+  target_compile_features(wonderbane_extension_movement_lifetime_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_movement_lifetime_test PRIVATE
+    UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_movement_lifetime_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  target_link_libraries(wonderbane_extension_movement_lifetime_test PRIVATE user32)
+  set_property(TARGET wonderbane_extension_movement_lifetime_test PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
+  foreach(mode normal held held-free rollback foreign foreign-free actuator unsupported unsupported-reference)
+    add_test(NAME wonderbane_extension_movement_lifetime_${mode}
+      COMMAND wonderbane_extension_movement_lifetime_test ${mode})
+  endforeach()
 endif()

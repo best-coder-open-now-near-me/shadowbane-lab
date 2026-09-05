@@ -55,11 +55,20 @@ bool NativeStop::Bind(HWND window) noexcept {
     calls_.ground_target = reinterpret_cast<decltype(calls_.ground_target)>(base_ + 0x2d1fa0);
     calls_.move = reinterpret_cast<decltype(calls_.move)>(base_ + 0x62570);
     calls_.camera = reinterpret_cast<decltype(calls_.camera)>(base_ + 0x51c210);
-    bound_ = true; return true;
+    require_lifetime_ = true; bound_ = true; return true;
+}
+bool NativeStop::BeginUpdate(void* native_window, const NativeScene& scene) noexcept {
+    if (in_update_ || executing_ || GetCurrentThreadId() != thread_
+        || scene.window != reinterpret_cast<std::uintptr_t>(native_window)
+        || !NativeMovementLifetimeCurrent(scene)) { return false; }
+    lifetime_scene_ = scene;
+    if (BeginUpdate(native_window)) { return true; }
+    lifetime_scene_ = {}; return false;
 }
 bool NativeStop::BeginUpdate(void* native_window) noexcept {
     DWORD pid = 0; std::uintptr_t actual = 0;
-    if (!Available() || in_update_ || executing_ || GetCurrentThreadId() != thread_
+    if (!Available() || in_update_ || executing_ || (require_lifetime_ && !NativeMovementLifetimeCurrent(lifetime_scene_))
+        || GetCurrentThreadId() != thread_
         || GetWindowThreadProcessId(window_, &pid) != thread_ || pid != GetCurrentProcessId()
         || !Read(base_ + 0x16a7bfc, actual) || !actual || actual != reinterpret_cast<std::uintptr_t>(native_window)) { return false; }
     in_update_ = true; return true;
@@ -68,7 +77,7 @@ void NativeStop::EndUpdate() noexcept {
     if (!in_update_ || executing_ || GetCurrentThreadId() != thread_) { return; }
     executing_ = true;
     if (!faulted_) { (void)ClearPickGuarded(); }
-    executing_ = false; in_update_ = false;
+    executing_ = false; in_update_ = false; lifetime_scene_ = {};
 }
 bool NativeStop::Capture(const Grant& grant) noexcept {
     Target target{}; target.grant = grant;
@@ -82,6 +91,10 @@ bool NativeStop::Current(const Target& target) const noexcept {
 }
 bool NativeStop::SceneCurrent(const Target& target) const noexcept {
     DWORD pid = 0;
+    if (require_lifetime_ && (!NativeMovementLifetimeCurrent(lifetime_scene_)
+        || target.actor != lifetime_scene_.actor || target.world != lifetime_scene_.world
+        || target.parent != lifetime_scene_.parent || target.identity != lifetime_scene_.identity
+        || target.grant.scene != lifetime_scene_.epoch)) { return false; }
     if (!in_update_ || !target.grant.scene || controls_.Current().scene != target.grant.scene || GetCurrentThreadId() != thread_
         || GetWindowThreadProcessId(window_, &pid) != thread_ || pid != GetCurrentProcessId()) { return false; }
     std::uintptr_t actor = 0, world = 0, window = 0, parent = 0; std::uint32_t mode = 0; Identity identity{};
