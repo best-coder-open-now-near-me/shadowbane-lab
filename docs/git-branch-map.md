@@ -14,12 +14,12 @@ supersede historical source/retirement records below or authorize main merge or 
 
 The four feature source branches target this integration owner:
 `codex/particles-trails`, `codex/selected-character-cue`, `codex/sky-horizon`, and
-`codex/native-movement-controls`. GitHub metadata audited September 5: PR28 and
-PR29 remain open with the older `codex/navigation-inspector` base; their owners
-must reconcile review targeting with the intended hardening destination as new
-unintegrated work becomes available. PR30 and PR31 are already merged checkpoint
-PRs, not open reviews of subsequent commits. Exact newer source inclusion is
-recorded in the handoffs and verified by ancestry.
+`codex/native-movement-controls`. GitHub metadata rechecked September 5: all
+four PRs (28-31) are merged checkpoints targeting `codex/native-lifecycle-hardening`,
+not open reviews of newer work. PR28 records merge `4e908b4`; PR29 records
+`5519a8e`. Later source deltas are integrated separately; exact inclusion and
+validation are recorded in the active handoff. A merged PR does not certify
+complete feature delivery, package identity or owner acceptance.
 Useful dependencies are merged during development. Features enter rolling owner
 candidates only when complete; newer movement work must not indefinitely delay
 completed older features. Shared scene/context/startup and manager ownership
@@ -28,8 +28,9 @@ remain with the integration owner.
 See [the active source and validation handoff](handoffs/native-lifecycle-hardening.md)
 for exact included revisions, committed repairs and outstanding gates. Native
 foreground transparency currently fails required effects and cue acceptance
-checks. Movement has an opt-in passive observer and tested policy, but native
-actuation/adapters remain unfinished. No newly combined wheel/DLL acceptance
+checks. Movement includes the shared update hook and unbound native stop, camera,
+steering, terrain-pick and drag components. Input/UI/settings/grant integration
+and activation remain unfinished. No newly combined wheel/DLL acceptance
 identity is certified yet. Preserve all active branches/worktrees; retirement
 requires verified inclusion and applicable approval.
 

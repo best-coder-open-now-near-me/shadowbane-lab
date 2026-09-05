@@ -561,3 +561,22 @@ Tests exercise production composition with controlled native calls, not live
 terrain or camera certification. No runtime controls consumer is active. Next is
 drag destination actuation and camera-basis/input/UI composition, then settings/
 grant transport and combined package validation. Transparency remains unresolved.
+
+
+Native drag `7a9385d63bc52078dd3d04d38ca7e9efa64db251` is included at
+`5a913015ad5c22989fa8bc29e30b87469b706213`. Both complete DLL profiles build;
+each executes 11 movement/shared-update/startup tests successfully, zero skips.
+Evidence: `artifacts/hardening-evidence/drag-native-{full,diagnostics}.xml` and logs.
+Drag consumes only the current update's native pick, retains/releases native
+marker/target references and coalesces pending/deferred work. Captured transactions
+now reject parent-coordinate-frame changes even for the same actor. Input.scene
+must advance on those transitions; input composition remains owner work.
+No native solver/server or active runtime capability is certified by these tests.
+Next is camera-basis/Windows-XInput/UI consumer composition, settings and manager
+grant transport, then complete combined package checks. Transparency remains open.
+
+Branch map metadata was rechecked via GitHub: PR28/29/30/31 are all merged against
+hardening. PR28 merge is `4e908b411570122a07cc15fd98dc9888ab74fc37`; PR29 merge is
+`5519a8e4026136d04231c9c66cfe71fc23fdac97`. They represent historical checkpoints,
+not open reviews or certification of later source/package work. No main merge,
+PR closure action or deployment was performed by this audit.
