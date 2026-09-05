@@ -120,7 +120,13 @@ def main() -> int:
         "effects_runtime.cpp",
         "effects_draw.cpp",
     ]
-    artifacts = [source_archive]
+    sky_folder = source / "assets/sky-horizon"
+    sky_manifest = json.loads((sky_folder / "manifest.json").read_text(encoding="utf-8"))
+    sky_content = (sky_folder / "clear-day.sky").read_bytes()
+    if hashlib.sha256(sky_content).hexdigest() != sky_manifest["sha256"]:
+        raise RuntimeError("sky asset identity mismatch")
+    contracts.extend(["sky.cpp", "sky_draw.cpp", "sky_runtime.cpp", "sky_asset.rc"])
+    artifacts = [source_archive, *sorted(sky_folder.iterdir())]
     for profile in ("full", "diagnostics-only"):
         # MSBuild still imposes MAX_PATH on its long generated test tlog names.
         build = output / ("nf" if profile == "full" else "nd")
@@ -169,11 +175,22 @@ def main() -> int:
                     arguments.reviewed_client.resolve(),
                 ],
             )
+        if arguments.reviewed_client:
+            for test in ("sky_binding", "sky_render"):
+                run(
+                    f"{profile}-{test}",
+                    [
+                        build / f"Release/wonderbane_extension_{test}_test.exe",
+                        arguments.reviewed_client.resolve(),
+                    ],
+                )
         destination = output / profile / "wonderbane-extension.dll"
         destination.parent.mkdir()
         shutil.copy2(build / "Release/wonderbane-extension.dll", destination)
         # PE machine check is independent of the directory/profile label.
         dll = destination.read_bytes()
+        if (sky_content in dll) != (profile == "full"):
+            raise RuntimeError(f"{profile}: incorrect packaged sky resource ownership")
         pe = int.from_bytes(dll[60:64], "little")
         if dll[pe : pe + 4] != (b"PE" + bytes(2)):
             raise RuntimeError("invalid DLL PE signature")
@@ -194,12 +211,22 @@ def main() -> int:
         (entry,) = [name for name in package.namelist() if name.endswith("entry_points.txt")]
         if "shadowbane-navigation-inspector" not in package.read(entry).decode():
             raise RuntimeError("wheel is missing the inspector entry point")
-        for name in ("effects.py", "effects_panel.py"):
+        for name in ("effects.py", "effects_panel.py", "sky.py", "sky_panel.py"):
             if f"shadowbane_lab/graphics_lab/{name}" not in package.namelist():
                 raise RuntimeError(f"wheel missing effects control module {name}")
+        sky_names = [
+            name
+            for name in package.namelist()
+            if name.endswith("/share/shadowbane-lab/sky-horizon/clear-day.sky")
+        ]
+        if len(sky_names) != 1 or package.read(sky_names[0]) != sky_content:
+            raise RuntimeError("wheel missing exact sky content")
     with tarfile.open(sdist) as package:
         names = package.getnames()
         for relative in (
+            "assets/sky-horizon/clear-day.sky",
+            "native/wonderbane_extension/sky_runtime.cpp",
+            "src/shadowbane_lab/graphics_lab/sky_panel.py",
             "native/wonderbane_extension/selected_cue_runtime.cpp",
             "src/shadowbane_lab/graphics_lab/selected_cue.py",
             "native/wonderbane_extension/navigation_draw.cpp",
@@ -246,6 +273,13 @@ def main() -> int:
         "assert app.cue_panel.settings().enabled is False; app.close()"
     )
     run("installed-selection-panel", [python, "-c", cue_smoke], cwd=output)
+    sky_smoke = (
+        "import tkinter as tk; import shadowbane_lab.graphics_lab.app as module; "
+        "module.discover_graphics_targets=lambda: (); "
+        "root=tk.Tk(); root.withdraw(); app=module.GraphicsLabApp(root); "
+        "assert app.sky_panel.get().enabled == 0; app.close()"
+    )
+    run("installed-sky-panel", [python, "-c", sky_smoke], cwd=output)
     artifacts.extend(
         [
             wheel,
@@ -258,6 +292,9 @@ def main() -> int:
         ]
     )
     artifacts.extend(sorted(logs.glob("*.log")))
+    sky_handoff = output / "sky-horizon.md"
+    shutil.copy2(source / "docs/handoffs/sky-horizon.md", sky_handoff)
+    artifacts.append(sky_handoff)
     receipt = {
         "source_revision": revision,
         "source_branch": git("branch", "--show-current"),
@@ -265,6 +302,9 @@ def main() -> int:
         "platform": "Visual Studio 2022 / Win32 / Release",
         "terrain_material_repair_included": False,
         "actor_root_effects_included": True,
+        "sky_horizon_included": True,
+        "sky_asset": sky_manifest,
+        "sky_binding_and_runtime_verified": bool(arguments.reviewed_client),
         "live_acceptance": "pending; no deployment performed",
         "selected_cue_binding_verified": bool(arguments.reviewed_client),
         "source_identity": metadata,

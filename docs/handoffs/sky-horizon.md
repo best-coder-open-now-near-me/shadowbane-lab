@@ -29,8 +29,10 @@ verifies both complete source routines (including alternate branches), and requi
 MODELVIEW stack1, no display list/immediate primitive, same context and byte-identical
 view at clear. No prior-frame camera or pending published camera is accepted.
 A current verified local actor/zone is required. Failed authority/state/asset checks
-leave the native sky untouched. Camera-upload coverage in stationary scenes still
-requires investigation before connected acceptance.
+leave the native sky untouched. The alternate early return in camera routine51b4a0 occurs only when the local
+player pointer is absent and delegates to51a9e0 (thunk1b932); neither routine
+skips its upload for a stationary camera. Connected hook coverage remains a package
+acceptance check, not a relaxed camera fallback.
 
 After a successful early paint, only the exact native sky shader invocation from
 the reviewed wrapper is suppressed. Native sky update and shader enter/exit remain.
@@ -46,7 +48,8 @@ haze joins the current fog color by default. It contains no finite decorative te
 `clear-day.sky` is the 520-byte packaged RCDATA201 asset, SHA256
 `c4143315072e94413db211cc81164121ce8331af2a4497ab8229ac611cac73ce`.
 Native startup verifies this identity and the complete reviewed binding. Graphics
-Lab wiring/package identity checks are still in progress. Default startup is disabled.
+Lab controls and package identity gates are wired; final combined package checks
+remain in progress. Default startup is disabled.
 Native settings use an exact PID/creation channel and reject torn/invalid settings.
 
 All callbacks share RenderCallbackLease; startup/stop share RenderLifecycleMutation.
@@ -69,9 +72,9 @@ Task outputs remain under ignored `artifacts/sky`; no shared VM changes.
 
 ## Active todos
 
-- [ ] Active: finish camera coverage investigation and native integration regression checks.
-- [ ] Graphics Lab sky/horizon/orientation/intensity/restore controls and persistence.
-- [ ] Package wiring, source/content identity and both-profile validation.
+- [x] Camera routine coverage investigation and native integration regression checks.
+- [x] Graphics Lab sky/horizon/orientation/intensity/restore controls and persistence.
+- [ ] Active: shared context extraction, package identity and both-profile validation.
 - [ ] Feature PR and owner's combined source/package verification.
 - [ ] Focused connected acceptance: appearance, translation/rotation, horizon/fog,
       foliage/water, UI/minimap, toggles/context transitions and performance.
