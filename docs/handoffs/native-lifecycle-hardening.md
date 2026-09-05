@@ -364,3 +364,14 @@ No capture, client replacement or deployment occurred. Next is owner analysis of
 whether this observation resolves the specific material unknowns and whether one
 narrow enriched capture is necessary; coverage/pre-depth/ABI/source-equivalence
 and complete movement runtime remain unresolved.
+
+
+Pipeline observation `16dd37b58ccf27b6bb7e9a00c63d04afd4f51aac` is included as
+`549036b617d57651650976f67511e878cb8194c1`. Only handoff text conflicted; native
+source applied unchanged. Both full native profile builds and both trace tests
+per profile passed with zero skips. Logs/JUnit are under
+`artifacts/hardening-evidence/pipeline-native-{full,diagnostics}*`. Core/ARB
+pipeline zero clears only its own ambiguity; nonzero/missing, EXT-only semantics
+and independent vendor mechanisms remain unsupported/unknown. Replay eligibility
+remains false. Next is the authorized bounded actual-GL source/coverage comparison
+in the existing cue GPU test path; no runtime collector or deployment is enabled.
