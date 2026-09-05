@@ -136,6 +136,7 @@ class TravelManeuver(StrEnum):
 @dataclass(frozen=True, slots=True)
 class TravelControllerConfig:
     maximum_click_distance: float = 50.0
+    escape_backtrack_distance: float = 10.0
     maximum_session_ms: int = 300_000
     click_interval_ms: int = 4_000
     maximum_clicks: int = 100
@@ -163,6 +164,9 @@ class TravelControllerConfig:
         _finite(self.maximum_click_distance, "maximum_click_distance")
         if self.maximum_click_distance <= 0:
             raise ValueError("maximum_click_distance must be positive")
+        _finite(self.escape_backtrack_distance, "escape_backtrack_distance")
+        if self.escape_backtrack_distance <= 0:
+            raise ValueError("escape_backtrack_distance must be positive")
         for value, field_name in (
             (self.maximum_session_ms, "maximum_session_ms"),
             (self.click_interval_ms, "click_interval_ms"),

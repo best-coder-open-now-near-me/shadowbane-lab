@@ -1710,6 +1710,9 @@ class PvEApproachControllerTests(unittest.TestCase):
 
         self.assertEqual("moving", backtrack.status.value)
         self.assertEqual(TravelManeuver.ESCAPE_BACKTRACK, backtrack.decision.maneuver)
+        assert backtrack.decision.click_destination is not None
+        self.assertEqual(90.0, backtrack.decision.click_destination.x)
+        self.assertEqual(200.0, backtrack.decision.click_destination.y)
         self.assertGreater(len(navigation.blocked), 0)
         self.assertEqual("moving", replanned.status.value)
         self.assertEqual(TravelManeuver.DIRECT, replanned.decision.maneuver)

@@ -94,6 +94,9 @@ class AStarTravelControllerTests(unittest.TestCase):
         self.assertEqual(1, first.click_count)
         self.assertEqual(2, backtrack.click_count)
         self.assertEqual(TravelManeuver.ESCAPE_BACKTRACK, backtrack.maneuver)
+        assert backtrack.click_destination is not None
+        self.assertEqual(-5.0, backtrack.click_destination.x)
+        self.assertEqual(5.0, backtrack.click_destination.y)
         self.assertEqual(0, backtrack.minimap_direction.y)
         self.assertLess(backtrack.minimap_direction.x, 0.0)
         self.assertEqual(0, controller.replan_count)

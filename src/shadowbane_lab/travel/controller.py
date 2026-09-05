@@ -231,6 +231,11 @@ class TravelController:
             length = hypot(direction.x, direction.y)
             if maneuver is TravelManeuver.DIRECT:
                 click_distance = min(length, self._config.maximum_click_distance)
+            elif maneuver is TravelManeuver.ESCAPE_BACKTRACK:
+                click_distance = min(
+                    self._config.escape_backtrack_distance,
+                    self._config.maximum_click_distance,
+                )
             else:
                 clearance = (
                     self._config.escape_backup_clearance

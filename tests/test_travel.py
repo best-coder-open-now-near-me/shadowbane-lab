@@ -503,7 +503,46 @@ class TravelControllerTests(unittest.TestCase):
         self.assertAlmostEqual(0.0, backtrack.minimap_direction.x)
         self.assertGreater(backtrack.minimap_direction.y, 0.0)
         assert backtrack.click_destination is not None
-        self.assertLess(backtrack.click_destination.y, 1010.0)
+        self.assertEqual(1000.0, backtrack.click_destination.y)
+
+    def test_first_backtrack_distance_is_independent_of_direct_click_range(self) -> None:
+        controller = TravelController(
+            parse_go_command("go 5000 1000"),
+            TravelControllerConfig(
+                maximum_click_distance=50.0,
+                escape_backtrack_distance=10.0,
+                click_interval_ms=1000,
+                minimum_progress=5,
+                maximum_no_progress_clicks=1,
+            ),
+        )
+
+        controller.step(_observation(0, 1000, 1000))
+        backtrack = controller.step(_observation(1000, 1000, 1000))
+
+        self.assertEqual(TravelManeuver.ESCAPE_BACKTRACK, backtrack.maneuver)
+        assert backtrack.click_destination is not None
+        self.assertEqual(990.0, backtrack.click_destination.x)
+        self.assertEqual(1000.0, backtrack.click_destination.y)
+
+    def test_backtrack_distance_cannot_exceed_global_click_range(self) -> None:
+        controller = TravelController(
+            parse_go_command("go 5000 1000"),
+            TravelControllerConfig(
+                maximum_click_distance=6.0,
+                escape_backtrack_distance=10.0,
+                click_interval_ms=1000,
+                minimum_progress=5,
+                maximum_no_progress_clicks=1,
+            ),
+        )
+
+        controller.step(_observation(0, 1000, 1000))
+        backtrack = controller.step(_observation(1000, 1000, 1000))
+
+        assert backtrack.click_destination is not None
+        self.assertEqual(994.0, backtrack.click_destination.x)
+        self.assertEqual(1000.0, backtrack.click_destination.y)
 
     def test_stops_after_escape_budget_is_exhausted(self) -> None:
         controller = TravelController(
