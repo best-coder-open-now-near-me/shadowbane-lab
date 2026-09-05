@@ -82,8 +82,8 @@ invalid pick and lost capture, client isolation and camera integration at
 
 ## Todos
 
-- [ ] Active: finish native steering, queue cancellation, server notification,
-  camera, picking, UI ownership and owning-thread binding investigation/verification.
+- [ ] Active: wire the native stop executor and remaining steering/camera/picking
+  bindings into the verified native-update dispatch and real input adapters.
 - [x] Implement and test the shared input interpretation and ownership policy.
 - [ ] Wire all three input methods, native adapter, real settings and feature controls.
 - [ ] Wire travel/PvE dispatch and immutable ownership grants with the hardening owner.
@@ -219,3 +219,45 @@ installed controls package, combined gameplay acceptance and independent complet
 integration review. These are outstanding implementation/validation, not passing
 checks or environmental skips. Next active todo remains complete ordered native
 stop composition and subsequent native steering/runtime wiring.
+
+## Production native stop composition checkpoint
+
+`movement_native_stop.h/.cpp` now implements the real native stop executor.
+`movement_native_image.h/.cpp` authenticates the reviewed executable and compares
+its entire loaded code section after normalizing authenticated PE relocations.
+The executor binds the native routines, requires the exact client window thread and
+an admitted native-update phase, retains the captured actor, and rechecks the single
+controls authority plus actor/world/window identity at callback boundaries.
+
+Stop retires both native follow intents, clears the actor's native action queue,
+removes its exact scheduled entry with native destruction/pool return, cancels the
+pending path request, destroys path elements, clears continuation, and invokes the
+native destination reset. Only native moving state transitions to idle; other
+states remain unchanged. The state message is built during that transition and
+its owned reference is either consumed once by native send or released without
+sending after invalidation. Missing messages and uncertain native exceptions fail
+closed; an uncertain send is never retried. Native cancellation fields are written
+only for the verified follow and pending-request intent, never coordinates, speed,
+restrictions or simulated input.
+
+The policy now rejects reentrant command admission during native callbacks and
+honors deferred shutdown before a new movement submission. The same policy remains
+the sole ownership authority, including retained failed-stop grants. No second
+movement writer or command control plane was added.
+
+Both DLL profiles build with these sources. All 23 native tests passed in each
+profile; targeted stop/policy tests were rerun after callback-race corrections.
+The new tests execute the production composition with controlled native-call doubles
+and process-local actor/queue data. They cover all three policy input methods,
+later follow/world-update attempts after takeover/release, restricted states,
+wrong-thread/outside-update rejection, stale owners, missing outgoing messages,
+native exceptions, callback reentry, shutdown and scene changes during state/send.
+These are composition tests, not execution of the unmodified native world update or
+proof of connected server behavior. Existing actual-code probes provide separate
+ABI/container/lifetime evidence.
+
+The stop executor is compiled but not called by an installed runtime adapter yet.
+No movement capability is advertised or client package changed. The active todo
+has therefore moved from constructing stop composition to real native-update,
+movement/camera/picking and input adapter wiring; complete native behavior and
+combined connected acceptance remain outstanding under the shared plan.

@@ -244,3 +244,28 @@ scheduled-container and allocator tests still pass in both profiles. Complete st
 must compose these lifetimes with exact owner/scene checks, pending-request and
 follow retirement, action queues, destination cancellation and native state-message
 ordering before runtime capability or connected acceptance is justified.
+
+## Ordered stop implementation and verification boundary
+
+The production executor is now `movement_native_stop.cpp`, with the reviewed-image
+binding seal in `movement_native_image.cpp`. It consumes the existing policy's
+captured grant and uses native lifetime, action, scheduled-tree, pool, path,
+continuation, destination and state-message operations. The only direct engine
+writes reproduce the reviewed cancellation intent fields for follow and the pending
+path request; actor coordinates, movement speed and restriction state are untouched.
+
+Execution requires an explicitly admitted native-update phase on the exact window
+thread, before the original update runs. The future runtime hook must establish
+and close that phase; polling/render/teardown callbacks may not call it directly.
+The executor revalidates authority and actor/scene identity after native callbacks,
+rejects callback-created residual work, and prevents an old state message or stop
+from reaching a replacement actor. A native exception latches unavailable and
+retains ambiguous resources rather than guessing reference ownership or retrying
+an uncertain send.
+
+The new CTest exercises this production composition with controlled native-call
+boundaries. Its follow/world-update driver checks retired movement sources but is
+not the unmodified game update. Full native execution, positive loaded-code binding
+in the running client, movement/camera/picking adapters and server-effect acceptance
+remain to be validated as part of the complete candidate. No owner gameplay pass
+or runtime capability is justified by these unit tests alone.

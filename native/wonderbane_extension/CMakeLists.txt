@@ -28,6 +28,9 @@ add_library(
   banded_lighting.cpp
   camera_observation.cpp
   movement_boundary_trace.cpp
+  movement_controls.cpp
+  movement_native_image.cpp
+  movement_native_stop.cpp
   cel_shading.cpp
   depth_edges.cpp
   event_channel.cpp
@@ -810,4 +813,16 @@ if(BUILD_TESTING)
   target_compile_options(wonderbane_extension_movement_tree_probe PRIVATE /W4 /WX /permissive- /sdl /utf-8)
   target_link_libraries(wonderbane_extension_movement_tree_probe PRIVATE bcrypt)
   set_property(TARGET wonderbane_extension_movement_tree_probe PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_movement_native_stop_test
+    movement_controls.cpp movement_native_image.cpp movement_native_stop.cpp movement_native_stop_test.cpp)
+  target_compile_features(wonderbane_extension_movement_native_stop_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_movement_native_stop_test PRIVATE
+    UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_movement_native_stop_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  target_link_libraries(wonderbane_extension_movement_native_stop_test PRIVATE bcrypt user32)
+  set_property(TARGET wonderbane_extension_movement_native_stop_test PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
+  add_test(NAME wonderbane_extension_movement_native_stop COMMAND wonderbane_extension_movement_native_stop_test)
 endif()

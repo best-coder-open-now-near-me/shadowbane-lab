@@ -6,6 +6,11 @@
 
 namespace wonderbane::extension::movement {
 namespace {
+struct ActuationGuard {
+    bool& active;
+    explicit ActuationGuard(bool& value) noexcept : active(value) { active = true; }
+    ~ActuationGuard() { active = false; }
+};
 bool Finite(Vector2 v) noexcept { return std::isfinite(v.x) && std::isfinite(v.y); }
 bool Finite(GroundPoint v) noexcept {
     return std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z);
@@ -71,7 +76,8 @@ Vector2 RadialCamera(Vector2 value, float dead_zone) noexcept {
 
 bool Controls::RetryStop() noexcept {
     if (!pending_stop_) { return true; }
-    if (!actuator_.Stop(pending_grant_, pending_reason_)) { return false; }
+    { const ActuationGuard guard(actuating_);
+      if (!actuator_.Stop(pending_grant_, pending_reason_)) { return false; } }
     pending_stop_ = false;
     return true;
 }
@@ -81,7 +87,8 @@ bool Controls::StopActive(StopReason reason) noexcept {
     // a move. Admission must retire it before publishing a replacement owner.
     if (!moving_ && reason != StopReason::takeover) { return true; }
     moving_ = false;
-    if (actuator_.Stop(grant_, reason)) { return true; }
+    { const ActuationGuard guard(actuating_);
+      if (actuator_.Stop(grant_, reason)) { return true; } }
     pending_grant_ = grant_;
     pending_reason_ = reason;
     pending_stop_ = true;
@@ -100,7 +107,7 @@ bool Controls::Retire(StopReason reason, Owner next, Token token,
     grant_.owner = next;
     grant_.token = token;
     if (next_scene) { grant_.scene = *next_scene; }
-    actuator_.Revoked(old, grant_, reason);
+    { const ActuationGuard guard(actuating_); actuator_.Revoked(old, grant_, reason); }
     return stopped;
 }
 void Controls::Inhibit(StopReason reason) noexcept {
@@ -110,8 +117,10 @@ void Controls::Inhibit(StopReason reason) noexcept {
     foreground_ = false;
 }
 Result Controls::Configure(const Settings& settings) noexcept {
+    if (actuating_) { return Result::inhibited; }
     if (!ValidSettings(settings)) { return Result::invalid; }
     Inhibit(StopReason::disabled);
+    if (shutdown_pending_) { Shutdown(); return Result::inhibited; }
     settings_ = settings;
     faulted_ = camera_faulted_ = false;
     available_ = false;
@@ -123,16 +132,19 @@ bool Controls::ConsumesKey(std::uint16_t key) const noexcept {
     return std::find(settings_.keys.begin(), settings_.keys.end(), key) != settings_.keys.end();
 }
 Result Controls::AcquireAutomation(std::uint64_t expected, Token token, Grant& output) noexcept {
+    if (actuating_ || shutdown_pending_) { return Result::inhibited; }
     if (expected != grant_.generation) { return Result::stale; }
     if (!ValidTokenText(token.worker) || !ValidTokenText(token.operation)) { return Result::invalid; }
     if (!available_) { return Result::unavailable; }
     if (!foreground_ || (grant_.owner == Owner::manual && moving_)) { return Result::inhibited; }
     if (!RetryStop()) { return Result::stop_failed; }
     if (!Retire(StopReason::takeover, Owner::automation, token)) { return Result::stop_failed; }
+    if (shutdown_pending_) { Shutdown(); return Result::inhibited; }
     output = grant_;
     return Result::accepted;
 }
 Result Controls::AutomationDestination(const Grant& grant, GroundPoint point) noexcept {
+    if (actuating_ || shutdown_pending_) { return Result::inhibited; }
     if (grant != grant_ || grant.owner != Owner::automation) { return Result::stale; }
     if (!Finite(point)) { return Result::invalid; }
     if (!available_ || !foreground_) { return Result::inhibited; }
@@ -140,7 +152,10 @@ Result Controls::AutomationDestination(const Grant& grant, GroundPoint point) no
     const bool start = !moving_;
     // A failing adapter can have partially submitted work. Retain stop responsibility.
     moving_ = true;
-    if (!actuator_.Destination(grant_, point, start)) {
+    bool accepted = false;
+    { const ActuationGuard guard(actuating_); accepted = actuator_.Destination(grant_, point, start); }
+    if (shutdown_pending_) { Shutdown(); return Result::inhibited; }
+    if (!accepted) {
         Inhibit(StopReason::binding_failure);
         faulted_ = true;
         available_ = false;
@@ -149,25 +164,32 @@ Result Controls::AutomationDestination(const Grant& grant, GroundPoint point) no
     return Result::accepted;
 }
 Result Controls::Stop(const Grant& grant, StopReason reason) noexcept {
+    if (actuating_) { return Result::inhibited; }
     if (grant != grant_) { return Result::stale; }
     return Retire(reason, Owner::none) ? Result::accepted : Result::stop_failed;
 }
 void Controls::Shutdown() noexcept {
+    if (actuating_) { shutdown_pending_ = true; return; }
+    shutdown_pending_ = false;
+    settings_.enabled = false;
     Inhibit(StopReason::shutdown);
     (void)RetryStop();
     available_ = false;
 }
 
 void Controls::Tick(const Input& input) noexcept {
+    if (actuating_) { return; }
+    if (shutdown_pending_) { Shutdown(); return; }
     if (input.scene != grant_.scene) {
         const auto old = grant_;
-        actuator_.SceneRetired(old.scene);
+        { const ActuationGuard guard(actuating_); actuator_.SceneRetired(old.scene); }
         // Never invoke an old actor's stop on a replacement actor or reused pointer.
         moving_ = pending_stop_ = false;
         (void)Retire(StopReason::scene_changed, Owner::none, {}, input.scene);
         Inhibit(StopReason::scene_changed);
         has_tick_ = false;
     }
+    if (shutdown_pending_) { Shutdown(); return; }
     const bool discontinuity = has_tick_ &&
         (input.tick_ms < last_tick_ || input.tick_ms - last_tick_ > 250);
     const float seconds = !has_tick_ || discontinuity ? 0.0F
@@ -207,8 +229,12 @@ void Controls::Tick(const Input& input) noexcept {
         && Finite(input.left_stick) && Finite(input.right_stick)) { controller_armed_ = true; }
     if (connected && controller_armed_ && !camera_faulted_ && seconds > 0 && Nonzero(camera)) {
         const float scale = settings_.camera_radians_per_second * seconds;
-        if (!actuator_.Camera({camera.x * scale * (settings_.invert_camera_x ? -1 : 1),
-                              camera.y * scale * (settings_.invert_camera_y ? -1 : 1)})) {
+        bool accepted = false;
+        { const ActuationGuard guard(actuating_);
+          accepted = actuator_.Camera({camera.x * scale * (settings_.invert_camera_x ? -1 : 1),
+                                       camera.y * scale * (settings_.invert_camera_y ? -1 : 1)}); }
+        if (shutdown_pending_) { Shutdown(); return; }
+        if (!accepted) {
             // Camera is not a movement owner. Latch its capability failure without
             // revoking an unrelated route or suppressing working movement controls.
             camera_faulted_ = true;
@@ -246,11 +272,14 @@ void Controls::Tick(const Input& input) noexcept {
     if (directional || destination) {
         if (grant_.owner != Owner::manual &&
             !Retire(StopReason::takeover, Owner::manual)) { return; }
+        if (shutdown_pending_) { Shutdown(); return; }
         const bool start = !moving_;
         moving_ = true;
-        const bool accepted = directional
-            ? actuator_.Direction(grant_, WorldDirection(direction, input), start)
-            : actuator_.Destination(grant_, input.ground, start);
+        bool accepted = false;
+        { const ActuationGuard guard(actuating_);
+          accepted = directional ? actuator_.Direction(grant_, WorldDirection(direction, input), start)
+                                 : actuator_.Destination(grant_, input.ground, start); }
+        if (shutdown_pending_) { Shutdown(); return; }
         if (!accepted) {
             Inhibit(StopReason::binding_failure);
             faulted_ = true;
