@@ -231,6 +231,35 @@ void NativeIntentTakeover() {
     Check(blocked.controls.Ready() && blocked.actuator.Count('d') == 1,
           "retained exact stop completes before manual submission");
 }
+void EmergencyStops() {
+    for (const auto reason : {StopReason::focus, StopReason::capture_lost, StopReason::ui}) {
+        Fixture f; const auto old = f.Automate();
+        const auto before = f.actuator.Count('s');
+        Check(f.controls.EmergencyStop(old, reason) == Result::accepted,
+              "window safety stop does not wait for an input tick");
+        Check(f.actuator.Count('s') == before + 1 && f.controls.Current().owner == Owner::none,
+              "window safety stop retires exact native intent immediately");
+        const auto after = f.actuator.events.size();
+        Check(f.controls.EmergencyStop(old, reason) == Result::stale && f.actuator.events.size() == after,
+              "duplicate queued safety event cannot stop a replacement generation");
+        f.input.keys[0x57] = true; f.input.left_stick = {1, 0}; f.Step();
+        Check(f.actuator.Count('d') == 0, "focus restoration requires neutral manual controls");
+        f.input.keys.fill(false); f.input.left_stick = {}; f.Step();
+        f.input.keys[0x57] = true; f.Step(); const auto manual = f.controls.Current();
+        const auto moved = f.actuator.events.size();
+        Check(f.controls.EmergencyStop(old, reason) == Result::stale
+            && f.controls.Current() == manual && f.actuator.events.size() == moved,
+            "old safety stop cannot cancel newly accepted manual movement");
+    }
+    Fixture f; const auto old = f.Automate(); f.actuator.stop_ok = false;
+    Check(f.controls.EmergencyStop(old, StopReason::focus) == Result::stop_failed
+        && !f.controls.Ready(), "failed emergency native stop excludes a new writer");
+    Grant next{};
+    Check(f.controls.AcquireAutomation(f.controls.Current().generation, Identity("next"), next)
+        != Result::accepted, "failed window stop cannot admit automation");
+    f.input.scene = 12; f.Step();
+    Check(!f.controls.AuthorizesNativeStop(old), "scene replacement discards old emergency stop authority");
+}
 void FrameRatesAndSettings() {
     for (const int hz : {20, 30, 60, 144, 240}) {
         Fixture f; f.input.right_stick = {1, 0};
@@ -254,6 +283,6 @@ void FrameRatesAndSettings() {
 }
 }
 int main() {
-    Interpretation(); Ownership(); CameraFailure(); Gates(); Devices(); Drag(); FailureAndScene(); NativeIntentTakeover(); FrameRatesAndSettings();
+    Interpretation(); Ownership(); CameraFailure(); Gates(); Devices(); Drag(); FailureAndScene(); NativeIntentTakeover(); EmergencyStops(); FrameRatesAndSettings();
     return failures ? 1 : 0;
 }

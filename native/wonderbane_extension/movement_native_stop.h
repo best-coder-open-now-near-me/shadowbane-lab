@@ -11,10 +11,12 @@ class NativeStop {
 public:
     explicit NativeStop(const Controls& controls) noexcept : controls_(controls) {}
     bool Bind(HWND client_window) noexcept;
-    // Enter/leave only around the verified native-update hook, before calling its
-    // original. Input, render and teardown callbacks cannot execute native stop.
+    // Normal movement/camera phase belongs to the verified native-update hook.
+    // The verified HWND callback may enter only the explicit emergency-stop
+    // phase below; polling/render/foreign teardown threads cannot actuate.
     bool BeginUpdate(void* native_window) noexcept;
     bool BeginUpdate(void* native_window, const NativeScene&) noexcept;
+    bool BeginOwnerStop(HWND source_window, void* native_window, const NativeScene&) noexcept;
     void EndUpdate() noexcept;
     bool Execute(const Grant&) noexcept;
     // Camera input does not acquire or retire movement ownership.
@@ -108,7 +110,7 @@ private:
     HWND window_ = nullptr;
     DWORD thread_ = 0;
     NativeScene lifetime_scene_{};
-    bool require_lifetime_ = false;
+    bool require_lifetime_ = false, stop_only_ = false;
     bool bound_ = false, faulted_ = false, executing_ = false, captured_ = false, in_update_ = false;
     // On an unexpected native exception, retain ambiguous resources and fail
     // closed. Never retry an uncertain send or unload code from under callbacks.

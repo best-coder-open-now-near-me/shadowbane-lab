@@ -66,6 +66,10 @@ bool NativeStop::BeginUpdate(void* native_window, const NativeScene& scene) noex
     if (BeginUpdate(native_window)) { return true; }
     lifetime_scene_ = {}; return false;
 }
+bool NativeStop::BeginOwnerStop(HWND source_window, void* native_window, const NativeScene& scene) noexcept {
+    if (source_window != window_ || !BeginUpdate(native_window, scene)) { return false; }
+    stop_only_ = true; return true;
+}
 bool NativeStop::BeginUpdate(void* native_window) noexcept {
     DWORD pid = 0; std::uintptr_t actual = 0;
     if (!Available() || in_update_ || executing_ || (require_lifetime_ && !NativeMovementLifetimeCurrent(lifetime_scene_))
@@ -78,7 +82,7 @@ void NativeStop::EndUpdate() noexcept {
     if (!in_update_ || executing_ || GetCurrentThreadId() != thread_) { return; }
     executing_ = true;
     if (!faulted_) { (void)ClearPickGuarded(); }
-    executing_ = false; in_update_ = false; lifetime_scene_ = {};
+    executing_ = false; in_update_ = false; lifetime_scene_ = {}; stop_only_ = false;
 }
 bool NativeStop::Capture(const Grant& grant) noexcept {
     Target target{}; target.grant = grant;
@@ -127,7 +131,7 @@ bool NativeStop::ClearPickGuarded() noexcept {
 }
 bool NativeStop::PickGround(int x, int y, GroundPoint& output) noexcept {
     output = {};
-    if (!Available() || !in_update_ || executing_ || !controls_.Ready() || GetCurrentThreadId() != thread_) { return false; }
+    if (stop_only_ || !Available() || !in_update_ || executing_ || !controls_.Ready() || GetCurrentThreadId() != thread_) { return false; }
     executing_ = true;
     const bool result = ClearPickGuarded() && PickGuarded(x, y, output);
     executing_ = false;
@@ -170,7 +174,7 @@ bool NativeStop::PickGuarded(int x, int y, GroundPoint& output) noexcept {
 }
 bool NativeStop::CameraBasis(Vector2& forward, Vector2& right) noexcept {
     forward = {}; right = {};
-    if (!Available() || !in_update_ || executing_ || !controls_.Ready() || GetCurrentThreadId() != thread_) { return false; }
+    if (stop_only_ || !Available() || !in_update_ || executing_ || !controls_.Ready() || GetCurrentThreadId() != thread_) { return false; }
     executing_ = true;
     bool result = ClearPickGuarded() && BasisGuarded(forward, right);
     if (!faulted_) { result = ClearPickGuarded() && result; }
@@ -230,7 +234,7 @@ bool NativeStop::BasisGuarded(Vector2& forward, Vector2& right) noexcept {
     __except(EXCEPTION_EXECUTE_HANDLER) { faulted_ = true; return false; }
 }
 bool NativeStop::MoveToPick(const Grant& grant, GroundPoint point) noexcept {
-    if (!Available() || !in_update_ || executing_ || !controls_.Ready() || GetCurrentThreadId() != thread_
+    if (stop_only_ || !Available() || !in_update_ || executing_ || !controls_.Ready() || GetCurrentThreadId() != thread_
         || !pick_valid_ || !ray_owned_ || !Finite(point) || point.x != pick_point_.x || point.y != pick_point_.y
         || point.z != pick_point_.z || grant.owner == Owner::none || grant != controls_.Current()
         || grant.scene != pick_target_.grant.scene || !SceneCurrent(pick_target_)) { return false; }
@@ -327,7 +331,7 @@ bool NativeStop::MovementCurrent(const Target& target) const noexcept {
     return controls_.Ready() && target.grant.owner != Owner::none && controls_.Current() == target.grant && Current(target);
 }
 bool NativeStop::Steer(const Grant& grant, Vector2 direction, std::uint64_t tick, bool start) noexcept {
-    if (!Available() || !in_update_ || executing_ || GetCurrentThreadId() != thread_
+    if (stop_only_ || !Available() || !in_update_ || executing_ || GetCurrentThreadId() != thread_
         || !controls_.Ready() || grant.owner == Owner::none || controls_.Current() != grant
         || !std::isfinite(direction.x) || !std::isfinite(direction.y)
         || std::abs(std::hypot(direction.x, direction.y) - 1.0F) > 0.001F) { return false; }
@@ -414,7 +418,7 @@ bool NativeStop::SteerGuarded(const Target& target, Vector2 direction, std::uint
     __except(EXCEPTION_EXECUTE_HANDLER) { faulted_ = true; return false; }
 }
 bool NativeStop::RotateCamera(Vector2 radians) noexcept {
-    if (!Available() || !controls_.CameraReady() || !in_update_ || executing_
+    if (stop_only_ || !Available() || !controls_.CameraReady() || !in_update_ || executing_
         || GetCurrentThreadId() != thread_ || !std::isfinite(radians.x) || !std::isfinite(radians.y)) { return false; }
     Target target{}; target.grant = controls_.Current();
     if (!Read(base_ + 0x16a2d98, target.actor) || !Read(base_ + 0x1389028, target.world)

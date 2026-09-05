@@ -491,3 +491,17 @@ doubles for text/modal/inventory/map ownership, camera separation, coordinates,
 foreign thread/reentry/scene changes, foreign text slots and native faults. Active
 next remains Windows/XInput consumer composition, then settings/grant transport
 and complete package/connected acceptance through the integration owner.
+
+## Stop-only window-thread admission checkpoint
+
+Added an explicit exact-HWND, observed-lifetime emergency phase to the native
+executor. It admits native cancellation and rejects picking, movement and camera
+mutation. The ownership policy accepts only the captured current grant, retires
+it immediately, and disarms held inputs; duplicate or delayed old stops cannot
+cancel a new owner. Destruction invalidates this phase without recapturing a
+replacement actor. Tests exercise actual production cancellation under the
+stop-only flag, including pending path retirement and native stopped-state send.
+
+Full-profile policy/backend/lifetime tests: 34 passed, zero skips. This is phase
+and policy coverage; the Windows event consumer and its nested callback handling
+are still the active todo. It does not yet certify connected focus-loss behavior.

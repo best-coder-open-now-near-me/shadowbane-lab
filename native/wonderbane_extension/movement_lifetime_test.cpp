@@ -215,6 +215,11 @@ int main(int argc, char** argv) {
             wm::Input input{}; input.scene = scene.epoch; controls.Tick(input);
             const auto grant = controls.Current();
             Check(!native.BeginUpdate(f->window.data()), "production backend requires an observed lifetime");
+            Check(!native.BeginOwnerStop(nullptr, f->window.data(), scene), "foreign HWND cannot enter safety phase");
+            Check(native.BeginOwnerStop(f->hwnd, f->window.data(), scene), "exact HWND admits observed safety phase");
+            Check(wm::NativeStopTestAccess::Current(native, scene, grant), "safety phase retains lifetime validation");
+            native.EndUpdate();
+
             Check(native.BeginUpdate(f->window.data(), scene), "observed lifetime enters native phase");
             Check(wm::NativeStopTestAccess::Current(native, scene, grant), "native callback boundary accepts current lifetime");
             if (mode != "actuator") {
@@ -235,6 +240,7 @@ int main(int argc, char** argv) {
             Check(!native.Execute(grant), "old stop cannot call native bindings after destruction");
             native.EndUpdate();
             Check(!native.BeginUpdate(f->window.data(), scene), "obsolete lifetime cannot begin a new phase");
+            Check(!native.BeginOwnerStop(f->hwnd, f->window.data(), scene), "stale window safety cannot recapture replacement actor");
             Check(f->Observe(scene) && native.BeginUpdate(f->window.data(), scene), "replacement lifetime can enter next phase");
             Check(!native.Execute(grant), "old stop cannot cancel replacement with reused native addresses");
             native.EndUpdate();
