@@ -1002,3 +1002,19 @@ visual sources, with developer probe excluded. Both passed. No installed package
 receipt is inferred from these source/build checks. Remaining production blocker:
 cue/effects foreground transparency, followed by finished-candidate independent
 review and actual installed-package/connected acceptance.
+
+
+Independent affected-area verification: cue owner rebuilt the full DLL and GPU
+fixture from exact `1b0b6c5f29c7015c85006a570686253f30676f92`. Base cue GPU,
+dedicated scene pipeline guard and source feasibility each executed and passed;
+required cue native transparency executed and failed unchanged. Zero skips.
+Integrator read the actual JUnit at
+`E:/Projects/shadowbane/artifacts/cue-combined-native/1b0b6c5/lane-cue.xml` and
+confirmed those four outcomes. The owner also reviewed the reconciled header,
+CTest registration and builder rejection of missing/skipped/failing pipeline gates.
+Public receipt: `8b52bb79192e193b4cb69d29c97d3b32c553d924` on the cue branch;
+that documentation-only commit is not needed for runtime inclusion. The shared
+pipeline-state defect is closed. This focused feature-owner verification does
+not replace the independent review required after a complete candidate is pinned.
+Next remains production opaque-visibility/ordered-transmission correction for
+cue and particles; final package verification and consolidated acceptance follow.
