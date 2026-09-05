@@ -13,6 +13,7 @@ HGLRC context = reinterpret_cast<HGLRC>(0x1234U);
 const char* version = "1.3 test";
 bool proc_available = true, program_proc_available = true;
 int program_calls = 0, profile_mask = 2;
+bool pipeline_query_writes = true;
 void APIENTRY Program(unsigned int target,unsigned int name,int* output) {
     ++program_calls;
     if (name != 0x8677U || (target != 0x8620U && target != 0x8804U)) std::abort();
@@ -27,6 +28,7 @@ std::vector<unsigned int> integer_queries;
 void APIENTRY Integer(const unsigned int name, int* output) {
     ++calls;
     integer_queries.push_back(name);
+    if(name==0x825AU && !pipeline_query_writes)return;
     if (name == 0x84E0U) { *output = active_unit; }
     else if (name == 0x84E2U) { *output = maximum_units; }
     else if (name == 0x0BA2U) { output[0] = output[1] = 0; output[2] = 800; output[3] = 600; }
@@ -89,7 +91,7 @@ bool MaterialQueryAudit() {
     if(captured.arb_programs[1]!=-1 || captured.arb_programs[3]!=-1 || program_calls!=2) return false;
     version="1.1 test";extensions="";DetectCapabilities(*g_frame);
     integer_queries.clear();captured={};ReadState(captured,*g_frame);
-    for(const unsigned int illegal:{0x8620U,0x8804U,0x806FU,0x8513U,0x84F5U,0x80A8U,0x80A9U,0x8458U})
+    for(const unsigned int illegal:{0x8620U,0x8804U,0x806FU,0x8513U,0x84F5U,0x80A8U,0x80A9U,0x8458U,0x825AU})
         if(std::find(integer_queries.begin(),integer_queries.end(),illegal)!=integer_queries.end())return false;
     if(captured.arb_programs[0]!=0 || captured.arb_programs[1]!=-1 || captured.raster[1]!=0)return false;
     extensions="GL_ARB_fragment_program";program_proc_available=true;DetectCapabilities(*g_frame);
@@ -100,6 +102,16 @@ bool MaterialQueryAudit() {
     if(captured.arb_programs[0]!=-1 || captured.textures[0].alternate_targets[1]!=-1)return false;
     extensions="GL_ARB_vertex_program2 GL_ARB_fragment_program2";DetectCapabilities(*g_frame);
     if(g_frame->arb_vertex || g_frame->arb_fragment)return false;
+    version="4.1 test";extensions="";DetectCapabilities(*g_frame);
+    captured={};ReadState(captured,*g_frame);if(captured.pipeline!=0x825A)return false;
+    pipeline_query_writes=false;captured={};ReadState(captured,*g_frame);
+    if(captured.pipeline!=-1)return false;pipeline_query_writes=true;
+    version="2.1 test";extensions="GL_ARB_separate_shader_objects";DetectCapabilities(*g_frame);
+    captured={};ReadState(captured,*g_frame);if(captured.pipeline!=0x825A)return false;
+    extensions="GL_EXT_separate_shader_objects";DetectCapabilities(*g_frame);integer_queries.clear();
+    captured={};ReadState(captured,*g_frame);
+    if(captured.pipeline!=-1 || !g_frame->unobserved_program_path
+        || std::find(integer_queries.begin(),integer_queries.end(),0x825AU)!=integer_queries.end())return false;
     version="1.3 test";extensions="";program_proc_available=true;
     return true;
 }
@@ -136,7 +148,12 @@ bool MaterialGateAudit() {
     version="3.2 test";profile_mask=2;DetectCapabilities(*g_frame);if(!candidate(base))return false;
     profile_mask=1;DetectCapabilities(*g_frame);if(candidate(base))return false;profile_mask=2;
     version="4.1 test";DetectCapabilities(*g_frame);if(candidate(base))return false;
+    base.pipeline=0;if(!candidate(base))return false;
+    changed=base;changed.pipeline=9;if(candidate(changed))return false;
     version="2.1 test";extensions="GL_ARB_separate_shader_objects";
+    DetectCapabilities(*g_frame);if(!candidate(base))return false;
+    extensions="GL_EXT_separate_shader_objects";DetectCapabilities(*g_frame);if(candidate(base))return false;
+    extensions="GL_ARB_separate_shader_objects GL_NV_fragment_program";
     DetectCapabilities(*g_frame);if(candidate(base))return false;
     version="1.3 test";extensions="";return true;
 }
