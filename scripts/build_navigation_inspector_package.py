@@ -15,6 +15,7 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import xml.etree.ElementTree as ET
 import zipfile
 from datetime import UTC, datetime
 from pathlib import Path
@@ -114,11 +115,13 @@ def main() -> int:
         "navigation_channel.cpp",
         "navigation_draw.cpp",
         "navigation_viewer.cpp",
-        "scene_draw.cpp",
         "effects.cpp",
-        "effects_attachment.cpp",
         "effects_runtime.cpp",
         "effects_draw.cpp",
+        "sky.cpp",
+        "sky_draw.cpp",
+        "sky_runtime.cpp",
+        "sky_asset.rc",
     ]
     artifacts = [source_archive]
     for profile in ("full", "diagnostics-only"):
@@ -140,9 +143,16 @@ def main() -> int:
             ],
         )
         project = build / "wonderbane_extension.vcxproj"
-        project_text = project.read_text(encoding="utf-8-sig")
+        project_root = ET.parse(project).getroot()
+        included_sources = [
+            Path(item.attrib["Include"]).name
+            for tag in ("ClCompile", "ResourceCompile")
+            for item in project_root.findall(f".//{{*}}{tag}")
+            if "Include" in item.attrib
+        ]
         for name in contracts:
-            if (name in project_text) != (profile == "full"):
+            expected_count = 1 if profile == "full" else 0
+            if included_sources.count(name) != expected_count:
                 raise RuntimeError(f"{profile}: incorrect runtime source ownership for {name}")
         run(
             f"{profile}-build",
@@ -166,6 +176,14 @@ def main() -> int:
                 f"{profile}-selected-binding",
                 [
                     build / "Release/wonderbane_extension_selected_cue_binding_test.exe",
+                    arguments.reviewed_client.resolve(),
+                ],
+            )
+        if arguments.reviewed_client:
+            run(
+                f"{profile}-sky-binding",
+                [
+                    build / "Release/wonderbane_extension_sky_binding_test.exe",
                     arguments.reviewed_client.resolve(),
                 ],
             )

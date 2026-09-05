@@ -160,6 +160,9 @@ if(BUILD_TESTING)
   target_link_libraries(wonderbane_extension_navigation_draw_test PRIVATE opengl32 gdi32 user32)
   set_property(TARGET wonderbane_extension_navigation_draw_test PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded")
   add_test(NAME wonderbane_extension_navigation_draw COMMAND wonderbane_extension_navigation_draw_test)
+  add_test(NAME wonderbane_extension_effects_native_transparency
+    COMMAND wonderbane_extension_navigation_draw_test --verify-native-transparency)
+
   add_executable(wonderbane_extension_navigation_test
     navigation_protocol.cpp navigation_channel.cpp navigation_protocol_test.cpp)
   target_compile_features(wonderbane_extension_navigation_test PRIVATE cxx_std_20)
