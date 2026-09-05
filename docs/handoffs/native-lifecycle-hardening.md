@@ -547,3 +547,17 @@ cadence and connected obstacle behavior are not certified by controlled-call tes
 No controls consumer is activated. Next is camera-basis/terrain-pick/Windows-input
 composition, settings and manager grant transport, then combined runtime and
 package gates. Native transparency remains unresolved.
+
+
+Native picking `e7237d2c6dbfa007d64f35751d913bb81e0cf6cb` is merged at
+`3ee0ec715b1cc6bdce1316531ab0c08a9e8edd04`. Both complete DLL profiles build;
+each executes 11 movement/shared-update/startup tests successfully, zero skips.
+Evidence: `artifacts/hardening-evidence/picking-native-{full,diagnostics}.xml`
+and build logs. The production adapter composes native unprojection, full 3D
+collision and parent-local conversion. Hit actor/parent references retire on
+replacement pick or owning-thread EndUpdate; foreign-thread EndUpdate is rejected.
+Misses have no plane fallback and scene replacement prevents stale conversion.
+Tests exercise production composition with controlled native calls, not live
+terrain or camera certification. No runtime controls consumer is active. Next is
+drag destination actuation and camera-basis/input/UI composition, then settings/
+grant transport and combined package validation. Transparency remains unresolved.
