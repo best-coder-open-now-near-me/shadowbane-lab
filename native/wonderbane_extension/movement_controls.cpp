@@ -168,6 +168,12 @@ Result Controls::Stop(const Grant& grant, StopReason reason) noexcept {
     if (grant != grant_) { return Result::stale; }
     return Retire(reason, Owner::none) ? Result::accepted : Result::stop_failed;
 }
+Result Controls::EmergencyStop(const Grant& grant, StopReason reason) noexcept {
+    if (actuating_) { return Result::inhibited; }
+    if (grant != grant_) { return Result::stale; }
+    Inhibit(reason);
+    return pending_stop_ ? Result::stop_failed : Result::accepted;
+}
 void Controls::Shutdown() noexcept {
     if (actuating_) { shutdown_pending_ = true; return; }
     shutdown_pending_ = false;

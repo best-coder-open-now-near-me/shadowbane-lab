@@ -25,6 +25,7 @@ struct NativeStopTestAccess {
     using GroundTarget = NativeStop::GroundTarget;
     using Node = NativeStop::Node; using Map = NativeStop::Map; using Vector = NativeStop::Vector;
     static void Bind(NativeStop&, void*, HWND);
+    static void StopOnly(NativeStop& stop) { stop.stop_only_ = true; }
     static void** __fastcall Retain(void**, void*, void*);
     static void __fastcall Release(void**, void*);
     static void __fastcall Clear(void*, void*, const NativeStop::Identity*);
@@ -615,6 +616,23 @@ void CameraComposition() {
       f.input.right_stick = {}; f.input.keys[0x57] = true; f.Step();
       Check(f.moves == 1, "camera failure leaves native stop and manual movement usable"); }
 }
+void EmergencyStopComposition() {
+    Fixture f; f.input.keys[0x57] = true; f.Step(); const auto grant = f.controls.Current();
+    Access::StopOnly(f.stop);
+    GroundPoint point{}; Vector2 forward{}, right{};
+    Check(!f.stop.PickGround(1, 1, point) && !f.stop.CameraBasis(forward, right)
+        && !f.stop.RotateCamera({1, 0}) && !f.stop.Steer(grant, {0, 1}, 50, true)
+        && !f.stop.MoveToPick(grant, {}), "emergency phase cannot pick, move or rotate camera");
+    const auto sends = f.sends;
+    Check(f.controls.EmergencyStop(grant, StopReason::focus) == Result::accepted,
+          "stop-only phase executes production cancellation without another native update");
+    Check(f.sends == sends + 1 && Get<std::uint32_t>(f.state.data(), 0x10) == 5
+        && f.request.state == 1 && f.request.usable == 0,
+        "emergency stop cancels pending solve and emits native stopped state");
+    const auto count = f.sends;
+    Check(f.controls.EmergencyStop(grant, StopReason::capture_lost) == Result::stale
+        && f.sends == count, "late window cancellation cannot replay a native stop");
+}
 void ReentryAndScene() {
     // Boundary fault injection also covers sealed retain/position helpers; this
     // does not claim those reviewed native routines invoke gameplay callbacks.
@@ -670,6 +688,6 @@ void ReentryAndScene() {
 }
 int main() {
     { Fixture f; NativeStop unbound(f.controls); Check(!unbound.Bind(f.window), "unsupported executable stays unavailable"); }
-    ManualMethods(); StatesAndFailures(); CameraBasisComposition(); DragMoveComposition(); TerrainPickComposition(); SteeringComposition(); CameraComposition(); ReentryAndScene();
+    ManualMethods(); StatesAndFailures(); CameraBasisComposition(); DragMoveComposition(); TerrainPickComposition(); SteeringComposition(); CameraComposition(); EmergencyStopComposition(); ReentryAndScene();
     return failures ? 1 : 0;
 }

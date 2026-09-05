@@ -101,6 +101,9 @@ public:
     Result AcquireAutomation(std::uint64_t expected_generation, Token, Grant&) noexcept;
     Result AutomationDestination(const Grant&, GroundPoint) noexcept;
     Result Stop(const Grant&, StopReason = StopReason::release) noexcept;
+    // Exact-owner safety command from the verified window thread. The runtime
+    // defers a nested command until native actuation returns, then revalidates.
+    Result EmergencyStop(const Grant&, StopReason) noexcept;
     void Shutdown() noexcept;
     bool ConsumesKey(std::uint16_t key) const noexcept;
     bool ConsumesDrag() const noexcept { return drag_active_; }
