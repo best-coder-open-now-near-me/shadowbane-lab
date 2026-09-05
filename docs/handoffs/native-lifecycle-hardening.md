@@ -25,7 +25,7 @@ Todos:
 - [x] Simulator transaction admission and public planner correctness/indexing.
 - [x] Inspector launch/cleanup exact runtime and process-lifetime ownership.
 - [ ] Active: cue/effects native transparency with existing owners; observed MultiDraw coverage repaired.
-- [ ] Rolling movement native actuation/adapters; passive trace and policy are integrated only.
+- [x] Native movement actuation/adapters, manager and standalone grant ownership integrated; live acceptance pending.
 - [ ] Combined required gates, independent review of a complete pinned candidate, exact package and installed controls.
 - [ ] Consolidated acceptance handoff with identities and specific remaining live checks.
 
@@ -1092,3 +1092,23 @@ closure is claimed for them. Evidence: artifacts/hardening-evidence/cue-query-
 {full,diagnostics}.xml and matching build logs. Next: independent affected cue
 verification and ongoing material/late-contributor work for the transparency fix;
 no package or owner-install request until the complete candidate passes.
+
+
+Narrow diagnostic preparation: the user is logged into the testing VM, but a
+read-only live check found the vanilla reviewed executable with no extension DLL
+loaded, not the historical guided runtime. It cannot produce the requested newer
+trace. No process/settings/runtime files were changed. The agreed missing facts
+are actual foreground submission/caller and material state in two paired frames,
+not proof of opaque completeness. No old insufficient capture was requested.
+
+The existing package builder now has an explicit --diagnostic-observation mode.
+Default acceptance behavior remains fail-closed. Diagnostic mode may retain only
+the two named transparency test failures, with exact failure output and nonzero
+command results preserved; missing/skipped required gates, unexpected failures,
+errors and inconsistent exit status remain fatal. It produces diagnostic-manifest
+and diagnostic-named archive only, acceptance_eligible=false, with both native
+profiles and actual installed-wheel checks. No successful acceptance receipt or
+deployment is implied. Eight focused gate-accounting tests pass. Trace enabled/
+disabled tests are mandatory. Next: build this exact committed diagnostic source,
+verify actual artifacts/reader identity, and prepare one reviewable isolated-runtime
+activation/restoration procedure before requesting any owner action.

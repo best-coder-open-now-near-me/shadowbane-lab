@@ -27,6 +27,38 @@ def sha256(path: Path) -> str:
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
+
+DIAGNOSTIC_TRANSPARENCY_FAILURES = frozenset({
+    "wonderbane_extension_selected_cue_native_transparency",
+    "wonderbane_extension_effects_native_transparency",
+})
+
+
+def validate_native_results(path: Path, required: set[str], *, diagnostic: bool,
+                            exit_code: int) -> list[dict[str, str]]:
+    """Retain known diagnostic failures without granting acceptance or hiding skips."""
+    cases = ET.parse(path).getroot().findall(".//testcase")
+    failures = []
+    for case in cases:
+        name = case.get("name", "")
+        if case.find("error") is not None:
+            raise RuntimeError(f"native gate error: {name}")
+        if case.find("failure") is not None or case.get("status") == "fail":
+            if not diagnostic or name not in DIAGNOSTIC_TRANSPARENCY_FAILURES:
+                raise RuntimeError(f"native gate failed: {name}")
+            failures.append({"test": name, "status": "failed",
+                             "detail": case.findtext("system-out", "")})
+    for name in required:
+        matches = [case for case in cases if case.get("name") == name]
+        if len(matches) != 1 or matches[0].find("skipped") is not None:
+            raise RuntimeError(f"native gate missing, duplicated or skipped: {name}")
+        allowed_failure = any(failure["test"] == name for failure in failures)
+        if matches[0].get("status") != "run" and not allowed_failure:
+            raise RuntimeError(f"native gate did not execute: {name}")
+    if bool(exit_code) != bool(failures):
+        raise RuntimeError("native command exit does not match recorded gate failures")
+    return failures
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cmake", default=shutil.which("cmake"))
@@ -36,7 +68,13 @@ def main() -> int:
     parser.add_argument(
         "--reviewed-client", type=Path, help="Private executable for read-only binding verification"
     )
+    parser.add_argument(
+        "--diagnostic-observation", action="store_true",
+        help="Prepare a non-acceptance trace artifact; retain known transparency failures",
+    )
     arguments = parser.parse_args()
+    if arguments.diagnostic_observation and not arguments.reviewed_client:
+        parser.error("diagnostic observation requires an exact reviewed client")
     if os.name != "nt" or not arguments.cmake:
         parser.error("Windows and CMake are required")
     repo = Path(__file__).resolve().parents[1]
@@ -69,8 +107,9 @@ def main() -> int:
     environment.pop("WONDERBANE_MOVEMENT_RUNTIME_TEST", None)
     environment["PYTHONUTF8"] = "1"
     steps = []
+    diagnostic_failures = []
 
-    def run(name, command, cwd=source):
+    def run(name, command, cwd=source, *, retain_failure=False):
         command = [str(value) for value in command]
         print(f"{name}: running", flush=True)
         log = logs / f"{name}.log"
@@ -94,8 +133,12 @@ def main() -> int:
         )
         if result.returncode:
             print(log.read_text(encoding="utf-8")[-6000:], flush=True)
-            raise RuntimeError(f"{name} failed; see {log}")
+            if not retain_failure:
+                raise RuntimeError(f"{name} failed; see {log}")
+            print(f"{name}: FAILED; retained for diagnostic-only validation", flush=True)
+            return result.returncode
         print(f"{name}: passed", flush=True)
+        return 0
 
     run("python-tests", [sys.executable, "-m", "pytest", "-q"])
     run(
@@ -204,7 +247,7 @@ def main() -> int:
             ],
         )
         native_results = logs / f"{profile}-tests.xml"
-        run(
+        native_exit = run(
             f"{profile}-tests",
             [
                 ctest,
@@ -216,12 +259,15 @@ def main() -> int:
                 "--output-junit",
                 native_results,
             ],
+            retain_failure=arguments.diagnostic_observation,
         )
         required_native_tests = {
             "wonderbane_extension_combined_render",
             "wonderbane_extension_selected_cue_gpu",
             "wonderbane_extension_scene_pipeline_guard",
             "wonderbane_extension_scene_query_guard",
+            "wonderbane_extension_terrain_trace_enabled",
+            "wonderbane_extension_terrain_trace_disabled",
             "wonderbane_extension_selected_cue_native_transparency",
             "wonderbane_extension_effects_native_transparency",
             "wonderbane_extension_movement_runtime_keyboard",
@@ -238,18 +284,11 @@ def main() -> int:
             "wonderbane_extension_movement_channel",
             "wonderbane_extension_movement_runtime_commands",
         }
-        cases = ET.parse(native_results).getroot().findall(".//testcase")
-        for name in required_native_tests:
-            matches = [case for case in cases if case.get("name") == name]
-            if (
-                len(matches) != 1
-                or matches[0].get("status") != "run"
-                or matches[0].find("skipped") is not None
-                or matches[0].find("failure") is not None
-            ):
-                raise RuntimeError(
-                    f"{profile}: required native gate did not execute and pass: {name}"
-                )
+        profile_failures = validate_native_results(
+            native_results, required_native_tests,
+            diagnostic=arguments.diagnostic_observation, exit_code=native_exit,
+        )
+        diagnostic_failures.extend({"profile": profile, **failure} for failure in profile_failures)
         ipc_results = logs / f"{profile}-movement-ipc.xml"
         environment["WONDERBANE_MOVEMENT_RUNTIME_TEST"] = str(
             build / "Release/wonderbane_extension_movement_runtime_test.exe"
@@ -437,6 +476,17 @@ assert app.status_var.get() == "Select a connected client first"
 app.close()
 """
     run("installed-movement-panel", [python, "-c", movement_smoke], cwd=output)
+    run("installed-trace-reader", [python, "-c", """
+import json, pathlib, sys, tempfile
+from shadowbane_lab.diagnostics import terrain_trace
+assert pathlib.Path(terrain_trace.__file__).resolve().is_relative_to(pathlib.Path(sys.prefix).resolve())
+payload = {"transmission_state": {"program": 0, "framebuffer": 0},
+           "quad_support": {"program_pipeline": 0}}
+with tempfile.TemporaryDirectory() as directory:
+    path = pathlib.Path(directory) / "trace.json"
+    path.write_text(json.dumps(payload))
+    assert terrain_trace.read_local_trace(path) == payload
+"""], cwd=output)
     artifacts.extend(
         [
             wheel,
@@ -449,10 +499,31 @@ app.close()
         ]
     )
     artifacts.extend(sorted(logs.glob("*.log")))
+    artifacts.extend(sorted(logs.glob("*.xml")))
     sky_handoff = output / "sky-horizon.md"
     shutil.copy2(source / "docs/handoffs/sky-horizon.md", sky_handoff)
     artifacts.append(sky_handoff)
+    diagnostic = arguments.diagnostic_observation
+    if diagnostic:
+        diagnostic_note = output / "DIAGNOSTIC-ONLY.txt"
+        diagnostic_note.write_text(
+            "DIAGNOSTIC OBSERVATION ONLY - NOT AN ACCEPTANCE CANDIDATE\n"
+            f"Exact source: {revision}\n"
+            "Known full transparency gate failures remain recorded in diagnostic-manifest.json.\n"
+            "No VM installation, deployment or activation is authorized by this artifact.\n"
+            "The full-profile DLL contains the opt-in terrain observer; diagnostics-only does not.\n"
+            "Both profiles are retained for verification, not interchangeable observer capability.\n"
+            "Existing capture-wonderbane-terrain-trace.ps1 requests one bounded frame.\n"
+            "Activation requires an exact isolated runtime, disabled visual/movement settings,\n"
+            "verified restoration and separate owner authorization. No current client overwrite.\n"
+            "A captured frame identifies observed submissions/state only, not opaque completeness.\n",
+            encoding="utf-8",
+        )
+        artifacts.append(diagnostic_note)
     receipt = {
+        "purpose": "diagnostic_observation" if diagnostic else "acceptance_candidate",
+        "acceptance_eligible": not diagnostic,
+        "known_failed_gates": diagnostic_failures,
         "source_revision": revision,
         "source_branch": git("branch", "--show-current"),
         "built_utc": stamp,
@@ -475,14 +546,17 @@ app.close()
             for path in artifacts
         ],
     }
-    receipt_path = output / "receipt.json"
+    receipt_path = output / ("diagnostic-manifest.json" if diagnostic else "receipt.json")
     receipt_path.write_text(json.dumps(receipt, indent=2) + "\n", encoding="utf-8")
     handoff = output / "navigation-inspector.md"
     shutil.copy2(source / "docs/handoffs/navigation-inspector.md", handoff)
     effects_handoff = output / "particles-trails.md"
     shutil.copy2(source / "docs/handoffs/particles-trails.md", effects_handoff)
     artifacts.append(effects_handoff)
-    package_path = output / "navigation-inspector-acceptance.zip"
+    package_stem = (
+        "navigation-inspector-diagnostic" if diagnostic else "navigation-inspector-acceptance"
+    )
+    package_path = output / f"{package_stem}.zip"
     with zipfile.ZipFile(package_path, "x", compression=zipfile.ZIP_DEFLATED) as archive:
         for path in [
             receipt_path,
@@ -491,11 +565,13 @@ app.close()
             *artifacts,
         ]:
             archive.write(path, path.relative_to(output))
-    digest_path = output / "navigation-inspector-acceptance.sha256"
+    digest_path = output / f"{package_stem}.sha256"
     digest_path.write_text(sha256(package_path) + "  " + package_path.name + "\n", encoding="ascii")
     print(
         json.dumps(
             {
+                "purpose": receipt["purpose"],
+                "acceptance_eligible": not diagnostic,
                 "package": str(package_path),
                 "sha256": sha256(package_path),
                 "receipt": str(receipt_path),
