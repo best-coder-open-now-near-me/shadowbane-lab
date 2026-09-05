@@ -144,10 +144,13 @@ policy tests prove that ordered operation. No stop binding is enabled yet.
 `wonderbane_extension_movement_tree_probe` is an explicit developer-only target,
 excluded from normal builds and not linked into or installed with the extension.
 It accepts a locally supplied reviewed executable, verifies the entire file SHA256
-and exact native helper digests, and copies only those reviewed import-free,
-relocation-free helpers into its own process. Relative calls between the lookup,
-its comparator thunk and comparator retain their original spacing; unused gaps trap. Memory changes from writable to
-executable/read-only before execution. It never opens or modifies another process,
+and exact native helper digests, and copies only those reviewed helpers into its
+own process. The container and continuation helpers are import-free and relocation-free.
+The native pool-return helper has an exact reviewed relocation list, private allocator
+globals, and only its two verified Win32 imports: InterlockedExchange and Sleep.
+No game API is stubbed. Relative calls between the lookup,
+its comparator thunk and comparator retain their original spacing; unused gaps trap. Code memory changes from writable to
+executable/read-only before execution; private allocator data is never executable. It never opens or modifies another process,
 loads the game, supplies input, connects to a server, or distributes client bytes.
 
 Build and run it explicitly from the configured Win32 build directory:
@@ -169,8 +172,9 @@ returns the destination identity unchanged, and its native destructor is a no-op
 unsupported executable is rejected before executable memory is allocated.
 
 This verifies native lookup, value copy/destruction and generic detachment/rebalancing,
-not a replacement container implementation. It does not verify native allocator
-cleanup, action-queue reentrancy, path cancellation or server behavior. Those remain
+not a replacement container implementation. The later pool-return extension below
+verifies native allocator cleanup. It does not verify action-queue reentrancy,
+path cancellation or server behavior. Those remain
 part of the complete stop binding. The purpose is precise removal of the retiring
 actor's scheduled entry without retaining a delayed cancellation or clearing unrelated
 actors' entries. A different native map's erase wrapper cannot be reused blindly:
@@ -201,3 +205,17 @@ cases and checks entire actor/state snapshots before and after two consecutive
 calls. This verifies empty-path preconditions, nonempty-path preservation and
 idempotence while preserving all tested movement-state values. It does not verify
 path element destruction, follow retirement or complete stop/network ordering.
+
+## Native scheduled-node allocator conformance
+
+Both profiles now execute the native scheduled-node key destructor and 40-byte pool
+return after each of the 64,256 removals. The probe checks the returned node, previous
+free-list head, preserved payload, untouched other size classes and released lock.
+A separate forced-contention case waits for the native allocator's failed exchange
+before another thread releases the private lock. The allocator completes through
+its real Win32 synchronization dependencies. No client allocator globals or live
+process memory are accessed. Full-file and per-helper seals precede execution.
+
+This completes isolated verification of scheduled-node lookup, detachment, key
+cleanup and native pool return. It does not complete actor/action lifetime handling,
+selective retirement of queued movement, follow intent or state-message ordering.
