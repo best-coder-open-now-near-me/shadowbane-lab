@@ -17,6 +17,7 @@ public:
     bool Execute(const Grant&) noexcept;
     // Camera input does not acquire or retire movement ownership.
     bool RotateCamera(Vector2 radians) noexcept;
+    bool CameraBasis(Vector2& forward, Vector2& right) noexcept;
     // Direction is normalized X/Z in the player's native parent-local frame.
     // tick_ms comes from the owning update's monotonic clock, never render dt.
     bool Steer(const Grant&, Vector2 direction, std::uint64_t tick_ms, bool start) noexcept;
@@ -83,6 +84,9 @@ private:
     bool PickCxxGuarded(int, int, GroundPoint&) noexcept;
     bool PickGuarded(int, int, GroundPoint&) noexcept;
     bool RunPick(int, int, GroundPoint&);
+    bool RunBasis(Vector2&, Vector2&);
+    bool BasisCxxGuarded(Vector2&, Vector2&) noexcept;
+    bool BasisGuarded(Vector2&, Vector2&) noexcept;
     bool RunPickMove(const Target&);
     bool PickMoveCxxGuarded(const Target&) noexcept;
     bool PickMoveGuarded(const Target&) noexcept;

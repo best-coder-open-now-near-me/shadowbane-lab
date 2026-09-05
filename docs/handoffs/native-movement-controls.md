@@ -373,3 +373,20 @@ Native-call doubles do not certify the native terrain solver or server result.
 Active work now moves to camera basis and Windows/XInput/UI consumer composition,
 with real settings and manager grant transport next, then complete-candidate
 package and connected acceptance. No controls capability is advertised yet.
+
+
+Camera-relative movement basis now uses the native current view's center/right
+unprojection rays and the same locked native inverse-parent conversion used for
+picking. It projects/normalizes those results in the actor's native X/Z frame and
+preserves the native screen-right sign. This avoids guessing camera yaw conventions,
+orbit offsets or cached matrices. Temporary conversion-ray references are released
+immediately; invalidation during their release also rejects the axes. Degenerate
+views return unavailable axes rather than a world-axis fallback. The current view
+means the view already presented to the user; controller camera mutation is still
+followed by the game's original update before subsequent rendering observations.
+
+Both DLL profiles and focused policy/backend tests pass for transformed/translated
+parent-frame composition, degenerate views and frame changes during conversion and
+reference cleanup. These native-call-double tests do not certify rendered native
+camera output. Active next work is Windows/XInput/UI input consumer wiring and
+settings/manager grant transport, then complete candidate/package acceptance.

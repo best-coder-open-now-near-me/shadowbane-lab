@@ -93,6 +93,7 @@ struct Fixture {
     int marker_applies = 0, ground_creates = 0, ground_actor_releases = 0;
     int ray_creates = 0, ray_casts = 0, ray_points = 0, parent_releases = 0;
     bool ray_hit = true, replace_on_pick = false;
+    bool basis_mode = false, basis_degenerate = false, basis_parent_change = false, replace_on_ray_release = false;
     bool real_steering = false, pending_solve = false, deferred_move = false, replace_on_move = false;
     int callback_mode = 0;
     Result nested = Result::accepted;
@@ -192,13 +193,25 @@ void NativeStopTestAccess::Bind(NativeStop& stop, void* base, HWND window) {
     c.state = reinterpret_cast<decltype(c.state)>(&State); c.send = reinterpret_cast<decltype(c.send)>(&Send);
 }
 GroundPoint* __cdecl NativeStopTestAccess::Unproject(GroundPoint* output, int x, int y, float depth) {
-    Check(x == 0 && y == 0 && depth == 0, "native unprojection receives client coordinates and native near depth");
-    *output = {3, 4, 0}; return output;
+    if (current->basis_mode) {
+        RECT bounds{}; GetClientRect(current->window, &bounds);
+        Check((x == bounds.right / 2 || x == bounds.right / 2 + bounds.right / 4)
+            && y == bounds.bottom / 2 && depth == 0, "native basis samples center and right view rays");
+        *output = current->basis_degenerate ? GroundPoint{} : GroundPoint{3, 4, x > bounds.right / 2 ? 2.0F : 0.0F};
+    } else {
+        Check(x == 0 && y == 0 && depth == 0, "native unprojection receives client coordinates and native near depth");
+        *output = {3, 4, 0};
+    }
+    return output;
 }
 NativeStopTestAccess::Ray* __fastcall NativeStopTestAccess::RayCreate(Ray* ray, void*, void* actor,
     const GroundPoint* origin, const GroundPoint* direction, bool flag) {
-    Check(!flag && std::abs(direction->x - 0.6F) < 0.00001F && std::abs(direction->y - 0.8F) < 0.00001F
-        && direction->z == 0, "native ground ray keeps full normalized 3D direction");
+    if (current->basis_mode) {
+        Check(!flag && direction->x == 0 && direction->y == 0 && direction->z == 0, "basis conversion uses owned zero-distance ray");
+    } else {
+        Check(!flag && std::abs(direction->x - 0.6F) < 0.00001F && std::abs(direction->y - 0.8F) < 0.00001F
+            && direction->z == 0, "native ground ray keeps full normalized 3D direction");
+    }
     ++current->ray_creates; ++current->retains;
     *ray = {actor, *origin, *direction, 0, 0, nullptr, nullptr}; return ray;
 }
@@ -211,8 +224,16 @@ bool __fastcall NativeStopTestAccess::RayCast(void* world, void*, Ray* ray) {
     }
     return current->ray_hit;
 }
-GroundPoint* __fastcall NativeStopTestAccess::RayPoint(Ray*, void*, GroundPoint* output) {
-    ++current->ray_points; *output = {8, -4, 11}; return output;
+GroundPoint* __fastcall NativeStopTestAccess::RayPoint(Ray* ray, void*, GroundPoint* output) {
+    ++current->ray_points;
+    if (current->basis_mode) {
+        Check(ray->distance == 0, "basis uses native parent transform without terrain collision");
+        *output = {ray->origin.z + 100, ray->origin.y - 10, 200 - ray->origin.x};
+        if (current->basis_parent_change && current->ray_points == 2) {
+            Put(current->pose.data(), 8, reinterpret_cast<std::uintptr_t>(current->alternate_world.data()));
+        }
+    } else { *output = {8, -4, 11}; }
+    return output;
 }
 void __fastcall NativeStopTestAccess::ParentRelease(void** reference, void*, void* replacement) {
     Check(!replacement, "native parent reference released without replacement");
@@ -276,7 +297,12 @@ void** __fastcall NativeStopTestAccess::Retain(void** output, void*, void* actor
     }
     return output;
 }
-void __fastcall NativeStopTestAccess::Release(void** output, void*) { ++current->releases; *output = nullptr; }
+void __fastcall NativeStopTestAccess::Release(void** output, void*) {
+    ++current->releases; *output = nullptr;
+    if (current->replace_on_ray_release) {
+        Put(current->pose.data(), 8, reinterpret_cast<std::uintptr_t>(current->alternate_world.data()));
+    }
+}
 void __fastcall NativeStopTestAccess::Clear(void*, void*, const NativeStop::Identity*) {
     ++current->clears;
     if (current->raise_fault) { RaiseException(0xc0000005, 0, 0, nullptr); }
@@ -433,6 +459,21 @@ void StatesAndFailures() {
     { Fixture f; f.raise_fault = true; f.input.keys[0x57] = true; f.Step();
       Check(!f.stop.Available() && !f.controls.Ready() && f.moves == 0 && f.retains == 1 && f.releases == 0,
           "native exception retains ambiguous actor ownership and blocks new writer"); }
+}
+void CameraBasisComposition() {
+    { Fixture f; f.basis_mode = true; Vector2 forward{}, right{};
+      const auto grant = f.controls.Current();
+      Check(f.stop.CameraBasis(forward, right) && forward.x == 0 && forward.y == -1 && right.x == 1 && right.y == 0,
+          "native view rays become normalized axes in translated/rotated parent frame");
+      Check(f.ray_casts == 0 && f.ray_points == 3 && f.retains == f.releases && f.controls.Current() == grant
+          && f.moves == 0 && f.sends == 0, "basis conversion releases references and preserves movement owner"); }
+    for (int failure = 0; failure < 3; ++failure) {
+        Fixture f; f.basis_mode = true; f.basis_degenerate = failure == 0;
+        f.basis_parent_change = failure == 1; f.replace_on_ray_release = failure == 2;
+        Vector2 forward{1, 2}, right{3, 4};
+        Check(!f.stop.CameraBasis(forward, right) && forward.x == 0 && forward.y == 0 && right.x == 0 && right.y == 0
+            && f.retains == f.releases, "degenerate or replaced parent frame cannot expose stale camera axes");
+    }
 }
 void DragMoveComposition() {
     { Fixture f; f.real_pick_move = true; f.input.keys[5] = true; f.Step();
@@ -629,6 +670,6 @@ void ReentryAndScene() {
 }
 int main() {
     { Fixture f; NativeStop unbound(f.controls); Check(!unbound.Bind(f.window), "unsupported executable stays unavailable"); }
-    ManualMethods(); StatesAndFailures(); DragMoveComposition(); TerrainPickComposition(); SteeringComposition(); CameraComposition(); ReentryAndScene();
+    ManualMethods(); StatesAndFailures(); CameraBasisComposition(); DragMoveComposition(); TerrainPickComposition(); SteeringComposition(); CameraComposition(); ReentryAndScene();
     return failures ? 1 : 0;
 }
