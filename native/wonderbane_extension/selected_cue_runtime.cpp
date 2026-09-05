@@ -221,6 +221,13 @@ void BeginSelectedCueScene(const GraphicsCameraState* camera) noexcept {
     scene=direction.available;
     mask_failed=!(scene && cue::BeginMask());Status(0,mask_failed?1:0,0);
 }
+void CaptureSelectedCueGeometry(SelectedGeometryDraw draw,void* user) noexcept {
+    RenderCallbackLease lease;SynchronizeGeneration();
+    if(!scene || !nesting || mask_failed || !InterlockedCompareExchange(&running,0,0))return;
+    if(!StillSelected() || !cue::CaptureGeometry(draw,user)){
+        mask_failed=true;cue::DiscardMask();
+    }
+}
 void FinishSelectedCueScene(const GraphicsCameraState* camera) noexcept {
     RenderCallbackLease lease;SynchronizeGeneration();
     if(!scene || !camera || !InterlockedCompareExchange(&running,0,0)
