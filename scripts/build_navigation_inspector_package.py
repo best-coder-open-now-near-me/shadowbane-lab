@@ -85,6 +85,12 @@ def main() -> int:
                 "log": str(log.relative_to(output)),
             }
         )
+        # Preserve executed gates even when a required gate stops packaging.
+        # This progress record is not a successful package receipt.
+        (output / "validation-progress.json").write_text(
+            json.dumps({"source_revision": revision, "steps": steps}, indent=2) + "\n",
+            encoding="utf-8",
+        )
         if result.returncode:
             print(log.read_text(encoding="utf-8")[-6000:], flush=True)
             raise RuntimeError(f"{name} failed; see {log}")
@@ -156,6 +162,13 @@ def main() -> int:
             for item in project_root.findall(f".//{{*}}{tag}")
             if "Include" in item.attrib
         ]
+        if included_sources.count("movement_boundary_trace.cpp") != 1:
+            raise RuntimeError(f"{profile}: passive movement trace must have one runtime owner")
+        for developer_source in ("movement_controls.cpp", "movement_tree_probe.cpp"):
+            if included_sources.count(developer_source) != 0:
+                raise RuntimeError(
+                    f"{profile}: developer-only source entered runtime: {developer_source}"
+                )
         for name in contracts:
             expected_count = 1 if profile == "full" else 0
             if included_sources.count(name) != expected_count:
@@ -174,9 +187,38 @@ def main() -> int:
                 "/verbosity:quiet",
             ],
         )
+        native_results = logs / f"{profile}-tests.xml"
         run(
-            f"{profile}-tests", [ctest, "--test-dir", build, "-C", "Release", "--output-on-failure"]
+            f"{profile}-tests",
+            [
+                ctest,
+                "--test-dir",
+                build,
+                "-C",
+                "Release",
+                "--output-on-failure",
+                "--output-junit",
+                native_results,
+            ],
         )
+        required_render_tests = {
+            "wonderbane_extension_combined_render",
+            "wonderbane_extension_selected_cue_gpu",
+            "wonderbane_extension_selected_cue_native_transparency",
+            "wonderbane_extension_effects_native_transparency",
+        }
+        cases = ET.parse(native_results).getroot().findall(".//testcase")
+        for name in required_render_tests:
+            matches = [case for case in cases if case.get("name") == name]
+            if (
+                len(matches) != 1
+                or matches[0].get("status") != "run"
+                or matches[0].find("skipped") is not None
+                or matches[0].find("failure") is not None
+            ):
+                raise RuntimeError(
+                    f"{profile}: required render gate did not execute and pass: {name}"
+                )
         if arguments.reviewed_client:
             run(
                 f"{profile}-selected-binding",

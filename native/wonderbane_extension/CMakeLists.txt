@@ -27,6 +27,7 @@ add_library(
   SHARED
   banded_lighting.cpp
   camera_observation.cpp
+  movement_boundary_trace.cpp
   cel_shading.cpp
   depth_edges.cpp
   event_channel.cpp
@@ -159,6 +160,9 @@ if(BUILD_TESTING)
   set_property(TARGET wonderbane_extension_selected_cue_gpu_test PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded")
   add_test(NAME wonderbane_extension_selected_cue_gpu COMMAND wonderbane_extension_selected_cue_gpu_test)
   set_tests_properties(wonderbane_extension_selected_cue_gpu PROPERTIES SKIP_RETURN_CODE 77)
+  add_test(NAME wonderbane_extension_selected_cue_native_transparency
+    COMMAND wonderbane_extension_selected_cue_gpu_test --native-transparency)
+  set_tests_properties(wonderbane_extension_selected_cue_native_transparency PROPERTIES SKIP_RETURN_CODE 77)
   add_executable(wonderbane_extension_selected_cue_test selected_cue.cpp selected_cue_test.cpp)
   target_compile_features(wonderbane_extension_selected_cue_test PRIVATE cxx_std_20)
   target_compile_definitions(wonderbane_extension_selected_cue_test PRIVATE
@@ -167,15 +171,18 @@ if(BUILD_TESTING)
     /W4 /WX /permissive- /sdl /GS /guard:cf /utf-8)
   set_property(TARGET wonderbane_extension_selected_cue_test PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded")
   add_test(NAME wonderbane_extension_selected_cue COMMAND wonderbane_extension_selected_cue_test)
-  add_executable(wonderbane_extension_navigation_draw_test navigation_draw.cpp scene_draw.cpp effects.cpp effects_attachment.cpp effects_draw.cpp navigation_draw_test.cpp)
+  add_executable(wonderbane_extension_navigation_draw_test navigation_draw.cpp scene_draw.cpp effects.cpp effects_attachment.cpp effects_draw.cpp selected_cue.cpp selected_cue_gpu.cpp sky.cpp sky_draw.cpp sky_asset.rc navigation_draw_test.cpp)
   target_compile_features(wonderbane_extension_navigation_draw_test PRIVATE cxx_std_20)
   target_compile_definitions(wonderbane_extension_navigation_draw_test PRIVATE
     UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
   target_compile_options(wonderbane_extension_navigation_draw_test PRIVATE
     /W4 /WX /permissive- /sdl /GS /guard:cf /utf-8)
-  target_link_libraries(wonderbane_extension_navigation_draw_test PRIVATE opengl32 gdi32 user32)
+  target_link_libraries(wonderbane_extension_navigation_draw_test PRIVATE opengl32 gdi32 user32 bcrypt)
   set_property(TARGET wonderbane_extension_navigation_draw_test PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded")
   add_test(NAME wonderbane_extension_navigation_draw COMMAND wonderbane_extension_navigation_draw_test)
+  add_test(NAME wonderbane_extension_combined_render
+    COMMAND wonderbane_extension_navigation_draw_test --combined-render)
+  set_tests_properties(wonderbane_extension_combined_render PROPERTIES SKIP_RETURN_CODE 77)
   add_test(NAME wonderbane_extension_effects_native_transparency
     COMMAND wonderbane_extension_navigation_draw_test --verify-native-transparency)
 
@@ -870,4 +877,48 @@ if(BUILD_TESTING)
   target_link_libraries(wonderbane_extension_sky_render_test PRIVATE bcrypt opengl32 gdi32 user32)
   set_property(TARGET wonderbane_extension_sky_render_test PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded")
   add_test(NAME wonderbane_extension_sky_render COMMAND wonderbane_extension_sky_render_test)
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_movement_controls_test
+    movement_controls.cpp movement_controls_test.cpp)
+  target_compile_features(wonderbane_extension_movement_controls_test PRIVATE cxx_std_20)
+  target_compile_options(wonderbane_extension_movement_controls_test PRIVATE
+    /W4 /WX /permissive- /sdl /utf-8)
+  set_property(TARGET wonderbane_extension_movement_controls_test
+    PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded")
+  add_test(NAME wonderbane_extension_movement_controls
+    COMMAND wonderbane_extension_movement_controls_test)
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_movement_boundary_test
+    movement_boundary_trace.cpp movement_boundary_trace_test.cpp)
+  target_compile_features(wonderbane_extension_movement_boundary_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_movement_boundary_test PRIVATE
+    UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT WONDERBANE_MOVEMENT_TRACE_TESTING=1)
+  target_compile_options(wonderbane_extension_movement_boundary_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  target_link_libraries(wonderbane_extension_movement_boundary_test PRIVATE bcrypt user32)
+  set_property(TARGET wonderbane_extension_movement_boundary_test PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
+  add_test(NAME wonderbane_extension_movement_boundary_stop
+    COMMAND wonderbane_extension_movement_boundary_test)
+  add_test(NAME wonderbane_extension_movement_boundary_startup_failure
+    COMMAND wonderbane_extension_movement_boundary_test startup-failure)
+endif()
+
+if(BUILD_TESTING)
+  add_test(NAME wonderbane_extension_movement_boundary_concurrent_stop
+    COMMAND wonderbane_extension_movement_boundary_test concurrent-stop)
+endif()
+
+# Explicit developer investigation target; never linked into or installed with DLL.
+# Requires a separately supplied reviewed client executable and is not a CI mock.
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_movement_tree_probe EXCLUDE_FROM_ALL movement_tree_probe.cpp)
+  target_compile_features(wonderbane_extension_movement_tree_probe PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_movement_tree_probe PRIVATE
+    UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_movement_tree_probe PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  target_link_libraries(wonderbane_extension_movement_tree_probe PRIVATE bcrypt)
+  set_property(TARGET wonderbane_extension_movement_tree_probe PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
 endif()

@@ -10,7 +10,7 @@ import time
 import uuid
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from math import isfinite
 from pathlib import Path
@@ -847,7 +847,16 @@ class WorkerOperationLedger:
                 assert isinstance(existing, WorkerOperation)
                 if existing.deduplication_id != operation.deduplication_id:
                     continue
-                if existing != operation:
+                # A transport retry may regenerate its envelope ID/timestamps.
+                # Compare exact target and requested work, then retain the first
+                # envelope, deadline and receipt; a retry cannot extend or replay it.
+                retry = replace(
+                    operation,
+                    operation_id=existing.operation_id,
+                    issued_at=existing.issued_at,
+                    expires_at=existing.expires_at,
+                )
+                if existing != retry:
                     raise WorkerOperationLedgerError(
                         "deduplication_id is already owned by a different immutable operation"
                     )

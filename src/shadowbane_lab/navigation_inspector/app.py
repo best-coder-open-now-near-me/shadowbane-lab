@@ -221,9 +221,17 @@ class InspectorApp:
         except Exception as error:
             self.status.set(f"Could not list clients: {error}")
 
-    def connect(self, process_id=None):
+    def connect(self, process_id=None, process_creation_filetime_utc=None):
         selected = (
-            [target for target in self.targets if target.process_id == process_id]
+            [
+                target
+                for target in self.targets
+                if target.process_id == process_id
+                and (
+                    process_creation_filetime_utc is None
+                    or target.process_creation_filetime_utc == process_creation_filetime_utc
+                )
+            ]
             if process_id is not None
             else [target for target in self.targets if target.label == self.target_var.get()]
         )
@@ -548,8 +556,13 @@ class InspectorApp:
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Inspect live navigation or a saved failure.")
     parser.add_argument("--pid", type=int, help="Exact client process to connect")
+    parser.add_argument(
+        "--process-creation-filetime", type=int, help="Require this process lifetime"
+    )
     parser.add_argument("--open", type=Path, dest="capture", help="Open a saved capture")
     arguments = parser.parse_args(argv)
+    if arguments.process_creation_filetime is not None and arguments.pid is None:
+        parser.error("--process-creation-filetime requires --pid")
     root = tk.Tk()
     app = InspectorApp(root)
     if arguments.capture is not None:
@@ -558,6 +571,6 @@ def main(argv=None) -> int:
         except (OSError, ValueError) as error:
             app.status.set(f"Could not open capture: {error}")
     elif arguments.pid is not None:
-        app.connect(arguments.pid)
+        app.connect(arguments.pid, arguments.process_creation_filetime)
     root.mainloop()
     return 0

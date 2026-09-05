@@ -1,6 +1,11 @@
 # Navigation inspector
 
-Review branch: codex/navigation-inspector. [Draft PR #27](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/27)
+Current combined development: `codex/native-lifecycle-hardening`; see the
+[runtime integration handoff](handoffs/native-lifecycle-hardening.md) for the
+latest source and unfinished acceptance gates. The demonstrated navigation
+behavior is retained. Do not use an earlier wheel receipt to certify this source.
+
+Original feature review branch: codex/navigation-inspector. [Draft PR #27](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/27)
 targets codex/integrate-current-development while PR #25 is open. The feature base
 is f2a5ca137b6d524c52bc492cc83081ee55929c71. The separate terrain material repair
 is not included. The normal project checkout remains on main.

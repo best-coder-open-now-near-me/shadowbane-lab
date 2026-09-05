@@ -50,6 +50,10 @@ class ExactClientWorkerError(RuntimeError):
     """Raised when exact worker ownership cannot be established safely."""
 
 
+class _WorkerNotLaunched(ExactClientWorkerError):
+    """The launcher failed before creating a process."""
+
+
 @dataclass(frozen=True, slots=True)
 class ExactClientWorkerBinding:
     """Only the immutable game identity needed by a per-client worker."""
@@ -553,6 +557,9 @@ class SubprocessWorkerLauncher:
             sys.executable if python_executable is None else python_executable
         ).resolve(strict=False)
         self._heartbeat_interval_ms = heartbeat_interval_ms
+        self._children: dict[str, subprocess.Popen[bytes]] = {}
+        self._durable_children: set[str] = set()
+        self._children_lock = threading.Lock()
 
     def launch(self, binding: ExactClientWorkerBinding) -> int:
         if not isinstance(binding, ExactClientWorkerBinding):
@@ -604,8 +611,43 @@ class SubprocessWorkerLauncher:
                     creationflags=creation_flags,
                 )
         except OSError as exc:
-            raise ExactClientWorkerError(f"could not launch exact client worker: {exc}") from exc
+            raise _WorkerNotLaunched(f"could not launch exact client worker: {exc}") from exc
+        with self._children_lock:
+            finished = {
+                token
+                for token, child in self._children.items()
+                if token in self._durable_children and child.poll() is not None
+            }
+            for token in finished:
+                del self._children[token]
+            self._durable_children.difference_update(finished)
+            self._children[binding.worker_id or f"unreserved-{uuid.uuid4().hex}"] = process
         return process.pid
+
+    def recover(
+        self, process_id: int, inspector: ProcessLifetimeInspector, *, worker_id: str
+    ) -> ProcessLifetimeSnapshot | None:
+        """Reinspect a retained child; None proves that this child exited."""
+        with self._children_lock:
+            child = self._children.get(worker_id)
+        if child is None or child.pid != process_id:
+            raise ExactClientWorkerError("worker launch has no retained process ownership")
+        if child.poll() is not None:
+            return None
+        process = inspector.inspect(process_id)
+        if child.poll() is not None:
+            return None
+        if not isinstance(process, ProcessLifetimeSnapshot) or process.process_id != process_id:
+            raise ExactClientWorkerError(
+                f"launched worker {process_id} requires attachment recovery"
+            )
+        return process
+
+    def acknowledge_reservation(self, worker_id: str) -> None:
+        """Allow reaping only after the controller durably recorded or retired ownership."""
+        with self._children_lock:
+            if worker_id in self._children:
+                self._durable_children.add(worker_id)
 
 
 class ManagedWorkerController:
@@ -695,9 +737,29 @@ class ManagedWorkerController:
         if live:
             return None
         if reservation_path.exists():
-            reservation = json.loads(reservation_path.read_text(encoding="utf-8"))
-            process_id = reservation.get("process_id")
-            started = reservation.get("process_started_at_100ns")
+            reservation = self._read_reservation(reservation_path)
+            process_id = reservation["process_id"]
+            started = reservation["process_started_at_100ns"]
+            if process_id is not None and started is None:
+                recover = getattr(self._launcher, "recover", None)
+                if callable(recover):
+                    process = recover(
+                        process_id, self._process_inspector, worker_id=reservation["worker_id"]
+                    )
+                    if process is not None:
+                        reservation["process_started_at_100ns"] = process.process_started_at_100ns
+                        reservation["state"] = "started"
+                        publish_atomic_record(
+                            reservation_path,
+                            json.dumps(reservation).encode(),
+                            temporary_label="worker-launch",
+                        )
+                        self._acknowledge_reservation(reservation["worker_id"])
+                        return None
+                    # Only the retained child handle can establish exit before attachment.
+                    reservation_path.unlink()
+                    self._acknowledge_reservation(reservation["worker_id"])
+                    return self._ensure_started_owned(client_id, client, reservation_path)
             if process_id is None or started is None:
                 raise ExactClientWorkerError("previous worker launch requires explicit recovery")
             process = self._process_inspector.inspect(process_id)
@@ -717,14 +779,24 @@ class ManagedWorkerController:
         publish_atomic_record(
             reservation_path, json.dumps(reservation).encode(), temporary_label="worker-launch"
         )
-        process_id = self._launcher.launch(binding)
+        try:
+            process_id = self._launcher.launch(binding)
+        except _WorkerNotLaunched:
+            # This exception is emitted only before Popen returned a child.
+            reservation_path.unlink()
+            raise
         reservation["process_id"] = process_id
         reservation["state"] = "unverified"
         publish_atomic_record(
             reservation_path, json.dumps(reservation).encode(), temporary_label="worker-launch"
         )
-        process = self._process_inspector.inspect(process_id)
-        if not isinstance(process, ProcessLifetimeSnapshot):
+        recover = getattr(self._launcher, "recover", None)
+        process = (
+            recover(process_id, self._process_inspector, worker_id=reservation["worker_id"])
+            if callable(recover)
+            else self._process_inspector.inspect(process_id)
+        )
+        if not isinstance(process, ProcessLifetimeSnapshot) or process.process_id != process_id:
             raise ExactClientWorkerError(
                 f"launched worker {process_id} requires attachment recovery"
             )
@@ -733,11 +805,25 @@ class ManagedWorkerController:
         publish_atomic_record(
             reservation_path, json.dumps(reservation).encode(), temporary_label="worker-launch"
         )
+        self._acknowledge_reservation(reservation["worker_id"])
         return process_id
+
+    def _acknowledge_reservation(self, worker_id: str) -> None:
+        acknowledge = getattr(self._launcher, "acknowledge_reservation", None)
+        if callable(acknowledge):
+            acknowledge(worker_id)
 
     def request_stop(self, client_id: str, *, reason: str) -> int:
         if not isinstance(reason, str) or not reason.strip() or reason != reason.strip():
             raise ValueError("reason must be canonical non-empty text")
+        # Share launch ownership across processes: a stop arriving while Popen or
+        # initial verification is in flight must observe the completed reservation.
+        canonical = self._ledger.inspect(client_id).client_id
+        directory = self._ledger.root / self._manifest.node_id / canonical
+        with exclusive_record_lock(directory / ".launch.lock"):
+            return self._request_stop_owned(canonical, reason=reason)
+
+    def _request_stop_owned(self, client_id: str, *, reason: str) -> int:
         snapshot = self._ledger.inspect(client_id)
         if snapshot.issues:
             raise ExactClientWorkerError(
@@ -750,7 +836,7 @@ class ManagedWorkerController:
                 stopped += 1
         path = self._ledger.root / self._manifest.node_id / client_id / ".launch-reservation"
         if path.exists():
-            reservation = json.loads(path.read_text(encoding="utf-8"))
+            reservation = self._read_reservation(path)
             pid, started = (
                 reservation.get("process_id"),
                 reservation.get("process_started_at_100ns"),
@@ -776,6 +862,46 @@ class ManagedWorkerController:
                     )
                     stopped += 1
         return stopped
+
+    @staticmethod
+    def _read_reservation(path: Path) -> dict:
+        try:
+            if path.is_symlink() or path.stat().st_size > 4096:
+                raise ValueError("reservation must be a bounded regular file")
+            value = json.loads(path.read_text(encoding="utf-8"))
+            if (
+                not isinstance(value, dict)
+                or set(value)
+                != {
+                    "schema_version",
+                    "worker_id",
+                    "instance_id",
+                    "process_id",
+                    "process_started_at_100ns",
+                    "state",
+                }
+                or type(value["schema_version"]) is not int
+                or value["schema_version"] != 1
+            ):
+                raise ValueError("invalid reservation schema")
+            if re.fullmatch(r"worker-[0-9a-f]{32}", value.get("worker_id", "")) is None:
+                raise ValueError("invalid reserved worker identity")
+            if not isinstance(value.get("instance_id"), str) or not value["instance_id"]:
+                raise ValueError("missing reserved instance")
+            for name in ("process_id", "process_started_at_100ns"):
+                number = value.get(name)
+                if number is not None and (type(number) is not int or number <= 0):
+                    raise ValueError("invalid reserved process lifetime")
+            if value.get("state") not in {"launching", "unverified", "started"}:
+                raise ValueError("invalid reservation state")
+            if (
+                value.get("process_started_at_100ns") is not None
+                and value.get("process_id") is None
+            ):
+                raise ValueError("incomplete reserved process lifetime")
+            return value
+        except (OSError, ValueError, TypeError) as exc:
+            raise ExactClientWorkerError(f"invalid worker launch reservation: {exc}") from exc
 
     def _is_live(self, heartbeat: WorkerHeartbeat) -> bool:
         process = self._process_inspector.inspect(heartbeat.process_id)

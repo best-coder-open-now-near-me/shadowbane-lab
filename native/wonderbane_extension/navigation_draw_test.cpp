@@ -1,8 +1,11 @@
 #include "navigation_viewer.h"
 #include "effects_draw.h"
 #include "scene_draw.h"
+#include "selected_cue_gpu.h"
+#include "sky.h"
 #include <Windows.h>
 #include <gl/GL.h>
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdio>
@@ -80,6 +83,116 @@ unsigned ColoredPixels() {
     }
     return count;
 }
+// Production render functions share the real WGL context and state guard.
+// This checks composition/resource ownership, not native transparency acceptance.
+void CombinedProbe(const GraphicsCameraState& camera, bool measure) {
+    const State original = Capture();
+    HRSRC resource = FindResourceW(GetModuleHandleW(nullptr), MAKEINTRESOURCEW(201), RT_RCDATA);
+    Check(resource && SizeofResource(GetModuleHandleW(nullptr), resource) == sizeof(sky::Asset),
+          "combined test uses packaged sky asset");
+    if (!resource) return;
+    sky::Asset asset{};
+    const void* bytes = LockResource(LoadResource(GetModuleHandleW(nullptr), resource));
+    Check(bytes != nullptr, "load combined sky asset"); if (!bytes) return;
+    std::memcpy(&asset, bytes, sizeof(asset));
+    struct Combination { const GraphicsCameraState* camera; const sky::Asset* asset; unsigned flags; bool verify; };
+    LARGE_INTEGER frequency{}; QueryPerformanceFrequency(&frequency);
+    // Normal validation repeats enable/release transitions; timing separates
+    // first-frame resource creation, warm-up and steady frames for every mask.
+    constexpr unsigned warmup_frames = 3, steady_frames = 16;
+    for (unsigned transition = 0; transition < (measure ? 16U : 48U); ++transition) {
+        const unsigned flags = transition % 16;
+        cue::ReleaseMask();
+        Combination combination{&camera, &asset, flags, !measure};
+        std::array<double, steady_frames> samples{};
+        double first_frame_ms=0, warmup_ms=0;
+        const unsigned frames = measure ? 1U + warmup_frames + steady_frames : 1U;
+        for (unsigned frame = 0; frame < frames; ++frame) {
+            LARGE_INTEGER begin{}, end{};
+            if(measure){glFinish();QueryPerformanceCounter(&begin);}
+            Check(RenderSceneGeometry(&camera, [](void* value) noexcept {
+                const auto& c = *static_cast<Combination*>(value);
+                glDepthMask(GL_TRUE); glClearDepth(1); glClearColor(0,0,0,1);
+                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+                const auto before_sky = c.verify ? Capture() : State{};
+                if (c.flags & 8U) {
+                    sky::Settings settings{}; settings.enabled = 1;
+                    Check(sky::Render(*c.asset, settings, *c.camera), "combined early sky");
+                }
+                if(c.verify) Same(before_sky, Capture());
+                if (c.flags & 4U) Check(cue::BeginMask(), "combined cue begin");
+                glEnable(GL_DEPTH_TEST); glDepthFunc(GL_LESS); glDepthMask(GL_TRUE);
+                glDisable(GL_BLEND); glColor4f(0,0,0,1);
+                const GLfloat vertices[]{-.25F,-.5F,0,.25F,-.5F,0,.25F,.5F,0,-.25F,.5F,0};
+                glPushClientAttrib(GL_CLIENT_VERTEX_ARRAY_BIT);
+                glEnableClientState(GL_VERTEX_ARRAY); glVertexPointer(3,GL_FLOAT,0,vertices);
+                auto mesh=[](void*) noexcept { glDrawArrays(GL_QUADS,0,4); };
+                for (unsigned node=0; node<46; ++node) {
+                    if (c.flags & 4U) {
+                        Check(cue::BeforeOwnedDraw(), "combined owned wrapper");
+                        const auto material = c.verify ? Capture() : State{};
+                        Check(cue::CaptureGeometry(mesh,nullptr), "combined raw material capture");
+                        if(c.verify) Same(material, Capture());
+                    }
+                    mesh(nullptr);
+                    if (c.flags & 4U) Check(cue::AfterOwnedDraw(), "combined owned wrapper complete");
+                }
+                glPopClientAttrib();
+                const auto before_overlays = c.verify ? Capture() : State{};
+                GLfloat depth_before=0,depth_after=0;
+                if(c.verify) glReadPixels(c.camera->viewport[2]/2,c.camera->viewport[3]/2,1,1,GL_DEPTH_COMPONENT,GL_FLOAT,&depth_before);
+                if (c.flags & 4U) {
+                    cue::Settings settings{}; settings.enabled=1;
+                    Check(cue::CompositeMask(settings,{}), "combined whole-character cue");
+                }
+                if(c.verify) Same(before_overlays, Capture());
+                if (c.flags & 2U) {
+                    effects::Config config{}; config.flags=1;
+                    effects::Geometry geometry{}; geometry.count=1;
+                    geometry.quads[0]={{{-.85F,-.05F,-.2F},{-.6F,-.05F,-.2F},
+                        {-.6F,.05F,-.2F},{-.85F,.05F,-.2F}},.7F,.2F};
+                    Check(RenderEffectsGeometry(config,geometry,*c.camera), "combined particles");
+                }
+                if(c.verify) Same(before_overlays, Capture());
+                if (c.flags & 1U) {
+                    navigation::FrameHeader frame{};
+                    frame.flags=navigation::kEnabled|navigation::kUnknownHeight;
+                    frame.layer_mask=navigation::kAllLayers; frame.line_count=1; frame.view_radius=50;
+                    navigation::Line line{navigation::kTrailLayer,navigation::kWorldHeight,
+                        {-.85F,.1F,-.2F},{-.6F,.1F,-.2F}};
+                    Check(RenderNavigationGeometry(frame,&line,c.camera), "combined navigation");
+                }
+                if(c.verify) Same(before_overlays, Capture());
+                if(c.verify) glReadPixels(c.camera->viewport[2]/2,c.camera->viewport[3]/2,1,1,GL_DEPTH_COMPONENT,GL_FLOAT,&depth_after);
+                Check(depth_before == depth_after, "combined overlays preserve native scene depth");
+            }, &combination), "combined scene guard");
+            if(!measure) Same(original, Capture());
+            else {
+                glFinish();QueryPerformanceCounter(&end);
+                const double elapsed=1000.0*static_cast<double>(end.QuadPart-begin.QuadPart)/frequency.QuadPart;
+                if(frame==0)first_frame_ms=elapsed;
+                else if(frame<=warmup_frames)warmup_ms+=elapsed;
+                else samples[frame-warmup_frames-1]=elapsed;
+            }
+        }
+        glFinish();
+        const auto allocated=cue::AllocatedMaskBytes();
+        if (measure) {
+            std::sort(samples.begin(),samples.end());
+            const double median=(samples[steady_frames/2-1]+samples[steady_frames/2])/2;
+            std::printf("Combined flags=%u (nav1/effects2/cue4/sky8),46 nodes: "
+                "first-frame=%.3f ms, warm-up(%u) mean=%.3f ms, steady(%u) median=%.3f ms "
+                "range=%.3f..%.3f ms, cue=%llu bytes\n",flags,first_frame_ms,warmup_frames,
+                warmup_ms/warmup_frames,steady_frames,median,samples.front(),samples.back(),
+                static_cast<unsigned long long>(allocated));
+        }
+        Check(allocated <= static_cast<std::uint64_t>(camera.viewport[2])*camera.viewport[3]*8, "combined raw mesh resource bound");
+        cue::DiscardMask(); cue::ReleaseMask();
+        Check(cue::AllocatedMaskBytes()==0, "combined interruption releases cue resources");
+        Same(original,Capture());
+    }
+}
+
 // Quantifies the late-pass limitation without treating it as accepted behavior.
 // --verify-native-transparency turns the outstanding requirement into a failing
 // acceptance probe; normal regressions still validate the reference fixture.
@@ -107,28 +220,81 @@ void TransparencyProbe(const GraphicsCameraState& camera, bool require_correct) 
             glEnd();
         }, &writes_depth), "native-style foreground alpha surface");
     };
-    for (bool writes_depth : {false, true}) {
-        unsigned char reference[3]{}, actual[3]{};
+    for (bool in_front : {false, true}) {
+      for (auto& point : geometry.quads[0].points) point.z = in_front ? -0.8F : -0.2F;
+      for (bool writes_depth : {false, true}) {
+        unsigned char reference[3]{}, actual[3]{}, early[3]{};
         reset();
-        Check(RenderEffectsGeometry(config, geometry, camera), "reference back effect");
-        glass(writes_depth);
+        if (in_front) glass(writes_depth);
+        Check(RenderEffectsGeometry(config, geometry, camera), "reference ordered effect");
+        if (!in_front) glass(writes_depth);
         glReadPixels(100,240,1,1,GL_RGB,GL_UNSIGNED_BYTE,reference);
-        Check(std::abs(int(reference[0])-128)<=2 && reference[1]==0
-              && std::abs(int(reference[2])-128)<=2, "reference alpha transmission");
+        Check(std::abs(int(reference[0])-(in_front ? 0 : 128))<=2 && reference[1]==0
+              && std::abs(int(reference[2])-(in_front ? 255 : 128))<=2,
+              "reference alpha transmission in both relative depth orders");
         reset(); glass(writes_depth);
         Check(RenderEffectsGeometry(config, geometry, camera), "current late effect");
         glReadPixels(100,240,1,1,GL_RGB,GL_UNSIGNED_BYTE,actual);
         const int error = std::abs(int(actual[0])-int(reference[0]))
                         + std::abs(int(actual[1])-int(reference[1]))
                         + std::abs(int(actual[2])-int(reference[2]));
-        std::printf("Native transparency requirement: depth-write=%d expected RGB=%u,%u,%u "
+        reset();
+        Check(RenderEffectsGeometry(config, geometry, camera), "early-pass counterexample");
+        glass(writes_depth);
+        glReadPixels(100,240,1,1,GL_RGB,GL_UNSIGNED_BYTE,early);
+        // Drawing every effect earlier is also wrong: a behind native fragment
+        // blends over front particles, because particles must not write depth.
+        if (in_front) Check(early[0] > 120 && early[2] < 135,
+                            "wholesale early pass cannot satisfy front effect ordering");
+        std::printf("Native transparency requirement: effect-front=%d depth-write=%d expected RGB=%u,%u,%u "
                     "late-pass RGB=%u,%u,%u absolute error=%d/765 %s\n",
-                    int(writes_depth), unsigned(reference[0]), unsigned(reference[1]),
+                    int(in_front), int(writes_depth), unsigned(reference[0]), unsigned(reference[1]),
                     unsigned(reference[2]), unsigned(actual[0]), unsigned(actual[1]),
                     unsigned(actual[2]), error, error<=6 ? "PASS" : "UNRESOLVED");
-        if (require_correct) Check(error<=6, "native foreground transparency must attenuate behind effects");
+        if (require_correct) Check(error<=6, "native/effect transparency must respect relative depth");
         Same(original, Capture());
+      }
     }
+    // Before/after scene RGBA+depth cannot recover source alpha. A translucent
+    // surface matching the existing RGB leaves identical scene samples for
+    // different alpha values, but must attenuate a behind effect differently.
+    std::array<std::array<unsigned char,4>,2> observed{}, required{};
+    std::array<float,2> observed_depth{};
+    for (auto& point : geometry.quads[0].points) point.z = -0.2F;
+    for (unsigned sample=0;sample<2;++sample) {
+        float alpha=sample ? 0.75F : 0.25F;
+        auto background = [&]() {
+            Check(RenderSceneGeometry(&camera, [](void*) noexcept {
+                glDepthMask(GL_TRUE);glClearDepth(1);glClearColor(0,0,0,1);
+                glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+            }, nullptr), "prepare transmission information fixture");
+        };
+        auto surface = [&]() {
+            Check(RenderSceneGeometry(&camera, [](void* raw) noexcept {
+                glColorMask(GL_TRUE,GL_TRUE,GL_TRUE,GL_FALSE);
+                glColor4f(0,0,0,*static_cast<float*>(raw));
+                glBegin(GL_QUADS);
+                glVertex3f(-0.85F,-0.05F,-0.6F);glVertex3f(-0.6F,-0.05F,-0.6F);
+                glVertex3f(-0.6F,0.05F,-0.6F);glVertex3f(-0.85F,0.05F,-0.6F);
+                glEnd();
+            }, &alpha), "draw ambiguous native transmission");
+        };
+        background();surface();
+        glReadPixels(100,240,1,1,GL_RGBA,GL_UNSIGNED_BYTE,observed[sample].data());
+        glReadPixels(100,240,1,1,GL_DEPTH_COMPONENT,GL_FLOAT,&observed_depth[sample]);
+        background();
+        Check(RenderEffectsGeometry(config,geometry,camera), "reference transmitted effect");
+        surface();
+        glReadPixels(100,240,1,1,GL_RGBA,GL_UNSIGNED_BYTE,required[sample].data());
+        Same(original,Capture());
+    }
+    Check(observed[0]==observed[1] && observed_depth[0]==observed_depth[1],
+          "different native alpha can leave identical scene RGBA and depth");
+    Check(std::abs(int(required[0][2])-191)<=2 && std::abs(int(required[1][2])-64)<=2,
+          "identical observed scene requires distinct effect transmission");
+    std::printf("Transmission information: identical scene RGBA/depth, required behind blue=%u vs %u; "
+                "source alpha is not recoverable from scene snapshots\n",
+                unsigned(required[0][2]),unsigned(required[1][2]));
 }
 
 }
@@ -153,6 +319,17 @@ int main(int argc, char** argv) {
     HGLRC context = wglCreateContext(dc);
     if (!context || !wglMakeCurrent(dc, context)) return 5;
     std::printf("OpenGL draw test: %s\n", glGetString(GL_VERSION));
+    const bool combined_render = argc == 2 && (
+        std::strcmp(argv[1], "--combined-render") == 0
+        || std::strcmp(argv[1], "--combined-cost") == 0
+        || std::strcmp(argv[1], "--combined-cost-1080") == 0);
+    if (combined_render && !wglGetProcAddress("glGenFramebuffers")) {
+        std::fprintf(stderr, "SKIP: combined cue rendering requires framebuffer objects\n");
+        wglMakeCurrent(nullptr, nullptr); wglDeleteContext(context);
+        ReleaseDC(window, dc); DestroyWindow(window);
+        UnregisterClassW(klass.lpszClassName, klass.hInstance);
+        return 77;
+    }
     glViewport(0,0,640,480); glPixelStorei(GL_PACK_ALIGNMENT, 1);
     glClearColor(0,0,0,1); glClearDepth(0.5); glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glEnable(GL_FOG); glEnable(GL_LIGHTING); glEnable(GL_ALPHA_TEST);
@@ -274,8 +451,20 @@ int main(int argc, char** argv) {
     Same(state,Capture());
     const bool verify_transparency = argc == 2
         && std::strcmp(argv[1], "--verify-native-transparency") == 0;
+    const bool cost_1080 = argc == 2 && std::strcmp(argv[1], "--combined-cost-1080") == 0;
+    const bool combined_cost = cost_1080 || (argc == 2 && std::strcmp(argv[1], "--combined-cost") == 0);
+    if (cost_1080) {
+        RECT larger{0,0,1920,1080}; AdjustWindowRect(&larger,WS_OVERLAPPEDWINDOW,FALSE);
+        Check(SetWindowPos(window,nullptr,0,0,larger.right-larger.left,larger.bottom-larger.top,
+            SWP_NOZORDER|SWP_NOACTIVATE)!=0,"resize real combined test framebuffer");
+        GraphicsCameraState larger_camera=camera;larger_camera.viewport[2]=1920;larger_camera.viewport[3]=1080;
+        glViewport(0,0,1920,1080);CombinedProbe(larger_camera,true);
+        Check(SetWindowPos(window,nullptr,0,0,bounds.right-bounds.left,bounds.bottom-bounds.top,
+            SWP_NOZORDER|SWP_NOACTIVATE)!=0,"restore real test framebuffer");
+        glViewport(0,0,640,480);
+    } else if (combined_render) CombinedProbe(camera, combined_cost);
     TransparencyProbe(camera, verify_transparency);
-    if (argc == 2 && !verify_transparency) {
+    if (argc == 2 && !verify_transparency && !combined_render) {
         // Synthetic test framebuffer only. Capture happens outside the renderer.
         std::vector<unsigned char> pixels(640U*480U*3U);
         glReadPixels(0,0,640,480,GL_RGB,GL_UNSIGNED_BYTE,pixels.data());

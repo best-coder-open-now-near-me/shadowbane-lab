@@ -30,10 +30,14 @@ inline bool CodeHash(const std::uint8_t* image,std::size_t size,std::uint32_t ba
 inline bool ReviewedBinding(const std::uint8_t* image,std::size_t size,std::uint32_t base) noexcept {
     constexpr unsigned actor[]{7,38,155,223,265,279,367},queue[]{28,64,69,78,91};
     constexpr unsigned wrapper[]{33},drain[]{10,195};
+    constexpr unsigned multi_init[]{1,8,13,20,25,34,41,46,53,61},multi_dispatch[]{25},multi_producer[]{55,138};
     if(!CodeHash(image,size,base,0x78ae0,404,actor,7,"af75513bbb6f6f7866df0976fb8e4f8d8cd8affb50c60c363b074213a18cc3df")
         || !CodeHash(image,size,base,0x1cb100,173,queue,5,"2fc3a0a6b270f8b07740e96c1c3a2b367dc206e9fb2116934a0a4f75a203891a")
         || !CodeHash(image,size,base,0x1c8a90,68,wrapper,1,"6b7726e9f2da88bcc37eb0e9e2a9f64321518a68290d79d217f0f58ec97f47a5")
         || !CodeHash(image,size,base,0x79c730,205,drain,2,"9c13da05cd9aa105fb0bd4bc51537cd6b463540e41e7d13bbc028ab0af9b4696"))return false;
+    if(!CodeHash(image,size,base,0x5645b3,66,multi_init,10,"c9bca61b913980d3e201fd847fbfa304203aa4f1d8902ed420ba1c01a88f1dac")
+        || !CodeHash(image,size,base,0x5655c0,33,multi_dispatch,1,"f2b8ba64b63743ab3b139f2f81f28c43e9bd1c8170c6ceef90b243d05a4b9671")
+        || !CodeHash(image,size,base,0x1a07f0,168,multi_producer,2,"92eb8b5f468b942f9203d1d89b2b92769b9e104f39106730362227058aa9ed05"))return false;
     if(size<0x1149ed8)return false;
     std::uint32_t method=0;std::memcpy(&method,image+0x1149ed4,4);
     std::int32_t displacement=0;std::memcpy(&displacement,image+0x26d92,4);

@@ -303,3 +303,153 @@ startup, and correctly retains owning-thread release before unbind. The new cost
 changes still need inclusion and verification in the owner's next exact source.
 The required native-transparency gate is red; no final package or completed
 feature is claimed from this checkpoint.
+
+## Required cue foreground-transparency gate
+
+`wonderbane_extension_selected_cue_native_transparency` now runs the production
+GPU path as a required CTest. Its reference renders the same cue before a native
+50%-red foreground draw, and compares the current pre-UI candidate against it.
+Measured reference RGB is `(131,16,19)`; current late composition yields
+`(116,31,37)` with native depth writes off and `(127,0,0)` with them on. Both cases
+fail. This independently prevents a cue package from being certified merely
+because the particles transparency test is fixed. It is not disabled or marked
+expected-success. The existing package pipeline will stop on this regression.
+
+The cost-reduced capture and lifecycle work are published, but correct native
+foreground transmission remains unfinished shared renderer integration. The
+feature is not ready for manual acceptance or a completion claim.
+
+## Combined source verification and steady-frame cost
+
+The lane independently built exact owner source
+`c2f9c997870760bb1a347bd3a6006199038265b8` in its own clean detached verification
+worktree. The 30-test native suite had 27 passes, two no-argument binding skips,
+and the required effects native-transparency failure in both depth modes. The
+cue private-client binding test was then supplied the reviewed executable and
+passed. Cue GPU, runtime, identity/math, shared context, sky and navigation checks
+passed. This source includes cue `8967438`, but predates the additional required
+cue-transparency test at `0613b97`; its ordinary cue GPU pass is not evidence of
+correct native transparency. No certifiable package was produced at this pin.
+
+The original four-frame cost sample on that combined source measured 2.747 ms at
+640x480 and 4.362 ms at 1080p, illustrating host-load variance relative to earlier
+samples. The cost mode now reports cold initialization separately, warms three
+paired frames, then measures 16 native-only and cue-enabled frames in alternating
+order. It reports median, range and nominal texture storage; `glFinish` includes
+CPU/GPU synchronization. These are synthetic 46-submission host tests, not live
+client frame-time certification or a representative mesh-complexity benchmark.
+
+The updated feature test measured 640x480 enabled median 1.897 ms (1.646–2.316 ms),
+native-only median 0.069 ms, and cold setup frame 2.654 ms. At 1080p it measured
+2.646 ms (2.428–2.985 ms), native-only 0.095 ms, and cold frame 3.528 ms. Normal
+mask storage remains 15.820 MiB at 1080p. General GPU assertions passed during
+this run. Unknown command-line modes now exit 2 instead of silently running the
+default test. The native-transparency mode still exits 1 with both documented
+pixel mismatches; the harness check of this known failure does not make it pass.
+
+Next active todo is the shared foreground-transmission correction, followed by
+verification at the owner's next exact combined source and actual package build.
+No certified complete translucent stage was found in the queue investigation;
+per-wrapper composition would not preserve the whole-character silhouette.
+Both feature and lane-owned verification worktrees are retained for this work.
+
+
+The required transmission probe now also places native glass behind the selected
+character and samples the halo outside the mesh's native depth coverage. Both
+background depth modes produce expected/current RGB `(84,122,143)`. Moving all
+cue composition before glass instead produces `(142,61,72)` in both modes. The
+probe asserts this counterexample is distinct, preventing the foreground-only
+fixture from suggesting a wholesale earlier pass is sufficient. Existing two
+foreground mismatches remain required failures; the ordinary GPU suite passes.
+
+
+## Bounded material investigation and optimized multi-draw repair
+
+The integration owner requested continued material/queue investigation and
+explicitly authorized this focused coverage repair. No competing present,
+context, scene or procedure-resolution hook was introduced.
+
+On the reviewed updated official executable, character draw `1CB700` writes a
+cached matrix at `1CBAA5` before shader configuration/draw at `1CC549`/`1CC554`.
+Common shader configuration `4EFFE0` updates mesh references and writes its
+caller-local draw-description pointer into shader `+10` at `4F003A`. Retaining a
+shader pointer for later replay would retain a reference to expired stack data.
+Category helper `1C3380` tests opacity against 0.995 and material flags; it does
+not provide a spatial depth key. These facts rule out treating game-render or
+shader calls as a harmless prepass. They do not prove every possible retained
+geometry strategy impossible.
+
+Bounded read-only player-reference observations (not selected-target substitution)
+resolved 32 drawable nodes among the 46-node subtree through `ArcSinglePolyMesh`
+vtable `11498A0`, `ArcMesh` vtable `114965C`, and active
+`CacheCompiledVertexArrays` vtable `11496B4`. Fourteen terminal submitters were
+`RenderNormal` (`11495A8`); eighteen were `RenderOptimizedMultiDraw` (`11495C8`).
+The latter builds count/index arrays on its stack at `1A07F0`, then calls thunk
+`13868`, wrapper `5655C0`, and dynamic procedure slot `16AA038`. That path bypasses
+the ordinary `glDrawElements` import. The native initializer at `5645B3` resolves
+`glMultiDrawElements` first, then `glMultiDrawElementsEXT` if unavailable.
+
+The existing cue runtime now registers this slot after reviewed binding succeeds,
+validates/adopts it on the GL thread at BeginScene, and captures multi-draw
+synchronously into the same whole-character mask. It calls the current-context
+native procedure with the original stack arrays while they remain valid; nothing
+is retained for later replay. Raw mask submission is supplemental; native color
+submission remains once. Exact initializer, producer and dispatch code spans are
+covered by relocation-normalized seals and every-byte mutation rejection.
+
+Late initialization is retried at the next scene boundary. A foreign pointer is
+never replaced. Any pointer drift during a scene discards the whole mask,
+including prior nodes. A short metadata lock serializes adoption only; it is not
+held over native drawing and does not create a second callback admission domain.
+An installation epoch also detects drift/re-adoption while an older callback is
+held. That callback retains its locally captured native procedure through return.
+Stop uses the shared lifecycle mutation, drains admitted callbacks and restores
+by compare/exchange; foreign replacements survive. Call-through remains pinned
+for previously loaded hook addresses. Context procedure resolution is strict and
+failed observation prevents a partial mask from being presented.
+
+Validation: full extension build succeeds; runtime and GPU cue suites pass.
+Runtime cases cover delayed initialization, EXT fallback, unavailable context,
+foreign replacement, prior-mask discard, held callback plus concurrent driver
+refresh, retained call-through, and Stop/restart while multi-draw is in flight.
+Actual WGL multi-draw tests cover both depth-write modes, both primitive halves,
+client-array/GL-state restoration and one native color-buffer submission. The
+explicit private-client binding test passes with both relocation directions and
+every-byte drift rejection on the new spans. The required foreground transmission
+regression still fails both foreground depth modes; this repair does not resolve
+transmission and is not final package certification.
+
+The lane's ignored read-only scripts `read-player-backend.ps1`,
+`read-player-submission.ps1`, `read-player-driver.ps1` and
+`read-player-primitive.ps1` remain under `artifacts/selected-character-cue/`.
+No client binaries, credentials or raw geometry were exported. The remaining
+transmission contract needs either a verified depth-aware integration preserving
+native pass ordering, or owned per-fragment transmission/geometry/material data
+for all contributing native draws. The inspected shader pointer is not that
+contract. Next: owner inclusion and exact combined verification of this repair,
+then continue the shared transmission investigation; the package gate stays red.
+
+
+## Multi-draw combined verification
+
+The lane independently verified exact owner pin
+`b713dbf0c5cecf743c441c38472db8568cdbeaf9`, containing feature repair
+`d741f04ff0eadd9e2d94901e5d2dd366e3a72a35`, in its own clean detached verification
+worktree. GPU/binding sources are identical to the repair; runtime differences
+only retain the owner's shared `scene_context` extraction. That reconciliation
+was reviewed, including release before context unbind and shared admission.
+
+The full-profile DLL and all native test targets build. The 36-test suite reports
+32 passes, two argument-only binding skips, and the two required cue/effects
+foreground-transparency failures. Both cue and sky binding tests were then run
+with the explicit reviewed private client and passed. Cue held-multi-draw runtime,
+actual GPU, shared context, and all sixteen render combinations passed. The
+Python cue control/configuration suite passed all 17 tests. Machine-readable
+results are retained locally at
+`E:/Projects/shadowbane/artifacts/cue-combined-native/b713dbf/lane-verification.xml`.
+
+The multi-draw repair is therefore verified in the combined source. Transmission
+and final package certification remain unfinished. The verification checkout is
+retained at this exact pin, feature checkout is clean/published, and normal main
+checkout remains untouched. Next active todo remains the shared transmission
+correction, followed by the final combined package and consolidated acceptance.
