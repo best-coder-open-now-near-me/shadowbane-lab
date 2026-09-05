@@ -1,5 +1,6 @@
 #include "movement_native_stop.h"
 #include "movement_native_image.h"
+#include "movement_native_ui.h"
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -141,7 +142,9 @@ bool NativeStop::RunPick(int x, int y, GroundPoint& output) {
         || !Read(target.actor + 0x18, target.identity) || !ReadParent(target.actor, target.parent) || !SceneCurrent(target)) { return false; }
     GroundPoint origin{}, screen{};
     if (!Read(base_ + 0x16a2c34, origin) || !Finite(origin)) { return false; }
-    calls_.unproject(&screen, x, y, 0.0F);
+    POINT native_point{x, y};
+    if (require_lifetime_ && NativeClientPoint(base_, target.window, window_, {x, y}, native_point) != NativePointResult::valid) { return false; }
+    calls_.unproject(&screen, native_point.x, native_point.y, 0.0F);
     if (!SceneCurrent(target) || !Finite(screen)) { return false; }
     GroundPoint direction{screen.x - origin.x, screen.y - origin.y, screen.z - origin.z};
     const float length = std::hypot(direction.x, direction.y, direction.z);
@@ -187,9 +190,12 @@ bool NativeStop::RunBasis(Vector2& forward, Vector2& right) {
     if (!Read(base_ + 0x16a2c34, origin) || !Finite(origin)) { return false; }
     const int x = bounds.right / 2, y = bounds.bottom / 2;
     const int side_x = std::min(bounds.right - 1, x + std::max(1L, bounds.right / 4));
-    calls_.unproject(&center, x, y, 0.0F);
+    POINT native_center{x, y}, native_side{side_x, y};
+    if (require_lifetime_ && (NativeClientPoint(base_, target.window, window_, {x, y}, native_center) != NativePointResult::valid
+        || NativeClientPoint(base_, target.window, window_, {side_x, y}, native_side) != NativePointResult::valid)) { return false; }
+    calls_.unproject(&center, native_center.x, native_center.y, 0.0F);
     if (!SceneCurrent(target) || !Finite(center)) { return false; }
-    calls_.unproject(&side, side_x, y, 0.0F);
+    calls_.unproject(&side, native_side.x, native_side.y, 0.0F);
     if (!SceneCurrent(target) || !Finite(side)) { return false; }
     // Use the current native view's rays, including its orbit/parent offset.
     // No cached/invented view matrix or guessed yaw-axis convention is needed.

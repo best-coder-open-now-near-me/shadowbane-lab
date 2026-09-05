@@ -12,9 +12,10 @@ The normal shared checkout remains on `main`. Terrain-repair branches are exclud
 
 ## Status: unfinished, not a connected candidate
 
-The native per-client interpretation and ownership policy is implemented in
-`movement_controls.h/.cpp` and exercised by its Win32 CTest target. It is not yet
-called by the extension. No controls capability is advertised, no installed package
+The native ownership/input policy, steering, stop, camera, terrain-pick, lifetime
+and UI-ownership adapters are implemented and tested. The Windows/XInput consumer
+and settings/automation transport are still being connected. The controls policy
+is not yet called by the extension. No controls capability is advertised, no installed package
 has changed, and no native binding is enabled. This checkpoint must not be treated
 as the complete requested feature or as an acceptance package.
 
@@ -82,18 +83,20 @@ invalid pick and lost capture, client isolation and camera integration at
 
 ## Todos
 
-- [ ] Active: wire the native stop executor and remaining steering/camera/picking
-  bindings into the verified native-update dispatch and real input adapters.
 - [x] Implement and test the shared input interpretation and ownership policy.
-- [ ] Wire all three input methods, native adapter, real settings and feature controls.
+- [x] Bind native stop, steering, camera and picking with native lifetime guards.
+- [x] Bind native UI/text/modal ownership and shared pointer-coordinate conversion.
+- [ ] Active: compose Windows/XInput input capture and the native-update consumer.
+- [ ] Wire real settings, remapping, controller configuration and feature controls.
 - [ ] Wire travel/PvE dispatch and immutable ownership grants with the hardening owner.
 - [ ] Validate production native adapters, both profiles, lifecycle and delayed dispatch.
 - [ ] Build/install the complete combined package through the existing integration owner.
 - [ ] Run focused connected acceptance for all input methods, camera, obstacles,
   real release/stop, chat/UI safety, multi-client isolation and navigation takeover.
 
-Next item remains native actuation investigation. No feature-complete PR or
-connected-acceptance claim is justified by this checkpoint.
+Next item is Windows/XInput consumer composition. Connected engine behavior still
+requires the complete combined package and coordinated acceptance. Historical
+checkpoint notes below describe the progression, not additional active todos.
 
 ## Passive trace checkpoint
 
@@ -462,3 +465,29 @@ implemented arming interval subject to integration review. Runtime activation
 remains pending the complete feature. Active next is the Windows/XInput/native UI
 consumer, then real settings and automation grant transport, full package checks
 and coordinated connected acceptance. No installed package was replaced here.
+
+
+Native UI gating now binds the game's text predicate, focused control and top-level
+HUD hit-test. It respects focused text kinds, modal update ownership, native input
+inhibit bits and inventory drag payload. Pointer hits are native UI/map hits;
+keyboard gating is separate, and the existing native camera gesture is reported
+without acquiring movement ownership. Queries run only on the exact window's
+owning thread, reject reentry and recheck scene/gates after native callbacks.
+Foreign text bindings and malformed geometry are unavailable; native exceptions
+latch failure. This is not yet an active input interception feature.
+
+The native rectangle getter and mouse-event scaling were verified. UI hit testing,
+production terrain picking and camera-basis unprojection now share that coordinate
+conversion, including resized/logical UI extents. No cursor movement or plane
+picking is used. Native key event submission drains synchronously before returning
+to the keyboard callback, so the existing pre-update consumer can inspect current
+text/UI state; no shared update phase change or blanket pause on unrelated keys
+is needed.
+
+Both complete DLL profiles and 35 focused tests each pass with zero skips. New
+production source movement_native_ui.cpp must be present in both actual builder
+profiles; native backend/lifetime tests also link it. UI tests exercise native-call
+doubles for text/modal/inventory/map ownership, camera separation, coordinates,
+foreign thread/reentry/scene changes, foreign text slots and native faults. Active
+next remains Windows/XInput consumer composition, then settings/grant transport
+and complete package/connected acceptance through the integration owner.
