@@ -546,3 +546,187 @@ def test_blocked_window_action_does_not_block_other_client_pause_refresh_or_stat
             release.set()
         assert blocked.result(5).instance_id == first.instance_id
     assert not session.status("client-02").dispatch_enabled
+
+
+def blocked_launch_contender(root, entered, release, result, stop):
+    context = multiprocessing.get_context("spawn")
+    child = None
+
+    class Launcher:
+        def launch(self, binding):
+            nonlocal child
+            child = context.Process(target=hold_worker, args=(stop,))
+            child.start()
+            entered.set()
+            assert release.wait(15)
+            return child.pid
+
+    controller = ManagedWorkerController(
+        worker_fixture._manifest(),
+        WorkerHeartbeatLedger(worker_fixture._manifest(), Path(root)),
+        ProcessInspector(),
+        Launcher(),
+    )
+    try:
+        result.put(controller.ensure_started(worker_fixture.CLIENT_ID, worker_fixture._client()))
+    finally:
+        if child is not None:
+            child.join(20)
+
+
+def stop_launch_contender(root, acquiring, result):
+    from contextlib import contextmanager
+    from unittest.mock import patch
+
+    from shadowbane_lab.record_store import exclusive_record_lock
+
+    @contextmanager
+    def observed_lock(path):
+        acquiring.set()
+        with exclusive_record_lock(path):
+            yield
+
+    controller = ManagedWorkerController(
+        worker_fixture._manifest(),
+        WorkerHeartbeatLedger(worker_fixture._manifest(), Path(root)),
+        ProcessInspector(),
+        worker_fixture._RecordingLauncher(),
+    )
+    with patch("shadowbane_lab.manager.worker_runtime.exclusive_record_lock", observed_lock):
+        result.put(controller.request_stop(worker_fixture.CLIENT_ID, reason="stop during launch"))
+
+
+def test_interprocess_stop_waits_for_inflight_launch_reservation(tmp_path):
+    context = multiprocessing.get_context("spawn")
+    entered, release, acquiring, stop = [context.Event() for _ in range(4)]
+    launch_result, stop_result = context.Queue(), context.Queue()
+    launching = context.Process(
+        target=blocked_launch_contender,
+        args=(str(tmp_path), entered, release, launch_result, stop),
+    )
+    stopping = context.Process(
+        target=stop_launch_contender,
+        args=(str(tmp_path), acquiring, stop_result),
+    )
+    launching.start()
+    try:
+        assert entered.wait(10)
+        stopping.start()
+        assert acquiring.wait(10)
+        release.set()
+        pid = launch_result.get(timeout=10)
+        assert stop_result.get(timeout=10) == 1
+        record = json.loads(next(tmp_path.rglob(".launch-reservation")).read_text())
+        ledger = WorkerHeartbeatLedger(worker_fixture._manifest(), tmp_path)
+        request = ledger.inspect_stop_request(worker_fixture.CLIENT_ID, record["worker_id"])
+        assert request.process_id == pid
+        assert request.process_started_at_100ns == record["process_started_at_100ns"]
+    finally:
+        release.set()
+        stop.set()
+        launching.join(15)
+        if stopping.pid is not None:
+            stopping.join(15)
+        assert launching.exitcode == stopping.exitcode == 0
+
+
+def test_retained_worker_child_recovers_failed_attachment_without_relaunch(tmp_path):
+    import subprocess
+    import sys
+    from unittest.mock import patch
+
+    from shadowbane_lab.manager.worker_runtime import SubprocessWorkerLauncher
+
+    class Inspector(ProcessInspector):
+        unavailable = True
+
+        def inspect(self, pid):
+            return None if self.unavailable else super().inspect(pid)
+
+    inspector = Inspector()
+    launcher = SubprocessWorkerLauncher(
+        manifest_path=tmp_path / "manifest.json",
+        worker_state_directory=tmp_path,
+        log_directory=tmp_path / "logs",
+    )
+    controller = ManagedWorkerController(
+        worker_fixture._manifest(),
+        WorkerHeartbeatLedger(worker_fixture._manifest(), tmp_path),
+        inspector,
+        launcher,
+    )
+    child = subprocess.Popen(
+        [sys.executable, "-c", "import sys; sys.stdin.buffer.read()"],
+        stdin=subprocess.PIPE,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    )
+    try:
+        with patch(
+            "shadowbane_lab.manager.worker_runtime.subprocess.Popen", return_value=child
+        ) as popen:
+            with pytest.raises(ExactClientWorkerError, match="attachment recovery"):
+                controller.ensure_started(worker_fixture.CLIENT_ID, worker_fixture._client())
+            inspector.unavailable = False
+            assert (
+                controller.ensure_started(worker_fixture.CLIENT_ID, worker_fixture._client())
+                is None
+            )
+            assert popen.call_count == 1
+        assert controller.request_stop(worker_fixture.CLIENT_ID, reason="recovered stop") == 1
+        child.stdin.close()
+        child.wait(10)
+        assert launcher.recover(child.pid, inspector) is None
+        with pytest.raises(ExactClientWorkerError, match="no retained"):
+            launcher.recover(os.getpid(), inspector)
+    finally:
+        if not child.stdin.closed:
+            child.stdin.close()
+        child.wait(10)
+
+
+@pytest.mark.parametrize("value", [[], {"schema_version": 1, "worker_id": 42}])
+def test_malformed_launch_reservation_preserves_evidence(tmp_path, value):
+    ledger = WorkerHeartbeatLedger(worker_fixture._manifest(), tmp_path)
+    path = (
+        tmp_path
+        / worker_fixture._manifest().node_id
+        / worker_fixture.CLIENT_ID
+        / ".launch-reservation"
+    )
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps(value))
+    controller = ManagedWorkerController(
+        worker_fixture._manifest(),
+        ledger,
+        ProcessInspector(),
+        worker_fixture._RecordingLauncher(),
+    )
+    with pytest.raises(ExactClientWorkerError, match="invalid worker launch reservation"):
+        controller.ensure_started(worker_fixture.CLIENT_ID, worker_fixture._client())
+    assert json.loads(path.read_text()) == value
+
+
+def test_failure_before_worker_creation_releases_only_its_reservation(tmp_path):
+    from unittest.mock import patch
+
+    from shadowbane_lab.manager.worker_runtime import SubprocessWorkerLauncher
+
+    launcher = SubprocessWorkerLauncher(
+        manifest_path=tmp_path / "manifest.json",
+        worker_state_directory=tmp_path,
+        log_directory=tmp_path / "logs",
+    )
+    controller = ManagedWorkerController(
+        worker_fixture._manifest(),
+        WorkerHeartbeatLedger(worker_fixture._manifest(), tmp_path),
+        ProcessInspector(),
+        launcher,
+    )
+    with patch(
+        "shadowbane_lab.manager.worker_runtime.subprocess.Popen", side_effect=OSError("injected")
+    ) as popen:
+        for _ in range(2):
+            with pytest.raises(ExactClientWorkerError, match="could not launch"):
+                controller.ensure_started(worker_fixture.CLIENT_ID, worker_fixture._client())
+        assert popen.call_count == 2
+    assert list(tmp_path.rglob(".launch-reservation")) == []
