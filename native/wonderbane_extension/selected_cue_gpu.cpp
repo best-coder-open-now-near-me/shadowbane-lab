@@ -275,6 +275,24 @@ bool CaptureGeometry(GeometryDraw draw,void* user) noexcept {
         return depth_write && BeforeLegacyGeometry();
     GLboolean color[4]{};glGetBooleanv(GL_COLOR_WRITEMASK,color);
     if(!depth_write && !color[0] && !color[1] && !color[2])return true;
+    // A constant-alpha blend can contribute no RGB even when fragment alpha
+    // is nonzero. Exclude only the exact destination-preserving operator;
+    // the caller still issues the original native draw (including its depth).
+    if(glIsEnabled(GL_BLEND)){
+        GLint src=0,dst=0,equation=0;
+        glGetIntegerv(GL_BLEND_SRC,&src);glGetIntegerv(GL_BLEND_DST,&dst);
+        glGetIntegerv(0x8009,&equation);
+        if((equation==0x8006 || equation==0x800B)
+            && (src==0x8003 || src==0x8004)){
+            GLfloat constant[4]{-1,-1,-1,-1};glGetFloatv(0x8005,constant);
+            const bool zero_source=(src==0x8003 && constant[3]==0.0F)
+                || (src==0x8004 && constant[3]==1.0F);
+            const bool unchanged_destination=dst==GL_ONE
+                || (dst==0x8004 && constant[3]==0.0F)
+                || (dst==0x8003 && constant[3]==1.0F);
+            if(zero_source && unchanged_destination)return true;
+        }
+    }
     // Capture only the raw driver submission. Native transforms, texture/alpha
     // state, programs and vertex arrays stay active; no game render is replayed.
     glPushAttrib(GL_ALL_ATTRIB_BITS);

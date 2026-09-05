@@ -953,3 +953,21 @@ E:/Projects/shadowbane/artifacts/cue-combined-native/1eea559/lane-cue.xml.
 The owner separately verified both profiles. The query repair is integrated and
 closed; the next active todo remains complete opaque visibility and ordered
 transmission, followed by package verification and consolidated acceptance.
+
+
+### Constant-alpha selected-material coverage (2026-09-05)
+
+The actual GPU regression reproduced a silhouette for an RGB-neutral
+constant-alpha material. The capture now omits the supplemental mask draw only
+when the RGB operator is exactly destination-preserving: zero constant source
+factor, unit destination factor, and ADD or REVERSE_SUBTRACT. The original native
+draw still runs, including its depth and alpha writes. Nonzero source factors
+remain eligible for silhouette capture.
+
+The existing GPU executable covers both constant-alpha directions, source
+contributions 0/0.5/1, and depth writes off/on (12 cases), with state and blend
+constant restoration. Full DLL and GPU executable build; base GPU and source
+feasibility tests pass. Native foreground transparency still fails its same two
+assertions. This is a material-coverage correction, not an ordered transparency
+collector or a delivery receipt. Route the focused source/test change through
+codex/native-lifecycle-hardening and verify combined source before acceptance.

@@ -295,6 +295,31 @@ int main(int argc,char** argv){
         Check(cue::CompositeMask(s,{}),"zero-alpha composite");
         Check(Pixel(230,240)==0,"zero-alpha source-over/additive material has no silhouette");
     }
+    using BlendColor=void(APIENTRY*)(GLfloat,GLfloat,GLfloat,GLfloat);
+    const auto blend_color=reinterpret_cast<BlendColor>(wglGetProcAddress("glBlendColor"));
+    Check(blend_color!=nullptr,"constant-alpha blend helper available");
+    if(blend_color){
+        for(bool depth_write:{false,true})for(bool inverse:{false,true})
+        for(float contribution:{0.0F,0.5F,1.0F}){
+            glDepthMask(GL_TRUE);glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+            Check(cue::BeginMask() && cue::BeforeOwnedDraw(),"begin constant-alpha mesh");
+            glDepthMask(depth_write?GL_TRUE:GL_FALSE);glEnable(GL_BLEND);
+            glBlendFunc(inverse?0x8004:0x8003,inverse?0x8003:0x8004);
+            const float alpha=inverse?1.0F-contribution:contribution;
+            blend_color(.2F,.3F,.4F,alpha);glColor4f(.2F,.2F,.2F,1);
+            material=Snapshot();
+            Check(cue::CaptureGeometry(mesh,nullptr),"capture constant-alpha mesh");Same(material,Snapshot());
+            GLfloat restored[4]{};glGetFloatv(0x8005,restored);
+            Check(restored[0]==.2F && restored[1]==.3F && restored[2]==.4F && restored[3]==alpha,
+                "native blend constant restored");
+            mesh(nullptr);Check(cue::AfterOwnedDraw(),"finish constant-alpha mesh");
+            glDepthMask(GL_TRUE);glDisable(GL_BLEND);
+            Check(cue::CompositeMask(s,{}),"constant-alpha composite");
+            Check(contribution==0?Pixel(189,240)==0:Pixel(189,240)>0,
+                "constant-alpha zero coverage excluded and visible coverage retained");
+        }
+        blend_color(0,0,0,0);
+    }
     glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
     Check(cue::BeginMask() && cue::BeforeOwnedDraw(),"begin RGB additive mesh");
     glDepthMask(GL_FALSE);glEnable(GL_BLEND);glBlendFunc(GL_ONE,GL_ONE);
