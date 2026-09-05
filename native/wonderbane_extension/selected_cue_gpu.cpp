@@ -13,6 +13,7 @@ using DeleteFramebuffers=void(APIENTRY*)(GLsizei,const GLuint*);
 using BindFramebuffer=void(APIENTRY*)(GLenum,GLuint);
 using FramebufferTexture=void(APIENTRY*)(GLenum,GLenum,GLenum,GLuint,GLint);
 using CheckFramebuffer=GLenum(APIENTRY*)(GLenum);
+using BlitFramebuffer=void(APIENTRY*)(GLint,GLint,GLint,GLint,GLint,GLint,GLint,GLint,GLbitfield,GLenum);
 using CreateShader=GLuint(APIENTRY*)(GLenum);
 using ShaderSource=void(APIENTRY*)(GLuint,GLsizei,const char* const*,const GLint*);
 using ShaderOp=void(APIENTRY*)(GLuint);
@@ -25,6 +26,7 @@ using Uniform1f=void(APIENTRY*)(GLint,GLfloat);
 using Uniform2f=void(APIENTRY*)(GLint,GLfloat,GLfloat);
 using Uniform4f=void(APIENTRY*)(GLint,GLfloat,GLfloat,GLfloat,GLfloat);
 struct Api {
+    BlitFramebuffer blit=nullptr;
     BlendEquation equation=nullptr;
     ActiveTexture active=nullptr; GenFramebuffers gen=nullptr; DeleteFramebuffers del=nullptr;
     BindFramebuffer bind=nullptr; FramebufferTexture attach=nullptr; CheckFramebuffer check=nullptr;
@@ -37,8 +39,8 @@ struct Api {
 thread_local Api a;
 struct Resources {
     HGLRC context=nullptr;
-    GLuint textures[4]{}; // before, after/final, accumulated mask, translucent mesh depth
-    GLuint framebuffer=0, geometry_framebuffer=0, mask_program=0, glow_program=0;
+    GLuint textures[5]{}; // before, after/final, mask, visible depth/stencil, EQUAL scratch
+    GLuint framebuffer=0, geometry_framebuffer=0, equal_framebuffer=0, mask_program=0, glow_program=0;
     GLint viewport[4]{};
     bool active=false, before=false, captured=false, extra=false, legacy=false, single_channel=false;
 };
@@ -107,14 +109,16 @@ void Pass(void* raw) noexcept {
     GLint old_program=0;glGetIntegerv(0x8B8D,&old_program);
     glDisable(GL_DEPTH_TEST);
     if(op.kind==0) {
-        glGenTextures(4,g.textures);
+        glGenTextures(5,g.textures);
         for(unsigned n=0;n<4;++n) {
             Texture(g.textures[n],0);
             glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST);
             glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
             glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,0x812F);
             glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,0x812F);
-            if(n==1 || n==3)glTexImage2D(GL_TEXTURE_2D,0,0x81A6,g.viewport[2],g.viewport[3],0,
+            if(n==3)glTexImage2D(GL_TEXTURE_2D,0,0x88F0,g.viewport[2],g.viewport[3],0,
+                               0x84F9,0x84FA,nullptr);
+            if(n==1)glTexImage2D(GL_TEXTURE_2D,0,0x81A6,g.viewport[2],g.viewport[3],0,
                                        GL_DEPTH_COMPONENT,GL_FLOAT,nullptr);
         }
         const auto* version=reinterpret_cast<const char*>(glGetString(GL_VERSION));
@@ -123,6 +127,7 @@ void Pass(void* raw) noexcept {
             || (extensions && std::strstr(extensions,"GL_ARB_texture_rg"));
         a.gen(1,&g.geometry_framebuffer);a.bind(kFramebuffer,g.geometry_framebuffer);
         a.attach(kFramebuffer,0x8D00,GL_TEXTURE_2D,g.textures[3],0);
+        a.attach(kFramebuffer,0x8D20,GL_TEXTURE_2D,g.textures[3],0);
         glDrawBuffer(GL_NONE);glReadBuffer(GL_NONE);
         op.ok=a.check(kFramebuffer)==0x8CD5;
         a.bind(kFramebuffer,0);
@@ -139,6 +144,22 @@ void Pass(void* raw) noexcept {
         a.bind(kFramebuffer,g.geometry_framebuffer);
         glDepthMask(GL_TRUE);glClearDepth(1);glClear(GL_DEPTH_BUFFER_BIT);
         a.bind(kFramebuffer,0);op.ok=true;
+    } else if(op.kind==8){
+        // Allocate only for native EQUAL materials. Actual native depth is the
+        // test history; selected visible depth is a separate accumulation.
+        a.blit=reinterpret_cast<BlitFramebuffer>(Proc("glBlitFramebuffer"));
+        if(a.blit){
+            Texture(g.textures[4],0);
+            glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
+            glTexImage2D(GL_TEXTURE_2D,0,0x88F0,g.viewport[2],g.viewport[3],0,0x84F9,0x84FA,nullptr);
+            a.gen(1,&g.equal_framebuffer);a.bind(kFramebuffer,g.equal_framebuffer);
+            a.attach(kFramebuffer,0x8D00,GL_TEXTURE_2D,g.textures[4],0);
+            a.attach(kFramebuffer,0x8D20,GL_TEXTURE_2D,g.textures[4],0);
+            glDrawBuffer(GL_NONE);glReadBuffer(GL_NONE);
+            op.ok=a.check(kFramebuffer)==0x8CD5;
+            a.bind(kFramebuffer,0);
+        }
     } else if(op.kind==7){
         Texture(g.textures[0],0);
         glTexImage2D(GL_TEXTURE_2D,0,0x81A6,g.viewport[2],g.viewport[3],0,GL_DEPTH_COMPONENT,GL_FLOAT,nullptr);
@@ -228,13 +249,14 @@ void DiscardMask() noexcept {g.active=false;g.before=false;g.captured=false;g.ex
 std::uint64_t AllocatedMaskBytes() noexcept {
     if(!g.geometry_framebuffer)return 0;
     const std::uint64_t pixels=static_cast<std::uint64_t>(g.viewport[2])*g.viewport[3];
-    return pixels*(8U+(g.framebuffer?(g.single_channel?8U:20U):0U));
+    return pixels*(8U+(g.equal_framebuffer?4U:0U)+(g.framebuffer?(g.single_channel?8U:20U):0U));
 }
 void ReleaseMask() noexcept {
     DiscardMask();if(g.context!=wglGetCurrentContext())return;
-    if(g.textures[0])glDeleteTextures(4,g.textures);
+    if(g.textures[0])glDeleteTextures(5,g.textures);
     if(g.geometry_framebuffer && a.del)a.del(1,&g.geometry_framebuffer);
     if(g.framebuffer && a.del)a.del(1,&g.framebuffer);
+    if(g.equal_framebuffer && a.del)a.del(1,&g.equal_framebuffer);
     if(g.mask_program && a.delete_program)a.delete_program(g.mask_program);
     if(g.glow_program && a.delete_program)a.delete_program(g.glow_program);
     g={};
@@ -274,14 +296,12 @@ bool CaptureGeometry(GeometryDraw draw,void* user) noexcept {
         || (glIsEnabled(GL_DEPTH_TEST) && depth_function!=GL_LESS && depth_function!=GL_LEQUAL && depth_function!=GL_EQUAL))
         return depth_write && BeforeLegacyGeometry();
     GLboolean color[4]{};glGetBooleanv(GL_COLOR_WRITEMASK,color);
-    if(!depth_write && !color[0] && !color[1] && !color[2])return true;
+    if(!color[0] && !color[1] && !color[2])return true;
     // A constant-alpha blend can contribute no RGB even when fragment alpha
     // is nonzero. Exclude only the exact destination-preserving operator;
-    // Depth-writing material must still seed subsequent EQUAL passes. This
-    // buffer currently doubles as visible coverage, so excluding invisible
-    // depth-writing prepasses remains unresolved rather than losing that depth.
-    // The caller always issues the original native draw.
-    if(!depth_write && glIsEnabled(GL_BLEND)){
+    // The caller always issues the original native draw. Later EQUAL passes
+    // test against actual native depth, independently of visible coverage.
+    if(glIsEnabled(GL_BLEND)){
         GLint src=0,dst=0,equation=0;
         glGetIntegerv(GL_BLEND_SRC,&src);glGetIntegerv(GL_BLEND_DST,&dst);
         glGetIntegerv(0x8009,&equation);
@@ -296,12 +316,32 @@ bool CaptureGeometry(GeometryDraw draw,void* user) noexcept {
             if(zero_source && unchanged_destination)return true;
         }
     }
+    const bool equal=glIsEnabled(GL_DEPTH_TEST) && depth_function==GL_EQUAL;
+    if(equal){
+        GLint bits=0,stencil_bits=0;glGetIntegerv(GL_DEPTH_BITS,&bits);
+        glGetIntegerv(GL_STENCIL_BITS,&stencil_bits);
+        if(bits!=24 || stencil_bits!=8)return false; // No conversion of native depth precision.
+        if(!g.equal_framebuffer && !Run(8)){ReleaseMask();return false;}
+    }
     // Capture only the raw driver submission. Native transforms, texture/alpha
     // state, programs and vertex arrays stay active; no game render is replayed.
     glPushAttrib(GL_ALL_ATTRIB_BITS);
+    if(equal){
+        a.bind(0x8CA8,0);a.bind(0x8CA9,g.equal_framebuffer);
+        a.blit(0,0,g.viewport[2],g.viewport[3],0,0,g.viewport[2],g.viewport[3],GL_DEPTH_BUFFER_BIT,GL_NEAREST);
+        a.bind(kFramebuffer,g.equal_framebuffer);glDrawBuffer(GL_NONE);
+        glStencilMask(~0U);glClearStencil(0);glClear(GL_STENCIL_BUFFER_BIT);
+        glColorMask(GL_FALSE,GL_FALSE,GL_FALSE,GL_FALSE);glDepthMask(GL_FALSE);
+        glEnable(GL_STENCIL_TEST);glStencilFunc(GL_ALWAYS,1,~0U);
+        glStencilOp(GL_KEEP,GL_KEEP,GL_REPLACE);
+        draw(user); // Native depth/alpha/program determine exact passing coverage.
+        a.bind(0x8CA8,g.equal_framebuffer);a.bind(0x8CA9,g.geometry_framebuffer);
+        a.blit(0,0,g.viewport[2],g.viewport[3],0,0,g.viewport[2],g.viewport[3],GL_STENCIL_BUFFER_BIT,GL_NEAREST);
+        glStencilFunc(GL_EQUAL,1,~0U);glStencilOp(GL_KEEP,GL_KEEP,GL_KEEP);
+    }
     a.bind(kFramebuffer,g.geometry_framebuffer);glDrawBuffer(GL_NONE);
     glColorMask(GL_FALSE,GL_FALSE,GL_FALSE,GL_FALSE);glDepthMask(GL_TRUE);
-    glEnable(GL_DEPTH_TEST);glDepthFunc(depth_function==GL_EQUAL?GL_EQUAL:GL_LEQUAL);
+    glEnable(GL_DEPTH_TEST);glDepthFunc(GL_LEQUAL);
     if(glIsEnabled(GL_BLEND) && !glIsEnabled(GL_ALPHA_TEST)){
         GLint src=0,dst=0,equation=0;glGetIntegerv(GL_BLEND_SRC,&src);glGetIntegerv(GL_BLEND_DST,&dst);
         glGetIntegerv(0x8009,&equation);
