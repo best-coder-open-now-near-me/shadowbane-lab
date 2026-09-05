@@ -1,4 +1,6 @@
 #include "selected_cue_gpu.h"
+#include "scene_draw.h"
+#include <cmath>
 #include <gl/GL.h>
 #include <array>
 #include <algorithm>
@@ -62,10 +64,12 @@ std::array<unsigned char,4> NativeTransparency(bool late_composite,bool depth_wr
 }
 unsigned Pixel(int x,int y){std::array<unsigned char,4> p{};glReadPixels(x,y,1,1,GL_RGBA,GL_UNSIGNED_BYTE,p.data());return p[0]+p[1]+p[2];}
 }
+#include "selected_cue_source_experiment.h"
 int main(int argc,char** argv){
     if(argc>2 || (argc==2 && std::strcmp(argv[1],"--cost")!=0
-        && std::strcmp(argv[1],"--native-transparency")!=0)){
-        std::fprintf(stderr,"usage: selected_cue_gpu_test [--cost|--native-transparency]\n");return 2;
+        && std::strcmp(argv[1],"--native-transparency")!=0
+        && std::strcmp(argv[1],"--source-feasibility")!=0)){
+        std::fprintf(stderr,"usage: selected_cue_gpu_test [--cost|--native-transparency|--source-feasibility]\n");return 2;
     }
     WNDCLASSW wc{};wc.style=CS_OWNDC;wc.lpfnWndProc=DefWindowProcW;
     wc.hInstance=GetModuleHandleW(nullptr);wc.lpszClassName=L"SelectedCueGpuTest";
@@ -75,6 +79,7 @@ int main(int argc,char** argv){
     HDC dc=GetDC(window);PIXELFORMATDESCRIPTOR pf{};pf.nSize=sizeof(pf);pf.nVersion=1;
     pf.dwFlags=PFD_DRAW_TO_WINDOW|PFD_SUPPORT_OPENGL|PFD_DOUBLEBUFFER;
     pf.iPixelType=PFD_TYPE_RGBA;pf.cColorBits=24;pf.cDepthBits=24;pf.cStencilBits=8;
+    if(argc==2 && std::strcmp(argv[1],"--source-feasibility")==0)pf.cAlphaBits=8;
     if(!SetPixelFormat(dc,ChoosePixelFormat(dc,&pf),&pf))return 4;
     HGLRC context=wglCreateContext(dc);if(!context || !wglMakeCurrent(dc,context))return 5;
     if(!wglGetProcAddress("glGenFramebuffers")) {
@@ -83,6 +88,11 @@ int main(int argc,char** argv){
     glViewport(0,0,640,480);glMatrixMode(GL_PROJECTION);glLoadIdentity();
     glMatrixMode(GL_MODELVIEW);glLoadIdentity();glEnable(GL_DEPTH_TEST);glDepthFunc(GL_LESS);
     glClearColor(0,0,0,0);glClearDepth(1);glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+    if(argc==2 && std::strcmp(argv[1],"--source-feasibility")==0){
+        const int result=source_experiment::Run();
+        wglMakeCurrent(nullptr,nullptr);wglDeleteContext(context);ReleaseDC(window,dc);DestroyWindow(window);
+        return result;
+    }
     if(argc==2 && std::strcmp(argv[1],"--native-transparency")==0){
         const auto equal=[](const auto& x,const auto& y){
             for(int n=0;n<3;++n)if(std::abs(int(x[n])-int(y[n]))>1)return false;
