@@ -281,3 +281,31 @@ this host's GPU are not connected-client performance acceptance. Evidence:
 `artifacts/hardening-evidence/combined-render-phases-1080.txt`. This results-only
 entry is not a new build source or package receipt. Remaining blockers and the
 single coordinated owner acceptance gate are unchanged.
+
+
+Shared acceptance follow-through (integration source `2289bd7`): archived native
+TerrainTrace evidence was located under the normal checkout's
+`artifacts/git-cleanup/20260904T062424Z/scratch/.tmp/`. The
+`terrain-trace-evidence-960/terrain-trace-960-134329406441965396-1.json`
+trace retains 537 draws (403 blend-enabled); the
+`terrain-retained-trace-20260903/terrain-trace-6420-134329234815817786-1.json`
+trace retains 1,505 draws (218 blend-enabled). Both report a complete reviewed
+interval, one unsafe-query omission, and zero capacity/query-budget omissions.
+Retained categories are immediate, display-list entry, arrays and elements;
+these are not exhaustive fragment or driver-internal coverage. Neither trace
+contains the proposed program, separate blend, stencil or write-mask fields.
+Private captures remain local and are not package or acceptance receipts.
+
+Particles checkpoint `ec816a594a99dff4cb6beedbfa9df42e15f2e262` is reviewed but
+not yet included: the owner is strengthening exact-enum/capability and existing
+Python-reader compatibility tests before integration. Cue owns native MultiDraw
+categorization and the existing cel query-safety observation helper, coordinated
+with particles on trace serialization. Sky is extending only missing sky pixel
+and depth assertions in the existing CombinedProbe, outside the timed path;
+no duplicate matrix or alternate acceptance pipeline is being added. Shared
+lifecycle ownership remains here. The cue's halo requires transmission evaluated
+at the destination pixel and each retained contributing owned depth; a mask or
+background depth substitution is not an accepted repair. Active work remains
+the shared native transparency contract, followed by complete-feature gates,
+independent combined review and exact installed-package acceptance. Movement
+stop composition and full runtime adapters remain with their existing owner.
