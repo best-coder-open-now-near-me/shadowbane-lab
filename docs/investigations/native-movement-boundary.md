@@ -514,3 +514,12 @@ resolved by native terrain/collision. Native misses reject movement. Matching
 in-flight targets are coalesced; a changed destination is submitted through native
 replacement instead of acknowledged and dropped. No actor coordinate/speed writes,
 flat-plane pick, desktop input, or alternate navigation planner were introduced.
+
+
+Native camera-axis verification: the reviewed edge-camera update passes positive
+yaw at the left viewport edge and negative yaw at the right edge when horizontal
+inversion is off. Its top-edge pitch delta is positive and bottom-edge delta is
+negative. The controller therefore maps positive XInput right-stick X to negative
+native yaw, and positive Y to positive native pitch before optional inversions.
+This follows the native directional camera convention rather than assuming positive
+yaw means a right turn. Native mouse drag inertia remains untouched.

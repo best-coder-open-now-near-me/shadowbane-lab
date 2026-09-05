@@ -15,9 +15,11 @@ The normal shared checkout remains on `main`. Terrain-repair branches are exclud
 The native ownership/input policy, steering, stop, camera, terrain-pick, lifetime,
 UI ownership, Windows/XInput capture and native-update consumer are implemented.
 The consumer is registered after successful shared extension startup. Initial
-preferences are disabled; explicitly saved preferences apply on later starts. Settings UI/persistence and both entry points are implemented; automation
-transport is still being connected. No action-channel movement capability is advertised, no installed
-package has changed, and no connected acceptance is claimed. This checkpoint is
+preferences are disabled; explicitly saved preferences apply on later starts. Settings UI/persistence and both entry points are implemented. Schema2 native
+travel/PvE transport, terrain-derived destinations, same-grant pause, renewal and
+typed adapter are implemented at `95a3b363189557c529ebeecd4d5e1ec2004b6c67`.
+Shared CLI/manager operation composition and complete package validation remain
+with the integration owner. No installed package has changed and no connected acceptance is claimed. This checkpoint is
 not the complete requested feature or an acceptance package.
 
 The production policy requires a synchronous owning-client-thread actuator. A
@@ -36,8 +38,8 @@ are normalized; no analog movement speed is invented. Right-stick camera movemen
 uses elapsed time and does not acquire movement ownership. Focus/UI loss, controller
 loss and capture loss require neutral/re-arm. Controller selection is an explicit
 XInput slot. The default drag binding is XBUTTON1, with a six-pixel threshold;
-invalid ground picks never fall back to a plane. These settings are internal typed
-configuration so far, not an installed settings UI.
+invalid ground picks never fall back to a plane. The native settings panel and Graphics Lab entry are implemented and tested;
+installation and connected verification remain pending.
 
 ## Investigation performed in this assignment
 
@@ -90,7 +92,7 @@ invalid pick and lost capture, client isolation and camera integration at
 - [x] Compose Windows/XInput input capture and the native-update consumer.
 - [x] Wire real settings, remapping, controller configuration and feature controls.
 - [ ] Active: wire travel/PvE dispatch and immutable ownership grants with the hardening owner.
-- [ ] Validate production native adapters, both profiles, lifecycle and delayed dispatch.
+- [x] Validate production native adapters, both profiles, lifecycle and delayed dispatch.
 - [ ] Build/install the complete combined package through the existing integration owner.
 - [ ] Run focused connected acceptance for all input methods, camera, obstacles,
   real release/stop, chat/UI safety, multi-client isolation and navigation takeover.
@@ -706,3 +708,10 @@ malformed subtests pass0skips; Ruff passes.
 Next active todo: integrate the owner's CLI/operation composition with this adapter,
 review complete combined source and package, then installed exact-package validation
 and coordinated connected acceptance. No installed package/connected claim yet.
+
+## Camera direction follow-up
+
+Verified controller signs against the native edge-camera path: stick right uses
+negative native yaw, stick up positive pitch, before configured inversions. Updated
+production policy/frame-rate tests accordingly. Integration/installed acceptance
+remains the active todo; no new baseline or deployment was introduced.

@@ -326,13 +326,13 @@ void FrameRatesAndSettings() {
             f.controls.Tick(f.input);
         }
         float angle = 0; for (const auto& e : f.actuator.events) if (e.kind == 'c') angle += e.vector.x;
-        Check(Near(angle, 2), "camera integrates elapsed time across frame rates");
+        Check(Near(angle, -2), "camera integrates elapsed time across frame rates");
     }
     Fixture f; f.settings.keys = {0x49, 0x4b, 0x4a, 0x4c};
     f.settings.invert_camera_x = true; (void)f.controls.Configure(f.settings); f.Step();
     Check(!f.controls.ConsumesKey(0x57) && f.controls.ConsumesKey(0x49), "remapped suppression");
     f.input.right_stick = {1, 0}; f.Step();
-    Check(f.actuator.events.back().vector.x < 0, "camera inversion");
+    Check(f.actuator.events.back().vector.x > 0, "camera inversion");
     f.settings.keys[1] = f.settings.keys[0];
     Check(f.controls.Configure(f.settings) == Result::invalid, "conflicting bindings rejected");
     Check(!ValidSettings(Settings{.movement_dead_zone = std::numeric_limits<float>::quiet_NaN()}),

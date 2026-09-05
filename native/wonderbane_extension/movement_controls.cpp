@@ -277,7 +277,7 @@ void Controls::Tick(const Input& input) noexcept {
         const float scale = settings_.camera_radians_per_second * seconds;
         bool accepted = false;
         { const ActuationGuard guard(actuating_);
-          accepted = actuator_.Camera({camera.x * scale * (settings_.invert_camera_x ? -1 : 1),
+          accepted = actuator_.Camera({camera.x * scale * (settings_.invert_camera_x ? 1 : -1),
                                        camera.y * scale * (settings_.invert_camera_y ? -1 : 1)}); }
         if (!ContinueInput()) { return; }
         if (shutdown_pending_) { Shutdown(); return; }
