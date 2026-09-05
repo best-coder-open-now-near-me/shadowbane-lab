@@ -13,6 +13,7 @@ bool Near(float a, float b) { return std::abs(a - b) < 0.0001F; }
 struct Event { char kind; Grant grant; Vector2 vector; bool start; };
 struct Actuator final : NativeActuator {
     std::vector<Event> events;
+    Grant revoked_old{}, revoked_next{};
     bool stop_ok = true;
     bool move_ok = true;
     bool camera_ok = true;
@@ -28,7 +29,8 @@ struct Actuator final : NativeActuator {
     bool Camera(Vector2 v) noexcept override {
         events.push_back({'c', {}, v, false}); return camera_ok;
     }
-    void Revoked(const Grant& old, const Grant&, StopReason) noexcept override {
+    void Revoked(const Grant& old, const Grant& next, StopReason) noexcept override {
+        revoked_old = old; revoked_next = next;
         events.push_back({'r', old, {}, false});
     }
     void SceneRetired(std::uint64_t scene) noexcept override {
@@ -169,6 +171,9 @@ void FailureAndScene() {
     f.input.scene = 22; const auto stops = f.actuator.Count('s'); f.Step();
     Check(f.actuator.Count('s') == stops, "scene transition never stops replacement actor");
     Check(f.actuator.Count('d') == 0, "scene transition requires neutral");
+    Check(f.actuator.revoked_old.scene == 11 && f.actuator.revoked_next.scene == 22,
+          "revocation preserves both scene identities");
+    Check(f.controls.Stop(old) == Result::stale, "retired scene stop stays stale");
     Fixture partial; partial.actuator.move_ok = false;
     partial.input.keys[0x57] = true; partial.Step();
     Check(partial.actuator.Count('s') == 1 && !partial.controls.Ready(), "partial native failure stopped");

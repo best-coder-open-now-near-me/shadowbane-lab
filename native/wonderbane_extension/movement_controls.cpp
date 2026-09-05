@@ -85,7 +85,8 @@ bool Controls::StopActive(StopReason reason) noexcept {
     pending_stop_ = true;
     return false;
 }
-bool Controls::Retire(StopReason reason, Owner next, Token token) noexcept {
+bool Controls::Retire(StopReason reason, Owner next, Token token,
+                      std::optional<std::uint64_t> next_scene) noexcept {
     const auto old = grant_;
     const bool stopped = StopActive(reason);
     if (grant_.generation == std::numeric_limits<std::uint64_t>::max()) {
@@ -96,6 +97,7 @@ bool Controls::Retire(StopReason reason, Owner next, Token token) noexcept {
     ++grant_.generation;
     grant_.owner = next;
     grant_.token = token;
+    if (next_scene) { grant_.scene = *next_scene; }
     actuator_.Revoked(old, grant_, reason);
     return stopped;
 }
@@ -160,8 +162,7 @@ void Controls::Tick(const Input& input) noexcept {
         actuator_.SceneRetired(old.scene);
         // Never invoke an old actor's stop on a replacement actor or reused pointer.
         moving_ = pending_stop_ = false;
-        grant_.scene = input.scene;
-        (void)Retire(StopReason::scene_changed, Owner::none);
+        (void)Retire(StopReason::scene_changed, Owner::none, {}, input.scene);
         Inhibit(StopReason::scene_changed);
         has_tick_ = false;
     }

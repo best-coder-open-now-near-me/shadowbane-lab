@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstdint>
+#include <optional>
 
 namespace wonderbane::extension::movement {
 
@@ -103,7 +104,7 @@ public:
     Grant Current() const noexcept { return grant_; }
     bool Ready() const noexcept { return available_ && !pending_stop_; }
 private:
-    bool Retire(StopReason, Owner next, Token = {}) noexcept;
+    bool Retire(StopReason, Owner next, Token = {}, std::optional<std::uint64_t> next_scene = std::nullopt) noexcept;
     bool StopActive(StopReason) noexcept;
     void Inhibit(StopReason) noexcept;
     bool RetryStop() noexcept;
