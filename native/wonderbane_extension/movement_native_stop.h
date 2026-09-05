@@ -23,6 +23,7 @@ public:
     // Uses native unprojection, world collision and parent-local hit conversion.
     // Retained hit references belong only to this admitted update, until EndUpdate.
     bool PickGround(int client_x, int client_y, GroundPoint&) noexcept;
+    bool MoveToPick(const Grant&, GroundPoint) noexcept;
     void SceneRetired(std::uint64_t scene) noexcept;
     bool Available() const noexcept { return bound_ && !faulted_; }
 private:
@@ -61,13 +62,17 @@ private:
         bool (__thiscall* ray_cast)(void*, Ray*) = nullptr;
         GroundPoint* (__thiscall* ray_point)(Ray*, GroundPoint*) = nullptr;
         void (__thiscall* release_parent)(void**, void*) = nullptr;
+        void (__thiscall* apply_ray)(Ray*, void*, bool) = nullptr;
+        void* (__thiscall* parent)(void*) = nullptr;
+        GroundTarget* (__thiscall* ground_with_refs)(GroundTarget*, GroundPoint, void*, void*) = nullptr;
+        void (__thiscall* release_ground_actor)(void**, void*) = nullptr;
         GroundTarget* (__thiscall* ground_target)(GroundTarget*, GroundPoint) = nullptr;
         void** (__thiscall* move)(void*, void**, const GroundTarget*, bool, bool, bool, bool*, bool) = nullptr;
         void (__thiscall* camera)(void*, float, float, float, bool) = nullptr;
     } calls_{};
     struct Target {
         Grant grant{};
-        std::uintptr_t actor = 0, world = 0, window = 0, request = 0;
+        std::uintptr_t actor = 0, world = 0, window = 0, request = 0, parent = 0;
         Identity identity{};
     } target_{};
     bool Capture(const Grant&) noexcept;
@@ -78,6 +83,9 @@ private:
     bool PickCxxGuarded(int, int, GroundPoint&) noexcept;
     bool PickGuarded(int, int, GroundPoint&) noexcept;
     bool RunPick(int, int, GroundPoint&);
+    bool RunPickMove(const Target&);
+    bool PickMoveCxxGuarded(const Target&) noexcept;
+    bool PickMoveGuarded(const Target&) noexcept;
     bool RequestCurrent(const Target&) const noexcept;
     bool MovementCurrent(const Target&) const noexcept;
     bool RunSteer(const Target&, Vector2, std::uint64_t, bool);
@@ -98,6 +106,11 @@ private:
     // closed. Never retry an uncertain send or unload code from under callbacks.
     void* held_actor_ = nullptr;
     void* message_ = nullptr;
+    void* held_marker_ = nullptr;
+    GroundTarget ground_{};
+    bool ground_owned_ = false;
+    GroundPoint drag_point_{};
+    bool drag_submitted_ = false, drag_deferred_ = false;
     Ray ray_{};
     Target pick_target_{};
     GroundPoint pick_point_{};

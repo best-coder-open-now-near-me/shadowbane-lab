@@ -350,3 +350,26 @@ Active work remains completing drag destination actuation and camera basis/input
 composition into the native-update consumer, then settings, automation grant
 transport and complete package/connected acceptance. The pick is not activated or
 advertised independently of the complete controls feature.
+
+
+Drag destination actuation now consumes only the current update's validated native
+pick. It applies the native hit to the destination marker, retains the marker and
+native parent in the ground target, and calls the native movement wrapper with
+collision/restriction handling. It does not relocate the player or simulate a
+click. Unchanged active movement and pending native solve/deferred work are
+coalesced; the latest pointer pick is applied after native work completes. Release
+uses the same cancellation/idle-message path as directional movement. All actor,
+marker, ground-target and ray reference lifetimes are explicit.
+
+A new regression reproduced a parent-frame change on the same actor during marker
+application. Every captured native transaction now checks that frame as well as
+actor/world/window/scene. Runtime Input.scene MUST change on native parent-frame
+transitions; otherwise stale local coordinates cannot be re-armed. Tests also
+cover expired picks, marker-induced scene replacement, held drag/release, pending
+path cancellation and obsolete-stop retirement after a new frame identity. Both
+complete DLL profiles and focused policy/backend tests pass with zero skips.
+Native-call doubles do not certify the native terrain solver or server result.
+
+Active work now moves to camera basis and Windows/XInput/UI consumer composition,
+with real settings and manager grant transport next, then complete-candidate
+package and connected acceptance. No controls capability is advertised yet.

@@ -52,7 +52,8 @@ Vector2 RadialCamera(Vector2 value, float dead_zone) noexcept;
 
 struct Input {
     std::uint64_t tick_ms = 0;
-    // A new character/scene must have a new nonzero identity, even if a pointer is reused.
+    // A new character/scene or native parent coordinate frame needs a new nonzero identity,
+    // even if an actor pointer is reused.
     std::uint64_t scene = 0;
     bool native_available = false;
     bool exact_foreground = false;
