@@ -21,6 +21,7 @@ Fixture* current = nullptr;
 }
 namespace wonderbane::extension::movement {
 struct NativeStopTestAccess {
+    using Ray = NativeStop::Ray;
     using GroundTarget = NativeStop::GroundTarget;
     using Node = NativeStop::Node; using Map = NativeStop::Map; using Vector = NativeStop::Vector;
     static void Bind(NativeStop&, void*, HWND);
@@ -38,6 +39,11 @@ struct NativeStopTestAccess {
     static void __fastcall Waypoint(void*, void*, std::uint32_t, std::uint32_t);
     static void** __fastcall State(void*, void*, void**, bool, std::uint32_t, bool);
     static void __fastcall Send(void*, void*, void*);
+    static GroundPoint* __cdecl Unproject(GroundPoint*, int, int, float);
+    static Ray* __fastcall RayCreate(Ray*, void*, void*, const GroundPoint*, const GroundPoint*, bool);
+    static bool __fastcall RayCast(void*, void*, Ray*);
+    static GroundPoint* __fastcall RayPoint(Ray*, void*, GroundPoint*);
+    static void __fastcall ParentRelease(void**, void*, void*);
     static GroundTarget* __fastcall Ground(GroundTarget*, void*, GroundPoint);
     static void** __fastcall Move(void*, void*, void**, const GroundTarget*, bool, bool, bool, bool*, bool);
     static void __fastcall Camera(void*, void*, float, float, float, bool);
@@ -76,6 +82,8 @@ struct Fixture {
     int position_calls = 0, destination_calls = 0, waypoint_calls = 0;
     int camera_calls = 0;
     bool camera_fault = false;
+    int ray_creates = 0, ray_casts = 0, ray_points = 0, parent_releases = 0;
+    bool ray_hit = true, replace_on_pick = false;
     bool real_steering = false, pending_solve = false, deferred_move = false, replace_on_move = false;
     int callback_mode = 0;
     Result nested = Result::accepted;
@@ -83,6 +91,8 @@ struct Fixture {
     GroundPoint destination{};
     Fixture() {
         current = this; Check(base && window, "test process fixtures created");
+        Check(SetWindowPos(window, nullptr, 0, 0, 640, 480, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE) != FALSE,
+            "test client has explicit drawable bounds");
         actuator.native = &stop; Access::Bind(stop, base, window);
         const std::array<std::uint32_t, 2> id{17, 31};
         Put(actor.data(), 0x18, id);
@@ -111,7 +121,7 @@ struct Fixture {
         input.controller_connected = true; input.capture_valid = input.pointer_in_world = input.ground_valid = true;
         Step();
     }
-    ~Fixture() { if (window) { DestroyWindow(window); } if (base) { VirtualFree(base, 0, MEM_RELEASE); } current = nullptr; }
+    ~Fixture() { stop.EndUpdate(); if (window) { DestroyWindow(window); } if (base) { VirtualFree(base, 0, MEM_RELEASE); } current = nullptr; }
     void Step() { input.tick_ms += 16; controls.Tick(input); }
     void Arm(bool follow) {
         Put(actor.data(), 0xc1c, static_cast<std::uint16_t>(follow ? 0x0101 : 0));
@@ -155,10 +165,41 @@ void NativeStopTestAccess::Bind(NativeStop& stop, void* base, HWND window) {
     c.clear_continuation = reinterpret_cast<decltype(c.clear_continuation)>(&Continuation);
     c.position = reinterpret_cast<decltype(c.position)>(&Position); c.destination = reinterpret_cast<decltype(c.destination)>(&Destination);
     c.clear_waypoint = reinterpret_cast<decltype(c.clear_waypoint)>(&Waypoint);
+    c.unproject = &Unproject; c.ray = reinterpret_cast<decltype(c.ray)>(&RayCreate);
+    c.ray_cast = reinterpret_cast<decltype(c.ray_cast)>(&RayCast);
+    c.ray_point = reinterpret_cast<decltype(c.ray_point)>(&RayPoint);
+    c.release_parent = reinterpret_cast<decltype(c.release_parent)>(&ParentRelease);
     c.ground_target = reinterpret_cast<decltype(c.ground_target)>(&Ground);
     c.move = reinterpret_cast<decltype(c.move)>(&Move);
     c.camera = reinterpret_cast<decltype(c.camera)>(&Camera);
     c.state = reinterpret_cast<decltype(c.state)>(&State); c.send = reinterpret_cast<decltype(c.send)>(&Send);
+}
+GroundPoint* __cdecl NativeStopTestAccess::Unproject(GroundPoint* output, int x, int y, float depth) {
+    Check(x == 0 && y == 0 && depth == 0, "native unprojection receives client coordinates and native near depth");
+    *output = {3, 4, 0}; return output;
+}
+NativeStopTestAccess::Ray* __fastcall NativeStopTestAccess::RayCreate(Ray* ray, void*, void* actor,
+    const GroundPoint* origin, const GroundPoint* direction, bool flag) {
+    Check(!flag && std::abs(direction->x - 0.6F) < 0.00001F && std::abs(direction->y - 0.8F) < 0.00001F
+        && direction->z == 0, "native ground ray keeps full normalized 3D direction");
+    ++current->ray_creates; ++current->retains;
+    *ray = {actor, *origin, *direction, 0, 0, nullptr, nullptr}; return ray;
+}
+bool __fastcall NativeStopTestAccess::RayCast(void* world, void*, Ray* ray) {
+    Check(world == current->world.data(), "native ray uses captured world"); ++current->ray_casts;
+    ray->distance = 5; ray->parent = current->alternate_world.data();
+    if (current->replace_on_pick) {
+        current->replacement = current->actor;
+        Put(current->base, 0x16a2d98, reinterpret_cast<std::uintptr_t>(current->replacement.data()));
+    }
+    return current->ray_hit;
+}
+GroundPoint* __fastcall NativeStopTestAccess::RayPoint(Ray*, void*, GroundPoint* output) {
+    ++current->ray_points; *output = {8, -4, 11}; return output;
+}
+void __fastcall NativeStopTestAccess::ParentRelease(void** reference, void*, void* replacement) {
+    Check(!replacement, "native parent reference released without replacement");
+    if (*reference) { ++current->parent_releases; } *reference = nullptr;
 }
 NativeStopTestAccess::GroundTarget* __fastcall NativeStopTestAccess::Ground(GroundTarget* output, void*, GroundPoint point) {
     *output = {point, nullptr, nullptr}; return output;
@@ -355,6 +396,32 @@ void StatesAndFailures() {
       Check(!f.stop.Available() && !f.controls.Ready() && f.moves == 0 && f.retains == 1 && f.releases == 0,
           "native exception retains ambiguous actor ownership and blocks new writer"); }
 }
+void TerrainPickComposition() {
+    { Fixture f; GroundPoint point{};
+      Check(f.stop.PickGround(0, 0, point) && point.x == 8 && point.y == -4 && point.z == 11
+          && f.ray_creates == 1 && f.ray_casts == 1 && f.ray_points == 1 && f.releases == 0,
+          "native terrain result and references survive through owning update without a plane fallback");
+      bool other_pick = true;
+      std::thread other([&] { GroundPoint ignored{}; other_pick = f.stop.PickGround(0, 0, ignored); f.stop.EndUpdate(); }); other.join();
+      Check(!other_pick && f.releases == 0, "foreign thread cannot pick or retire owning update resources");
+      Check(f.stop.PickGround(0, 0, point) && f.releases == 1 && f.parent_releases == 1,
+          "replacement pick releases previous native hit references");
+      f.stop.EndUpdate();
+      Check(f.retains == f.releases && f.parent_releases == 2 && !f.stop.PickGround(0, 0, point),
+          "end update retires native pick references and closes admission"); }
+    { Fixture f; f.ray_hit = false; GroundPoint point{1, 2, 3};
+      Check(!f.stop.PickGround(0, 0, point) && point.x == 0 && point.y == 0 && point.z == 0
+          && f.ray_points == 0 && f.stop.Available(), "native miss gives no invented ground point");
+      f.stop.EndUpdate(); Check(f.retains == f.releases && f.parent_releases == 1, "miss releases native references"); }
+    { Fixture f; GroundPoint point{};
+      Check(!f.stop.PickGround(-1, 0, point) && !f.stop.PickGround(640, 0, point) && f.ray_creates == 0,
+          "outside client bounds never enters native picking"); }
+    { Fixture f; f.replace_on_pick = true; GroundPoint point{};
+      Check(!f.stop.PickGround(0, 0, point) && f.ray_points == 0,
+          "actor replacement during native ray prevents stale parent conversion");
+      f.stop.EndUpdate(); Check(f.retains == f.releases && f.parent_releases == 1,
+          "scene invalidation releases only retained old pick references"); }
+}
 void SteeringComposition() {
     for (const std::uint64_t interval : {5ULL, 10ULL, 20ULL, 40ULL, 100ULL}) {
         Fixture f; f.real_steering = true; f.input.keys[0x57] = true;
@@ -494,6 +561,6 @@ void ReentryAndScene() {
 }
 int main() {
     { Fixture f; NativeStop unbound(f.controls); Check(!unbound.Bind(f.window), "unsupported executable stays unavailable"); }
-    ManualMethods(); StatesAndFailures(); SteeringComposition(); CameraComposition(); ReentryAndScene();
+    ManualMethods(); StatesAndFailures(); TerrainPickComposition(); SteeringComposition(); CameraComposition(); ReentryAndScene();
     return failures ? 1 : 0;
 }

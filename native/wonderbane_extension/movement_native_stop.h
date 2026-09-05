@@ -20,6 +20,9 @@ public:
     // Direction is normalized X/Z in the player's native parent-local frame.
     // tick_ms comes from the owning update's monotonic clock, never render dt.
     bool Steer(const Grant&, Vector2 direction, std::uint64_t tick_ms, bool start) noexcept;
+    // Uses native unprojection, world collision and parent-local hit conversion.
+    // Retained hit references belong only to this admitted update, until EndUpdate.
+    bool PickGround(int client_x, int client_y, GroundPoint&) noexcept;
     void SceneRetired(std::uint64_t scene) noexcept;
     bool Available() const noexcept { return bound_ && !faulted_; }
 private:
@@ -31,6 +34,11 @@ private:
     static_assert(sizeof(Node) == 40);
     struct Map { Node* sentinel; std::uint32_t size; };
     struct Vector { void* begin; void* end; void* capacity; };
+    struct Ray {
+        void* actor; GroundPoint origin; GroundPoint direction; std::uint32_t flags;
+        float distance; void* parent; void* face;
+    };
+    static_assert(sizeof(Ray) == 44);
     struct GroundTarget { GroundPoint point; void* actor; void* parent; };
     static_assert(sizeof(GroundTarget) == 20);
     struct Calls {
@@ -48,6 +56,11 @@ private:
         void (__thiscall* clear_waypoint)(void*, std::uint32_t, std::uint32_t) = nullptr;
         void** (__thiscall* state)(void*, void**, bool, std::uint32_t, bool) = nullptr;
         void (__thiscall* send)(void*, void*) = nullptr;
+        GroundPoint* (__cdecl* unproject)(GroundPoint*, int, int, float) = nullptr;
+        Ray* (__thiscall* ray)(Ray*, void*, const GroundPoint*, const GroundPoint*, bool) = nullptr;
+        bool (__thiscall* ray_cast)(void*, Ray*) = nullptr;
+        GroundPoint* (__thiscall* ray_point)(Ray*, GroundPoint*) = nullptr;
+        void (__thiscall* release_parent)(void**, void*) = nullptr;
         GroundTarget* (__thiscall* ground_target)(GroundTarget*, GroundPoint) = nullptr;
         void** (__thiscall* move)(void*, void**, const GroundTarget*, bool, bool, bool, bool*, bool) = nullptr;
         void (__thiscall* camera)(void*, float, float, float, bool) = nullptr;
@@ -58,7 +71,13 @@ private:
         Identity identity{};
     } target_{};
     bool Capture(const Grant&) noexcept;
+    bool SceneCurrent(const Target&) const noexcept;
     bool Current(const Target&) const noexcept;
+    bool ClearPickCxxGuarded() noexcept;
+    bool ClearPickGuarded() noexcept;
+    bool PickCxxGuarded(int, int, GroundPoint&) noexcept;
+    bool PickGuarded(int, int, GroundPoint&) noexcept;
+    bool RunPick(int, int, GroundPoint&);
     bool RequestCurrent(const Target&) const noexcept;
     bool MovementCurrent(const Target&) const noexcept;
     bool RunSteer(const Target&, Vector2, std::uint64_t, bool);
@@ -79,6 +98,10 @@ private:
     // closed. Never retry an uncertain send or unload code from under callbacks.
     void* held_actor_ = nullptr;
     void* message_ = nullptr;
+    Ray ray_{};
+    Target pick_target_{};
+    GroundPoint pick_point_{};
+    bool ray_owned_ = false, pick_valid_ = false;
     Target steering_target_{};
     Vector2 steering_direction_{};
     std::uint64_t steering_tick_ = 0, steering_sent_tick_ = 0;

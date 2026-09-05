@@ -334,3 +334,19 @@ consumer, followed by settings, automation grant transport and complete installe
 candidate verification. Directional binding tests use native-call doubles; native
 solver, connected steering cadence and all-three-input acceptance remain open.
 This checkpoint does not advertise or install partial controls.
+
+
+Terrain picking now binds native screen unprojection, ray construction, world
+collision and the native parent-local hit conversion. The full 3D ray is retained;
+there is no flat-plane fallback. Native actor/parent hit references live only for
+the admitted update and are released on replacement pick or owning-thread
+EndUpdate. Native misses return no point. Scene invalidation prevents further hit
+conversion while old retained references can still be released. Foreign threads
+cannot pick or end the owning phase. Both DLL profiles and policy/backend tests
+pass; a zero-height hidden test window was corrected to explicit client bounds.
+The tests use controlled native-call doubles, not real terrain collision evidence.
+
+Active work remains completing drag destination actuation and camera basis/input/UI
+composition into the native-update consumer, then settings, automation grant
+transport and complete package/connected acceptance. The pick is not activated or
+advertised independently of the complete controls feature.
