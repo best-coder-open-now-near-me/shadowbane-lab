@@ -6,6 +6,7 @@
 namespace wonderbane::extension::cue {
 struct Identity {
     std::uint32_t actor = 0, type = 0, uuid = 0, zone = 0, render = 0;
+    std::uint32_t component = 0, location = 0, zone_type = 0, zone_uuid = 0;
     bool operator==(const Identity&) const = default;
     bool valid() const noexcept { return actor && type && uuid && zone && render; }
 };

@@ -6,6 +6,7 @@
 #include "graphics_status.h"
 #if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
 #include "navigation_viewer.h"
+#include "selected_cue_runtime.h"
 #endif
 #include "terrain_trace.h"
 #include "terrain_mask_refresh.h"
@@ -1661,6 +1662,9 @@ __declspec(noinline) void APIENTRY StrongClear(const unsigned int mask) noexcept
         g_scene_frame.boundary_mapping_verified = true;
         ObserveMainSceneClear(&g_scene_frame);
         BeginMainSceneCamera();
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+        BeginSelectedCueScene(g_main_scene_camera_valid ? &g_main_scene_camera : nullptr);
+#endif
         std::array<float, 16U> projection{};
         std::array<int, 4U> viewport{};
         bool perspective = false;
@@ -1688,12 +1692,14 @@ __declspec(noinline) void APIENTRY StrongMatrixMode(const unsigned int mode) noe
         }
         if (BeginReviewedSceneUiBoundary(&g_scene_frame)) {
             GraphicsCameraState camera{};
-            if (FinishMainSceneCamera(&camera)) {
+            const bool cue_camera_valid = FinishMainSceneCamera(&camera);
+            if (cue_camera_valid) {
                 ObserveGraphicsCameraState(camera.view_matrix, 16U,
                     camera.projection_matrix, 16U, camera.viewport, 4U, 1);
             }
             g_scene_frame.composite_succeeded = CompositeDepthEdgesBeforeUi();
 #if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+            FinishSelectedCueScene(cue_camera_valid ? &camera : nullptr);
             DrawNavigationInspector();
 #endif
         }
@@ -1853,6 +1859,9 @@ BOOL WINAPI StrongSwapBuffers(const HDC device_context) noexcept {
     const auto original = LoadFunction<GdiSwapBuffers>(&g_original_swap_buffers);
     const BOOL result = original != nullptr ? original(device_context) : FALSE;
     EndDepthEdgeFrame();
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+    EndSelectedCueFrame();
+#endif
     g_scene_frame = {};
     g_scene_frame.boundary_mapping_verified = g_scene_mapping_verified;
     g_main_scene_context = nullptr;
@@ -2852,6 +2861,9 @@ DWORD StartStrongCelShading() noexcept {
         return present_result;
     }
     if (g_scene_mapping_verified) {
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+        (void)StartSelectedCue(image, nt->OptionalHeader.SizeOfImage, reviewed_hash);
+#endif
         StartTerrainMaskRefresh(image, nt->OptionalHeader.SizeOfImage, reviewed_hash);
         wchar_t status_path[MAX_PATH]{};
         if (GetGraphicsStatusPath(status_path, MAX_PATH) == ERROR_SUCCESS) {
@@ -2863,6 +2875,9 @@ DWORD StartStrongCelShading() noexcept {
 }
 
 void StopStrongCelShading() noexcept {
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+    StopSelectedCue();
+#endif
     StopTerrainMaskRefresh();
     StopTerrainTrace();
     bool restored = true;

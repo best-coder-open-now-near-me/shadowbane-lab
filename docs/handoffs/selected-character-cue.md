@@ -9,8 +9,8 @@ shared client/VM or merge main. Navigation acceptance is retained, not reopened.
 ## Current work
 
 - [x] Isolate the pinned source in a separate worktree.
-- [ ] Implement verified selection/render ownership, silhouette and direction cue.
-- [ ] Integrate settings, lifecycle, regression tests and actual package wiring.
+- [x] Implement verified selection/render ownership, depth-writing silhouette and direction cue.
+- [x] Integrate settings, context-switch cleanup, regression tests and package wiring.
 - [ ] Verify both native profiles and the committed package.
 - [ ] Reconcile with the integration owner's candidate and verify combined source.
 - [ ] Provide one consolidated live acceptance procedure and exact source/package IDs.
@@ -47,11 +47,73 @@ make an in-view character off-screen. A separately projected direction indicator
 chooses the shortest horizontal camera turn, retaining its side near the exactly
 behind-camera tie. Appearance and enable settings belong in Graphics Lab.
 
-Investigating a depth-change silhouette captured around an owned render wrapper:
-it would observe the original draw once rather than invoke character rendering
-twice. Final scene depth must reject later occluders. Coverage of materials that
-do not write depth must be evaluated explicitly, not silently claimed complete.
+Implemented depth-change silhouette capture around the owned render wrapper.
+The original render function is called exactly once. GPU copies before/after the
+owned draw accumulate a mask; exact comparison with final depth rejects later
+occluders. The real OpenGL regression checks visible coverage, edge halo, later
+occlusion, state restoration and resource recreation. This is a character mask,
+not a ring, bounding box, geometry-distance guess or position marker.
+
+Coverage of visible materials that do not write depth remains an explicit live
+question. Such pixels cannot be attributed by this method. Do not describe that
+coverage as verified, or call the complete requested feature delivered until the
+integration owner resolves that requirement in the combined candidate.
 
 Shared changes will be limited to renderer connections, startup/cleanup, Graphics
 Lab tab connection and CMake. The particles developer is extracting the existing
 navigation GL guard; coordinate reuse rather than introducing a second guard.
+
+
+## Integration surface and resource behavior
+
+- `cel_shading.cpp`: begin at the verified main clear, composite before navigation
+  and UI, invalidate after a missing boundary, initialize/stop the optional cue.
+- `selected_cue_runtime.cpp`: verified wrapper vtable slot; existing import-slot
+  replacement utility for `wglMakeCurrent` (reviewed import RVA `0x16B08A8`).
+  Releases GL resources before the owning context is unbound or switched. Disable
+  releases resources on the next scene. Process teardown also destroys its context.
+- Integration owner must call `ReleaseSelectedCueContext` on the render thread
+  before any newly introduced independent shutdown/context-destruction path.
+  Baseline startup has rollback and process teardown, not a general render-thread
+  shutdown dispatcher. Do not invoke GL deletion from an unrelated worker context.
+- Cue controls use an exact PID/creation-time mapping, leaving GraphicsControlV2
+  unchanged. The mapping is absent in diagnostics-only packages.
+- `effects.h`, `effects_attachment.cpp`, `scene_draw.h`, `scene_draw.cpp` are shared
+  verbatim from particles checkpoint `5957bf9e033301bb31244e5b320378686809cfbb`.
+  Do not compile a second copy when combining the branches.
+- CMake and `build_navigation_inspector_package.py` include/verify the real DLL,
+  source distribution, wheel, installed Graphics Lab Selection tab and both profiles.
+
+Resource bounds: at most 128 owned render nodes, 3840x2160 pixels, three textures
+(two depth24, one RGBA32F mask), one FBO and two programs. Multisample or non-default
+framebuffers, unavailable GL facilities, invalid observations or unknown code
+fail closed with Graphics Lab diagnostics. The scene camera is authoritative;
+no synthetic camera is used. The depth-copy cost needs measurement in the
+combined client; no performance acceptance is claimed from the test context.
+
+## Use and consolidated acceptance
+
+Use the integration owner's prepared full-profile client package; this branch
+must not deploy the shared VM independently. Launch the installed
+`shadowbane-graphics-lab` entry point, choose the exact connected client, open
+**Selection**, enable the cue and press **Apply to selected client**. Color,
+opacity, glow radius, arrow size and vertical placement are configurable. Saved
+appearance is local; reconnecting requires explicit enable/apply. A cleared
+selection or missing observation removes the cue.
+
+One consolidated pass after combined-source/package verification:
+
+1. Select two different visible characters, switch rapidly, clear selection,
+   and revisit a despawned/replaced target. Only the current character may glow.
+2. Turn the camera through front, viewport edges and directly behind. The arrow
+   must choose the shortest horizontal turn and stay stable around the rear tie.
+3. Put the selected character behind an obstacle while it remains in view.
+   The obstacle hides the glow and does not itself trigger an off-screen arrow.
+4. Check body, clothing, alpha-cutout edges and visible translucent equipment.
+   Record any missing non-depth-writing silhouette coverage as unresolved.
+5. Change settings, disable/re-enable, resize, change scenes and reconnect.
+   Check cleanup/identity status and performance while preserving the already
+   accepted navigation, obstacle traversal and rune-hunt behavior.
+
+Next todo: exact committed package validation, then reconcile the lifecycle
+owner's combined candidate and resolve the material-coverage/performance questions.
