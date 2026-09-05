@@ -106,6 +106,11 @@ public:
     Grant Current() const noexcept { return grant_; }
     bool Ready() const noexcept { return available_ && !pending_stop_; }
     bool CameraReady() const noexcept { return available_ && !camera_faulted_; }
+    // The native adapter checks this again at each callback boundary. A retained
+    // failed stop is permitted only while the policy still excludes a new writer.
+    bool AuthorizesNativeStop(const Grant& grant) const noexcept {
+        return grant.scene != 0 && (grant == grant_ || (pending_stop_ && grant == pending_grant_));
+    }
 private:
     bool Retire(StopReason, Owner next, Token = {}, std::optional<std::uint64_t> next_scene = std::nullopt) noexcept;
     bool StopActive(StopReason) noexcept;
@@ -117,6 +122,8 @@ private:
     Grant pending_grant_{};
     StopReason pending_reason_ = StopReason::release;
     bool pending_stop_ = false;
+    bool actuating_ = false;
+    bool shutdown_pending_ = false;
     bool moving_ = false;
     bool available_ = false;
     bool faulted_ = false;
