@@ -225,3 +225,11 @@ the shared scene_context extraction. Evidence:
 This closes independent lane verification of MultiDraw inclusion. It is neither
 transmission/package acceptance nor the independent integration review required
 once a complete candidate is pinned.
+
+Integrated movement probe `9aab84ff9e9c81272ca9a44bceb3d005f4cb8f67`:
+both local profile targets build and each passes 64,256 actual native
+lookup/removal/copy/destruction sequences. Exact unsigned two-word identity,
+missing lookup after removal, tree invariants and payload preservation are checked.
+Only the developer-only probe and its handoff changed; DLL/runtime capabilities
+are unchanged. Native pool cleanup and ordered full-stop composition remain with
+the movement owner. This is not a complete stop binding or feature acceptance.
