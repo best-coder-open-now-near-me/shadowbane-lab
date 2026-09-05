@@ -80,7 +80,8 @@ Task outputs remain under ignored `artifacts/sky`; no shared VM changes.
 - [x] Graphics Lab sky/horizon/orientation/intensity/restore controls and persistence.
 - [x] Shared context extraction, asset/wheel/sdist identity and both-profile build/exclusion tests.
 - [x] Feature PR targeting the integration owner.
-- [ ] Active: owner's combined source/package verification after the shared transparency gate passes.
+- [x] Verify sky against owner's combined source `c2f9c997870760bb1a347bd3a6006199038265b8`.
+- [ ] Active: combined acceptance package after the required shared transparency gate passes.
 - [ ] Focused connected acceptance: appearance, translation/rotation, horizon/fog,
       foliage/water, UI/minimap, toggles/context transitions and performance.
 
@@ -162,3 +163,63 @@ Retained task artifacts: `artifacts/sky/nf` and `nd` native builds/logs, `dist` 
 initial `artifacts/sky/full` is a superseded automatic-toolchain build and is not a
 validated package. The normal project checkout remains on main; this feature worktree
 is retained for the pending combined package verification. No other worktree is changed.
+
+
+## Combined source verification: c2f9c99
+
+The integration owner merged sky4368f13 and cue8967438 at
+`c2f9c997870760bb1a347bd3a6006199038265b8`. Sky implementation, assets, controls,
+shared state guard and context handler are byte-identical to the verified feature
+source. Reviewed intervening cel_shading and extension startup changes; sky continues
+to use the independent early stage, original camera publication and shared lifetime.
+Feature branch fast-forwarded to this source for verification; implementation is now
+included in the integration destination, while package acceptance remains pending.
+
+Rebuilt full and diagnostics-only from that exact combined source. Each profile
+passed startup, scene-context, cel-shading, sky-core and real-WGL sky tests. The
+argument-free binding test reports its expected private-input skip; explicit private
+sky binding and sky runtime invocations separately passed in both profiles. Checked
+exact one-time source/resource inclusion in full, complete exclusion in diagnostics,
+and matching packaged asset bytes. Connected sky/graphics controls:45 tests passed.
+
+Development DLL identities (not acceptance-package identities):
+
+- Full:498688 bytes, SHA256 `dcc60fdca816049563ad20fc35d1b482b2feacf0394215cf9ed2e518bf39f2dd`.
+- Diagnostics:233984 bytes, SHA256 `146756a70087fa10d9a993fcde4c71e72573e9e82a9090a6cbed6b68be2c57f6`.
+
+Exact local verification record: `artifacts/sky/combined-c2f9c99-verification.json`.
+Build logs: `artifacts/sky/combined-nf-build.log` and `combined-nd-build.log`.
+No combined acceptance ZIP was built or certified because the owner's required
+particle/native-transparency gate still fails. No deployment or connected visual
+acceptance occurred. Next active todo: owner repairs that gate and supplies a green
+exact-source package, then verify sky content/control identity and run the focused
+connected acceptance above. Retain this worktree until those checks are complete.
+
+## Shared combination assertions: source 2289bd7 plus focused sky tests
+
+Consumed the integration owner's shared acceptance plan and combined fixture at
+`2289bd7b9277bcccd3bbc50821eee2b6dcb1bc36`, preserving this lane's published
+verification record through a merge. Extended the existing `CombinedProbe` in
+`navigation_draw_test.cpp`; no separate matrix or executable was retained.
+
+The non-timed path now verifies complete depth-buffer equality immediately around
+sky and around later feature composition, visible sky only when enabled, native
+alpha holes, native depthless alpha blending over sky, preservation of those regions
+through all feature combinations, and final UI/minimap-region pixels. These native
+submissions are controlled fixtures, not connected foliage/water acceptance. The
+shared 16 combinations, three cleanup cycles, allocation limits, and separate
+first-frame/warmup/steady timing paths remain in place. No runtime code changed.
+
+Validation: Win32 Release combined-render and navigation-draw tests pass in both
+full and diagnostics build configurations (no skips). The diagnostics DLL remains
+unchanged; production render functions are linked only into its test executable.
+The required full-profile effects-native-transparency test was explicitly run and
+still fails the two behind-effect cases; front-effect cases pass. That gate was not
+removed, weakened, or bypassed. No package or deployment was attempted.
+
+Integration destination remains `codex/native-lifecycle-hardening` through PR30;
+the owner reconciles this focused fixture delta. Active todo remains the green
+combined package gate, followed by exact package/content verification and the one
+coordinated connected acceptance pass under `docs/combined-testing-acceptance.md`.
+The provisional duplicate matrix source and build products were removed; existing
+`artifacts/sky` development validation material remains local and is not a package.
