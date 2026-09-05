@@ -164,12 +164,12 @@ int QueryGuardRegression(){
     const auto current=reinterpret_cast<Current>(wglGetProcAddress("glGetQueryiv"));
     const auto result=reinterpret_cast<Result>(wglGetProcAddress("glGetQueryObjectuiv"));
     if(!generate || !remove || !begin || !end || !current || !result)return 1;
-    for(GLenum target : {0x8914U,0x8C2FU,0x8D6AU}){
+    for(GLenum target : {0x8914U,0x8C2FU,0x8D6AU,0x8C87U}){
         GLuint queries[2]{};generate(2,queries);
         glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
         begin(target,queries[0]);Rect(-.4F,.4F,-.4F,.4F,0);end(target);
         GLuint native=0;result(queries[0],0x8866U,&native);
-        Check(native>0,"native geometry contributes to its occlusion query");
+        Check(native>0,"native geometry contributes to its sample or primitive query");
         glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
         begin(target,queries[1]);const auto before=Snapshot();int calls=0;
         Check(!RenderSceneGeometry(nullptr,[](void* raw) noexcept {
@@ -185,7 +185,7 @@ int QueryGuardRegression(){
         },nullptr),"ordinary scene drawing resumes after native query ends");
         remove(2,queries);Check(glGetError()==GL_NO_ERROR,"query guard leaves no GL errors");
     }
-    std::puts("query guard executed: native samples and both any-sample targets");
+    std::puts("query guard executed: native samples, both any-sample targets, generated primitives");
     return failures?1:0;
 }
 unsigned Pixel(int x,int y){std::array<unsigned char,4> p{};glReadPixels(x,y,1,1,GL_RGBA,GL_UNSIGNED_BYTE,p.data());return p[0]+p[1]+p[2];}
@@ -429,8 +429,9 @@ int main(int argc,char** argv){
                 if((at==extensions || at[-1]==' ') && (at[length]==' ' || at[length]=='\0'))return true;
             return false;
         };
-        const GLenum targets[]{0x8914U,0x8C2FU,0x8D6AU};
+        const GLenum targets[]{0x8914U,0x8C2FU,0x8D6AU,0x8C87U};
         for(const GLenum target:targets){
+            if(target==0x8C87U && !(major>=3 || has("GL_EXT_transform_feedback")))continue;
             if(target==0x8C2FU && !(major>3 || (major==3 && minor>=3)
                 || has("GL_ARB_occlusion_query2")))continue;
             if(target==0x8D6AU && !(major>4 || (major==4 && minor>=3)
@@ -451,7 +452,7 @@ int main(int argc,char** argv){
                 Check(!cue::CompositeMask(s,indicator),"active query rejects cue and indicator composition");
                 Same(material,Snapshot());
                 end_query(target);query_result(query,0x8866,&result);
-                Check(result==0,"cue cannot add samples to any native occlusion query");
+                Check(result==0,"cue cannot add samples or primitives to native queries");
                 delete_query(1,&query);cue::DiscardMask();
                 std::printf("cue query safety executed target=0x%x depth_write=%d\n",target,int(depth_write));
             }

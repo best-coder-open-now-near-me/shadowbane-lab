@@ -8,7 +8,7 @@ using SceneDraw = void(*)(void*) noexcept;
 // temporarily disabling both. The callback must not mutate native program or
 // pipeline objects, must restore FBO changes, and balance matrix stack operations.
 // Legal outside glBegin/glEnd and display-list compilation. Read-only: reject
-// active or unknown native sample queries; do not pause or replace query objects.
-bool AreSceneSampleQueriesInactive() noexcept;
+// active or unknown native sample/stream-zero primitive queries; do not pause or replace query objects.
+bool AreSceneGeometryQueriesInactive() noexcept;
 bool RenderSceneGeometry(const GraphicsCameraState*, SceneDraw, void*) noexcept;
 }

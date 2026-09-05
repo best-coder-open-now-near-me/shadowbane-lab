@@ -263,7 +263,7 @@ bool BeforeLegacyGeometry() noexcept {
 bool CaptureGeometry(GeometryDraw draw,void* user) noexcept {
     // Never submit supplemental fragments or enter legacy fallback while a
     // native visibility query is active (including boolean query variants).
-    if(!g.before || !draw || !SameTarget() || !AreSceneSampleQueriesInactive())return false;
+    if(!g.before || !draw || !SameTarget() || !AreSceneGeometryQueriesInactive())return false;
     GLboolean depth_write=GL_TRUE;glGetBooleanv(GL_DEPTH_WRITEMASK,&depth_write);
     GLint stack=0,maximum=0,mode=0,depth_function=0;
     glGetIntegerv(GL_DEPTH_FUNC,&depth_function);

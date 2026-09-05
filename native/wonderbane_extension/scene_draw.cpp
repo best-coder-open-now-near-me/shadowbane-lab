@@ -36,7 +36,7 @@ bool StackRoom(GLenum depth_name, GLenum max_name) noexcept {
     return depth >= 0 && depth < maximum;
 }
 }
-bool AreSceneSampleQueriesInactive() noexcept {
+bool AreSceneGeometryQueriesInactive() noexcept {
     if (!wglGetCurrentContext()) return false;
     const auto* version = reinterpret_cast<const char*>(glGetString(GL_VERSION));
     if (!version || version[0] < '1' || version[0] > '9') return false;
@@ -45,7 +45,8 @@ bool AreSceneSampleQueriesInactive() noexcept {
     };
     const auto* extensions = reinterpret_cast<const char*>(glGetString(GL_EXTENSIONS));
     const bool samples = at_least('1','5') || HasExtension(extensions,"GL_ARB_occlusion_query");
-    if (!samples) return true;
+    const bool primitives = at_least('3','0') || HasExtension(extensions,"GL_EXT_transform_feedback");
+    if (!samples && !primitives) return true;
     using GetQuery = void(APIENTRY*)(GLenum,GLenum,GLint*);
     auto query = reinterpret_cast<GetQuery>(Extension("glGetQueryiv"));
     if (!query) query = reinterpret_cast<GetQuery>(Extension("glGetQueryivARB"));
@@ -55,15 +56,16 @@ bool AreSceneSampleQueriesInactive() noexcept {
         query(target,0x8865U,&active); // GL_CURRENT_QUERY; unknown is not safe.
         return active == 0;
     };
-    if (!inactive(0x8914U)) return false; // GL_SAMPLES_PASSED
+    if (samples && !inactive(0x8914U)) return false; // GL_SAMPLES_PASSED
     if ((at_least('3','3') || HasExtension(extensions,"GL_ARB_occlusion_query2"))
         && !inactive(0x8C2FU)) return false; // GL_ANY_SAMPLES_PASSED
     if ((at_least('4','3') || HasExtension(extensions,"GL_ARB_ES3_compatibility"))
         && !inactive(0x8D6AU)) return false; // GL_ANY_SAMPLES_PASSED_CONSERVATIVE
+    if (primitives && !inactive(0x8C87U)) return false; // GL_PRIMITIVES_GENERATED, stream zero
     return true;
 }
 bool RenderSceneGeometry(const GraphicsCameraState* camera, SceneDraw draw, void* user) noexcept {
-    if (!draw || !AreSceneSampleQueriesInactive()
+    if (!draw || !AreSceneGeometryQueriesInactive()
         || !StackRoom(GL_ATTRIB_STACK_DEPTH, GL_MAX_ATTRIB_STACK_DEPTH)
         || !StackRoom(GL_MODELVIEW_STACK_DEPTH, GL_MAX_MODELVIEW_STACK_DEPTH)
         || !StackRoom(GL_PROJECTION_STACK_DEPTH, GL_MAX_PROJECTION_STACK_DEPTH)) return false;

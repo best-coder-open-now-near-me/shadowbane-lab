@@ -1342,3 +1342,27 @@ E:/Projects/shadowbane/artifacts/cue-combined-native/f1f9c10/trace-review.xml:
 full and disabled observer cases both executed, 2 passed, 0 failures, 0 skips.
 This is focused observer review, not the final complete-candidate integration review.
 Next remains production transparency source/coverage ownership; no new deployment.
+
+### Shared primitive-query isolation regression fixed
+
+Actual combined GL reproduction extended the existing scene-query regression with
+GL_PRIMITIVES_GENERATED: before the fix, three assertions failed because supplemental
+geometry ran and changed the native primitive count. Extended the existing shared
+guard for core GL3/EXT_transform_feedback stream-zero primitive queries; no query
+is paused, ended or replaced. The internal helper is now
+AreSceneGeometryQueriesInactive, reused by raw cue capture and shared scene draws.
+Reference: https://registry.khronos.org/OpenGL/extensions/EXT/EXT_transform_feedback.txt.
+This does not assert safety for every transform-feedback or shader side effect.
+
+After the fix: query guard, pipeline guard and cue GPU tests pass in both profiles
+(3/3 each, zero skips), including cue capture with depth writes on/off across all
+four query targets. Both DLL targets build. Rebuilt navigation/effects/cue/sky shared
+GL harness and sky renderer: navigation draw, scene context/frame, sky render,
+ordered operators and combined render all pass (6/6, zero skips). Exact before/after
+XMLs are retained locally as primitive-query-*.xml in hardening-evidence.
+
+No package or VM change. General native-transparency completion remains open.
+Cue owner is separately reproducing zero-contribution constant-alpha coverage in
+its production mask path; shared hook/guard ownership remains with integration.
+Next: consume that bounded feature fix when verified and reconcile the remaining
+ordered native source/coverage requirement without replaying native object callbacks.
