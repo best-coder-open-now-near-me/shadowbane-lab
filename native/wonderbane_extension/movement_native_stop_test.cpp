@@ -1,5 +1,7 @@
 #include "movement_native_stop.h"
 #include <array>
+#include <cmath>
+#include <limits>
 #include <cstring>
 #include <iostream>
 #include <thread>
@@ -35,6 +37,7 @@ struct NativeStopTestAccess {
     static void __fastcall Waypoint(void*, void*, std::uint32_t, std::uint32_t);
     static void** __fastcall State(void*, void*, void**, bool, std::uint32_t, bool);
     static void __fastcall Send(void*, void*, void*);
+    static void __fastcall Camera(void*, void*, float, float, float, bool);
     static void __fastcall PacketRelease(void*, void*, void**);
 };
 }
@@ -45,7 +48,7 @@ struct Actuator : NativeActuator {
     bool Stop(const Grant& grant, StopReason) noexcept override { return native->Execute(grant); }
     bool Direction(const Grant&, Vector2, bool) noexcept override;
     bool Destination(const Grant&, GroundPoint, bool) noexcept override;
-    bool Camera(Vector2) noexcept override { return true; }
+    bool Camera(Vector2 radians) noexcept override { return native->RotateCamera(radians); }
     void Revoked(const Grant&, const Grant&, StopReason) noexcept override {}
     void SceneRetired(std::uint64_t scene) noexcept override { native->SceneRetired(scene); }
 };
@@ -68,6 +71,8 @@ struct Fixture {
     Input input{};
     int retains = 0, releases = 0, clears = 0, pools = 0, sends = 0, state_calls = 0, moves = 0, follow_moves = 0;
     int position_calls = 0, destination_calls = 0, waypoint_calls = 0;
+    int camera_calls = 0;
+    bool camera_fault = false;
     int callback_mode = 0;
     Result nested = Result::accepted;
     bool missing_message = false, raise_fault = false;
@@ -89,6 +94,10 @@ struct Fixture {
         scheduled_sentinel.left = scheduled_sentinel.right = &scheduled_sentinel;
         Put(world.data(), 0xb8, Access::Map{&active_sentinel, 0});
         Put(world.data(), 0xe8, Access::Map{&scheduled_sentinel, 0});
+        Put(base, 0x1163250, 1.5707963705062866F);
+        Put(base, 0x1163300, 0.05F);
+        Put(base, 0x1163254, 0.7853981852531433F);
+        Put(base, 0x16a2c10 + 0x7c, 15.0F);
         Arm(true);
         Settings settings; settings.enabled = true; settings.controller = true;
         Check(controls.Configure(settings) == Result::accepted, "configure controls");
@@ -138,7 +147,15 @@ void NativeStopTestAccess::Bind(NativeStop& stop, void* base, HWND window) {
     c.clear_continuation = reinterpret_cast<decltype(c.clear_continuation)>(&Continuation);
     c.position = reinterpret_cast<decltype(c.position)>(&Position); c.destination = reinterpret_cast<decltype(c.destination)>(&Destination);
     c.clear_waypoint = reinterpret_cast<decltype(c.clear_waypoint)>(&Waypoint);
+    c.camera = reinterpret_cast<decltype(c.camera)>(&Camera);
     c.state = reinterpret_cast<decltype(c.state)>(&State); c.send = reinterpret_cast<decltype(c.send)>(&Send);
+}
+void __fastcall NativeStopTestAccess::Camera(void* camera, void*, float pitch, float yaw, float distance, bool relative) {
+    ++current->camera_calls;
+    Check(!relative && distance == 15.0F, "camera setter preserves distance and parent-relative offset");
+    if (current->camera_fault) { RaiseException(EXCEPTION_ACCESS_VIOLATION, 0, 0, nullptr); }
+    Put(camera, 0x70, pitch); Put(camera, 0x68, yaw); Put(camera, 0x7c, distance);
+    Put(camera, 0x134, std::uint8_t{1});
 }
 void** __fastcall NativeStopTestAccess::Retain(void** output, void*, void* actor) {
     ++current->retains; *output = actor;
@@ -305,6 +322,47 @@ void StatesAndFailures() {
       Check(!f.stop.Available() && !f.controls.Ready() && f.moves == 0 && f.retains == 1 && f.releases == 0,
           "native exception retains ambiguous actor ownership and blocks new writer"); }
 }
+void CameraComposition() {
+    for (const std::uint64_t interval : {5ULL, 10ULL, 20ULL, 40ULL, 100ULL}) {
+        Fixture f;
+        Token token{}; std::memcpy(token.worker.data(), "worker", 6); std::memcpy(token.operation.data(), "camera", 6);
+        Grant grant{};
+        Check(f.controls.AcquireAutomation(f.controls.Current().generation, token, grant) == Result::accepted,
+            "camera test acquires route");
+        const auto clears = f.clears;
+        Put(f.base, 0x16a2c10 + 0x138, 0.031F); Put(f.base, 0x16a2c10 + 0x13c, -0.019F);
+        f.input.right_stick = {1, 0};
+        for (std::uint64_t elapsed = 0; elapsed < 1000; elapsed += interval) {
+            f.input.tick_ms += interval; f.controls.Tick(f.input);
+        }
+        Check(std::abs(Get<float>(f.base, 0x16a2c10 + 0x68) - 2.0F) < 0.00001F
+            && f.controls.Current() == grant && f.clears == clears && f.moves == 0,
+            "production policy and camera executor apply elapsed-time yaw without revoking route");
+        Check(Get<float>(f.base, 0x16a2c10 + 0x138) == 0.031F
+            && Get<float>(f.base, 0x16a2c10 + 0x13c) == -0.019F,
+            "controller camera leaves existing native mouse inertia untouched");
+        f.input.right_stick = {}; f.Step();
+        const auto count = f.camera_calls; f.Step();
+        Check(f.camera_calls == count, "neutral camera sends no new rotation");
+    }
+    { Fixture f;
+      Check(f.stop.RotateCamera({0, 100}) && std::abs(Get<float>(f.base, 0x16a2c10 + 0x70) - 1.4922565F) < 0.00001F,
+          "camera upper pitch matches native gesture limit");
+      Check(f.stop.RotateCamera({0, -100}) && std::abs(Get<float>(f.base, 0x16a2c10 + 0x70) + 0.7853982F) < 0.00001F,
+          "camera lower pitch matches native gesture limit");
+      const auto count = f.camera_calls;
+      Check(!f.stop.RotateCamera({std::numeric_limits<float>::quiet_NaN(), 0}), "nonfinite camera input rejected");
+      bool accepted = true; std::thread other([&] { accepted = f.stop.RotateCamera({1, 0}); }); other.join();
+      Check(!accepted && f.camera_calls == count, "wrong client thread cannot rotate camera");
+      f.stop.EndUpdate(); Check(!f.stop.RotateCamera({1, 0}) && f.camera_calls == count,
+          "camera requires admitted native update"); }
+    { Fixture f; f.camera_fault = true; f.input.right_stick = {1, 0}; f.Step();
+      Check(!f.controls.CameraReady() && f.controls.Ready() && f.stop.Available(),
+          "native camera fault disables camera independently from movement");
+      const auto count = f.camera_calls; f.Step(); Check(f.camera_calls == count, "uncertain camera call never retried");
+      f.input.right_stick = {}; f.input.keys[0x57] = true; f.Step();
+      Check(f.moves == 1, "camera failure leaves native stop and manual movement usable"); }
+}
 void ReentryAndScene() {
     // Boundary fault injection also covers sealed retain/position helpers; this
     // does not claim those reviewed native routines invoke gameplay callbacks.
@@ -360,6 +418,6 @@ void ReentryAndScene() {
 }
 int main() {
     { Fixture f; NativeStop unbound(f.controls); Check(!unbound.Bind(f.window), "unsupported executable stays unavailable"); }
-    ManualMethods(); StatesAndFailures(); ReentryAndScene();
+    ManualMethods(); StatesAndFailures(); CameraComposition(); ReentryAndScene();
     return failures ? 1 : 0;
 }

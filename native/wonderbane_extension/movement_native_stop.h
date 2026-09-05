@@ -15,6 +15,8 @@ public:
     bool BeginUpdate(void* native_window) noexcept;
     void EndUpdate() noexcept;
     bool Execute(const Grant&) noexcept;
+    // Camera input does not acquire or retire movement ownership.
+    bool RotateCamera(Vector2 radians) noexcept;
     void SceneRetired(std::uint64_t scene) noexcept;
     bool Available() const noexcept { return bound_ && !faulted_; }
 private:
@@ -41,6 +43,7 @@ private:
         void (__thiscall* clear_waypoint)(void*, std::uint32_t, std::uint32_t) = nullptr;
         void** (__thiscall* state)(void*, void**, bool, std::uint32_t, bool) = nullptr;
         void (__thiscall* send)(void*, void*) = nullptr;
+        void (__thiscall* camera)(void*, float, float, float, bool) = nullptr;
     } calls_{};
     struct Target {
         Grant grant{};
@@ -50,6 +53,7 @@ private:
     bool Capture(const Grant&) noexcept;
     bool Current(const Target&) const noexcept;
     bool RequestCurrent(const Target&) const noexcept;
+    bool RotateCameraGuarded(const Target&, Vector2) noexcept;
     bool Run(const Target&);
     bool RunCxxGuarded(const Target&) noexcept;
     bool RunGuarded(const Target&) noexcept;

@@ -302,3 +302,35 @@ longer reports completion without sending. The regression verifies no manual mov
 no send, balanced references and latched unavailability. Both profile DLL builds
 and focused production-composition tests pass. These checks still do not constitute
 unmodified-engine or server-effect acceptance.
+
+
+## Native controller camera adapter
+
+The reviewed native orientation setter (RVA `0x51c210`, thiscall, four stack
+arguments: pitch, yaw, distance, relative-target flag) provides a camera path that
+avoids the mouse gesture accumulator. With the relative-target flag false its
+sealed branch writes the native orientation/distance and dirty flag and does not
+access the camera target or change the parent-relative yaw offset. The adapter
+preserves distance and existing mouse inertia, adds the production policy's elapsed-
+time radians, and applies the same native pitch limits: -45 to +85.5 degrees.
+Native camera matrix and collision processing remain with the original update.
+
+This is deliberately distinct from the gesture delta functions: when smoothing
+is enabled those accumulate previous inertia per invocation. Calling them once per
+render frame would not establish frame-independent controller sensitivity. The
+orientation adapter uses the existing verified image seal and admitted client
+update phase, preserves the current movement grant, and does not call stop/send.
+A camera fault is isolated by the controls policy from movement availability.
+
+Production-composition tests use controlled native-call doubles. They check equal
+one-second yaw at 5, 10, 20, 40 and 100 ms intervals, preserved automation ownership,
+native pitch limits/distance/inertia, neutral input, invalid input, wrong thread,
+outside-update rejection and camera-failure isolation. They do not certify the
+real native camera update, rendered result or connected package.
+
+The native continuous movement routine updates the collision-aware destination
+locally and separately gates message publication. Its reviewed time constants are
+0.2 seconds for orientation publication and 0.4 seconds for changed-heading move
+publication. The complete steering adapter still needs to preserve the native
+start/change/continuation semantics; these findings do not license a destination-
+spam approximation or establish a completed input feature.
