@@ -792,3 +792,22 @@ defaults for future clients; applying the panel changes only the selected curren
 client and uses its immutable grant/revision. Next is typed native command/session
 and manager operation composition, visual transparency repair, final independent
 review and exact package/installed verification before consolidated owner testing.
+
+Lossless movement codec 7791888b21c02dc3ecc704d5c97f2ecf39144eea is included at
+1e7bcaa7f983d27b0d5ce51b97b64aa3c394cf0b. Both complete DLL profiles build;
+18 targeted wire/preferences/runtime/startup tests per profile pass, zero skips.
+Python codec/settings/action/producer checks: 25 passed plus 15 malformed-input
+subtests; Ruff and diff checks pass. Evidence: artifacts/hardening-evidence/
+movement-wire-{full,diagnostics}.xml, matching build logs and movement-wire-python.xml.
+Shared synthetic bytes verify exact Python/native command, receipt and status
+layout; native preferences now reuse the existing 52-byte settings encoding.
+Existing package checks require the codec module, source header/fixture and a
+successfully executed native wire test. This adds no runtime cpp source.
+Active action-channel schema remains 1: schema-2 payloads are defined but no
+producer/consumer switch or usable movement session is claimed yet. Product and
+installed artifact identity remain unchanged/unverified for this combined source.
+The movement owner is correcting the touched command-channel timed-out shutdown
+ownership with production held-worker tests while implementing admission/status/
+receipts. Next: coordinated live wire switch, typed session and manager operation
+composition, visual transparency repair, complete-candidate independent review
+and exact package/installed checks before owner acceptance.

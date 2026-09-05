@@ -231,6 +231,7 @@ def main() -> int:
             "wonderbane_extension_movement_runtime_chat",
             "wonderbane_extension_movement_runtime_settings-stale",
             "wonderbane_extension_movement_settings",
+            "wonderbane_extension_movement_wire",
         }
         cases = ET.parse(native_results).getroot().findall(".//testcase")
         for name in required_native_tests:
@@ -293,6 +294,8 @@ def main() -> int:
                 raise RuntimeError(f"wheel missing effects control module {name}")
         if "shadowbane_lab/client_extension/movement_settings.py" not in package.namelist():
             raise RuntimeError("wheel missing native movement settings entry")
+        if "shadowbane_lab/client_extension/movement_wire.py" not in package.namelist():
+            raise RuntimeError("wheel missing native movement codec")
         sky_names = [
             name
             for name in package.namelist()
@@ -315,6 +318,9 @@ def main() -> int:
             "native/wonderbane_extension/movement_settings.cpp",
             "src/shadowbane_lab/client_extension/movement_settings.py",
             "docs/native-movement-controls.md",
+            "native/wonderbane_extension/movement_wire.h",
+            "src/shadowbane_lab/client_extension/movement_wire.py",
+            "tests/fixtures/native_movement_wire_v2.hex",
             "tests/fixtures/navigation-inspector-v1.hex",
             "tests/fixtures/navigation-inspector-controls-v1.hex",
             "src/shadowbane_lab/navigation_inspector/build_identity.json",
