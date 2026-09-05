@@ -36,13 +36,19 @@ constexpr std::array<std::size_t, 90U> kSceneDisplayRelocations{
     0x935U, 0x944U, 0x94fU,
 };
 
+constexpr std::array<const char*, 4U> kReviewedSceneExecutableHashes{
+    "55fbad5f0110cd99b4085af72d1e8fddb782ccdec1491478492c18158f5c61bc",
+    "a9a59004b36f9331bb85f85e7853a02a5d5f07bda9acb9ea4a8affbf169a54b8",
+    "feb351f0fae87d47549fa43c37836405a753d76fbcd0b02232fc1c0733550dff",
+    "bb63469eb35917e6b3f58be75d29f94855c9868024271222465b4db62f0e3a87",
+};
+
 inline bool IsReviewedSceneExecutable(const char* const sha256) noexcept {
-    return sha256 != nullptr && (
-        std::strcmp(sha256,
-            "55fbad5f0110cd99b4085af72d1e8fddb782ccdec1491478492c18158f5c61bc") == 0
-        || std::strcmp(sha256,
-            "a9a59004b36f9331bb85f85e7853a02a5d5f07bda9acb9ea4a8affbf169a54b8") == 0
-    );
+    if (sha256 == nullptr) { return false; }
+    for (const char* reviewed : kReviewedSceneExecutableHashes) {
+        if (std::strcmp(sha256, reviewed) == 0) { return true; }
+    }
+    return false;
 }
 
 inline bool IsReviewedSceneDisplayCode(

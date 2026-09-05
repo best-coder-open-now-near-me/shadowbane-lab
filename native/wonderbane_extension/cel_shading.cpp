@@ -2726,10 +2726,14 @@ DWORD StartStrongCelShading() noexcept {
     }};
     auto* const image = reinterpret_cast<std::uint8_t*>(executable);
     const auto image_base = reinterpret_cast<std::uintptr_t>(image);
-    const bool reviewed_executable = GraphicsExecutableSha256Matches(
-        "55fbad5f0110cd99b4085af72d1e8fddb782ccdec1491478492c18158f5c61bc")
-        || GraphicsExecutableSha256Matches(
-            "a9a59004b36f9331bb85f85e7853a02a5d5f07bda9acb9ea4a8affbf169a54b8");
+    const char* reviewed_hash = nullptr;
+    for (const char* candidate : kReviewedSceneExecutableHashes) {
+        if (GraphicsExecutableSha256Matches(candidate)) {
+            reviewed_hash = candidate;
+            break;
+        }
+    }
+    const bool reviewed_executable = reviewed_hash != nullptr;
     const bool reviewed_code = reviewed_executable
         && nt->OptionalHeader.SizeOfImage >= kSceneDisplayRva + kSceneDisplaySize
         && IsReadableMemoryRange(image + kSceneDisplayRva, kSceneDisplaySize)
@@ -2848,18 +2852,11 @@ DWORD StartStrongCelShading() noexcept {
         return present_result;
     }
     if (g_scene_mapping_verified) {
-        StartTerrainMaskRefresh(image, nt->OptionalHeader.SizeOfImage,
-            GraphicsExecutableSha256Matches(
-                "55fbad5f0110cd99b4085af72d1e8fddb782ccdec1491478492c18158f5c61bc")
-                ? "55fbad5f0110cd99b4085af72d1e8fddb782ccdec1491478492c18158f5c61bc"
-                : "a9a59004b36f9331bb85f85e7853a02a5d5f07bda9acb9ea4a8affbf169a54b8");
+        StartTerrainMaskRefresh(image, nt->OptionalHeader.SizeOfImage, reviewed_hash);
         wchar_t status_path[MAX_PATH]{};
         if (GetGraphicsStatusPath(status_path, MAX_PATH) == ERROR_SUCCESS) {
             StartTerrainTrace(status_path, image_base, nt->OptionalHeader.SizeOfImage,
-                GraphicsExecutableSha256Matches(
-                    "55fbad5f0110cd99b4085af72d1e8fddb782ccdec1491478492c18158f5c61bc")
-                    ? "55fbad5f0110cd99b4085af72d1e8fddb782ccdec1491478492c18158f5c61bc"
-                    : "a9a59004b36f9331bb85f85e7853a02a5d5f07bda9acb9ea4a8affbf169a54b8");
+                reviewed_hash);
         }
     }
     return ERROR_SUCCESS;
