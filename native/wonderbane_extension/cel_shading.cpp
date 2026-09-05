@@ -2050,6 +2050,10 @@ bool RestoreHook(
 
 }  // namespace
 
+bool AreNativeDrawQueriesSafe() noexcept {
+    return !IsCompilingDisplayListOnCurrentThread() && !g_immediate_primitive_open;
+}
+
 bool IsPerspectiveProjectionMatrix(
     const float* const matrix,
     const std::size_t count

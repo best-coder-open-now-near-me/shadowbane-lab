@@ -338,6 +338,9 @@ void WriteFrame(Json& json, const TraceFrame& frame) noexcept {
             draw.mode, draw.first, draw.count, draw.index_type, draw.list,
             draw.list_source_stable ? "true" : "false");
         json.Array(draw.stack, draw.stack_count);
+        if (draw.submission == TerrainSubmission::multi_elements) {
+            json.Print(",\"submission_label\":\"multi_elements\",\"count_unit\":\"subdraws\"");
+        }
         json.Print(",\"state\":"); json.Array(draw.state);
         json.Print(",\"transmission_state\":{\"unavailable\":-1,\"program\":%d,\"framebuffer\":%d,\"blend_rgb_alpha_factors_equations\":", draw.program, draw.framebuffer);
         json.Array(draw.blend_detail);
@@ -452,6 +455,7 @@ void TerrainTraceDone3d() noexcept {
     if (OwnerMatches(*g_frame)) { g_frame->done3d = true; }
     g_phase.store(Phase::sealed);
 }
+bool IsTerrainTraceCapturing() noexcept { return g_phase.load() == Phase::capturing; }
 void TerrainTraceDraw(const TerrainSubmission submission, const std::uintptr_t caller,
     const unsigned int mode, const int first, const int count, const unsigned int index_type,
     const unsigned int list, const bool list_source_stable, const bool query_safe) noexcept {

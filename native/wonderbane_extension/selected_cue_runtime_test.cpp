@@ -32,7 +32,8 @@ namespace {
 int draws=0;
 bool clear_during_draw=false,draw_multi=false;
 HANDLE draw_entered=nullptr,draw_resume=nullptr;
-std::atomic<int> multi_a{0},multi_b{0};
+std::atomic<int> multi_a{0},multi_b{0},traces{0},unsafe_traces{0};
+std::atomic<bool> trace_safe{true},trace_capturing{false};
 const GLsizei counts[]{3,3};const void* indices[]{reinterpret_cast<void*>(0x10000),reinterpret_cast<void*>(0x20000)};
 void APIENTRY MultiA(GLenum mode,const GLsizei* count,GLenum type,const void* const* index,GLsizei n){
     assert(mode==GL_TRIANGLES && count==counts && type==GL_UNSIGNED_SHORT && index==indices && n==2);++multi_a;
@@ -110,13 +111,35 @@ int main(){
     attachment=Selected();put(render+0x3c,0xfffffff0);put(render+0x40,0xfffffff4);assert(!CollectRenders());
     put(render+0x3c,0);put(render+0x40,0);
     block.settings.enabled=1;block.sequence=4;draw_multi=true;cue::execute_raw=true;
+    // Opt-in native contributor capture does not depend on cue/target state.
+    block.settings.enabled=0;put(base+23735716,0);
+    *multi_slot=static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(&MultiA));
+    BeginSelectedCueScene(&camera);
+    assert(!MultiDrawInstalled() && *multi_slot==static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(&MultiA)));
+    trace_capturing=true;
+    for(bool missing_target:{false,true}){
+        block.settings.enabled=missing_target?1U:0U;put(base+23735716,missing_target?0:actor);
+        *multi_slot=static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(&MultiA));
+        BeginSelectedCueScene(&camera);assert(MultiDrawInstalled() && !scene);
+        const int observed=traces,native=multi_a,captured=cue::geometry;
+        OwnedMultiDraw(GL_TRIANGLES,counts,GL_UNSIGNED_SHORT,indices,2);
+        assert(traces==observed+1 && multi_a==native+1 && cue::geometry==captured);
+    }
+    trace_capturing=false;block.settings.enabled=1;put(base+23735716,actor);
     // Late dynamic initialization is retried only at the next scene boundary.
     *multi_slot=0;BeginSelectedCueScene(&camera);assert(mask_failed);
     *multi_slot=static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(&MultiA));
     core_available=false;BeginSelectedCueScene(&camera);assert(!mask_failed && MultiDrawUnchanged());
-    const int a_before=multi_a;OwnedRender(reinterpret_cast<void*>(wrapper),nullptr);
-    assert(multi_a==a_before+2); // Private mask draw plus one native framebuffer draw.
+    const int a_before=multi_a,trace_before=traces;OwnedRender(reinterpret_cast<void*>(wrapper),nullptr);
+    assert(multi_a==a_before+2 && traces==trace_before+1); // Private mask draw plus one native framebuffer draw.
     FinishSelectedCueScene(&camera);assert(block.render_error==0);
+    // Unsafe begin/list state must not run supplemental GL commands, but still
+    // records one unsafe native submit and preserves the original call-through.
+    BeginSelectedCueScene(&camera);trace_safe=false;
+    const int unsafe_before=unsafe_traces,a_unsafe=multi_a,geometry_before=cue::geometry;
+    OwnedRender(reinterpret_cast<void*>(wrapper),nullptr);FinishSelectedCueScene(&camera);
+    assert(unsafe_traces==unsafe_before+1 && multi_a==a_unsafe+1 && cue::geometry==geometry_before);
+    assert(block.render_error==1 && cue::last_mask==0);trace_safe=true;
     // A foreign writer is preserved; any prior selected coverage is discarded.
     BeginSelectedCueScene(&camera);OwnedRender(reinterpret_cast<void*>(wrapper),nullptr);
     *multi_slot=0x12345678;FinishSelectedCueScene(&camera);assert(block.render_error==1 && cue::last_mask==0);
@@ -197,3 +220,13 @@ int main(){
 }
 
 namespace wonderbane::extension { DWORD StartSceneContextObservation(std::uint8_t*,std::size_t) noexcept {return ERROR_SUCCESS;} }
+namespace wonderbane::extension {
+bool AreNativeDrawQueriesSafe() noexcept {return trace_safe.load();}
+bool IsTerrainTraceCapturing() noexcept {return trace_capturing.load();}
+void TerrainTraceDraw(TerrainSubmission submission,std::uintptr_t caller,unsigned int mode,
+    int first,int count,unsigned int type,unsigned int list,bool stable,bool safe) noexcept {
+    assert(submission==TerrainSubmission::multi_elements && caller && mode==GL_TRIANGLES
+        && first==0 && count==2 && type==GL_UNSIGNED_SHORT && list==0 && stable);
+    ++traces;if(!safe)++unsafe_traces;
+}
+}

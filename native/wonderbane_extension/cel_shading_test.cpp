@@ -345,7 +345,7 @@ bool CheckStateRestoreRegressions() {
     BeginDisplayListCapture(43U);
     test_alpha_enabled = false;  // A compile-and-execute list changed real state.
     const auto before_compile_query = test_query_count;
-    ok = ok && !RefreshFixedFunctionState() && test_query_count == before_compile_query;
+    ok = ok && !AreNativeDrawQueriesSafe() && !RefreshFixedFunctionState() && test_query_count == before_compile_query;
     StrongEndList();
     ok = ok && !g_fixed_function_state.valid && RefreshFixedFunctionState()
         && !g_fixed_function_state.alpha_test_enabled;
@@ -353,9 +353,9 @@ bool CheckStateRestoreRegressions() {
     g_immediate_primitive_open = true;
     const auto before_immediate_query = test_query_count;
     StrongCallList(44U);
-    ok = ok && !RefreshFixedFunctionState() && test_query_count == before_immediate_query;
+    ok = ok && !AreNativeDrawQueriesSafe() && !RefreshFixedFunctionState() && test_query_count == before_immediate_query;
     g_immediate_primitive_open = false;
-    ok = ok && RefreshFixedFunctionState() && g_fixed_function_state.alpha_test_enabled;
+    ok = ok && AreNativeDrawQueriesSafe() && RefreshFixedFunctionState() && g_fixed_function_state.alpha_test_enabled;
 
     ++test_context;
     test_alpha_enabled = false;
