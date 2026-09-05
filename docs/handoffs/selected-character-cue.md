@@ -711,3 +711,13 @@ clipping/degeneracy, successive quads, input lifetime and query-side-effect gate
 are still required. It does not solve whole-scene ordered transmission.
 Next active todo: owner-directed resolution of that specific program ambiguity
 and bounded GPU source/coverage equivalence, before collector implementation.
+
+
+The owner authorized closing the precise pipeline ambiguity. The observer now
+queries PROGRAM_PIPELINE_BINDING only for core4.1+ or ARB separate shader objects;
+zero clears only that path, nonzero and unavailable stay unsupported/unknown.
+EXT-only semantics and independent vendor ambiguity remain unknown. Tests cover
+all those cases, including missing query output and absent-capability no-query.
+The full DLL builds, both native trace profiles pass and 47 feature-branch Python
+trace tests pass. Actual-GL source/coverage feasibility is the next authorized
+step; this diagnostic change still never authorizes replay or live deployment.

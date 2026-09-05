@@ -67,7 +67,7 @@ struct DrawRecord {
     std::array<int, 6U> blend_detail{}; // RGB src/dst, alpha src/dst, RGB/alpha equation
     std::array<int, 15U> stencil_detail{}; // enable, front func/value/ref/write/fail/zfail/zpass, back equivalent
     std::array<int, 4U> color_mask{};
-    int program = -1, framebuffer = -1;
+    int program = -1, framebuffer = -1, pipeline = -1;
     // vertex enable/binding, fragment enable/binding. Absent capability: enable=0,
     // binding=-1; advertised capability with missing helper: binding=-1.
     std::array<int, 4U> arb_programs{};
@@ -97,7 +97,7 @@ struct TraceFrame {
     bool gl14 = false, gl20 = false, framebuffer_supported = false;
     bool extensions_known = false, arb_vertex = false, arb_fragment = false;
     bool unobserved_program_path = true, texture3d = false, cube = false, rectangle = false;
-    bool multisample = false, color_sum = false;
+    bool multisample = false, color_sum = false, pipeline_supported = false;
     int compatibility = -1;
     unsigned int unit_count = 0, omitted_units = 0;
     std::uint64_t observed = 0, overflow = 0, unsafe = 0, budget_skipped = 0;
@@ -206,9 +206,9 @@ void DetectCapabilities(TraceFrame& frame) noexcept {
     }
     // These advertised alternate material mechanisms are deliberately unqueried.
     // Presence is conservative unknown, not evidence that any one is active.
+    frame.pipeline_supported = VersionAtLeast(version, 4, 1)
+        || Token(extensions, "GL_ARB_separate_shader_objects");
     frame.unobserved_program_path = !frame.extensions_known
-        || VersionAtLeast(version, 4, 1)
-        || Token(extensions, "GL_ARB_separate_shader_objects")
         || Token(extensions, "GL_EXT_separate_shader_objects")
         || (!frame.gl20 && Token(extensions, "GL_ARB_shader_objects"))
         || Token(extensions, "GL_NV_vertex_program")
@@ -274,6 +274,7 @@ void ReadState(DrawRecord& draw, const TraceFrame& frame) noexcept {
         g_gl.integer(0x883DU, &draw.blend_detail[5]);
         g_gl.integer(0x8B8DU, &draw.program);
     }
+    if (frame.pipeline_supported) g_gl.integer(0x825AU, &draw.pipeline);
     if (frame.framebuffer_supported) g_gl.integer(0x8CA6U, &draw.framebuffer);
     constexpr unsigned int stencil[]{0x0B90U,0x0B92U,0x0B93U,0x0B97U,0x0B98U,
         0x0B94U,0x0B95U,0x0B96U,0x8800U,0x8CA4U,0x8CA3U,0x8CA5U,0x8801U,0x8802U,0x8803U};
@@ -357,6 +358,7 @@ const char* QuadMaterialGate(const DrawRecord& draw, const TraceFrame& frame) no
     if (!frame.helpers_available || frame.compatibility != 1 || !frame.extensions_known
         || frame.unobserved_program_path) return "unknown_program_path";
     if (frame.gl20 ? draw.program != 0 : draw.program != -1) return "glsl_active_or_unknown";
+    if (frame.pipeline_supported && draw.pipeline != 0) return "pipeline_active_or_unknown";
     for (std::size_t i=0;i<2U;++i) {
         if (draw.arb_programs[i*2] != 0) return "arb_active_or_unknown";
         if ((i==0 ? frame.arb_vertex : frame.arb_fragment) && draw.arb_programs[i*2+1]<0)
@@ -475,6 +477,8 @@ void WriteFrame(Json& json, const TraceFrame& frame) noexcept {
             QuadMaterialGate(draw,frame),frame.compatibility,frame.extensions_known?"true":"false",
             frame.unobserved_program_path?"true":"false",frame.arb_vertex?"true":"false",frame.arb_fragment?"true":"false");
         json.Array(draw.arb_programs);
+        json.Print(",\"pipeline_supported\":%s,\"pipeline_binding\":%d",
+            frame.pipeline_supported?"true":"false",draw.pipeline);
         json.Print(",\"raster\":");json.Array(draw.raster);
         json.Print(",\"polygon_mode\":");json.Array(draw.polygon_mode);
         json.Print(",\"scissor_box\":");json.Array(draw.scissor_box);

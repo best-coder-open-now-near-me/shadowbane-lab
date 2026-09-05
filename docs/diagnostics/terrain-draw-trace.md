@@ -128,8 +128,12 @@ contracts; no GL error state is consumed.
 
 `compatibility` is 1 for a recognized pre-3 desktop context or a 3.2+ compatibility
 profile, 0 for a 3.2+ non-compatibility profile, -1 for an unestablished profile.
-Unqueried alternative material mechanisms are conservative unknown: core 4.1+
-or ARB/EXT separate shader objects (program pipelines), pre-2 ARB
+`pipeline_binding` queries PROGRAM_PIPELINE_BINDING only on core4.1+ or
+ARB_separate_shader_objects; `pipeline_supported` identifies that gate. Zero
+clears only this ambiguity, nonzero is unsupported, and an unwritten/missing
+result stays -1. EXT_separate_shader_objects is not treated as the ARB API.
+Unqueried alternative material mechanisms are conservative unknown: EXT separate
+shader objects, pre-2 ARB
 shader objects, NV vertex/fragment programs, ATI fragment shader, EXT vertex
 shader, NV register combiners/texture shader, EXT fragment lighting/light texture,
 and ATI environment bump mapping. Advertising these does not prove they are on;
@@ -146,7 +150,8 @@ remain available as evidence even when their path is outside this gate.
 The diagnostic `material_gate` returns `fixed_function_material_candidate` only
 for immediate QUADS at caller RVA 538ED0 or D8F13, with known compatibility and
 extension state, GLSL absent/zero, ARB enables zero and advertised bindings known,
-no unobserved alternate program mechanism, lighting/fog/color-sum disabled, all
+no unobserved alternate program mechanism, known zero supported pipeline binding,
+lighting/fog/color-sum disabled, all
 fixed-function units observed and active unit restored. Every alternate target
 must be off; any enabled 2D texture must be unit zero, bound, MODULATE, with texgen
 off and a finite texture matrix. Current RGBA must be finite. Untextured current
