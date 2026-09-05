@@ -34,6 +34,7 @@ bool sky_running=false;
 SRWLOCK sky_status_lock=SRWLOCK_INIT;
 thread_local sky::Authority sky_authority;
 thread_local effects::Attachment sky_actor;
+thread_local bool sky_frame_seen=false;
 using NativeSky=void(__thiscall*)(void*);
 bool ReadSky(void*,std::uint32_t address,void* out,std::size_t bytes) {
     SIZE_T copied=0;return address>=0x10000&&address<=0x7FFEFFFF&&bytes<=0x7FFEFFFF-address
@@ -119,9 +120,10 @@ void StopSky() noexcept {
     // Retain original call-through; a dispatched callback can enter after restoration.
     // No GPU objects exist. RCDATA belongs to the pinned extension module.
     if(sky_control)UnmapViewOfFile(sky_control);if(sky_mapping)CloseHandle(sky_mapping);
-    sky_control=nullptr;sky_mapping=nullptr;sky_settings={};sky_authority.Reset();sky_actor={};
+    sky_control=nullptr;sky_mapping=nullptr;sky_settings={};sky_authority.Reset();sky_actor={};sky_frame_seen=false;
 }
 void ObserveSkyCameraUpload(std::uintptr_t caller,bool legal) noexcept {
+    const RenderCallbackLease lease;
     if(!sky_running||!legal||(!IsReviewedSceneCall(caller,sky_base,0x51b1df)
         &&!IsReviewedSceneCall(caller,sky_base,0x51bbb2)))return;
     sky_authority.Reset();sky_actor={};
@@ -132,8 +134,10 @@ void ObserveSkyCameraUpload(std::uintptr_t caller,bool legal) noexcept {
     sky_authority.Upload(view,reinterpret_cast<std::uintptr_t>(wglGetCurrentContext()),sky_generation);
 }
 void BeginSkyBackground(const GraphicsCameraState* camera,bool scene) noexcept {
+    const RenderCallbackLease lease;
     if(!sky_running)return;
     if(!TryAcquireSRWLockExclusive(&sky_status_lock)){DiscardSkyScene();return;}
+    sky_frame_seen=true;
     PollSky();const auto context=reinterpret_cast<std::uintptr_t>(wglGetCurrentContext());
     sky_actor=effects::Resolve(ReadSky,nullptr,sky_base,0);
     const bool authority=sky_authority.Consume(camera,context,sky_generation,scene&&sky_actor.valid);
@@ -150,8 +154,14 @@ void BeginSkyBackground(const GraphicsCameraState* camera,bool scene) noexcept {
     if(sky_control){MemoryBarrier();InterlockedIncrement(&sky_control->status);}
     ReleaseSRWLockExclusive(&sky_status_lock);
 }
-void DiscardSkyScene() noexcept {sky_authority.Reset();sky_actor={};}
+void DiscardSkyScene() noexcept {const RenderCallbackLease lease;sky_authority.Reset();sky_actor={};}
 void EndSkyFrame() noexcept {
+    const RenderCallbackLease lease;
     PollSky();DiscardSkyScene();
+    if(sky_control&&!sky_frame_seen&&TryAcquireSRWLockExclusive(&sky_status_lock)){
+        InterlockedIncrement(&sky_control->status);sky_control->painted=0;sky_control->reason=3;
+        MemoryBarrier();InterlockedIncrement(&sky_control->status);ReleaseSRWLockExclusive(&sky_status_lock);
+    }
+    sky_frame_seen=false;
 }
 }

@@ -71,3 +71,6 @@ select = ["E", "F", "I", "UP", "B"]
 [tool.pytest.ini_options]
 pythonpath = ["src", "tests"]
 testpaths = ["tests"]
+
+[tool.setuptools.data-files]
+"share/shadowbane-lab/sky-horizon" = ["assets/sky-horizon/clear-day.sky", "assets/sky-horizon/clear-day.json", "assets/sky-horizon/manifest.json"]
