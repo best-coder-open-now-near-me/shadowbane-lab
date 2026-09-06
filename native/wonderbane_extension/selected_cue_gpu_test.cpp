@@ -195,6 +195,110 @@ int QueryGuardRegression(){
     return failures?1:0;
 }
 unsigned Pixel(int x,int y){std::array<unsigned char,4> p{};glReadPixels(x,y,1,1,GL_RGBA,GL_UNSIGNED_BYTE,p.data());return p[0]+p[1]+p[2];}
+int MaterialRegression(){
+    cue::Settings settings{};settings.enabled=1;settings.opacity=.7F;
+    GLuint texture=0;glGenTextures(1,&texture);glBindTexture(GL_TEXTURE_2D,texture);
+    const GLubyte texel[]{128,192,64,128};glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA8,1,1,0,GL_RGBA,GL_UNSIGNED_BYTE,texel);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
+    struct PixelState {std::array<GLubyte,4> rgba{};GLfloat depth=0;GLint stencil=0;};
+    const auto sample=[](){PixelState p;glReadPixels(230,240,1,1,GL_RGBA,GL_UNSIGNED_BYTE,p.rgba.data());
+        glReadPixels(230,240,1,1,GL_DEPTH_COMPONENT,GL_FLOAT,&p.depth);
+        glReadPixels(230,240,1,1,GL_STENCIL_INDEX,GL_INT,&p.stencil);return p;};
+    const auto frame=[&](int path,bool depth_write,bool foreground,bool fog,bool equal,bool blend){
+        glDisable(GL_FOG);glDisable(GL_TEXTURE_2D);glDepthMask(GL_TRUE);glDepthFunc(GL_LEQUAL);
+        glDisable(GL_BLEND);glDisable(GL_ALPHA_TEST);glDisable(GL_STENCIL_TEST);
+        glClearColor(.1F,.15F,.2F,.25F);glClearDepth(1);glClearStencil(0);
+        glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT|GL_STENCIL_BUFFER_BIT);
+        if(equal){glColorMask(GL_FALSE,GL_FALSE,GL_FALSE,GL_FALSE);Rect(-.4F,.4F,-.5F,.5F,0);glColorMask(GL_TRUE,GL_TRUE,GL_TRUE,GL_TRUE);}
+        glDepthFunc(equal?GL_EQUAL:GL_LEQUAL);glDepthMask(depth_write?GL_TRUE:GL_FALSE);
+        if(blend)glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+        glEnable(GL_ALPHA_TEST);glAlphaFunc(GL_GEQUAL,.2F);
+        glEnable(GL_STENCIL_TEST);glStencilFunc(GL_ALWAYS,3,255);glStencilOp(GL_KEEP,GL_KEEP,GL_REPLACE);
+        if(fog){const GLfloat color[]{.1F,.2F,.3F,1};glEnable(GL_FOG);glFogi(GL_FOG_MODE,GL_LINEAR);
+            glFogf(GL_FOG_START,-1);glFogf(GL_FOG_END,1);glFogfv(GL_FOG_COLOR,color);}
+        glEnable(GL_TEXTURE_2D);glBindTexture(GL_TEXTURE_2D,texture);glTexEnvi(GL_TEXTURE_ENV,GL_TEXTURE_ENV_MODE,GL_MODULATE);
+        glColor4f(.4F,.6F,.8F,.6F);
+        if(path==2){
+            glDisable(GL_TEXTURE_2D);const GLfloat native[]{.4F*128/255,.6F*192/255,.8F*64/255};
+            glColor4f(native[0]*(1-settings.opacity)+settings.color[0]*settings.opacity,
+                native[1]*(1-settings.opacity)+settings.color[1]*settings.opacity,
+                native[2]*(1-settings.opacity)+settings.color[2]*settings.opacity,.6F*128/255);
+        }
+        unsigned calls=0;const auto draw=[](void* value) noexcept {++*static_cast<unsigned*>(value);Rect(-.4F,.4F,-.5F,.5F,0);};
+        const auto state=Snapshot();
+        if(path==1){const int result=cue::DrawMaterial(settings,draw,&calls);
+            if(result)std::printf("material supported-case rejected reason=%d\n",result);
+            Check(result==0,"native material supported path applies");Same(state,Snapshot());}
+        else draw(&calls);
+        Check(calls==1,"original material submitted exactly once");
+        glDisable(GL_FOG);glDisable(GL_TEXTURE_2D);glDisable(GL_ALPHA_TEST);glDisable(GL_STENCIL_TEST);
+        if(foreground){glEnable(GL_BLEND);glDepthFunc(GL_LEQUAL);glColor4f(1,.1F,.2F,.5F);Rect(-.6F,.6F,-.6F,.6F,-.5F);}
+        return sample();
+    };
+    for(bool depth_write:{false,true})for(bool foreground:{false,true})for(bool fog:{false,true})for(bool equal:{false,true})for(bool blend:{false,true}){
+        const auto baseline=frame(0,depth_write,foreground,fog,equal,blend);
+        const auto expected=frame(2,depth_write,foreground,fog,equal,blend);
+        const auto actual=frame(1,depth_write,foreground,fog,equal,blend);
+        Check(actual.rgba!=baseline.rgba,"enabled native material visibly changes pixels");
+        for(unsigned i=0;i<4;++i)Check(std::abs(int(actual.rgba[i])-int(expected.rgba[i]))<=2,"native-order highlight and foreground expected pixel");
+        Check(actual.rgba[3]==baseline.rgba[3] && actual.depth==baseline.depth && actual.stencil==baseline.stencil,
+            "highlight preserves native alpha depth stencil");
+    }
+    unsigned calls=0;const auto draw=[](void* value) noexcept {++*static_cast<unsigned*>(value);Rect(-.4F,.4F,-.5F,.5F,0);};
+    glColorMask(GL_FALSE,GL_FALSE,GL_FALSE,GL_FALSE);auto state=Snapshot();
+    Check(cue::DrawMaterial(settings,draw,&calls)==7 && calls==1,"depth-only material passes through without claiming highlight");Same(state,Snapshot());
+    glColorMask(GL_TRUE,GL_TRUE,GL_TRUE,GL_TRUE);
+    using Color=void(APIENTRY*)(GLfloat,GLfloat,GLfloat,GLfloat);
+    const auto blend_color=reinterpret_cast<Color>(wglGetProcAddress("glBlendColor"));
+    blend_color(0,0,0,0);glEnable(GL_BLEND);glBlendFunc(0x8003,0x8004);calls=0;state=Snapshot();
+    Check(cue::DrawMaterial(settings,draw,&calls)==7 && calls==1,"zero constant-alpha material is unchanged");Same(state,Snapshot());
+    glDisable(GL_BLEND);
+    const auto active=reinterpret_cast<Active>(wglGetProcAddress("glActiveTexture"));GLint units=0;glGetIntegerv(0x84E2,&units);
+    active(0x84C0+units-1);glEnable(GL_TEXTURE_2D);glBindTexture(GL_TEXTURE_2D,texture);active(0x84C0);calls=0;state=Snapshot();
+    Check(cue::DrawMaterial(settings,draw,&calls)==4 && calls==1,"occupied final texture stage passes through");Same(state,Snapshot());
+    active(0x84C0+units-1);glDisable(GL_TEXTURE_2D);active(0x84C0);
+    using CreateShader=GLuint(APIENTRY*)(GLenum);using Source=void(APIENTRY*)(GLuint,GLsizei,const char* const*,const GLint*);
+    using Shader=void(APIENTRY*)(GLuint);using CreateProgram=GLuint(APIENTRY*)();
+    using Attach=void(APIENTRY*)(GLuint,GLuint);using Get=void(APIENTRY*)(GLuint,GLenum,GLint*);
+    const auto create_shader=reinterpret_cast<CreateShader>(wglGetProcAddress("glCreateShader"));
+    const auto source=reinterpret_cast<Source>(wglGetProcAddress("glShaderSource"));
+    const auto compile=reinterpret_cast<Shader>(wglGetProcAddress("glCompileShader"));
+    const auto create_program=reinterpret_cast<CreateProgram>(wglGetProcAddress("glCreateProgram"));
+    const auto attach=reinterpret_cast<Attach>(wglGetProcAddress("glAttachShader"));
+    const auto link=reinterpret_cast<Shader>(wglGetProcAddress("glLinkProgram"));
+    const auto use=reinterpret_cast<Shader>(wglGetProcAddress("glUseProgram"));
+    const auto status=reinterpret_cast<Get>(wglGetProcAddress("glGetProgramiv"));
+    const auto delete_shader=reinterpret_cast<Shader>(wglGetProcAddress("glDeleteShader"));
+    const auto delete_program=reinterpret_cast<Shader>(wglGetProcAddress("glDeleteProgram"));
+    const GLuint shader=create_shader(0x8B30),program=create_program();
+    const char* fragment="#version 120\nvoid main(){gl_FragColor=vec4(.3,.4,.5,.6);}";
+    source(shader,1,&fragment,nullptr);compile(shader);attach(program,shader);link(program);
+    GLint linked=0;status(program,0x8B82,&linked);Check(linked!=0,"unsupported shader fixture links");
+    glDisable(GL_DEPTH_TEST);use(program);calls=0;state=Snapshot();
+    Check(cue::DrawMaterial(settings,draw,&calls)==3 && calls==1,"active custom shader passes through once");Same(state,Snapshot());
+    const auto shader_pixel=sample();Check(std::abs(int(shader_pixel.rgba[0])-77)<=1,"custom shader native pixels unchanged");use(0);
+    const char* extensions=reinterpret_cast<const char*>(glGetString(GL_EXTENSIONS));
+    if(extensions && std::strstr(extensions,"GL_EXT_separate_shader_objects ")){
+        using Stage=void(APIENTRY*)(GLenum,GLuint);
+        const auto stage=reinterpret_cast<Stage>(wglGetProcAddress("glUseShaderProgramEXT"));
+        Check(stage!=nullptr,"advertised EXT separate stage helper");
+        if(stage){stage(0x8B30,program);calls=0;
+            Check(cue::DrawMaterial(settings,draw,&calls)==3 && calls==1,"EXT separate fragment stage passes through once");
+            GLint bound=0;glGetIntegerv(0x8B30,&bound);Check(bound==static_cast<GLint>(program),"EXT stage binding preserved");stage(0x8B30,0);}
+    }
+    delete_program(program);delete_shader(shader);glEnable(GL_DEPTH_TEST);
+    const HGLRC owner=wglGetCurrentContext();const HDC dc=wglGetCurrentDC();HGLRC other=wglCreateContext(dc);
+    Check(other && wglMakeCurrent(dc,other),"material alternate context fixture");
+    if(other){calls=0;Check(cue::DrawMaterial(settings,draw,&calls)==6 && calls==1,"foreign context passes through without touching owned resource");
+        cue::ReleaseMask();Check(cue::AllocatedMaterialBytes()==4,"foreign context cannot delete owner texture");
+        Check(wglMakeCurrent(dc,owner)!=FALSE,"restore material owning context");wglDeleteContext(other);}
+    Check(cue::AllocatedMaterialBytes()==4,"material owns only one texel");cue::ReleaseMask();
+    Check(cue::AllocatedMaterialBytes()==0,"material resources released with context cleanup");
+    calls=0;Check(cue::DrawMaterial(settings,draw,&calls)==0 && calls==1,"material recreates after cleanup");cue::ReleaseMask();
+    glDeleteTextures(1,&texture);Check(glGetError()==GL_NO_ERROR,"material regression leaves no GL errors");
+    std::puts("native-material regression: 32 visible ordered cases, pass-through, state and cleanup executed");
+    return failures?1:0;
+}
 int UnsupportedFormats(HDC inventory,HINSTANCE instance,const wchar_t* class_name){
     PIXELFORMATDESCRIPTOR descriptor{};
     const int count=DescribePixelFormat(inventory,1,sizeof(descriptor),&descriptor);
@@ -282,8 +386,9 @@ int main(int argc,char** argv){
         && std::strcmp(argv[1],"--source-feasibility")!=0
         && std::strcmp(argv[1],"--pipeline-guard")!=0
         && std::strcmp(argv[1],"--query-guard")!=0
-        && std::strcmp(argv[1],"--unsupported-formats")!=0)){
-        std::fprintf(stderr,"usage: selected_cue_gpu_test [--cost|--native-transparency|--source-feasibility|--pipeline-guard|--query-guard|--unsupported-formats]\n");return 2;
+        && std::strcmp(argv[1],"--unsupported-formats")!=0
+        && std::strcmp(argv[1],"--native-material")!=0)){
+        std::fprintf(stderr,"usage: selected_cue_gpu_test [--cost|--native-transparency|--source-feasibility|--pipeline-guard|--query-guard|--unsupported-formats|--native-material]\n");return 2;
     }
     WNDCLASSW wc{};wc.style=CS_OWNDC;wc.lpfnWndProc=DefWindowProcW;
     wc.hInstance=GetModuleHandleW(nullptr);wc.lpszClassName=L"SelectedCueGpuTest";
@@ -310,6 +415,10 @@ int main(int argc,char** argv){
         const int result=QueryGuardRegression();
         wglMakeCurrent(nullptr,nullptr);wglDeleteContext(context);ReleaseDC(window,dc);DestroyWindow(window);
         return result;
+    }
+    if(argc==2 && std::strcmp(argv[1],"--native-material")==0){
+        const int result=MaterialRegression();
+        wglMakeCurrent(nullptr,nullptr);wglDeleteContext(context);ReleaseDC(window,dc);DestroyWindow(window);return result;
     }
     if(argc==2 && std::strcmp(argv[1],"--pipeline-guard")==0){
         const int result=PipelineGuardRegression();

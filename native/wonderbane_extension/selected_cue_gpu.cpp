@@ -45,6 +45,19 @@ struct Resources {
     bool active=false, before=false, captured=false, extra=false, legacy=false, single_channel=false;
 };
 thread_local Resources g;
+struct MaterialResources { HGLRC context=nullptr;GLuint texture=0; };
+thread_local MaterialResources material;
+bool Extension(const char* list,const char* name) noexcept {
+    if(!list)return false;const auto length=std::strlen(name);
+    for(auto p=std::strstr(list,name);p;p=std::strstr(p+length,name))
+        if((p==list || p[-1]==' ') && (p[length]==' ' || p[length]==0))return true;
+    return false;
+}
+void ReleaseMaterial() noexcept {
+    if(material.context!=wglGetCurrentContext())return;
+    if(material.texture)glDeleteTextures(1,&material.texture);material={};
+}
+
 PROC Proc(const char* name) noexcept {
     auto p=wglGetProcAddress(name); auto v=reinterpret_cast<std::uintptr_t>(p);
     return v<=3 || v==UINTPTR_MAX ? nullptr : p;
@@ -252,7 +265,7 @@ std::uint64_t AllocatedMaskBytes() noexcept {
     return pixels*(8U+(g.equal_framebuffer?4U:0U)+(g.framebuffer?(g.single_channel?8U:20U):0U));
 }
 void ReleaseMask() noexcept {
-    DiscardMask();if(g.context!=wglGetCurrentContext())return;
+    ReleaseMaterial();DiscardMask();if(g.context!=wglGetCurrentContext())return;
     if(g.textures[0])glDeleteTextures(5,g.textures);
     if(g.geometry_framebuffer && a.del)a.del(1,&g.geometry_framebuffer);
     if(g.framebuffer && a.del)a.del(1,&g.framebuffer);
@@ -281,6 +294,106 @@ bool BeforeLegacyGeometry() noexcept {
     if(!g.framebuffer && !Run(7)){ReleaseMask();return false;}
     if(!g.legacy)g.legacy=Run(2);
     return g.legacy;
+}
+std::uint64_t AllocatedMaterialBytes() noexcept {return material.texture?4U:0U;}
+int DrawMaterial(const Settings& settings,GeometryDraw draw,void* user) noexcept {
+    if(!draw)return 6;
+    const auto unchanged=[&](int reason){draw(user);return reason;};
+    const auto context=wglGetCurrentContext();
+    if(!context || !settings.enabled || !ValidSettings(settings))return unchanged(6);
+    if(material.context && material.context!=context)return unchanged(6);
+    const auto version=reinterpret_cast<const char*>(glGetString(GL_VERSION));
+    const auto extensions=reinterpret_cast<const char*>(glGetString(GL_EXTENSIONS));
+    if(!version || version[0]<'2' || !extensions)return unchanged(3);
+    GLint program=-1;glGetIntegerv(0x8B8D,&program);if(program!=0)return unchanged(3);
+    if(version[0]>'4' || (version[0]=='4' && version[2]>='1') || Extension(extensions,"GL_ARB_separate_shader_objects")){
+        GLint pipeline=-1;glGetIntegerv(0x825A,&pipeline);if(pipeline!=0)return unchanged(3);
+    }
+    // EXT SSO has independently queryable stage programs, unlike core pipelines.
+    if(Extension(extensions,"GL_EXT_separate_shader_objects")){
+        for(GLenum stage:{0x8B31U,0x8B30U}){
+            GLint bound=-1;glGetIntegerv(stage,&bound);if(bound!=0)return unchanged(3);
+        }
+    }
+    if(Extension(extensions,"GL_EXT_separate_shader_objects")
+        && (Extension(extensions,"GL_EXT_geometry_shader4") || Extension(extensions,"GL_ARB_geometry_shader4")
+            || version[0]>'3' || (version[0]=='3' && version[2]>='2'))){
+        GLint geometry=-1;glGetIntegerv(0x8DD9,&geometry);if(geometry!=0)return unchanged(3);
+    }
+    struct ProgramEnable {const char* extension;GLenum enable;};
+    for(const auto& path:{ProgramEnable{"GL_ARB_vertex_program",0x8620},
+        {"GL_ARB_fragment_program",0x8804},{"GL_NV_vertex_program",0x8620},
+        {"GL_NV_fragment_program",0x8870},{"GL_ATI_fragment_shader",0x8920},
+        {"GL_EXT_vertex_shader",0x8780},{"GL_NV_register_combiners",0x8522},
+        {"GL_NV_texture_shader",0x86DE},{"GL_SGIX_fragment_lighting",0x8400}})
+        if(Extension(extensions,path.extension) && glIsEnabled(path.enable))return unchanged(3);
+    if(Extension(extensions,"GL_EXT_light_texture"))return unchanged(3);
+    GLboolean write[4]{};glGetBooleanv(GL_COLOR_WRITEMASK,write);
+    if(!write[0] && !write[1] && !write[2])return unchanged(7);
+    if(glIsEnabled(GL_BLEND)){
+        GLint src=0,dst=0,equation=0;glGetIntegerv(GL_BLEND_SRC,&src);glGetIntegerv(GL_BLEND_DST,&dst);
+        glGetIntegerv(0x8009,&equation);
+        if((src==0x8003 || src==0x8004) && (equation==0x8006 || equation==0x800B)){
+            GLfloat blend[4]{};glGetFloatv(0x8005,blend);
+            if(((src==0x8003 && blend[3]==0) || (src==0x8004 && blend[3]==1))
+                && (dst==GL_ONE || (dst==0x8004 && blend[3]==0) || (dst==0x8003 && blend[3]==1)))return unchanged(7);
+        }
+    }
+    GLint mode=0,stack=0,maximum=0;glGetIntegerv(GL_RENDER_MODE,&mode);
+    glGetIntegerv(GL_ATTRIB_STACK_DEPTH,&stack);glGetIntegerv(GL_MAX_ATTRIB_STACK_DEPTH,&maximum);
+    if(mode!=GL_RENDER || stack>=maximum || glIsEnabled(GL_COLOR_LOGIC_OP)
+        || !AreSceneGeometryQueriesInactive())return unchanged(5);
+    const auto active=reinterpret_cast<ActiveTexture>(Proc("glActiveTexture"));
+    if(!active)return unchanged(6);
+    GLint units=0,old_active=0;glGetIntegerv(0x84E2,&units);glGetIntegerv(0x84E0,&old_active);
+    if(units<1 || units>32)return unchanged(4);
+    const bool rectangle=version[0]>'3' || (version[0]=='3' && version[2]>='1')
+        || Extension(extensions,"GL_ARB_texture_rectangle") || Extension(extensions,"GL_EXT_texture_rectangle")
+        || Extension(extensions,"GL_NV_texture_rectangle");
+    glPushAttrib(GL_TEXTURE_BIT|GL_ENABLE_BIT);
+    // Append after every native fixed-function stage; never overwrite a material.
+    for(int unit=0;unit<units-1;++unit){
+        active(kTexture0+static_cast<GLenum>(unit));GLint env=0;glGetTexEnviv(GL_TEXTURE_ENV,GL_TEXTURE_ENV_MODE,&env);
+        if(env==0x877B){glPopAttrib();active(static_cast<GLenum>(old_active));return unchanged(3);}
+        if(env==0x8570)for(GLenum source:{0x8580U,0x8581U,0x8582U,0x8588U,0x8589U,0x858AU}){
+            GLint value=0;glGetTexEnviv(GL_TEXTURE_ENV,source,&value);
+            if(value==static_cast<GLint>(kTexture0)+units-1){glPopAttrib();active(static_cast<GLenum>(old_active));return unchanged(4);}
+        }
+    }
+    active(kTexture0+static_cast<GLenum>(units-1));
+    if(glIsEnabled(GL_TEXTURE_1D) || glIsEnabled(GL_TEXTURE_2D) || glIsEnabled(0x806F)
+        || glIsEnabled(0x8513) || (rectangle && glIsEnabled(0x84F5))){
+        glPopAttrib();active(static_cast<GLenum>(old_active));return unchanged(4);
+    }
+    if(!material.texture){
+        material.context=context;glGenTextures(1,&material.texture);glBindTexture(GL_TEXTURE_2D,material.texture);
+        glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
+        // No upload or pixel-unpack state dependency: the combine operation uses
+        // CONSTANT/PREVIOUS only, but a complete texture is still required.
+        using BindBuffer=void(APIENTRY*)(GLenum,GLuint);
+        GLint unpack=0;const bool pbo=version[0]>'2' || version[2]>='1' || Extension(extensions,"GL_ARB_pixel_buffer_object");
+        const auto bind_buffer=reinterpret_cast<BindBuffer>(Proc("glBindBuffer"));
+        if(pbo && !bind_buffer){glPopAttrib();active(static_cast<GLenum>(old_active));ReleaseMaterial();return unchanged(6);}
+        if(pbo){glGetIntegerv(0x88EF,&unpack);bind_buffer(0x88EC,0);}
+        glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA8,1,1,0,GL_RGBA,GL_UNSIGNED_BYTE,nullptr);
+        if(pbo)bind_buffer(0x88EC,static_cast<GLuint>(unpack));
+        GLint width=0;glGetTexLevelParameteriv(GL_TEXTURE_2D,0,GL_TEXTURE_WIDTH,&width);
+        if(width!=1){glPopAttrib();active(static_cast<GLenum>(old_active));ReleaseMaterial();return unchanged(6);}
+    }else glBindTexture(GL_TEXTURE_2D,material.texture);
+    if(!material.texture){glPopAttrib();active(static_cast<GLenum>(old_active));return unchanged(6);}
+    glEnable(GL_TEXTURE_2D);glTexEnvi(GL_TEXTURE_ENV,GL_TEXTURE_ENV_MODE,0x8570);
+    glTexEnvi(GL_TEXTURE_ENV,0x8571,0x8575); // INTERPOLATE RGB: tint*k + previous*(1-k).
+    glTexEnvi(GL_TEXTURE_ENV,0x8580,0x8576);glTexEnvi(GL_TEXTURE_ENV,0x8581,0x8578);
+    glTexEnvi(GL_TEXTURE_ENV,0x8582,0x8576);
+    glTexEnvi(GL_TEXTURE_ENV,0x8590,GL_SRC_COLOR);glTexEnvi(GL_TEXTURE_ENV,0x8591,GL_SRC_COLOR);
+    glTexEnvi(GL_TEXTURE_ENV,0x8592,GL_SRC_ALPHA);glTexEnvi(GL_TEXTURE_ENV,0x8573,1);
+    glTexEnvi(GL_TEXTURE_ENV,0x8572,GL_REPLACE);glTexEnvi(GL_TEXTURE_ENV,0x8588,0x8578);
+    glTexEnvi(GL_TEXTURE_ENV,0x8598,GL_SRC_ALPHA);glTexEnvi(GL_TEXTURE_ENV,0x0D1C,1);
+    const GLfloat tint[]{settings.color[0],settings.color[1],settings.color[2],settings.opacity};
+    glTexEnvfv(GL_TEXTURE_ENV,GL_TEXTURE_ENV_COLOR,tint);
+    active(static_cast<GLenum>(old_active));draw(user);
+    glPopAttrib();active(static_cast<GLenum>(old_active));return 0;
 }
 bool CaptureGeometry(GeometryDraw draw,void* user) noexcept {
     // Never submit supplemental fragments or enter legacy fallback while a

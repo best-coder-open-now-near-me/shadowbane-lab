@@ -94,7 +94,7 @@ def describe_status(settings: CueSettings, state: tuple[int, ...]) -> str:
     desired, applied, rejected, error, binding, draws, gpu_error, observation = state
     if not binding:
         return "Character render binding unavailable; cue is disabled."
-    if error or observation or gpu_error not in (0, GLOW_SUPPRESSED):
+    if error or observation or gpu_error == 1:
         return (
             f"Cue unavailable: controls {error}, graphics {gpu_error}, "
             f"observation {observation}."
@@ -104,8 +104,18 @@ def describe_status(settings: CueSettings, state: tuple[int, ...]) -> str:
     if not settings.enabled:
         return "Selected-character cue is disabled."
     if gpu_error == GLOW_SUPPRESSED:
-        return "Glow hidden to avoid rendering artifacts. Off-screen direction remains enabled."
-    return f"Applied {applied} - owned character draws this frame: {draws}"
+        return "Character rendering is unavailable; off-screen direction remains enabled."
+    if gpu_error in (3, 4, 5, 6, 7, 8):
+        reason = {
+            3: "custom shader", 4: "no free texture stage", 5: "unsafe draw state",
+            6: "graphics resources unavailable", 7: "no RGB contribution",
+            8: "no supported selected draw observed",
+        }[gpu_error]
+        return (
+            f"Enhanced material submissions: {draws}; other material unchanged ({reason}). "
+            "Direction remains enabled."
+        )
+    return f"Applied {applied} - enhanced material submissions this frame: {draws}"
 
 
 class CueClient:
@@ -183,18 +193,17 @@ class CuePanel:
         self.enabled = BooleanVar(value=False)
         self.status = StringVar(value="Choose a connected client, then apply settings.")
         ttk.Checkbutton(
-            self.frame, text="Selected-character glow and direction", variable=self.enabled
+            self.frame, text="Selected-character highlight and direction", variable=self.enabled
         ).pack(anchor="w")
         ttk.Label(
             self.frame,
-            text="Glow appears only when safe rendering is established. "
+            text="Highlights supported character materials during their native draw. "
             "The arrow indicates the camera turn independently.",
             wraplength=480,
         ).pack(anchor="w", pady=8)
         self.values = {}
         for key, label, default, low, high in (
-            ("opacity", "Opacity", 0.8, 0.05, 1),
-            ("radius", "Glow radius (pixels)", 5, 1, 12),
+            ("opacity", "Highlight strength", 0.8, 0.05, 1),
             ("indicator_size", "Arrow size (pixels)", 24, 12, 64),
             ("indicator_y", "Arrow height from top (fraction)", 0.18, 0.12, 0.75),
         ):

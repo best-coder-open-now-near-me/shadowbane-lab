@@ -23,7 +23,9 @@ bool last_direction_available=false,last_direction_offscreen=false;
 bool BeginMask() noexcept {++begins;mask_geometry=0;resources=begin_ok;return begin_ok;}
 bool BeforeOwnedDraw() noexcept {++before;return before_ok;}
 bool BeforeLegacyGeometry() noexcept {return true;}
+int material_result=0;
 bool execute_raw=false;
+int DrawMaterial(const Settings&,GeometryDraw draw,void* data) noexcept {++geometry;resources=true;draw(data);return material_result;}
 bool CaptureGeometry(GeometryDraw draw,void* data) noexcept {++geometry;++mask_geometry;if(execute_raw)draw(data);return true;}
 bool AfterOwnedDraw() noexcept {++after;return after_ok;}
 bool CompositeMask(const Settings&,const Direction& cue_direction) noexcept {++composites;last_mask=mask_geometry;
@@ -51,7 +53,7 @@ thread_local bool core_available=true,context_available=true;
 void __fastcall Draw(void*,void*) noexcept {
     ++draws;
     if(draw_multi)wonderbane::extension::OwnedMultiDraw(GL_TRIANGLES,counts,GL_UNSIGNED_SHORT,indices,2);
-    else wonderbane::extension::CaptureSelectedCueGeometry([](void*) noexcept {},nullptr);
+    else wonderbane::extension::DrawSelectedCueGeometry([](void*) noexcept {},nullptr);
     if(draw_entered && !draw_multi){SetEvent(draw_entered);assert(WaitForSingleObject(draw_resume,5000)==WAIT_OBJECT_0);}
     if(clear_during_draw)*reinterpret_cast<std::uint32_t*>(wonderbane::extension::base+23735716U)=0;
 }
@@ -82,62 +84,41 @@ int main(){
     camera.view_matrix[12]=-300;camera.view_matrix[13]=-4;
     camera.projection_matrix[0]=1;camera.projection_matrix[5]=1;
     camera.projection_matrix[10]=-1;camera.projection_matrix[11]=-1;camera.projection_matrix[14]=-0.2F;
-    // Conservative authority needs identity/position, not renderer ownership.
-    composition_safe=false;draw_multi=true;
+    // Missing render ownership suppresses material changes but keeps direction.
+    composition_safe=false; // Global world composition authority does not gate native materials.
     put(render+0x3c,0xfffffff0);put(render+0x40,0xfffffff4);
     camera.forward[2]=1;camera.view_matrix[10]=-1;
-    const float behind_position[]{300,4,-300};
-    std::memcpy(reinterpret_cast<void*>(location+32),behind_position,12);
-    for(int frame=0;frame<3;++frame){
-        BeginSelectedCueScene(&camera);assert(scene && glow_suppressed && !mask_failed);
-        OwnedRender(reinterpret_cast<void*>(wrapper),nullptr);
-        assert(cue::begins==0 && cue::geometry==0 && !cue::resources);
-        assert(draws==frame+1 && multi_a==frame+1);
-        FinishSelectedCueScene(&camera);
-        assert(block.render_error==kGlowSuppressed && block.observation_error==0
-            && cue::last_mask==0 && cue::last_direction_available && cue::last_direction_offscreen);
-        EndSelectedCueFrame();
-    }
-    draw_multi=false;
-    // Clearing selection never leaves a direction or world-mask candidate.
-    put(base+23735716,0);BeginSelectedCueScene(&camera);assert(!scene);
-    put(base+23735716,actor);block.settings.enabled=0;BeginSelectedCueScene(&camera);
-    assert(!scene && block.render_error==0);block.settings.enabled=1;
-    put(render+0x3c,0);put(render+0x40,0);
-    // Revocation discards an already acquired mask; reapproval cannot restart
-    // capture in that same scene. Shared production authority is session-stable.
-    composition_safe=true;BeginSelectedCueScene(&camera);assert(cue::resources);
-    OwnedRender(reinterpret_cast<void*>(wrapper),nullptr);assert(cue::geometry==1);
-    composition_safe=false;OwnedRender(reinterpret_cast<void*>(wrapper),nullptr);
-    composition_safe=true;OwnedRender(reinterpret_cast<void*>(wrapper),nullptr);
-    assert(glow_suppressed && cue::geometry==1 && !cue::resources);
-    FinishSelectedCueScene(&camera);assert(block.render_error==kGlowSuppressed && cue::last_mask==0);
-    EndSelectedCueFrame();
-    std::memcpy(reinterpret_cast<void*>(location+32),position,12);
-    camera.forward[2]=-1;camera.view_matrix[10]=1;
-    multi_a=0;traces=0;
-    draws=0;cue::begins=0;cue::before=0;cue::after=0;cue::geometry=0;cue::composites=0;
+    BeginSelectedCueScene(&camera);OwnedRender(reinterpret_cast<void*>(wrapper),nullptr);
+    FinishSelectedCueScene(&camera);
+    assert(block.render_error==kGlowSuppressed && cue::geometry==0 && cue::last_direction_offscreen);
+    EndSelectedCueFrame();put(render+0x3c,0);put(render+0x40,0);
+    camera.forward[2]=-1;camera.view_matrix[10]=1;draws=0;cue::composites=0;
     assert(Selected().valid);BeginSelectedCueScene(&camera);assert(scene && render_count==1);
     OwnedRender(reinterpret_cast<void*>(wrapper),nullptr);
-    assert(draws==1 && cue::before==1 && cue::after==1 && cue::geometry==1);
+    assert(draws==1 && cue::before==0 && cue::after==0 && cue::geometry==1);
     FinishSelectedCueScene(&camera);assert(cue::composites==1 && !scene);EndSelectedCueFrame();
     // A different object's render wrapper cannot acquire the selected mask.
     BeginSelectedCueScene(&camera);put(wrapper+0x1c,render+0x100);
-    OwnedRender(reinterpret_cast<void*>(wrapper),nullptr);assert(draws==2 && cue::before==1 && cue::geometry==1);
+    OwnedRender(reinterpret_cast<void*>(wrapper),nullptr);assert(draws==2 && cue::before==0 && cue::geometry==1);
     // Selection loss during the original call discards the candidate.
     put(wrapper+0x1c,render);clear_during_draw=true;
-    OwnedRender(reinterpret_cast<void*>(wrapper),nullptr);assert(draws==3 && cue::after==1);
+    OwnedRender(reinterpret_cast<void*>(wrapper),nullptr);assert(draws==3 && cue::after==0);
     FinishSelectedCueScene(&camera);assert(cue::composites==1 && !scene);
     clear_during_draw=false;put(base+23735716,actor);put(actor+124,99);
     BeginSelectedCueScene(&camera);assert(attachment.uuid==99);
     EndSelectedCueFrame();assert(!scene && render_count==0 && block.observation_error==1);
-    // Mask failures must survive a successful indicator-only composite.
-    for(int failure=0;failure<3;++failure){
-        cue::begin_ok=failure!=0;cue::before_ok=failure!=1;cue::after_ok=failure!=2;
+    // Unsupported material status is explicit and never duplicates native draw.
+    for(int reason:{3,4,5,6,7}){
+        cue::material_result=reason;const int native=draws;
         BeginSelectedCueScene(&camera);OwnedRender(reinterpret_cast<void*>(wrapper),nullptr);
-        FinishSelectedCueScene(&camera);assert(block.render_error==1);EndSelectedCueFrame();
+        FinishSelectedCueScene(&camera);assert(block.render_error==reason && draws==native+1);EndSelectedCueFrame();
     }
-    cue::begin_ok=cue::before_ok=cue::after_ok=true;
+    cue::material_result=0;
+    BeginSelectedCueScene(&camera);OwnedRender(reinterpret_cast<void*>(wrapper),nullptr);
+    cue::material_result=7;OwnedRender(reinterpret_cast<void*>(wrapper),nullptr);
+    FinishSelectedCueScene(&camera);assert(block.render_error==0 && block.owned_draws==1);
+    cue::material_result=0;BeginSelectedCueScene(&camera);FinishSelectedCueScene(&camera);
+    assert(block.render_error==8 && block.owned_draws==0);
     BeginSelectedCueScene(&camera);
     for(int n=0;n<129;++n)OwnedRender(reinterpret_cast<void*>(wrapper),nullptr);
     FinishSelectedCueScene(&camera);assert(block.render_error==1);EndSelectedCueFrame();
@@ -170,7 +151,7 @@ int main(){
     *multi_slot=static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(&MultiA));
     core_available=false;BeginSelectedCueScene(&camera);assert(!mask_failed && MultiDrawUnchanged());
     const int a_before=multi_a,trace_before=traces;OwnedRender(reinterpret_cast<void*>(wrapper),nullptr);
-    assert(multi_a==a_before+2 && traces==trace_before+1); // Private mask draw plus one native framebuffer draw.
+    assert(multi_a==a_before+1 && traces==trace_before+1); // Exactly one native framebuffer draw with scoped material.
     FinishSelectedCueScene(&camera);assert(block.render_error==0);
     // Unsafe begin/list state must not run supplemental GL commands, but still
     // records one unsafe native submit and preserves the original call-through.
@@ -200,7 +181,7 @@ int main(){
     *multi_slot=static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(&MultiB));driver=reinterpret_cast<PROC>(&MultiB);
     BeginSelectedCueScene(&camera);assert(!mask_failed);
     SetEvent(draw_resume);held_multi.join();
-    assert(multi_a==held_a+2 && multi_b==held_b && block.render_error==1);
+    assert(multi_a==held_a+1 && multi_b==held_b && block.render_error==1);
     CloseHandle(draw_entered);CloseHandle(draw_resume);draw_entered=nullptr;draw_resume=nullptr;
     RestoreMultiDraw();assert(!multi_slot && *reinterpret_cast<std::uint32_t*>(memory+0x16aa038)==static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(&MultiB)));
     // A callback already holding the hook address still calls through after restore.
@@ -223,13 +204,14 @@ int main(){
     HANDLE stopped=CreateEventW(nullptr,TRUE,FALSE,nullptr);
     HANDLE restart=CreateEventW(nullptr,TRUE,FALSE,nullptr);
     std::thread render_thread([&]{
-        BeginSelectedCueScene(&camera);assert(cue::resources);
+        BeginSelectedCueScene(&camera);assert(!cue::resources);
         const int released=cue::local_releases;
         OwnedRender(reinterpret_cast<void*>(wrapper),nullptr);
         assert(WaitForSingleObject(restart,5000)==WAIT_OBJECT_0);
         assert(cue::resources && cue::local_releases==released);
         BeginSelectedCueScene(&camera);
-        assert(cue::resources && cue::local_releases==released+1);
+        assert(!cue::resources && cue::local_releases==released+1);
+        OwnedRender(reinterpret_cast<void*>(wrapper),nullptr);assert(cue::resources);
         ReleaseSelectedCueContext();assert(!cue::resources);
     });
     assert(WaitForSingleObject(draw_entered,5000)==WAIT_OBJECT_0);
