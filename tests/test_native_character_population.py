@@ -256,6 +256,46 @@ class NativeCharacterPopulationTests(unittest.TestCase):
         observation = NativeCharacterPopulationReader(process.profile, process).observe()
         self.assertTrue(all(c.owner_object_key is None for c in observation.characters))
 
+    def test_dismissal_and_allocation_reuse_do_not_retain_old_pet_owner(self) -> None:
+        for resummoned_pet in (True, False):
+            with self.subTest(resummoned_pet=resummoned_pet):
+                process = self._pet_process()
+                reader = NativeCharacterPopulationReader(process.profile, process, clock=lambda: 0)
+                first = reader.observe()
+                original = next(
+                    c for c in first.characters if c.character_kind == NativeCharacterKind.PET
+                )
+                dismissed_block = bytearray(process.memory[process.crab])
+                struct.pack_into("<I", dismissed_block, 0, 0)
+                process.memory[process.crab] = bytes(dismissed_block)
+                process.memory[process.base_address + process.profile.selected_pointer_rva] = (
+                    struct.pack("<I", 0)
+                )
+                dismissed = reader.observe()
+                self.assertIsNone(dismissed.selected_target_token)
+                self.assertNotIn(original.object_key, [c.object_key for c in dismissed.characters])
+                # Synthetic same-address reuse is stricter than the observed live
+                # resummon, which allocated a different address as well as a new key.
+                process._character(
+                    process.crab, object_key=(2003, 37), health=(75, 75),
+                    position=(108, 5, -206),
+                    sparse=(16, 0x53000) if resummoned_pet else None,
+                )
+                refreshed = reader.observe()
+                current = next(
+                    c for c in refreshed.characters if c.object_key == NativeObjectKey(2003, 37)
+                )
+                self.assertEqual(original.token, current.token)
+                self.assertNotEqual(original.object_key, current.object_key)
+                self.assertEqual(1, process.find_calls)
+                if resummoned_pet:
+                    self.assertEqual(original.owner_object_key, current.owner_object_key)
+                    self.assertFalse(current.attack_eligible)
+                else:
+                    self.assertIsNone(current.owner_object_key)
+                    self.assertEqual(NativeCharacterKind.NPC, current.character_kind)
+                self.assertEqual(NativeObjectKey(1001, 53), original.owner_object_key)
+
     def test_observes_loaded_characters_without_changing_selection(self) -> None:
         profile = _profile()
         process = FakeScanningProcess(profile)
