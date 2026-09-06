@@ -98,6 +98,43 @@ void BackgroundRect(float x0,float x1,float y0,float y1) {
     glBegin(GL_QUADS);glVertex3f(x0,y0,-.5F);glVertex3f(x1,y0,-.5F);
     glVertex3f(x1,y1,-.5F);glVertex3f(x0,y1,-.5F);glEnd();
 }
+void RectangleTextureGuardProbe() {
+    const auto* version=reinterpret_cast<const char*>(glGetString(GL_VERSION));
+    // This regression requires a core rectangle target; legacy contexts retain
+    // the existing ordinary rendering checks below.
+    if(!version || version[0]<'3' || (version[0]=='3' && version[2]<'1'))return;
+    const auto active=reinterpret_cast<ActiveTexture>(wglGetProcAddress("glActiveTexture"));
+    Check(active!=nullptr,"rectangle guard texture-unit API");if(!active)return;
+    constexpr GLenum rectangle=0x84F5U;
+    GLuint texture=0;glGenTextures(1,&texture);
+    const std::array<unsigned char,4> green{0,255,0,255};
+    const auto pixel=[](){std::array<unsigned char,3> value{};
+        glReadPixels(320,240,1,1,GL_RGB,GL_UNSIGNED_BYTE,value.data());return value;};
+    GLint units=0;glGetIntegerv(0x84E2U,&units);
+    for(GLint unit=0;unit<std::min(units,3);++unit){
+        active(0x84C0U+unit);glBindTexture(rectangle,texture);
+        glTexParameteri(rectangle,GL_TEXTURE_MIN_FILTER,GL_NEAREST);
+        glTexParameteri(rectangle,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
+        glTexImage2D(rectangle,0,GL_RGBA8,1,1,0,GL_RGBA,GL_UNSIGNED_BYTE,green.data());
+        glTexEnvi(GL_TEXTURE_ENV,GL_TEXTURE_ENV_MODE,GL_REPLACE);glEnable(rectangle);
+        glClearDepth(1);glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+        glColor4f(1,0,0,1);BackgroundRect(-.4F,.4F,-.4F,.4F);
+        Check(pixel()==std::array<unsigned char,3>{0,255,0},"native rectangle texture shades green");
+        glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+        Check(RenderSceneGeometry(nullptr,[](void*) noexcept {
+            glColor4f(1,0,0,1);BackgroundRect(-.4F,.4F,-.4F,.4F);
+        },nullptr),"shared guard draws with native rectangle binding");
+        Check(pixel()==std::array<unsigned char,3>{255,0,0},"native rectangle cannot color extension geometry");
+        GLint binding=0,current=0;glGetIntegerv(0x84F6U,&binding);glGetIntegerv(0x84E0U,&current);
+        Check(glIsEnabled(rectangle) && static_cast<GLuint>(binding)==texture && current==0x84C0+unit,
+            "native rectangle enable binding and active unit restored");
+        glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);BackgroundRect(-.4F,.4F,-.4F,.4F);
+        Check(pixel()==std::array<unsigned char,3>{0,255,0},"native rectangle rendering resumes");
+        glDisable(rectangle);glBindTexture(rectangle,0);glTexEnvi(GL_TEXTURE_ENV,GL_TEXTURE_ENV_MODE,GL_MODULATE);
+    }
+    active(0x84C0U);glDeleteTextures(1,&texture);
+    Check(glGetError()==GL_NO_ERROR,"rectangle guard leaves no GL error");
+}
 // Production render functions share the real WGL context and state guard.
 // This checks composition/resource ownership, not native transparency acceptance.
 void CombinedProbe(const GraphicsCameraState& camera, bool measure) {
@@ -484,6 +521,7 @@ int main(int argc, char** argv) {
         return 77;
     }
     glViewport(0,0,640,480); glPixelStorei(GL_PACK_ALIGNMENT, 1);
+    RectangleTextureGuardProbe();
     glClearColor(0,0,0,1); glClearDepth(0.5); glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glEnable(GL_FOG); glEnable(GL_LIGHTING); glEnable(GL_ALPHA_TEST);
     glEnable(GL_SCISSOR_TEST); glScissor(3,4,5,6);

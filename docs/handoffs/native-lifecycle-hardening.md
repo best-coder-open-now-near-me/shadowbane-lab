@@ -1441,3 +1441,21 @@ cue-scissor-combined.xml. Runtime source/package identity unchanged by these tes
 Unsupported default depth/stencil formats are source-rejected but not exercised
 with an actual GL context. Next remains ordered native-transparency completion;
 no new owner capture or deployment requested.
+
+### Rectangle-texture state isolation fixed (September 6)
+
+Actual GL regression in existing navigation/effects/cue/sky harness showed native
+rectangle textures coloring supplemental geometry on units0,1,2 (three pixel
+assertions failed before fix). Shared scene guard now disables rectangle target
+on each unit only when core3.1 or ARB/EXT/NV rectangle capability is present.
+Existing attrib restoration retains native enable/binding/active unit; regression
+checks native green before/after and intended extension red during guarded draw.
+No second guard, hook, program or renderer introduced.
+
+Both DLL targets and affected harnesses rebuilt. Navigation draw, ordered operators,
+combined render, cue GPU, query/pipeline guards and sky render execute/pass in both
+profiles:7/7each,zero skips. Local before/after XML: rectangle-guard-before.xml,
+rectangle-guard-full.xml,rectangle-guard-diagnostics.xml. Test executes its pixel
+probe on core3.1+; legacy contexts retain ordinary harness checks without claiming
+this optional rectangle probe ran. No package/VM change. Next: integrate actual
+unsupported-format rejection test, then continue ordered native transparency.

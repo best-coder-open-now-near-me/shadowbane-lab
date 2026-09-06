@@ -83,6 +83,11 @@ bool RenderSceneGeometry(const GraphicsCameraState* camera, SceneDraw draw, void
         || (std::strstr(extensions, "GL_ARB_fragment_program") != nullptr && glIsEnabled(0x8804U)))) return false;
     // UseProgram(0) exposes any bound separate pipeline; it does not disable it.
     // EXT_separate_shader_objects predates the core/ARB pipeline object API.
+    const bool rectangle = version[0] > '3'
+        || (version[0] == '3' && version[1] == '.' && version[2] >= '1')
+        || HasExtension(extensions, "GL_ARB_texture_rectangle")
+        || HasExtension(extensions, "GL_EXT_texture_rectangle")
+        || HasExtension(extensions, "GL_NV_texture_rectangle");
     const bool pipelines = version[0] > '4'
         || (version[0] == '4' && version[1] == '.' && version[2] >= '1')
         || HasExtension(extensions, "GL_ARB_separate_shader_objects");
@@ -125,6 +130,7 @@ bool RenderSceneGeometry(const GraphicsCameraState* camera, SceneDraw draw, void
         if (active_texture) active_texture(kTexture0 + static_cast<GLenum>(unit));
         glDisable(GL_TEXTURE_1D); glDisable(GL_TEXTURE_2D);
         if (texture3d) glDisable(0x806FU);
+        if (rectangle) glDisable(0x84F5U);
         if (active_texture) glDisable(0x8513U);
     }
     for (GLenum plane = GL_CLIP_PLANE0; plane <= GL_CLIP_PLANE5; ++plane) glDisable(plane);
