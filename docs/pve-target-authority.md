@@ -75,8 +75,14 @@ selected/action-target tokens, protected service roles, and the stable native ob
 the local player and every accepted loaded character. A live party-roster join proves object type
 at `+0x18` and object UUID at `+0x1C`; the latter also distinguishes calibrated player value `53`
 from NPC value `37`, retaining every other value as unknown. The reader rejects null, duplicate,
-stale, or same-address-reused keys. It does not yet claim hostility relation, ownership, or
-attackability. Therefore the live `/pve` launcher does not yet enable
+stale, or same-address-reused keys.
+
+`NativePartyAuthoritySnapshotReader` now samples group/population/group, rejects roster or process
+identity changes across that boundary, and publishes the exact identity and party portion of a
+revisioned authority snapshot. An unresolved roster key makes party completeness false; it is never
+treated as proof that an entity is outside the party. This bridge does not yet claim hostility
+relation, ownership, or attackability, and is not yet wired into the live `/pve` observation loop.
+Therefore the live launcher does not yet enable
 `require_verified_target_authority`.
 
 Do not fill this gap with display names, health totals, pointer ordering, target-cycle position,
@@ -87,10 +93,9 @@ joins.
 
 The remaining live bridge should be added in this order:
 
-1. Project the exact party roster and ownership graph through `NativeEntityIdentityMap`.
+1. Project the ownership graph through `NativeEntityIdentityMap`.
 2. Calibrate the client field or protocol state that proves attackability and hostile relation.
-3. Materialize one revisioned `PvETargetAuthoritySnapshot` inside the coherent PvE observation
-   boundary.
+3. Wire the revisioned native authority snapshot reader into the coherent PvE observation boundary.
 4. Enable strict authority in passive observation and plan-only traces before allowing live combat
    input.
 
