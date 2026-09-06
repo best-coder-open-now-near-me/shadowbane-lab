@@ -3,10 +3,20 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Protocol, runtime_checkable
 
+from shadowbane_lab.client_observation.group_affiliations import (
+    project_native_party_memberships,
+)
+from shadowbane_lab.client_observation.native_group import NativeGroupObservation
 from shadowbane_lab.client_observation.native_object import (
+    NativeEntityBinding,
     NativeEntityIdentityMap,
     NativeObjectKey,
+)
+from shadowbane_lab.client_observation.native_population import (
+    NativeCharacterKind,
+    NativeCharacterPopulationObservation,
 )
 from shadowbane_lab.pve.authority import (
     PvETargetAuthorityDecision,
@@ -18,6 +28,8 @@ from shadowbane_lab.pve.model import PvEObservation
 from shadowbane_lab.sim.affiliations import (
     AffiliationSnapshot,
     DefaultRelationPolicy,
+    GroupKey,
+    GroupKind,
     RelationPolicy,
     RelationResolver,
 )
@@ -147,6 +159,175 @@ class PvETargetAuthoritySnapshot:
             },
             "evidence_sources": list(self.evidence_sources),
         }
+
+
+class NativePartyAuthoritySnapshotReadError(RuntimeError):
+    """Raised when native party channels cannot form one coherent snapshot."""
+
+
+@runtime_checkable
+class NativeCharacterPopulationSource(Protocol):
+    """Native population channel required by the party snapshot reader."""
+
+    @property
+    def process_id(self) -> int: ...
+
+    def observe(self) -> NativeCharacterPopulationObservation: ...
+
+
+@runtime_checkable
+class NativeGroupSource(Protocol):
+    """Native group channel required by the party snapshot reader."""
+
+    @property
+    def process_id(self) -> int: ...
+
+    def observe(self) -> NativeGroupObservation: ...
+
+
+def build_native_party_authority_snapshot(
+    population: NativeCharacterPopulationObservation,
+    group: NativeGroupObservation,
+    *,
+    revision: int,
+    party_group_id: str,
+) -> PvETargetAuthoritySnapshot:
+    """Build the identity and exact-party portion of one native authority snapshot."""
+
+    if not isinstance(population, NativeCharacterPopulationObservation):
+        raise ValueError("population must be NativeCharacterPopulationObservation")
+    if not isinstance(group, NativeGroupObservation):
+        raise ValueError("group must be NativeGroupObservation")
+    if population.local_player_object_key is None:
+        raise ValueError("population has no proven local player object key")
+    _identifier(party_group_id, "party_group_id")
+
+    bindings = [
+        NativeEntityBinding(
+            population.local_player_object_key,
+            f"native:{population.local_player_object_key.canonical_token}",
+        )
+    ]
+    records = []
+    kind_map = {
+        NativeCharacterKind.PLAYER: PvETargetCharacterKind.PLAYER,
+        NativeCharacterKind.NPC: PvETargetCharacterKind.NPC,
+        NativeCharacterKind.UNKNOWN: PvETargetCharacterKind.UNKNOWN,
+    }
+    for character in population.characters:
+        if character.object_key is None:
+            raise ValueError(f"character {character.token} has no proven native object key")
+        entity_id = f"native:{character.object_key.canonical_token}"
+        bindings.append(NativeEntityBinding(character.object_key, entity_id))
+        records.append(
+            PvEAuthorityCharacterRecord(
+                target_token=character.token,
+                object_key=character.object_key,
+                character_kind=kind_map[character.character_kind],
+                attackable=None,
+                evidence_sources=(
+                    "native_character_population_object_key",
+                    "native_character_population_kind",
+                ),
+            )
+        )
+
+    identities = NativeEntityIdentityMap(tuple(bindings))
+    party = project_native_party_memberships(
+        GroupKey(GroupKind.PARTY, party_group_id),
+        group,
+        identities,
+        revision=revision,
+        require_complete=False,
+    )
+    return PvETargetAuthoritySnapshot(
+        revision=revision,
+        local_player_object_key=population.local_player_object_key,
+        identities=identities,
+        affiliations=AffiliationSnapshot(
+            revision=revision,
+            memberships=party.memberships,
+        ),
+        characters=tuple(records),
+        party_complete=party.complete,
+        ownership_complete=False,
+        relation_complete=False,
+        evidence_sources=(
+            "coherent_native_character_population",
+            "native_group_roster_exact_key_projection",
+        ),
+    )
+
+
+class NativePartyAuthoritySnapshotReader:
+    """Read group/population/group and publish only a stable party snapshot."""
+
+    def __init__(
+        self,
+        population_reader: NativeCharacterPopulationSource,
+        group_reader: NativeGroupSource,
+        *,
+        party_group_id: str,
+        starting_revision: int = 0,
+    ) -> None:
+        if not isinstance(population_reader, NativeCharacterPopulationSource):
+            raise ValueError("population_reader must implement NativeCharacterPopulationSource")
+        if not isinstance(group_reader, NativeGroupSource):
+            raise ValueError("group_reader must implement NativeGroupSource")
+        if population_reader.process_id != group_reader.process_id:
+            raise ValueError("native party authority readers resolved different processes")
+        _identifier(party_group_id, "party_group_id")
+        if (
+            isinstance(starting_revision, bool)
+            or not isinstance(starting_revision, int)
+            or starting_revision < 0
+        ):
+            raise ValueError("starting_revision must be a non-negative integer")
+        self._population_reader = population_reader
+        self._group_reader = group_reader
+        self._party_group_id = party_group_id
+        self._revision = starting_revision
+        self._process_id = population_reader.process_id
+
+    @property
+    def process_id(self) -> int:
+        return self._process_id
+
+    @property
+    def revision(self) -> int:
+        return self._revision
+
+    def observe(self) -> PvETargetAuthoritySnapshot:
+        if (
+            self._population_reader.process_id != self._process_id
+            or self._group_reader.process_id != self._process_id
+        ):
+            raise NativePartyAuthoritySnapshotReadError(
+                "native party authority process identity changed during reader lifetime"
+            )
+        group_before = self._group_reader.observe()
+        population = self._population_reader.observe()
+        group_after = self._group_reader.observe()
+        if (
+            self._population_reader.process_id != self._process_id
+            or self._group_reader.process_id != self._process_id
+        ):
+            raise NativePartyAuthoritySnapshotReadError(
+                "native party authority process identity changed during sample"
+            )
+        if group_before != group_after:
+            raise NativePartyAuthoritySnapshotReadError(
+                "native group roster changed during party authority sample"
+            )
+        next_revision = self._revision + 1
+        snapshot = build_native_party_authority_snapshot(
+            population,
+            group_after,
+            revision=next_revision,
+            party_group_id=self._party_group_id,
+        )
+        self._revision = next_revision
+        return snapshot
 
 
 class SnapshotPvETargetAuthorityEvaluator:

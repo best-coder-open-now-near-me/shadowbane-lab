@@ -16,9 +16,12 @@ from shadowbane_lab.pve.authority import (
     evaluate_pve_target_authority,
 )
 from shadowbane_lab.pve.authority_snapshot import (
+    NativePartyAuthoritySnapshotReader,
+    NativePartyAuthoritySnapshotReadError,
     PvEAuthorityCharacterRecord,
     PvETargetAuthoritySnapshot,
     SnapshotPvETargetAuthorityEvaluator,
+    build_native_party_authority_snapshot,
 )
 from shadowbane_lab.pve.authority_trace import (
     PvEAuthorityRunTraceStep,
@@ -84,6 +87,8 @@ __all__ = [
     "CombatLogSource",
     "EmptyCombatLogSource",
     "NativeExtensionPvEIntentDispatcher",
+    "NativePartyAuthoritySnapshotReadError",
+    "NativePartyAuthoritySnapshotReader",
     "NativePvEObservationSource",
     "ObservedSampleSummary",
     "PVE_COMBAT_CALIBRATION_SCHEMA_VERSION",
@@ -132,6 +137,7 @@ __all__ = [
     "TargetPositionSource",
     "compile_pve_combat_calibration",
     "compile_pve_combat_calibration_files",
+    "build_native_party_authority_snapshot",
     "evaluate_pve_target_authority",
     "load_pve_combat_calibration",
     "load_pve_trace_evidence",
