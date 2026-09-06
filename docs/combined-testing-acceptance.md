@@ -1,5 +1,21 @@
 # Shared testing and acceptance plan
 
+## Visible selection effect required — later September 6 update
+
+The owner found blanket hidden output a testing blocker and clarified that
+highlight/glow/halo terminology is immaterial: the selected character must be
+visibly distinguishable without noticeably broken rendering. The native-order
+on-character material path is approved. This supersedes accepting permanent glow
+suppression as sufficient feature delivery. The existing 1.7.0 package remains
+useful for independent features, but does not satisfy visible selection acceptance.
+
+A supported enabled production path must visibly change selected pixels; strength
+and color controls must work. Unsupported cases need concrete status, not a global
+always-false authority presented as readiness. Preserve original draw count,
+alpha/depth/stencil, native foreground ordering, independent direction indication
+and exact lifecycle. The integrator audits other inert controls and impossible
+acceptance steps while keeping unrelated completed features testable.
+
 ## Owner scope update — September 6, 2026
 
 The owner prioritizes avoiding artifacts over physically correct native transparency
