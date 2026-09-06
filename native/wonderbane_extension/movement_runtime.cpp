@@ -352,9 +352,9 @@ DWORD StartNativeMovementControls(const ProcessIdentity& process) noexcept {
     const auto result = StartNativeMovementUpdates(process, &Update);
     if (result != ERROR_SUCCESS) {
         runtime.terminal = true;
-        AcquireSRWLockExclusive(&runtime.publication_lock);
-        runtime.published.process = process; runtime.published.terminal = true;
-        ReleaseSRWLockExclusive(&runtime.publication_lock);
+        // Hook admission failed before an owning update could publish anything.
+        // Publish terminal/unavailable with no invented window or readiness.
+        runtime.Publish();
     }
     return result;
 }

@@ -769,3 +769,48 @@ shared plan. The owner reports required cue/effects transparency failures, so no
 complete package manifest/install receipt exists yet. Active todo remains exact
 combined package verification and owner-controlled installation, followed by the
 coordinated connected pass. No separate client/VM change was made.
+
+
+## Prepared-client startup repair (September 6)
+
+Live read-only evidence from the existing tasks showed a valid exact-client action
+header but three entirely zero movement-status samples. The production boundary
+and native image gates required the original whole-file hash. Existing prepare-copy
+bootstrap-v1 changes that hash, so the legitimate installed prepared client was
+rejected before the owning-update hook was installed. The failure only populated
+a private snapshot, leaving the shared status region unpublished.
+
+The focused repair verifies every exact seven-span bootstrap-v1 replacement from
+the existing reviewed author/manifest, restores those spans only in a digest copy,
+and requires the original whole-file SHA256. Actual prepared bytes remain the
+reference for full relocated loaded-text integrity. The boundary uses that same
+verifier and retains its exact update-function digest/thunk checks. Partial patches,
+changed loader bytes and unrelated changes remain rejected. There is no broad
+hash whitelist, masked-code acceptance, alternate actuator or competing hook.
+
+Hook startup failure now publishes exact process identity and terminal/unavailable
+status, without an invented HWND or readiness. The read-only session accepts only
+the exact terminal-only/no-window diagnostic case; acquisition still rejects it
+before opening a lease. Ordinary client/window mismatch protection is unchanged.
+
+Developer validation: original and reconstructed prepared bytes (identical SHA256
+to the installed bootstrap manifest) pass the production disk/relocated loaded-text
+and update verifier. Altered/partial bootstrap, unrelated code/data, truncation and
+loaded-text mutations fail. Both DLL profiles build; 17 runtime/boundary tests per
+profile pass, plus explicit startup-hook-failure. Full-profile focused Python has
+23 passes, zero skips; diagnostics session IPC has5 passes, zero skips, including
+real native process startup failure read through production read_snapshot.
+The actual settings-message -> Runtime -> NativeUi -> stop -> hidden native panel
+regression passes external focus, panel-focus reopen/Apply and text-entry recovery;
+focus was not established as the primary live fault.
+
+Integration owner owns CMake/package registration: movement_image_test takes
+original/prepared executable paths (noargs returns77); movement_settings_runtime_test
+exercises production settings admission; runtime mode startup-hook-failure and
+Python test_real_hook_startup_failure_is_readable_without_window_or_lease are
+required regressions. Private binaries/repro builds remain under local ignored
+artifacts/native-movement. No VM or independent installation occurred.
+
+Next active todo: owner inclusion and exact rebuilt prepare-copy/package gates,
+then a narrowly coordinated live settings/startup check before physical movement
+acceptance. No live fix or controller acceptance is claimed by these local tests.

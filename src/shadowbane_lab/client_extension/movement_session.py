@@ -11,6 +11,9 @@ from dataclasses import dataclass
 from . import action_channel as channel
 from .movement_wire import Command, Grant, Host, Outcome, Receipt, Settings, Snapshot, Verb
 
+# Exact terminal-only wire flags: no binding, readiness, camera or device claim.
+_TERMINAL_ONLY = 8
+
 
 class NativeMovementError(channel.NativeActionChannelError):
     def __init__(self, outcome: Outcome, receipt: Receipt | None = None):
@@ -58,7 +61,10 @@ def read_snapshot(identity: channel.NativeClientProcessIdentity, window: int) ->
             if (
                 snapshot.process_id != identity.process_id
                 or snapshot.creation_filetime != identity.creation_filetime_utc
-                or snapshot.window != window
+                or (
+                    snapshot.window != window
+                    and not (snapshot.window == 0 and snapshot.flags == _TERMINAL_ONLY)
+                )
             ):
                 raise channel.NativeActionChannelUnavailable(
                     "native status exact-client binding changed"

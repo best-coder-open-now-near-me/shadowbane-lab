@@ -13,6 +13,7 @@ from shadowbane_lab.client_extension.movement_wire import Owner
 
 pytestmark = pytest.mark.skipif(sys.platform != "win32", reason="Windows native IPC")
 
+
 def test_real_producer_mutex_native_owner_completion_and_readonly_snapshot():
     configured = os.environ.get("WONDERBANE_MOVEMENT_RUNTIME_TEST")
     if not configured:
@@ -102,6 +103,28 @@ def test_snapshot_mixed_schema_and_odd_publication_never_claim_lease():
         ).encode()
         assert read_snapshot(identity, 1).sequence == 2
         assert memory[:128] == header
+        terminal = Snapshot(
+            4,
+            identity.process_id,
+            8,
+            identity.creation_filetime_utc,
+            0,
+            Grant(1, 0),
+            Settings(),
+            1,
+            21,
+        )
+        memory[offset : offset + 512] = terminal.encode()
+        assert read_snapshot(identity, 1).encode() == terminal.encode()
+        assert memory[:128] == header  # terminal diagnostic never claims a lease
+        for invalid in (
+            replace(terminal, flags=0),
+            replace(terminal, flags=10),
+            replace(terminal, window=2),
+        ):
+            memory[offset : offset + 512] = invalid.encode()
+            with pytest.raises(channel.NativeActionChannelUnavailable):
+                read_snapshot(identity, 1)
         for schema, command_size in ((1, 768), (2, 192)):
             changed = bytearray(header)
             struct.pack_into("<I", changed, 8, schema)
@@ -244,3 +267,39 @@ def test_submit_serializes_renew_and_close_at_public_session_boundary(monkeypatc
                 thread.join(2)
     assert not failures and all(not thread.is_alive() for thread in (moving, renewing, closing))
     assert calls[:2] == ["submit", "complete"] and calls[-1] == "close"
+
+
+def test_real_hook_startup_failure_is_readable_without_window_or_lease():
+    from shadowbane_lab.client_extension.movement_session import read_snapshot
+
+    configured = os.environ.get("WONDERBANE_MOVEMENT_RUNTIME_TEST")
+    if not configured:
+        pytest.skip("set WONDERBANE_MOVEMENT_RUNTIME_TEST to the built native runtime fixture")
+    binary = Path(configured)
+    assert binary.is_file()
+    process = subprocess.Popen(
+        [str(binary), "startup-hook-failure-ipc"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        creationflags=subprocess.CREATE_NO_WINDOW,
+    )
+    try:
+        pid, creation, window = map(int, process.stdout.readline().split())
+        identity = channel.NativeClientProcessIdentity(pid, creation)
+        session = NativeMovementSession(identity, window)
+        status = read_snapshot(identity, window)
+        assert status.sequence > 0 and status.flags == 8 and status.window == 0
+        assert status.process_id == pid and status.creation_filetime == creation
+        assert session._transport is None
+        with pytest.raises(ValueError, match="another client"):
+            session.acquire(status, "worker", "operation", str(uuid.uuid4()))
+        assert session._transport is None
+        session.close()
+        output, error = process.communicate("\n", timeout=5)
+        assert process.returncode == 0, output + error
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.communicate()

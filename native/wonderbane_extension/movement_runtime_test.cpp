@@ -16,6 +16,7 @@ POINT pointer{0, 0}; XINPUT_GAMEPAD gamepad{};
 std::uint64_t clock_tick = 0;
 char interrupt_phase = 0;
 int retired_updates = 0;
+DWORD startup_result = ERROR_SUCCESS;
 HWND WINAPI Focus() { return focused; }
 SHORT WINAPI PhysicalKey(int key) { return physical_keys[static_cast<std::size_t>(key)]; }
 BOOL WINAPI Cursor(LPPOINT out) { *out = pointer; return ClientToScreen(bound_window, out); }
@@ -39,7 +40,7 @@ void Interrupt(char phase) {
 }
 }
 namespace wonderbane::extension {
-DWORD StartNativeMovementUpdates(const ProcessIdentity&, NativeMovementUpdate) noexcept { return ERROR_SUCCESS; }
+DWORD StartNativeMovementUpdates(const ProcessIdentity&, NativeMovementUpdate) noexcept { return startup_result; }
 void StopNativeMovementUpdates() noexcept { ++retired_updates; }
 namespace movement {
 bool NativeMovementLifetimeCurrent(const NativeScene& scene) noexcept {
@@ -64,6 +65,27 @@ struct WindowsInputTestAccess {
 int main(int argc, char** argv) {
     const std::string mode = argc > 1 ? argv[1] : "keyboard";
     Fixture f; auto& rt = wm::runtime;
+    if (mode == "startup-hook-failure" || mode == "startup-hook-failure-ipc") {
+        FILETIME created{}, exited{}, kernel{}, user{};
+        GetProcessTimes(GetCurrentProcess(), &created, &exited, &kernel, &user);
+        const wonderbane::extension::ProcessIdentity identity{GetCurrentProcessId(),
+            (std::uint64_t{created.dwHighDateTime} << 32) | created.dwLowDateTime};
+        Check(wonderbane::extension::StartClientActionCommandChannel(identity) == ERROR_SUCCESS, "startup failure channel available");
+        startup_result = ERROR_NOT_SUPPORTED;
+        Check(wm::StartNativeMovementControls(identity) == ERROR_NOT_SUPPORTED, "hook failure retained");
+        const auto& status = wonderbane::extension::command_channel_detail::g_runtime.storage->movement_status;
+        Check(status.sequence > 0 && !(status.sequence & 1) && status.process == identity.process_id
+            && status.creation == identity.creation_filetime_utc && status.window == 0
+            && status.flags == wm::wire::terminal && status.revision == 1,
+            "hook failure publishes readable exact-client terminal status without window or readiness");
+        if (mode == "startup-hook-failure-ipc") {
+            std::printf("%lu %llu %llu\n", static_cast<unsigned long>(identity.process_id),
+                static_cast<unsigned long long>(identity.creation_filetime_utc),
+                static_cast<unsigned long long>(reinterpret_cast<std::uintptr_t>(f.window)));
+            std::fflush(stdout); (void)std::getchar();
+        }
+        wonderbane::extension::StopClientActionCommandChannel();return failures ? 1 : 0;
+    }
     if (mode == "startup-unavailable") {
         rt.process = {GetCurrentProcessId(), 42}; rt.Update(f.game_window.data());
         wm::RuntimeSnapshot snapshot{};
