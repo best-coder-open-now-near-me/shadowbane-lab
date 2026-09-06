@@ -353,6 +353,7 @@ import json
 import re
 import sys
 from pathlib import Path
+sys.path.insert(0, str(Path("src").resolve()))
 from shadowbane_lab.client_extension.bootstrap_author import author_reviewed_bootstrap_manifest
 from shadowbane_lab.client_extension.resolver import apply_patch_plan, build_patch_plan
 original, extension, destination = map(Path, sys.argv[1:])
