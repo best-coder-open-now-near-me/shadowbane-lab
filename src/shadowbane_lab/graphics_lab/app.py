@@ -160,8 +160,10 @@ class GraphicsLabApp:
         self.target_combo = ttk.Combobox(
             target_row, textvariable=self.target_var, state="readonly", style="Target.TCombobox"
         )
-        self.root.option_add(f"{self.target_combo}*Listbox.foreground", "black")
-        self.root.option_add(f"{self.target_combo}*Listbox.selectForeground", "black")
+        popdown = self.root.tk.call("ttk::combobox::PopdownWindow", str(self.target_combo))
+        self.root.tk.call(
+            f"{popdown}.f.l", "configure", "-foreground", "black", "-selectforeground", "black"
+        )
         self.target_combo.pack(side="left", fill="x", expand=True)
         self.target_combo.bind("<<ComboboxSelected>>", self._connect_selected)
         ttk.Button(target_row, text="Refresh", command=self.refresh_targets).pack(
