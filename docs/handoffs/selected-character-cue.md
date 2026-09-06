@@ -1015,7 +1015,7 @@ asserted at 8/12 bytes per pixel, and release is checked between every case.
 
 At 1080p/46 captures on this host, median enabled-minus-native synchronized frame
 time was 2.295 ms ordinary and 4.275 ms EQUAL; enabled medians were 2.489/4.483 ms.
-Ranges were 2.164–6.480 / 3.829–9.080 ms. Mask storage was 15.820/23.730 MiB.
+Ranges were 2.164â€“6.480 / 3.829â€“9.080 ms. Mask storage was 15.820/23.730 MiB.
 At 640x480/46 captures, the median differences were 2.154/3.703 ms. Amortized
 per-capture differences include frame setup/compositing and are not isolated
 capture latency. These synthetic host results do not certify a live-client
@@ -1098,7 +1098,7 @@ package wiring, version identity, combined verification and packaging belong to
 the integration owner. No deployment or owner acceptance run yet.
 
 
-### Visible native-order selected material (2026-09-07)
+### Visible native-order selected material (2026-09-06)
 
 The owner accepted visible on-character enhancement. Production now uses
 DrawSelectedCueGeometry(draw, user), which ALWAYS calls the supplied original
@@ -1134,3 +1134,25 @@ Runtime ownership/lifetime/drift tests and full DLL build pass. Required new
 central gate: wonderbane_extension_selected_cue_native_material, invoking the
 existing GPU executable with --native-material. Root owns gate/package wiring.
 No package/deployment claimed until the combined candidate is verified.
+
+
+### Combined native-material verification e569717
+
+Exact combined source `e569717e2afdfd02d20639dd2b9af5de818807c8` was independently
+checked in the clean cue-combined-verification worktree. Fresh GPU/runtime targets
+build; native-material, cue-runtime, pipeline-guard and query-guard CTests all
+execute and pass. All 23 Python cue tests pass. Receipt:
+E:/Projects/shadowbane/artifacts/cue-combined-native/e569717/lane-cue.xml.
+
+Shared array/index hooks wrap native submission once and retain the established
+outer cel routing. Optimized multi-draw is connected in the cue runtime. Shared
+context cleanup reaches the cue before unbind; no duplicate context hook is
+introduced. Immediate/list materials remain unchanged, as do explicitly rejected
+custom-program, occupied/cross-referenced-stage, unsafe-state and resource cases.
+
+Feature source is pushed at 2a9997316f0a11739e439d6aef71320ae020f790 and included
+in the integration owner's source as 60ca292. PR29 is already merged into the
+integration stack; current candidate/package ownership remains with the native
+lifecycle integration task. No new PR, main merge or independent deployment is
+needed for this receipt. Remaining delivery step: owner verifies the exact
+package identity and coordinates the consolidated live acceptance run.
