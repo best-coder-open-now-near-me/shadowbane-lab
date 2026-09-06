@@ -17,6 +17,7 @@
 #include "import_hook.h"
 #include "performance_telemetry.h"
 #include "scene_frame.h"
+#include "scene_draw.h"
 #include "reviewed_scene_boundary.h"
 #include "display_list_state_commands.h"
 
@@ -1737,7 +1738,8 @@ __declspec(noinline) void APIENTRY StrongMatrixMode(const unsigned int mode) noe
             g_scene_frame.composite_succeeded = CompositeDepthEdgesBeforeUi();
 #if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
             FinishSelectedCueScene(scene_camera_valid ? &camera : nullptr);
-            DrawEffects(scene_camera_valid ? &camera : nullptr);
+            DrawEffects(scene_camera_valid ? &camera : nullptr,
+                IsWorldEnhancementCompositionSafe());
             DrawNavigationInspector();
 #endif
         }
@@ -1922,7 +1924,7 @@ BOOL WINAPI StrongSwapBuffers(const HDC device_context) noexcept {
     ApplyPendingGraphicsControl();
 #if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
     if (g_scene_frame.boundary_count != 1U || g_scene_frame.main_scene_invalidated)
-        DrawEffects(nullptr);
+        DrawEffects(nullptr, false);
 #endif
     ReportSceneFrameClassification(g_scene_frame);
     ObserveGraphicsPresent();
