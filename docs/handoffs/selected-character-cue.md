@@ -1059,3 +1059,40 @@ objects (indices 187,188,191,192); those paths remain unavailable, not passing.
 No client runtime change or additional live capture was needed. The test addition
 must be consumed in the combined source; central CTest/package wiring remains
 with the integration owner. The foreground-transparency failures are unchanged.
+
+
+### Revised acceptance: conservative production fallback (2026-09-06)
+
+The owner now accepts complete suppression of world glow when native composition
+safety cannot be established. Perfect foreground transparency is diagnostic,
+not the release criterion. The existing ideal-transparency tests remain intact;
+this change does not make their failing results pass or reconstruct transparency.
+
+The cue consumes the integration owner's IsWorldEnhancementCompositionSafe()
+authority in scene_draw.h. Current production authority is always false:
+**world glow is suppressed throughout ordinary client scenes**, even when enabled.
+The separate off-screen direction indicator remains available from selected
+identity and camera observations, without requiring render-subtree ownership.
+No glow mask allocation or supplemental native geometry occurs while suppressed.
+Revocation discards/releases an existing mask and remains latched through that
+scene. The shared authority is stable session policy, avoiding frame oscillation.
+
+The existing enabled/appearance settings remain in Selection controls. Status 2
+in the existing render-status field means deliberate glow suppression; the UI
+explains that the indicator remains enabled. Control, observation and real draw
+errors retain separate handling. Clearing selection, disabling the cue, missing
+observations and context cleanup retain the existing lifetime behavior.
+
+Validation: full DLL build; existing native cue runtime test exercises false
+and true authority, zero mask allocation/capture, exactly one native optimized
+submission, three consecutive suppressed frames, behind-camera direction,
+unusable render-subtree observations, selection clear/disable, and revocation
+without mid-scene restart. Cue direction tests and 18 Python cue-control/status
+tests pass. Existing ideal-transparency diagnostics are not changed.
+
+Integration prerequisite 38854b0 copies exact shared owner source from 1d937c1
+and must NOT be reapplied to the integration branch. Consume only the subsequent
+focused fallback commit. Required release validation should include existing
+wonderbane_extension_selected_cue_runtime and tests/test_selected_cue.py; central
+package wiring, version identity, combined verification and packaging belong to
+the integration owner. No deployment or owner acceptance run yet.

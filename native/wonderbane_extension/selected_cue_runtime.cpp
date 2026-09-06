@@ -1,6 +1,7 @@
 #include "selected_cue_runtime.h"
 #include "selected_cue.h"
 #include "selected_cue_gpu.h"
+#include "scene_draw.h"
 #include "selected_cue_binding.h"
 #include "effects.h"
 #include "scene_context.h"
@@ -55,7 +56,8 @@ thread_local std::array<std::uint32_t,128> renders{};
 thread_local std::size_t render_count=0;
 thread_local cue::Tracker tracker;
 thread_local cue::Direction direction;
-thread_local bool scene=false,finished=false,mask_failed=false;
+thread_local bool scene=false,finished=false,mask_failed=false,glow_suppressed=false;
+constexpr LONG kGlowSuppressed=2;
 thread_local unsigned nesting=0,owned=0;
 bool Read(void*,std::uint32_t address,void* data,std::size_t bytes) {
     if(address<0x10000 || address>0x7FFEFFFF || bytes>0x7FFEFFFF-address)return false;
@@ -112,15 +114,21 @@ bool Poll() noexcept {
     }
     ReleaseSRWLockShared(&lock);return valid;
 }
+bool SuppressUnsafeGlow() noexcept {
+    // Authority is stable session policy. Once revoked, do not resume mid-scene.
+    if(!IsWorldEnhancementCompositionSafe())glow_suppressed=true;
+    if(glow_suppressed){cue::DiscardMask();cue::ReleaseMask();}
+    return glow_suppressed;
+}
 bool StillSelected() noexcept {
     std::uint32_t root=0;
-    return effects::SameIdentity(attachment,Selected()) && render_count
-        && Field(attachment.actor,0xc0,root) && root==renders[0];
+    return effects::SameIdentity(attachment,Selected()) && (glow_suppressed
+        || (render_count && Field(attachment.actor,0xc0,root) && root==renders[0]));
 }
 void SynchronizeGeneration() noexcept {
     const auto current=InterlockedCompareExchange64(&generation,0,0);
     if(thread_generation==current)return;
-    scene=false;finished=false;attachment={};render_count=0;tracker.Reset();settings={};
+    scene=false;finished=false;glow_suppressed=false;attachment={};render_count=0;tracker.Reset();settings={};
     cue::DiscardMask();cue::ReleaseMask();
     thread_generation=current;
 }
@@ -188,6 +196,7 @@ void __fastcall OwnedRender(void* self,void*) noexcept {
     const auto draw=reinterpret_cast<Render>(InterlockedCompareExchangePointer(&original,nullptr,nullptr));
     if(!draw)return;
     if(!scene || !InterlockedCompareExchange(&running,0,0) || nesting){draw(self);return;}
+    if(SuppressUnsafeGlow()){draw(self);return;}
     std::uint32_t render=0;bool match=false;
     if(Field(static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(self)),0x1c,render))
         for(std::size_t n=0;n<render_count;++n)match=match || renders[n]==render;
@@ -261,24 +270,27 @@ void EndSelectedCueFrame() noexcept {RenderCallbackLease lease;SynchronizeGenera
 void ReleaseSelectedCueContext() noexcept {RenderCallbackLease lease;DiscardSelectedCueScene();cue::ReleaseMask();}
 void BeginSelectedCueScene(const GraphicsCameraState* camera) noexcept {
     RenderCallbackLease lease;SynchronizeGeneration();
-    scene=false;owned=0;mask_failed=false;cue::DiscardMask();
+    scene=false;owned=0;mask_failed=false;glow_suppressed=false;cue::DiscardMask();
     // A bounded opt-in contributor trace must not require a selected target or
     // an enabled glow to observe the native optimized world submission path.
     if(InterlockedCompareExchange(&running,0,0) && IsTerrainTraceCapturing())RefreshMultiDraw();
     if(!InterlockedCompareExchange(&running,0,0) || !Poll() || !settings.enabled){
         DiscardSelectedCueScene();cue::ReleaseMask();Status(0,0,0);return;}
+    SuppressUnsafeGlow();render_count=0;renders[0]=0;
     attachment=Selected();
-    if(!attachment.valid || !CollectRenders() || !camera){DiscardSelectedCueScene();Status(0,0,1);return;}
+    if(!attachment.valid || !camera || (!glow_suppressed && !CollectRenders())){DiscardSelectedCueScene();Status(0,0,1);return;}
     const cue::Identity identity{attachment.actor,attachment.type,attachment.uuid,attachment.zone,renders[0],
         attachment.component,attachment.location,attachment.zone_type,attachment.zone_uuid};
     const float position[]{attachment.position.x,attachment.position.y,attachment.position.z};
     direction=tracker.Update(identity,position,camera,true);
     scene=direction.available;
+    if(glow_suppressed){Status(0,kGlowSuppressed,scene?0:1);return;}
     mask_failed=!(scene && RefreshMultiDraw() && cue::BeginMask());Status(0,mask_failed?1:0,0);
 }
 void ObserveSelectedCueLegacyGeometry() noexcept {
     RenderCallbackLease lease;SynchronizeGeneration();
     if(!scene || !nesting || mask_failed || !InterlockedCompareExchange(&running,0,0))return;
+    if(SuppressUnsafeGlow())return;
     if(!StillSelected() || !cue::BeforeLegacyGeometry()){
         mask_failed=true;cue::DiscardMask();
     }
@@ -286,6 +298,7 @@ void ObserveSelectedCueLegacyGeometry() noexcept {
 void CaptureSelectedCueGeometry(SelectedGeometryDraw draw,void* user) noexcept {
     RenderCallbackLease lease;SynchronizeGeneration();
     if(!scene || !nesting || mask_failed || !InterlockedCompareExchange(&running,0,0))return;
+    if(SuppressUnsafeGlow())return;
     if(!StillSelected() || !MultiDrawUnchanged() || !cue::CaptureGeometry(draw,user)){
         mask_failed=true;cue::DiscardMask();
     }
@@ -295,8 +308,11 @@ void FinishSelectedCueScene(const GraphicsCameraState* camera) noexcept {
     if(!scene){DiscardSelectedCueScene();return;}
     if(!camera || !InterlockedCompareExchange(&running,0,0)
         || !StillSelected()){DiscardSelectedCueScene();Status(0,0,1);return;}
-    if(!MultiDrawUnchanged()){mask_failed=true;cue::DiscardMask();}
-    const bool ok=cue::CompositeMask(settings,direction);Status(static_cast<LONG>(owned),ok && !mask_failed?0:1,0);
+    SuppressUnsafeGlow();
+    if(!glow_suppressed && !MultiDrawUnchanged())mask_failed=true;
+    if(mask_failed)cue::DiscardMask();
+    const bool ok=cue::CompositeMask(settings,direction);
+    Status(static_cast<LONG>(owned),!ok?1:(glow_suppressed?kGlowSuppressed:(mask_failed?1:0)),0);
     scene=false;finished=true;attachment={};render_count=0;
 }
 }
