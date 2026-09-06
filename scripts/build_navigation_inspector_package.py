@@ -285,6 +285,8 @@ def main() -> int:
             "wonderbane_extension_movement_runtime_nested-move",
             "wonderbane_extension_movement_runtime_chat",
             "wonderbane_extension_movement_runtime_settings-stale",
+            "wonderbane_extension_movement_runtime_startup-hook-failure",
+            "wonderbane_extension_movement_settings_runtime",
             "wonderbane_extension_movement_settings",
             "wonderbane_extension_movement_wire",
             "wonderbane_extension_movement_channel",
@@ -324,6 +326,7 @@ def main() -> int:
         ipc_cases = ET.parse(ipc_results).getroot().findall(".//testcase")
         required_ipc = {
             "test_real_producer_mutex_native_owner_completion_and_readonly_snapshot",
+            "test_real_hook_startup_failure_is_readable_without_window_or_lease",
             "test_operation_context_uses_real_native_interprocess_movement",
             "test_standalone_context_real_native_process_renews_across_slow_planner",
         }
@@ -341,6 +344,36 @@ def main() -> int:
                 ],
             )
         if arguments.reviewed_client:
+            prepared_client = build / "movement-prepared-client.exe"
+            run(
+                f"{profile}-prepare-movement-binding",
+                [sys.executable, "-c", r"""
+import hashlib
+import json
+import re
+import sys
+from pathlib import Path
+from shadowbane_lab.client_extension.bootstrap_author import author_reviewed_bootstrap_manifest
+from shadowbane_lab.client_extension.resolver import apply_patch_plan, build_patch_plan
+original, extension, destination = map(Path, sys.argv[1:])
+version = re.search(r"project\(wonderbane_extension VERSION ([0-9.]+)",
+                    Path("native/wonderbane_extension/CMakeLists.txt").read_text()).group(1)
+source_bytes = original.read_bytes()
+authored = author_reviewed_bootstrap_manifest(source_bytes, extension.read_bytes(),
+                                              extension_version=version)
+plan = build_patch_plan(source_bytes, authored.manifest)
+prepared = apply_patch_plan(source_bytes, plan.writes)
+assert hashlib.sha256(prepared).hexdigest() == authored.manifest.patched_executable_sha256
+destination.write_bytes(prepared)
+print(json.dumps(authored.as_dict(), sort_keys=True))
+""", arguments.reviewed_client.resolve(),
+                 build / "Release/wonderbane-extension.dll", prepared_client],
+            )
+            run(
+                f"{profile}-movement-prepared-binding",
+                [build / "Release/wonderbane_extension_movement_image_test.exe",
+                 arguments.reviewed_client.resolve(), prepared_client],
+            )
             for test in ("sky_binding", "sky_render"):
                 run(
                     f"{profile}-{test}",
@@ -576,6 +609,7 @@ with tempfile.TemporaryDirectory() as directory:
         "sky_binding_and_runtime_verified": bool(arguments.reviewed_client),
         "live_acceptance": "pending; no deployment performed",
         "selected_cue_binding_verified": bool(arguments.reviewed_client),
+        "movement_prepared_binding_verified": bool(arguments.reviewed_client),
         "source_identity": metadata,
         "steps": steps,
         "files": [

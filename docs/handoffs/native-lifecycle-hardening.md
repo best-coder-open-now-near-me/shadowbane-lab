@@ -1561,3 +1561,29 @@ package builder, and requires both operator gates to execute. Hardware operator,
 legacy operator and combined render all passed locally, zero skips. An inherited
 legacy override still executes the real combined renderer on the hardware context.
 No product runtime change. Next: clean final package and exact-CI verification.
+
+### September 6 prepared-client movement integration checkpoint
+
+Integrated movement owner source `69661e4e2811a02cccf9ba5c7f0701af14acc140`
+as `d98d666`. The original-only executable digest rejected the legitimate
+bootstrap-prepared client before movement update registration. This is independent
+of controller forwarding or foreground focus. The repair authenticates all seven
+bootstrap spans and the restored original digest, retains prepared loaded-text
+verification, and publishes terminal startup failure to the real shared channel.
+
+Both local native profiles built successfully and executed 70 movement CTests each.
+The no-argument private image gate skipped as designed; explicit original and
+prepared executable invocations then executed and passed on both profiles,
+including negative mutation cases. Full-profile Python IPC/manager/operation and
+package gate checks: 44 passed, no skips. Ruff and diff whitespace checks passed.
+An initial Python invocation used a nonexistent package-test filename and ran no
+tests; the corrected invocation above is the reported result.
+
+The existing package builder now requires settings runtime, startup failure, and
+cross-process terminal-publication tests. It prepares a client with the actual
+built DLL and runs the production movement image verifier for each profile.
+Private prepared executable files remain local build artifacts, outside the package.
+
+Next: fresh product version and exact clean-source package build, installed-wheel
+verification and independent integration review before connected movement acceptance.
+This checkpoint does not certify a new package or change the installed VM client.
