@@ -9,6 +9,7 @@ HGLRC WINAPI CueTestContext();
 #undef wglGetCurrentContext
 #undef NDEBUG
 #include <cassert>
+#include <cstdio>
 #include <atomic>
 #include <thread>
 
@@ -18,17 +19,20 @@ thread_local bool resources=false;
 std::atomic<int> geometry{0};
 thread_local int local_releases=0,mask_geometry=0,last_mask=0;
 bool begin_ok=true,before_ok=true,after_ok=true;
+bool last_direction_available=false,last_direction_offscreen=false;
 bool BeginMask() noexcept {++begins;mask_geometry=0;resources=begin_ok;return begin_ok;}
 bool BeforeOwnedDraw() noexcept {++before;return before_ok;}
 bool BeforeLegacyGeometry() noexcept {return true;}
 bool execute_raw=false;
 bool CaptureGeometry(GeometryDraw draw,void* data) noexcept {++geometry;++mask_geometry;if(execute_raw)draw(data);return true;}
 bool AfterOwnedDraw() noexcept {++after;return after_ok;}
-bool CompositeMask(const Settings&,const Direction&) noexcept {++composites;last_mask=mask_geometry;return true;}
+bool CompositeMask(const Settings&,const Direction& cue_direction) noexcept {++composites;last_mask=mask_geometry;
+    last_direction_available=cue_direction.available;last_direction_offscreen=cue_direction.offscreen;return true;}
 void DiscardMask() noexcept {++discards;mask_geometry=0;}
 void ReleaseMask() noexcept {++releases;if(resources){++local_releases;resources=false;}}
 }
 namespace {
+std::atomic<bool> composition_safe{true};
 int draws=0;
 bool clear_during_draw=false,draw_multi=false;
 HANDLE draw_entered=nullptr,draw_resume=nullptr;
@@ -78,6 +82,41 @@ int main(){
     camera.view_matrix[12]=-300;camera.view_matrix[13]=-4;
     camera.projection_matrix[0]=1;camera.projection_matrix[5]=1;
     camera.projection_matrix[10]=-1;camera.projection_matrix[11]=-1;camera.projection_matrix[14]=-0.2F;
+    // Conservative authority needs identity/position, not renderer ownership.
+    composition_safe=false;draw_multi=true;
+    put(render+0x3c,0xfffffff0);put(render+0x40,0xfffffff4);
+    camera.forward[2]=1;camera.view_matrix[10]=-1;
+    const float behind_position[]{300,4,-300};
+    std::memcpy(reinterpret_cast<void*>(location+32),behind_position,12);
+    for(int frame=0;frame<3;++frame){
+        BeginSelectedCueScene(&camera);assert(scene && glow_suppressed && !mask_failed);
+        OwnedRender(reinterpret_cast<void*>(wrapper),nullptr);
+        assert(cue::begins==0 && cue::geometry==0 && !cue::resources);
+        assert(draws==frame+1 && multi_a==frame+1);
+        FinishSelectedCueScene(&camera);
+        assert(block.render_error==kGlowSuppressed && block.observation_error==0
+            && cue::last_mask==0 && cue::last_direction_available && cue::last_direction_offscreen);
+        EndSelectedCueFrame();
+    }
+    draw_multi=false;
+    // Clearing selection never leaves a direction or world-mask candidate.
+    put(base+23735716,0);BeginSelectedCueScene(&camera);assert(!scene);
+    put(base+23735716,actor);block.settings.enabled=0;BeginSelectedCueScene(&camera);
+    assert(!scene && block.render_error==0);block.settings.enabled=1;
+    put(render+0x3c,0);put(render+0x40,0);
+    // Revocation discards an already acquired mask; reapproval cannot restart
+    // capture in that same scene. Shared production authority is session-stable.
+    composition_safe=true;BeginSelectedCueScene(&camera);assert(cue::resources);
+    OwnedRender(reinterpret_cast<void*>(wrapper),nullptr);assert(cue::geometry==1);
+    composition_safe=false;OwnedRender(reinterpret_cast<void*>(wrapper),nullptr);
+    composition_safe=true;OwnedRender(reinterpret_cast<void*>(wrapper),nullptr);
+    assert(glow_suppressed && cue::geometry==1 && !cue::resources);
+    FinishSelectedCueScene(&camera);assert(block.render_error==kGlowSuppressed && cue::last_mask==0);
+    EndSelectedCueFrame();
+    std::memcpy(reinterpret_cast<void*>(location+32),position,12);
+    camera.forward[2]=-1;camera.view_matrix[10]=1;
+    multi_a=0;traces=0;
+    draws=0;cue::begins=0;cue::before=0;cue::after=0;cue::geometry=0;cue::composites=0;
     assert(Selected().valid);BeginSelectedCueScene(&camera);assert(scene && render_count==1);
     OwnedRender(reinterpret_cast<void*>(wrapper),nullptr);
     assert(draws==1 && cue::before==1 && cue::after==1 && cue::geometry==1);
@@ -223,6 +262,7 @@ int main(){
 }
 
 namespace wonderbane::extension {
+bool IsWorldEnhancementCompositionSafe() noexcept {return composition_safe.load();}
 bool AreNativeDrawQueriesSafe() noexcept {return trace_safe.load();}
 bool IsTerrainTraceCapturing() noexcept {return trace_capturing.load();}
 void TerrainTraceDraw(TerrainSubmission submission,std::uintptr_t caller,unsigned int mode,

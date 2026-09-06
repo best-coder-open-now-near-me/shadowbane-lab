@@ -65,3 +65,17 @@ def test_wrong_process_lifetime_rejected():
 def test_missing_block_rejected():
     with pytest.raises(ValueError):
         unpack(b"", target())
+
+
+def test_conservative_suppression_status_keeps_direction_available():
+    from shadowbane_lab.graphics_lab.selected_cue import describe_status
+
+    enabled = CueSettings(enabled=True)
+    state = (2, 2, 0, 0, 1, 0, 2, 0)
+    assert describe_status(enabled, state) == (
+        "Glow hidden to avoid rendering artifacts. Off-screen direction remains enabled."
+    )
+    assert describe_status(CueSettings(), state) == "Selected-character cue is disabled."
+    assert "Cue unavailable" in describe_status(enabled, (*state[:7], 1))
+    assert "Cue unavailable" in describe_status(enabled, (*state[:6], 1, 0))
+    assert "Waiting" in describe_status(enabled, (4, *state[1:]))

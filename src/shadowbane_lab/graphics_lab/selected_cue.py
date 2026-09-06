@@ -86,6 +86,28 @@ def unpack(
     return settings, (*h[6:], *struct.unpack_from("<4I", data, 72))
 
 
+# Native render status 2 means deliberate conservative suppression.
+GLOW_SUPPRESSED = 2
+
+
+def describe_status(settings: CueSettings, state: tuple[int, ...]) -> str:
+    desired, applied, rejected, error, binding, draws, gpu_error, observation = state
+    if not binding:
+        return "Character render binding unavailable; cue is disabled."
+    if error or observation or gpu_error not in (0, GLOW_SUPPRESSED):
+        return (
+            f"Cue unavailable: controls {error}, graphics {gpu_error}, "
+            f"observation {observation}."
+        )
+    if desired != applied:
+        return f"Waiting for frame acknowledgement {desired} (last rejection {rejected})."
+    if not settings.enabled:
+        return "Selected-character cue is disabled."
+    if gpu_error == GLOW_SUPPRESSED:
+        return "Glow hidden to avoid rendering artifacts. Off-screen direction remains enabled."
+    return f"Applied {applied} - owned character draws this frame: {draws}"
+
+
 class CueClient:
     def __init__(self, target: control.GraphicsControlTarget):
         if os.name != "nt" or not control.verify_target_identity(target):
@@ -165,7 +187,8 @@ class CuePanel:
         ).pack(anchor="w")
         ttk.Label(
             self.frame,
-            text="Visible glow; obstacles hide it. Arrow indicates the camera turn.",
+            text="Glow appears only when safe rendering is established. "
+            "The arrow indicates the camera turn independently.",
             wraplength=480,
         ).pack(anchor="w", pady=8)
         self.values = {}
@@ -243,24 +266,8 @@ class CuePanel:
                 if self.client.target != self.get_target():
                     self.disconnect()
                 else:
-                    _, s = self.client.read()
-                    desired, applied, rejected, error, binding, draws, gpu_error, observation = s
-                    if not binding:
-                        self.status.set("Character render binding unavailable; cue is disabled.")
-                    elif error or gpu_error or observation:
-                        self.status.set(
-                            f"Cue unavailable: controls {error}, graphics {gpu_error}, "
-                            f"observation {observation}."
-                        )
-                    elif desired == applied:
-                        self.status.set(
-                            f"Applied {applied} · owned character draws this frame: {draws}"
-                        )
-                    else:
-                        self.status.set(
-                            f"Waiting for frame acknowledgement {desired} "
-                            f"(last rejection {rejected})."
-                        )
+                    settings, state = self.client.read()
+                    self.status.set(describe_status(settings, state))
             except (OSError, ValueError) as error:
                 self.disconnect()
                 self.status.set(str(error))
