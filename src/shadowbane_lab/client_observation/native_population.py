@@ -22,9 +22,8 @@ from shadowbane_lab.client_observation.native_health import (
 from shadowbane_lab.client_observation.native_message_hud import (
     ScanningReadOnlyProcessMemory,
 )
-from shadowbane_lab.client_observation.native_object import NativeObjectKey
 
-NATIVE_CHARACTER_POPULATION_PROFILE_SCHEMA_VERSION = 2
+NATIVE_CHARACTER_POPULATION_PROFILE_SCHEMA_VERSION = 1
 _BUNDLED_PROFILE_NAME = "wonderbane-ef43784b.native-character-population.json"
 
 
@@ -55,8 +54,6 @@ class NativeCharacterPopulationProfile:
     player_pointer_rva: int
     selected_pointer_rva: int
     arc_character_vtable_rva: int
-    object_type_offset: int
-    object_uuid_offset: int
     current_health_offset: int
     maximum_health_offset: int
     position_component_offset: int
@@ -100,8 +97,6 @@ class NativeCharacterPopulationProfile:
             (self.player_pointer_rva, "player_pointer_rva"),
             (self.selected_pointer_rva, "selected_pointer_rva"),
             (self.arc_character_vtable_rva, "arc_character_vtable_rva"),
-            (self.object_type_offset, "object_type_offset"),
-            (self.object_uuid_offset, "object_uuid_offset"),
             (self.current_health_offset, "current_health_offset"),
             (self.maximum_health_offset, "maximum_health_offset"),
             (self.position_component_offset, "position_component_offset"),
@@ -132,8 +127,6 @@ class NativeCharacterPopulationProfile:
                 raise ValueError(f"{field_name} must be a non-negative integer")
         if self.maximum_health_offset != self.current_health_offset + 4:
             raise ValueError("maximum health must immediately follow current health")
-        if self.object_uuid_offset != self.object_type_offset + 4:
-            raise ValueError("character object key must be two adjacent 32-bit fields")
         if self.minimum_user_address < 0x10000:
             raise ValueError("minimum_user_address must exclude the null-allocation region")
         if not self.minimum_user_address < self.maximum_scan_address <= self.maximum_user_address:
@@ -150,7 +143,6 @@ class NativeCharacterPopulationProfile:
     @property
     def object_read_size(self) -> int:
         return max(
-            self.object_uuid_offset + 4,
             self.maximum_health_offset + 4,
             self.position_component_offset + self.pointer_size,
             self.action_target_pointer_offset + self.pointer_size,
@@ -174,7 +166,6 @@ class NativeCharacterObservation:
     trainer: bool
     minion: bool
     action_target_token: str | None = None
-    object_key: NativeObjectKey | None = None
 
     def __post_init__(self) -> None:
         if not self.token.strip():
@@ -201,11 +192,6 @@ class NativeCharacterObservation:
                 raise ValueError("character role flags must be boolean")
         if self.action_target_token is not None and not self.action_target_token.strip():
             raise ValueError("action_target_token must be non-empty when present")
-        if self.object_key is not None:
-            if not isinstance(self.object_key, NativeObjectKey):
-                raise ValueError("character object_key must be NativeObjectKey when present")
-            if self.object_key.is_null:
-                raise ValueError("character object_key must be non-null when present")
 
     @property
     def alive(self) -> bool:
@@ -239,26 +225,11 @@ class NativeCharacterPopulationObservation:
     player_action_target_token: str | None
     scan_generation: int
     rejected_candidates: int
-    local_player_object_key: NativeObjectKey | None = None
 
     def __post_init__(self) -> None:
         tokens = tuple(character.token for character in self.characters)
         if len(tokens) != len(set(tokens)):
             raise ValueError("character population tokens must be unique")
-        object_keys = tuple(
-            character.object_key
-            for character in self.characters
-            if character.object_key is not None
-        )
-        if len(object_keys) != len(set(object_keys)):
-            raise ValueError("character population object keys must be unique")
-        if self.local_player_object_key is not None:
-            if not isinstance(self.local_player_object_key, NativeObjectKey):
-                raise ValueError("local_player_object_key must be NativeObjectKey when present")
-            if self.local_player_object_key.is_null:
-                raise ValueError("local_player_object_key must be non-null when present")
-            if self.local_player_object_key in object_keys:
-                raise ValueError("local player object key must not appear in character population")
         if self.selected_target_token is not None and not self.selected_target_token.strip():
             raise ValueError("selected_target_token must be non-empty when present")
         if (
@@ -361,7 +332,6 @@ class NativeCharacterPopulationReader:
         player_action_target = struct.unpack_from(
             "<I", player_block, self._profile.action_target_pointer_offset
         )[0]
-        player_object_key = self._read_object_key(player_block, "local player")
         characters: list[NativeCharacterObservation] = []
         rejected = 0
         for address in self._candidate_addresses:
@@ -373,31 +343,10 @@ class NativeCharacterPopulationReader:
                 rejected += 1
                 continue
             characters.append(character)
-        character_keys = tuple(character.object_key for character in characters)
-        if len(character_keys) != len(set(character_keys)):
-            raise NativeCharacterPopulationReadError(
-                "loaded character object identities are duplicated"
-            )
-        if player_object_key in character_keys:
-            raise NativeCharacterPopulationReadError(
-                "local player object identity appears in loaded character population"
-            )
         if self._read_pointer(self._player_slot, "local player") != player:
             raise NativeCharacterPopulationReadError("local player changed during population read")
         if self._read_pointer(self._selected_slot, "selected target") != selected:
             raise NativeCharacterPopulationReadError("selection changed during population read")
-        player_verification = self._read_object_block(player, "local player verification")
-        if struct.unpack_from("<I", player_verification)[0] != self._character_vtable:
-            raise NativeCharacterPopulationReadError(
-                "local player type changed during population read"
-            )
-        if (
-            self._read_object_key(player_verification, "local player verification")
-            != player_object_key
-        ):
-            raise NativeCharacterPopulationReadError(
-                "local player identity changed during population read"
-            )
         characters.sort(key=lambda character: character.token)
         return NativeCharacterPopulationObservation(
             characters=tuple(characters),
@@ -407,7 +356,6 @@ class NativeCharacterPopulationReader:
             ),
             scan_generation=self._scan_generation,
             rejected_candidates=rejected,
-            local_player_object_key=player_object_key,
         )
 
     def close(self) -> None:
@@ -449,7 +397,6 @@ class NativeCharacterPopulationReader:
         block = self._read_object_block(address, "ArcCharacter candidate")
         if struct.unpack_from("<I", block)[0] != self._character_vtable:
             raise NativeCharacterPopulationReadError("candidate vtable changed")
-        object_key = self._read_object_key(block, "candidate")
         current, maximum = struct.unpack_from("<ff", block, profile.current_health_offset)
         if not isfinite(current) or not isfinite(maximum) or maximum <= 0:
             raise NativeCharacterPopulationReadError("candidate health is structurally invalid")
@@ -482,9 +429,6 @@ class NativeCharacterPopulationReader:
             self._require_pointer(action_target, profile.pointer_size, "action target")
         if self._read_pointer(address, "candidate vtable") != self._character_vtable:
             raise NativeCharacterPopulationReadError("candidate changed during population read")
-        verified_block = self._read_object_block(address, "ArcCharacter candidate verification")
-        if self._read_object_key(verified_block, "candidate verification") != object_key:
-            raise NativeCharacterPopulationReadError("candidate identity changed during read")
         return NativeCharacterObservation(
             token=self._token(address),
             current_health=max(0.0, min(current, maximum)),
@@ -498,17 +442,7 @@ class NativeCharacterPopulationReader:
             trainer=roles["trainer"],
             minion=roles["minion"],
             action_target_token=self._token(action_target) if action_target else None,
-            object_key=object_key,
         )
-
-    def _read_object_key(self, block: bytes, label: str) -> NativeObjectKey:
-        object_type, object_uuid = struct.unpack_from(
-            "<II", block, self._profile.object_type_offset
-        )
-        key = NativeObjectKey(object_type, object_uuid)
-        if key.is_null or object_type == 0 or object_uuid == 0:
-            raise NativeCharacterPopulationReadError(f"{label} object identity contains zero")
-        return key
 
     def _read_sparse_values(self, buckets: int, table_bits: int) -> dict[str, bool]:
         profile = self._profile

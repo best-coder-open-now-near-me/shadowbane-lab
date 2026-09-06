@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import unittest
-from dataclasses import replace
 
 from shadowbane_lab.client_observation.native_group import (
     NativeGroupMemberObservation,
@@ -13,13 +12,11 @@ from shadowbane_lab.client_observation.native_identity import (
     NativeKeyedCharacterObservation,
     NativeObjectKey,
     join_native_group_population,
-    key_native_character_population,
     native_group_member_key,
     project_native_group_to_party,
 )
 from shadowbane_lab.client_observation.native_population import (
     NativeCharacterObservation,
-    NativeCharacterPopulationObservation,
 )
 from shadowbane_lab.sim.affiliations import GroupKind
 
@@ -118,40 +115,6 @@ class NativeEntityIdentityMapTests(unittest.TestCase):
 
 
 class NativeGroupPopulationJoinTests(unittest.TestCase):
-    def test_coherent_population_projects_into_existing_exact_key_join(self) -> None:
-        character = replace(
-            _character("opaque-token"),
-            object_key=NativeObjectKey(3, 101),
-        )
-        population = NativeCharacterPopulationObservation(
-            characters=(character,),
-            selected_target_token=character.token,
-            player_action_target_token=None,
-            scan_generation=4,
-            rejected_candidates=0,
-            local_player_object_key=NativeObjectKey(3, 100),
-        )
-
-        keyed = key_native_character_population(population)
-        joined = join_native_group_population(
-            NativeGroupObservation(False, False, (_member("Alice", 3, 101),)),
-            keyed,
-        )
-
-        self.assertEqual(character, joined.matches[0].character.character)
-
-    def test_population_projection_rejects_missing_key(self) -> None:
-        population = NativeCharacterPopulationObservation(
-            characters=(_character("legacy-fixture"),),
-            selected_target_token=None,
-            player_action_target_token=None,
-            scan_generation=1,
-            rejected_candidates=0,
-        )
-
-        with self.assertRaisesRegex(ValueError, "no proven native object key"):
-            key_native_character_population(population)
-
     def test_join_uses_only_exact_object_keys_and_retains_unresolved_records(self) -> None:
         alice = _member("Alice", 3, 101, role_code=0x16)
         bob = _member("Bob", 3, 102)
