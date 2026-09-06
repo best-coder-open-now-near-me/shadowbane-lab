@@ -153,14 +153,94 @@ int PipelineGuardRegression(){
     return failures?1:0;
 }
 unsigned Pixel(int x,int y){std::array<unsigned char,4> p{};glReadPixels(x,y,1,1,GL_RGBA,GL_UNSIGNED_BYTE,p.data());return p[0]+p[1]+p[2];}
+int UnsupportedFormats(HDC inventory,HINSTANCE instance,const wchar_t* class_name){
+    PIXELFORMATDESCRIPTOR descriptor{};
+    const int count=DescribePixelFormat(inventory,1,sizeof(descriptor),&descriptor);
+    bool visited[65][17]{};unsigned executed=0,unavailable=0;
+    for(int format=1;format<=count;++format){
+        if(!DescribePixelFormat(inventory,format,sizeof(descriptor),&descriptor))continue;
+        const DWORD required=PFD_DRAW_TO_WINDOW|PFD_SUPPORT_OPENGL|PFD_DOUBLEBUFFER;
+        if((descriptor.dwFlags&required)!=required || descriptor.iPixelType!=PFD_TYPE_RGBA
+            || descriptor.cColorBits<24 || descriptor.cDepthBits>64 || descriptor.cStencilBits>16
+            || (descriptor.cDepthBits==24 && descriptor.cStencilBits==8))continue;
+        if(visited[descriptor.cDepthBits][descriptor.cStencilBits])continue;
+        HWND window=CreateWindowW(class_name,L"",WS_OVERLAPPEDWINDOW,0,0,680,540,nullptr,nullptr,instance,nullptr);
+        if(!window){++unavailable;continue;}
+        HDC dc=GetDC(window);HGLRC context=nullptr;
+        if(SetPixelFormat(dc,format,&descriptor))context=wglCreateContext(dc);
+        if(!context || !wglMakeCurrent(dc,context)){
+            ++unavailable;if(context)wglDeleteContext(context);ReleaseDC(window,dc);DestroyWindow(window);continue;
+        }
+        GLint depth=0,stencil=0,samples=0;
+        glGetIntegerv(GL_DEPTH_BITS,&depth);glGetIntegerv(GL_STENCIL_BITS,&stencil);
+        // Only contexts with the production mask APIs can exercise this rejection.
+        const auto framebuffer=wglGetProcAddress("glGenFramebuffers");
+        if(framebuffer)glGetIntegerv(0x80A9,&samples);
+        if(!framebuffer || samples || (depth==24 && stencil==8)){
+            std::printf("unsupported-format unavailable index=%d descriptor=%u/%u actual=%d/%d framebuffer=%d samples=%d\n",
+                format,unsigned(descriptor.cDepthBits),unsigned(descriptor.cStencilBits),depth,stencil,int(framebuffer!=nullptr),samples);
+            ++unavailable;
+        }else{
+            visited[descriptor.cDepthBits][descriptor.cStencilBits]=true;
+            std::printf("unsupported-format executed index=%d descriptor=%u/%u actual=%d/%d\n",
+                format,unsigned(descriptor.cDepthBits),unsigned(descriptor.cStencilBits),depth,stencil);
+            Check(depth==descriptor.cDepthBits && stencil==descriptor.cStencilBits,"actual format matches enumerated descriptor");
+            glViewport(0,0,640,480);glMatrixMode(GL_PROJECTION);glLoadIdentity();
+            glMatrixMode(GL_MODELVIEW);glLoadIdentity();glEnable(GL_DEPTH_TEST);glDepthFunc(GL_EQUAL);
+            glClearColor(.125F,.25F,.5F,1);glClearDepth(.5);glClearStencil(3);
+            glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT|GL_STENCIL_BUFFER_BIT);
+            Check(cue::BeginMask() && cue::BeforeOwnedDraw(),"unsupported format mask setup");
+            const auto before=Snapshot();
+            std::array<GLubyte,4> color_before{},color_after{};GLfloat depth_before=0,depth_after=0;
+            GLint stencil_before=0,stencil_after=0;
+            glReadPixels(230,240,1,1,GL_RGBA,GL_UNSIGNED_BYTE,color_before.data());
+            if(depth)glReadPixels(230,240,1,1,GL_DEPTH_COMPONENT,GL_FLOAT,&depth_before);
+            if(stencil)glReadPixels(230,240,1,1,GL_STENCIL_INDEX,GL_INT,&stencil_before);
+            unsigned submissions=0;
+            const auto submit=[](void* value) noexcept {++*static_cast<unsigned*>(value);Rect(-.4F,.4F,-.5F,.5F,0);};
+            Check(!cue::CaptureGeometry(submit,&submissions),"unsupported EQUAL format rejects capture");
+            Check(submissions==0,"unsupported EQUAL format performs no supplemental submission");Same(before,Snapshot());
+            glReadPixels(230,240,1,1,GL_RGBA,GL_UNSIGNED_BYTE,color_after.data());
+            if(depth)glReadPixels(230,240,1,1,GL_DEPTH_COMPONENT,GL_FLOAT,&depth_after);
+            if(stencil)glReadPixels(230,240,1,1,GL_STENCIL_INDEX,GL_INT,&stencil_after);
+            Check(color_before==color_after && depth_before==depth_after && stencil_before==stencil_after,
+                "unsupported format preserves native color depth stencil");
+            using Gen=void(APIENTRY*)(GLsizei,GLuint*);using Begin=void(APIENTRY*)(GLenum,GLuint);
+            using End=void(APIENTRY*)(GLenum);using Result=void(APIENTRY*)(GLuint,GLenum,GLuint*);
+            const auto gen=reinterpret_cast<Gen>(wglGetProcAddress("glGenQueries"));
+            const auto remove=reinterpret_cast<Gen>(wglGetProcAddress("glDeleteQueries"));
+            const auto begin=reinterpret_cast<Begin>(wglGetProcAddress("glBeginQuery"));
+            const auto end=reinterpret_cast<End>(wglGetProcAddress("glEndQuery"));
+            const auto result=reinterpret_cast<Result>(wglGetProcAddress("glGetQueryObjectuiv"));
+            if(gen && remove && begin && end && result){
+                GLuint query=0,value=1;gen(1,&query);begin(0x8914,query);
+                Check(!cue::CaptureGeometry(submit,&submissions),"unsupported format rejects during native query");
+                end(0x8914);result(query,0x8866,&value);remove(1,&query);
+                Check(value==0 && submissions==0,"unsupported format leaves native query unchanged");Same(before,Snapshot());
+            }else{std::puts("unsupported-format query check unavailable");++unavailable;}
+            cue::DiscardMask();cue::ReleaseMask();Check(cue::AllocatedMaskBytes()==0,"unsupported format cleanup");
+            Check(RenderSceneGeometry(nullptr,[](void*) noexcept {glColor3f(1,0,0);Rect(-.4F,.4F,-.5F,.5F,0);},nullptr),
+                "unrelated scene rendering survives rejected format");
+            std::array<GLubyte,4> pixel{};glReadPixels(230,240,1,1,GL_RGBA,GL_UNSIGNED_BYTE,pixel.data());
+            Check(pixel[0]==255 && pixel[1]==0,"unrelated scene pixels remain drawable");Same(before,Snapshot());
+            Check(cue::BeginMask(),"unsupported-format cleanup permits resource recreation");cue::ReleaseMask();
+            Check(cue::AllocatedMaskBytes()==0 && glGetError()==GL_NO_ERROR,"unsupported format recreation cleanup without GL errors");
+            ++executed;
+        }
+        wglMakeCurrent(nullptr,nullptr);wglDeleteContext(context);ReleaseDC(window,dc);DestroyWindow(window);
+    }
+    std::printf("unsupported-format summary enumerated=%d executed=%u unavailable=%u\n",count,executed,unavailable);
+    return failures?1:(executed?0:77);
+}
 }
 #include "selected_cue_source_experiment.h"
 int main(int argc,char** argv){
     if(argc>2 || (argc==2 && std::strcmp(argv[1],"--cost")!=0
         && std::strcmp(argv[1],"--native-transparency")!=0
         && std::strcmp(argv[1],"--source-feasibility")!=0
-        && std::strcmp(argv[1],"--pipeline-guard")!=0)){
-        std::fprintf(stderr,"usage: selected_cue_gpu_test [--cost|--native-transparency|--source-feasibility|--pipeline-guard]\n");return 2;
+        && std::strcmp(argv[1],"--pipeline-guard")!=0
+        && std::strcmp(argv[1],"--unsupported-formats")!=0)){
+        std::fprintf(stderr,"usage: selected_cue_gpu_test [--cost|--native-transparency|--source-feasibility|--pipeline-guard|--unsupported-formats]\n");return 2;
     }
     WNDCLASSW wc{};wc.style=CS_OWNDC;wc.lpfnWndProc=DefWindowProcW;
     wc.hInstance=GetModuleHandleW(nullptr);wc.lpszClassName=L"SelectedCueGpuTest";
@@ -171,6 +251,10 @@ int main(int argc,char** argv){
     pf.dwFlags=PFD_DRAW_TO_WINDOW|PFD_SUPPORT_OPENGL|PFD_DOUBLEBUFFER;
     pf.iPixelType=PFD_TYPE_RGBA;pf.cColorBits=24;pf.cDepthBits=24;pf.cStencilBits=8;
     if(argc==2 && std::strcmp(argv[1],"--source-feasibility")==0)pf.cAlphaBits=8;
+    if(argc==2 && std::strcmp(argv[1],"--unsupported-formats")==0){
+        const int result=UnsupportedFormats(dc,wc.hInstance,wc.lpszClassName);
+        ReleaseDC(window,dc);DestroyWindow(window);return result;
+    }
     if(!SetPixelFormat(dc,ChoosePixelFormat(dc,&pf),&pf))return 4;
     HGLRC context=wglCreateContext(dc);if(!context || !wglMakeCurrent(dc,context))return 5;
     if(!wglGetProcAddress("glGenFramebuffers")) {
