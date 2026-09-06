@@ -814,3 +814,33 @@ artifacts/native-movement. No VM or independent installation occurred.
 Next active todo: owner inclusion and exact rebuilt prepare-copy/package gates,
 then a narrowly coordinated live settings/startup check before physical movement
 acceptance. No live fix or controller acceptance is claimed by these local tests.
+
+
+## Shared terrain repair admission follow-up (September 6)
+
+The integration owner's narrow live 1.7.2 check confirmed terminal status now
+publishes, but hook admission still failed. Read-only loaded-code comparison found
+exactly the four existing reviewed terrain-mask-refresh replacements and no other
+text differences; the update region itself matched. The preceding package fixture
+had mapped the prepared executable without running the shared renderer's terrain
+repair first, so it missed this production startup interaction.
+
+Movement verification now asks the existing terrain repair owner to normalize its
+active, fully installed patch set only in the verifier's private comparison copy.
+The owner checks exact image/site addresses, original/replacement metadata, completed
+protection/cache work, authenticated disk originals and all four loaded replacements.
+Without active ownership, no bytes are normalized. Partial, modified or unowned
+matching patch sets still fail strict whole-text comparison. The client code and
+working terrain repair are not changed by verification.
+
+The original/prepared image gate now invokes actual StartTerrainMaskRefresh before
+movement VerifyBinding, then checks altered/partial/unrelated/unowned negatives and
+Stop restoration. Both full and diagnostics variants pass; diagnostics proves the
+repair remains disabled and stock code remains required. Existing terrain repair
+regressions pass. Root owns CMake source membership and the next version/package;
+no independent VM operation occurred. A superseded read-only helper was archived
+from scripts/diagnose_native_movement_startup.py to the ignored local
+artifacts/native-movement/diagnose_native_movement_startup.py and is not shipped.
+
+Next active todo: root's exact combined build/package and narrow live admission
+check. Physical WASD/controller/drag acceptance remains unverified.

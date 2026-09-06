@@ -14,6 +14,7 @@ DWORD WINAPI TestModulePath(HMODULE,wchar_t* out,DWORD capacity){
 }
 HMODULE WINAPI TestModuleHandle(LPCWSTR){return static_cast<HMODULE>(tested_image);}
 }
+#include "terrain_mask_refresh.cpp"
 #define GetModuleFileNameW TestModulePath
 #define GetModuleHandleW TestModuleHandle
 #include "movement_native_image.cpp"
@@ -69,6 +70,28 @@ int wmain(int argc,wchar_t** argv){
   tested_path=argv[n];Mapped(bytes);if(!tested_image)return 1;
   std::uintptr_t base=0;Check(wm::VerifyNativeMovementImage(base) && base==reinterpret_cast<std::uintptr_t>(tested_image),"production disk and relocated loaded-text verifier accepts");
   we::image_base=0;Check(we::VerifyBinding(identity)==ERROR_SUCCESS,"production update gate accepts reviewed prepared bootstrap");
+  auto* terrain_image=static_cast<std::uint8_t*>(tested_image);
+  we::StartTerrainMaskRefresh(terrain_image,0x1766000U,"feb351f0fae87d47549fa43c37836405a753d76fbcd0b02232fc1c0733550dff");
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+  Check(std::strstr(we::TerrainMaskRefreshStatusJson(),"active")!=nullptr,"actual shared terrain repair installed before movement");
+  Check(wm::VerifyNativeMovementImage(base) && we::VerifyBinding(identity)==ERROR_SUCCESS,"movement accepts actual fully owned terrain repair");
+  for(const auto& patch:we::terrain_mask_review::kPatches){
+   terrain_image[patch.rva]=patch.original;
+   Check(!wm::VerifyNativeMovementImage(base),"partial owned terrain repair rejected");
+   terrain_image[patch.rva]=static_cast<std::uint8_t>(patch.replacement^0xffU);
+   Check(!wm::VerifyNativeMovementImage(base),"changed owned terrain repair byte rejected");
+   terrain_image[patch.rva]=patch.replacement;
+  }
+  terrain_image[0x2000]^=1;Check(!wm::VerifyNativeMovementImage(base),"unrelated mutation rejected while terrain repair owned");terrain_image[0x2000]^=1;
+#else
+  Check(std::strstr(we::TerrainMaskRefreshStatusJson(),"disabled")!=nullptr,"diagnostics terrain repair stays disabled");
+  Check(wm::VerifyNativeMovementImage(base),"diagnostics stock code accepted");
+#endif
+  we::StopTerrainMaskRefresh();
+  Check(wm::VerifyNativeMovementImage(base),"restored original terrain code accepted");
+  for(const auto& patch:we::terrain_mask_review::kPatches)terrain_image[patch.rva]=patch.replacement;
+  Check(!wm::VerifyNativeMovementImage(base),"unowned matching terrain patch set rejected");
+  for(const auto& patch:we::terrain_mask_review::kPatches)terrain_image[patch.rva]=patch.original;
   auto changed=bytes;changed[0x2000]^=1;Check(!wm::ReviewedImage(changed),"unrelated code patch rejected");
   changed=bytes;changed.back()^=1;Check(!wm::ReviewedImage(changed),"unrelated file data patch rejected");
   changed=bytes;changed.resize(1024);Check(!wm::ReviewedImage(changed),"truncated image rejected");
@@ -84,6 +107,6 @@ int wmain(int argc,wchar_t** argv){
   Check(!we::VerifyUpdate(),"reviewed update function digest still enforced");
   VirtualFree(tested_image,0,MEM_RELEASE);tested_image=nullptr;we::image_base=0;
  }
- if(!failures)std::cout<<"Executed original/prepared disk authentication, relocated loaded-text and update gate; rejected partial/bootstrap/code/data/truncation/loaded mutations.\n";
+ if(!failures)std::cout<<"Executed original/prepared disk authentication, relocated loaded-text and update gate; actual terrain startup ownership and restoration; rejected partial/bootstrap/code/data/truncation/loaded/unowned mutations.\n";
  return failures?1:0;
 }
