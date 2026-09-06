@@ -1463,6 +1463,12 @@ class ClientCliTests(unittest.TestCase):
                 redirect_stdout(output),
             ):
                 emergency_stop.return_value.__enter__.return_value = EventEmergencyStop()
+                # Runtime protocols use static attribute lookup on Python 3.12+.
+                # Model the owned operation explicitly rather than MagicMock's __getattr__.
+                native_operation.return_value.__enter__.return_value = SimpleNamespace(
+                    dispatcher=SimpleNamespace(dispatch=MagicMock(), stop_movement=MagicMock()),
+                    is_set=injected_stop.is_set,
+                )
                 pve_runner.return_value.run.return_value = completed_run
                 result = _run_pve(
                     client_profile_path=template,
@@ -1486,6 +1492,7 @@ class ClientCliTests(unittest.TestCase):
                     client_process_id=4320,
                     movement_dispatcher=movement_dispatcher,
                 )
+                self.assertEqual(0, result, output.getvalue())
                 inspector_session.assert_called_once_with(
                     open_position.return_value.__enter__.return_value
                 )
