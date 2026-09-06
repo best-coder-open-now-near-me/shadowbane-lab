@@ -1,5 +1,31 @@
 # Shared testing and acceptance plan
 
+## Owner scope update — September 6, 2026
+
+The owner prioritizes avoiding artifacts over physically correct native transparency
+and identifies these visual enhancements as stretch goals. Glow and particles may
+be suppressed where safe composition cannot be established. This supersedes the
+requirement that ideal native transparency block every candidate.
+
+Existing incorrect composition is not passing behavior. The candidate must implement
+and test conservative suppression, preserve native rendering and unrelated features,
+and distinguish requested settings from actual visibility in controls/status.
+Unknown coverage is unsafe; final depth and absence of observed blending do not
+establish safety. Stable scene/session suppression is acceptable. The present client
+has no demonstrated positive coverage authority, so world glow and particles/trails
+will be explicitly suppressed; the direction indicator remains independent.
+These suppressed world enhancements are deferred, not claimed visibly complete.
+
+Keep ideal-transparency pixel counterexamples as diagnostic evidence. Required
+release gates verify suppression, controls, interruption/recovery and combined
+behavior. Do not certify a candidate by ignoring any required fallback failure.
+No broad owner navigation rerun is requested.
+
+The existing Sol task “Test new integration features” will receive one pinned
+source/package/hash handoff after developer gates and installed-package verification.
+Its role is coordination only until then. Main merge and shared-VM replacement
+restrictions remain in force.
+
 Scope:
 The completed particles/trails, selected-character glow and indicator,
 sky/horizon, native WASD/controller/click-drag controls, and runtime-hardening

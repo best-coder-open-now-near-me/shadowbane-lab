@@ -2,6 +2,10 @@
 #include "graphics_status.h"
 namespace wonderbane::extension {
 using SceneDraw = void(*)(void*) noexcept;
+// Stable owner policy, separate from camera validity and GL state restoration.
+// No supported native path currently establishes complete ordered coverage.
+// Requested settings cannot override this authority.
+bool IsWorldEnhancementCompositionSafe() noexcept;
 // Verified background or scene/UI boundary only; caller owns stage authority.
 // Preserves driver state; callback may draw immediate geometry. The guard saves
 // and restores the current program and core/ARB program-pipeline binding,

@@ -36,6 +36,11 @@ bool StackRoom(GLenum depth_name, GLenum max_name) noexcept {
     return depth >= 0 && depth < maximum;
 }
 }
+bool IsWorldEnhancementCompositionSafe() noexcept {
+    // Conservative owner-selected fallback: preserve native foreground pixels.
+    // A valid camera/final depth or missing observed blend is not coverage proof.
+    return false;
+}
 bool AreSceneGeometryQueriesInactive() noexcept {
     if (!wglGetCurrentContext()) return false;
     const auto* version = reinterpret_cast<const char*>(glGetString(GL_VERSION));
