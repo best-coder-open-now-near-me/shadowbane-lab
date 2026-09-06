@@ -74,6 +74,12 @@ class GraphicsLabApp:
         style = ttk.Style(self.root)
         style.theme_use("clam")
         style.configure(".", background=_BACKGROUND, foreground=_TEXT)
+        style.configure("Target.TCombobox", foreground="black")
+        style.map(
+            "Target.TCombobox",
+            foreground=[("readonly", "black")],
+            selectforeground=[("readonly", "black")],
+        )
         style.configure("TFrame", background=_BACKGROUND)
         style.configure("Panel.TFrame", background=_PANEL)
         style.configure(
@@ -152,8 +158,10 @@ class GraphicsLabApp:
         target_row = ttk.Frame(container)
         target_row.pack(fill="x", pady=(0, 8))
         self.target_combo = ttk.Combobox(
-            target_row, textvariable=self.target_var, state="readonly"
+            target_row, textvariable=self.target_var, state="readonly", style="Target.TCombobox"
         )
+        self.root.option_add(f"{self.target_combo}*Listbox.foreground", "black")
+        self.root.option_add(f"{self.target_combo}*Listbox.selectForeground", "black")
         self.target_combo.pack(side="left", fill="x", expand=True)
         self.target_combo.bind("<<ComboboxSelected>>", self._connect_selected)
         ttk.Button(target_row, text="Refresh", command=self.refresh_targets).pack(
