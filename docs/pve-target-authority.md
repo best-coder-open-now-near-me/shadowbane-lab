@@ -91,6 +91,34 @@ joins.
 
 ## Native calibration sequence
 
+September 6 ownership investigation: registration references in the reviewed local
+image `feb351f0fae87d47549fa43c37836405a753d76fbcd0b02232fc1c0733550dff`
+identify these sparse descriptors. They are candidates, not ownership evidence:
+
+| Field | String RVA | Registration reference RVA | Descriptor RVA | Runtime key |
+| --- | --- | --- | --- | --- |
+| `petData` | `0x12c49d4` | `0x4554a` | `0x1373148` | `3959642336` |
+| `wasPet` | `0x12c49e0` | `0x45671` | `0x1373130` | `2890482807` |
+| `isMinion` | `0x12c4a88` | `0x45bb1` | `0x13730b0` | `1455701066` |
+
+The bounded read-only guest sample on reviewed running image
+`bb63469eb35917e6b3f58be75d29f94855c9868024271222465b4db62f0e3a87`
+confirmed the previous local-player and selected-party-player keys. Neither
+character's sparse table contained any of these three keys. This establishes only
+an absent-field baseline; absence does not prove lack of ownership. The `petData`
+payload layout, edge direction, and completeness remain unverified. `wasPet` must
+not be treated as current ownership from its name alone.
+
+The owner reports no pets are currently available and deferred that gameplay
+check. Resume with a known pet and known owner, then prove an exact object-key join
+and behavior across ownership changes before enabling ownership completeness.
+Raw captures and VM credentials remain outside source control.
+
+Source delivery: `codex/live-entity-identity-bridge` contains identity checkpoint
+`e691baf` and party snapshot checkpoint `8a1395b`. These published checkpoints await
+review into `codex/native-lifecycle-hardening`; `main` remains the eventual shared
+merge destination. This note does not certify deployment or combat activation.
+
 The remaining live bridge should be added in this order:
 
 1. Project the ownership graph through `NativeEntityIdentityMap`.
