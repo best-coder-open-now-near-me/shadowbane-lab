@@ -1482,3 +1482,14 @@ Rectangle texture repair and this validation close specific cross-feature issues
 general ordered foreground transparency remains open and still blocks complete
 candidate certification. Next: justified native fragment source/coverage ownership
 and completion of that repair, preserving existing navigation and feature behavior.
+
+### Combined product identity preparation (September 6)
+
+The next combined source uses native product 1.7.0 and Python distribution 0.2.0.
+Native ABI and IPC/wire versions are unchanged. The trace reader retains 1.6.12
+and 1.6.13 evidence compatibility and recognizes 1.7.0 with exact requested-version
+checks. Historical pinned deployment scripts and material-repair evidence tools
+remain tied to their reviewed builds; they do not certify this candidate.
+Identity/trace validation: 56 tests passed. This checkpoint assigns source identity;
+no newly built package, DLL hash, deployment or live acceptance is claimed.
+Next: consume conservative cue/effects runtime changes and verify combined gates.
