@@ -81,7 +81,7 @@ stale, or same-address-reused keys.
 identity changes across that boundary, and publishes the exact identity and party portion of a
 revisioned authority snapshot. An unresolved roster key makes party completeness false; it is never
 treated as proof that an entity is outside the party. This bridge does not yet claim hostility
-relation, ownership, or attackability. The coherent observation source and runner
+relation, complete ownership, or attackability. The coherent observation source and runner
 now accept an optional native group reader and party identifier. When configured,
 they bracket the frame with group identity reads inside the selected-target
 boundary, carry its immutable authority snapshot through the canonical dispatch
@@ -100,7 +100,7 @@ joins.
 
 September 6 ownership investigation: registration references in the reviewed local
 image `feb351f0fae87d47549fa43c37836405a753d76fbcd0b02232fc1c0733550dff`
-identify these sparse descriptors. They are candidates, not ownership evidence:
+identify these sparse descriptors. Registration alone is not ownership evidence:
 
 | Field | String RVA | Registration reference RVA | Descriptor RVA | Runtime key |
 | --- | --- | --- | --- | --- |
@@ -113,16 +113,33 @@ The bounded read-only guest sample on reviewed running image
 confirmed the previous local-player and selected-party-player keys. Neither
 character's sparse table contained any of these three keys. This establishes only
 an absent-field baseline; absence does not prove lack of ownership. The `petData`
-payload layout, edge direction, and completeness remain unverified. `wasPet` must
+payload layout and edge direction were initially unverified. `wasPet` must
 not be treated as current ownership from its name alone.
 
-The owner reports no pets are currently available and deferred that gameplay
-check. Resume with a known pet and known owner, then prove an exact object-key join
-and behavior across ownership changes before enabling ownership completeness.
+Later September 6, the owner selected a known pet, identified its owner, entered a
+fight zone, joined a group and enabled formation. A bounded passive read established
+that the `petData` sparse value node stores the owner's two-word object key directly
+in its first eight bytes. It is NOT a boolean-style pointer at node +4. The decoded
+owner matched the independently observed group roster key exactly. Selection,
+character identity, sparse header/table and repeated owner-key reads were stable.
+The pet had NPC UUID class 37; neither `wasPet` nor `isMinion` was needed.
+
+Population profile schema 3 reads this positive owner key, classifies the character
+as PET, and excludes known pets from ordinary PvE candidates. Invalid, duplicate,
+self-owning or changing pet data rejects the candidate. The snapshot projects
+owner-to-pet edges only when both exact keys are mapped, and serializes those
+edges for review. Missing owner bindings and absent descriptors never prove
+non-ownership: ownership completeness remains false. Ownership changes, dismissal
+and other summon types still require calibration before that can change.
+
+The local character and selected pet both had stable peace byte 0 in the
+owner-confirmed fight zone, contrasting with the earlier peace-zone byte 1.
+That observation still does not establish native attackability or hostility.
 Raw captures and VM credentials remain outside source control.
 
 Source delivery: `codex/live-entity-identity-bridge` contains identity checkpoint
-`e691baf` and party snapshot checkpoint `8a1395b`. These published checkpoints await
+`e691baf`, party snapshot checkpoint `8a1395b`, same-frame runtime checkpoint
+`1b5ffbb`, and the subsequent positive pet-owner implementation. These checkpoints await
 review into `codex/native-lifecycle-hardening`; `main` remains the eventual shared
 merge destination. This note does not certify deployment or combat activation.
 
@@ -151,7 +168,8 @@ dialog path; it does not independently establish hostile-NPC authority. The
 `CannotAttack` string at RVA `0x12d0aa0` registers a token at `0x158600`; its name
 alone does not establish a character flag or pairwise attackability check.
 
-1. Project the ownership graph through `NativeEntityIdentityMap`.
+1. Positive known-pet edges are projected through `NativeEntityIdentityMap`; next
+   calibrate ownership transitions and completeness.
 2. Calibrate the client field or protocol state that proves attackability and hostile relation.
 3. Configure the live launcher's authority channels after their remaining facts are calibrated.
 4. Enable strict authority in passive observation and plan-only traces before allowing live combat

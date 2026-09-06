@@ -30,6 +30,7 @@ from shadowbane_lab.sim.affiliations import (
     DefaultRelationPolicy,
     GroupKey,
     GroupKind,
+    OwnershipEdge,
     RelationPolicy,
     RelationResolver,
 )
@@ -151,6 +152,10 @@ class PvETargetAuthoritySnapshot:
                 for binding in self.identities.canonical_bindings
             ],
             "affiliation_revision": self.affiliations.revision,
+            "ownership_edges": [
+                {"owner_id": edge.owner_id, "owned_id": edge.owned_id}
+                for edge in self.affiliations.ownership_edges
+            ],
             "characters": [value.as_dict() for value in self.characters],
             "completeness": {
                 "party": self.party_complete,
@@ -218,6 +223,7 @@ def build_native_party_authority_snapshot(
     kind_map = {
         NativeCharacterKind.PLAYER: PvETargetCharacterKind.PLAYER,
         NativeCharacterKind.NPC: PvETargetCharacterKind.NPC,
+        NativeCharacterKind.PET: PvETargetCharacterKind.PET,
         NativeCharacterKind.UNKNOWN: PvETargetCharacterKind.UNKNOWN,
     }
     for character in population.characters:
@@ -239,6 +245,14 @@ def build_native_party_authority_snapshot(
         )
 
     identities = NativeEntityIdentityMap(tuple(bindings))
+    entity_by_key = {binding.object_key: binding.entity_id for binding in bindings}
+    ownership_edges = tuple(
+        OwnershipEdge(
+            entity_by_key[character.owner_object_key], entity_by_key[character.object_key]
+        )
+        for character in population.characters
+        if character.owner_object_key is not None and character.owner_object_key in entity_by_key
+    )
     party = project_native_party_memberships(
         GroupKey(GroupKind.PARTY, party_group_id),
         group,
@@ -253,6 +267,7 @@ def build_native_party_authority_snapshot(
         affiliations=AffiliationSnapshot(
             revision=revision,
             memberships=party.memberships,
+            ownership_edges=ownership_edges,
         ),
         characters=tuple(records),
         party_complete=party.complete,
@@ -261,6 +276,7 @@ def build_native_party_authority_snapshot(
         evidence_sources=(
             "coherent_native_character_population",
             "native_group_roster_exact_key_projection",
+            "native_pet_data_positive_owner_projection",
         ),
     )
 

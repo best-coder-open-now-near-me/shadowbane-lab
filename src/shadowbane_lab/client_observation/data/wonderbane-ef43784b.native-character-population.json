@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "profile_id": "wonderbane-ef43784b-native-character-population",
   "executable_name": "sb.exe",
   "executable_sha256": "ef43784ba6ffa0de6c0c16c76569f864393ad1530e7149395bb560e5cca30f13",
@@ -23,6 +23,7 @@
   "banker_descriptor_rva": 20394136,
   "trainer_descriptor_rva": 20394112,
   "minion_descriptor_rva": 20394160,
+  "pet_data_descriptor_rva": 20394312,
   "descriptor_key_offset": 4,
   "sparse_value_pointer_offset": 4,
   "maximum_sparse_table_bits": 16,

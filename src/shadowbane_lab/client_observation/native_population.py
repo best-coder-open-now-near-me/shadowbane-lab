@@ -25,7 +25,7 @@ from shadowbane_lab.client_observation.native_message_hud import (
 )
 from shadowbane_lab.client_observation.native_object import NativeObjectKey
 
-NATIVE_CHARACTER_POPULATION_PROFILE_SCHEMA_VERSION = 2
+NATIVE_CHARACTER_POPULATION_PROFILE_SCHEMA_VERSION = 3
 _BUNDLED_PROFILE_NAME = "wonderbane-ef43784b.native-character-population.json"
 
 
@@ -72,6 +72,7 @@ class NativeCharacterPopulationProfile:
     banker_descriptor_rva: int
     trainer_descriptor_rva: int
     minion_descriptor_rva: int
+    pet_data_descriptor_rva: int
     descriptor_key_offset: int
     sparse_value_pointer_offset: int
     maximum_sparse_table_bits: int
@@ -117,6 +118,7 @@ class NativeCharacterPopulationProfile:
             (self.banker_descriptor_rva, "banker_descriptor_rva"),
             (self.trainer_descriptor_rva, "trainer_descriptor_rva"),
             (self.minion_descriptor_rva, "minion_descriptor_rva"),
+            (self.pet_data_descriptor_rva, "pet_data_descriptor_rva"),
             (self.descriptor_key_offset, "descriptor_key_offset"),
             (self.sparse_value_pointer_offset, "sparse_value_pointer_offset"),
             (self.maximum_sparse_table_bits, "maximum_sparse_table_bits"),
@@ -170,6 +172,7 @@ class NativeCharacterKind(StrEnum):
 
     PLAYER = "player"
     NPC = "npc"
+    PET = "pet"
     UNKNOWN = "unknown"
 
 
@@ -191,6 +194,7 @@ class NativeCharacterObservation:
     action_target_token: str | None = None
     object_key: NativeObjectKey | None = None
     character_kind: NativeCharacterKind = NativeCharacterKind.UNKNOWN
+    owner_object_key: NativeObjectKey | None = None
 
     def __post_init__(self) -> None:
         if not self.token.strip():
@@ -224,6 +228,15 @@ class NativeCharacterObservation:
                 raise ValueError("character object_key must be non-null when present")
         if not isinstance(self.character_kind, NativeCharacterKind):
             raise ValueError("character_kind must be NativeCharacterKind")
+        if self.owner_object_key is not None:
+            if not isinstance(self.owner_object_key, NativeObjectKey):
+                raise ValueError("owner_object_key must be NativeObjectKey when present")
+            if not self.owner_object_key.object_type or not self.owner_object_key.object_uuid:
+                raise ValueError("owner_object_key must contain two nonzero fields")
+            if self.owner_object_key == self.object_key:
+                raise ValueError("character cannot own itself")
+            if self.character_kind != NativeCharacterKind.PET:
+                raise ValueError("character with a pet owner must have PET kind")
 
     @property
     def alive(self) -> bool:
@@ -239,6 +252,7 @@ class NativeCharacterObservation:
                 ("banker", self.banker),
                 ("trainer", self.trainer),
                 ("minion", self.minion),
+                ("pet", self.character_kind == NativeCharacterKind.PET),
             )
             if enabled
         )
@@ -348,6 +362,7 @@ class NativeCharacterPopulationReader:
                 ("banker", profile.banker_descriptor_rva),
                 ("trainer", profile.trainer_descriptor_rva),
                 ("minion", profile.minion_descriptor_rva),
+                ("pet", profile.pet_data_descriptor_rva),
             )
         }
         if len(set(self._descriptor_keys.values())) != len(self._descriptor_keys):
@@ -494,7 +509,9 @@ class NativeCharacterPopulationReader:
         ):
             raise NativeCharacterPopulationReadError("candidate position is outside world bounds")
         buckets, table_bits = struct.unpack_from("<II", block, profile.sparse_data_offset)
-        roles = self._read_sparse_values(buckets, table_bits)
+        roles, owner_key = self._read_sparse_values(buckets, table_bits)
+        if owner_key == object_key:
+            raise NativeCharacterPopulationReadError("candidate cannot own itself")
         action_target = struct.unpack_from("<I", block, profile.action_target_pointer_offset)[0]
         if action_target:
             self._require_pointer(action_target, profile.pointer_size, "action target")
@@ -503,6 +520,12 @@ class NativeCharacterPopulationReader:
         verified_block = self._read_object_block(address, "ArcCharacter candidate verification")
         if self._read_object_key(verified_block, "candidate verification") != object_key:
             raise NativeCharacterPopulationReadError("candidate identity changed during read")
+        if struct.unpack_from("<II", verified_block, profile.sparse_data_offset) != (
+            buckets, table_bits
+        ):
+            raise NativeCharacterPopulationReadError("candidate sparse header changed during read")
+        if self._read_sparse_values(buckets, table_bits) != (roles, owner_key):
+            raise NativeCharacterPopulationReadError("candidate sparse values changed during read")
         return NativeCharacterObservation(
             token=self._token(address),
             current_health=max(0.0, min(current, maximum)),
@@ -517,7 +540,11 @@ class NativeCharacterPopulationReader:
             minion=roles["minion"],
             action_target_token=self._token(action_target) if action_target else None,
             object_key=object_key,
-            character_kind=self._character_kind(object_key),
+            character_kind=(
+                NativeCharacterKind.PET
+                if owner_key is not None else self._character_kind(object_key)
+            ),
+            owner_object_key=owner_key,
         )
 
     def _read_object_key(self, block: bytes, label: str) -> NativeObjectKey:
@@ -536,13 +563,16 @@ class NativeCharacterPopulationReader:
             return NativeCharacterKind.NPC
         return NativeCharacterKind.UNKNOWN
 
-    def _read_sparse_values(self, buckets: int, table_bits: int) -> dict[str, bool]:
+    def _read_sparse_values(
+        self, buckets: int, table_bits: int
+    ) -> tuple[dict[str, bool], NativeObjectKey | None]:
         profile = self._profile
         if table_bits > profile.maximum_sparse_table_bits:
             raise NativeCharacterPopulationReadError("sparse-data table exceeds calibrated bound")
         values = dict.fromkeys(self._descriptor_keys, False)
+        owner_key = None
         if buckets == 0:
-            return values
+            return values, owner_key
         table_size = (1 << table_bits) * 8
         self._require_pointer(buckets, table_size, "sparse-data bucket table")
         table = self._read_exact(buckets, table_size, "sparse-data bucket table")
@@ -559,6 +589,18 @@ class NativeCharacterPopulationReader:
             else:
                 nodes[role] = value_node
         for role, value_node in nodes.items():
+            if role == "pet":
+                # petData stores the owner key inline; unlike boolean descriptors,
+                # its second word is a UUID class, NOT a pointer to another value.
+                self._require_pointer(value_node, 8, "pet owner key")
+                raw_owner = self._read_exact(value_node, 8, "pet owner key")
+                owner_key = NativeObjectKey(*struct.unpack("<II", raw_owner))
+                if not owner_key.object_type or not owner_key.object_uuid:
+                    raise NativeCharacterPopulationReadError("pet owner key contains zero")
+                if self._read_exact(value_node, 8, "pet owner verification") != raw_owner:
+                    raise NativeCharacterPopulationReadError("pet owner changed during read")
+                values[role] = True
+                continue
             self._require_pointer(
                 value_node,
                 profile.sparse_value_pointer_offset + profile.pointer_size,
@@ -573,7 +615,9 @@ class NativeCharacterPopulationReader:
             if raw not in (0, 1):
                 raise NativeCharacterPopulationReadError(f"{role} role flag is not boolean")
             values[role] = bool(raw)
-        return values
+        if self._read_exact(buckets, table_size, "sparse table verification") != table:
+            raise NativeCharacterPopulationReadError("sparse table changed during read")
+        return values, owner_key
 
     def _read_descriptor_key(self, rva: int, role: str) -> int:
         address = self._process.base_address + rva + self._profile.descriptor_key_offset
