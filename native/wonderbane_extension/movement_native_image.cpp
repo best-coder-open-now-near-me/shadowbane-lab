@@ -1,4 +1,5 @@
 #include "movement_native_image.h"
+#include "movement_bootstrap_patches.h"
 #include <Windows.h>
 #include <bcrypt.h>
 #include <array>
@@ -30,17 +31,19 @@ template<class T> bool FileValue(const std::vector<unsigned char>& bytes, std::s
     if (offset > bytes.size() || sizeof(T) > bytes.size() - offset) { return false; }
     std::memcpy(&output, bytes.data() + offset, sizeof(T)); return true;
 }
-bool Verify(std::uintptr_t& output) {
-    std::array<wchar_t, 32768> path{};
-    const auto path_size = GetModuleFileNameW(nullptr, path.data(), static_cast<DWORD>(path.size()));
-    if (!path_size || path_size >= path.size()) { return false; }
-    std::ifstream file(std::filesystem::path(path.data()), std::ios::binary | std::ios::ate);
-    if (!file) { return false; }
-    const auto size = file.tellg();
-    if (size <= 0 || size > 64 * 1024 * 1024) { return false; }
-    std::vector<unsigned char> bytes(static_cast<std::size_t>(size));
-    file.seekg(0);
-    if (!file.read(reinterpret_cast<char*>(bytes.data()), size) || !ReviewedDigest(bytes)) { return false; }
+bool ReviewedImage(const std::vector<unsigned char>& bytes) {
+    if (ReviewedDigest(bytes)) { return true; }
+    auto original = bytes;
+    for (const auto& patch : bootstrap_patches) {
+        if (patch.offset > bytes.size() || patch.replacement.size() > bytes.size() - patch.offset
+            || patch.original.size() != patch.replacement.size()
+            || std::memcmp(bytes.data() + patch.offset, patch.replacement.data(), patch.replacement.size())) { return false; }
+        std::memcpy(original.data() + patch.offset, patch.original.data(), patch.original.size());
+    }
+    return ReviewedDigest(original);
+}
+bool VerifyImage(const std::vector<unsigned char>& bytes, std::uintptr_t base) {
+    if (!ReviewedImage(bytes)) { return false; }
     IMAGE_DOS_HEADER dos{}; IMAGE_NT_HEADERS32 nt{};
     if (!FileValue(bytes, 0, dos) || dos.e_magic != IMAGE_DOS_SIGNATURE || dos.e_lfanew < 0
         || !FileValue(bytes, static_cast<std::size_t>(dos.e_lfanew), nt)
@@ -56,7 +59,6 @@ bool Verify(std::uintptr_t& output) {
     }
     if (text.VirtualAddress != 0x1000 || text.PointerToRawData != 0x1000 || text.SizeOfRawData != 0x1140000
         || text.PointerToRawData + text.SizeOfRawData > bytes.size()) { return false; }
-    const auto base = reinterpret_cast<std::uintptr_t>(GetModuleHandleW(nullptr));
     std::vector<unsigned char> loaded(text.SizeOfRawData);
     if (!base || !ReadLoaded(loaded.data(), reinterpret_cast<const void*>(base + text.VirtualAddress), loaded.size())) {
         return false;
@@ -87,6 +89,21 @@ bool Verify(std::uintptr_t& output) {
         cursor += block.SizeOfBlock;
     }
     if (std::memcmp(loaded.data(), bytes.data() + text.PointerToRawData, loaded.size()) != 0) { return false; }
+    return true;
+}
+bool Verify(std::uintptr_t& output) {
+    std::array<wchar_t, 32768> path{};
+    const auto path_size = GetModuleFileNameW(nullptr, path.data(), static_cast<DWORD>(path.size()));
+    if (!path_size || path_size >= path.size()) { return false; }
+    std::ifstream file(std::filesystem::path(path.data()), std::ios::binary | std::ios::ate);
+    if (!file) { return false; }
+    const auto size = file.tellg();
+    if (size <= 0 || size > 64 * 1024 * 1024) { return false; }
+    std::vector<unsigned char> bytes(static_cast<std::size_t>(size));
+    file.seekg(0);
+    if (!file.read(reinterpret_cast<char*>(bytes.data()), size)) { return false; }
+    const auto base = reinterpret_cast<std::uintptr_t>(GetModuleHandleW(nullptr));
+    if (!VerifyImage(bytes, base)) { return false; }
     output = base; return true;
 }
 }

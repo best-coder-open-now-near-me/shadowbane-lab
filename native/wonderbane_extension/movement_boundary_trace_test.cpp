@@ -217,3 +217,7 @@ int main(int argc,char** argv) {
     CloseHandle(entered); CloseHandle(release_call);
     return failures ? 1 : 0;
 }
+
+namespace wonderbane::extension::movement {
+bool VerifyNativeMovementImage(std::uintptr_t&) noexcept { return false; }
+}

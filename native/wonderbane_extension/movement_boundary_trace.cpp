@@ -1,5 +1,6 @@
 #include "movement_boundary_trace.h"
 #include "graphics_status.h"
+#include "movement_native_image.h"
 #include "import_hook.h"
 #include <bcrypt.h>
 #include <intrin.h>
@@ -176,11 +177,9 @@ DWORD InstallMovement(const ProcessIdentity& identity, NativeMovementUpdate call
     return result;
 }
 DWORD VerifyBinding(const ProcessIdentity& identity) noexcept {
-    if (!GraphicsExecutableSha256Matches("feb351f0fae87d47549fa43c37836405a753d76fbcd0b02232fc1c0733550dff")) {
-        return ERROR_NOT_SUPPORTED;
-    }
     if (!ExactIdentity(identity)) { return ERROR_INVALID_DATA; }
-    const auto base = reinterpret_cast<std::uintptr_t>(GetModuleHandleW(nullptr));
+    std::uintptr_t base = 0;
+    if (!movement::VerifyNativeMovementImage(base)) { return ERROR_NOT_SUPPORTED; }
     if (!base || (image_base && image_base != base)) { return ERROR_INVALID_DATA; }
     if (!image_base) { image_base = base; }
     return VerifyUpdate() ? ERROR_SUCCESS : ERROR_INVALID_DATA;
