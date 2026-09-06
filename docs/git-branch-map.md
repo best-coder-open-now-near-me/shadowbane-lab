@@ -6,6 +6,12 @@ acceptance.
 
 ## Active runtime hardening and rolling feature integration (September 5)
 
+September 6 movement repair: exact package source `a98a6b3` (native 1.7.2 / wheel
+0.2.2) completes local package checks and independent source review. See
+[the current movement repair candidate](handoffs/combined-candidate-1.7.2.md)
+for exact hashes, CI status and the targeted connected check. VM deployment is
+not implied. Particles remain paused; newer PvP identity work is outside this package.
+
 Later September 6 update: the owner requires a visible selection effect. Native
 1.7.1 / wheel 0.2.1 is verified from `becc58fdb4b1ae51fa6c82617c42dceea41a9e94`, including cue
 source `2a9997316f0a11739e439d6aef71320ae020f790`. The earlier 1.7.0
