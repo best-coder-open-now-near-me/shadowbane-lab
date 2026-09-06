@@ -96,3 +96,20 @@ are excluded visible functionality, not an acceptance prerequisite for this cue 
 Remaining live questions are character material coverage/appearance, foreground
 quality and actual combined frame cost; previous uncompleted movement/device/client
 isolation questions remain with the same testing task.
+
+## Owner observation and next emphasis — September 6
+
+The owner reports being in the client and confirms the highlight works. They
+describe it as a repaint rather than a soft glow and accept it as a functioning,
+good-enough baseline for future work. This closes basic visible-selection delivery
+and baseline appearance acceptance; it does not imply exhaustive material,
+foreground, performance or unrelated movement acceptance. The testing task retains
+the exact running-client identity evidence.
+
+Next active work is particles/trails and their native-transparency integration,
+with the existing particles owner. Preserve this working native-material cue;
+softer glow polish is deferred. Existing rejected broad rendering frameworks are
+not newly authorized. Suppression is not completed particle delivery, and an
+opaque/no-fade substitution requires an explicit scope decision. Reuse captured
+native ordering evidence and existing combined tests; escalate only a specific
+remaining decision that actually blocks a production implementation.
