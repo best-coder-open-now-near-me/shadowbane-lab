@@ -121,6 +121,29 @@ merge destination. This note does not certify deployment or combat activation.
 
 The remaining live bridge should be added in this order:
 
+September 6 peace-restriction follow-up (same reviewed static and live images as
+above): the selected-target action path at RVA `0x7d3d31` calls virtual slot
+`+0xdc` on the local and selected characters before producing
+`CastPower:CannotBeAggressiveInPeaceZone`. The ArcCharacter vtable entry at
+RVA `0x1141738` resolves through thunk `0x215c6` to predicate `0x4b9e0`.
+That predicate reads the pointer at character `+0xd40`, then the byte at pointed
+object `+0x1f1`; a null pointer returns true. Zone parsing independently writes
+`+0x1f1 = 1` at RVA `0x24d8e6` in the `PEACEZONE=` branch.
+
+The passive guest check verified the predicate's exact 20 instruction bytes and
+vtable entry against the static image. Both previously identified players had a
+non-null pointer and stable byte value `1`. Object keys, selection slots, and
+pointer/byte rereads remained stable within each sample. This is a verified
+peace restriction, not a complete attackability predicate: the surrounding action
+path also tests character category and pet data. A false peace byte must never
+be converted to `attackable=True`, and a missing pointer must not grant permission.
+No client functions were invoked or combat actions dispatched during calibration.
+
+The `GameWindow:Enemy` string reference at RVA `0x7da805` belongs to a guild/nation
+dialog path; it does not independently establish hostile-NPC authority. The
+`CannotAttack` string at RVA `0x12d0aa0` registers a token at `0x158600`; its name
+alone does not establish a character flag or pairwise attackability check.
+
 1. Project the ownership graph through `NativeEntityIdentityMap`.
 2. Calibrate the client field or protocol state that proves attackability and hostile relation.
 3. Wire the revisioned native authority snapshot reader into the coherent PvE observation boundary.
