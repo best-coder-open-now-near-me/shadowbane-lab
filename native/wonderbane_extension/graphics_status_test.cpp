@@ -31,6 +31,7 @@ void HoldPublish() {
 }
 int PublisherLifetimeRegression() {
     using namespace wonderbane::extension;
+    kWorkerStopTimeoutMilliseconds = 50U; // Only the deliberately held generation.
     publish_entered = CreateEventW(nullptr, TRUE, FALSE, nullptr);
     publish_release = CreateEventW(nullptr, TRUE, FALSE, nullptr);
     g_before_publish_test = HoldPublish;
@@ -55,6 +56,7 @@ int PublisherLifetimeRegression() {
         return Fail(L"completed publisher reaping");
     }
     g_before_publish_test = nullptr;
+    kWorkerStopTimeoutMilliseconds = 5'000U; // Normal publication uses the production wait.
     CloseHandle(publish_entered); CloseHandle(publish_release);
     return 0;
 }

@@ -44,7 +44,7 @@ constexpr std::size_t kControlNameUtf8Capacity = 512U;
 constexpr std::size_t kEscapedControlNameCapacity = kControlNameUtf8Capacity * 2U + 3U;
 constexpr DWORD kPublishIntervalMilliseconds = 2'000U;
 #ifdef WONDERBANE_PUBLISHER_LIFETIME_TEST
-constexpr DWORD kWorkerStopTimeoutMilliseconds = 50U;
+DWORD kWorkerStopTimeoutMilliseconds = 5'000U;
 void (*g_before_publish_test)() = nullptr;
 #else
 constexpr DWORD kWorkerStopTimeoutMilliseconds = 5'000U;
