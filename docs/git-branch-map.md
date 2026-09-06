@@ -6,6 +6,12 @@ acceptance.
 
 ## Active runtime hardening and rolling feature integration (September 5)
 
+Current September 6 candidate: `04b7bdb` (native 1.7.3 / wheel 0.2.3) passed
+all package/CI checks and independent focused review, and was installed with
+owner approval. It addresses the live terrain/movement conflict found in 1.7.2.
+See [the 1.7.3 handoff](handoffs/combined-candidate-1.7.3.md) for exact identities
+and pending in-world movement checks. Main remains unchanged.
+
 September 6 movement repair: exact package source `a98a6b3` (native 1.7.2 / wheel
 0.2.2) completes local package checks and independent source review. See
 [the current movement repair candidate](handoffs/combined-candidate-1.7.2.md)
