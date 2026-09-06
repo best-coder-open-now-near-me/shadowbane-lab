@@ -259,10 +259,11 @@ native health, position, and action snapshots.
 
 The selected-object pointer is not the only source of live actor data. The guarded population
 reader enumerates the current build's private `ArcCharacter` allocations by their exact vtable,
-then reads health, position, protected service roles, and each character's action target without
-changing game selection. It also reports the player's selected-object token and action-target
-token separately; Shadowbane can keep a melee action committed to one character while another
-object is selected.
+then reads each character's adjacent native object type/UUID, health, position, protected service
+roles, and action target without changing game selection. The same object key is read for the
+local player. It also reports the player's selected-object token and action-target token
+separately; Shadowbane can keep a melee action committed to one character while another object is
+selected.
 
 ```powershell
 .\.venv\Scripts\python.exe -m shadowbane_lab.cli client observe-native-population --json
@@ -271,8 +272,12 @@ object is selected.
 The allocation scan is cached for 15 seconds while character fields are refreshed on every
 observation. Exact executable identity, private/read-write memory type, `ArcCharacter` vtable,
 pointer bounds, health bounds, position chain, world bounds, sparse role descriptors, and
-selection stability all fail closed. This is the acquisition source for distance-ranked PvE;
-target-cycle input is retained only to place the chosen object into the client's selected slot.
+selection stability all fail closed. Object keys are the reviewed adjacent fields at character
+offsets `0x18` and `0x1C`; null, partial, duplicate, local/population-colliding, stale, or
+same-address-reused identities are rejected. This is the acquisition source for distance-ranked
+PvE; target-cycle input is retained only to place the chosen object into the client's selected
+slot. The second key field is also the structurally calibrated character category: `53` is a
+player and `37` is an NPC. Other values remain explicitly `unknown`.
 
 ## Pixel cross-check
 
