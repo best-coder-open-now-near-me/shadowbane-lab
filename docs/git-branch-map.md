@@ -7,10 +7,12 @@ acceptance.
 ## Active runtime hardening and rolling feature integration (September 5)
 
 Later September 6 update: the owner requires a visible selection effect. Native
-1.7.1 / wheel 0.2.1 integration is in progress on this same branch, including cue
+1.7.1 / wheel 0.2.1 is verified from `becc58fdb4b1ae51fa6c82617c42dceea41a9e94`, including cue
 source `2a9997316f0a11739e439d6aef71320ae020f790`. The earlier 1.7.0
 receipt below remains historical; it does not certify this change. Particles
 remain unavailable pending correct transparency; they do not block the cue update.
+See [the verified visible-selection candidate](handoffs/combined-candidate-1.7.1.md)
+for exact artifacts, executed gates and the coordinated acceptance update.
 
 September 6 verified candidate: native 1.7.0 / wheel 0.2.0, exact build source
 `89c3b1ecb7087c8da3d1de697b6dfb507682a8f8`. Package, installed controls and
