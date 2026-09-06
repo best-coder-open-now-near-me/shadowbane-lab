@@ -103,7 +103,7 @@ struct Fixture {
     Result nested = Result::accepted;
     bool missing_message = false, raise_fault = false;
     GroundPoint destination{};
-    Fixture() {
+    explicit Fixture(bool cold_idle = false) {
         current = this; Check(base && window, "test process fixtures created");
         Check(SetWindowPos(window, nullptr, 0, 0, 640, 480, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE) != FALSE,
             "test client has explicit drawable bounds");
@@ -130,7 +130,12 @@ struct Fixture {
         Put(base, 0x1163300, 0.05F);
         Put(base, 0x1163254, 0.7853981852531433F);
         Put(base, 0x16a2c10 + 0x7c, 15.0F);
-        Arm(true);
+        if (cold_idle) {
+            // No click/follow, previous destination, path solve or deferred action.
+            Put(base, 0x16a1c00, std::uintptr_t{0});
+            Put(game_window.data(), 0x120, std::uintptr_t{0});
+            Put(state.data(), 0x10, std::uint32_t{5});
+        } else { Arm(true); }
         Settings settings; settings.enabled = true; settings.controller = true;
         Check(controls.Configure(settings) == Result::accepted, "configure controls");
         input.scene = 1; input.native_available = input.exact_foreground = true;

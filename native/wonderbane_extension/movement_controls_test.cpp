@@ -71,6 +71,25 @@ struct Fixture {
         return g;
     }
 };
+void KeyboardFirstStart() {
+    for (const auto interval : {5ULL, 16ULL, 33ULL, 100ULL}) {
+        Fixture f;
+        Check(f.controls.Current().owner == Owner::none, "keyboard-first policy has no preceding owner");
+        for (int attempt = 0; attempt != 3; ++attempt) {
+            f.input.keys[0x57] = true; f.Step(interval);
+            Check(f.actuator.events.back().kind == 'd' && f.actuator.events.back().start
+                && f.controls.Current().owner == Owner::manual,
+                "first W and each restart dispatch Direction with start=true");
+            f.Step(interval);
+            Check(f.actuator.events.back().kind == 'd' && !f.actuator.events.back().start,
+                "held W dispatches update with start=false");
+            f.input.keys[0x57] = false; f.Step(interval);
+            Check(f.actuator.events.back().kind == 's', "keyboard release explicitly stops");
+            const auto count = f.actuator.events.size(); f.Step(interval);
+            Check(f.actuator.events.size() == count, "neutral keyboard does not resume movement");
+        }
+    }
+}
 void Interpretation() {
     Fixture f;
     f.input.keys[0x57] = f.input.keys[0x53] = true; f.Step();
@@ -340,6 +359,6 @@ void FrameRatesAndSettings() {
 }
 }
 int main() {
-    Interpretation(); Ownership(); CameraFailure(); Gates(); Devices(); Drag(); BufferedInput(); FailureAndScene(); NativeIntentTakeover(); NestedSafety(); EmergencyStops(); DisabledAutomation(); FrameRatesAndSettings();
+    KeyboardFirstStart(); Interpretation(); Ownership(); CameraFailure(); Gates(); Devices(); Drag(); BufferedInput(); FailureAndScene(); NativeIntentTakeover(); NestedSafety(); EmergencyStops(); DisabledAutomation(); FrameRatesAndSettings();
     return failures ? 1 : 0;
 }

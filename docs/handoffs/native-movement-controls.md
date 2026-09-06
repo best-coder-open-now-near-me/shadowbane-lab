@@ -844,3 +844,39 @@ artifacts/native-movement/diagnose_native_movement_startup.py and is not shipped
 
 Next active todo: root's exact combined build/package and narrow live admission
 check. Physical WASD/controller/drag acceptance remains unverified.
+
+
+## Keyboard-first connected defect (September 6)
+
+The integration owner verified movement admission and the real settings panel in
+installed 1.7.3. The user then reported that WASD requires an initial right click
+before movement starts. This is an independent keyboard START defect; it does not
+authorize changing the separate native right-button behavior. The speculative
+right-drag rebind was removed from source and retained only in ignored local
+`artifacts/native-movement/right-drag-draft.patch` for possible later clarification.
+
+The new `keyboard-cold-start` runtime mode begins with owner none, native idle,
+no pending solver, no path or action entries, and no click destination marker.
+Without any automation destination or mouse messages, it exercises first W,
+held updates, actual native-adapter release/stop and three immediate restarts.
+A policy regression separately checks Direction(start=true), held updates with
+start=false, explicit stop and neutral non-resumption at 5/16/33/100 ms intervals.
+Both profiles pass all 18 focused policy/backend/runtime tests, including the new
+CTest registration. Native callees and platform input remain controlled fixtures;
+this closes missing regression coverage but does not reproduce or fix the live
+bug. No connected acceptance or movement implementation change is claimed here.
+
+Static review confirms the existing native Move flags match its continuous caller;
+its no-input branch returns without cancelling movement. There is no evidence yet
+for a guessed movement bootstrap flag. Root owns the minimal missing observation:
+read-only exact-client status ownership/generation while W alone is held in the
+failing stationary state versus the working after-click case. This distinguishes
+input/UI/camera-basis admission from native actuation before selecting a fix.
+
+Integration destination remains `codex/native-lifecycle-hardening`; root adds the
+explicit cold-start package gate and reconciles its pending 1.7.4 package work.
+This test checkpoint remains outside that destination until root integrates it.
+Next active todo: locate and fix keyboard-first failure using the narrowed native
+boundary; then verify the combined source/package and finish physical input,
+stop, safety, obstacle and automation-takeover acceptance. No independent VM or
+shared-client replacement was performed.

@@ -64,7 +64,7 @@ struct WindowsInputTestAccess {
 }
 int main(int argc, char** argv) {
     const std::string mode = argc > 1 ? argv[1] : "keyboard";
-    Fixture f; auto& rt = wm::runtime;
+    Fixture f(mode == "keyboard-cold-start"); auto& rt = wm::runtime;
     if (mode == "startup-hook-failure" || mode == "startup-hook-failure-ipc") {
         FILETIME created{}, exited{}, kernel{}, user{};
         GetProcessTimes(GetCurrentProcess(), &created, &exited, &kernel, &user);
@@ -190,6 +190,37 @@ int main(int argc, char** argv) {
             "latest ambiguous acquisition survives journal retirement");
         auto old_retry = make(wm::wire::Verb::acquire, original, 1); run(old_retry);
         Check(old_retry->receipt.outcome == static_cast<unsigned>(wm::Result::stale), "evicted acquisition cannot mint authority");
+        rt.input.Retire(); return failures ? 1 : 0;
+    }
+    if (mode == "keyboard-cold-start") {
+        Check(rt.controls.Ready() && rt.controls.Current().owner == Owner::none && f.moves == 0 && f.sends == 0
+            && Get<std::uint32_t>(f.state.data(), 0x10) == 5
+            && Get<std::uintptr_t>(f.base, 0x16a1c00) == 0
+            && Get<Access::Vector>(f.actor.data(), 0xc10).begin == nullptr
+            && Get<Access::Map>(f.world.data(), 0xb8).size == 0
+            && Get<Access::Map>(f.world.data(), 0xe8).size == 0
+            && Get<std::uintptr_t>(f.game_window.data(), 0x120) == 0,
+            "cold client starts idle without destination marker, path, pending solver or action");
+        for (unsigned attempt = 0; attempt != 3; ++attempt) {
+            const auto moves = f.moves, sends = f.sends;
+            // First and subsequent starts use only the physical keyboard sample.
+            // No AutomationDestination, mouse message or simulated native input.
+            physical_keys['W'] = static_cast<SHORT>(0x8000); step();
+            Check(rt.controls.Current().owner == Owner::manual && rt.controls.Ready()
+                && f.moves == moves + 1 && f.sends == sends + 1
+                && Get<std::uint32_t>(f.state.data(), 0x10) == 7,
+                "first W and immediate restarts independently enter native moving state and publish START");
+            step(); Check(f.moves == moves + 2 && f.sends == sends + 1,
+                "held W updates without repeatedly publishing START");
+            physical_keys.fill(0); step();
+            Check(f.moves == moves + 2 && f.sends == sends + 2
+                && Get<std::uint32_t>(f.state.data(), 0x10) == 5 && f.packet.references == 0,
+                "W release uses native stop and returns to idle");
+            step(); Check(f.moves == moves + 2 && f.sends == sends + 2,
+                "released keyboard stays idle without a mouse bootstrap or automatic resume");
+        }
+        Check(f.marker_applies == 0 && f.ground_actor_releases == 0,
+            "keyboard-only starts never initialize or consume a click destination marker");
         rt.input.Retire(); return failures ? 1 : 0;
     }
     Token token{}; std::memcpy(token.worker.data(), "worker", 6); std::memcpy(token.operation.data(), "route", 5);
