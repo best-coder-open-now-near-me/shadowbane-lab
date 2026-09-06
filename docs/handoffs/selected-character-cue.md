@@ -1039,3 +1039,23 @@ checks native depth/stencil preservation and absent right-side coverage. It
 passes in the feature worktree. Unsupported default depth/stencil formats were
 not exercised with actual hardware; rejection is explicit in source, not a
 verified alternate-format rendering path. No acceptance package or deployment.
+
+
+### Actual unsupported default formats (2026-09-06)
+
+The existing GPU executable now accepts `--unsupported-formats`. It enumerates
+actual DescribePixelFormat descriptors, creates distinct contexts for unsupported
+depth/stencil pairs, and queries the resulting GL depth/stencil bits rather than
+assuming ChoosePixelFormat honored a request. No suitable executable case returns
+77; failed assertions return 1. Unavailable cases are printed explicitly.
+
+This host enumerated 220 formats. Three framebuffer-capable pairs executed and
+passed: descriptor/actual 24/0, 0/0, and 0/8 (indices 9, 13, 15). EQUAL capture
+returned false without supplemental geometry or native color/depth/stencil/state
+changes. Native sample query result stayed zero. Resource release/recreation,
+unrelated scene drawing and native pixel verification passed without GL errors.
+Depth/stencil 16/8 and 32/8 descriptors existed but their contexts lacked framebuffer
+objects (indices 187,188,191,192); those paths remain unavailable, not passing.
+No client runtime change or additional live capture was needed. The test addition
+must be consumed in the combined source; central CTest/package wiring remains
+with the integration owner. The foreground-transparency failures are unchanged.
