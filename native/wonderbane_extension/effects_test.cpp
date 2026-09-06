@@ -20,6 +20,45 @@ struct Memory {
 };
 }
 int main() {
+    {
+        SubmissionSchedule schedule; Geometry input{},batch{};
+        input.count=4;
+        const float depths[]{2,8,5,5};
+        for(std::size_t i=0;i<input.count;++i) {
+            input.quads[i].depth=depths[i];input.quads[i].alpha=.1F*static_cast<float>(i+1);
+        }
+        Check(schedule.Begin(input),"schedule accepts bounded geometry");
+        input.quads[1].depth=100;input.quads[1].alpha=1;
+        Check(schedule.TakeBefore(7,batch) && batch.count==1 && batch.quads[0].depth==8
+            && batch.quads[0].alpha==.2F,"snapshot is immutable and drains far geometry before native boundary");
+        Check(schedule.TakeBefore(5,batch) && !batch.count,"native submission precedes equal-depth effects");
+        Check(schedule.TakeBefore(5,batch) && !batch.count,"equal native boundaries do not duplicate effects");
+        Check(schedule.TakeBefore(3,batch) && batch.count==2 && batch.quads[0].alpha<batch.quads[1].alpha,
+            "equal-depth effects preserve source order");
+        Check(schedule.Finish(batch) && batch.count==1 && batch.quads[0].depth==2,"finish drains only remaining geometry");
+        Check(!schedule.Finish(batch) && !batch.count,"duplicate finish never replays");
+        Check(schedule.Begin(input) && schedule.TakeBefore(7,batch),"restart after completed scene");
+        Check(!schedule.TakeBefore(8,batch) && !batch.count && !schedule.Remaining(),"reversed authority cancels pending geometry");
+        Check(schedule.RejectedAfterEmission() && schedule.Emitted()==1 && schedule.State()==ScheduleState::rejected,
+            "reversed native order honestly retains partial-emission evidence; no claimed rollback");
+        Check(!schedule.Finish(batch),"invalid ordering cannot later flush pending geometry");
+        Check(schedule.Begin(input),"begin after rejected authority");schedule.Cancel();
+        Check(!schedule.TakeBefore(1,batch) && !batch.count,"scene interruption removes all pending work");
+        Check(schedule.Begin(input) && !schedule.Begin(input) && !schedule.Remaining(),"duplicate begin cancels rather than replaying");
+        input.count=kQuads+1;Check(!schedule.Begin(input),"over-budget geometry rejected");
+        input.count=1;input.quads[0].depth=std::numeric_limits<float>::quiet_NaN();
+        Check(!schedule.Begin(input),"nonfinite depth rejected");input.quads[0].depth=1;
+        input.quads[0].points[0].x=std::numeric_limits<float>::infinity();
+        Check(!schedule.Begin(input),"nonfinite geometry rejected");input.quads[0].points[0].x=0;
+        input.quads[0].alpha=2;Check(!schedule.Begin(input),"invalid alpha rejected");
+        input.quads[0].alpha=.5F;Check(schedule.Begin(input),"valid snapshot recovers");
+        Check(!schedule.TakeBefore(std::numeric_limits<float>::infinity(),batch) && !batch.count,
+            "unavailable native depth is never inferred");
+        Check(!schedule.RejectedAfterEmission() && !schedule.Emitted(),"rejection before first output has no partial emission");
+        input.count=kQuads;
+        for(auto& quad:input.quads) { quad={};quad.alpha=.5F;quad.depth=4; }
+        Check(schedule.Begin(input) && schedule.Finish(batch) && batch.count==kQuads,"maximum budget stays bounded and lossless");
+    }
     Config c{}; Check(Validate(c),"defaults valid");
     c.rate=std::numeric_limits<float>::quiet_NaN(); Check(!Validate(c),"reject nonfinite config"); c={};
     Attachment a{0x10000,1,2,0x20000,0x30000,0x40000,3,4,{100,5,-100},true};

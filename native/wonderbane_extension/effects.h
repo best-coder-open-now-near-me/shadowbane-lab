@@ -47,6 +47,31 @@ private:
     std::uint32_t burst_{}, seed_ = 1;
     bool active_ = false;
 };
+// Fixed-storage scheduling only: callers retain native callbacks and scene authority.
+// Depth is dot(world_position - camera_position, normalized_camera_forward).
+// Native boundaries must be nonincreasing in this same metric. Native wins ties.
+enum class ScheduleState { idle, active, finished, canceled, rejected };
+class SubmissionSchedule {
+public:
+    bool Begin(const Geometry&) noexcept;
+    bool TakeBefore(float native_depth, Geometry& output) noexcept;
+    bool Finish(Geometry& output) noexcept;
+    void Cancel() noexcept;
+    std::size_t Remaining() const noexcept { return active_ ? snapshot_.count-cursor_ : 0; }
+    std::size_t Emitted() const noexcept { return emitted_; }
+    ScheduleState State() const noexcept { return state_; }
+    // Rejection cannot undo output. The owner must verify an interval before emission.
+    bool RejectedAfterEmission() const noexcept { return state_==ScheduleState::rejected && emitted_!=0; }
+private:
+    Geometry snapshot_{};
+    std::array<std::size_t,kQuads> order_{};
+    std::size_t cursor_=0, emitted_=0;
+    ScheduleState state_=ScheduleState::idle;
+    float previous_depth_=0;
+    bool active_=false, boundary_seen_=false;
+    void Take(std::size_t end, Geometry& output) noexcept;
+    bool Reject() noexcept;
+};
 // Production resolver and test seam: bounded reads, never calls game methods.
 using Reader = bool(*)(void*, std::uint32_t, void*, std::size_t);
 Attachment Resolve(Reader, void*, std::uint32_t base, std::uint32_t selection) noexcept;

@@ -125,4 +125,44 @@ void System::Build(const Config& c, Vec eye, Vec right, Vec up, Vec forward, Geo
     std::sort(out.quads.begin(),out.quads.begin()+out.count,[](const Quad& a,const Quad& b){return a.depth>b.depth;});
     stats.quads=static_cast<std::uint32_t>(out.count);
 }
+void SubmissionSchedule::Cancel() noexcept {
+    snapshot_.count=cursor_=0; active_=boundary_seen_=false;state_=ScheduleState::canceled;
+}
+bool SubmissionSchedule::Reject() noexcept { Cancel();state_=ScheduleState::rejected;return false; }
+bool SubmissionSchedule::Begin(const Geometry& geometry) noexcept {
+    // A second begin without termination is a caller error, never a replay.
+    if(active_)return Reject();
+    emitted_=0;
+    if(geometry.count>kQuads)return Reject();
+    for(std::size_t i=0;i<geometry.count;++i) {
+        const auto& quad=geometry.quads[i];
+        if(!std::isfinite(quad.depth) || !Range(quad.alpha,0,1))return Reject();
+        for(const auto& point:quad.points) if(!Finite(point))return Reject();
+    }
+    snapshot_=geometry; cursor_=0; boundary_seen_=false; active_=true;state_=ScheduleState::active;
+    for(std::size_t i=0;i<snapshot_.count;++i)order_[i]=i;
+    std::sort(order_.begin(),order_.begin()+snapshot_.count,[&](std::size_t a,std::size_t b) {
+        const auto left=snapshot_.quads[a].depth,right=snapshot_.quads[b].depth;
+        return left==right ? a<b : left>right;
+    });
+    return true;
+}
+void SubmissionSchedule::Take(std::size_t end,Geometry& output) noexcept {
+    output.count=0;
+    while(cursor_<end)output.quads[output.count++]=snapshot_.quads[order_[cursor_++]];
+    emitted_+=output.count;
+}
+bool SubmissionSchedule::TakeBefore(float native_depth,Geometry& output) noexcept {
+    output.count=0;
+    if(!active_ || !std::isfinite(native_depth)
+        || (boundary_seen_ && native_depth>previous_depth_))return Reject();
+    previous_depth_=native_depth; boundary_seen_=true;
+    auto end=cursor_;
+    while(end<snapshot_.count && snapshot_.quads[order_[end]].depth>native_depth)++end;
+    Take(end,output);return true;
+}
+bool SubmissionSchedule::Finish(Geometry& output) noexcept {
+    output.count=0;if(!active_)return false;
+    Take(snapshot_.count,output);Cancel();state_=ScheduleState::finished;return true;
+}
 } // namespace wonderbane::extension::effects
