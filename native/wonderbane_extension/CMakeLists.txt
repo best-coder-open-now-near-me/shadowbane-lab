@@ -959,7 +959,7 @@ endif()
 
 if(BUILD_TESTING)
   add_executable(wonderbane_extension_movement_native_stop_test
-    movement_controls.cpp movement_native_image.cpp movement_native_stop.cpp movement_lifetime.cpp movement_native_ui.cpp import_hook.cpp movement_native_stop_test.cpp)
+    movement_controls.cpp movement_native_image.cpp terrain_mask_refresh.cpp movement_native_stop.cpp movement_lifetime.cpp movement_native_ui.cpp import_hook.cpp movement_native_stop_test.cpp)
   target_compile_features(wonderbane_extension_movement_native_stop_test PRIVATE cxx_std_20)
   target_compile_definitions(wonderbane_extension_movement_native_stop_test PRIVATE
     UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
@@ -1031,7 +1031,7 @@ endif()
 if(BUILD_TESTING)
   add_executable(wonderbane_extension_movement_runtime_test movement_runtime_test.cpp
     movement_controls.cpp movement_native_stop.cpp movement_native_ui.cpp movement_windows_input.cpp
-    movement_native_image.cpp movement_settings.cpp import_hook.cpp)
+    movement_native_image.cpp terrain_mask_refresh.cpp movement_settings.cpp import_hook.cpp)
   target_compile_features(wonderbane_extension_movement_runtime_test PRIVATE cxx_std_20)
   target_compile_definitions(wonderbane_extension_movement_runtime_test PRIVATE
     UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
@@ -1074,6 +1074,9 @@ endif()
 
 if(BUILD_TESTING)
   add_executable(wonderbane_extension_movement_image_test movement_image_test.cpp import_hook.cpp)
+  if(WONDERBANE_EXTENSION_PROFILE STREQUAL "diagnostics-only")
+    target_compile_definitions(wonderbane_extension_movement_image_test PRIVATE WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY=1)
+  endif()
   target_compile_features(wonderbane_extension_movement_image_test PRIVATE cxx_std_20)
   target_compile_definitions(wonderbane_extension_movement_image_test PRIVATE
     UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
@@ -1087,7 +1090,7 @@ endif()
 if(BUILD_TESTING)
   add_executable(wonderbane_extension_movement_settings_runtime_test movement_settings_runtime_test.cpp
     movement_controls.cpp movement_native_stop.cpp movement_native_ui.cpp movement_windows_input.cpp
-    movement_native_image.cpp import_hook.cpp)
+    movement_native_image.cpp terrain_mask_refresh.cpp import_hook.cpp)
   target_compile_features(wonderbane_extension_movement_settings_runtime_test PRIVATE cxx_std_20)
   target_compile_definitions(wonderbane_extension_movement_settings_runtime_test PRIVATE
     UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
