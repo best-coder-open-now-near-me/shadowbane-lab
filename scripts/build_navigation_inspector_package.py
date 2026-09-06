@@ -277,6 +277,7 @@ def main() -> int:
             "wonderbane_extension_selected_cue_runtime",
             "wonderbane_extension_effects_runtime",
             "wonderbane_extension_movement_runtime_keyboard",
+            "wonderbane_extension_movement_runtime_keyboard-cold-start",
             "wonderbane_extension_movement_runtime_controller",
             "wonderbane_extension_movement_runtime_drag",
             "wonderbane_extension_movement_runtime_focus",
