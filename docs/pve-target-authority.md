@@ -81,7 +81,14 @@ stale, or same-address-reused keys.
 identity changes across that boundary, and publishes the exact identity and party portion of a
 revisioned authority snapshot. An unresolved roster key makes party completeness false; it is never
 treated as proof that an entity is outside the party. This bridge does not yet claim hostility
-relation, ownership, or attackability, and is not yet wired into the live `/pve` observation loop.
+relation, ownership, or attackability. The coherent observation source and runner
+now accept an optional native group reader and party identifier. When configured,
+they bracket the frame with group identity reads inside the selected-target
+boundary, carry its immutable authority snapshot through the canonical dispatch
+loop, and record passive authority decisions in the existing trace. Changing
+coordinates, vitals, follow state, or roster ordering does not invalidate party
+identity; changing membership does. Failed frames cannot reuse completed evidence.
+The ordinary live `/pve` launcher does not yet configure this optional channel.
 Therefore the live launcher does not yet enable
 `require_verified_target_authority`.
 
@@ -146,7 +153,7 @@ alone does not establish a character flag or pairwise attackability check.
 
 1. Project the ownership graph through `NativeEntityIdentityMap`.
 2. Calibrate the client field or protocol state that proves attackability and hostile relation.
-3. Wire the revisioned native authority snapshot reader into the coherent PvE observation boundary.
+3. Configure the live launcher's authority channels after their remaining facts are calibrated.
 4. Enable strict authority in passive observation and plan-only traces before allowing live combat
    input.
 
