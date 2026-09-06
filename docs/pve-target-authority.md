@@ -71,9 +71,12 @@ shape. The trace addition is optional and additive; it does not reinterpret olde
 ## Current live limitation
 
 The current WonderBane population reader proves living `ArcCharacter` state, exact position,
-selected/action-target tokens, and protected service roles. It deliberately does not claim a
-verified matching object type/UUID, player-versus-NPC category, hostility relation, ownership, or
-attackability field. Therefore the live `/pve` launcher does not yet enable
+selected/action-target tokens, protected service roles, and the stable native object type/UUID for
+the local player and every accepted loaded character. A live party-roster join proves object type
+at `+0x18` and object UUID at `+0x1C`; the latter also distinguishes calibrated player value `53`
+from NPC value `37`, retaining every other value as unknown. The reader rejects null, duplicate,
+stale, or same-address-reused keys. It does not yet claim hostility relation, ownership, or
+attackability. Therefore the live `/pve` launcher does not yet enable
 `require_verified_target_authority`.
 
 Do not fill this gap with display names, health totals, pointer ordering, target-cycle position,
@@ -84,14 +87,11 @@ joins.
 
 The remaining live bridge should be added in this order:
 
-1. Calibrate object type and UUID on the local player and every loaded `ArcCharacter`, then prove
-   that those values match the exact keys already present in group-roster records.
-2. Calibrate a structural player/NPC discriminator and retain unknown values explicitly.
-3. Project the exact party roster and ownership graph through `NativeEntityIdentityMap`.
-4. Calibrate the client field or protocol state that proves attackability and hostile relation.
-5. Materialize one revisioned `PvETargetAuthoritySnapshot` inside the coherent PvE observation
+1. Project the exact party roster and ownership graph through `NativeEntityIdentityMap`.
+2. Calibrate the client field or protocol state that proves attackability and hostile relation.
+3. Materialize one revisioned `PvETargetAuthoritySnapshot` inside the coherent PvE observation
    boundary.
-6. Enable strict authority in passive observation and plan-only traces before allowing live combat
+4. Enable strict authority in passive observation and plan-only traces before allowing live combat
    input.
 
 The activation gate is complete when mixed player/NPC/group fixtures and live passive traces show
