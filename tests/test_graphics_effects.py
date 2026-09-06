@@ -1,10 +1,19 @@
+import ctypes
 import math
+import struct
 import unittest
 from dataclasses import replace
 from types import SimpleNamespace
 from unittest.mock import Mock
 
-from shadowbane_lab.graphics_lab.effects import CONFIG, PRESETS, EffectsConfig
+from shadowbane_lab.graphics_lab.effects import (
+    CONFIG,
+    HEADER,
+    PRESETS,
+    EffectsClient,
+    EffectsConfig,
+    presentation_status,
+)
 from shadowbane_lab.graphics_lab.effects_panel import EffectsPanel
 
 
@@ -42,6 +51,31 @@ class EffectsConfigurationTests(unittest.TestCase):
         sent = client.write.call_args.args[0]
         self.assertEqual(sent.flags, 0)
         sent.validate()
+
+    def test_native_safety_status_layout_and_requested_enabled(self):
+        data = bytearray(256)
+        HEADER.pack_into(data, 0, 0x46584257, 1, 256, 123, 456, 2, 2, 0, 2)
+        data[40:124] = EffectsConfig(flags=7).pack()
+        struct.pack_into("<11I", data, 124, *([0] * 8), 1, 3, 42)
+        buffer = ctypes.create_string_buffer(bytes(data))
+        client = EffectsClient.__new__(EffectsClient)
+        client.target = SimpleNamespace(process_id=123, process_creation_filetime_utc=456)
+        client._address = ctypes.addressof(buffer)
+        config, stats, desired, applied, error = client.read()
+        self.assertEqual((config.flags, desired, applied, error), (7, 2, 2, 0))
+        self.assertEqual(stats[8:], (1, 3, 42))
+        self.assertIn("Enabled but suppressed", presentation_status(stats))
+        self.assertIn("bursts are canceled", presentation_status(stats))
+        self.assertIn("unavailable", presentation_status(tuple([0] * 8)))
+        self.assertIn("unavailable", presentation_status(tuple([0] * 11)))
+
+    def test_poll_discloses_suppression(self):
+        stats = tuple([0] * 8 + [1, 3, 10])
+        panel = SimpleNamespace(client=Mock(), status=Mock(), tab=Mock(), poll=Mock())
+        panel.client.read.return_value = (EffectsConfig(flags=7), stats, 2, 2, 0)
+        EffectsPanel.poll(panel)
+        self.assertIn("Enabled but suppressed", panel.status.set.call_args.args[0])
+        self.assertIn("Particles and trails are hidden", panel.status.set.call_args.args[0])
 
     def test_default_is_disabled_and_presets_are_explicit(self):
         self.assertEqual(EffectsConfig().flags, 0)

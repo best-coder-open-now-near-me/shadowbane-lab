@@ -15,12 +15,17 @@ struct Control {
     volatile LONG desired=0, applied=0, error=0, status_sequence=0;
     effects::Config config{};
     effects::Stats stats{};
-    std::uint32_t reserved[25]{};
+    // Additive status in previously reserved bytes; config/stats offsets unchanged.
+    std::uint32_t safety_version=1, presentation=0, suppressed_frames=0;
+    std::uint32_t reserved[22]{};
 };
 #pragma pack(pop)
 static_assert(sizeof(Control)==256);
 static_assert(offsetof(Control,config)==40);
 static_assert(offsetof(Control,stats)==124);
+static_assert(offsetof(Control,safety_version)==156);
+// Presentation: disabled, waiting for scene/attachment, permitted, suppressed, invalid.
+enum : std::uint32_t { kDisabled, kWaiting, kPermitted, kSuppressed, kInvalid };
 SRWLOCK g_lock=SRWLOCK_INIT;
 HANDLE g_mapping=nullptr;
 Control* g_control=nullptr;
@@ -30,6 +35,7 @@ effects::Config g_config{};
 ProcessIdentity g_identity{};
 HGLRC g_context=nullptr;
 std::uint32_t g_base=0;
+bool g_suppressed=false;
 bool Read(void*,std::uint32_t address,void* out,std::size_t size) {
     SIZE_T copied=0;
     return ReadProcessMemory(GetCurrentProcess(),reinterpret_cast<const void*>(address),out,size,&copied) && copied==size;
@@ -52,7 +58,7 @@ DWORD StartEffects(const ProcessIdentity& identity) noexcept {
     if (control) {
         *control=Control{}; control->pid=identity.process_id; control->creation=identity.creation_filetime_utc;
         g_mapping=mapping; g_control=control; g_identity=identity;
-        g_system=effects::System{}; g_config={}; g_context=nullptr;
+        g_system=effects::System{}; g_config={}; g_context=nullptr; g_suppressed=false;
         g_base=static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(GetModuleHandleW(nullptr)));
         error=ERROR_SUCCESS;
     }
@@ -60,13 +66,13 @@ DWORD StartEffects(const ProcessIdentity& identity) noexcept {
 }
 void StopEffects() noexcept {
     AcquireSRWLockExclusive(&g_lock);
-    g_system.Clear(); g_geometry.count=0; g_config={}; g_context=nullptr;
+    g_system.Clear(); g_geometry.count=0; g_config={}; g_context=nullptr; g_suppressed=false;
     if (g_control) UnmapViewOfFile(g_control);
     if (g_mapping) CloseHandle(g_mapping);
     g_control=nullptr; g_mapping=nullptr; g_identity={}; g_base=0;
     ReleaseSRWLockExclusive(&g_lock);
 }
-void DrawEffects(const GraphicsCameraState* camera) noexcept {
+void DrawEffects(const GraphicsCameraState* camera, bool transparency_safe) noexcept {
     if (!TryAcquireSRWLockExclusive(&g_lock)) return;
     if (!g_control) { ReleaseSRWLockExclusive(&g_lock); return; }
     const LONG before=InterlockedCompareExchange(&g_control->desired,0,0);
@@ -78,23 +84,35 @@ void DrawEffects(const GraphicsCameraState* camera) noexcept {
             && g_control->version==1 && g_control->size==256 && g_control->pid==g_identity.process_id
             && g_control->creation==g_identity.creation_filetime_utc && effects::Validate(config)) {
             if (config.attachment!=g_config.attachment || config.height!=g_config.height) g_system.Clear();
+            if (!(config.flags&1U)) g_suppressed=false;
             g_config=config; InterlockedExchange(&g_control->applied,before); g_control->error=0;
         } else { g_config.flags=0; g_system.Clear(); g_control->error=ERROR_INVALID_DATA; }
     }
+    const bool requested=(g_config.flags&1U)!=0;
+    if (requested && !transparency_safe) g_suppressed=true;
+    const bool suppressed=requested && g_suppressed;
     const auto current=wglGetCurrentContext();
     if (!camera || !current || current!=g_context) g_system.Clear();
     g_context=current;
-    const auto attachment=(camera && current && (g_config.flags&1U))
+    const auto attachment=(!suppressed && camera && current && requested)
         ? effects::Resolve(Read,nullptr,g_base,g_config.attachment):effects::Attachment{};
-    g_system.Step(g_config,attachment,static_cast<double>(GetTickCount64())/1000.0);
-    if (camera && current && (g_config.flags&1U) && attachment.valid) {
+    auto simulation=g_config;
+    if (suppressed) simulation.flags=0; // Step cancels the current burst as it clears history.
+    g_system.Step(simulation,attachment,static_cast<double>(GetTickCount64())/1000.0);
+    g_geometry.count=0;
+    if (!suppressed && camera && current && requested && attachment.valid) {
         const auto vec=[](const float* p) { return effects::Vec{p[0],p[1],p[2]}; };
         const auto& v=camera->view_matrix;
         g_system.Build(g_config,vec(camera->position),{v[0],v[4],v[8]},vec(camera->up),vec(camera->forward),g_geometry);
         if (g_geometry.count && !RenderEffectsGeometry(g_config,g_geometry,*camera)) ++g_system.stats.render_rejected;
     }
     InterlockedIncrement(&g_control->status_sequence);
-    g_control->stats=g_system.stats; MemoryBarrier();
+    g_control->stats=g_system.stats;
+    g_control->safety_version=1;
+    g_control->presentation=g_control->error ? kInvalid : !requested ? kDisabled
+        : suppressed ? kSuppressed : attachment.valid ? kPermitted : kWaiting;
+    if (suppressed && g_control->suppressed_frames!=UINT32_MAX) ++g_control->suppressed_frames;
+    MemoryBarrier();
     InterlockedIncrement(&g_control->status_sequence);
     ReleaseSRWLockExclusive(&g_lock);
 }

@@ -6,7 +6,7 @@ import tkinter as tk
 from dataclasses import asdict
 from tkinter import ttk
 
-from .effects import PRESETS, RANGES, EffectsClient, EffectsConfig
+from .effects import PRESETS, RANGES, EffectsClient, EffectsConfig, presentation_status
 
 
 class EffectsPanel:
@@ -15,7 +15,7 @@ class EffectsPanel:
         self.tab = ttk.Frame(notebook, padding=12)
         notebook.add(self.tab, text="Particles / trails")
         self.status = tk.StringVar(value="Connect a full-profile effects client")
-        ttk.Label(self.tab, text="Actor-root attachments · scene depth · no depth writes").pack(
+        ttk.Label(self.tab, text="Actor-root attachments · hidden when safe transparency is unavailable").pack(
             anchor="w"
         )
         self.attachment = tk.StringVar(value="Local player root")
@@ -125,6 +125,7 @@ class EffectsPanel:
             try:
                 _, stats, desired, applied, error = self.client.read()
                 self.status.set(
+                    f"{presentation_status(stats)}\n"
                     f"Sequence {applied}/{desired}; error {error} · particles {stats[0]} "
                     f"· samples {stats[1]}\n"
                     f"Budget drops {stats[2]} · rejected attachments {stats[3]} "

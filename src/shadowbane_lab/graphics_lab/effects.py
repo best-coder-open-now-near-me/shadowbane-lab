@@ -148,7 +148,7 @@ class EffectsClient:
                     },
                 )
                 config.validate()
-                return config, struct.unpack("<8I", data[124:156]), desired, applied, error
+                return config, struct.unpack("<11I", data[124:168]), desired, applied, error
         raise RuntimeError("Effects controls are being updated")
 
     def write(self, config: EffectsConfig, *, burst: bool = False) -> int:
@@ -167,3 +167,18 @@ class EffectsClient:
             return sequence
         finally:
             kernel.ReleaseMutex(self._mutex)
+
+
+def presentation_status(stats: tuple[int, ...]) -> str:
+    """Native actual presentation, distinct from the requested Enabled checkbox."""
+    if len(stats) < 11 or stats[8] != 1:
+        return "Safety status unavailable; update the effects client"
+    return {
+        0: "Disabled",
+        1: "Enabled; waiting for a scene and attachment",
+        2: "Enabled; composition permitted",
+        3: ("Enabled but suppressed: safe transparency is not established. "
+            "Particles and trails are hidden; bursts are canceled. "
+            "Suppression stays latched until Disable / clear is applied."),
+        4: "Disabled: invalid settings",
+    }.get(stats[9], "Unknown safety status; update the effects client")
