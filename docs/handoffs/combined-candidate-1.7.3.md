@@ -75,3 +75,16 @@ to enter the world; next is a bounded exact-lifetime read and settings check,
 then the remaining physical input/safety checks. No connected movement success
 is claimed yet. Private installation, launch and read-only status receipts are
 in the existing diagnostics share under `combined-acceptance-1.7.3-3cbb5e38`.
+
+### In-world startup and settings confirmed
+
+After the owner entered the world, the installed read-only consumer returned a
+live snapshot (sequence3474, flags23, scene1, exact HWND/process lifetime) with
+controls disabled and no movement owner. The installed production
+`open_native_movement_settings` interface discovered the exact client and returned
+success opening its native panel. This closes the reported startup/settings
+unavailable defect on the actual package. It does not yet certify physical
+controller movement, stop/chat/focus behavior or manual/automation handover.
+Next: owner enables the desired input in the now-open panel and performs the
+short movement/release-to-stop check in clear space, followed by targeted safety
+checks. Private results are retained with the installation receipts.
