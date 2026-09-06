@@ -71,9 +71,11 @@ shape. The trace addition is optional and additive; it does not reinterpret olde
 ## Current live limitation
 
 The current WonderBane population reader proves living `ArcCharacter` state, exact position,
-selected/action-target tokens, and protected service roles. It deliberately does not claim a
-verified matching object type/UUID, player-versus-NPC category, hostility relation, ownership, or
-attackability field. Therefore the live `/pve` launcher does not yet enable
+selected/action-target tokens, protected service roles, and the stable native object type/UUID for
+the local player and every accepted loaded character. The reader uses the same reviewed `+0x78`
+and `+0x7C` identity fields as the native attachment lifecycle and rejects null, duplicate, stale,
+or same-address-reused keys. It does not yet claim a player-versus-NPC category, hostility
+relation, ownership, or attackability field. Therefore the live `/pve` launcher does not yet enable
 `require_verified_target_authority`.
 
 Do not fill this gap with display names, health totals, pointer ordering, target-cycle position,
@@ -84,8 +86,8 @@ joins.
 
 The remaining live bridge should be added in this order:
 
-1. Calibrate object type and UUID on the local player and every loaded `ArcCharacter`, then prove
-   that those values match the exact keys already present in group-roster records.
+1. Prove in a focused passive live check that the new local/population object keys match the exact
+   keys already present in group-roster records.
 2. Calibrate a structural player/NPC discriminator and retain unknown values explicitly.
 3. Project the exact party roster and ownership graph through `NativeEntityIdentityMap`.
 4. Calibrate the client field or protocol state that proves attackability and hostile relation.

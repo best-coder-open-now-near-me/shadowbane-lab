@@ -701,6 +701,11 @@ def _observe_native_population(profile_path: Path | None, *, as_json: bool) -> i
         "rejected_candidates": observation.rejected_candidates,
         "selected_target_token": observation.selected_target_token,
         "player_action_target_token": observation.player_action_target_token,
+        "local_player_object_key": (
+            observation.local_player_object_key.as_dict()
+            if observation.local_player_object_key is not None
+            else None
+        ),
         "characters": [
             {
                 "token": character.token,
@@ -712,6 +717,9 @@ def _observe_native_population(profile_path: Path | None, *, as_json: bool) -> i
                 "protected_roles": list(character.protected_roles),
                 "attack_eligible": character.attack_eligible,
                 "action_target_token": character.action_target_token,
+                "object_key": (
+                    character.object_key.as_dict() if character.object_key is not None else None
+                ),
             }
             for character in observation.characters
         ],

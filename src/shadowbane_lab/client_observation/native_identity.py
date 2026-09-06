@@ -15,6 +15,7 @@ from shadowbane_lab.client_observation.native_object import (
 )
 from shadowbane_lab.client_observation.native_population import (
     NativeCharacterObservation,
+    NativeCharacterPopulationObservation,
 )
 from shadowbane_lab.sim.affiliations import (
     AffiliationSnapshot,
@@ -32,6 +33,7 @@ __all__ = (
     "NativeObjectKey",
     "NativePartyAffiliationProjection",
     "join_native_group_population",
+    "key_native_character_population",
     "native_group_member_key",
     "project_native_group_to_party",
 )
@@ -127,6 +129,21 @@ def native_group_member_key(
     if not isinstance(member, NativeGroupMemberObservation):
         raise ValueError("member must be a NativeGroupMemberObservation")
     return NativeObjectKey(member.object_type, member.object_uuid)
+
+
+def key_native_character_population(
+    population: NativeCharacterPopulationObservation,
+) -> tuple[NativeKeyedCharacterObservation, ...]:
+    """Project a coherent population read into exact-key join records."""
+
+    if not isinstance(population, NativeCharacterPopulationObservation):
+        raise ValueError("population must be a NativeCharacterPopulationObservation")
+    keyed: list[NativeKeyedCharacterObservation] = []
+    for character in population.characters:
+        if character.object_key is None:
+            raise ValueError(f"character {character.token} has no proven native object key")
+        keyed.append(NativeKeyedCharacterObservation(character.object_key, character))
+    return tuple(keyed)
 
 
 def join_native_group_population(
