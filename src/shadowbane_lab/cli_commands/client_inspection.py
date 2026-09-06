@@ -721,6 +721,10 @@ def _observe_native_population(profile_path: Path | None, *, as_json: bool) -> i
                     character.object_key.as_dict() if character.object_key is not None else None
                 ),
                 "character_kind": character.character_kind.value,
+                "owner_object_key": (
+                    character.owner_object_key.as_dict()
+                    if character.owner_object_key is not None else None
+                ),
             }
             for character in observation.characters
         ],

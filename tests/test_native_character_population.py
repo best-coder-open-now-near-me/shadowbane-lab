@@ -40,6 +40,7 @@ def _profile() -> NativeCharacterPopulationProfile:
         banker_descriptor_rva=0x210,
         trainer_descriptor_rva=0x218,
         minion_descriptor_rva=0x220,
+        pet_data_descriptor_rva=0x228,
         descriptor_key_offset=4,
         sparse_value_pointer_offset=4,
         maximum_sparse_table_bits=4,
@@ -86,6 +87,7 @@ class FakeScanningProcess:
                 profile.banker_descriptor_rva,
                 profile.trainer_descriptor_rva,
                 profile.minion_descriptor_rva,
+                profile.pet_data_descriptor_rva,
             ),
             start=11,
         ):
@@ -184,6 +186,76 @@ class FakeScanningProcess:
 
 
 class NativeCharacterPopulationTests(unittest.TestCase):
+    def _pet_process(self, owner: tuple[int, int] = (1001, 53)) -> FakeScanningProcess:
+        process = FakeScanningProcess(_profile())
+        block = bytearray(process.memory[process.crab])
+        struct.pack_into("<II", block, process.profile.sparse_data_offset, 0x53000, 0)
+        process.memory[process.crab] = bytes(block)
+        process.memory[0x53000] = struct.pack("<II", 16, 0x54000)
+        process.memory[0x54000] = struct.pack("<II", *owner)
+        return process
+
+    def test_pet_owner_is_inline_exact_key_and_protects_pet(self) -> None:
+        process = self._pet_process()
+        observation = NativeCharacterPopulationReader(process.profile, process).observe()
+        pet = next(c for c in observation.characters if c.object_key == NativeObjectKey(2001, 37))
+        self.assertEqual(NativeObjectKey(1001, 53), pet.owner_object_key)
+        self.assertEqual(NativeCharacterKind.PET, pet.character_kind)
+        self.assertEqual(("pet",), pet.protected_roles)
+        self.assertFalse(pet.attack_eligible)
+        self.assertFalse(pet.minion)
+
+    def test_invalid_owner_key_rejects_candidate(self) -> None:
+        for owner in ((0, 0), (1001, 0), (0, 53), (2001, 37)):
+            with self.subTest(owner=owner):
+                process = self._pet_process(owner)
+                observation = NativeCharacterPopulationReader(process.profile, process).observe()
+                self.assertEqual(1, len(observation.characters))
+                self.assertEqual(2, observation.rejected_candidates)
+
+    def test_unsigned_pet_and_owner_identity_are_preserved(self) -> None:
+        process = self._pet_process((0xFFFFFF30, 53))
+        observation = NativeCharacterPopulationReader(process.profile, process).observe()
+        pet = next(c for c in observation.characters if c.character_kind == NativeCharacterKind.PET)
+        self.assertEqual(0xFFFFFF30, pet.owner_object_key.object_type)
+
+    def test_duplicate_pet_descriptor_rejects_candidate(self) -> None:
+        process = self._pet_process()
+        block = bytearray(process.memory[process.crab])
+        struct.pack_into("<II", block, process.profile.sparse_data_offset, 0x53000, 1)
+        process.memory[process.crab] = bytes(block)
+        process.memory[0x53000] *= 2
+        observation = NativeCharacterPopulationReader(process.profile, process).observe()
+        self.assertEqual(1, len(observation.characters))
+
+    def test_changing_owner_or_table_rejects_candidate(self) -> None:
+        for changed_address in (0x54000, 0x53000):
+            with self.subTest(address=changed_address):
+                process = self._pet_process()
+                original_read = process.read
+                reads = 0
+
+                def changing_read(
+                    address: int, size: int, original_read=original_read,
+                    changed_address=changed_address,
+                ) -> bytes:
+                    nonlocal reads
+                    raw = original_read(address, size)
+                    if address == changed_address:
+                        reads += 1
+                        if reads >= 2:
+                            return struct.pack("<II", 999, 53)
+                    return raw
+
+                process.read = changing_read
+                observation = NativeCharacterPopulationReader(process.profile, process).observe()
+                self.assertEqual(1, len(observation.characters))
+
+    def test_absent_pet_descriptor_does_not_prove_unowned(self) -> None:
+        process = FakeScanningProcess(_profile())
+        observation = NativeCharacterPopulationReader(process.profile, process).observe()
+        self.assertTrue(all(c.owner_object_key is None for c in observation.characters))
+
     def test_observes_loaded_characters_without_changing_selection(self) -> None:
         profile = _profile()
         process = FakeScanningProcess(profile)

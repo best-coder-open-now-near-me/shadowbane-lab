@@ -141,6 +141,32 @@ class LivePvEAuthoritySnapshotTests(unittest.TestCase):
 
         self.assertFalse(snapshot.party_complete)
 
+    def test_projects_positive_pet_owner_without_claiming_complete_ownership(self) -> None:
+        for owner in (self.local_key, self.player.object_key, NativeObjectKey(999, 53)):
+            with self.subTest(owner=owner):
+                pet = replace(
+                    self.npc, character_kind=NativeCharacterKind.PET, owner_object_key=owner
+                )
+                snapshot = build_native_party_authority_snapshot(
+                    replace(self.population, characters=(self.player, pet)),
+                    self.group, revision=13, party_group_id="live-party:13",
+                )
+                self.assertFalse(snapshot.ownership_complete)
+                self.assertFalse(snapshot.relation_complete)
+                record = snapshot.character_for_token(pet.token)
+                self.assertEqual(PvETargetCharacterKind.PET, record.character_kind)
+                self.assertIsNone(record.attackable)
+                edges = snapshot.affiliations.ownership_edges
+                if owner == NativeObjectKey(999, 53):
+                    self.assertEqual((), edges)
+                else:
+                    self.assertEqual(1, len(edges))
+                    self.assertEqual(f"native:{owner.canonical_token}", edges[0].owner_id)
+                    self.assertEqual(
+                        f"native:{pet.object_key.canonical_token}", edges[0].owned_id
+                    )
+                    self.assertEqual(1, len(snapshot.as_dict()["ownership_edges"]))
+
     def test_missing_population_keys_fail_closed(self) -> None:
         population = replace(
             self.population,
