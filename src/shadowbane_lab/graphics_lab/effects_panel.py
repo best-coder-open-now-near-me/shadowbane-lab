@@ -15,9 +15,10 @@ class EffectsPanel:
         self.tab = ttk.Frame(notebook, padding=12)
         notebook.add(self.tab, text="Particles / trails")
         self.status = tk.StringVar(value="Connect a full-profile effects client")
-        ttk.Label(self.tab, text="Actor-root attachments · hidden when safe transparency is unavailable").pack(
-            anchor="w"
-        )
+        ttk.Label(
+            self.tab,
+            text="Actor-root attachments · hidden when safe transparency is unavailable",
+        ).pack(anchor="w")
         self.attachment = tk.StringVar(value="Local player root")
         ttk.Combobox(
             self.tab,
