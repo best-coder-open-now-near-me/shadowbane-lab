@@ -135,3 +135,23 @@ new package is certified by this policy approval.
 Next active item: verify a native submission interval and comparable depth-key
 provenance, then integrate the feature scheduler with the shared scene lifecycle.
 Existing ledger/atlas/replay and competing-hook restrictions remain in effect.
+
+## Deferred hand-material observation and gameplay priority
+
+The owner reports a small section of the hands remains unhighlighted while the
+rest of the body is highlighted. The hands also previously showed unusually
+heavy outlining. Preserve this as a targeted future regression. Separate material
+or submission paths and a later overdraw pass are hypotheses, not established
+causes. Do not reopen graphics investigation before the gameplay priority.
+
+Particles are paused at feature-owned scheduler commit
+`69d7717de89ec9feac08af59d5894a93e671f154`; it is not integrated or runtime-wired
+and does not enable visible effects. The owner prioritizes PvE-to-PvP and is
+available for useful visual confirmation. The existing testing task is preparing
+a passive identity/affiliation evidence check from current tools and the current
+owned client. First establish the structural player/NPC and party identity bridge
+in `docs/pve-target-authority.md`; then verify hostility/attackability. Visual
+labels provide ground truth for calibration, not runtime combat authority.
+No PvP attacks, new deployment or broad repeat runs are authorized by this step.
+Next active item: prepare that focused passive check, or report the exact missing
+instrumentation needed before asking the owner to act.
