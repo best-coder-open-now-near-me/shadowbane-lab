@@ -208,6 +208,9 @@ if(BUILD_TESTING)
   set_tests_properties(wonderbane_extension_combined_render PROPERTIES SKIP_RETURN_CODE 77)
   add_test(NAME wonderbane_extension_effects_native_transparency
     COMMAND wonderbane_extension_navigation_draw_test --verify-native-transparency)
+  # Deferred ideal composition probes remain executable, separate from required fallback.
+  set_tests_properties(wonderbane_extension_selected_cue_native_transparency
+    wonderbane_extension_effects_native_transparency PROPERTIES LABELS "stretch-diagnostic")
 
   add_executable(wonderbane_extension_navigation_test
     navigation_protocol.cpp navigation_channel.cpp navigation_protocol_test.cpp)

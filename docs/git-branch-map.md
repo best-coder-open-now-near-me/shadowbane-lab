@@ -26,9 +26,10 @@ completed older features. Shared scene/context/startup and manager ownership
 remain with the integration owner.
 
 See [the active source and validation handoff](handoffs/native-lifecycle-hardening.md)
-for exact included revisions, committed repairs and outstanding gates. Native
-foreground transparency currently fails required effects and cue acceptance
-checks. Movement now registers one native update/input runtime after shared startup,
+for exact included revisions, committed repairs and outstanding gates. The September 6 owner scope prioritizes artifact avoidance: world glow and
+particles/trails are conservatively suppressed, with explicit controls/status.
+Ideal native transparency remains deferred diagnostic evidence; required runtime
+fallback tests must execute and pass. See the updated shared acceptance plan. Movement now registers one native update/input runtime after shared startup,
 defaults disabled, and composes native stop, camera, steering, terrain-pick and
 drag with exact lifetime and HWND safety handling. Native preferences and the selected-client
 Graphics Lab settings entry are included. Manager operations now use immutable native

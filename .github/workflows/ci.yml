@@ -53,7 +53,17 @@ jobs:
       - name: Build Win32 release
         run: cmake --build build/native-${{ matrix.profile }} --config Release
       - name: Run native tests
-        run: ctest --test-dir build/native-${{ matrix.profile }} -C Release --output-on-failure
+        run: ctest --test-dir build/native-${{ matrix.profile }} -C Release -LE stretch-diagnostic --output-on-failure
+      - name: Record deferred ideal transparency diagnostics
+        continue-on-error: true
+        run: ctest --test-dir build/native-${{ matrix.profile }} -C Release -L stretch-diagnostic --output-on-failure --output-junit stretch-diagnostics.xml
+      - name: Retain ideal transparency diagnostic results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stretch-diagnostics-${{ matrix.profile }}
+          path: stretch-diagnostics.xml
+          if-no-files-found: error
 
   powershell-syntax:
     runs-on: windows-latest

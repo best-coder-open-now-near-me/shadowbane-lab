@@ -57,3 +57,14 @@ def test_diagnostic_cannot_bypass_other_gate_failures(tmp_path, case):
     ET.ElementTree(suite).write(path)
     with pytest.raises(RuntimeError):
         builder.validate_native_results(path, required, diagnostic=True, exit_code=code)
+
+
+@pytest.mark.parametrize("name", [
+    "wonderbane_extension_selected_cue_runtime",
+    "wonderbane_extension_effects_runtime",
+])
+@pytest.mark.parametrize("diagnostic", [False, True])
+def test_fallback_failures_are_required_even_for_diagnostic_packages(tmp_path, name, diagnostic):
+    path, required = results(tmp_path, "fail", "failure", name)
+    with pytest.raises(RuntimeError, match="failed"):
+        builder.validate_native_results(path, required, diagnostic=diagnostic, exit_code=8)

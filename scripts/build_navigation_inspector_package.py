@@ -256,10 +256,11 @@ def main() -> int:
                 "-C",
                 "Release",
                 "--output-on-failure",
+                "-LE", "stretch-diagnostic",
                 "--output-junit",
                 native_results,
             ],
-            retain_failure=arguments.diagnostic_observation,
+            retain_failure=False,
         )
         required_native_tests = {
             "wonderbane_extension_combined_render",
@@ -269,8 +270,8 @@ def main() -> int:
             "wonderbane_extension_scene_query_guard",
             "wonderbane_extension_terrain_trace_full",
             "wonderbane_extension_terrain_trace_disabled",
-            "wonderbane_extension_selected_cue_native_transparency",
-            "wonderbane_extension_effects_native_transparency",
+            "wonderbane_extension_selected_cue_runtime",
+            "wonderbane_extension_effects_runtime",
             "wonderbane_extension_movement_runtime_keyboard",
             "wonderbane_extension_movement_runtime_controller",
             "wonderbane_extension_movement_runtime_drag",
@@ -287,9 +288,22 @@ def main() -> int:
         }
         profile_failures = validate_native_results(
             native_results, required_native_tests,
-            diagnostic=arguments.diagnostic_observation, exit_code=native_exit,
+            diagnostic=False, exit_code=native_exit,
         )
-        diagnostic_failures.extend({"profile": profile, **failure} for failure in profile_failures)
+        if profile_failures:
+            raise RuntimeError("required native gates cannot contain diagnostic failures")
+        stretch_results = logs / f"{profile}-stretch-diagnostics.xml"
+        stretch_exit = run(
+            f"{profile}-stretch-diagnostics",
+            [ctest, "--test-dir", build, "-C", "Release", "-L", "stretch-diagnostic",
+             "--output-on-failure", "--output-junit", stretch_results],
+            retain_failure=True,
+        )
+        stretch_failures = validate_native_results(
+            stretch_results, set(DIAGNOSTIC_TRANSPARENCY_FAILURES),
+            diagnostic=True, exit_code=stretch_exit,
+        )
+        diagnostic_failures.extend({"profile": profile, **failure} for failure in stretch_failures)
         ipc_results = logs / f"{profile}-movement-ipc.xml"
         environment["WONDERBANE_MOVEMENT_RUNTIME_TEST"] = str(
             build / "Release/wonderbane_extension_movement_runtime_test.exe"
@@ -449,6 +463,18 @@ def main() -> int:
         "assert app.cue_panel.settings().enabled is False; app.close()"
     )
     run("installed-selection-panel", [python, "-c", cue_smoke], cwd=output)
+    run("installed-conservative-status", [python, "-c", """
+import importlib.metadata, pathlib, sys
+from shadowbane_lab.graphics_lab import effects, selected_cue
+for module in (effects, selected_cue):
+    assert pathlib.Path(module.__file__).resolve().is_relative_to(pathlib.Path(sys.prefix).resolve())
+assert importlib.metadata.version("shadowbane-lab") == "0.2.0"
+assert "suppressed" in effects.presentation_status((0,) * 8 + (1, 3, 1))
+assert "unavailable" in effects.presentation_status((0,) * 8)
+assert selected_cue.describe_status(
+    selected_cue.CueSettings(enabled=True), (2, 2, 0, 0, 1, 0, 2, 0)
+) == "Glow hidden to avoid rendering artifacts. Off-screen direction remains enabled."
+"""], cwd=output)
     sky_smoke = (
         "import tkinter as tk; import shadowbane_lab.graphics_lab.app as module; "
         "module.discover_graphics_targets=lambda: (); "
@@ -511,7 +537,7 @@ with tempfile.TemporaryDirectory() as directory:
         diagnostic_note.write_text(
             "DIAGNOSTIC OBSERVATION ONLY - NOT AN ACCEPTANCE CANDIDATE\n"
             f"Exact source: {revision}\n"
-            "Known full transparency gate failures remain recorded in diagnostic-manifest.json.\n"
+            "Deferred ideal transparency findings remain recorded in diagnostic-manifest.json.\n"
             "No VM installation, deployment or activation is authorized by this artifact.\n"
             "Only the full-profile DLL contains the opt-in terrain observer.\n"
             "Both profiles are retained for verification; their capabilities differ.\n"
@@ -525,7 +551,11 @@ with tempfile.TemporaryDirectory() as directory:
     receipt = {
         "purpose": "diagnostic_observation" if diagnostic else "acceptance_candidate",
         "acceptance_eligible": not diagnostic,
-        "known_failed_gates": diagnostic_failures,
+        "known_failed_gates": [],
+        "deferred_transparency_findings": diagnostic_failures,
+        "world_enhancement_policy": "conservative suppression; no positive coverage authority",
+        "world_glow_visible": False,
+        "particles_and_trails_visible": False,
         "source_revision": revision,
         "source_branch": git("branch", "--show-current"),
         "built_utc": stamp,

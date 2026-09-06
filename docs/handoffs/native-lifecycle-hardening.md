@@ -1493,3 +1493,25 @@ remain tied to their reviewed builds; they do not certify this candidate.
 Identity/trace validation: 56 tests passed. This checkpoint assigns source identity;
 no newly built package, DLL hash, deployment or live acceptance is claimed.
 Next: consume conservative cue/effects runtime changes and verify combined gates.
+
+
+### Conservative combined runtime candidate (September 6)
+
+Included owner fallback revisions: particles 62755f988c228beb38418c8e0e878d903a288ef0,
+its handoff 51640bf8caddc4a4671cb22d25bb1ccc864a63c0 and lint correction
+372e2b843b116e25759c2a611dd07b529378c9b8; cue
+76246fe4dc31986593f3789b42d3bbd7576bb51d. Shared scene wiring explicitly passes
+the integration-owned safety authority; there is no positive supported authority.
+World glow and particles/trails are hidden, bursts canceled, prior history cleared;
+off-screen direction remains independent. These world enhancements are deferred,
+not accepted visible functionality. Native 1.7.0 / wheel 0.2.0 identify this source.
+
+Both native profiles build and execute 101 passing tests plus two no-argument
+private-binding skips; package builder will run those against the reviewed client.
+Full Python: 1822 passed, 10 skipped, 238 subtests. Ruff src/tests/builder and all
+PowerShell script parsing pass. The existing package path now strictly requires
+cue/effects production runtime tests, records separately executed ideal transparency
+counterexamples, and verifies installed suppression messages outside the checkout.
+No package or connected-client acceptance is yet certified. Next: exact clean build,
+private bindings/IPC, installed artifact verification, independent integration review,
+and one pinned Sol acceptance handoff.
