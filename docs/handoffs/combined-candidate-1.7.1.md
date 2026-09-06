@@ -113,3 +113,25 @@ not newly authorized. Suppression is not completed particle delivery, and an
 opaque/no-fade substitution requires an explicit scope decision. Reuse captured
 native ordering evidence and existing combined tests; escalate only a specific
 remaining decision that actually blocks a production implementation.
+
+## Approved particle sorting policy — September 6
+
+The owner explicitly accepts conventional whole-submission depth sorting for
+visible fading particles/trails, including occasional ordering limitations when
+transparent geometry intersects. Ordinary foreground occlusion must work and
+conspicuous artifacts remain defects. Exact arbitrary per-fragment transparency
+is not a prerequisite. The working highlight remains the accepted baseline.
+
+The existing particles owner is implementing immutable bounded frame batches
+and scheduler regressions in the existing feature modules. Integration owns the
+shared native submission boundary. Keys use existing camera-forward world depth,
+far to near; native category or zero wrapper metadata is not a substitute.
+Retained source evidence includes transparent immediate draws after queue exit,
+so that exit alone is not a verified completion boundary. A reversed key detected
+after drawing cannot undo previously emitted pixels; interval ordering must be
+established before treating it as a valid merge. No visible particle runtime or
+new package is certified by this policy approval.
+
+Next active item: verify a native submission interval and comparable depth-key
+provenance, then integrate the feature scheduler with the shared scene lifecycle.
+Existing ledger/atlas/replay and competing-hook restrictions remain in effect.
