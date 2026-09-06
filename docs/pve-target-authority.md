@@ -129,8 +129,26 @@ as PET, and excludes known pets from ordinary PvE candidates. Invalid, duplicate
 self-owning or changing pet data rejects the candidate. The snapshot projects
 owner-to-pet edges only when both exact keys are mapped, and serializes those
 edges for review. Missing owner bindings and absent descriptors never prove
-non-ownership: ownership completeness remains false. Ownership changes, dismissal
-and other summon types still require calibration before that can change.
+non-ownership: ownership completeness remains false. Other summon types and
+absence semantics still require calibration before that can change. The owner
+confirmed that player-to-player pet ownership transfer is not supported; it is
+not a required gameplay test.
+
+The subsequent owner-operated dismissal/resummon check completed within the same
+client lifetime. Before dismissal the selected pet's inline owner key matched
+the known group member. Dismissal cleared the selection slot. A bounded reread
+of the previous allocation retained the old object key but no longer matched
+the calibrated ArcCharacter vtable: residual identity bytes alone must never
+establish a live pet. After resummoning, the selected pet had a different
+allocation and a new object key, with the same exact owner key. Repeated key,
+header, table and owner reads were stable in that sample. This is one observed
+lifecycle, not proof that allocations or keys can never be reused.
+
+A regression fixture also exercises synthetic same-address reuse with a new
+identity, both as a pet and as an ordinary NPC with no pet descriptor. The
+existing reader refreshes fields even between population rescans, rejects the
+dismissed allocation, and does not retain the previous owner on the new NPC.
+No runtime change, deployment, or broader ownership-completeness claim was needed.
 
 The local character and selected pet both had stable peace byte 0 in the
 owner-confirmed fight zone, contrasting with the earlier peace-zone byte 1.
@@ -169,7 +187,8 @@ dialog path; it does not independently establish hostile-NPC authority. The
 alone does not establish a character flag or pairwise attackability check.
 
 1. Positive known-pet edges are projected through `NativeEntityIdentityMap`; next
-   calibrate ownership transitions and completeness.
+   dismissal/resummon is observed and regression-covered. Remaining ownership
+   work is other summon types and proving completeness, not player transfers.
 2. Calibrate the client field or protocol state that proves attackability and hostile relation.
 3. Configure the live launcher's authority channels after their remaining facts are calibrated.
 4. Enable strict authority in passive observation and plan-only traces before allowing live combat
