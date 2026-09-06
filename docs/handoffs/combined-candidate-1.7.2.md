@@ -87,3 +87,30 @@ non-regression observation if affected; accepted highlight behavior stays the ba
 
 Next: coordinate the designated-client installation
 and targeted connected check. No owner restart is needed before installation.
+
+## Approved VM installation and connected failure
+
+Owner approved installation after package verification. The new 1.7.2 client was
+prepared in its own guest directory, preserving 1.7.1 and copying its Config.
+Disk exhaustion rolled back the first client copy; removed only the obsolete
+1.7.0-r2 client directory under the owner's prior backup deletion authorization,
+after resolving the exact path and checking for reparse points/running processes.
+The retry verified the prepared copy and installed wheel. Existing clients were
+already closed; none was stopped or killed by this installation.
+
+The running new DLL was verified by a 32-bit module inspection and independent
+read-only memory probe against the exact process lifetime. Its hash matches above.
+Connected movement remains FAILED: status now publishes terminal-only flags8,
+sequence2, HWND0 instead of the previous empty mapping. Whole loaded .text differs
+from authenticated prepared disk at exactly the four reviewed terrain-mask refresh
+patch RVAs (4ab14b,4ab80f,4abe5a,4ac60d); movement update code matches disk.
+This exposes an integration gap in the prepared-image fixture: it did not apply
+the existing terrain repair before checking movement admission. Movement owner
+owns the focused repair and regression. Do not revert the working terrain repair
+or ask for more focus/controller retries. The local package/CI results above are
+valid for what they tested, but do not certify working connected movement.
+
+Private install/launch/status/loaded-image receipts are in the existing diagnostics
+share under `combined-acceptance-1.7.2-616699a1`. No private executable or capture
+is committed. Next: combine the terrain/movement repair, rebuild and reverify a new
+exact package, then replace only this designated diagnostic client after safe exit.
