@@ -1459,3 +1459,26 @@ rectangle-guard-full.xml,rectangle-guard-diagnostics.xml. Test executes its pixe
 probe on core3.1+; legacy contexts retain ordinary harness checks without claiming
 this optional rectangle probe ran. No package/VM change. Next: integrate actual
 unsupported-format rejection test, then continue ordered native transparency.
+
+### Actual unsupported-format validation integrated and required
+
+Consumed cue66f8b02a0430acab8e85a1990d8afd16e7b593ed asdbc1722. Resolved only
+CLI option-list conflict by retaining both shared --query-guard and new
+--unsupported-formats. Added named CTest selected_cue_unsupported_formats to the
+existing executable, with77meaning unavailable; existing package builder requires
+that named test to execute/pass, so unavailable is never certified as success.
+
+Both profiles actually enumerate220pixel-format descriptors, execute24/0,0/0,0/8
+contexts, and verify EQUAL rejection without native color/depth/stencil/state/query
+mutation, zero supplemental calls, cleanup/recreation and unrelated scene rendering.
+16/8and32/8 contexts lack required framebuffer APIs on this driver:4unavailable
+attempts explicitly reported, not claimed passing. Both profiles' baseGPU,query,
+pipeline and unsupported-format tests pass4/4,zero test skips. Local XMLs:
+unsupported-formats-full.xml and unsupported-formats-diagnostics.xml. Existing
+package-gate unit tests8pass; touched builder Ruff passes. No parallel test or
+release pipeline. No new wheel/DLL package or installation has been certified.
+
+Rectangle texture repair and this validation close specific cross-feature issues;
+general ordered foreground transparency remains open and still blocks complete
+candidate certification. Next: justified native fragment source/coverage ownership
+and completion of that repair, preserving existing navigation and feature behavior.

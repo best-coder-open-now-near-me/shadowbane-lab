@@ -264,6 +264,7 @@ def main() -> int:
         required_native_tests = {
             "wonderbane_extension_combined_render",
             "wonderbane_extension_selected_cue_gpu",
+            "wonderbane_extension_selected_cue_unsupported_formats",
             "wonderbane_extension_scene_pipeline_guard",
             "wonderbane_extension_scene_query_guard",
             "wonderbane_extension_terrain_trace_full",
