@@ -258,8 +258,24 @@ void OrderedOperatorProbe(const GraphicsCameraState& camera) {
     clear(near_effect);native(middle);const auto wrongly_transformed_near=read();
     Check(distance(two_depth,mix(mix(baseline,transformed_far,far_effect[3]),wrongly_transformed_near,near_effect[3]))>0.02F,
           "one shared foreground transform fails for two effect depths");
+    // Square blend factors are core in GL 1.4 or supplied by NV_blend_square.
+    // Do not probe an unsupported enum and then clear the resulting GL error.
+    const auto* version=reinterpret_cast<const char*>(glGetString(GL_VERSION));
+    const auto* extensions=reinterpret_cast<const char*>(glGetString(GL_EXTENSIONS));
+    int major=0,minor=0;
+    const bool modern=version && sscanf_s(version,"%d.%d",&major,&minor)==2
+        && (major>1 || (major==1 && minor>=4));
+    bool square=modern;
+    constexpr char token[]="GL_NV_blend_square";
+    if(extensions) for(const char* at=extensions;(at=std::strstr(at,token))!=nullptr;at+=sizeof(token)-1) {
+        if((at==extensions || at[-1]==' ') && (at[sizeof(token)-1]==' ' || at[sizeof(token)-1]=='\0'))square=true;
+    }
     // Even nominal affine factors fail distributivity after framebuffer saturation.
     for(bool saturated:{false,true}) {
+        if(!saturated && !square) {
+            std::puts("UNAVAILABLE: nonlinear destination factor requires GL 1.4 or GL_NV_blend_square; supported operator cases continue");
+            continue;
+        }
         const Pixel b{0.6F,0.6F,0.6F,0.6F},e{0.1F,0.1F,0.1F,0.5F};
         const Op op=saturated?Op{GL_ONE,GL_ONE,{0.8F,0.8F,0.8F,0.8F}}:
                               Op{GL_ZERO,GL_DST_COLOR,{0.2F,0.2F,0.2F,0.2F}};
@@ -273,7 +289,7 @@ void OrderedOperatorProbe(const GraphicsCameraState& camera) {
     }
     Same(original,Capture());
     std::printf("Restricted native operator experiment: %u RGBA cases; equal-depth order, two effect depths, "
-                "nonlinear and saturation counterexamples checked (not runtime integration)\n",passed);
+                "saturation checked; nonlinear %s (not runtime integration)\n",passed,square?"checked":"unavailable");
 }
 
 }
@@ -293,7 +309,26 @@ int main(int argc, char** argv) {
     format.dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER;
     format.iPixelType = PFD_TYPE_RGBA; format.cColorBits = 32; format.cAlphaBits = 8; format.cDepthBits = 24;
     format.cStencilBits = 8; format.iLayerType = PFD_MAIN_PLANE;
-    const int index = ChoosePixelFormat(dc, &format);
+    int index = ChoosePixelFormat(dc, &format);
+    wchar_t legacy[2]{};
+    const bool legacy_requested=GetEnvironmentVariableW(L"WONDERBANE_TEST_GDI_GL",legacy,2)==1
+        && legacy[0]==L'1';
+    if (legacy_requested) {
+        // Test-only opt-in: select actual Microsoft software GL, not a spoofed version string.
+        index=0;
+        PIXELFORMATDESCRIPTOR candidate{};
+        const int formats=DescribePixelFormat(dc,1,sizeof(candidate),&candidate);
+        for(int i=1;i<=formats;++i) {
+            if(!DescribePixelFormat(dc,i,sizeof(candidate),&candidate))continue;
+            const DWORD required=PFD_DRAW_TO_WINDOW|PFD_SUPPORT_OPENGL|PFD_DOUBLEBUFFER|PFD_GENERIC_FORMAT;
+            if((candidate.dwFlags&required)==required && !(candidate.dwFlags&PFD_GENERIC_ACCELERATED)
+                && candidate.iPixelType==PFD_TYPE_RGBA && candidate.cColorBits>=24
+                && candidate.cAlphaBits>=8 && candidate.cDepthBits>=24 && candidate.cStencilBits>=8) {
+                index=i;format=candidate;break;
+            }
+        }
+        if(!index) { std::puts("UNAVAILABLE: requested GDI RGBA8 depth24 stencil8 context"); return 77; }
+    }
     if (!index || !SetPixelFormat(dc, index, &format)) return 4;
     HGLRC context = wglCreateContext(dc);
     if (!context || !wglMakeCurrent(dc, context)) return 5;
@@ -346,6 +381,13 @@ int main(int argc, char** argv) {
     GraphicsCameraState camera{};
     for (unsigned i = 0; i < 16U; i += 5U) camera.view_matrix[i] = camera.projection_matrix[i] = 1;
     camera.viewport[2] = 640; camera.viewport[3] = 480;
+    if(legacy_requested) {
+        OrderedOperatorProbe(camera);
+        Check(glGetError()==GL_NO_ERROR,"legacy operator run leaves no GL errors");
+        wglMakeCurrent(nullptr,nullptr);wglDeleteContext(context);
+        ReleaseDC(window,dc);DestroyWindow(window);UnregisterClassW(klass.lpszClassName,klass.hInstance);
+        return failures?1:0;
+    }
     Check(RenderNavigationGeometry(frame, &line, &camera), "render normal inspector");
     glFinish(); Same(state, Capture());
     Check(ColoredPixels() == 0, "normal trail is occluded by scene depth");
