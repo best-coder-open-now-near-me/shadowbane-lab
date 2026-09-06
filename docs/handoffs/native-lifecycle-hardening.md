@@ -1515,3 +1515,36 @@ counterexamples, and verifies installed suppression messages outside the checkou
 No package or connected-client acceptance is yet certified. Next: exact clean build,
 private bindings/IPC, installed artifact verification, independent integration review,
 and one pinned Sol acceptance handoff.
+
+
+### Exact-package and CI audit, before final acceptance (September 6)
+
+The power interruption damaged the local origin tracking file only. Its prior bytes
+were retained privately, the ref restored to the exact GitHub-advertised 2efee73 SHA,
+and fetch plus Git connectivity verification passed. No checkout reset or shared
+history rewrite occurred.
+
+Independent movement-owner review of e84a40a125e09a875bbc931fd02a2def2b61e381
+(range 93f929f..e84a40a) found no concrete integration defects. The reviewer used
+an immutable archive: 61 Python tests plus 12 subtests, zero skips; both production
+cue/effects runtime native tests rebuilt and passed. This is integration review,
+not installed-package or connected acceptance.
+
+Exact builders for e84a40a and 0c80f52bb6c5e29c794efe9d2a17c9b7f60e1dec passed
+local checks, including 101 native passes/profile, explicit private cue/sky bindings,
+29 IPC tests/profile, both source profile memberships, installed wheel/panels/status,
+and trace compatibility. All 53 files in the latter receipt were independently
+hash/size verified. Both artifacts are on ACCEPTANCE-HOLD; their local receipts
+must not be treated as overall approval while required hosted CI remains unresolved.
+
+CI exposed unconstrained MagicMock stop ownership in two PvE CLI tests on Python
+3.12/3.13. Test-only 0c80f52 uses an explicit owned interface and reports startup
+errors before downstream expectations. Actual CI then executed 1826 passing tests,
+3 skips, 241 subtests on each of Python 3.11/3.12/3.13. Local build environment
+executes 1822 passes, 10 skips, 238 subtests; the different environment is explicit.
+
+Hosted OpenGL 1.1 exposed an unsupported destination blend factor in the particles
+ordered-operator experiment. The existing feature owner is correcting that test;
+production fallback gates pass there. Final source/package must include the fix
+and finish applicable gates before the consolidated Sol handoff. Main, VM and
+running clients have not been changed. Perfect transparency remains deferred.

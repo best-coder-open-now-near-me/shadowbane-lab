@@ -1,10 +1,10 @@
 # Native movement and camera controls
 
-Source implementation is in progress on `codex/native-movement-controls`, integrated
-through `codex/native-lifecycle-hardening`. This document describes the settings
-and controls in that source. Native transport and the movement adapter are implemented;
-combined manager integration, installed package verification and connected acceptance
-remain pending.
+Native controls, transport, manager and standalone automation ownership are integrated
+through `codex/native-lifecycle-hardening`. This document describes their settings
+and behavior. The integration owner verifies the exact combined package and supplies
+its acceptance record. Connected movement behavior remains pending that focused
+acceptance; source tests and installed control checks do not establish live success.
 
 ## Settings
 
