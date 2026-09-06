@@ -37,7 +37,7 @@ bool StackRoom(GLenum depth_name, GLenum max_name) noexcept {
 }
 }
 bool IsWorldEnhancementCompositionSafe() noexcept {
-    // Conservative owner-selected fallback: preserve native foreground pixels.
+    // Late compositing cannot preserve unknown native foreground transmission.
     // A valid camera/final depth or missing observed blend is not coverage proof.
     return false;
 }

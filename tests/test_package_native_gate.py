@@ -61,10 +61,11 @@ def test_diagnostic_cannot_bypass_other_gate_failures(tmp_path, case):
 
 @pytest.mark.parametrize("name", [
     "wonderbane_extension_selected_cue_runtime",
+    "wonderbane_extension_selected_cue_native_material",
     "wonderbane_extension_effects_runtime",
 ])
 @pytest.mark.parametrize("diagnostic", [False, True])
-def test_fallback_failures_are_required_even_for_diagnostic_packages(tmp_path, name, diagnostic):
+def test_required_runtime_failures_cannot_be_waived(tmp_path, name, diagnostic):
     path, required = results(tmp_path, "fail", "failure", name)
     with pytest.raises(RuntimeError, match="failed"):
         builder.validate_native_results(path, required, diagnostic=diagnostic, exit_code=8)

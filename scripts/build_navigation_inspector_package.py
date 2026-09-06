@@ -268,6 +268,7 @@ def main() -> int:
             "wonderbane_extension_ordered_operators",
             "wonderbane_extension_ordered_operators_legacy",
             "wonderbane_extension_selected_cue_gpu",
+            "wonderbane_extension_selected_cue_native_material",
             "wonderbane_extension_selected_cue_unsupported_formats",
             "wonderbane_extension_scene_pipeline_guard",
             "wonderbane_extension_scene_query_guard",
@@ -476,8 +477,11 @@ assert importlib.metadata.version("shadowbane-lab") == "0.2.1"
 assert "suppressed" in effects.presentation_status((0,) * 8 + (1, 3, 1))
 assert "unavailable" in effects.presentation_status((0,) * 8)
 assert selected_cue.describe_status(
-    selected_cue.CueSettings(enabled=True), (2, 2, 0, 0, 1, 0, 2, 0)
-) == "Glow hidden to avoid rendering artifacts. Off-screen direction remains enabled."
+    selected_cue.CueSettings(enabled=True), (2, 2, 0, 0, 1, 3, 0, 0)
+) == "Applied 2 - enhanced material submissions this frame: 3"
+assert "no supported selected draw observed" in selected_cue.describe_status(
+    selected_cue.CueSettings(enabled=True), (2, 2, 0, 0, 1, 0, 8, 0)
+)
 """], cwd=output)
     sky_smoke = (
         "import tkinter as tk; import shadowbane_lab.graphics_lab.app as module; "
@@ -557,8 +561,9 @@ with tempfile.TemporaryDirectory() as directory:
         "acceptance_eligible": not diagnostic,
         "known_failed_gates": [],
         "deferred_transparency_findings": diagnostic_failures,
-        "world_enhancement_policy": "conservative suppression; no positive coverage authority",
-        "world_glow_visible": False,
+        "selected_character_effect": "native-order color highlight; supported materials",
+        "selected_character_visible_path_verified": True,
+        "particles_policy": "suppressed; correct alpha composition unavailable",
         "particles_and_trails_visible": False,
         "source_revision": revision,
         "source_branch": git("branch", "--show-current"),

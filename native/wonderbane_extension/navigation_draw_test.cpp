@@ -179,7 +179,6 @@ void CombinedProbe(const GraphicsCameraState& camera, bool measure) {
                     Check((background[0]||background[1]||background[2])==bool(c.flags&8U),
                         "combined sky contributes visible background only when enabled");
                 }
-                if (c.flags & 4U) Check(cue::BeginMask(), "combined cue begin");
                 glEnable(GL_DEPTH_TEST); glDepthFunc(GL_LESS); glDepthMask(GL_TRUE);
                 glDisable(GL_BLEND); glColor4f(0,0,0,1);
                 const GLfloat vertices[]{-.25F,-.5F,0,.25F,-.5F,0,.25F,.5F,0,-.25F,.5F,0};
@@ -188,15 +187,18 @@ void CombinedProbe(const GraphicsCameraState& camera, bool measure) {
                 auto mesh=[](void*) noexcept { glDrawArrays(GL_QUADS,0,4); };
                 for (unsigned node=0; node<46; ++node) {
                     if (c.flags & 4U) {
-                        Check(cue::BeforeOwnedDraw(), "combined owned wrapper");
                         const auto material = c.verify ? Capture() : State{};
-                        Check(cue::CaptureGeometry(mesh,nullptr), "combined raw material capture");
+                        cue::Settings settings{}; settings.enabled=1;
+                        Check(cue::DrawMaterial(settings,mesh,nullptr)==0, "combined native material");
                         if(c.verify) Same(material, Capture());
-                    }
-                    mesh(nullptr);
-                    if (c.flags & 4U) Check(cue::AfterOwnedDraw(), "combined owned wrapper complete");
+                    } else mesh(nullptr);
                 }
                 glPopClientAttrib();
+                if(c.verify) {
+                    const auto selected=BackgroundSample(*c.camera,.5F,.5F);
+                    Check((selected[0]||selected[1]||selected[2])==bool(c.flags&4U),
+                        "combined selection visibly changes character RGB only when enabled");
+                }
                 BackgroundPixel water{},leaf{};
                 if(c.verify) {
                     // Native alpha holes and depthless blending run after sky.
@@ -220,10 +222,6 @@ void CombinedProbe(const GraphicsCameraState& camera, bool measure) {
                 const auto before_overlays = c.verify ? Capture() : State{};
                 GLfloat depth_before=0,depth_after=0;
                 if(c.verify) glReadPixels(c.camera->viewport[2]/2,c.camera->viewport[3]/2,1,1,GL_DEPTH_COMPONENT,GL_FLOAT,&depth_before);
-                if (c.flags & 4U) {
-                    cue::Settings settings{}; settings.enabled=1;
-                    Check(cue::CompositeMask(settings,{}), "combined whole-character cue");
-                }
                 if(c.verify) Same(before_overlays, Capture());
                 if (c.flags & 2U) {
                     effects::Config config{}; config.flags=1;
@@ -265,7 +263,7 @@ void CombinedProbe(const GraphicsCameraState& camera, bool measure) {
             }
         }
         glFinish();
-        const auto allocated=cue::AllocatedMaskBytes();
+        const auto allocated=cue::AllocatedMaterialBytes();
         if (measure) {
             std::sort(samples.begin(),samples.end());
             const double median=(samples[steady_frames/2-1]+samples[steady_frames/2])/2;
@@ -275,9 +273,9 @@ void CombinedProbe(const GraphicsCameraState& camera, bool measure) {
                 warmup_ms/warmup_frames,steady_frames,median,samples.front(),samples.back(),
                 static_cast<unsigned long long>(allocated));
         }
-        Check(allocated <= static_cast<std::uint64_t>(camera.viewport[2])*camera.viewport[3]*8, "combined raw mesh resource bound");
+        Check(allocated == ((flags & 4U) ? 4U : 0U), "combined material resource bound");
         cue::DiscardMask(); cue::ReleaseMask();
-        Check(cue::AllocatedMaskBytes()==0, "combined interruption releases cue resources");
+        Check(cue::AllocatedMaskBytes()==0 && cue::AllocatedMaterialBytes()==0, "combined interruption releases cue resources");
         Same(original,Capture());
     }
 }

@@ -1837,17 +1837,23 @@ void APIENTRY StrongDrawArrays(
         TerrainTraceDraw(TerrainSubmission::arrays,
             reinterpret_cast<std::uintptr_t>(_ReturnAddress()), mode, first, count, 0U, 0U,
             true, !IsCompilingDisplayListOnCurrentThread() && !g_immediate_primitive_open);
-        auto draw = [original, mode, first, count]() noexcept {
+        auto native_draw = [original, mode, first, count]() noexcept {
             original(mode, first, count);
         };
+        auto draw = [&native_draw, mode, count]() noexcept {
 #if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
-        if (!IsCompilingDisplayListOnCurrentThread() && !g_immediate_primitive_open
-            && count >= 3 && IsFilledPrimitiveMode(mode)) {
-            CaptureSelectedCueGeometry([](void* callback) noexcept {
-                (*static_cast<decltype(draw)*>(callback))();
-            }, &draw);
-        }
+            if (!IsCompilingDisplayListOnCurrentThread() && !g_immediate_primitive_open
+                && count >= 3 && IsFilledPrimitiveMode(mode)) {
+                // Apply selection material at the original submission's native order.
+                // The cue wrapper owns exactly one call-through, including rejection.
+                DrawSelectedCueGeometry([](void* callback) noexcept {
+                    (*static_cast<decltype(native_draw)*>(callback))();
+                }, &native_draw);
+                return;
+            }
 #endif
+            native_draw();
+        };
         if (IsCompilingDisplayListOnCurrentThread()) {
             MarkCompiledListStateChange();
             draw();
@@ -1883,17 +1889,23 @@ void APIENTRY StrongDrawElements(
         TerrainTraceDraw(TerrainSubmission::elements,
             reinterpret_cast<std::uintptr_t>(_ReturnAddress()), mode, 0, count, type, 0U,
             true, !IsCompilingDisplayListOnCurrentThread() && !g_immediate_primitive_open);
-        auto draw = [original, mode, count, type, indices]() noexcept {
+        auto native_draw = [original, mode, count, type, indices]() noexcept {
             original(mode, count, type, indices);
         };
+        auto draw = [&native_draw, mode, count]() noexcept {
 #if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
-        if (!IsCompilingDisplayListOnCurrentThread() && !g_immediate_primitive_open
-            && count >= 3 && IsFilledPrimitiveMode(mode)) {
-            CaptureSelectedCueGeometry([](void* callback) noexcept {
-                (*static_cast<decltype(draw)*>(callback))();
-            }, &draw);
-        }
+            if (!IsCompilingDisplayListOnCurrentThread() && !g_immediate_primitive_open
+                && count >= 3 && IsFilledPrimitiveMode(mode)) {
+                // Apply selection material at the original submission's native order.
+                // The cue wrapper owns exactly one call-through, including rejection.
+                DrawSelectedCueGeometry([](void* callback) noexcept {
+                    (*static_cast<decltype(native_draw)*>(callback))();
+                }, &native_draw);
+                return;
+            }
 #endif
+            native_draw();
+        };
         if (IsCompilingDisplayListOnCurrentThread()) {
             MarkCompiledListStateChange();
             draw();
