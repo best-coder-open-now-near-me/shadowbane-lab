@@ -60,7 +60,8 @@ thread_local cue::Tracker tracker;
 thread_local cue::Direction direction;
 thread_local bool scene=false,finished=false,mask_failed=false,glow_suppressed=false;
 constexpr LONG kGlowSuppressed=2;
-thread_local unsigned nesting=0,owned=0;
+thread_local unsigned nesting=0,owned=0,enhanced=0;
+thread_local LONG material_status=0;
 bool Read(void*,std::uint32_t address,void* data,std::size_t bytes) {
     if(address<0x10000 || address>0x7FFEFFFF || bytes>0x7FFEFFFF-address)return false;
     SIZE_T copied=0;return ReadProcessMemory(GetCurrentProcess(),reinterpret_cast<const void*>(address),
@@ -116,12 +117,6 @@ bool Poll() noexcept {
     }
     ReleaseSRWLockShared(&lock);return valid;
 }
-bool SuppressUnsafeGlow() noexcept {
-    // Authority is stable session policy. Once revoked, do not resume mid-scene.
-    if(!IsWorldEnhancementCompositionSafe())glow_suppressed=true;
-    if(glow_suppressed){cue::DiscardMask();cue::ReleaseMask();}
-    return glow_suppressed;
-}
 bool StillSelected() noexcept {
     std::uint32_t root=0;
     return effects::SameIdentity(attachment,Selected()) && (glow_suppressed
@@ -163,10 +158,10 @@ void APIENTRY OwnedMultiDraw(GLenum mode,const GLsizei* count,GLenum type,
     struct Args{MultiDraw draw;GLenum mode;const GLsizei* count;GLenum type;const void* const* indices;GLsizei primitives;};
     Args args{draw,mode,count,type,indices,primitive_count};
     if(!query_safe && scene && nesting){mask_failed=true;cue::DiscardMask();}
-    if(query_safe && count && indices && primitive_count>0)CaptureSelectedCueGeometry([](void* value) noexcept {
+    if(query_safe && count && indices && primitive_count>0)DrawSelectedCueGeometry([](void* value) noexcept {
         const auto& a=*static_cast<const Args*>(value);a.draw(a.mode,a.count,a.type,a.indices,a.primitives);
     },&args);
-    draw(mode,count,type,indices,primitive_count); // One native framebuffer submission.
+    else draw(mode,count,type,indices,primitive_count); // One native framebuffer submission.
 }
 bool MultiDrawInstalled() noexcept {
     return multi_slot && InterlockedCompareExchange(reinterpret_cast<volatile LONG*>(multi_slot),0,0)
@@ -205,7 +200,7 @@ void __fastcall OwnedRender(void* self,void*) noexcept {
     const auto draw=reinterpret_cast<Render>(InterlockedCompareExchangePointer(&original,nullptr,nullptr));
     if(!draw)return;
     if(!scene || !InterlockedCompareExchange(&running,0,0) || nesting){draw(self);return;}
-    if(SuppressUnsafeGlow()){draw(self);return;}
+    if(glow_suppressed){draw(self);return;}
     std::uint32_t render=0;bool match=false;
     if(Field(static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(self)),0x1c,render))
         for(std::size_t n=0;n<render_count;++n)match=match || renders[n]==render;
@@ -214,11 +209,8 @@ void __fastcall OwnedRender(void* self,void*) noexcept {
     if(!MultiDrawUnchanged()){mask_failed=true;cue::DiscardMask();}
     if(owned>=128){mask_failed=true;cue::DiscardMask();draw(self);return;}
     ++nesting;
-    const bool captured=!mask_failed && cue::BeforeOwnedDraw();
-    draw(self); // Exactly one original call. No actor/animation replay.
-    if(captured && StillSelected() && MultiDrawUnchanged()){
-        if(!cue::AfterOwnedDraw()){mask_failed=true;cue::DiscardMask();}
-    }else {mask_failed=true;cue::DiscardMask();}
+    draw(self); // Native wrapper runs once; raw submissions receive scoped RGB tint.
+    if(!StillSelected())DiscardSelectedCueScene();
     --nesting;++owned;
 }
 }
@@ -292,49 +284,50 @@ void EndSelectedCueFrame() noexcept {RenderCallbackLease lease;SynchronizeGenera
 void ReleaseSelectedCueContext() noexcept {RenderCallbackLease lease;DiscardSelectedCueScene();cue::ReleaseMask();}
 void BeginSelectedCueScene(const GraphicsCameraState* camera) noexcept {
     RenderCallbackLease lease;SynchronizeGeneration();
-    scene=false;owned=0;mask_failed=false;glow_suppressed=false;cue::DiscardMask();
+    scene=false;owned=0;enhanced=0;material_status=0;mask_failed=false;glow_suppressed=false;cue::DiscardMask();
     // A bounded opt-in contributor trace must not require a selected target or
     // an enabled glow to observe the native optimized world submission path.
     if(InterlockedCompareExchange(&running,0,0) && IsTerrainTraceCapturing())RefreshMultiDraw();
     if(!InterlockedCompareExchange(&running,0,0) || !Poll() || !settings.enabled){
         DiscardSelectedCueScene();cue::ReleaseMask();Status(0,0,0);return;}
-    SuppressUnsafeGlow();render_count=0;renders[0]=0;
+    render_count=0;renders[0]=0;
     attachment=Selected();
-    if(!attachment.valid || !camera || (!glow_suppressed && !CollectRenders())){DiscardSelectedCueScene();Status(0,0,1);return;}
+    if(!attachment.valid || !camera){DiscardSelectedCueScene();Status(0,0,1);return;}
+    glow_suppressed=!CollectRenders();
     const cue::Identity identity{attachment.actor,attachment.type,attachment.uuid,attachment.zone,renders[0],
         attachment.component,attachment.location,attachment.zone_type,attachment.zone_uuid};
     const float position[]{attachment.position.x,attachment.position.y,attachment.position.z};
     direction=tracker.Update(identity,position,camera,true);
     scene=direction.available;
     if(glow_suppressed){Status(0,kGlowSuppressed,scene?0:1);return;}
-    mask_failed=!(scene && RefreshMultiDraw() && cue::BeginMask());Status(0,mask_failed?1:0,0);
+    mask_failed=!(scene && RefreshMultiDraw());Status(0,mask_failed?1:0,0);
 }
-void ObserveSelectedCueLegacyGeometry() noexcept {
+// Legacy mask capture stays available only in direct diagnostic GPU tests.
+void ObserveSelectedCueLegacyGeometry() noexcept {}
+void CaptureSelectedCueGeometry(SelectedGeometryDraw,void*) noexcept {}
+void DrawSelectedCueGeometry(SelectedGeometryDraw draw,void* user) noexcept {
     RenderCallbackLease lease;SynchronizeGeneration();
-    if(!scene || !nesting || mask_failed || !InterlockedCompareExchange(&running,0,0))return;
-    if(SuppressUnsafeGlow())return;
-    if(!StillSelected() || !cue::BeforeLegacyGeometry()){
-        mask_failed=true;cue::DiscardMask();
-    }
-}
-void CaptureSelectedCueGeometry(SelectedGeometryDraw draw,void* user) noexcept {
-    RenderCallbackLease lease;SynchronizeGeneration();
-    if(!scene || !nesting || mask_failed || !InterlockedCompareExchange(&running,0,0))return;
-    if(SuppressUnsafeGlow())return;
-    if(!StillSelected() || !MultiDrawUnchanged() || !cue::CaptureGeometry(draw,user)){
-        mask_failed=true;cue::DiscardMask();
-    }
+    if(!draw)return;
+    if(!scene || !nesting || glow_suppressed || mask_failed
+        || !InterlockedCompareExchange(&running,0,0) || !StillSelected()
+        || !MultiDrawUnchanged() || !AreNativeDrawQueriesSafe()){draw(user);return;}
+    const int result=cue::DrawMaterial(settings,draw,user);
+    if(result==7){if(!enhanced && !material_status)material_status=7;}
+    else if(result)material_status=result;
+    else {++enhanced;if(material_status==7)material_status=0;}
+    if(!MultiDrawUnchanged())mask_failed=true;
 }
 void FinishSelectedCueScene(const GraphicsCameraState* camera) noexcept {
     RenderCallbackLease lease;SynchronizeGeneration();
     if(!scene){DiscardSelectedCueScene();return;}
     if(!camera || !InterlockedCompareExchange(&running,0,0)
         || !StillSelected()){DiscardSelectedCueScene();Status(0,0,1);return;}
-    SuppressUnsafeGlow();
     if(!glow_suppressed && !MultiDrawUnchanged())mask_failed=true;
     if(mask_failed)cue::DiscardMask();
+    if(!enhanced && !material_status && !glow_suppressed && !mask_failed)material_status=8;
     const bool ok=cue::CompositeMask(settings,direction);
-    Status(static_cast<LONG>(owned),!ok?1:(glow_suppressed?kGlowSuppressed:(mask_failed?1:0)),0);
+    Status(static_cast<LONG>(enhanced),!ok?1:(glow_suppressed?kGlowSuppressed:(mask_failed?1:material_status)),0);
+    material_status=0;
     scene=false;finished=true;attachment={};render_count=0;
 }
 }

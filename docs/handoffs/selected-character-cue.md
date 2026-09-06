@@ -1096,3 +1096,41 @@ focused fallback commit. Required release validation should include existing
 wonderbane_extension_selected_cue_runtime and tests/test_selected_cue.py; central
 package wiring, version identity, combined verification and packaging belong to
 the integration owner. No deployment or owner acceptance run yet.
+
+
+### Visible native-order selected material (2026-09-07)
+
+The owner accepted visible on-character enhancement. Production now uses
+DrawSelectedCueGeometry(draw, user), which ALWAYS calls the supplied original
+raw draw exactly once. Verified wrapper nesting and selected identity gate a
+scoped fixed-function RGB interpolation after native texture stages. Alpha,
+alpha testing, depth, stencil, blending, fog and later native draws keep their
+original behavior. No actor callback or raw geometry is replayed for the cue.
+The global world-composition suppression flag does not gate this native-order
+path. Legacy outer-mask GPU functions remain diagnostic only.
+
+The material owns one four-byte texture per context, released through existing
+ReleaseMask/context/Stop cleanup. It requires an unused final texture stage;
+active custom programs, occupied stages/crossbar references, unsafe query/state,
+and foreign/unavailable resources pass through unchanged with explicit status.
+Depth-only and zero constant-alpha RGB operators do not count as enhanced
+submissions or overwrite a successful visible-material status. Zero eligible
+submissions are reported explicitly. Supported material submissions are not a
+claim that every fragment is visible after native occlusion.
+
+Selection UI now exposes highlight strength and color, plus independent arrow
+appearance. Obsolete radius control is removed; its serialized field remains
+for settings compatibility. Existing shared arrays/elements hooks must wrap
+original native submissions with DrawSelectedCueGeometry; integration owner
+supplies those callsite edits. OwnedMultiDraw is connected in this feature change.
+
+Executed existing GPU executable --native-material: 32 positive combinations of
+native texture modulation, opaque/alpha material, EQUAL/LEQUAL, depth writes,
+fog and later translucent foreground. Pixels change, match independently tinted
+reference within two channel values, and preserve alpha/depth/stencil. Original
+call count is one. Additional checks cover zero/depth-only material, occupied
+stage, active GLSL/advertised EXT stage, state and context/resource cleanup.
+Runtime ownership/lifetime/drift tests and full DLL build pass. Required new
+central gate: wonderbane_extension_selected_cue_native_material, invoking the
+existing GPU executable with --native-material. Root owns gate/package wiring.
+No package/deployment claimed until the combined candidate is verified.
