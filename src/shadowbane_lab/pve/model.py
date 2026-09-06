@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 from math import hypot, isfinite
+from typing import TYPE_CHECKING
 
 from shadowbane_lab.client_observation import (
     NativeCharacterPopulationObservation,
@@ -18,6 +19,9 @@ from shadowbane_lab.client_observation import (
     NativeTargetPositionObservation,
 )
 from shadowbane_lab.travel.model import TravelDecision, TravelDestination
+
+if TYPE_CHECKING:
+    from shadowbane_lab.pve.authority_snapshot import PvETargetAuthoritySnapshot
 
 
 def _positive_integer(value: int, field_name: str) -> None:
@@ -347,9 +351,24 @@ class PvEObservation:
     player_action: NativePlayerActionObservation | None = None
     target_identity: NativeTargetIdentityObservation | None = None
     population: NativeCharacterPopulationObservation | None = None
+    authority_snapshot: PvETargetAuthoritySnapshot | None = None
 
     def __post_init__(self) -> None:
         _non_negative_integer(self.now_ms, "now_ms")
+        if self.authority_snapshot is not None:
+            from shadowbane_lab.pve.authority_snapshot import PvETargetAuthoritySnapshot
+
+            if not isinstance(self.authority_snapshot, PvETargetAuthoritySnapshot):
+                raise ValueError("authority_snapshot must be PvETargetAuthoritySnapshot")
+            if self.population is None:
+                raise ValueError("authority snapshot requires the sampled population")
+            if (
+                self.authority_snapshot.local_player_object_key
+                != self.population.local_player_object_key
+                or {(c.target_token, c.object_key) for c in self.authority_snapshot.characters}
+                != {(c.token, c.object_key) for c in self.population.characters}
+            ):
+                raise ValueError("authority snapshot and population resolved different identities")
         if not isinstance(self.target, NativeTargetHealthObservation):
             raise ValueError("target must be NativeTargetHealthObservation")
         if not isinstance(self.player, NativePlayerVitalsObservation):

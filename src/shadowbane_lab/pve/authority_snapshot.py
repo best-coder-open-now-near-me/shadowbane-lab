@@ -185,6 +185,12 @@ class NativeGroupSource(Protocol):
     def observe(self) -> NativeGroupObservation: ...
 
 
+def native_party_identity_signature(group: NativeGroupObservation) -> tuple[tuple[int, int], ...]:
+    """Party identity coherence excludes moving coordinates, vitals, and follow state."""
+
+    return tuple(sorted((m.object_type, m.object_uuid) for m in group.members))
+
+
 def build_native_party_authority_snapshot(
     population: NativeCharacterPopulationObservation,
     group: NativeGroupObservation,
@@ -315,7 +321,9 @@ class NativePartyAuthoritySnapshotReader:
             raise NativePartyAuthoritySnapshotReadError(
                 "native party authority process identity changed during sample"
             )
-        if group_before != group_after:
+        if native_party_identity_signature(group_before) != native_party_identity_signature(
+            group_after
+        ):
             raise NativePartyAuthoritySnapshotReadError(
                 "native group roster changed during party authority sample"
             )

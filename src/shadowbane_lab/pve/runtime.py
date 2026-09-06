@@ -338,7 +338,7 @@ class PvERunner:
                     self._parser.parse(entry)
                     for entry in self._combat_log_reader.read_new_entries()
                 )
-                observation = PvEObservation(
+                observation = self._build_observation(
                     now_ms=now_ms,
                     target=target,
                     player=player,
@@ -614,6 +614,11 @@ class PvERunner:
             total_steps=total_steps,
             trace_truncated=total_steps > len(trace),
         )
+
+    def _build_observation(self, **values) -> PvEObservation:
+        """Finalize one observation before controller, approach, and trace consumers."""
+
+        return PvEObservation(**values)
 
     @staticmethod
     def _trace(
