@@ -8,7 +8,10 @@ completion. Existing ideal-transparency regressions remain diagnostic evidence.
 ## Integration
 
 Feature base: `14d117e8c5194c6dff55dac608b2d3f683187d31`.
-Feature branch: `codex/particles-trails`; PR #28 targets `codex/native-lifecycle-hardening`.
+Feature branch: `codex/particles-trails`. Earlier PR #28 is merged. This fallback is
+commit `62755f988c228beb38418c8e0e878d903a288ef0`, supplied for integration-owner
+cherry-pick into `codex/native-lifecycle-hardening`; combined verification and package
+assembly remain pending. A push alone does not establish inclusion in that candidate.
 The integration owner supplies `IsWorldEnhancementCompositionSafe()` and passes its result
 at the existing `DrawEffects(camera, transparency_safe)` callsite. The argument defaults
 false, including for older callsites. Only shared authority may supply true. No inference
