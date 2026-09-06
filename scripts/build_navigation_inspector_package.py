@@ -105,6 +105,7 @@ def main() -> int:
     environment = dict(os.environ)
     environment.pop("PYTHONPATH", None)
     environment.pop("WONDERBANE_MOVEMENT_RUNTIME_TEST", None)
+    environment.pop("WONDERBANE_TEST_GDI_GL", None)
     environment["PYTHONUTF8"] = "1"
     steps = []
     diagnostic_failures = []
@@ -264,6 +265,8 @@ def main() -> int:
         )
         required_native_tests = {
             "wonderbane_extension_combined_render",
+            "wonderbane_extension_ordered_operators",
+            "wonderbane_extension_ordered_operators_legacy",
             "wonderbane_extension_selected_cue_gpu",
             "wonderbane_extension_selected_cue_unsupported_formats",
             "wonderbane_extension_scene_pipeline_guard",

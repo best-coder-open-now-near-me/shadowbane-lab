@@ -1548,3 +1548,16 @@ ordered-operator experiment. The existing feature owner is correcting that test;
 production fallback gates pass there. Final source/package must include the fix
 and finish applicable gates before the consolidated Sol handoff. Main, VM and
 running clients have not been changed. Perfect transparency remains deferred.
+
+### Legacy GL gate corrected
+
+Owner test-only 6c9820b3599dad79ea41801fb01373d2b1365f0c is integrated. The nonlinear
+blend counterexample requires GL 1.4 or the exact NV_blend_square capability;
+OpenGL 1.1 reports that individual case unavailable while retaining all supported
+operator/order/depth/saturation assertions and the final GL-error check. The root
+registers an actual GDI-context CTest in the existing executable, confines its
+environment override to ordered-operator mode, clears inherited override in the
+package builder, and requires both operator gates to execute. Hardware operator,
+legacy operator and combined render all passed locally, zero skips. An inherited
+legacy override still executes the real combined renderer on the hardware context.
+No product runtime change. Next: clean final package and exact-CI verification.

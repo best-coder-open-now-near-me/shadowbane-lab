@@ -203,6 +203,10 @@ if(BUILD_TESTING)
   add_test(NAME wonderbane_extension_ordered_operators
     COMMAND wonderbane_extension_navigation_draw_test --ordered-operators)
   set_tests_properties(wonderbane_extension_ordered_operators PROPERTIES SKIP_RETURN_CODE 77)
+  add_test(NAME wonderbane_extension_ordered_operators_legacy
+    COMMAND wonderbane_extension_navigation_draw_test --ordered-operators)
+  set_tests_properties(wonderbane_extension_ordered_operators_legacy PROPERTIES
+    ENVIRONMENT "WONDERBANE_TEST_GDI_GL=1" SKIP_RETURN_CODE 77)
   add_test(NAME wonderbane_extension_combined_render
     COMMAND wonderbane_extension_navigation_draw_test --combined-render)
   set_tests_properties(wonderbane_extension_combined_render PROPERTIES SKIP_RETURN_CODE 77)

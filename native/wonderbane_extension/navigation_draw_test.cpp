@@ -514,7 +514,8 @@ int main(int argc, char** argv) {
     format.cStencilBits = 8; format.iLayerType = PFD_MAIN_PLANE;
     int index = ChoosePixelFormat(dc, &format);
     wchar_t legacy[2]{};
-    const bool legacy_requested=GetEnvironmentVariableW(L"WONDERBANE_TEST_GDI_GL",legacy,2)==1
+    const bool legacy_requested=ordered_operators
+        && GetEnvironmentVariableW(L"WONDERBANE_TEST_GDI_GL",legacy,2)==1
         && legacy[0]==L'1';
     if (legacy_requested) {
         // Test-only opt-in: select actual Microsoft software GL, not a spoofed version string.
