@@ -6,6 +6,14 @@ acceptance.
 
 ## Active runtime hardening and rolling feature integration (September 5)
 
+September 6 verified candidate: native 1.7.0 / wheel 0.2.0, exact build source
+`89c3b1ecb7087c8da3d1de697b6dfb507682a8f8`. Package, installed controls and
+all final CI jobs verified; connected acceptance remains pending in the existing
+Sol testing task. World glow/particles are explicitly suppressed per owner scope.
+See [the exact candidate and single acceptance procedure](handoffs/combined-candidate-1.7.0.md).
+Later evidence-only commits are not the packaged source.
+
+
 Use `codex/native-lifecycle-hardening` for this batch's combined source and review;
 its separate checkout is `.worktrees/native-lifecycle-hardening`. Exact common
 base: `14d117e8c5194c6dff55dac608b2d3f683187d31`. The normal checkout remains
@@ -34,8 +42,8 @@ defaults disabled, and composes native stop, camera, steering, terrain-pick and
 drag with exact lifetime and HWND safety handling. Native preferences and the selected-client
 Graphics Lab settings entry are included. Manager operations now use immutable native
 grants, renewal and exact cleanup. Standalone live travel/PvE now use the same
-native authority, with no minimap movement fallback. No connected capability is certified. No newly combined wheel/DLL acceptance
-identity is certified yet. Preserve all active branches/worktrees; retirement
+native authority, with no minimap movement fallback. No connected capability is certified. The exact verified wheel/DLL candidate identity is recorded in the September 6
+handoff above; no connected acceptance or deployment is claimed. Preserve all active branches/worktrees; retirement
 requires verified inclusion and applicable approval.
 
 ## Current handoffs and terrain follow-up
