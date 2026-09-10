@@ -4,6 +4,17 @@ Snapshot: 2026-09-04, updated after the approved remote and local retirement.
 This is a source and review map; it does not certify deployment or live gameplay
 acceptance.
 
+## Power Palettes planning lane
+
+The documentation-only branch codex/power-palettes-plan starts from the freshly
+verified native-lifecycle source 310620bc884464b26aa44d9da366af03f9c428d0.
+See the [contract](power-palettes.md), [source-selection record](investigations/power-palettes-source-selection.md)
+and [handoff](handoffs/native-power-palettes.md). Its review target is
+codex/native-lifecycle-hardening; main remains the shared eventual merge destination.
+This entry does not create a production branch, integrate feature code, certify
+native feasibility, or change existing feature ownership. The plan's source record
+must be refreshed before production branching.
+
 ## Active runtime hardening and rolling feature integration (September 5)
 
 Current September 6 candidate: `04b7bdb` (native 1.7.3 / wheel 0.2.3) passed

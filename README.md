@@ -2,6 +2,8 @@
 
 Navigation diagnostics: [inspector usage, review branch and acceptance status](docs/navigation-inspector.md).
 
+Power Palettes: [native feature implementation contract](docs/power-palettes.md) and [planning source/handoff](docs/handoffs/native-power-palettes.md). Planning only; native feasibility and implementation remain open.
+
 ## Finding the current code
 
 The current runtime-hardening and rolling feature integration is on

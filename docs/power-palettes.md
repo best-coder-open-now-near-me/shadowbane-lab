@@ -1,10 +1,10 @@
 # Power Palettes: expanded implementation plan
 
-Status: planning baseline for repository verification and native calibration.
+Status: repository-adopted planning contract, revised against the second review. Native calibration and production implementation have not started.
 
-This document expands and replaces the supplied implementation plan. It incorporates the review decisions into one contract rather than leaving an addendum for implementers to reconcile. It authorizes no claim that native factories, ABI contracts, repository facilities, or the release candidate have already been verified.
+This document expands and replaces the supplied implementation plan. It incorporates the review decisions into one contract rather than leaving an addendum for implementers to reconcile. Only the source-selection record's explicitly inspected facilities are verified by this documentation pass. Native factories, ABI contracts and release acceptance remain unproved.
 
-The supplied plan identifies codex/native-lifecycle-hardening at 310620bc as the reviewed integration line. Treat that as a historical reference to verify, not an instruction to branch from an unfetched or obsolete tip.
+The supplied plan identified codex/native-lifecycle-hardening at 310620bc as a historical integration reference. A fresh fetch in this revision session confirms its full tip as 310620bc884464b26aa44d9da366af03f9c428d0. The [source-selection record](investigations/power-palettes-source-selection.md) documents source, ancestry, facilities and verification limits; the [handoff](handoffs/native-power-palettes.md) records delivery and remaining work. Refresh that record before production branching rather than assuming this pin remains current.
 
 Reading guide: sections 1–4 define product behavior; 5–12 define evidence and ownership contracts; 13–15 define execution and validation; 16–20 define source organization, delivery, remaining discovery, and todo status.
 
@@ -17,6 +17,14 @@ The stock Powers window remains the catalog. Its source controls and entries are
 The first feasibility milestone is:
 
 > Construct a second genuine native power shortcut outside the stock hotbar, with independent ownership and no key registration, and prove stock-equivalent activation, presentation, updates, and teardown.
+
+### Feasibility decision and failure gate
+
+Production implementation is blocked until the exact target build demonstrates an independently owned, keyless native power shortcut outside the stock hotbar. The proof must include stock-equivalent activation, presentation, update registration, tooltip behavior and teardown.
+
+If this proof cannot be achieved without stock hotbar registration or slot reservation, unsafe object cloning, retained source pointers, hidden stock controls, synthetic input, packet bypass, Win32 UI or overlay presentation, stop the feature line and produce a bounded calibration report. Record the exact build, attempted reviewed boundaries, evidence, missing ownership or invocation contract, and conditions needed to resume. Do not continue into production layout, persistence, substitute presentation or dependent refactoring.
+
+A failed feasibility gate is an investigation result, not permission to weaken the architectural invariants. Planning documents may record the outcome; production work remains blocked until new evidence satisfies the gate.
 
 Production delivery includes multiple palettes, editing, resolution-safe layout, per-character persistence, missing-power placeholders, lifecycle handling, status, disable/reset controls, packaging, and connected-client evidence. A one-slot proof is an internal validation gate, not an MVP to hand to the user as the completed feature.
 
@@ -58,6 +66,8 @@ These are release requirements:
 12. No fallback implementation silently weakens these requirements.
 13. No completion claim without connected evidence of native behavior and lifecycle correctness.
 
+For this document, a native palette control is an in-process object participating in Shadowbane's own UI hierarchy, logical coordinate space, visibility, invalidation, z-order, focus, hit testing, drag/drop ownership and lifecycle. It may reuse verified stock classes or an extension-owned class implementing the verified game UI ABI. A Win32 child or owned window, OpenGL-composited panel, screen-coordinate click surface or hidden stock control does not qualify.
+
 Native pointers are permitted in bounded, generation-bound runtime records and controlled calibration evidence. They are never used as persistent shortcut identities or retained from a completed drag.
 
 ## 3. Exact interaction contract
@@ -72,7 +82,7 @@ The creation transaction succeeds only when the power identity, character bindin
 
 ### 3.2 Clicking and native presentation
 
-- A normal completed click invokes the reviewed stock power-button path exactly once.
+- A normal completed click invokes exactly once at the stock power control's verified native activation phase. "Completed click" does not prescribe a new mouse-down or mouse-up policy.
 - Targeted powers enter normal targeting; instant powers execute normally.
 - Cooldown, resource checks, disabled behavior, active state, stance/toggle state, and learned-rank presentation come from reviewed native behavior.
 - Hover uses the native tooltip lifecycle.
@@ -80,21 +90,29 @@ The creation transaction succeeds only when the power identity, character bindin
 - A drag completion, cancellation, or control destruction does not emit a click.
 - Palette input participates in native focus, hit testing, modal ownership, and z-order. Handled input must not reach world movement or camera handling.
 
-The native stock button may implement these checks internally. Any extension activation guard must use the same validated current binding, not create a second independent power-execution mechanism.
+Immediately before that verified native activation phase, revalidate the exact process lifetime, character binding, scene/HUD generation, layout epoch/revision, shortcut-instance identity, control generation/lifetime, native definition, learned observation and input/modal ownership against the interaction-start token. A changed or unavailable binding cancels without invocation, even if pointer-down was valid. Returning to the same pointer address is not continuity; generation/sequence checks still apply.
+
+Each native pointer sequence has an activation guard admitted at most once before any reentrant invoke callback. Duplicate down/up handling, reentrant callbacks and replay cannot consume that sequence again. Drag completion/cancellation, removal, destruction, focus loss, modal takeover and stale-generation rejection cannot emit an activation. Keep the guard until the native sequence and any fetched callbacks retire.
+
+The stock control may implement these checks internally. Calibration must prove the actual pre-invoke validation/guard boundary and its ordering; if it cannot, activation feasibility is unproved. Any extension guard must use the same reviewed invoke path rather than create an independent executor.
 
 ### 3.3 Locked and unlocked behavior
 
-Unlocked palettes show title/move strip, native resize grip, lock and close controls, cell drop targets, and a dedicated remove affordance on occupied cells. The remove control is a separate hit target and cannot activate its power.
+Unlocked palettes provide a title/move strip, resize action, lock and close controls, cell drop targets and an independent removal action on occupied cells.
 
-Locked palettes allow power clicks and tooltips but disable movement, resizing, incoming drops, outgoing edit drags, reordering, shortcut removal, and palette deletion. Chrome and empty-cell visuals are suppressed. Cell positions remain unchanged; locking does not compact the grid. Invisible empty cells do not initiate world actions through an otherwise opaque palette frame; the verified native hit-test contract determines ownership consistently.
+Resize must be integrated into the palette's game-UI object. It may reuse a verified stock resize control or implement the verified native control ABI; no hypothetical stock grip API is assumed. Removal may use a dedicated non-overlapping native control or a verified native context command. Its hit target/command cannot invoke the power. Lock, close and unlock affordances likewise use verified stock classes or the verified native control ABI, never a Win32 or OpenGL surface. Calibration records the selected mechanisms before production construction.
 
-A small native unlock affordance remains reachable and does not overlap icons. Locking is per palette, so locked and unlocked palettes may coexist.
+Locked palettes allow power clicks and tooltips but disable movement, resizing, incoming drops, outgoing edit drags, reordering, shortcut removal, and palette deletion. Chrome and empty-cell visuals are suppressed. Cell positions remain unchanged; locking does not compact the grid. While visible, the complete native rectangular bounds remain UI-owned in both locked and unlocked states, including empty cells, gaps, borders and hidden chrome. Suppressing empty-cell visuals never creates click-through holes. Pointer input over any empty part is consumed as UI input and cannot become a world click, selection, movement command or camera gesture. Version 1 has no pass-through regions.
+
+A native unlock affordance remains reachable and does not overlap icons; its size and verified implementation must preserve that behavior. Locking is per palette, so locked and unlocked palettes may coexist.
+
+A locked palette remains a native hit and drop-routing target but rejects edits. A drop over its bounds cancels without modifying source or destination. It is never empty HUD and cannot fall through to Shift-create, a target behind it or world input.
 
 Opening chat or another native input owner does not grant palettes priority over that owner. Modal UI blocks palette interaction according to the same rules as stock controls.
 
 ### 3.4 Drop matrix
 
-Shift is sampled from the verified native modifier state at drop finalization. The drag preview updates its copy/move indication as the modifier changes. Focus or modifier-state uncertainty cancels the extension edit.
+Shift is sampled from verified native modifier state at drop finalization. The active native drag interaction must communicate copy/move intent unambiguously. Prefer the stock cursor or ghost only where a verified mutation seam exists; otherwise use a native receiving-target indication, including a native HUD-owned indication for eligible empty-HUD creation. No custom OpenGL cursor or screen-coordinate overlay is authorized. Focus or modifier uncertainty cancels the extension edit.
 
 | Source | Destination | Modifier | Result |
 |---|---|---|---|
@@ -114,10 +132,35 @@ Shift is sampled from the verified native modifier state at drop finalization. T
 | Extension palette | Stock hotbar or other stock target | Either | Unsupported; cancel extension drag before stock target mutation. |
 | Any unsupported payload | Extension palette | Either | Reject extension drop. |
 | Any source | Modal-covered, blocked, or invalid area | Either | No extension edit. |
+| Any power source | Palette title strip, resize chrome, remove/lock/unlock/close control, border, or unused frame area | Either | Reject without editing or running that control's action; the point is not empty HUD. |
+| Any power source | Previous/next page affordance | Either | Verified hover may change the destination page; release on the affordance rejects the drop. |
+| Any power source | Palette observed as closing or retired during this drag | Either | Cancel the stale operation; do not reinterpret disappearance as Shift-create. |
+| Any power source | Source/destination layout epoch or revision changed since drag start | Either | Cancel unchanged; never retarget to the new cell occupant. |
 
 For stock-origin drags over stock targets, always preserve original dispatch and ownership. For extension-origin drags, do not expose an unsupported transfer to a stock commit handler. This distinction must be enforced before drop finalization; a stock mutation followed by attempted rollback is unacceptable.
 
 Dropping a palette shortcut onto its own cell is a no-op, with or without Shift. Duplicates are otherwise allowed and have distinct shortcut-instance IDs.
+
+### Normative interaction binding and drop-routing precedence
+
+Every palette interaction is bound to the exact process lifetime, character identity, scene/HUD generation, control generation, layout epoch/revision and native drag or pointer sequence under which it began. Immediately before drop commit or native activation, revalidate that token. A mismatch cancels without a model edit, stock mutation or automatic rebasing onto changed controls.
+
+The source/interaction token is fixed at drag start. A destination observation is acquired when routing enters a target; intentional pointer movement or verified page navigation may select a different destination, but finalization revalidates that observed target against the original layout revision and source token. This permits ordinary target selection without rebasing an operation after a stale-layout or lifetime change.
+
+Resolve the frontmost owning native target using native z-order/modal/hit-test rules. Routing priority must not tunnel through an owning palette to a stock target behind it, or through other native UI to a palette beneath it.
+
+1. Validate process/character/HUD/scene and drag generations, payload type/provenance, source lifetime, focus, capture and modifier certainty before extension interpretation.
+2. If the owning target is an ordinary stock target and the source is stock-owned, preserve verified original stock behavior unchanged.
+3. If the owner is an eligible unlocked palette cell, resolve the matrix's copy/move/insert transaction.
+4. If the owner is a locked, closing, stale, read-only, unsupported or otherwise rejecting palette region, consume/reject safely with no fall-through.
+5. Only if no native UI target owns the point, evaluate Shift plus valid empty HUD plus an eligible Powers/palette source for creation.
+6. Otherwise preserve stock-owned canceled-drop behavior, or cancel an extension-owned drag through its verified native manager contract.
+
+Shift-create is the last extension interpretation, never the first.
+
+The initial extension admission check does not authorize intercepting ordinary stock interactions when palette bindings are unavailable: pre-installation rejection leaves stock hooks untouched; validated terminal pass-through preserves original stock dispatch. Extension-origin transfers into stock targets remain unsupported and are canceled before stock mutation. These source distinctions reconcile stock-target priority with deferred hotbar transfers.
+
+The native drag manager owns cancellation and source restoration. Rejection finalizes/cancels once; it must neither swallow a stock source's cleanup nor replay input into a newly exposed target.
 
 ### 3.5 Occupied cells, gaps, and capacity
 
@@ -134,11 +177,11 @@ No occupied shortcut is silently replaced or discarded. Power duplicates count t
 
 ### 3.6 Removal, close, and cancellation
 
-While unlocked, clicking a slot's dedicated remove affordance removes only that shortcut. Clicking the palette close control deletes that palette and its shortcuts from the logical layout.
+While unlocked, invoking a slot's independent native removal action removes only that shortcut. Clicking the palette close control deletes that palette and its shortcuts from the logical layout.
 
-The remove affordance is the initial release contract; a context menu is not required. Deletion is an explicit action, never an interpretation of dropping outside a target.
+The release contract requires an independent native removal action. A verified dedicated control or context command may provide it; calibration records one mechanism consistently for the release. Deletion is always explicit, never an interpretation of dropping outside a target.
 
-Closing during a drag cancels that drag first. Removing the final shortcut deletes its empty palette after transaction completion. Closing a palette must not dispatch the power underneath its close control.
+Closing during a drag cancels that drag first. Removing the final shortcut deletes its empty palette after transaction completion. Closing a palette or invoking a removal context command must not dispatch any power underneath its control/menu.
 
 Cancel extension edits on focus loss, capture loss, modifier uncertainty, native drag invalidation, source retirement, destination closure, modal appearance, HUD/window/scene generation change, character change, feature disable, or binding failure. A canceled edit creates no layout revision and queues no save.
 
@@ -174,7 +217,7 @@ Restore the saved grid and anchor against current logical bounds. Clamp the fram
 
 When the full grid cannot fit, use a native paged viewport within the palette frame: render contiguous row-major cell ranges, with native previous/next controls outside the icons. Every occupied cell remains reachable. The saved grid and shortcut addresses remain unchanged; page selection is transient.
 
-Editing remains available within the displayed page. During an eligible native drag, hovering a previous/next page affordance for 500 ms changes the destination page without committing an edit; leaving the affordance resets that dwell. The native drag manager retains the payload, and any hidden source control remains in a verified deferred-retirement record until finalization. Revalidate the transaction after page changes. This must use the native UI update/drag lifecycle, not an independent Windows input state machine. If this ownership cannot be proven, constrained-layout editing is an unresolved release gate. Resizing can replace paging when a user explicitly chooses a grid that fits. All edits target persisted cell addresses.
+Editing remains available within the displayed page. On an unlocked writable palette, during an eligible native drag, hovering a previous/next page affordance for 500 ms changes the destination page without committing an edit; leaving the affordance resets that dwell. The native drag manager retains the payload, and any hidden source control remains in a verified deferred-retirement record until finalization. Revalidate the transaction after page changes. This must use the native UI update/drag lifecycle, not an independent Windows input state machine. If this ownership cannot be proven, constrained-layout editing is an unresolved release gate. Resizing can replace paging when a user explicitly chooses a grid that fits. All edits target persisted cell addresses.
 
 If the HUD cannot fit even one native power cell plus required controls, suspend that palette's view and report waiting_for_space. Preserve its model. This is temporary display suspension, not deletion or feature support failure.
 
@@ -194,7 +237,16 @@ The supplied plan reports these facilities:
 | Generic action transport without reviewed learned-power dispatch | Confirm actual capability advertisement and unavailable behavior. |
 | Different reviewed offsets across executable hashes | Inventory every required binding and prevent mixed-profile use. |
 
-Record findings with file paths, relevant symbols, source SHA, tests, and calibration evidence. A claimed facility is not a dependency until verified.
+Before calibration, publish a source-selection record containing:
+
+- Selected full source commit and branch or detached source pin.
+- Designated integration owner and merge-base with the active integration line.
+- Relevant descendant and related branches reviewed, including material excluded deltas.
+- Existing native UI/lifetime facilities to reuse, with symbols and file paths.
+- Known branch-local work that must not be overwritten.
+- Build profiles and tests that must remain green.
+
+No production branch is created until this record exists and matches refreshed remote evidence. Documentation may be prepared on a detached pin or isolated documentation branch; that does not start production implementation. Record verification limits, not just plausible filenames. The current [source-selection record](investigations/power-palettes-source-selection.md) distinguishes inspected declarations from unproved native contracts.
 
 One immutable target-build profile must cover:
 
@@ -263,7 +315,7 @@ The developer proof compares receiver/argument contracts and native action/targe
 
 ### Canonical identities
 
-POWERNAME is the canonical power identity. The observed numeric token is verification evidence associated with a specific reviewed profile, not a substitute identity. Display-name hints are presentation-only.
+Identity priority is: verified persistent logical power identifier (POWERNAME for the reviewed representation), corroborated by the exact-build native definition/token, with display name only as a diagnostic/presentation hint. The token is not a substitute identity. A mismatch leaves the shortcut disabled and unresolved pending explicit reviewed verification/migration, never automatic substitution.
 
 A runtime resolved handle is bound to process lifetime, scene/HUD generation, character generation, and learned-power observation generation. A persisted record contains none of those native handles.
 
@@ -341,7 +393,7 @@ CharacterPaletteLayout
 
 Cells have exactly rows multiplied by columns entries. Each occupied shortcut ID is unique throughout the character layout. Moving preserves its ID; copying generates a new ID. Palette IDs are unique. Removing and recreating a palette produces a new ID.
 
-An edit token includes expected epoch/revision, character generation, HUD generation, source palette/shortcut ID, and destination palette/cell address. Native pointers are kept outside this pure token and revalidated on the UI thread.
+An edit token includes exact process lifetime, expected epoch/revision, scene/character/HUD/control generations, native drag sequence, source palette/shortcut ID, and destination palette/cell address. A click token also records native pointer sequence, definition/learned-observation generation and input/modal ownership. Native pointers are kept outside this pure token and revalidated on the UI thread.
 
 Required pure operations: create, fill, insert, reorder, cross-palette move, copy, remove, close, empty-palette cleanup, resize/reflow, move anchor, clamp presentation, lock/unlock, resolve destination, enforce limits, reject stale tokens, serialize, validate, and migrate.
 
@@ -353,7 +405,7 @@ All model/UI transactions serialize on the owning UI thread. Native event reentr
 
 ### Transaction steps
 
-1. Capture a generation-bound edit token and validate source, destination, lock state, writer ownership, expected epoch/revision, and current resolution state. Missing or unresolved identities remain editable as placeholders; editing does not grant activation eligibility.
+1. Use the token captured when the interaction began; do not replace it at drop time. Validate source, destination, lock state, writer ownership, expected epoch/revision, all interaction generations and current resolution state. Missing or unresolved identities remain editable as placeholders; editing does not grant activation eligibility.
 2. Build and validate a prospective immutable layout.
 3. Allocate/bind required native resources in a non-interactive prepared state using the verified construction contract. Record every acquired resource in a cleanup ledger.
 4. Revalidate generations and the edit token after any native call that can invoke callbacks.
@@ -373,13 +425,17 @@ If the ABI cannot provide reversible publication, that is a design/calibration b
 - Preparation failure: clean up prepared resources exactly once; old view remains active.
 - Publication failure with validated rollback: restore old view, release prepared resources, no revision.
 - Publication failure where safe rollback is unavailable: enter fault containment, disable affected interaction, preserve the last known committed snapshot, and report the uncertain native state. Do not queue a partially applied layout.
-- Save failure after a successful UI/model commit: keep the committed in-memory layout, mark it unsaved, and apply the persistence retry policy. A file error does not undo an already completed UI edit.
+- Save failure after a successful UI/model commit: keep the committed in-memory layout, mark it dirty/unsaved, and apply bounded retry. Disk persistence is separate from the synchronous UI transaction. A file error does not destroy a working palette, expose partial JSON or falsely report a save. Later edits coalesce earlier dirty revisions only by persisting one complete immutable snapshot.
 
 ### Callback and drag lifetime
 
 Use explicit callback depth or equivalent quiescence accounting, deferred-destruction queues, and generation checks. A close request from inside a button callback schedules destruction after the callback returns. Callback quiescence alone is insufficient if native targeting or a queued action still retains the initiating control/model.
 
-Unregister tooltip/update/input callbacks before releasing the referenced objects. Remove parent/child links and release/finalize each object according to the recovered ownership contract; never infer a generic destruction order.
+Every installed callback, vtable hook, dispatch hook and native registration needs a proven retirement strategy. Either remove it before its receiver/parent retires and drain callbacks already fetched or executing, or enter immutable terminal pass-through with process-pinned extension code and receiver-independent routing metadata. Unregistration alone does not prove that no caller already holds the callback address.
+
+Retire tooltip/update/input registrations before releasing referenced objects. A shared process-pinned hook's terminal state prohibits retired palette receiver access while retaining valid original call-through. Prove admission/drain ordering and trampoline, original-target and callback-record lifetime; never infer quiescence from successful unregistration.
+
+Remove parent/child links and release/finalize each object according to recovered ownership, never a guessed generic destruction order.
 
 Do not retain stock drag objects or source controls after drop finalization/cancellation. Extract stable identity while the payload is live, then create extension-owned state through the transaction.
 
@@ -407,20 +463,23 @@ Use an extension-owned directory, for example:
 
 Do not write custom records into SCREEN_GAME_*.cfg.
 
-Construct the filename key from an unambiguous, length-delimited encoding of the verified server and character identity, then encode/hash it into a safe filename. Include a deployment/server namespace where required to distinguish separate server environments. Include an immutable character/account identifier only if the repository's exact binding actually supplies it.
+Character-key priority is a verified stable server-issued character ID plus canonical server/shard identity whenever observable. Exact canonical server/shard plus exact character name is the fallback only when a stable character ID is unavailable. Use an explicit identity discriminator so these modes cannot collide; an account ID alone is not a character ID.
 
-Do not silently lowercase names or infer rename equivalence. Document the native identity provider's canonicalization. If only server/name identity is available, record that limitation; character rename/recreation migration requires explicit reviewed handling rather than a guessed match.
+Construct the filename key from an unambiguous, length-delimited encoding of the selected identity mode and values, then encode/hash it into a safe filename. Include a deployment namespace where necessary. In stable-ID mode the display name is metadata, not part of the key or identity-equality check.
+
+Do not silently lowercase names or infer rename equivalence. Document the native identity provider's canonicalization. In server/name fallback mode a rename creates a new storage identity unless explicit verified migration is performed. Same-name recreation cannot be distinguished safely by name alone; record that limit and require verified reset/migration when detected, never claim immutable identity. In stable-ID mode a rename preserves the key because the server-issued ID, not the name, proves continuity.
 
 Repeat the full canonical character identity inside the document and reject mismatches. Bind the destination path when queuing a snapshot; never recompute it from whatever character is currently logged in.
 
 ### Representative version 1 document
 
-The values below are illustrative, not calibrated profile or token evidence:
+The values below are illustrative, not calibrated profile or token evidence. This example uses explicit name fallback. The schema must also support identity_kind "server_character_id" with a verified character_id and canonical server/shard namespace, treating display name as metadata. Never populate that variant with an actor address or process-local token:
 
 ~~~json
 {
   "schema_version": 1,
   "character": {
+    "identity_kind": "server_character_name",
     "server_namespace": "verified-server-namespace",
     "server": "WonderBane",
     "name": "CharacterName"
@@ -539,7 +598,7 @@ If a pre-destruction retirement boundary cannot be proven, native UI constructio
 
 ### Normal disable versus fault containment
 
-Normal disable uses validated native cancellation, unregistration, detachment, deferred destruction, and callback draining. On completion, no native view or callback remains owned by the palette subsystem.
+Normal disable uses validated cancellation, unregistration, detachment, deferred destruction and callback draining. On completion, no live palette view, receiver-bound registration or admitted palette callback remains. A verified process-pinned shared hook may remain only in immutable terminal pass-through with no retired receiver access; report retained infrastructure truthfully rather than claiming it was uninstalled.
 
 Fault containment must not invoke a destructor, cancel function, or child-removal method whose receiver or binding has become unsafe. Immediately revoke extension activation/edit admission and stop new native work. Use only cleanup operations whose receivers, generation, and code bindings remain validated.
 
@@ -596,14 +655,14 @@ Work:
 
 - Fetch the relevant remote; inspect documented integration destination, upstreams, ancestry, branch tracking, and worktrees.
 - Verify the repository facilities listed in section 5.
-- Record which source tips are already integrated and which remain outside the baseline.
-- Reuse an appropriate task branch or create codex/native-power-palettes from the verified reconciled tip.
+- Produce the section 5 source-selection record, including source pin, integration owner/merge-base, descendant review, reuse boundaries, protected work and required profiles/tests, before creating any production branch.
+- Only after that record exists, reuse an appropriate production branch or create codex/native-power-palettes from the verified reconciled tip. A documentation-only branch may precede production branching.
 - If another task owns the checkout, use a separate worktree. Preserve all existing user changes.
 - Add the feature design/ADR, behavior matrix, schema direction, decision register, acceptance map, and delivery destination.
 
 Exit gate:
 
-- Exact source baseline and intended integration destination are recorded.
+- The source-selection record exists before production branching and identifies the exact baseline, integration owner/destination and protected branch-local work.
 - Product semantics are explicit; unresolved native facts are labeled calibration questions.
 - No feature construction or dispatch is represented as proven.
 - Existing tests/profile builds establish a baseline before native/refactor changes.
@@ -614,7 +673,7 @@ Work:
 
 - Introduce bounded diagnostics-only observations without altering stock drop or activation behavior.
 - Recover the native power registry, learned observation completeness, source controls, payload provenance/ownership, drop dispatch, factories, update/tooltip registration, invocation, HUD parentage, and retirement ordering.
-- Recover relevant native frame/chrome and input operations.
+- Recover native frame/chrome/input operations; record the selected safe resize, removal, unlock and copy/move indication mechanisms without assuming stock APIs exist.
 - Assemble a single exact-build profile and evidence manifest.
 - Identify all candidate factory/ownership contracts needed by the active proof.
 
@@ -634,7 +693,7 @@ Work:
 - Avoid stock slot/key registration and source-control retention.
 - Prove icon, tooltip, cooldown, resource/disabled state, rank, active state, native hit testing, and click behavior.
 - Compare instant, targeted, stance/toggle, invalid-target, cooldown, insufficient-resource, and unlearned rejection against stock behavior.
-- Prove source-window closure independence, repeated teardown, and retirement before HUD destruction.
+- Prove source-window closure independence, immediate pre-activation revalidation, per-pointer-sequence at-most-once admission, repeated teardown and retirement before HUD destruction, including fetched/in-flight callbacks.
 - Exercise partial-construction failures and deferred cleanup.
 
 Exit gate:
@@ -643,7 +702,7 @@ Exit gate:
 - Invocation evidence matches the reviewed stock contract, not only the resulting animation.
 - Repeated creation/destruction and scene retirement show correct ownership.
 - Active proof entry points remain developer-only.
-- If no native route meets the gate, record a feasibility blocker instead of proceeding with a substitute UI.
+- Negative exit: if no permitted route meets the gate, stop all production palette phases and deliver the bounded calibration report specified in section 1. Do not implement layout, persistence, substitute UI or dependent extraction until new evidence satisfies the gate.
 
 ### Phase 3 — Extract shared native UI and lifetime services
 
@@ -729,7 +788,7 @@ Exit gate:
 - Full user workflow survives process/character/scene changes.
 - Data and native bindings remain isolated between clients.
 - Unsaved, read-only, waiting, disabled, and fault states are truthful and actionable.
-- Normal disable leaves no palette-owned callbacks/controls; unsafe cleanup is reported without module unload.
+- Normal disable leaves no live palette controls, receiver-bound registrations or admitted callbacks. Verified shared hooks may remain terminal and process-pinned; unsafe cleanup is reported without module unload.
 - No source-draft or temporary proof dependency is required to use the feature.
 
 ### Phase 8 — Package candidate, connected acceptance, and integration
@@ -843,7 +902,7 @@ Run portable pure tests without loading the game:
 - Resize/reflow preserves order and required gaps; insufficient capacity rejects; bounds and limits hold.
 - Coordinate origin handling, normalized anchors, clamping, paging cell mapping, and temporary resolution changes without persisted layout drift.
 - Malformed JSON, UTF-8, unknown fields/version, invalid geometry, integer overflow, excessive size/depth, wrong cell counts, and field lengths.
-- Character mismatch, canonical key separation, unknown power retention, missing-power placeholder, token mismatch/migration.
+- Character mismatch, discriminated stable-ID/name key separation, stable-ID rename continuity, name-fallback rename separation, explicit migration, unknown power retention, placeholders and token mismatch rejection.
 - Complete versus incomplete learned observations and duplicate refresh.
 - No-op versus successful revision behavior.
 
@@ -880,7 +939,12 @@ Fakes/fixtures validate wrapper contracts; connected evidence validates the actu
 - Drag completion, down/up sequences, and cancellation do not double-activate.
 - No creation after focus loss, source closure, character change, or target retirement.
 - Missing/unlearned resolution never activates stale controls.
-- Normal disable drains controls/callbacks; fault cleanup never calls invalidated methods.
+- Normal disable drains live controls/callbacks; allowed terminal shared hooks never access retired receivers; fault cleanup never calls invalidated methods.
+- Hold a fetched-but-not-entered callback across unregistration and prove safe terminal routing/admission before receiver release.
+- Change process/character/scene/HUD/control, layout, definition/learned state or modal ownership between interaction start and native activation; reject stale invocation.
+- Reentrant invoke and duplicate down/up handling consume a pointer sequence at most once.
+- Whole locked/unlocked palette rectangles consume gap/empty-cell input; locked/chrome/stale drop rejection never reaches Shift-create or a target behind it.
+- The selected permitted native UI-class route satisfies the game-hierarchy ownership contract; implementing both alternatives is not required, and custom cursor/Win32/overlay substitutes remain excluded.
 - No second lifetime owner, overlapping subclass, or duplicated build profile.
 
 ### 15.4 Connected-client acceptance checklist
@@ -906,14 +970,14 @@ Run against one exact installed candidate and record evidence for each applicabl
 17. Shift-copy between palettes and Shift-copy a palette shortcut onto empty HUD.
 18. Verify duplicate power instances remain distinct and update together.
 19. Resize between one and multiple rows/columns; reject a destructive shrink.
-20. Move the palette, lock it, and verify all edits and incoming drops are blocked.
+20. Move and lock the palette; verify edits and incoming drops reject, empty cells/gaps/borders remain UI-owned in both states, and Shift-drop cannot create behind it.
 21. Unlock without icon overlap or unintended activation.
-22. Remove a shortcut; remove the last shortcut; close a populated palette.
+22. Use the selected native removal action, including context-command isolation if chosen; remove the last shortcut and close a populated palette without activation.
 23. Verify invalid drops never delete shortcuts.
 24. Verify both excluded stock-hotbar transfer directions reject without source/target mutation.
 25. Repeat ordinary Powers-to-stock-hotbar and stock-hotbar rearrangements against the stock baseline.
-26. Lose focus/capture, change Shift, and open a modal during drags.
-27. Retire the Powers source or close the destination during a drag.
+26. Lose focus/capture, change Shift and open a modal during drags; verify unambiguous copy/move indication through the selected native mechanism.
+27. Retire the source, close the destination or change its layout revision during a drag; also drop on title, resize, remove/lock/close chrome. Verify cancellation without retargeting or Shift-create.
 28. Open chat, inventory, training, world map, and modal UI while interacting.
 29. Begin movement/camera activity, then use a palette; verify no world-input fallthrough.
 30. Log out/in on the same character and verify exact layout restoration.
@@ -928,7 +992,7 @@ Run against one exact installed candidate and record evidence for each applicabl
 39. Exercise reset during pending saves and confirm old data cannot resurrect.
 40. Exercise corrupt/newer layout files, export/recovery, and manager-closed operation.
 41. Disable normally during idle and active drag; verify complete cleanup and preserved layout.
-42. Exercise controlled safe fault-injection seams in the developer configuration; verify containment and restart-required status without intentionally corrupting live client memory.
+42. Exercise controlled developer seams for between-event binding changes, duplicate/reentrant activation and fetched callbacks during retirement. Verify at-most-once invocation, containment and restart-required status without intentionally corrupting live client memory.
 43. Test an unsupported profile/candidate and verify no feature interaction hooks or native construction.
 44. Execute stress runs and inspect reference, callback, control, memory, and crash evidence.
 
@@ -941,7 +1005,7 @@ Before running stress acceptance, capture a warmed-up stock/client baseline and 
 - 50 HUD/scene retirement-and-restore cycles where controllable.
 - 10 complete relog cycles and 10 supported resolution changes.
 - Zero crashes, invalid native calls, duplicate activation events, orphaned subscriptions, or ownership imbalances.
-- Extension-owned live objects/callbacks return exactly to baseline after quiescent teardown.
+- Live receiver-bound objects/callbacks return to baseline after quiescent teardown. Any verified process-pinned terminal infrastructure has an explicit fixed inventory and cannot grow across enable/disable cycles.
 - Known native caches must be measured separately; no unexplained monotonic retained-allocation growth is accepted.
 
 These are initial minimum acceptance counts. If a connected operation is externally impractical, record the shortfall and equivalent coverage explicitly; do not silently mark the gate passed. A different justified threshold requires an updated written acceptance contract before execution.
@@ -1023,6 +1087,7 @@ docs/
     power-palettes.md
 
 docs/investigations/
+    power-palettes-source-selection.md
     native-power-button-boundary.md
     native-power-drag-boundary.md
 
@@ -1040,7 +1105,7 @@ Before repository edits, inspect git status --short --branch. Fetch the relevant
 
 The supplied 310620bc reference may be an ancestor, a reviewed branch tip, or work already integrated elsewhere. Determine which before choosing a base. Prefer the verified reconciled integration tip; do not assume either main or a feature-looking branch is the right source.
 
-Use codex/native-power-palettes unless an appropriate existing branch already owns this work. Never switch a checkout another active task is modifying. Preserve unrelated user changes and stage only task-owned files.
+Before any production branch is created, publish the complete source-selection record against fresh refs. Then use codex/native-power-palettes unless an appropriate existing branch already owns production work. The current codex/power-palettes-plan branch owns documentation only. Never switch a checkout another active task is modifying. Preserve unrelated user changes and stage only task-owned files.
 
 ### Recommended coherent commits
 
@@ -1090,8 +1155,8 @@ Prefer a clean canonical shared checkout when safe, with fast-forward updates on
 | Source semantics | Powers copies; palette moves by default and Shift copies. |
 | Occupied destination | Insertion/reorder rules preserve every shortcut. |
 | Same-slot drop | No-op with either modifier state. |
-| Locked palette | No incoming or outgoing edits; activation and tooltip remain native. |
-| Removal | Separate native edit-mode remove affordance; outside drop never deletes. |
+| Locked palette | Full rectangle remains UI-owned; rejecting drop target with no Shift-create or world fall-through. |
+| Removal | Independent native action via verified control or context command; cannot activate; outside drop never deletes. |
 | Stock-hotbar transfer scope | Both extension transfer directions excluded initially; ordinary stock workflows preserved. |
 | Grid authority | Explicit rows/columns and cells; normalized anchor, native cell metrics. |
 | Constrained display | Temporary native paging; no loss or automatic rewrite of saved grid. |
@@ -1101,14 +1166,20 @@ Prefer a clean canonical shared checkout when safe, with fast-forward updates on
 | Reset | New epoch prevents stale-save resurrection. |
 | Native failure | Separate safe normal teardown from fault containment. |
 | Execution owner | In-process UI-thread native path; no host dispatch dependency. |
-| Feasibility sequence | Independent native shortcut proof precedes broad extraction and persistence implementation. |
+| Feasibility sequence | Independent native proof precedes production; failure stops the feature line with a bounded calibration report. |
+| Native qualification | Participation in the game UI hierarchy and lifecycle; verified stock class or verified game UI ABI. |
+| Routing | Owning stock target first for stock sources; eligible cell next; rejecting palette consumes; Shift-create last. |
+| Activation | Revalidate at stock native activation phase; one admission per native pointer sequence. |
+| Mechanism selection | Calibration chooses verified resize/removal/unlock/drag indication routes while preserving required behavior. |
+| Character identity | Stable server-issued character ID plus shard first; discriminated exact-name fallback only when unavailable. |
+| Callback retirement | Drain fetched/executing calls or use verified process-pinned terminal pass-through without retired receivers. |
 | Release proof | Installed exact candidate plus connected native-effect evidence. |
 
 These are explicit planning defaults, not assertions that the current client already supports the required native contracts. Changing one requires updating the behavior matrix, schema/model where applicable, tests, and acceptance checklist together.
 
 ### Facts still requiring repository/native evidence
 
-1. The current reconciled source tip and actual shared integration destination.
+1. Refresh the recorded source tip and integration destination before production; this documentation pass selected the fetched 310620bc source without starting native work.
 2. The packaged client identity and whether all existing bindings can be unified.
 3. Native power registry identity/token semantics across supported builds.
 4. Learned observation completeness and freshness, including granted powers and rank changes.
@@ -1128,12 +1199,14 @@ These questions are discovery deliverables with phase gates, not permissions to 
 
 Power Palettes are complete only when all of the following are evidenced for the release candidate:
 
-- Shift-drag from stock Powers to empty HUD creates a native palette without altering its source.
+- The independent native feasibility gate is proven before production phases; a failed gate ends in a bounded report, never a fallback implementation.
+- The production source-selection record predates production branching and matches refreshed source/ownership evidence.
+- Shift-drag from stock Powers to empty HUD creates a qualifying native palette without altering its source.
 - Stock Powers/hotbar interactions, stock config, stock slots, and F-key registrations retain their ordinary behavior.
-- A palette shortcut uses the same reviewed native power invocation and targeting lifecycle as stock.
+- A palette shortcut uses the stock native activation phase and targeting lifecycle, with immediate interaction-token revalidation and at-most-once pointer-sequence admission.
 - Tooltip, cooldown, resource/disabled, rank, stance/toggle, and active-state presentation match native behavior.
 - Multiple palettes support the complete move/copy/reorder/resize/lock/remove contract.
-- Occupied destinations, gaps, limits, same-slot drops, unsupported transfers, and cancellation behave exactly as documented.
+- Occupied cells, gaps, chrome, closing/stale destinations, limits, same-slot drops, unsupported transfers and cancellation follow normative owning-target precedence; full visible rectangles never leak world input.
 - Every shortcut remains reachable after resolution changes without silent layout loss.
 - Stable identities survive save/restart/relog; missing powers remain truthful placeholders and retraining reactivates them.
 - Current observations and generations prevent stale identity or native pointer activation.
@@ -1141,7 +1214,7 @@ Power Palettes are complete only when all of the following are evidenced for the
 - Reset and character changes cannot resurrect or misroute older saves.
 - Manager-closed use, status, export, disable, retry/recovery, and same-character read-only behavior work.
 - Modal/focus/capture, movement/camera, scene/character/HUD, pending targeting, and multi-client boundaries pass.
-- Normal native teardown is balanced and UI-thread-owned; fault containment never calls invalidated cleanup methods or unloads live callback code.
+- Normal teardown is balanced and UI-thread-owned, accounts for fetched/in-flight callbacks and leaves only explicitly inventoried safe terminal infrastructure where required; fault containment never calls invalid cleanup or unloads referenced code.
 - Unsupported profiles fail before feature hooks/construction and do not alter stock behavior.
 - No synthetic-input, overlay, hidden-hotbar, packet, or host-dispatch substitute exists.
 - Pure, platform, ABI/runtime, package, installed-candidate, and connected stress gates pass with recorded evidence. Any unresolved required failure blocks completion; external test limitations are documented with the alternative evidence expressly permitted by the acceptance contract.
@@ -1157,7 +1230,9 @@ This checklist records planning readiness only. It does not mark implementation 
 - [x] Review the supplied implementation plan.
 - [x] Expand the behavior, ownership, persistence, lifecycle, delivery, and validation contracts.
 - [x] Define phase exit gates and distinguish verified facts from required discovery.
-- [ ] **Active next implementation item: Phase 0 — verify the repository/integration baseline and adopt this plan in repository documentation.**
+- [x] Incorporate all eleven second-review requests into the contract, phases and validation gates.
+- [x] Fetch and record the documentation source, ancestry, reuse boundaries and protected worktrees; adopt the plan in repository documentation.
+- [ ] **Active next implementation item: complete Phase 0 readiness — refresh the source record, finish facility verification and establish required test/profile baselines before production branching or native changes.**
 - [ ] Phase 1 — passive exact-build calibration.
 - [ ] Phase 2 — independent native shortcut feasibility proof.
 - [ ] Phase 3 — shared native UI/lifetime extraction with movement parity.
@@ -1167,4 +1242,4 @@ This checklist records planning readiness only. It does not mark implementation 
 - [ ] Phase 7 — restoration, controls, concurrency, and hardening.
 - [ ] Phase 8 — exact package acceptance and integration handoff.
 
-The plan expansion is complete. Repository inspection, native discovery, and implementation have not begun as part of this document-editing task.
+The requested plan revision and documentation source-selection work are complete. No native calibration, production branch, implementation, package, deployment or integration merge is claimed. Phase 0 remains partly open because baseline test/profile execution and complete native-facility verification were outside this documentation task.
