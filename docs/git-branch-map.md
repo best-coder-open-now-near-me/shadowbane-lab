@@ -9,7 +9,7 @@ acceptance.
 Current September 11 chat repair: native1.7.8 / wheel0.2.8, source `97612e6`,
 passed exact package checks, all seven CI jobs and independent source review.
 Controller sticks continue during text entry while typing remains protected.
-The VM now runs verified1.7.8; focused controller/chat acceptance is pending. See
+The VM runs verified1.7.8; owner confirmed controller/chat recovery and input pass. See
 [the 1.7.8 handoff](handoffs/combined-candidate-1.7.8.md). Remapping work is separate.
 
 Previous September 11 candidate: native 1.7.7 / wheel 0.2.7, built from `5d21156`,

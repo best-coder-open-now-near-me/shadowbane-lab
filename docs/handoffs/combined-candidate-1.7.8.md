@@ -90,3 +90,20 @@ reparse-point, process-use and replacement/receipt checks under standing owner
 cleanup authorization. Preserved current settings, pristine baseline and private
 receipts. No other client or main branch changed. Next: owner login, then bounded
 controller/chat trace and focused acceptance described above.
+
+## Passed connected controller/chat acceptance
+
+Owner confirms: "chat recovery and input while chat focused is good" on installed
+1.7.8. Completed bounded private capture controller-chat-acceptance-20260911.jsonl
+covers tick15190812..15370843,1,609 current samples. It includes55 samples with
+UI ownership bit, connected controller and moving policy together, plus1,352
+UI/controller manual-idle samples,zero fault states. The only ownership event in
+that interval is ordinary manual takeover; no unexpected owner loss. Historical
+ring entries before the capture interval were excluded from that assessment.
+
+The focused chat/input behavior is accepted. Both user observation and trace are
+retained; the trace alone does not inspect typed text or certify every controller
+function. Collector finished; none running. Next active delivery is the separate
+remappable supported-action checkpoint, followed by verified targeting/hotbar
+adapters. Physical controller disconnect/reconnect remains unconfirmed; do not
+repeat accepted keyboard/navigation/chat runs without a relevant new change.
