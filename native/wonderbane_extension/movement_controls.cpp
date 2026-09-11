@@ -48,7 +48,7 @@ bool ValidSettings(const Settings& s) noexcept {
             if (s.keys[i] == s.keys[j]) { return false; }
         }
     }
-    return s.controller_slot < 4 && std::isfinite(s.movement_dead_zone)
+    return ValidControllerProfile(s.controller_profile) && s.controller_slot < 4 && std::isfinite(s.movement_dead_zone)
         && s.movement_dead_zone >= 0.05F && s.movement_dead_zone < 0.95F
         && std::isfinite(s.camera_dead_zone) && s.camera_dead_zone >= 0.05F
         && s.camera_dead_zone < 0.95F && std::isfinite(s.camera_radians_per_second)
@@ -312,14 +312,44 @@ void Controls::Tick(const Input& input) noexcept {
 
     const bool connected = settings_.controller && input.controller_connected
         && input.controller_slot == settings_.controller_slot
-        && Finite(input.left_stick) && Finite(input.right_stick);
+        && Finite(input.left_stick) && Finite(input.right_stick)
+        && std::isfinite(input.left_trigger) && std::isfinite(input.right_trigger)
+        && input.left_trigger >= 0 && input.left_trigger <= 1 && input.right_trigger >= 0 && input.right_trigger <= 1;
     const bool lost_controller = controller_connected_ && !connected;
     if (!connected || !controller_connected_) { controller_armed_ = false; }
     controller_connected_ = connected;
-    const auto stick = RadialDirection(input.left_stick, settings_.movement_dead_zone);
-    const auto camera = RadialCamera(input.right_stick, settings_.camera_dead_zone);
-    if (connected && !Nonzero(stick) && !Nonzero(camera)
-        && Finite(input.left_stick) && Finite(input.right_stick)) { controller_armed_ = true; }
+    const auto modifiers = static_cast<std::uint8_t>(((input.controller_buttons & 0x100) ? 1 : 0)
+        | ((input.controller_buttons & 0x200) ? 2 : 0));
+    Vector2 stick{}, camera{};
+    const auto resolve = [&](ControllerControl source, Vector2 value) {
+        const auto action = ResolveControllerAction(settings_.controller_profile, source, modifiers);
+        if (action == ControllerAction::movement) { stick = RadialDirection(value, settings_.movement_dead_zone); }
+        if (action == ControllerAction::camera) { camera = RadialCamera(value, settings_.camera_dead_zone); }
+    };
+    resolve(ControllerControl::left_stick, input.left_stick);
+    resolve(ControllerControl::right_stick, input.right_stick);
+    // Rearm from physical neutral, never merely an unbound/modified interpretation.
+    const auto neutral_zone = std::min(settings_.movement_dead_zone, settings_.camera_dead_zone);
+    if (connected && !input.controller_buttons && input.left_trigger <= .2F && input.right_trigger <= .2F
+        && !Nonzero(RadialDirection(input.left_stick, neutral_zone))
+        && !Nonzero(RadialDirection(input.right_stick, neutral_zone))) { controller_armed_ = true; }
+    constexpr std::array<std::uint16_t, 14> button_bits{
+        0x1000, 0x2000, 0x4000, 0x8000, 1, 2, 4, 8, 0x10, 0x20, 0x40, 0x80, 0x100, 0x200};
+    bool cancel = false;
+    for (unsigned n = 3; n <= 18; ++n) {
+        const bool down = n <= 16 ? (input.controller_buttons & button_bits[n - 3]) != 0
+            : n == 17 ? input.left_trigger > .2F : input.right_trigger > .2F;
+        if (down && ResolveControllerAction(settings_.controller_profile, static_cast<ControllerControl>(n), modifiers)
+            == ControllerAction::cancel_movement) { cancel = true; }
+    }
+    if (connected && controller_armed_ && cancel) {
+        // Deliberate cancel is one native manual takeover, including native click
+        // intent when no prior controls owner exists. Held cancel never repeats.
+        (void)Retire(StopReason::takeover, Owner::manual);
+        keyboard_armed_ = controller_armed_ = drag_armed_ = false;
+        drag_pending_ = drag_active_ = previous_drag_down_ = false;
+        return;
+    }
     if (connected && controller_armed_ && !input.camera_blocked && !camera_faulted_ && seconds > 0 && Nonzero(camera)) {
         const float scale = settings_.camera_radians_per_second * seconds;
         bool accepted = false;

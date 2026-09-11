@@ -1,5 +1,6 @@
 #pragma once
 
+#include "movement_action_profile.h"
 #include <array>
 #include <cstdint>
 #include <optional>
@@ -37,6 +38,7 @@ struct Settings {
     std::array<std::uint16_t, 4> keys{0x57, 0x53, 0x41, 0x44};
     // Explicit XInput slot, never the first connected controller.
     std::uint32_t controller_slot = 0;
+    ControllerProfile controller_profile{};
     float movement_dead_zone = 0.20F;
     float camera_dead_zone = 0.15F;
     float camera_radians_per_second = 2.0F;
@@ -63,6 +65,8 @@ struct Input {
     std::array<bool, 256> keys{};
     bool controller_connected = false;
     std::uint32_t controller_slot = 0;
+    std::uint16_t controller_buttons = 0; // XInput bits, sampled only for this client.
+    float left_trigger = 0, right_trigger = 0;
     Vector2 left_stick{};
     Vector2 right_stick{};
     bool camera_blocked = false;

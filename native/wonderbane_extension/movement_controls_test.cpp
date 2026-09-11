@@ -71,6 +71,52 @@ struct Fixture {
         return g;
     }
 };
+void ActionProfiles() {
+    Fixture f;
+    auto& b = f.settings.controller_profile.bindings;
+    std::swap(b[0].control, b[1].control);
+    b[2] = {ControllerAction::cancel_movement, ControllerControl::x, 1};
+    Check(f.controls.Configure(f.settings) == Result::accepted, "swapped native sticks and shoulder cancel profile admitted");
+    f.Step();
+    const auto route = f.Automate();
+    f.input.left_stick = {1, 0}; f.Step();
+    Check(f.controls.Current() == route && f.actuator.Count('c') == 1, "remapped left camera preserves route");
+    f.input.left_stick = {}; f.input.right_stick = {.3F, .7F}; f.Step();
+    Check(f.controls.Current().owner == Owner::manual && f.actuator.events.back().kind == 'd'
+        && Near(f.actuator.events.back().vector.x / f.actuator.events.back().vector.y, 3.0F/7),
+        "remapped right movement preserves analog direction through shared ownership");
+    f.input.controller_buttons = 0x4000; f.Step();
+    const auto active = f.controls.Current();
+    f.input.controller_buttons |= 0x100; const auto stops = f.actuator.Count('s'); f.Step();
+    Check(f.actuator.Count('s') == stops + 1 && f.controls.Current().generation > active.generation,
+        "shoulder plus configured X invokes native cancel and retires old ownership");
+    const auto generation = f.controls.Current().generation; f.Step();
+    Check(f.controls.Current().generation == generation && f.actuator.Count('s') == stops + 1,
+        "held cancel is edge-triggered and never reacquires");
+    f.input.controller_buttons = 0; const auto moves = f.actuator.Count('d'); f.Step();
+    Check(f.actuator.Count('d') == moves, "releasing cancel cannot resume a held movement stick");
+    f.input.right_stick = {}; f.Step(); f.input.right_stick = {1, 0}; f.Step();
+    Check(f.actuator.Count('d') == moves + 1 && f.controls.Stop(route) == Result::stale,
+        "physical neutral permits fresh movement but never obsolete automation stop");
+    const auto before = f.controls.Current();
+    f.settings.controller_profile.bindings[1] = b[0];
+    Check(f.controls.Configure(f.settings) == Result::invalid && f.controls.Current() == before,
+        "invalid conflict cannot partially apply settings or disrupt active owner");
+    ControllerProfile p; p.bindings[3] = {ControllerAction::camera, ControllerControl::left_stick, 1};
+    Check(!ValidControllerProfile(p), "effective modifier fallback rejects two camera writers");
+    p.bindings[4] = {ControllerAction::movement, ControllerControl::right_stick, 1};
+    Check(ValidControllerProfile(p)
+        && ResolveControllerAction(p, ControllerControl::left_stick, 1) == ControllerAction::camera
+        && ResolveControllerAction(p, ControllerControl::left_stick, 3) == ControllerAction::movement,
+        "exact shoulder context override and base fallback resolve deterministically");
+    p.bindings[5] = {ControllerAction::cancel_movement, ControllerControl::left_shoulder, 0};
+    Check(!ValidControllerProfile(p), "shoulder action cannot collide with modifier");
+    p.bindings.fill({}); Check(ValidControllerProfile(p), "fully unbound profile is valid");
+    f.settings.controller_profile = p; f.input.right_stick = {};
+    Check(f.controls.Configure(f.settings) == Result::accepted, "unbind profile applies"); f.Step();
+    const auto unbound = f.actuator.Count('d'); f.input.left_stick = f.input.right_stick = {1, 0}; f.Step();
+    Check(f.actuator.Count('d') == unbound, "unbound sticks never actuate native movement");
+}
 void ParentContinuity() {
     { Fixture f; ++f.input.scene; f.actuator.events.clear();
       Check(!f.controls.ObserveParentScene(f.input.scene, true, f.input.tick_ms)
@@ -443,6 +489,6 @@ void FrameRatesAndSettings() {
 }
 }
 int main() {
-    ParentContinuity(); ManualUpdateGaps(); KeyboardFirstStart(); Interpretation(); Ownership(); CameraFailure(); Gates(); Devices(); Drag(); BufferedInput(); FailureAndScene(); NativeIntentTakeover(); NestedSafety(); EmergencyStops(); DisabledAutomation(); FrameRatesAndSettings();
+    ActionProfiles(); ParentContinuity(); ManualUpdateGaps(); KeyboardFirstStart(); Interpretation(); Ownership(); CameraFailure(); Gates(); Devices(); Drag(); BufferedInput(); FailureAndScene(); NativeIntentTakeover(); NestedSafety(); EmergencyStops(); DisabledAutomation(); FrameRatesAndSettings();
     return failures ? 1 : 0;
 }

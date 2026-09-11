@@ -296,12 +296,21 @@ bool WindowsInput::Snapshot(CapturedInput& out) noexcept {
             && caps.Type == XINPUT_DEVTYPE_GAMEPAD && caps.SubType == XINPUT_DEVSUBTYPE_GAMEPAD
             && platform_.controller(settings_.controller_slot, &state) == ERROR_SUCCESS;
         if (input.controller_connected) {
+            input.controller_buttons = state.Gamepad.wButtons;
+            input.left_trigger = state.Gamepad.bLeftTrigger / 255.0F;
+            input.right_trigger = state.Gamepad.bRightTrigger / 255.0F;
             input.left_stick = {Axis(state.Gamepad.sThumbLX), Axis(state.Gamepad.sThumbLY)};
             input.right_stick = {Axis(state.Gamepad.sThumbRX), Axis(state.Gamepad.sThumbRY)};
         }
     }
     controller_connected_ = input.controller_connected;
-    const auto direction = RadialDirection(input.left_stick, settings_.movement_dead_zone);
+    const auto modifiers = static_cast<std::uint8_t>(((input.controller_buttons & XINPUT_GAMEPAD_LEFT_SHOULDER) ? 1 : 0)
+        | ((input.controller_buttons & XINPUT_GAMEPAD_RIGHT_SHOULDER) ? 2 : 0));
+    const auto source = ResolveControllerAction(settings_.controller_profile, ControllerControl::left_stick, modifiers)
+        == ControllerAction::movement ? input.left_stick
+        : ResolveControllerAction(settings_.controller_profile, ControllerControl::right_stick, modifiers)
+        == ControllerAction::movement ? input.right_stick : Vector2{};
+    const auto direction = RadialDirection(source, settings_.movement_dead_zone);
     controller_moving_ = input.controller_connected && (direction.x != 0 || direction.y != 0);
     return true;
 }

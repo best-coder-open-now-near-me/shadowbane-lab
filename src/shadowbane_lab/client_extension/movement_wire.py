@@ -1,4 +1,4 @@
-"""Lossless schema-2 movement payloads; observations never grant ownership.
+"""Lossless schema-3 movement payloads; observations never grant ownership.
 
 All integers have fixed little-endian widths. UUIDs use RFC canonical byte order.
 The action channel prefix supplies command sequence, ID, deadline and verb.
@@ -12,15 +12,22 @@ import uuid
 from dataclasses import dataclass
 from enum import IntEnum
 
-SCHEMA = 2
+from .controller_profile import (
+    DEFAULT_CONTROLLER_BINDINGS,
+    ControllerBinding,
+    decode_profile,
+    encode_profile,
+)
+
+SCHEMA = 3
 COMMAND_SIZE, RESULT_SIZE, STATUS_SIZE = 768, 512, 512
 COMMAND_PREFIX, RESULT_PREFIX = 192, 128
 _HOST = struct.Struct("<IIQ")
 _GRANT = struct.Struct("<QQII96s96s")
-_SETTINGS = struct.Struct("<8I4fI")
-_COMMAND = struct.Struct("<16sQ216s16s3f52sQ192s56s")
-_RECEIPT = struct.Struct("<216s16s16sQQ52sII60s")
-_STATUS = struct.Struct("<qIIQQ216s52sQQ196s")
+_SETTINGS = struct.Struct("<8I4fIHH24H")
+_COMMAND = struct.Struct("<16sQ216s16s3f104sQ192s4s")
+_RECEIPT = struct.Struct("<216s16s16sQQ104sII8s")
+_STATUS = struct.Struct("<qIIQQ216s104sQQ144s")
 assert _COMMAND.size == COMMAND_SIZE - COMMAND_PREFIX
 assert _RECEIPT.size == RESULT_SIZE - RESULT_PREFIX and _STATUS.size == STATUS_SIZE
 
@@ -148,6 +155,7 @@ class Settings:
     drag_button: int = 5
     invert_camera_x: bool = False
     invert_camera_y: bool = False
+    controller_bindings: tuple[ControllerBinding, ...] = DEFAULT_CONTROLLER_BINDINGS
 
     def encode(self) -> bytes:
         toggles = (
@@ -186,13 +194,20 @@ class Settings:
             raise ValueError("drag button conflicts with native camera or is unsupported")
         flags = sum(int(value) << n for n, value in enumerate(toggles))
         return _SETTINGS.pack(
-            0x57424D43, 1, flags, *self.keys, self.controller_slot, *values, self.drag_button
+            0x57424D43,
+            2,
+            flags,
+            *self.keys,
+            self.controller_slot,
+            *values,
+            self.drag_button,
+            *encode_profile(self.controller_bindings),
         )
 
     @classmethod
     def decode(cls, data: bytes) -> Settings:
         magic, version, flags, *values = _SETTINGS.unpack(data)
-        if magic != 0x57424D43 or version != 1 or flags & ~63:
+        if magic != 0x57424D43 or version != 2 or flags & ~63:
             raise ValueError("unsupported settings format")
         result = cls(
             bool(flags & 1),
@@ -205,6 +220,7 @@ class Settings:
             values[9],
             bool(flags & 16),
             bool(flags & 32),
+            decode_profile(tuple(values[10:])),
         )
         result.encode()
         return result
@@ -245,7 +261,7 @@ class Command:
             _uint(self.revision, 64, "settings revision"),
             _text(self.worker_id, verb == Verb.ACQUIRE)
             + _text(self.operation_id, verb == Verb.ACQUIRE),
-            bytes(56),
+            bytes(4),
         )
 
     @classmethod
@@ -293,7 +309,7 @@ class Receipt:
             self.settings.encode(),
             Outcome(self.outcome),
             self.flags,
-            bytes(60),
+            bytes(8),
         )
 
     @classmethod
@@ -342,7 +358,7 @@ class Snapshot:
             self.settings.encode(),
             _uint(self.revision, 64, "settings revision", 1),
             _uint(self.tick, 64, "snapshot tick"),
-            bytes(196),
+            bytes(144),
         )
 
     @classmethod

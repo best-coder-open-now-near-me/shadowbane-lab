@@ -15,7 +15,7 @@
 namespace wonderbane::extension {
 
 constexpr char kClientActionChannelMagic[8] = {'W', 'B', 'A', 'C', 'T', 'V', '1', '\0'};
-constexpr std::uint32_t kClientActionChannelSchemaVersion = 2U;
+constexpr std::uint32_t kClientActionChannelSchemaVersion = 3U;
 constexpr std::uint32_t kClientActionChannelHeaderSize = 128U;
 constexpr std::uint32_t kClientActionCommandSlotSize = 768U;
 constexpr std::uint32_t kClientActionCommandCapacity = 32U;

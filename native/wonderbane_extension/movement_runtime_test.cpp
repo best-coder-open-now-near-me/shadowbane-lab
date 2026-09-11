@@ -118,7 +118,7 @@ int main(int argc, char** argv) {
     Check(rt.controls.Configure(rt.settings) == wm::Result::accepted && rt.input.Configure(rt.settings), "consumer settings configured");
     const auto step = [&] { rt.Update(f.game_window.data()); };
     step(); step();
-    if (mode == "ipc") {
+    if (mode == "ipc" || mode == "ipc-profile") {
         FILETIME created{}, exited{}, kernel{}, user{};
         Check(GetProcessTimes(GetCurrentProcess(), &created, &exited, &kernel, &user) != FALSE, "IPC client lifetime");
         rt.process = {GetCurrentProcessId(), (static_cast<std::uint64_t>(created.dwHighDateTime) << 32) | created.dwLowDateTime};
@@ -131,12 +131,13 @@ int main(int argc, char** argv) {
         std::printf("%lu %llu %llu\n", static_cast<unsigned long>(rt.process.process_id),
             static_cast<unsigned long long>(rt.process.creation_filetime_utc),
             static_cast<unsigned long long>(reinterpret_cast<std::uintptr_t>(f.window))); std::fflush(stdout);
+        const auto expected_receipts = mode == "ipc-profile" ? 4 : 6;
         const auto until = GetTickCount64() + 10000;
         auto* storage = wonderbane::extension::command_channel_detail::g_runtime.storage;
-        while (GetTickCount64() < until && InterlockedCompareExchange64(&storage->header.result_read_sequence, 0, 0) < 6) {
+        while (GetTickCount64() < until && InterlockedCompareExchange64(&storage->header.result_read_sequence, 0, 0) < expected_receipts) {
             step(); Sleep(5);
         }
-        Check(storage->header.result_read_sequence == 6, "Python consumed six correlated native receipts");
+        Check(storage->header.result_read_sequence == expected_receipts, "Python consumed correlated native receipts");
         wonderbane::extension::StopClientActionCommandChannel(); rt.input.Retire(); return failures ? 1 : 0;
     }
     if (mode == "commands") {
@@ -202,6 +203,36 @@ int main(int argc, char** argv) {
         auto old_retry = make(wm::wire::Verb::acquire, original, 1); run(old_retry);
         Check(old_retry->receipt.outcome == static_cast<unsigned>(wm::Result::stale), "evicted acquisition cannot mint authority");
         rt.input.Retire(); return failures ? 1 : 0;
+    }
+    if (mode == "controller-profile") {
+        RuntimeSnapshot ticket{}; Check(ReadNativeMovementControls(ticket), "profile obtains exact revision ticket");
+        auto next = ticket.settings;
+        std::swap(next.controller_profile.bindings[0].control, next.controller_profile.bindings[1].control);
+        next.controller_profile.bindings[2] = {ControllerAction::cancel_movement, ControllerControl::left_trigger, 2};
+        gamepad.sThumbRX = 32767;
+        Check(ConfigureNativeMovementControls(ticket, next) == Result::accepted, "profile uses real atomic runtime configure");
+        step(); step(); Check(f.moves == 0, "profile apply with held remapped stick requires neutral");
+        gamepad = {}; step(); gamepad.sThumbRY = 32767; step();
+        Check(f.moves == 1 && rt.controls.Current().owner == Owner::manual, "remapped right stick actuates native steering");
+        const auto moving = rt.controls.Current();
+        gamepad.bLeftTrigger = 255; gamepad.wButtons = XINPUT_GAMEPAD_RIGHT_SHOULDER;
+        native_order.clear(); step();
+        Check(native_order == std::vector<char>{'s'} && rt.controls.Current().generation > moving.generation
+            && Get<std::uint32_t>(f.state.data(), 0x10) == 5, "trigger plus shoulder invokes real native stop");
+        native_order.clear(); step(); Check(native_order.empty(), "held cancel does not repeat native actions");
+        gamepad.bLeftTrigger = 0; gamepad.wButtons = 0; step();
+        Check(f.moves == 1, "cancel release never resumes the held remapped stick");
+        gamepad = {}; step(); gamepad.sThumbRX = 32767; step();
+        device_connected = false; step();
+        Check(Get<std::uint32_t>(f.state.data(), 0x10) == 5, "disconnect stops remapped movement");
+        device_connected = true; step(); Check(!(rt.controls.DiagnosticState() & 2), "held reconnect cannot rearm remapped movement");
+        gamepad = {}; step(); gamepad.sThumbLX = 32767; const auto cameras = f.camera_calls; step();
+        Check(f.camera_calls > cameras && Get<std::uint32_t>(f.state.data(), 0x10) == 5,
+            "remapped left stick controls native camera without restarting movement");
+        Check(ConfigureNativeMovementControls(ticket, ticket.settings) == Result::stale,
+            "stale pre-profile ticket cannot restore old settings");
+        Check(original_keys == 0 && f.packet.references == 0, "profile actions generate no keys and release native messages");
+        gamepad = {}; step(); rt.input.Retire(); return failures ? 1 : 0;
     }
     if (mode == "controller-text") {
         const auto key = [&](unsigned value, bool down) {
