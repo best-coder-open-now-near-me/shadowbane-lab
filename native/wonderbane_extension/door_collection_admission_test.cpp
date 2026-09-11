@@ -2,7 +2,10 @@
 #include <atomic>
 #include <iostream>
 #include <thread>
+#include <type_traits>
 using namespace wonderbane::extension::movement;
+static_assert(!std::is_copy_constructible_v<DoorCollectionAdmission>);
+static_assert(!std::is_move_constructible_v<DoorCollectionAdmission>);
 namespace {
 int failures = 0;
 void Check(bool value, const char* label) { if (!value) { ++failures; std::cerr << label << '\n'; } }
@@ -33,7 +36,14 @@ int main() {
     while (!original.load() && GetTickCount64() < deadline) { std::this_thread::yield(); }
     Check(original.load(), "mutation progresses when bounded acquisition releases");
     Check(!gate.TryRead(other), "original callback remains exclusive after SRW unlock");
-    finish = true; writer.join();
+    std::atomic<bool> concurrent_original{false};
+    std::thread concurrent_writer([&] {
+        gate.BeginMutation(); concurrent_original = true; gate.EndMutation();
+    });
+    const auto concurrent_deadline = GetTickCount64() + 5000;
+    while (!concurrent_original.load() && GetTickCount64() < concurrent_deadline) { std::this_thread::yield(); }
+    Check(concurrent_original.load(), "admission excludes readers but does not serialize native writers");
+    finish = true; writer.join(); concurrent_writer.join();
     Check(gate.TryRead(other) && other.generation != before, "fresh post-mutation acquisition has a new generation");
     const auto after = other.generation; other.Reset();
     Check(gate.Current(after), "completed fresh snapshot is current");
