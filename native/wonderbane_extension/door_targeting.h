@@ -6,7 +6,9 @@
 #include <optional>
 
 namespace wonderbane::extension::movement {
-using DoorIdentity = std::array<std::uint32_t, 2>;
+// Structure identity followed by the door sub-object key. Doors can share the
+// structure identity at ArcObj+0x18, so that field alone is not a unique door key.
+using DoorIdentity = std::array<std::uint32_t, 4>;
 struct DoorGeometry {
     DoorIdentity identity{};
     GroundPoint center{}; // Verified native world coordinates, never parent-local.
