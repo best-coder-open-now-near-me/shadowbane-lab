@@ -87,7 +87,8 @@ def _payload() -> dict:
 
 
 @pytest.mark.parametrize(
-    "version", ["1.6.12", "1.6.13", "1.7.0", "1.7.1", "1.7.2", "1.7.3", "1.7.4", "1.7.5", "1.7.6"]
+    "version",
+    ["1.6.12", "1.6.13", "1.7.0", "1.7.1", "1.7.2", "1.7.3", "1.7.4", "1.7.5", "1.7.6", "1.7.7"]
 )
 def test_analyzer_attributes_reviewed_terrain_roles_without_claiming_asset_ids(version):
     payload = _payload()

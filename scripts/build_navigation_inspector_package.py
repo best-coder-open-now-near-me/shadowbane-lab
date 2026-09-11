@@ -536,7 +536,7 @@ from shadowbane_lab.graphics_lab import effects, selected_cue
 installed_root = pathlib.Path(sys.prefix).resolve()
 for module in (effects, selected_cue):
     assert pathlib.Path(module.__file__).resolve().is_relative_to(installed_root)
-assert importlib.metadata.version("shadowbane-lab") == "0.2.6"
+assert importlib.metadata.version("shadowbane-lab") == "0.2.7"
 assert "suppressed" in effects.presentation_status((0,) * 8 + (1, 3, 1))
 assert "unavailable" in effects.presentation_status((0,) * 8)
 assert selected_cue.describe_status(
