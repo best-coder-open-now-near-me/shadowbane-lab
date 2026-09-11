@@ -46,13 +46,15 @@ Independent review: existing particles owner task approved the exact source delt
 `eaa6472..d06d0b1` with no actionable findings. Scope included callback/lifecycle
 ownership, retained-loss coherence, reader identity/torn reads, and package gates.
 This was independent source inspection, not an independent execution of tests.
-CI run `34565362791` is still pending its final full-native job at this checkpoint;
-quality, PowerShell syntax, all three Python versions and diagnostics-only passed.
+CI run `34565362791` passed all seven jobs: quality, PowerShell syntax, Python
+3.11/3.12/3.13 and both native profiles. The retained CI log confirms both new
+native diagnostic cases executed and passed in both profiles:
+`artifacts/combined-1.7.4-ci.log`.
 
 ## Remaining targeted observation
 
 The installed VM remains 1.7.3; this receipt does not certify installation or a
-connected fix. Complete CI first, then use the designated diagnostic client only.
+connected fix. CI is complete; next use the designated diagnostic client only.
 Enable `WONDERBANE_MOVEMENT_TRACE=1` at its next controlled launch, preserve its
 settings and exact lifetime receipt, and collect with the packaged schema-2 reader
 as documented in `docs/investigations/native-input-diagnostics.md`.
