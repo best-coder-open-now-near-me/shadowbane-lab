@@ -82,3 +82,21 @@ The exact-lifetime schema3 mapping parses successfully and is enabled before log
 No collector is running. Next: owner login, verify in-world status, then bounded
 scene-cause capture. Private installation/launch/channel evidence is retained in
 `E:/virtual-machines/shadowbane-testing/diagnostics/combined-acceptance-1.7.6-3bda4f6f`.
+
+## Connected cause identified
+
+Owner reported a stop and suspected terrain tile crossing. Private schema3 capture
+`scene-cause-20260911-065752.jsonl` aligned input owner-loss event288 at tick8532046
+with lifetime source1892 at the same tick: accepted tuple_changed, epoch1->2,
+changed_fields2 (parent only), valid_fields63, failure_stage none, no notice role.
+Actor, world, native window and both identity words were unchanged. This identifies
+a verified parent-coordinate-frame transition; it does not prove terrain tile
+semantics. No raw object values are needed for the conclusion.
+
+Movement owner now implements continuity for fresh admitted manual input across
+this precise transition while retiring old epoch/targets/automation grants. Old
+local destination/camera/pick basis must not carry across; genuine lifetime,
+notice, failed capture, UI/focus and pending-stop guards remain. Production runtime
+regressions and both-profile ALL_BUILD are required before package review. No more
+owner reproduction is needed to identify this cause. Capture remains bounded;
+there is no claim the new repair is already implemented or installed.
