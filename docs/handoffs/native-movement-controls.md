@@ -996,3 +996,21 @@ input diagnostics and the new manual-update-gap runtime case. Each profile also
 passed 17 Python boundary/wire tests plus 15 subtests with its actual native
 boundary producer selected (no interoperability skip). The package requires the
 new runtime case. Package-gate tests and Ruff validation passed.
+
+## Remaining lifetime latch: source-only follow-up
+
+Added production lifetime regressions for established-watch unrelated destruction
+traffic, held unrelated frees, pose-wrapper replacement with unchanged parent,
+each independently changed scene field and failed parent capture. All 35 lifetime
+tests pass in each full/diagnostics Win32 Release profile. Existing lifetime source
+matches the fetched integration branch through `49385e1`; no production safety gate
+was modified and no cause of the remaining connected latch is claimed.
+
+A changed parent is a coordinate-frame transition, not evidence of a false lifetime
+notification. Old grants/targets must retire and native conversion must use the
+new verified frame. See `docs/investigations/native-input-diagnostics.md` for the
+minimal cause/changed-mask proposal, including failed observations that do not
+advance observer epoch and retention of the original destruction cause. No private
+capture was accessed in this follow-up, and no VM/deployment operation occurred.
+Next: integration-owner review of this test checkpoint and diagnostic proposal;
+combined acceptance remains unfinished.
