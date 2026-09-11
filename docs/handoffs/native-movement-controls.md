@@ -1259,3 +1259,28 @@ are exposed by this checkpoint. No VM or installed package was changed.
 The previous mandatory profile IPC/cancellation review fix `d1b9238` is integrated
 by the shared owner at `433dc81`; the independent review finding is closed. The
 running accepted client remains 1.7.8 while the owner verifies later packages.
+
+## Native door collision evidence checkpoint
+
+The private-image test now executes the authenticated native ray/triangle leaf
+RVA0x120e10 in a relocated, task-owned image. It starts no client entry point,
+imports, window, world or network subsystem. Original and prepared image forms
+pass in both native profiles: real hit distance/scalar barycentrics, plane miss,
+parallel ray, common-frame translation, and negative-distance output. The last
+case confirms that the leaf itself does not enforce forward reach; the hierarchy
+caller must do so. This is native primitive evidence, not completed door actuation
+or a production-adapter acceptance claim.
+
+Static hierarchy0x1c6ad0 -> ArcSinglePolyMesh0x1b6810 ->0x1a9320 restores distance
+after transform scaling and selects the nearest front-facing triangle. Its final
+float is a minimum distance/near clip, not maximum reach. Door range must be
+compared separately, in the same frame. Auxiliary hit coordinates are floats;
+returned backing geometry is borrowed and must remain inside the admitted query.
+The adjacent ArcObj0xceb30 helper is only an AABB query and is excluded from door
+obstruction. Existing world picking remains unchanged.
+
+Remaining active todo: complete the owner-thread resolver, structural/terrain
+occlusion with parent transforms and self/target handling, visible intended-door
+cue and one-shot native Interact; then profile wiring, production-adapter tests,
+combined package validation and focused connected acceptance. No new live owner
+observation is required by this checkpoint. Door controls remain unexposed.
