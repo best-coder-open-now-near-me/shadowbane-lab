@@ -77,3 +77,20 @@ The stopped 1.7.3 client was removed after exact-path/reparse/process checks;
 1.7.5 installation is in progress, sourcing current Config from 1.7.4. Preserve
 package/source receipts and the pristine baseline. This does not authorize removal
 of unrelated clients or source history.
+
+## Verified VM installation
+
+Installed and runtime-copy verified 1.7.5 / wheel 0.2.5 in
+`S:/ShadowbaneLab-Guided/combined-acceptance-1.7.5-7ab074af`, preserving current
+Config from 1.7.4. Launch PID 8732, creation FILETIME 134335804939635137,
+HWND 656366; loaded DLL matches the full-profile hash above. Prepared executable
+SHA-256 remains `bb63469eb35917e6b3f58be75d29f94855c9868024271222465b4db62f0e3a87`.
+Exact-lifetime schema-2 mapping verified enabled before login, with no in-world
+records yet. No collector is running. Next is owner login and one bounded input
+capture to verify the repair and classify any separate remaining loss.
+
+Removed obsolete 1.7.3 and superseded 1.7.4 client trees under the owner's explicit
+cleanup instruction, after exact-path, reparse and running-process checks. Their
+receipts and current settings were preserved. Private install/launch/channel
+receipts and scripts are in
+`E:/virtual-machines/shadowbane-testing/diagnostics/combined-acceptance-1.7.5-7ab074af`.
