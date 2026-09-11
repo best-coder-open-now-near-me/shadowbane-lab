@@ -102,3 +102,19 @@ adding genuine keyboard-first cold-idle coverage and tracing native movement
 initialization. Root will require the new regression in the existing package gate.
 No behavioral fix or new live acceptance is claimed yet. The working 1.7.3
 startup/settings path is preserved, and no additional user focus retry is requested.
+
+### September 11 mixed-input observation
+
+The owner reported movement looked good during a requested W/S/W sequence, but
+also clicked and moved beyond that sequence. Classify this as mixed-input evidence,
+not a keyboard-first reproduction. The 100-second read-only capture retained 605
+samples with no read errors. Readiness/binding flags remained 23, enabled stayed
+true, and settings revision stayed 1. Manual ownership appeared in three intervals
+and returned to none, with generations advancing from 2 through 8. No sampled
+loss of readiness or bindings occurred. This neither attributes an individual
+transition to S nor establishes movement before the first mouse click; the earlier
+intermittent failure and first-click dependency remain unresolved.
+Private capture retained under the installed candidate diagnostics directory as
+`keyboard-mixed-input-20260911.jsonl`. Next: use a future occurrence of the actual
+failure for a narrowly timed status capture; do not label this successful mixed
+run as proof that the defect is fixed or require an immediate broad repeat.
