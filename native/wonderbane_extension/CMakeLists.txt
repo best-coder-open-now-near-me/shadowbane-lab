@@ -1017,6 +1017,12 @@ if(BUILD_TESTING)
     add_test(NAME wonderbane_extension_movement_lifetime_${mode}
       COMMAND wonderbane_extension_movement_lifetime_test ${mode})
   endforeach()
+  foreach(mode door-normal door-rollback door-foreign door-teardown)
+    add_test(NAME wonderbane_extension_movement_lifetime_${mode}
+      COMMAND wonderbane_extension_movement_lifetime_test ${mode})
+    set_tests_properties(wonderbane_extension_movement_lifetime_${mode} PROPERTIES TIMEOUT 20)
+  endforeach()
+
 endif()
 
 if(BUILD_TESTING)

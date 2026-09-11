@@ -10,7 +10,34 @@ void Check(bool ok, const char* message) { if (!ok) { ++failures; std::cerr << m
 std::atomic<int> free_calls{0}, ref_calls{0};
 std::atomic<bool> hold_ref{false}, hold_free{false}, forwarded{true};
 HANDLE entered = nullptr, release_call = nullptr;
-bool fail_install = false;
+bool fail_install = false, fail_door_install = false;
+std::atomic<int> append_calls{0}, reset_calls{0}, load_calls{0};
+std::atomic<bool> hold_door{false}, door_arguments{true};
+void* expected_structure = nullptr;
+void (*during_door_reset)() = nullptr;
+void __fastcall OriginalDoorLoad(void* receiver, void*) {
+    ++load_calls;
+    if (receiver != expected_structure) { door_arguments = false; }
+    wm::DoorCollectionAdmission::ReadLease lease;
+    if (wm::state.door_admission.TryRead(lease)) { door_arguments = false; }
+}
+void __fastcall OriginalDoorReset(void* receiver, void*, bool load, bool force) {
+    ++reset_calls;
+    if (receiver != expected_structure || !load || force) { door_arguments = false; }
+    if (during_door_reset) { during_door_reset(); }
+    reinterpret_cast<void (__thiscall*)(void*)>(wm::state.door_slots[10].hook)(receiver);
+}
+void __fastcall OriginalDoorAppend(void* receiver, void*, void* door) {
+    ++append_calls;
+    if (receiver != expected_structure || door != expected_structure) { door_arguments = false; }
+    if (hold_door) {
+        SetEvent(entered);
+        if (WaitForSingleObject(release_call, 5000) != WAIT_OBJECT_0) { door_arguments = false; }
+    }
+    if (wm::state.door_ready) {
+        reinterpret_cast<void (__thiscall*)(void*, bool, bool)>(wm::state.door_slots[5].hook)(receiver, true, false);
+    }
+}
 std::thread held_install;
 void* expected_ref = nullptr;
 void* expected_free = nullptr;
@@ -58,6 +85,15 @@ std::uint32_t* FindImportAddressSlot(std::uint8_t*, std::size_t, const char*, co
 DWORD ReplaceImportAddressSlot(std::uint32_t* slot, std::uint32_t expected, std::uint32_t replacement) noexcept {
     const auto before = InterlockedCompareExchange(reinterpret_cast<LONG*>(slot), static_cast<LONG>(replacement), static_cast<LONG>(expected));
     if (static_cast<std::uint32_t>(before) != expected) { return ERROR_INVALID_DATA; }
+    if (fail_door_install) {
+        fail_door_install = false;
+        held_install = std::thread([replacement] {
+            reinterpret_cast<void (__thiscall*)(void*, void*)>(replacement)(expected_structure, expected_structure);
+        });
+        if (WaitForSingleObject(entered, 5000) != WAIT_OBJECT_0) { door_arguments = false; }
+        InterlockedCompareExchange(reinterpret_cast<LONG*>(slot), static_cast<LONG>(expected), static_cast<LONG>(replacement));
+        return ERROR_ACCESS_DENIED;
+    }
     if (fail_install) {
         fail_install = false;
         held_install = std::thread([replacement] { if (!CallRef(replacement, expected_ref)) { forwarded = false; } });
@@ -136,6 +172,107 @@ struct Fixture {
     bool Observe(wm::NativeScene& scene) { return wm::ObserveNativeMovementLifetime(window.data(), scene); }
     // Production state and fixture backing remain process-pinned until exit.
 };
+void PrepareDoors(Fixture& f) {
+    auto& state = wm::state;
+    expected_structure = f.parent.data();
+    for (std::size_t i = state.count; i < wm::kLifetimeBindings.size(); ++i) {
+        auto* slot = reinterpret_cast<std::uint32_t*>(state.base + 0x1141400 + i * 16);
+        *slot = static_cast<std::uint32_t>(state.base + 0x1000);
+        Check(wm::InstallReference(slot, *slot), "register collection family finalizer");
+    }
+    const std::array<std::pair<std::uint32_t, std::uintptr_t>, 5> thunks{{
+        {0xfd58, reinterpret_cast<std::uintptr_t>(&OriginalDoorAppend)},
+        {0x23fdd, reinterpret_cast<std::uintptr_t>(&OriginalDoorReset)},
+        {0x7cd4, reinterpret_cast<std::uintptr_t>(&OriginalDoorLoad)},
+        {0x1ccdd, reinterpret_cast<std::uintptr_t>(&OriginalDoorLoad)},
+        {0xea93, reinterpret_cast<std::uintptr_t>(&OriginalDoorLoad)},
+    }};
+    for (const auto [offset, target] : thunks) {
+        f.image[offset] = 0xe9;
+        f.Put(state.base + offset + 1, static_cast<std::uint32_t>(target - state.base - offset - 5));
+        DWORD prior = 0;
+        Check(VirtualProtect(f.image + offset, 5, PAGE_EXECUTE_READ, &prior) != FALSE, "owned door thunk executable");
+        FlushInstructionCache(GetCurrentProcess(), f.image + offset, 5);
+    }
+    for (const auto& group : {wm::kDoorAppendBindings, wm::kDoorResetBindings, wm::kDoorLoadBindings}) {
+        for (const auto binding : group) { f.Put(state.base + binding.slot, static_cast<std::uint32_t>(state.base + binding.original)); }
+    }
+}
+Fixture* door_fixture = nullptr;
+void ReplaceDoorScene() { door_fixture->SetActor(door_fixture->next.data()); }
+void DoorLifetimeTest(Fixture& f, const std::string& mode) {
+    PrepareDoors(f); door_fixture = &f;
+    wm::NativeScene scene{};
+    Check(f.Observe(scene), "scene observed before door registration");
+    if (mode == "door-rollback") {
+        hold_door = true; fail_door_install = true;
+        Check(!wm::StartNativeDoorCollectionLifetime(), "door install rollback after callback publication");
+        const auto dispatched = wm::state.door_slots[0].hook;
+        Check(!wm::state.terminal && wm::NativeMovementLifetimeCurrent(scene), "optional door failure preserves movement observer");
+        Check(!wm::StartNativeDoorCollectionLifetime(), "failed door binding cannot restart");
+        SetEvent(release_call); held_install.join(); hold_door = false;
+        reinterpret_cast<void (__thiscall*)(void*, void*)>(dispatched)(expected_structure, expected_structure);
+        Check(append_calls == 2 && door_arguments, "in-flight and late captured door calls preserve immutable originals");
+        return;
+    }
+    Check(wm::StartNativeDoorCollectionLifetime(), "complete door collection binding");
+    wm::DoorCollectionAdmission::ReadLease lease;
+    Check(wm::BeginNativeDoorCollectionRead(scene, lease), "production door acquisition admitted");
+    const auto generation = lease.generation;
+    const auto dispatched = wm::state.door_slots[0].hook;
+    if (mode == "door-teardown") {
+        hold_ref = true;
+        const auto finalizer = wm::state.slots[10].hook;
+        std::thread teardown([&] { if (!CallRef(finalizer, expected_ref)) { forwarded = false; } });
+        const auto deadline = GetTickCount64() + 5000;
+        while (wm::state.door_admission.Current(generation) && GetTickCount64() < deadline) { std::this_thread::yield(); }
+        Check(!wm::state.door_admission.Current(generation) && ref_calls == 0,
+            "existing structure finalizer waits before destroying acquired fields");
+        lease.Reset();
+        Check(WaitForSingleObject(entered, 5000) == WAIT_OBJECT_0, "structure finalizer starts after reader drains");
+        Check(!wm::BeginNativeDoorCollectionRead(scene, lease), "teardown rejects concurrent acquisition");
+        SetEvent(release_call); teardown.join(); hold_ref = false;
+        Check(ref_calls == 1 && forwarded && !wm::NativeDoorCollectionCurrent(scene, generation),
+            "shared finalizer preserves original and invalidates old door generation");
+        wm::RetireNativeMovementLifetime(); return;
+    }
+    std::thread foreign_reader([&] {
+        wm::DoorCollectionAdmission::ReadLease foreign;
+        if (wm::BeginNativeDoorCollectionRead(scene, foreign)) { door_arguments = false; }
+    });
+    foreign_reader.join();
+    hold_door = true;
+    std::thread mutation([&] { reinterpret_cast<void (__thiscall*)(void*, void*)>(dispatched)(expected_structure, expected_structure); });
+    const auto deadline = GetTickCount64() + 5000;
+    while (wm::state.door_admission.Current(generation) && GetTickCount64() < deadline) { std::this_thread::yield(); }
+    Check(!wm::state.door_admission.Current(generation) && append_calls == 0, "native append waits before touching held acquisition");
+    lease.Reset();
+    Check(WaitForSingleObject(entered, 5000) == WAIT_OBJECT_0, "native original progresses after acquisition");
+    Check(!wm::BeginNativeDoorCollectionRead(scene, lease), "native call-through excludes another acquisition");
+    SetEvent(release_call); mutation.join(); hold_door = false;
+    Check(append_calls == 1 && reset_calls == 1 && load_calls == 1 && door_arguments,
+        "native append reset and load nest without lock recursion and preserve ABI");
+    Check(!wm::NativeDoorCollectionCurrent(scene, generation), "completed mutation leaves previous candidate stale");
+    Check(wm::BeginNativeDoorCollectionRead(scene, lease), "new generation acquisition succeeds");
+    const auto next_generation = lease.generation; lease.Reset();
+    if (mode == "door-foreign") {
+        auto& slot = wm::state.door_slots[5];
+        *slot.address = reinterpret_cast<std::uint32_t>(&OriginalDoorReset);
+        Check(!wm::NativeDoorCollectionCurrent(scene, next_generation), "foreign slot replacement retires only door acquisition");
+        Check(*slot.address == reinterpret_cast<std::uint32_t>(&OriginalDoorReset), "foreign slot never overwritten by rollback");
+        Check(wm::NativeMovementLifetimeCurrent(scene), "door binding loss preserves native movement");
+    } else {
+        during_door_reset = &ReplaceDoorScene;
+        reinterpret_cast<void (__thiscall*)(void*, bool, bool)>(wm::state.door_slots[5].hook)(expected_structure, true, false);
+        during_door_reset = nullptr;
+        Check(!wm::NativeDoorCollectionCurrent(scene, next_generation) && !wm::BeginNativeDoorCollectionRead(scene, lease),
+            "scene replacement inside native callback rejects old scene before observer republishes");
+    }
+    wm::RetireNativeMovementLifetime();
+    Check(!wm::BeginNativeDoorCollectionRead(scene, lease), "shared retirement closes door acquisition");
+    reinterpret_cast<void (__thiscall*)(void*, void*)>(dispatched)(expected_structure, expected_structure);
+    Check(door_arguments, "late door callback retains original after shared retirement");
+}
 }
 int main(int argc, char** argv) {
     const std::string mode = argc > 1 ? argv[1] : "normal";
@@ -148,6 +285,7 @@ int main(int argc, char** argv) {
     }
     auto* f = new Fixture(mode == "unsupported-reference", (mode == "rollback" || mode == "rollback-batch"));
     wm::NativeScene scene{};
+    if (mode.rfind("door-", 0) == 0) { DoorLifetimeTest(*f, mode); return failures ? 1 : 0; }
     if (mode == "unsupported-reference") {
         Check(!f->Observe(scene) && wm::state.terminal, "unknown native Release interface unavailable");
         Check(f->free_slot == reinterpret_cast<std::uint32_t>(&OriginalFree), "unsupported interface rolls back owned free slot");

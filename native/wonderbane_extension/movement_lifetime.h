@@ -2,6 +2,7 @@
 #include <Windows.h>
 #include <array>
 #include <cstdint>
+#include "door_collection_admission.h"
 namespace wonderbane::extension::movement {
 struct NativeScene {
     std::uintptr_t actor = 0, parent = 0, world = 0, window = 0;
@@ -47,4 +48,10 @@ bool NativeMovementParentTransition(const NativeScene& previous, const NativeSce
 // Terminal retirement. Ordinary settings toggles must not retire this observer.
 // Original call-through and callback records remain valid for process lifetime.
 void RetireNativeMovementLifetime() noexcept;
+// Optional door collection admission shares this observer's registration,
+// immutable call-through and terminal retirement. It grants pointer acquisition
+// only; it is not authority to select a door or dispatch Interact.
+bool StartNativeDoorCollectionLifetime() noexcept;
+bool BeginNativeDoorCollectionRead(const NativeScene&, DoorCollectionAdmission::ReadLease&) noexcept;
+bool NativeDoorCollectionCurrent(const NativeScene&, std::uint64_t generation) noexcept;
 }

@@ -1,6 +1,7 @@
 #include "movement_lifetime.h"
 #include "movement_native_image.h"
 #include "movement_lifetime_bindings.h"
+#include "door_lifetime_bindings.h"
 #include "import_hook.h"
 #include <atomic>
 #include <cstring>
@@ -39,6 +40,11 @@ struct State {
     std::array<Slot, kSlots> slots{};
     std::atomic<std::size_t> count{0};
     Slot free_slot{};
+    DoorCollectionAdmission door_admission;
+    std::array<Slot, 15> door_slots{};
+    std::atomic<std::size_t> door_count{0};
+    bool door_started = false, door_ready = false;
+    std::atomic<bool> door_observing{false};
 } state;
 SRWLOCK registration_lock = SRWLOCK_INIT;
 struct Registration {
@@ -134,10 +140,16 @@ template<std::size_t I> void* __fastcall Finalize(void* receiver, void*, std::ui
     // already dispatched callback. State is published before the slot exchange.
     ++state.callbacks_active;
     const auto original = reinterpret_cast<Finalizer>(state.slots[I].original);
+    const bool collection = DoorCollectionFinalizer(kLifetimeBindings[I].slot) && state.door_observing.load();
+    if (collection) { state.door_admission.BeginMutation(); }
     Notice notice{}; BeginNotice(notice, receiver, false, flags);
     void* result = nullptr;
     __try { result = original(receiver, flags); }
-    __finally { EndNotice(notice); --state.callbacks_active; }
+    __finally {
+        EndNotice(notice);
+        if (collection) { state.door_admission.EndMutation(); }
+        --state.callbacks_active;
+    }
     return result;
 }
 void __cdecl Deallocate(void* allocation) {
@@ -147,6 +159,33 @@ void __cdecl Deallocate(void* allocation) {
     __try { original(allocation); }
     __finally { EndNotice(notice); --state.callbacks_active; }
 }
+// No admission lock is held across original native callbacks. A pending
+// mutation waits only for bounded copy/atomic-retain regions to drain.
+template<std::size_t I> void __fastcall AppendDoor(void* receiver, void*, void* door) {
+    ++state.callbacks_active; state.door_admission.BeginMutation();
+    const auto original = reinterpret_cast<void (__thiscall*)(void*, void*)>(state.door_slots[I].original);
+    __try { original(receiver, door); }
+    __finally { state.door_admission.EndMutation(); --state.callbacks_active; }
+}
+template<std::size_t I> void __fastcall ResetDoors(void* receiver, void*, bool load, bool force) {
+    ++state.callbacks_active; state.door_admission.BeginMutation();
+    const auto original = reinterpret_cast<void (__thiscall*)(void*, bool, bool)>(state.door_slots[5 + I].original);
+    __try { original(receiver, load, force); }
+    __finally { state.door_admission.EndMutation(); --state.callbacks_active; }
+}
+template<std::size_t I> void __fastcall LoadDoors(void* receiver, void*) {
+    ++state.callbacks_active; state.door_admission.BeginMutation();
+    const auto original = reinterpret_cast<void (__thiscall*)(void*)>(state.door_slots[10 + I].original);
+    __try { original(receiver); }
+    __finally { state.door_admission.EndMutation(); --state.callbacks_active; }
+}
+template<std::size_t... I> auto DoorHooks(std::index_sequence<I...>) noexcept {
+    return std::array<std::uint32_t, 15>{
+        reinterpret_cast<std::uint32_t>(&AppendDoor<I>)...,
+        reinterpret_cast<std::uint32_t>(&ResetDoors<I>)...,
+        reinterpret_cast<std::uint32_t>(&LoadDoors<I>)...};
+}
+const auto door_hooks = DoorHooks(std::make_index_sequence<5>{});
 template<std::size_t... I> auto Hooks(std::index_sequence<I...>) noexcept {
     return std::array<std::uint32_t, sizeof...(I)>{reinterpret_cast<std::uint32_t>(&Finalize<I>)...};
 }
@@ -190,6 +229,25 @@ bool Intact(const Slot& slot) noexcept {
 void Restore(const Slot& slot) noexcept {
     if (slot.address) { (void)ReplaceImportAddressSlot(slot.address, slot.hook, slot.original); }
 }
+void RetireDoorCollection() noexcept {
+    state.door_ready = false; state.door_admission.Retire();
+    for (std::size_t i = 0; i < state.door_count; ++i) { Restore(state.door_slots[i]); }
+}
+bool DoorBindingsIntact() noexcept {
+    if (!state.door_ready || state.door_count != state.door_slots.size()) { return false; }
+    for (const auto& slot : state.door_slots) { if (!Intact(slot)) { return false; } }
+    for (std::size_t i = 0; i < kLifetimeBindings.size(); ++i) {
+        if (DoorCollectionFinalizer(kLifetimeBindings[i].slot) && !Intact(state.slots[i])) { return false; }
+    }
+    return true;
+}
+bool InstallDoorSlot(std::uint32_t* slot, std::uint32_t original) noexcept {
+    const auto i = state.door_count.load();
+    if (i == state.door_slots.size()) { return false; }
+    auto& record = state.door_slots[i];
+    record = {slot, original, door_hooks[i]}; state.door_count = i + 1;
+    return ReplaceImportAddressSlot(slot, original, record.hook) == ERROR_SUCCESS;
+}
 void Fail(LifetimeCause cause = LifetimeCause::binding_lost, LifetimeStage stage = LifetimeStage::binding) noexcept {
     AcquireSRWLockExclusive(&state.lock);
     const auto previous = state.scene.epoch;
@@ -201,6 +259,7 @@ void Fail(LifetimeCause cause = LifetimeCause::binding_lost, LifetimeStage stage
     // install rolled back after the hook became visible to a dispatched call.
     for (std::size_t i = 0; i < state.count; ++i) { Restore(state.slots[i]); }
     Restore(state.free_slot);
+    RetireDoorCollection();
 }
 bool WatchedReferenceIntact(void* receiver) noexcept {
     if (!receiver) { return true; }
@@ -314,6 +373,41 @@ bool StartNativeMovementLifetime(HWND window) noexcept {
         }
     }
     return true;
+}
+bool StartNativeDoorCollectionLifetime() noexcept {
+    Registration registration;
+    if (!OnOwningThread() || !state.started || state.terminal || state.door_started
+        || state.count != kSlots) { return false; }
+    state.door_started = true; state.door_observing = true;
+    for (const auto& group : {kDoorAppendBindings, kDoorResetBindings, kDoorLoadBindings}) {
+        for (const auto binding : group) {
+            auto* slot = reinterpret_cast<std::uint32_t*>(state.base + binding.slot);
+            if (!InstallDoorSlot(slot, static_cast<std::uint32_t>(state.base + binding.original))) {
+                RetireDoorCollection(); return false;
+            }
+        }
+    }
+    state.door_ready = true;
+    if (!DoorBindingsIntact()) { RetireDoorCollection(); return false; }
+    return true;
+}
+bool DoorSceneCurrent(const NativeScene& scene) noexcept {
+    if (!NativeMovementLifetimeCurrent(scene)) { return false; }
+    NativeScene actual{}; CaptureInfo info{};
+    return Capture(reinterpret_cast<void*>(scene.window), actual, info) && Same(scene, actual);
+}
+bool BeginNativeDoorCollectionRead(const NativeScene& scene, DoorCollectionAdmission::ReadLease& lease) noexcept {
+    if (!OnOwningThread() || lease.admission || !state.door_ready
+        || state.callbacks_active || !DoorSceneCurrent(scene)) { return false; }
+    if (!DoorBindingsIntact()) { RetireDoorCollection(); return false; }
+    if (!state.door_admission.TryRead(lease)) { return false; }
+    if (state.callbacks_active || !DoorSceneCurrent(scene)) { lease.Reset(); return false; }
+    return true;
+}
+bool NativeDoorCollectionCurrent(const NativeScene& scene, std::uint64_t generation) noexcept {
+    if (!OnOwningThread() || !state.door_ready || !DoorSceneCurrent(scene)) { return false; }
+    if (!DoorBindingsIntact()) { RetireDoorCollection(); return false; }
+    return state.door_admission.Current(generation);
 }
 bool ObserveNativeMovementLifetime(void* native_window, NativeScene& out) noexcept {
     out = {};

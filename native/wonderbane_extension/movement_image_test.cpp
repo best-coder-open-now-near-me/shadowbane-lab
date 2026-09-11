@@ -6,6 +6,7 @@
 #include <cstring>
 #include <cmath>
 #include "movement_controls.h"
+#include "door_lifetime_bindings.h"
 namespace {
 std::wstring tested_path;
 void* tested_image=nullptr;
@@ -37,6 +38,16 @@ std::vector<unsigned char> Read(const wchar_t* path){
 }
 // Execute the reviewed leaf intersection in this owned fixture only. No entry
 // point, imports, client thread, world, window or network subsystem is started.
+void NativeDoorCollectionBindings() {
+ const auto base=reinterpret_cast<std::uintptr_t>(tested_image);
+ for(const auto& group : {wm::kDoorAppendBindings,wm::kDoorResetBindings,wm::kDoorLoadBindings}) {
+  for(const auto binding : group) {
+   std::uint32_t original=0;
+   std::memcpy(&original,reinterpret_cast<const void*>(base+binding.slot),sizeof(original));
+   Check(original==base+binding.original,"reviewed door collection slot and original match relocated native image");
+  }
+ }
+}
 void NativeDoorTriangleContract() {
  using Point=wm::GroundPoint;
  using Intersect=int (__cdecl*)(const Point*,const Point*,const Point*,const Point*,const Point*,float*,float*,float*);
@@ -110,6 +121,7 @@ int wmain(int argc,wchar_t** argv){
   if(!authenticated) {
    VirtualFree(tested_image,0,MEM_RELEASE);tested_image=nullptr;return 1;
   }
+  NativeDoorCollectionBindings();
   NativeDoorTriangleContract();
   we::image_base=0;Check(we::VerifyBinding(identity)==ERROR_SUCCESS,"production update gate accepts reviewed prepared bootstrap");
   auto* terrain_image=static_cast<std::uint8_t*>(tested_image);
