@@ -66,3 +66,19 @@ packaged reader --schema3 after login. One short recurrence should identify caus
 changed-fields or failed stage; interpret original source tick separately from
 publication age and prior input samples. Do not weaken lifetime checks or request
 broad navigation retesting. Full layout/semantics: native-input-diagnostics.md.
+
+## Verified diagnostic installation
+
+Installed runtime-copy and wheel 0.2.6 verified in
+`S:/ShadowbaneLab-Guided/combined-acceptance-1.7.6-3bda4f6f`; current Config copied
+from 1.7.5 before retiring that obsolete stopped client tree. Exact-path/reparse
+and process checks preceded deletion under standing owner authorization. Receipts
+and pristine baseline retained.
+
+Launch: PID4776, creation FILETIME134335832367168260, HWND1246014; loaded DLL
+matches the full-profile hash above. Prepared executable remains
+`bb63469eb35917e6b3f58be75d29f94855c9868024271222465b4db62f0e3a87`.
+The exact-lifetime schema3 mapping parses successfully and is enabled before login.
+No collector is running. Next: owner login, verify in-world status, then bounded
+scene-cause capture. Private installation/launch/channel evidence is retained in
+`E:/virtual-machines/shadowbane-testing/diagnostics/combined-acceptance-1.7.6-3bda4f6f`.
