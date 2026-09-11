@@ -171,3 +171,96 @@ def test_native_input_publisher_reader_interoperability(tmp_path):
     assert result["last_owner_loss"]["keys"] == 9
     assert len(result["events"]) == CAPACITY
     assert result["current"]["owner"] == 0
+
+
+def lifetime_snapshot():
+    from shadowbane_lab.client_extension.movement_boundary import (
+        LIFETIME_CURRENT_OFFSET,
+        LIFETIME_EVENTS_OFFSET,
+        LIFETIME_FIRST_OFFSET,
+        LIFETIME_RECORD,
+        V3_SIZE,
+    )
+
+    data = bytearray(V3_SIZE)
+    data[:V2_SIZE] = input_snapshot()
+    HEADER.pack_into(data, 0, b"WBMVTR3\0", 3, RECORD.size, CAPACITY, 17, 29, 0, 0, 1)
+    struct.pack_into("<QQ", data, V2_SIZE, 1000, 2)
+    origin = (1, 900, 1, 2, 1, 1, 6, 0, 0, 0, 0, 1, 1, 12)
+    current = (2, 990, 2, 3, 3, 3, 12, 2, 0, 0, 63, 0, 0, 12)
+    LIFETIME_RECORD.pack_into(data, LIFETIME_FIRST_OFFSET, *origin)
+    LIFETIME_RECORD.pack_into(data, LIFETIME_CURRENT_OFFSET, *current)
+    LIFETIME_RECORD.pack_into(data, LIFETIME_EVENTS_OFFSET, *origin)
+    LIFETIME_RECORD.pack_into(data, LIFETIME_EVENTS_OFFSET + LIFETIME_RECORD.size, *current)
+    return data
+
+
+def test_lifetime_schema_freshness_and_retained_origin():
+    from shadowbane_lab.client_extension.movement_boundary import (
+        LIFETIME_RECORD,
+        V3_SIZE,
+        stable_lifetime_records,
+    )
+
+    assert LIFETIME_RECORD.size == 80 and V3_SIZE == 50616
+    assert ".v3." in mapping_name(17, 29, 3)
+    data = lifetime_snapshot()
+    result = stable_lifetime_records(data, data, 17, 29)
+    assert result["current"]["cause_name"] == "rearmed"
+    assert result["current"]["retained"] is False
+    assert result["first_invalidation"]["cause_name"] == "reference_notice"
+    assert result["first_invalidation"]["retained"] is True
+    assert result["first_invalidation"]["age_ms"] == 100
+    assert stable_input_records(data, data, 17, 29)["last_owner_loss"]["stop_reason"] == "ui"
+    with pytest.raises(ValueError, match="identity"):
+        stable_lifetime_records(data, data, 18, 29)
+    with pytest.raises(ValueError, match="schema 3"):
+        stable_lifetime_records(input_snapshot(), input_snapshot(), 17, 29)
+    for old in (snapshot(), input_snapshot()):
+        stable_records(old, old, 17, 29)
+
+
+def test_lifetime_torn_regressed_or_invalid_records_rejected():
+    from shadowbane_lab.client_extension.movement_boundary import (
+        LIFETIME_FIRST_OFFSET,
+        LIFETIME_RECORD,
+        stable_lifetime_records,
+    )
+
+    data = lifetime_snapshot()
+    torn = bytearray(data)
+    struct.pack_into("<Q", torn, LIFETIME_FIRST_OFFSET, 0)
+    assert stable_lifetime_records(data, torn, 17, 29)["first_invalidation"] is None
+    for word, invalid in ((6, 13), (7, 3), (8, 15), (9, 64), (10, 64), (11, 8)):
+        malformed = bytearray(data)
+        record = list(LIFETIME_RECORD.unpack_from(malformed, LIFETIME_FIRST_OFFSET))
+        record[word] = invalid
+        LIFETIME_RECORD.pack_into(malformed, LIFETIME_FIRST_OFFSET, *record)
+        assert stable_lifetime_records(malformed, malformed, 17, 29)["first_invalidation"] is None
+    regressed = bytearray(data)
+    struct.pack_into("<Q", regressed, V2_SIZE + 8, 1)
+    with pytest.raises(ValueError, match="regressed"):
+        stable_lifetime_records(data, regressed, 17, 29)
+
+
+def test_native_lifetime_publisher_reader_interoperability(tmp_path):
+    import os
+    import subprocess
+
+    from shadowbane_lab.client_extension.movement_boundary import stable_lifetime_records
+
+    executable = os.environ.get("WONDERBANE_MOVEMENT_BOUNDARY_TEST")
+    if not executable:
+        pytest.skip("requires native movement-boundary regression executable")
+    output = tmp_path / "native-lifetime-trace.bin"
+    subprocess.run([executable, "lifetime-diagnostics", str(output)], check=True, timeout=15)
+    data = output.read_bytes()
+    header = HEADER.unpack_from(data)
+    result = stable_lifetime_records(data, data, header[4], header[5])
+    assert result["first_invalidation"]["cause_name"] == "reference_notice"
+    assert result["first_invalidation"]["notice_role"] == 1
+    assert result["first_invalidation"]["finalizer_flags"] == 1
+    assert result["first_invalidation"]["sequence"] == 1
+    assert result["first_invalidation"]["retained"] is True
+    assert result["current"]["sequence"] == 200
+    assert len(result["events"]) == 64

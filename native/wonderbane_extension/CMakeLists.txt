@@ -938,6 +938,8 @@ if(BUILD_TESTING)
     COMMAND wonderbane_extension_movement_boundary_test)
   add_test(NAME wonderbane_extension_movement_boundary_input_diagnostics
     COMMAND wonderbane_extension_movement_boundary_test input-diagnostics)
+  add_test(NAME wonderbane_extension_movement_boundary_lifetime_diagnostics
+    COMMAND wonderbane_extension_movement_boundary_test lifetime-diagnostics)
   add_test(NAME wonderbane_extension_movement_boundary_startup_failure
     COMMAND wonderbane_extension_movement_boundary_test startup-failure)
 endif()
@@ -993,7 +995,7 @@ if(BUILD_TESTING)
   target_compile_options(wonderbane_extension_movement_lifetime_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
   target_link_libraries(wonderbane_extension_movement_lifetime_test PRIVATE user32)
   set_property(TARGET wonderbane_extension_movement_lifetime_test PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
-  foreach(mode normal established-churn identity-fields capture-gap held held-free rollback rollback-batch foreign foreign-free actuator actuator-foreign actuator-foreign-free unsupported unsupported-reference
+  foreach(mode normal diagnostics established-churn identity-fields capture-gap held held-free rollback rollback-batch foreign foreign-free actuator actuator-foreign actuator-foreign-free unsupported unsupported-reference
       arm-first-ref arm-first-free arm-replacement-ref arm-replacement-free
       arm-first-ref-publish arm-first-free-publish arm-replacement-ref-publish arm-replacement-free-publish
       arm-first-held-ref arm-first-held-free arm-replacement-held-ref arm-replacement-held-free

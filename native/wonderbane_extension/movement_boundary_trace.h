@@ -2,6 +2,7 @@
 #include <Windows.h>
 #include <cstdint>
 #include "event_channel.h"
+#include "movement_lifetime.h"
 
 namespace wonderbane::extension {
 // One verified native-update hook serves controls and optional passive tracing.
@@ -52,6 +53,12 @@ struct alignas(8) MovementBoundaryTrace {
     MovementInputRecord last_owner_loss;
     MovementInputRecord input_events[256];
     MovementBoundaryRecord records[256];
+    // Schema 3 appends bounded cause-only lifetime diagnostics; v2 offsets stay fixed.
+    volatile LONG64 lifetime_published_tick;
+    volatile LONG64 lifetime_write_sequence;
+    movement::LifetimeRecord lifetime_current;
+    movement::LifetimeRecord lifetime_first_invalidation;
+    movement::LifetimeRecord lifetime_events[64];
 };
 static_assert(sizeof(MovementBoundaryRecord) == 72);
 static_assert(offsetof(MovementBoundaryTrace, input_write_sequence) == 48);
@@ -59,4 +66,7 @@ static_assert(offsetof(MovementBoundaryTrace, input) == 56);
 static_assert(offsetof(MovementBoundaryTrace, last_owner_loss) == 160);
 static_assert(offsetof(MovementBoundaryTrace, input_events) == 264);
 static_assert(offsetof(MovementBoundaryTrace, records) == 26888);
+static_assert(offsetof(MovementBoundaryTrace, lifetime_published_tick) == 45320);
+static_assert(offsetof(MovementBoundaryTrace, lifetime_current) == 45336);
+static_assert(sizeof(MovementBoundaryTrace) == 50616);
 } // namespace wonderbane::extension

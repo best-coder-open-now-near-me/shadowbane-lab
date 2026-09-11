@@ -6,10 +6,12 @@
 #include <thread>
 
 namespace we = wonderbane::extension;
+namespace wonderbane::extension::movement { extern LifetimeDiagnostics diagnostic_fixture; }
 namespace wonderbane::extension {
 DWORD StartMovementBoundaryTraceForTesting(const ProcessIdentity&, std::uint32_t*, std::uint32_t) noexcept;
 DWORD StartNativeMovementUpdatesForTesting(const ProcessIdentity&, NativeMovementUpdate, std::uint32_t*, std::uint32_t) noexcept;
 const MovementBoundaryTrace* MovementBoundaryTraceForTesting() noexcept;
+void PublishLifetimeForTesting() noexcept;
 }
 namespace {
 using Update = std::uint32_t(__thiscall*)(void*, double);
@@ -192,8 +194,38 @@ int main(int argc,char** argv) {
         && trace->creation_filetime==identity.creation_filetime_utc,"exact process lifetime publication");
     Check(we::StartMovementBoundaryTraceForTesting(identity,&slot,slot)==ERROR_ALREADY_INITIALIZED,
         "duplicate start cannot replace retained mapping");
+    if (argc > 1 && std::strcmp(argv[1], "lifetime-diagnostics") == 0) {
+        auto& d = we::movement::diagnostic_fixture;
+        we::movement::LifetimeRecord origin{};
+        origin.sequence = 1; origin.tick_ms = 100; origin.previous_epoch = 1; origin.epoch = 2;
+        origin.observed_epoch = 1; origin.watch_generation = 1;
+        origin.cause = 6; origin.notice_role = 1; origin.finalizer_flags = 1; origin.thread_id = GetCurrentThreadId();
+        d.first_invalidation = origin; d.current = origin; d.events[0] = origin; d.write_sequence = 1;
+        we::PublishLifetimeForTesting();
+        Check(trace->lifetime_first_invalidation.sequence == 1, "first native lifetime cause published");
+        for (std::uint64_t n = 2; n <= 200; ++n) {
+            auto r = origin; r.sequence = n; r.tick_ms += n; r.previous_epoch = r.epoch = r.observed_epoch = 3;
+            r.watch_generation = 3; r.cause = 1; r.outcome = 2; r.valid_fields = 63;
+            r.notice_role = r.finalizer_flags = 0;
+            d.current = r; d.events[(n - 1) % 64] = r; d.write_sequence = n;
+            we::PublishLifetimeForTesting();
+        }
+        Check(trace->lifetime_current.sequence == 200 && trace->lifetime_first_invalidation.sequence == 1
+            && trace->lifetime_first_invalidation.cause == 6 && trace->lifetime_first_invalidation.notice_role == 1,
+            "retained first cause survives stable observations and ring overwrite");
+        d.write_sequence = 1; d.current = origin; we::PublishLifetimeForTesting();
+        Check(trace->lifetime_current.sequence == 200, "older source snapshot cannot overwrite newer publication");
+        we::StopMovementBoundaryTrace(); d.write_sequence = 201; we::PublishLifetimeForTesting();
+        Check(trace->lifetime_write_sequence == 200, "retirement prevents late lifetime publication");
+        if (argc > 2) {
+            std::ofstream output(argv[2], std::ios::binary);
+            output.write(reinterpret_cast<const char*>(trace), sizeof(*trace));
+            Check(output.good(), "export actual native lifetime trace layout");
+        }
+        CloseHandle(entered); CloseHandle(release_call); return failures ? 1 : 0;
+    }
     if (argc > 1 && std::strcmp(argv[1], "input-diagnostics") == 0) {
-        Check(start == ERROR_SUCCESS && trace->schema == 2 && std::memcmp(trace->magic, "WBMVTR2", 8) == 0,
+        Check(start == ERROR_SUCCESS && trace->schema == 3 && std::memcmp(trace->magic, "WBMVTR3", 8) == 0,
             "passive input trace has distinct schema and layout");
         HWND window = CreateWindowExW(0, L"STATIC", L"diagnostic fixture", 0, 0, 0, 1, 1, HWND_MESSAGE, nullptr, nullptr, nullptr);
         we::MovementInputRecord event{}; event.thread_id = GetCurrentThreadId(); event.window = reinterpret_cast<std::uint32_t>(window);
@@ -256,4 +288,11 @@ int main(int argc,char** argv) {
 
 namespace wonderbane::extension::movement {
 bool VerifyNativeMovementImage(std::uintptr_t&) noexcept { return false; }
+bool diagnostic_enabled = false;
+LifetimeDiagnostics diagnostic_fixture{};
+void EnableNativeMovementLifetimeDiagnostics(bool value) noexcept { diagnostic_enabled = value; }
+bool ReadNativeMovementLifetimeDiagnostics(LifetimeDiagnostics& out) noexcept {
+    if (!diagnostic_enabled) { return false; }
+    out = diagnostic_fixture; return true;
+}
 }

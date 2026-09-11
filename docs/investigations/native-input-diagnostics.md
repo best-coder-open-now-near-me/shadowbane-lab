@@ -8,25 +8,29 @@ or trace collector is required for manual controls.
 
 ## Version and compatibility
 
-The schema-2 mapping is
-`Local\ShadowbaneLab.Extension.MovementBoundary.v2.<PID>.<creation FILETIME>`.
-Its magic is `WBMVTR2`, with a 48-byte common header, input event sequence at byte
-48, current input record at 56, retained owner-loss record at 160, 256 input event
-records at 264, and the existing 256 native boundary records at 26888. Input records
-are 104 bytes; boundary records remain 72 bytes; the complete mapping is 45320 bytes.
-The separate mapping name prevents old readers interpreting a new layout. Movement
-command Status, its flags, size and zero-reserved-byte contract are unchanged.
+The current schema-3 mapping is
+`Local\ShadowbaneLab.Extension.MovementBoundary.v3.<PID>.<creation FILETIME>`.
+Its magic is `WBMVTR3`. The schema-2 prefix layout remains: 48-byte common header,
+input event sequence at 48, current input at 56, retained owner loss at 160,
+256 input records at 264, and 256 native boundary records at 26888. Input records
+are 104 bytes and boundary records 72 bytes. Schema 3 appends publication tick at
+45320, lifetime write sequence at 45328, current lifetime record at 45336, retained
+first invalidation at 45416, and 64 lifetime records at 45496. Lifetime records are
+80 bytes; complete mapping size is 50616. Separate names prevent old readers from
+interpreting a new layout. Movement command Status and its zero-reserved contract
+are unchanged.
 
-The packaged collector supports both versions explicitly:
+The packaged collector defaults to schema 3 and supports older schemas explicitly:
 
 ```powershell
-python -m shadowbane_lab.client_extension.movement_boundary --schema 2 --process-id <PID> --creation-filetime <FILETIME> --seconds 180 --output <private-new-output.jsonl>
+python -m shadowbane_lab.client_extension.movement_boundary --schema 3 --process-id <PID> --creation-filetime <FILETIME> --seconds 180 --output <private-new-output.jsonl>
 ```
 
-Use `--schema 1` for an older installed client, including 1.7.3. The collector does
-not silently fall back to an old schema. It verifies exact PID/creation and accepts
-only committed records identical across two independent reads. Output is private
-native diagnostic evidence, not a source artifact to publish.
+Use `--schema 2` for installed 1.7.4/1.7.5 diagnostics and `--schema 1` for older
+clients including 1.7.3. There is no silent fallback. The reader verifies exact
+PID/creation and committed records unchanged across two independent reads. Output
+is private evidence, not a source artifact to publish. Version 3 requires the
+integration owner's newly verified package before another connected run.
 
 ## Reading input records
 
@@ -109,7 +113,7 @@ miss one class of input inhibition. Destruction advances before original call-th
 completion only removes the notice, and a later successful observation may advance
 again. Logging only the successful replacement would lose the first cause.
 
-Minimum diagnostic proposal before another connected observation:
+The implemented diagnostic slice records:
 
 - Record every failed observation and every actual invalidation/publication, with
   a monotonic sequence, observation tick, old/new observer epoch, and runtime's
@@ -134,5 +138,47 @@ or native call-through. Export through the existing optional diagnostics path on
 the owning update, preserving callback-safe bounded storage and first-cause
 retention. Keep movement command/status schema and its reserved fields unchanged;
 any diagnostic layout extension needs explicit versioning plus producer/reader
-and retirement tests. No diagnostic implementation or new live run is part of this
-source-only checkpoint; the integration owner retains review/package authority.
+and retirement tests. The diagnostic implementation is now included after the source-only checkpoint;
+no new live run is requested until the integration owner verifies and installs it.
+
+## Lifetime record semantics
+
+The record is `<6Q8I`: source sequence, source tick, previous observer epoch, current
+observer epoch, observed epoch, watch generation, cause, outcome, failed stage,
+changed-fields mask, valid-fields mask, notice-role mask, finalizer flags, thread.
+No native address, object identity value, arbitrary text or stack is added.
+`observed_epoch` is the epoch returned by an accepted observation, or the previously
+returned epoch at a notice/rejection (zero after a preceding rejected observation).
+Watch generation is captured at notice entry (the current watched generation for
+other records); previous/current epoch reflects its later locked invalidation.
+It is not an independently sampled runtime/automation grant. A notice may race an
+observation's final return; observed epoch versus current epoch exposes that case.
+
+Causes are stable=1, first watch=2, tuple changed=3, capture failed=4, capture changed
+between reads=5, reference finalizer=6, world deallocation=7, binding lost=8,
+arming rejected=9, terminal=10, exhausted=11, and same-tuple rearmed=12. Outcome is
+notice=0, rejected=1, accepted=2. Failure stages are none=0, window=1, receiver=2,
+mode=3, actor=4, world=5, identity=6, position wrapper=7, pose=8, parent=9,
+unrecorded callbacks=10, overlapping callback=11, matching destruction=12,
+reference interface=13, binding=14. Changed/valid fields use actor=1, parent=2,
+world=4, native window=8, identity low=16, identity high=32. Partial capture has no
+changed mask. Notice roles are actor=1, parent=2, world=4; flags are the actual
+reference finalizer argument (zero for world deallocation).
+
+The source retains the first disruption of an episode until a later episode begins.
+Retries and successful rearm/stable observations cannot erase it. Accepted current
+observation closes the episode only if its returned epoch is still alive/current;
+that protects an invalidation racing the final return. A new tuple change starts
+a new episode. Stable records may wrap the 64-record ring, but the retained origin
+survives. Consumers see `lifetime_current`, `lifetime_first_invalidation`, and
+`lifetime_events`; source sequence identifies distinct observations, `retained`
+means older than latest source sequence, and `age_ms` measures source age at the
+last publication. Publication tick can advance without a new observation and must
+never be treated as fresh scene evidence. The first-invalidation stream is always
+historical cause storage even when its sequence equals the latest source record.
+
+Callbacks only write bounded metadata under their existing observer lock. Trace
+publication is outside that lock, uses nonblocking source/publication acquisition,
+and never regresses to an older source snapshot. Shutdown disables recording and
+publication while preserving the pinned mapping. Optional tracing does not change
+capture read order, reference matching, epoch assignment or gameplay admission.
