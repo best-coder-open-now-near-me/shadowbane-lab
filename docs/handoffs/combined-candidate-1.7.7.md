@@ -167,3 +167,30 @@ simultaneous foreground proof; preceding native trace independently records the
 foreground UI gate. It does not demonstrate a false native predicate with stale
 fallback focus. Preserve typing protection while the existing movement owner
 implements and tests the separated policy. Both bounded captures have completed.
+
+## Remappable controller actions: authorized next slice
+
+Owner requests flexible button mapping that can be adjusted after playing. Keep
+semantic actions separate from physical inputs: native hotbar slot activation,
+verified target selection/interact/cancel, and existing movement/camera controls.
+Bindings use stable action identifiers rather than character-specific power names.
+Physical controls and optional shoulder modifiers are configurable; a gesture must
+resolve deterministically without also firing its unmodified action. Preserve
+release/hold semantics where the native action requires them; no implicit repeat
+or macro sequences. Reject conflicting bindings before applying any changes.
+
+Extend the existing controls panel and persistence path with edit, unbind,
+restore-defaults and saved valid profiles. Apply a complete validated configuration
+atomically to the exact client, retire held input on changes, and require fresh
+admission before actions execute. Existing settings load compatibly. User-facing
+choices must have working verified native adapters; do not ship unwired targeting
+or power controls. Existing Python hotbar/config readers may inform action labels
+but are not native execution authority. Controller actions must not inject chat
+text, and lifecycle/focus/manual-automation ownership remains centralized.
+
+The existing native movement owner implements this on its current branch after a
+separate complete chat-policy repair checkpoint. Root owns combined integration,
+review, release identities and installed-package validation. No competing input
+hook or new integration branch. Next deliverable remains the chat separation;
+remappable targeting/hotbar actions follow as a complete playable slice, with any
+unverified native action blockers explicitly recorded rather than guessed.
