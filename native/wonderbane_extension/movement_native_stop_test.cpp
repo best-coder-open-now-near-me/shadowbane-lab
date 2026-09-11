@@ -96,7 +96,7 @@ struct Fixture {
     int ray_creates = 0, ray_casts = 0, ray_points = 0, parent_releases = 0;
     bool ray_hit = true, replace_on_pick = false, world_pick_call = false;
     bool basis_mode = false, basis_degenerate = false, basis_parent_change = false, replace_on_ray_release = false;
-    bool runtime_composition = false;
+    bool runtime_composition = false, parent_basis_variant = false;
     void (*on_native)(char) = nullptr;
     bool real_steering = false, pending_solve = false, deferred_move = false, replace_on_move = false;
     int callback_mode = 0;
@@ -247,7 +247,9 @@ GroundPoint* __fastcall NativeStopTestAccess::RayPoint(Ray* ray, void*, GroundPo
     if (current->world_pick_call) { *output = {ray->origin.x + 100, 12, ray->origin.z - 200}; }
     else if (current->basis_mode && (!current->runtime_composition || ray->distance == 0)) {
         Check(ray->distance == 0, "basis uses native parent transform without terrain collision");
-        *output = {ray->origin.z + 100, ray->origin.y - 10, 200 - ray->origin.x};
+        *output = current->parent_basis_variant && Get<std::uintptr_t>(current->pose.data(), 8)
+            ? GroundPoint{100 - ray->origin.z, ray->origin.y - 10, 200 + ray->origin.x}
+            : GroundPoint{ray->origin.z + 100, ray->origin.y - 10, 200 - ray->origin.x};
         if (current->basis_parent_change && current->ray_points == 2) {
             Put(current->pose.data(), 8, reinterpret_cast<std::uintptr_t>(current->alternate_world.data()));
         }

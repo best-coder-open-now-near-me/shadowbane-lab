@@ -26,6 +26,7 @@ DWORD StartNativeMovementUpdates(const ProcessIdentity&,NativeMovementUpdate) no
 void StopNativeMovementUpdates() noexcept{}
 namespace movement {
 bool NativeMovementLifetimeCurrent(const NativeScene& s) noexcept{return s.epoch && s.epoch==observed.epoch && s.actor==observed.actor && s.world==observed.world && s.window==observed.window && s.parent==observed.parent;}
+bool NativeMovementParentTransition(const NativeScene&, const NativeScene&) noexcept { return false; }
 bool ObserveNativeMovementLifetime(void*,NativeScene& s) noexcept{s=observed;return true;}
 bool StartNativeMovementLifetime(HWND) noexcept{return true;}
 void RetireNativeMovementLifetime() noexcept{}

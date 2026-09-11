@@ -995,7 +995,7 @@ if(BUILD_TESTING)
   target_compile_options(wonderbane_extension_movement_lifetime_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
   target_link_libraries(wonderbane_extension_movement_lifetime_test PRIVATE user32)
   set_property(TARGET wonderbane_extension_movement_lifetime_test PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
-  foreach(mode normal diagnostics established-churn identity-fields capture-gap held held-free rollback rollback-batch foreign foreign-free actuator actuator-foreign actuator-foreign-free unsupported unsupported-reference
+  foreach(mode normal parent-continuity diagnostics established-churn identity-fields capture-gap held held-free rollback rollback-batch foreign foreign-free actuator actuator-foreign actuator-foreign-free unsupported unsupported-reference
       arm-first-ref arm-first-free arm-replacement-ref arm-replacement-free
       arm-first-ref-publish arm-first-free-publish arm-replacement-ref-publish arm-replacement-free-publish
       arm-first-held-ref arm-first-held-free arm-replacement-held-ref arm-replacement-held-free
@@ -1042,7 +1042,7 @@ if(BUILD_TESTING)
   target_compile_options(wonderbane_extension_movement_runtime_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
   target_link_libraries(wonderbane_extension_movement_runtime_test PRIVATE user32 comctl32 bcrypt advapi32 gdi32)
   set_property(TARGET wonderbane_extension_movement_runtime_test PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
-  foreach(mode commands keyboard keyboard-cold-start keyboard-reversal manual-update-gap input-diagnostics controller drag focus stale destroyed nested-stop nested-camera nested-move startup-unavailable startup-hook-failure settings-stale scene-stale chat)
+  foreach(mode commands keyboard keyboard-cold-start keyboard-reversal manual-update-gap parent-keyboard parent-controller parent-drag parent-automation parent-ui parent-focus parent-stop-failure parent-nested-stop parent-notice parent-identity parent-actor parent-unowned parent-disabled input-diagnostics controller drag focus stale destroyed nested-stop nested-camera nested-move startup-unavailable startup-hook-failure settings-stale scene-stale chat)
     add_test(NAME wonderbane_extension_movement_runtime_${mode} COMMAND wonderbane_extension_movement_runtime_test ${mode})
   endforeach()
 endif()

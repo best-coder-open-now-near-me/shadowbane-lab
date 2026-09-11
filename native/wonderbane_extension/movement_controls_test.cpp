@@ -71,6 +71,33 @@ struct Fixture {
         return g;
     }
 };
+void ParentContinuity() {
+    { Fixture f; ++f.input.scene; f.actuator.events.clear();
+      Check(!f.controls.ObserveParentScene(f.input.scene, true, f.input.tick_ms)
+          && f.actuator.Count('s') == 0, "unowned native mouse movement is not cancelled by parent transition"); }
+    { Fixture f; f.input.keys['W'] = true; f.Step(); const auto old = f.controls.Current();
+      ++f.input.scene; f.actuator.events.clear();
+      Check(f.controls.ObserveParentScene(f.input.scene, true, f.input.tick_ms), "manual parent continuity admitted");
+      const auto current = f.controls.Current();
+      Check(current.generation > old.generation && current.scene == f.input.scene
+          && current.owner == Owner::manual && f.actuator.events.back().kind == 's'
+          && f.actuator.events.back().grant == current, "cleanup uses fresh grant after old scene retirement");
+      f.Step(); Check(f.actuator.events.back().kind == 'd' && f.actuator.events.back().start,
+          "held key starts freshly after parent cleanup");
+      Check(f.controls.Stop(old) == Result::stale, "old parent stop cannot cancel continued owner"); }
+    { Fixture f; f.input.keys['W'] = true; f.Step();
+      f.actuator.stop_ok = false; f.input.keys['W'] = false; f.Step();
+      f.input.keys['W'] = true; f.actuator.stop_ok = true; ++f.input.scene;
+      Check(!f.controls.ObserveParentScene(f.input.scene, true, f.input.tick_ms),
+          "pending old stop forbids manual continuity even when fresh cleanup succeeds");
+      const auto count = f.actuator.Count('d'); f.Step();
+      Check(f.actuator.Count('d') == count && f.controls.Current().owner == Owner::none,
+          "parent change cannot bypass pending-stop rearm"); }
+    { Fixture f; f.input.keys['W'] = true; f.Step(); ++f.input.scene;
+      Check(!f.controls.ObserveParentScene(f.input.scene, true, 0), "clock regression cannot gain parent continuity");
+      const auto count = f.actuator.Count('d'); f.Step();
+      Check(f.actuator.Count('d') == count, "regressed clock still requires neutral input"); }
+}
 void ManualUpdateGaps() {
     for (const auto gap : {251ULL, 266ULL, 282ULL, 1000ULL}) {
         Fixture f; f.input.keys['W'] = true; f.Step();
@@ -416,6 +443,6 @@ void FrameRatesAndSettings() {
 }
 }
 int main() {
-    ManualUpdateGaps(); KeyboardFirstStart(); Interpretation(); Ownership(); CameraFailure(); Gates(); Devices(); Drag(); BufferedInput(); FailureAndScene(); NativeIntentTakeover(); NestedSafety(); EmergencyStops(); DisabledAutomation(); FrameRatesAndSettings();
+    ParentContinuity(); ManualUpdateGaps(); KeyboardFirstStart(); Interpretation(); Ownership(); CameraFailure(); Gates(); Devices(); Drag(); BufferedInput(); FailureAndScene(); NativeIntentTakeover(); NestedSafety(); EmergencyStops(); DisabledAutomation(); FrameRatesAndSettings();
     return failures ? 1 : 0;
 }

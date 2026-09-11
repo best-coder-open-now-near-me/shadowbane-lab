@@ -20,9 +20,9 @@ CLI composition is published at `55e30ccbddabf217a49e2cc847e56901d46b83b4`;
 manager composition is published by the integration owner at `d3f3af3`.
 The consumer starts after successful shared extension startup. Initial manual
 preferences are disabled; saved preferences apply on later starts. The integration
-owner installed the verified 1.7.5 manual-update-gap repair candidate. Connected
-acceptance remains unfinished; the lifetime cause diagnostics below await combined
-review and packaging.
+owner installed the verified 1.7.6 lifetime diagnostic candidate. Connected
+acceptance remains unfinished; the verified parent-frame continuity repair below
+awaits combined review and packaging.
 
 The production policy requires a synchronous owning-client-thread actuator. A
 movement ownership grant contains a generation, scene lifetime, owner and lossless
@@ -97,11 +97,12 @@ invalid pick and lost capture, client isolation and camera integration at
 - [x] Validate production native adapters, both profiles, lifecycle and delayed dispatch.
 - [x] Verify and install the complete 1.7.4 diagnostic package through the integration owner.
 - [x] Review/package/install the manual-update-gap repair through the integration owner.
-- [ ] Active: review/package the lifetime cause diagnostics through the integration owner.
+- [x] Review/package/install the lifetime cause diagnostics through the integration owner.
+- [ ] Active: review/package the verified parent-only continuity repair through the integration owner.
 - [ ] Run focused connected acceptance for all input methods, camera, obstacles,
   real release/stop, chat/UI safety, multi-client isolation and navigation takeover.
 
-Next item is combined review and packaging of the lifetime cause diagnostics. Connected engine behavior
+Next item is combined review and packaging of the parent-only continuity repair. Connected engine behavior
 requires the exact installed candidate and coordinated acceptance. Historical
 checkpoint notes below describe the progression, not additional active todos.
 
@@ -1042,3 +1043,53 @@ Integration destination remains PR #32 to `codex/native-lifecycle-hardening`.
 Next is the owner's independent combined review, version/package verification and
 installation before another user observation. No VM access, private capture access,
 package replacement or connected acceptance was performed in this follow-up.
+
+## Verified parent-only manual continuity
+
+The integration owner supplied a cause-level finding: an accepted, fully valid
+parent-only tuple change, with unchanged actor/world/window/identity and no capture
+failure or destruction cause. This is sufficient to implement narrowly verified
+parent-frame continuity; it does not establish a terrain-tile explanation.
+
+The lifetime observer now records a production transition proof, independent of
+optional diagnostics, only when a fully registered new watch directly replaces an
+alive old watch with exactly the parent changed. Any epoch invalidation clears the
+proof. Runtime requires the exact previous scene and current verified scene; a
+missing observation, destruction, identity replacement or reused pointer cannot
+claim this continuity.
+
+On the owning update, existing manual arm/gesture state can survive this transition
+only with fresh foreground/UI admission, enabled controls, no pending stop/fault,
+and no clock regression. The old epoch and all targets/grants are still retired.
+Runtime enters the new verified native phase and executes a fresh same-actor stop
+in that frame, cancelling pending solver, queued actions, continuation, destination
+and movement state before any new input actuation. No old destination/local basis
+is reused. The current native camera basis and terrain pick are computed afterward.
+Failed cleanup or nested safety inhibition prevents continuation. Camera elapsed
+time restarts at zero. Release still stops; automation is cancelled and never
+resumed. An obsolete command or safety stop cannot cancel the continued new owner.
+
+`SceneRetired` alone only discards cached authority. It now also clears cached
+steering/drag submission state, while the fresh authorized stop performs actual
+native cancellation for a proven same actor. Actual actor/lifetime changes retain
+the original no-old-stop-on-replacement rule. If no movement is owned and no stop
+is pending, ordinary native mouse movement is left alone, including with the
+feature disabled.
+
+Production tests cover keyboard/controller/drag continuation with fresh conversion
+and picks; queued automation cancellation; old command/safety rejection; UI/focus,
+identity/actor/destruction inhibition; failed and nested stop; pending-stop and
+clock-regression exclusion; and unowned/disabled native mouse preservation. The
+proof itself is tested against capture gaps, exact old identity and destruction.
+The integration baseline was refreshed through `25a39d3`, including prepared-image
+test wiring. Source destination remains PR #32 to `codex/native-lifecycle-hardening`.
+No private capture/VM access, deployment or connected acceptance was performed.
+Next: independent combined review, exact package verification and owner-controlled
+installation; the overall connected acceptance checklist remains unfinished.
+
+Validation: `ALL_BUILD` succeeded in both full and diagnostics Win32 Release profiles,
+including the prepared-image test target. Each profile passed 90 focused native
+tests with no skips. Each actual native producer/runtime Python run passed 64 tests
+plus 15 subtests, covering trace/wire, session/operation/manager IPC and package gates.
+Ruff and staged whitespace checks pass. The package requires all new parent-transition
+regressions. These developer-controlled checks do not replace connected acceptance.
