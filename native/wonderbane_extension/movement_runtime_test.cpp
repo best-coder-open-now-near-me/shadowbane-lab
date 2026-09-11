@@ -204,6 +204,48 @@ int main(int argc, char** argv) {
         Check(old_retry->receipt.outcome == static_cast<unsigned>(wm::Result::stale), "evicted acquisition cannot mint authority");
         rt.input.Retire(); return failures ? 1 : 0;
     }
+    if (mode == "controller-cancel-failure" || mode == "controller-cancel-nested") {
+        gamepad.sThumbLY = 32767; step(); const auto old = rt.controls.Current();
+        const auto moves = f.moves;
+        if (mode == "controller-cancel-failure") { f.callback_mode = 9; }
+        else { interrupt_phase = 's'; }
+        gamepad.wButtons = XINPUT_GAMEPAD_B; step();
+        const auto cancelled = rt.controls.Current();
+        Check(f.moves == moves && cancelled.generation > old.generation
+            && !(rt.controls.DiagnosticState() & 2), "cancel failure never continues native movement and disarms controller");
+        if (mode == "controller-cancel-failure") {
+            Check((rt.controls.DiagnosticState() & 16) && !rt.controls.Ready()
+                && rt.controls.AuthorizesNativeStop(old), "failed cancel retains old stop responsibility and blocks readiness");
+        } else {
+            Check(cancelled.owner == Owner::none, "nested focus interruption retires cancel ownership");
+        }
+        Check(rt.controls.Stop(old) == Result::stale && rt.controls.AutomationDestination(old, {}) == Result::stale,
+            "old commands cannot act after cancel failure/interruption");
+        f.callback_mode = 0; step(); step();
+        if (mode == "controller-cancel-failure") {
+            gamepad = {}; step(); gamepad.sThumbLY = 32767; step();
+            Token token{}; std::memcpy(token.worker.data(), "worker", 6); std::memcpy(token.operation.data(), "route", 5);
+            Grant denied{};
+            Check(f.moves == moves && (rt.controls.DiagnosticState() & 16) && !rt.controls.Ready()
+                && rt.controls.AuthorizesNativeStop(old) && !rt.native.Available(),
+                "partly applied native cancel stays faulted with retained cleanup responsibility, even after neutral");
+            Check(rt.controls.AcquireAutomation(rt.controls.Current().generation, token, denied) == Result::unavailable,
+                "failed native cancel excludes a replacement automation writer");
+            Check(f.packet.references == 0, "failed cancel retains no native message references");
+            rt.input.Retire(); return failures ? 1 : 0;
+        }
+        Check(f.moves == moves && !(rt.controls.DiagnosticState() & 16)
+            && Get<std::uint32_t>(f.state.data(), 0x10) == 5,
+            "retry completes native stop without resuming held cancel or movement");
+        gamepad = {}; step(); gamepad.sThumbLY = 32767; step();
+        const auto recovered = rt.controls.Current();
+        Check(f.moves == moves + 1 && recovered.owner == Owner::manual,
+            "neutral then fresh movement recovers after completed cancel cleanup");
+        Check(rt.controls.Stop(old) == Result::stale && rt.controls.Current() == recovered,
+            "old failed owner cannot cancel newly accepted movement");
+        gamepad = {}; step(); Check(f.packet.references == 0, "cancel failure paths release native message references");
+        rt.input.Retire(); return failures ? 1 : 0;
+    }
     if (mode == "controller-profile") {
         RuntimeSnapshot ticket{}; Check(ReadNativeMovementControls(ticket), "profile obtains exact revision ticket");
         auto next = ticket.settings;

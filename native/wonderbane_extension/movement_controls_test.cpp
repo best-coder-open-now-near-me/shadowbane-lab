@@ -72,6 +72,18 @@ struct Fixture {
     }
 };
 void ActionProfiles() {
+    { Fixture transient;
+      transient.input.left_stick = {1, 0}; transient.Step(); const auto old = transient.controls.Current();
+      transient.actuator.stop_ok = false; transient.input.controller_buttons = 0x2000; transient.Step();
+      const auto moves = transient.actuator.Count('d');
+      Check(!transient.controls.Ready() && transient.controls.AuthorizesNativeStop(old), "cancel retains retryable adapter stop failure");
+      transient.Step(); Check(transient.actuator.Count('d') == moves, "pending cancel excludes movement on later ticks");
+      transient.actuator.stop_ok = true; transient.Step();
+      Check(transient.controls.Ready() && transient.actuator.Count('d') == moves, "successful cancel retry does not resume held stick");
+      transient.input.controller_buttons = 0; transient.input.left_stick = {}; transient.Step();
+      transient.input.left_stick = {1, 0}; transient.Step();
+      Check(transient.actuator.Count('d') == moves + 1 && transient.controls.Stop(old) == Result::stale,
+          "fresh post-cancel input accepts only after cleanup and rejects old stop"); }
     Fixture f;
     auto& b = f.settings.controller_profile.bindings;
     std::swap(b[0].control, b[1].control);

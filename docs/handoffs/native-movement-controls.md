@@ -1219,3 +1219,26 @@ semantic action invocation. Static local inspection identifies hotbar configurat
 parsing and control/HUD RTTI candidates, but has not yet established the activation
 receiver, slot dispatch ABI, restriction/target checks and lifecycle proof. Those
 adapters remain unavailable, and combat controls are explicitly unfinished.
+
+
+### Profile independent-review follow-up
+
+The package now requires the exact cross-process profile configuration case, not
+merely its containing test module. The extracted production IPC result validator
+rejects missing, skipped, failed, errored or duplicate required cases. The package
+gate regression specifically removes/fails that profile result and proves rejection.
+
+Cancel-specific runtime failure injection confirms that a partially applied native
+stop faults closed, retains the old grant's pending stop responsibility and excludes
+new manual/automation writers even after neutral. It must not pretend native cleanup
+is retryable after a partially applied message/state change. A retryable adapter
+failure separately proves cleanup-before-rearm; nested native focus interruption
+retires ownership and allows only neutral/fresh input after recovery. Obsolete stops
+cannot cancel the newly admitted owner. No production movement behavior changed.
+
+Both profiles pass ALL_BUILD and seven targeted controller/controls tests, including
+the new failed/nested cancel cases. Package-gate tests pass20 cases. Actual native
+IPC results were generated and passed through the production required-case validator;
+Ruff and diff checks pass. Source destination remains PR32 to the integration owner.
+Next: root re-review/rebuild of the supported remapping candidate; resume the paused
+hotbar/target adapter investigation separately.
