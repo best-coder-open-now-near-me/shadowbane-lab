@@ -66,3 +66,18 @@ authorization. One focused check: ordinary movement across the previously observ
 boundary, opposite-key cancellation/release-one, release stop, and chat/focus
 recovery. Confirm parent-only transitions preserve manual input and classify any
 remaining loss from schema-3 evidence. No broad navigation rerun is requested.
+
+## Verified VM installation
+
+Installed/runtime-copy verified 1.7.7 and wheel 0.2.7 under
+`S:/ShadowbaneLab-Guided/combined-acceptance-1.7.7-c3a90947`, preserving Config
+from 1.7.6. Launched PID 9380, creation FILETIME 134335852373957991, HWND 787248.
+Loaded full DLL matches the package hash above; prepared executable remains
+`bb63469eb35917e6b3f58be75d29f94855c9868024271222465b4db62f0e3a87`.
+Schema-3 mapping verified enabled and parsable before login. No collector running.
+Next is owner login and the focused parent-transition movement check.
+
+Retired superseded 1.7.6 client tree after exact-path/reparse/process checks under
+standing cleanup authorization. Current settings, receipts and pristine baseline
+retained. Private evidence/scripts:
+`E:/virtual-machines/shadowbane-testing/diagnostics/combined-acceptance-1.7.7-c3a90947`.
