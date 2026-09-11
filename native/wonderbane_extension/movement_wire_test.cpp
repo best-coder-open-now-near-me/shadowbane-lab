@@ -29,6 +29,8 @@ int main(int argc, char** argv) {
         || command.host.creation != 0x1122334455667788ULL || command.request[0] != 0x12
         || command.request[15] != 0xf0 || command.revision != 0x3456789012345678ULL
         || command.destination.x != 1.25F || command.destination.y != -20.5F || command.destination.z != 4096.0F
+        || settings.controller_profile.bindings[0].control != ControllerControl::right_stick
+        || settings.controller_profile.bindings[2] != ControllerBinding{ControllerAction::cancel_movement, ControllerControl::right_trigger, 3}
         || !settings.enabled || !settings.controller || !settings.invert_camera_y || settings.keys[0] != 0x49) { return 4; }
     const auto encoded_grant = w::Encode(expected); const auto encoded_settings = w::Encode(settings);
     if (std::memcmp(&encoded_grant, &command.expected, sizeof(encoded_grant))
@@ -42,7 +44,7 @@ int main(int argc, char** argv) {
     native_status.grant = command.expected; native_status.settings = command.settings;
     native_status.revision = command.revision; native_status.tick = 987654321;
     if (std::memcmp(&native_status, &status, sizeof(status))) { return 7; }
-    auto invalid = command; invalid.reserved[55] = 1; if (w::Valid(w::Verb::acquire, invalid)) { return 8; }
+    auto invalid = command; invalid.reserved[3] = 1; if (w::Valid(w::Verb::acquire, invalid)) { return 8; }
     invalid = command; invalid.expected.token.worker[95] = 'x'; if (w::Valid(w::Verb::acquire, invalid)) { return 9; }
     invalid = command; invalid.request = {}; if (w::Valid(w::Verb::acquire, invalid)) { return 10; }
     invalid = command; invalid.host.generation = 0; if (w::Valid(w::Verb::acquire, invalid)) { return 11; }
@@ -51,6 +53,12 @@ int main(int argc, char** argv) {
     invalid = command; invalid.expected.owner = 2; if (w::Valid(w::Verb::acquire, invalid)) { return 14; }
     invalid = command; invalid.requested = {}; invalid.destination.x = NAN;
     if (w::Valid(w::Verb::destination, invalid)) { return 15; }
+    invalid = command; invalid.settings.version = 1;
+    if (w::Valid(w::Verb::acquire, invalid)) { return 16; }
+    invalid = command; invalid.settings.controller_bindings[0] |= 0x8000;
+    if (w::Valid(w::Verb::acquire, invalid)) { return 17; }
+    invalid = command; invalid.settings.controller_bindings[0] = 63;
+    if (w::Valid(w::Verb::acquire, invalid)) { return 18; }
     std::cout << "native/Python command, receipt, status and settings fixture verified\n";
     return 0;
 }

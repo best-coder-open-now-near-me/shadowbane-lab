@@ -1144,3 +1144,78 @@ was performed here. Next: root reviews/packages this checkpoint; feature owner
 continues the separately authorized semantic action-binding profile slice on this
 same branch. Target/power/interact actions remain unavailable until verified native
 adapters exist; metadata or F-key activation is not a native actuator.
+
+
+## September 11 semantic controller profile checkpoint
+
+Root reports installed 1.7.8 passed the owner's live chat check: controller input
+while text is focused and chat recovery are accepted. Preserve that behavior.
+This following source checkpoint is a separate supported remapping subset, not a
+combat completion claim and not part of the installed chat package.
+
+Stable semantic action IDs 1/2/3 mean native movement vector, native camera vector,
+and cancel movement/navigation. Physical sticks/buttons/triggers and exact optional
+shoulder contexts are separate, with 24 canonical compact bindings. Unknown actions
+or sources, duplicate source/context pairs, effective duplicate vector writers,
+and shoulder-action/modifier conflicts are rejected. An exact shoulder combination
+overrides its base; otherwise base applies. Only verified supported actions appear
+in the actual native editor, which implements add/replace, unbind, reset and atomic
+valid-profile apply using the existing exact-client/scene/generation/revision ticket.
+
+Defaults preserve left movement/right camera and assign B to native cancel. Cancel
+uses the existing native stop/takeover path, retires obsolete generations and requires
+physical neutral before controller rearm; it neither repeats while held nor resumes
+navigation. Remapped camera input does not acquire movement. Remapped movement and
+cancel obey focus, scene, feature toggles, global UI and ownership. Controller text
+entry behavior remains active; no keyboard events are synthesized. Movement and
+camera dead zones/sensitivity/inversion apply to the selected semantic axis.
+
+### Compatibility decision
+
+Action-channel header schema is explicitly 3 (formerly 2); slot/mapping geometry
+is unchanged. Settings format is 2, 104 bytes (formerly format1/52), including
+profile version1/count/24 packed uint16 entries. Action uses bits0..5, control6..10,
+shoulder11..12; upper bits and unused entries must be zero. New offsets and remaining
+reserved regions are explicit in native/Python codecs and the shared v3 fixture.
+No diagnostic ABI change; movement trace schema3 and UI bit8 interpretation persist.
+Product versions are unchanged here and remain the integration owner's decision.
+
+Readers verify the channel version before command/lease mutation. The native drain
+rejects old headers before advancing its read sequence; settings decoder rejects old
+or unknown versions/actions. The actual committed schema2 Windows transport from
+271665e was loaded locally and tested against the new native test producer: it
+rejected schema3 with the entire producer header unchanged. New reader tests reject
+schema1/2/unknown headers and wrong geometry. Saved registry preferences have an
+explicit exact52-byte format1 migration, preserving old settings and installing the
+stable default profile; new format2 values save/load all bindings atomically.
+Cross-process preference restart and actual Python -> native configure -> receipt/
+status roundtrip preserve nondefault profiles and reject stale settings tickets.
+The old wire fixture remains historical evidence; no old-protocol runtime fallback.
+
+### Validation and remaining work
+
+Both Win32 Release profiles pass ALL_BUILD. Each movement/channel suite executes
+98 passing tests; the one no-argument private image gate skips by design because it
+requires original/prepared executable arguments. Image bindings are unchanged; root's
+package builder retains the explicit original/prepared gate. Full-profile Python
+checks pass 93 tests plus15 subtests, including real producer/runtime IPC, profile
+codec negatives, package checks and manager/operation behavior. Ruff passes. Native
+UI tests cover editor changes remaining draft, valid Apply/save, unbind/reset,
+conflict no-mutation, child bounds and persisted restart/migration. Native runtime
+checks cover remapped movement/camera, trigger+shoulder cancel/release, no repeated
+cancel, disconnect/rearm, stale ticket rejection and no generated keys. Existing
+chat/controller and accepted parent-transition cases remain in the required gates.
+Package source/fixture and mandatory native/Python lists include this profile.
+
+Source remains on codex/native-movement-controls, PR32 targeting the integration
+branch. No VM/live process access, deployment or product-version update occurred.
+Ignored artifacts contain local build/test evidence and one locally extracted old
+reader solely for compatibility verification. Root owns review/combined package and
+connected acceptance of this supported subset.
+
+Next active todo: continue verified native hotbar/target adapter investigation.
+Existing native keyboard event submission is an input path, not a substitute for
+semantic action invocation. Static local inspection identifies hotbar configuration
+parsing and control/HUD RTTI candidates, but has not yet established the activation
+receiver, slot dispatch ABI, restriction/target checks and lifecycle proof. Those
+adapters remain unavailable, and combat controls are explicitly unfinished.

@@ -77,7 +77,7 @@ def test_snapshot_mixed_schema_and_odd_publication_never_claim_lease():
             header,
             0,
             channel.CLIENT_ACTION_CHANNEL_MAGIC,
-            2,
+            channel.CLIENT_ACTION_CHANNEL_SCHEMA_VERSION,
             128,
             768,
             32,
@@ -125,7 +125,7 @@ def test_snapshot_mixed_schema_and_odd_publication_never_claim_lease():
             memory[offset : offset + 512] = invalid.encode()
             with pytest.raises(channel.NativeActionChannelUnavailable):
                 read_snapshot(identity, 1)
-        for schema, command_size in ((1, 768), (2, 192)):
+        for schema, command_size in ((1, 768), (2, 768), (3, 192), (4, 768)):
             changed = bytearray(header)
             struct.pack_into("<I", changed, 8, schema)
             struct.pack_into("<I", changed, 16, command_size)
@@ -300,6 +300,61 @@ def test_real_hook_startup_failure_is_readable_without_window_or_lease():
         output, error = process.communicate("\n", timeout=5)
         assert process.returncode == 0, output + error
     finally:
+        if process.poll() is None:
+            process.kill()
+            process.communicate()
+
+
+def test_profile_configuration_crosses_real_native_channel_atomically():
+    from shadowbane_lab.client_extension.controller_profile import (
+        ControllerAction as A,
+    )
+    from shadowbane_lab.client_extension.controller_profile import (
+        ControllerBinding as B,
+    )
+    from shadowbane_lab.client_extension.controller_profile import (
+        ControllerControl as C,
+    )
+    from shadowbane_lab.client_extension.movement_session import NativeMovementError
+
+    configured = os.environ.get("WONDERBANE_MOVEMENT_RUNTIME_TEST")
+    if not configured:
+        pytest.skip("set WONDERBANE_MOVEMENT_RUNTIME_TEST to the built native runtime fixture")
+    process = subprocess.Popen(
+        [configured, "ipc-profile"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        creationflags=subprocess.CREATE_NO_WINDOW,
+    )
+    session = None
+    try:
+        pid, creation, window = map(int, process.stdout.readline().split())
+        session = NativeMovementSession(
+            channel.NativeClientProcessIdentity(pid, creation), window, timeout_ms=1500
+        )
+        initial = session.snapshot()
+        grant = session.acquire(initial, "profile-test", "configure", str(uuid.uuid4()))
+        before = session.snapshot()
+        bindings = (
+            B(A.MOVEMENT, C.RIGHT_STICK),
+            B(A.CAMERA, C.LEFT_STICK),
+            B(A.CANCEL_MOVEMENT, C.RIGHT_TRIGGER, 3),
+        )
+        settings = replace(before.settings, controller_bindings=bindings)
+        receipt = session.configure(before, settings, str(uuid.uuid4()))
+        assert receipt.settings.controller_bindings == bindings
+        assert receipt.revision == before.revision + 1
+        assert session.snapshot().settings.controller_bindings == bindings
+        with pytest.raises(NativeMovementError):
+            session.configure(before, before.settings, str(uuid.uuid4()))
+        session.stop(grant, str(uuid.uuid4()))
+        session.close()
+        output, error = process.communicate(timeout=5)
+        assert process.returncode == 0, output + error
+    finally:
+        if session is not None:
+            session.close()
         if process.poll() is None:
             process.kill()
             process.communicate()

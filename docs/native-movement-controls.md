@@ -44,6 +44,41 @@ controller disconnect/reconnect, global UI inhibition or a scene change, release
 keys/buttons and center both sticks before re-arming. Holding a stick while
 switching clients does not start the newly focused client moving.
 
+## Controller action profile
+
+The native settings panel includes editable action rows. Defaults are **left stick
+move**, **right stick look**, and **B cancel movement/navigation**. Movement and look
+can use either stick. Cancel can use a gamepad button or trigger; triggers activate
+above 20 percent. Cancel uses native stop once and retires the previous movement
+owner. Holding it does not repeat. Release all buttons/triggers and center both
+sticks before moving again; a cancelled route needs an explicit new request.
+
+Select a row, change its action/control/shoulder combination, and choose **Add /
+replace row**. With no row selected, this adds a binding. **Unbind row** removes it;
+**Reset defaults** restores the three default rows. Editing changes a draft until
+**Apply and save** validates and activates the whole profile. Conflicts leave the
+active settings unchanged. All-unbound profiles are valid. Up to 24 rows are saved.
+
+A base row applies unless that control has a row for the exact held shoulder
+combination (left, right or both). Both shoulders use the both-shoulders row or
+base; they do not choose between separate left/right rows. A shoulder used as a
+modifier cannot also trigger an action. One physical control resolves to one
+action; two sticks cannot drive the same vector action in one combination.
+Profiles preserve analog direction, dead zones and camera sensitivity/inversion.
+Applying changes, focus/device loss and real global UI inhibition require physical
+neutral; an unbound control is not treated as proof of neutral. Chat behavior is
+unchanged: controller movement/look/cancel remain native and typing stays in chat.
+
+Only these verified native actions are currently offered. Hotbar powers, targeting
+and interaction remain unfinished; no key macro or unwired action choice substitutes
+for a verified client adapter. This profile subset does not complete combat controls.
+
+The profile requires the matching native/Python package (action-channel schema 3,
+saved settings format 2). Older automation clients and incompatible producers are
+rejected before command/lease mutation. Existing saved movement settings migrate
+with the default controller rows. Product versions and installation remain under
+the integration owner's combined package process.
+
 ## Hold-and-drag
 
 The default is mouse button 4 (XBUTTON1), with a six-pixel threshold. Left, middle,

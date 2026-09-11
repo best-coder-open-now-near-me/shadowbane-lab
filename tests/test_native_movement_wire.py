@@ -3,6 +3,15 @@ import unittest
 from dataclasses import replace
 from pathlib import Path
 
+from shadowbane_lab.client_extension.controller_profile import (
+    ControllerAction as Action,
+)
+from shadowbane_lab.client_extension.controller_profile import (
+    ControllerBinding as Binding,
+)
+from shadowbane_lab.client_extension.controller_profile import (
+    ControllerControl as Control,
+)
 from shadowbane_lab.client_extension.movement_wire import (
     Command,
     Grant,
@@ -15,7 +24,7 @@ from shadowbane_lab.client_extension.movement_wire import (
     Verb,
 )
 
-FIXTURE = Path(__file__).parent / "fixtures" / "native_movement_wire_v2.hex"
+FIXTURE = Path(__file__).parent / "fixtures" / "native_movement_wire_v3.hex"
 KEY = "12345678-1234-5678-9abc-def0123456f0"
 
 
@@ -29,6 +38,13 @@ def values():
         movement_dead_zone=0.25,
         camera_dead_zone=0.125,
         invert_camera_y=True,
+        controller_bindings=(
+            Binding(Action.MOVEMENT, Control.RIGHT_STICK),
+            Binding(Action.CAMERA, Control.LEFT_STICK),
+            Binding(Action.CANCEL_MOVEMENT, Control.RIGHT_TRIGGER, 3),
+            Binding(Action.MOVEMENT, Control.LEFT_STICK, 1),
+            Binding(Action.CAMERA, Control.RIGHT_STICK, 1),
+        ),
     )
     command = Command(
         Host(1234, 27, 0x1122334455667788),
@@ -70,7 +86,14 @@ class MovementWireTest(unittest.TestCase):
         self.assertEqual(Snapshot.decode(actual[2]), snapshot)
         self.assertEqual(actual[0][240:256].hex(), KEY.replace("-", ""))
         self.assertEqual(struct.unpack_from("<Q", actual[0], 16)[0], command.window)
-        self.assertEqual(struct.unpack_from("<Q", actual[2], 300)[0], command.revision)
+        self.assertEqual(struct.unpack_from("<Q", actual[2], 352)[0], command.revision)
+
+    def test_old_and_unknown_settings_versions_rejected(self):
+        settings = bytearray(Settings().encode())
+        for version in (1, 3):
+            struct.pack_into("<I", settings, 4, version)
+            with self.assertRaises(ValueError):
+                Settings.decode(settings)
 
     def test_lossless_identity_validation(self):
         command, _, _ = values()

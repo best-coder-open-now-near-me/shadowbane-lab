@@ -5,10 +5,10 @@
 #include <cstddef>
 #include <cstring>
 
-// Schema 2 fixed-width little-endian IPC payloads. Never serialize C++ policy
+// Schema 3 fixed-width little-endian IPC payloads. Never serialize C++ policy
 // object layout: Owner, bool and padding are not part of the wire contract.
 namespace wonderbane::extension::movement::wire {
-constexpr std::uint32_t schema = 2, command_size = 768, result_size = 512, status_size = 512;
+constexpr std::uint32_t schema = 3, command_size = 768, result_size = 512, status_size = 512;
 constexpr std::uint32_t command_prefix = 192, result_prefix = 128;
 enum class Verb : std::uint32_t { acquire = 3, destination = 4, stop = 5, configure = 6, pause = 7 };
 #pragma pack(push, 1)
@@ -16,36 +16,38 @@ struct Host { std::uint32_t process = 0, generation = 0; std::uint64_t creation 
 struct Token { char worker[96]{}, operation[96]{}; };
 struct Grant { std::uint64_t generation = 0, scene = 0; std::uint32_t owner = 0, reserved = 0; Token token{}; };
 struct Settings {
-    std::uint32_t magic = 0x57424d43, version = 1, flags = 0;
+    std::uint32_t magic = 0x57424d43, version = 2, flags = 0;
     std::array<std::uint32_t, 4> keys{};
     std::uint32_t slot = 0;
     float movement_zone = 0, camera_zone = 0, sensitivity = 0, threshold = 0;
     std::uint32_t button = 0;
+    std::uint16_t profile_version = 1, binding_count = 0;
+    std::array<std::uint16_t, controller_binding_capacity> controller_bindings{};
 };
 struct Command {
     Host host{}; std::uint64_t window = 0; Grant expected{};
     std::array<std::uint8_t, 16> request{}; GroundPoint destination{};
     Settings settings{}; std::uint64_t revision = 0; Token requested{};
-    std::uint8_t reserved[56]{};
+    std::uint8_t reserved[4]{};
 };
 struct Receipt {
     Grant grant{}; std::array<std::uint8_t, 16> request{}; Host host{};
     std::uint64_t window = 0, revision = 0; Settings settings{};
-    std::uint32_t outcome = 0, flags = 0; std::uint8_t reserved[60]{};
+    std::uint32_t outcome = 0, flags = 0; std::uint8_t reserved[8]{};
 };
 struct Status {
     std::int64_t sequence = 0; std::uint32_t process = 0, flags = 0;
     std::uint64_t creation = 0, window = 0; Grant grant{};
     Settings settings{}; std::uint64_t revision = 0, tick = 0;
-    std::uint8_t reserved[196]{};
+    std::uint8_t reserved[144]{};
 };
 #pragma pack(pop)
 static_assert(sizeof(Host) == 16 && sizeof(Token) == 192 && sizeof(Grant) == 216);
-static_assert(sizeof(Settings) == 52 && sizeof(Command) == command_size - command_prefix);
+static_assert(sizeof(Settings) == 104 && sizeof(Command) == command_size - command_prefix);
 static_assert(sizeof(Receipt) == result_size - result_prefix && sizeof(Status) == status_size);
 static_assert(offsetof(Command, expected) == 24 && offsetof(Command, request) == 240);
-static_assert(offsetof(Command, requested) == 328 && offsetof(Receipt, host) == 232);
-static_assert(offsetof(Status, grant) == 32 && offsetof(Status, revision) == 300);
+static_assert(offsetof(Command, requested) == 380 && offsetof(Receipt, host) == 232);
+static_assert(offsetof(Status, grant) == 32 && offsetof(Status, revision) == 352);
 // Status flags describe observations only; none confers a command lease.
 constexpr std::uint32_t bindings = 1, ready = 2, camera = 4, terminal = 8,
     controller_api = 16, controller_connected = 32, known_flags = 63;
@@ -85,10 +87,16 @@ inline Settings Encode(const movement::Settings& s) noexcept {
     for (std::size_t i = 0; i < 4; ++i) { value.keys[i] = s.keys[i]; }
     value.slot = s.controller_slot; value.movement_zone = s.movement_dead_zone;
     value.camera_zone = s.camera_dead_zone; value.sensitivity = s.camera_radians_per_second;
-    value.threshold = s.drag_threshold_pixels; value.button = s.drag_button; return value;
+    value.threshold = s.drag_threshold_pixels; value.button = s.drag_button;
+    for (std::size_t i = 0; i != s.controller_profile.bindings.size(); ++i) {
+        value.controller_bindings[i] = EncodeControllerBinding(s.controller_profile.bindings[i]);
+        if (value.controller_bindings[i]) { ++value.binding_count; }
+    }
+    return value;
 }
 inline bool Decode(const Settings& value, movement::Settings& s) noexcept {
-    if (value.magic != 0x57424d43 || value.version != 1 || (value.flags & ~63U) || value.button > 255) { return false; }
+    if (value.magic != 0x57424d43 || value.version != 2 || value.profile_version != 1
+        || value.binding_count > controller_binding_capacity || (value.flags & ~63U) || value.button > 255) { return false; }
     movement::Settings next{};
     next.enabled = (value.flags & 1) != 0; next.keyboard = (value.flags & 2) != 0;
     next.controller = (value.flags & 4) != 0; next.drag = (value.flags & 8) != 0;
@@ -99,6 +107,11 @@ inline bool Decode(const Settings& value, movement::Settings& s) noexcept {
     next.controller_slot = value.slot; next.movement_dead_zone = value.movement_zone;
     next.camera_dead_zone = value.camera_zone; next.camera_radians_per_second = value.sensitivity;
     next.drag_threshold_pixels = value.threshold; next.drag_button = static_cast<std::uint16_t>(value.button);
+    next.controller_profile.bindings.fill({});
+    for (std::size_t i = 0; i != value.controller_bindings.size(); ++i) {
+        if ((i < value.binding_count) != (value.controller_bindings[i] != 0)
+            || !DecodeControllerBinding(value.controller_bindings[i], next.controller_profile.bindings[i])) { return false; }
+    }
     if (!ValidSettings(next)) { return false; } s = next; return true;
 }
 inline bool Valid(const Host& host) noexcept {

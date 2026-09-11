@@ -24,6 +24,9 @@ int main() {
     if (DrainClientActionCommandsForTesting(*storage, GetTickCount64()) != ERROR_INVALID_DATA
         || storage->header.command_read_sequence != read_sequence) { return 5; }
     storage->header.schema_version = 2;
+    if (DrainClientActionCommandsForTesting(*storage, GetTickCount64()) != ERROR_INVALID_DATA
+        || storage->header.command_read_sequence != read_sequence) { return 12; }
+    storage->header.schema_version = kClientActionChannelSchemaVersion;
     std::weak_ptr<d::Backing> retained = rt.backing;
     StopClientActionCommandChannel();
     if (!rt.worker || rt.storage != storage || retained.expired() || lease->Current(GetTickCount64())

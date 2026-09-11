@@ -21,15 +21,28 @@ bool SaveTo(const wchar_t* location, const Settings& settings) noexcept {
 bool Save(const Settings& settings) noexcept { return SaveTo(preferences_key, settings); }
 Settings LoadFrom(const wchar_t* location) noexcept {
     Saved value{}; DWORD size = sizeof(value); Settings settings{};
-    if (RegGetValueW(HKEY_CURRENT_USER, location, L"Settings", RRF_RT_REG_BINARY, nullptr, &value, &size) == ERROR_SUCCESS
-        && size == sizeof(value)) { (void)Decode(value, settings); }
+    if (RegGetValueW(HKEY_CURRENT_USER, location, L"Settings", RRF_RT_REG_BINARY, nullptr, &value, &size) == ERROR_SUCCESS) {
+        if (size == sizeof(value)) { (void)Decode(value, settings); }
+        else if (size == 52 && value.magic == 0x57424d43 && value.version == 1) {
+            // Explicit migration of the old registry value; wire v2 is not admitted.
+            auto migrated = Encode(Settings{});
+            std::memcpy(&migrated, &value, 52); migrated.version = 2;
+            (void)Decode(migrated, settings);
+        }
+    }
     return settings;
 }
 enum Id : int { enabled = 100, keyboard, controller, drag, forward, backward, left, right,
-    slot, movement_zone, camera_zone, sensitivity, invert_x, invert_y, button, threshold, apply, status };
+    slot, movement_zone, camera_zone, sensitivity, invert_x, invert_y, button, threshold, apply, status, profile_list, profile_action, profile_control, profile_modifier, profile_set, profile_remove, profile_reset };
 struct Panel {
     HWND window = nullptr;
     RuntimeSnapshot expected{};
+    ControllerProfile draft{};
+    static constexpr std::array<const wchar_t*, 3> action_names{L"Move (camera-relative)", L"Look (native camera)", L"Cancel movement / route"};
+    static constexpr std::array<const wchar_t*, 18> control_names{L"Left stick", L"Right stick", L"A", L"B", L"X", L"Y",
+        L"D-pad up", L"D-pad down", L"D-pad left", L"D-pad right", L"Start", L"Back", L"Left stick press", L"Right stick press",
+        L"Left shoulder", L"Right shoulder", L"Left trigger", L"Right trigger"};
+    static constexpr std::array<const wchar_t*, 4> modifier_names{L"Base", L"Left shoulder", L"Right shoulder", L"Both shoulders"};
     bool (*persist)(const Settings&) noexcept = &Save;
     decltype(&ShowWindow) show = &ShowWindow;
     decltype(&SetForegroundWindow) foreground = &SetForegroundWindow;
@@ -56,6 +69,45 @@ struct Panel {
         if (!length || length >= 63) { return false; }
         wchar_t* end = nullptr; value = std::wcstof(text, &end);
         return end && !*end && std::isfinite(value);
+    }
+    void RefreshProfile(int selected = -1) noexcept {
+        SendMessageW(Item(profile_list), LB_RESETCONTENT, 0, 0);
+        for (const auto& b : draft.bindings) {
+            if (b.action == ControllerAction::none) { break; }
+            wchar_t label[200]{};
+            swprintf_s(label, L"%s / %s: %s", control_names[static_cast<unsigned>(b.control) - 1],
+                modifier_names[b.modifiers], action_names[static_cast<unsigned>(b.action) - 1]);
+            SendMessageW(Item(profile_list), LB_ADDSTRING, 0, reinterpret_cast<LPARAM>(label));
+        }
+        SendMessageW(Item(profile_list), LB_SETCURSEL, selected, 0);
+    }
+    void SelectProfile() noexcept {
+        const auto selected = SendMessageW(Item(profile_list), LB_GETCURSEL, 0, 0);
+        if (selected < 0 || selected >= static_cast<LRESULT>(draft.bindings.size())) { return; }
+        const auto& b = draft.bindings[static_cast<std::size_t>(selected)];
+        SendMessageW(Item(profile_action), CB_SETCURSEL, static_cast<unsigned>(b.action) - 1, 0);
+        SendMessageW(Item(profile_control), CB_SETCURSEL, static_cast<unsigned>(b.control) - 1, 0);
+        SendMessageW(Item(profile_modifier), CB_SETCURSEL, b.modifiers, 0);
+    }
+    void EditProfile(bool remove) noexcept {
+        auto selected = SendMessageW(Item(profile_list), LB_GETCURSEL, 0, 0);
+        const auto count = SendMessageW(Item(profile_list), LB_GETCOUNT, 0, 0);
+        if (remove) {
+            if (selected < 0 || selected >= count) { return; }
+            for (auto i = static_cast<std::size_t>(selected); i + 1 < draft.bindings.size(); ++i) { draft.bindings[i] = draft.bindings[i + 1]; }
+            draft.bindings.back() = {}; RefreshProfile(); return;
+        }
+        if (selected < 0) { selected = count; }
+        if (selected >= static_cast<LRESULT>(draft.bindings.size())) { Text(status, L"The controller profile is full. Select a row to replace or unbind."); return; }
+        const auto action = SendMessageW(Item(profile_action), CB_GETCURSEL, 0, 0);
+        const auto control = SendMessageW(Item(profile_control), CB_GETCURSEL, 0, 0);
+        const auto modifier = SendMessageW(Item(profile_modifier), CB_GETCURSEL, 0, 0);
+        if (action < 0 || action >= 3 || control < 0 || control >= 18 || modifier < 0 || modifier >= 4) { return; }
+        const bool vector = control < 2;
+        if (vector != (action < 2)) { Text(status, L"Move and look require a stick. Cancel requires a button or trigger."); return; }
+        draft.bindings[static_cast<std::size_t>(selected)] = {static_cast<ControllerAction>(action + 1),
+            static_cast<ControllerControl>(control + 1), static_cast<std::uint8_t>(modifier)};
+        RefreshProfile(); Text(status, L"Binding edited. Apply and save validates the complete profile before activation.");
     }
     bool Build() noexcept {
         bool ok = true;
@@ -94,6 +146,25 @@ struct Panel {
         add(WC_STATICW, L"", 0, status, 20, 477, 520, 48);
         add(WC_BUTTONW, L"Apply and save", BS_DEFPUSHBUTTON | WS_TABSTOP, apply, 290, 535, 140, 30);
         add(WC_BUTTONW, L"Close", BS_PUSHBUTTON | WS_TABSTOP, IDCANCEL, 440, 535, 100, 30);
+        add(WC_STATICW, L"Controller action bindings", 0, 0, 560, 16, 400, 22);
+        add(WC_LISTBOXW, L"", LBS_NOTIFY | WS_BORDER | WS_VSCROLL | WS_TABSTOP, profile_list, 560, 45, 420, 180);
+        add(WC_STATICW, L"Action", 0, 0, 560, 239, 190, 18);
+        add(WC_COMBOBOXW, L"", CBS_DROPDOWNLIST | WS_TABSTOP, profile_action, 560, 260, 420, 100);
+        for (const auto* label : action_names) { SendMessageW(Item(profile_action), CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(label)); }
+        add(WC_STATICW, L"Physical control", 0, 0, 560, 298, 190, 18);
+        add(WC_COMBOBOXW, L"", CBS_DROPDOWNLIST | WS_TABSTOP | WS_VSCROLL, profile_control, 560, 319, 200, 200);
+        for (const auto* label : control_names) { SendMessageW(Item(profile_control), CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(label)); }
+        add(WC_STATICW, L"Shoulder combination", 0, 0, 780, 298, 200, 18);
+        add(WC_COMBOBOXW, L"", CBS_DROPDOWNLIST | WS_TABSTOP, profile_modifier, 780, 319, 200, 130);
+        for (const auto* label : modifier_names) { SendMessageW(Item(profile_modifier), CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(label)); }
+        SendMessageW(Item(profile_action), CB_SETCURSEL, 0, 0);
+        SendMessageW(Item(profile_control), CB_SETCURSEL, 0, 0);
+        SendMessageW(Item(profile_modifier), CB_SETCURSEL, 0, 0);
+        add(WC_BUTTONW, L"Add / replace row", BS_PUSHBUTTON | WS_TABSTOP, profile_set, 560, 366, 150, 30);
+        add(WC_BUTTONW, L"Unbind row", BS_PUSHBUTTON | WS_TABSTOP, profile_remove, 720, 366, 120, 30);
+        add(WC_BUTTONW, L"Reset defaults", BS_PUSHBUTTON | WS_TABSTOP, profile_reset, 850, 366, 130, 30);
+        add(WC_STATICW, L"Select a row to edit; adding clears the selection.\nBase applies unless the exact held shoulder combination has a binding.\nUse a shoulder either as a modifier or an action button.\nCancel stops movement and navigation; routes never auto-resume.\nProfiles apply together. Release all controls after Apply.", 0, 0, 560, 415, 420, 105);
+        draft = expected.settings.controller_profile; RefreshProfile();
         const auto& s = expected.settings;
         CheckBox(enabled, s.enabled); CheckBox(keyboard, s.keyboard); CheckBox(controller, s.controller); CheckBox(drag, s.drag);
         CheckBox(invert_x, s.invert_camera_x); CheckBox(invert_y, s.invert_camera_y);
@@ -132,6 +203,10 @@ struct Panel {
             || !ValidSettings(next)) {
             Text(status, L"Use distinct keys; dead zones 0.05 to below 0.95, camera speed above 0 to 10,\nand drag threshold 2 to 64 pixels."); return;
         }
+        next.controller_profile = draft;
+        if (!ValidControllerProfile(draft)) {
+            Text(status, L"Binding conflict: use one action per control/shoulder combination,\none stick per vector action, and no action on a shoulder used as a modifier."); return;
+        }
         const auto result = ConfigureNativeMovementControls(expected, next);
         if (result != Result::accepted) {
             Text(status, result == Result::stale ? L"This client's movement or scene changed. Close and reopen settings before applying."
@@ -152,7 +227,11 @@ struct Panel {
             }
             if (wp == VK_ESCAPE) { DestroyWindow(panel->window); return 0; }
             if (wp == VK_RETURN) {
-                if (GetDlgCtrlID(child) == IDCANCEL) { DestroyWindow(panel->window); }
+                const auto id = GetDlgCtrlID(child);
+                if (id == IDCANCEL) { DestroyWindow(panel->window); }
+                else if (id == profile_set) { panel->EditProfile(false); }
+                else if (id == profile_remove) { panel->EditProfile(true); }
+                else if (id == profile_reset) { panel->draft = ControllerProfile{}; panel->RefreshProfile(); }
                 else { panel->Apply(); } return 0;
             }
         }
@@ -166,7 +245,11 @@ struct Panel {
         }
         if (panel) {
             if (message == WM_CREATE) { return panel->Build() ? 0 : -1; }
+            if (message == WM_COMMAND && LOWORD(wp) == profile_list && HIWORD(wp) == LBN_SELCHANGE) { panel->SelectProfile(); return 0; }
             if (message == WM_COMMAND && HIWORD(wp) == BN_CLICKED) {
+                if (LOWORD(wp) == profile_set) { panel->EditProfile(false); return 0; }
+                if (LOWORD(wp) == profile_remove) { panel->EditProfile(true); return 0; }
+                if (LOWORD(wp) == profile_reset) { panel->draft = ControllerProfile{}; panel->RefreshProfile(); return 0; }
                 if (LOWORD(wp) == apply) { panel->Apply(); return 0; }
                 if (LOWORD(wp) == IDCANCEL) { DestroyWindow(window); return 0; }
             }
@@ -195,7 +278,7 @@ bool ShowMovementSettings(const RuntimeSnapshot& expected) noexcept {
     }
     panel.expected = expected;
     constexpr DWORD style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_CLIPCHILDREN;
-    RECT bounds{0, 0, 560, 585}; AdjustWindowRectEx(&bounds, style, FALSE, WS_EX_CONTROLPARENT);
+    RECT bounds{0, 0, 1000, 585}; AdjustWindowRectEx(&bounds, style, FALSE, WS_EX_CONTROLPARENT);
     const auto window = CreateWindowExW(WS_EX_CONTROLPARENT, panel_class, L"WonderBane movement controls", style,
         CW_USEDEFAULT, CW_USEDEFAULT, bounds.right - bounds.left, bounds.bottom - bounds.top,
         expected.window, nullptr, klass.hInstance, &panel);
