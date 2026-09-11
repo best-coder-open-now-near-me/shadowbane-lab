@@ -32,6 +32,7 @@ MovementBoundaryTrace* trace = nullptr;
 HANDLE mapping = nullptr;
 std::uint32_t* installed_slot = nullptr;
 NativeMovementUpdate movement_update = nullptr;
+LONG64 input_sequence = 0, input_event_sequence = 0;
 volatile LONG movement_enabled = 0;
 bool movement_registered = false;
 bool hook_ready = false, hook_retired = false;
@@ -188,15 +189,15 @@ DWORD InstallTrace(const ProcessIdentity& identity, std::uint32_t* slot, Update 
     if (!ExactIdentity(identity)) { return ERROR_INVALID_DATA; }
     if (mapping) { return ERROR_ALREADY_INITIALIZED; }
     wchar_t name[160]{};
-    if (FAILED(StringCchPrintfW(name,160,L"Local\\ShadowbaneLab.Extension.MovementBoundary.%lu.%llu",
+    if (FAILED(StringCchPrintfW(name,160,L"Local\\ShadowbaneLab.Extension.MovementBoundary.v2.%lu.%llu",
         identity.process_id,identity.creation_filetime_utc))) { return ERROR_INVALID_DATA; }
     mapping = CreateFileMappingW(INVALID_HANDLE_VALUE,nullptr,PAGE_READWRITE,0,sizeof(MovementBoundaryTrace),name);
     if (!mapping) { return GetLastError(); }
     if (GetLastError() == ERROR_ALREADY_EXISTS) { CloseHandle(mapping); mapping = nullptr; return ERROR_ALREADY_EXISTS; }
     trace = static_cast<MovementBoundaryTrace*>(MapViewOfFile(mapping,FILE_MAP_WRITE,0,0,sizeof(MovementBoundaryTrace)));
     if (!trace) { const auto error=GetLastError(); CloseHandle(mapping); mapping=nullptr; return error; }
-    std::memcpy(trace->magic,"WBMVTR1",8);
-    trace->schema=1; trace->record_size=sizeof(MovementBoundaryRecord); trace->capacity=256;
+    std::memcpy(trace->magic,"WBMVTR2",8);
+    trace->schema=2; trace->record_size=sizeof(MovementBoundaryRecord); trace->capacity=256;
     trace->process_id=identity.process_id; trace->creation_filetime=identity.creation_filetime_utc;
     const auto result = InstallUpdate(slot, target);
     if (result == ERROR_SUCCESS) {
@@ -231,6 +232,45 @@ void StopMovementBoundaryTrace() noexcept {
     }
     RetireUnusedUpdate();
     // Pinned code and bounded mapping stay alive until process exit. No unload race.
+}
+bool MovementInputTraceEnabled() noexcept { return InterlockedCompareExchange(&enabled, 0, 0) != 0; }
+void PublishMovementInputTrace(const MovementInputRecord& record) noexcept {
+    if (!InterlockedCompareExchange(&enabled, 0, 0)) { return; }
+    DWORD pid = 0;
+    if (record.thread_id != GetCurrentThreadId() || !record.window
+        || GetWindowThreadProcessId(reinterpret_cast<HWND>(record.window), &pid) != record.thread_id
+        || pid != GetCurrentProcessId() || record.kind < 1 || record.kind > 3
+        || record.previous_owner > 2 || record.owner > 2
+        || (record.keys | record.suppressed_keys | record.original_keys) > 15
+        || record.gates > 4095 || record.policy > 511
+        || (record.kind == 2 ? record.reason > 10 : record.reason != UINT32_MAX)
+        || (record.kind == 3 ? (record.key_event > 63 || (record.key_event & 7) < 1 || (record.key_event & 7) > 4)
+                             : record.key_event != 0)) { return; }
+    if (!TryAcquireSRWLockExclusive(&publication_lock)) {
+        InterlockedIncrement(&trace->dropped); return;
+    }
+    if (InterlockedCompareExchange(&enabled, 0, 0) && input_sequence < MAXLONGLONG && input_event_sequence < MAXLONGLONG) {
+        const auto& previous = trace->input;
+        const bool transition = record.kind != 1 || !previous.committed_sequence
+            || previous.keys != record.keys || previous.suppressed_keys != record.suppressed_keys
+            || previous.original_keys != record.original_keys || previous.gates != record.gates
+            || previous.policy != record.policy || previous.generation != record.generation
+            || previous.owner != record.owner || previous.scene != record.scene;
+        const auto commit = [&](MovementInputRecord& target, LONG64 value) {
+            InterlockedExchange64(&target.committed_sequence, 0);
+            std::memcpy(reinterpret_cast<unsigned char*>(&target) + 8,
+                reinterpret_cast<const unsigned char*>(&record) + 8, sizeof(record) - 8);
+            MemoryBarrier(); InterlockedExchange64(&target.committed_sequence, value);
+        };
+        commit(trace->input, ++input_sequence);
+        if (transition) {
+            ++input_event_sequence;
+            commit(trace->input_events[(input_event_sequence - 1) % 256], input_event_sequence);
+            if (record.kind == 2 && record.previous_owner != 0) { commit(trace->last_owner_loss, input_event_sequence); }
+            InterlockedExchange64(&trace->input_write_sequence, input_event_sequence);
+        }
+    }
+    ReleaseSRWLockExclusive(&publication_lock);
 }
 DWORD StartNativeMovementUpdates(const ProcessIdentity& identity, NativeMovementUpdate callback) noexcept {
     const LifecycleGuard lifecycle;

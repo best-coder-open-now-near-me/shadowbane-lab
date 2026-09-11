@@ -123,6 +123,14 @@ public:
     Grant Current() const noexcept { return grant_; }
     bool Ready() const noexcept { return available_ && !pending_stop_; }
     bool CameraReady() const noexcept { return available_ && !camera_faulted_; }
+    // Passive owner-thread diagnostic only; these bits never grant authority.
+    std::uint32_t DiagnosticState() const noexcept {
+        return (keyboard_armed_ ? 1U : 0U) | (controller_armed_ ? 2U : 0U)
+            | (drag_armed_ ? 4U : 0U) | (moving_ ? 8U : 0U)
+            | (pending_stop_ ? 16U : 0U) | (faulted_ ? 32U : 0U)
+            | (available_ ? 64U : 0U) | (foreground_ ? 128U : 0U)
+            | (shutdown_ ? 256U : 0U);
+    }
     // The native adapter checks this again at each callback boundary. A retained
     // failed stop is permitted only while the policy still excludes a new writer.
     bool AuthorizesNativeStop(const Grant& grant) const noexcept {

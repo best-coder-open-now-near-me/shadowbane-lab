@@ -2,6 +2,7 @@
 #include <atomic>
 #include <cstring>
 #include <iostream>
+#include <fstream>
 #include <thread>
 
 namespace we = wonderbane::extension;
@@ -191,6 +192,41 @@ int main(int argc,char** argv) {
         && trace->creation_filetime==identity.creation_filetime_utc,"exact process lifetime publication");
     Check(we::StartMovementBoundaryTraceForTesting(identity,&slot,slot)==ERROR_ALREADY_INITIALIZED,
         "duplicate start cannot replace retained mapping");
+    if (argc > 1 && std::strcmp(argv[1], "input-diagnostics") == 0) {
+        Check(start == ERROR_SUCCESS && trace->schema == 2 && std::memcmp(trace->magic, "WBMVTR2", 8) == 0,
+            "passive input trace has distinct schema and layout");
+        HWND window = CreateWindowExW(0, L"STATIC", L"diagnostic fixture", 0, 0, 0, 1, 1, HWND_MESSAGE, nullptr, nullptr, nullptr);
+        we::MovementInputRecord event{}; event.thread_id = GetCurrentThreadId(); event.window = reinterpret_cast<std::uint32_t>(window);
+        event.keys = 1; event.gates = 255; event.policy = 193; event.generation = 2; event.owner = 2;
+        we::PublishMovementInputTrace(event);
+        event.keys = 9; event.suppressed_keys = 9; event.kind = 3; event.key_event = 44;
+        we::PublishMovementInputTrace(event);
+        Check(trace->input_write_sequence == 2 && trace->input_events[1].keys == 9
+            && trace->input_events[1].key_event == 44 && !trace->last_owner_loss.committed_sequence,
+            "second-key event survives without an ownership revocation");
+        event.previous_owner = 2; event.owner = 0; event.previous_generation = 2; event.generation = 3;
+        event.kind = 2; event.key_event = 0; event.reason = 3;
+        we::PublishMovementInputTrace(event);
+        const auto loss = trace->last_owner_loss.committed_sequence;
+        event.kind = 1; event.reason = UINT32_MAX; event.keys = 0;
+        for (int n = 0; n != 400; ++n) { event.keys = n % 2 ? 1U : 9U; we::PublishMovementInputTrace(event); }
+        Check(trace->last_owner_loss.committed_sequence == loss && trace->last_owner_loss.reason == 3
+            && trace->last_owner_loss.keys == 9 && trace->input_write_sequence > 256,
+            "retained owner loss survives idle samples and transition-ring overwrite");
+        const auto sequence = trace->input_write_sequence;
+        std::thread foreign([&] { we::PublishMovementInputTrace(event); }); foreign.join();
+        Check(trace->input_write_sequence == sequence, "foreign thread cannot publish client input diagnostics");
+        event.kind = 3; event.key_event = 255; we::PublishMovementInputTrace(event);
+        Check(trace->input_write_sequence == sequence, "invalid key diagnostic cannot publish");
+        we::StopMovementBoundaryTrace(); event.kind = 1; event.key_event = 0; we::PublishMovementInputTrace(event);
+        Check(trace->input_write_sequence == sequence && !we::MovementInputTraceEnabled(), "retirement suppresses diagnostic publication");
+        if (argc > 2) {
+            std::ofstream output(argv[2], std::ios::binary);
+            output.write(reinterpret_cast<const char*>(trace), sizeof(*trace));
+            Check(output.good(), "export actual native diagnostic layout for reader interoperability");
+        }
+        DestroyWindow(window); CloseHandle(entered); CloseHandle(release_call); return failures ? 1 : 0;
+    }
     if (fail_after_install) {
         Check(start==ERROR_ACCESS_DENIED,"propagate startup failure after slot visibility");
         Check(trace->write_sequence==0,"failed startup never publishes");

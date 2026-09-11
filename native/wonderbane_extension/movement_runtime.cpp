@@ -17,13 +17,14 @@ public:
     Controls controls{*this};
     NativeStop native{controls};
     NativeUi ui;
-    WindowsInput input{controls, {this, &QueryUi, &SafetyEvent, &OpenSettings}};
+    WindowsInput input{controls, {this, &QueryUi, &SafetyEvent, &OpenSettings, &KeyObserved}};
     ProcessIdentity process{};
     Settings settings{};
     NativeScene scene{};
     HWND window = nullptr;
     DWORD thread = 0;
     std::uint64_t revision = 1, tick = 0;
+    MovementInputRecord sampled_diagnostic{};
     decltype(&GetTickCount64) clock = &GetTickCount64;
     bool initialized = false, initializing = false, busy = false, destroyed = false, terminal = false;
     bool lifetime_started = false;
@@ -96,7 +97,28 @@ public:
     bool Camera(Vector2 radians) noexcept override {
         return !destroyed && !terminal && !interrupted && native.RotateCamera(radians);
     }
-    void Revoked(const Grant&, const Grant&, StopReason) noexcept override {}
+    static void KeyObserved(void* context, std::uint32_t event) noexcept {
+        auto& self = *static_cast<Runtime*>(context);
+        self.Diagnostic(self.controls.Current(), self.controls.Current(), UINT32_MAX, 3, event);
+    }
+    void Diagnostic(const Grant& old, const Grant& next, std::uint32_t reason, std::uint32_t kind,
+        std::uint32_t key_event = 0) noexcept {
+        if (!MovementInputTraceEnabled()) { return; }
+        auto record = sampled_diagnostic;
+        record.key_event = key_event;
+        if (kind == 3) { record.keys = input.DiagnosticPhysicalKeys(); }
+        record.tick_ms = clock(); record.thread_id = GetCurrentThreadId();
+        record.window = reinterpret_cast<std::uint32_t>(window);
+        record.previous_generation = old.generation; record.generation = next.generation;
+        record.scene = next.scene; record.previous_owner = static_cast<std::uint32_t>(old.owner);
+        record.owner = static_cast<std::uint32_t>(next.owner); record.reason = reason; record.kind = kind;
+        record.policy = controls.DiagnosticState();
+        input.DiagnosticKeys(record.suppressed_keys, record.original_keys);
+        PublishMovementInputTrace(record);
+    }
+    void Revoked(const Grant& old, const Grant& next, StopReason reason) noexcept override {
+        Diagnostic(old, next, static_cast<std::uint32_t>(reason), 2);
+    }
     void SceneRetired(std::uint64_t epoch) noexcept override { native.SceneRetired(epoch); }
     std::optional<StopReason> Interrupted() const noexcept override {
         if (interrupted) { return interrupted; }
@@ -318,7 +340,21 @@ public:
         }
         if (!sampled.native_available || !sampled.exact_foreground || sampled.ui_owns_input
             || (captured.press_origin && !sampled.pointer_in_world)) { input.Suspend(); }
+        sampled_diagnostic.interval_ms = sampled_diagnostic.sample_tick_ms && tick >= sampled_diagnostic.sample_tick_ms
+            ? tick - sampled_diagnostic.sample_tick_ms : 0;
+        sampled_diagnostic.sample_tick_ms = tick;
+        sampled_diagnostic.keys = 0;
+        for (std::size_t i = 0; i != settings.keys.size(); ++i) {
+            if (sampled.keys[settings.keys[i]]) { sampled_diagnostic.keys |= 1U << i; }
+        }
+        sampled_diagnostic.gates = (captured_ok ? 1U : 0U) | (phase ? 2U : 0U)
+            | (sampled.exact_foreground ? 4U : 0U) | (sampled.ui_owns_input ? 8U : 0U)
+            | (sampled.camera_basis_valid ? 16U : 0U) | (sampled.native_available ? 32U : 0U)
+            | (settings.enabled ? 64U : 0U) | (scene.epoch ? 128U : 0U)
+            | (sampled.controller_connected ? 256U : 0U) | (sampled.pointer_in_world ? 512U : 0U)
+            | (sampled.capture_valid ? 1024U : 0U) | (sampled.camera_blocked ? 2048U : 0U);
         controls.Tick(sampled);
+        Diagnostic(controls.Current(), controls.Current(), UINT32_MAX, 1);
         Commands(phase);
         if (phase) { native.EndUpdate(); }
         busy = false; Drain(); Publish();

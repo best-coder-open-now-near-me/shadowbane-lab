@@ -16,6 +16,7 @@ struct InputCallbacks {
     // current scene/grant here and defers nested stops until actuation returns.
     void (*safety)(void*, HWND, StopReason, bool destroying) noexcept = nullptr;
     bool (*open_settings)(void*, HWND, std::uint64_t creation) noexcept = nullptr;
+    void (*key_observed)(void*, std::uint32_t event) noexcept = nullptr;
 };
 struct CapturedInput {
     Input input{};
@@ -36,6 +37,23 @@ public:
     bool Available() const noexcept;
     bool ControllerApiAvailable() const noexcept { return platform_.controller && platform_.capabilities; }
     bool ControllerConnected() const noexcept { return controller_connected_; }
+    // Four configured movement bindings only, never arbitrary text keys.
+    std::uint32_t DiagnosticPhysicalKeys() const noexcept {
+        std::uint32_t mask = 0;
+        if (GetCurrentThreadId() != thread_) { return 0; }
+        for (std::size_t i = 0; i != settings_.keys.size(); ++i) {
+            if (platform_.key(settings_.keys[i]) & 0x8000) { mask |= 1U << i; }
+        }
+        return mask;
+    }
+    void DiagnosticKeys(std::uint32_t& suppressed, std::uint32_t& original) const noexcept {
+        suppressed = original = 0;
+        if (GetCurrentThreadId() != thread_) { return; }
+        for (std::size_t i = 0; i != settings_.keys.size(); ++i) {
+            if (suppressed_[settings_.keys[i]]) { suppressed |= 1U << i; }
+            if (original_down_[settings_.keys[i]]) { original |= 1U << i; }
+        }
+    }
 private:
     using KeyboardCall = void (__cdecl*)(std::uint32_t, std::uint32_t, std::uint32_t, std::uint32_t);
     struct Platform {

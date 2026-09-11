@@ -40,6 +40,9 @@ void Interrupt(char phase) {
 }
 }
 namespace wonderbane::extension {
+std::vector<MovementInputRecord> input_diagnostics;
+bool MovementInputTraceEnabled() noexcept { return true; }
+void PublishMovementInputTrace(const MovementInputRecord& value) noexcept { input_diagnostics.push_back(value); }
 DWORD StartNativeMovementUpdates(const ProcessIdentity&, NativeMovementUpdate) noexcept { return startup_result; }
 void StopNativeMovementUpdates() noexcept { ++retired_updates; }
 namespace movement {
@@ -191,6 +194,43 @@ int main(int argc, char** argv) {
         auto old_retry = make(wm::wire::Verb::acquire, original, 1); run(old_retry);
         Check(old_retry->receipt.outcome == static_cast<unsigned>(wm::Result::stale), "evicted acquisition cannot mint authority");
         rt.input.Retire(); return failures ? 1 : 0;
+    }
+    if (mode == "input-diagnostics") {
+        auto& events = wonderbane::extension::input_diagnostics;
+        events.clear();
+        const auto key = [&](std::uint32_t value, bool down) {
+            physical_keys[value] = down ? static_cast<SHORT>(0x8000) : 0;
+            reinterpret_cast<void(__cdecl*)(std::uint32_t, std::uint32_t, std::uint32_t, std::uint32_t)>(slot)(value, 0, down, 0);
+        };
+        key('W', true); step();
+        const auto manual = rt.controls.Current();
+        key('D', true);
+        Check(!events.empty() && events.back().kind == 3 && events.back().key_event == (4U | 8U | 32U)
+            && events.back().keys == 9 && events.back().suppressed_keys == 9 && events.back().original_keys == 0
+            && events.back().generation == manual.generation,
+            "native second-key decision records W+D suppression without requiring revocation");
+        step(); Check(rt.controls.Current() == manual && rt.controls.Ready(), "diagonal remains one movement owner");
+        ui_blocked = true; step();
+        auto loss = std::find_if(events.rbegin(), events.rend(), [](const auto& e) { return e.kind == 2 && e.previous_owner == 2 && e.owner == 0; });
+        Check(loss != events.rend() && loss->reason == static_cast<unsigned>(StopReason::ui)
+            && loss->keys == 9 && (loss->gates & 8) && loss->sample_tick_ms != 0,
+            "owner-loss event captures exact UI reason and sampled diagonal input");
+        // A configured key forwarded for text input is distinguished from capture.
+        key('W', false); key('D', false); key('D', true);
+        Check(events.back().kind == 3 && !(events.back().key_event & 32) && (events.back().original_keys & 8),
+            "text-owned configured key records original-call forwarding decision");
+        key('D', false); ui_blocked = false; step();
+        key('W', true); key('D', true); step();
+        clock_tick += 300; step();
+        loss = std::find_if(events.rbegin(), events.rend(), [](const auto& e) { return e.kind == 2 && e.previous_owner == 2 && e.owner == 0; });
+        Check(loss != events.rend() && loss->reason == static_cast<unsigned>(StopReason::stalled)
+            && loss->interval_ms > 250 && loss->keys == 9 && !(loss->gates & 8),
+            "native update stall is distinguished from UI inhibition without host-time inference");
+        key('W', false); key('D', false); step();
+        key('W', true); step();
+        Check(rt.controls.Ready() && rt.controls.Current().owner == Owner::manual,
+            "diagnostics do not alter neutral re-arm or fresh movement");
+        key('W', false); step(); rt.input.Retire(); return failures ? 1 : 0;
     }
     if (mode == "keyboard-reversal") {
         // Start backward from idle, then reverse without mouse initialization.
