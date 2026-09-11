@@ -6,7 +6,14 @@ acceptance.
 
 ## Active runtime hardening and rolling feature integration (September 5)
 
-September 11 movement follow-up: installed diagnostic package 1.7.4 identified
+Current September 11 candidate: native 1.7.7 / wheel 0.2.7, built from `5d21156`,
+passed package checks, CI and independent integration source review. It is installed;
+the owner accepted the focused keyboard check, with four observed parent-only
+transitions preserving manual control. Physical controller acceptance is pending
+guest gamepad detection, not further slot/focus retries. See
+[the 1.7.7 handoff](handoffs/combined-candidate-1.7.7.md). Main remains unchanged.
+
+Earlier September 11 movement follow-up: installed diagnostic package 1.7.4 identified
 manual latching after native update gaps. Repair candidate 1.7.5 / wheel 0.2.5
 is built from `29ef530`, independently source-reviewed and locally package-verified;
 CI and connected acceptance status are tracked in

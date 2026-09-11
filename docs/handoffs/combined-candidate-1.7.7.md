@@ -95,7 +95,20 @@ controller setting remains disabled. Physical controller acceptance is not claim
 
 ## Controller setup status
 
-The connected controller is visible to the host but not yet to guest XInput.
-A device-specific VM attachment rule is configured. Next step: physical reconnect,
-then verify guest detection before enabling controller controls. No hardware
-identifiers are included in this note. Controller acceptance remains pending.
+Controller controls are now enabled. Owner tried all four slots with the game
+focused; none produced movement. Guest Windows sees a healthy Xbox composite USB
+device, with both controller and GIP kernel drivers running, but no gamepad child
+interface was found. The independent guest XInput probe and native game diagnostics
+both report no connected controller. Further slot/focus retries are unnecessary.
+
+A controlled release/reconnect of only the controller did not restore detection.
+The first reattach encountered a pending USB request; a subsequent reattach
+succeeded. The brief host probe also reported no controller, but USB ownership was
+still transitioning, so it does not establish a host/controller fault. No game
+restart or source change was made. Starting the accessory service was denied by
+guest permissions; it was not started and is not established as the cause.
+
+Next: establish controller power/connection state and isolate USB initialization
+before requesting physical movement acceptance. No collector is running. No
+hardware identifiers are included in this note. Controller acceptance remains
+pending; the successful keyboard boundary check above remains valid.
