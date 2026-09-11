@@ -46,3 +46,10 @@ Next: verify final CI actual execution, retain complete supported subset candida
 and continue character-forward door implementation. A future profile live check
 should exercise edit/save/reopen, a changed binding plus shoulder context, cancel,
 and release/focus recovery; do not repeat broad accepted navigation or chat runs.
+
+Final CI34588685107 passed all seven jobs. Retained root log
+artifacts/combined-1.8.0-ci.log confirms controller-profile,controller-cancel-failure
+and controller-cancel-nested each executed/passed in both native profiles. This
+supersedes the pending CI status above. Supported remapping package is verified;
+no VM installation or live remapping acceptance is implied. Main mission remains
+the separately unfinished character-forward door interaction.

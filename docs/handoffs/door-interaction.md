@@ -57,3 +57,22 @@ cannot act on replacement objects. Preserve accepted controller/chat, parent-fra
 movement and ordinary mouse selection. Use developer-controlled fixtures and native
 adapter tests before a targeted connected door check. No broad new live run is
 currently requested. Door interaction is not yet delivered or installed.
+
+## Bounded live world-table observation
+
+Receipt-lifetime/hash-verified read-only observation found current selected door
+absent by pointer from the proposed top-level world table: capacity512,140 occupied
+slots,zero ArcDoorObject entries. One entry matched the selected door's eight-byte
+native identity; its vtableRVA0x1177c0c statically resolves ArcAssetStructureObject
+with complete-object offset0. All examined entries were readable, table bytes and
+roots plus selected identity/vtable were stable in that observation. It was not
+the door's geometry backing pointer. This supports a structure/child-door model;
+it does not make the structure pointer interchangeable with the selected door.
+
+Owner static child lookupRVA0xfa690 reads structure+0x748 vector and retains the
+matching door. A subsequent bounded child-vector probe declined because current
+selection was no longer a door; no live child membership conclusion is claimed.
+No extra input/selection/writes were performed. Next: native owner verifies the
+structure-child enumeration and actor-forward frame mapping, then implements the
+admitted resolver/selection/interaction path. Current live test remains unnecessary
+until a specific missing fact prevents implementation.
