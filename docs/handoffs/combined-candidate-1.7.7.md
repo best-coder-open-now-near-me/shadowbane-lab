@@ -54,11 +54,12 @@ Reviewer inspected proof lifetime, stop/restart ordering, fresh frame conversion
 stale command isolation, unowned input and failure cases. Source inspection only;
 execution results are root/owner evidence. Observer proof and runtime composition
 are separately tested; runtime fixture supplies the proof callback.
-CI 34573377979 is pending its diagnostics-only native job; other six jobs passed.
+CI 34573377979 passed all seven jobs. Retained log artifacts/combined-1.7.7-ci.log
+confirms required parent-transition regressions executed in both native profiles.
 
 ## Next step
 
-VM remains on 1.7.6. Complete CI before installation; after controlled game/panel
+VM remains on 1.7.6. CI is complete; after controlled game/panel
 close, preserve current settings, prepare and verify this package, launch with
 WONDERBANE_MOVEMENT_TRACE=1, then retire the obsolete client under standing owner
 authorization. One focused check: ordinary movement across the previously observed
