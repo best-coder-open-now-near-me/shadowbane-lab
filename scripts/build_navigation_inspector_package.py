@@ -105,6 +105,7 @@ def main() -> int:
     environment = dict(os.environ)
     environment.pop("PYTHONPATH", None)
     environment.pop("WONDERBANE_MOVEMENT_RUNTIME_TEST", None)
+    environment.pop("WONDERBANE_MOVEMENT_BOUNDARY_TEST", None)
     environment.pop("WONDERBANE_TEST_GDI_GL", None)
     environment["PYTHONUTF8"] = "1"
     steps = []
@@ -279,6 +280,8 @@ def main() -> int:
             "wonderbane_extension_movement_runtime_keyboard",
             "wonderbane_extension_movement_runtime_keyboard-cold-start",
             "wonderbane_extension_movement_runtime_keyboard-reversal",
+            "wonderbane_extension_movement_runtime_input-diagnostics",
+            "wonderbane_extension_movement_boundary_input_diagnostics",
             "wonderbane_extension_movement_runtime_controller",
             "wonderbane_extension_movement_runtime_drag",
             "wonderbane_extension_movement_runtime_focus",
@@ -312,6 +315,9 @@ def main() -> int:
             diagnostic=True, exit_code=stretch_exit,
         )
         diagnostic_failures.extend({"profile": profile, **failure} for failure in stretch_failures)
+        environment["WONDERBANE_MOVEMENT_BOUNDARY_TEST"] = str(
+            build / "Release/wonderbane_extension_movement_boundary_test.exe"
+        )
         ipc_results = logs / f"{profile}-movement-ipc.xml"
         environment["WONDERBANE_MOVEMENT_RUNTIME_TEST"] = str(
             build / "Release/wonderbane_extension_movement_runtime_test.exe"
@@ -321,12 +327,15 @@ def main() -> int:
                 f"{profile}-movement-ipc",
                 [sys.executable, "-m", "pytest", "tests/test_native_movement_session.py",
                  "tests/test_manager_movement.py", "tests/test_native_movement_operation.py",
+                 "tests/test_movement_boundary.py",
                  "-q", f"--junitxml={ipc_results}"],
             )
         finally:
             environment.pop("WONDERBANE_MOVEMENT_RUNTIME_TEST", None)
+            environment.pop("WONDERBANE_MOVEMENT_BOUNDARY_TEST", None)
         ipc_cases = ET.parse(ipc_results).getroot().findall(".//testcase")
         required_ipc = {
+            "test_native_input_publisher_reader_interoperability",
             "test_real_producer_mutex_native_owner_completion_and_readonly_snapshot",
             "test_real_hook_startup_failure_is_readable_without_window_or_lease",
             "test_operation_context_uses_real_native_interprocess_movement",
