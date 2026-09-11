@@ -10,6 +10,11 @@ namespace wonderbane::extension::movement {
 // This is collection lifetime exclusion, never movement/operation authority.
 class DoorCollectionAdmission {
 public:
+    DoorCollectionAdmission() = default;
+    DoorCollectionAdmission(const DoorCollectionAdmission&) = delete;
+    DoorCollectionAdmission& operator=(const DoorCollectionAdmission&) = delete;
+    DoorCollectionAdmission(DoorCollectionAdmission&&) = delete;
+    DoorCollectionAdmission& operator=(DoorCollectionAdmission&&) = delete;
     struct ReadLease {
         DoorCollectionAdmission* admission = nullptr;
         std::uint64_t generation = 0;
@@ -44,6 +49,8 @@ public:
         --writers_;
         ReleaseSRWLockExclusive(&lock_);
     }
+    // Snapshot only: a writer can enter immediately after this returns. Never
+    // use this as a lease authorizing native selection or an interaction.
     bool Current(std::uint64_t generation) noexcept {
         AcquireSRWLockShared(&lock_);
         const bool current = !terminal_ && !writers_ && generation && generation == generation_;
