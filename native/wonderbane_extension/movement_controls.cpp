@@ -230,16 +230,17 @@ void Controls::Tick(const Input& input) noexcept {
     if (shutdown_pending_) { Shutdown(); return; }
     ObserveScene(input.scene);
     if (shutdown_pending_) { Shutdown(); return; }
+    const bool clock_regressed = has_tick_ && input.tick_ms < last_tick_;
     const bool discontinuity = has_tick_ &&
-        (input.tick_ms < last_tick_ || input.tick_ms - last_tick_ > 250);
+        (clock_regressed || input.tick_ms - last_tick_ > 250);
     const float seconds = !has_tick_ || discontinuity ? 0.0F
         : static_cast<float>(input.tick_ms - last_tick_) / 1000.0F;
     last_tick_ = input.tick_ms;
     has_tick_ = true;
     available_ = !faulted_ && input.native_available && input.scene != 0;
-    if (!available_ || !input.exact_foreground || input.ui_owns_input || discontinuity) {
+    if (!available_ || !input.exact_foreground || input.ui_owns_input || clock_regressed) {
         Inhibit(!input.native_available
-            ? StopReason::binding_failure : discontinuity ? StopReason::stalled
+            ? StopReason::binding_failure : clock_regressed ? StopReason::stalled
             : !input.exact_foreground ? StopReason::focus : StopReason::ui);
         if (input.native_available) { (void)RetryStop(); }
         return;
@@ -247,6 +248,17 @@ void Controls::Tick(const Input& input) noexcept {
     foreground_ = true;
     if (!ContinueInput()) { return; }
     if (!RetryStop()) { return; }
+    if (discontinuity) {
+        if (grant_.owner == Owner::automation) {
+            // Delayed automation retains no authority to resume an old route.
+            Inhibit(StopReason::stalled); return;
+        }
+        // A delayed owning update is not a focus/UI/lifetime transition. Retire
+        // its stale manual destination, then use this fresh admitted sample.
+        // Keep existing arm state (including any prior safety disarm), never
+        // force held input to re-arm. Camera elapsed time remains zero above.
+        if (!StopActive(StopReason::stalled) || !ContinueInput()) { return; }
+    }
 
     if (!settings_.enabled) {
         keyboard_armed_ = controller_armed_ = drag_armed_ = false;

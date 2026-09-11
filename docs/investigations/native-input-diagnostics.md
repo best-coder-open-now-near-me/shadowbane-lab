@@ -69,7 +69,7 @@ is armed or admitted, and later clear gates cannot explain an earlier loss.
 ## Validation and limits
 
 Native tests cover W-to-W+D without a revocation, UI forwarding versus suppression,
-UI loss versus an injected native-update stall, retained loss after event-ring
+UI loss versus a clock regression, admitted manual update gaps, retained loss after event-ring
 overwrite, malformed diagnostic rejection, foreign-thread rejection and retired
 publication. Runtime and native boundary executables both expose `input-diagnostics`.
 The Python round-trip test reads the actual native producer layout; set

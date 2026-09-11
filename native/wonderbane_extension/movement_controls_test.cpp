@@ -71,6 +71,63 @@ struct Fixture {
         return g;
     }
 };
+void ManualUpdateGaps() {
+    for (const auto gap : {251ULL, 266ULL, 282ULL, 1000ULL}) {
+        Fixture f; f.input.keys['W'] = true; f.Step();
+        const auto manual = f.controls.Current();
+        const auto directions = f.actuator.Count('d'), stops = f.actuator.Count('s');
+        f.input.keys['D'] = true; f.Step(gap);
+        Check(f.controls.Current() == manual && f.controls.Ready()
+            && f.actuator.Count('s') == stops + 1 && f.actuator.Count('d') == directions + 1
+            && f.actuator.events.back().start,
+            "delayed diagonal stops stale destination then restarts fresh input without retiring manual owner");
+        f.input.keys['D'] = false; f.input.keys['S'] = true; f.Step(gap);
+        Check(f.controls.Current() == manual && f.controls.Ready() && f.actuator.Count('d') == directions + 1,
+            "opposing keys after delay stop without disarming");
+        f.input.keys['W'] = false; f.Step();
+        Check(f.actuator.Count('d') == directions + 2 && f.actuator.events.back().vector.y < 0,
+            "release one opposite resumes remaining key without all-up requirement");
+        f.input.keys['S'] = false; f.Step(gap);
+        Check(f.controls.Current() == manual && f.controls.Ready(), "released keys stay stopped across update gap");
+    }
+    { Fixture f; f.input.keys['W'] = f.input.keys['S'] = true; f.Step(266);
+      Check(f.controls.Current().owner == Owner::none, "opposing keys from idle do not acquire movement");
+      f.input.keys['S'] = false; f.Step();
+      Check(f.controls.Current().owner == Owner::manual, "remaining key after idle opposite pair starts normally"); }
+    for (const bool ui : {false, true}) {
+        Fixture f; f.input.keys['W'] = true; f.Step();
+        if (ui) { f.input.ui_owns_input = true; } else { f.input.exact_foreground = false; }
+        f.Step(266); const auto count = f.actuator.Count('d');
+        f.input.ui_owns_input = false; f.input.exact_foreground = true; f.Step(282);
+        Check(f.controls.Current().owner == Owner::none && f.actuator.Count('d') == count,
+            "update delay never bypasses UI/focus neutral re-arm");
+        f.input.keys['W'] = false; f.Step(); f.input.keys['W'] = true; f.Step();
+        Check(f.actuator.Count('d') == count + 1, "real neutral restores input after external inhibition");
+    }
+    { Fixture f; const auto route = f.Automate(); f.Step(266);
+      Check(f.controls.Current().owner == Owner::none && f.controls.Stop(route) == Result::stale
+          && f.controls.AutomationDestination(route, {1, 0, 1}) == Result::stale,
+          "delayed automation grant is retired and cannot resume or cancel new movement"); }
+    { Fixture f; f.input.keys['W'] = true; f.Step(); ++f.input.scene; f.Step(266);
+      const auto count = f.actuator.Count('d'); f.Step(282);
+      Check(f.controls.Current().owner == Owner::none && f.actuator.Count('d') == count,
+          "full lifetime change still requires neutral even across repeated delays"); }
+    { Fixture f; f.input.keys['W'] = true; f.Step(); f.input.tick_ms = 0; f.controls.Tick(f.input);
+      const auto count = f.actuator.Count('d'); f.Step(266);
+      Check(f.controls.Current().owner == Owner::none && f.actuator.Count('d') == count,
+          "clock regression remains a hard re-arm boundary"); }
+    { Fixture f; f.input.keys['W'] = true; f.Step(); f.actuator.interrupt_at = 's';
+      const auto count = f.actuator.Count('d'); f.Step(266);
+      Check(f.controls.Current().owner == Owner::none && f.actuator.Count('d') == count,
+          "nested interruption during gap stop prevents fresh manual actuation"); }
+    { Fixture f; f.input.right_stick = {1, 0}; f.Step();
+      const auto count = f.actuator.Count('c'); f.Step(1000);
+      Check(f.actuator.Count('c') == count, "manual gap has no accumulated camera delta"); }
+    { Fixture f; f.input.keys['W'] = true; f.Step(); f.actuator.stop_ok = false;
+      const auto count = f.actuator.Count('d'); f.Step(266);
+      Check(!f.controls.Ready() && f.actuator.Count('d') == count,
+          "failed stale-destination stop cannot be bypassed by fresh input"); }
+}
 void KeyboardFirstStart() {
     for (const auto interval : {5ULL, 16ULL, 33ULL, 100ULL}) {
         Fixture f;
@@ -157,7 +214,7 @@ void Gates() {
     f.input.ui_owns_input = false; f.Step();
     Check(f.actuator.Count('d') == count + 1, "text exit does not resume held key");
     f.input.keys[0x57] = false; f.Step(); f.input.keys[0x57] = true; f.Step(251);
-    Check(f.actuator.Count('d') == count + 1, "stall requires neutral input");
+    Check(f.actuator.Count('d') == count + 2, "fresh admitted manual input survives owning-update delay");
     f.settings.enabled = false; (void)f.controls.Configure(f.settings); f.Step();
     Check(!f.controls.ConsumesKey(0x57) && !f.controls.ConsumesDrag(), "disabled preserves native input");
     Fixture other;
@@ -359,6 +416,6 @@ void FrameRatesAndSettings() {
 }
 }
 int main() {
-    KeyboardFirstStart(); Interpretation(); Ownership(); CameraFailure(); Gates(); Devices(); Drag(); BufferedInput(); FailureAndScene(); NativeIntentTakeover(); NestedSafety(); EmergencyStops(); DisabledAutomation(); FrameRatesAndSettings();
+    ManualUpdateGaps(); KeyboardFirstStart(); Interpretation(); Ownership(); CameraFailure(); Gates(); Devices(); Drag(); BufferedInput(); FailureAndScene(); NativeIntentTakeover(); NestedSafety(); EmergencyStops(); DisabledAutomation(); FrameRatesAndSettings();
     return failures ? 1 : 0;
 }

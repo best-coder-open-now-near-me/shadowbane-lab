@@ -15,6 +15,7 @@ std::array<SHORT, 256> physical_keys{};
 POINT pointer{0, 0}; XINPUT_GAMEPAD gamepad{};
 std::uint64_t clock_tick = 0;
 char interrupt_phase = 0;
+std::vector<char> native_order;
 int retired_updates = 0;
 DWORD startup_result = ERROR_SUCCESS;
 HWND WINAPI Focus() { return focused; }
@@ -33,6 +34,7 @@ bool Ui(void*, POINT, wm::NativeUiState& out) noexcept {
     out.available = true; out.keyboard_owned = ui_blocked; out.pointer_owned = ui_blocked; return true;
 }
 void Interrupt(char phase) {
+    native_order.push_back(phase);
     if (phase == interrupt_phase) {
         interrupt_phase = 0;
         SendMessageW(bound_window, WM_KILLFOCUS, 0, 0);
@@ -67,7 +69,7 @@ struct WindowsInputTestAccess {
 }
 int main(int argc, char** argv) {
     const std::string mode = argc > 1 ? argv[1] : "keyboard";
-    Fixture f(mode == "keyboard-cold-start" || mode == "keyboard-reversal"); auto& rt = wm::runtime;
+    Fixture f(mode == "keyboard-cold-start" || mode == "keyboard-reversal" || mode == "manual-update-gap"); auto& rt = wm::runtime;
     if (mode == "startup-hook-failure" || mode == "startup-hook-failure-ipc") {
         FILETIME created{}, exited{}, kernel{}, user{};
         GetProcessTimes(GetCurrentProcess(), &created, &exited, &kernel, &user);
@@ -221,16 +223,56 @@ int main(int argc, char** argv) {
             "text-owned configured key records original-call forwarding decision");
         key('D', false); ui_blocked = false; step();
         key('W', true); key('D', true); step();
+        const auto held = rt.controls.Current();
         clock_tick += 300; step();
+        Check(rt.controls.Current() == held && rt.controls.Ready() && events.back().interval_ms > 250
+            && events.back().keys == 9 && events.back().kind == 1,
+            "diagnostics expose manual update gap without incorrectly recording owner loss");
+        clock_tick = 0; step();
         loss = std::find_if(events.rbegin(), events.rend(), [](const auto& e) { return e.kind == 2 && e.previous_owner == 2 && e.owner == 0; });
         Check(loss != events.rend() && loss->reason == static_cast<unsigned>(StopReason::stalled)
-            && loss->interval_ms > 250 && loss->keys == 9 && !(loss->gates & 8),
-            "native update stall is distinguished from UI inhibition without host-time inference");
+            && loss->keys == 9 && !(loss->gates & 8),
+            "clock regression remains a distinct hard inhibition event");
         key('W', false); key('D', false); step();
         key('W', true); step();
         Check(rt.controls.Ready() && rt.controls.Current().owner == Owner::manual,
             "diagnostics do not alter neutral re-arm or fresh movement");
         key('W', false); step(); rt.input.Retire(); return failures ? 1 : 0;
+    }
+    if (mode == "manual-update-gap") {
+        for (const auto pair : {std::pair{'W', 'S'}, std::pair{'A', 'D'}}) {
+            physical_keys[pair.first] = static_cast<SHORT>(0x8000); step();
+            const auto owner = rt.controls.Current();
+            const auto moves = f.moves;
+            native_order.clear(); clock_tick += 266; step();
+            Check(rt.controls.Current() == owner && rt.controls.Ready() && f.moves == moves + 1
+                && native_order == std::vector<char>{'s', 'd'},
+                "delayed held key completes native stop before fresh native START");
+            physical_keys[pair.second] = static_cast<SHORT>(0x8000);
+            native_order.clear(); clock_tick += 282; step();
+            Check(rt.controls.Current() == owner && native_order == std::vector<char>{'s'}
+                && Get<std::uint32_t>(f.state.data(), 0x10) == 5,
+                "delayed opposing pair explicitly stops native movement without disarming");
+            physical_keys[pair.first] = 0; native_order.clear(); step();
+            Check(rt.controls.Current() == owner && native_order == std::vector<char>{'d'}
+                && Get<std::uint32_t>(f.state.data(), 0x10) == 7,
+                "release one opposite immediately restarts remaining key through native path");
+            physical_keys.fill(0); native_order.clear(); clock_tick += 266; step();
+            Check(native_order == std::vector<char>{'s'} && f.packet.references == 0,
+                "fresh release after gap only stops with no message reference retained");
+        }
+        physical_keys['W'] = static_cast<SHORT>(0x8000); step();
+        gamepad.sThumbRX = 32767; const auto cameras = f.camera_calls;
+        clock_tick += 1000; step();
+        Check(f.camera_calls == cameras, "gap never accumulates native camera rotation");
+        gamepad.sThumbRX = 0;
+        const auto moves = f.moves; interrupt_phase = 's';
+        clock_tick += 266; step();
+        Check(f.moves == moves && rt.controls.Current().owner == Owner::none,
+            "nested focus loss during stale stop prevents fresh actuation");
+        clock_tick += 282; step();
+        Check(f.moves == moves, "held input cannot re-arm after nested interruption and another gap");
+        physical_keys.fill(0); step(); rt.input.Retire(); return failures ? 1 : 0;
     }
     if (mode == "keyboard-reversal") {
         // Start backward from idle, then reverse without mouse initialization.
