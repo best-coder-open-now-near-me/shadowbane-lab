@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "shadowbane-lab"
-version = "0.2.4"
+version = "0.2.5"
 description = "Deterministic simulation and bot-policy tooling for Shadowbane"
 readme = "README.md"
 requires-python = ">=3.11"
