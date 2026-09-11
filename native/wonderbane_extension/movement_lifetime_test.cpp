@@ -209,7 +209,58 @@ int main(int argc, char** argv) {
         std::thread foreign([&] { wm::NativeScene other{}; foreign_result = f->Observe(other); }); foreign.join();
         Check(!foreign_result && wm::NativeMovementLifetimeCurrent(scene), "foreign thread cannot replace watch");
         const auto callback = *f->finalizer_slot;
-        if (mode == "actuator" || mode == "actuator-foreign" || mode == "actuator-foreign-free") {
+        if (mode == "established-churn") {
+            // Finalization of another instance sharing our vtable is not
+            // finalization of this watched actor/reference interface.
+            expected_ref = f->next.data() + 0xe78;
+            expected_free = reinterpret_cast<void*>(0x99990000);
+            for (unsigned i = 0; i != 1000; ++i) {
+                Check(CallRef(callback, expected_ref), "unrelated finalizer call-through");
+                reinterpret_cast<wm::Free>(f->free_slot)(expected_free);
+                Check(f->Observe(scene) && scene.epoch == first.epoch,
+                    "unrelated destruction traffic cannot advance established scene");
+            }
+            hold_free = true;
+            std::thread unrelated([f] { reinterpret_cast<wm::Free>(f->free_slot)(expected_free); });
+            Check(WaitForSingleObject(entered, 5000) == WAIT_OBJECT_0, "unrelated free held in original");
+            Check(f->Observe(scene) && scene.epoch == first.epoch,
+                "established watch bypasses new-watch fence during unrelated held callback");
+            SetEvent(release_call); unrelated.join(); hold_free = false;
+            // Moving/reallocating the pose wrapper does not change the parent.
+            auto alternate_pose = f->pose;
+            f->pose_pointer = reinterpret_cast<std::uintptr_t>(alternate_pose.data());
+            Check(f->Observe(scene) && scene.epoch == first.epoch,
+                "pose storage changes with identical parent preserve scene identity");
+        } else if (mode == "identity-fields") {
+            const auto changed = [&](const char* message) {
+                const auto previous = scene;
+                Check(f->Observe(scene) && scene.epoch != previous.epoch
+                    && !wm::NativeMovementLifetimeCurrent(previous), message);
+            };
+            f->Put(reinterpret_cast<std::uintptr_t>(f->actor.data()) + 0x18, std::uint32_t{17});
+            changed("first identity word independently retires old epoch");
+            f->Put(reinterpret_cast<std::uintptr_t>(f->actor.data()) + 0x1c, std::uint32_t{31});
+            changed("second identity word independently retires old epoch");
+            f->Put(reinterpret_cast<std::uintptr_t>(f->pose.data()) + 8,
+                reinterpret_cast<std::uintptr_t>(f->parent.data()));
+            changed("parent-only replacement retires epoch while actor remains identical");
+            f->Put(wm::state.base + 0x1389028, std::uintptr_t{0x22340000});
+            changed("world-only replacement retires epoch while actor remains identical");
+            f->SetActor(f->next.data()); changed("actor replacement retires epoch");
+            auto alternate_window = f->window;
+            f->Put(wm::state.base + 0x16a7bfc, reinterpret_cast<std::uintptr_t>(alternate_window.data()));
+            const auto previous = scene;
+            Check(wm::ObserveNativeMovementLifetime(alternate_window.data(), scene)
+                && scene.epoch != previous.epoch && !wm::NativeMovementLifetimeCurrent(previous),
+                "native-window replacement retires epoch on the same owning HWND");
+        } else if (mode == "capture-gap") {
+            f->pose_pointer = 0;
+            Check(!f->Observe(scene) && !scene.epoch && !wm::NativeMovementLifetimeCurrent(first),
+                "unreadable parent chain retires epoch even with identical actor and world");
+            f->pose_pointer = reinterpret_cast<std::uintptr_t>(f->pose.data());
+            Check(f->Observe(scene) && scene.epoch != first.epoch,
+                "restored identical tuple cannot revive pre-gap authority");
+        } else if (mode == "actuator" || mode == "actuator-foreign" || mode == "actuator-foreign-free") {
             QuietActuator actuator; wm::Controls controls(actuator); wm::NativeStop native(controls);
             wm::NativeStopTestAccess::Bind(native);
             wm::Input input{}; input.scene = scene.epoch; controls.Tick(input);

@@ -993,7 +993,7 @@ if(BUILD_TESTING)
   target_compile_options(wonderbane_extension_movement_lifetime_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
   target_link_libraries(wonderbane_extension_movement_lifetime_test PRIVATE user32)
   set_property(TARGET wonderbane_extension_movement_lifetime_test PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
-  foreach(mode normal held held-free rollback rollback-batch foreign foreign-free actuator actuator-foreign actuator-foreign-free unsupported unsupported-reference
+  foreach(mode normal established-churn identity-fields capture-gap held held-free rollback rollback-batch foreign foreign-free actuator actuator-foreign actuator-foreign-free unsupported unsupported-reference
       arm-first-ref arm-first-free arm-replacement-ref arm-replacement-free
       arm-first-ref-publish arm-first-free-publish arm-replacement-ref-publish arm-replacement-free-publish
       arm-first-held-ref arm-first-held-free arm-replacement-held-ref arm-replacement-held-free
