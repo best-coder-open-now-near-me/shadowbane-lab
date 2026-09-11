@@ -149,3 +149,10 @@ owner clarification so its configured native action can be identified. Existing
 movement owner received only sanitized source-relative observations, no private
 object addresses or captures. Next: verify the action dispatch and object-picking
 path, retaining exact-lifetime ownership, before implementing controller Interact.
+
+Door key clarification: owner used F. Read-only installed character Config search
+finds five matching saved rows `KEY= "F" FALSE FALSE FALSE 10 0 0 ""`; top-level
+ArcanePref has no matching hotkey table. This ties the observed selected-door
+interaction to configured action10, parameters0/0 and no argument. It does not
+establish the dispatch ABI or authorize keyboard synthesis. Existing movement
+owner received the sanitized mapping and will verify action10 plus object picking.
