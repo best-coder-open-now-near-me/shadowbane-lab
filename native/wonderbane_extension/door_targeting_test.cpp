@@ -27,6 +27,11 @@ int main() {
     Check(Chosen(stable)==11,"near-equivalent previous target remains stable");
     DoorRanking blocked({}, {0,-1}, {1,11});blocked.Consider(Door(11,1,-2,false));blocked.Consider(Door(10,-1,-2));
     Check(Chosen(blocked)==10,"previous target cannot survive new obstruction");
+    DoorRanking siblings({}, {0,-1});
+    auto first=Door(12,0,-3); first.identity={1,12,0,1};
+    auto second=Door(12,0,-2); second.identity={1,12,0,2};
+    siblings.Consider(first); siblings.Consider(second);
+    Check(siblings.Choice() && siblings.Choice()->door.identity==second.identity,"doors sharing a structure retain distinct identities");
     DoorRanking invalid({}, {});invalid.Consider(Door(1,0,-1));Check(!invalid.Choice(),"invalid facing fails closed");
     DoorRanking malformed({}, {0,-1});auto bad=Door(1,0,-1);bad.center.x=std::numeric_limits<float>::quiet_NaN();
     malformed.Consider(bad);bad=Door(2,0,-1);bad.eligible=false;malformed.Consider(bad);
