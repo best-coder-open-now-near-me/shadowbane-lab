@@ -73,3 +73,20 @@ retest. Physical disconnect/reconnect recovery remains a separate unconfirmed it
 
 Next: controlled client close/install, targeted live chat acceptance, then complete
 remappable actions with verified native adapters on the existing movement branch.
+
+## Verified VM installation
+
+After owner confirmed game/panel closed, installed verified1.7.8 and wheel0.2.8 at
+`S:/ShadowbaneLab-Guided/combined-acceptance-1.7.8-f0c92a36`, preserving1.7.7 Config.
+Launched PID5948, creation FILETIME134335900068691076, HWND394300. Loaded DLL SHA256
+matches the full artifact above; prepared EXE remains
+`bb63469eb35917e6b3f58be75d29f94855c9868024271222465b4db62f0e3a87`.
+Schema3 trace channel verified enabled before login; zero records at that point.
+Movement status not yet consistently published before in-world initialization;
+verify after login. No collector currently running.
+
+Removed only stopped superseded1.7.7 client tree after exact resolved-path,
+reparse-point, process-use and replacement/receipt checks under standing owner
+cleanup authorization. Preserved current settings, pristine baseline and private
+receipts. No other client or main branch changed. Next: owner login, then bounded
+controller/chat trace and focused acceptance described above.
