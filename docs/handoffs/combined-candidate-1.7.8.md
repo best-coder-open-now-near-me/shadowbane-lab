@@ -107,3 +107,26 @@ function. Collector finished; none running. Next active delivery is the separate
 remappable supported-action checkpoint, followed by verified targeting/hotbar
 adapters. Physical controller disconnect/reconnect remains unconfirmed; do not
 repeat accepted keyboard/navigation/chat runs without a relevant new change.
+
+## Door interaction is the next main gameplay mission
+
+Owner prioritizes approach -> identify/select door -> invoke native interaction ->
+open -> walk through, before broader combat controls. Owner reports ordinary mouse
+selection and an interact-selected hotkey but no apparent door-targeting shortcut.
+This is a live question, not proof that no native targeting path exists.
+
+Existing character-specific selected-target readers cannot establish a door layout.
+Root prepared a bounded, receipt-lifetime/hash-guarded read-only selection-root
+observation for installed1.7.8; do not invoke client code or write its selection.
+The probe observes only selected pointer/vtable changes, not interaction call flow.
+Owner positioning near a closed unselected door is pending; no door capture started.
+Native movement owner is investigating actual object picking/selection and native
+interact dispatch, distinct from the terrain-only movement pick. Preserve range,
+locks, permissions and obstructed-target behavior. Semantic remappable Interact
+is the intended delivery, not a guessed key macro or unwired action choice.
+
+Remapping source b727b0f is integrated and its preliminary package built at private
+combined-packages/4153e9bd, but review P2 mandatory profile-IPC test presence remains
+open. Do not install/certify that preliminary package. Existing owner must fix the
+mandatory gate and add targeted failed/nested cancel coverage before exact rebuild.
+Running1.7.8 remains the accepted movement/chat baseline. Main is unchanged.
