@@ -64,7 +64,7 @@ struct WindowsInputTestAccess {
 }
 int main(int argc, char** argv) {
     const std::string mode = argc > 1 ? argv[1] : "keyboard";
-    Fixture f(mode == "keyboard-cold-start"); auto& rt = wm::runtime;
+    Fixture f(mode == "keyboard-cold-start" || mode == "keyboard-reversal"); auto& rt = wm::runtime;
     if (mode == "startup-hook-failure" || mode == "startup-hook-failure-ipc") {
         FILETIME created{}, exited{}, kernel{}, user{};
         GetProcessTimes(GetCurrentProcess(), &created, &exited, &kernel, &user);
@@ -190,6 +190,56 @@ int main(int argc, char** argv) {
             "latest ambiguous acquisition survives journal retirement");
         auto old_retry = make(wm::wire::Verb::acquire, original, 1); run(old_retry);
         Check(old_retry->receipt.outcome == static_cast<unsigned>(wm::Result::stale), "evicted acquisition cannot mint authority");
+        rt.input.Retire(); return failures ? 1 : 0;
+    }
+    if (mode == "keyboard-reversal") {
+        // Start backward from idle, then reverse without mouse initialization.
+        physical_keys['S'] = static_cast<SHORT>(0x8000); step();
+        Check(rt.controls.Ready() && rt.controls.Current().owner == Owner::manual && f.moves == 1,
+            "S independently starts native steering from cold idle");
+        const GroundPoint backward = f.destination;
+        physical_keys['S'] = 0; physical_keys['W'] = static_cast<SHORT>(0x8000); step();
+        const GroundPoint forward = f.destination;
+        Check(f.moves == 2 && rt.controls.Ready()
+            && std::abs(forward.x + backward.x - 200) < 0.001F
+            && std::abs(forward.z + backward.z - 400) < 0.001F,
+            "backward-to-forward reversal preserves opposite native directions");
+        physical_keys['S'] = static_cast<SHORT>(0x8000); step();
+        Check(f.moves == 2 && rt.controls.Ready() && Get<std::uint32_t>(f.state.data(), 0x10) == 5,
+            "overlapping W and S cancel through native stop without latching failure");
+        physical_keys['W'] = 0; step();
+        Check(f.moves == 3 && rt.controls.Ready() && f.destination.x == backward.x && f.destination.z == backward.z,
+            "releasing W while S remains held starts backward movement again");
+        // Pending and deferred native work must accept a reversal, and release
+        // must cancel that work rather than wait indefinitely for another click.
+        for (const bool deferred : {false, true}) {
+            physical_keys.fill(0); step();
+            Put(f.base, 0x16a1c00, reinterpret_cast<std::uintptr_t>(&f.request));
+            f.request.state = 1; f.pending_solve = !deferred; f.deferred_move = deferred;
+            const auto before = f.moves;
+            physical_keys['W'] = static_cast<SHORT>(0x8000); step(); step();
+            Check(f.moves == before + 1 && rt.controls.Ready(), "pending native work coalesces unchanged W");
+            physical_keys['W'] = 0; physical_keys['S'] = static_cast<SHORT>(0x8000); step();
+            Check(f.moves == before + 2 && rt.controls.Ready(), "S reversal replaces pending native steering without fault");
+            physical_keys.fill(0); step();
+            Check(rt.controls.Ready() && f.request.state == 1
+                && Get<Access::Map>(f.world.data(), 0xb8).size == 0,
+                "release cancels pending solver and deferred action after S reversal");
+            f.pending_solve = f.deferred_move = false;
+        }
+        physical_keys['S'] = static_cast<SHORT>(0x8000); step();
+        ui_blocked = true; step();
+        const auto before = f.moves;
+        ui_blocked = false; step();
+        Check(f.moves == before && rt.controls.Current().owner == Owner::none,
+            "held S does not resume after text-entry ownership ends");
+        physical_keys.fill(0); step();
+        physical_keys['W'] = static_cast<SHORT>(0x8000); step();
+        Check(f.moves == before + 1 && rt.controls.Ready() && rt.controls.Current().owner == Owner::manual,
+            "neutral then fresh W re-arms after interrupted S without mouse input");
+        physical_keys.fill(0); step();
+        Check(f.packet.references == 0 && f.marker_applies == 0,
+            "reversal/re-arm leaves no message or click-marker ownership");
         rt.input.Retire(); return failures ? 1 : 0;
     }
     if (mode == "keyboard-cold-start") {
