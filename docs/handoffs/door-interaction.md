@@ -88,3 +88,15 @@ verifying the lower-level native segment/terrain collision contract separately.
 Door candidate identity must combine owning structure identity with door sub-object
 identity, because the door's+0x18 identity can equal its parent structure identity.
 Neither pointer equality nor parent identity alone distinguishes multiple doors.
+
+## Integrated ranking checkpoint (September 11)
+
+Owner checkpoints 4849bf1 and 32c6ca5 are included as c018da3 and ae0d3e8.
+The deterministic character-forward ranking policy rejects ineligible, obstructed,
+out-of-range and malformed observations, uses composite door identity, and retains
+an eligible previous target within a small score tolerance. Full and diagnostics
+native builds each compiled and executed wonderbane_extension_door_targeting:
+1/1 passed per profile. These are ranking-policy tests; they do not prove native
+camera independence, collision eligibility, target presentation or action dispatch.
+The native adapter, intended-door cue and one-shot Interact remain unfinished.
+No new package was built or installed for this dependency checkpoint.

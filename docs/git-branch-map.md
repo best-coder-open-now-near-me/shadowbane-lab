@@ -6,6 +6,12 @@ acceptance.
 
 ## Active runtime hardening and rolling feature integration (September 5)
 
+Current door mission: character-forward selection and native Interact are in
+progress on the same integration branch. Ranking dependencies are integrated;
+this is not a delivered door feature. See [door interaction](handoffs/door-interaction.md).
+The complete movement/camera/cancel remapping subset has a separately verified
+1.8.0 package from `433dc81`, not installed; see
+[the 1.8.0 handoff](handoffs/combined-candidate-1.8.0.md).
 Current September 11 chat repair: native1.7.8 / wheel0.2.8, source `97612e6`,
 passed exact package checks, all seven CI jobs and independent source review.
 Controller sticks continue during text entry while typing remains protected.
