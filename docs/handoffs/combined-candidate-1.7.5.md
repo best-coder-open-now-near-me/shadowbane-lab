@@ -65,3 +65,15 @@ check: movement starts independently, hold a direction through ordinary delays,
 combine opposite keys then release one, and verify release-to-stop plus chat/focus
 recovery. Capture any remaining loss reason without assuming a scene-change event
 is the repaired update-gap latch. Do not request broad navigation retesting.
+
+## Owner cleanup preference, September 11
+
+Owner clarification after the obsolete 1.7.3 cleanup prompt:
+> we do not need to be keeping as ive repeated many times. they are useless without the code that backs them anyways, whcih we have because we use git, do you see? dont forget it, i dont want any more stops over old versions
+
+This records the owner's preference to retire obsolete diagnostic client copies
+rather than accumulate version backups or request repeated cleanup confirmations.
+The stopped 1.7.3 client was removed after exact-path/reparse/process checks;
+1.7.5 installation is in progress, sourcing current Config from 1.7.4. Preserve
+package/source receipts and the pristine baseline. This does not authorize removal
+of unrelated clients or source history.
