@@ -130,3 +130,22 @@ combined-packages/4153e9bd, but review P2 mandatory profile-IPC test presence re
 open. Do not install/certify that preliminary package. Existing owner must fix the
 mandatory gate and add targeted failed/nested cancel coverage before exact rebuild.
 Running1.7.8 remains the accepted movement/chat baseline. Main is unchanged.
+
+## Live door selection/opening observation
+
+Owner confirms an ordinary single mouse click selects the closed door without
+opening it, then Interact with selected opens it. Fresh bounded private capture
+is door-selection-20260911-055813.jsonl; earlier capture was missed by owner and
+is not used to certify that interaction sequence. The selected root transitions
+from null to a stable object whose vtable RVA is18104088, distinct from the known
+ArcCharacter RVA18093660. A brief character-selection interval also appears; the
+latest sample returns to the same observed door candidate. Do not claim the entire
+interval had unchanged selection or infer exact native object type from this alone.
+
+This establishes a useful native select-then-interact behavior for the observed
+door. The read-only pointer probe does not trace the interaction dispatch ABI,
+range/lock policy or prove controller actuation. Exact interaction key is pending
+owner clarification so its configured native action can be identified. Existing
+movement owner received only sanitized source-relative observations, no private
+object addresses or captures. Next: verify the action dispatch and object-picking
+path, retaining exact-lifetime ownership, before implementing controller Interact.
