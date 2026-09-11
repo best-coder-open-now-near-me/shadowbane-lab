@@ -144,7 +144,7 @@ bool Controls::CapturesKey(std::uint16_t key) const noexcept {
         && std::find(settings_.keys.begin(), settings_.keys.end(), key) != settings_.keys.end();
 }
 bool Controls::ConsumesKey(std::uint16_t key) const noexcept {
-    if (!settings_.enabled || !settings_.keyboard || !available_ || !foreground_) { return false; }
+    if (!settings_.enabled || !settings_.keyboard || !available_ || !foreground_ || text_owned_) { return false; }
     return std::find(settings_.keys.begin(), settings_.keys.end(), key) != settings_.keys.end();
 }
 Result Controls::AcquireAutomation(std::uint64_t expected, Token token, Grant& output) noexcept {
@@ -153,7 +153,7 @@ Result Controls::AcquireAutomation(std::uint64_t expected, Token token, Grant& o
     if (!ValidTokenText(token.worker) || !ValidTokenText(token.operation)) { return Result::invalid; }
     if (!available_) { return Result::unavailable; }
     if (!ContinueInput()) { return Result::inhibited; }
-    if (!foreground_ || (grant_.owner == Owner::manual && moving_)) { return Result::inhibited; }
+    if (!foreground_ || text_owned_ || (grant_.owner == Owner::manual && moving_)) { return Result::inhibited; }
     if (!RetryStop()) { return Result::stop_failed; }
     if (!Retire(StopReason::takeover, Owner::automation, token)) {
         return actuator_.Interrupted() ? Result::inhibited : Result::stop_failed;
@@ -167,7 +167,7 @@ Result Controls::AutomationDestination(const Grant& grant, GroundPoint point) no
     if (grant != grant_ || grant.owner != Owner::automation) { return Result::stale; }
     if (!Finite(point)) { return Result::invalid; }
     if (!ContinueInput()) { return Result::inhibited; }
-    if (!available_ || !foreground_) { return Result::inhibited; }
+    if (!available_ || !foreground_ || text_owned_) { return Result::inhibited; }
     if (!RetryStop()) { return Result::stop_failed; }
     const bool start = !moving_;
     // A failing adapter can have partially submitted work. Retain stop responsibility.
@@ -262,6 +262,7 @@ void Controls::Tick(const Input& input) noexcept {
         : static_cast<float>(input.tick_ms - last_tick_) / 1000.0F;
     last_tick_ = input.tick_ms;
     has_tick_ = true;
+    text_owned_ = input.text_owns_input;
     available_ = !faulted_ && input.native_available && input.scene != 0;
     if (!available_ || !input.exact_foreground || input.ui_owns_input || clock_regressed) {
         Inhibit(!input.native_available
@@ -285,6 +286,15 @@ void Controls::Tick(const Input& input) noexcept {
         if (!StopActive(StopReason::stalled) || !ContinueInput()) { return; }
     }
 
+    if (text_owned_) {
+        // Text keeps keyboard and pointer gestures, without interrupting sticks.
+        keyboard_armed_ = drag_armed_ = false;
+        drag_pending_ = drag_active_ = previous_drag_down_ = false;
+        // Preserve the existing automation cancellation policy; an obsolete route
+        // cannot reacquire while text is active or resume on text closure.
+        if (grant_.owner == Owner::automation
+            && (!Retire(StopReason::ui, Owner::none) || !ContinueInput())) { return; }
+    }
     if (!settings_.enabled) {
         keyboard_armed_ = controller_armed_ = drag_armed_ = false;
         drag_pending_ = drag_active_ = previous_drag_down_ = false;
@@ -292,7 +302,7 @@ void Controls::Tick(const Input& input) noexcept {
     }
     const bool all_keys_up = std::all_of(settings_.keys.begin(), settings_.keys.end(),
         [&](auto key) { return !input.keys[key]; });
-    if (all_keys_up) { keyboard_armed_ = true; }
+    if (all_keys_up && !text_owned_) { keyboard_armed_ = true; }
     Vector2 direction{};
     if (settings_.keyboard && keyboard_armed_) {
         direction = RadialDirection({
@@ -326,8 +336,8 @@ void Controls::Tick(const Input& input) noexcept {
     }
     if (!Nonzero(direction) && connected && controller_armed_) { direction = stick; }
 
-    const bool drag_down = settings_.drag && input.keys[settings_.drag_button];
-    if (!drag_down) { drag_armed_ = true; }
+    const bool drag_down = settings_.drag && !text_owned_ && input.keys[settings_.drag_button];
+    if (!drag_down && !text_owned_) { drag_armed_ = true; }
     if (drag_down && !previous_drag_down_ && drag_armed_) {
         drag_pending_ = input.pointer_in_world && input.ground_valid && Finite(input.ground)
             && std::isfinite(input.pointer_x) && std::isfinite(input.pointer_y);

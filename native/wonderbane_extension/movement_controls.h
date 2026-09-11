@@ -58,7 +58,8 @@ struct Input {
     std::uint64_t scene = 0;
     bool native_available = false;
     bool exact_foreground = false;
-    bool ui_owns_input = false;
+    bool ui_owns_input = false; // Global inhibition, including unavailable UI.
+    bool text_owns_input = false; // Keyboard/drag only; controller remains native.
     std::array<bool, 256> keys{};
     bool controller_connected = false;
     std::uint32_t controller_slot = 0;
@@ -159,6 +160,7 @@ private:
     bool faulted_ = false;
     bool camera_faulted_ = false;
     bool foreground_ = false;
+    bool text_owned_ = false;
     bool keyboard_armed_ = false;
     bool controller_armed_ = false;
     bool drag_armed_ = false;

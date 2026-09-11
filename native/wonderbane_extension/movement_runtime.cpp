@@ -343,8 +343,8 @@ public:
                     static_cast<int>(sampled.pointer_y), sampled.ground);
             }
         }
-        if (!sampled.native_available || !sampled.exact_foreground || sampled.ui_owns_input
-            || (captured.press_origin && !sampled.pointer_in_world)) { input.Suspend(); }
+        if (!sampled.native_available || !sampled.exact_foreground || sampled.ui_owns_input) { input.Suspend(); }
+        else if (captured.press_origin && !sampled.pointer_in_world) { input.CancelPointer(); }
         sampled_diagnostic.interval_ms = sampled_diagnostic.sample_tick_ms && tick >= sampled_diagnostic.sample_tick_ms
             ? tick - sampled_diagnostic.sample_tick_ms : 0;
         sampled_diagnostic.sample_tick_ms = tick;
@@ -353,7 +353,7 @@ public:
             if (sampled.keys[settings.keys[i]]) { sampled_diagnostic.keys |= 1U << i; }
         }
         sampled_diagnostic.gates = (captured_ok ? 1U : 0U) | (phase ? 2U : 0U)
-            | (sampled.exact_foreground ? 4U : 0U) | (sampled.ui_owns_input ? 8U : 0U)
+            | (sampled.exact_foreground ? 4U : 0U) | ((sampled.ui_owns_input || sampled.text_owns_input) ? 8U : 0U)
             | (sampled.camera_basis_valid ? 16U : 0U) | (sampled.native_available ? 32U : 0U)
             | (settings.enabled ? 64U : 0U) | (scene.epoch ? 128U : 0U)
             | (sampled.controller_connected ? 256U : 0U) | (sampled.pointer_in_world ? 512U : 0U)

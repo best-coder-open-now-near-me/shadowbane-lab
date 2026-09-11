@@ -48,7 +48,7 @@ bool NativeUi::Current(std::uintptr_t native_window) const noexcept {
         && UiRead(base_ + 0x16a7bfc, actual) && actual && actual == native_window
         && UiRead(actual + 0x64, mode) && mode == 2;
 }
-bool NativeUi::Gates(std::uintptr_t native_window, bool& keyboard, bool& pointer, bool& camera) {
+bool NativeUi::Gates(std::uintptr_t native_window, bool& keyboard, bool& pointer, bool& camera, bool& global) {
     std::uintptr_t modal = 0, drag = 0, manager = 0, input = 0, predicate = 0, text_callback = 0;
     std::uint32_t inhibited = 0; std::uint8_t gesture = 0;
     if (!Current(native_window) || !UiRead(base_ + 0x16a9ee8, modal) || !UiRead(native_window + 0x28, drag)
@@ -57,6 +57,7 @@ bool NativeUi::Gates(std::uintptr_t native_window, bool& keyboard, bool& pointer
         || !UiRead(base_ + 0x16ac67c, input) || !input
         || !UiRead(input + 0x10, predicate) || predicate != base_ + 0x2112
         || !UiRead(input + 0x18, text_callback) || text_callback != base_ + 0x4e0d) { return false; }
+    global = modal || drag || (inhibited & (2U | 4U | 8U));
     keyboard = modal || drag || (inhibited & (1U << 1));
     pointer = modal || drag || (inhibited & ((1U << 2) | (1U << 3)));
     camera = gesture != 0;
@@ -76,7 +77,7 @@ bool NativeUi::Gates(std::uintptr_t native_window, bool& keyboard, bool& pointer
 bool NativeUi::Run(POINT client, NativeUiState& out) {
     NativeUiState next{};
     if (!UiRead(base_ + 0x16a7bfc, next.native_window)
-        || !Gates(next.native_window, next.keyboard_owned, next.pointer_owned, next.camera_gesture)) { return false; }
+        || !Gates(next.native_window, next.keyboard_owned, next.pointer_owned, next.camera_gesture, next.global_owned)) { return false; }
     const auto point = NativeClientPoint(base_, next.native_window, window_, client, next.native_point);
     if (point == NativePointResult::unavailable) { return false; }
     if (point == NativePointResult::outside) { next.pointer_owned = true; }
@@ -85,8 +86,9 @@ bool NativeUi::Run(POINT client, NativeUiState& out) {
         // transparent HUDs and their actual child hit tests, including world map.
         next.pointer_owned = calls_.hit(reinterpret_cast<void*>(next.native_window), next.native_point.x, next.native_point.y) != nullptr;
     }
-    bool keyboard = true, pointer = true, camera = false;
-    if (!Gates(next.native_window, keyboard, pointer, camera)) { return false; }
+    bool keyboard = true, pointer = true, camera = false, global = true;
+    if (!Gates(next.native_window, keyboard, pointer, camera, global)) { return false; }
+    next.global_owned = next.global_owned || global;
     next.keyboard_owned = next.keyboard_owned || keyboard;
     next.pointer_owned = next.pointer_owned || pointer;
     next.camera_gesture = next.camera_gesture || camera;

@@ -34,6 +34,7 @@ public:
     void Retire() noexcept;
     // Cancel a buffered gesture without delivering its old click in a new UI/scene.
     void Suspend() noexcept;
+    void CancelPointer() noexcept;
     bool Available() const noexcept;
     bool ControllerApiAvailable() const noexcept { return platform_.controller && platform_.capabilities; }
     bool ControllerConnected() const noexcept { return controller_connected_; }

@@ -57,24 +57,24 @@ int main() {
     wm::NativeUiTestAccess::Bind(ui, window);
     wm::NativeUiState state;
     const POINT point{actual.right / 2, actual.bottom / 2};
-    Check(ui.Snapshot(point, state) && state.available && !state.keyboard_owned && !state.pointer_owned, "unowned game input");
+    Check(ui.Snapshot(point, state) && state.available && !state.global_owned && !state.keyboard_owned && !state.pointer_owned, "unowned game input");
     Check(last_hit.x == point.x * logical.right / actual.right && last_hit.y == point.y * logical.bottom / actual.bottom, "native UI coordinate scale");
     text = true; const auto before_text = hits;
-    Check(ui.Snapshot(point, state) && state.keyboard_owned && state.pointer_owned && hits == before_text, "native text predicate suppresses movement and drag before hit testing");
+    Check(ui.Snapshot(point, state) && state.keyboard_owned && state.pointer_owned && !state.global_owned && hits == before_text, "native text owns keyboard and drag while permitting native controller");
     text = false; focused = control.data();
     for (const std::uint32_t kind : {5U, 6U, 14U}) {
         Put(reinterpret_cast<std::uintptr_t>(focused) + 0x3b8, kind);
-        Check(ui.Snapshot(point, state) && state.keyboard_owned && state.pointer_owned, "focused text kinds suppress without active-HUD predicate");
+        Check(ui.Snapshot(point, state) && state.keyboard_owned && state.pointer_owned && !state.global_owned, "focused text kinds suppress without active-HUD predicate");
     }
     focused = nullptr;
     Put(image + 0x16a9ee8, std::uintptr_t{1});
-    Check(ui.Snapshot(point, state) && state.keyboard_owned && state.pointer_owned, "native modal suppresses both input paths");
+    Check(ui.Snapshot(point, state) && state.keyboard_owned && state.pointer_owned && state.global_owned, "native modal suppresses both input paths");
     Put(image + 0x16a9ee8, std::uintptr_t{0}); Put(native_window + 0x28, std::uintptr_t{1});
-    Check(ui.Snapshot(point, state) && state.keyboard_owned && state.pointer_owned, "inventory drag retains input ownership");
+    Check(ui.Snapshot(point, state) && state.keyboard_owned && state.pointer_owned && state.global_owned, "inventory drag retains input ownership");
     Put(native_window + 0x28, std::uintptr_t{0});
     for (const std::uint32_t mask : {2U, 4U, 8U}) {
         Put(reinterpret_cast<std::uintptr_t>(manager.data()) + 0x28, mask);
-        Check(ui.Snapshot(point, state) && (mask == 2 ? state.keyboard_owned : state.pointer_owned), "native input-inhibit bits respected");
+        Check(ui.Snapshot(point, state) && state.global_owned && (mask == 2 ? state.keyboard_owned : state.pointer_owned), "native input-inhibit bits respected");
     }
     Put(reinterpret_cast<std::uintptr_t>(manager.data()) + 0x28, std::uint32_t{0});
     hit = true;
@@ -88,7 +88,7 @@ int main() {
     Check(!result && hits == before_foreign, "foreign thread never calls native UI");
     reenter = true; Check(ui.Snapshot(point, state), "outer query survives blocked reentry"); reenter = false;
     change_scene = true;
-    Check(!ui.Snapshot(point, state) && !state.available && state.keyboard_owned && state.pointer_owned, "native window transition inside hit callback fails closed");
+    Check(!ui.Snapshot(point, state) && !state.available && state.global_owned && state.keyboard_owned && state.pointer_owned, "native window transition inside hit callback fails closed");
     change_scene = false; Put(image + 0x16a7bfc, native_window);
     Check(ui.Snapshot(point, state), "new valid snapshot can recover after transition");
     Put(rect_table + 0x1c, image + 0x25168);
