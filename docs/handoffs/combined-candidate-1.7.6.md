@@ -53,12 +53,13 @@ included callback/lock/lifecycle ordering, disabled overhead, first-cause retent
 reader validation, compatibility and required gates. Reviewer did not rerun tests.
 Coverage boundary: publisher/reader interoperability uses a supplied lifetime
 snapshot; production lifetime cause generation has separate direct native tests.
-CI34571084103 is pending native jobs; quality, PowerShell and all Python jobs passed.
+CI 34571084103 passed all seven jobs. Retained log artifacts/combined-1.7.6-ci.log
+confirms both required lifetime diagnostic cases executed in both native profiles.
 
 ## Next step
 
 VM still runs verified1.7.5; no1.7.6 installation or live cause is claimed.
-After CI and a controlled client close, install the verified package, preserve
+CI is complete. After a controlled client close, install the verified package, preserve
 current settings, and retire obsolete client trees under the owner's standing
 cleanup instruction. Enable existing WONDERBANE_MOVEMENT_TRACE=1 and collect with
 packaged reader --schema3 after login. One short recurrence should identify cause,
