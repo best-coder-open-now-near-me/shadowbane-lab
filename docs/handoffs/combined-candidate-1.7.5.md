@@ -94,3 +94,18 @@ cleanup instruction, after exact-path, reparse and running-process checks. Their
 receipts and current settings were preserved. Private install/launch/channel
 receipts and scripts are in
 `E:/virtual-machines/shadowbane-testing/diagnostics/combined-acceptance-1.7.5-7ab074af`.
+
+## First 1.7.5 connected check
+
+Owner reports mostly good movement, then stuck at the end. Private capture
+`manual-gap-check-20260911-061428.jsonl` shows no stalled owner-loss event in the
+inspected interval, but repeated scene_changed losses at event173 (scene1->2),
+227 (2->3),256 (3->4),267 (4->5),476 (5->6). The final event476 is tick5900281,
+keys5 from sample5900203; its interval110 is a preceding sample, not proof of
+contemporaneous gates. Subsequent keys1/9 remain suppressed, original-delivery0,
+policy196 until neutral event511 restores197. Thus the final observed latch follows
+scene invalidation; the update-gap repair must not be described as solving every
+input loss. Owner source investigation now targets lifetime identity/destruction
+semantics without weakening gates. Detailed capture remains private/local; the
+cross-task request was reduced to source investigation after automatic review
+rejected detailed VM capture transfer. No further reproduction requested yet.
