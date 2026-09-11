@@ -109,3 +109,19 @@ input loss. Owner source investigation now targets lifetime identity/destruction
 semantics without weakening gates. Detailed capture remains private/local; the
 cross-task request was reduced to source investigation after automatic review
 rejected detailed VM capture transfer. No further reproduction requested yet.
+
+## Scene investigation continuation
+
+Completed first capture contains a fresh 266 ms sample with manual owner and
+keyboard still armed, supporting the update-gap repair; its five recorded manual
+owner losses are all scene_changed. No further capture is running.
+
+Movement owner source-only regressions have not reproduced false invalidation
+from unrelated finalizers/frees or pose-wrapper replacement with unchanged parent.
+The next active item is minimal cause/changed-field diagnostics through the existing
+optional trace, with explicit schema compatibility and retained first invalidation.
+Required evidence: capture failure stage, tuple changed-mask, watched notice role
+and finalizer flags, before/after epoch; no raw object values. Observation rejection
+must be visible even without epoch advance because Runtime maps failure to scene
+zero. Existing lifetime gates stay unchanged. Root handles package/version/review
+once the complete diagnostic slice arrives; no additional owner run requested yet.
