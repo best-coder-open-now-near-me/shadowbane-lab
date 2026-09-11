@@ -19,10 +19,10 @@ from shadowbane_lab.graphics_lab.control import (
     verify_target_identity,
 )
 
-TRACE_VERSION = "1.7.7"
+TRACE_VERSION = "1.7.8"
 TRACE_VERSIONS = (
     "1.6.12", "1.6.13", "1.7.0", "1.7.1", "1.7.2", "1.7.3", "1.7.4", "1.7.5", "1.7.6",
-    TRACE_VERSION,
+    "1.7.7", TRACE_VERSION,
 )
 MAX_TRACE_BYTES = 64 * 1024 * 1024
 
