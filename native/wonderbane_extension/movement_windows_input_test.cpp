@@ -33,7 +33,7 @@ void __cdecl Original(std::uint32_t key, std::uint32_t mods, std::uint32_t down,
 }
 void __cdecl Foreign(std::uint32_t, std::uint32_t, std::uint32_t, std::uint32_t) {}
 bool Ui(void*, POINT, NativeUiState& out) noexcept {
-    out.available = true; out.keyboard_owned = ui_owned; out.pointer_owned = pointer_owned;
+    out.available = true; out.global_owned = ui_owned; out.keyboard_owned = ui_owned; out.pointer_owned = pointer_owned;
     out.camera_gesture = camera; return true;
 }
 void Safety(void*, HWND hwnd, StopReason, bool terminal) noexcept {

@@ -25,7 +25,10 @@ and key actions. Unsupported bindings are unavailable; there is no macro fallbac
 WASD is camera-relative: forward follows the camera's ground direction, with
 left/right perpendicular to it. Opposing keys cancel; diagonal movement is
 normalized. Four distinct single keys can be remapped in the panel. The settings
-chord is reserved. Text/chat and modal ownership inhibit movement.
+chord is reserved. Text/chat owns keyboard movement and drag steering. Controller
+movement and camera remain usable during text entry and never inject typing. Real
+modals, inventory dragging, native input inhibition and failed UI queries stop all
+controls. After text entry ends, release movement keys before a fresh press.
 
 Controller slots 1–4 map explicitly to XInput indices 0–3. Devices must expose
 XInput gamepad axes; unsupported device types and missing XInput are unavailable.
@@ -37,7 +40,7 @@ are configurable. The native mouse-camera gesture has priority over controller
 camera input. Camera-only input does not take over navigation.
 
 Only the bound foreground game instance reads movement input. After focus loss,
-controller disconnect/reconnect, UI ownership or a scene change, release movement
+controller disconnect/reconnect, global UI inhibition or a scene change, release movement
 keys/buttons and center both sticks before re-arming. Holding a stick while
 switching clients does not start the newly focused client moving.
 
@@ -100,7 +103,8 @@ and isolation cases. Each observation below remains pending until performed.
 | WASD and remapping | Enable, release all input to arm, rotate the camera, then press each direction, opposing pairs and diagonals. Movement follows camera-relative ground direction, opposing pairs cancel and diagonals do not increase native speed. Remap a key and check its original action is suppressed only while controls own it. Release stops through the native path. |
 | Controller | Select the intended XInput slot. Test left-stick direction above/below the configured dead zone and right-stick sensitivity/inversions. Analog direction is preserved at the game's normal permitted speed. Neutral stops. Looking around during /go preserves the route; dead-zone noise cannot take it over. |
 | Terrain and mouse drag | Hold the configured X1 default over valid world terrain and cross the six-pixel threshold; steer over sloped terrain and around an obstacle. Release stops. A below-threshold click retains its native click behavior. Invalid terrain does not invent a destination. Check normal selection, inventory, map and right-button camera interactions remain usable. |
-| UI and focus | While moving, open chat/text/modal UI, lose focus, lose capture or leave the client. Movement stops. Return with input still held: nothing restarts until neutral and deliberate input. |
+| Text entry | Open chat while using controller movement/camera: sticks keep working and release stops. Type movement-bound keys: text receives them and keyboard movement stays blocked. Close chat while a key is held: movement requires neutral then a fresh press. Text cancels an existing navigation route; closing text never resumes it. |
+| UI and focus | While moving, open a real modal or inventory drag, lose focus, lose capture or leave the client. Movement stops. Return with input still held: nothing restarts until neutral and deliberate input. |
 | Device and instance | Disconnect during stick movement. Reconnect while held: nothing restarts until neutral. Switch focus between two clients: only the intended foreground instance receives movement/camera input; the previous instance stops. |
 | Ownership race | Start /go, then deliberately move manually. Release: route stays cancelled. Repeat with /pve and confirm attack dispatch also stops. Correlate diagnostics with the existing automated delayed-command/stale-stop regressions; old ownership cannot resume movement or stop a newer owner. Explicitly issue a new route to resume. |
 | Native constraints and lifecycle | Exercise an obstacle and a normal movement restriction, confirm native collision/animation/server behavior, then transition character/scene and disable/re-enable. No old input, destination or stop affects the new scene. Quit cleanly. |
