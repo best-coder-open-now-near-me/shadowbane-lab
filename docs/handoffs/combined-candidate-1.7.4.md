@@ -66,3 +66,26 @@ sampled gates as contemporaneous with a later callback. Do not change the user's
 native keybindings or ask for another broad navigation run. Independent WASD
 startup was demonstrated in the previous selection-only-click run; no new claim
 of a first-click prerequisite is justified by that evidence.
+
+## September 11 diagnostic installation
+
+After the owner closed the diagnostic game and panel, verified no remaining game
+or panel process. Removed only the explicitly resolved, non-reparse, stopped
+1.7.2 client backup under the owner's existing backup-removal approval. Preserved
+1.7.3 and copied its current Config into a freshly prepared 1.7.4 client through
+the existing prepare-copy / verify-launchable-copy paths. Installed wheel 0.2.4
+and verified exact source/package files before launching.
+
+New designated VM root: `S:/ShadowbaneLab-Guided/combined-acceptance-1.7.4-916ab918`.
+Launch receipt: PID 516, creation FILETIME 134335782020581173, HWND 525300.
+Loaded DLL matches the full-profile hash above; prepared executable SHA-256 is
+`bb63469eb35917e6b3f58be75d29f94855c9868024271222465b4db62f0e3a87`.
+`WONDERBANE_MOVEMENT_TRACE=1` is enabled only in the diagnostic launch environment.
+The exact-lifetime schema-2 mapping is verified enabled. Before in-world login,
+no update/input records or consistently published movement status were observed;
+this does not establish an in-world startup failure. Next: owner logs in, then
+verify native updates and start the bounded schema-2 input capture. No collector
+is running yet and no connected movement fix is claimed.
+
+Private installation, launch and channel receipts/scripts are retained under
+`E:/virtual-machines/shadowbane-testing/diagnostics/combined-acceptance-1.7.4-916ab918`.
