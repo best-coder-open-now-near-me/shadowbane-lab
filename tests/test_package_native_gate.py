@@ -69,3 +69,25 @@ def test_required_runtime_failures_cannot_be_waived(tmp_path, name, diagnostic):
     path, required = results(tmp_path, "fail", "failure", name)
     with pytest.raises(RuntimeError, match="failed"):
         builder.validate_native_results(path, required, diagnostic=diagnostic, exit_code=8)
+
+
+@pytest.mark.parametrize("outcome", ["pass", "missing", "skipped", "failure", "error", "duplicate"])
+def test_profile_ipc_must_execute_once_and_pass(tmp_path, outcome):
+    profile_name = "test_profile_configuration_crosses_real_native_channel_atomically"
+    assert profile_name in builder.REQUIRED_MOVEMENT_IPC_TESTS
+    suite = ET.Element("testsuite")
+    for name in builder.REQUIRED_MOVEMENT_IPC_TESTS:
+        if name == profile_name and outcome == "missing":
+            continue
+        case = ET.SubElement(suite, "testcase", name=name)
+        if name == profile_name and outcome in ("skipped", "failure", "error"):
+            ET.SubElement(case, outcome)
+    if outcome == "duplicate":
+        ET.SubElement(suite, "testcase", name=profile_name)
+    path = tmp_path / "movement-ipc.xml"
+    ET.ElementTree(suite).write(path)
+    if outcome == "pass":
+        builder.validate_movement_ipc_results(path, "test-profile")
+    else:
+        with pytest.raises(RuntimeError, match="required native movement IPC"):
+            builder.validate_movement_ipc_results(path, "test-profile")

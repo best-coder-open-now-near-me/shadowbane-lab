@@ -59,6 +59,27 @@ def validate_native_results(path: Path, required: set[str], *, diagnostic: bool,
         raise RuntimeError("native command exit does not match recorded gate failures")
     return failures
 
+REQUIRED_MOVEMENT_IPC_TESTS = frozenset({
+    "test_native_input_publisher_reader_interoperability",
+    "test_native_lifetime_publisher_reader_interoperability",
+    "test_real_producer_mutex_native_owner_completion_and_readonly_snapshot",
+    "test_real_hook_startup_failure_is_readable_without_window_or_lease",
+    "test_operation_context_uses_real_native_interprocess_movement",
+    "test_standalone_context_real_native_process_renews_across_slow_planner",
+    "test_profile_configuration_crosses_real_native_channel_atomically",
+})
+
+
+def validate_movement_ipc_results(path: Path, profile: str) -> None:
+    cases = ET.parse(path).getroot().findall(".//testcase")
+    names = [case.get("name") for case in cases]
+    if any(names.count(name) != 1 for name in REQUIRED_MOVEMENT_IPC_TESTS) or any(
+        case.find("skipped") is not None or case.find("failure") is not None
+        or case.find("error") is not None for case in cases
+    ):
+        raise RuntimeError(f"{profile}: required native movement IPC did not execute and pass")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cmake", default=shutil.which("cmake"))
@@ -288,6 +309,8 @@ def main() -> int:
             "wonderbane_extension_movement_runtime_controller-modal-rearm",
             "wonderbane_extension_movement_runtime_controller-text",
             "wonderbane_extension_movement_runtime_controller-profile",
+            "wonderbane_extension_movement_runtime_controller-cancel-failure",
+            "wonderbane_extension_movement_runtime_controller-cancel-nested",
             "wonderbane_extension_movement_controls",
             "wonderbane_extension_movement_settings",
             "wonderbane_extension_movement_wire",
@@ -358,20 +381,7 @@ def main() -> int:
         finally:
             environment.pop("WONDERBANE_MOVEMENT_RUNTIME_TEST", None)
             environment.pop("WONDERBANE_MOVEMENT_BOUNDARY_TEST", None)
-        ipc_cases = ET.parse(ipc_results).getroot().findall(".//testcase")
-        required_ipc = {
-            "test_native_input_publisher_reader_interoperability",
-            "test_native_lifetime_publisher_reader_interoperability",
-            "test_real_producer_mutex_native_owner_completion_and_readonly_snapshot",
-            "test_real_hook_startup_failure_is_readable_without_window_or_lease",
-            "test_operation_context_uses_real_native_interprocess_movement",
-            "test_standalone_context_real_native_process_renews_across_slow_planner",
-        }
-        if not required_ipc <= {case.get("name") for case in ipc_cases} or any(
-            case.find("skipped") is not None or case.find("failure") is not None
-            or case.find("error") is not None for case in ipc_cases
-        ):
-            raise RuntimeError(f"{profile}: required native movement IPC did not execute and pass")
+        validate_movement_ipc_results(ipc_results, profile)
         if arguments.reviewed_client:
             run(
                 f"{profile}-selected-binding",
