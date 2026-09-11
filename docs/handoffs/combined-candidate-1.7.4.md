@@ -89,3 +89,26 @@ is running yet and no connected movement fix is claimed.
 
 Private installation, launch and channel receipts/scripts are retained under
 `E:/virtual-machines/shadowbane-testing/diagnostics/combined-acceptance-1.7.4-916ab918`.
+
+## Captured in-world loss causes
+
+Schema-2 capture `diagonal-input-20260911-053336.jsonl` retained actual manual
+owner losses with reason `stalled` at native intervals 266, 282, 266 and 265 ms.
+Event 134 held backward (mask 2); policy changed from armed 197 to inhibited 64,
+then 196 with the key still held. Subsequent opposite-key mask 3 remained disarmed.
+Configured-key suppression remained active and original-delivery mask was zero.
+This identifies a transient-update safety latch, not evidence of native binding
+conflict. Another loss (398) was `scene_changed`, requiring separate investigation;
+its reported input gates/interval were from the preceding sample.
+
+Second capture `opposite-input-20260911-053804.jsonl` retained new `stalled` losses
+530 and 552 while holding right (mask 8), and 707 while holding backward (mask 2),
+all at 266 ms. New scene-change event 475 advanced scene 2 to 3. Earlier events
+also appear as retained ring history and must not be counted as new recurrences.
+The user reported reproducing the latch. The movement owner received these exact
+non-address event summaries and private local capture paths for focused repair,
+including opposite-key release-one semantics and a distinct scene-change audit.
+No timeout increase, auto-resume policy, or connected fix is claimed. Current next
+todo is the owner's focused source repair and regressions, followed by root
+integration/package checks. The second bounded collector was still completing
+when this evidence checkpoint was recorded; no further reproduction is needed.
