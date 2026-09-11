@@ -100,3 +100,15 @@ native builds each compiled and executed wonderbane_extension_door_targeting:
 camera independence, collision eligibility, target presentation or action dispatch.
 The native adapter, intended-door cue and one-shot Interact remain unfinished.
 No new package was built or installed for this dependency checkpoint.
+
+## Integrated native intersection evidence
+
+Owner b0802f3 and verification-guard fix e3df021 are included as c8eda45 and
+54f00ed. Integration rebuilt movement_image_test in both native profiles and
+executed each with original and prepared private images; both returned zero.
+Logs remain local at artifacts/door-image-full.log and door-image-diagnostics.log.
+The test executes the authenticated native triangle leaf in an isolated mapped
+fixture and returns before execution on failed authentication/base mismatch.
+This verifies primitive intersections, not the unfinished production door adapter.
+Next remains structural/terrain obstruction, self/target handling, intended cue,
+and one-shot native Interact under existing client-thread ownership.
