@@ -1284,3 +1284,22 @@ occlusion with parent transforms and self/target handling, visible intended-door
 cue and one-shot native Interact; then profile wiring, production-adapter tests,
 combined package validation and focused connected acceptance. No new live owner
 observation is required by this checkpoint. Door controls remain unexposed.
+
+## Door collection acquisition primitive
+
+Added the internal DoorCollectionAdmission primitive and a real two-thread test.
+A bounded reader may only copy fields and increment verified atomic native
+references. It must leave the reader region before releasing references, querying
+geometry, invoking selection/action callbacks, or acquiring native world locks.
+A writer announces before waiting for existing readers, then runs its original
+callback with no extension SRW lock held. Pending/active writers reject new reads;
+recursive mutation and terminal original call-through are preserved. Mutation
+advances the candidate generation before original call-through.
+
+Both profile tests pass for held acquisition versus mutation, writer admission,
+recursive mutation, stale generation and terminal behavior. This primitive is not
+yet connected to native slots and is not proof that all native writers are covered.
+The active todo remains verifying every child-vector mutation/teardown path, then
+connecting this boundary through existing lifetime ownership and the native area
+query's retained structure acquisition. Native callbacks must not execute while a
+reader region is active. No feature/package/connected acceptance is claimed.
