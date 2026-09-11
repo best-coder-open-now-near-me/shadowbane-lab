@@ -92,3 +92,10 @@ for this run; no broad navigation retest requested. Next active movement accepta
 is physical controller left-stick, release stop, camera, and chat/focus recovery.
 Read-only guest XInput1_4 probe currently reports no connected controller in slots0-3;
 controller setting remains disabled. Physical controller acceptance is not claimed.
+
+## Controller setup status
+
+The connected controller is visible to the host but not yet to guest XInput.
+A device-specific VM attachment rule is configured. Next step: physical reconnect,
+then verify guest detection before enabling controller controls. No hardware
+identifiers are included in this note. Controller acceptance remains pending.
