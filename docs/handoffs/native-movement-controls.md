@@ -880,3 +880,40 @@ Next active todo: locate and fix keyboard-first failure using the narrowed nativ
 boundary; then verify the combined source/package and finish physical input,
 stop, safety, obstacle and automation-takeover acceptance. No independent VM or
 shared-client replacement was performed.
+
+
+## Backward/reversal investigation (September 11)
+
+Integration now contains the cold-start coverage at `40ef9d8` and its mandatory
+package gate at `310620b`; the feature worktree incorporated that source before
+continuing. The integration owner forwarded the user's additional observation
+that input sometimes stops responding, possibly after S. S is a suspected trigger,
+not an established cause. Installed 1.7.3 remains the last connected candidate.
+
+The new production-runtime `keyboard-reversal` case starts with S from native
+idle, reverses S-to-W, overlaps W+S into an explicit stop, releases W into S,
+reverses pending solver/deferred work, cancels it on release, and tests chat
+interruption while S is held followed by neutral/fresh-W re-arm. All 17 runtime
+cases pass in both full and diagnostics profiles. These controlled native-callee
+tests do not reproduce the connected failure and make no runtime-fix claim.
+
+Source inspection: S uses the same directional adapter as W. A false directional
+return latches the policy fault until Configure; a null native Move result is
+accepted rejection/deferred work and does not itself latch that fault. A failed
+native cancellation can separately latch backend unavailability. No evidence
+justifies weakening those guards or adding guessed movement/input flag writes.
+
+Next active todo is an aligned, bounded read-only observation coordinated by the
+integration owner. Capture exact process/window identity, status sequence/tick,
+owner/generation/scene, capability flags and settings revision around the reported
+failure and release/fresh press. Loss of ready with bindings retained narrows to
+policy fault/pending stop; loss of bindings narrows native/UI/lifetime availability.
+Owner none with ready retained does not prove keyboard failure: input gates and
+clock discontinuity can retire ownership while availability remains true. The
+September 6 capture had no confirmed input timing and cannot settle this question.
+
+This coverage follow-up targets `codex/native-lifecycle-hardening` via draft PR32
+and remains outside it until integrated. No mouse rebind, VM operation, new
+package or connected acceptance is included. After locating the failing boundary,
+finish the keyboard-first/reversal fix, combined package validation and remaining
+physical controller/drag/camera/stop/safety/obstacle/automation-takeover acceptance.
