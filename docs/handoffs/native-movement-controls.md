@@ -1242,3 +1242,20 @@ IPC results were generated and passed through the production required-case valid
 Ruff and diff checks pass. Source destination remains PR32 to the integration owner.
 Next: root re-review/rebuild of the supported remapping candidate; resume the paused
 hotbar/target adapter investigation separately.
+
+## September 11 character-forward door work — in progress
+
+The integration owner has redirected the next controller action slice to door
+selection and interaction using character forward, independent of the camera.
+The internal `DoorRanking` policy now has passing tests in both native profiles:
+finite world-frame observations, a short forward cone, eligibility/obstruction
+exclusion, deterministic distance/alignment ranking and modest target hysteresis.
+It retains identities only, not native object pointers. This is an implementation
+checkpoint, not an enabled feature or an acceptance candidate. Native enumeration,
+geometry/occlusion ownership, intended-door indication, one-shot remappable native
+Interact, lifecycle integration and end-to-end tests remain next. No new controls
+are exposed by this checkpoint. No VM or installed package was changed.
+
+The previous mandatory profile IPC/cancellation review fix `d1b9238` is integrated
+by the shared owner at `433dc81`; the independent review finding is closed. The
+running accepted client remains 1.7.8 while the owner verifies later packages.
