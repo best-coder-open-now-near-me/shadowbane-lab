@@ -1303,3 +1303,27 @@ The active todo remains verifying every child-vector mutation/teardown path, the
 connecting this boundary through existing lifetime ownership and the native area
 query's retained structure acquisition. Native callbacks must not execute while a
 reader region is active. No feature/package/connected acceptance is claimed.
+
+
+### Door collection observer integration (September 11, unfinished feature)
+
+The existing movement lifetime observer now provides optional door collection
+registration and bounded pointer-acquisition admission. Append, reset and load
+callbacks preserve immutable native call-through; applicable existing finalizers
+share the same admission. Failed optional registration rolls back only the door
+slots, preserving movement. Shared terminal retirement closes both. Callback
+records remain pinned for already dispatched calls. Collection freshness remains
+a snapshot, not authority to select or interact.
+
+Both native DLL profiles build. Each profile passes 41 lifetime cases plus the
+native-stop test, including held acquisition versus destruction, nested mutations,
+rollback after hook visibility, foreign replacement, and scene changes inside a
+callback. Both original/prepared private image checks execute and verify the
+collection bindings. Private binaries and investigation captures remain local.
+
+This is a source dependency on codex/native-movement-controls, targeting the
+existing codex/native-lifecycle-hardening integration branch. Runtime startup does
+not yet activate door collection registration. The native resolver, intended-door
+cue, Interact controls and action boundary remain unfinished; no new package or
+connected acceptance is claimed. Next: retained native query and resolver, then
+cue/Interact wiring and combined package validation through the integration owner.
