@@ -81,3 +81,14 @@ Retired superseded 1.7.6 client tree after exact-path/reparse/process checks und
 standing cleanup authorization. Current settings, receipts and pristine baseline
 retained. Private evidence/scripts:
 `E:/virtual-machines/shadowbane-testing/diagnostics/combined-acceptance-1.7.7-c3a90947`.
+
+## Successful connected keyboard check
+
+Owner reports movement looks good. Private capture
+`parent-continuity-20260911-074525.jsonl` aligns four accepted parent-only changes
+(epochs1->2->3->4->5) with input scene transitions retaining manual owner2->2 and
+armed policy197. The previously observed parent-boundary keyboard latch is resolved
+for this run; no broad navigation retest requested. Next active movement acceptance
+is physical controller left-stick, release stop, camera, and chat/focus recovery.
+Read-only guest XInput1_4 probe currently reports no connected controller in slots0-3;
+controller setting remains disabled. Physical controller acceptance is not claimed.
