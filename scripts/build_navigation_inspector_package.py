@@ -280,6 +280,7 @@ def main() -> int:
             "wonderbane_extension_movement_runtime_keyboard",
             "wonderbane_extension_movement_runtime_keyboard-cold-start",
             "wonderbane_extension_movement_runtime_keyboard-reversal",
+            "wonderbane_extension_movement_runtime_manual-update-gap",
             "wonderbane_extension_movement_runtime_input-diagnostics",
             "wonderbane_extension_movement_boundary_input_diagnostics",
             "wonderbane_extension_movement_runtime_controller",

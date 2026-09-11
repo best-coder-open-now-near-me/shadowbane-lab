@@ -10,7 +10,7 @@ Initial PR/integration destination: `codex/native-lifecycle-hardening`.
 The existing hardening owner owns shared reconciliation and combined packaging.
 The normal shared checkout remains on `main`. Terrain-repair branches are excluded.
 
-## Status: unfinished, not a connected candidate
+## Status: installed candidate, connected acceptance unfinished
 
 The native ownership/input policy, steering, stop, camera, terrain picking,
 lifetime, UI ownership, Windows/XInput capture, native-update consumer and real
@@ -20,8 +20,8 @@ CLI composition is published at `55e30ccbddabf217a49e2cc847e56901d46b83b4`;
 manager composition is published by the integration owner at `d3f3af3`.
 The consumer starts after successful shared extension startup. Initial manual
 preferences are disabled; saved preferences apply on later starts. The integration
-owner is assembling the combined source/package. No installed package change or
-connected acceptance is claimed; this is not yet the complete accepted feature.
+owner installed the verified 1.7.4 diagnostic candidate. Connected acceptance is
+unfinished; the September 11 repair below awaits combined review and packaging.
 
 The production policy requires a synchronous owning-client-thread actuator. A
 movement ownership grant contains a generation, scene lifetime, owner and lossless
@@ -40,7 +40,7 @@ uses elapsed time and does not acquire movement ownership. Focus/UI loss, contro
 loss and capture loss require neutral/re-arm. Controller selection is an explicit
 XInput slot. The default drag binding is XBUTTON1, with a six-pixel threshold;
 invalid ground picks never fall back to a plane. The native settings panel and Graphics Lab entry are implemented and tested;
-installation and connected verification remain pending.
+the installed candidate is under connected verification.
 
 ## Investigation performed in this assignment
 
@@ -94,11 +94,12 @@ invalid pick and lost capture, client isolation and camera integration at
 - [x] Wire real settings, remapping, controller configuration and feature controls.
 - [x] Wire travel/PvE dispatch and immutable ownership grants with the hardening owner.
 - [x] Validate production native adapters, both profiles, lifecycle and delayed dispatch.
-- [ ] Active: verify combined source and build/install the complete package through the integration owner.
+- [x] Verify and install the complete 1.7.4 diagnostic package through the integration owner.
+- [ ] Active: review and package the September 11 manual-update-gap repair through the integration owner.
 - [ ] Run focused connected acceptance for all input methods, camera, obstacles,
   real release/stop, chat/UI safety, multi-client isolation and navigation takeover.
 
-Next item is combined source/package verification. Connected engine behavior
+Next item is combined review and packaging of the manual-update-gap repair. Connected engine behavior
 requires the exact installed candidate and coordinated acceptance. Historical
 checkpoint notes below describe the progression, not additional active todos.
 
@@ -957,3 +958,41 @@ Next active todo: root's combined review/package and a narrowly interpreted fail
 implement the evidence-supported behavior fix and complete physical feature
 acceptance afterward. Private read-only helpers/captures stay in ignored local
 artifacts, including read_stuck_gates.py; no private client data is shipped.
+
+## September 11: fresh manual input after delayed owning updates
+
+The installed 1.7.4 evidence contains otherwise admitted foreground/manual samples
+with 266-282 ms update intervals that revoked ownership as `stalled`, disarming
+held keys. The production policy now keeps the existing 250 ms stale-destination
+stop threshold but distinguishes a forward update delay from a clock regression.
+After a successful native stop and post-call interruption check, fresh manual
+input is evaluated using the same grant and existing arm state. No keys are
+force-rearmed, no elapsed camera rotation is accumulated, and opposing keys stop
+normally; releasing one immediately admits the remaining direction. Automation
+update gaps still retire the grant, rejecting its delayed movement and stop calls.
+Focus, UI, lifetime, disconnect, capture, disable and shutdown guards remain.
+
+The two retained scene-change events are separate from this repair. Neighboring
+native records show readable actor/receiver state, but do not identify parent,
+world, identity or destruction-notification changes. The actual lifetime gate
+compares those identities and has no elapsed-time or coordinate-distance rule.
+Its checks remain intact; this repair does not claim to resolve those events.
+
+Regression coverage includes 251/266/282/1000 ms gaps, current release, diagonal
+input, W+S and A+D cancellation and release-one behavior, stale automation grants,
+no-owner inhibition, full scene change, clock regression, failed stop and nested
+focus interruption. The runtime test composes production Windows input, policy
+and native adapter with controlled native callees: it asserts native stop before
+restart, idle state on cancellation, no restart after interruption, no retained
+message references, and no accumulated camera delta. This is developer-controlled
+validation, not connected acceptance. Integration destination remains
+`codex/native-lifecycle-hardening` through PR #32. The integration owner owns
+independent review, combined package/version and installation; no VM operation or
+package replacement was performed in this feature worktree.
+
+Validation for this repair: full and diagnostics Win32 Release builds completed;
+39 focused native tests passed in each profile, including shared startup failure,
+input diagnostics and the new manual-update-gap runtime case. Each profile also
+passed 17 Python boundary/wire tests plus 15 subtests with its actual native
+boundary producer selected (no interoperability skip). The package requires the
+new runtime case. Package-gate tests and Ruff validation passed.
