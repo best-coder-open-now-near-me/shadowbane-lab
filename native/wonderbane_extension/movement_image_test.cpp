@@ -103,7 +103,13 @@ int wmain(int argc,wchar_t** argv){
   if(bytes.empty() || !wm::ReviewedImage(bytes))return 1;
   Check(wm::ReviewedDigest(bytes)==(n==1),"argument identifies original versus exact prepared transformation");
   tested_path=argv[n];Mapped(bytes);if(!tested_image)return 1;
-  std::uintptr_t base=0;Check(wm::VerifyNativeMovementImage(base) && base==reinterpret_cast<std::uintptr_t>(tested_image),"production disk and relocated loaded-text verifier accepts");
+  std::uintptr_t base=0;
+  const bool authenticated=wm::VerifyNativeMovementImage(base)
+   && base==reinterpret_cast<std::uintptr_t>(tested_image);
+  Check(authenticated,"production disk and relocated loaded-text verifier accepts");
+  if(!authenticated) {
+   VirtualFree(tested_image,0,MEM_RELEASE);tested_image=nullptr;return 1;
+  }
   NativeDoorTriangleContract();
   we::image_base=0;Check(we::VerifyBinding(identity)==ERROR_SUCCESS,"production update gate accepts reviewed prepared bootstrap");
   auto* terrain_image=static_cast<std::uint8_t*>(tested_image);
@@ -146,4 +152,3 @@ int wmain(int argc,wchar_t** argv){
  if(!failures)std::cout<<"Executed original/prepared disk authentication, relocated loaded-text and update gate; actual terrain startup ownership and restoration; rejected partial/bootstrap/code/data/truncation/loaded/unowned mutations.\n";
  return failures?1:0;
 }
-
