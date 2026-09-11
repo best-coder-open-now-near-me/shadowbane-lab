@@ -131,3 +131,21 @@ and this trace does not independently establish camera appearance. Next focused
 acceptance item is chat/focus interruption and recovery, then controller disconnect
 stop/reconnect recovery if not already covered by subsequent evidence. Preserve the
 accepted keyboard and controller movement; no broad navigation rerun is needed.
+
+## Open controller chat-recovery defect
+
+Owner subsequently clarified that movement remains disabled after chat closes and
+both sticks are released. This supersedes the pending chat check above: controller
+acceptance is incomplete despite accepted movement feel. The fresh private capture
+controller-chat-20260911.jsonl retains UI revocation at tick12906625, manual owner2
+->0, gates495; more than 1,000 subsequent current samples show gates239/policy64.
+Exact foreground, valid input capture and native availability remain set while UI
+ownership persists. The stable lifetime remains scene5. These facts point at the
+UI ownership path, not slot selection; they do not yet identify which native
+predicate is responsible. No gate has been weakened or bypassed.
+
+Existing movement owner is investigating the production native UI predicate and
+focused-control classification, plus the neutral rearm path. Root will obtain
+read-only native gate evidence, integrate the focused repair and validate the
+installed candidate before requesting a targeted chat-recovery retest. No broad
+movement or navigation restart is planned.
