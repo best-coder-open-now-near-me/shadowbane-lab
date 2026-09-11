@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(wonderbane_extension VERSION 1.7.4 LANGUAGES CXX RC)
+project(wonderbane_extension VERSION 1.7.6 LANGUAGES CXX RC)
 
 set(WONDERBANE_EXTENSION_PROFILE "full" CACHE STRING "Extension runtime profile")
 set_property(
@@ -1077,7 +1077,8 @@ if(BUILD_TESTING)
 endif()
 
 if(BUILD_TESTING)
-  add_executable(wonderbane_extension_movement_image_test movement_image_test.cpp import_hook.cpp)
+  add_executable(wonderbane_extension_movement_image_test
+    movement_image_test.cpp movement_lifetime.cpp import_hook.cpp)
   if(WONDERBANE_EXTENSION_PROFILE STREQUAL "diagnostics-only")
     target_compile_definitions(wonderbane_extension_movement_image_test PRIVATE WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY=1)
   endif()

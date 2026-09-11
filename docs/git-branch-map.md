@@ -6,6 +6,13 @@ acceptance.
 
 ## Active runtime hardening and rolling feature integration (September 5)
 
+September 11 movement follow-up: installed diagnostic package 1.7.4 identified
+manual latching after native update gaps. Repair candidate 1.7.5 / wheel 0.2.5
+is built from `29ef530`, independently source-reviewed and locally package-verified;
+CI and connected acceptance status are tracked in
+[the 1.7.5 handoff](handoffs/combined-candidate-1.7.5.md). The existing integration
+branch remains the destination; main and the running diagnostic client are unchanged.
+
 Current September 6 candidate: `04b7bdb` (native 1.7.3 / wheel 0.2.3) passed
 all package/CI checks and independent focused review, and was installed with
 owner approval. It addresses the live terrain/movement conflict found in 1.7.2.
