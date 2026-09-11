@@ -76,3 +76,15 @@ No extra input/selection/writes were performed. Next: native owner verifies the
 structure-child enumeration and actor-forward frame mapping, then implements the
 admitted resolver/selection/interaction path. Current live test remains unnecessary
 until a specific missing fact prevents implementation.
+
+## Obstruction and identity boundary
+
+Native owner statically established that existing NativeStop ray_castRVA0x20daa0
+is a world PICK path, not arbitrary-direction line of sight. Its terrain branch
+uses current pointer coordinates through0x6745a0: false mode unprojects camera/
+pointer and true mode forces downward. Preserve accepted movement/ground picking;
+do not use that path as proof of character-forward door obstruction. Owner is
+verifying the lower-level native segment/terrain collision contract separately.
+Door candidate identity must combine owning structure identity with door sub-object
+identity, because the door's+0x18 identity can equal its parent structure identity.
+Neither pointer equality nor parent identity alone distinguishes multiple doors.
