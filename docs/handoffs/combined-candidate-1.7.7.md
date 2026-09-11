@@ -112,3 +112,22 @@ Next: establish controller power/connection state and isolate USB initialization
 before requesting physical movement acceptance. No collector is running. No
 hardware identifiers are included in this note. Controller acceptance remains
 pending; the successful keyboard boundary check above remains valid.
+
+## Controller powered-on detection and movement acceptance
+
+After the owner manually powered on the controller, guest XInput reported slot0
+(panel slot1), and Windows exposed the healthy XINPUT compatible HID child.
+The installed settings already selected slot0 with controller controls enabled.
+This resolves the preceding detection blocker for this session; no driver or
+product source change was needed.
+
+Owner reports controller movement "feels friggin fantastic". The bounded private
+controller-powered-20260911.jsonl capture shows connected controller samples,
+manual takeover, moving then idle policy states, and no fault state or unexpected
+owner loss in the inspected interval beginning tick12731000. Historical ring events
+before that boundary are excluded. Movement feel is accepted. This is not proof
+of every requested check: no chat/UI inhibition appears in the inspected interval,
+and this trace does not independently establish camera appearance. Next focused
+acceptance item is chat/focus interruption and recovery, then controller disconnect
+stop/reconnect recovery if not already covered by subsequent evidence. Preserve the
+accepted keyboard and controller movement; no broad navigation rerun is needed.
