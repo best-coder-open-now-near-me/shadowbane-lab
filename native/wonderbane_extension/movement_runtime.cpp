@@ -315,13 +315,18 @@ public:
         busy = true; interrupted.reset(); tick = clock();
         NativeScene next{};
         const bool observed = ObserveNativeMovementLifetime(receiver, next);
-        if (!observed || next.epoch != scene.epoch) { input.Suspend(); }
+        const bool parent_transition = observed && NativeMovementParentTransition(scene, next);
+        if (!parent_transition && (!observed || next.epoch != scene.epoch)) { input.Suspend(); }
         scene = observed ? next : NativeScene{};
-        controls.ObserveScene(scene.epoch);
+        if (!parent_transition) { controls.ObserveScene(scene.epoch); }
         CapturedInput captured{};
         const bool captured_ok = input.Snapshot(captured);
         auto& sampled = captured.input; sampled.tick_ms = tick; sampled.scene = scene.epoch;
         const bool phase = observed && native.BeginUpdate(receiver, scene);
+        if (parent_transition && !controls.ObserveParentScene(scene.epoch,
+            phase && captured_ok && sampled.exact_foreground && !sampled.ui_owns_input && settings.enabled, tick)) {
+            input.Suspend();
+        }
         sampled.native_available = phase && captured_ok && native.Available();
         if (phase && captured_ok && sampled.exact_foreground && !sampled.ui_owns_input && settings.enabled) {
             sampled.camera_basis_valid = native.CameraBasis(sampled.camera_forward, sampled.camera_right);

@@ -25,7 +25,7 @@ struct State {
     bool arming_dirty = false;
     std::atomic<bool> terminal{false};
     std::atomic<std::uint64_t> watch_generation{0};
-    NativeScene scene{};
+    NativeScene scene{}, parent_transition_from{};
     std::atomic<bool> diagnostics_enabled{false};
     LifetimeDiagnostics diagnostics{};
     bool diagnostic_episode = false;
@@ -51,7 +51,7 @@ template<class T> bool Read(std::uintptr_t address, T& out) noexcept {
     __except(EXCEPTION_EXECUTE_HANDLER) { return false; }
 }
 bool Advance() noexcept { // lock held
-    state.alive = false;
+    state.alive = false; state.parent_transition_from = {};
     if (state.scene.epoch == std::numeric_limits<std::uint64_t>::max()) {
         state.terminal = true; return false;
     }
@@ -369,7 +369,9 @@ bool ObserveNativeMovementLifetime(void* native_window, NativeScene& out) noexce
     const auto changed = Changed(state.scene, scene);
     if (!state.terminal && !destroying) {
         if (!state.alive || !Same(state.scene, scene)) {
+            const auto parent_from = state.alive && Changed(state.scene, scene) == 2 ? state.scene : NativeScene{};
             if (Advance()) {
+                state.parent_transition_from = parent_from;
                 scene.epoch = state.scene.epoch; state.scene = scene;
                 state.actor_ref = actor_ref; state.parent_ref = parent_ref;
                 state.fast_actor = actor_ref; state.fast_parent = parent_ref;
@@ -403,6 +405,15 @@ bool NativeMovementLifetimeCurrent(const NativeScene& scene) noexcept {
     }
     ReleaseSRWLockExclusive(&state.lock);
     return current;
+}
+bool NativeMovementParentTransition(const NativeScene& previous, const NativeScene& current) noexcept {
+    if (!OnOwningThread() || !NativeMovementLifetimeCurrent(current)) { return false; }
+    AcquireSRWLockShared(&state.lock);
+    const bool matches = state.alive && !state.terminal && !state.binding_lost
+        && previous.epoch && previous.epoch == state.parent_transition_from.epoch
+        && Same(previous, state.parent_transition_from) && current.epoch == state.scene.epoch
+        && Same(current, state.scene) && Changed(previous, current) == 2;
+    ReleaseSRWLockShared(&state.lock); return matches;
 }
 void RetireNativeMovementLifetime() noexcept {
     if (!OnOwningThread() || !state.started || state.terminal) { return; }

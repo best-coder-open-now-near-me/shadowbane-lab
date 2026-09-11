@@ -224,6 +224,31 @@ void Controls::ObserveScene(std::uint64_t scene) noexcept {
     }
 }
 
+bool Controls::ObserveParentScene(std::uint64_t scene, bool manual_admitted, std::uint64_t tick_ms) noexcept {
+    if (actuating_ || !scene || scene == grant_.scene || shutdown_ || shutdown_pending_) { return false; }
+    if (grant_.owner == Owner::none && !pending_stop_) {
+        // No controls-owned native work: preserve ordinary native mouse movement,
+        // including when manual controls are disabled.
+        ObserveScene(scene); return false;
+    }
+    const bool preserve = manual_admitted && settings_.enabled && grant_.owner == Owner::manual
+        && available_ && foreground_ && !faulted_ && !pending_stop_ && !actuator_.Interrupted()
+        && (!has_tick_ || tick_ms >= last_tick_);
+    const auto old = grant_;
+    { const ActuationGuard guard(actuating_); actuator_.SceneRetired(old.scene); }
+    // Old targets cannot stop this epoch. Pending old cleanup forbids continuity;
+    // a fresh stop below must independently retire this same actor's native work.
+    moving_ = pending_stop_ = false;
+    const bool retired = Retire(StopReason::scene_changed, preserve ? Owner::manual : Owner::none, {}, scene);
+    has_tick_ = false;
+    if (!preserve) { Inhibit(StopReason::scene_changed); }
+    const bool stopped = StopActive(StopReason::takeover);
+    if (!retired || !stopped || !ContinueInput()) {
+        Inhibit(StopReason::scene_changed); return false;
+    }
+    return preserve && grant_.owner == Owner::manual;
+}
+
 void Controls::Tick(const Input& input) noexcept {
     if (actuating_) { return; }
     if (shutdown_) { (void)RetryStop(); return; }

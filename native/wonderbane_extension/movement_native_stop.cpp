@@ -496,8 +496,12 @@ bool NativeStop::RotateCameraGuarded(const Target& target, Vector2 radians) noex
 }
 void NativeStop::SceneRetired(std::uint64_t scene) noexcept {
     if (pick_target_.grant.scene == scene) { pick_valid_ = false; }
-    if (captured_ && target_.grant.scene == scene) { captured_ = false; }
-    if (steering_captured_ && steering_target_.grant.scene == scene) { steering_captured_ = false; }
+    if (captured_ && target_.grant.scene == scene) {
+        captured_ = false; drag_submitted_ = drag_deferred_ = false;
+    }
+    if (steering_captured_ && steering_target_.grant.scene == scene) {
+        steering_captured_ = steering_submitted_ = steering_sent_ = steering_deferred_ = false;
+    }
     // Native resources with uncertain exception ownership remain process-pinned.
 }
 bool NativeStop::CancelQueued(const Target& target) {

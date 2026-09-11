@@ -107,6 +107,10 @@ public:
     // Runtime calls this with a verified lifetime before read-only native picks.
     // It retires old authority without issuing a stop against the new actor.
     void ObserveScene(std::uint64_t) noexcept;
+    // Only after runtime verifies direct parent-only lifetime continuity and enters
+    // the new native phase. Retire old authority and stop fresh current-frame work
+    // before preserving admitted manual arm/gesture state. Never resumes automation.
+    bool ObserveParentScene(std::uint64_t, bool manual_admitted, std::uint64_t tick_ms) noexcept;
     Result AcquireAutomation(std::uint64_t expected_generation, Token, Grant&) noexcept;
     Result AutomationDestination(const Grant&, GroundPoint) noexcept;
     Result PauseAutomation(const Grant&) noexcept;

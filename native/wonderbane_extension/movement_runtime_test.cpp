@@ -8,7 +8,7 @@
 #include <string>
 namespace wm = wonderbane::extension::movement;
 namespace {
-wm::NativeScene observed{};
+wm::NativeScene observed{}, parent_from{};
 bool alive = true, ui_blocked = false, device_connected = true;
 HWND focused = nullptr, bound_window = nullptr;
 std::array<SHORT, 256> physical_keys{};
@@ -51,6 +51,11 @@ namespace movement {
 bool NativeMovementLifetimeCurrent(const NativeScene& scene) noexcept {
     return alive && scene.epoch && scene.epoch == observed.epoch && scene.actor == observed.actor
         && scene.world == observed.world && scene.window == observed.window && scene.parent == observed.parent;
+}
+bool NativeMovementParentTransition(const NativeScene& before, const NativeScene& next) noexcept {
+    return alive && before.epoch && before.epoch == parent_from.epoch
+        && before.actor == next.actor && before.world == next.world && before.window == next.window
+        && before.identity == next.identity && before.parent != next.parent && next.epoch == observed.epoch;
 }
 bool ObserveNativeMovementLifetime(void* window, NativeScene& scene) noexcept {
     scene = observed; return alive && reinterpret_cast<std::uintptr_t>(window) == observed.window;
@@ -195,6 +200,85 @@ int main(int argc, char** argv) {
             "latest ambiguous acquisition survives journal retirement");
         auto old_retry = make(wm::wire::Verb::acquire, original, 1); run(old_retry);
         Check(old_retry->receipt.outcome == static_cast<unsigned>(wm::Result::stale), "evicted acquisition cannot mint authority");
+        rt.input.Retire(); return failures ? 1 : 0;
+    }
+    if (mode.rfind("parent-", 0) == 0) {
+        const bool controller = mode == "parent-controller", drag = mode == "parent-drag";
+        const bool unowned = mode == "parent-unowned" || mode == "parent-disabled";
+        if (unowned) {
+            if (mode == "parent-disabled") {
+                rt.settings.enabled = false;
+                Check(rt.controls.Configure(rt.settings) == Result::accepted && rt.input.Configure(rt.settings),
+                    "disabled manual controls leave native movement alone");
+            }
+        } else if (mode == "parent-automation") {
+            Token token{}; std::memcpy(token.worker.data(), "worker", 6); std::memcpy(token.operation.data(), "route", 5);
+            Grant route{};
+            Check(rt.native.BeginUpdate(f.game_window.data(), observed), "route parent test native phase");
+            Check(rt.controls.AcquireAutomation(rt.controls.Current().generation, token, route) == Result::accepted,
+                "route before parent transition");
+            Check(rt.controls.AutomationDestination(route, {30, 0, -40}) == Result::accepted, "route destination before parent transition");
+            rt.native.EndUpdate();
+        } else if (controller) { gamepad.sThumbLY = 32767; step(); }
+        else if (drag) {
+            f.real_pick_move = true;
+            SendMessageW(f.window, WM_XBUTTONDOWN, MAKEWPARAM(MK_XBUTTON1, XBUTTON1), MAKELPARAM(0, 0));
+            pointer = {20, 0}; SendMessageW(f.window, WM_MOUSEMOVE, MK_XBUTTON1, MAKELPARAM(20, 0)); step();
+        } else { physical_keys['W'] = static_cast<SHORT>(0x8000); step(); }
+        const auto old = rt.controls.Current(); const auto old_scene = observed;
+        const auto prior_destination = f.destination; const auto moves = f.moves, picks = f.ray_casts;
+        Check(unowned || old.owner != Owner::none, "parent test starts with native movement owner");
+        f.parent_basis_variant = true; parent_from = observed;
+        observed.parent = reinterpret_cast<std::uintptr_t>(f.alternate_world.data()); ++observed.epoch;
+        Put(f.pose.data(), 8, observed.parent);
+        if (mode == "parent-notice") { parent_from = {}; }
+        if (mode == "parent-actor") {
+            f.replacement = f.actor; observed.actor = reinterpret_cast<std::uintptr_t>(f.replacement.data());
+            Put(f.base, 0x16a2d98, observed.actor);
+        }
+        if (mode == "parent-identity") { ++observed.identity[0]; Put(f.actor.data(), 0x18, observed.identity); }
+        if (mode == "parent-ui") { ui_blocked = true; }
+        if (mode == "parent-focus") { focused = nullptr; }
+        if (mode == "parent-stop-failure") { f.callback_mode = 9; }
+        if (mode == "parent-nested-stop") { interrupt_phase = 's'; }
+        native_order.clear(); step();
+        const auto next = rt.controls.Current();
+        const bool continuous = mode == "parent-keyboard" || controller || drag;
+        if (continuous) {
+            Check(next.owner == Owner::manual && next.scene == observed.epoch && next.generation > old.generation
+                && f.moves == moves + 1 && native_order == std::vector<char>{'s', 'd'},
+                "parent transition stops fresh current actor before new manual actuation");
+            if (!drag) {
+                Check(std::abs(f.destination.x + prior_destination.x - 200) < 0.001F
+                    && std::abs(f.destination.z + prior_destination.z - 400) < 0.001F,
+                    "fresh camera basis uses new native parent frame");
+            } else { Check(f.ray_casts > picks && GetCapture() == f.window, "drag keeps capture but obtains fresh terrain pick"); }
+            const auto after = f.moves; step(); Check(f.moves >= after && rt.controls.Current() == next,
+                "continuity is not repeatedly applied to the same epoch");
+            const auto before_stale = f.sends;
+            Check(rt.controls.Stop(old) == Result::stale && rt.controls.AutomationDestination(old, {}) == Result::stale,
+                "old epoch commands cannot mutate continued manual owner");
+            rt.ApplySafety({f.window, old_scene, old, StopReason::focus});
+            Check(rt.controls.Current() == next && f.sends == before_stale, "old safety stop cannot cancel new frame movement");
+            physical_keys.fill(0); gamepad = {};
+            if (drag) { SendMessageW(f.window, WM_XBUTTONUP, MAKEWPARAM(0, XBUTTON1), MAKELPARAM(20, 0)); }
+            step(); Check(Get<std::uint32_t>(f.state.data(), 0x10) == 5 && f.packet.references == 0,
+                "release still clears native movement after parent transition");
+        } else {
+            Check(next.owner == Owner::none && f.moves == moves,
+                "automation, safety loss, identity change or failed cleanup cannot continue held input");
+            if (unowned) {
+                Check(native_order.empty() && Get<std::uint32_t>(f.state.data(), 0x10) == 7,
+                    "unowned/disabled ordinary native mouse movement is preserved across parent change");
+            }
+            if (mode == "parent-automation") {
+                Check(Get<std::uint32_t>(f.state.data(), 0x10) == 5 && f.request.state == 1
+                    && Get<Access::Map>(f.world.data(), 0xb8).size == 0,
+                    "parent transition cancels obsolete automation native work");
+            }
+            ui_blocked = false; focused = f.window; step();
+            Check(f.moves == moves, "restored gates do not revive held input or old route");
+        }
         rt.input.Retire(); return failures ? 1 : 0;
     }
     if (mode == "input-diagnostics") {

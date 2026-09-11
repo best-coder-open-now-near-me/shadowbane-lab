@@ -224,7 +224,30 @@ int main(int argc, char** argv) {
         std::thread foreign([&] { wm::NativeScene other{}; foreign_result = f->Observe(other); }); foreign.join();
         Check(!foreign_result && wm::NativeMovementLifetimeCurrent(scene), "foreign thread cannot replace watch");
         const auto callback = *f->finalizer_slot;
-        if (mode == "diagnostics") {
+        if (mode == "parent-continuity") {
+            f->Put(reinterpret_cast<std::uintptr_t>(f->pose.data()) + 8,
+                reinterpret_cast<std::uintptr_t>(f->parent.data()));
+            Check(f->Observe(scene) && wm::NativeMovementParentTransition(first, scene)
+                && !wm::NativeMovementLifetimeCurrent(first),
+                "direct parent-only publication proves continuity without reviving old lifetime");
+            const auto parent_scene = scene;
+            Check(!wm::NativeMovementParentTransition({}, scene), "missing previous scene cannot claim continuity");
+            auto altered = first; ++altered.identity[0];
+            Check(!wm::NativeMovementParentTransition(altered, scene), "identity mismatch rejects transition proof");
+            expected_ref = f->parent.data() + 0xe78; old_scene = scene;
+            Check(CallRef(callback, expected_ref) && !wm::NativeMovementParentTransition(first, parent_scene),
+                "matching destruction immediately invalidates parent continuity proof");
+            f->Put(reinterpret_cast<std::uintptr_t>(f->pose.data()) + 8, std::uintptr_t{0});
+            Check(f->Observe(scene) && !wm::NativeMovementParentTransition(parent_scene, scene),
+                "parent-only values after destruction cannot recreate continuity proof");
+            const auto before_gap = scene; old_scene = {};
+            f->pose_pointer = 0; Check(!f->Observe(scene), "capture gap rejected");
+            f->pose_pointer = reinterpret_cast<std::uintptr_t>(f->pose.data());
+            f->Put(reinterpret_cast<std::uintptr_t>(f->pose.data()) + 8,
+                reinterpret_cast<std::uintptr_t>(f->parent.data()));
+            Check(f->Observe(scene) && !wm::NativeMovementParentTransition(before_gap, scene),
+                "capture failure cannot be hidden by subsequent parent-only values");
+        } else if (mode == "diagnostics") {
             wm::LifetimeDiagnostics d{};
             const auto read = [&] { Check(wm::ReadNativeMovementLifetimeDiagnostics(d), "diagnostic nonblocking read"); };
             read(); Check(d.current.cause == 2 && d.current.outcome == 2 && !d.first_invalidation.sequence,

@@ -41,6 +41,9 @@ bool ReadNativeMovementLifetimeDiagnostics(LifetimeDiagnostics&) noexcept;
 bool StartNativeMovementLifetime(HWND) noexcept;
 bool ObserveNativeMovementLifetime(void* native_window, NativeScene&) noexcept;
 bool NativeMovementLifetimeCurrent(const NativeScene&) noexcept;
+// Proves a direct, fully verified parent-only publication from an alive watch.
+// Destruction/capture gaps invalidate this proof; it never authorizes old targets.
+bool NativeMovementParentTransition(const NativeScene& previous, const NativeScene& current) noexcept;
 // Terminal retirement. Ordinary settings toggles must not retire this observer.
 // Original call-through and callback records remain valid for process lifetime.
 void RetireNativeMovementLifetime() noexcept;
