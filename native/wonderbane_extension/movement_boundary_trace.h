@@ -23,6 +23,23 @@ struct alignas(8) MovementBoundaryRecord {
     std::uint32_t actor, game_mode, ui_candidate, modal_candidate;
     std::uint32_t path_count, movement_state, caller_rva, read_valid;
 };
+// Schema 2 adds passive input snapshots and a retained owner-loss event.
+// Generation/scene and sampled keys contain no automation token or chat text.
+struct alignas(8) MovementInputRecord {
+    volatile LONG64 committed_sequence = 0;
+    std::uint64_t tick_ms = 0, sample_tick_ms = 0, interval_ms = 0;
+    std::uint64_t previous_generation = 0, generation = 0, scene = 0;
+    std::uint32_t thread_id = 0, window = 0, previous_owner = 0, owner = 0;
+    std::uint32_t reason = UINT32_MAX, kind = 1; // 1 snapshot, 2 revocation, 3 key decision
+    std::uint32_t keys = 0, suppressed_keys = 0, original_keys = 0;
+    std::uint32_t gates = 0, policy = 0, key_event = 0;
+    // key_event: low3 bits direction index+1; down8, repeat16, consumed32.
+    // A non-consumed event records forwarding decision, not remote execution.
+};
+static_assert(sizeof(MovementInputRecord) == 104);
+// No-op when passive trace is disabled; never dispatches movement or input.
+bool MovementInputTraceEnabled() noexcept;
+void PublishMovementInputTrace(const MovementInputRecord&) noexcept;
 struct alignas(8) MovementBoundaryTrace {
     char magic[8];
     std::uint32_t schema, record_size, capacity, process_id;
@@ -30,8 +47,16 @@ struct alignas(8) MovementBoundaryTrace {
     volatile LONG64 write_sequence;
     volatile LONG dropped;
     volatile LONG enabled;
+    volatile LONG64 input_write_sequence;
+    MovementInputRecord input;
+    MovementInputRecord last_owner_loss;
+    MovementInputRecord input_events[256];
     MovementBoundaryRecord records[256];
 };
 static_assert(sizeof(MovementBoundaryRecord) == 72);
-static_assert(offsetof(MovementBoundaryTrace, records) == 48);
+static_assert(offsetof(MovementBoundaryTrace, input_write_sequence) == 48);
+static_assert(offsetof(MovementBoundaryTrace, input) == 56);
+static_assert(offsetof(MovementBoundaryTrace, last_owner_loss) == 160);
+static_assert(offsetof(MovementBoundaryTrace, input_events) == 264);
+static_assert(offsetof(MovementBoundaryTrace, records) == 26888);
 } // namespace wonderbane::extension

@@ -20,6 +20,8 @@ bool Persist(const wm::Settings&) noexcept{return true;}
 void __cdecl OriginalKey(std::uint32_t,std::uint32_t,std::uint32_t,std::uint32_t){}
 }
 namespace wonderbane::extension {
+bool MovementInputTraceEnabled() noexcept { return false; }
+void PublishMovementInputTrace(const MovementInputRecord&) noexcept {}
 DWORD StartNativeMovementUpdates(const ProcessIdentity&,NativeMovementUpdate) noexcept{return ERROR_SUCCESS;}
 void StopNativeMovementUpdates() noexcept{}
 namespace movement {

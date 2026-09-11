@@ -936,6 +936,8 @@ if(BUILD_TESTING)
   set_property(TARGET wonderbane_extension_movement_boundary_test PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
   add_test(NAME wonderbane_extension_movement_boundary_stop
     COMMAND wonderbane_extension_movement_boundary_test)
+  add_test(NAME wonderbane_extension_movement_boundary_input_diagnostics
+    COMMAND wonderbane_extension_movement_boundary_test input-diagnostics)
   add_test(NAME wonderbane_extension_movement_boundary_startup_failure
     COMMAND wonderbane_extension_movement_boundary_test startup-failure)
 endif()
@@ -1038,7 +1040,7 @@ if(BUILD_TESTING)
   target_compile_options(wonderbane_extension_movement_runtime_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
   target_link_libraries(wonderbane_extension_movement_runtime_test PRIVATE user32 comctl32 bcrypt advapi32 gdi32)
   set_property(TARGET wonderbane_extension_movement_runtime_test PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
-  foreach(mode commands keyboard keyboard-cold-start keyboard-reversal controller drag focus stale destroyed nested-stop nested-camera nested-move startup-unavailable startup-hook-failure settings-stale scene-stale chat)
+  foreach(mode commands keyboard keyboard-cold-start keyboard-reversal input-diagnostics controller drag focus stale destroyed nested-stop nested-camera nested-move startup-unavailable startup-hook-failure settings-stale scene-stale chat)
     add_test(NAME wonderbane_extension_movement_runtime_${mode} COMMAND wonderbane_extension_movement_runtime_test ${mode})
   endforeach()
 endif()

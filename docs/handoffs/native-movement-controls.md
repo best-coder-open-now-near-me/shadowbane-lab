@@ -917,3 +917,43 @@ and remains outside it until integrated. No mouse rebind, VM operation, new
 package or connected acceptance is included. After locating the failing boundary,
 finish the keyboard-first/reversal fix, combined package validation and remaining
 physical controller/drag/camera/stop/safety/obstacle/automation-takeover acceptance.
+
+
+## Confirmed intermittent diagonal loss and passive diagnostics (September 11)
+
+The user clarified that earlier clicks were selection only; keyboard-first movement
+succeeded in that run. The remaining observed issue is intermittent input loss when
+adding a second direction key, such as W to W+D. The user confirmed occurrences
+during the integration owner's later capture. Readiness stayed available while
+manual ownership returned to none. Later read-only gates and RTTI-resolved focused
+HUD state were clear, but were not aligned to the earlier loss events. The recorder
+lacked native update timestamps. These facts do not establish a key conflict, stale
+focus, a stall, or a native actuation failure, and do not justify changing safety.
+
+A complete passive diagnostic slice now records native configured-key consumption
+decisions and the exact Runtime revocation reason through the existing optional
+movement trace. A separately named schema-2 mapping retains the last owner-loss
+event and a bounded input-transition ring; steady idle frames cannot erase the
+cause. It includes second-key events without revocation and distinguishes event
+and last-sample times. The command Status contract and movement/safety decisions
+remain unchanged. Reader compatibility and collection instructions are in
+[the diagnostic guide](../investigations/native-input-diagnostics.md).
+
+New native regression modes are `input-diagnostics` for both runtime and boundary
+executables. The Python producer/reader interoperability check requires
+`WONDERBANE_MOVEMENT_BOUNDARY_TEST`; root owns mandatory package gating and explicit
+trace opt-in for the combined candidate. No VM operation or installation occurred
+in this assignment. This diagnostic slice targets the integration branch for
+independent review; it is not a runtime fix or connected acceptance.
+
+Validation: both native DLL profiles build. Each profile passes 37 focused
+controls/input/stop/runtime/shared-hook/trace/settings tests plus the explicit
+native-update partial-startup rollback case (38 per profile). Full-profile Python
+has 17 passes and 15 subtests, including unchanged movement-wire checks;
+diagnostics-profile reader tests have 12 passes. Both producer/reader binary
+interoperability tests execute with zero skips. Ruff passes.
+
+Next active todo: root's combined review/package and a narrowly interpreted failure observation;
+implement the evidence-supported behavior fix and complete physical feature
+acceptance afterward. Private read-only helpers/captures stay in ignored local
+artifacts, including read_stuck_gates.py; no private client data is shipped.

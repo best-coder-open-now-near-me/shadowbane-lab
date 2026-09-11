@@ -166,6 +166,15 @@ void __cdecl WindowsInput::Keyboard(std::uint32_t key, std::uint32_t mods, std::
     }
     self->callback_active_ = true;
     const bool consumed = self->Key(key, mods, down, repeat);
+    if (self->callbacks_.key_observed) {
+        for (std::size_t i = 0; i != self->settings_.keys.size(); ++i) {
+            if (self->settings_.keys[i] == key) {
+                self->callbacks_.key_observed(self->callbacks_.context,
+                    static_cast<std::uint32_t>(i + 1) | (down ? 8U : 0U) | (repeat ? 16U : 0U) | (consumed ? 32U : 0U));
+                break;
+            }
+        }
+    }
     self->callback_active_ = false;
     if (!consumed) { self->original_(key, mods, down, repeat); }
 }
