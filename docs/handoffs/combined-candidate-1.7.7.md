@@ -1,0 +1,67 @@
+# 1.7.7 verified parent-frame continuity candidate
+
+Exact clean package source: `5d211568072cd2bda6a0619b4a9873d6ba79eb08` on
+`codex/native-lifecycle-hardening`; common batch base
+`14d117e8c5194c6dff55dac608b2d3f683187d31`. Movement-owner checkpoint
+`bcb52c449c6493c3d479645a30121084e04e9ce1` is included as
+`4c424742c9c45e0e9ad1ffc4b49f9d8e8625a5f7`. Product 1.7.7 / wheel 0.2.7;
+command wire and diagnostic schema 3 unchanged. Older diagnostic readers remain
+available explicitly. Includes the confirmed prior update-gap repair.
+
+## Repair and remaining live question
+
+1.7.6 capture identified an accepted parent-only tuple change at the exact input
+loss, with actor/world/window/identity unchanged. This repair uses a non-diagnostic
+proof of a direct parent-only transition from an alive established watch. Gaps,
+destruction and other lifetime changes clear the proof. It retires old grants and
+native caches, stops obsolete native work in the verified current frame, and only
+then preserves previously admitted manual controls with fresh camera basis/pick.
+Automation is retired, never resumed; old commands cannot stop the new owner.
+Pending stop/fault, clock regression, focus/UI and nested failure still inhibit.
+No-owner/no-pending-stop transitions do not stop ordinary native mouse movement.
+
+This does not establish that the parent boundary represents a terrain tile, and
+connected acceptance is still pending. No newer PvP work, particles delivery,
+mouse rebinding or lifetime-gate relaxation is included. Existing conservative
+visual behavior and demonstrated navigation are preserved.
+
+## Exact package and checks
+
+Private root: `E:/Projects/shadowbane/artifacts/combined-packages/c3a90947`.
+SHA-256 identities:
+
+- ZIP: `4ac90117dfb550fe89b5c75380b0d990e65be74139b2e8705553ba66e06e629d`
+- Full DLL: `366f36b9981c9ead95e6b25a13b20ae40c18094c58b0c8e96490e35f126012f8`
+- Diagnostics-only DLL: `bffddb2bc52f5c917642bf81f89329826ee97836261f8ef8a34ae66c50f23924`
+- Wheel `shadowbane_lab-0.2.7-py3-none-any.whl`:
+  `fbf4ce0f7ff5ef72f60f385650e85dd71121ffa88571a9f3bbd2e39fa037feab`
+
+Existing exact-commit builder passed: Python 1853 passed, 13 skipped, 238 subtests;
+Ruff; both native builds; each profile 129 executed suite passes and three
+no-argument binding skips. Actual cue/sky/prepared-image bindings executed
+separately and passed. Lifetime proof plus all 13 runtime parent cases are required
+package gates and executed. Each profile 45 interprocess/reader tests passed,
+zero skipped. Known ideal-transparency failures remain separate deferred diagnostics.
+
+Installed wheel entry point, inspector, all Graphics Lab panels and trace reader
+passed outside source. Supplemental installed lifetime reader parsed actual native
+producer records from both profiles. All 57 receipt hashes/sizes and ZIP CRC passed.
+Logs/receipts and supplemental verification remain beside the package; root build
+log is `artifacts/combined-1.7.7-build.log`.
+
+Independent source review approved the exact delta `59ceb02..5d21156`, no findings.
+Reviewer inspected proof lifetime, stop/restart ordering, fresh frame conversion,
+stale command isolation, unowned input and failure cases. Source inspection only;
+execution results are root/owner evidence. Observer proof and runtime composition
+are separately tested; runtime fixture supplies the proof callback.
+CI 34573377979 is pending its diagnostics-only native job; other six jobs passed.
+
+## Next step
+
+VM remains on 1.7.6. Complete CI before installation; after controlled game/panel
+close, preserve current settings, prepare and verify this package, launch with
+WONDERBANE_MOVEMENT_TRACE=1, then retire the obsolete client under standing owner
+authorization. One focused check: ordinary movement across the previously observed
+boundary, opposite-key cancellation/release-one, release stop, and chat/focus
+recovery. Confirm parent-only transitions preserve manual input and classify any
+remaining loss from schema-3 evidence. No broad navigation rerun is requested.
