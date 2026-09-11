@@ -88,3 +88,17 @@ controller movement, stop/chat/focus behavior or manual/automation handover.
 Next: owner enables the desired input in the now-open panel and performs the
 short movement/release-to-stop check in clear space, followed by targeted safety
 checks. Private results are retained with the installation receipts.
+
+### Follow-up: independent keyboard startup remains open
+
+The owner reports that WASD works only after the first right-click. WASD and
+mouse steering are separate controls; keyboard movement must initiate from idle
+without any mouse prerequisite. Earlier ambiguity about button rebinding was
+resolved: a guessed right-button rebind is not the fix and is excluded.
+
+The movement owner found that existing runtime manual regressions first establish
+an automation destination and backend fixtures seed moving/path state. They are
+adding genuine keyboard-first cold-idle coverage and tracing native movement
+initialization. Root will require the new regression in the existing package gate.
+No behavioral fix or new live acceptance is claimed yet. The working 1.7.3
+startup/settings path is preserved, and no additional user focus retry is requested.
