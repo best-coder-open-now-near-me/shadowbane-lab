@@ -51,12 +51,14 @@ are retained beside the package; root log is `artifacts/combined-1.7.5-build.log
 Independent review approved exact delta `27c5b45..29ef530`, no actionable findings.
 Reviewer inspected stop/arming/safety ordering, fixtures, required package gate,
 and version compatibility. This was source inspection, not independent execution.
-CI run `34567677863` is pending native jobs at this evidence checkpoint; quality,
-PowerShell syntax and Python 3.11/3.12/3.13 have passed.
+CI run `34567677863` passed all seven jobs. Retained log
+`artifacts/combined-1.7.5-ci.log` confirms manual-update-gap executed in both
+native profiles. Python 3.11/3.13: 1851 passed, 5 skipped; Python 3.12: 1850 passed,
+6 skipped; each reported 241 subtests. No required package gate was skipped.
 
 ## Next acceptance step
 
-VM remains on 1.7.4; no 1.7.5 installation is claimed. After CI completes and the
+VM remains on 1.7.4; no 1.7.5 installation is claimed. CI is complete. After the
 owner closes the designated diagnostic client, prepare and verify the new copy
 with preserved settings. Keep optional movement tracing enabled. One focused live
 check: movement starts independently, hold a direction through ordinary delays,
