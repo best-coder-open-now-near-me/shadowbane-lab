@@ -34,6 +34,7 @@ add_library(
   movement_settings.cpp
   movement_native_image.cpp
   movement_lifetime.cpp
+  door_native_collection.cpp
   movement_native_ui.cpp
   movement_native_stop.cpp
   cel_shading.cpp
@@ -1001,7 +1002,7 @@ endif()
 
 if(BUILD_TESTING)
   add_executable(wonderbane_extension_movement_lifetime_test
-    movement_lifetime_test.cpp movement_native_stop.cpp movement_native_ui.cpp movement_controls.cpp)
+    movement_lifetime_test.cpp movement_native_stop.cpp movement_native_ui.cpp movement_controls.cpp door_native_collection.cpp)
   target_compile_features(wonderbane_extension_movement_lifetime_test PRIVATE cxx_std_20)
   target_compile_definitions(wonderbane_extension_movement_lifetime_test PRIVATE
     UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
@@ -1017,7 +1018,7 @@ if(BUILD_TESTING)
     add_test(NAME wonderbane_extension_movement_lifetime_${mode}
       COMMAND wonderbane_extension_movement_lifetime_test ${mode})
   endforeach()
-  foreach(mode door-normal door-rollback door-foreign door-teardown)
+  foreach(mode door-normal door-rollback door-foreign door-teardown door-query door-query-fault)
     add_test(NAME wonderbane_extension_movement_lifetime_${mode}
       COMMAND wonderbane_extension_movement_lifetime_test ${mode})
     set_tests_properties(wonderbane_extension_movement_lifetime_${mode} PROPERTIES TIMEOUT 20)
