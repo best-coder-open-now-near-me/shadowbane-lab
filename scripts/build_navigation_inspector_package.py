@@ -283,6 +283,8 @@ def main() -> int:
             "wonderbane_extension_movement_runtime_manual-update-gap",
             "wonderbane_extension_movement_runtime_input-diagnostics",
             "wonderbane_extension_movement_boundary_input_diagnostics",
+            "wonderbane_extension_movement_boundary_lifetime_diagnostics",
+            "wonderbane_extension_movement_lifetime_diagnostics",
             "wonderbane_extension_movement_runtime_controller",
             "wonderbane_extension_movement_runtime_drag",
             "wonderbane_extension_movement_runtime_focus",
@@ -337,6 +339,7 @@ def main() -> int:
         ipc_cases = ET.parse(ipc_results).getroot().findall(".//testcase")
         required_ipc = {
             "test_native_input_publisher_reader_interoperability",
+            "test_native_lifetime_publisher_reader_interoperability",
             "test_real_producer_mutex_native_owner_completion_and_readonly_snapshot",
             "test_real_hook_startup_failure_is_readable_without_window_or_lease",
             "test_operation_context_uses_real_native_interprocess_movement",

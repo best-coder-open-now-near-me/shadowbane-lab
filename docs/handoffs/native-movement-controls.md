@@ -20,8 +20,9 @@ CLI composition is published at `55e30ccbddabf217a49e2cc847e56901d46b83b4`;
 manager composition is published by the integration owner at `d3f3af3`.
 The consumer starts after successful shared extension startup. Initial manual
 preferences are disabled; saved preferences apply on later starts. The integration
-owner installed the verified 1.7.4 diagnostic candidate. Connected acceptance is
-unfinished; the September 11 repair below awaits combined review and packaging.
+owner installed the verified 1.7.5 manual-update-gap repair candidate. Connected
+acceptance remains unfinished; the lifetime cause diagnostics below await combined
+review and packaging.
 
 The production policy requires a synchronous owning-client-thread actuator. A
 movement ownership grant contains a generation, scene lifetime, owner and lossless
@@ -95,11 +96,12 @@ invalid pick and lost capture, client isolation and camera integration at
 - [x] Wire travel/PvE dispatch and immutable ownership grants with the hardening owner.
 - [x] Validate production native adapters, both profiles, lifecycle and delayed dispatch.
 - [x] Verify and install the complete 1.7.4 diagnostic package through the integration owner.
-- [ ] Active: review and package the September 11 manual-update-gap repair through the integration owner.
+- [x] Review/package/install the manual-update-gap repair through the integration owner.
+- [ ] Active: review/package the lifetime cause diagnostics through the integration owner.
 - [ ] Run focused connected acceptance for all input methods, camera, obstacles,
   real release/stop, chat/UI safety, multi-client isolation and navigation takeover.
 
-Next item is combined review and packaging of the manual-update-gap repair. Connected engine behavior
+Next item is combined review and packaging of the lifetime cause diagnostics. Connected engine behavior
 requires the exact installed candidate and coordinated acceptance. Historical
 checkpoint notes below describe the progression, not additional active todos.
 
@@ -1014,3 +1016,29 @@ advance observer epoch and retention of the original destruction cause. No priva
 capture was accessed in this follow-up, and no VM/deployment operation occurred.
 Next: integration-owner review of this test checkpoint and diagnostic proposal;
 combined acceptance remains unfinished.
+
+## Lifetime cause diagnostics implemented
+
+Following the source-only test checkpoint `96545ea`, the integration owner authorized
+and this branch implements the complete optional cause/changed-field slice. Schema 3
+appends a bounded lifetime ring, latest source record and retained first invalidation
+to a distinct versioned mapping. No raw object values or text are added; command
+Status is unchanged. Source captures failure stage even without epoch advance,
+changed-field validity, exact notice role/flags and captured watch generation.
+First cause survives retries, rearm and stable idle; source sequence/tick versus
+publication tick makes retained history distinguishable. Same-parent pose storage
+changes still do not retire the scene; coordinate-parent changes retain existing
+full safety semantics. No safety gate, movement actuation or fallback is changed.
+
+Both full/diagnostics Win32 Release DLLs and affected executables built successfully.
+Each profile passed 76 focused native tests; both native-producer Python runs passed
+34 tests and 15 subtests, including both input and lifetime interoperability and
+14 package-gate tests, without skips. A final captured-generation clarification was
+rebuilt and rerun against lifetime/native-stop suites (37 per profile). Ruff and
+staged whitespace checks pass. Package gates require native lifetime diagnostics
+and the actual native lifetime publisher/reader interoperability case.
+
+Integration destination remains PR #32 to `codex/native-lifecycle-hardening`.
+Next is the owner's independent combined review, version/package verification and
+installation before another user observation. No VM access, private capture access,
+package replacement or connected acceptance was performed in this follow-up.

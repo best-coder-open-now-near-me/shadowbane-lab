@@ -104,6 +104,7 @@ struct Fixture {
     template<class T> void Put(std::uintptr_t address, T value) { std::memcpy(reinterpret_cast<void*>(address), &value, sizeof(value)); }
     explicit Fixture(bool broken_release = false, bool skip_registration = false) {
         Check(image && hwnd, "fixture allocation");
+        wm::EnableNativeMovementLifetimeDiagnostics(true);
         auto& s = wm::state; s.base = reinterpret_cast<std::uintptr_t>(image); s.window = hwnd;
         s.thread = GetCurrentThreadId(); s.started = true;
         s.free_slot = {&free_slot, free_slot, reinterpret_cast<std::uint32_t>(&wm::Deallocate)};
@@ -197,6 +198,20 @@ int main(int argc, char** argv) {
             barrier_thread.join(); wm::notice_barrier = nullptr;
             Check(observed && !wm::NativeMovementLifetimeCurrent(scene), "late entry invalidates newly published matching watch before original");
         } else { Check(!observed && !scene.epoch, "destruction overlapping unpublished watch rejects capture"); }
+        wm::LifetimeDiagnostics diagnostic{};
+        Check(wm::ReadNativeMovementLifetimeDiagnostics(diagnostic), "arming diagnostic available");
+        Check(diagnostic.first_invalidation.sequence != 0,
+            "destruction or rejected observation retains first cause even without epoch advance");
+        if (publication_edge) {
+            Check(diagnostic.current.watch_generation == previous.epoch
+                && diagnostic.current.previous_epoch > diagnostic.current.watch_generation
+                && diagnostic.current.outcome == 0,
+                "late notice distinguishes captured generation from newly invalidated watch epoch");
+        } else {
+            Check(diagnostic.current.cause == 9 && diagnostic.current.outcome == 1
+                && diagnostic.current.failure_stage >= 10 && diagnostic.current.failure_stage <= 12,
+                "arming rejection distinguishes in-flight, overlap or matching destruction");
+        }
         if (barrier_hold) { SetEvent(release_call); barrier_thread.join(); }
         Check(!wm::state.terminal && !wm::state.binding_lost, "interference does not fabricate unsupported binding");
         wm::capture_barrier = nullptr;
@@ -209,7 +224,43 @@ int main(int argc, char** argv) {
         std::thread foreign([&] { wm::NativeScene other{}; foreign_result = f->Observe(other); }); foreign.join();
         Check(!foreign_result && wm::NativeMovementLifetimeCurrent(scene), "foreign thread cannot replace watch");
         const auto callback = *f->finalizer_slot;
-        if (mode == "established-churn") {
+        if (mode == "diagnostics") {
+            wm::LifetimeDiagnostics d{};
+            const auto read = [&] { Check(wm::ReadNativeMovementLifetimeDiagnostics(d), "diagnostic nonblocking read"); };
+            read(); Check(d.current.cause == 2 && d.current.outcome == 2 && !d.first_invalidation.sequence,
+                "first watch records admission without fabricating invalidation");
+            old_scene = scene; Check(CallRef(callback, expected_ref), "diagnostic finalizer forwarded");
+            read(); const auto origin = d.first_invalidation;
+            Check(origin.cause == 6 && origin.notice_role == 1 && origin.finalizer_flags == 1
+                && origin.previous_epoch == first.epoch && origin.epoch > first.epoch
+                && origin.observed_epoch == first.epoch && origin.watch_generation == first.epoch,
+                "first invalidation captures exact notice role, flags and epoch before original");
+            f->pose_pointer = 0;
+            Check(!f->Observe(scene), "failed capture after destruction"); read();
+            Check(d.current.cause == 4 && d.current.failure_stage == 9 && d.current.changed_fields == 0
+                && d.current.valid_fields == 61 && d.current.previous_epoch == d.current.epoch
+                && d.first_invalidation.sequence == origin.sequence,
+                "failed partial capture reports stage without fake changed mask or replacing original cause");
+            f->pose_pointer = reinterpret_cast<std::uintptr_t>(f->pose.data()); old_scene = {};
+            for (int i = 0; i < 200; ++i) { Check(f->Observe(scene), "stable retry/idle observation"); }
+            read(); Check(d.current.cause == 1 && d.current.outcome == 2
+                && d.first_invalidation.sequence == origin.sequence && d.write_sequence > 64,
+                "first cause survives successful rearm and idle ring overwrite");
+            f->Put(reinterpret_cast<std::uintptr_t>(f->actor.data()) + 0x1c, std::uint32_t{31});
+            Check(f->Observe(scene), "changed identity observation"); read();
+            Check(d.current.cause == 3 && d.current.changed_fields == 32 && d.current.valid_fields == 63
+                && d.first_invalidation.sequence == d.current.sequence,
+                "new invalidation episode records precise changed identity word");
+            AcquireSRWLockExclusive(&wm::state.lock);
+            bool read_contended = true;
+            std::thread reader([&] { wm::LifetimeDiagnostics copy{}; read_contended = wm::ReadNativeMovementLifetimeDiagnostics(copy); });
+            reader.join(); ReleaseSRWLockExclusive(&wm::state.lock);
+            Check(!read_contended, "publication read never blocks behind lifetime lock");
+            const auto count = d.write_sequence;
+            wm::EnableNativeMovementLifetimeDiagnostics(false);
+            Check(f->Observe(scene) && !wm::ReadNativeMovementLifetimeDiagnostics(d), "disabled diagnostics do not alter admission");
+            Check(wm::state.diagnostics.write_sequence == count, "disabled trace performs no diagnostic recording");
+        } else if (mode == "established-churn") {
             // Finalization of another instance sharing our vtable is not
             // finalization of this watched actor/reference interface.
             expected_ref = f->next.data() + 0xe78;
@@ -232,21 +283,25 @@ int main(int argc, char** argv) {
             Check(f->Observe(scene) && scene.epoch == first.epoch,
                 "pose storage changes with identical parent preserve scene identity");
         } else if (mode == "identity-fields") {
-            const auto changed = [&](const char* message) {
+            const auto changed = [&](std::uint32_t mask, const char* message) {
                 const auto previous = scene;
                 Check(f->Observe(scene) && scene.epoch != previous.epoch
                     && !wm::NativeMovementLifetimeCurrent(previous), message);
+                wm::LifetimeDiagnostics d{};
+                Check(wm::ReadNativeMovementLifetimeDiagnostics(d) && d.current.changed_fields == mask
+                    && d.current.valid_fields == 63 && d.current.cause == 3,
+                    "complete tuple change reports only changed identity fields");
             };
             f->Put(reinterpret_cast<std::uintptr_t>(f->actor.data()) + 0x18, std::uint32_t{17});
-            changed("first identity word independently retires old epoch");
+            changed(16, "first identity word independently retires old epoch");
             f->Put(reinterpret_cast<std::uintptr_t>(f->actor.data()) + 0x1c, std::uint32_t{31});
-            changed("second identity word independently retires old epoch");
+            changed(32, "second identity word independently retires old epoch");
             f->Put(reinterpret_cast<std::uintptr_t>(f->pose.data()) + 8,
                 reinterpret_cast<std::uintptr_t>(f->parent.data()));
-            changed("parent-only replacement retires epoch while actor remains identical");
+            changed(2, "parent-only replacement retires epoch while actor remains identical");
             f->Put(wm::state.base + 0x1389028, std::uintptr_t{0x22340000});
-            changed("world-only replacement retires epoch while actor remains identical");
-            f->SetActor(f->next.data()); changed("actor replacement retires epoch");
+            changed(4, "world-only replacement retires epoch while actor remains identical");
+            f->SetActor(f->next.data()); changed(49, "actor replacement retires epoch");
             auto alternate_window = f->window;
             f->Put(wm::state.base + 0x16a7bfc, reinterpret_cast<std::uintptr_t>(alternate_window.data()));
             const auto previous = scene;

@@ -136,14 +136,43 @@ void Observe(void* receiver, double delta, std::uintptr_t caller) noexcept {
     InterlockedExchange64(&trace->write_sequence, sequence);
     ReleaseSRWLockExclusive(&publication_lock);
 }
+void PublishLifetime() noexcept {
+    if (!InterlockedCompareExchange(&enabled, 0, 0)) { return; }
+    movement::LifetimeDiagnostics snapshot{};
+    if (!movement::ReadNativeMovementLifetimeDiagnostics(snapshot) || !snapshot.write_sequence) { return; }
+    if (!TryAcquireSRWLockExclusive(&publication_lock)) {
+        InterlockedIncrement(&trace->dropped); return;
+    }
+    if (InterlockedCompareExchange(&enabled, 0, 0)) {
+        const auto commit = [](movement::LifetimeRecord& target, const movement::LifetimeRecord& record) {
+            auto* sequence_address = reinterpret_cast<volatile LONG64*>(&target.sequence);
+            InterlockedExchange64(sequence_address, 0);
+            std::memcpy(reinterpret_cast<unsigned char*>(&target) + 8,
+                reinterpret_cast<const unsigned char*>(&record) + 8, sizeof(record) - 8);
+            MemoryBarrier(); InterlockedExchange64(sequence_address, static_cast<LONG64>(record.sequence));
+        };
+        // Multiple admitted callbacks can publish out of order; never regress.
+        if (snapshot.write_sequence >= static_cast<std::uint64_t>(trace->lifetime_write_sequence)) {
+            commit(trace->lifetime_current, snapshot.current);
+            commit(trace->lifetime_first_invalidation, snapshot.first_invalidation);
+            for (std::size_t i = 0; i < snapshot.events.size(); ++i) { commit(trace->lifetime_events[i], snapshot.events[i]); }
+            InterlockedExchange64(&trace->lifetime_write_sequence, static_cast<LONG64>(snapshot.write_sequence));
+            InterlockedExchange64(&trace->lifetime_published_tick, static_cast<LONG64>(GetTickCount64()));
+        }
+    }
+    ReleaseSRWLockExclusive(&publication_lock);
+}
 std::uint32_t __fastcall TracedUpdate(void* receiver, void*, double delta) {
+    PublishLifetime();
     Observe(receiver, delta, reinterpret_cast<std::uintptr_t>(_ReturnAddress()));
     // Callback identity is immutable after publication and remains process-pinned.
     // A consumer admitted before retirement may finish; retirement never destroys
     // its state or the original call-through. The runtime handles native shutdown
     // on this thread before requesting its own retirement.
     if (InterlockedCompareExchange(&movement_enabled, 0, 0)) { movement_update(receiver, delta); }
-    return original(receiver, delta);
+    PublishLifetime();
+    const auto result = original(receiver, delta);
+    PublishLifetime(); return result;
 }
 DWORD InstallUpdate(std::uint32_t* slot, Update target) noexcept {
     if (installed_slot) {
@@ -189,18 +218,19 @@ DWORD InstallTrace(const ProcessIdentity& identity, std::uint32_t* slot, Update 
     if (!ExactIdentity(identity)) { return ERROR_INVALID_DATA; }
     if (mapping) { return ERROR_ALREADY_INITIALIZED; }
     wchar_t name[160]{};
-    if (FAILED(StringCchPrintfW(name,160,L"Local\\ShadowbaneLab.Extension.MovementBoundary.v2.%lu.%llu",
+    if (FAILED(StringCchPrintfW(name,160,L"Local\\ShadowbaneLab.Extension.MovementBoundary.v3.%lu.%llu",
         identity.process_id,identity.creation_filetime_utc))) { return ERROR_INVALID_DATA; }
     mapping = CreateFileMappingW(INVALID_HANDLE_VALUE,nullptr,PAGE_READWRITE,0,sizeof(MovementBoundaryTrace),name);
     if (!mapping) { return GetLastError(); }
     if (GetLastError() == ERROR_ALREADY_EXISTS) { CloseHandle(mapping); mapping = nullptr; return ERROR_ALREADY_EXISTS; }
     trace = static_cast<MovementBoundaryTrace*>(MapViewOfFile(mapping,FILE_MAP_WRITE,0,0,sizeof(MovementBoundaryTrace)));
     if (!trace) { const auto error=GetLastError(); CloseHandle(mapping); mapping=nullptr; return error; }
-    std::memcpy(trace->magic,"WBMVTR2",8);
-    trace->schema=2; trace->record_size=sizeof(MovementBoundaryRecord); trace->capacity=256;
+    std::memcpy(trace->magic,"WBMVTR3",8);
+    trace->schema=3; trace->record_size=sizeof(MovementBoundaryRecord); trace->capacity=256;
     trace->process_id=identity.process_id; trace->creation_filetime=identity.creation_filetime_utc;
     const auto result = InstallUpdate(slot, target);
     if (result == ERROR_SUCCESS) {
+        movement::EnableNativeMovementLifetimeDiagnostics(true);
         InterlockedExchange(&trace->enabled,1); InterlockedExchange(&enabled,1);
     }
     // Retain mapping even on failed installation: an in-flight callback can still hold it.
@@ -225,6 +255,7 @@ DWORD StartMovementBoundaryTrace(const ProcessIdentity& identity) noexcept {
 void StopMovementBoundaryTrace() noexcept {
     const LifecycleGuard lifecycle;
     InterlockedExchange(&enabled,0);
+    movement::EnableNativeMovementLifetimeDiagnostics(false);
     if (mapping) {
         AcquireSRWLockExclusive(&publication_lock);
         InterlockedExchange(&trace->enabled,0);
@@ -297,6 +328,7 @@ DWORD StartNativeMovementUpdatesForTesting(const ProcessIdentity& identity, Nati
     return InstallMovement(identity, callback, slot, reinterpret_cast<Update>(target));
 }
 const MovementBoundaryTrace* MovementBoundaryTraceForTesting() noexcept { return trace; }
+void PublishLifetimeForTesting() noexcept { PublishLifetime(); }
 #endif
 
 } // namespace wonderbane::extension

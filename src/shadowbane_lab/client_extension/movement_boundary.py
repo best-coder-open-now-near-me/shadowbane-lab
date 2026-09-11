@@ -24,6 +24,60 @@ INPUT_LOSS_OFFSET = 160
 INPUT_EVENTS_OFFSET = 264
 V2_HEADER_SIZE = INPUT_EVENTS_OFFSET + CAPACITY * INPUT_RECORD.size
 V2_SIZE = V2_HEADER_SIZE + CAPACITY * RECORD.size
+LIFETIME_RECORD = struct.Struct("<6Q8I")
+LIFETIME_CAPACITY = 64
+LIFETIME_CURRENT_OFFSET = V2_SIZE + 16
+LIFETIME_FIRST_OFFSET = LIFETIME_CURRENT_OFFSET + LIFETIME_RECORD.size
+LIFETIME_EVENTS_OFFSET = LIFETIME_FIRST_OFFSET + LIFETIME_RECORD.size
+V3_SIZE = LIFETIME_EVENTS_OFFSET + LIFETIME_CAPACITY * LIFETIME_RECORD.size
+LIFETIME_FIELDS = (
+    "sequence",
+    "tick_ms",
+    "previous_epoch",
+    "epoch",
+    "observed_epoch",
+    "watch_generation",
+    "cause",
+    "outcome",
+    "failure_stage",
+    "changed_fields",
+    "valid_fields",
+    "notice_role",
+    "finalizer_flags",
+    "thread_id",
+)
+LIFETIME_CAUSES = (
+    "invalid",
+    "stable",
+    "first_watch",
+    "tuple_changed",
+    "capture_failed",
+    "capture_changed",
+    "reference_notice",
+    "world_notice",
+    "binding_lost",
+    "arm_rejected",
+    "terminal",
+    "exhausted",
+    "rearmed",
+)
+LIFETIME_STAGES = (
+    "none",
+    "window",
+    "receiver",
+    "mode",
+    "actor",
+    "world",
+    "identity",
+    "position",
+    "pose",
+    "parent",
+    "unrecorded_callbacks",
+    "overlapping_callback",
+    "matching_destruction",
+    "reference",
+    "binding",
+)
 INPUT_FIELDS = (
     "sequence",
     "tick_ms",
@@ -80,9 +134,9 @@ FIELDS = (
 def mapping_name(process_id: int, creation_filetime: int, schema: int = 1) -> str:
     if not 0 < process_id <= 0xFFFFFFFF or not 0 < creation_filetime <= 0xFFFFFFFFFFFFFFFF:
         raise ValueError("exact process ID and creation FILETIME are required")
-    if schema not in (1, 2):
+    if schema not in (1, 2, 3):
         raise ValueError("unsupported movement trace schema")
-    version = ".v2" if schema == 2 else ""
+    version = f".v{schema}" if schema >= 2 else ""
     prefix = f"Local\\ShadowbaneLab.Extension.MovementBoundary{version}"
     return f"{prefix}.{process_id}.{creation_filetime}"
 
@@ -94,9 +148,9 @@ def stable_records(
     creation_filetime: int,
 ) -> list[dict[str, int | float]]:
     """Accept only committed slots unchanged across two independent memory reads."""
-    if len(first) != len(second) or len(first) not in (SIZE, V2_SIZE):
+    if len(first) != len(second) or len(first) not in (SIZE, V2_SIZE, V3_SIZE):
         raise ValueError("movement boundary mapping size mismatch")
-    expected_schema = 1 if len(first) == SIZE else 2
+    expected_schema = {SIZE: 1, V2_SIZE: 2, V3_SIZE: 3}[len(first)]
     header_size = HEADER.size if expected_schema == 1 else V2_HEADER_SIZE
     latest = []
     for payload in (first, second):
@@ -106,7 +160,7 @@ def stable_records(
         if (
             (magic, schema, size, count, pid, creation)
             != (
-                b"WBMVTR1\0" if expected_schema == 1 else b"WBMVTR2\0",
+                f"WBMVTR{expected_schema}\0".encode(),
                 expected_schema,
                 RECORD.size,
                 CAPACITY,
@@ -164,8 +218,8 @@ def stable_input_records(
 ) -> dict:
     """Read schema-2 passive diagnostics; command Status and its reserved bytes are untouched."""
     stable_records(first, second, process_id, creation_filetime)
-    if len(first) != V2_SIZE:
-        raise ValueError("input diagnostics require movement trace schema 2")
+    if len(first) not in (V2_SIZE, V3_SIZE):
+        raise ValueError("input diagnostics require movement trace schema 2 or 3")
     start, end = (struct.unpack_from("<Q", payload, HEADER.size)[0] for payload in (first, second))
     if end < start or end > 0x7FFFFFFFFFFFFFFF:
         raise ValueError("input transition sequence regressed or overflowed")
@@ -187,6 +241,57 @@ def stable_input_records(
     }
 
 
+def stable_lifetime_records(
+    first: bytes, second: bytes, process_id: int, creation_filetime: int
+) -> dict:
+    """Read cause-only v3 diagnostics; retained origins are not fresh observations."""
+    stable_records(first, second, process_id, creation_filetime)
+    if len(first) != V3_SIZE:
+        raise ValueError("lifetime diagnostics require movement trace schema 3")
+    start, end = (struct.unpack_from("<Q", p, V2_SIZE + 8)[0] for p in (first, second))
+    if end < start or end > 0x7FFFFFFFFFFFFFFF:
+        raise ValueError("lifetime sequence regressed or overflowed")
+    published_tick = struct.unpack_from("<Q", second, V2_SIZE)[0]
+
+    def read(offset: int, expected: int | None = None) -> dict | None:
+        a = first[offset : offset + LIFETIME_RECORD.size]
+        if a != second[offset : offset + LIFETIME_RECORD.size]:
+            return None
+        r = dict(zip(LIFETIME_FIELDS, LIFETIME_RECORD.unpack(a), strict=True))
+        if (
+            not 0 < r["sequence"] <= start
+            or (expected is not None and r["sequence"] != expected)
+            or not 0 < r["cause"] < len(LIFETIME_CAUSES)
+            or r["outcome"] > 2
+            or r["failure_stage"] >= len(LIFETIME_STAGES)
+            or (r["changed_fields"] | r["valid_fields"]) > 63
+            or r["notice_role"] > 7
+            or r["tick_ms"] > published_tick
+            or (r["changed_fields"] and r["valid_fields"] != 63)
+        ):
+            return None
+        r["cause_name"] = LIFETIME_CAUSES[r["cause"]]
+        r["failure_stage_name"] = LIFETIME_STAGES[r["failure_stage"]]
+        r["retained"] = r["sequence"] < end
+        r["age_ms"] = published_tick - r["tick_ms"]
+        return r
+
+    events = []
+    for seq in range(max(1, end - LIFETIME_CAPACITY + 1), start + 1):
+        r = read(
+            LIFETIME_EVENTS_OFFSET + ((seq - 1) % LIFETIME_CAPACITY) * LIFETIME_RECORD.size, seq
+        )
+        if r is not None:
+            events.append(r)
+    return {
+        "current": read(LIFETIME_CURRENT_OFFSET),
+        "first_invalidation": read(LIFETIME_FIRST_OFFSET),
+        "events": events,
+        "write_sequence": end,
+        "published_tick_ms": published_tick,
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--process-id", required=True, type=int)
@@ -195,17 +300,18 @@ def main() -> None:
     parser.add_argument(
         "--schema",
         type=int,
-        choices=(1, 2),
-        default=2,
-        help="2 includes input-loss diagnostics; use 1 for older installed clients",
+        choices=(1, 2, 3),
+        default=3,
+        help="3 includes lifetime causes; select 1 or 2 explicitly for older clients",
     )
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
     if not math.isfinite(args.seconds) or not 0 < args.seconds <= 300:
         parser.error("seconds must be in (0, 300]")
     name = mapping_name(args.process_id, args.creation_filetime, args.schema)
-    size = V2_SIZE if args.schema == 2 else SIZE
+    size = {1: SIZE, 2: V2_SIZE, 3: V3_SIZE}[args.schema]
     input_last = {"current": 0, "last_owner_loss": 0, "events": 0}
+    lifetime_last = {"current": 0, "first_invalidation": 0, "events": 0}
     memory = WindowsSharedMemorySnapshotReader()
     deadline, last = time.monotonic() + args.seconds, 0
     with args.output.open("x", encoding="utf-8") as output:
@@ -238,7 +344,7 @@ def main() -> None:
                         + "\n"
                     )
                     last = sequence
-            if args.schema == 2:
+            if args.schema >= 2:
                 inputs = stable_input_records(
                     first, second, args.process_id, args.creation_filetime
                 )
@@ -262,6 +368,31 @@ def main() -> None:
                                 + "\n"
                             )
                             input_last[stream] = record["sequence"]
+            if args.schema == 3:
+                lifetime = stable_lifetime_records(
+                    first, second, args.process_id, args.creation_filetime
+                )
+                for stream in ("current", "first_invalidation", "events"):
+                    entries = lifetime[stream] if stream == "events" else [lifetime[stream]]
+                    for record in entries:
+                        if record is not None and record["sequence"] > lifetime_last[stream]:
+                            output.write(
+                                json.dumps(
+                                    {
+                                        **record,
+                                        "stream": f"lifetime_{stream}",
+                                        "published_tick_ms": lifetime["published_tick_ms"],
+                                        "producer_dropped": producer_dropped,
+                                        "missing_before": record["sequence"]
+                                        - lifetime_last[stream]
+                                        - 1
+                                        if stream == "events"
+                                        else None,
+                                    }
+                                )
+                                + "\n"
+                            )
+                            lifetime_last[stream] = record["sequence"]
             output.flush()
             time.sleep(0.05)
 
