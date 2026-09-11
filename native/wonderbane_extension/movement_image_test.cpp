@@ -4,6 +4,8 @@
 #include <iostream>
 #include <vector>
 #include <cstring>
+#include <cmath>
+#include "movement_controls.h"
 namespace {
 std::wstring tested_path;
 void* tested_image=nullptr;
@@ -32,6 +34,39 @@ std::vector<unsigned char> Read(const wchar_t* path){
  const auto size=f.tellg();if(size<=0 || size>64*1024*1024)return {};
  std::vector<unsigned char> b(static_cast<std::size_t>(size));f.seekg(0);
  if(!f.read(reinterpret_cast<char*>(b.data()),size))return {};return b;
+}
+// Execute the reviewed leaf intersection in this owned fixture only. No entry
+// point, imports, client thread, world, window or network subsystem is started.
+void NativeDoorTriangleContract() {
+ using Point=wm::GroundPoint;
+ using Intersect=int (__cdecl*)(const Point*,const Point*,const Point*,const Point*,const Point*,float*,float*,float*);
+ auto* code=static_cast<unsigned char*>(tested_image)+0x120e10;
+ DWORD protection=0;
+ if(!VirtualProtect(code,0x1a4,PAGE_EXECUTE_READ,&protection)) {
+  Check(false,"native triangle executable page protection");return;
+ }
+ FlushInstructionCache(GetCurrentProcess(),code,0x1a4);
+ const auto intersect=reinterpret_cast<Intersect>(code);
+ const Point origin{0,1,0}, direction{0,0,-1};
+ const Point a{-2,-1,-2}, b{2,-1,-2}, c{0,3,-2};
+ float distance=0,u=0,v=0;
+ Check(intersect(&origin,&direction,&a,&b,&c,&distance,&u,&v)!=0
+  && std::abs(distance-2)<.00001F && u>=0 && v>=0 && u+v<=1,
+  "reviewed triangle returns ray distance and scalar barycentrics");
+ const Point reversed{0,0,1};
+ Check(intersect(&origin,&reversed,&a,&b,&c,&distance,&u,&v)!=0 && distance<0,
+  "leaf triangle can return a negative hit; caller must enforce forward near threshold");
+ const Point outside{1.8F,1,0};
+ Check(intersect(&outside,&direction,&a,&b,&c,&distance,&u,&v)==0,
+  "triangle miss inside its bounding box is rejected");
+ const Point parallel{1,0,0};
+ Check(intersect(&origin,&parallel,&a,&b,&c,&distance,&u,&v)==0,
+  "parallel ray rejected by actual native leaf");
+ const Point shifted_origin{100,11,-200}, shifted_a{98,9,-202},
+  shifted_b{102,9,-202}, shifted_c{100,13,-202};
+ Check(intersect(&shifted_origin,&direction,&shifted_a,&shifted_b,&shifted_c,&distance,&u,&v)!=0
+  && std::abs(distance-2)<.00001F,"native leaf distance preserves common-frame translation");
+ Check(VirtualProtect(code,0x1a4,protection,&protection)!=0,"restore native triangle page protection");
 }
 void Mapped(const std::vector<unsigned char>& bytes){
  const auto* dos=reinterpret_cast<const IMAGE_DOS_HEADER*>(bytes.data());
@@ -69,6 +104,7 @@ int wmain(int argc,wchar_t** argv){
   Check(wm::ReviewedDigest(bytes)==(n==1),"argument identifies original versus exact prepared transformation");
   tested_path=argv[n];Mapped(bytes);if(!tested_image)return 1;
   std::uintptr_t base=0;Check(wm::VerifyNativeMovementImage(base) && base==reinterpret_cast<std::uintptr_t>(tested_image),"production disk and relocated loaded-text verifier accepts");
+  NativeDoorTriangleContract();
   we::image_base=0;Check(we::VerifyBinding(identity)==ERROR_SUCCESS,"production update gate accepts reviewed prepared bootstrap");
   auto* terrain_image=static_cast<std::uint8_t*>(tested_image);
   we::StartTerrainMaskRefresh(terrain_image,0x1766000U,"feb351f0fae87d47549fa43c37836405a753d76fbcd0b02232fc1c0733550dff");
@@ -110,3 +146,4 @@ int wmain(int argc,wchar_t** argv){
  if(!failures)std::cout<<"Executed original/prepared disk authentication, relocated loaded-text and update gate; actual terrain startup ownership and restoration; rejected partial/bootstrap/code/data/truncation/loaded/unowned mutations.\n";
  return failures?1:0;
 }
+
