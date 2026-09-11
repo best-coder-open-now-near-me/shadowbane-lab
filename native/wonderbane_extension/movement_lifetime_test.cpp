@@ -1,6 +1,7 @@
 #define WONDERBANE_MOVEMENT_LIFETIME_TESTING 1
 #include "movement_lifetime.cpp"
 #include "movement_native_stop.h"
+#include "door_native_collection.h"
 #include <iostream>
 #include <thread>
 namespace wm = wonderbane::extension::movement;
@@ -108,6 +109,64 @@ DWORD ReplaceImportAddressSlot(std::uint32_t* slot, std::uint32_t expected, std:
 namespace movement { bool VerifyNativeMovementImage(std::uintptr_t&) noexcept { return false; } }
 }
 namespace wonderbane::extension::movement {
+struct NativeDoorCollectionTestAccess {
+    using Node = NativeDoorCollection::Node;
+    using List = NativeDoorCollection::List;
+    inline static NativeDoorCollection* active = nullptr;
+    inline static std::array<void*, 3> objects{};
+    inline static std::array<int, 3> references{};
+    inline static int queries = 0, releases = 0, allocated = 0;
+    inline static bool fault_retain = false;
+    inline static void (*during_query)() = nullptr;
+    static List* __fastcall Construct(List* list, void*, const unsigned char*) {
+        Check(!active->lease_.admission, "list construction outside acquisition admission");
+        auto* node = new Node{}; ++allocated;
+        node->next = node->previous = node; list->sentinel = node; return list;
+    }
+    static void __fastcall Query(void* world, void*, const GroundPoint* minimum, const GroundPoint* maximum, List* list) {
+        ++queries;
+        Check(world == reinterpret_cast<void*>(0x12340000) && !active->lease_.admission,
+            "native query uses admitted world outside extension acquisition");
+        Check(minimum->x == 94 && maximum->x == 106 && minimum->z == -206 && maximum->z == -194,
+            "native query receives character world bounds");
+        auto* node = new Node{list->sentinel, list->sentinel, objects[0]}; ++allocated;
+        list->sentinel->next = list->sentinel->previous = node;
+        ++references[0]; // native query returns one retained structure
+        if (during_query) { during_query(); }
+    }
+    static void __fastcall Retain(void** object, void*) {
+        Check(active->lease_.admission != nullptr, "native door retain occurs inside bounded acquisition");
+        for (std::size_t i = 0; i < objects.size(); ++i) {
+            if (*object == objects[i]) { ++references[i]; }
+        }
+        if (fault_retain) { RaiseException(EXCEPTION_ACCESS_VIOLATION, 0, 0, nullptr); }
+    }
+    static void __fastcall Release(void** object, void*, void* replacement) {
+        Check(!active->lease_.admission && !replacement, "native reference release remains outside admission");
+        if (*object) {
+            bool known = false;
+            for (std::size_t i = 0; i < objects.size(); ++i) {
+                if (*object == objects[i]) { --references[i]; known = true; Check(references[i] >= 0, "reference released only once"); }
+            }
+            Check(known, "release owns a retained query reference"); ++releases;
+        }
+        *object = nullptr;
+    }
+    static void __cdecl Pool(void* node, std::uint32_t size) {
+        Check(!active->lease_.admission && size == sizeof(Node), "native list pool release uses original allocation size");
+        delete static_cast<Node*>(node); --allocated;
+    }
+    static void Bind(NativeDoorCollection& collection, HWND window) {
+        active = &collection; collection.base_ = state.base; collection.window_ = window;
+        collection.thread_ = GetCurrentThreadId();
+        auto& calls = collection.calls_;
+        calls.construct = reinterpret_cast<decltype(calls.construct)>(&Construct);
+        calls.query = reinterpret_cast<decltype(calls.query)>(&Query);
+        calls.retain = reinterpret_cast<decltype(calls.retain)>(&Retain);
+        calls.release = reinterpret_cast<decltype(calls.release)>(&Release);
+        calls.pool_return = &Pool;
+    }
+};
 struct NativeStopTestAccess {
     static void Bind(NativeStop& stop) {
         stop.base_ = state.base; stop.window_ = state.window; stop.thread_ = state.thread;
@@ -200,6 +259,66 @@ void PrepareDoors(Fixture& f) {
 }
 Fixture* door_fixture = nullptr;
 void ReplaceDoorScene() { door_fixture->SetActor(door_fixture->next.data()); }
+void DoorQueryTest(Fixture& f, const std::string& mode) {
+    using Test = wm::NativeDoorCollectionTestAccess;
+    PrepareDoors(f); door_fixture = &f;
+    wm::NativeScene scene{};
+    Check(f.Observe(scene) && wm::StartNativeDoorCollectionLifetime(), "query uses production lifecycle registration");
+    std::array<std::uint8_t, 0x640> first{}, second{};
+    const auto a = reinterpret_cast<std::uintptr_t>(first.data()), b = reinterpret_cast<std::uintptr_t>(second.data());
+    const auto structure = reinterpret_cast<std::uintptr_t>(f.parent.data());
+    const std::array<std::uint32_t, 2> parent_identity{11, 22}, first_key{1, 2}, second_key{3, 4};
+    std::array<std::uintptr_t, 2> children{a, b};
+    struct Vector { std::uintptr_t begin, end, capacity; } vector{
+        reinterpret_cast<std::uintptr_t>(children.data()), reinterpret_cast<std::uintptr_t>(children.data() + 2),
+        reinterpret_cast<std::uintptr_t>(children.data() + 2)};
+    f.Put(structure, wm::state.base + 0x114381c); f.Put(structure + 0x18, parent_identity);
+    f.Put(structure + 0x748, reinterpret_cast<std::uintptr_t>(&vector));
+    for (const auto door : {a, b}) { f.Put(door, wm::state.base + 0x1143f18); f.Put(door + 0x5f0, parent_identity); }
+    f.Put(a + 0x600, first_key); f.Put(b + 0x600, second_key);
+    wm::NativeDoorCollection collection;
+    Test::Bind(collection, f.hwnd); Test::objects = {f.parent.data(), first.data(), second.data()};
+    const wm::GroundPoint origin{100, 50, -200};
+    if (mode == "door-query-fault") {
+        Test::fault_retain = true;
+        Check(!collection.Acquire(scene, origin) && !collection.Available() && collection.Size() == 0,
+            "uncertain native retain quarantines references and closes collection");
+        wm::DoorCollectionAdmission::ReadLease probe;
+        Check(wm::state.door_admission.TryRead(probe), "native SEH failure always releases acquisition guard");
+        probe.Reset();
+        Check(Test::allocated == 0 && Test::releases == 0, "uncertain references are not released twice");
+        return;
+    }
+    Check(collection.Acquire(scene, origin) && collection.Size() == 2, "production native query acquires both sibling doors");
+    Check(collection.At(0).identity == wm::DoorIdentity{11,22,1,2}
+        && collection.At(1).identity == wm::DoorIdentity{11,22,3,4}, "composite identity distinguishes sibling doors");
+    Check(Test::references == std::array<int,3>{1,1,1} && Test::allocated == 0, "query list ownership transferred and native list released");
+    const auto queries = Test::queries;
+    std::thread foreign([&] { Check(!collection.Acquire(scene, origin), "foreign thread cannot query this client"); }); foreign.join();
+    Check(Test::queries == queries, "foreign caller does not reach native query");
+    Check(collection.Clear() && Test::references == std::array<int,3>{}, "owner cleanup releases every acquired reference");
+    f.Put(b + 0x600, first_key);
+    Check(!collection.Acquire(scene, origin) && collection.Size() == 0 && Test::references == std::array<int,3>{},
+        "ambiguous composite identities reject complete query without leaks");
+    f.Put(b + 0x600, second_key);
+    f.Put(b + 0x5f0, std::array<std::uint32_t,2>{99,22});
+    Check(!collection.Acquire(scene, origin) && Test::references == std::array<int,3>{},
+        "door belonging to another structure is rejected and partial references released");
+    f.Put(b + 0x5f0, parent_identity);
+    const auto original_end = vector.end; vector.end = vector.capacity + 4;
+    Check(!collection.Acquire(scene, origin) && Test::references == std::array<int,3>{},
+        "invalid native vector bounds reject acquisition without retaining children");
+    vector.end = original_end;
+    Check(collection.Acquire(scene, origin), "valid query recovers after malformed snapshot");
+    Check(!collection.Acquire(scene, {NAN,0,0}) && collection.Size() == 0 && Test::references == std::array<int,3>{},
+        "invalid new origin clears previous query instead of exposing stale doors");
+    Test::during_query = &ReplaceDoorScene;
+    Check(!collection.Acquire(scene, origin) && Test::references == std::array<int,3>{},
+        "scene change during native query rejects and releases retained output");
+    Test::during_query = nullptr;
+    Check(Test::allocated == 0, "all native output list nodes released");
+    wm::RetireNativeMovementLifetime();
+}
 void DoorLifetimeTest(Fixture& f, const std::string& mode) {
     PrepareDoors(f); door_fixture = &f;
     wm::NativeScene scene{};
@@ -285,6 +404,7 @@ int main(int argc, char** argv) {
     }
     auto* f = new Fixture(mode == "unsupported-reference", (mode == "rollback" || mode == "rollback-batch"));
     wm::NativeScene scene{};
+    if (mode.rfind("door-query", 0) == 0) { DoorQueryTest(*f, mode); return failures ? 1 : 0; }
     if (mode.rfind("door-", 0) == 0) { DoorLifetimeTest(*f, mode); return failures ? 1 : 0; }
     if (mode == "unsupported-reference") {
         Check(!f->Observe(scene) && wm::state.terminal, "unknown native Release interface unavailable");

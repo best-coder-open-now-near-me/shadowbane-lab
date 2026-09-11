@@ -1327,3 +1327,22 @@ not yet activate door collection registration. The native resolver, intended-doo
 cue, Interact controls and action boundary remain unfinished; no new package or
 connected acceptance is claimed. Next: retained native query and resolver, then
 cue/Interact wiring and combined package validation through the integration owner.
+
+
+### Retained native door query dependency (September 11)
+
+The native query adapter now authenticates its bindings, queries through the
+native world area path, transfers retained structure references from native list
+output, and acquires child doors through the shared collection admission. It
+preserves composite identity and rejects malformed bounds, wrong parents,
+duplicate identity, changed scenes and foreign-thread calls. Cleanup runs outside
+acquisition admission. Unexpected native exceptions close the adapter and
+quarantine uncertain references; an explicit exception finalizer always drains
+the reader so native writers can continue.
+
+Both DLL profiles build with exactly one query source. The six production door
+lifetime/query cases pass in each profile; package-native-gate tests pass 20/20,
+and the package builder requires these gates and the source membership. The
+adapter is not yet called from runtime startup/update: resolver geometry,
+obstruction, cue, action admission and Interact remain required next work. These
+results do not certify a new installed package or connected door behavior.
