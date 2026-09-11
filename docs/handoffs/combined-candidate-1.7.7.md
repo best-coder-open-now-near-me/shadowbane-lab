@@ -149,3 +149,21 @@ focused-control classification, plus the neutral rearm path. Root will obtain
 read-only native gate evidence, integrate the focused repair and validate the
 installed candidate before requesting a targeted chat-recovery retest. No broad
 movement or navigation restart is planned.
+
+## Revised chat/controller policy
+
+Owner explicitly clarified that controller movement need not pause during chat,
+provided controller input does not enter chat. Implement separate keyboard text
+capture and controller inhibition: sticks continue native movement/camera during
+text entry, original keyboard typing remains available without WASD actuation, and
+true modal/focus/unknown-state/lifetime safety stops remain effective. No synthetic
+controller-to-keyboard/text input or stale automation resumption is authorized.
+This replaces the blanket controller chat-stop expectation above.
+
+Receipt-lifetime and executable-hash-verified read-only UI inspection found active
+HUD/text gate nonzero, resolved focused kind5, no modal/item drag/manager inhibition,
+and stable native roots. That external snapshot was not foreground, so it is not
+simultaneous foreground proof; preceding native trace independently records the
+foreground UI gate. It does not demonstrate a false native predicate with stale
+fallback focus. Preserve typing protection while the existing movement owner
+implements and tests the separated policy. Both bounded captures have completed.
