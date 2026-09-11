@@ -103,18 +103,42 @@ initialization. Root will require the new regression in the existing package gat
 No behavioral fix or new live acceptance is claimed yet. The working 1.7.3
 startup/settings path is preserved, and no additional user focus retry is requested.
 
-### September 11 mixed-input observation
+### September 11 independent startup and intermittent diagonal loss
 
-The owner reported movement looked good during a requested W/S/W sequence, but
-also clicked and moved beyond that sequence. Classify this as mixed-input evidence,
-not a keyboard-first reproduction. The 100-second read-only capture retained 605
-samples with no read errors. Readiness/binding flags remained 23, enabled stayed
-true, and settings revision stayed 1. Manual ownership appeared in three intervals
-and returned to none, with generations advancing from 2 through 8. No sampled
-loss of readiness or bindings occurred. This neither attributes an individual
-transition to S nor establishes movement before the first mouse click; the earlier
-intermittent failure and first-click dependency remain unresolved.
-Private capture retained under the installed candidate diagnostics directory as
-`keyboard-mixed-input-20260911.jsonl`. Next: use a future occurrence of the actual
-failure for a narrowly timed status capture; do not label this successful mixed
-run as proof that the defect is fixed or require an immediate broad repeat.
+The owner clarified that clicks during the successful W/S/W observation were
+selection only: movement initiated without a mouse click. Independent WASD startup
+is demonstrated for that run; the earlier first-click report is not a continuing
+blocker on this evidence. The 100-second read-only capture retained 605 samples
+without read errors. Readiness/binding flags remained 23, enabled stayed true,
+and settings revision stayed 1. Manual ownership appeared in three intervals
+and returned to none. This does not close the intermittent input-loss finding.
+
+The owner then reproduced several losses, narrowing the trigger to adding a
+second held direction key (for example W to W+D), intermittently. These keys also
+have native in-game bindings. A binding conflict remains a hypothesis, not a
+confirmed cause or a reason to change the owner's bindings.
+
+The recurrence capture retained manual-to-none transitions with advancing
+generations and readiness/binding flags still 23. It did not record native tick
+or exact key/gate state at each loss. No sampled sequence plateau of at least
+250 ms aligned with those losses; this cannot exclude a shorter missed stall.
+Later gate snapshots showed the exact game window in foreground, no native
+text/modal/input block, stable roots, and no focused HUD control. Those later
+samples cannot establish conditions at the earlier failures.
+
+Private evidence stays beside the installed 1.7.3 receipts:
+`keyboard-mixed-input-20260911.jsonl`, `stuck-initial-20260911.json`,
+`stuck-status-20260911.jsonl`, `stuck-gates-20260911.jsonl`,
+`stuck-gates-detail-20260911.json`, and `stuck-focus-detail-20260911.json`.
+All recordings have ended. No movement behavior, bindings, or client state were
+changed by these read-only captures.
+
+Next active item: the movement owner implements bounded retained input-loss and
+second-key transition diagnostics using the existing optional movement trace,
+with explicit diagnostic schema compatibility. Record configured direction-key
+physical/suppressed/original-delivery masks, gate/armed state, stop reason, native
+tick, and ownership generations; later idle samples must not erase the last loss.
+Movement command Status and its reserved bytes remain unchanged. Root owns shared
+reconciliation, required package gates, independent review and verified delivery.
+Do not request another reproduction before instrumentation can retain the cause.
+Source reserves 1.7.4 / wheel 0.2.4; no such package is built or installed yet.
