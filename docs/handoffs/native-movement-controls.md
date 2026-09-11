@@ -1093,3 +1093,54 @@ tests with no skips. Each actual native producer/runtime Python run passed 64 te
 plus 15 subtests, covering trace/wire, session/operation/manager IPC and package gates.
 Ruff and staged whitespace checks pass. The package requires all new parent-transition
 regressions. These developer-controlled checks do not replace connected acceptance.
+
+
+## September 11 controller text-entry checkpoint
+
+The owner changed text behavior: controller movement/camera remain usable during
+chat; keyboard typing remains native. `NativeUi` now separates default-fail-closed
+global inhibition (modal, item drag, native inhibit bits, unavailable query) from
+keyboard/pointer text ownership. Native text and focused kinds 5/6/14 retain their
+protection. Both pre/post-hit snapshots conservatively combine each gate.
+
+Windows input forwards original text key pairs without issuing a controller-wide
+safety reset. Runtime continues controller polling and fresh native camera basis
+during text. A text transition cancels buffered pointer capture without disarming
+sticks, including a mouse-move callback arriving before the next owning update.
+Controls disarms keyboard/drag throughout text and requires a neutral keyboard
+sample after closure. Controller direction, camera and real release/stop continue
+through the same native actuator and owner generation. No synthesized keys or
+text exist. Global UI/focus/lifecycle/device loss still stops and requires rearm.
+Text retains the previous automation cancellation policy: retire the route and
+reject acquisition/destination until text closes. Old-generation moves and stops
+cannot affect the manual controller owner; release never resumes automation.
+
+Investigation: static reviewed predicate checks an active-HUD gate before focused
+control kinds. Owner read-only evidence found that gate nonzero and a focused kind
+5, with no modal/item-drag/native inhibit block. This is NOT evidence of a false
+native predicate masked by a stale fallback. Focused-kind protection is unchanged;
+we do not clear native focus or claim an independently proven native chat-close
+bug. The recovery regression verifies neutral/fresh keyboard behavior once native
+text ownership clears. Connected keyboard recovery remains an acceptance item.
+Diagnostic schema 3 is unchanged: UI gate bit 8 still reports keyboard/global UI
+ownership; it can now coexist with available basis/controller and manual movement.
+
+Validation: both Win32 profiles passed ALL_BUILD and 94 focused native tests with
+no skips. Actual full-profile producer/runtime Python checks passed 64 tests plus
+15 subtests. Ruff passed. Package gates require native UI separation and the new
+controller-text/controller-modal-rearm runtime cases. Tests exercise original typing,
+controller release/camera, text transitions with pending drag, keyboard neutral rearm,
+modal/focus stop, stale automation moves/stops and denial of automation during text.
+A required parent-controller-text variant verifies fresh native basis, retained
+controller admission, obsolete generation rejection and release across an accepted
+parent-only transition while text stays active.
+An initial added drag test used the backend's attached-ground expectation for stick
+movement; correcting that fixture mode made both profiles pass with production code.
+
+Source baseline includes installed integration through fe64b8b via merge 043e473.
+PR #32 still targets codex/native-lifecycle-hardening; root owns independent review,
+combined version/package and installation. No VM operation or connected acceptance
+was performed here. Next: root reviews/packages this checkpoint; feature owner
+continues the separately authorized semantic action-binding profile slice on this
+same branch. Target/power/interact actions remain unavailable until verified native
+adapters exist; metadata or F-key activation is not a native actuator.

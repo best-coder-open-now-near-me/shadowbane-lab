@@ -9,14 +9,14 @@
 namespace wm = wonderbane::extension::movement;
 namespace {
 wm::NativeScene observed{}, parent_from{};
-bool alive = true, ui_blocked = false, device_connected = true;
+bool alive = true, ui_blocked = false, text_blocked = false, device_connected = true;
 HWND focused = nullptr, bound_window = nullptr;
 std::array<SHORT, 256> physical_keys{};
 POINT pointer{0, 0}; XINPUT_GAMEPAD gamepad{};
 std::uint64_t clock_tick = 0;
 char interrupt_phase = 0;
 std::vector<char> native_order;
-int retired_updates = 0;
+int retired_updates = 0, original_keys = 0;
 DWORD startup_result = ERROR_SUCCESS;
 HWND WINAPI Focus() { return focused; }
 SHORT WINAPI PhysicalKey(int key) { return physical_keys[static_cast<std::size_t>(key)]; }
@@ -29,9 +29,10 @@ DWORD WINAPI Capabilities(DWORD, DWORD, XINPUT_CAPABILITIES* out) noexcept {
     out->Type = XINPUT_DEVTYPE_GAMEPAD; out->SubType = XINPUT_DEVSUBTYPE_GAMEPAD;
     return device_connected ? ERROR_SUCCESS : ERROR_DEVICE_NOT_CONNECTED;
 }
-void __cdecl OriginalKey(std::uint32_t, std::uint32_t, std::uint32_t, std::uint32_t) {}
+void __cdecl OriginalKey(std::uint32_t, std::uint32_t, std::uint32_t, std::uint32_t) { ++original_keys; }
 bool Ui(void*, POINT, wm::NativeUiState& out) noexcept {
-    out.available = true; out.keyboard_owned = ui_blocked; out.pointer_owned = ui_blocked; return true;
+    out.available = true; out.global_owned = ui_blocked;
+    out.keyboard_owned = out.pointer_owned = ui_blocked || text_blocked; return true;
 }
 void Interrupt(char phase) {
     native_order.push_back(phase);
@@ -202,8 +203,93 @@ int main(int argc, char** argv) {
         Check(old_retry->receipt.outcome == static_cast<unsigned>(wm::Result::stale), "evicted acquisition cannot mint authority");
         rt.input.Retire(); return failures ? 1 : 0;
     }
+    if (mode == "controller-text") {
+        const auto key = [&](unsigned value, bool down) {
+            physical_keys[value] = down ? static_cast<SHORT>(0x8000) : 0;
+            reinterpret_cast<void(__cdecl*)(std::uint32_t, std::uint32_t, std::uint32_t, std::uint32_t)>(slot)(value, 0, down, 0);
+        };
+        Token token{}; std::memcpy(token.worker.data(), "worker", 6); std::memcpy(token.operation.data(), "route", 5);
+        Grant route{};
+        Check(rt.native.BeginUpdate(f.game_window.data(), observed), "text route native phase");
+        Check(rt.controls.AcquireAutomation(rt.controls.Current().generation, token, route) == Result::accepted
+            && rt.controls.AutomationDestination(route, {30, 0, -40}) == Result::accepted, "route before text entry");
+        rt.native.EndUpdate();
+        text_blocked = true; step();
+        Check(rt.controls.Current().owner == Owner::none && Get<std::uint32_t>(f.state.data(), 0x10) == 5,
+            "text entry explicitly stops and retires automation");
+        Grant denied{};
+        Check(rt.controls.AcquireAutomation(rt.controls.Current().generation, token, denied) == Result::inhibited,
+            "text does not admit a delayed automation reacquisition");
+        gamepad.sThumbLX = 32767; gamepad.sThumbRX = 16000; step();
+        Check(rt.controls.Current().owner == Owner::manual && (rt.controls.DiagnosticState() & 2)
+            && Get<std::uint32_t>(f.state.data(), 0x10) == 7, "controller takes native movement ownership during text");
+        const auto manual = rt.controls.Current();
+        Check(rt.controls.AutomationDestination(route, {1, 0, 1}) == Result::stale
+            && rt.controls.Stop(route, StopReason::release) == Result::stale
+            && rt.controls.Current() == manual, "obsolete automation move and stop cannot touch text controller owner");
+        const auto camera_before = f.camera_calls;
+        key('W', true); step(); key('W', false); step();
+        Check(original_keys == 2 && f.camera_calls > camera_before && rt.controls.Current() == manual,
+            "original typing remains paired while controller movement and camera continue");
+        gamepad = {}; native_order.clear(); step();
+        Check(native_order == std::vector<char>{'s'} && Get<std::uint32_t>(f.state.data(), 0x10) == 5,
+            "controller release in chat uses the real native stop");
+        const auto stopped = f.moves;
+        key('W', true); step();
+        Check(f.moves == stopped && !rt.controls.ConsumesKey('W'), "typed W never drives keyboard movement");
+        text_blocked = false; step();
+        Check(f.moves == stopped, "closing chat with W held cannot resume keyboard movement");
+        key('W', false); step(); key('W', true); step();
+        Check(f.moves == stopped + 1 && original_keys == 4, "neutral then fresh W recovers and suppresses native conflicting down");
+        key('W', false); step();
+        Check(original_keys == 4, "recovered movement key retains its suppressed release pair");
+        // A text transition cancels a pending drag without resetting live sticks.
+        SendMessageW(f.window, WM_XBUTTONDOWN, MAKEWPARAM(MK_XBUTTON1, XBUTTON1), MAKELPARAM(0, 0));
+        gamepad.sThumbLY = 32767; step(); text_blocked = true;
+        pointer = {20, 0}; SendMessageW(f.window, WM_MOUSEMOVE, MK_XBUTTON1, MAKELPARAM(20, 0)); step();
+        Check(GetCapture() != f.window, "text releases pending drag capture");
+        SendMessageW(f.window, WM_XBUTTONUP, MAKEWPARAM(0, XBUTTON1), MAKELPARAM(20, 0));
+        Check((rt.controls.DiagnosticState() & 2) && Get<std::uint32_t>(f.state.data(), 0x10) == 7,
+            "held controller continues across text opening");
+        ui_blocked = true; step();
+        Check(rt.controls.Current().owner == Owner::none && Get<std::uint32_t>(f.state.data(), 0x10) == 5,
+            "real modal still stops controller during text");
+        ui_blocked = false; step(); step();
+        Check(!(rt.controls.DiagnosticState() & 2), "held controller cannot resume after modal closure");
+        gamepad = {}; step(); gamepad.sThumbLY = 32767; step();
+        SendMessageW(f.window, WM_KILLFOCUS, 0, 0);
+        Check(rt.controls.Current().owner == Owner::none && Get<std::uint32_t>(f.state.data(), 0x10) == 5,
+            "focus loss immediately stops native controller during text");
+        gamepad = {}; step(); step();
+        Check(f.packet.references == 0 && original_keys == 4, "controller and camera never synthesize original keys");
+        rt.input.Retire(); return failures ? 1 : 0;
+    }
+    if (mode == "controller-modal-rearm") {
+        gamepad.sThumbLY = 32767; step();
+        Check(rt.controls.Current().owner == Owner::manual && f.moves > 0, "controller moves before modal");
+        ui_blocked = true; step();
+        const auto moves = f.moves;
+        gamepad = {}; step(); step();
+        Check(rt.controls.Current().owner == Owner::none && f.moves == moves
+            && !(rt.controls.DiagnosticState() & 2), "neutral sticks cannot rearm while modal owns input");
+        ui_blocked = false; step(); step();
+        Check((rt.controls.DiagnosticState() & 2) && f.moves == moves,
+            "closed modal and connected neutral sample rearm controller without keyboard or mouse");
+        gamepad.sThumbLY = 32767; step();
+        Check(f.moves == moves + 1 && rt.controls.Current().owner == Owner::manual,
+            "fresh stick movement resumes after modal closure");
+        ui_blocked = true; step(); ui_blocked = false; step(); step();
+        const auto stopped = f.moves;
+        Check(!(rt.controls.DiagnosticState() & 2), "held movement stick cannot resume through modal closure");
+        gamepad.sThumbLY = 0; gamepad.sThumbRX = 32767; step();
+        Check(!(rt.controls.DiagnosticState() & 2) && f.moves == stopped,
+            "held camera stick also prevents reconnect/rearm");
+        gamepad = {}; step(); gamepad.sThumbLY = 32767; step();
+        Check(f.moves == stopped + 1, "both sticks neutral permit a fresh movement input");
+        gamepad = {}; step(); rt.input.Retire(); return failures ? 1 : 0;
+    }
     if (mode.rfind("parent-", 0) == 0) {
-        const bool controller = mode == "parent-controller", drag = mode == "parent-drag";
+        const bool controller = mode == "parent-controller" || mode == "parent-controller-text", drag = mode == "parent-drag";
         const bool unowned = mode == "parent-unowned" || mode == "parent-disabled";
         if (unowned) {
             if (mode == "parent-disabled") {
@@ -225,6 +311,7 @@ int main(int argc, char** argv) {
             SendMessageW(f.window, WM_XBUTTONDOWN, MAKEWPARAM(MK_XBUTTON1, XBUTTON1), MAKELPARAM(0, 0));
             pointer = {20, 0}; SendMessageW(f.window, WM_MOUSEMOVE, MK_XBUTTON1, MAKELPARAM(20, 0)); step();
         } else { physical_keys['W'] = static_cast<SHORT>(0x8000); step(); }
+        if (mode == "parent-controller-text") { text_blocked = true; step(); }
         const auto old = rt.controls.Current(); const auto old_scene = observed;
         const auto prior_destination = f.destination; const auto moves = f.moves, picks = f.ray_casts;
         Check(unowned || old.owner != Owner::none, "parent test starts with native movement owner");
@@ -253,6 +340,14 @@ int main(int argc, char** argv) {
                     && std::abs(f.destination.z + prior_destination.z - 400) < 0.001F,
                     "fresh camera basis uses new native parent frame");
             } else { Check(f.ray_casts > picks && GetCapture() == f.window, "drag keeps capture but obtains fresh terrain pick"); }
+            if (mode == "parent-controller-text") {
+                Check((rt.controls.DiagnosticState() & 2) && (rt.sampled_diagnostic.gates & (8U | 16U | 256U)) == (8U | 16U | 256U),
+                    "text ownership coexists with armed controller and fresh native basis after parent change");
+                Token token{}; std::memcpy(token.worker.data(), "worker", 6); std::memcpy(token.operation.data(), "route", 5);
+                Grant denied{};
+                Check(rt.controls.AcquireAutomation(old.generation, token, denied) == Result::stale,
+                    "delayed old-generation automation cannot acquire after text parent continuation");
+            }
             const auto after = f.moves; step(); Check(f.moves >= after && rt.controls.Current() == next,
                 "continuity is not repeatedly applied to the same epoch");
             const auto before_stale = f.sends;

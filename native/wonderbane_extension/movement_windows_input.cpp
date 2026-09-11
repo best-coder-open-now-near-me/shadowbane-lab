@@ -150,9 +150,10 @@ bool WindowsInput::Key(std::uint32_t key, std::uint32_t mods, std::uint32_t down
     }
     if (original_down_[key] || repeat || !settings_.enabled || !settings_.keyboard || !Current() || !ExactFocus()) { original_down_[key] = true; return false; }
     POINT point{}; NativeUiState ui{};
-    if (!Cursor(point) || !Query(point, ui) || ui.keyboard_owned) {
+    if (!Cursor(point) || !Query(point, ui) || ui.global_owned) {
         original_down_[key] = true; Safety(StopReason::ui); return false;
     }
+    if (ui.keyboard_owned) { original_down_[key] = true; return false; }
     if (!controls_.CapturesKey(static_cast<std::uint16_t>(key))) { original_down_[key] = true; return false; }
     suppressed_[key] = true; return true;
 }
@@ -251,9 +252,14 @@ LRESULT WindowsInput::Message(UINT message, WPARAM wp, LPARAM lp) {
     }
     if (message == WM_MOUSEMOVE && mouse_up_owned_) {
         pointer_ = {GET_X_LPARAM(lp), GET_Y_LPARAM(lp)}; NativeUiState ui{};
-        if ((mouse_pending_ || mouse_dragging_) && (!Inside(pointer_) || !ExactFocus()
-            || GetCapture() != window_ || !Query(pointer_, ui) || ui.pointer_owned || ui.camera_gesture)) {
-            Cancel(StopReason::capture_lost, true);
+        if (mouse_pending_ || mouse_dragging_) {
+            const bool captured = Inside(pointer_) && ExactFocus() && GetCapture() == window_;
+            const bool known = captured && Query(pointer_, ui);
+            if (!known || ui.pointer_owned || ui.camera_gesture) {
+                // Text cancels this pointer gesture, not independent native sticks.
+                const bool text_only = known && ui.keyboard_owned && !ui.global_owned;
+                Cancel(StopReason::capture_lost, !text_only);
+            }
         }
         if (mouse_pending_ && std::hypot(static_cast<float>(pointer_.x - press_.x),
             static_cast<float>(pointer_.y - press_.y)) >= settings_.drag_threshold_pixels) {
@@ -275,7 +281,8 @@ bool WindowsInput::Snapshot(CapturedInput& out) noexcept {
     input.keys[settings_.drag_button] = (mouse_pending_ || mouse_dragging_) && mouse_up_owned_;
     POINT point{}; NativeUiState ui{};
     if (!Cursor(point) || !Query(point, ui)) { input.ui_owns_input = true; return false; }
-    input.ui_owns_input = ui.keyboard_owned;
+    input.ui_owns_input = ui.global_owned;
+    input.text_owns_input = ui.keyboard_owned;
     input.camera_blocked = ui.camera_gesture;
     input.pointer_x = static_cast<float>(point.x); input.pointer_y = static_cast<float>(point.y);
     input.pointer_in_world = Inside(point) && !ui.pointer_owned && !ui.camera_gesture;
@@ -308,6 +315,10 @@ void WindowsInput::Restore() noexcept {
     if (key_slot_ && original_ && (!verified_ || (Read(base_ + 0x16ac67c, manager) && manager == manager_))) {
         (void)ReplaceImportAddressSlot(key_slot_, reinterpret_cast<std::uint32_t>(&Keyboard), reinterpret_cast<std::uint32_t>(original_));
     }
+}
+void WindowsInput::CancelPointer() noexcept {
+    if (!bound_ || terminal_ || GetCurrentThreadId() != thread_) { return; }
+    Cancel(StopReason::ui, false);
 }
 void WindowsInput::Suspend() noexcept {
     if (!bound_ || terminal_ || GetCurrentThreadId() != thread_) { return; }

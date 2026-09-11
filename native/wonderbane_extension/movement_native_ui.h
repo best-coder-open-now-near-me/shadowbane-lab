@@ -9,6 +9,7 @@ NativePointResult NativeClientPoint(std::uintptr_t base, std::uintptr_t native_w
     HWND client_window, POINT client_point, POINT& native_point) noexcept;
 struct NativeUiState {
     bool available = false;
+    bool global_owned = true; // Modal, item drag, native inhibition or unknown UI.
     bool keyboard_owned = true;
     bool pointer_owned = true;
     bool camera_gesture = false;
@@ -27,7 +28,7 @@ private:
         void* (__thiscall* hit)(void*, int, int) = nullptr;
     } calls_{};
     bool Current(std::uintptr_t) const noexcept;
-    bool Gates(std::uintptr_t, bool&, bool&, bool&);
+    bool Gates(std::uintptr_t, bool&, bool&, bool&, bool&);
     bool Run(POINT, NativeUiState&);
     bool CxxGuarded(POINT, NativeUiState&) noexcept;
     bool Guarded(POINT, NativeUiState&) noexcept;
