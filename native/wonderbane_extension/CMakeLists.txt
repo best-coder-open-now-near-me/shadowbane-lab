@@ -914,6 +914,13 @@ if(BUILD_TESTING)
 endif()
 
 if(BUILD_TESTING)
+  add_executable(wonderbane_extension_door_collection_test door_collection_admission_test.cpp)
+  target_compile_features(wonderbane_extension_door_collection_test PRIVATE cxx_std_20)
+  target_compile_options(wonderbane_extension_door_collection_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  set_property(TARGET wonderbane_extension_door_collection_test PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
+  add_test(NAME wonderbane_extension_door_collection COMMAND wonderbane_extension_door_collection_test)
+  set_tests_properties(wonderbane_extension_door_collection PROPERTIES TIMEOUT 15)
+
   add_executable(wonderbane_extension_door_targeting_test door_targeting_test.cpp)
   target_compile_features(wonderbane_extension_door_targeting_test PRIVATE cxx_std_20)
   target_compile_options(wonderbane_extension_door_targeting_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
