@@ -471,3 +471,33 @@ installation was performed in this checkpoint. Step 3 remains active and B incom
 
 Validation: parser tests 8 passed with 4 subtests; full Python suite 1,956 passed,
 14 skipped, 251 subtests passed. Ruff src/tests passed.
+
+
+### Original targeted-action message boundary
+
+Static tracing now identifies `ArcTargetedActionMessage` through native RTTI. Its
+processing method (RVA 0x3ae020, virtual slot +0x14) reads actor key +0x80 and victim
+key +0x88. Both use the object registry at RVA 0x1389028. The registry comparator
+checks both 32-bit words, and its key extractor reads object+0x18: this establishes
+compatibility with the exact keys already used by population and party readers.
+The deserializer (RVA 0x3ae870) supplies these fields before conditional primary and
+secondary action payloads. These offsets describe decoded objects, not network offsets.
+
+The later formatter is unsuitable as the sole provenance boundary. Normal processing
+can queue primary/secondary action objects; when the actor lookup fails, the branch
+at RVA 0x3ae454 substitutes the victim key into the event it creates. Capture must
+therefore retain the ORIGINAL message keys before fallback/transformation, with
+unresolved actors remaining unattributed. The source's targeted-action type alone
+still does not establish hostility, hit/miss semantics or receive provenance.
+
+Reproducible image/method fingerprints and limits are recorded in
+[the static evidence summary](../evidence/pvp/wonderbane-targeted-action-static-20260912.summary.json).
+Private disassembly remains ignored. No runtime capture or combat activation has
+been added. Existing character-creation network evidence was checked and does not
+cover combat; it cannot substitute for message-level calibration.
+
+Next implementation dependency: verify receive dispatch and execution thread, then
+add the bounded observation at that established boundary using existing lifecycle
+ownership. Determine action semantics with developer evidence first and a specific
+live hit/miss observation only for facts that remain missing. This turn changes
+evidence/documentation only; the preceding Python gate remains tied to 8b9e809.

@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "evidence_id": "wonderbane.targeted-action.static.20260912",
+  "client_executable_sha256": "bb63469eb35917e6b3f58be75d29f94855c9868024271222465b4db62f0e3a87",
+  "status": "static_boundary_identified_not_live_calibrated",
+  "native_type": "ArcTargetedActionMessage",
+  "message_vtable_rva": "0x1158878",
+  "process_method_rva": "0x3ae020",
+  "process_vtable_offset": "0x14",
+  "deserialize_method_rva": "0x3ae870",
+  "serialize_method_rva": "0x3ae9b0",
+  "participant_keys": {
+    "actor_offset": "0x80",
+    "victim_offset": "0x88",
+    "bytes_per_key": 8,
+    "registry_pointer_rva": "0x1389028",
+    "lookup_method_rva": "0x1fcc80",
+    "exact_comparator_rva": "0x111b20",
+    "object_key_getter_rva": "0x1125d0",
+    "object_key_offset": "0x18"
+  },
+  "findings": [
+    "RTTI identifies the virtual-table type independently of message-format strings.",
+    "Both original message keys resolve through the same registry and compare both 32-bit words.",
+    "Registry comparison extracts the existing object key at object+0x18.",
+    "Deserializer fills two participant keys before conditional action payload groups.",
+    "Normal processing can queue primary and secondary actions rather than immediately call the formatter.",
+    "When actor lookup is absent, RVA 0x3ae454 can substitute victim key into the later event."
+  ],
+  "not_established": [
+    "hostility by message type alone",
+    "all action type meanings",
+    "receive versus local dispatch provenance",
+    "execution thread",
+    "live hit/miss/periodic calibration",
+    "safe hook ownership"
+  ],
+  "capture_requirement": "Copy original decoded message keys and bounded scalar fields before native fallback or queued action transformations. Never infer attacker from selected object or fallback event.",
+  "fingerprints": [
+    {
+      "rva": "0x3ae020",
+      "length": 418,
+      "sha256": "5f177580af54f6855ff0898ebd764ed9a832feddd30f5a7b1cb9bf46a9acb614"
+    },
+    {
+      "rva": "0x3ae870",
+      "length": 250,
+      "sha256": "f23fbf35f547435d01b52041b6c85a3c5862cc61b74f47a4d6dd96df9456a1cf"
+    },
+    {
+      "rva": "0x456f90",
+      "length": 112,
+      "sha256": "cfaf100fe3bb5a2439177d595027e52c877105dd8ffc419cb54d69a94aafb46c"
+    }
+  ],
+  "runtime_enabled": false,
+  "private_disassembly_committed": false
+}
