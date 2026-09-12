@@ -433,3 +433,41 @@ format-reference results remain under ignored artifacts/pve-pvp.
 Step 3 remains active; command status is implemented, but full population binding
 and combat dispatch revalidation remain required. Response attribution continues as
 a dependency investigation; do not mark B complete based on this static lead.
+
+
+### Native combat producer and anonymous-message checkpoint
+
+Static tracing applies only to prepared image
+`bb63469eb35917e6b3f58be75d29f94855c9868024271222465b4db62f0e3a87`.
+The handler at RVA 0x456f90 is reached through thunk RVA 0x21995. Direct call sites
+are RVAs 0x3ae1a1, 0x456eef, 0x45a9cb and 0x475cf3. These are static references,
+not proof that any particular path represents a server-confirmed attack.
+
+The constructor at RVA 0x455ea0 initializes context fields +0x38 and +0x4c to null.
+Separate setters at RVAs 0x4561a0 and 0x456220 replace those fields and register/
+unregister the field address with native object-reference machinery. Do not assume
+these operations are ordinary reference-counting or that the pointers survive a
+callback. The caller at RVA 0x3ae1a1 sets both fields, invokes the handler, then invokes
+the event's deleting virtual function. Any eventual observer must copy validated keys
+and scalar data synchronously and never put object/context pointers in a queue.
+
+The +0x38 object supplies the actor-name substitution from character +0xc48; +0x4c
+is the object compared with the local character in incoming branches. Another caller
+at RVA 0x475cf3 assigns only +0x4c before invoking and deleting the event. It constructs
+fixed scalar values and uses the selected object, so the handler is demonstrably
+shared with a synthetic/actorless path. Producer classification and event provenance
+remain mandatory; do not equate any handler invocation with verified aggression.
+
+The exact native incoming hit/miss templates include an anonymous "Someone" case.
+The existing parser now retains its event kind, amount, sequence and raw text while
+returning no target name for that literal. Named messages retain exact spelling;
+none supply a verified attacker key. A selected character is never substituted.
+
+Next: resolve the originating message/event type and object-key lookup for the real
+producer, establish the client-thread boundary and distinguish periodic, missed,
+actorless and synthetic events. Only then choose the existing instrumentation seam
+and calibrate specific missing live facts. No hook, ABI change, game action or package
+installation was performed in this checkpoint. Step 3 remains active and B incomplete.
+
+Validation: parser tests 8 passed with 4 subtests; full Python suite 1,956 passed,
+14 skipped, 251 subtests passed. Ruff src/tests passed.

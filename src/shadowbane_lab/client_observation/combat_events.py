@@ -92,10 +92,18 @@ class NativeCombatEventParser:
             if match := pattern.fullmatch(message):
                 groups = match.groupdict()
                 amount = float(groups["amount"]) if has_amount else None
+                target_name = groups.get("target")
+                if kind in {
+                    NativeCombatEventKind.TARGET_HIT_PLAYER,
+                    NativeCombatEventKind.TARGET_MISSED_PLAYER,
+                } and target_name == "Someone":
+                    # Native incoming-hit/miss templates use this literal when
+                    # actor identity is absent/ambiguous. It is not a player name.
+                    target_name = None
                 return self._event(
                     entry,
                     kind,
-                    target_name=groups.get("target"),
+                    target_name=target_name,
                     amount=amount,
                 )
         return self._event(entry, NativeCombatEventKind.OTHER)
