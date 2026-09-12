@@ -295,3 +295,66 @@ def test_schema_two_observation_stays_unresolved_on_upgrade(tmp_path):
     assert retained.observation == observation
     assert retained.player_identity is None
     assert reread.revision == 8
+
+
+@pytest.mark.parametrize("changed,party_failure", [(False, False), (True, False), (False, True)])
+def test_command_revalidates_selected_player_and_reports_party(tmp_path, changed, party_failure):
+    from types import SimpleNamespace as NS
+    from unittest.mock import MagicMock
+
+    from shadowbane_lab.pve.attack_list_commands import run_attack_list_command
+
+    observation = _observed_target()
+    key = observation.target_key
+    window = NS(process_id=42, process_started_at_100ns=1000, window_handle=20)
+    guard = MagicMock()
+    guard.require_target.return_value = window
+    session = MagicMock()
+    session.__enter__.return_value = session
+    session.binding = NS(process_creation_filetime_utc=1000, executable_sha256="ab" * 32,
+                         identity=NS(server_name="server", character_name="player"))
+    session.reader.observe_selected_player.return_value = NS(
+        object_key=key, character_name="enemy", server_name="server")
+    target = NS(token="selected", object_key=key, character_kind=NS(value="player"))
+    population = NS(characters=(target,), selected_target_token="selected",
+                    local_player_object_key=observation.local_player_key)
+    latest = NS(characters=(), selected_target_token=None,
+                local_player_object_key=observation.local_player_key) if changed else population
+    reader = MagicMock()
+    reader.observe.side_effect = [population, latest]
+    group = MagicMock()
+    group.observe.return_value = NS(members=(NS(object_type=key.object_type,
+                                               object_uuid=key.object_uuid),))
+    if party_failure:
+        group.observe.side_effect = OSError("party unavailable")
+    module = "shadowbane_lab.pve.attack_list_commands."
+    with patch(module + "open_active_character_config", return_value=session), \
+         patch(module + "NativeCharacterPopulationReader", return_value=reader), \
+         patch(module + "NativeGroupReader", return_value=group):
+        if changed:
+            with pytest.raises(ValueError, match="selection changed"):
+                run_attack_list_command("/blacklist add", guard, root=tmp_path)
+            assert not list(tmp_path.glob("*.json"))
+        else:
+            result = run_attack_list_command("/blacklist add", guard, root=tmp_path)
+            expected_party = "unknown" if party_failure else "protected"
+            assert result["entries"][0]["party_status"] == expected_party
+            assert result["entries"][0]["label"] == "enemy"
+            assert len(AttackListStore(tmp_path, AttackListOwner("server", "player"))
+                       .snapshot().entries) == 1
+
+
+def test_unresolved_and_unavailable_party_status_remain_explicit(capsys):
+    from shadowbane_lab.cli_commands.client_listener import _print_go_listener_event
+    from shadowbane_lab.pve.attack_list_commands import describe_attack_list_result
+
+    entry = AttackListEntry("legacy", "Old enemy", "manual", "old")
+    result = describe_attack_list_result({"action": "list", "revision": 1,
+                                         "entries": [entry.as_dict()]}, set())
+    assert result["entries"][0]["identity_status"] == "unresolved"
+    assert result["entries"][0]["party_status"] == "unknown"
+    _print_go_listener_event("attack-list", as_json=False, result=result)
+    output = capsys.readouterr().out
+    assert "identity unresolved" in output
+    assert "party status unknown" in output
+    assert "legacy" in output

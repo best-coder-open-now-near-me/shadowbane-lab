@@ -6,6 +6,12 @@ import os
 from pathlib import Path
 
 from shadowbane_lab.client_input.character_config import open_active_character_config
+from shadowbane_lab.client_observation.native_group import (
+    NativeGroupError,
+    NativeGroupReader,
+    load_bundled_native_group_profile,
+)
+from shadowbane_lab.client_observation.native_object import NativeObjectKey
 from shadowbane_lab.client_observation.native_population import (
     NativeCharacterPopulationReader,
     load_bundled_native_character_population_profile,
@@ -121,6 +127,23 @@ def run_attack_list_command(command, guard, *, root: Path | None = None):
                     player_identity,
                 )
         session.require_current()
+        if selected is not None:
+            latest = reader.observe()
+            latest_target = next(
+                (c for c in latest.characters if c.token == latest.selected_target_token), None
+            )
+            if (latest.local_player_object_key != population.local_player_object_key
+                    or latest_target is None
+                    or latest_target.token != target.token
+                    or latest_target.object_key != target.object_key
+                    or latest_target.character_kind != target.character_kind):
+                raise ValueError("selection changed before attack-list mutation")
+            if player_identity is not None:
+                latest_identity = session.reader.observe_selected_player()
+                if (latest_identity.object_key != player_identity.object_key
+                        or latest_identity.character_name != player_identity.name
+                        or latest_identity.server_name != player_identity.server):
+                    raise ValueError("player identity changed before attack-list mutation")
         current = guard.require_target()
         if (current.process_id, current.process_started_at_100ns, current.window_handle) != (
             window.process_id,
@@ -128,4 +151,33 @@ def run_attack_list_command(command, guard, *, root: Path | None = None):
             window.window_handle,
         ):
             raise ValueError("foreground client changed during attack-list command")
-        return apply_attack_list_command(command, store, selected)
+        result = apply_attack_list_command(command, store, selected)
+        # Status is an observation, never cached attack permission. A failed party
+        # read must not prevent removal or erase the successful edit's receipt.
+        party_keys = None
+        try:
+            group = NativeGroupReader(
+                load_bundled_native_group_profile(), session.reader.process
+            ).observe()
+            session.require_current()
+            party_keys = {NativeObjectKey(m.object_type, m.object_uuid) for m in group.members}
+        except (NativeGroupError, RuntimeError, OSError, ValueError):
+            pass
+        return describe_attack_list_result(result, party_keys)
+
+
+def describe_attack_list_result(result, party_keys=None):
+    """Present retained intent and positive roster protection without granting authority."""
+    entries = []
+    for raw in result["entries"]:
+        entry = dict(raw)
+        identity = entry.get("player_identity")
+        entry["identity_status"] = "saved_player" if identity else "unresolved"
+        if not identity or party_keys is None:
+            entry["party_status"] = "unknown"
+        elif NativeObjectKey.from_dict(identity["object_key"]) in party_keys:
+            entry["party_status"] = "protected"
+        else:
+            entry["party_status"] = "not_in_observed_roster"
+        entries.append(entry)
+    return {**result, "entries": entries}

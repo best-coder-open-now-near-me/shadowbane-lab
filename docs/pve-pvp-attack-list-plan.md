@@ -366,3 +366,21 @@ stance are combat-strength context, not identity or evidence of aggression.
 Validation: full Python suite 1,933 passed, 15 skipped, 249 subtests passed; final
 attack-list suite after adding schema-2 migration coverage: 28 passed. Ruff passed.
 This is a source checkpoint, not a newly certified installed package.
+
+
+### Command feedback and selection validation checkpoint
+
+The existing listener now displays saved-player versus unresolved identity, removal
+handles, and positive exact-key party protection. Missing party observations remain
+explicitly unknown; a failed status read does not undo or conceal a successful edit.
+These labels are informational and do not grant combat authority. Party members
+remain on the saved list. Add/remove-selected re-read selection, local key and player
+identity before mutation, rejecting changed subjects without writing the list.
+
+Validation: full Python run 1,938 passed, 14 skipped, 249 subtests passed; final
+attack-list suite 32 passed including changed-selection and unavailable-party cases.
+Ruff passed. Source-only checkpoint; the installed client has not been replaced.
+Step 3 remains active: current combat binding and listener concurrency validation
+remain, followed by attributed response ingestion. Inspection of the existing combat
+parser confirms hit/miss messages expose a name but no attacker native key; exact
+attribution still needs verification before automatic additions can be activated.

@@ -933,14 +933,25 @@ def _print_go_listener_event(
         return
     if event == "listening":
         print(
-            "Listening for foreground Shadowbane commands (/go, /zone, /pve, /stop).",
+            "Listening for foreground Shadowbane commands (/go, /zone, /pve, /blacklist, /stop).",
             flush=True,
         )
     elif event == "attack-list":
         assert result is not None
         print(f"Attack list ({result['action']}):", flush=True)
         for entry in result["entries"]:
-            print(f"  {entry['label']} — {entry['entry_id']}", flush=True)
+            identity_status = (
+                "identity unresolved" if entry.get("identity_status") != "saved_player"
+                else "saved player; current combat checks required"
+            )
+            party_status = {
+                "protected": "party protected",
+                "not_in_observed_roster": "not in observed party roster",
+            }.get(entry.get("party_status"), "party status unknown")
+            print(
+                f"  {entry['label']} - {entry['entry_id']} "
+                f"[{identity_status}; {party_status}]", flush=True,
+            )
         if not result["entries"]:
             print("  Empty", flush=True)
     elif event == "stopped":
