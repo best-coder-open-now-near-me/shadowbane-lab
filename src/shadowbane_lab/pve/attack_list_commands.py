@@ -37,21 +37,21 @@ def _parse_command(command):
     return words, action
 
 
-def apply_attack_list_command(command, store, selected=None):
+def apply_attack_list_command(command, store, selected=None, *, expected_revision=None):
     words, action = _parse_command(command)
     if action == "add":
         if selected is None:
             raise ValueError("select a character before adding them to the attack list")
-        result = store.add(selected)
+        result = store.add(selected, expected_revision=expected_revision)
     elif action == "remove":
         identity = (
             words[2] if len(words) == 3 else (selected.entry_id if selected is not None else None)
         )
         if identity is None:
             raise ValueError("select a character or provide the entry ID shown by list")
-        result = store.remove(identity)
+        result = store.remove(identity, expected_revision=expected_revision)
     elif action == "clear":
-        result = store.clear()
+        result = store.clear(expected_revision=expected_revision)
     else:
         result = store.snapshot()
     return {
@@ -79,6 +79,7 @@ def run_attack_list_command(command, guard, *, root: Path | None = None):
         identity = binding.identity
         owner = AttackListOwner(identity.server_name, identity.character_name)
         store = AttackListStore(root, owner)
+        initial_revision = store.snapshot().revision
         needs_selection = len(words) == 2 and action in {"add", "remove"}
         selected = None
         if needs_selection:
@@ -151,7 +152,9 @@ def run_attack_list_command(command, guard, *, root: Path | None = None):
             window.window_handle,
         ):
             raise ValueError("foreground client changed during attack-list command")
-        result = apply_attack_list_command(command, store, selected)
+        result = apply_attack_list_command(
+            command, store, selected, expected_revision=initial_revision
+        )
         # Status is an observation, never cached attack permission. A failed party
         # read must not prevent removal or erase the successful edit's receipt.
         party_keys = None

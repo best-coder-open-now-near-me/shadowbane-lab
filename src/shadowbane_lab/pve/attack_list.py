@@ -251,7 +251,11 @@ class AttackListStore:
                 )
             # Version 1 did not retain enough evidence to reconstruct a binding.
             # Keep it unresolved rather than inferring identity from its label.
-            entries.append(AttackListEntry(**values))
+            parsed = AttackListEntry(**values)
+            if (parsed.player_identity is not None
+                    and parsed.player_identity.server != self.owner.server):
+                raise ValueError("target server differs from attack-list owner")
+            entries.append(parsed)
         if len({entry.entry_id for entry in entries}) != len(entries):
             raise ValueError("duplicate attack-list identity")
         return AttackListSnapshot(revision, tuple(sorted(entries, key=lambda e: e.entry_id)))
@@ -260,25 +264,40 @@ class AttackListStore:
         with exclusive_record_lock(self.path.with_suffix(".lock")):
             return self._read()
 
-    def add(self, entry: AttackListEntry) -> AttackListSnapshot:
+    def add(
+        self, entry: AttackListEntry, *, expected_revision: int | None = None
+    ) -> AttackListSnapshot:
         if not isinstance(entry, AttackListEntry):
             raise ValueError("entry must be AttackListEntry")
-        return self._update("add", entry.entry_id, entry)
+        if entry.player_identity is not None and entry.player_identity.server != self.owner.server:
+            raise ValueError("target server differs from attack-list owner")
+        return self._update("add", entry.entry_id, entry, expected_revision=expected_revision)
 
-    def remove(self, entry_id: str) -> AttackListSnapshot:
-        return self._update("remove", _text(entry_id, "entry_id"))
+    def remove(
+        self, entry_id: str, *, expected_revision: int | None = None
+    ) -> AttackListSnapshot:
+        return self._update("remove", _text(entry_id, "entry_id"),
+                            expected_revision=expected_revision)
 
-    def clear(self) -> AttackListSnapshot:
-        return self._update("clear", "")
+    def clear(self, *, expected_revision: int | None = None) -> AttackListSnapshot:
+        return self._update("clear", "", expected_revision=expected_revision)
 
     def _update(
         self,
         action: str,
         entry_id: str,
         entry: AttackListEntry | None = None,
+        *,
+        expected_revision: int | None = None,
     ) -> AttackListSnapshot:
+        if expected_revision is not None and (
+            type(expected_revision) is not int or expected_revision < 0
+        ):
+            raise ValueError("expected_revision must be a non-negative integer")
         with exclusive_record_lock(self.path.with_suffix(".lock")):
             previous = self._read()
+            if expected_revision is not None and previous.revision != expected_revision:
+                raise ValueError("attack list changed during command; retry with the current list")
             entries = {item.entry_id: item for item in previous.entries}
             if action == "add":
                 assert entry is not None

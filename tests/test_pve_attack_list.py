@@ -358,3 +358,173 @@ def test_unresolved_and_unavailable_party_status_remain_explicit(capsys):
     assert "identity unresolved" in output
     assert "party status unknown" in output
     assert "legacy" in output
+
+
+def test_listener_edits_list_and_cancels_while_pve_is_blocked(tmp_path, monkeypatch):
+    from contextlib import ExitStack, nullcontext
+    from dataclasses import replace
+    from threading import Event, Thread
+    from types import SimpleNamespace as NS
+    from unittest.mock import MagicMock
+
+    from shadowbane_lab.cli_commands import client_listener as listener
+    from shadowbane_lab.client_input import (
+        EventEmergencyStop,
+        RecordingInputBackend,
+        StaticWindowInspector,
+        WindowBounds,
+        WindowSnapshot,
+        load_calibration,
+    )
+
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    store = AttackListStore(tmp_path / "ShadowbaneLab" / "attack-lists",
+                            AttackListOwner("server", "player"))
+    store.add(AttackListEntry("enemy", "Enemy", "manual", "command"))
+    template = Path(__file__).parents[1] / "configs" / "wonderbane-travel.template.json"
+    profile = replace(load_calibration(template), live_input_enabled=True)
+    stop = EventEmergencyStop()
+    entered, edited, release = Event(), Event(), Event()
+    errors = []
+    window = WindowSnapshot("sb.exe", "Shadowbane", WindowBounds(0, 0, 1920, 955),
+                            1.0, True, True, process_id=42,
+                            process_started_at_100ns=1000, window_handle=20)
+    session = MagicMock()
+    session.__enter__.return_value = session
+    session.binding = NS(process_creation_filetime_utc=1000,
+                         identity=NS(server_name="server", character_name="player"))
+
+    def blocked_pve(**kwargs):
+        entered.set()
+        assert release.wait(5), "callback did not release the held PvE operation"
+        assert edited.is_set(), "list edit waited behind PvE"
+        assert kwargs["stop_signal"].is_set(), "interaction did not cancel held PvE"
+
+    class CallbackListener:
+        is_alive = True
+
+        def __init__(self, _guard, *, on_command, on_interaction, on_pointer):
+            self.submit, self.cancel = on_command, on_interaction
+
+        def __enter__(self):
+            def drive():
+                try:
+                    self.submit("/pve")
+                    assert entered.wait(5), "PvE never entered its operation boundary"
+                    self.submit("/blacklist clear")
+                    assert store.snapshot().entries == ()
+                    edited.set()
+                    self.cancel()
+                except BaseException as exc:
+                    errors.append(exc)
+                finally:
+                    stop.trip()
+                    release.set()
+            self.thread = Thread(target=drive)
+            self.thread.start()
+            return self
+
+        def __exit__(self, *_args):
+            release.set()
+            self.thread.join(5)
+            assert not self.thread.is_alive()
+
+    with ExitStack() as stack:
+        for name, value in {
+            "load_calibration": MagicMock(return_value=profile),
+            "WindowsForegroundWindowInspector": lambda: StaticWindowInspector(window),
+            "WindowsHotkeyEmergencyStop": lambda: nullcontext(stop),
+            "WindowsGoChatCommandListener": CallbackListener,
+            "WindowsZoneSearchOverlay": lambda: nullcontext(MagicMock()),
+            "PyAutoGuiBackend": RecordingInputBackend,
+            "_run_pve": blocked_pve,
+        }.items():
+            stack.enter_context(patch.object(listener, name, value))
+        stack.enter_context(patch.object(listener.attack_list_commands,
+                                         "open_active_character_config", return_value=session))
+        stack.enter_context(patch.object(listener.attack_list_commands,
+                                         "NativeGroupReader", side_effect=OSError("unavailable")))
+        result = listener._listen_for_go_commands(
+            destination_state_path=tmp_path / "travel.json", client_profile_path=template,
+            native_position_profile_path=None, native_vitals_profile_path=None,
+            native_runegate_profile_path=None, world_def_path=None,
+            named_destination_overrides_path=None, pve_client_profile_path=template,
+            pve_hotbar_config_path=None, pve_evidence_directory=None,
+            navigation_cache_directory=None, pve_max_kills=3, pve_max_seconds=300,
+            pve_max_encounter_seconds=120, pve_recovery_timeout_seconds=30, pve_poll_ms=100,
+            max_seconds=300, wait_for_client_seconds=0, poll_ms=100, click_interval_ms=4000,
+            live=True, as_json=True,
+        )
+    assert not errors
+    assert result == 0
+    assert edited.is_set()
+
+
+def _conditional_add_in_process(root, number, ready, release, results):
+    store = AttackListStore(Path(root), AttackListOwner("server", "player"))
+    revision = store.snapshot().revision
+    ready.put(number)
+    if not release.wait(10):
+        raise RuntimeError("parent did not release writers")
+    try:
+        store.add(AttackListEntry(str(number), "Enemy", "manual", "command"),
+                  expected_revision=revision)
+        results.put("saved")
+    except ValueError as exc:
+        results.put(str(exc))
+
+
+def test_two_process_commands_cannot_both_commit_the_same_revision(tmp_path):
+    context = multiprocessing.get_context("spawn")
+    ready, results, release = context.Queue(), context.Queue(), context.Event()
+    children = [context.Process(target=_conditional_add_in_process,
+                                args=(tmp_path, n, ready, release, results)) for n in range(2)]
+    try:
+        for child in children:
+            child.start()
+        assert {ready.get(timeout=15) for _ in children} == {0, 1}
+        release.set()
+        outcomes = [results.get(timeout=15) for _ in children]
+        assert outcomes.count("saved") == 1
+        assert sum("changed during command" in outcome for outcome in outcomes) == 1
+        for child in children:
+            child.join(15)
+            assert child.exitcode == 0
+    finally:
+        release.set()
+        for child in children:
+            if child.is_alive():
+                child.terminate()
+                child.join(5)
+        ready.close()
+        results.close()
+    snapshot = AttackListStore(tmp_path, AttackListOwner("server", "player")).snapshot()
+    assert snapshot.revision == 1
+    assert len(snapshot.entries) == 1
+
+
+@pytest.mark.parametrize(
+    "command", ["/blacklist add", "/blacklist remove enemy", "/blacklist clear"]
+)
+def test_command_rejects_stale_revision_without_losing_concurrent_work(tmp_path, command):
+    from shadowbane_lab.pve.attack_list_commands import apply_attack_list_command
+
+    store = AttackListStore(tmp_path, AttackListOwner("server", "player"))
+    entry = AttackListEntry("enemy", "Enemy", "manual", "command")
+    first = store.add(entry)
+    current = store.add(AttackListEntry("new", "New enemy", "response", "hit"))
+    with pytest.raises(ValueError, match="changed during command"):
+        apply_attack_list_command(command, store, entry, expected_revision=first.revision)
+    assert store.snapshot() == current
+
+
+def test_cross_server_player_identity_cannot_enter_another_owner_list(tmp_path):
+    from shadowbane_lab.pve.attack_list import AttackPlayerIdentity
+
+    observation = _observed_target()
+    player = AttackPlayerIdentity("other-server", observation.target_key, "enemy")
+    store = AttackListStore(tmp_path, AttackListOwner("server", "player"))
+    with pytest.raises(ValueError, match="target server"):
+        store.add(AttackListEntry(player.entry_id, "Enemy", "manual", "command",
+                                  observation, player))
+    assert store.snapshot().entries == ()

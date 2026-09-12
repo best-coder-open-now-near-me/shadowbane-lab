@@ -384,3 +384,25 @@ Step 3 remains active: current combat binding and listener concurrency validatio
 remain, followed by attributed response ingestion. Inspection of the existing combat
 parser confirms hit/miss messages expose a name but no attacker native key; exact
 attribution still needs verification before automatic additions can be activated.
+
+
+### Listener concurrency and command transaction checkpoint
+
+A barrier-controlled test drives the real listener callback while its PvE operation
+is held, clears a real saved list, and cancels that operation before release. This
+confirms existing command isolation; no duplicate listener dispatcher was introduced.
+
+Commands now capture the list revision before target reads and compare it inside
+the existing interprocess read/merge/write lock. A changed revision rejects add,
+remove or clear without overwriting intervening work. A spawned two-process test
+confirms exactly one writer can commit against the same revision. Independent adds
+without a command precondition retain their existing merge behavior. Persistent
+player records from another server are rejected on both write and load.
+
+This is command concurrency protection, not response-stream deduplication: source
+sequence/lifetime and removal invalidation for queued responses remain work package B.
+Step 3 stays active; current-target combat binding and remaining identity evidence
+must be completed before combat activation. No installed package was changed.
+
+Validation: 38 focused attack-list tests passed; full Python suite 1,945 passed,
+14 skipped, 249 subtests passed. Ruff src/tests and diff whitespace checks passed.
