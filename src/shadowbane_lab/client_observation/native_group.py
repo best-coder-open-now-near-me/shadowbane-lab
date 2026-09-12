@@ -610,8 +610,14 @@ class NativeGroupReader:
             )
 
 
-def open_windows_native_group_reader(profile: NativeGroupProfile) -> NativeGroupReader:
-    process = WindowsReadOnlyProcessMemory.open_unique(profile.executable_name)
+def open_windows_native_group_reader(
+    profile: NativeGroupProfile, *, process_id: int | None = None,
+) -> NativeGroupReader:
+    process = (
+        WindowsReadOnlyProcessMemory.open_unique(profile.executable_name)
+        if process_id is None
+        else WindowsReadOnlyProcessMemory.open_for_process(profile.executable_name, process_id)
+    )
     try:
         return NativeGroupReader(profile, process)
     except Exception:
