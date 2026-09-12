@@ -367,3 +367,14 @@ def test_pve_ambiguous_or_unavailable_identity_never_opens_input_backend():
     resolve.assert_called_once_with(process_id=4320, explicit_path=None)
     backend.assert_not_called()
     runner.assert_not_called()
+
+
+def test_current_prepared_image_uses_reviewed_identity_layout(tmp_path):
+    memory = CharacterMemory(tmp_path)
+    memory.executable_sha256 = "bb63469eb35917e6b3f58be75d29f94855c9868024271222465b4db62f0e3a87"
+    identity = NativeCharacterConfigReader(memory).observe()
+    assert identity.character_name == "testercle"
+    assert identity.server_name == "Wonderbane"
+    memory.executable_sha256 = "ff" * 32
+    with pytest.raises(ActiveCharacterError, match="not reviewed"):
+        NativeCharacterConfigReader(memory)

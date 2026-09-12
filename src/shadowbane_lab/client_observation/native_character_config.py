@@ -36,6 +36,16 @@ REVIEWED_CHARACTER_CONFIG_LAYOUTS = (
         name_offset=0xC48,
         server_offset=0xC90,
     ),
+    # September 12: exact prepared-image load/save/UTF-16 encoder fingerprints
+    # match the documented calibration; no family-wide compatibility fallback.
+    CharacterConfigLayout(
+        executable_sha256="bb63469eb35917e6b3f58be75d29f94855c9868024271222465b4db62f0e3a87",
+        player_pointer_rva=0x16A2D98,
+        character_config_enabled_rva=0x16A7C60,
+        character_vtable_rva=0x114165C,
+        name_offset=0xC48,
+        server_offset=0xC90,
+    ),
 )
 
 

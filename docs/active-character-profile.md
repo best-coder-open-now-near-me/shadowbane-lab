@@ -84,3 +84,10 @@ Combined checkpoint validation (including upstream PvE work through `9553531`):
 - Both changed PowerShell launchers parsed successfully without execution.
 - Python wheel built successfully with isolated declared build dependencies.
 - No native DLL deployment, game launch, memory write, or character CFG edit was performed.
+
+September 12 exact prepared image bb63469eb35917e6b3f58be75d29f94855c9868024271222465b4db62f0e3a87
+was compared locally against all three recorded routine fingerprints above: load
+0x795DA0/267, save0x7963E0/243 and encoder0x1485B0/288 match byte-for-byte by SHA-256.
+The same exact layout is now admitted for this image, retaining all runtime checks.
+This does not establish remote-character names or persistent target identity and
+is not a connected acceptance claim. The original exact-image entry is retained.
