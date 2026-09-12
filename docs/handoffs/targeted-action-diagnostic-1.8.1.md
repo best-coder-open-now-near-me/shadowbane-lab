@@ -30,3 +30,13 @@ of finished PvP. Current session and party checks remain required before respons
 
 Package identities, exact verification results and review will be appended after the
 build finishes. Do not use this preliminary handoff as deployment authorization.
+
+
+Preliminary build 0ec255a is superseded: it reached installed-wheel checks but
+stopped on a stale hardcoded wheel version. CI also reproduced the unrelated CLI
+pipeline fixture's real-time/synthetic-baseline mismatch. The builder now compares
+against the archived source version; the CLI test retains real child processes
+with deterministic measurements, leaving production timing policies unchanged.
+Both fixes passed 45 focused tests and independent review. The remaining five
+installed-wheel smoke checks passed as preflight on the preliminary installed wheel;
+only the final rebuilt artifact will receive a package receipt.

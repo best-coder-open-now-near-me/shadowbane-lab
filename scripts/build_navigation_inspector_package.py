@@ -15,6 +15,7 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import tomllib
 import xml.etree.ElementTree as ET
 import zipfile
 from datetime import UTC, datetime
@@ -559,13 +560,16 @@ print(json.dumps(authored.as_dict(), sort_keys=True))
         "assert app.cue_panel.settings().enabled is False; app.close()"
     )
     run("installed-selection-panel", [python, "-c", cue_smoke], cwd=output)
+    expected_wheel_version = tomllib.loads(
+        (source / "pyproject.toml").read_text(encoding="utf-8")
+    )["project"]["version"]
     run("installed-conservative-status", [python, "-c", """
 import importlib.metadata, pathlib, sys
 from shadowbane_lab.graphics_lab import effects, selected_cue
 installed_root = pathlib.Path(sys.prefix).resolve()
 for module in (effects, selected_cue):
     assert pathlib.Path(module.__file__).resolve().is_relative_to(installed_root)
-assert importlib.metadata.version("shadowbane-lab") == "0.3.0"
+assert importlib.metadata.version("shadowbane-lab") == sys.argv[1]
 assert "suppressed" in effects.presentation_status((0,) * 8 + (1, 3, 1))
 assert "unavailable" in effects.presentation_status((0,) * 8)
 assert selected_cue.describe_status(
@@ -574,7 +578,7 @@ assert selected_cue.describe_status(
 assert "no supported selected draw observed" in selected_cue.describe_status(
     selected_cue.CueSettings(enabled=True), (2, 2, 0, 0, 1, 0, 8, 0)
 )
-"""], cwd=output)
+""", expected_wheel_version], cwd=output)
     sky_smoke = (
         "import tkinter as tk; import shadowbane_lab.graphics_lab.app as module; "
         "module.discover_graphics_targets=lambda: (); "
