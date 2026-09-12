@@ -1,8 +1,6 @@
 """Foreground-bound chat editing of persistent attack intent."""
 from __future__ import annotations
 
-import hashlib
-import json
 import os
 from pathlib import Path
 
@@ -11,7 +9,12 @@ from shadowbane_lab.client_observation.native_population import (
     NativeCharacterPopulationReader,
     load_bundled_native_character_population_profile,
 )
-from shadowbane_lab.pve.attack_list import AttackListEntry, AttackListOwner, AttackListStore
+from shadowbane_lab.pve.attack_list import (
+    AttackListEntry,
+    AttackListOwner,
+    AttackListStore,
+    AttackTargetObservation,
+)
 
 
 def apply_attack_list_command(command, store, selected=None):
@@ -73,15 +76,15 @@ def run_attack_list_command(command, guard, *, root: Path | None = None):
             if target is not None and target.object_key is not None:
                 # Runtime keys have no demonstrated cross-login identity guarantee.
                 # Retain intent permanently but never silently rebind it after login.
-                scope = [binding.executable_sha256, window.process_id,
-                         window.process_started_at_100ns,
-                         population.local_player_object_key.canonical_token,
-                         target.object_key.canonical_token]
-                entry_id = hashlib.sha256(json.dumps(scope).encode()).hexdigest()
+                evidence = AttackTargetObservation(
+                    binding.executable_sha256, window.process_id,
+                    window.process_started_at_100ns, population.local_player_object_key,
+                    target.object_key, target.character_kind.value,
+                )
                 selected = AttackListEntry(
-                    entry_id,
+                    evidence.entry_id,
                     f"Selected {target.character_kind.value} ({target.object_key.canonical_token})",
-                    "manual", f"selected:{target.object_key.canonical_token}",
+                    "manual", f"selected:{target.object_key.canonical_token}", evidence,
                 )
         session.require_current()
         current = guard.require_target()

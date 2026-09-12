@@ -145,3 +145,80 @@ def test_listener_presents_success_instead_of_rejection(capsys):
     assert "Empty" in capsys.readouterr().out
     _print_go_listener_event("attack-list", as_json=True, result=result)
     assert '"ok": true' in capsys.readouterr().out
+
+
+def _observed_target():
+    from shadowbane_lab.client_observation.native_object import NativeObjectKey
+    from shadowbane_lab.pve.attack_list import AttackTargetObservation
+
+    return AttackTargetObservation("ab" * 32, 42, 1000,
+                                   NativeObjectKey(1, 53), NativeObjectKey(2, 53), "player")
+
+
+def test_target_evidence_survives_restart_without_claiming_durable_identity(tmp_path):
+    observation = _observed_target()
+    store = AttackListStore(tmp_path, AttackListOwner("server", "player"))
+    entry = AttackListEntry(observation.entry_id, "Observed player", "manual", "selection",
+                           observation)
+    store.add(entry)
+    loaded = AttackListStore(tmp_path, store.owner).snapshot().entries[0]
+    assert loaded == entry
+    assert loaded.observation.process_started_at_100ns == 1000
+    assert loaded.observation.target_key.object_type == 2
+
+
+def test_legacy_intent_migrates_unresolved_without_losing_entries(tmp_path):
+    import json
+
+    store = AttackListStore(tmp_path, AttackListOwner("server", "player"))
+    legacy = {"entry_id": "old", "label": "Old enemy", "source": "manual",
+              "evidence_id": "old-selection"}
+    store.path.write_text(json.dumps({"schema": 1, "owner": ["server", "player"],
+                                     "revision": 4, "entries": [legacy]}))
+    snapshot = store.snapshot()
+    assert snapshot.entries[0].observation is None
+    assert snapshot.revision == 4
+    observation = _observed_target()
+    store.add(AttackListEntry(observation.entry_id, "New enemy", "manual", "new-selection",
+                             observation))
+    raw = json.loads(store.path.read_text())
+    assert raw["schema"] == 2
+    assert raw["revision"] == 5
+    assert next(e for e in raw["entries"] if e["entry_id"] == "old")["observation"] is None
+    assert len(AttackListStore(tmp_path, store.owner).snapshot().entries) == 2
+
+
+def test_forged_identity_evidence_is_rejected(tmp_path):
+    with pytest.raises(ValueError, match="does not match"):
+        AttackListEntry("different", "Enemy", "manual", "selection", _observed_target())
+
+
+@pytest.mark.parametrize("field,value", [("process_id", True), ("process_started_at_100ns", 0),
+                                         ("executable_sha256", "unknown")])
+def test_invalid_evidence_never_forms_a_binding(field, value):
+    from dataclasses import replace
+
+    with pytest.raises(ValueError):
+        replace(_observed_target(), **{field: value})
+
+
+def test_changed_process_or_object_has_a_different_observation_identity():
+    from dataclasses import replace
+
+    from shadowbane_lab.client_observation.native_object import NativeObjectKey
+
+    observation = _observed_target()
+    assert replace(observation, process_started_at_100ns=2000).entry_id != observation.entry_id
+    assert replace(observation, target_key=NativeObjectKey(3, 53)).entry_id != observation.entry_id
+
+
+def test_fresh_matching_observation_enriches_legacy_without_rewriting_provenance(tmp_path):
+    observation = _observed_target()
+    store = AttackListStore(tmp_path, AttackListOwner("server", "player"))
+    store.add(AttackListEntry(observation.entry_id, "Saved enemy", "manual", "original-command"))
+    result = store.add(AttackListEntry(observation.entry_id, "Observed enemy", "response", "hit",
+                                      observation))
+    assert len(result.entries) == 1
+    assert result.entries[0].observation == observation
+    assert result.entries[0].source == "manual"
+    assert result.entries[0].evidence_id == "original-command"

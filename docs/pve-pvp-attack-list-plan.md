@@ -327,3 +327,16 @@ attacker identity, and verified player acquisition (current PvE action cycles mo
 Party protection must be applied in the final combat resolver; no combat consumption
 of the list has been enabled. Steps4/5, full package gates and connected acceptance are
 still pending. Do not certify this source with an earlier package receipt.
+## Identity evidence migration checkpoint
+
+Storage schema2 retains the observed image, process lifetime, local/target native keys
+and character kind. Legacy entries stay unresolved rather than having identity inferred
+from labels. A matching fresh observation may enrich evidence without replacing manual
+provenance. This is historical evidence, not proof of cross-login identity or actuation
+permission. Existing records migrate on the next successful mutation under the same
+interprocess transaction. Focused store/identity/chat/CLI tests:94 passed,8 subtests;
+Ruff passed. Private native tracing remains outside source control.
+
+Step3/A remains active: determine the durable remote-character identity and verify it
+across reconnect. A narrow two-character reconnect observation has been requested;
+no attacks, package installation or broader gameplay acceptance is requested.
