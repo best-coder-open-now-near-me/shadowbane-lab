@@ -297,7 +297,9 @@ def test_schema_two_observation_stays_unresolved_on_upgrade(tmp_path):
     assert reread.revision == 8
 
 
-@pytest.mark.parametrize("changed,party_failure", [(False, False), (True, False), (False, True)])
+@pytest.mark.parametrize("changed,party_failure", [
+    (False, False), (True, False), (False, True), (False, "changed_roster")
+])
 def test_command_revalidates_selected_player_and_reports_party(tmp_path, changed, party_failure):
     from types import SimpleNamespace as NS
     from unittest.mock import MagicMock
@@ -325,7 +327,9 @@ def test_command_revalidates_selected_player_and_reports_party(tmp_path, changed
     group = MagicMock()
     group.observe.return_value = NS(members=(NS(object_type=key.object_type,
                                                object_uuid=key.object_uuid),))
-    if party_failure:
+    if party_failure == "changed_roster":
+        group.observe.side_effect = [group.observe.return_value, NS(members=())]
+    elif party_failure:
         group.observe.side_effect = OSError("party unavailable")
     module = "shadowbane_lab.pve.attack_list_commands."
     with patch(module + "open_active_character_config", return_value=session), \
@@ -339,6 +343,8 @@ def test_command_revalidates_selected_player_and_reports_party(tmp_path, changed
             result = run_attack_list_command("/blacklist add", guard, root=tmp_path)
             expected_party = "unknown" if party_failure else "protected"
             assert result["entries"][0]["party_status"] == expected_party
+            expected_binding = "party_protected" if not party_failure else "party_unknown"
+            assert result["entries"][0]["selected_binding"] == expected_binding
             assert result["entries"][0]["label"] == "enemy"
             assert len(AttackListStore(tmp_path, AttackListOwner("server", "player"))
                        .snapshot().entries) == 1
@@ -528,3 +534,47 @@ def test_cross_server_player_identity_cannot_enter_another_owner_list(tmp_path):
         store.add(AttackListEntry(player.entry_id, "Enemy", "manual", "command",
                                   observation, player))
     assert store.snapshot().entries == ()
+
+
+@pytest.mark.parametrize("case,expected", [
+    ("match", "selected_identity_matches"),
+    ("party", "party_protected"),
+    ("unknown_party", "party_unknown"),
+    ("rename", "identity_conflict"),
+    ("same_name_other_key", "different_selected_player"),
+    ("other_server", "different_selected_player"),
+    ("missing", "selection_unavailable"),
+    ("legacy", "unresolved_identity"),
+])
+def test_selected_binding_requires_exact_identity_and_party_evidence(case, expected):
+    from dataclasses import replace
+
+    from shadowbane_lab.client_observation.native_object import NativeObjectKey
+    from shadowbane_lab.pve.attack_list import AttackPlayerIdentity
+    from shadowbane_lab.pve.attack_list_commands import describe_attack_list_result
+
+    observation = _observed_target()
+    saved = AttackPlayerIdentity("server", observation.target_key, "enemy")
+    entry = AttackListEntry(saved.entry_id, "enemy", "manual", "command", observation, saved)
+    current, party = saved, set()
+    if case == "party":
+        party = {saved.object_key}
+    elif case == "unknown_party":
+        party = None
+    elif case == "rename":
+        current = replace(saved, name="other")
+    elif case == "same_name_other_key":
+        current = replace(saved, object_key=NativeObjectKey(999, 53))
+    elif case == "other_server":
+        current = replace(saved, server="elsewhere")
+    elif case == "missing":
+        current = None
+    elif case == "legacy":
+        entry = AttackListEntry("old", "enemy", "manual", "old")
+    result = describe_attack_list_result(
+        {"action": "list", "revision": 7, "entries": [entry.as_dict()]},
+        party, current_player=current,
+    )
+    assert result["entries"][0]["selected_binding"] == expected
+    assert result["revision"] == 7
+    assert len(result["entries"]) == 1

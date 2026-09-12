@@ -948,9 +948,18 @@ def _print_go_listener_event(
                 "protected": "party protected",
                 "not_in_observed_roster": "not in observed party roster",
             }.get(entry.get("party_status"), "party status unknown")
+            binding_status = {
+                "unresolved_identity": "identity unresolved",
+                "selection_unavailable": "selected player unavailable",
+                "different_selected_player": "another player selected",
+                "identity_conflict": "selected identity conflicts with saved name",
+                "party_unknown": "selected player matches; party unknown",
+                "party_protected": "selected player is party protected",
+                "selected_identity_matches": "selected identity matches; not attack permission",
+            }.get(entry.get("selected_binding"), "current binding not checked")
             print(
                 f"  {entry['label']} - {entry['entry_id']} "
-                f"[{identity_status}; {party_status}]", flush=True,
+                f"[{identity_status}; {party_status}; {binding_status}]", flush=True,
             )
         if not result["entries"]:
             print("  Empty", flush=True)

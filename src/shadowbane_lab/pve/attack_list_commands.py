@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 
 from shadowbane_lab.client_input.character_config import open_active_character_config
+from shadowbane_lab.client_observation.native_character_config import ActiveCharacterError
 from shadowbane_lab.client_observation.native_group import (
     NativeGroupError,
     NativeGroupReader,
@@ -23,6 +24,7 @@ from shadowbane_lab.pve.attack_list import (
     AttackPlayerIdentity,
     AttackTargetObservation,
 )
+from shadowbane_lab.pve.authority_snapshot import native_party_identity_signature
 
 
 def _parse_command(command):
@@ -159,17 +161,32 @@ def run_attack_list_command(command, guard, *, root: Path | None = None):
         # read must not prevent removal or erase the successful edit's receipt.
         party_keys = None
         try:
-            group = NativeGroupReader(
+            group_reader = NativeGroupReader(
                 load_bundled_native_group_profile(), session.reader.process
-            ).observe()
+            )
+            group = group_reader.observe()
             session.require_current()
             party_keys = {NativeObjectKey(m.object_type, m.object_uuid) for m in group.members}
         except (NativeGroupError, RuntimeError, OSError, ValueError):
             pass
-        return describe_attack_list_result(result, party_keys)
+        current_player = None
+        try:
+            remote = session.reader.observe_selected_player()
+            session.require_current()
+            current_player = AttackPlayerIdentity(
+                remote.server_name, remote.object_key, remote.character_name
+            )
+            if party_keys is not None:
+                after = group_reader.observe()
+                if native_party_identity_signature(group) != native_party_identity_signature(after):
+                    party_keys = None
+        except (ActiveCharacterError, NativeGroupError, OSError, ValueError):
+            current_player = None
+            party_keys = None
+        return describe_attack_list_result(result, party_keys, current_player=current_player)
 
 
-def describe_attack_list_result(result, party_keys=None):
+def describe_attack_list_result(result, party_keys=None, *, current_player=None):
     """Present retained intent and positive roster protection without granting authority."""
     entries = []
     for raw in result["entries"]:
@@ -182,5 +199,30 @@ def describe_attack_list_result(result, party_keys=None):
             entry["party_status"] = "protected"
         else:
             entry["party_status"] = "not_in_observed_roster"
+        entry["selected_binding"] = selected_player_binding_status(
+            identity, current_player, party_keys
+        )
         entries.append(entry)
     return {**result, "entries": entries}
+
+
+def selected_player_binding_status(saved_identity, current_player, party_keys):
+    """Describe a fresh selected-player match; this never authorizes an attack.
+
+    A match carries no reusable lifetime lease. Combat must independently recheck
+    current process/character/selection, list revision, party and native legality.
+    """
+    if saved_identity is None:
+        return "unresolved_identity"
+    saved = AttackPlayerIdentity.from_dict(saved_identity)
+    if current_player is None:
+        return "selection_unavailable"
+    if saved.server != current_player.server or saved.object_key != current_player.object_key:
+        return "different_selected_player"
+    if saved.name != current_player.name:
+        return "identity_conflict"
+    if party_keys is None:
+        return "party_unknown"
+    if saved.object_key in party_keys:
+        return "party_protected"
+    return "selected_identity_matches"

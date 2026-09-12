@@ -406,3 +406,30 @@ must be completed before combat activation. No installed package was changed.
 
 Validation: 38 focused attack-list tests passed; full Python suite 1,945 passed,
 14 skipped, 249 subtests passed. Ruff src/tests and diff whitespace checks passed.
+
+
+### Selected-player status and response-source investigation checkpoint
+
+The existing command result now compares saved server/key/exact name against a
+fresh selected-player read. It distinguishes unavailable selection, another player,
+identity conflict, unknown party, party protection and an exact selected match.
+Party identity is bracketed using the existing roster-signature helper; a changed
+roster becomes unknown. These are command observations, not combat authorization or
+reusable runtime bindings. The NPC-only PvE admission policy remains unchanged.
+
+Validation: 47 focused tests passed; full Python suite 1,954 passed, 14 skipped,
+249 subtests passed. Ruff passed. Cases include same-name/different-key players,
+server changes, rename conflicts and a roster change during the production callback.
+
+Static investigation on the exact prepared image found incoming hit/miss formatting
+inside the routine beginning at RVA 0x456f90. Its context fields +0x38 and +0x4c are
+candidate actor/victim objects: comparisons against the local root select incoming,
+outgoing and unnamed-message branches. This is a static lead, not a reviewed event
+schema or proof of stable ownership. Next inspect producer construction, key lookup,
+thread boundary and object lifetime, then calibrate only missing live facts. No new
+hook, client write or automatic retaliation was introduced. Private disassembly and
+format-reference results remain under ignored artifacts/pve-pvp.
+
+Step 3 remains active; command status is implemented, but full population binding
+and combat dispatch revalidation remain required. Response attribution continues as
+a dependency investigation; do not mark B complete based on this static lead.
