@@ -1,7 +1,7 @@
 # Targeted-action diagnostic 1.8.1
 
-Status: verified diagnostic package; all seven exact-source CI jobs passed.
-Not installed and not a completed PvP acceptance candidate.
+Status: installed with owner approval on September 12; passive capture verified armed.
+All seven exact-source CI jobs passed. Not a completed PvP acceptance candidate.
 Integration destination: codex/native-lifecycle-hardening; eventual reviewed merge
 destination main. Product 1.8.1, wheel 0.3.1; extension ABI and existing wire versions
 unchanged. The new targeted-action diagnostic mapping remains schema 1.
@@ -21,7 +21,7 @@ Packaging uses the existing build_navigation_inspector_package.py with
 pass both Win32 profiles, explicit image/IPC checks, and installed-wheel verification.
 The known ideal-transparency diagnostics remain recorded separately.
 
-For eventual isolated capture, set WONDERBANE_TARGETED_ACTION_TRACE=1 before the
+For isolated capture, set WONDERBANE_TARGETED_ACTION_TRACE=1 before the
 client starts, then use the installed targeted_action_trace collector with the exact
 PID and creation FILETIME. The observer is otherwise disabled. No automatic attacks
 or target changes are issued by capture. Request one known attacker hitting and
@@ -29,8 +29,8 @@ missing the local character while an unrelated character is selected; retain the
 original actor/victim keys and raw action groups. This is calibration, not acceptance
 of finished PvP. Current session and party checks remain required before responses.
 
-Final identities, verification and review are recorded below. Source/package
-verification does not authorize replacing the running VM client.
+Final identities, verification and review are recorded below. The owner separately
+authorized the VM switch; the installation receipt is recorded below.
 
 
 Preliminary build 0ec255a is superseded: it reached installed-wheel checks but
@@ -83,11 +83,31 @@ provenance, collector, startup or package integration. The validation-only follo
 also passed review; reviewer independently ran 45 focused tests. This does not
 certify live action meaning or automatic retaliation.
 
-Read-only VM check still found PID 1228 running the accepted 1.7.8 runtime at
-S:/ShadowbaneLab-Guided/combined-acceptance-1.7.8-f0c92a36/client/sb.exe. It was not
-stopped or replaced. Deployment authorization remains separate from source/package
-verification. Next is a supervised original-attacker-key hit/miss calibration after
-switching the diagnostic client; no repeated broad navigation run is requested.
+## Approved VM installation
+
+Installed September 12 after explicit owner approval. The old game and panel were
+already closed; no running client was terminated. Settings were copied from the
+accepted 1.7.8 client before preparation and verification of the new runtime.
+
+Runtime: S:/ShadowbaneLab-Guided/targeted-action-1.8.1-6e1485b.
+Launched PID 2336, creation FILETIME 134337265282893141; executable client/sb.exe.
+Prepared EXE SHA-256: bb63469eb35917e6b3f58be75d29f94855c9868024271222465b4db62f0e3a87.
+Loaded full DLL hash matches the package table. Installed wheel 0.3.1 and source
+6e1485bb88bac4ac1dcf488434e19ff393c7dee5 were verified in the new environment.
+The exact-lifetime schema-1 mapping was verified armed, with no records at preflight.
+WONDERBANE_TARGETED_ACTION_TRACE=1 is set by the launcher. No disk collection or
+known-attacker trial has started; automatic combat authority remains false.
+
+Both WonderBane Modded Client and WonderBane Inspector - TextFix desktop shortcuts
+now target this runtime's Launch-Modded-Shadowbane.cmd. Control Center is unchanged.
+The stopped old combined-acceptance-1.7.8-f0c92a36/client directory was removed under
+the owner's standing authorization, after exact-path and running-process checks.
+Its historical acceptance evidence remains valid; the old Python environment remains.
+
+Private installation evidence: E:/virtual-machines/shadowbane-testing/diagnostics/
+targeted-action-1.8.1-6e1485b, including install-receipt.json, launch-receipt.json,
+capture-channel-verification.json and switch-receipt.json. Post-switch verification
+confirmed the same process lifetime, both shortcut targets and absence of the old client.
 
 
 Exact-source CI run 34717790852 passed all seven jobs:
@@ -97,8 +117,8 @@ CI log. The watcher also prints annotations for the deliberately deferred graphi
 diagnostics; those annotations are not failures of the required native jobs.
 Retained CI log: artifacts/pve-pvp/diagnostic-1.8.1-final-ci.log.
 
-Remaining action: authorized switch from the running diagnostic client to this
-verified package, then the single known-attacker hit/miss capture described above.
-No runtime replacement, client stop, main merge or live attack was performed here.
+Remaining action: login, then the single known-attacker hit/miss capture described
+above. The approved runtime switch is complete; no main merge or live attack was
+performed by this installation.
 The active PvP todo remains attribution calibration, then persistent response
 addition with fresh session/party/legal-target checks and transition validation.

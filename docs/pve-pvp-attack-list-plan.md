@@ -633,6 +633,9 @@ Product 1.8.1 / wheel 0.3.1 at exact source 6e1485b is now package-verified,
 independently reviewed, and green in all seven CI jobs. See the
 [exact diagnostic handoff](handoffs/targeted-action-diagnostic-1.8.1.md) for hashes,
 executed gates, fixed version/test issues and remaining live questions. The existing
-1.7.8 VM client remains running unchanged. Packaging is complete for this diagnostic;
-step 3 remains active for known-attacker hit/miss calibration. Automatic response
+1.8.1 diagnostic is now installed with owner approval, with exact loaded DLL, wheel,
+source and process lifetime verified. Passive capture is armed; desktop shortcuts
+are updated and the stopped old client copy was removed under standing approval.
+Packaging and installation are complete; step 3 remains active for known-attacker
+hit/miss calibration after login. Disk collection has not started. Automatic response
 additions and PvE/PvP transition acceptance are still unfinished.
