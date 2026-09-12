@@ -61,11 +61,7 @@ def exclusive_record_lock(
     stream = None
     locked = False
     try:
-        stream = path.open("a+b")
-        stream.seek(0, os.SEEK_END)
-        if stream.tell() == 0:
-            stream.write(b"\0")
-            stream.flush()
+        stream = path.open("a+b", buffering=0)
         while True:
             try:
                 stream.seek(0)
@@ -83,6 +79,12 @@ def exclusive_record_lock(
                 if monotonic() >= deadline:
                     raise TimeoutError(f"timed out acquiring record lock {path}") from exc
                 sleep(min(poll_seconds, max(0.0, deadline - monotonic())))
+        # Windows byte-range locks can cover bytes beyond EOF. Initialize only
+        # after ownership: another process may already hold byte zero while this
+        # process still sees an empty file. Never flush an unowned buffered write.
+        stream.seek(0, os.SEEK_END)
+        if stream.tell() == 0:
+            stream.write(b"\0")
         yield
     finally:
         if locked and stream is not None:
