@@ -13,7 +13,7 @@ Blacklist means attack list, populated by commands or attributed responses.
 | --- | --- | --- |
 | Last verified installed client | Product 1.7.8 / wheel 0.2.8, `97612e6`; [receipt and acceptance](handoffs/combined-candidate-1.7.8.md) | Movement/controller/chat baseline; focused user acceptance passed. Physical disconnect/reconnect remains unconfirmed. |
 | Verified package, not installed | Product 1.8.0 / wheel 0.3.0, `433dc81`; [package handoff](handoffs/combined-candidate-1.8.0.md) | Movement/camera/cancel remapping; package checks, seven CI jobs and independent source review passed. No live remapping acceptance. |
-| Awaiting integration review | Identity branch `8552552` | Exact character keys, player/NPC classification, coherent party observations and positive pet ownership. No completed combat activation. |
+| Integrated, not packaged | Selected identity changes through `8552552` | Exact character keys, player/NPC classification, coherent party observations and positive pet ownership. No completed combat activation. |
 | In development | [Door interaction](handoffs/door-interaction.md) | Character-forward ranking and collection/collision dependencies only; native selection/cue/Interact unfinished. |
 | Deferred | Particles/native transparency | Unfinished and outside current combat scope. The visible character highlight was accepted as a baseline; ideal glow/material coverage remains separate. |
 
@@ -234,4 +234,4 @@ branches/worktrees whose history and local files are demonstrably preserved.
 The active delivery plan is [PvE/PvP attack-list integration](pve-pvp-attack-list-plan.md).
 Blacklist means the attack list, populated manually or through attributed responses.
 The plan retains applicable review follow-ups without making broad cleanup or unfinished
-visual/door features prerequisites. Identity checkpoint 8552552 still needs integration.
+visual/door features prerequisites. Identity changes through 8552552 are integrated; attack-list storage and commands are next.

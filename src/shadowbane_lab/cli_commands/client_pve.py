@@ -72,6 +72,7 @@ from shadowbane_lab.client_observation import (
     open_windows_native_target_identity_reader,
     open_windows_native_target_position_reader,
 )
+from shadowbane_lab.client_observation import native_group as native_party
 from shadowbane_lab.navigation_inspector.session import (
     ObservedPositionSource,
     optional_session,
@@ -295,6 +296,7 @@ def _run_pve(
             if native_character_population_profile_path is not None
             else load_bundled_native_character_population_profile()
         )
+        group_profile = native_party.load_bundled_native_group_profile()
         zone_profile = (
             None if navigation_cache_directory is None else load_bundled_native_zone_profile()
         )
@@ -310,6 +312,7 @@ def _run_pve(
             target_action_profile.executable_sha256,
             target_identity_profile.executable_sha256,
             character_population_profile.executable_sha256,
+            group_profile.executable_sha256,
         }
         if message_hud_profile is not None:
             native_profile_hashes.add(message_hud_profile.executable_sha256)
@@ -404,6 +407,9 @@ def _run_pve(
                     process_id=process_id,
                 )
             )
+            group_reader = stack.enter_context(
+                native_party.open_windows_native_group_reader(group_profile, process_id=process_id)
+            )
             active_navigation_map = navigation_map
             zone_reader = None
             if zone_profile is not None:
@@ -490,6 +496,7 @@ def _run_pve(
                 target_action_reader.process_id,
                 target_identity_reader.process_id,
                 population_reader.process_id,
+                group_reader.process_id,
             }
             if message_hud_profile is not None:
                 reader_process_ids.add(combat_reader.process_id)
@@ -559,6 +566,8 @@ def _run_pve(
                 player_action_reader=target_action_reader,
                 target_identity_reader=target_identity_reader,
                 population_reader=population_reader,
+                group_reader=group_reader,
+                party_group_id=f"client:{process_id}:party",
                 combat_log_reader=combat_reader,
                 dispatcher=ClientPvEIntentDispatcher(adapter),
                 approach_controller=PvEApproachController(
@@ -676,6 +685,8 @@ def _run_pve(
             "executable_sha256": health_profile.executable_sha256,
             "target_health_profile_id": health_profile.profile_id,
             "character_population_profile_id": character_population_profile.profile_id,
+            "party_profile_id": group_profile.profile_id,
+            "party_authority_mode": "passive",
             "player_vitals_profile_id": vitals_profile.profile_id,
             "player_position_profile_id": position_profile.profile_id,
             "target_position_profile_id": target_position_profile.profile_id,

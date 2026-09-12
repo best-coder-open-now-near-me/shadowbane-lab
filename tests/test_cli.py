@@ -1335,6 +1335,10 @@ class ClientCliTests(unittest.TestCase):
             SimpleNamespace(executable_sha256="ab" * 32, profile_id=f"profile-{index}")
             for index in range(9)
         )
+        group_profile = SimpleNamespace(executable_sha256="ab" * 32, profile_id="party-test")
+        group_reader = MagicMock()
+        group_reader.process_id = 4320
+        group_reader.__enter__.return_value = group_reader
         readers = tuple(MagicMock() for _ in range(9))
         for reader in readers:
             reader.process_id = 4320
@@ -1454,6 +1458,14 @@ class ClientCliTests(unittest.TestCase):
                 ),
                 patch("shadowbane_lab.cli.PvERunner") as pve_runner,
                 patch(
+                    "shadowbane_lab.cli_commands.client_pve.native_party.load_bundled_native_group_profile",
+                    return_value=group_profile,
+                ),
+                patch(
+                    "shadowbane_lab.cli_commands.client_pve.native_party.open_windows_native_group_reader",
+                    return_value=group_reader,
+                ) as open_group,
+                patch(
                     "shadowbane_lab.cli_commands.client_pve.NativeMovementOperation",
                 ) as native_operation,
                 patch(
@@ -1532,6 +1544,10 @@ class ClientCliTests(unittest.TestCase):
                 pve_runner.call_args.kwargs["dispatcher"]._adapter._executor._stop_signal, owned
             )
             native_operation.return_value.__exit__.assert_called_once()
+        open_group.assert_called_once_with(group_profile, process_id=4320)
+        self.assertIs(pve_runner.call_args.kwargs["group_reader"], group_reader)
+        self.assertEqual(pve_runner.call_args.kwargs["party_group_id"], "client:4320:party")
+        group_reader.__exit__.assert_called_once()
         self.assertEqual(0, result)
         self.assertEqual(1, saved_evidence["trace_schema_version"])
         self.assertEqual(4320, saved_evidence["native_observation"]["process_id"])

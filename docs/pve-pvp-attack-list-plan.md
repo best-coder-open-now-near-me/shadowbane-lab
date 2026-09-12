@@ -23,7 +23,7 @@ navigation/manual movement ownership. No selection/proximity inference of aggres
    Complete when a reader can identify the installed source and next work without
    reconstructing the incident history. Commit the focused documentation checkpoint.
 
-2. ACTIVE — Integrate completed identity, party and pet observations.
+2. COMPLETE — Integrate completed identity, party and pet observations.
    Review the behavior delta through identity branch 8552552 against the current
    integration source; preserve newer movement/lifecycle code and omit unrelated
    portal/renderer documentation changes. Validate exact keys, player/NPC classification,
@@ -32,7 +32,7 @@ navigation/manual movement ownership. No selection/proximity inference of aggres
    observation channels through the existing runner, with passive evidence first.
    Run focused reader/controller tests and applicable checks; commit a coherent slice.
 
-3. PENDING — Deliver attack-list storage and commands.
+3. ACTIVE — Deliver attack-list storage and commands.
    Inspect existing configuration/command/store boundaries before choosing implementation.
    Define per-character/client scope, persistence, add/remove/list/clear behavior and
    source metadata (manual or response). Reuse existing transactional storage where
@@ -96,3 +96,17 @@ its old candidate/visual status must not replace newer receipts or user acceptan
 
 Deferred items do not expand the active implementation scope. Exactly one step above
 is active; update this plan and the user at each validated checkpoint.
+
+## September 12 validated integration checkpoint
+
+Steps 1 and 2 complete. Status cleanup 6c6aa42; selected identity/party/pet commits
+9e343a4, ae7f885, 6ebeb81, 1954739, 4c5a925, 1a475f7, ab8f440; exact-client
+party factory e496398. Live PvE launcher now supplies the same-process group reader
+and passive authority channel with existing context-managed cleanup. No strict PvP
+combat activation or package installation is implied.
+Validation: full Python suite 1902 passed, 14 skipped, 249 subtests; Ruff src/tests
+passed. Native sources unchanged by this identity slice; full candidate native,
+package and independent integration review remain step 5 gates.
+Current combat messages expose names, not attacker object keys. Response insertion
+must resolve that evidence gap; current selection is not attribution. Next: storage
+scope and chat commands using exact observed identities and honest persistence rules.

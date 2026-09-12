@@ -88,8 +88,8 @@ boundary, carry its immutable authority snapshot through the canonical dispatch
 loop, and record passive authority decisions in the existing trace. Changing
 coordinates, vitals, follow state, or roster ordering does not invalidate party
 identity; changing membership does. Failed frames cannot reuse completed evidence.
-The ordinary live `/pve` launcher does not yet configure this optional channel.
-Therefore the live launcher does not yet enable
+The ordinary live `/pve` launcher now configures passive party observations with an explicit-client reader.
+The live launcher still does not enable
 `require_verified_target_authority`.
 
 Do not fill this gap with display names, health totals, pointer ordering, target-cycle position,
@@ -157,8 +157,8 @@ Raw captures and VM credentials remain outside source control.
 
 Source delivery: `codex/live-entity-identity-bridge` contains identity checkpoint
 `e691baf`, party snapshot checkpoint `8a1395b`, same-frame runtime checkpoint
-`1b5ffbb`, and the subsequent positive pet-owner implementation. These checkpoints await
-review into `codex/native-lifecycle-hardening`; `main` remains the eventual shared
+`1b5ffbb`, and the subsequent positive pet-owner implementation. These checkpoints were selectively integrated on September 12 into
+`codex/native-lifecycle-hardening`; `main` remains the eventual shared
 merge destination. This note does not certify deployment or combat activation.
 
 The remaining live bridge should be added in this order:
@@ -196,3 +196,18 @@ alone does not establish a character flag or pairwise attackability check.
 
 The activation gate is complete when mixed player/NPC/group fixtures and live passive traces show
 that only positively verified hostile NPCs receive accepted authority decisions.
+
+## September 12 integration and attack-list scope
+
+Identity/party/pet checkpoints e691baf, 8a1395b, 1b5ffbb, dcc050c and 8552552
+are integrated with their calibration notes; unrelated portal work was omitted.
+Native group attachment now accepts an explicit client PID with no name-based
+fallback, closes failed attachments, and joins the existing live runner's reader
+ownership/cleanup and same-process checks. The launcher records passive party
+observations; strict combat authority remains off. Native names in damage messages
+are not exact attacker keys and do not yet support automatic attack-list insertion.
+
+The current feature plan uses blacklist to mean attack list, with manual and
+response-driven additions. It does not reinterpret this existing NPC-only strict
+policy as a finished PvP policy. See pve-pvp-attack-list-plan.md for remaining work.
+No new package or live combat activation is certified by this source checkpoint.
