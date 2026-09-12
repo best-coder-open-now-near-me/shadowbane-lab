@@ -226,3 +226,10 @@ to `codex/graphics-diagnostics-client` was removed without changing either tip.
 After merging the consolidated PR, fast-forward the main checkout, update this
 map's shared-base section, and review the outstanding deltas above. Retire only
 branches/worktrees whose history and local files are demonstrably preserved.
+
+## September 12 PvE/PvP priority
+
+The active delivery plan is [PvE/PvP attack-list integration](pve-pvp-attack-list-plan.md).
+Blacklist means the attack list, populated manually or through attributed responses.
+The plan retains applicable review follow-ups without making broad cleanup or unfinished
+visual/door features prerequisites. Identity checkpoint 8552552 still needs integration.
