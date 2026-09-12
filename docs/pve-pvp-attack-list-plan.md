@@ -501,3 +501,27 @@ add the bounded observation at that established boundary using existing lifecycl
 ownership. Determine action semantics with developer evidence first and a specific
 live hit/miss observation only for facts that remain missing. This turn changes
 evidence/documentation only; the preceding Python gate remains tied to 8b9e809.
+
+
+### Message queue dispatch and replay boundary
+
+The processing virtual slot is invoked by dispatcher callbacks at RVAs 0x522000
+and 0x522130. Queue drain RVA 0x521de0 selects the callback, consumes a primary
+queue and a second subsystem queue, and releases each native message reference after
+dispatch. Engine callbacks at RVAs 0x454700 and 0x454a30 call this drain before the
+engine's virtual update slot +0x6c. Registration assigns these callbacks to slots
++0x24 and +0x30 of the engine callback owner. This establishes an engine-loop path;
+it does not substitute for checking actual thread identity during capture.
+
+Native RTTI identifies the queue as ArcMessageQueue. The second queue is also passed
+to ArcMessagePlayer (constructor RVA 0x49ce20), and multiple local producers enqueue
+there. An initially suspected connection constructor was therefore ruled out: it is
+replay infrastructure. A dispatcher hook alone would accept replay/local messages as
+though they were received attacks. Do not enable that path as verified retaliation.
+
+The evidence summary now records dispatch locations and verified instruction hashes.
+No runtime code was changed in this checkpoint and no prior test/package result is
+being used to certify a new observer. Next resolve the receive decoder's handoff and
+retain its provenance through the existing queue, then copy original targeted-action
+keys on the established dispatch path. Runtime thread/lifetime checks remain required.
+Static evidence does not yet distinguish harmful actions, misses and periodic effects.
