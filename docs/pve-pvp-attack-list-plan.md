@@ -32,45 +32,235 @@ navigation/manual movement ownership. No selection/proximity inference of aggres
    observation channels through the existing runner, with passive evidence first.
    Run focused reader/controller tests and applicable checks; commit a coherent slice.
 
-3. ACTIVE — Deliver attack-list storage and commands.
-   Inspect existing configuration/command/store boundaries before choosing implementation.
-   Define per-character/client scope, persistence, add/remove/list/clear behavior and
-   source metadata (manual or response). Reuse existing transactional storage where
-   suitable; test concurrent updates and restart. A native lifetime key must not be
-   treated as a durable account identity without proof. Resolve human-readable command
-   arguments to unambiguous observed identities; never silently match a replacement
-   entity or ambiguous name. Document the persistence limit if no durable identity exists.
-   Final command syntax follows existing in-game conventions rather than being invented
-   independently here. Complete when commands operate through the actual product path.
+3. ACTIVE — Finish durable target identity and command behavior.
+   Follow work package A below. Storage and chat routing exist; cross-login enemy
+   rebinding and final user-facing labels remain incomplete. Do not mark this step
+   complete merely because records survive a restart.
 
-4. PENDING — Connect response-driven additions and combat transitions.
-   Establish whether existing native damage/aggression events identify the attacker
-   exactly. If not, implement the missing reader or request one narrowly scoped passive
-   observation; damage plus current selection is insufficient attribution. Deduplicate
-   events and reject stale process/scene/entity lifetimes. Use the same list service for
-   manual and response additions, retaining provenance and reason in existing traces.
-   Define encounter priority, interruption of the current PvE target, target loss/death,
-   list removal, stop, and recovery before enabling actuation. Preserve the existing
-   manual takeover rule: release of manual controls never silently resumes automation.
-   Confirmed policy: manual and response entries persist until removed; party membership
-   temporarily prevents attack without removing the entry. Resolve pet conflicts explicitly;
-   do not silently turn this attack list into an exclusion list. Ask only where existing
-   settings/user instructions cannot settle a material behavior choice.
-   Route selection/attack through existing semantic dispatch, exact-client ownership
-   and native restrictions. List membership supplies intent, not fabricated hostility.
+4. PENDING — Complete response ingestion, target protection and combat transitions.
+   Follow work packages B through E in order of their actual dependencies. Source
+   investigation may overlap, but maintain one active implementation checkpoint.
 
-5. PENDING — Verify and deliver one scoped candidate.
-   Regression cases: manual addition/removal, two simultaneous clients, duplicate and
-   delayed response events, unidentifiable attacker, recycled identity, party/pet policy,
-   blacklist target appearing during PvE, target disappearance, interruption and recovery.
-   Use production paths, controlled event fixtures and interprocess tests where ownership
-   crosses processes. Run applicable Python/lint/native/PowerShell gates, verify that
-   required tests executed, obtain one independent focused integration review, and build
-   the exact clean commit using the existing package builder. Verify installed wheel,
-   controls, source/DLL/wheel identities outside the checkout. No main merge or VM update
-   is implied by source publication. Once ready, request one focused connected procedure:
-   command-managed target, attributed attack response, PvE transition, stop/manual takeover
-   and unrelated-client isolation. Reuse accepted navigation/movement evidence.
+5. PENDING — Complete combined review, package checks and focused acceptance.
+   Follow work package F. No install request or finished-feature claim before its
+   developer-controlled gates pass. Keep the installed accepted baseline untouched.
+
+## Detailed remaining implementation plan
+
+The following is the execution specification for steps 3–5, replacing their earlier
+high-level descriptions. Scope is an attack list integrated with existing PvE, not
+unrestricted PvP strategy, new combat rotations, a new manager or a renderer overhaul.
+
+### A. Durable identity and command completion — active
+
+Outcome: an entry still identifies the intended enemy after logout/restart, while
+another character at the old address or with an ambiguous display name never inherits it.
+
+1. Trace existing native object keys and remote-character identity fields against the
+   exact supported image. Distinguish durable character identity from object-instance
+   identity. The local config name/server proof does not automatically prove remote
+   identity, uniqueness, rename behavior or cross-login stability.
+2. Record field provenance, layout, lifetime and invalidation rules in the existing
+   client-observation evidence. Reuse exact keys, population and active-character
+   readers. Avoid a parallel entity registry with conflicting ownership.
+3. First use static source/image evidence and retained captures. If necessary, request
+   a single bounded passive observation of the same known remote player before/after
+   relog or unloading/reloading, with an independently identified second player as a
+   negative control. Record image and process lifetimes. This is identity calibration,
+   not a broad gameplay run or a request to install an incomplete feature.
+4. Separate durable entry identity from the current runtime binding. The binding
+   includes the current process/character/scene and observed object lifetime; discard
+   it on identity change. Retain the saved entry until explicit removal. Unresolved
+   entries remain visible but cannot select or attack a guessed replacement.
+5. Upgrade the existing record schema transactionally, preserving revision and provenance.
+   Existing session-scoped records must migrate as unresolved retained intent unless
+   evidence explicitly establishes their durable identity. No silent deletion or
+   automatic name-based conversion. Preserve a complete old or new file after failure.
+6. Keep server/local-character ownership explicit. Document any native identity limits
+   around character renames or same-name characters before choosing migration behavior.
+   If a stable identifier cannot be obtained, report the specific evidence limitation
+   and the resulting product decision; do not call session-only persistence complete.
+7. Finish /blacklist add, remove, list and clear through the actual listener. Add uses
+   the selected character; show a readable verified label and an unambiguous removal
+   handle. Validate syntax before opening/scanning a client. Selection, local character,
+   foreground and list revision must not silently change the command's intended subject.
+   Expose unresolved bindings and party protection clearly in list/status output.
+8. Preserve the existing commands and their private-chat handling. Test the actual
+   listener callback during a blocked PvE operation, not just the parser. Confirm chat
+   handling/command edits do not accidentally start an attack or route to another client.
+
+Touched boundaries: pve/attack_list.py, pve/attack_list_commands.py, native identity/
+population readers, existing chat/listener command routing and their tests. Dependency
+injection belongs in the owning modules; do not extend CLI-wide namespace mutation.
+
+Required evidence: cross-login/reload identity, recycled pointer/key, ambiguous name,
+rename/unknown identity behavior, two local characters/servers, add/remove/list/clear,
+missing selection, foreground change, concurrent updates, corrupt state and failed
+publication. Exercise real spawned processes for shared-file races and crash/recovery.
+Completion: durable identity and actual command routing are proven, with migrations
+and unresolved-entry behavior documented. Commit and push this coherent slice.
+
+### B. Attributed response events — pending
+
+Outcome: a verified attack against the controlled character adds the actual attacker
+through the same persistent store; the current selected target is never used as a proxy.
+
+1. Inspect existing combat-log/HUD/event data and native callers for actor/victim keys,
+   attack occurrence, ordering, timestamps and event lifetime. Current parsed messages
+   contain names; do not claim they already supply exact attacker identity.
+2. Reuse a verified exact identity join if available. Otherwise complete a narrowly
+   scoped native event observation on the existing instrumentation boundary. No competing
+   hooks or background-thread gameplay calls. Preserve original call-through, rollback,
+   callback lifetime and bounded event buffering.
+3. If live evidence is needed, use one known attacker and known victim while an unrelated
+   character is selected. Observe attack, miss, periodic damage and environmental damage
+   only as needed to distinguish native event types. No automated retaliation during
+   calibration. An ambiguous/environmental/unattributed event records its reason and
+   adds nobody. A miss counts only when verified as an attack attempt by that actor.
+4. Normalize evidence with exact client/victim/attacker identity, source event ID/sequence,
+   process/scene lifetime and observation time. Define stream restart, sequence reuse,
+   overflow and maximum event age. Do not retroactively consume historical logs on start.
+5. Deduplicate persistently within that source lifetime. Both manual and response entries
+   stay until removed. Removal/clear must invalidate already queued old responses so
+   replay cannot immediately recreate a deleted entry. A genuinely new verified attack
+   after removal may add the attacker again; record this as new evidence.
+6. Keep response capture and list editing independent of slow launch/dashboard work and
+   use existing per-client ownership. A response may record intent while manual control
+   is active, but cannot steal movement ownership or start automation automatically.
+
+Tests: unrelated selection, two attackers, victim mismatch, duplicate/reordered/stale
+messages, process/scene replacement, stream reconnect, overflow, clear/remove racing
+publication, environmental damage and unknown actor. Test the real producer/consumer
+boundary and serialized store transition. Complete only when real source evidence
+reaches the store; a fabricated-event unit test alone does not finish response delivery.
+
+### C. Resolve eligible listed targets and apply party protection — pending
+
+Outcome: list membership supplies attack intent, subject to fresh identity, native
+restrictions and the user's temporary party protection.
+
+- Use one resolver over a coherent population/party/ownership frame plus list revision.
+  Preserve the existing NPC PvE policy separately: adding players to that NPC-only
+  strict gate would misrepresent its contract.
+- Party membership temporarily prevents selecting/attacking a listed member without
+  deleting the list entry. A member leaving becomes eligible only after a fresh,
+  complete observation. Unknown party status withholds a new PvP attack rather than
+  proving someone is outside the party.
+- Preserve self, protected service NPC, and known friendly-pet protection. Do not infer
+  that a pet's owner attacked merely because the pet attacked; attribution and any
+  owner escalation are distinct. Default scope adds the observed attacker, with no
+  owner escalation. Flag a genuine policy conflict before extending this behavior.
+- Validate each candidate's current binding, life/health, supported kind, reachability
+  and native restrictions. Peace-zone restriction is a rejection fact; its absence is
+  not proof of universal attackability. Let the ordinary client/server action path
+  decide native legality without field writes or bypasses.
+- Carry list revision, identity evidence, party state and rejection reasons into the
+  existing trace. Do not flatten unresolved/party-protected/out-of-range into one flag.
+- A party join, removal, death, identity change or stop between evaluation and dispatch
+  invalidates the decision. Revalidate at the actuation boundary; a previous successful
+  check is not an action lease. Explain limits for an action already submitted to the
+  native client and use the verified native stop path for subsequent activity.
+
+Tests: listed party member joins/leaves, incomplete roster, pet owner appears/disappears,
+self/service NPC, same-address reuse, list revision change and native restriction change
+between evaluation and dispatch. Verify no unwanted selection/action is emitted.
+
+### D. Verified player selection and attack dispatch — pending
+
+Outcome: the intended player can be acquired and attacked through the current semantic
+actuation architecture with the same exact-client and cancellation protections as PvE.
+
+1. Check current committed actuation code as well as historical native-action documents.
+   Distinguish transport support, verified native execution and the legacy desktop-input
+   path; a document or semantic action name alone does not prove native execution.
+2. Establish whether the existing acquisition action actually enumerates players. The
+   current PvE path is calibrated for Target Next Mob. Do not assume it reaches players
+   or substitute repeated screen clicks. Prefer the existing verified selection owner;
+   coordinate shared selection/lifetime work with the movement owner without waiting
+   for the complete door feature or creating another hook authority.
+3. Verify the native action receiver, payload ownership, owning-client-thread boundary,
+   selection notifications and reentrancy. After callbacks, revalidate the selected
+   exact identity/scene and eligibility before attack dispatch. Do not assume same-thread
+   execution excludes nested selection changes.
+4. Admit commands through the existing exact process/window lifetime, owner generation,
+   sequence/deadline and stop rules. Keep selection, action submission, native rejection
+   and observed effect separate. Do not report submission as damage or a successful kill.
+5. Implement native cancellation/stop for target invalidation and manual takeover. No
+   post-stop queued command may regain ownership. Preserve camera-only input behavior.
+
+Tests: wrong selection, callback changes selection, target disappears, stale generation,
+expired deadline, rejected native action, queued command after stop, two clients and
+startup/shutdown rollback. Use actual production adapters and authenticated private-image
+checks where appropriate, followed by passive/plan-only integration before actuation.
+
+### E. PvE-to-listed-enemy transition and recovery — pending
+
+Proposed default behavior, to implement and document without inventing a new combat AI:
+
+| Trigger | Behavior |
+| --- | --- |
+| Fresh verified attacker is eligible and listed | Prioritize that encounter over ordinary PvE acquisition while automation owns the session. |
+| Listed enemy appears without attacking | Eligible during an explicitly running combat session, within existing pursuit limits; not an always-on attack service. |
+| Multiple eligible enemies | Prefer current valid engagement to avoid thrashing; a newly verified direct attacker gets response priority, with stable deterministic tie-breaking. |
+| PvE is already engaged | Cancel the old target/action/movement through existing ownership before acquiring the response target; never count cancellation as a kill. |
+| Enemy dies, disappears, becomes protected, or exceeds pursuit limits | Stop the relevant engagement, retain list intent, and re-evaluate the current session. |
+| Automatic encounter ends normally | Resume the active PvE session only after fresh safety/resource checks and no eligible higher-priority target. |
+| Manual takeover, /stop, disconnect or invalid client lifetime | End automation ownership. Do not resume merely because controls are released or focus returns. |
+| Explicit combat restart | Create a fresh operation/ownership generation; do not reuse pending old attacks. |
+
+Preserve health/resource recovery, bounded pursuit, camp/zone restrictions and existing
+kill evidence. Do not chase a listed player indefinitely or remove camp limits by default.
+If the actual controller cannot express these transitions cleanly, refactor its touched
+ownership boundary rather than layering a second controller that can issue competing input.
+
+Tests must drive complete production runner transitions, including active PvE -> response
+selection -> engagement -> recovery, manual interruption at each stage, removal/party join
+mid-fight, target loss and concurrent client activity. Use controlled event fixtures and
+barriers; retain reasons and ownership transitions in the existing trace.
+
+### F. Candidate review, package verification and owner acceptance — pending
+
+1. Declare scope: durable attack list, manual commands, attributed response additions,
+   party protection, verified player selection/attack, and PvE interruption/recovery.
+   Doors, particles, additional combat rotations and broad architecture cleanup are excluded.
+2. Verify integration tests and all applicable existing Python/lint/native/PowerShell
+   gates. Confirm required test names actually executed; skipped/missing gates are not
+   passes. Include command presentation and multi-process store/dispatch tests.
+3. Pin the complete clean source and obtain one independent focused review of identity,
+   attribution, persistence/removal races, party protection, shared selection/lifecycle,
+   command routing and interruption. Route fixes to the existing owner and revalidate
+   affected gates; retain exact reviewed revisions. Do not reopen the whole repository.
+4. Use the existing builder from the final clean commit with a new product/wheel identity
+   as required. Keep product, wheel, ABI and wire versions explicit; change wire/schema
+   only with a migration/compatibility decision. Rebuild after source changes.
+5. Verify both native profiles, private-image bindings, installed wheel outside checkout,
+   actual controls/commands, included assets/capabilities, hashes and source identity.
+   Retain build logs, test outputs, review and package receipts. Earlier packages cannot
+   certify these changes. No new release pipeline or shared VM replacement by implication.
+6. Prepare one targeted first acceptance procedure after developer-controlled gates pass:
+   a known selected enemy added/removed through chat; persistence after reconnect; a known
+   attacker while another target is selected; temporary party protection; PvE interruption
+   and recovery; /stop/manual takeover; and a second unaffected client. Confirm the expected
+   visible behavior and capture only the specific diagnostic evidence needed for each.
+   Reuse accepted zone navigation and movement/chat evidence unless touched behavior warrants
+   a narrow non-regression. Separate optional failure-case observations from required checks.
+7. Deliver source/base/included feature SHAs, scope, actual test results, DLL/wheel/package
+   hashes, launch/configuration instructions and remaining live findings. No main merge,
+   forced history rewrite or branch retirement is implied. Mark complete only after required
+   connected checks pass; otherwise retain the exact candidate and specific open item.
+
+## Execution cadence and blockers
+
+Each work package ends with reviewed diff, relevant tests, a focused commit/push and an
+updated status here. A source-only dependency may be integrated during development but
+must remain identified as unfinished; do not ask the owner to accept it as the feature.
+
+Start now with A's native durable-identity evidence. Investigate B/D using current code
+and retained evidence when independent useful work is available. Request live input only
+for a named missing fact, explaining the exact observation and why existing evidence
+cannot settle it. No general VM reconnect exercise or broad repeated navigation testing.
+An unresolved identity or attribution contract blocks combat activation, not unrelated
+implementation or review. Do not weaken the agreed behavior merely to make gates green.
 
 ## Relevant review findings retained for future work
 
