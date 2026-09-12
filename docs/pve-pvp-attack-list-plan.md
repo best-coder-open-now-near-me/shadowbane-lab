@@ -52,7 +52,8 @@ navigation/manual movement ownership. No selection/proximity inference of aggres
    Define encounter priority, interruption of the current PvE target, target loss/death,
    list removal, stop, and recovery before enabling actuation. Preserve the existing
    manual takeover rule: release of manual controls never silently resumes automation.
-   Resolve party/pet conflicts and whether automatic entries persist as explicit policy;
+   Confirmed policy: manual and response entries persist until removed; party membership
+   temporarily prevents attack without removing the entry. Resolve pet conflicts explicitly;
    do not silently turn this attack list into an exclusion list. Ask only where existing
    settings/user instructions cannot settle a material behavior choice.
    Route selection/attack through existing semantic dispatch, exact-client ownership
@@ -110,3 +111,29 @@ package and independent integration review remain step 5 gates.
 Current combat messages expose names, not attacker object keys. Response insertion
 must resolve that evidence gap; current selection is not attribution. Next: storage
 scope and chat commands using exact observed identities and honest persistence rules.
+## September 12 attack-list implementation checkpoint
+
+User confirmed both manual and response additions persist until removed, and party
+membership temporarily prevents attacking a listed character without deleting intent.
+Storage/chat source a8147f0 uses the existing interprocess record transaction. Commands
+are /blacklist add (selected character), remove (selected character or listed entry ID),
+list and clear. Commands bind the current foreground lifetime and native active character
+on the listener processor rather than waiting behind an active PvE run. Storage is
+per native server/character, and corrupt state is not silently replaced.
+
+Full Python suite at a8147f0: 1917 passed,14 skipped,249 subtests; Ruff passed.
+Multiprocess testing reproduced a shared record-lock first-creation race; initialization
+now occurs under the byte-range lock, using unbuffered I/O. Focused storage, manager,
+chat and CLI tests passed after repair. Exact-current-image active-character calibration
+748d44c separately passed51 focused tests and Ruff after three existing native routine
+fingerprints matched the current prepared image.
+
+Step 3 remains active until durable target rebinding is established. Current saved
+entries retain intent but their generated identity includes the observed process/local
+character/target lifetime; no cross-login target equivalence is assumed. This is a source
+dependency checkpoint, not a complete attack-list combat feature or an install request.
+Remaining concrete evidence: exact remote-character identity across login, damage-event
+attacker identity, and verified player acquisition (current PvE action cycles mobs).
+Party protection must be applied in the final combat resolver; no combat consumption
+of the list has been enabled. Steps4/5, full package gates and connected acceptance are
+still pending. Do not certify this source with an earlier package receipt.
