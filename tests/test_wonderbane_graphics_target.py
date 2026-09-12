@@ -204,13 +204,15 @@ def test_extension_version_is_consistent_across_every_runtime_surface() -> None:
     graphics_status = (native / "graphics_status.cpp").read_text(encoding="utf-8")
     api = (native / "extension_api.h").read_text(encoding="utf-8")
     resource = (native / "extension.rc").read_text(encoding="utf-8")
-    assert "project(wonderbane_extension VERSION 1.8.0" in cmake
-    assert 'kExtensionVersion[] = "1.8.0"' in extension
-    assert 'kExtensionVersion[] = "1.8.0"' in graphics_status
-    assert "WONDERBANE_EXTENSION_VERSION_MAJOR 1U" in api
-    assert "WONDERBANE_EXTENSION_VERSION_MINOR 7U" in api
-    assert "WONDERBANE_EXTENSION_VERSION_PATCH 4U" in api
-    assert "FILEVERSION 1,8,0,0" in resource
-    assert "PRODUCTVERSION 1,8,0,0" in resource
-    assert 'VALUE "FileVersion", "1.8.0.0\\0"' in resource
-    assert 'VALUE "ProductVersion", "1.8.0.0\\0"' in resource
+    import re
+
+    version = re.search(r"project\(wonderbane_extension VERSION (\d+\.\d+\.\d+)", cmake).group(1)
+    assert f'kExtensionVersion[] = "{version}"' in extension
+    assert f'kExtensionVersion[] = "{version}"' in graphics_status
+    for label, value in zip(("MAJOR", "MINOR", "PATCH"), version.split("."), strict=True):
+        assert f"WONDERBANE_EXTENSION_VERSION_{label} {value}U" in api
+    resource_version = version.replace(".", ",") + ",0"
+    assert f"FILEVERSION {resource_version}" in resource
+    assert f"PRODUCTVERSION {resource_version}" in resource
+    assert f'VALUE "FileVersion", "{version}.0\\0"' in resource
+    assert f'VALUE "ProductVersion", "{version}.0\\0"' in resource

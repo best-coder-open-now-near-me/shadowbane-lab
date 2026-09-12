@@ -662,6 +662,8 @@ else:
             "No VM installation, deployment or activation is authorized by this artifact.\n"
             "Only the full-profile DLL contains the opt-in terrain observer.\n"
             "Both profiles are retained for verification; their capabilities differ.\n"
+            "Both contain the opt-in targeted-action observer and matching collector.\n"
+            "Targeted-action capture is diagnostic only; automatic retaliation remains disabled.\n"
             "Existing capture-wonderbane-terrain-trace.ps1 requests one bounded frame.\n"
             "Activation requires an exact isolated runtime, disabled visual/movement settings,\n"
             "verified restoration and separate owner authorization. No current client overwrite.\n"
