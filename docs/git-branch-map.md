@@ -11,9 +11,10 @@ Blacklist means attack list, populated by commands or attributed responses.
 
 | State | Source and evidence | Scope |
 | --- | --- | --- |
+| Verified diagnostic package, not installed | Product 1.8.1 / wheel 0.3.1, `6e1485b`; [package, hashes and review](handoffs/targeted-action-diagnostic-1.8.1.md) | Original targeted-action key capture and current identity/attack-list command work. All package checks and seven CI jobs passed; no automatic retaliation. Next: supervised hit/miss calibration. |
 | Last verified installed client | Product 1.7.8 / wheel 0.2.8, `97612e6`; [receipt and acceptance](handoffs/combined-candidate-1.7.8.md) | Movement/controller/chat baseline; focused user acceptance passed. Physical disconnect/reconnect remains unconfirmed. |
 | Verified package, not installed | Product 1.8.0 / wheel 0.3.0, `433dc81`; [package handoff](handoffs/combined-candidate-1.8.0.md) | Movement/camera/cancel remapping; package checks, seven CI jobs and independent source review passed. No live remapping acceptance. |
-| Integrated, not packaged | Selected identity changes through `8552552` | Exact character keys, player/NPC classification, coherent party observations and positive pet ownership. No completed combat activation. |
+| Included in 1.8.1 diagnostic package | Selected identity changes through `8552552` (cherry-picked; includes `ab8f440`) | Exact character keys, player/NPC classification, coherent party observations and positive pet ownership. No completed combat activation. |
 | In development | [Door interaction](handoffs/door-interaction.md) | Character-forward ranking and collection/collision dependencies only; native selection/cue/Interact unfinished. |
 | Deferred | Particles/native transparency | Unfinished and outside current combat scope. The visible character highlight was accepted as a baseline; ideal glow/material coverage remains separate. |
 

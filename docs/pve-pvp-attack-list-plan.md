@@ -625,3 +625,14 @@ installed-wheel collector smoke check outside the source checkout. The latter is
 implemented but still awaits the next exact committed package build; source-test
 success does not certify an installed wheel. No new package or VM installation is
 claimed by this checkpoint.
+
+
+### Diagnostic package ready for calibration
+
+Product 1.8.1 / wheel 0.3.1 at exact source 6e1485b is now package-verified,
+independently reviewed, and green in all seven CI jobs. See the
+[exact diagnostic handoff](handoffs/targeted-action-diagnostic-1.8.1.md) for hashes,
+executed gates, fixed version/test issues and remaining live questions. The existing
+1.7.8 VM client remains running unchanged. Packaging is complete for this diagnostic;
+step 3 remains active for known-attacker hit/miss calibration. Automatic response
+additions and PvE/PvP transition acceptance are still unfinished.
