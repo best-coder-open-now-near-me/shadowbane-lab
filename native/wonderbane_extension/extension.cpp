@@ -1,4 +1,5 @@
 #include "movement_boundary_trace.h"
+#include "targeted_action_trace.h"
 #include "movement_runtime.h"
 #include "camera_observation.h"
 #include "cel_shading.h"
@@ -410,6 +411,7 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
         }
         if (result == ERROR_SUCCESS && is_client) {
             // Optional passive tracing cannot disable an otherwise working client.
+            (void)wonderbane::extension::StartTargetedActionTrace(identity);
             const DWORD trace_result = wonderbane::extension::StartMovementBoundaryTrace(identity);
             movement_trace_started = trace_result == ERROR_SUCCESS;
             if (!movement_trace_started) { wonderbane::extension::StopMovementBoundaryTrace(); }
@@ -464,6 +466,7 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
             (void)wonderbane::extension::movement::StartNativeMovementControls(identity);
         }
         if (result != ERROR_SUCCESS) {
+            wonderbane::extension::StopTargetedActionTrace();
             if (movement_trace_started) { wonderbane::extension::StopMovementBoundaryTrace(); }
             if (performance_telemetry_started) {
                 wonderbane::extension::StopPerformanceTelemetry();

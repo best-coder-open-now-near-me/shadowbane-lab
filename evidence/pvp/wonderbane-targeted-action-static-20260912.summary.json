@@ -115,5 +115,20 @@
     "replay_constructor_rva": "0x49ce20",
     "queue_implies_network_receive": false,
     "live_thread_id_verified": false
+  },
+  "receive_capture_checkpoint": {
+    "server_link_run_rva": "0x4a1750",
+    "server_decoder_call_rva": "0x4a192d",
+    "replay_decoder_call_rva": "0x49d39d",
+    "decoder_rva": "0x3624a0",
+    "deserialize_return_rva": "0x3625bc",
+    "linked_socket_vtable_rva": "0x116019c",
+    "capture": "opt-in original-message diagnostic; not installed or live calibrated",
+    "limits": [
+      "before final stream validation",
+      "no character-session epoch",
+      "raw action meanings unverified",
+      "not combat authority"
+    ]
   }
 }

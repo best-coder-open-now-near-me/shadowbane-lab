@@ -28,6 +28,7 @@ add_library(
   banded_lighting.cpp
   camera_observation.cpp
   movement_boundary_trace.cpp
+  targeted_action_trace.cpp
   movement_controls.cpp
   movement_windows_input.cpp
   movement_runtime.cpp
@@ -1116,4 +1117,15 @@ if(BUILD_TESTING)
   target_link_libraries(wonderbane_extension_movement_settings_runtime_test PRIVATE user32 comctl32 bcrypt advapi32 gdi32)
   set_property(TARGET wonderbane_extension_movement_settings_runtime_test PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
   add_test(NAME wonderbane_extension_movement_settings_runtime COMMAND wonderbane_extension_movement_settings_runtime_test)
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_targeted_action_trace_test targeted_action_trace_test.cpp)
+  target_compile_features(wonderbane_extension_targeted_action_trace_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_targeted_action_trace_test PRIVATE
+    UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_targeted_action_trace_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  set_property(TARGET wonderbane_extension_targeted_action_trace_test PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
+  add_test(NAME wonderbane_extension_targeted_action_trace COMMAND wonderbane_extension_targeted_action_trace_test)
+  add_test(NAME wonderbane_extension_targeted_action_trace_rollback COMMAND wonderbane_extension_targeted_action_trace_test rollback)
 endif()

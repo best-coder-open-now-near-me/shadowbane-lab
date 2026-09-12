@@ -525,3 +525,54 @@ being used to certify a new observer. Next resolve the receive decoder's handoff
 retain its provenance through the existing queue, then copy original targeted-action
 keys on the established dispatch path. Runtime thread/lifetime checks remain required.
 Static evidence does not yet distinguish harmful actions, misses and periodic effects.
+
+
+### Passive original-action capture checkpoint
+
+Receive provenance is now narrowed to ArcServerLink::Run (RVA 0x4a1750), which
+calls decoder RVA 0x3624a0 at RVA 0x4a192d using its ArcLinkedSocket. The other
+reviewed decoder caller is ArcMessagePlayer replay (RVA 0x49d39d). The observer
+uses one atomic targeted-message deserialize slot replacement, requires the exact
+decoder return RVA 0x3625bc and ArcLinkedSocket vtable RVA 0x116019c, and copies
+original participant keys before later fallback can substitute the victim.
+It installs no engine-update, renderer, movement, or network-import hook.
+
+`targeted_action_trace.cpp` is an optional passive diagnostic in both profiles,
+disabled unless WONDERBANE_TARGETED_ACTION_TRACE=1 before client startup. It seals
+loaded code with the existing native image verifier and requires prepared-image
+SHA bb63469eb35917e6b3f58be75d29f94855c9868024271222465b4db62f0e3a87.
+A bounded 256-record mapping records original keys, raw primary/secondary words,
+thread ID and timestamp. Conditional absent payloads and reserved words are zeroed.
+Extra native fields +0xb0/+0xb8 remain excluded pending semantic review.
+
+Closure serializes publication, restores the slot conditionally, and retains
+immutable original call-through for already admitted callbacks. Failed installation
+uses the same rollback. A process admits at most one trace generation; restart after
+closure is rejected. No shutdown wait or new hot unload runs under the loader lock.
+The existing extension initializer owns optional startup and failure rollback.
+
+The collector uses the existing WindowsSharedMemorySnapshotReader. Developer use:
+`python -m shadowbane_lab.client_extension.targeted_action_trace --process-id PID
+--creation-filetime FILETIME --seconds 30 --output NEW_JSONL_PATH` (one command).
+The mapping is exact-process-lifetime scoped and records detect overwrite gaps.
+Private output stays outside source control. This has not been installed in the VM.
+
+**Limits:** capture happens after targeted-field decoding but before final stream
+validation/queue acceptance. A captured message is not yet a verified attack or
+hit/miss, and it does not carry a character-session epoch. The attack-list runtime
+must not consume it as authority. No automatic response or attack is enabled.
+
+Validation at this checkpoint: both Win32 runtime profiles build; two new production
+callback/rollback tests per profile include a held original callback during closure,
+late call-through, restart rejection, replay/caller exclusion, bounded overwrite and
+an independent-process mapping reader. Eight Python collector tests cover exact
+identity/layout, unstable records, reserved data, provenance and overwritten records.
+Collector/package-gate/package tests: 44 passed. Ruff src/tests/package-builder passed.
+Generated project inspection confirms exactly one observer source and no test source
+in either runtime DLL. These are targeted developer checks, not a clean package or
+connected acceptance.
+
+Active todo remains step 3: finish accepted-message/session provenance and determine
+hostile hit/miss semantics, then a verified diagnostic package and targeted live
+calibration. Persisted response additions, current-party/legal-target enforcement and
+PvE/PvP transition validation follow. No owner test or restart is requested yet.

@@ -246,7 +246,9 @@ def main() -> int:
                 raise RuntimeError(
                     f"{profile}: movement source must have one owner: {movement_source}"
                 )
-        for developer_source in ("movement_tree_probe.cpp",):
+        if included_sources.count("targeted_action_trace.cpp") != 1:
+            raise RuntimeError(f"{profile}: targeted-action observer must have one owner")
+        for developer_source in ("movement_tree_probe.cpp", "targeted_action_trace_test.cpp"):
             if included_sources.count(developer_source) != 0:
                 raise RuntimeError(
                     f"{profile}: developer-only source entered runtime: {developer_source}"
