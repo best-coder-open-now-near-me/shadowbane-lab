@@ -14,7 +14,7 @@ navigation/manual movement ownership. No selection/proximity inference of aggres
 
 ## Sequence and completion criteria
 
-1. ACTIVE — Consolidate current delivery status.
+1. COMPLETE — Consolidate current delivery status.
    Reconcile candidate receipts and focused live acceptance into the branch-map entry:
    installed 1.7.8 movement/chat baseline, verified but uninstalled 1.8.0 remapping,
    unfinished particles and doors, and identity work outside integration. Remove
@@ -23,7 +23,7 @@ navigation/manual movement ownership. No selection/proximity inference of aggres
    Complete when a reader can identify the installed source and next work without
    reconstructing the incident history. Commit the focused documentation checkpoint.
 
-2. PENDING — Integrate completed identity, party and pet observations.
+2. ACTIVE — Integrate completed identity, party and pet observations.
    Review the behavior delta through identity branch 8552552 against the current
    integration source; preserve newer movement/lifecycle code and omit unrelated
    portal/renderer documentation changes. Validate exact keys, player/NPC classification,

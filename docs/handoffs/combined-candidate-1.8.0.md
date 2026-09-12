@@ -37,19 +37,14 @@ codec roundtrip passed from installed wheel outside checkout. All58 receipt file
 hashes/sizes and ZIP CRC passed. Known ideal-transparency findings remain deferred
 and separate; artifact retains existing diagnostic-only classification.
 
-CI34588685107 is pending final diagnostics-native job at this checkpoint. Do not
-claim final CI completion yet. Root log artifacts/combined-1.8.0-reviewed-build.log;
-all package logs/results/manifest beside artifact. Preliminary4153e9bd/b727b0f is
-superseded, not the reviewed package. No VM installation or owner test requested.
+CI34588685107 passed all seven jobs. Retained root log
+artifacts/combined-1.8.0-ci.log confirms controller-profile, controller-cancel-failure
+and controller-cancel-nested each executed/passed in both native profiles. Builder
+log: artifacts/combined-1.8.0-reviewed-build.log. Package logs/results/manifest are
+beside the artifact. Preliminary4153e9bd/b727b0f is superseded.
 
-Next: verify final CI actual execution, retain complete supported subset candidate,
-and continue character-forward door implementation. A future profile live check
-should exercise edit/save/reopen, a changed binding plus shoulder context, cancel,
-and release/focus recovery; do not repeat broad accepted navigation or chat runs.
-
-Final CI34588685107 passed all seven jobs. Retained root log
-artifacts/combined-1.8.0-ci.log confirms controller-profile,controller-cancel-failure
-and controller-cancel-nested each executed/passed in both native profiles. This
-supersedes the pending CI status above. Supported remapping package is verified;
-no VM installation or live remapping acceptance is implied. Main mission remains
-the separately unfinished character-forward door interaction.
+No VM installation or live remapping acceptance is implied. Active priority is now
+[the PvE/PvP attack-list plan](../pve-pvp-attack-list-plan.md); doors remain separate.
+A future profile live check should exercise edit/save/reopen, a changed binding plus
+shoulder context, cancel and release/focus recovery. Do not repeat broad accepted
+navigation or chat runs without a relevant change.

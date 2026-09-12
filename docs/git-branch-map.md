@@ -4,27 +4,29 @@ Snapshot: 2026-09-04, updated after the approved remote and local retirement.
 This is a source and review map; it does not certify deployment or live gameplay
 acceptance.
 
-## Active runtime hardening and rolling feature integration (September 5)
+## Current delivery status — September 12
 
-Current door mission: character-forward selection and native Interact are in
-progress on the same integration branch. Ranking dependencies are integrated;
-this is not a delivered door feature. See [door interaction](handoffs/door-interaction.md).
-The complete movement/camera/cancel remapping subset has a separately verified
-1.8.0 package from `433dc81`, not installed; see
-[the 1.8.0 handoff](handoffs/combined-candidate-1.8.0.md).
-Current September 11 chat repair: native1.7.8 / wheel0.2.8, source `97612e6`,
-passed exact package checks, all seven CI jobs and independent source review.
-Controller sticks continue during text entry while typing remains protected.
-The VM runs verified1.7.8; owner confirmed controller/chat recovery and input pass. See
-[the 1.7.8 handoff](handoffs/combined-candidate-1.7.8.md). Remapping work is separate.
+Active priority: [PvE/PvP attack-list delivery](pve-pvp-attack-list-plan.md).
+Blacklist means attack list, populated by commands or attributed responses.
 
-Previous September 11 candidate: native 1.7.7 / wheel 0.2.7, built from `5d21156`,
-passed package checks, CI and independent integration source review. It is installed;
-the owner accepted the focused keyboard check, with four observed parent-only
-transitions preserving manual control. Physical controller acceptance is pending
-guest gamepad detection, not further slot/focus retries. See
-[the 1.7.7 handoff](handoffs/combined-candidate-1.7.7.md). Main remains unchanged.
+| State | Source and evidence | Scope |
+| --- | --- | --- |
+| Last verified installed client | Product 1.7.8 / wheel 0.2.8, `97612e6`; [receipt and acceptance](handoffs/combined-candidate-1.7.8.md) | Movement/controller/chat baseline; focused user acceptance passed. Physical disconnect/reconnect remains unconfirmed. |
+| Verified package, not installed | Product 1.8.0 / wheel 0.3.0, `433dc81`; [package handoff](handoffs/combined-candidate-1.8.0.md) | Movement/camera/cancel remapping; package checks, seven CI jobs and independent source review passed. No live remapping acceptance. |
+| Awaiting integration review | Identity branch `8552552` | Exact character keys, player/NPC classification, coherent party observations and positive pet ownership. No completed combat activation. |
+| In development | [Door interaction](handoffs/door-interaction.md) | Character-forward ranking and collection/collision dependencies only; native selection/cue/Interact unfinished. |
+| Deferred | Particles/native transparency | Unfinished and outside current combat scope. The visible character highlight was accepted as a baseline; ideal glow/material coverage remains separate. |
 
+Package validation, source review and live acceptance are distinct. No full visual
+bundle or PvP completion is claimed. The integration branch remains
+`codex/native-lifecycle-hardening`; main remains unchanged. No new installation
+is implied by later source commits. Reuse accepted navigation and movement evidence.
+
+## Historical candidate notes
+
+The entries below are historical snapshots, not current installation instructions.
+1.7.7 keyboard acceptance and controller detection findings were superseded by the
+1.7.8 installed baseline above. Retained candidate handoffs preserve their evidence.
 Earlier September 11 movement follow-up: installed diagnostic package 1.7.4 identified
 manual latching after native update gaps. Repair candidate 1.7.5 / wheel 0.2.5
 is built from `29ef530`, independently source-reviewed and locally package-verified;
