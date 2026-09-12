@@ -83,7 +83,7 @@ void Observe(void* message, void* stream, std::uintptr_t caller) noexcept {
 }
 void __fastcall TracedDeserialize(void* message, void*, void* stream) {
     // Preserve native exceptions and call-through. A thrown decode produces no
-    // record. Later stream validation may still fail: records are diagnostic only.
+    // record. Native bookkeeping/queue publication follows: diagnostics only.
     const auto caller = reinterpret_cast<std::uintptr_t>(_ReturnAddress());
     original(message, stream);
     Observe(message, stream, caller);

@@ -557,8 +557,8 @@ The collector uses the existing WindowsSharedMemorySnapshotReader. Developer use
 The mapping is exact-process-lifetime scoped and records detect overwrite gaps.
 Private output stays outside source control. This has not been installed in the VM.
 
-**Limits:** capture happens after targeted-field decoding but before final stream
-validation/queue acceptance. A captured message is not yet a verified attack or
+**Limits:** capture happens after targeted-field decoding but before queue
+publication. A captured message is not yet a verified attack or
 hit/miss, and it does not carry a character-session epoch. The attack-list runtime
 must not consume it as authority. No automatic response or attack is enabled.
 
@@ -572,7 +572,56 @@ Generated project inspection confirms exactly one observer source and no test so
 in either runtime DLL. These are targeted developer checks, not a clean package or
 connected acceptance.
 
-Active todo remains step 3: finish accepted-message/session provenance and determine
+Active todo remains step 3: finish session provenance and determine
 hostile hit/miss semantics, then a verified diagnostic package and targeted live
 calibration. Persisted response additions, current-party/legal-target enforcement and
 PvE/PvP transition validation follow. No owner test or restart is requested yet.
+
+
+### Decoder completion and dispatch follow-up
+
+The earlier description of a "final stream validation" call was not supported.
+Following thunk RVA 0x1aa0a resolves to RVA 0x13f780, which conditionally tail-calls
+RVA 0x1440d0. That method resets buffer cursors/counters and returns; it has no
+semantic validation branch or failure return. The diagnostic stage is corrected to
+`decoded_before_queue_publication`. No additional validation hook is justified by
+this evidence. Queue publication and character-session binding remain distinct facts.
+
+An executable x86 test fixture now invokes the production deserialize wrapper
+through virtual slot +0x1c with the guarded return PC, verifies actual publication,
+and repeats that path while holding the original callback across production cleanup.
+This closes the prior test gap where successful publication called Observe directly.
+The fixture is developer-only and does not invoke client code or enter either DLL.
+
+Static action routing is now recorded: event +0x10 selects a 23-entry table at RVA
+0x45681c after subtracting one. Kind 15 routes through RVA 0x456d20 to the hit/miss
+formatter; kinds 6..9 route through RVA 0x45a320, a broader action path that also
+reaches that formatter. Message primary +0x90/+0x94/+0x98/+0x9c and secondary
++0xa0/+0xa4/+0xa8/+0xac become event +0x10/+0x14/+0x18/+0x1c. The formatter
+compares the magnitude of event +0x1c against float32 0.0010000000474974513 to
+choose damage versus miss text. These are formatter facts, not a complete hostility
+classifier. Native processing can remap secondary kind 6 to 15, and direct/fallback
+paths bypass ordinary dispatch; do not label arbitrary raw nonzero payloads hostile.
+
+Next: finish the bounded diagnostic package checks, then calibrate original keys and
+raw groups against one known attack and miss. The capture must not silently promote
+these routing observations into automatic response authority. Current party/session
+checks and durable response ingestion are still required before combat activation.
+
+
+Follow-up developer validation: full Python suite 1,975 passed, 15 skipped,
+251 subtests; Ruff and PowerShell syntax passed. Both ALL_BUILD profiles passed
+after correcting the startup fixture's missing optional observer dependency.
+Each required CTest suite executed 139 passes and reported three no-argument
+image-binding skips. Selected-cue, sky-binding, sky-render and original/prepared
+movement image checks were then explicitly executed and passed in both profiles.
+Capture/rollback/startup cases were checked in the JUnit results, not inferred from
+the summary. The two ideal-transparency diagnostics failed in each profile and
+remain separately deferred. Private logs/results are under artifacts/pve-pvp and
+artifacts/native-{full,diagnostics}/capture-followup.xml.
+
+The package builder now requires both capture tests exactly once and adds a real
+installed-wheel collector smoke check outside the source checkout. The latter is
+implemented but still awaits the next exact committed package build; source-test
+success does not certify an installed wheel. No new package or VM installation is
+claimed by this checkpoint.

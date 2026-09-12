@@ -28,7 +28,13 @@ namespace wonderbane::extension {
 int renderer_starts = 0, renderer_stops = 0, telemetry_starts = 0, telemetry_stops = 0;
 int effects_stops = 0, navigation_stops = 0, status_stops = 0, control_stops = 0, event_stops = 0;
 DWORD telemetry_result = ERROR_ACCESS_DENIED, trace_result = ERROR_SUCCESS;
-int trace_stops = 0;
+int trace_stops = 0, targeted_starts = 0, targeted_stops = 0;
+DWORD targeted_result = ERROR_SUCCESS;
+DWORD StartTargetedActionTrace(const ProcessIdentity& identity) noexcept {
+    assert(identity.process_id == GetCurrentProcessId() && identity.creation_filetime_utc);
+    ++targeted_starts; return targeted_result;
+}
+void StopTargetedActionTrace() noexcept { ++targeted_stops; }
 namespace movement {
 int starts = 0;
 DWORD start_result = ERROR_SUCCESS;
@@ -79,23 +85,28 @@ int main() {
     assert(SetEnvironmentVariableW(kPerformanceProfileEnvironment, L"disabled"));
     assert(WonderBaneExtensionInitialize() == ERROR_SUCCESS);
     assert(renderer_starts == 1 && telemetry_starts == 0 && renderer_stops == 0);
-    assert(movement::starts == 1);
+    assert(movement::starts == 1 && targeted_starts == 1 && targeted_stops == 0);
     assert(WonderBaneExtensionInitialize() == ERROR_SUCCESS && movement::starts == 1);
     assert(DeleteFileW(g_heartbeat_path));
     InterlockedExchange(&g_state, static_cast<LONG>(WonderBaneExtensionState::uninitialized));
+    targeted_result = ERROR_NOT_SUPPORTED;
     trace_result = ERROR_ACCESS_DENIED; movement::start_result = ERROR_NOT_SUPPORTED;
     assert(SetEnvironmentVariableW(kPerformanceProfileEnvironment, L"frame"));
     assert(WonderBaneExtensionInitialize() == ERROR_SUCCESS);
     assert(renderer_starts == 2 && telemetry_starts == 1 && renderer_stops == 0 && trace_stops == 1);
+    assert(targeted_starts == 2 && targeted_stops == 0);
     assert(movement::starts == 2); // Unsupported optional controls preserve client startup.
     assert(DeleteFileW(g_heartbeat_path));
     InterlockedExchange(&g_state, static_cast<LONG>(WonderBaneExtensionState::uninitialized));
+    targeted_result = ERROR_SUCCESS;
     telemetry_result = ERROR_SUCCESS; trace_result = ERROR_SUCCESS; fail_heartbeat = true;
     assert(WonderBaneExtensionInitialize() == ERROR_ACCESS_DENIED);
+    assert(targeted_starts == 3 && targeted_stops == 1);
     assert(renderer_stops == 1 && telemetry_stops == 1 && effects_stops == 1 && trace_stops == 2);
     assert(movement::starts == 2); // Failed shared startup did not register a consumer.
     assert(navigation_stops == 1 && status_stops == 1 && control_stops == 1 && event_stops == 1);
     // Failed initialization cannot start a replacement generation implicitly.
     assert(WonderBaneExtensionInitialize() == ERROR_ACCESS_DENIED && renderer_starts == 3);
+    assert(targeted_starts == 3 && targeted_stops == 1);
     return 0;
 }

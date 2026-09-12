@@ -91,3 +91,25 @@ def test_profile_ipc_must_execute_once_and_pass(tmp_path, outcome):
     else:
         with pytest.raises(RuntimeError, match="required native movement IPC"):
             builder.validate_movement_ipc_results(path, "test-profile")
+
+
+@pytest.mark.parametrize("name", sorted(builder.REQUIRED_TARGETED_ACTION_TESTS))
+@pytest.mark.parametrize("outcome", ["pass", "missing", "skipped", "failure", "error", "duplicate"])
+def test_targeted_action_gates_must_execute_once(tmp_path, name, outcome):
+    suite = ET.Element("testsuite")
+    for required in builder.REQUIRED_TARGETED_ACTION_TESTS:
+        if required == name and outcome == "missing":
+            continue
+        case = ET.SubElement(suite, "testcase", name=required, status="run")
+        if required == name and outcome in ("skipped", "failure", "error"):
+            ET.SubElement(case, outcome)
+    if outcome == "duplicate":
+        ET.SubElement(suite, "testcase", name=name, status="run")
+    path = tmp_path / "targeted-action.xml"
+    ET.ElementTree(suite).write(path)
+    required = set(builder.REQUIRED_TARGETED_ACTION_TESTS)
+    if outcome == "pass":
+        assert builder.validate_native_results(path, required, diagnostic=False, exit_code=0) == []
+    else:
+        with pytest.raises(RuntimeError):
+            builder.validate_native_results(path, required, diagnostic=False, exit_code=0)

@@ -44,10 +44,27 @@ int main(int argc, char** argv) {
     }
     const bool rollback = argc > 1 && std::strcmp(argv[1], "rollback") == 0;
     we::ProcessIdentity identity{GetCurrentProcessId(), 123456789};
-    std::uint32_t slot = reinterpret_cast<std::uint32_t>(&Original);
+    // Executable fixture for the reviewed x86 virtual-call ABI. The return PC
+    // matches the production guard; this runs TracedDeserialize, not Observe.
+    auto* image = static_cast<unsigned char*>(VirtualAlloc(nullptr, 0x1161000,
+        MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
+    if (!image) { return 4; }
+    const auto base = reinterpret_cast<std::uintptr_t>(image);
+    auto& slot = *reinterpret_cast<std::uint32_t*>(image + we::slot_rva);
+    slot = reinterpret_cast<std::uint32_t>(&Original);
+    constexpr unsigned char decoder_code[]{
+        0x55, 0x8b, 0xec, 0x8b, 0x4d, 0x08, 0x8b, 0x01,
+        0xff, 0x75, 0x0c, 0xff, 0x50, 0x1c, 0x5d, 0xc2, 0x08, 0x00};
+    auto* decoder_address = image + we::decoder_return_rva - 14;
+    std::memcpy(decoder_address, decoder_code, sizeof(decoder_code));
+    DWORD protection = 0;
+    if (!VirtualProtect(decoder_address, sizeof(decoder_code), PAGE_EXECUTE_READ, &protection)
+        || !FlushInstructionCache(GetCurrentProcess(), decoder_address, sizeof(decoder_code))) { return 5; }
+    using Decoder = void(__stdcall*)(void*, void*);
+    const auto decode = reinterpret_cast<Decoder>(decoder_address);
     const auto target = reinterpret_cast<we::Deserialize>(&Original);
     fail_install = rollback;
-    Check(we::StartBound(identity, 0x400000, &slot, target)
+    Check(we::StartBound(identity, base, &slot, target)
         == static_cast<DWORD>(rollback ? ERROR_ACCESS_DENIED : ERROR_SUCCESS), "start result");
     if (rollback) {
         Check(slot == reinterpret_cast<std::uint32_t>(&Original), "rollback restores slot");
@@ -57,18 +74,19 @@ int main(int argc, char** argv) {
         return failures;
     }
     std::array<std::uint32_t, 48> message{};
-    message[0] = 0x400000 + static_cast<std::uint32_t>(we::message_vtable_rva);
+    message[0] = static_cast<std::uint32_t>(base) + static_cast<std::uint32_t>(we::message_vtable_rva);
     message[32] = 2392387; message[33] = 53;
     message[34] = 1901199; message[35] = 53;
     for (unsigned i = 36; i < 48; ++i) { message[i] = 0xdeadbeef; }
     message[36] = 0; message[40] = 0;
-    std::uint32_t stream = 0x400000 + static_cast<std::uint32_t>(we::socket_vtable_rva);
-    const auto caller = 0x400000 + we::decoder_return_rva;
+    std::uint32_t stream = static_cast<std::uint32_t>(base) + static_cast<std::uint32_t>(we::socket_vtable_rva);
+    const auto caller = base + we::decoder_return_rva;
     we::Observe(message.data(), &stream, caller + 1);
     Check(we::storage->write_sequence == 0, "exclude other callers");
     ++stream; we::Observe(message.data(), &stream, caller); --stream;
     Check(we::storage->write_sequence == 0, "exclude replay/non-socket streams");
-    we::Observe(message.data(), &stream, caller);
+    decode(message.data(), &stream);
+    Check(calls == 1, "native-style decoder calls original once");
     const auto& record = we::storage->records[0];
     Check(record.committed_sequence == 1 && record.fields[0] == 2392387
         && record.fields[2] == 1901199, "retain original participant keys");
@@ -95,19 +113,19 @@ int main(int argc, char** argv) {
     Check(retained != nullptr, "reader view");
     entered = CreateEventW(nullptr, TRUE, FALSE, nullptr);
     released = CreateEventW(nullptr, TRUE, FALSE, nullptr);
-    const auto held_callback = reinterpret_cast<we::Deserialize>(slot);
-    std::thread callback([&] { held_callback(message.data(), &stream); });
+    std::thread callback([&] { decode(message.data(), &stream); });
     Check(WaitForSingleObject(entered, 5000) == WAIT_OBJECT_0, "callback reached original");
     we::StopTargetedActionTrace();
     Check(slot == reinterpret_cast<std::uint32_t>(&Original) && we::storage == nullptr, "production stop closes publication");
-    Check(we::StartBound(identity, 0x400000, &slot, target) == ERROR_ALREADY_INITIALIZED, "no replacement generation");
+    Check(we::StartBound(identity, base, &slot, target) == ERROR_ALREADY_INITIALIZED, "no replacement generation");
     SetEvent(released); callback.join();
     we::StopTargetedActionTrace();
-    Check(calls == 1, "held callback completes exactly once");
+    Check(calls == 2, "held callback completes exactly once");
     if (retained) {
         Check(retained->stopped == 1 && retained->write_sequence == 257, "closed reader cannot receive late publication");
         UnmapViewOfFile(retained);
     }
     CloseHandle(entered); CloseHandle(released);
+    VirtualFree(image, 0, MEM_RELEASE);
     return failures;
 }

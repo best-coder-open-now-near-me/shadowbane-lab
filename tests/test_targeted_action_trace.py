@@ -27,6 +27,7 @@ def test_original_keys_and_uninterpreted_payload():
     assert record["victim_key"] == [1901199, 53]
     assert record["primary_raw"] == [1, 7, 0x3F800000, 0]
     assert record["combat_authority"] is False
+    assert record["stage"] == "decoded_before_queue_publication"
     assert mapping_name(19, 23).endswith(".19.23")
 
 

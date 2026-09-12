@@ -125,10 +125,46 @@
     "linked_socket_vtable_rva": "0x116019c",
     "capture": "opt-in original-message diagnostic; not installed or live calibrated",
     "limits": [
-      "before final stream validation",
+      "before native queue publication (post-decode routine is buffer bookkeeping, not a verified semantic validation gate)",
       "no character-session epoch",
       "raw action meanings unverified",
       "not combat authority"
     ]
+  },
+  "action_dispatch_followup": {
+    "event_selector_offset": "0x10",
+    "dispatch_table_rva": "0x45681c",
+    "selector_bias": -1,
+    "entries": 23,
+    "kind_15_method_rva": "0x456d20",
+    "kinds_6_through_9_method_rva": "0x45a320",
+    "formatter_rva": "0x456f90",
+    "formatter_magnitude_field_offset": "0x1c",
+    "formatter_epsilon_float32": 0.0010000000474974513,
+    "message_to_event_fields": {
+      "primary": [
+        "0x90",
+        "0x94",
+        "0x98",
+        "0x9c"
+      ],
+      "secondary": [
+        "0xa0",
+        "0xa4",
+        "0xa8",
+        "0xac"
+      ],
+      "event": [
+        "0x10",
+        "0x14",
+        "0x18",
+        "0x1c"
+      ]
+    },
+    "post_decode_bookkeeping_rvas": [
+      "0x13f780",
+      "0x1440d0"
+    ],
+    "hostility_classifier_verified": false
   }
 }

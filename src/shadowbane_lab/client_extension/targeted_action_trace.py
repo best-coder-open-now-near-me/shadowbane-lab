@@ -1,6 +1,6 @@
 """Passive decoded-action evidence; never supplies retaliation authority.
 
-A record precedes the decoder's final stream validation and carries no verified
+A record precedes native queue publication and carries no verified
 hit/miss/hostility meaning. No actor pointer or selected-target inference is used.
 """
 
@@ -68,7 +68,7 @@ def stable_records(
             "victim_key": fields[2:4],
             "primary_raw": fields[4:8],
             "secondary_raw": fields[8:12],
-            "stage": "decoded_before_final_stream_validation",
+            "stage": "decoded_before_queue_publication",
             "combat_authority": False,
         })
     return sorted(records, key=lambda item: item["sequence"])

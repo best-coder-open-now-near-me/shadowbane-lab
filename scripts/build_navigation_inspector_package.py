@@ -34,6 +34,12 @@ DIAGNOSTIC_TRANSPARENCY_FAILURES = frozenset({
 })
 
 
+REQUIRED_TARGETED_ACTION_TESTS = frozenset({
+    "wonderbane_extension_targeted_action_trace",
+    "wonderbane_extension_targeted_action_trace_rollback",
+})
+
+
 def validate_native_results(path: Path, required: set[str], *, diagnostic: bool,
                             exit_code: int) -> list[dict[str, str]]:
     """Retain known diagnostic failures without granting acceptance or hiding skips."""
@@ -345,6 +351,7 @@ def main() -> int:
             "wonderbane_extension_movement_channel",
             "wonderbane_extension_movement_runtime_commands",
         }
+        required_native_tests.update(REQUIRED_TARGETED_ACTION_TESTS)
         profile_failures = validate_native_results(
             native_results, required_native_tests,
             diagnostic=False, exit_code=native_exit,
@@ -607,6 +614,27 @@ with tempfile.TemporaryDirectory() as directory:
     path = pathlib.Path(directory) / "trace.json"
     path.write_text(json.dumps(payload))
     assert terrain_trace.read_local_trace(path) == payload
+"""], cwd=output)
+    run("installed-targeted-action-reader", [python, "-c", """
+import pathlib, sys
+from shadowbane_lab.client_extension import targeted_action_trace as trace
+assert pathlib.Path(trace.__file__).resolve().is_relative_to(pathlib.Path(sys.prefix).resolve())
+payload = bytearray(trace.SIZE)
+trace.HEADER.pack_into(payload, 0, b"WBTACT1\\0", 1, trace.RECORD.size,
+    trace.CAPACITY, 19, 23, 1, 0, 0, 0)
+trace.RECORD.pack_into(payload, trace.HEADER.size, 1, 100, 17, 0x3625bc,
+    2392387, 53, 1901199, 53, *([0] * 12))
+record, = trace.stable_records(payload, payload, 19, 23)
+assert record["actor_key"] == [2392387, 53]
+assert record["victim_key"] == [1901199, 53]
+assert record["stage"] == "decoded_before_queue_publication"
+assert record["combat_authority"] is False
+try:
+    trace.stable_records(payload, payload, 19, 24)
+except ValueError:
+    pass
+else:
+    raise AssertionError("accepted a different process lifetime")
 """], cwd=output)
     artifacts.extend(
         [
