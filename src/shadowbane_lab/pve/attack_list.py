@@ -1,4 +1,5 @@
 """Durable attack intent; runtime identity binding is deliberately separate."""
+
 from __future__ import annotations
 
 import hashlib
@@ -45,8 +46,11 @@ class AttackTargetObservation:
 
     def __post_init__(self) -> None:
         digest = self.executable_sha256
-        if (not isinstance(digest, str) or len(digest) != 64
-                or any(c not in "0123456789abcdef" for c in digest)):
+        if (
+            not isinstance(digest, str)
+            or len(digest) != 64
+            or any(c not in "0123456789abcdef" for c in digest)
+        ):
             raise ValueError("executable_sha256 must be a lowercase SHA-256")
         for value in (self.process_id, self.process_started_at_100ns):
             if type(value) is not int or value <= 0:
@@ -61,8 +65,13 @@ class AttackTargetObservation:
 
     @property
     def entry_id(self) -> str:
-        scope = [self.executable_sha256, self.process_id, self.process_started_at_100ns,
-                 self.local_player_key.canonical_token, self.target_key.canonical_token]
+        scope = [
+            self.executable_sha256,
+            self.process_id,
+            self.process_started_at_100ns,
+            self.local_player_key.canonical_token,
+            self.target_key.canonical_token,
+        ]
         return hashlib.sha256(json.dumps(scope).encode()).hexdigest()
 
     def as_dict(self) -> dict[str, object]:
@@ -77,8 +86,14 @@ class AttackTargetObservation:
 
     @classmethod
     def from_dict(cls, raw: object) -> AttackTargetObservation:
-        fields = {"executable_sha256", "process_id", "process_started_at_100ns",
-                  "local_player_key", "target_key", "character_kind"}
+        fields = {
+            "executable_sha256",
+            "process_id",
+            "process_started_at_100ns",
+            "local_player_key",
+            "target_key",
+            "character_kind",
+        }
         if not isinstance(raw, dict) or set(raw) != fields:
             raise ValueError("invalid target observation")
         values = dict(raw)
@@ -88,12 +103,46 @@ class AttackTargetObservation:
 
 
 @dataclass(frozen=True, slots=True)
+class AttackPlayerIdentity:
+    """Server-scoped player key, with exact observed name retained for validation."""
+
+    server: str
+    object_key: NativeObjectKey
+    name: str
+
+    def __post_init__(self) -> None:
+        _text(self.server, "server")
+        _text(self.name, "name")
+        if (
+            not isinstance(self.object_key, NativeObjectKey)
+            or not self.object_key.object_type
+            or self.object_key.object_uuid != 53
+        ):
+            raise ValueError("persistent player identity requires a calibrated player key")
+
+    @property
+    def entry_id(self) -> str:
+        payload = ["player", self.server, self.object_key.canonical_token]
+        return hashlib.sha256(json.dumps(payload).encode()).hexdigest()
+
+    def as_dict(self) -> dict[str, object]:
+        return {"server": self.server, "object_key": self.object_key.as_dict(), "name": self.name}
+
+    @classmethod
+    def from_dict(cls, raw: object) -> AttackPlayerIdentity:
+        if not isinstance(raw, dict) or set(raw) != {"server", "object_key", "name"}:
+            raise ValueError("invalid persistent player identity")
+        return cls(raw["server"], NativeObjectKey.from_dict(raw["object_key"]), raw["name"])
+
+
+@dataclass(frozen=True, slots=True)
 class AttackListEntry:
     entry_id: str
     label: str
     source: str
     evidence_id: str
     observation: AttackTargetObservation | None = None
+    player_identity: AttackPlayerIdentity | None = None
 
     def __post_init__(self) -> None:
         for field in ("entry_id", "label", "evidence_id"):
@@ -101,17 +150,45 @@ class AttackListEntry:
         if self.source not in {"manual", "response"}:
             raise ValueError("attack-list source must be manual or response")
 
+        if self.player_identity is not None and not isinstance(
+            self.player_identity, AttackPlayerIdentity
+        ):
+            raise ValueError("invalid player identity")
         if self.observation is not None:
             if not isinstance(self.observation, AttackTargetObservation):
                 raise ValueError("observation must be AttackTargetObservation")
-            if self.entry_id != self.observation.entry_id:
+            expected_id = (
+                self.observation.entry_id
+                if self.player_identity is None
+                else self.player_identity.entry_id
+            )
+            if self.entry_id != expected_id:
                 raise ValueError("entry identity does not match observed evidence")
+        if self.player_identity is not None:
+            if not isinstance(self.player_identity, AttackPlayerIdentity):
+                raise ValueError("invalid player identity")
+            if (
+                self.entry_id != self.player_identity.entry_id
+                or self.observation is None
+                or self.observation.target_key != self.player_identity.object_key
+                or self.observation.character_kind != "player"
+            ):
+                raise ValueError("persistent player identity disagrees with native evidence")
 
     def as_dict(self) -> dict[str, object]:
-        result = {field: getattr(self, field) for field in (
-            "entry_id", "label", "source", "evidence_id",
-        )}
+        result = {
+            field: getattr(self, field)
+            for field in (
+                "entry_id",
+                "label",
+                "source",
+                "evidence_id",
+            )
+        }
         result["observation"] = None if self.observation is None else self.observation.as_dict()
+        result["player_identity"] = (
+            None if self.player_identity is None else self.player_identity.as_dict()
+        )
         return result
 
 
@@ -147,8 +224,11 @@ class AttackListStore:
         raw = json.loads(payload)
         if not isinstance(raw, dict) or set(raw) != {"schema", "owner", "revision", "entries"}:
             raise ValueError("invalid attack-list record")
-        if (type(raw["schema"]) is not int or raw["schema"] not in (1, 2)
-                or raw["owner"] != [self.owner.server, self.owner.character]):
+        if (
+            type(raw["schema"]) is not int
+            or raw["schema"] not in (1, 2, 3)
+            or raw["owner"] != [self.owner.server, self.owner.character]
+        ):
             raise ValueError("attack-list schema or owner mismatch")
         revision = raw["revision"]
         if type(revision) is not int or revision < 0 or not isinstance(raw["entries"], list):
@@ -156,13 +236,19 @@ class AttackListStore:
         entries = []
         for entry in raw["entries"]:
             fields = {"entry_id", "label", "source", "evidence_id"}
-            if raw["schema"] == 2:
+            if raw["schema"] >= 2:
                 fields.add("observation")
+            if raw["schema"] == 3:
+                fields.add("player_identity")
             if not isinstance(entry, dict) or set(entry) != fields:
                 raise ValueError("invalid attack-list entry")
             values = dict(entry)
             if values.get("observation") is not None:
                 values["observation"] = AttackTargetObservation.from_dict(values["observation"])
+            if values.get("player_identity") is not None:
+                values["player_identity"] = AttackPlayerIdentity.from_dict(
+                    values["player_identity"]
+                )
             # Version 1 did not retain enough evidence to reconstruct a binding.
             # Keep it unresolved rather than inferring identity from its label.
             entries.append(AttackListEntry(**values))
@@ -186,7 +272,10 @@ class AttackListStore:
         return self._update("clear", "")
 
     def _update(
-        self, action: str, entry_id: str, entry: AttackListEntry | None = None,
+        self,
+        action: str,
+        entry_id: str,
+        entry: AttackListEntry | None = None,
     ) -> AttackListSnapshot:
         with exclusive_record_lock(self.path.with_suffix(".lock")):
             previous = self._read()
@@ -198,6 +287,8 @@ class AttackListStore:
                 old = entries.get(entry_id)
                 if old is None:
                     entries[entry_id] = entry
+                elif old.player_identity != entry.player_identity:
+                    raise ValueError("saved player identity differs; explicit resolution required")
                 elif old.observation is None and entry.observation is not None:
                     # An explicit fresh observation can enrich a legacy entry
                     # only when its full session-scoped digest is the same.
@@ -210,12 +301,16 @@ class AttackListStore:
             if ordered == previous.entries:
                 return previous
             result = AttackListSnapshot(previous.revision + 1, ordered)
-            payload = json.dumps({
-                "schema": 2,
-                "owner": [self.owner.server, self.owner.character],
-                "revision": result.revision,
-                "entries": [item.as_dict() for item in ordered],
-            }, ensure_ascii=True, sort_keys=True).encode()
+            payload = json.dumps(
+                {
+                    "schema": 3,
+                    "owner": [self.owner.server, self.owner.character],
+                    "revision": result.revision,
+                    "entries": [item.as_dict() for item in ordered],
+                },
+                ensure_ascii=True,
+                sort_keys=True,
+            ).encode()
             if len(payload) > 4 * 1024 * 1024:
                 raise ValueError("attack list exceeds supported size")
             publish_atomic_record(self.path, payload, temporary_label="attack-list")

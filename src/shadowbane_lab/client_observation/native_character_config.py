@@ -10,6 +10,7 @@ import struct
 from dataclasses import dataclass
 
 from .native_health import ReadOnlyProcessMemory
+from .native_object import NativeObjectKey
 
 
 class ActiveCharacterError(RuntimeError):
@@ -62,6 +63,13 @@ class ActiveCharacterIdentity:
         return f"SCREEN_GAME_{encoded}_{self.server_name}.cfg"
 
 
+@dataclass(frozen=True, slots=True)
+class SelectedPlayerIdentity:
+    object_key: NativeObjectKey
+    character_name: str
+    server_name: str
+
+
 class NativeCharacterConfigReader:
     """Bounded reads through an already-open, read-only process handle."""
 
@@ -92,6 +100,43 @@ class NativeCharacterConfigReader:
         first = self._snapshot()
         if self._snapshot() != first:
             raise ActiveCharacterError("active character changed during profile selection; retry")
+        return first
+
+    def observe_selected_player(self) -> SelectedPlayerIdentity:
+        """Exact-image remote-player identity, bracketed by local and selection reads."""
+        if self.process.executable_sha256.lower() != (
+            "bb63469eb35917e6b3f58be75d29f94855c9868024271222465b4db62f0e3a87"
+        ):
+            raise ActiveCharacterError("selected-player identity is not reviewed for this image")
+        local = self.observe()
+        slot = self.process.base_address + 0x16A2DA4
+
+        def sample() -> SelectedPlayerIdentity:
+            pointer = struct.unpack("<I", self._read(slot, 4))[0]
+            if pointer == local.player_pointer:
+                raise ActiveCharacterError("select another player")
+            self._range(pointer, self.layout.server_offset + 16, alignment=4)
+            vtable = struct.pack("<I", self.process.base_address + self.layout.character_vtable_rva)
+            if self._read(pointer, 4) != vtable:
+                raise ActiveCharacterError("selected object is not a reviewed character")
+            raw_key = self._read(pointer + 0x18, 8)
+            key = NativeObjectKey(*struct.unpack("<II", raw_key))
+            if not key.object_type or key.object_uuid != 53:
+                raise ActiveCharacterError("selected character is not a calibrated player")
+            name = self._string(pointer + self.layout.name_offset)
+            server = self._string(pointer + self.layout.server_offset)
+            if (not name.strip() or any(ord(c) < 32 for c in name)
+                    or server != local.server_name):
+                raise ActiveCharacterError("selected player name/server is invalid")
+            if (self._read(slot, 4) != struct.pack("<I", pointer)
+                    or self._read(pointer, 4) != vtable
+                    or self._read(pointer + 0x18, 8) != raw_key):
+                raise ActiveCharacterError("selected player changed during identity read")
+            return SelectedPlayerIdentity(key, name, server)
+
+        first = sample()
+        if sample() != first or self.observe() != local:
+            raise ActiveCharacterError("player identity changed during selection sample")
         return first
 
     def _snapshot(self) -> ActiveCharacterIdentity:

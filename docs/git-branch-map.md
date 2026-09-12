@@ -234,4 +234,4 @@ branches/worktrees whose history and local files are demonstrably preserved.
 The active delivery plan is [PvE/PvP attack-list integration](pve-pvp-attack-list-plan.md).
 Blacklist means the attack list, populated manually or through attributed responses.
 The plan retains applicable review follow-ups without making broad cleanup or unfinished
-visual/door features prerequisites. Identity changes through 8552552 are integrated; attack-list storage and commands are next.
+visual/door features prerequisites. Identity changes through 8552552 are integrated; attack-list storage and chat editing are integrated. Durable player identity and command completion are active; response attribution and combat transitions remain pending.

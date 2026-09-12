@@ -182,7 +182,7 @@ def test_legacy_intent_migrates_unresolved_without_losing_entries(tmp_path):
     store.add(AttackListEntry(observation.entry_id, "New enemy", "manual", "new-selection",
                              observation))
     raw = json.loads(store.path.read_text())
-    assert raw["schema"] == 2
+    assert raw["schema"] == 3
     assert raw["revision"] == 5
     assert next(e for e in raw["entries"] if e["entry_id"] == "old")["observation"] is None
     assert len(AttackListStore(tmp_path, store.owner).snapshot().entries) == 2
@@ -222,3 +222,76 @@ def test_fresh_matching_observation_enriches_legacy_without_rewriting_provenance
     assert result.entries[0].observation == observation
     assert result.entries[0].source == "manual"
     assert result.entries[0].evidence_id == "original-command"
+
+
+def test_persistent_player_entry_survives_observer_restart(tmp_path):
+    from dataclasses import replace
+
+    from shadowbane_lab.pve.attack_list import AttackPlayerIdentity
+
+    observation = _observed_target()
+    player = AttackPlayerIdentity("server", observation.target_key, "lowercase")
+    store = AttackListStore(tmp_path, AttackListOwner("server", "player"))
+    first = AttackListEntry(
+        player.entry_id, player.name, "manual", "selection", observation, player
+    )
+    saved = store.add(first)
+    new_observation = replace(observation, process_id=99, process_started_at_100ns=2000)
+    repeated = AttackListEntry(player.entry_id, player.name, "response", "new-hit",
+                               new_observation, player)
+    assert store.add(repeated) == saved
+    assert AttackListStore(tmp_path, store.owner).snapshot().entries[0].player_identity == player
+    assert replace(player, server="another").entry_id != player.entry_id
+
+
+def test_same_key_changed_name_requires_explicit_resolution(tmp_path):
+    from dataclasses import replace
+
+    from shadowbane_lab.pve.attack_list import AttackPlayerIdentity
+
+    observation = _observed_target()
+    player = AttackPlayerIdentity("server", observation.target_key, "enemy")
+    store = AttackListStore(tmp_path, AttackListOwner("server", "player"))
+    original = store.add(AttackListEntry(player.entry_id, player.name, "manual", "selection",
+                                        observation, player))
+    changed = replace(player, name="different")
+    with pytest.raises(ValueError, match="differs"):
+        store.add(AttackListEntry(changed.entry_id, changed.name, "response", "hit",
+                                  observation, changed))
+    assert store.snapshot() == original
+
+
+def test_invalid_player_identity_reports_validation_error():
+    observation = _observed_target()
+    with pytest.raises(ValueError, match="invalid player identity"):
+        AttackListEntry(observation.entry_id, "Enemy", "manual", "selection", observation, "bad")
+
+
+def test_invalid_command_never_opens_or_scans_client():
+    from shadowbane_lab.pve.attack_list_commands import run_attack_list_command
+
+    class Guard:
+        def require_target(self):
+            pytest.fail("invalid syntax reached the client")
+
+    with pytest.raises(ValueError, match="only remove"):
+        run_attack_list_command("/blacklist add someone", Guard())
+
+
+def test_schema_two_observation_stays_unresolved_on_upgrade(tmp_path):
+    import json
+
+    observation = _observed_target()
+    old = AttackListEntry(observation.entry_id, "Enemy", "manual", "selection", observation)
+    legacy = old.as_dict()
+    legacy.pop("player_identity")
+    store = AttackListStore(tmp_path, AttackListOwner("server", "player"))
+    store.path.write_text(json.dumps({"schema": 2, "owner": ["server", "player"],
+                                     "revision": 7, "entries": [legacy]}))
+    assert store.snapshot().entries == (old,)
+    store.add(AttackListEntry("another", "Other", "manual", "legacy"))
+    reread = AttackListStore(tmp_path, store.owner).snapshot()
+    retained = next(e for e in reread.entries if e.entry_id == old.entry_id)
+    assert retained.observation == observation
+    assert retained.player_identity is None
+    assert reread.revision == 8

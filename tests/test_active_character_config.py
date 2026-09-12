@@ -378,3 +378,57 @@ def test_current_prepared_image_uses_reviewed_identity_layout(tmp_path):
     memory.executable_sha256 = "ff" * 32
     with pytest.raises(ActiveCharacterError, match="not reviewed"):
         NativeCharacterConfigReader(memory)
+
+
+def _remote_player(memory, pointer=0x11000000, name="enemy", server="Wonderbane", key=(42, 53)):
+    memory.put(memory.base_address + 0x16A2DA4, struct.pack("<I", pointer))
+    memory.put(pointer, struct.pack("<I", memory.base_address + memory.layout.character_vtable_rva))
+    memory.put(pointer + 0x18, struct.pack("<II", *key))
+    for offset, buffer, text in [(0xC48, pointer + 0x10000, name),
+                                 (0xC90, pointer + 0x11000, server)]:
+        raw = text.encode("utf-16-le")
+        memory.put(pointer + offset,
+                   struct.pack("<IIII", 0, buffer, buffer + len(raw), buffer + len(raw) + 2))
+        memory.put(buffer, raw + b"\x00\x00")
+
+
+def test_remote_identity_survives_reallocation_and_preserves_case(tmp_path):
+    memory = CharacterMemory(tmp_path)
+    memory.executable_sha256 = "bb63469eb35917e6b3f58be75d29f94855c9868024271222465b4db62f0e3a87"
+    _remote_player(memory, name="lowercase")
+    reader = NativeCharacterConfigReader(memory)
+    before = reader.observe_selected_player()
+    _remote_player(memory, pointer=0x12000000, name="lowercase")
+    assert reader.observe_selected_player() == before
+    assert before.character_name == "lowercase"
+
+
+@pytest.mark.parametrize("key,server", [((42, 37), "Wonderbane"), ((42, 53), "Different")])
+def test_remote_identity_rejects_non_player_and_wrong_server(tmp_path, key, server):
+    memory = CharacterMemory(tmp_path)
+    memory.executable_sha256 = "bb63469eb35917e6b3f58be75d29f94855c9868024271222465b4db62f0e3a87"
+    _remote_player(memory, key=key, server=server)
+    with pytest.raises(ActiveCharacterError):
+        NativeCharacterConfigReader(memory).observe_selected_player()
+
+
+def test_remote_selection_changes_between_samples_are_rejected(tmp_path):
+    memory = CharacterMemory(tmp_path)
+    memory.executable_sha256 = "bb63469eb35917e6b3f58be75d29f94855c9868024271222465b4db62f0e3a87"
+    _remote_player(memory)
+    reader = NativeCharacterConfigReader(memory)
+    original = reader._string
+    count = 0
+
+    def changing(address):
+        nonlocal count
+        result = original(address)
+        if address == 0x11000000 + 0xC90:
+            count += 1
+            if count == 1:
+                _remote_player(memory, pointer=0x12000000, key=(43, 53))
+        return result
+
+    with patch.object(reader, "_string", side_effect=changing):
+        with pytest.raises(ActiveCharacterError, match="changed"):
+            reader.observe_selected_player()

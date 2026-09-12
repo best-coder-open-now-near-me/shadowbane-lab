@@ -340,3 +340,29 @@ Ruff passed. Private native tracing remains outside source control.
 Step3/A remains active: determine the durable remote-character identity and verify it
 across reconnect. A narrow two-character reconnect observation has been requested;
 no attacks, package installation or broader gameplay acceptance is requested.
+
+
+### September 12 identity checkpoint
+
+A bounded read-only observation of the same owner-identified remote player before
+and after reconnect retained its native key, exact name and server while its
+allocation address changed. This evidence applies to prepared image
+`bb63469eb35917e6b3f58be75d29f94855c9868024271222465b4db62f0e3a87`.
+It does not establish global uniqueness, rename behavior or survival of a server reset.
+Private captures remain outside the repository.
+
+The selected-player reader now brackets bounded name/server reads with selected
+object, vtable, key and local-character validation on that exact image. Schema 3
+retains server-scoped player keys and exact names separately from historical process
+evidence. Legacy entries remain unresolved; a matching key with a changed name
+requires explicit resolution. No attack authority is inferred from a saved entry.
+Malformed chat commands are rejected before opening a client.
+
+Step 3 remains active: finish command feedback and current binding/protection before
+calling identity integration complete. Next dependent work remains attributed
+response ingestion, party protection and verified combat transitions. Buffs and
+stance are combat-strength context, not identity or evidence of aggression.
+
+Validation: full Python suite 1,933 passed, 15 skipped, 249 subtests passed; final
+attack-list suite after adding schema-2 migration coverage: 28 passed. Ruff passed.
+This is a source checkpoint, not a newly certified installed package.
