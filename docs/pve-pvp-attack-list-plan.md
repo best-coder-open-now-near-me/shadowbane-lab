@@ -639,3 +639,26 @@ are updated and the stopped old client copy was removed under standing approval.
 Packaging and installation are complete; step 3 remains active for known-attacker
 hit/miss calibration after login. Disk collection has not started. Automatic response
 additions and PvE/PvP transition acceptance are still unfinished.
+
+
+### September 13 arrow calibration (partial)
+
+The owner reported arrows from another player while a different character was
+selected. The exact installed 1.8.1 process produced 26 consecutive original-message
+records without reported loss in the captured snapshot. Six targeted the previously
+calibrated local character key, from one distinct actor key: five secondary kind-6
+events carried positive scalar values, and one carried kind 21 with a zero scalar.
+The latter is not yet classified as a miss or hostile action. The owner confirmed
+hits, not a miss. Do not infer complete attack semantics from this sample.
+
+Post-test identity observation found no remote selection, so the actor key still
+needs a current name/key join. No attack repetition is required for that identity
+check. Owner-reported selection is retained as observation, not a simultaneous native
+selection measurement. Raw capture and analysis remain private under the installed
+diagnostic's host staging directory (hit-miss-20260913-043429.jsonl and
+arrow-calibration-analysis.json). The restarted collector has a 30-minute bound;
+the first five-minute disk window ended empty, but the native ring retained its
+recent records for the restarted collector. Automatic retaliation remains disabled.
+
+Step 3 remains active: join the original actor to current player identity, then close
+the remaining action/session calibration before durable response ingestion.
