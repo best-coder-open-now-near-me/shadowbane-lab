@@ -1352,6 +1352,26 @@ def _observe_native_training(profile_path: Path | None, *, as_json: bool) -> int
     return 0
 
 
+def decode_crafting(path: Path, *, direction: str, as_json: bool) -> int:
+    from shadowbane_lab.client_observation.crafting_wire import (
+        MAX_CRAFTING_PAYLOAD_BYTES,
+        parse_crafting_wire,
+    )
+
+    try:
+        with path.open("rb") as source:
+            payload = source.read(MAX_CRAFTING_PAYLOAD_BYTES + 1)
+        message = parse_crafting_wire(payload, direction=direction)
+    except (OSError, ValueError) as exc:
+        return _error(f"crafting decode failed: {exc}", as_json=as_json)
+    result = message.to_dict()
+    if as_json:
+        print(json.dumps({"ok": True, "message": result}, sort_keys=True))
+    else:
+        print(json.dumps(result, indent=2, sort_keys=True))
+    return 0
+
+
 def _trace_native_vendor_dialog(
     profile_path: Path | None,
     *,

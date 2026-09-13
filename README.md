@@ -63,6 +63,7 @@ an emergency stop, and explicit profile confirmation. See [the architecture](doc
 [client-input runbook](docs/client-input-harness.md),
 [bounded client-action harness](docs/client-action-harness.md),
 [persistent client extension](docs/client-extension.md),
+[player-owned vendor rolling integration](docs/vendor-rolling.md),
 [local multi-client manager](docs/client-manager.md),
 [read-only character snapshot runbook](docs/character-snapshot.md),
 [camp-scoped PvE runbook](docs/pve-automation.md),

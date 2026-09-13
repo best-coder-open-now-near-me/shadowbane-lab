@@ -777,6 +777,15 @@ def _parser() -> argparse.ArgumentParser:
         "--json", action="store_true", help="emit machine-readable JSON"
     )
 
+    decode_crafting = client_commands.add_parser(
+        "decode-crafting", help="decode one plaintext crafting message offline (no live input)"
+    )
+    decode_crafting.add_argument("payload", type=Path, help="binary opcode-prefixed payload")
+    decode_crafting.add_argument(
+        "--direction", required=True, choices=("client_to_server", "server_to_client")
+    )
+    decode_crafting.add_argument("--json", action="store_true")
+
     trace_native_vendor_dialog = client_commands.add_parser(
         "trace-native-vendor-dialog",
         help="capture decrypted ArcMerchantMessage traffic without patching client code",
