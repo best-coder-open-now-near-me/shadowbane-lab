@@ -620,7 +620,7 @@ with tempfile.TemporaryDirectory() as directory:
     assert terrain_trace.read_local_trace(path) == payload
 """], cwd=output)
     run("installed-targeted-action-reader", [python, "-c", """
-import pathlib, sys
+import pathlib, struct, sys
 from shadowbane_lab.client_extension import targeted_action_trace as trace
 assert pathlib.Path(trace.__file__).resolve().is_relative_to(pathlib.Path(sys.prefix).resolve())
 payload = bytearray(trace.SIZE)
@@ -633,8 +633,17 @@ assert record["actor_key"] == [2392387, 53]
 assert record["victim_key"] == [1901199, 53]
 assert record["stage"] == "decoded_before_queue_publication"
 assert record["combat_authority"] is False
+assert record["decode_scene_epoch"] is None
+payload[:8] = b"WBTACT2\\0"
+struct.pack_into("<I", payload, 8, 2)
+struct.pack_into("<4I", payload, trace.HEADER.size + 24 + 48, 7, 0, 1901199, 53)
+record, = trace.stable_records(payload, payload, 19, 23, schema=2)
+assert record["decode_scene_epoch"] == 7
+assert record["decode_local_key"] == [1901199, 53]
+assert record["combat_authority"] is False
+assert ".v2." in trace.mapping_name(19, 23, schema=2)
 try:
-    trace.stable_records(payload, payload, 19, 24)
+    trace.stable_records(payload, payload, 19, 24, schema=2)
 except ValueError:
     pass
 else:

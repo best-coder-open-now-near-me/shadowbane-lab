@@ -406,6 +406,16 @@ bool NativeMovementLifetimeCurrent(const NativeScene& scene) noexcept {
     ReleaseSRWLockExclusive(&state.lock);
     return current;
 }
+bool ReadNativeMovementLifetime(NativeScene& out) noexcept {
+    out = {};
+    NativeScene candidate{};
+    AcquireSRWLockShared(&state.lock);
+    if (state.alive && !state.terminal && !state.binding_lost) { candidate = state.scene; }
+    ReleaseSRWLockShared(&state.lock);
+    if (!NativeMovementLifetimeCurrent(candidate)) { return false; }
+    out = candidate;
+    return true;
+}
 bool NativeMovementParentTransition(const NativeScene& previous, const NativeScene& current) noexcept {
     if (!OnOwningThread() || !NativeMovementLifetimeCurrent(current)) { return false; }
     AcquireSRWLockShared(&state.lock);

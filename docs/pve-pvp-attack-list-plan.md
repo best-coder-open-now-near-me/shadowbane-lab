@@ -712,3 +712,34 @@ retirement/gap rejection and do not treat retained ring history as fresh respons
 Active next work remains that native event/session connection, followed by durable
 response ingestion and fresh party/legal-target validation. No further owner action
 is needed for the completed attacker identity check.
+
+
+### Decode-spanning lifecycle context implemented (not installed)
+
+The original-message observer now borrows the existing movement lifetime watch
+before deserialization and revalidates it before labeling the observation. It never
+starts, rearms or retires that watch. A missing watch or generation change leaves
+the event unbound; an old callback cannot acquire the replacement generation.
+No native pointer is exported and optional instrumentation still forwards normally.
+
+Compatibility decision: diagnostic mapping schema 2 uses a distinct v2 mapping
+name and magic. The former four reserved words now contain a 64-bit scene epoch
+and the local two-word object key. Existing extension ABI and other wire formats
+are unchanged. The reader CLI defaults to schema 2; --schema 1 explicitly reads
+the installed 1.8.1 diagnostic. Reader helpers retain their schema-1 default for
+existing callers. The package builder checks both formats in its installed-reader
+smoke path. A later package must get a fresh version and receipt before deployment.
+
+This is decode-spanning lifecycle evidence, not end-to-end session authority. It
+does not prove the age of packets buffered before decode, queue publication, current
+party protection or hostile semantics. Both schemas retain combat_authority=false.
+The running VM and its previously verified package remain unchanged.
+
+Validation: both native ALL_BUILD profiles passed. Each executed 39 lifecycle and
+capture tests successfully, including held original calls across epoch replacement
+and cleanup, independent-process capture reading, and actual lifecycle finalizer
+rejection while destruction is held. Python reader/CLI/package-gate checks passed
+63 tests; Ruff passed. The full-profile startup/movement runtime selection also
+passed all 41 tests. Private build/test logs are under artifacts/pve-pvp/event-lifecycle*.
+The next boundary is original receive/queue age and consumer-side freshness, before
+response ingestion may consume these records. Combat chat remains excluded.

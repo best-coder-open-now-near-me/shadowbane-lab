@@ -220,6 +220,11 @@ int main(int argc, char** argv) {
     } else {
         Check(f->Observe(scene) && scene.epoch && wm::NativeMovementLifetimeCurrent(scene), "observe current native tuple");
         const auto first = scene;
+        wm::NativeScene borrowed{};
+        std::thread borrower([&] { Check(wm::ReadNativeMovementLifetime(borrowed), "foreign reader borrows existing watch"); });
+        borrower.join();
+        Check(borrowed.epoch == scene.epoch && borrowed.identity == scene.identity,
+            "borrowed watch preserves epoch and identity without rearming");
         std::atomic<bool> foreign_result{true};
         std::thread foreign([&] { wm::NativeScene other{}; foreign_result = f->Observe(other); }); foreign.join();
         Check(!foreign_result && wm::NativeMovementLifetimeCurrent(scene), "foreign thread cannot replace watch");
@@ -390,6 +395,9 @@ int main(int argc, char** argv) {
             });
             Check(WaitForSingleObject(entered, 5000) == WAIT_OBJECT_0, "held original reached");
             Check(!wm::NativeMovementLifetimeCurrent(first), "epoch invalidated before held original");
+            wm::NativeScene unavailable = first;
+            Check(!wm::ReadNativeMovementLifetime(unavailable) && !unavailable.epoch,
+                "held destruction denies and clears borrowed watch");
             Check(!f->Observe(scene), "cannot rearm same allocation during destruction");
             f->SetActor(f->next.data());
             if (hold_free) { f->Put(wm::state.base + 0x1389028, std::uintptr_t{0x22340000}); }

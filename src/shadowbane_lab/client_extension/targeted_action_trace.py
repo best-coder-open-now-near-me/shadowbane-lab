@@ -1,7 +1,8 @@
 """Passive decoded-action evidence; never supplies retaliation authority.
 
 A record precedes native queue publication and carries no verified
-hit/miss/hostility meaning. No actor pointer or selected-target inference is used.
+hit/miss/hostility meaning. Schema 2 adds a decode-spanning lifecycle observation,
+not proof of socket queue age. No actor pointer or selected-target inference is used.
 """
 
 from __future__ import annotations
@@ -20,24 +21,30 @@ CAPACITY = 256
 SIZE = HEADER.size + RECORD.size * CAPACITY
 
 
-def mapping_name(process_id: int, creation_filetime: int) -> str:
+def mapping_name(process_id: int, creation_filetime: int, *, schema: int = 1) -> str:
+    if type(schema) is not int or schema not in (1, 2):
+        raise ValueError("unsupported targeted-action schema")
     for value, maximum in ((process_id, 0xFFFFFFFF), (creation_filetime, 0xFFFFFFFFFFFFFFFF)):
         if isinstance(value, bool) or not isinstance(value, int) or not 0 < value <= maximum:
             raise ValueError("exact process ID and creation FILETIME are required")
-    return f"Local\\ShadowbaneLab.Extension.TargetedAction.v1.{process_id}.{creation_filetime}"
+    return (f"Local\\ShadowbaneLab.Extension.TargetedAction.v{schema}."
+            f"{process_id}.{creation_filetime}")
 
 
 def stable_records(
-    first: bytes, second: bytes, process_id: int, creation_filetime: int
+    first: bytes, second: bytes, process_id: int, creation_filetime: int, *, schema: int = 1
 ) -> list[dict[str, object]]:
     """Keep only unchanged committed records from two exact-lifetime snapshots."""
-    mapping_name(process_id, creation_filetime)
+    mapping_name(process_id, creation_filetime, schema=schema)
     headers = []
     for data in (first, second):
         if len(data) != SIZE:
             raise ValueError("invalid targeted-action trace size")
         header = HEADER.unpack_from(data)
-        if header[:6] != (b"WBTACT1\0", 1, RECORD.size, CAPACITY, process_id, creation_filetime):
+        if header[:6] != (
+            f"WBTACT{schema}\0".encode(), schema, RECORD.size, CAPACITY,
+            process_id, creation_filetime,
+        ):
             raise ValueError("targeted-action trace identity/layout mismatch")
         if header[6] < 0 or header[7] < 0 or header[8] not in (0, 1) or header[9]:
             raise ValueError("invalid targeted-action trace counters")
@@ -56,10 +63,15 @@ def stable_records(
             continue
         if (sequence - 1) % CAPACITY != index or caller != 0x3625BC or not thread:
             raise ValueError("invalid targeted-action record provenance")
-        if any(fields[12:]) or (not fields[4] and any(fields[5:8])) or (
+        if (schema == 1 and any(fields[12:])) or (not fields[4] and any(fields[5:8])) or (
             not fields[8] and any(fields[9:12])
         ):
             raise ValueError("nonzero absent/reserved targeted-action fields")
+        epoch = fields[12] | (fields[13] << 32) if schema == 2 else 0
+        if schema == 2 and (
+            (not epoch and any(fields[14:16])) or (epoch and not all(fields[14:16]))
+        ):
+            raise ValueError("incomplete targeted-action lifecycle context")
         records.append({
             "sequence": sequence,
             "tick_ms": tick,
@@ -70,6 +82,8 @@ def stable_records(
             "secondary_raw": fields[8:12],
             "stage": "decoded_before_queue_publication",
             "combat_authority": False,
+            "decode_scene_epoch": epoch or None,
+            "decode_local_key": fields[14:16] if epoch else None,
         })
     return sorted(records, key=lambda item: item["sequence"])
 
@@ -80,17 +94,20 @@ def main() -> None:
     parser.add_argument("--creation-filetime", type=int, required=True)
     parser.add_argument("--seconds", type=float, default=30)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--schema", type=int, choices=(1, 2), default=2)
     args = parser.parse_args()
     if not 0 < args.seconds <= 3600:
         parser.error("seconds must be in (0, 3600]")
-    name = mapping_name(args.process_id, args.creation_filetime)
+    name = mapping_name(args.process_id, args.creation_filetime, schema=args.schema)
     memory = WindowsSharedMemorySnapshotReader()
     deadline = time.monotonic() + args.seconds
     last = 0
     with args.output.open("x", encoding="utf-8") as output:
         while time.monotonic() < deadline:
             first, second = memory.read(name, SIZE), memory.read(name, SIZE)
-            records = stable_records(first, second, args.process_id, args.creation_filetime)
+            records = stable_records(
+                first, second, args.process_id, args.creation_filetime, schema=args.schema
+            )
             header = HEADER.unpack_from(second)
             for record in records:
                 sequence = int(record["sequence"])

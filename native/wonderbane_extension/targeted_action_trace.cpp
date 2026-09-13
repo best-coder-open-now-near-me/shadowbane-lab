@@ -2,6 +2,7 @@
 #include "graphics_status.h"
 #include "import_hook.h"
 #include "movement_native_image.h"
+#include "movement_lifetime.h"
 #include <intrin.h>
 #include <strsafe.h>
 #include <array>
@@ -21,7 +22,7 @@ struct alignas(8) Record {
     std::uint64_t tick_ms;
     std::uint32_t thread_id;
     std::uint32_t caller_rva;
-    // Original message +0x80..+0xaf (last four words reserved), without pointers or interpreted hostility.
+    // Original message +0x80..+0xaf, then decode-spanning epoch (two words) and local key.
     std::array<std::uint32_t, 16> fields;
 };
 struct alignas(8) Storage {
@@ -47,7 +48,7 @@ bool Copy(void* output, const void* source, std::size_t size) noexcept {
     __try { std::memcpy(output, source, size); return true; }
     __except(EXCEPTION_EXECUTE_HANDLER) { return false; }
 }
-void Observe(void* message, void* stream, std::uintptr_t caller) noexcept {
+void Observe(void* message, void* stream, std::uintptr_t caller, const movement::NativeScene& scene = {}) noexcept {
     // Call-through owns message and stream through this synchronous observation.
     // Serialize with closure BEFORE touching publication storage. No borrowed
     // message/stream/character pointer survives the callback.
@@ -65,6 +66,14 @@ void Observe(void* message, void* stream, std::uintptr_t caller) noexcept {
             // Never export stale/uninitialized values from those absent fields.
             if (!record.fields[4]) { record.fields[5] = record.fields[6] = record.fields[7] = 0; }
             if (!record.fields[8]) { record.fields[9] = record.fields[10] = record.fields[11] = 0; }
+            // No native pointers leave the callback. Only a watch present before
+            // decode and still current afterward may label this observation.
+            // This does not prove network queue age or authorize combat.
+            if (scene.epoch && movement::NativeMovementLifetimeCurrent(scene)) {
+                record.fields[12] = static_cast<std::uint32_t>(scene.epoch);
+                record.fields[13] = static_cast<std::uint32_t>(scene.epoch >> 32);
+                record.fields[14] = scene.identity[0]; record.fields[15] = scene.identity[1];
+            }
             // Extra fields +0xb0/+0xb8 remain excluded pending semantic review.
             record.tick_ms = GetTickCount64(); record.thread_id = GetCurrentThreadId();
             record.caller_rva = static_cast<std::uint32_t>(decoder_return_rva);
@@ -85,8 +94,10 @@ void __fastcall TracedDeserialize(void* message, void*, void* stream) {
     // Preserve native exceptions and call-through. A thrown decode produces no
     // record. Native bookkeeping/queue publication follows: diagnostics only.
     const auto caller = reinterpret_cast<std::uintptr_t>(_ReturnAddress());
+    movement::NativeScene scene{};
+    (void)movement::ReadNativeMovementLifetime(scene);
     original(message, stream);
-    Observe(message, stream, caller);
+    Observe(message, stream, caller, scene);
 }
 void CloseLocked() noexcept {
     if (storage) {
@@ -102,7 +113,7 @@ DWORD StartBound(const ProcessIdentity& identity, std::uintptr_t base,
     attempted = true;
     wchar_t name[160]{};
     DWORD result = ERROR_SUCCESS;
-    if (FAILED(StringCchPrintfW(name, 160, L"Local\\ShadowbaneLab.Extension.TargetedAction.v1.%lu.%llu",
+    if (FAILED(StringCchPrintfW(name, 160, L"Local\\ShadowbaneLab.Extension.TargetedAction.v2.%lu.%llu",
         identity.process_id, identity.creation_filetime_utc))) { result = ERROR_INVALID_DATA; }
     if (!result) {
         mapping = CreateFileMappingW(INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE, 0, sizeof(Storage), name);
@@ -114,8 +125,8 @@ DWORD StartBound(const ProcessIdentity& identity, std::uintptr_t base,
         if (!storage) { result = GetLastError(); }
     }
     if (!result) {
-        std::memcpy(storage->magic, "WBTACT1", 8);
-        storage->schema = 1; storage->record_size = sizeof(Record); storage->capacity = 256;
+        std::memcpy(storage->magic, "WBTACT2", 8);
+        storage->schema = 2; storage->record_size = sizeof(Record); storage->capacity = 256;
         storage->process_id = identity.process_id; storage->creation_filetime = identity.creation_filetime_utc;
         // Immutable forever after possible publication, including failed restore.
         original = target; installed_slot = slot; image_base = base;

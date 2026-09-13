@@ -61,3 +61,75 @@ def test_wrap_discards_overwritten_old_snapshot():
     second = snapshot()
     struct.pack_into("<q", second, 32, 257)
     assert stable_records(first, second, 19, 23) == []
+
+
+def test_v2_context_is_explicit_and_never_combat_authority():
+    data = snapshot()
+    data[:8] = b"WBTACT2\0"
+    struct.pack_into("<I", data, 8, 2)
+    struct.pack_into("<4I", data, HEADER.size + 24 + 12 * 4, 7, 1, 1901199, 53)
+    record, = stable_records(data, data, 19, 23, schema=2)
+    assert record["decode_scene_epoch"] == (1 << 32) + 7
+    assert record["decode_local_key"] == [1901199, 53]
+    assert record["combat_authority"] is False
+    with pytest.raises(ValueError):
+        stable_records(data, data, 19, 23)
+    assert ".v2." in mapping_name(19, 23, schema=2)
+
+
+@pytest.mark.parametrize("context", [(0, 0, 1, 53), (7, 0, 0, 53), (7, 0, 1, 0)])
+def test_v2_rejects_partial_lifecycle_context(context):
+    data = snapshot()
+    data[:8] = b"WBTACT2\0"
+    struct.pack_into("<I", data, 8, 2)
+    struct.pack_into("<4I", data, HEADER.size + 24 + 12 * 4, *context)
+    with pytest.raises(ValueError, match="lifecycle"):
+        stable_records(data, data, 19, 23, schema=2)
+
+
+def test_both_schemas_preserve_unbound_diagnostics():
+    for schema in (1, 2):
+        data = snapshot()
+        data[:8] = f"WBTACT{schema}\0".encode()
+        struct.pack_into("<I", data, 8, schema)
+        record, = stable_records(data, data, 19, 23, schema=schema)
+        assert record["decode_scene_epoch"] is None
+        assert record["decode_local_key"] is None
+        assert record["combat_authority"] is False
+
+
+@pytest.mark.parametrize("schema", [1, 2])
+def test_collector_cli_selects_mapping_and_preserves_context(tmp_path, monkeypatch, schema):
+    import json
+    import sys
+
+    from shadowbane_lab.client_extension import targeted_action_trace as trace
+
+    data = snapshot()
+    data[:8] = f"WBTACT{schema}\0".encode()
+    struct.pack_into("<I", data, 8, schema)
+    struct.pack_into("<I", data, 48, 1)  # Stopped mapping terminates without sleeps.
+    if schema == 2:
+        struct.pack_into("<4I", data, HEADER.size + 72, 9, 0, 1901199, 53)
+    names = []
+
+    class Memory:
+        def read(self, name, size):
+            names.append(name)
+            assert size == SIZE
+            return data
+
+    output = tmp_path / "capture.jsonl"
+    args = ["trace", "--process-id", "19", "--creation-filetime", "23",
+            "--output", str(output)]
+    if schema == 1:
+        args += ["--schema", "1"]
+    monkeypatch.setattr(sys, "argv", args)
+    monkeypatch.setattr(trace, "WindowsSharedMemorySnapshotReader", Memory)
+    trace.main()
+    assert names == [mapping_name(19, 23, schema=schema)] * 2
+    record = json.loads(output.read_text())
+    assert record["decode_scene_epoch"] == (9 if schema == 2 else None)
+    assert record["combat_authority"] is False
+    with pytest.raises(FileExistsError):
+        trace.main()

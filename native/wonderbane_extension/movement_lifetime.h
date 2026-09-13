@@ -41,6 +41,9 @@ bool ReadNativeMovementLifetimeDiagnostics(LifetimeDiagnostics&) noexcept;
 bool StartNativeMovementLifetime(HWND) noexcept;
 bool ObserveNativeMovementLifetime(void* native_window, NativeScene&) noexcept;
 bool NativeMovementLifetimeCurrent(const NativeScene&) noexcept;
+// Borrow the already established watch from any thread; never observe/rearm.
+// Revalidate after the caller's operation. A copy alone is not an ownership lease.
+bool ReadNativeMovementLifetime(NativeScene&) noexcept;
 // Proves a direct, fully verified parent-only publication from an alive watch.
 // Destruction/capture gaps invalidate this proof; it never authorizes old targets.
 bool NativeMovementParentTransition(const NativeScene& previous, const NativeScene& current) noexcept;
