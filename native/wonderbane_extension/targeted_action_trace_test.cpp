@@ -88,13 +88,14 @@ int main(int argc, char** argv) {
     message[34] = 1901199; message[35] = 53;
     for (unsigned i = 36; i < 48; ++i) { message[i] = 0xdeadbeef; }
     message[36] = 0; message[40] = 0;
-    std::uint32_t stream = static_cast<std::uint32_t>(base) + static_cast<std::uint32_t>(we::socket_vtable_rva);
+    std::array<std::uint32_t, 8> stream{};
+    stream[0] = static_cast<std::uint32_t>(base) + static_cast<std::uint32_t>(we::socket_vtable_rva);
     const auto caller = base + we::decoder_return_rva;
-    we::Observe(message.data(), &stream, caller + 1);
+    we::Observe(message.data(), stream.data(), caller + 1);
     Check(we::storage->write_sequence == 0, "exclude other callers");
-    ++stream; we::Observe(message.data(), &stream, caller); --stream;
+    ++stream[0]; we::Observe(message.data(), stream.data(), caller); --stream[0];
     Check(we::storage->write_sequence == 0, "exclude replay/non-socket streams");
-    decode(message.data(), &stream);
+    decode(message.data(), stream.data());
     Check(calls == 1, "native-style decoder calls original once");
     const auto& record = we::storage->records[0];
     Check(record.committed_sequence == 1 && record.fields[0] == 2392387
@@ -105,7 +106,7 @@ int main(int argc, char** argv) {
     Check(record.fields[12] == 7 && record.fields[13] == 0
         && record.fields[14] == 1901199 && record.fields[15] == 53,
         "native decode carries existing watch identity");
-    for (unsigned i = 0; i < 256; ++i) { we::Observe(message.data(), &stream, caller); }
+    for (unsigned i = 0; i < 256; ++i) { we::Observe(message.data(), stream.data(), caller); }
     Check(we::storage->write_sequence == 257 && we::storage->overwritten == 1, "bounded ring accounting");
     wchar_t executable[MAX_PATH]{}, command[2 * MAX_PATH]{};
     GetModuleFileNameW(nullptr, executable, MAX_PATH);
@@ -121,11 +122,15 @@ int main(int argc, char** argv) {
         Check(status == 0, "real interprocess publication layout and payload");
         CloseHandle(child.hThread); CloseHandle(child.hProcess);
     }
+    stream[7] = 1;
+    decode(message.data(), stream.data());
+    Check(we::storage->write_sequence == 257, "retired socket still forwards but cannot publish");
+    stream[7] = 0;
     auto* retained = static_cast<const we::Storage*>(MapViewOfFile(we::mapping, FILE_MAP_READ, 0, 0, sizeof(we::Storage)));
     Check(retained != nullptr, "reader view");
     entered = CreateEventW(nullptr, TRUE, FALSE, nullptr);
     released = CreateEventW(nullptr, TRUE, FALSE, nullptr);
-    std::thread crossing([&] { decode(message.data(), &stream); });
+    std::thread crossing([&] { decode(message.data(), stream.data()); });
     Check(WaitForSingleObject(entered, 5000) == WAIT_OBJECT_0, "decode held across epoch change");
     epoch = 8;
     SetEvent(released); crossing.join();
@@ -134,14 +139,21 @@ int main(int argc, char** argv) {
         && crossed.fields[13] == 0 && crossed.fields[14] == 0 && crossed.fields[15] == 0,
         "old decode cannot inherit replacement watch");
     ResetEvent(entered); ResetEvent(released);
-    std::thread callback([&] { decode(message.data(), &stream); });
+    std::thread retiring([&] { decode(message.data(), stream.data()); });
+    Check(WaitForSingleObject(entered, 5000) == WAIT_OBJECT_0, "decode held across socket retirement");
+    stream[7] = 1;
+    SetEvent(released); retiring.join();
+    Check(we::storage->write_sequence == 258, "retirement during original suppresses publication");
+    stream[7] = 0;
+    ResetEvent(entered); ResetEvent(released);
+    std::thread callback([&] { decode(message.data(), stream.data()); });
     Check(WaitForSingleObject(entered, 5000) == WAIT_OBJECT_0, "callback reached original");
     we::StopTargetedActionTrace();
     Check(slot == reinterpret_cast<std::uint32_t>(&Original) && we::storage == nullptr, "production stop closes publication");
     Check(we::StartBound(identity, base, &slot, target) == ERROR_ALREADY_INITIALIZED, "no replacement generation");
     SetEvent(released); callback.join();
     we::StopTargetedActionTrace();
-    Check(calls == 3, "held callback completes exactly once");
+    Check(calls == 5, "held callback completes exactly once");
     if (retained) {
         Check(retained->stopped == 1 && retained->write_sequence == 258, "closed reader cannot receive late publication");
         UnmapViewOfFile(retained);

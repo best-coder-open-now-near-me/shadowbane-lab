@@ -16,6 +16,8 @@ constexpr std::uintptr_t slot_rva = 0x1158894;
 constexpr std::uintptr_t target_rva = 0x1C9DB;
 constexpr std::uintptr_t decoder_return_rva = 0x3625BC;
 constexpr std::uintptr_t socket_vtable_rva = 0x116019C;
+// ArcServerLink retirement marks ArcLinkedSocket +0x1c before releasing it.
+constexpr std::size_t socket_retired_offset = 0x1c;
 constexpr std::uintptr_t message_vtable_rva = 0x1158878;
 struct alignas(8) Record {
     volatile LONG64 committed_sequence;
@@ -48,17 +50,23 @@ bool Copy(void* output, const void* source, std::size_t size) noexcept {
     __try { std::memcpy(output, source, size); return true; }
     __except(EXCEPTION_EXECUTE_HANDLER) { return false; }
 }
+bool ActiveSocket(void* stream) noexcept {
+    std::uint32_t table = 0;
+    unsigned char retired = 1;
+    return Copy(&table, stream, sizeof(table)) && table == image_base + socket_vtable_rva
+        && Copy(&retired, static_cast<unsigned char*>(stream) + socket_retired_offset, sizeof(retired))
+        && retired == 0;
+}
 void Observe(void* message, void* stream, std::uintptr_t caller, const movement::NativeScene& scene = {}) noexcept {
     // Call-through owns message and stream through this synchronous observation.
     // Serialize with closure BEFORE touching publication storage. No borrowed
     // message/stream/character pointer survives the callback.
     AcquireSRWLockExclusive(&lock);
     if (storage) {
-        std::uint32_t stream_table = 0, message_table = 0;
+        std::uint32_t message_table = 0;
         Record record{};
         if (caller == image_base + decoder_return_rva
-            && Copy(&stream_table, stream, sizeof(stream_table))
-            && stream_table == image_base + socket_vtable_rva
+            && ActiveSocket(stream)
             && Copy(&message_table, message, sizeof(message_table))
             && message_table == image_base + message_vtable_rva
             && Copy(record.fields.data(), static_cast<unsigned char*>(message) + 0x80, 48)) {
@@ -94,10 +102,11 @@ void __fastcall TracedDeserialize(void* message, void*, void* stream) {
     // Preserve native exceptions and call-through. A thrown decode produces no
     // record. Native bookkeeping/queue publication follows: diagnostics only.
     const auto caller = reinterpret_cast<std::uintptr_t>(_ReturnAddress());
+    const bool active_socket = ActiveSocket(stream);
     movement::NativeScene scene{};
     (void)movement::ReadNativeMovementLifetime(scene);
     original(message, stream);
-    Observe(message, stream, caller, scene);
+    if (active_socket) { Observe(message, stream, caller, scene); }
 }
 void CloseLocked() noexcept {
     if (storage) {

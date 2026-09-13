@@ -765,3 +765,24 @@ The active next boundary remains native receive/queue age. A fresh sequence obse
 after cursor startup can still originate from an older buffered network packet;
 do not confuse reader freshness with connection/session provenance. Durable response
 ingestion remains gated on that boundary and native attack semantics, never chat.
+
+
+### Retired receive streams rejected
+
+ArcServerLink::Run uses its owned socket at +0x3c, decodes at RVA 0x4a192d,
+and publishes to its queue at 0x4a19e7. The receive call disables the decoder's
+optional source timestamp, so the existing timestamp is not packet arrival time.
+Retirement paths at RVAs 0x4a1871 and 0x4a1c5a set socket byte +0x1c before
+releasing its reference; construction initializes that byte to zero.
+
+The observer now requires the reviewed socket type and active byte before decode
+and checks again before publication. Original call-through always executes. No
+new hook or schema is introduced. Already-retired sockets and retirement during
+a held decode cannot publish. Packets buffered on a still-active connection retain
+the unresolved queue-age/session limit; combat authority remains false.
+
+Both native profiles rebuilt the DLL and capture test and passed both capture/
+rollback tests, including held retirement, lifecycle replacement, cleanup and
+independent-process reading. Reader/package-gate tests: 53 passed; diff check passed.
+Private traces: artifacts/pve-pvp/server-link-receive-loop.txt and linked-socket-ctor.txt.
+No installation or new package receipt is claimed.
