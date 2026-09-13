@@ -96,8 +96,12 @@ class TraceCursor:
     """
 
     def __init__(self, process_id: int, creation_filetime: int, *, schema: int = 2,
-                 include_history: bool = True) -> None:
+                 include_history: bool = True, max_age_ms: int | None = None) -> None:
         mapping_name(process_id, creation_filetime, schema=schema)
+        if max_age_ms is not None and (type(max_age_ms) is not int or max_age_ms <= 0):
+            raise ValueError("maximum observation age must be a positive integer")
+        self.max_age_ms = max_age_ms
+        self.expired_records = 0
         self.process_id = process_id
         self.creation_filetime = creation_filetime
         self.schema = schema
@@ -106,10 +110,15 @@ class TraceCursor:
         self._last = 0
         self.closed = False
 
-    def read(self, first: bytes, second: bytes) -> list[dict[str, object]]:
+    def read(self, first: bytes, second: bytes, *,
+             now_tick_ms: int | None = None) -> list[dict[str, object]]:
         if self.closed:
             raise ValueError("targeted-action cursor is closed; initialize a new cursor")
         try:
+            if self.max_age_ms is not None and (
+                type(now_tick_ms) is not int or now_tick_ms < 0
+            ):
+                raise ValueError("observation age requires the producer host monotonic clock")
             records = stable_records(first, second, self.process_id,
                                      self.creation_filetime, schema=self.schema)
             before, after = HEADER.unpack_from(first), HEADER.unpack_from(second)
@@ -127,6 +136,14 @@ class TraceCursor:
                 sequence = int(record["sequence"])
                 if sequence <= self._last:
                     continue
+                if self.max_age_ms is not None:
+                    age = now_tick_ms - int(record["tick_ms"])
+                    if age < 0:
+                        raise ValueError("event timestamp exceeds producer host clock")
+                    if age > self.max_age_ms:
+                        self.expired_records += 1
+                        self._last = sequence
+                        continue
                 result.append({**record, "process_id": self.process_id,
                     "creation_filetime": self.creation_filetime,
                     "missing_before": sequence - self._last - 1,
@@ -139,6 +156,16 @@ class TraceCursor:
             raise
 
 
+def _producer_host_tick_ms() -> int:
+    # The Windows mapping reader and this clock run on the same host as the client.
+    import ctypes
+
+    clock = ctypes.WinDLL("kernel32", use_last_error=True).GetTickCount64
+    clock.argtypes = []
+    clock.restype = ctypes.c_ulonglong
+    return clock()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--process-id", type=int, required=True)
@@ -148,18 +175,23 @@ def main() -> None:
     parser.add_argument("--schema", type=int, choices=(1, 2), default=2)
     parser.add_argument("--fresh-only", action="store_true",
                         help="Skip all records present at the first validated read")
+    parser.add_argument("--max-age-ms", type=int,
+                        help="Maximum age since native capture, not network arrival")
     args = parser.parse_args()
     if not 0 < args.seconds <= 3600:
         parser.error("seconds must be in (0, 3600]")
+    if args.max_age_ms is not None and args.max_age_ms <= 0:
+        parser.error("max-age-ms must be positive")
     name = mapping_name(args.process_id, args.creation_filetime, schema=args.schema)
     memory = WindowsSharedMemorySnapshotReader()
     deadline = time.monotonic() + args.seconds
     cursor = TraceCursor(args.process_id, args.creation_filetime, schema=args.schema,
-                         include_history=not args.fresh_only)
+                         include_history=not args.fresh_only, max_age_ms=args.max_age_ms)
     with args.output.open("x", encoding="utf-8") as output:
         while time.monotonic() < deadline:
             first, second = memory.read(name, SIZE), memory.read(name, SIZE)
-            for record in cursor.read(first, second):
+            now = _producer_host_tick_ms() if args.max_age_ms is not None else None
+            for record in cursor.read(first, second, now_tick_ms=now):
                 output.write(json.dumps(record) + "\n")
             output.flush()
             if cursor.closed:

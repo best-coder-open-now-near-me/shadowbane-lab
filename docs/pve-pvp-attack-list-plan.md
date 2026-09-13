@@ -786,3 +786,19 @@ rollback tests, including held retirement, lifecycle replacement, cleanup and
 independent-process reading. Reader/package-gate tests: 53 passed; diff check passed.
 Private traces: artifacts/pve-pvp/server-link-receive-loop.txt and linked-socket-ctor.txt.
 No installation or new package receipt is claimed.
+
+
+### Measured observation age
+
+The excluded targeted-action fields +0xb0/+0xb8 are four-byte floats, read through
+slot +0x90, RVA 0x13f190 and filter routine 0x143a00. No timestamp meaning was
+established; they remain excluded. Do not infer packet arrival from these values.
+
+--max-age-ms now bounds time since native capture using GetTickCount64 on the
+producer's Windows host. TraceCursor skips and counts expired records, suppresses
+their replay, and revokes on missing/invalid clock input or future event ticks.
+Default diagnostic capture still retains history. This does not establish pre-decode
+packet age or combat authority. Native queue/session ordering remains separate.
+
+Validation: 60 reader/package-gate tests passed; Ruff passed. Exact-limit, expiry,
+duplicate and invalid/future clock cases are covered. No new package or VM change.

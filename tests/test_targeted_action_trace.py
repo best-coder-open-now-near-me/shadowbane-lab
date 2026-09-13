@@ -212,3 +212,26 @@ def test_cursor_reports_ring_overflow_without_replaying_old_slots():
     struct.pack_into("<q", regressed, 40, 1)
     with pytest.raises(ValueError, match="regressed"):
         cursor.read(regressed, regressed)
+
+
+@pytest.mark.parametrize("age,accepted", [(0, True), (50, True), (51, False)])
+def test_cursor_observation_age_boundary(age, accepted):
+    from shadowbane_lab.client_extension.targeted_action_trace import TraceCursor
+
+    cursor = TraceCursor(19, 23, schema=1, max_age_ms=50)
+    data = snapshot()
+    result = cursor.read(data, data, now_tick_ms=100 + age)
+    assert bool(result) == accepted
+    assert cursor.expired_records == (0 if accepted else 1)
+    assert cursor.read(data, data, now_tick_ms=200) == []
+
+
+@pytest.mark.parametrize("now", [None, -1, True, 99])
+def test_age_check_requires_matching_monotonic_clock_and_revokes_on_failure(now):
+    from shadowbane_lab.client_extension.targeted_action_trace import TraceCursor
+
+    cursor = TraceCursor(19, 23, schema=1, max_age_ms=50)
+    data = snapshot()
+    with pytest.raises(ValueError):
+        cursor.read(data, data, now_tick_ms=now)
+    assert cursor.closed
