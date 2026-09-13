@@ -802,3 +802,18 @@ packet age or combat authority. Native queue/session ordering remains separate.
 
 Validation: 60 reader/package-gate tests passed; Ruff passed. Exact-limit, expiry,
 duplicate and invalid/future clock cases are covered. No new package or VM change.
+
+
+### Receive-to-processing identity requirement
+
+Source inspection found that native processing may retry the same message and
+may defer its action. Decoding and processing-call counts therefore cannot be used
+as counts of applied attacks. Preserve the original receive identity across retries
+and revalidate character generation at consumption. A pointer-only join is inadequate
+because a destroyed message address can be reused. No new automatic response path
+is enabled by this finding.
+
+Detailed static evidence remains private in artifacts/pve-pvp. This checkpoint is
+an implementation note, not a live retry experiment or package receipt. The next
+work remains bounded ownership of receive-to-processing correlation and generation
+validation, followed by durable response ingestion.
