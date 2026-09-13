@@ -683,3 +683,32 @@ Step 3 remains active for action semantics and character-session provenance. The
 zero-scalar kind-21 event is still unclassified; a hit/miss classifier must not treat
 all zero scalars as misses. No further attack repetition was needed for the identity
 join, and automatic retaliation remains disabled.
+
+
+### Native defense route and decision authority
+
+The owner clarified that combat chat reports unreliable outcomes. Combat decisions
+must not depend on its text, names or claimed damage/miss results. A proposed parser
+expansion was discarded before commit; no text-based response path was introduced.
+
+Static inspection of the exact prepared executable resolves kind 21 through table
+RVA 0x45681c to 0x4567c9, thunk 0x22eb2, and handler 0x45cd90. The branch at
+0x45d03f selects 0x45d8f4 for kind 21. It is the block-related native branch, not
+the ordinary miss path. The handler also remaps kinds 7/8/9 to 20/21/22. This is
+structural routing evidence, not a claim that downstream combat text or displayed
+health is accurate. Fingerprints and limits are recorded in
+../evidence/pvp/wonderbane-targeted-action-defense-route-20260913.summary.json.
+
+Session audit: the existing movement lifetime observer already invalidates watched
+actor/world identities before finalizer completion, and serializes scene epochs.
+It is owned by the admitted client update thread. The network deserialize observer
+must not call its Observe function or mint a competing epoch. The current diagnostic
+mapping contains no character epoch; a later selected-name read or a process lifetime
+match cannot retroactively supply one. CharacterConfigSession detects observed
+changes but cannot prove that an entire same-character relog did not occur between
+samples. Reuse the existing lifecycle ownership when binding native events; require
+retirement/gap rejection and do not treat retained ring history as fresh responses.
+
+Active next work remains that native event/session connection, followed by durable
+response ingestion and fresh party/legal-target validation. No further owner action
+is needed for the completed attacker identity check.

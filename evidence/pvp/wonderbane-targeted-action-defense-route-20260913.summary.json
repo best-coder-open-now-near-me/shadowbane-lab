@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "evidence_id": "wonderbane.targeted-action.defense-route.20260913",
+  "client_executable_sha256": "bb63469eb35917e6b3f58be75d29f94855c9868024271222465b4db62f0e3a87",
+  "status": "structural_route_verified_not_combat_authority",
+  "route": {
+    "event_kind": 21,
+    "dispatch_table_rva": "0x45681c",
+    "dispatch_target_rva": "0x4567c9",
+    "handler_thunk_rva": "0x22eb2",
+    "handler_rva": "0x45cd90",
+    "branch_rva": "0x45d03f",
+    "kind21_branch_target_rva": "0x45d8f4"
+  },
+  "findings": [
+    "Kind 21 has its own defense-handler dispatch, not the ordinary miss formatter.",
+    "The shared handler remaps 7/8/9 to 20/21/22 before branch selection.",
+    "Subtracting 20 then decrementing selects the kind-21 branch at RVA 0x45d8f4.",
+    "Block wording occurs downstream of that branch; wording does not prove combat outcome."
+  ],
+  "authority_constraints": [
+    "Owner reports combat chat is unreliable; never use it for combat decisions or outcome validation.",
+    "Raw scalar zero alone does not prove a miss.",
+    "Use original participant keys, native state and a current character-session boundary; no selected-target attribution.",
+    "A matching PID creation time does not exclude a relog within that process."
+  ],
+  "fingerprints": [
+    {
+      "rva": "0x45686c",
+      "length": 4,
+      "sha256": "dfb0e534842f9d815028df3066a820690ff47bed38a4ca29ed8dd4be0be81f39"
+    },
+    {
+      "rva": "0x4567c9",
+      "length": 10,
+      "sha256": "c35819cc466a69be0a232120f7b8efa0a2be7e8519dee60eb4a54e401300975f"
+    },
+    {
+      "rva": "0x22eb2",
+      "length": 5,
+      "sha256": "9240ca0b6b0aae065df00f293e9726fa16f34b87dd74d2c4bd43753cbf954235"
+    },
+    {
+      "rva": "0x45cd90",
+      "length": 130,
+      "sha256": "78e2de97a1774943f5ef6a5344e65e6123554058fe617652117020aaecf12edb"
+    },
+    {
+      "rva": "0x45d03f",
+      "length": 39,
+      "sha256": "3846615c6e334a10e4f0f27e9ac8d30e1eeb4183cac63af13116a6dcf483579b"
+    }
+  ]
+}
