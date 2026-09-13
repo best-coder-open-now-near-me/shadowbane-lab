@@ -642,6 +642,10 @@ assert record["decode_scene_epoch"] == 7
 assert record["decode_local_key"] == [1901199, 53]
 assert record["combat_authority"] is False
 assert ".v2." in trace.mapping_name(19, 23, schema=2)
+assert trace.TraceCursor(19, 23, include_history=False).read(payload, payload) == []
+cursor = trace.TraceCursor(19, 23)
+assert cursor.read(payload, payload)[0]["decode_scene_epoch"] == 7
+assert cursor.read(payload, payload) == []
 try:
     trace.stable_records(payload, payload, 19, 24, schema=2)
 except ValueError:

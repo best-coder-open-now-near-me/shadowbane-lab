@@ -743,3 +743,25 @@ rejection while destruction is held. Python reader/CLI/package-gate checks passe
 passed all 41 tests. Private build/test logs are under artifacts/pve-pvp/event-lifecycle*.
 The next boundary is original receive/queue age and consumer-side freshness, before
 response ingestion may consume these records. Combat chat remains excluded.
+
+
+### Reader cursor and explicit fresh-only collection
+
+The diagnostic collector now uses a persistent exact-lifetime TraceCursor. It
+rejects sequence/overwrite regression across reads, permanently closes on a malformed
+stream or terminal publisher, and suppresses already delivered records. --fresh-only
+starts after the first validated second-snapshot high-water mark, including records
+that appeared between the first two reads. Default diagnostic collection still
+retains history for evidence recovery; neither mode grants combat authority.
+
+Tests exercise the production CLI and cursor for both schemas, fresh-only startup,
+interleaved initial publication, duplicate polling, ring overflow, cross-read
+regression, changed process identity, closure and output-file overwrite rejection.
+The existing installed-package smoke path now covers the cursor as well. Reader and
+package-focused validation: 69 tests passed; Ruff and diff checks passed. These
+changes are not installed in the VM and do not certify a new wheel or DLL.
+
+The active next boundary remains native receive/queue age. A fresh sequence observed
+after cursor startup can still originate from an older buffered network packet;
+do not confuse reader freshness with connection/session provenance. Durable response
+ingestion remains gated on that boundary and native attack semantics, never chat.

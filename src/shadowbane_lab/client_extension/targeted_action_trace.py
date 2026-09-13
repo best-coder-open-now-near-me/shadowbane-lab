@@ -88,6 +88,57 @@ def stable_records(
     return sorted(records, key=lambda item: item["sequence"])
 
 
+class TraceCursor:
+    """One exact mapping lifetime; failures and closure permanently revoke it.
+
+    Fresh-only starts after the first validated high-water mark. It does not
+    certify network age, scene currency, or combat semantics.
+    """
+
+    def __init__(self, process_id: int, creation_filetime: int, *, schema: int = 2,
+                 include_history: bool = True) -> None:
+        mapping_name(process_id, creation_filetime, schema=schema)
+        self.process_id = process_id
+        self.creation_filetime = creation_filetime
+        self.schema = schema
+        self.include_history = include_history
+        self._previous: tuple[int, int] | None = None
+        self._last = 0
+        self.closed = False
+
+    def read(self, first: bytes, second: bytes) -> list[dict[str, object]]:
+        if self.closed:
+            raise ValueError("targeted-action cursor is closed; initialize a new cursor")
+        try:
+            records = stable_records(first, second, self.process_id,
+                                     self.creation_filetime, schema=self.schema)
+            before, after = HEADER.unpack_from(first), HEADER.unpack_from(second)
+            if after[7] < before[7] or (self._previous is not None and (
+                before[6] < self._previous[0] or before[7] < self._previous[1]
+            )):
+                raise ValueError("targeted-action stream regressed across reads")
+            initial = self._previous is None
+            if initial and not self.include_history:
+                # Skip even an in-flight slot seen only in the second snapshot.
+                self._last = after[6]
+            self._previous = after[6], after[7]
+            result = []
+            for record in records:
+                sequence = int(record["sequence"])
+                if sequence <= self._last:
+                    continue
+                result.append({**record, "process_id": self.process_id,
+                    "creation_filetime": self.creation_filetime,
+                    "missing_before": sequence - self._last - 1,
+                    "overwritten": after[7]})
+                self._last = sequence
+            self.closed = bool(after[8])
+            return result
+        except Exception:
+            self.closed = True
+            raise
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--process-id", type=int, required=True)
@@ -95,30 +146,23 @@ def main() -> None:
     parser.add_argument("--seconds", type=float, default=30)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--schema", type=int, choices=(1, 2), default=2)
+    parser.add_argument("--fresh-only", action="store_true",
+                        help="Skip all records present at the first validated read")
     args = parser.parse_args()
     if not 0 < args.seconds <= 3600:
         parser.error("seconds must be in (0, 3600]")
     name = mapping_name(args.process_id, args.creation_filetime, schema=args.schema)
     memory = WindowsSharedMemorySnapshotReader()
     deadline = time.monotonic() + args.seconds
-    last = 0
+    cursor = TraceCursor(args.process_id, args.creation_filetime, schema=args.schema,
+                         include_history=not args.fresh_only)
     with args.output.open("x", encoding="utf-8") as output:
         while time.monotonic() < deadline:
             first, second = memory.read(name, SIZE), memory.read(name, SIZE)
-            records = stable_records(
-                first, second, args.process_id, args.creation_filetime, schema=args.schema
-            )
-            header = HEADER.unpack_from(second)
-            for record in records:
-                sequence = int(record["sequence"])
-                if sequence <= last:
-                    continue
-                output.write(json.dumps({**record, "process_id": args.process_id,
-                    "creation_filetime": args.creation_filetime,
-                    "missing_before": sequence - last - 1, "overwritten": header[7]}) + "\n")
-                last = sequence
+            for record in cursor.read(first, second):
+                output.write(json.dumps(record) + "\n")
             output.flush()
-            if header[8]:
+            if cursor.closed:
                 break
             time.sleep(0.05)
 

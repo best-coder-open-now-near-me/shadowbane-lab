@@ -99,7 +99,8 @@ def test_both_schemas_preserve_unbound_diagnostics():
 
 
 @pytest.mark.parametrize("schema", [1, 2])
-def test_collector_cli_selects_mapping_and_preserves_context(tmp_path, monkeypatch, schema):
+@pytest.mark.parametrize("fresh", [False, True])
+def test_collector_cli_selects_mapping_and_preserves_context(tmp_path, monkeypatch, schema, fresh):
     import json
     import sys
 
@@ -124,12 +125,90 @@ def test_collector_cli_selects_mapping_and_preserves_context(tmp_path, monkeypat
             "--output", str(output)]
     if schema == 1:
         args += ["--schema", "1"]
+    if fresh:
+        args += ["--fresh-only"]
     monkeypatch.setattr(sys, "argv", args)
     monkeypatch.setattr(trace, "WindowsSharedMemorySnapshotReader", Memory)
     trace.main()
     assert names == [mapping_name(19, 23, schema=schema)] * 2
-    record = json.loads(output.read_text())
-    assert record["decode_scene_epoch"] == (9 if schema == 2 else None)
-    assert record["combat_authority"] is False
+    if fresh:
+        assert output.read_text() == ""
+    else:
+        record = json.loads(output.read_text())
+        assert record["decode_scene_epoch"] == (9 if schema == 2 else None)
+        assert record["combat_authority"] is False
     with pytest.raises(FileExistsError):
         trace.main()
+
+
+def test_cursor_rejects_regression_between_individually_valid_pairs():
+    from shadowbane_lab.client_extension.targeted_action_trace import TraceCursor
+
+    cursor = TraceCursor(19, 23, schema=1)
+    newer = snapshot()
+    struct.pack_into("<q", newer, 32, 2)
+    cursor.read(newer, newer)
+    older = snapshot()
+    with pytest.raises(ValueError, match="regressed"):
+        cursor.read(older, older)
+    with pytest.raises(ValueError, match="closed"):
+        cursor.read(newer, newer)
+
+
+def test_fresh_cursor_skips_startup_history_and_second_snapshot_publication():
+    from shadowbane_lab.client_extension.targeted_action_trace import TraceCursor
+
+    cursor = TraceCursor(19, 23, schema=1, include_history=False)
+    first = snapshot()
+    second = snapshot()
+    struct.pack_into("<q", second, 32, 2)
+    fields = RECORD.unpack_from(second, HEADER.size)[4:]
+    RECORD.pack_into(second, HEADER.size + RECORD.size, 2, 101, 17, 0x3625BC, *fields)
+    assert cursor.read(first, second) == []
+    assert cursor.read(second, second) == []
+    third = bytearray(second)
+    struct.pack_into("<q", third, 32, 3)
+    RECORD.pack_into(third, HEADER.size + 2 * RECORD.size, 3, 102, 17, 0x3625BC, *fields)
+    event, = cursor.read(third, third)
+    assert event["sequence"] == 3
+    assert event["missing_before"] == 0
+    assert event["combat_authority"] is False
+    assert cursor.read(third, third) == []
+
+
+def test_cursor_closure_and_identity_failure_cannot_be_reopened():
+    from shadowbane_lab.client_extension.targeted_action_trace import TraceCursor
+
+    for stop in (True, False):
+        cursor = TraceCursor(19, 23, schema=1)
+        data = snapshot()
+        if stop:
+            struct.pack_into("<I", data, 48, 1)
+            assert len(cursor.read(data, data)) == 1
+        else:
+            struct.pack_into("<I", data, 24, 20)
+            with pytest.raises(ValueError):
+                cursor.read(data, data)
+        with pytest.raises(ValueError, match="closed"):
+            cursor.read(snapshot(), snapshot())
+
+
+def test_cursor_reports_ring_overflow_without_replaying_old_slots():
+    from shadowbane_lab.client_extension.targeted_action_trace import TraceCursor
+
+    cursor = TraceCursor(19, 23, schema=1, include_history=False)
+    first = snapshot()
+    assert cursor.read(first, first) == []
+    wrapped = snapshot()
+    fields = RECORD.unpack_from(wrapped, HEADER.size)[4:]
+    struct.pack_into("<q", wrapped, 32, 258)
+    struct.pack_into("<q", wrapped, 40, 2)
+    RECORD.pack_into(wrapped, HEADER.size + RECORD.size, 258, 200, 17, 0x3625BC, *fields)
+    event, = cursor.read(wrapped, wrapped)
+    assert event["sequence"] == 258
+    assert event["missing_before"] == 256
+    assert event["overwritten"] == 2
+    regressed = bytearray(wrapped)
+    struct.pack_into("<q", regressed, 40, 1)
+    with pytest.raises(ValueError, match="regressed"):
+        cursor.read(regressed, regressed)
