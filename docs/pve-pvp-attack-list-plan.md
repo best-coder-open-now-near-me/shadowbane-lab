@@ -662,3 +662,24 @@ recent records for the restarted collector. Automatic retaliation remains disabl
 
 Step 3 remains active: join the original actor to current player identity, then close
 the remaining action/session calibration before durable response ingestion.
+
+
+### Arrow attacker identity joined
+
+The follow-up selected-character read on September 13 at 04:39:07 UTC was stable
+and used the same exact client process lifetime as the arrow trace. The selected
+player's native key matched the actor key in all six local-victim events; the local
+identity key also matched. This closes the original attacker-to-name join for this
+trial. The owner's report that another character was selected during the arrows
+remains distinct from the later native identity measurement.
+
+Private evidence: identity-arrow-calibration-20260913-043907.json and the updated
+arrow-calibration-analysis.json in the installed diagnostic staging directory. The
+helper's user-identification label describes the earlier trial selection; the actual
+observation and owner confirmation identify the attacker for this follow-up read.
+No raw identities or capture files are included in this source checkpoint.
+
+Step 3 remains active for action semantics and character-session provenance. The
+zero-scalar kind-21 event is still unclassified; a hit/miss classifier must not treat
+all zero scalars as misses. No further attack repetition was needed for the identity
+join, and automatic retaliation remains disabled.
