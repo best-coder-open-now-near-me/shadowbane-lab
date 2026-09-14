@@ -124,12 +124,12 @@ tests prove the upstream grammar only; no live capture has been promoted.
    passed live Pause/Resume, and automatically kept all three items. Independent
    inventory confirmed the result. Two pre-Keep interruptions required evidence
    review; no mutation was replayed. This does not qualify uninterrupted operation.
-6. **Active:** deploy the host 0.3.7 read-only inspection correction and diagnose
-   the separate dispatch interruption before uninterrupted manager acceptance.
+6. **Active:** qualify uninterrupted manager completion on installed host 0.3.8,
+   using its first-cause cancellation diagnostics if the interruption recurs.
    Then qualify native window opening, inventory capacity/paging, resources,
    full affix evidence and disposal before enabling recurring jobs.
 
-Current installed state: [host 0.3.6 handoff](handoffs/vendor-manager-0.3.6.md).
+Current installed state: [host 0.3.8 handoff](handoffs/vendor-manager-0.3.8.md).
 The dated checkpoints below retain their historical scope.
 
 

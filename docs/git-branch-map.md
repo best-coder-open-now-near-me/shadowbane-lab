@@ -40,10 +40,12 @@ unchanged. Installed host 0.3.6 from `4a5a9b0` completed its first manager-start
 three-item batch with two reviewed, pre-Keep recoveries. Independent inventory
 reads confirmed all three retained items and empty production. Live Pause/Resume
 kept the same job and item count. This is assisted qualification, not an
-uninterrupted unattended run. Host 0.3.7 source hardens read-only inspection;
-its deployment and uninterrupted acceptance remain pending, along with the
-unexplained dispatch interruption, window opening and exclusion/disposal/resources.
-See [current manager handoff](handoffs/vendor-manager-0.3.6.md),
+uninterrupted unattended run. Installed host 0.3.8 from `5c7ccfe` adds bounded
+read-only inspection recovery and durable first-cause cancellation diagnostics.
+It passed installed identity/worker checks, 1486 passive cancellation checks
+and 122 native inspections without failure. Next: uninterrupted batch qualification and any reproduced cancellation,
+then window opening and exclusion/disposal/resources.
+See [current manager handoff](handoffs/vendor-manager-0.3.8.md),
 [exact vendor package](handoffs/vendor-rolling-1.8.2.md) and
 [vendor status and validation](vendor-rolling.md).
 
