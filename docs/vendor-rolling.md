@@ -486,3 +486,34 @@ step is review with the current native lifecycle source before enabling a native
 command adapter; the normal main checkout and the other task's native worktree
 are unchanged. Private scratch stays in artifacts/vendor-protocol and the
 existing test-VM diagnostics directory.
+
+
+## Recipe bound to the current queue
+
+Queue schema 2 includes creation_recipe, read from the current native window's
+active HUD list in the same read/verification pass as the production slots.
+The creation HUD must refer to that window's current city manager. The selected
+ArcItem must have the verified native type and a nonzero template reference.
+The snapshot copies vendor, template, modifier selections, quantity and slot
+mode. A qualified random Gilded Scepter selection requires template 26990,
+modification table 12, mode 1, quantity one, single-slot mode, and the exact
+3362971591 random sentinel in both modifier selections. This qualifies the
+selection, not command authority or the availability of a production slot.
+
+The live check found Malik (2517204/type42), the selected random scepter, and
+two empty slots under the current window/manager/menu. A subsequent user Create
+changed one owned slot to cooking item 4294925624/type40 while the other stayed
+empty. The selected creation HUD remained present. The native duration/elapsed
+fields were 1050/526, with the elapsed double advancing; a new cooking job does
+not necessarily begin at elapsed zero. No crafting command was sent by the
+observer. This qualifies the cooking slot layout; completion and inventory
+ownership still need reconciliation.
+
+The PID and process creation value stayed unchanged while the native window,
+city manager and management HUD differed from the previous session. Neither a
+process lifetime nor a previously observed recipe grants permission in a later
+window/manager lifetime. Missing selection returns no qualified recipe; changed,
+foreign-owner, malformed or multiple active recipe windows fail closed.
+Validation now includes recipe/vendor changes during reads and active-list
+membership. Next: the native UI-thread command path and bounded job controller;
+the existing in-progress item can support completion verification.

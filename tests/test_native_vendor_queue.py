@@ -199,3 +199,86 @@ class VendorQueueCommandTests(unittest.TestCase):
         self.assertNotEqual(0, status)
         memory.close.assert_called_once_with()
         self.assertFalse(json.loads(output.getvalue())["ok"])
+
+
+CREATION, TEMPLATE = 0x1A0000, 0x1B0000
+
+
+def add_recipe(memory):
+    memory.put(0x190004, "<I", 0x190200)
+    memory.put(0x190100, "<III", 0x190200, 0x190000, HUD)
+    memory.put(0x190200, "<III", 0x190000, 0x190100, CREATION)
+    for offset, value in (
+        (0, 0x156BF7C), (0x3B8, MANAGER), (0x3C0, 2517204), (0x3C4, 42),
+        (0x400, 3362971591), (0x404, 1), (0x408, TEMPLATE),
+        (0x40C, 3362971591), (0x434, 3362971591), (0x47C, 12), (0x4D4, 1),
+    ):
+        memory.put(CREATION + offset, "<I", value)
+    memory.put(TEMPLATE, "<I", 0x1542748)
+    memory.put(TEMPLATE + 0x10, "<II", 26990, 0)
+    return memory
+
+
+class VendorRecipeBindingTests(unittest.TestCase):
+    def test_binds_current_recipe_and_vendor_to_the_same_queue_snapshot(self):
+        out = read_native_vendor_queue(add_recipe(fixture()))
+        self.assertEqual(2, out["schema_version"])
+        recipe = out["creation_recipe"]
+        self.assertEqual({"object_id": 2517204, "object_type": 42}, recipe["vendor"])
+        self.assertEqual({"object_id": 26990, "object_type": 0}, recipe["template"])
+        self.assertTrue(recipe["qualified_random_scepter"])
+        self.assertFalse(out["command_admitted"])
+
+    def test_absent_or_unselected_recipe_does_not_invent_readiness(self):
+        self.assertIsNone(read_native_vendor_queue(fixture())["creation_recipe"])
+        m = add_recipe(fixture())
+        m.put(CREATION + 0x408, "<I", 0)
+        recipe = read_native_vendor_queue(m)["creation_recipe"]
+        self.assertIsNone(recipe["template"])
+        self.assertFalse(recipe["qualified_random_scepter"])
+
+    def test_different_item_modifiers_count_or_slot_mode_are_not_qualified(self):
+        for address, value in (
+            (TEMPLATE + 0x10, 123), (CREATION + 0x400, 0), (CREATION + 0x404, 0),
+            (CREATION + 0x40C, 0), (CREATION + 0x434, 0),
+            (CREATION + 0x47C, 13), (CREATION + 0x4D4, 2), (CREATION + 0x3D8, 1),
+        ):
+            m = add_recipe(fixture())
+            m.put(address, "<I", value)
+            with self.subTest(address=address):
+                self.assertFalse(
+                    read_native_vendor_queue(m)["creation_recipe"]["qualified_random_scepter"]
+                )
+
+    def test_rejects_detached_recipe_owner_or_wrong_native_identity(self):
+        for address, value in (
+            (CREATION + 0x3B8, MANAGER + 4), (CREATION + 0x3C0, 0),
+            (CREATION + 0x3C4, 40), (CREATION + 0x3D8, 2),
+            (TEMPLATE, 0x1569560), (TEMPLATE + 0x14, 40),
+        ):
+            m = add_recipe(fixture())
+            m.put(address, "<I", value)
+            with self.subTest(address=address), self.assertRaises(NativeVendorDialogCaptureError):
+                read_native_vendor_queue(m)
+
+    def test_detects_changes_to_selection_vendor_and_active_hud_membership(self):
+        for address, size in (
+            (CREATION + 0x408, 4), (TEMPLATE + 0x10, 8),
+            (CREATION + 0x3C0, 8), (CREATION + 0x40C, 4),
+            (0x190200, 12),
+        ):
+            m = add_recipe(fixture())
+            m.change = (address, size, b"\xff" * size)
+            with self.subTest(address=address), self.assertRaisesRegex(
+                NativeVendorDialogCaptureError, "changed"
+            ):
+                read_native_vendor_queue(m)
+
+    def test_rejects_multiple_active_recipe_windows(self):
+        m = add_recipe(fixture())
+        m.put(0x190004, "<I", 0x190300)
+        m.put(0x190200, "<III", 0x190300, 0x190100, CREATION)
+        m.put(0x190300, "<III", 0x190000, 0x190200, 0x1C0000)
+        m.put(0x1C0000, "<I", 0x156BF7C)
+        with self.assertRaisesRegex(NativeVendorDialogCaptureError, "ambiguous"):
+            read_native_vendor_queue(m)

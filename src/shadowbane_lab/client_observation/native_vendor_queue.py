@@ -111,6 +111,53 @@ class _ReadSet:
                 raise NativeVendorDialogCaptureError("vendor queue changed during observation")
 
 
+def _creation_recipe(
+    r: _ReadSet, base: int, active_huds: tuple[int, ...], manager: int
+) -> dict[str, object] | None:
+    candidates = [hud for hud in active_huds if r.word(hud) == base + 0x116BF7C]
+    if len(candidates) > 1:
+        raise NativeVendorDialogCaptureError("ambiguous active crafting recipe")
+    if not candidates:
+        return None
+    hud = candidates[0]
+    r.require(hud + 0x3B8, manager, "crafting recipe owner")
+    vendor_id, vendor_type = struct.unpack("<II", r.read(hud + 0x3C0, 8))
+    if not vendor_id or vendor_type != 42:
+        raise NativeVendorDialogCaptureError("invalid crafting vendor identity")
+    selected = r.word(hud + 0x408)
+    template = None
+    if selected:
+        r.require(selected, base + 0x1142748, "selected recipe item type")
+        template_id, template_type = struct.unpack("<II", r.read(selected + 0x10, 8))
+        if not template_id or template_type != 0:
+            raise NativeVendorDialogCaptureError("invalid selected recipe template")
+        template = {"object_id": template_id, "object_type": template_type}
+    sentinel = r.word(hud + 0x400)
+    mode = r.word(hud + 0x404)
+    prefix = r.word(hud + 0x40C)
+    suffix = r.word(hud + 0x434)
+    modtable = r.word(hud + 0x47C)
+    quantity = r.word(hud + 0x4D4)
+    multiple = r.read(hud + 0x3D8, 4)[0]
+    if multiple not in (0, 1):
+        raise NativeVendorDialogCaptureError("invalid crafting slot mode")
+    # The no-modifier choice is not wire token zero. Require the exact sentinel
+    # observed at the qualified Create builder, plus its mode and recipe table.
+    random_scepter = (
+        template == {"object_id": 26990, "object_type": 0}
+        and sentinel == prefix == suffix == 3362971591
+        and mode == 1 and modtable == 12 and quantity == 1 and multiple == 0
+    )
+    return {
+        "window_address": hud, "vendor": {"object_id": vendor_id, "object_type": vendor_type},
+        "template": template, "template_address": selected,
+        "prefix_selection_raw": prefix, "suffix_selection_raw": suffix,
+        "random_sentinel_raw": sentinel, "mode_raw": mode,
+        "modification_table": modtable, "quantity": quantity, "multiple_slots": bool(multiple),
+        "qualified_random_scepter": random_scepter,
+    }
+
+
 def read_native_vendor_queue(memory: VendorQueueMemory) -> dict[str, object]:
     """Read slots owned by the active city manager, without scanning the heap.
 
@@ -206,13 +253,14 @@ def read_native_vendor_queue(memory: VendorQueueMemory) -> dict[str, object]:
             })
     if production_list is None:
         raise NativeVendorDialogCaptureError("current menu has no qualified production slots")
+    recipe = _creation_recipe(r, base, active_huds, manager)
     r.verify()
     return {
-        "schema_version": 1, "record_type": "vendor_queue_snapshot",
+        "schema_version": 2, "record_type": "vendor_queue_snapshot",
         "process_id": memory.pid, "process_creation_filetime_utc": lifetime,
         "executable_sha256": memory.executable_sha256,
         "native_window_address": root, "manager_address": manager, "menu_address": hud,
         "building": {"object_id": building_id, "object_type": building_type},
-        "production_list_address": production_list, "slots": slots,
+        "production_list_address": production_list, "slots": slots, "creation_recipe": recipe,
         "command_admitted": False,
     }
