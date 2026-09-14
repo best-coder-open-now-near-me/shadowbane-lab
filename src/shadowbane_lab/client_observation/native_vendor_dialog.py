@@ -49,6 +49,9 @@ _OUTPUT_DEBUG_STRING_EVENT = 8
 _RIP_EVENT = 9
 _EXCEPTION_BREAKPOINT = 0x80000003
 _EXCEPTION_SINGLE_STEP = 0x80000004
+# A 64-bit debugger receives these equivalents from a WOW64 debuggee.
+_STATUS_WX86_SINGLE_STEP = 0x4000001E
+_STATUS_WX86_BREAKPOINT = 0x4000001F
 _DBG_CONTINUE = 0x00010002
 _DBG_EXCEPTION_NOT_HANDLED = 0x80010001
 _ERROR_SEM_TIMEOUT = 121
@@ -1085,11 +1088,11 @@ class WindowsVendorDialogDebugBackend:
                 )
             elif code == _EXCEPTION_DEBUG_EVENT:
                 exception_code = int(event.Exception.ExceptionRecord.ExceptionCode)
-                if exception_code == _EXCEPTION_SINGLE_STEP:
+                if exception_code in (_EXCEPTION_SINGLE_STEP, _STATUS_WX86_SINGLE_STEP):
                     hit = self._hardware_hit(event)
                     if hit is None:
                         status = _DBG_EXCEPTION_NOT_HANDLED
-                elif exception_code != _EXCEPTION_BREAKPOINT:
+                elif exception_code not in (_EXCEPTION_BREAKPOINT, _STATUS_WX86_BREAKPOINT):
                     status = _DBG_EXCEPTION_NOT_HANDLED
             if hit is not None:
                 return hit

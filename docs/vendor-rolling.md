@@ -186,3 +186,30 @@ Local captures and runners are in the task worktree's
 are in the test diagnostics share's `vendor-rolling-20260914/`; guest journals are
 under `C:/Users/tester/native-crafting-*-20260914.jsonl`. These are private
 diagnostics, not installed client binaries or shared source.
+
+## WOW64 debugger correction and verification
+
+The timing-call positive control ended with client PID 6016 exiting. Windows
+Application Error recorded exception 0x4000001E in kernel32.dll. This is the
+WOW64 single-step status; the backend handled only the native 0x80000004 status
+and passed the WOW64 event to the application as unhandled. This establishes a
+debugger defect consistent with that exit, but does not establish the cause of
+the earlier unconfirmed keep transaction.
+
+The backend now routes both native and WOW64 single-step events through owned
+hardware-breakpoint detection, and recognizes both attach breakpoint statuses.
+Unowned steps and unrelated application exceptions remain unhandled. Reference:
+[Microsoft DbgShell exception constants](https://github.com/microsoft/DbgShell/blob/master/DbgProvider/public/Debugger/DbgExceptionEventFilter.cs).
+
+A disposable x86 C# process on shadowbane-testing verified the corrected backend:
+PID 9984, eight events across four kernel32 functions, successful continuation and
+detach, then normal exit code 0 with PROBE_COMPLETED. No game interaction was
+used for this verification. The source, executable, and runner are private in
+artifacts/vendor-protocol/; executable and runner plus the corrected backend were
+staged in diagnostics/vendor-rolling-20260914/. The shared test checkout was
+not changed. All 31 focused tests and whole-tree Ruff pass.
+
+Remaining acceptance: recover/inspect the current game session, reconcile the
+unconfirmed keep against vendor inventory, capture a complete crafting message
+exchange, then implement and qualify bounded rolling admission and results.
+Automated production and stop-on-match remain unfinished and are not enabled.
