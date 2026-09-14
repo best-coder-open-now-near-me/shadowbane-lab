@@ -72,7 +72,7 @@ def decode_crafting_object(
         if (end - begin) % 2 or end - begin > 8192:
             raise NativeVendorDialogCaptureError("invalid crafting name length")
         try:
-            name = _exact(backend, begin, end - begin).decode("utf-16-le")
+            name = "" if begin == end else _exact(backend, begin, end - begin).decode("utf-16-le")
         except UnicodeDecodeError as exc:
             raise NativeVendorDialogCaptureError("invalid crafting UTF-16 name") from exc
 

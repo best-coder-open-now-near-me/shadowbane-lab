@@ -231,3 +231,22 @@ Inventory entries delegate to Item.serializeForClientMsgWithoutSlot, so a
 complete inventory decoder must own that nested grammar. Native management
 class mapping is unresolved: ArcOrderNPCMessage belongs to the separate
 ORDERNPC family and must not be relabeled MANAGENPC based on its name.
+
+## First live crafting breakpoint hit
+
+With Malik's menu open, the user was asked to create one random Gilded Scepter
+(quantity one, Create Item). A new Gilded Scepter appeared in production with a
+20-minute timer. The native trace reached a paired crafting entry/completion,
+then rejected a zero-length read while decoding the message name. The object's
+string buffer was allocated but empty (begin equals end), a valid client state
+not covered by the original null-buffer case. The hit resumed and the debugger
+detached; no decoded payload or server acceptance record was emitted.
+
+The decoder now validates that buffer's bounds and returns an empty string
+without issuing a zero-byte process-memory read. A regression runs the full
+capture/callback/resume path with both retained capacity and zero capacity.
+Seventeen crafting tests pass; whole-tree Ruff passes. The corrected observer
+was reattached to PID 988 using a fresh guest journal
+C:/Users/tester/native-crafting-completion-20260914.jsonl. No second production
+request was made. Next: reconcile the old scepter in inventory and decode the
+new roll's result. The initial produce payload remains unverified.

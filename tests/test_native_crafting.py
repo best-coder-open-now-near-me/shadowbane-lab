@@ -90,6 +90,26 @@ class NativeCraftingTests(unittest.TestCase):
         b.memory[0x200000] = bytes(raw)
         self.assertNotIn("strongbox_gold", decode_crafting_object(b, 0x200000))
 
+    def test_allocated_empty_name_does_not_read_zero_bytes(self):
+        # The live client can retain a valid buffer after clearing its name.
+        for capacity in (0x300000, 0x300080):
+            with self.subTest(capacity=capacity):
+                b = Backend()
+                raw = bytearray(b.memory[0x200000])
+                struct.pack_into("<III", raw, 0xE8, 0x300000, 0x300000, capacity)
+                b.memory[0x200000] = bytes(raw)
+                b.add_hit("outbound_entry")
+                b.add_hit("outbound_complete")
+                records = []
+                with tempfile.TemporaryDirectory() as tmp:
+                    summary = NativeCraftingTracer(b).trace(
+                        Path(tmp) / "trace.jsonl", max_messages=1, on_message=records.append
+                    )
+                self.assertEqual("", records[0]["message"]["name"])
+                self.assertEqual(1, summary["message_count"])
+                self.assertEqual(2, len(b.continued))
+                self.assertTrue(b.closed)
+
     def test_callback_runs_after_resume_with_process_identity(self):
         b = Backend()
         b.add_hit("inbound_entry")
