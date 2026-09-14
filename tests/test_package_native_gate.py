@@ -113,3 +113,25 @@ def test_targeted_action_gates_must_execute_once(tmp_path, name, outcome):
     else:
         with pytest.raises(RuntimeError):
             builder.validate_native_results(path, required, diagnostic=False, exit_code=0)
+
+
+@pytest.mark.parametrize("name", sorted(builder.REQUIRED_VENDOR_TESTS))
+@pytest.mark.parametrize("outcome", ["pass", "missing", "skipped", "failure", "error", "duplicate"])
+def test_vendor_gates_must_execute_once(tmp_path, name, outcome):
+    suite = ET.Element("testsuite")
+    for required in builder.REQUIRED_VENDOR_TESTS:
+        if required == name and outcome == "missing":
+            continue
+        case = ET.SubElement(suite, "testcase", name=required, status="run")
+        if required == name and outcome in ("skipped", "failure", "error"):
+            ET.SubElement(case, outcome)
+    if outcome == "duplicate":
+        ET.SubElement(suite, "testcase", name=name, status="run")
+    path = tmp_path / "vendor.xml"
+    ET.ElementTree(suite).write(path)
+    required = set(builder.REQUIRED_VENDOR_TESTS)
+    if outcome == "pass":
+        assert builder.validate_native_results(path, required, diagnostic=False, exit_code=0) == []
+    else:
+        with pytest.raises(RuntimeError):
+            builder.validate_native_results(path, required, diagnostic=False, exit_code=0)

@@ -35,6 +35,13 @@ DIAGNOSTIC_TRANSPARENCY_FAILURES = frozenset({
 })
 
 
+REQUIRED_VENDOR_TESTS = frozenset({
+    "wonderbane_extension_vendor_controller",
+    "wonderbane_extension_vendor_native",
+    "wonderbane_extension_vendor_channel",
+})
+
+
 REQUIRED_TARGETED_ACTION_TESTS = frozenset({
     "wonderbane_extension_targeted_action_trace",
     "wonderbane_extension_targeted_action_trace_rollback",
@@ -353,6 +360,7 @@ def main() -> int:
             "wonderbane_extension_movement_runtime_commands",
         }
         required_native_tests.update(REQUIRED_TARGETED_ACTION_TESTS)
+        required_native_tests.update(REQUIRED_VENDOR_TESTS)
         profile_failures = validate_native_results(
             native_results, required_native_tests,
             diagnostic=False, exit_code=native_exit,
@@ -618,6 +626,17 @@ with tempfile.TemporaryDirectory() as directory:
     path = pathlib.Path(directory) / "trace.json"
     path.write_text(json.dumps(payload))
     assert terrain_trace.read_local_trace(path) == payload
+"""], cwd=output)
+    run("installed-vendor-contract", [python, "-c", """
+import pathlib, sys
+from shadowbane_lab.client_extension import vendor_wire, vendor_session, vendor_batch
+installed_root = pathlib.Path(sys.prefix).resolve()
+for module in (vendor_wire, vendor_session, vendor_batch):
+    assert pathlib.Path(module.__file__).resolve().is_relative_to(installed_root)
+s = vendor_wire.Snapshot.decode(bytes(288))
+assert s.empty and s.free_slots == 0
+assert len(vendor_wire.Command(vendor_wire.Host(1, 1, 1), 1,
+    "12345678-1234-5678-9abc-def0123456f0").encode(vendor_wire.Verb.INSPECT)) == 576
 """], cwd=output)
     run("installed-targeted-action-reader", [python, "-c", """
 import pathlib, struct, sys
