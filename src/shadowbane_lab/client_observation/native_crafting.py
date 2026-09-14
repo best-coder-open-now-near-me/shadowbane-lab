@@ -21,6 +21,7 @@ from shadowbane_lab.client_observation.native_vendor_dialog import (
     NativeVendorDialogDebugBackend,
     WindowsVendorDialogDebugBackend,
 )
+from shadowbane_lab.equipment.crafting_assessment import assess_native_crafting_roll
 
 # Exact inspected executables; do not broaden this through a layout alias.
 CRAFTING_EXECUTABLE_HASHES = frozenset(
@@ -303,6 +304,13 @@ class NativeCraftingTracer:
                         finally:
                             b.continue_hit(hit)
                         if record is not None:
+                            if (
+                                record["direction"] == "server_to_client"
+                                and record["message"]["action_id"] == 8
+                            ):
+                                record["roll_assessment"] = (
+                                    assess_native_crafting_roll(record).to_dict()
+                                )
                             emit(record)
                             if on_message:
                                 on_message(record)

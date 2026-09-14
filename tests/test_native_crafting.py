@@ -153,6 +153,8 @@ class NativeCraftingTests(unittest.TestCase):
         self.assertEqual(123, records[0]["process_creation_filetime_utc"])
         self.assertEqual("server_to_client", records[0]["direction"])
         self.assertNotIn("callers", records[0])
+        self.assertEqual("keep", records[0]["roll_assessment"]["disposition"])
+        self.assertFalse(records[0]["roll_assessment"]["command_admitted"])
         self.assertEqual("session_end", journal[-1]["record_type"])
         self.assertTrue(b.closed)
 

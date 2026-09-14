@@ -414,3 +414,33 @@ The upstream hash of human-facing catalog names did not match the live effect
 records; this does not establish a native token conversion. Mapping must use the
 actual effect-definition keys, not guessed capitalization or display names.
 Unknown effect identities continue to produce KEEP under the user's policy.
+
+
+## Verified parent-affix identities and automatic assessment
+
+Read-only inspection located live parent action definitions with canonical IDs
+SUF-123, SUF-143, and PRE-028. Combined with the kept items' inventory labels,
+these map respectively to of Genius, of Cruelty, and Taripontor on the tested
+Gilded Scepter recipe and exact patched executable. Child effects such as
+SUF-123A/B and PRE-028A/B are separate components, not extra rolled affixes.
+The narrow compact-ID hash is covered by native parent/component test vectors
+and pinned to [Hasher.SBStringHash](https://repo.magicbane.com/MagicBane/Server/src/commit/7c3a3fb84c55c1efaa615f4ef2711173629a27c8/src/engine/util/Hasher.java).
+
+The native tracer now adds roll_assessment after resuming the game and before
+journaling/delivering the callback. A completed SUF-123 result resolves to
+Tier 3 through the imported reference. Cruelty and Taripontor remain unknown
+because the reference does not assign them tiers. Unknown builds, recipes,
+tokens, component IDs in parent positions, and ambiguous names do not inherit
+qualification. Cooking, failed, or conflicting completion states return WAIT;
+hidden zero tokens are not classified as absent affixes until completion.
+
+The assessment is observational: command_admitted is always false. It does not
+prove current inventory ownership, current login/session identity, remaining
+slots, affordability, or permission to send a subsequent request. The tested
+game retains its PID and process-creation identity across logout/relogin, so
+process lifetime alone cannot guard a rolling job.
+
+Validation: 55 focused equipment, policy, inventory, crafting, and debugger
+tests pass. Next remains the active task: a vendor/session-bound queue reader
+and UI-thread command adapter, followed by bounded rolling jobs. No crafting or
+item-disposal command has been enabled by this checkpoint.
