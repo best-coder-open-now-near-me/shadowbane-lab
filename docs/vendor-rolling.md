@@ -105,3 +105,39 @@ client packages and must not be shipped. On September 13 the selected test VM wa
 powered off; it was started headlessly and was applying Windows updates.
 The computer-use runtime failed with `apply deny-read ACLs`; VirtualBox
 screenshot inspection remained available. No crafting input has been sent.
+
+## Native discovery checkpoint
+
+Read-only inspection of the local test baseline
+`client-baseline-sources/wonderbane-20260831T023921516Z-55fb/sb.exe`
+under the test VM diagnostics share found the following. Its SHA-256 is
+`55fbad5f0110cd99b4085af72d1e8fddb782ccdec1491478492c18158f5c61bc`;
+this does not establish which executable a future live process will use.
+
+| Static evidence | RVA (image base 0x400000) |
+| --- | --- |
+| ArcItemProductionMessage RTTI type descriptor | 0x13066E8 |
+| Complete object locator | 0x11A9598 |
+| Class vtable | 0x115BFD8 |
+| Candidate stream reader (vtable index 7, via jump thunk) | 0x3FA240 |
+| Candidate stream writer (vtable index 8, via jump thunk) | 0x3FA6C0 |
+
+The reader begins `558bec6aff68073bd70064a100000000`; the writer begins
+`558bec6aff68383bd70064a100000000`. Disassembly shows the former reading from
+a stream into object fields and the latter writing those fields into a stream.
+Both access the leading action field at object offset 0x70, followed by compound
+fields at 0x78, 0x80, and 0x88. Their meanings, object extent, completion sites,
+stream representation, and command admission are **not yet verified**. These
+are discovery locations, not a loadable native profile or permission to call
+them. No pointer or ABI inferred here is exposed for live dispatch.
+
+The VM subsequently completed boot and reached the Windows desktop. It remains
+running headlessly. Live verification now awaits the test character, vendor,
+and item selection, plus a working guest control path. No game interaction was
+performed.
+
+Validation at the decoder checkpoint: 19 focused unittest tests pass (crafting,
+vendor wire, native vendor-dialog regressions), whole-tree Ruff passes, and
+`git diff --check` passes. The local environment has no pytest module; the
+equivalent focused unittest suite was run directly. CI's broader matrix and
+live crafting acceptance are not claimed.
