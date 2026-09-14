@@ -24,6 +24,10 @@ window opening, full inventory/resource capacity, complete affix evidence and
 destructive-action qualification are pending. Manager controls and one
 uninterrupted three-item Create/wait/Keep batch are qualified on host 0.3.8.
 Unknown affixes remain protected by the exclusion policy.
+Host 0.3.9 source adds a durable foreground readiness wait and reconciles pending
+receipts while unfocused. All 2163 host tests and 580 subtests passed (14 skips).
+Active: package, install and qualify the dashboard handoff; see the
+[current handoff](handoffs/vendor-manager-0.3.9.md).
 
 The dependency provides current native UI-thread, process/session lifetime and
 typed command ownership infrastructure. Its movement authority does not grant

@@ -94,6 +94,7 @@ class VendorJobStore:
                 "paused",
                 "cooking",
                 "inventory",
+                "attention",
                 *TERMINAL,
             }
         ):
@@ -111,7 +112,6 @@ class VendorJobStore:
         if (
             first.outcome != Outcome.OBSERVED
             or first.window != window
-            or not first.flags & READY
             or first.flags & (IN_FLIGHT | UNRESOLVED)
             or not first.snapshot.random_scepter
         ):
@@ -220,33 +220,75 @@ def run_vendor_job(
             return cancelled() or store.control(record["job_id"]) == "stop"
 
         def before_action():
-            while not stopped() and store.control(record["job_id"]) == "pause":
-                update("paused", "Paused. No new crafting actions will be sent.")
-                session.renew_lease()
-                sleeper(0.25)
-            if not stopped():
+            while not stopped():
                 if clock() >= record["deadline_at"]:
                     raise VendorBatchStopped("one-hour job limit reached; review remaining items")
-                if record["state"] == "paused":
-                    update("running", "Continuing the current production batch.")
+                if store.control(record["job_id"]) == "pause":
+                    update("paused", "Paused. No new crafting actions will be sent.")
+                    session.renew_lease()
+                    sleeper(0.25)
+                    continue
+                receipt = session.inspect()
+                s = receipt.snapshot
+                if (
+                    receipt.outcome != Outcome.OBSERVED
+                    or receipt.window != window
+                    or _owner(s) != _owner(initial)
+                    or len(s.slots) < record["capacity"]
+                    or receipt.flags & (IN_FLIGHT | UNRESOLVED)
+                ):
+                    raise VendorBatchStopped(
+                        "vendor ownership or operation changed; review required"
+                    )
+                if receipt.flags & READY:
+                    if record["state"] in {"paused", "attention"}:
+                        update("running", "Continuing the current production batch.")
+                    return receipt
+                update(
+                    "attention",
+                    "Return to the game and leave this vendor window in front. "
+                    "Rolling will continue when it is ready.",
+                )
+                sleeper(0.25)
+            return None
 
         class GuardedSession:
             identity = session.identity
+            pending_request = None
 
             def inspect(self):
-                return session.inspect()
+                if self.pending_request is not None:
+                    # Reconcile an action already sent even while the game is
+                    # unfocused. Never wait for focus inside its receipt timeout.
+                    receipt = session.inspect()
+                    if (
+                        receipt.transition_request == self.pending_request
+                        and not receipt.flags & (IN_FLIGHT | UNRESOLVED)
+                    ):
+                        self.pending_request = None
+                    return receipt
+                receipt = before_action()
+                if receipt is None:
+                    raise VendorBatchStopped("dispatch revoked before vendor inspection")
+                return receipt
 
             def create(self, expected, key):
                 before_action()
                 if stopped():
                     raise VendorBatchStopped("dispatch revoked before Create")
-                return session.create(expected, key)
+                result = session.create(expected, key)
+                if result.outcome == Outcome.SUBMITTED and result.flags & IN_FLIGHT:
+                    self.pending_request = key
+                return result
 
             def keep(self, expected, item, key):
                 before_action()
                 if stopped():
                     raise VendorBatchStopped("dispatch revoked before Keep")
-                return session.keep(expected, item, key)
+                result = session.keep(expected, item, key)
+                if result.outcome == Outcome.SUBMITTED and result.flags & IN_FLIGHT:
+                    self.pending_request = key
+                return result
 
         guarded = GuardedSession()
 
@@ -303,14 +345,13 @@ def run_vendor_job(
                 update("complete", "No free production slots. No new items were created.")
                 return record
             while True:
-                before_action()
+                receipt = before_action()
                 if stopped():
                     update(
                         "stopped" if store.control(record["job_id"]) == "stop" else "paused",
                         "Production remains saved. No new actions will be sent.",
                     )
                     return record
-                receipt = session.inspect()
                 s = receipt.snapshot
                 if (
                     receipt.outcome != Outcome.OBSERVED

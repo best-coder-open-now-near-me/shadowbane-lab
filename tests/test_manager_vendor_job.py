@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from shadowbane_lab.client_extension.vendor_batch import VendorBatchStopped
-from shadowbane_lab.client_extension.vendor_wire import IN_FLIGHT, Outcome, Slot
+from shadowbane_lab.client_extension.vendor_wire import IN_FLIGHT, READY, Outcome, Slot
 from shadowbane_lab.manager.vendor_job import VendorJobStore, run_vendor_job
 from tests.test_vendor_batch import Session, receipt
 
@@ -56,6 +56,14 @@ class JobSession(Session):
             inventory=900,
             slots=tuple(replace(s, state=2) if s.item else s for s in self.state.slots),
         )
+
+
+class FocusJobSession(JobSession):
+    focused = False
+
+    def inspect(self):
+        observed = super().inspect()
+        return observed if self.focused else replace(observed, flags=observed.flags & ~READY)
 
 
 class VendorJobTests(unittest.TestCase):
@@ -268,3 +276,99 @@ class VendorJobTests(unittest.TestCase):
         self.assertEqual("complete", result["state"])
         self.assertEqual(2, result["kept"])
         self.assertGreater(len(str(self.store.directory(result["job_id"]) / "create.json")), 260)
+
+    def test_start_waits_for_game_without_creating_items_or_requiring_resume(self):
+        self.session = FocusJobSession(self.store)
+        waits = []
+        def sleep(seconds):
+            self.now += seconds
+            job = self.store.current()
+            if job["state"] == "attention":
+                self.assertFalse(self.session.calls)
+                self.assertFalse(self.session.keeps)
+                waits.append(job["job_id"])
+                if len(waits) == 6:
+                    self.session.focused = True
+            self.session.finish_cooking()
+        self.sleep = sleep
+        result = self.run_job()
+        self.assertEqual("complete", result["state"])
+        self.assertEqual(6, len(waits))
+        self.assertEqual({result["job_id"]}, set(waits))
+        self.assertEqual((2, 2), (len(self.session.calls), len(self.session.keeps)))
+
+    def test_focus_loss_after_create_confirms_receipt_before_waiting(self):
+        self.session = FocusJobSession(self.store)
+        self.session.focused = True
+        def lose_focus():
+            if len(self.session.calls) == 1:
+                self.session.focused = False
+        self.session.after_create = lose_focus
+        waits = []
+        def sleep(seconds):
+            self.now += seconds
+            job = self.store.current()
+            if job["state"] == "attention":
+                batch_path = self.store.directory(job["job_id"]) / "create.json"
+                batch = json.loads(batch_path.read_text())
+                self.assertEqual(["observed"], [r["state"] for r in batch["requests"]])
+                self.assertEqual(1, len(self.session.calls))
+                waits.append(True)
+                self.session.focused = True
+            self.session.finish_cooking()
+        self.sleep = sleep
+        self.assertEqual("complete", self.run_job()["state"])
+        self.assertEqual([True], waits)
+        self.assertEqual(2, len(self.session.calls))
+
+    def test_focus_loss_after_keep_confirms_inventory_before_next_keep(self):
+        self.session = FocusJobSession(self.store)
+        self.session.focused = True
+        original = self.session.keep
+        def keep(expected, item, key):
+            result = original(expected, item, key)
+            if len(self.session.keeps) == 1:
+                self.session.focused = False
+            return result
+        self.session.keep = keep
+        waits = []
+        def sleep(seconds):
+            self.now += seconds
+            job = self.store.current()
+            if job["state"] == "attention":
+                kept = json.loads((self.store.directory(job["job_id"]) / "keep.json").read_text())
+                self.assertEqual(["observed_in_inventory"], [r["state"] for r in kept["requests"]])
+                self.assertEqual(1, len(self.session.keeps))
+                waits.append(True)
+                self.session.focused = True
+            self.session.finish_cooking()
+        self.sleep = sleep
+        self.assertEqual("complete", self.run_job()["state"])
+        self.assertEqual([True], waits)
+        self.assertEqual(2, len(self.session.keeps))
+
+    def test_stop_or_owner_change_while_waiting_never_sends_create(self):
+        for mode in ("stop", "owner", "timeout", "permit"):
+            with self.subTest(mode=mode):
+                self.setUp()
+                self.session = FocusJobSession(self.store)
+                def sleep(seconds, mode=mode):
+                    self.now += seconds
+                    if mode == "stop":
+                        self.store.request(self.store.current()["job_id"], "stop")
+                    elif mode == "owner":
+                        self.session.state = replace(self.session.state, vendor=999)
+                    elif mode == "timeout":
+                        self.now = 3601
+                    else:
+                        self.cancel = True
+                self.sleep = sleep
+                if mode in {"stop", "permit"}:
+                    self.assertEqual(
+                        "stopped" if mode == "stop" else "paused", self.run_job()["state"],
+                    )
+                else:
+                    with self.assertRaises(VendorBatchStopped):
+                        self.run_job()
+                self.assertFalse(self.session.calls)
+                self.assertFalse(self.session.keeps)

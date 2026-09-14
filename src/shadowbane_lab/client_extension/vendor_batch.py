@@ -165,7 +165,7 @@ def fill_available_slots(
                             or observed.free_slots != (
                                 record["planned_rolls"] - len(record["items"]) - 1
                             )
-                            or not receipt.flags & READY
+                            or receipt.flags & (IN_FLIGHT | UNRESOLVED)
                         ):
                             raise VendorBatchStopped("ambiguous production transition")
                         request["state"] = "observed"

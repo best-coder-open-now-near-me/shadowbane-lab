@@ -230,7 +230,7 @@ def keep_completed_batch(
                     if receipt.transition_request == key:
                         if (
                             receipt.transition_item != item
-                            or not receipt.flags & READY
+                            or receipt.flags & (IN_FLIGHT | UNRESOLVED)
                             or _items(observed) != remaining - {item}
                         ):
                             raise VendorBatchStopped("ambiguous inventory transition")

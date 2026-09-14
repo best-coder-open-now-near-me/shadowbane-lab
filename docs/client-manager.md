@@ -385,7 +385,10 @@ bot caller must not depend on that overview or on a central tactical service.
 
 Host 0.3.4 adds per-client **Roll available slots**, **Pause rolling**,
 **Resume rolling**, and **Stop rolling** controls. Open the owned vendor's random
-Gilded Scepter recipe before starting. One job fills the free production slots,
+Gilded Scepter recipe before starting. With host 0.3.9, Start can wait while
+the dashboard has focus: return to the game when ready. Switching away between
+actions waits again; submitted actions still finish receipt reconciliation.
+The job never brings the game forward itself. One job fills the free production slots,
 including capacity unlocked while filling, waits for completion, and uses Keep
 only when the owned Inventory is visible. The dashboard reports when to open it.
 The one-hour deadline bounds the job; it does not automatically start replacement
