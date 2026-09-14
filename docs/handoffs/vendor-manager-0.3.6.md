@@ -84,10 +84,18 @@ Create/Keep and mismatched, contradictory or unknown-service responses are never
 retried. Failure messages preserve native stage/error/detail for diagnosis.
 The full 0.3.7 host suite passed 2156 tests and 576 subtests, with the same
 14 environment skips; whole-tree Ruff and whitespace checks passed.
-The installed runtime remains 0.3.6; this source correction is not yet deployed.
+Host 0.3.7 from `bdac6ee` is now installed and passed read-only manager/worker
+qualification. The prior completed job and all three inventory items are retained;
+no new batch was started. Wheel SHA-256:
+`86ebf94bab5d7a8da827079564b3a9f6df800e7ca1cb2ff6e1fdd957a02b73e4`.
+Its seven CI jobs passed before installation.
 
-Active: deploy the inspection correction and diagnose the separate dispatch
-interruption before uninterrupted manager acceptance.
+Active: diagnose the separate dispatch interruption before uninterrupted manager
+acceptance. Host 0.3.8 adds first-cause cancellation diagnostics: missing, denied,
+expired, wrong-identity and unreadable permits remain strict failures; operation
+inbox exceptions and explicit Stop/Cancel are distinguished. The first cause is
+latched across concurrent checks and retained in the terminal operation receipt.
+This is diagnostic visibility, not a relaxation of dispatch or replay rules.
 Next: native recipe/inventory opening, complete affix evidence and low-tier
 identity coverage, inventory/resource capacity, and live discard qualification.
 No unlimited run is enabled by the one-batch authorization.

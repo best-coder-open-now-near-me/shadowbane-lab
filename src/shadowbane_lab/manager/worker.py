@@ -1355,27 +1355,37 @@ class WorkerDispatchGate:
         self._clock = clock
         self._future_tolerance = float(future_tolerance_seconds)
 
-    def allows_dispatch(self) -> bool:
-        """Return true only for a current permit matching every exact identity."""
-
+    def denial_reason(self) -> str | None:
+        """Evaluate one fresh permit and explain a denial without relaxing it."""
         try:
             permit = self._ledger.inspect_permit(self._client_id)
             now = _require_time(self._clock(), "clock result")
-        except (OSError, RuntimeError, ValueError, WorkerHeartbeatError):
-            return False
-        if permit is None or not permit.allowed:
-            return False
-        if permit.issued_at > now + self._future_tolerance or now >= permit.expires_at:
-            return False
-        return (
-            permit.node_id == self._node_id
-            and permit.client_id == self._client_id
-            and permit.instance_id == self._instance_id
-            and permit.worker_id == self._worker_id
-            and permit.process_id == self._process.process_id
-            and (permit.process_started_at_100ns == self._process.process_started_at_100ns)
-            and permit.health_state is WorkerHealthState.HEALTHY
-        )
+        except (OSError, RuntimeError, ValueError, WorkerHeartbeatError) as exc:
+            return f"dispatch permit read failed: {type(exc).__name__}: {exc}"[:256]
+        if permit is None:
+            return "dispatch permit is missing"
+        if not permit.allowed:
+            return f"dispatch denied ({permit.health_state.value}): {permit.reason}"[:256]
+        if permit.issued_at > now + self._future_tolerance:
+            return "dispatch permit was issued in the future"
+        if now >= permit.expires_at:
+            return f"dispatch permit expired {now - permit.expires_at:.3f}s ago"
+        if (
+            permit.node_id != self._node_id
+            or permit.client_id != self._client_id
+            or permit.instance_id != self._instance_id
+            or permit.worker_id != self._worker_id
+            or permit.process_id != self._process.process_id
+            or permit.process_started_at_100ns != self._process.process_started_at_100ns
+        ):
+            return "dispatch permit belongs to another worker or client lifetime"
+        if permit.health_state is not WorkerHealthState.HEALTHY:
+            return f"dispatch worker health is {permit.health_state.value}"
+        return None
+
+    def allows_dispatch(self) -> bool:
+        """Return true only for a current permit matching every exact identity."""
+        return self.denial_reason() is None
 
     def is_set(self) -> bool:
         """Implement ``StopSignal`` semantics for ``GuardedInputExecutor``."""

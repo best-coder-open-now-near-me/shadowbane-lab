@@ -38,6 +38,7 @@ from .registry import derive_client_instance_id
 from .supervisor import ProcessLifetimeInspector, ProcessLifetimeSnapshot
 from .worker import (
     DEFAULT_WORKER_HEARTBEAT_TIMEOUT_SECONDS,
+    WorkerDispatchGate,
     WorkerHeartbeat,
     WorkerHeartbeatLedger,
     WorkerHeartbeatPublisher,
@@ -142,15 +143,29 @@ class _OperationStopSignal:
         self._worker_process_id = worker_process_id
         self._worker_process_started_at_100ns = worker_process_started_at_100ns
         self._local = threading.Event()
+        self._reason_lock = threading.Lock()
+        self._reason: str | None = None
 
-    def trip(self) -> None:
-        self._local.set()
+    @property
+    def reason(self) -> str | None:
+        with self._reason_lock:
+            return self._reason
+
+    def trip(self, reason: str = "worker operation stopped locally") -> None:
+        with self._reason_lock:
+            if self._reason is None:
+                self._reason = reason[:256]
+            self._local.set()
 
     def is_set(self) -> bool:
         if self._local.is_set():
             return True
-        if self._dispatch_gate.is_set():
-            self.trip()
+        if isinstance(self._dispatch_gate, WorkerDispatchGate):
+            denial = self._dispatch_gate.denial_reason()
+        else:
+            denial = "worker dispatch gate stopped" if self._dispatch_gate.is_set() else None
+        if denial is not None:
+            self.trip(denial)
             return True
         try:
             pending = self._ledger.pending_for(
@@ -161,8 +176,8 @@ class _OperationStopSignal:
                 worker_process_started_at_100ns=self._worker_process_started_at_100ns,
                 now=time.time(),
             )
-        except (OSError, RuntimeError, ValueError):
-            self.trip()
+        except (OSError, RuntimeError, ValueError) as exc:
+            self.trip(f"operation inbox read failed: {type(exc).__name__}: {exc}")
             return True
         interrupted = any(
             operation.kind
@@ -173,7 +188,7 @@ class _OperationStopSignal:
             for operation in pending
         )
         if interrupted:
-            self.trip()
+            self.trip("explicit cancel or stop operation is pending")
         return interrupted
 
 
@@ -426,6 +441,11 @@ class ExactClientWorkerRuntime:
                     WorkerOperationState.FAILED,
                     detail=(str(exc)[:512] or "worker operation failed"),
                 )
+            if operation_stop.reason and result.state is not WorkerOperationState.SUCCEEDED:
+                result = replace(
+                    result,
+                    detail=f"{operation_stop.reason}; {result.detail or 'operation stopped'}"[:512],
+                )
             results.put(result)
 
         thread = threading.Thread(
@@ -475,7 +495,7 @@ class ExactClientWorkerRuntime:
         ledger = self._operation_ledger
         if ledger is None:
             raise ExactClientWorkerError("active operation has no operation ledger")
-        active.stop_signal.trip()
+        active.stop_signal.trip(detail)
         active.thread.join(timeout=max(2.0, self._interval * 2.0))
         if active.thread.is_alive():
             ledger.publish_receipt(

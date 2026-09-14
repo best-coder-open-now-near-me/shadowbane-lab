@@ -5,7 +5,7 @@ import time
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from shadowbane_lab.client_input import WindowBounds
 from shadowbane_lab.manager import (
@@ -16,6 +16,7 @@ from shadowbane_lab.manager import (
     ManagedWorkerController,
     ProcessLifetimeSnapshot,
     SubprocessWorkerLauncher,
+    WorkerDispatchGate,
     WorkerDispatchPermit,
     WorkerHealthState,
     WorkerHeartbeat,
@@ -177,6 +178,35 @@ class ExactClientWorkerRuntimeTests(unittest.TestCase):
         )
 
         self.assertTrue(signal.is_set())
+
+    def test_first_cancellation_cause_survives_later_gate_recovery(self):
+        gate = Mock(spec=WorkerDispatchGate)
+        gate.denial_reason.side_effect = ["dispatch permit expired 0.010s ago", None]
+        ledger = Mock()
+        signal = _OperationStopSignal(
+            gate, ledger, ExactClientWorkerBinding.from_client(CLIENT_ID, _client()),
+            WORKER_ID, WORKER_PROCESS_ID, WORKER_PROCESS_STARTED,
+        )
+        self.assertTrue(signal.is_set())
+        signal.trip("later shutdown")
+        self.assertTrue(signal.is_set())
+        self.assertEqual("dispatch permit expired 0.010s ago", signal.reason)
+        gate.denial_reason.assert_called_once()
+        ledger.pending_for.assert_not_called()
+
+    def test_inbox_error_is_latched_with_its_actual_reason(self):
+        ledger = Mock()
+        ledger.pending_for.side_effect = PermissionError("test ledger locked")
+        signal = _OperationStopSignal(
+            _StopSignal(), ledger, ExactClientWorkerBinding.from_client(CLIENT_ID, _client()),
+            WORKER_ID, WORKER_PROCESS_ID, WORKER_PROCESS_STARTED,
+        )
+        self.assertTrue(signal.is_set())
+        self.assertIn("operation inbox read failed: PermissionError", signal.reason)
+        self.assertIn("test ledger locked", signal.reason)
+        ledger.pending_for.side_effect = None
+        self.assertTrue(signal.is_set())
+        ledger.pending_for.assert_called_once()
 
     def test_runtime_publishes_ready_only_while_exact_game_identity_exists(self) -> None:
         manifest = _manifest()
@@ -429,6 +459,7 @@ class ExactClientWorkerRuntimeTests(unittest.TestCase):
         self.assertIsNotNone(stop_receipt)
         assert pve_receipt is not None and stop_receipt is not None
         self.assertEqual(WorkerOperationState.CANCELLED, pve_receipt.state)
+        self.assertIn("explicit cancel or stop operation is pending", pve_receipt.detail)
         self.assertEqual(WorkerOperationState.SUCCEEDED, stop_receipt.state)
 
 

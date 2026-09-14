@@ -180,6 +180,26 @@ class ManagerWorkerTests(unittest.TestCase):
         with patch.object(Path, "open", side_effect=PermissionError(13, "permanent denial")):
             self.assertFalse(gate.allows_dispatch())
 
+    def test_dispatch_diagnostic_uses_the_same_strict_fresh_permit(self):
+        self.ledger.publish(_heartbeat())
+        self._supervisor().inspect(
+            CLIENT_ID, instance_id=INSTANCE_ID, lifecycle_dispatch_enabled=True,
+        )
+        now = [1001.5]
+        gate = WorkerDispatchGate(
+            self.ledger, node_id=NODE_ID, client_id=CLIENT_ID, instance_id=INSTANCE_ID,
+            worker_id=WORKER_ID, process=self.process, clock=lambda: now[0],
+        )
+        self.assertIsNone(gate.denial_reason())
+        now[0] = 1004
+        self.assertIn("expired", gate.denial_reason())
+        with patch.object(self.ledger, "inspect_permit", side_effect=PermissionError("locked")):
+            self.assertIn("PermissionError", gate.denial_reason())
+        with patch.object(self.ledger, "inspect_permit", return_value=None):
+            self.assertEqual("dispatch permit is missing", gate.denial_reason())
+        self._supervisor(now=1004).revoke(CLIENT_ID, reason="owner paused client")
+        self.assertIn("owner paused client", gate.denial_reason())
+
     def test_worker_record_replace_retries_transient_reader_lock(self) -> None:
         self.ledger.publish(_heartbeat())
         original_replace = Path.replace
