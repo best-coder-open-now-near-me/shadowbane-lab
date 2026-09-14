@@ -385,3 +385,32 @@ Live effect tokens must be mapped before any result can be excluded automaticall
 Next: verified modifier-token mapping, complete inventory/queue reconciliation,
 typed UI-thread dispatch, and a bounded rolling job with an explicit run limit.
 No automated crafting or disposal has been enabled.
+
+
+## Kept-item identity and effect records
+
+The observer now decodes bounded InstanceInfo content from CONFIRM_DEPOSIT:
+template/item references, name, optional durability, raw item count, values,
+and at most 64 effect records. Effects retain their token, train count, and source
+type; no prefix/suffix role or tier is inferred from the list. Missing optional
+item data is distinct from an empty effects list. Unknown/invalid pointers,
+identity types, strings, and collection bounds fail before the callback.
+
+In live testing, an earlier user discard consumed one of the trace's three
+message slots. The observer captured COMPLETE and CONFIRM_SETPRICE for the new
+scepter but ended before CONFIRM_DEPOSIT. Do not claim deposit-reply qualification
+from this capture. A subsequent read-only scan found the same item identity in
+InstanceInfo, with the user-visible Gilded Scepter of Genius, and also the older
+Taripontor Gilded Scepter of Cruelty shown in the vendor inventory. The game
+process lifetime was unchanged despite the reported logout/relogin.
+
+The live non-stackable items reported zero in the count field, so it is exposed
+as quantity_raw rather than being treated as an inventory count of zero.
+Matching a heap instance alone is not ownership proof; a production reconciler
+must bind it to the active vendor inventory and current game session.
+
+The token reader at RVA 0x14C720 directly reads a 32-bit stream token.
+The upstream hash of human-facing catalog names did not match the live effect
+records; this does not establish a native token conversion. Mapping must use the
+actual effect-definition keys, not guessed capitalization or display names.
+Unknown effect identities continue to produce KEEP under the user's policy.

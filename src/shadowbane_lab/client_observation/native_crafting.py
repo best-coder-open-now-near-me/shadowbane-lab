@@ -14,6 +14,7 @@ from collections.abc import Callable, Mapping
 from pathlib import Path
 
 from shadowbane_lab.client_observation.native_health import NativeTargetHealthReadError
+from shadowbane_lab.client_observation.native_inventory_item import decode_inventory_instance
 from shadowbane_lab.client_observation.native_vendor_dialog import (
     NativeVendorDialogCaptureError,
     NativeVendorDialogCompatibilityError,
@@ -105,6 +106,11 @@ def decode_crafting_object(
             "reserved_flag": raw[0xE0],
             "complete_flag": raw[0xE1],
         }
+    if action == 10:
+        result["deposited_item"] = (
+            decode_inventory_instance(backend, word(0x100)) if word(0x100) else None
+        )
+        result["strongbox_gold"] = word(0x10C)
     if raw[0x11C] == 1:
         result["strongbox_gold"] = word(0x10C)
     elif raw[0x11C] != 0:
