@@ -58,6 +58,7 @@ from shadowbane_lab.manager import (
     retarget_manager_clients,
 )
 from shadowbane_lab.manager.movement import OperationMovement
+from shadowbane_lab.manager.vendor_control import ManagerVendorControl, VendorWorkerExecutor
 from shadowbane_lab.travel import (
     TravelDecisionDispatcher,
     load_learned_navigation_map,
@@ -564,6 +565,10 @@ def _run_manager_app(
                     application_manifest,
                     heartbeat_root,
                 ),
+                vendor_control=ManagerVendorControl(
+                    heartbeat_root, application_manifest.node_id, worker_ledger,
+                    WorkerOperationLedger(application_manifest, heartbeat_root),
+                ),
                 extension_status=extension_status,
                 launch_timeout_seconds=launch_timeout_seconds,
                 poll_seconds=poll_ms / 1_000.0,
@@ -699,6 +704,7 @@ def _run_manager_worker(
             native_position_profile_path=native_position_profile_path,
             native_vitals_profile_path=native_vitals_profile_path,
             pve_client_profile_path=pve_client_profile_path,
+            vendor_executor=VendorWorkerExecutor(worker_state_directory, manifest.node_id, binding),
             pve_hotbar_config_path=pve_hotbar_config_path,
             pve_evidence_directory=pve_evidence_directory,
             navigation_cache_directory=navigation_cache_directory,
@@ -726,6 +732,7 @@ def _run_manager_worker(
             ),
             operation_executor=executor,
             operation_maintenance=executor.maintain,
+            operation_initializer=executor.initialize,
             heartbeat_interval_seconds=heartbeat_ms / 1_000.0,
         )
         return runtime.serve()
@@ -760,8 +767,10 @@ class _ExactWorkerEngineExecutor:
         travel_poll_ms: int,
         travel_click_interval_ms: int,
         movement_session_factory: Callable[..., NativeMovementSession] = NativeMovementSession,
+        vendor_executor=None,
     ) -> None:
         self._binding = binding
+        self._vendor_executor = vendor_executor
         self._movement_session_factory = movement_session_factory
         self._movement_lock = threading.Lock()
         self._movement: OperationMovement | None = None
@@ -821,6 +830,12 @@ class _ExactWorkerEngineExecutor:
                 WorkerOperationState.SUCCEEDED,
                 "owned automation stopped without acquiring another movement owner",
             )
+        if operation.kind is WorkerOperationKind.VENDOR:
+            if self._vendor_executor is None:
+                return WorkerOperationExecution(
+                    WorkerOperationState.FAILED, "Vendor jobs are not configured.",
+                )
+            return self._vendor_executor.execute(operation, stop_signal=stop_signal)
         with self._movement_lock:
             if self._movement is not None:
                 return WorkerOperationExecution(
@@ -873,6 +888,10 @@ class _ExactWorkerEngineExecutor:
         if cleanup_problem:
             return WorkerOperationExecution(WorkerOperationState.FAILED, cleanup_problem)
         return result
+
+    def initialize(self, worker_id, process) -> None:
+        if self._vendor_executor is not None:
+            self._vendor_executor.initialize(worker_id, process)
 
     def maintain(self, operation: WorkerOperation, stop_signal: StopSignal) -> None:
         with self._movement_lock:

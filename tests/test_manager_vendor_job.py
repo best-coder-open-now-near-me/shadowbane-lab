@@ -3,6 +3,7 @@ import tempfile
 import unittest
 from dataclasses import replace
 from pathlib import Path
+from unittest.mock import patch
 
 from shadowbane_lab.client_extension.vendor_batch import VendorBatchStopped
 from shadowbane_lab.client_extension.vendor_wire import IN_FLIGHT, Outcome, Slot
@@ -220,3 +221,33 @@ class VendorJobTests(unittest.TestCase):
             self.store.request(job["job_id"], "run")
         with self.assertRaises(ValueError):
             self.store.directory("../escape")
+
+    def test_rank_growth_uses_new_slots_within_the_same_fill(self):
+        def grow():
+            if len(self.session.calls) == 1:
+                self.session.state = replace(
+                    self.session.state,
+                    slots=self.session.state.slots + (Slot(800),),
+                )
+
+        self.session.after_create = grow
+        result = self.run_job()
+        self.assertEqual((3, 3, 3), (result["created"], result["kept"], result["capacity"]))
+
+    def test_permit_revoked_after_journal_flush_prevents_native_send(self):
+        from shadowbane_lab.client_extension import vendor_batch
+
+        original = vendor_batch.publish_atomic_record
+
+        def publish(path, data, **kwargs):
+            result = original(path, data, **kwargs)
+            record = json.loads(data)
+            if record.get("requests") and record["requests"][-1]["state"] == "prepared":
+                self.cancel = True
+            return result
+
+        with patch.object(vendor_batch, "publish_atomic_record", side_effect=publish):
+            with self.assertRaises(VendorBatchStopped):
+                self.run_job()
+        self.assertFalse(self.session.calls)
+        self.assertEqual("review", self.store.current()["state"])

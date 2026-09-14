@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import Mock
 
 from shadowbane_lab.client_extension.runtime_status import (
     ExtensionRuntimeSnapshot,
@@ -288,6 +289,7 @@ def _application(
     worker_controller: _RecordingWorkerController | None = None,
     operation_status: _StaticOperationStatus | None = None,
     extension_status: _RecordingExtensionStatus | None = None,
+    vendor_control=None,
 ) -> tuple[ManagerDashboardApplication, _StaticRegistry]:
     registry = _StaticRegistry(
         ClientRegistrySnapshot(
@@ -318,6 +320,7 @@ def _application(
             worker_controller=worker_controller,
             operation_status=operation_status,
             extension_status=extension_status,
+            vendor_control=vendor_control,
             launch_timeout_seconds=12.0,
             poll_seconds=0.25,
         ),
@@ -326,6 +329,26 @@ def _application(
 
 
 class ManagerDashboardApplicationTests(unittest.TestCase):
+    def test_vendor_actions_and_status_require_current_exact_binding(self):
+        bound = _client("instance-101", 101)
+        session = _RecordingSession(ManagerSessionSnapshot(
+            node_id=NODE_ID,
+            slots=(_slot("client-01", instance_id=bound.instance_id), _slot("client-02")),
+        ))
+        control = Mock()
+        control.summary.return_value = {"state": "cooking", "created": 3}
+        application, registry = _application(session, bound, vendor_control=control)
+        for action in ("vendor-start", "vendor-pause", "vendor-resume", "vendor-stop"):
+            application.execute(action, client_id="client-01", instance_id=bound.instance_id)
+            control.execute.assert_called_with(action, "client-01", bound.instance_id, job_id=None)
+        self.assertEqual(3, application.status()["slots"][0]["vendor"]["created"])
+        self.assertTrue(application.status()["slots"][0]["vendor_available"])
+        before = control.execute.call_count
+        with self.assertRaises(DashboardError):
+            application.execute("vendor-start", client_id="client-01", instance_id="other")
+        self.assertEqual(before, control.execute.call_count)
+        self.assertEqual([], session.calls)
+
     def test_status_exposes_extension_health_for_exact_process_lifetime(self) -> None:
         bound = _client("instance-101", 101)
         session = _RecordingSession(

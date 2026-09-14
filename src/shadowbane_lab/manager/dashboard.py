@@ -27,7 +27,10 @@ DEFAULT_BODY_TIMEOUT_SECONDS = 2.0
 _IDENTIFIER_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
 _GLOBAL_ACTIONS = frozenset({"add-client", "start-all", "refresh", "tile-all"})
 _CLIENT_ACTIONS_WITHOUT_INSTANCE = frozenset({"start"})
-_CLIENT_ACTIONS_WITH_INSTANCE = frozenset({"attach", "tile", "pause", "resume", "detach", "close"})
+_CLIENT_ACTIONS_WITH_INSTANCE = frozenset({
+    "attach", "tile", "pause", "resume", "detach", "close",
+    "vendor-start", "vendor-pause", "vendor-resume", "vendor-stop",
+})
 _ALL_ACTIONS = _GLOBAL_ACTIONS | _CLIENT_ACTIONS_WITHOUT_INSTANCE | _CLIENT_ACTIONS_WITH_INSTANCE
 
 
@@ -77,6 +80,7 @@ class DashboardService(Protocol):
         *,
         client_id: str | None = None,
         instance_id: str | None = None,
+        job_id: str | None = None,
     ) -> dict[str, object]: ...
 
 
@@ -194,7 +198,7 @@ def _require_identifier(value: object, field_name: str) -> str:
 
 def _validate_action_payload(
     payload: object,
-) -> tuple[str, str | None, str | None]:
+) -> tuple[str, str | None, str | None, str | None]:
     if not isinstance(payload, dict) or any(not isinstance(key, str) for key in payload):
         _request_error(
             HTTPStatus.BAD_REQUEST,
@@ -217,6 +221,8 @@ def _validate_action_payload(
     else:
         expected_fields = {"action", "client_id", "instance_id"}
 
+    if action in {"vendor-pause", "vendor-resume", "vendor-stop"}:
+        expected_fields.add("job_id")
     actual_fields = set(payload)
     if actual_fields != expected_fields:
         missing = sorted(expected_fields - actual_fields)
@@ -240,7 +246,12 @@ def _validate_action_payload(
         if "instance_id" in payload
         else None
     )
-    return action, client_id, instance_id
+    job_id = payload.get("job_id")
+    if "job_id" in expected_fields and (
+        not isinstance(job_id, str) or re.fullmatch(r"[0-9a-f]{32}", job_id) is None
+    ):
+        _request_error(HTTPStatus.BAD_REQUEST, "invalid-job", "An exact vendor batch is required.")
+    return action, client_id, instance_id, job_id
 
 
 class _DashboardRequestHandler(BaseHTTPRequestHandler):
@@ -338,7 +349,7 @@ class _DashboardRequestHandler(BaseHTTPRequestHandler):
             )
             return
         try:
-            action, client_id, instance_id = self._read_action_request()
+            action, client_id, instance_id, job_id = self._read_action_request()
         except _RequestError as exc:
             self._send_error(exc.status, exc.code, exc.message)
             return
@@ -347,6 +358,7 @@ class _DashboardRequestHandler(BaseHTTPRequestHandler):
                 action,
                 client_id=client_id,
                 instance_id=instance_id,
+                **({"job_id": job_id} if job_id is not None else {}),
             )
             self._require_service_result(result)
         except DashboardError as exc:
@@ -448,7 +460,7 @@ class _DashboardRequestHandler(BaseHTTPRequestHandler):
             return
         self._send_json(HTTPStatus.OK, result)
 
-    def _read_action_request(self) -> tuple[str, str | None, str | None]:
+    def _read_action_request(self) -> tuple[str, str | None, str | None, str | None]:
         if self.headers.get("Transfer-Encoding") is not None:
             _request_error(
                 HTTPStatus.BAD_REQUEST,

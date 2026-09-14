@@ -46,6 +46,7 @@ class _RecordingService:
         *,
         client_id: str | None = None,
         instance_id: str | None = None,
+        job_id: str | None = None,
     ) -> dict[str, object]:
         self.execute_calls.append((action, client_id, instance_id))
         if self.execute_error is not None:
@@ -377,6 +378,32 @@ class DashboardServerTests(unittest.TestCase):
                 )
                 self.assertEqual(HTTPStatus.OK, status, body)
                 self.assertEqual(expected_call, self.service.execute_calls[-1])
+
+    def test_vendor_controls_require_authentication_and_exact_instance(self):
+        for action in ("vendor-start", "vendor-pause", "vendor-resume", "vendor-stop"):
+            payload = {
+                "action": action, "client_id": "front-left", "instance_id": "client-abc",
+            }
+            if action != "vendor-start":
+                payload["job_id"] = "a" * 32
+            body = json.dumps(payload)
+            status, _, _ = self._request(
+                "POST", "/api/v1/actions", body=body,
+                headers={"Content-Type": "application/json"},
+            )
+            self.assertEqual(HTTPStatus.UNAUTHORIZED, status)
+            status, _, _ = self._request(
+                "POST", "/api/v1/actions", body=body,
+                headers={**self._authorization, "Content-Type": "application/json"},
+            )
+            self.assertEqual(HTTPStatus.OK, status)
+            self.assertEqual((action, "front-left", "client-abc"), self.service.execute_calls[-1])
+        status, _, _ = self._request(
+            "POST", "/api/v1/actions",
+            body=json.dumps({"action": "vendor-start", "client_id": "front-left"}),
+            headers={**self._authorization, "Content-Type": "application/json"},
+        )
+        self.assertEqual(HTTPStatus.BAD_REQUEST, status)
 
     def test_action_endpoint_rejects_unknown_missing_and_extra_fields(self) -> None:
         invalid_payloads = (

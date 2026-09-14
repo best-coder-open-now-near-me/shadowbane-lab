@@ -193,6 +193,7 @@ class ManagerDashboardApplication:
         *,
         worker_controller: WorkerLifecycleControl | None = None,
         operation_status: WorkerOperationStatusProvider | None = None,
+        vendor_control=None,
         extension_status: ExtensionStatusProvider | None = None,
         launch_timeout_seconds: float = 30.0,
         poll_seconds: float = 0.5,
@@ -241,6 +242,7 @@ class ManagerDashboardApplication:
         self._worker_supervisor = worker_supervisor
         self._worker_controller = worker_controller
         self._operation_status = operation_status
+        self._vendor_control = vendor_control
         self._extension_status = extension_status
         self._launch_timeout_seconds = _require_positive_finite(
             launch_timeout_seconds,
@@ -415,6 +417,12 @@ class ManagerDashboardApplication:
                     slot.client_id,
                     instance_id=None if binding is None else binding.instance_id,
                 )
+                payload["vendor"] = (
+                    None if self._vendor_control is None else self._vendor_control.summary(
+                        slot.client_id, None if binding is None else binding.instance_id,
+                    )
+                )
+                payload["vendor_available"] = self._vendor_control is not None
                 payload["binding"] = None if binding is None else _client_summary(binding)
                 payload["candidates"] = [
                     _client_summary(client)
@@ -504,6 +512,7 @@ class ManagerDashboardApplication:
         *,
         client_id: str | None = None,
         instance_id: str | None = None,
+        job_id: str | None = None,
     ) -> dict[str, object]:
         """Execute one route-validated action and preserve exact binding ownership."""
 
@@ -518,7 +527,7 @@ class ManagerDashboardApplication:
             try:
                 if self._stopping:
                     raise DashboardError("manager-stopping", "manager is stopping")
-                self._execute(action, client_id=client_id, instance_id=instance_id)
+                self._execute(action, client_id=client_id, instance_id=instance_id, job_id=job_id)
             except DashboardError:
                 raise
             except (ManagerSessionError, OSError, RuntimeError, ValueError) as exc:
@@ -554,7 +563,10 @@ class ManagerDashboardApplication:
         *,
         client_id: str | None,
         instance_id: str | None,
+        job_id: str | None = None,
     ) -> None:
+        if job_id is not None and action not in {"vendor-pause", "vendor-resume", "vendor-stop"}:
+            raise DashboardError("invalid-action-fields", "This action does not accept a batch.")
         if action == "start-all":
             self._require_global(action, client_id, instance_id)
             self._require_clear_launch_baseline()
@@ -611,6 +623,11 @@ class ManagerDashboardApplication:
             self._ensure_worker_for_slot(client_id)
             return
         self._require_exact_binding(client_id, instance_id)
+        if action in {"vendor-start", "vendor-pause", "vendor-resume", "vendor-stop"}:
+            if self._vendor_control is None:
+                raise DashboardError("vendor-unavailable", "Vendor jobs are not configured.")
+            self._vendor_control.execute(action, client_id, instance_id, job_id=job_id)
+            return
         if action in {"pause", "detach", "close"}:
             self._worker_supervisor.revoke(
                 client_id,

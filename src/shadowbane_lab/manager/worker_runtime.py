@@ -199,6 +199,7 @@ class ExactClientWorkerRuntime:
         operation_ledger: WorkerOperationLedger | None = None,
         operation_executor: WorkerOperationExecutor | None = None,
         operation_maintenance: Callable[[WorkerOperation, StopSignal], None] | None = None,
+        operation_initializer: Callable[[str, ProcessLifetimeSnapshot], None] | None = None,
         monotonic_clock: Callable[[], float] = time.monotonic,
         process_id: int | None = None,
         heartbeat_interval_seconds: float = 1.0,
@@ -221,6 +222,8 @@ class ExactClientWorkerRuntime:
             or heartbeat_interval_seconds <= 0
         ):
             raise ValueError("heartbeat_interval_seconds must be finite and positive")
+        if operation_initializer is not None and not callable(operation_initializer):
+            raise ValueError("operation_initializer must be callable")
         if operation_maintenance is not None and not callable(operation_maintenance):
             raise ValueError("operation_maintenance must be callable")
         if not callable(monotonic_clock):
@@ -258,6 +261,7 @@ class ExactClientWorkerRuntime:
         self._operation_ledger = operation_ledger
         self._operation_executor = operation_executor
         self._operation_maintenance = operation_maintenance
+        self._operation_initializer = operation_initializer
         self._monotonic = monotonic_clock
 
     @property
@@ -284,6 +288,8 @@ class ExactClientWorkerRuntime:
         evidence_sequence = 0
         next_heartbeat = self._monotonic()
         try:
+            if self._operation_initializer is not None:
+                self._operation_initializer(publisher.worker_id, self._process)
             while stop_signal is None or not stop_signal.is_set():
                 request = self._ledger.inspect_stop_request(
                     self._binding.client_id,

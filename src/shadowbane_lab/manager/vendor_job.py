@@ -219,6 +219,26 @@ def run_vendor_job(
                 if record["state"] == "paused":
                     update("running", "Continuing the current production batch.")
 
+        class GuardedSession:
+            identity = session.identity
+
+            def inspect(self):
+                return session.inspect()
+
+            def create(self, expected, key):
+                before_action()
+                if stopped():
+                    raise VendorBatchStopped("dispatch revoked before Create")
+                return session.create(expected, key)
+
+            def keep(self, expected, item, key):
+                before_action()
+                if stopped():
+                    raise VendorBatchStopped("dispatch revoked before Keep")
+                return session.keep(expected, item, key)
+
+        guarded = GuardedSession()
+
         def completed(path: Path) -> dict | None:
             if not path.exists():
                 return None
@@ -257,7 +277,7 @@ def run_vendor_job(
                 if record["phase"] != "filling":
                     raise VendorBatchStopped("missing Create evidence; review this job")
                 batch = fill_available_slots(
-                    session,
+                    guarded,
                     create_path,
                     record["vendor_id"],
                     cancelled=stopped,
@@ -307,7 +327,7 @@ def run_vendor_job(
             store.save(record)
             capture = directory / "completion.jsonl"
             kept = keep_completed_batch(
-                session,
+                guarded,
                 create_path,
                 keep_path,
                 capture=capture if capture.exists() else None,

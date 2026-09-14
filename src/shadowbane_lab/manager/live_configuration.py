@@ -34,6 +34,7 @@ class ManagedDashboardApplication(Protocol):
         *,
         client_id: str | None = None,
         instance_id: str | None = None,
+        job_id: str | None = None,
     ) -> dict[str, object]: ...
 
     def reconcile_instances(self) -> dict[str, object]: ...
@@ -214,6 +215,7 @@ class LiveConfiguredManagerApplication:
         *,
         client_id: str | None = None,
         instance_id: str | None = None,
+        job_id: str | None = None,
     ) -> dict[str, object]:
         with self._lock:
             prepared = None
@@ -228,7 +230,10 @@ class LiveConfiguredManagerApplication:
             application = self._application
             self._active_actions += 1
         try:
-            result = application.execute(action, client_id=client_id, instance_id=instance_id)
+            result = application.execute(
+                action, client_id=client_id, instance_id=instance_id,
+                **({"job_id": job_id} if job_id is not None else {}),
+            )
             return prepared if prepared is not None else result
         finally:
             with self._lock:

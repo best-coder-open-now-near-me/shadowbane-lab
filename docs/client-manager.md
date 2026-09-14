@@ -379,3 +379,35 @@ identity, expire quickly, deduplicate, and receive bounded acknowledgement; the 
 existing travel or PvE engine with its manager dispatch gate in every live-input stop chain. A later
 read-only overview may aggregate status from several PCs, but live squad behavior and the designated
 bot caller must not depend on that overview or on a central tactical service.
+
+
+## Vendor crafting jobs
+
+Host 0.3.4 adds per-client **Roll available slots**, **Pause rolling**,
+**Resume rolling**, and **Stop rolling** controls. Open the owned vendor's random
+Gilded Scepter recipe before starting. One job fills the free production slots,
+including capacity unlocked while filling, waits for completion, and uses Keep
+only when the owned Inventory is visible. The dashboard reports when to open it.
+The one-hour deadline bounds the job; it does not automatically start replacement
+batches. Unknown affixes are preserved. Confirmed exclusions stay in production;
+automatic disposal and complete low-tier identity coverage are still unqualified.
+
+Jobs use the same exact per-client worker, dispatch permit and operation ledger
+as travel and combat. A local rolling pause prevents the next mutation while an
+already-submitted action finishes reconciliation. Client dispatch pause or Stop
+interrupts immediately. Resume continues only from complete, durable phase
+boundaries; partial or uncertain journals require review and are never replayed.
+Pause/resume/stop requests name both the exact game instance and the displayed
+job, preventing stale dashboard controls from targeting a newer batch.
+
+The job records are node-local beneath the worker state root:
+`<node>/<client>/vendor-jobs/<instance>/<job>/`. The dashboard publishes only
+semantic progress; native snapshots, inventory identifiers and action journals
+remain local. Prior jobs are retained rather than overwritten.
+
+Upgrade the manager and its workers together. A worker advertises vendor support
+using its exact PID, process-creation time and worker ID before becoming ready.
+The manager refuses vendor submission to older workers, even if their heartbeat
+is healthy. Restart the worker through the existing detach/attach lifecycle after
+updating the host; the game itself does not need a restart. The host does not
+replay jobs automatically after a manager/worker restart.

@@ -152,6 +152,7 @@ class ForegroundWorkerOperationIngress:
             if operation.kind in {
                 WorkerOperationKind.TRAVEL,
                 WorkerOperationKind.PVE,
+                WorkerOperationKind.VENDOR,
             }:
                 has_inflight_automation = True
         if not has_inflight_automation:

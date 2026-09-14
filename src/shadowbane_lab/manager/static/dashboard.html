@@ -201,6 +201,9 @@
           if (action === "close" && !window.confirm(`Request a graceful close for ${slot.client_id}?`)) return;
           const body = { action, client_id: slot.client_id };
           body.instance_id = currentInstanceId;
+          if (["vendor-pause", "vendor-resume", "vendor-stop"].includes(action)) {
+            body.job_id = slot.vendor?.job_id;
+          }
           await execute(body);
         });
         return button;
@@ -319,6 +322,50 @@
         );
 
         article.append(identity, binding, workerPanel, controls);
+
+        if (slot.vendor_available) {
+          const vendorPanel = document.createElement("section");
+          vendorPanel.className = "worker-panel";
+          vendorPanel.setAttribute("aria-label", "Vendor crafting");
+          const vendor = slot.vendor;
+          const title = document.createElement("strong");
+          title.textContent = "Vendor crafting";
+          const detail = document.createElement("p");
+          detail.className = "detail";
+          detail.textContent = vendor
+            ? text(vendor.detail)
+            : "Select a random Gilded Scepter recipe, then roll the available slots.";
+          const progress = document.createElement("p");
+          progress.className = "detail";
+          progress.textContent = vendor
+            ? `${vendor.created} started · ${vendor.kept} kept · ${vendor.capacity} production slots`
+            : "One batch. Unknown affixes are kept. No items are discarded.";
+          if (vendor?.excluded) {
+            progress.textContent += ` · ${vendor.excluded} excluded items remain in production`;
+          }
+          if (vendor?.control === "stop" && !["stopped", "review", "complete"].includes(vendor.state)) {
+            detail.textContent = "Stop requested. Waiting for the worker to finish recording its result.";
+          } else if (vendor?.control === "pause" && !["paused", "review", "complete"].includes(vendor.state)) {
+            detail.textContent = "Pause requested. Confirming any action already sent.";
+          }
+          const buttons = document.createElement("div");
+          buttons.className = "actions";
+          const finished = !vendor || ["complete", "stopped"].includes(vendor.state);
+          const review = vendor?.state === "review";
+          const choices = [
+            ["Roll available slots", "vendor-start", finished && slot.dispatch_enabled],
+            ["Pause rolling", "vendor-pause", !finished && !review && vendor.control === "run"],
+            ["Resume rolling", "vendor-resume", !finished && !review && slot.dispatch_enabled],
+            ["Stop rolling", "vendor-stop", !finished && !review && vendor.control !== "stop"],
+          ];
+          for (const [label, action, enabled] of choices) {
+            const button = actionButton(label, action, slot, boundInstance);
+            button.disabled = !enabled || !boundInstance();
+            buttons.append(button);
+          }
+          vendorPanel.append(title, detail, progress, buttons);
+          article.append(vendorPanel);
+        }
         return article;
       };
 

@@ -116,10 +116,12 @@ tests prove the upstream grammar only; no live capture has been promoted.
    all production slots empty. Qualified capture evidence is assessed when
    available; missing evidence remains unknown. Known low-tier identity coverage
    and live discard qualification are still incomplete.
-4. **Active:** integrate durable manager start/pause/stop jobs with explicit
-   recurring limits and reject handling. Qualify inventory capacity/paging,
-   resources, recovery and disposal before enabling them. Keep exact pending
-   actions through gaps; never blindly retry.
+4. **Complete in host source:** manager start/pause/resume/stop controls for one
+   capacity batch, exact worker capability admission, cooking/inventory progress,
+   stale-job rejection and durable phase recovery.
+5. **Active:** package and qualify the manager integration. Then qualify native
+   window opening, inventory capacity/paging, resources, full affix evidence and
+   disposal before enabling recurring jobs. Never blindly retry pending actions.
 
 
 Local research files and VM screenshots are under
@@ -771,3 +773,30 @@ coverage remain unqualified. This is source validation, not a new deployment.
 
 Active: dashboard controls and exact-worker composition. Next: manager regression
 tests and packaging; then the remaining live window/resource/disposal qualification.
+
+
+## Host 0.3.4 manager integration
+
+The dashboard now exposes one bounded vendor job through the existing exact
+worker operation ledger. New command shapes are strictly validated. Start requires
+a current permit and a capability receipt from that same worker lifetime; an
+older host is rejected before an unsupported operation reaches its ledger.
+Pause/resume/stop name the current job as well as the exact game instance.
+
+The worker verifies the qualified game executable and process lifetime, composes
+the durable Create/wait/Keep runner, and always closes its native session. It
+rechecks dispatch immediately before native submission, including after the
+request journal was flushed. Local pause never abandons a pending receipt;
+lost permits, uncertain outcomes, changed vendors and stale evidence stop safely.
+No native files changed. This checkpoint does not enable disposal or unattended
+recurring replacements. Full manager/live installation qualification is separate
+from the previously verified command-line three-item batch.
+
+
+Validation for the manager source: 2150 host tests passed with 14 explicit
+environment skips (unavailable symlink privilege or unbound native movement
+fixtures); 571 subtests passed. Repository Ruff, dashboard JavaScript syntax and
+diff whitespace checks passed. New coverage includes full worker Create/Keep,
+rank growth, duplicate starts, stale jobs/permits, older-worker rejection,
+HTTP authentication, last-moment dispatch revocation and crash reconciliation.
+Exact-source host packaging and installed-manager read-only qualification are next.

@@ -85,6 +85,7 @@ class WorkerOperationLedgerError(WorkerOperationError):
 class WorkerOperationKind(StrEnum):
     TRAVEL = "travel"
     PVE = "pve"
+    VENDOR = "vendor"
     CANCEL = "cancel"
     STOP = "stop"
 
@@ -231,6 +232,10 @@ class WorkerOperation:
         if not isinstance(self.kind, WorkerOperationKind):
             _fail("kind must be WorkerOperationKind")
         _command(self.command)
+        if self.kind is WorkerOperationKind.VENDOR and re.fullmatch(
+            r"vendor (?:start|resume [0-9a-f]{32})", self.command
+        ) is None:
+            _fail("invalid vendor job command")
         if self.destination is not None and not isinstance(
             self.destination, WorkerTravelDestination
         ):
