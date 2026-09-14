@@ -26,7 +26,8 @@ uninterrupted three-item Create/wait/Keep batch are qualified on host 0.3.8.
 Unknown affixes remain protected by the exclusion policy.
 Host 0.3.9 source adds a durable foreground readiness wait and reconciles pending
 receipts while unfocused. All 2163 host tests and 580 subtests passed (14 skips).
-Active: package, install and qualify the dashboard handoff; see the
+Installed source `e26a5e3` passed exact worker/game binding checks.
+Active: qualify the dashboard focus handoff; see the
 [current handoff](handoffs/vendor-manager-0.3.9.md).
 
 The dependency provides current native UI-thread, process/session lifetime and

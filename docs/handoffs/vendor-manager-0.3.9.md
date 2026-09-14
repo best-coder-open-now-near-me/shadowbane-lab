@@ -27,15 +27,22 @@ environment skips. Ruff and whitespace checks passed. Regression coverage
 includes starting unfocused, focus loss after Create and Keep, receipt
 reconciliation before waiting, and Stop/owner/deadline/permit changes while waiting.
 
-Source checkpoint: this commit. Packaging, installation and the live dashboard
-handoff check are next. The currently installed host remains 0.3.8 until its
-replacement is recorded here. Native 1.8.2 is unchanged.
+Installed source: `e26a5e39f91238fc289e855cc9a72bc63e994bc7`.
+Wheel SHA-256:
+`f65f11451cf645edcb3b27ea44e82fd2982f8d61b41628cc6c0ecf8709aafc92`.
+The separate host 0.3.9 environment, manager and worker passed installed source,
+capability and exact current-game binding checks. The previous job remains
+complete with three retained items; no new crafting action was sent during
+installation. The game stayed running on native 1.8.2. The test VM desktop
+WonderBane Vendor Dashboard shortcut and its opener now use host 0.3.9.
+Remote Python 3.11/3.12/3.13, quality and PowerShell checks passed; both native
+profiles are still running. Live dashboard focus handoff qualification is pending.
 See [previous installed handoff](vendor-manager-0.3.8.md) for its exact package
 and uninterrupted three-item batch evidence.
 
 ## Remaining work
 
-Active: install and qualify the focus handoff in the test VM.
+Active: qualify the installed focus handoff through one dashboard Start.
 Then qualify native recipe/inventory opening, inventory/resource limits,
 full affix evidence and Tier 1/2 identity coverage, and discard.
 Private package artifacts stay in `artifacts/vendor-host-0.3.9`; installation
