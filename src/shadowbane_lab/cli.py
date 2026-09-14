@@ -714,6 +714,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _client_inspection_commands.observe_native_vendor_queue(
             arguments.process_id, as_json=arguments.json,
         )
+    if arguments.command == "client" and arguments.client_command == "fill-vendor-slots":
+        return _client_inspection_commands.fill_vendor_slots(
+            arguments.process_id, arguments.window, arguments.vendor_id, arguments.journal,
+            as_json=arguments.json,
+        )
     if arguments.command == "client" and arguments.client_command == "trace-native-crafting":
         return _client_inspection_commands.trace_native_crafting(
             arguments.process_id, arguments.output, timeout_seconds=arguments.timeout_seconds,

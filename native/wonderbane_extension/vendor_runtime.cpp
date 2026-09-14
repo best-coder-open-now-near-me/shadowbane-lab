@@ -58,4 +58,3 @@ bool Start() noexcept {
     return true;
 }
 }
-

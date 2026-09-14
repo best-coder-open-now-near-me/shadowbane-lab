@@ -537,7 +537,7 @@ Validation now includes recipe/vendor changes during reads and active-list
 membership. Next: the native UI-thread command path and bounded job controller;
 the existing in-progress item can support completion verification.
 
-## Selected vendor ownership — September 14
+## Selected vendor ownership â€” September 14
 
 Queue snapshot schema 3 now follows the current ArcCityAssetManager's selected
 ArcHirelingEntry at +0x384, checks vtable RVA 0x1169518, and reads its identity
@@ -647,3 +647,27 @@ Remaining in this slice: host wire/session implementation, a durable controller
 that fills every initially available slot once, cross-language/channel tests,
 then a versioned package and live automatic qualification. No automatic commands
 have been issued to the test VM. Junk/disposal remains unavailable.
+
+## Durable capacity-aware batch checkpoint - September 14
+
+The host now exposes typed vendor sessions and `client fill-vendor-slots`.
+It binds the exact process lifetime, window and vendor, persists each request
+before submission, and waits for a correlated native queue transition before
+sending the next Create. Existing journals are never replayed. Lost receipts,
+timeouts, logout, disappearing capacity and unrelated item changes stop the batch.
+
+The owner ranked up both vendors and expects further capacity increases.
+Capacity is read from the current queue, never fixed at two. New slots appearing
+between requests or while a Create is pending extend this batch's recorded plan.
+The batch finishes when the observed queue is full. It does not automatically
+clear completed items or start indefinite replacement batches. The wire/reader
+bound is 16 slots; exceeding this bound rejects the observation rather than
+silently truncating capacity. There is no evidence yet of a vendor exceeding it.
+
+Validation: 120 focused Python tests pass, including repeated 2-to-4-to-6 slot
+growth during and between requests, a 16-slot vendor, no replay after interruption,
+and C++/Python wire compatibility. All 83 selected native tests pass, including
+the actual channel, controller growth and bounded reader cases. No new package
+is installed and no automatic game commands have been issued. Next: versioned
+package validation and live queue-fill qualification, followed by completed-item
+assessment/Keep integration. Junk remains unqualified and unavailable.

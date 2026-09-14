@@ -1573,3 +1573,35 @@ def _advise_irekei_proc(
                     f"(displayed gap {item.rank_gap})"
                 )
     return 0
+
+
+def fill_vendor_slots(
+    process_id: int, window: int, vendor_id: int, journal: Path, *, as_json: bool
+) -> int:
+    from shadowbane_lab.client_extension.action_channel import NativeClientProcessIdentity
+    from shadowbane_lab.client_extension.vendor_batch import fill_available_slots
+    from shadowbane_lab.client_extension.vendor_session import NativeVendorSession
+    from shadowbane_lab.client_observation.native_health import WindowsReadOnlyProcessMemory
+
+    try:
+        memory = WindowsReadOnlyProcessMemory.open_for_process("sb.exe", process_id)
+        try:
+            if memory.executable_sha256 != (
+                "bb63469eb35917e6b3f58be75d29f94855c9868024271222465b4db62f0e3a87"
+            ) or not memory.process_creation_filetime_utc:
+                raise ValueError("the vendor command build or process lifetime is unqualified")
+            identity = NativeClientProcessIdentity(process_id, memory.process_creation_filetime_utc)
+        finally:
+            memory.close()
+        session = NativeVendorSession(identity, window)
+        try:
+            result = fill_available_slots(session, journal, vendor_id)
+        finally:
+            session.close()
+    except (OSError, ValueError, RuntimeError) as exc:
+        return _error(f"vendor batch stopped: {exc}", as_json=as_json)
+    if as_json:
+        print(json.dumps({"ok": result["state"] == "complete", "batch": result}, sort_keys=True))
+    else:
+        print(f"Started {len(result['items'])} rolls in available slots. Record: {journal}")
+    return 0 if result["state"] == "complete" else 2

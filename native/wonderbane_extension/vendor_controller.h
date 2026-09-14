@@ -24,7 +24,7 @@ class Controller {
     static bool SameOwner(const wire::Snapshot& a, const wire::Snapshot& b) noexcept {
         return a.scene == b.scene && a.root == b.root && a.manager == b.manager
             && a.menu == b.menu && a.hireling == b.hireling && a.building == b.building
-            && a.vendor == b.vendor && a.count == b.count;
+            && a.vendor == b.vendor;
     }
     wire::Receipt Receipt(const wire::Command& command, wire::Outcome outcome, bool ready) const noexcept {
         wire::Receipt result{};
@@ -51,7 +51,7 @@ public:
         current_ = valid ? snapshot : wire::Snapshot{};
         if (!pending_ || uncertain_) { return; }
         const auto& before = pending_->command.expected;
-        if (!valid || !SameOwner(before, current_)) { uncertain_ = true; return; }
+        if (!valid || !SameOwner(before, current_) || current_.count < before.count) { uncertain_ = true; return; }
         std::uint32_t new_item = 0;
         if (pending_->verb == wire::Verb::create) {
             std::size_t additions = 0;

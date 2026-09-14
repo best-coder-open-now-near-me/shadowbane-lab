@@ -23,17 +23,16 @@ bundle or PvP completion is claimed. The integration branch remains
 `codex/native-lifecycle-hardening`; main remains unchanged. No new installation
 is implied by later source commits. Reuse accepted navigation and movement evidence.
 
-## Vendor overlay — September 14
+## Vendor overlay â€” September 14
 
 `codex/vendor-rolling` (worktree `.worktrees/vendor-rolling`) contains vendor
-source through `6093942` and a merge of this integration owner's
-`542c632`. Review the overlay against `codex/native-lifecycle-hardening`;
-the eventual shared destination remains `main`. No vendor deployment or
-automatic dispatch is included. Queue/recipe observation and conservative affix
-filtering are implemented; Keep/inventory qualification, typed vendor dispatch,
-and bounded rolling jobs remain. See [vendor status and validation](vendor-rolling.md).
-Native build passed, with two existing transparency diagnostics still failing.
-The root checkout and other task worktrees are unchanged.
+work through dependency `542c632` plus native dispatch and a durable host batch.
+The integration destination is `codex/native-lifecycle-hardening`, followed by
+reviewed `main`; this vendor work is not merged or installed. Manual Create,
+Keep and owned inventory are qualified. Native typed commands, strict wire and
+capacity-aware queue filling are implemented and tested, including rank growth.
+Next: versioned package/live automatic qualification, then completed-item policy
+integration. See [vendor status and validation](vendor-rolling.md).
 
 ## Historical candidate notes
 

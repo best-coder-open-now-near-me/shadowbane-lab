@@ -2,6 +2,7 @@
 #include "vendor_command_queue.h"
 #undef NDEBUG
 #include <cassert>
+#include <cstdio>
 namespace v = wonderbane::extension::vendor;
 namespace w = v::wire;
 struct Fake final : v::Invoker {
@@ -21,7 +22,22 @@ w::Command Command(const v::Controller& controller, unsigned request = 1) {
     c.request[0] = static_cast<unsigned char>(request); c.expected = controller.Current(); return c;
 }
 bool Is(const w::Receipt& r, w::Outcome o) { return r.signature == w::magic && r.outcome == static_cast<unsigned>(o); }
-int main() {
+int main(int argc, char**) {
+    if (argc > 1) {
+        auto s = Snapshot(); s.revision = 1;
+        w::Command c{}; c.host = {1234, 7, 0x1122334455667788}; c.window = 0x76543210;
+        for (std::size_t i = 0; i < c.request.size(); ++i) { c.request[i] = static_cast<unsigned char>(i + 1); }
+        c.expected = s;
+        w::Receipt r{}; r.request = c.request; r.host = c.host; r.window = c.window;
+        r.snapshot = s; r.outcome = 1; r.flags = w::in_flight;
+        auto print = [](const auto& object) {
+            const auto* bytes = reinterpret_cast<const unsigned char*>(&object);
+            for (std::size_t i = 0; i < sizeof(object); ++i) { std::printf("%02x", bytes[i]); }
+            std::printf("\n");
+        };
+        print(s); print(c); print(r); return 0;
+    }
+
     {
         v::Controller c; Fake f; c.Observe(Snapshot(), true, false); auto command = Command(c);
         assert(Is(c.Execute(w::Verb::create, command, false, true, f), w::Outcome::stale));
@@ -44,12 +60,26 @@ int main() {
         s.slots[1] = {700, 124, 1}; c.Observe(s, true, false);
         assert(Is(c.Execute(w::Verb::create, Command(c, 5), true, true, f), w::Outcome::invalid) && f.calls == 2);
     }
-    for (int failure = 0; failure < 3; ++failure) {
+    {
+        v::Controller c; Fake f; c.Observe(Snapshot(), true, false);
+        const auto command = Command(c);
+        assert(Is(c.Execute(w::Verb::create, command, true, true, f), w::Outcome::submitted));
+        auto s = Snapshot(); s.count = 4; s.slots[2].entry = 800; s.slots[3].entry = 900;
+        c.Observe(s, true, false);
+        auto probe = Command(c, 2); probe.expected = {};
+        assert(c.Execute(w::Verb::inspect, probe, true, true, f).flags & w::in_flight);
+        s.slots[0] = {600, 123, 1}; c.Observe(s, true, false);
+        const auto r = c.Execute(w::Verb::inspect, probe, true, true, f);
+        assert((r.flags & w::ready) && r.transition_item == 123 && r.snapshot.count == 4);
+        assert(Is(c.Execute(w::Verb::create, Command(c, 3), true, true, f), w::Outcome::submitted));
+    }
+    for (int failure = 0; failure < 4; ++failure) {
         v::Controller c; Fake f; c.Observe(Snapshot(), true, false);
         assert(Is(c.Execute(w::Verb::create, Command(c), true, true, f), w::Outcome::submitted));
         auto s = Snapshot();
         if (failure == 0) { s.scene = 2; }
         if (failure == 1) { s.slots[0] = {600, 123, 1}; s.slots[1] = {700, 124, 1}; }
+        if (failure == 3) { s.count = 1; s.slots[1] = {}; }
         c.Observe(s, failure != 2, false);
         assert(Is(c.Execute(w::Verb::create, Command(c, 2), true, true, f),
             failure == 2 ? w::Outcome::invalid : w::Outcome::uncertain));

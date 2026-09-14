@@ -783,6 +783,15 @@ def _parser() -> argparse.ArgumentParser:
     observe_vendor_queue.add_argument("--process-id", required=True, type=int)
     observe_vendor_queue.add_argument("--json", action="store_true")
 
+    fill_vendor = client_commands.add_parser(
+        "fill-vendor-slots", help="fill each available slot once using the selected random recipe"
+    )
+    fill_vendor.add_argument("--process-id", required=True, type=int)
+    fill_vendor.add_argument("--window", required=True, type=lambda value: int(value, 0))
+    fill_vendor.add_argument("--vendor-id", required=True, type=int)
+    fill_vendor.add_argument("--journal", required=True, type=Path)
+    fill_vendor.add_argument("--json", action="store_true")
+
     trace_crafting = client_commands.add_parser(
         "trace-native-crafting", help="capture native crafting messages without sending actions"
     )
