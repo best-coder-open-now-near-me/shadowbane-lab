@@ -227,7 +227,7 @@ def add_recipe(memory):
 class VendorRecipeBindingTests(unittest.TestCase):
     def test_binds_current_recipe_and_vendor_to_the_same_queue_snapshot(self):
         out = read_native_vendor_queue(add_recipe(fixture()))
-        self.assertEqual(3, out["schema_version"])
+        self.assertEqual(4, out["schema_version"])
         recipe = out["creation_recipe"]
         self.assertEqual({"object_id": 2517204, "object_type": 42}, recipe["vendor"])
         self.assertEqual({"object_id": 26990, "object_type": 0}, recipe["template"])

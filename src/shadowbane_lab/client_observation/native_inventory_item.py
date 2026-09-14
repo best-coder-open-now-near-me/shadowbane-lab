@@ -2,17 +2,17 @@
 
 Layout inspected in the same exact x86 client builds as native_crafting:
 InstanceInfo constructor RVA 0x26DFF0; reader RVA 0x273070; effect reader 0x14F5B0.
-This decodes a completed receive message, not a live inventory snapshot.
+Ownership and consistency belong to the caller; this decoder does not scan memory.
 """
 
 from __future__ import annotations
 
 import math
 import struct
+from typing import Protocol
 
 from shadowbane_lab.client_observation.native_vendor_dialog import (
     NativeVendorDialogCaptureError,
-    NativeVendorDialogDebugBackend,
 )
 
 INSTANCE_INFO_VTABLE_RVA = 0x114BB68
@@ -20,7 +20,13 @@ INSTANCE_INFO_BYTES = 0xF8
 MAX_DEPOSIT_EFFECTS = 64
 
 
-def _read(backend: NativeVendorDialogDebugBackend, address: int, size: int) -> bytes:
+class InventoryInstanceMemory(Protocol):
+    base_address: int
+
+    def read_block(self, address: int, size: int) -> bytes: ...
+
+
+def _read(backend: InventoryInstanceMemory, address: int, size: int) -> bytes:
     if address < 0x10000 or address + size > 0x80000000 or size <= 0:
         raise NativeVendorDialogCaptureError("invalid inventory instance read bounds")
     raw = backend.read_block(address, size)
@@ -30,9 +36,9 @@ def _read(backend: NativeVendorDialogDebugBackend, address: int, size: int) -> b
 
 
 def decode_inventory_instance(
-    backend: NativeVendorDialogDebugBackend, address: int
+    backend: InventoryInstanceMemory, address: int
 ) -> dict[str, object]:
-    """Read item identity and reported effects while the receive event is stopped.
+    """Read identity and effects from a caller-owned, consistency-checked instance.
 
     A deposit event provides server-reported content, not proof the client has
     processed it into the current vendor inventory. Callers must reconcile that

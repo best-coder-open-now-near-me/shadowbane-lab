@@ -100,12 +100,13 @@ tests prove the upstream grammar only; no live capture has been promoted.
 
 1. **Complete:** qualify native Create and read the selected recipe and owned
    production slots, including cooking and completion, on shadowbane-testing.
-2. **Active:** qualify Keep's native receiver and complete current-vendor inventory
-   reconciliation. Deposit message decoding is implemented but does not prove
-   that the client applied the inventory transition. Publish immutable native
-   observations with process/session/vendor identity and explicit observation gaps.
-3. Add typed crafting commands through the existing manager admission and native
-   action boundaries. Recheck vendor access, identity, fresh queue capacity,
+2. **Complete for visible item presence:** qualify Keep's native receiver and
+   reconcile its deposited item against current-vendor inventory entries.
+   Full inventory capacity, paging/filtering and resource availability remain
+   unqualified; a missing displayed item never authorizes retry.
+3. **Active:** publish immutable native observations with process/session/vendor
+   identity and explicit gaps, and add typed crafting commands through the existing
+   manager admission and native action boundaries. Recheck vendor access, identity, fresh queue capacity,
    inventory capacity, and gold/material limits immediately before dispatch.
    Observe server acceptance separately from local send success.
 4. Add durable rolling jobs with recipe, count/resource limits, desired modifier
@@ -536,7 +537,7 @@ Validation now includes recipe/vendor changes during reads and active-list
 membership. Next: the native UI-thread command path and bounded job controller;
 the existing in-progress item can support completion verification.
 
-## Selected vendor ownership — September 14
+## Selected vendor ownership â€” September 14
 
 Queue snapshot schema 3 now follows the current ArcCityAssetManager's selected
 ArcHirelingEntry at +0x384, checks vtable RVA 0x1169518, and reads its identity
@@ -565,3 +566,45 @@ ownership tests. Missing or foreign hirelings, recipe/vendor mismatch, changed
 selection, mismatched building fields and mode changes reject the observation.
 The live schema-3 reader returned Malik and the completed roll successfully.
 The existing native transparency failures recorded above remain unchanged.
+
+## Keep and owned inventory qualification - September 14
+
+The final armed observer captured all three required events for the manually
+kept Gilded Scepter: native Keep entry, outbound COMPLETE (4), and successful
+CONFIRM_DEPOSIT (10), following action 9. It detached normally. Keep is VA
+0xAD7080 (RVA 0x6D7080), signature 558bec6aff68bba9db00, a thiscall on the
+current ArcCityAssetManager with the 8-byte item ID/type by value and ret 8.
+The observed owning UI thread was 5760; serialization/receive happened on other
+threads. The receiver, selected hireling, building and item matched the rooted
+menu. This qualifies the manual call, not an admitted automatic invocation.
+
+The current inventory was then read through manager +0x7C -> active
+ArcItemManagingHud (vtable RVA 0x116C64C). HUD +0x104 and +0x3F4 point back to
+the current manager; +0x3F0 is the child-owned list. HUD setup at RVA 0x646500
+assigns the list and RVA 0x646544 assigns the manager interface. Each list
+control owns an ArcItemManagingEntry (vtable RVA 0x11696C8), whose item ID/type
+at +0x10 must agree with InstanceInfo +0x20 and ArcItem +0x24. Template IDs
+must also agree. These are ownership links, not heap-scan candidates.
+
+Queue snapshot schema 4 includes this optional inventory view and decoded item
+effects, using the same read-consistency set as vendor and queue ownership.
+The received scepter was found with matching template, item, durability, value,
+and effects; both production slots were empty. Previously kept Genius and
+Cruelty scepters were also present. The view explicitly reports displayed entries,
+unknown capacity, and incomplete inventory coverage. Closing the inventory
+returns unavailable, not an empty list. A shared item between production and
+inventory, inconsistent IDs, duplicates, changed backing data, or broken owners
+reject the snapshot. No game input, disposal, or new roll was issued.
+
+Validation: the live schema-4 reader matched the kept item. All 83 focused
+Python tests and whole-tree Ruff pass. Native code is unchanged from the prior
+checkpoint; the two recorded native transparency diagnostics remain open.
+Next: native observation publication and typed game-thread command admission,
+then durable bounded jobs and an automatic end-to-end run.
+
+The owner specified the first automatic batch should use every available
+production slot. Determine capacity from the current vendor queue, fill each
+free slot once, and recheck acceptance before filling another. The latest
+verified Malik queue has two free slots. This does not authorize blind retries
+or an unbounded number of future batches. Tier 1/2 exclusion with unknowns
+preserved remains the desired policy. No automatic batch has started.

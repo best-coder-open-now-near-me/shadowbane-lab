@@ -1383,9 +1383,14 @@ def observe_native_vendor_queue(process_id: int, *, as_json: bool) -> int:
         slots = snapshot["slots"]
         counts = {state: sum(slot["state"] == state for slot in slots)
                   for state in ("empty", "cooking", "complete")}
+        inventory = snapshot["inventory"]
+        inventory_text = (
+            f"{len(inventory['items'])} displayed inventory items"
+            if inventory is not None else "inventory view unavailable"
+        )
         print(
-            f"Vendor production menu: {counts['empty']} empty, "
-            f"{counts['cooking']} cooking, {counts['complete']} complete. "
+            f"Vendor {snapshot['vendor']['object_id']}: {counts['empty']} empty, "
+            f"{counts['cooking']} cooking, {counts['complete']} complete; {inventory_text}. "
             "Observation only; no crafting command is enabled."
         )
     return 0

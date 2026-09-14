@@ -158,6 +158,72 @@ def _creation_recipe(
     }
 
 
+def _inventory(
+    r: _ReadSet, base: int, active_huds: tuple[int, ...], manager: int
+) -> dict[str, object] | None:
+    from shadowbane_lab.client_observation.native_inventory_item import decode_inventory_instance
+
+    hud = r.word(manager + 0x7C)
+    if not hud or hud not in active_huds:
+        return None
+    r.require(hud, base + 0x116C64C, "inventory HUD type")
+    r.require(hud + 0x104, manager, "inventory HUD owner")
+    r.require(hud + 0x3F4, manager, "inventory manager interface")
+    listing = r.word(hud + 0x3F0)
+    if listing not in r.vector(hud + 0x54, _MAX_CONTROLS):
+        raise NativeVendorDialogCaptureError("inventory list is not owned by current HUD")
+    r.require(listing, base + _LIST_BOX_VTABLE, "inventory list type")
+    r.require(listing + 0x3BC, hud, "inventory list owner")
+
+    class InstanceMemory:
+        base_address = base
+
+        def read_block(self, address: int, size: int) -> bytes:
+            return r.read(address, size)
+
+    memory = InstanceMemory()
+    items = []
+    seen_entries: set[int] = set()
+    seen_items: set[int] = set()
+    for control in r.vector(listing + 0x408, _MAX_LIST_ENTRIES):
+        r.require(control, base + _LIST_CONTROL_VTABLE, "inventory control type")
+        r.require(control + 0x3BC, hud, "inventory control HUD owner")
+        r.require(control + 0x458, listing, "inventory control list owner")
+        entry = r.word(control + 0x44C)
+        r.require(entry, base + 0x11696C8, "inventory managing entry type")
+        if entry in seen_entries:
+            raise NativeVendorDialogCaptureError("duplicate inventory entry")
+        seen_entries.add(entry)
+        item_id, item_type = struct.unpack("<II", r.read(entry + 0x10, 8))
+        if not item_id or item_type != 40 or item_id in seen_items:
+            raise NativeVendorDialogCaptureError("invalid or duplicate inventory item")
+        seen_items.add(item_id)
+        instance = r.word(entry + 0x20)
+        item = decode_inventory_instance(memory, instance)
+        if item["item"] != {"object_id": item_id, "object_type": item_type}:
+            raise NativeVendorDialogCaptureError("inventory entry and instance mismatch")
+        native_item = r.word(entry + 0x24)
+        r.require(native_item, base + 0x1142748, "inventory native item type")
+        template_id, template_type, native_id, native_type = struct.unpack(
+            "<IIII", r.read(native_item + 0x10, 16)
+        )
+        if (
+            (native_id, native_type) != (item_id, item_type)
+            or item["template"] != {"object_id": template_id, "object_type": template_type}
+        ):
+            raise NativeVendorDialogCaptureError("inventory native item identity mismatch")
+        items.append({
+            "control_address": control, "entry_address": entry,
+            "instance_address": instance, "native_item_address": native_item, **item,
+        })
+    return {
+        "window_address": hud, "list_address": listing, "items": items,
+        # The displayed list proves presence. Filtering/paging and server
+        # capacity have not been qualified; absence must never authorize retry.
+        "scope": "displayed_entries", "complete_inventory": False, "capacity": None,
+    }
+
+
 def read_native_vendor_queue(memory: VendorQueueMemory) -> dict[str, object]:
     """Read slots owned by the active city manager, without scanning the heap.
 
@@ -272,14 +338,19 @@ def read_native_vendor_queue(memory: VendorQueueMemory) -> dict[str, object]:
     recipe = _creation_recipe(r, base, active_huds, manager)
     if recipe is not None and recipe["vendor"] != vendor:
         raise NativeVendorDialogCaptureError("recipe and selected vendor mismatch")
+    inventory = _inventory(r, base, active_huds, manager)
+    if inventory is not None and any(
+        item["item"]["object_id"] in seen_items for item in inventory["items"]
+    ):
+        raise NativeVendorDialogCaptureError("item appears in both production and inventory")
     r.verify()
     return {
-        "schema_version": 3, "record_type": "vendor_queue_snapshot",
+        "schema_version": 4, "record_type": "vendor_queue_snapshot",
         "process_id": memory.pid, "process_creation_filetime_utc": lifetime,
         "executable_sha256": memory.executable_sha256,
         "native_window_address": root, "manager_address": manager, "menu_address": hud,
         "building": {"object_id": building_id, "object_type": building_type},
         "vendor": vendor, "selected_vendor_entry_address": selected_vendor,
         "production_list_address": production_list, "slots": slots, "creation_recipe": recipe,
-        "command_admitted": False,
+        "inventory": inventory, "command_admitted": False,
     }
