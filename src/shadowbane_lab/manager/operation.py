@@ -16,7 +16,11 @@ from math import isfinite
 from pathlib import Path
 from typing import NoReturn
 
-from shadowbane_lab.record_store import exclusive_record_lock, publish_atomic_record
+from shadowbane_lab.record_store import (
+    exclusive_record_lock,
+    publish_atomic_record,
+    read_record_bytes,
+)
 
 from .manifest import ManagerManifest
 from .worker import WorkerDispatchPermit
@@ -676,7 +680,7 @@ class WorkerOperationLedger:
         try:
             if path.is_symlink() or not path.is_file():
                 raise WorkerOperationFormatError("operation record must be a regular file")
-            source = path.read_bytes()
+            source = read_record_bytes(path, self._max_bytes)
         except OSError as exc:
             raise WorkerOperationLedgerError(f"could not read operation record: {exc}") from exc
         if len(source) > self._max_bytes:

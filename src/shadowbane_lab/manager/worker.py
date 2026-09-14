@@ -21,7 +21,11 @@ from pathlib import Path
 from time import sleep, time
 from typing import NoReturn
 
-from shadowbane_lab.record_store import publish_atomic_record, replace_record_with_retry
+from shadowbane_lab.record_store import (
+    publish_atomic_record,
+    read_record_bytes,
+    replace_record_with_retry,
+)
 
 from .manifest import ManagerManifest
 from .supervisor import ProcessLifetimeInspector, ProcessLifetimeSnapshot
@@ -796,7 +800,7 @@ class WorkerHeartbeatLedger:
                 return None
             if target.is_symlink() or not target.is_file():
                 raise WorkerHeartbeatFormatError("dispatch permit must be a regular file")
-            source = target.read_bytes()
+            source = read_record_bytes(target, self._max_record_bytes)
         except OSError as exc:
             raise WorkerHeartbeatLedgerError(
                 f"could not read worker dispatch permit: {exc}"
@@ -862,7 +866,7 @@ class WorkerHeartbeatLedger:
                 return None
             if target.is_symlink() or not target.is_file():
                 raise WorkerHeartbeatFormatError("worker stop request must be a regular file")
-            source = target.read_bytes()
+            source = read_record_bytes(target, self._max_record_bytes)
         except OSError as exc:
             raise WorkerHeartbeatLedgerError(f"could not read worker stop request: {exc}") from exc
         if len(source) > self._max_record_bytes:
@@ -910,7 +914,7 @@ class WorkerHeartbeatLedger:
             try:
                 if entry.is_symlink() or not entry.is_file():
                     raise WorkerHeartbeatFormatError("heartbeat entry must be a regular file")
-                source = entry.read_bytes()
+                source = read_record_bytes(entry, self._max_record_bytes)
                 if len(source) > self._max_record_bytes:
                     raise WorkerHeartbeatFormatError("heartbeat record exceeds size limit")
                 heartbeat = loads_worker_heartbeat(source.decode("utf-8", errors="strict"))
@@ -1355,8 +1359,8 @@ class WorkerDispatchGate:
         """Return true only for a current permit matching every exact identity."""
 
         try:
-            now = _require_time(self._clock(), "clock result")
             permit = self._ledger.inspect_permit(self._client_id)
+            now = _require_time(self._clock(), "clock result")
         except (OSError, RuntimeError, ValueError, WorkerHeartbeatError):
             return False
         if permit is None or not permit.allowed:

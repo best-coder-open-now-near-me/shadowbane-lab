@@ -1,9 +1,9 @@
 """Shared durable replacement for node-local records.
 
 Record owners define their schemas, identities, and size limits.  This module
-owns only the filesystem transaction used once a ledger has encoded a valid
-record: create a unique sibling, flush it to disk, and atomically replace the
-published record despite bounded transient Windows reader locks.
+owns durable replacement and bounded fresh reads: flush a unique sibling and
+atomically replace the published record, or retry a brief Windows file lock
+without caching old data or extending an owner-defined expiry.
 """
 
 from __future__ import annotations
@@ -126,6 +126,27 @@ def replace_record_with_retry(
             pause(delay)
 
 
+
+def read_record_bytes(path: Path, max_bytes: int) -> bytes:
+    """Read one fresh bounded record despite brief Windows replacement locks.
+
+    Return at most max_bytes + 1 so its owner can report its own size error.
+    Never cache a prior record or retry missing/corrupt data. Callers evaluating
+    expiry must sample their clock after this read, including any bounded retry.
+    """
+    if type(max_bytes) is not int or max_bytes <= 0:
+        raise ValueError("record read bound must be a positive integer")
+    for delay in (0.005, 0.010, 0.020, None):
+        try:
+            with path.open("rb") as stream:
+                return stream.read(max_bytes + 1)
+        except PermissionError:
+            if delay is None:
+                raise
+            sleep(delay)
+    raise AssertionError("unreachable record read")
+
+
 def publish_atomic_record(
     target: Path,
     payload: bytes,
@@ -166,5 +187,6 @@ __all__ = [
     "DEFAULT_ATOMIC_REPLACE_RETRY_DELAYS_SECONDS",
     "exclusive_record_lock",
     "publish_atomic_record",
+    "read_record_bytes",
     "replace_record_with_retry",
 ]

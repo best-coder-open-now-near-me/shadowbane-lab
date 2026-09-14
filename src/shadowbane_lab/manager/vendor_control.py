@@ -74,8 +74,8 @@ class ManagerVendorControl:
                 return
             if action not in {"vendor-start", "vendor-resume"}:
                 raise ValueError("unknown vendor action")
-            now = self.clock()
             permit = self.permits.inspect_permit(client_id)
+            now = self.clock()
             if (
                 permit is None
                 or not permit.allowed

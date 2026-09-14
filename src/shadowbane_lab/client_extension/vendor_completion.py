@@ -11,7 +11,11 @@ from pathlib import Path
 from typing import Protocol
 
 from shadowbane_lab.equipment.crafting_assessment import assess_native_crafting_roll
-from shadowbane_lab.record_store import exclusive_record_lock, publish_atomic_record
+from shadowbane_lab.record_store import (
+    exclusive_record_lock,
+    publish_atomic_record,
+    read_record_bytes,
+)
 
 from .action_channel import NativeClientProcessIdentity
 from .vendor_batch import VendorBatchStopped, _items, _owner
@@ -26,8 +30,7 @@ class CompletionSession(Protocol):
 
 
 def _read_record(path: Path, limit: int = 1024 * 1024) -> bytes:
-    with path.open("rb") as stream:
-        data = stream.read(limit + 1)
+    data = read_record_bytes(path, limit)
     if len(data) > limit:
         raise ValueError("vendor evidence exceeds its size bound")
     return data

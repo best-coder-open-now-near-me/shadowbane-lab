@@ -46,6 +46,35 @@ class ManagerRecordStoreTests(unittest.TestCase):
                     process.join(5.0)
             self.assertEqual(0, process.exitcode)
 
+
+    def test_record_reads_retry_only_permission_errors_and_remain_bounded(self):
+        from shadowbane_lab.record_store import read_record_bytes
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "state.json"
+            target.write_bytes(b"abcdef")
+            original = Path.open
+            attempts = [0]
+            def locked(path, *args, **kwargs):
+                attempts[0] += 1
+                if attempts[0] < 3:
+                    raise PermissionError(13, "Windows replacement lock")
+                return original(path, *args, **kwargs)
+            with (
+                patch.object(Path, "open", locked),
+                patch("shadowbane_lab.record_store.sleep") as wait,
+            ):
+                self.assertEqual(b"abcde", read_record_bytes(target, 4))
+            self.assertEqual(3, attempts[0])
+            self.assertEqual([0.005, 0.010], [c.args[0] for c in wait.call_args_list])
+            with patch.object(Path, "open", side_effect=PermissionError(13, "denied")) as read:
+                with patch("shadowbane_lab.record_store.sleep"), self.assertRaises(PermissionError):
+                    read_record_bytes(target, 4)
+                self.assertEqual(4, read.call_count)
+            with patch.object(Path, "open", side_effect=FileNotFoundError()) as read:
+                with self.assertRaises(FileNotFoundError):
+                    read_record_bytes(target, 4)
+                self.assertEqual(1, read.call_count)
+
     def test_record_is_durably_replaced_without_temporary_residue(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory) / "nested" / "worker.json"

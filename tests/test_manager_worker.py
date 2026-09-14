@@ -148,6 +148,38 @@ class ManagerWorkerTests(unittest.TestCase):
         self.assertTrue(gate.allows_dispatch())
         self.assertFalse(gate.is_set())
 
+
+    def test_transient_permit_read_lock_recovers_but_never_extends_expiry(self):
+        self.ledger.publish(_heartbeat())
+        self._supervisor().inspect(
+            CLIENT_ID, instance_id=INSTANCE_ID, lifecycle_dispatch_enabled=True,
+        )
+        now = [1001.5]
+        gate = WorkerDispatchGate(
+            self.ledger, node_id=NODE_ID, client_id=CLIENT_ID, instance_id=INSTANCE_ID,
+            worker_id=WORKER_ID, process=self.process, clock=lambda: now[0],
+        )
+        original = Path.open
+        attempts = [0]
+        def locked(path, *args, **kwargs):
+            if path.name == "dispatch.permit":
+                attempts[0] += 1
+                if attempts[0] < 3:
+                    raise PermissionError(13, "temporary Windows lock")
+            return original(path, *args, **kwargs)
+        with patch.object(Path, "open", locked):
+            self.assertTrue(gate.allows_dispatch())
+        self.assertEqual(3, attempts[0])
+        attempts[0] = 0
+        def expires_during_read(path, *args, **kwargs):
+            if path.name == "dispatch.permit":
+                now[0] = 1004
+            return locked(path, *args, **kwargs)
+        with patch.object(Path, "open", expires_during_read):
+            self.assertFalse(gate.allows_dispatch())
+        with patch.object(Path, "open", side_effect=PermissionError(13, "permanent denial")):
+            self.assertFalse(gate.allows_dispatch())
+
     def test_worker_record_replace_retries_transient_reader_lock(self) -> None:
         self.ledger.publish(_heartbeat())
         original_replace = Path.replace

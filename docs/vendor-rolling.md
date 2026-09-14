@@ -831,3 +831,23 @@ and passed afterward. All 2151 host tests and 571 subtests passed with the same
 14 environment skips; Ruff passed. The old manager and exact worker were stopped
 for host upgrade; the game stayed running. Installation and the first successful
 manager-started batch are the active todo.
+
+
+## Transient record-read correction (host 0.3.6)
+
+The 0.3.5 installed long-path regression passed. A subsequent manager start
+stopped at its dispatch gate before writing a job or sending Create. A bounded
+passive trace observed a transient PermissionError while reading the concurrently
+replaced permit (one of 100 samples). The same error was reproduced in the
+worker gate test.
+
+Shared hot-record reads now retry only PermissionError with 5, 10 and 20 ms delays.
+They read fresh bounded data on each attempt; missing, malformed, expired or
+persistently unreadable permission still blocks dispatch. The worker samples
+its expiry clock after the read, so retry cannot extend authorization. The same
+reader serves heartbeats, stop requests, operations and vendor records.
+
+All 2153 host tests and 571 subtests passed with 14 environment skips. The new
+tests cover recovery, permanent denial, missing files, size bounds and expiry
+during a read. The game stayed running with all three production slots empty.
+Host 0.3.6 installation and the first manager-created batch remain active.
