@@ -8,6 +8,7 @@ review; a restart never replays a Create or Keep journal.
 from __future__ import annotations
 
 import json
+import os
 import re
 import time
 import uuid
@@ -33,6 +34,7 @@ _IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
 _JOB = re.compile(r"[0-9a-f]{32}\Z")
 TERMINAL = {"complete", "stopped", "review"}
 MAX_JOB_SECONDS = 3600
+_EXTENDED_LOCAL_PREFIX = '\\\\?\\'
 
 
 def _write(path: Path, value: dict) -> None:
@@ -52,8 +54,17 @@ class VendorJobStore:
         ):
             raise ValueError("vendor job requires canonical exact instance identifiers")
         root = Path(root).resolve()
-        if str(root).startswith("\\\\"):
+        native_root = str(root)
+        if os.name == "nt" and native_root.startswith(_EXTENDED_LOCAL_PREFIX):
+            native_root = native_root[4:]
+        if native_root.startswith('\\\\') or (
+            os.name == "nt" and native_root.upper().startswith('UNC\\')
+        ):
             raise ValueError("vendor jobs require local storage")
+        if os.name == "nt":
+            # Atomic sibling names extend beyond MAX_PATH in installed runtimes.
+            # Use Win32 extended local paths without changing durable identities.
+            root = Path(_EXTENDED_LOCAL_PREFIX + native_root)
         self.root = root / node / client / "vendor-jobs" / instance
         self.identity = (node, client, instance)
 

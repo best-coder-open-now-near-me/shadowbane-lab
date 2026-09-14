@@ -815,3 +815,19 @@ roll, Keep or discard was sent, and the native game remained running unchanged.
 See [host 0.3.4 handoff](handoffs/vendor-manager-0.3.4.md) for the final package
 checksum, validation and active todo. Next is the first manager-started batch;
 full affix capture/disposal, native window opening and recurring jobs remain pending.
+
+
+## Windows installed-path correction (host 0.3.5)
+
+The first manager Start was accepted by the operation ledger but failed while
+creating its initial job record: the installed runtime's nested identity and
+atomic temporary filename exceeded Windows MAX_PATH. No Create request was
+sent. A separate queue read confirmed all three production slots still empty.
+
+Host 0.3.5 uses extended Windows local paths for vendor records, preserving
+the existing instance/job identities and retaining rejection of network roots.
+A full batch regression with paths beyond 260 characters failed before the fix
+and passed afterward. All 2151 host tests and 571 subtests passed with the same
+14 environment skips; Ruff passed. The old manager and exact worker were stopped
+for host upgrade; the game stayed running. Installation and the first successful
+manager-started batch are the active todo.

@@ -1,4 +1,5 @@
 import json
+import shutil
 import tempfile
 import unittest
 from dataclasses import replace
@@ -251,3 +252,18 @@ class VendorJobTests(unittest.TestCase):
                 self.run_job()
         self.assertFalse(self.session.calls)
         self.assertEqual("review", self.store.current()["state"])
+
+    def test_deep_windows_runtime_paths_support_atomic_jobs_and_receipts(self):
+        self.store = VendorJobStore(
+            Path(self.temp.name) / ("runtime-" + "r" * 85),
+            "node-" + "n" * 65, "client-" + "c" * 65, "client-" + "i" * 64,
+        )
+        cleanup_root = self.store.root.parents[3]
+        normal_root = str(cleanup_root).removeprefix(chr(92) * 2 + "?" + chr(92))
+        self.assertTrue(Path(normal_root).is_relative_to(Path(self.temp.name)))
+        self.addCleanup(lambda: shutil.rmtree(cleanup_root, ignore_errors=False))
+        self.session = JobSession(self.store)
+        result = self.run_job()
+        self.assertEqual("complete", result["state"])
+        self.assertEqual(2, result["kept"])
+        self.assertGreater(len(str(self.store.directory(result["job_id"]) / "create.json")), 260)
