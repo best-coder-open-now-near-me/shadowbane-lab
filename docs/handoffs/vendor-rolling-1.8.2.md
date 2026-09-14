@@ -129,3 +129,21 @@ No Keep or Junk has run. Completion assessment and automatic Keep are next;
 full recurring rolling remains unfinished. The five-minute passive completion
 observer detached normally without a completed result; a fresh independent read
 still matched all three batch items as cooking. No observer remains active.
+
+## Host-only 0.3.3 and automatic Keep qualification
+
+Native 1.8.2 is unchanged. Host 0.3.3 from
+`25dd627e6dbf56bf804f73a803fe6690fd4c83ec` adds durable completed-batch Keep.
+All 2120 host tests passed with 12 expected skips; Ruff passed. The exact-commit
+wheel's embedded source identity, installed module locations and installed CLI
+were verified. Wheel SHA-256:
+`d0aeee50351fd7890d3152045b2c8b88518ead124536e5af05c8114c2084a3b9`.
+It was installed alongside the original host without restarting the game.
+
+The first Keep batch finalized all three completed items. Each request had a
+separate inventory-confirmed native transition; an independent reader matched
+all three original items in the owned inventory and all production slots empty.
+Missing completed-affix evidence was treated as unknown and preserved. No items
+were discarded. The current active todo is manager job integration and remaining
+exclusion/disposal/resource/recovery qualification; unlimited rolling is not enabled.
+Exact runtime and item identifiers remain excluded from published source.

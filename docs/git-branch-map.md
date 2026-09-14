@@ -34,8 +34,9 @@ capacity-aware queue filling are implemented and tested, including rank growth.
 Package 1.8.2 / wheel 0.3.2 from `8aad37f` passed local required gates and all
 seven CI jobs. The separate test runtime is running with its exact DLL verified.
 The first live automatic batch filled three free slots with distinct verified
-queue additions. Next: completed-item assessment and automatic Keep, then
-manager job integration and qualified disposal. See
+queue additions. Host-only 0.3.3 from `25dd627` then finalized all three using
+automatic Keep with independent inventory confirmation. Native 1.8.2 remained
+unchanged. Next: manager jobs and exclusion/disposal/resource qualification. See
 [exact vendor package](handoffs/vendor-rolling-1.8.2.md) and
 [vendor status and validation](vendor-rolling.md).
 

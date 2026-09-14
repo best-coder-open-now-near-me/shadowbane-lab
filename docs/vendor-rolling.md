@@ -16,9 +16,11 @@ recipe ownership checks, durable capacity-aware queue filling, strict crafting
 and inventory decoding, bounded passive tracing and conservative affix assessment.
 The first automatic batch in 1.8.2 filled all three observed free slots; each
 Create produced a separately correlated queue addition, and an independent
-read confirmed all three items cooking. No automatic Keep or Junk has run.
-The complete rolling system remains unfinished: completed-item handling, manager
-job controls, full inventory/resource capacity and destructive-action qualification
+read confirmed all three items cooking. The completed batch was subsequently
+finalized by automatic Keep; all three items were independently confirmed in
+the owned inventory. No automatic Junk has run.
+The complete rolling system remains unfinished: manager job controls, full
+inventory/resource capacity and destructive-action qualification
 are pending. Unknown affixes remain protected by the exclusion policy.
 
 The dependency provides current native UI-thread, process/session lifetime and
@@ -108,14 +110,17 @@ tests prove the upstream grammar only; no live capture has been promoted.
    sending, prevent replay after interruption, detect rank growth, and stop when
    full or when outcomes/ownership become uncertain. This does not enable an
    unlimited sequence of replacement batches.
-3. **Active:** capture completed results, apply confirmed Tier 1/2 exclusions
-   while retaining unknowns, and qualify automatic Keep through fresh queue and
-   owned inventory reconciliation. Keep is manually qualified; automatic Keep
-   and Junk have not yet been tested. Missing displayed inventory is not failure.
-4. Integrate durable start/pause/stop jobs with the manager, explicit recurring
-   limits and reject handling. Qualify inventory capacity/paging, resources,
-   disconnect/restart recovery and destructive disposal before enabling them.
-   Keep exactly identified pending actions through gaps; never blindly retry.
+3. **Complete for this batch:** automatic Keep, preserving unresolved affixes.
+   Each request was persisted before submission and matched native inventory
+   confirmation. An independent owned-inventory read found all three items and
+   all production slots empty. Qualified capture evidence is assessed when
+   available; missing evidence remains unknown. Known low-tier identity coverage
+   and live discard qualification are still incomplete.
+4. **Active:** integrate durable manager start/pause/stop jobs with explicit
+   recurring limits and reject handling. Qualify inventory capacity/paging,
+   resources, recovery and disposal before enabling them. Keep exact pending
+   actions through gaps; never blindly retry.
+
 
 Local research files and VM screenshots are under
 `artifacts/vendor-protocol/` in the task worktree and are ignored. They are not
@@ -724,3 +729,29 @@ outcomes, queue removal without inventory, wrong client/evidence, conflicting
 captures, hidden inventory, cancellation and exclusion/unknown handling. This
 is a host-only update; the loaded native client is unchanged. The full host suite passed 2120 tests with 12 expected skips; Ruff also passed.
 Exact-source host packaging and live automatic Keep qualification are next.
+
+## First automatic Keep batch verified
+
+Host-only wheel 0.3.3 from `25dd627` was built from an exact-commit archive with
+embedded source identity, installed into a separate host environment and checked
+through its installed command entry point. Native 1.8.2 remained unchanged and
+running. All three finished items matched the original Create batch; the current
+owned inventory was visible before submission. The captured completion evidence
+contained no resolved affixes, so all three were kept as unknown under the user's
+policy. No guessed affix names or tiers were used.
+
+The durable Keep journal finished with three inventory-confirmed requests. A
+separate rooted reader matched every batch item in Malik's inventory and found
+all three production slots empty. No discard or replacement batch was issued.
+The automatic Create -> completion -> Keep path is live-qualified for this
+selected recipe/vendor and visible inventory. It is not certification of full
+inventory capacity, all low-tier mappings, Junk, or indefinite recurring jobs.
+
+Host wheel SHA-256: d0aeee50351fd7890d3152045b2c8b88518ead124536e5af05c8114c2084a3b9.
+Host source: `25dd627e6dbf56bf804f73a803fe6690fd4c83ec`; native source remains
+`8aad37fcf691e05ae49960f939cab8ceba43a299`. Detailed host installation and batch
+receipts remain local and excluded from Git. An initial working-tree package
+was not installed; it was archived separately from the verified exact-source
+wheel, with its original locations recorded in the private artifact directory.
+Next: manager job integration, complete exclusion identity coverage and qualified
+disposal, inventory/resource capacity and recovery validation.
