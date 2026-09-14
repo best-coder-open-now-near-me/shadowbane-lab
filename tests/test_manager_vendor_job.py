@@ -260,7 +260,8 @@ class VendorJobTests(unittest.TestCase):
         )
         cleanup_root = self.store.root.parents[3]
         normal_root = str(cleanup_root).removeprefix(chr(92) * 2 + "?" + chr(92))
-        self.assertTrue(Path(normal_root).is_relative_to(Path(self.temp.name)))
+        # Resolve the temp root too: Windows CI may expose its short 8.3 alias.
+        self.assertTrue(Path(normal_root).is_relative_to(Path(self.temp.name).resolve()))
         self.addCleanup(lambda: shutil.rmtree(cleanup_root, ignore_errors=False))
         self.session = JobSession(self.store)
         result = self.run_job()
