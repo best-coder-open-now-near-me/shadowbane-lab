@@ -719,6 +719,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             arguments.process_id, arguments.window, arguments.vendor_id, arguments.journal,
             as_json=arguments.json,
         )
+    if arguments.command == "client" and arguments.client_command == "keep-vendor-batch":
+        return _client_inspection_commands.keep_vendor_batch(
+            arguments.batch_journal, arguments.journal, capture=arguments.capture,
+            as_json=arguments.json,
+        )
     if arguments.command == "client" and arguments.client_command == "trace-native-crafting":
         return _client_inspection_commands.trace_native_crafting(
             arguments.process_id, arguments.output, timeout_seconds=arguments.timeout_seconds,

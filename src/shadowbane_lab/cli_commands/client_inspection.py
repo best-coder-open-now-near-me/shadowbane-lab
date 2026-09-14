@@ -1605,3 +1605,42 @@ def fill_vendor_slots(
     else:
         print(f"Started {len(result['items'])} rolls in available slots. Record: {journal}")
     return 0 if result["state"] == "complete" else 2
+
+
+def keep_vendor_batch(
+    batch_journal: Path, journal: Path, *, capture: Path | None, as_json: bool
+) -> int:
+    from shadowbane_lab.client_extension.action_channel import NativeClientProcessIdentity
+    from shadowbane_lab.client_extension.vendor_completion import _read_record, keep_completed_batch
+    from shadowbane_lab.client_extension.vendor_session import NativeVendorSession
+    from shadowbane_lab.client_observation.native_health import WindowsReadOnlyProcessMemory
+
+    try:
+        batch = json.loads(_read_record(batch_journal))
+        identity = NativeClientProcessIdentity(
+            batch["process_id"], batch["process_creation_filetime_utc"]
+        )
+        memory = WindowsReadOnlyProcessMemory.open_for_process("sb.exe", identity.process_id)
+        try:
+            if memory.process_creation_filetime_utc != identity.creation_filetime_utc or (
+                memory.executable_sha256 !=
+                "bb63469eb35917e6b3f58be75d29f94855c9868024271222465b4db62f0e3a87"
+            ):
+                raise ValueError("the batch client lifetime or build changed")
+        finally:
+            memory.close()
+        session = NativeVendorSession(identity, batch["window"])
+        try:
+            result = keep_completed_batch(session, batch_journal, journal, capture=capture)
+        finally:
+            session.close()
+    except (OSError, ValueError, RuntimeError, KeyError, TypeError) as exc:
+        return _error(f"vendor Keep stopped: {exc}", as_json=as_json)
+    summary = {"state": result["state"], "kept": len(result["kept"]),
+               "excluded": len(result["excluded"]), "journal": str(journal)}
+    if as_json:
+        print(json.dumps({"ok": result["state"] == "complete", **summary}, sort_keys=True))
+    else:
+        print(f"Kept {summary['kept']} items; "
+              f"{summary['excluded']} excluded items remain in production.")
+    return 0 if result["state"] == "complete" else 2

@@ -792,6 +792,14 @@ def _parser() -> argparse.ArgumentParser:
     fill_vendor.add_argument("--journal", required=True, type=Path)
     fill_vendor.add_argument("--json", action="store_true")
 
+    keep_vendor = client_commands.add_parser(
+        "keep-vendor-batch", help="finalize completed batch items and verify vendor inventory"
+    )
+    keep_vendor.add_argument("--batch-journal", required=True, type=Path)
+    keep_vendor.add_argument("--journal", required=True, type=Path)
+    keep_vendor.add_argument("--capture", type=Path)
+    keep_vendor.add_argument("--json", action="store_true")
+
     trace_crafting = client_commands.add_parser(
         "trace-native-crafting", help="capture native crafting messages without sending actions"
     )

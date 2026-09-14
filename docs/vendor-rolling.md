@@ -707,3 +707,20 @@ The live queue-filling hook is qualified for this exact package and recipe;
 this does not certify completed-item handling or the entire rolling loop.
 Next: completion/affix assessment and automatic Keep qualification, followed by
 safe disposal and manager-owned recurring jobs.
+
+## Durable completed-batch Keep implementation
+
+Host wheel 0.3.3 adds `client keep-vendor-batch`, using the unchanged 1.8.2 native
+Keep contract. The controller binds the successful Create journal to the live
+client/scene/vendor, requires completed items and an open owned inventory view,
+records each request before sending, and waits for correlated native inventory
+presence before moving to the next item. Lost replies and uncertain transitions
+stop without replay. Confirmed exclusions remain in production; no disposal or
+replacement crafting occurs. Valid same-batch native completion evidence uses
+the existing affix assessment. Missing evidence stays unknown and is preserved.
+
+Focused validation: 54 Python tests pass, including durable writes, uncertain
+outcomes, queue removal without inventory, wrong client/evidence, conflicting
+captures, hidden inventory, cancellation and exclusion/unknown handling. This
+is a host-only update; the loaded native client is unchanged. The full host suite passed 2120 tests with 12 expected skips; Ruff also passed.
+Exact-source host packaging and live automatic Keep qualification are next.
