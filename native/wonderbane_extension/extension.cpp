@@ -1,6 +1,7 @@
 #include "movement_boundary_trace.h"
 #include "targeted_action_trace.h"
 #include "movement_runtime.h"
+#include "vendor_runtime.h"
 #include "camera_observation.h"
 #include "cel_shading.h"
 #include "extension_api.h"
@@ -463,6 +464,7 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
             // Optional native controls publish unavailable on unsupported binding.
             // Register only after shared startup succeeds; ordinary disable keeps
             // the owning-update consumer alive for safe re-enable.
+            (void)wonderbane::extension::vendor::Start();
             (void)wonderbane::extension::movement::StartNativeMovementControls(identity);
         }
         if (result != ERROR_SUCCESS) {

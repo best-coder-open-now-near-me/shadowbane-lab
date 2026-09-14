@@ -3,6 +3,7 @@
 #include "client_action_dispatch.h"
 #include "event_channel.h"
 #include "movement_command_queue.h"
+#include "vendor_command_queue.h"
 
 #include <Windows.h>
 #include <strsafe.h>
@@ -133,6 +134,7 @@ struct Runtime {
     ClientActionChannelStorage* storage = nullptr;
     std::shared_ptr<Backing> backing;
     std::shared_ptr<movement::QueuedCommand> pending;
+    std::shared_ptr<vendor::QueuedCommand> vendor_pending;
     void (*before_drain)() noexcept = nullptr;
     DWORD shutdown_wait_ms = 2000;
 };
@@ -412,6 +414,36 @@ inline DWORD FinishPending(Runtime& runtime, ULONGLONG now) noexcept {
     movement::ReleaseMovementCommand(pending); runtime.pending.reset(); return ERROR_SUCCESS;
 }
 
+inline DWORD FinishVendorPending(Runtime& runtime, ULONGLONG now) noexcept {
+    const auto& pending = runtime.vendor_pending;
+    if (!pending) { return ERROR_SUCCESS; }
+    // An expired request that never reached the owning thread cannot block the
+    // channel forever while minimized/logged out. Never cancel an executing call.
+    if (now > pending->deadline) {
+        unsigned queued = 0;
+        if (pending->state.compare_exchange_strong(queued, 1)) {
+            vendor::wire::Receipt receipt{};
+            receipt.host = pending->command.host; receipt.request = pending->command.request;
+            receipt.window = pending->command.window;
+            receipt.outcome = static_cast<unsigned>(vendor::wire::Outcome::stale);
+            vendor::Complete(pending, receipt);
+        }
+    }
+    if (pending->state.load(std::memory_order_acquire) != 2) { return ERROR_IO_PENDING; }
+    const auto outcome = static_cast<vendor::wire::Outcome>(pending->receipt.outcome);
+    const bool accepted = outcome == vendor::wire::Outcome::observed || outcome == vendor::wire::Outcome::submitted;
+    movement::wire::Receipt wire_bytes{};
+    static_assert(sizeof(wire_bytes) == sizeof(pending->receipt));
+    std::memcpy(&wire_bytes, &pending->receipt, sizeof(wire_bytes));
+    constexpr char detail[] = "native_vendor_receipt_v1";
+    if (!TryPublishResult(*runtime.storage, runtime.result_signal, static_cast<LONG64>(pending->sequence), pending->id,
+        accepted ? ClientActionResultStage::submitted_to_client : ClientActionResultStage::rejected_by_client,
+        accepted ? ERROR_SUCCESS : ERROR_REQUEST_ABORTED, detail, sizeof(detail) - 1, now,
+        &wire_bytes, pending->execution_thread)) { return ERROR_NOT_ENOUGH_QUOTA; }
+    InterlockedExchange64(&runtime.storage->header.command_read_sequence, static_cast<LONG64>(pending->sequence));
+    vendor::Release(pending); runtime.vendor_pending.reset(); return ERROR_SUCCESS;
+}
+
 inline DWORD DrainCommands(
     ClientActionChannelStorage& storage,
     const HANDLE result_signal,
@@ -422,6 +454,10 @@ inline DWORD DrainCommands(
     }
     if (&storage == g_runtime.storage && g_runtime.pending) {
         const auto result = FinishPending(g_runtime, now);
+        if (result != ERROR_SUCCESS) { return result; }
+    }
+    if (&storage == g_runtime.storage && g_runtime.vendor_pending) {
+        const auto result = FinishVendorPending(g_runtime, now);
         if (result != ERROR_SUCCESS) { return result; }
     }
     if (!HostLeaseIsActive(storage, now)) {
@@ -473,6 +509,38 @@ inline DWORD DrainCommands(
             return ERROR_RETRY;
         }
 
+        if (snapshot.kind >= 8U && snapshot.kind <= 10U) {
+            const auto verb = static_cast<vendor::wire::Verb>(snapshot.kind);
+            vendor::wire::Command payload{};
+            std::memcpy(&payload, &snapshot.movement, sizeof(payload));
+            const bool valid = snapshot.command_id && snapshot.payload_version == kClientActionPayloadVersion
+                && snapshot.created_tick && snapshot.created_tick <= now && now <= snapshot.deadline_tick
+                && snapshot.deadline_tick - snapshot.created_tick <= 5000
+                && !snapshot.flags && !snapshot.action_code && !snapshot.parameter_one && !snapshot.parameter_two
+                && !snapshot.argument_length && !snapshot.power_identifier_length
+                && movement::wire::Zero(snapshot.argument, sizeof(snapshot.argument))
+                && movement::wire::Zero(snapshot.power_identifier, sizeof(snapshot.power_identifier))
+                && vendor::wire::Valid(verb, payload);
+            if (valid && &storage == g_runtime.storage && g_runtime.backing) {
+                try {
+                    auto lease = CaptureMovementLease(g_runtime.backing, payload.host, now);
+                    if (lease) {
+                        auto command = std::make_shared<vendor::QueuedCommand>();
+                        command->id = snapshot.command_id; command->sequence = static_cast<std::uint64_t>(expected_sequence);
+                        command->deadline = snapshot.deadline_tick; command->verb = verb;
+                        command->command = payload; command->lease = std::move(lease);
+                        if (!vendor::Queue(command)) { return ERROR_RETRY; }
+                        g_runtime.vendor_pending = std::move(command); return ERROR_IO_PENDING;
+                    }
+                } catch (...) { return ERROR_NOT_ENOUGH_MEMORY; }
+            }
+            constexpr char detail[] = "invalid_or_expired_vendor_lease";
+            if (!TryPublishResult(storage, result_signal, expected_sequence, snapshot.command_id,
+                ClientActionResultStage::failed, ERROR_INVALID_DATA, detail, sizeof(detail) - 1, now)) {
+                return ERROR_NOT_ENOUGH_QUOTA;
+            }
+            InterlockedExchange64(&storage.header.command_read_sequence, expected_sequence); continue;
+        }
         if (snapshot.kind >= 3U && snapshot.kind <= 7U) {
             const auto verb = static_cast<movement::wire::Verb>(snapshot.kind);
             const bool valid = snapshot.command_id && snapshot.payload_version == kClientActionPayloadVersion
@@ -617,6 +685,7 @@ inline void CloseRuntime() noexcept {
         runtime.storage = nullptr; runtime.mapping = nullptr; runtime.backing.reset();
     }
     if (runtime.pending) { movement::ReleaseMovementCommand(runtime.pending); runtime.pending.reset(); }
+    if (runtime.vendor_pending) { vendor::Release(runtime.vendor_pending); runtime.vendor_pending.reset(); }
     if (runtime.storage != nullptr) {
         UnmapViewOfFile(runtime.storage);
         runtime.storage = nullptr;

@@ -35,6 +35,7 @@ DWORD StartTargetedActionTrace(const ProcessIdentity& identity) noexcept {
     ++targeted_starts; return targeted_result;
 }
 void StopTargetedActionTrace() noexcept { ++targeted_stops; }
+namespace vendor { bool Start() noexcept { return true; } }
 namespace movement {
 int starts = 0;
 DWORD start_result = ERROR_SUCCESS;

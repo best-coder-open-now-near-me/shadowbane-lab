@@ -608,3 +608,42 @@ free slot once, and recheck acceptance before filling another. The latest
 verified Malik queue has two free slots. This does not authorize blind retries
 or an unbounded number of future batches. Tier 1/2 exclusion with unknowns
 preserved remains the desired policy. No automatic batch has started.
+
+## Native command implementation checkpoint - September 14
+
+The extension now has separate typed vendor inspect/Create/Keep requests (kinds
+8/9/10) within the existing schema-3 transport envelope. A vendor receipt has its
+own signature and layout; movement grants are neither decoded nor consumed.
+The producer process/creation/generation/heartbeat lease is reused only as
+transport ownership. Payloads and deadlines are validated before queuing.
+
+The existing native update invokes the vendor service on the exact HWND owner
+thread. Startup verifies the full reviewed executable; each operation rechecks
+the live scene, rooted manager/menu/hireling, building, recipe, current slots,
+foreground window and topmost relevant menu. Default empty ArcString construction
+and destruction use the native functions at RVAs 0x145000/0x145310; Create and
+Keep use their manually qualified native builders. The game retains allocation,
+message construction and sending. No synthetic network packets or remote-thread
+game calls are used.
+
+Requests receive immutable local submission receipts. They are not server
+acceptance. The controller blocks another mutation until an unambiguous queue
+addition, or queue removal plus owned inventory presence, is observed. Gaps,
+session changes, multiple additions and uncertain native calls stop mutation.
+A process-local ledger never evicts action UUIDs; an identical repeat returns
+its old receipt and a changed repeat is rejected. At 4096 actions it stops new
+mutations rather than permitting old requests to replay. Queued requests that
+expire before the UI thread consumes them are retired without invoking the game.
+
+Validation: Win32 Release build passes, and all 82 selected native startup,
+event-channel, movement channel/runtime/lifetime, vendor controller and vendor
+reader cases pass. This is a source/build checkpoint, not a live automatic
+crafting qualification or deployable release identity. Private build artifacts
+still carry the prior version until the complete package is prepared; do not
+install them as a replacement 1.8.1. The previously recorded rendering failures
+remain outside this selected test set.
+
+Remaining in this slice: host wire/session implementation, a durable controller
+that fills every initially available slot once, cross-language/channel tests,
+then a versioned package and live automatic qualification. No automatic commands
+have been issued to the test VM. Junk/disposal remains unavailable.

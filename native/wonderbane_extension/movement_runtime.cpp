@@ -6,6 +6,7 @@
 #include "movement_lifetime.h"
 #include "movement_settings.h"
 #include "command_channel.h"
+#include "native_owner_services.h"
 #include <map>
 #include <array>
 #include <atomic>
@@ -360,6 +361,7 @@ public:
             | (sampled.capture_valid ? 1024U : 0U) | (sampled.camera_blocked ? 2048U : 0U);
         controls.Tick(sampled);
         Diagnostic(controls.Current(), controls.Current(), UINT32_MAX, 1);
+        RunNativeOwnerServices(receiver, window);
         Commands(phase);
         if (phase) { native.EndUpdate(); }
         busy = false; Drain(); Publish();
