@@ -11,12 +11,15 @@ integrate into `main` after dependency and feature review. Neither the vendor
 overlay nor this dependency merge is a deployment. The normal checkout stays
 on `main`.
 
-Implemented: strict crafting decoding, bounded passive tracing, deposit item
-decoding, conservative affix assessment, and a rooted current-menu queue and
-selected-recipe reader. Live manual Create and cooking-to-complete transitions
-have been observed. Automatic rolling is unfinished: no verified dispatch
-adapter, authoritative inventory reconciliation, or resource-budget controller
-is enabled. Observer success must not be advertised as automation capability.
+Implemented: typed native vendor inspect/Create/Keep commands, current-menu and
+recipe ownership checks, durable capacity-aware queue filling, strict crafting
+and inventory decoding, bounded passive tracing and conservative affix assessment.
+The first automatic batch in 1.8.2 filled all three observed free slots; each
+Create produced a separately correlated queue addition, and an independent
+read confirmed all three items cooking. No automatic Keep or Junk has run.
+The complete rolling system remains unfinished: completed-item handling, manager
+job controls, full inventory/resource capacity and destructive-action qualification
+are pending. Unknown affixes remain protected by the exclusion policy.
 
 The dependency provides current native UI-thread, process/session lifetime and
 typed command ownership infrastructure. Its movement authority does not grant
@@ -98,26 +101,21 @@ tests prove the upstream grammar only; no live capture has been promoted.
 
 ## Remaining implementation
 
-1. **Complete:** qualify native Create and read the selected recipe and owned
-   production slots, including cooking and completion, on shadowbane-testing.
-2. **Complete for visible item presence:** qualify Keep's native receiver and
-   reconcile its deposited item against current-vendor inventory entries.
-   Full inventory capacity, paging/filtering and resource availability remain
-   unqualified; a missing displayed item never authorizes retry.
-3. **Active:** publish immutable native observations with process/session/vendor
-   identity and explicit gaps, and add typed crafting commands through the existing
-   manager admission and native action boundaries. Recheck vendor access, identity, fresh queue capacity,
-   inventory capacity, and gold/material limits immediately before dispatch.
-   Observe server acceptance separately from local send success.
-4. Add durable rolling jobs with recipe, count/resource limits, desired modifier
-   rules, and explicit reject handling. Start/pause/stop belong to the manager.
-   Persist job ownership and pending actions before dispatch; never blindly retry
-   an uncertain produce or destructive action after timeout/restart. Reconcile
-   through a fresh authoritative snapshot before resuming.
-5. Validate one request through completion and keep, then bounded repeated rolls,
-   budget exhaustion, full slots/inventory, rejection, disconnect/restart,
-   duplicate/missing events, cancellation, and wrong-client/vendor isolation.
-   Default to retaining items; junk/recycle require explicit policy.
+1. **Complete:** selected vendor/recipe ownership, native typed inspection and
+   automatic Create. The first live capacity-aware batch filled three slots;
+   native correlation and an independent queue read confirmed each addition.
+2. **Complete for the bounded batch:** persist ownership and each request before
+   sending, prevent replay after interruption, detect rank growth, and stop when
+   full or when outcomes/ownership become uncertain. This does not enable an
+   unlimited sequence of replacement batches.
+3. **Active:** capture completed results, apply confirmed Tier 1/2 exclusions
+   while retaining unknowns, and qualify automatic Keep through fresh queue and
+   owned inventory reconciliation. Keep is manually qualified; automatic Keep
+   and Junk have not yet been tested. Missing displayed inventory is not failure.
+4. Integrate durable start/pause/stop jobs with the manager, explicit recurring
+   limits and reject handling. Qualify inventory capacity/paging, resources,
+   disconnect/restart recovery and destructive disposal before enabling them.
+   Keep exactly identified pending actions through gaps; never blindly retry.
 
 Local research files and VM screenshots are under
 `artifacts/vendor-protocol/` in the task worktree and are ignored. They are not
@@ -691,3 +689,19 @@ The matching 32-bit verifier confirmed its exact DLL. Runtime identifiers and
 launch evidence remain guest-local. Initial native inspection timed out before
 world entry; no mutation was issued. Next: login as Treehugger, select Malik's
 random Gilded Scepter recipe, verify inspection and run the current-capacity batch.
+
+## First automatic capacity batch - September 14
+
+The live 1.8.2 service returned an OBSERVED/READY receipt for Malik with the
+random Gilded Scepter recipe selected and three empty production slots.
+The authorized batch persisted one request per slot, submitted each once and
+waited for its distinct native queue transition. Its journal completed with
+three observed requests, three new items and capacity history [3]. A separate
+rooted read matched all three batch items and reported each as cooking.
+No Keep, Junk or replacement batch was issued. Detailed evidence is retained in the VM and excluded from Git.
+A bounded passive observer is collecting completion evidence for this batch.
+
+The live queue-filling hook is qualified for this exact package and recipe;
+this does not certify completed-item handling or the entire rolling loop.
+Next: completion/affix assessment and automatic Keep qualification, followed by
+safe disposal and manager-owned recurring jobs.

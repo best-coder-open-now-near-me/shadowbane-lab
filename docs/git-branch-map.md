@@ -33,8 +33,9 @@ Keep and owned inventory are qualified. Native typed commands, strict wire and
 capacity-aware queue filling are implemented and tested, including rank growth.
 Package 1.8.2 / wheel 0.3.2 from `8aad37f` passed local required gates and all
 seven CI jobs. The separate test runtime is running with its exact DLL verified.
-Next: login/recipe selection, live automatic qualification, then completed-item
-policy integration. See
+The first live automatic batch filled three free slots with distinct verified
+queue additions. Next: completed-item assessment and automatic Keep, then
+manager job integration and qualified disposal. See
 [exact vendor package](handoffs/vendor-rolling-1.8.2.md) and
 [vendor status and validation](vendor-rolling.md).
 

@@ -117,3 +117,14 @@ Next: log in as Treehugger, open Malik's random Gilded Scepter recipe before
 Create, verify fresh native inspection and current capacity, then run one
 durable fill-slots batch. Existing desktop shortcuts remain unchanged pending
 the live test. Automatic completed-item handling remains unfinished.
+
+## First automatic batch verified
+
+After login and recipe selection, native inspection returned ready with three
+free slots. One durable batch filled all three. Each Create was sent once and
+received a distinct correlated queue addition before the next request. An
+independent owned-queue observation matched all three items as cooking.
+Detailed batch evidence and runtime identifiers are excluded from published source.
+No Keep or Junk has run. Completion assessment and automatic Keep are next;
+full recurring rolling remains unfinished. A bounded passive completion observer
+was started without sending further game actions.
