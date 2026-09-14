@@ -755,3 +755,19 @@ was not installed; it was archived separately from the verified exact-source
 wheel, with its original locations recorded in the private artifact directory.
 Next: manager job integration, complete exclusion identity coverage and qualified
 disposal, inventory/resource capacity and recovery validation.
+
+
+## Manager job runner checkpoint
+
+The instance-scoped durable job runner now composes the verified Create and Keep
+operations into one capacity batch. Local pause waits before new actions while
+a submitted request is still reconciled. Stop or lost dispatch authority prevents
+further submissions. Explicit recovery resumes only at a fully persisted phase
+boundary; partial or uncertain child journals require review and are never replayed.
+The runner waits visibly for cooking and the vendor Inventory, with a one-hour
+job deadline. Unknown affixes remain preserved; no discard or recurring refill is
+enabled. Native window-opening hooks, resource capacity and full exclusion identity
+coverage remain unqualified. This is source validation, not a new deployment.
+
+Active: dashboard controls and exact-worker composition. Next: manager regression
+tests and packaging; then the remaining live window/resource/disposal qualification.

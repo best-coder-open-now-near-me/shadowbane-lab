@@ -77,6 +77,7 @@ def keep_completed_batch(
     *,
     capture: Path | None = None,
     cancelled: Callable[[], bool] = lambda: False,
+    before_action: Callable[[], None] = lambda: None,
     clock: Callable[[], float] = time.monotonic,
     sleeper: Callable[[float], None] = time.sleep,
     acceptance_timeout: float = 15.0,
@@ -167,6 +168,7 @@ def keep_completed_batch(
             for item in items:
                 if item in record["excluded"]:
                     continue
+                before_action()
                 if cancelled():
                     record["state"] = "cancelled"
                     save()

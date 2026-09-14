@@ -38,6 +38,8 @@ def fill_available_slots(
     vendor_id: int,
     *,
     cancelled: Callable[[], bool] = lambda: False,
+    before_action: Callable[[], None] = lambda: None,
+    expected_owner: Snapshot | None = None,
     clock: Callable[[], float] = time.monotonic,
     sleeper: Callable[[float], None] = time.sleep,
     acceptance_timeout: float = 15.0,
@@ -64,6 +66,11 @@ def fill_available_slots(
             or initial.vendor != vendor_id or not initial.random_scepter
         ):
             raise VendorBatchStopped("the requested vendor's random recipe is not ready")
+        if expected_owner is not None and (
+            _owner(initial) != _owner(expected_owner)
+            or _items(initial) != _items(expected_owner)
+        ):
+            raise VendorBatchStopped("vendor ownership or production changed before filling")
         baseline = _items(initial)
         record = {
             "schema_version": 1, "operation": "fill_available_slots",
@@ -101,6 +108,7 @@ def fill_available_slots(
         save()
         try:
             while True:
+                before_action()
                 if cancelled():
                     record["state"] = "cancelled"
                     save()
