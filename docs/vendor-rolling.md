@@ -343,3 +343,45 @@ selection. Static inspection resolves its owner forwarder to RVA 0x6D3240,
 which sets PRODUCE and the building reference before queueing the message.
 The next live qualification must associate the Create entry, this receiver,
 outgoing request, and server reply. No native send adapter is enabled yet.
+
+
+## Verified Create call path
+
+A single user-triggered Create hit the ArcItemCreationHud builder at RVA
+0x63CE40. The captured receiver carried the selected vendor, building, recipe,
+random modifier sentinels, quantity one, and single-slot mode. Serialization
+produced the matching PRODUCE request and the server returned CONFIRM_PRODUCE
+with a new cooking item. UI creation and outbound serialization ran on different
+threads; a command adapter must execute through the owning UI-thread boundary.
+
+Explicit detach again returned Windows error 5. The subsequent debugger check
+succeeded and reported no attached debugger; the same process lifetime remained
+alive. No automatic crafting command was issued.
+
+## Reference import and exclusion policy
+
+The user supplied WonderBane_Field_Reference_v3_7_Zone_Resources.html and selected
+an exclusion policy: exclude confirmed Tier 1 and Tier 2 results; retain everything
+else, including unknown results. Unknown affixes override exclusion, even when
+paired with a known low-tier affix. Unfinished items receive WAIT.
+
+The affix table is packaged in equipment/data/wonderbane_affix_reference_v3_7.json,
+with the original file hash, edition, source links, equipment categories, vendor
+restrictions, formula costs, and evidence notes. Executable HTML and other
+reference sections are not imported. equipment.affix_reference provides the
+reproducible importer, bundled loader, tier queries, and exact name lookup.
+
+The table contains 112 Tier 3, 50 Tier 4, and nine Tier 2 rows. It contains no
+Tier 1 rows. Generic source categories such as "Weapons (source category)" remain
+unexpanded. Names are not unique across tiers: "of Thorns" has different Tier 3
+and Tier 4 effects and equipment restrictions. Lookup returns both records.
+
+equipment.rolling_policy.evaluate_roll_tiers implements the selected policy.
+Inputs must be confirmed tiers; None is unknown and zero means confirmed absent.
+It returns WAIT, KEEP, or EXCLUDE without sending input or discarding items.
+Missing reference entries remain unknown; this list is not a complete tier map.
+Live effect tokens must be mapped before any result can be excluded automatically.
+
+Next: verified modifier-token mapping, complete inventory/queue reconciliation,
+typed UI-thread dispatch, and a bounded rolling job with an explicit run limit.
+No automated crafting or disposal has been enabled.
