@@ -69,3 +69,17 @@ Publication approved by the owner on September 14. The implementation
 `e26a5e3` and this handoff are delivered on `codex/vendor-rolling`, targeting
 `codex/native-lifecycle-hardening` and then reviewed `main`.
 No integration or merge has occurred.
+
+## Follow-up investigation
+
+Static review used the exact installed executable after an older local fixture
+failed the executable identity check. The Create owner forwarder constructs
+and submits the production message; its return is not server acceptance.
+This does not prove serialization or server processing for the uncertain request
+and does not identify the failure cause.
+
+The latest idle inspection found the vendor management menu closed and the
+action unresolved. No new request, reset or recovery was attempted. The owner
+has been asked to reopen Malik's management menu without crafting or completing
+anything. Next: check the current queue and ownership before further diagnostics.
+
