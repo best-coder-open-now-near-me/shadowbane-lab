@@ -40,15 +40,32 @@ only in page memory, so browser reload loses authentication; the dashboard
 Refresh button updates status without reloading the page. The owner encountered
 this during the check, and reopening through the launcher restored the
 authenticated URL. No new batch had started at that point.
-Remote Python 3.11/3.12/3.13, quality and PowerShell checks passed; both native
-profiles are still running. Live dashboard focus handoff qualification is pending.
+All seven CI checks passed. The latest live result is recorded below;
+full batch qualification remains incomplete.
 See [previous installed handoff](vendor-manager-0.3.8.md) for its exact package
 and uninterrupted three-item batch evidence.
 
-## Remaining work
+## Live focus check and unresolved Create
 
-Active: qualify the installed focus handoff through one dashboard Start.
-Then qualify native recipe/inventory opening, inventory/resource limits,
-full affix evidence and Tier 1/2 identity coverage, and discard.
-Private package artifacts stay in `artifacts/vendor-host-0.3.9`; installation
-receipts stay in the existing private VM diagnostics/runtime directories.
+The owner started the job from the dashboard and left it in front. The job
+waited with zero Create requests and three empty production slots. Once the
+native game and vendor readiness checks passed, the same job advanced without
+Resume and submitted one Create. No queue transition arrived within the timeout.
+
+The runner stopped in review with one uncertain request and no confirmed new
+items or Keeps. Later passive reads still found empty production; native state
+still reported in-flight. The owner saw no error. Nothing was retried, repaired
+or reset. This verifies the waiting behavior and continuation into dispatch;
+a complete live 0.3.9 batch and the missing response diagnosis remain pending.
+
+All seven CI jobs passed for the installed source. Local validation remains
+2163 tests and 580 subtests passed, with 14 explicit skips.
+
+Active: diagnose the missing Create response and resolve its uncertain outcome
+before another crafting attempt. Native window opening, inventory/resource
+limits, full affix evidence and disposal remain after that.
+
+Publication approved by the owner on September 14. The implementation
+`e26a5e3` and this handoff are delivered on `codex/vendor-rolling`, targeting
+`codex/native-lifecycle-hardening` and then reviewed `main`.
+No integration or merge has occurred.
