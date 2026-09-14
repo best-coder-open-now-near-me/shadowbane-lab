@@ -35,6 +35,11 @@ capability and exact current-game binding checks. The previous job remains
 complete with three retained items; no new crafting action was sent during
 installation. The game stayed running on native 1.8.2. The test VM desktop
 WonderBane Vendor Dashboard shortcut and its opener now use host 0.3.9.
+Reopen that shortcut after an upgrade or browser reload. The token is retained
+only in page memory, so browser reload loses authentication; the dashboard
+Refresh button updates status without reloading the page. The owner encountered
+this during the check, and reopening through the launcher restored the
+authenticated URL. No new batch had started at that point.
 Remote Python 3.11/3.12/3.13, quality and PowerShell checks passed; both native
 profiles are still running. Live dashboard focus handoff qualification is pending.
 See [previous installed handoff](vendor-manager-0.3.8.md) for its exact package
