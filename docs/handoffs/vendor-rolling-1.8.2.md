@@ -126,5 +126,6 @@ received a distinct correlated queue addition before the next request. An
 independent owned-queue observation matched all three items as cooking.
 Detailed batch evidence and runtime identifiers are excluded from published source.
 No Keep or Junk has run. Completion assessment and automatic Keep are next;
-full recurring rolling remains unfinished. A bounded passive completion observer
-was started without sending further game actions.
+full recurring rolling remains unfinished. The five-minute passive completion
+observer detached normally without a completed result; a fresh independent read
+still matched all three batch items as cooking. No observer remains active.

@@ -699,7 +699,9 @@ waited for its distinct native queue transition. Its journal completed with
 three observed requests, three new items and capacity history [3]. A separate
 rooted read matched all three batch items and reported each as cooking.
 No Keep, Junk or replacement batch was issued. Detailed evidence is retained in the VM and excluded from Git.
-A bounded passive observer is collecting completion evidence for this batch.
+The bounded passive observer detached normally after its five-minute window
+without completed results. A fresh independent read still found all three batch
+items cooking. No observer remains active and no keep/discard action was issued.
 
 The live queue-filling hook is qualified for this exact package and recipe;
 this does not certify completed-item handling or the entire rolling loop.
