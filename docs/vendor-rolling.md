@@ -266,7 +266,37 @@ to one. Consumers must not treat the raw value as the accepted job count.
 The observer has now exercised JUNK, PRODUCE, and cooking CONFIRM_PRODUCE.
 Eighteen crafting tests and whole-tree Ruff pass. Completion observation,
 inventory reconciliation, and an admitted production dispatcher remain open.
-The latest observer is detached; reattachment awaits approval to use the test
-VM's provisioned credentials after automatic approval review blocked that access.
+Automatic approval review initially blocked reattachment using the test VM's
+provisioned credentials. The user subsequently approved that access and the
+source push; both operations succeeded.
 Raw captures remain private. This checkpoint changes only source, synthetic
 regression coverage, and these implementation notes.
+
+## Completion and keep acceptance
+
+After approval, the schema-2 observer reattached successfully and the source
+checkpoint was pushed. It observed completed CONFIRM_PRODUCE messages for the
+same virtual items previously seen cooking, with final modifier tokens, zero
+remaining time, and complete flags. A separate nearby vendor also generated a
+completion, confirming that subscribers must filter building and vendor identity.
+
+A user-triggered COMPLETE request was followed by CONFIRM_SETPRICE and
+CONFIRM_DEPOSIT. Visual inspection then confirmed the kept scepter in the
+selected vendor's inventory and an empty production slot. This verifies the
+manual keep workflow; the current decoder does not yet decode the nested
+inventory item in CONFIRM_DEPOSIT, so that reply alone is insufficient for
+automated inventory reconciliation.
+
+Observed lifecycle coverage now includes produce, cooking, completion, junk,
+and keep/deposit replies. No automatic command dispatcher is enabled. The
+user's testing included actions at both sages; the kept item was distinct from
+the two newest production IDs, so those captures must not be presented as one
+continuous single-item produce-through-keep sequence.
+
+Read-only native inspection identified these additional candidate RVAs:
+message constructor 0x3F9080, UI produce builder 0x6D7590, UI keep builder
+0x6D7080, and UI junk builder 0x6D6EB0. The produce builder takes two stack
+arguments and reads recipe/count/vendor state from its receiver. These are
+static candidates, not an approved callable profile. Next is qualifying that
+receiver and call contract, completing queue/inventory observations, and adding
+typed command admission before a bounded rolling job may invoke production.
