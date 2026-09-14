@@ -213,3 +213,21 @@ Remaining acceptance: recover/inspect the current game session, reconcile the
 unconfirmed keep against vendor inventory, capture a complete crafting message
 exchange, then implement and qualify bounded rolling admission and results.
 Automated production and stop-on-match remain unfinished and are not enabled.
+
+The same reviewed test client was reopened as PID 988, creation FILETIME
+134338345902905271. The corrected observer completed its 300-second window
+without a crafting message or incomplete invocation and detached cleanly. No
+additional game input was issued. Treehugger was visible near the city tree;
+returning to the sages and reconciling inventory remain the active live step.
+The private journal is C:/Users/tester/native-crafting-fixed-20260914.jsonl.
+Automatic approval review rejected a proposed guest-to-host journal copy,
+citing credential use and potentially sensitive log contents. No copy was
+performed, and the workflow continued with the observer's live output.
+
+Further source inspection of
+[ManageNPCMsg](https://repo.magicbane.com/MagicBane/Server/src/commit/7c3a3fb84c55c1efaa615f4ef2711173629a27c8/src/engine/net/client/msg/ManageNPCMsg.java)
+confirms distinct recipe, cooking-item, modifier-table, and inventory lists.
+Inventory entries delegate to Item.serializeForClientMsgWithoutSlot, so a
+complete inventory decoder must own that nested grammar. Native management
+class mapping is unresolved: ArcOrderNPCMessage belongs to the separate
+ORDERNPC family and must not be relabeled MANAGENPC based on its name.
