@@ -777,6 +777,12 @@ def _parser() -> argparse.ArgumentParser:
         "--json", action="store_true", help="emit machine-readable JSON"
     )
 
+    observe_vendor_queue = client_commands.add_parser(
+        "observe-native-vendor-queue", help="read the current vendor menu's production slots"
+    )
+    observe_vendor_queue.add_argument("--process-id", required=True, type=int)
+    observe_vendor_queue.add_argument("--json", action="store_true")
+
     trace_crafting = client_commands.add_parser(
         "trace-native-crafting", help="capture native crafting messages without sending actions"
     )

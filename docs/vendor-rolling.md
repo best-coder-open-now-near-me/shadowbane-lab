@@ -444,3 +444,45 @@ Validation: 55 focused equipment, policy, inventory, crafting, and debugger
 tests pass. Next remains the active task: a vendor/session-bound queue reader
 and UI-thread command adapter, followed by bounded rolling jobs. No crafting or
 item-disposal command has been enabled by this checkpoint.
+
+
+## Current-menu production queue reader
+
+The active ArcWindowGame owns its city manager at +0xA4 (constructor assignment
+RVA 0x7949F3). The manager owns the open management HUD at +0x78, and that HUD
+refers back through +0x104. The reader also requires the HUD to be present in the
+current native window's bounded HUD list. It then traverses the HUD child vector,
+the production list box's owned controls, and their ArcProductionEntry payloads,
+checking both the menu and list back-pointers.
+
+This replaces heap discovery for production slot observations. During the live
+check, two city-manager instances existed with the same building identity; the
+older detached manager retained an earlier item identity. The reader followed
+only the current native window and returned the two empty production slots shown
+in the user's open management menu. The repair-service row was excluded from
+the slot list. The nonempty slot layout is statically inspected and covered by
+synthetic tests; cooking/completed slot reads still need live qualification.
+
+Use the normal client command on the target machine:
+
+    shadowbane-lab client observe-native-vendor-queue --process-id PID --json
+
+read_native_vendor_queue accepts the existing WindowsReadOnlyProcessMemory
+interface, does not attach a debugger, and does not scan the heap. All pointer
+collections are bounded. Duplicate, broken, missing, changed or ambiguous
+ownership fails instead of returning an empty queue. A reverse verification
+pass rechecks every copied block, including the root and collection contents.
+The command closes its process handle on both success and failure.
+
+This external observation is not an atomic command lease, a login epoch, or a
+guarantee against same-address object reuse. It does not identify the sage from
+the building ID or infer that an empty displayed slot grants permission to
+produce. Vendor/recipe binding, native UI-thread admission, inventory ownership
+and bounded rolling jobs remain unfinished. No automatic crafting/disposal is
+enabled. Validation: 66 focused tests, CLI help and whole-tree Ruff.
+
+Delivery remains on codex/vendor-rolling, outside main. The next integration
+step is review with the current native lifecycle source before enabling a native
+command adapter; the normal main checkout and the other task's native worktree
+are unchanged. Private scratch stays in artifacts/vendor-protocol and the
+existing test-VM diagnostics directory.

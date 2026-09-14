@@ -1352,6 +1352,32 @@ def _observe_native_training(profile_path: Path | None, *, as_json: bool) -> int
     return 0
 
 
+def observe_native_vendor_queue(process_id: int, *, as_json: bool) -> int:
+    from shadowbane_lab.client_observation.native_health import WindowsReadOnlyProcessMemory
+    from shadowbane_lab.client_observation.native_vendor_queue import read_native_vendor_queue
+
+    try:
+        memory = WindowsReadOnlyProcessMemory.open_for_process("sb.exe", process_id)
+        try:
+            snapshot = read_native_vendor_queue(memory)
+        finally:
+            memory.close()
+    except (OSError, ValueError, RuntimeError) as exc:
+        return _error(f"native vendor queue unavailable: {exc}", as_json=as_json)
+    if as_json:
+        print(json.dumps({"ok": True, "snapshot": snapshot}, sort_keys=True))
+    else:
+        slots = snapshot["slots"]
+        counts = {state: sum(slot["state"] == state for slot in slots)
+                  for state in ("empty", "cooking", "complete")}
+        print(
+            f"Vendor production menu: {counts['empty']} empty, "
+            f"{counts['cooking']} cooking, {counts['complete']} complete. "
+            "Observation only; no crafting command is enabled."
+        )
+    return 0
+
+
 def trace_native_crafting(
     process_id: int, output: Path, *, timeout_seconds: float, max_messages: int, as_json: bool,
     capture_callers: bool = False,
