@@ -19,9 +19,10 @@ Create produced a separately correlated queue addition, and an independent
 read confirmed all three items cooking. The completed batch was subsequently
 finalized by automatic Keep; all three items were independently confirmed in
 the owned inventory. No automatic Junk has run.
-The complete rolling system remains unfinished: uninterrupted manager completion,
-native window opening, full inventory/resource capacity, complete affix evidence
-and destructive-action qualification are pending. Manager controls are implemented.
+The complete rolling system remains unfinished: window/focus handling, native
+window opening, full inventory/resource capacity, complete affix evidence and
+destructive-action qualification are pending. Manager controls and one
+uninterrupted three-item Create/wait/Keep batch are qualified on host 0.3.8.
 Unknown affixes remain protected by the exclusion policy.
 
 The dependency provides current native UI-thread, process/session lifetime and
@@ -124,10 +125,13 @@ tests prove the upstream grammar only; no live capture has been promoted.
    passed live Pause/Resume, and automatically kept all three items. Independent
    inventory confirmed the result. Two pre-Keep interruptions required evidence
    review; no mutation was replayed. This does not qualify uninterrupted operation.
-6. **Active:** qualify uninterrupted manager completion on installed host 0.3.8,
-   using its first-cause cancellation diagnostics if the interruption recurs.
-   Then qualify native window opening, inventory capacity/paging, resources,
-   full affix evidence and disposal before enabling recurring jobs.
+6. **Complete for one fresh batch:** installed host 0.3.8 filled three free slots,
+   cooked and automatically kept all three without interruption. One manager
+   Start succeeded with zero Resume operations; all six mutation receipts and
+   an independent inventory read confirmed the result. Unknowns were preserved.
+7. **Active:** production window/focus handling, followed by native window opening,
+   inventory capacity/paging, resources, full affix evidence and disposal before
+   enabling recurring jobs. Keep first-cause diagnostics for any recurrence.
 
 Current installed state: [host 0.3.8 handoff](handoffs/vendor-manager-0.3.8.md).
 The dated checkpoints below retain their historical scope.

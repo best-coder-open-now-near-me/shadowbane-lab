@@ -23,7 +23,7 @@ Two bounded passive checks exercised 1486 concurrent cancellation checks.
 The second also completed 122 native inspections with no transport rejection
 or inspection error. Neither probe stopped or sent a crafting command. This
 does not identify the earlier intermittent cancellation or qualify an
-uninterrupted crafting batch. The next real batch awaits the open random recipe.
+uninterrupted crafting batch by themselves. The subsequent real batch is qualified below.
 
 ## Package and validation
 
@@ -44,11 +44,53 @@ check receipts remain in the existing private diagnostics/runtime locations
 documented by [the previous handoff](vendor-manager-0.3.6.md). No captures,
 credentials, dashboard token or client binaries are published.
 
+## Uninterrupted batch qualification
+
+After a fresh desktop launch, the exact new game lifetime and manager binding
+were verified. Opening the dashboard took foreground focus; the owner returned
+focus to the game with the selected random Gilded Scepter recipe open. One
+manager Start filled all three observed free production slots.
+
+The owner opened the same vendor's Inventory and left the game in front.
+The existing job cooked and automatically kept all three items. Every Create
+has an observed receipt; every Keep has an observed-in-inventory receipt.
+An independent native inventory read found all three exact batch items and
+all production slots empty. The manager reported complete, created 3, kept 3,
+excluded 0, with no active or queued operation.
+
+The operation ledger for this fresh game instance contains exactly one vendor
+Start, succeeded, and zero vendor Resume operations. No job/journal was repaired,
+no item was discarded, and no replacement batch was started. All three
+decisions preserved unknown affixes. This qualifies one uninterrupted batch on
+host 0.3.8; it does not prove that the earlier intermittent dispatch failure
+cannot recur or establish its original cause.
+
+The private verifier and receipt are, respectively,
+`verify-uninterrupted-0.3.8.py` in the existing VM diagnostics share and
+`vendor-manager/uninterrupted-batch-0.3.8.json` in the test runtime.
+The receipt was recorded at 2026-09-14T16:34:04Z, with 563.6 seconds elapsed
+since the host job began. No raw item IDs or process/window addresses are published.
+
+## Operator entry points
+
+The test VM desktop has **WonderBane Vendor Test** for the native 1.8.2 game
+and **WonderBane Vendor Dashboard** for the installed 0.3.8 manager. The dashboard
+opener starts the manager if absent or opens the existing authenticated page.
+A restarted game receives a fresh binding; old process IDs must not be reused.
+
+Current limitation: native crafting requires the game in front and the selected
+vendor window ready. The dashboard can take foreground focus, and native
+recipe/inventory opening is not automated yet. The qualified batch used a
+programmatic manager Start after focus was restored; this is not qualification
+of a seamless browser-click-to-game-focus handoff.
+
 ## Active todo
 
-Qualify one uninterrupted manager batch, using fresh observed free capacity,
-and use the saved cancellation reason to diagnose any interruption.
-The selected vendor's random recipe must be open before Start; the owner's
-Inventory must be visible before automatic Keep. No unlimited refill or automatic
-Junk is enabled. Later work: native window opening, inventory/resource limits,
-full affix evidence and low-tier identity coverage, then discard qualification.
+Complete: one uninterrupted capacity batch with all Create/Keep receipts and
+independent inventory confirmation.
+
+Active: production window/focus handling so dashboard actions do not require
+a manual foreground handoff. Then qualify native recipe/inventory opening,
+inventory/resource limits, full affix evidence and low-tier identity coverage,
+and discard. No unlimited refill or automatic Junk is enabled. Preserve unknowns
+and retain first-cause cancellation evidence if the earlier interruption recurs.
