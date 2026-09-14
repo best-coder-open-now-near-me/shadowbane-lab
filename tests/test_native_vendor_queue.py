@@ -38,6 +38,7 @@ class Memory:
 
 ROOT, MANAGER, HUD, LIST = 0x100000, 0x110000, 0x120000, 0x130000
 CONTROL, ENTRY = 0x140000, 0x150000
+VENDOR = 0x1D0000
 
 
 def fixture():
@@ -54,6 +55,10 @@ def fixture():
     m.put(0x190000, "<II", 0x190100, 0x190100)
     m.put(0x190100, "<III", 0x190000, 0x190000, HUD)
     m.put(MANAGER + 0xF0, "<II", 2229645, 8)
+    m.put(MANAGER + 0xF8, "<II", 2229645, 8)
+    m.put(MANAGER + 0x384, "<I", VENDOR)
+    m.put(VENDOR, "<I", 0x1569518)
+    m.put(VENDOR + 0x10, "<II", 2517204, 42)
     m.put(HUD + 0x54, "<III", 0x160000, 0x160004, 0x160010)
     m.put(0x160000, "<I", LIST)
     m.put(LIST + 0x408, "<III", 0x170000, 0x170004, 0x170010)
@@ -72,7 +77,7 @@ class NativeVendorQueueTests(unittest.TestCase):
         self.assertFalse(out["command_admitted"])
         self.assertFalse(any(address == 0x180000 for address, _ in m.reads))
 
-    def test_reads_cooking_and_completed_identity_without_inventing_a_vendor(self):
+    def test_reads_cooking_and_completed_identity_for_the_selected_vendor(self):
         for complete, expected in ((0, "cooking"), (1, "complete")):
             m = fixture()
             m.put(ENTRY + 0x10, "<II", 4294646291, 40)
@@ -82,7 +87,7 @@ class NativeVendorQueueTests(unittest.TestCase):
             out = read_native_vendor_queue(m)
             self.assertEqual(expected, out["slots"][0]["state"])
             self.assertEqual(4294646291, out["slots"][0]["item"]["object_id"])
-            self.assertNotIn("vendor", out)
+            self.assertEqual({"object_id": 2517204, "object_type": 42}, out["vendor"])
 
     def test_rejects_logout_detached_menu_or_broken_parent_links(self):
         for address, value in (
@@ -222,7 +227,7 @@ def add_recipe(memory):
 class VendorRecipeBindingTests(unittest.TestCase):
     def test_binds_current_recipe_and_vendor_to_the_same_queue_snapshot(self):
         out = read_native_vendor_queue(add_recipe(fixture()))
-        self.assertEqual(2, out["schema_version"])
+        self.assertEqual(3, out["schema_version"])
         recipe = out["creation_recipe"]
         self.assertEqual({"object_id": 2517204, "object_type": 42}, recipe["vendor"])
         self.assertEqual({"object_id": 26990, "object_type": 0}, recipe["template"])
@@ -282,3 +287,36 @@ class VendorRecipeBindingTests(unittest.TestCase):
         m.put(0x1C0000, "<I", 0x156BF7C)
         with self.assertRaisesRegex(NativeVendorDialogCaptureError, "ambiguous"):
             read_native_vendor_queue(m)
+
+
+class SelectedVendorOwnershipTests(unittest.TestCase):
+    def test_vendor_remains_identified_without_recipe_window(self):
+        out = read_native_vendor_queue(fixture())
+        self.assertIsNone(out["creation_recipe"])
+        self.assertEqual(2517204, out["vendor"]["object_id"])
+        self.assertEqual(VENDOR, out["selected_vendor_entry_address"])
+        self.assertFalse(out["command_admitted"])
+
+    def test_rejects_missing_foreign_or_mixed_vendor_selection(self):
+        for address, value in (
+            (MANAGER + 0x384, 0), (VENDOR, 0x1569560), (VENDOR + 0x10, 0),
+            (VENDOR + 0x14, 40), (MANAGER + 0xD8, 1),
+            (MANAGER + 0xF8, 2229646), (MANAGER + 0xFC, 42),
+            (CREATION + 0x3C0, 2517205),
+        ):
+            m = add_recipe(fixture())
+            m.put(address, "<I", value)
+            with self.subTest(address=address), self.assertRaises(NativeVendorDialogCaptureError):
+                read_native_vendor_queue(m)
+
+    def test_rejects_vendor_or_building_changes_during_observation(self):
+        for address, size in (
+            (MANAGER + 0x384, 4), (VENDOR, 4), (VENDOR + 0x10, 8),
+            (MANAGER + 0xF8, 8), (MANAGER + 0xD8, 4),
+        ):
+            m = fixture()
+            m.change = (address, size, b"\xff" * size)
+            with self.subTest(address=address), self.assertRaisesRegex(
+                NativeVendorDialogCaptureError, "changed"
+            ):
+                read_native_vendor_queue(m)

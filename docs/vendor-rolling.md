@@ -535,3 +535,33 @@ foreign-owner, malformed or multiple active recipe windows fail closed.
 Validation now includes recipe/vendor changes during reads and active-list
 membership. Next: the native UI-thread command path and bounded job controller;
 the existing in-progress item can support completion verification.
+
+## Selected vendor ownership — September 14
+
+Queue snapshot schema 3 now follows the current ArcCityAssetManager's selected
+ArcHirelingEntry at +0x384, checks vtable RVA 0x1169518, and reads its identity
+at +0x10. The Keep builder's code at RVA 0x6D7127 passes this record to getter
+RVA 0x567F90. The current test menu independently resolved Malik (2517204/type42)
+through that link. An open recipe must name the same vendor. Management mode
+must be zero, and the building fields consumed separately by Create (+0xF0)
+and Keep (+0xF8) must agree. All links join the existing read consistency checks.
+
+The manual roll 4294925624/type40 was observed cooking and then complete in
+the same owned queue, with one other empty slot. Completion had zero timers,
+complete/active/modified flags set, and stable item identity. This is a live
+menu observation, not authoritative server inventory reconciliation or native
+command admission. An external consistency check cannot prevent object reuse
+or prove that asynchronous menu contents have finished updating.
+
+The bounded Keep callpath observer expired twice without a matching call,
+send, or deposit and detached normally. The item remained complete at the
+last read. Computer Use initialization and its single retry failed before any
+input (Node kernel exited; Windows sandbox deny-read ACL setup failed).
+No Keep or discard action was issued by the agent. The next live step is an
+armed Keep followed by current-vendor inventory confirmation.
+
+Validation: 75 focused Python tests pass, including 20 queue/recipe/vendor
+ownership tests. Missing or foreign hirelings, recipe/vendor mismatch, changed
+selection, mismatched building fields and mode changes reject the observation.
+The live schema-3 reader returned Malik and the completed roll successfully.
+The existing native transparency failures recorded above remain unchanged.

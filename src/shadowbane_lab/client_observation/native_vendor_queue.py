@@ -167,7 +167,7 @@ def read_native_vendor_queue(memory: VendorQueueMemory) -> dict[str, object]:
     owns +0x408, assigns control +0x3BC/+0x458, and uses payload +0x44C.
     Production entry creation/population: RVA 0x5B9200 / 0x6DBE90.
 
-    A returned slot is a menu observation only. Vendor identity, actual free-slot
+    A returned slot is a selected-vendor menu observation only. Actual free-slot
     permission, server acceptance, and a native session fence remain separate.
     """
     if (
@@ -196,6 +196,22 @@ def read_native_vendor_queue(memory: VendorQueueMemory) -> dict[str, object]:
     building_id, building_type = struct.unpack("<II", r.read(manager + 0xF0, 8))
     if not building_id or building_type != 8:
         raise NativeVendorDialogCaptureError("invalid vendor building identity")
+
+    # ArcCityAssetManager's selected ArcHirelingEntry is also the identity
+    # consumed by Keep at RVA 0x6D7127 -> getter RVA 0x567F90 (+0x10).
+    # Do not infer the vendor solely from an independently open recipe window.
+    r.require(manager + 0xD8, 0, "vendor management mode")
+    selected_vendor = r.word(manager + 0x384)
+    r.require(selected_vendor, base + 0x1169518, "selected hireling type")
+    vendor_id, vendor_type = struct.unpack("<II", r.read(selected_vendor + 0x10, 8))
+    if not vendor_id or vendor_type != 42:
+        raise NativeVendorDialogCaptureError("invalid selected vendor identity")
+    vendor = {"object_id": vendor_id, "object_type": vendor_type}
+    # Create and Keep consume separate building fields. A menu transition may
+    # leave one behind; a mixed observation cannot reconcile either command.
+    keep_building = struct.unpack("<II", r.read(manager + 0xF8, 8))
+    if keep_building != (building_id, building_type):
+        raise NativeVendorDialogCaptureError("vendor building selection mismatch")
 
     slots = []
     seen_controls: set[int] = set()
@@ -254,13 +270,16 @@ def read_native_vendor_queue(memory: VendorQueueMemory) -> dict[str, object]:
     if production_list is None:
         raise NativeVendorDialogCaptureError("current menu has no qualified production slots")
     recipe = _creation_recipe(r, base, active_huds, manager)
+    if recipe is not None and recipe["vendor"] != vendor:
+        raise NativeVendorDialogCaptureError("recipe and selected vendor mismatch")
     r.verify()
     return {
-        "schema_version": 2, "record_type": "vendor_queue_snapshot",
+        "schema_version": 3, "record_type": "vendor_queue_snapshot",
         "process_id": memory.pid, "process_creation_filetime_utc": lifetime,
         "executable_sha256": memory.executable_sha256,
         "native_window_address": root, "manager_address": manager, "menu_address": hud,
         "building": {"object_id": building_id, "object_type": building_type},
+        "vendor": vendor, "selected_vendor_entry_address": selected_vendor,
         "production_list_address": production_list, "slots": slots, "creation_recipe": recipe,
         "command_admitted": False,
     }
