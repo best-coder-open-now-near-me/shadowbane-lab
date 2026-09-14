@@ -20,10 +20,22 @@ Ruff and diff whitespace checks passed. Native 1.8.2 is unchanged.
 
 ## Delivery and next steps
 
-This commit is the package source checkpoint. Package and install host 0.3.10,
-update the test launcher's verifier to that host, and preserve current settings
-on relaunch. Then bind the prepared crafting trace to the fresh game lifetime.
-No failed crafting journal is replayed or cleared.
+Installed source: `1aee8d5ea684b215d70e2311387e5a139ee159c9`.
+Wheel SHA-256:
+`835bc7e05546a8b76f4577d6e7a8b90fe867c1bd7b58023bc9f9506e8c792fd7`.
+The installed verifier accepted the real runtime with its changed crash log
+preserved. The test launcher now uses host 0.3.10 and retains current client
+settings on launch. The dashboard shortcut, manager and worker were also
+updated to 0.3.10. A fresh game launched with the exact native 1.8.2 DLL;
+installed source identity, worker capability and game binding checks passed.
+The new instance has no crafting job. Prior failure journals remain untouched.
+Private packages are in `artifacts/vendor-host-0.3.10`; runtime receipts and
+crash evidence remain in the existing private VM diagnostics locations.
+
+Remote Python 3.11/3.12/3.13, quality and PowerShell syntax checks passed;
+both native profiles are still running.
+Active: wait for the owner to log in and open the random recipe, then arm
+the bounded request/reply trace against this fresh game lifetime.
 
 The 0.3.9 focus wait was observed, but its first Create remained unconfirmed.
 That outcome is separate from this launch correction. See the

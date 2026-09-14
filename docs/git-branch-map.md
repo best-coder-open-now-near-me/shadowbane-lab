@@ -50,7 +50,8 @@ kept. Host 0.3.9 adds a tested foreground readiness wait with pending receipt
 reconciliation. Source `e26a5e3` is installed and its exact worker/game binding
 passed read-only checks. The focus wait was observed, but its first Create
 remains unconfirmed. Host 0.3.10 corrects launch validation for the exact
-client-written crash log; installation and the fresh-session trace are next.
+client-written crash log. Source `1aee8d5` is installed; the exact runtime
+reopened and passed worker/binding checks. The fresh-session trace is next.
 Then native window opening and exclusion/disposal/resources remain.
 See [current manager handoff](handoffs/vendor-manager-0.3.10.md),
 [exact vendor package](handoffs/vendor-rolling-1.8.2.md) and
